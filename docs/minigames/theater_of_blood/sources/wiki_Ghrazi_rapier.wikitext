@@ -1,0 +1,110 @@
+{{Infobox Item
+|name = Ghrazi rapier
+|image = [[File:Ghrazi rapier.png]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = A razor sharp rapier, smeared with vampyric blood.
+|value = 5000000
+|weight = 1.814
+|exchange = Yes
+|id = 22324
+|leagueRegion = Morytania
+}}
+[[File:Ghrazi rapier detail.png|left|140px]]
+The '''Ghrazi rapier''' is a one-handed [[stab weapon]] obtainable as a rare drop from the [[Theatre of Blood]]. It requires level 80 [[Attack]] to wield. It provides the highest strength and stab bonus out of any weapon for its [[attack speed]]. This makes the rapier tied with the [[blade of Saeldor]] and the [[Inquisitor's mace]] for the [[melee]] weapon with the highest damage output for general use, although it is outperformed by the [[Osmumten's fang]] against high defence monsters and [[Scythe of Vitur]] against large monsters.
+
+The Ghrazi tribe was the most vicious [[vampyre]] tribe on [[Vampyrium]]. This rapier was once wielded by a fearsome Ghrazi warlord who was slain in battle by [[Verzik Vitur]]'s [[Sugadinti Vitur|father]], who gave it to Verzik.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=Of all Vampyriums tribes, none were more vicious than the Ghrazi. These vampyres took pride in their combat abilities and would regularly bait their prey into battle so that they could test their prowess. The rapier in Lady Verzik's vault was once wielded by a fearsome Ghrazi warlord. It was given to her by her father who came to possess it after the warlord challenged him to a battle, one that he did not survive to tell the tale.}}
+
+The rapier can be combined with a [[holy ornament kit]] to make a [[Saradomin]]-themed [[holy Ghrazi rapier]]. This cosmetic upgrade won't change the stats in any way, but it will make the rapier count as a Saradomin item in the [[God Wars Dungeon]].
+
+[[File:Ghrazi rapier attack.gif|thumb|240px|A player attacks an opponent with the Ghrazi rapier.]]
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +100
+|aslash = +55
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +93
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 4
+|attackrange = 1
+|combatstyle = Stab Sword
+|image = [[File:Ghrazi rapier equipped.png|160px]]
+|altimage = [[File:Ghrazi rapier equipped female.png|130px]]
+}}
+
+{{CombatStyles|Stab Sword|speed=4|attackrange=1}}
+
+==Products==
+{{Uses material list|Ghrazi rapier}}
+
+==Item sources==
+{{Drop sources|Ghrazi rapier}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip sword.wav|desc=Wielding}}
+{{SFXLine|file=Stabsword attack (stab).wav|desc=Attacking with stab}}
+{{SFXLine|file=Stabsword attack (slash).wav|desc=Attacking with slash}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Ghrazi rapier}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 July 2026
+|update = Summer Sweep-Up Gear & PvM Changes
+|change = The Ghrazi rapier has received the following changes:
+* [[Stab attack]] bonus increased from +94 to +100.
+* [[Strength bonus]] increased from +89 to +93.
+}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|change = The Ghrazi rapier now requires level 80 Attack to wield instead of level 75 Attack.
+}}
+{{Subject changes
+|date = 21 June 2018
+|update = Theatre of Blood Changes & Deadman Summer Finals
+|change = The stabbing animation changed from the standard [[sword]] variant to a unique one after player feedback.
+}}
+{{Subject changes
+|prerelease = yes
+|page = Ghrazi rapier (beta)
+|daterange = 8 - 17 March 2018
+|beta = Theatre of Blood Rewards Testing
+|change = First present in the Theatre of Blood Rewards beta.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The name of this weapon refers to [[Vampyre Houses#House Ghrazi|House Ghrazi]], a [[vampyre]] house known for their aggression and ferocity in battle.
+*Despite its examine text stating the rapier has been smeared in blood, there is no visible blood on the rapier when equipped or dropped.
+*Three Ghrazi rapiers, along with an uncharged scythe of vitur, can be [[Weapons (Death's Office)|seen]] leaning against a wall in [[Death's Office]].
+*The weapon’s model, level requirements, examine text, and stats closely resemble those of the {{RSL|chaotic rapier}}, first introduced on 12 April 2010 in ''RuneScape 2''.
+
+==References==
+{{Reflist}}
+
+{{Stab weapons}}
+{{Theatre of Blood}}
+[[Category:Collection log items]]

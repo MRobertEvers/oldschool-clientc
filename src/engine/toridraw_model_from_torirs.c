@@ -224,10 +224,10 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
 
     if( src->bounds_cylinder )
     {
-        dst->bounds_cylinder =
-            ToriDraw_BufCopy(src->bounds_cylinder, 1, sizeof(struct ToriDraw_BoundsCylinder));
-        if( !dst->bounds_cylinder )
-            goto fail;
+        /* Same bytes the ToriDraw_BufCopy used to take: the two cylinder
+         * structs are layout-identical, and the size is ToriDraw's. */
+        memcpy(&dst->bounds_cylinder, src->bounds_cylinder, sizeof(struct ToriDraw_BoundsCylinder));
+        dst->has_bounds_cylinder = true;
     }
     else if( dst->vertex_count > 0 && dst->vertices_x && dst->vertices_y && dst->vertices_z )
         ToriDraw_ModelSetBoundsCylinder(dst);

@@ -1,0 +1,403 @@
+diff --git a/src/painters/painters_bucket.u.c b/src/painters/painters_bucket.u.c
+index 7d289c587..12b056f65 100644
+--- a/src/painters/painters_bucket.u.c
++++ b/src/painters/painters_bucket.u.c
+@@ -23,6 +23,67 @@
+ #define BUCKET_PERF_INCREMENT(value) ((void)(value))
+ #endif
+ 
++/* --------------------------------------------------------------------------
++ * Round-4 XP hunt, route "sort": runtime arm selector for painter_paint_bucket.
++ * TORIRS_PB_MODE   0 = base (unmodified control)
++ *                  1 = fix   (classify level-defer + push-time level gate
++ *                             + cullspan test hoisted above the tiles[] read)
++ *                  2 = cls2  (INFLATION: classify scan run twice)
++ *                  3 = gate2 (INFLATION: four-direction gate run twice)
++ * TORIRS_PB_HASH=1 accumulate an FNV-1a hash of the emitted command stream and
++ *                  dump it, with pop/push/level-reject counts, at exit.
++ * ------------------------------------------------------------------------ */
++static int
++pb_mode(void)
++{
++    static int cached = -1;
++    if( cached < 0 )
++    {
++        const char* s = getenv("TORIRS_PB_MODE");
++        cached = s ? atoi(s) : 0;
++    }
++    return cached;
++}
++
++static volatile int g_pb_sink;
++
++static unsigned g_pb_hash = 2166136261u;
++static unsigned long g_pb_cmds;
++static unsigned long g_pb_frames;
++static unsigned long g_pb_pops;
++static unsigned long g_pb_lvlrej;
++static unsigned long g_pb_lvldefer;
++static int g_pb_hash_on = -1;
++
++static void
++pb_hash_dump(void)
++{
++    fprintf(
++        stderr,
++        "PB_STATS mode=%d frames=%lu cmds=%lu hash=%08x pops=%lu "
++        "lvlrej=%lu lvldefer=%lu\n",
++        pb_mode(),
++        g_pb_frames,
++        g_pb_cmds,
++        g_pb_hash,
++        g_pb_pops,
++        g_pb_lvlrej,
++        g_pb_lvldefer);
++}
++
++static int
++pb_hash_on(void)
++{
++    if( g_pb_hash_on < 0 )
++    {
++        const char* s = getenv("TORIRS_PB_HASH");
++        g_pb_hash_on = s ? atoi(s) : 0;
++        if( g_pb_hash_on )
++            atexit(pb_hash_dump);
++    }
++    return g_pb_hash_on;
++}
++
+ struct PainterBucketCtx
+ {
+     int bucket_heads[BUCKET_DIST_RANGE];
+@@ -106,6 +167,47 @@ bucket_push_if_active(
+     return 1;
+ }
+ 
++/* Round-4 route "sort": bucket_push_if_active plus the level gate the drain
++ * would otherwise apply after the pop. `gate_lvl` is (paintgrid_level > 0) for
++ * the completing tile; its in-plane neighbours share that slot. A refused tile
++ * is not lost: the tile below it pushes it from the completion path the moment
++ * it turns DONE (`paintgrid_level < levels - 1` up-push), and the perimeter
++ * seed generator is the standing liveness fallback either way. */
++static inline int
++bucket_push_if_active_lvl(
++    struct PainterBucketCtx* w,
++    struct TilePaint* paints,
++    int ti,
++    int dist,
++    int gate_lvl,
++    int level_stride,
++    int64_t* perf_pushes,
++    int64_t* perf_push_dedup)
++{
++    if( paints[ti].in_queue )
++    {
++        BUCKET_PERF_INCREMENT(*perf_push_dedup);
++        return 0;
++    }
++    if( paints[ti].step == PAINT_STEP_DONE )
++        return 0;
++    if( gate_lvl && paints[ti - level_stride].step != PAINT_STEP_DONE )
++    {
++        if( g_pb_hash_on > 0 )
++            g_pb_lvldefer++;
++        return 0;
++    }
++    bucket_push(w, paints, ti, dist);
++    BUCKET_PERF_INCREMENT(*perf_pushes);
++    if( painter_wedgelog_armed() )
++    {
++        char extra[32];
++        snprintf(extra, sizeof(extra), "d=%d", dist);
++        painter_wedgelog_event(ti, "PUSH", extra);
++    }
++    return 1;
++}
++
+ static inline int
+ bucket_queue_empty(struct PainterBucketCtx* w)
+ {
+@@ -686,7 +788,15 @@ painter_paint_bucket(
+      * what drives the traversal. */
+     int tiles_remaining = 0;
+     int tiles_in_box = 0;
++    const int pb_m = pb_mode();
++    const int pb_fix = (pb_m == 1);
++    const int pb_cls2 = (pb_m == 2) ? 1 : 0;
++    const int pb_gate2 = (pb_m == 3);
++    (void)pb_hash_on();
+     bucket_reset(w);
++    for( int cls_pass = 0; cls_pass <= pb_cls2; cls_pass++ )
++    {
++    const int cls_live = (cls_pass == pb_cls2);
+     for( int s = min_level; s < max_level; s++ )
+     {
+         for( int z = min_draw_z; z < max_draw_z; z++ )
+@@ -720,8 +830,8 @@ painter_paint_bucket(
+ 
+             for( int x = min_draw_x, ti = row; x < max_draw_x; x++, ti++ )
+             {
+-                tiles_in_box++;
+-                struct PaintersTile* t = &tiles[ti];
++                if( cls_live )
++                    tiles_in_box++;
+                 struct TilePaint* tp = &paints[ti];
+ 
+                 tp->near_wall_flags = 0;
+@@ -731,6 +841,21 @@ painter_paint_bucket(
+                 tp->seam_relaxed = 0;
+                 tp->seam_scan = 0;
+ 
++                /* Route "sort": the cullspan test needs only x/z, so running it
++                 * first keeps the 36-byte PaintersTile out of the cache for the
++                 * ~5.4k tiles per frame the span culls. Same outcome either
++                 * order -- both set step = DONE and continue. */
++                if( pb_fix && cullspan_active )
++                {
++                    if( row_culled || x < span_lo || x >= span_hi )
++                    {
++                        tp->step = PAINT_STEP_DONE;
++                        continue;
++                    }
++                }
++
++                struct PaintersTile* t = &tiles[ti];
++
+                 int tile_visible_gte_level = painters_tile_get_visible_gte_level(t);
+                 if( tile_excluded_by_bridge_or_draw_mask(
+                         painters_tile_get_flags(t), tile_visible_gte_level, draw_mask) )
+@@ -741,7 +866,7 @@ painter_paint_bucket(
+ 
+                 if( cullspan_active )
+                 {
+-                    if( row_culled || x < span_lo || x >= span_hi )
++                    if( !pb_fix && (row_culled || x < span_lo || x >= span_hi) )
+                     {
+                         tp->step = PAINT_STEP_DONE;
+                         continue;
+@@ -769,14 +894,38 @@ painter_paint_bucket(
+                 }
+ 
+                 tp->step = PAINT_STEP_READY;
++                if( !cls_live )
++                    continue;
+                 tiles_remaining++;
+                 if( painter_wedgelog_armed() )
+                     painter_wedgelog_event(ti, "MARK", NULL);
+-                bucket_push(w, paints, ti, abs(x - camera_sx) + adz);
+-                BUCKET_PERF_INCREMENT(perf_pushes);
++                /* Route "sort": a tile at grid level > 0 whose below-tile is not
++                 * DONE is rejected by the drain's level gate on every pop and is
++                 * re-pushed by that below-tile's completion anyway. Skipping the
++                 * bulk push here removes the pop entirely. Slot s-1 is fully
++                 * classified before slot s (s ascends), so the test is exact. */
++                {
++                    int defer = 0;
++                    if( pb_fix && s > 0 &&
++                        painters_tile_get_paintgrid_level(t) > 0 &&
++                        paints[ti - level_stride].step != PAINT_STEP_DONE )
++                    {
++                        defer = 1;
++                        if( g_pb_hash_on > 0 )
++                            g_pb_lvldefer++;
++                    }
++                    if( !defer )
++                    {
++                        bucket_push(w, paints, ti, abs(x - camera_sx) + adz);
++                        BUCKET_PERF_INCREMENT(perf_pushes);
++                    }
++                }
+             }
+         }
+     }
++    /* INFLATION arm cls2: keep the first scan's stores alive across the pass. */
++    __asm__ __volatile__("" ::: "memory");
++    }
+ 
+     /* Hard upper bound: each wall can emit twice (far + near); terrain once per box
+      * tile; scenery/ground/decor at most once each. */
+@@ -885,6 +1034,8 @@ painter_paint_bucket(
+         if( e_tile < 0 )
+             continue;
+         BUCKET_PERF_INCREMENT(perf_pops);
++        if( g_pb_hash_on > 0 )
++            g_pb_pops++;
+         if( painter_wedgelog_armed() )
+         {
+             char extra[32];
+@@ -917,10 +1068,63 @@ painter_paint_bucket(
+                     if( paints[e_tile - level_stride].step != PAINT_STEP_DONE )
+                     {
+                         BUCKET_PERF_INCREMENT(perf_gate_rejects);
++                        if( g_pb_hash_on > 0 )
++                            g_pb_lvlrej++;
+                         continue;
+                     }
+                 }
+ 
++                /* INFLATION arm gate2: an identical, short-circuiting replay of
++                 * the four-direction gate below. bucket_gate_blocks memoizes
++                 * TilePaint.seam_scan and sets `relaxed`, both idempotent, so
++                 * the replay is output-identical; the index is laundered and the
++                 * result sunk so GCC cannot fold the two sequences together. */
++                if( pb_gate2 )
++                {
++                    int et = e_tile;
++                    int rel2 = 0;
++                    int blk2 = 0;
++                    int lat_we2 = adz > adx;
++                    int lat_ns2 = adx > adz;
++                    __asm__("" : "+r"(et));
++                    do
++                    {
++                        if( tile_is_west_inbounds(tile_sx, camera_sx, min_draw_x) &&
++                            bucket_gate_blocks(
++                                painter, tile, et - 1, SPAN_FLAG_WEST, camera_sx,
++                                camera_sz, tile_dist, lat_we2, &rel2) )
++                        {
++                            blk2 = 1;
++                            break;
++                        }
++                        if( tile_is_east_inbounds(tile_sx, camera_sx, max_draw_x) &&
++                            bucket_gate_blocks(
++                                painter, tile, et + 1, SPAN_FLAG_EAST, camera_sx,
++                                camera_sz, tile_dist, lat_we2, &rel2) )
++                        {
++                            blk2 = 2;
++                            break;
++                        }
++                        if( tile_is_south_inbounds(tile_sz, camera_sz, min_draw_z) &&
++                            bucket_gate_blocks(
++                                painter, tile, et - width, SPAN_FLAG_SOUTH, camera_sx,
++                                camera_sz, tile_dist, lat_ns2, &rel2) )
++                        {
++                            blk2 = 3;
++                            break;
++                        }
++                        if( tile_is_north_inbounds(tile_sz, camera_sz, max_draw_z) &&
++                            bucket_gate_blocks(
++                                painter, tile, et + width, SPAN_FLAG_NORTH, camera_sx,
++                                camera_sz, tile_dist, lat_ns2, &rel2) )
++                        {
++                            blk2 = 4;
++                            break;
++                        }
++                    } while( 0 );
++                    g_pb_sink = blk2 + rel2;
++                }
++
+                 /* Match painter_paint_world3d draw_front adjacent deps, plus
+                  * the seam exception (bucket_gate_blocks). */
+                 int relaxed = 0;
+@@ -1400,49 +1604,72 @@ painter_paint_bucket(
+                 &perf_push_dedup);
+         }
+ 
+-        if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
+-        {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile + width,
+-                adx + abs(tile_sz + 1 - camera_sz),
+-                &perf_pushes,
+-                &perf_push_dedup);
+-        }
+-        if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
+-        {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile - 1,
+-                abs(tile_sx - 1 - camera_sx) + adz,
+-                &perf_pushes,
+-                &perf_push_dedup);
+-        }
+-        if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
+-        {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile - width,
+-                adx + abs(tile_sz - 1 - camera_sz),
+-                &perf_pushes,
+-                &perf_push_dedup);
+-        }
+-        if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
+         {
+-            bucket_push_if_active(
+-                w,
+-                paints,
+-                e_tile + 1,
+-                abs(tile_sx + 1 - camera_sx) + adz,
+-                &perf_pushes,
+-                &perf_push_dedup);
++            int gate_lvl = pb_fix && paintgrid_level > 0;
++            if( tile_inward_north_inbounds(tile_sz, camera_sz, max_draw_z) )
++            {
++                bucket_push_if_active_lvl(
++                    w,
++                    paints,
++                    e_tile + width,
++                    adx + abs(tile_sz + 1 - camera_sz),
++                    gate_lvl,
++                    level_stride,
++                    &perf_pushes,
++                    &perf_push_dedup);
++            }
++            if( tile_inward_west_inbounds(tile_sx, camera_sx, min_draw_x) )
++            {
++                bucket_push_if_active_lvl(
++                    w,
++                    paints,
++                    e_tile - 1,
++                    abs(tile_sx - 1 - camera_sx) + adz,
++                    gate_lvl,
++                    level_stride,
++                    &perf_pushes,
++                    &perf_push_dedup);
++            }
++            if( tile_inward_south_inbounds(tile_sz, camera_sz, min_draw_z) )
++            {
++                bucket_push_if_active_lvl(
++                    w,
++                    paints,
++                    e_tile - width,
++                    adx + abs(tile_sz - 1 - camera_sz),
++                    gate_lvl,
++                    level_stride,
++                    &perf_pushes,
++                    &perf_push_dedup);
++            }
++            if( tile_inward_east_inbounds(tile_sx, camera_sx, max_draw_x) )
++            {
++                bucket_push_if_active_lvl(
++                    w,
++                    paints,
++                    e_tile + 1,
++                    abs(tile_sx + 1 - camera_sx) + adz,
++                    gate_lvl,
++                    level_stride,
++                    &perf_pushes,
++                    &perf_push_dedup);
++            }
+         }
+     }
+ 
+     buffer->command_count = (int)(cmd_cur - cmd_base);
++    if( g_pb_hash_on > 0 )
++    {
++        unsigned h = g_pb_hash;
++        for( int i = 0; i < buffer->command_count; i++ )
++        {
++            h ^= cmd_base[i]._packed;
++            h *= 16777619u;
++        }
++        g_pb_hash = h;
++        g_pb_cmds += (unsigned long)buffer->command_count;
++        g_pb_frames++;
++    }
+     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_PAINTER_COMMANDS, buffer->command_count);
+ 
+     painter_wedgelog_frame_end((long)buffer->command_count);

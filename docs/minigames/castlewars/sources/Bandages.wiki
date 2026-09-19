@@ -1,0 +1,70 @@
+{{External|rs=Bandages (Castle Wars)}}
+{{Otheruses|the Castle Wars item}}
+{{Infobox Item
+|name = Bandages
+|image = [[File:Bandages.png]]
+|release = [[13 December]] [[2004]]
+|update = Castle Wars
+|members = No
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Heal, Drop
+|examine = A box of bandages for healing.
+|value = 1
+|alchable = No
+|weight = 0.001
+|id = 4049
+}}
+[[File:Bandages detail.png|left|130px]]
+'''Bandages''' are a healing item that can only be obtained in [[Castle Wars]]. After the game has ended, or if the player left the game early, all bandages in a player's [[inventory]] will disappear.
+
+Bandages are found on the table in the start room. They restore 10%{{Fact|2 April 2025 update made them scale with HP level; do these just use the anglerfish formula now?}} of a player's [[hitpoints]] (rounded down) and 30% of a player's run energy. By wearing a [[Castle wars bracelet]], the amount healed will be increased by 50%. It is possible to use bandages on other players to heal them.
+
+On non-designed Castle Wars worlds, bandages can only heal up 18 hitpoints at a time.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = On non-designated [[Castle Wars]] worlds, bandages will heal a maximum of 18 hitpoints.
+}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Bandages no longer overheal in games of Castle Wars on non-Castle Wars themed worlds.
+}}
+{{Subject changes
+|date = 2 April 2025
+|update = Poll 83: Castle Wars Update
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = Bandages now scale with your [[Hitpoints]] level and can overheal, similar to [[anglerfish]].
+}}
+{{Subject changes
+|date = 16 February 2022
+|update = 9th Birthday Event
+|change = The red cross symbol has been changed to a red asterisk to comply with [https://ihl-databases.icrc.org/customary-ihl/eng/docs/v2_rul_rule59 Article 53 of the 1949 Geneva Convention I] as well as Section 6 of the United Kingdom's [https://www.legislation.gov.uk/ukpga/Eliz2/5-6/52/section/6 Geneva Conventions Act 1957].
+}}
+{{Subject changes
+|date = 20 July 2017
+|update = F2P Castle Wars
+|change = The item was made available to free-to-play players.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Bandages detail v1.png|center|300x150px]]
+|[[File:Bandages detail.png|center|300x150px]]
+|-
+|[[File:Bandages v1.png|center]]
+|[[File:Bandages.png|center]]
+|-
+|13 December 2004 –<br/>16 February 2022
+|16 February 2022 –<br/>present
+|}
+
+{{Castle Wars}}

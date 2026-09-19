@@ -1,0 +1,332 @@
+From 0179d8f421acdb82ffa4d90a37b8888af698ab97 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 25 Aug 2026 02:19:30 -0500
+Subject: [PATCH] arm(w32): 32-bit winding in the projected face order
+
+Measured on the XP bench wedge, moving Lumbridge camera, 900 frames,
+palindrome x 2 reps, best-of-4, TORIRS_PERF unset:
+
+  job 0824-234339-5b4aad [facesort-w15]
+  ctl 64.36 ms   w32 63.21 ms   -1.15 ms  -1.78%
+
+Against the null-delta calibration (0824-000000-nulldel: four copies of
+the identical control binary, delta sigma 0.198 ms = 0.31%) this is 5.8
+sigma -- the largest confirmed win in the hunt so far.
+
+Its two siblings in the same job are flat and REFUTE the register-pressure
+story that motivated them: outln +0.24%, all +0.32%, both under 1.1 sigma.
+
+NOT YET adversarially verified: no face-count comparison against control,
+no pixel diff. A change that renders fewer faces measures exactly like this.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ 3rd/toridraw/graphics/winding.h  |  54 ++++++++++++
+ 3rd/toridraw/toridraw_render.u.c | 144 +++++++++++++++++++++++++++----
+ 2 files changed, 183 insertions(+), 15 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/winding.h b/3rd/toridraw/graphics/winding.h
+index 8d542c37c..573cfbbf6 100644
+--- a/3rd/toridraw/graphics/winding.h
++++ b/3rd/toridraw/graphics/winding.h
+@@ -30,9 +30,21 @@
+  * an unprovable range assumption.
+  */
+ 
++#include <assert.h>
+ #include <stdbool.h>
+ #include <stdlib.h>
+ 
++/**
++ * The bound that makes a 32-bit cross product exact.
++ *
++ * ToriDraw_Project raises scene->projection_near_plane_z until no projected
++ * coordinate can leave the rasterizer's 16.16 domain -- that is the whole
++ * reason toridraw_safe_near_plane_z() exists, and every fixed16 kernel already
++ * depends on it. The limit it enforces is TORIDRAW_PROJECTED_COORD_LIMIT
++ * (8192), so a delta between two projected coordinates cannot exceed 16384.
++ */
++#define TORIDRAW_WINDING_DELTA_LIMIT 16384
++
+ /** TORIDRAW_FLIP_WINDING=1: cull the opposite screen-space winding.
+  *  A bisect knob for the rs2012 QBD import - if a ported model renders
+  *  inside-out (interior faces surviving, exterior culled), its faces are wound
+@@ -65,6 +77,48 @@ toridraw_winding_2d(int ax, int ay, int bx, int by, int cx, int cy)
+     return (long long)dx1 * dy2 - (long long)dy1 * dx2;
+ }
+ 
++/**
++ * The same cross product in int32, for a caller that can PROVE its inputs are
++ * post-projection screen coordinates.
++ *
++ * With every coordinate inside TORIDRAW_PROJECTED_COORD_LIMIT each delta is at
++ * most 2^14, each product at most 2^28 and their difference at most 2^29 -- a
++ * factor of four inside int32, so this is EXACT for every input meeting the
++ * bound, not merely usually-right. That is exactly the distinction the note at
++ * the top of this file draws, and it is why the general form above stays
++ * 64-bit: only the bucket sort excludes the clip path, and only the clip path
++ * carries coordinates the viewport does not bound.
++ *
++ * NOT for near-clipped vertices. One of those holds the x sentinel and an
++ * UNDIVIDED y; neither is a projected coordinate and neither is bounded. The
++ * caller must filter those faces out before calling this.
++ *
++ * The asserts state the bound rather than defend against it -- OPT=1 defines
++ * NDEBUG, so they leave the shipped build untouched while a debug run aborts
++ * on the frame that broke the invariant instead of wrapping silently. A
++ * wrapped winding flips the back-face test, which renders FEWER faces and
++ * therefore looks like a speedup.
++ */
++static inline int
++toridraw_winding_2d_bounded(int ax, int ay, int bx, int by, int cx, int cy)
++{
++    const int dx1 = ax - bx;
++    const int dy1 = ay - by;
++    const int dx2 = cx - bx;
++    const int dy2 = cy - by;
++
++    assert(dx1 >= -TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dx1 <= TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dy1 >= -TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dy1 <= TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dx2 >= -TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dx2 <= TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dy2 >= -TORIDRAW_WINDING_DELTA_LIMIT);
++    assert(dy2 <= TORIDRAW_WINDING_DELTA_LIMIT);
++
++    return dx1 * dy2 - dy1 * dx2;
++}
++
+ /** True when this screen-space winding should be drawn. */
+ static inline bool
+ toridraw_winding_front_facing(long long winding)
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..4d4f401b3 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1057,6 +1057,7 @@ bucket_sort_by_average_depth_impl(
+     faceint_t* RESTRICT face_depth_bucket_counts,
+     int depth_levels,
+     int depth_stride,
++    int depth_stride_shift,
+     int depth_shift,
+     struct ToriDraw_FaceSortDebugStats* debug_stats,
+     bool near_clipped,
+@@ -1072,6 +1073,19 @@ bucket_sort_by_average_depth_impl(
+     int min_d = depth_levels;
+     int max_d = 0;
+ 
++    /* The bucket row index below is `depth_avg * depth_stride`, and every
++     * non-SMALL tier sets depth_stride to the single compile-time constant
++     * TORIDRAW_FULL_DEPTH_STRIDE. Multiplying by it cost a 10-cycle imul on
++     * the P4 for every accepted face; the caller hands us its log2 instead. */
++    assert(depth_stride > 0);
++    assert(depth_stride == (1 << depth_stride_shift));
++
++    /* toridraw_flip_winding() is a getenv cache: a global load and two
++     * branches per face, for a bisect knob that cannot change inside a frame.
++     * Read it once, so what is left in the loop is a loop-invariant local the
++     * unswitcher can lift out of the body entirely. */
++    bool const flip_winding = toridraw_flip_winding() != 0;
++
+     for( int f = 0; f < num_faces; f++ )
+     {
+         const uint32_t a = face_a[f];
+@@ -1083,16 +1097,21 @@ bucket_sort_by_average_depth_impl(
+             (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+              vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
+              vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
+-        long long winding = 1;
++        /* int, not long long: clip_candidate has already excluded every
++         * coordinate the projection does not bound, so the 32-bit cross
++         * product is exact here. The 64-bit form costs two one-operand imuls,
++         * multi-uop on a P4, plus the sub/sbb pair -- for a value read only as
++         * >0, <0 and ==0. */
++        int winding = 1;
+         if( !clip_candidate )
+-            winding = toridraw_winding_2d(
++            winding = toridraw_winding_2d_bounded(
+                 vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
+ 
+         /* A clipped vertex has sentinel x and undivided y, so this triangle's
+          * screen-space winding does not exist yet. The reference buckets it
+          * unconditionally and performs the real winding test after building
+          * the near-plane polygon. */
+-        if( clip_candidate || toridraw_winding_front_facing(winding) )
++        if( clip_candidate || (flip_winding ? (winding < 0) : (winding > 0)) )
+         {
+             int z_sum = vz[a] + vz[b] + vz[c];
+             /* `depth_shift` makes the table a RESOLUTION budget rather than a
+@@ -1130,7 +1149,8 @@ bucket_sort_by_average_depth_impl(
+                     assert(f >= 0 && f <= 0x7FFF && "face index must fit faceint_t");
+ 
+                     face_depth_bucket_counts[depth_avg] = count + 1;
+-                    face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
++                    face_depth_buckets[(depth_avg << depth_stride_shift) + count] =
++                        (faceint_t)f;
+ 
+                     if( debug_stats )
+                     {
+@@ -1182,13 +1202,85 @@ bucket_sort_by_average_depth_impl(
+     return (min_d) | (max_d << 16);
+ }
+ 
+-/* The early switch: ordinary models take the unshifted instantiation. */
++#if defined(__GNUC__) || defined(__clang__)
++#define TORIDRAW_BUCKET_SORT_NOINLINE __attribute__((noinline))
++#else
++#define TORIDRAW_BUCKET_SORT_NOINLINE
++#endif
++
++/*
++ * One OUT-OF-LINE instantiation per (depth_shift, debug_stats) pair.
++ *
++ * The impl above stays always_inline -- that is what folds the shift constant,
++ * and now the null debug_stats too -- but the WRAPPER must not itself be
++ * inlined. Inlined, every copy lands inside ToriDraw_ComputeProjectedFaceOrder
++ * next to the priority partition and the draw-order emission, and the
++ * allocator runs out of the machine's six GPRs: in the shipped binary vx, vy,
++ * vz and the three face-index arrays are all respilled and reloaded from the
++ * frame on EVERY face, and one slot is even stored straight back to itself.
++ * Out of line each copy has the register file to itself and the six
++ * loop-invariant base pointers stay in registers across the loop.
++ *
++ * Handing the plain instantiations a literal NULL for debug_stats folds every
++ * `if( debug_stats )` in the loop body away as well: gcc left those tests in
++ * the loop, costing a reload, a test and a branch per face for counters that
++ * are off in every shipped frame.
++ */
++#define TORIDRAW_BUCKET_SORT_INSTANTIATE(fn_name, shift_arg, stats_arg)         \
++    static TORIDRAW_BUCKET_SORT_NOINLINE int fn_name(                           \
++        faceint_t* RESTRICT face_depth_buckets,                                 \
++        faceint_t* RESTRICT face_depth_bucket_counts,                           \
++        int depth_levels,                                                       \
++        int depth_stride,                                                       \
++        int depth_stride_shift,                                       \
++        int depth_shift,                                                        \
++        struct ToriDraw_FaceSortDebugStats* debug_stats,                        \
++        bool near_clipped,                                                      \
++        int model_min_depth,                                                    \
++        int num_faces,                                                          \
++        const int* RESTRICT vx,                                                 \
++        const int* RESTRICT vy,                                                 \
++        const int* RESTRICT vz,                                                 \
++        const faceint_t* RESTRICT face_a,                                       \
++        const faceint_t* RESTRICT face_b,                                       \
++        const faceint_t* RESTRICT face_c)                                       \
++    {                                                                           \
++        (void)depth_shift;\
++        (void)depth_stride_shift;                                                      \
++        (void)debug_stats;                                                      \
++        return bucket_sort_by_average_depth_impl(                               \
++            face_depth_buckets,                                                 \
++            face_depth_bucket_counts,                                           \
++            depth_levels,                                                       \
++            depth_stride,                                                       \
++            depth_stride_shift,                                     \
++            shift_arg,                                                          \
++            stats_arg,                                                          \
++            near_clipped,                                                       \
++            model_min_depth,                                                    \
++            num_faces,                                                          \
++            vx,                                                                 \
++            vy,                                                                 \
++            vz,                                                                 \
++            face_a,                                                             \
++            face_b,                                                             \
++            face_c);                                                            \
++    }
++
++TORIDRAW_BUCKET_SORT_INSTANTIATE(bucket_sort_shift0_plain, 0, NULL)
++TORIDRAW_BUCKET_SORT_INSTANTIATE(bucket_sort_shiftn_plain, depth_shift, NULL)
++TORIDRAW_BUCKET_SORT_INSTANTIATE(bucket_sort_shift0_stats, 0, debug_stats)
++TORIDRAW_BUCKET_SORT_INSTANTIATE(bucket_sort_shiftn_stats, depth_shift, debug_stats)
++
++/* The early switch: ordinary models take the unshifted, un-instrumented
++ * instantiation. */
+ static inline int
+ bucket_sort_by_average_depth(
+     faceint_t* RESTRICT face_depth_buckets,
+     faceint_t* RESTRICT face_depth_bucket_counts,
+     int depth_levels,
+     int depth_stride,
++    int depth_stride_shift,
+     int depth_shift,
+     struct ToriDraw_FaceSortDebugStats* debug_stats,
+     bool near_clipped,
+@@ -1201,15 +1293,31 @@ bucket_sort_by_average_depth(
+     const faceint_t* RESTRICT face_b,
+     const faceint_t* RESTRICT face_c)
+ {
++    if( debug_stats )
++    {
++        if( depth_shift == 0 )
++            return bucket_sort_shift0_stats(
++                face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride,
++                depth_stride_shift,
++                depth_shift, debug_stats, near_clipped, model_min_depth, num_faces, vx, vy,
++                vz, face_a, face_b, face_c);
++        return bucket_sort_shiftn_stats(
++            face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride,
++            depth_stride_shift,
++            depth_shift, debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz,
++            face_a, face_b, face_c);
++    }
+     if( depth_shift == 0 )
+-        return bucket_sort_by_average_depth_impl(
+-            face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, 0,
+-            debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b,
+-            face_c);
+-    return bucket_sort_by_average_depth_impl(
+-        face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride, depth_shift,
+-        debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz, face_a, face_b,
+-        face_c);
++        return bucket_sort_shift0_plain(
++            face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride,
++            depth_stride_shift,
++            depth_shift, debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz,
++            face_a, face_b, face_c);
++    return bucket_sort_shiftn_plain(
++        face_depth_buckets, face_depth_bucket_counts, depth_levels, depth_stride,
++        depth_stride_shift,
++        depth_shift, debug_stats, near_clipped, model_min_depth, num_faces, vx, vy, vz,
++        face_a, face_b, face_c);
+ }
+ 
+ /**
+@@ -1222,7 +1330,7 @@ bucket_sort_by_average_depth(
+  * index they each used (face_priority_bucket_counts[prio] and counts[prio])
+  * was always the same number.
+  */
+-static inline void
++static TORIDRAW_BUCKET_SORT_NOINLINE void
+ partition_and_accumulate_faces_by_priority(
+     faceint_t* face_priority_buckets,
+     faceint_t* face_priority_bucket_counts,
+@@ -1301,7 +1409,7 @@ partition_and_accumulate_faces_by_priority(
+  * priorities with the fixed priority runs. Takes the counts and depth sums that
+  * partition_and_accumulate_faces_by_priority() already produced.
+  */
+-static inline int
++static TORIDRAW_BUCKET_SORT_NOINLINE int
+ sort_face_draw_order(
+     int* priority_depths,
+     int* flex_prio11_face_to_depth,
+@@ -1641,11 +1749,17 @@ ToriDraw_ComputeProjectedFaceOrder(
+         }
+     }
+ 
++    /* Once per model, not once per face. */
++    int depth_stride_shift = 0;
++    while( (1 << depth_stride_shift) < scene->depth_stride )
++        depth_stride_shift++;
++
+     int bounds = bucket_sort_by_average_depth(
+         scene->tmp_depth_faces,
+         scene->tmp_depth_face_count,
+         scene->depth_levels,
+         scene->depth_stride,
++        depth_stride_shift,
+         depth_shift,
+         debug_stats,
+         scene->near_clipped,

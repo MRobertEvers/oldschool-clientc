@@ -1,0 +1,289 @@
+{{Redirect2|Giant boss|the [[moss giant]] [[boss]]|Bryophyta|the [[fire giant|fire]] and [[ice giant|ice]] giant bosses|Royal Titans}}
+{{Instance}}
+{{HasTask|Hill giants}}
+{{Infobox Monster
+|name = Obor
+|image = [[File:Obor.png|170px]]
+|release = [[6 October]] [[2016]]
+|update = The Hill Giant Boss
+|members = No
+|combat = 106
+|size = 2
+|examine = He looks very dangerous.
+|xpbonus = 7.5
+|max hit = 22 ([[Melee]]), 26 ([[Ranged]])
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]], [[Ranged]]
+|attack speed = 6
+|slayxp = 129
+|cat = Hill Giants
+|assignedby = mazchna,vannaka
+|hitpoints = 120
+|att = 90
+|str = 100
+|def = 60
+|mage = 1
+|range = 120
+|attbns = 100
+|strbns = 68
+|amagic = 0
+|mbns = 0
+|arange = 100
+|rngbns = 65
+|dstab = 35
+|dslash = 40
+|dcrush = 45
+|dmagic = 20
+|dlight = 20
+|dstandard = 20
+|dheavy = 20
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 20
+|poisonresistance = 100
+|venomresistance = 100
+|dropversion = Members,Free-to-play
+|id = 7416
+|leagueRegion = Misthalin
+}}
+'''Obor''', the Hill Titan, is the hill [[Giant (race)|giant]] [[boss]] residing in his lair, located behind the locked gates found at the western wall of the hill giant area in the [[Edgeville Dungeon]].
+
+A [[giant key]] is needed to unlock the [[Gate (Obor)|gate]] leading to Obor's lair for the first time, which may be acquired by killing [[Hill Giants]]. Subsequent access to the lair does not require a key. The key will not be consumed when unlocking Obor's lair. When the player first enters Obor's lair, they will be in a safe zone, where they must climb down the rocks in order to fight him. Obor attacks with [[Melee]] and [[Ranged]].
+
+After defeating Obor, the [[Chest_(Obor's_lair)|chest]] present in his lair can be opened for loot by consuming the [[giant key]], similarly to [[Bryophyta]].
+
+Obor can be fought repeatedly by attempting to open [[Chest (Obor's Lair)|his chest]]. This will trigger him to respawn shortly after, regardless of whether the player has a [[giant key]] in their inventory. This means you can continue to kill him as a method of obtaining more keys, which he drops at a rate of 1/16. However, using the key on the chest is required for the [[kill count]] to increase and to obtain the loot from the chest after the fight.
+
+Obor will also respawn immediately upon leaving and re-entering the instance. When changing worlds while in the instanced zone, the player will be teleported outside the instance.
+
+Obor's ranged attack deals 50% less damage when [[Protect from Missiles]] is used.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1354043801187319809|date=26 January 2021|archiveurl=https://reldo.runescape.wiki/i/104955|archivedate=2 March 2021|quote=It has a ranged attack that deals 50% less damage if you've got that prayer active. That sounds intentional to me - we do this sort of damage reduction quite often with bosses.}}
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Obor
+|location = Obor's Lair ([[Edgeville Dungeon]])
+|levels = 106
+|members = No
+|mapID = 12
+|plane = 0
+|x:3091.5,y:9799
+|mtype = pin
+|dropversion = F2P, Members
+|leagueRegion = Misthalin
+}}
+{{LocTableBottom}}
+The [[giantsoul amulet]] can be used to teleport right outside Obor's lair.
+
+==Strategy==
+===Magic (Snare)===
+[[File:Fighting Obor.png|thumb|right|250px|A player fighting Obor, the Hill Titan.]]
+Lower-level players (with 50 [[Magic]] and 40 [[Prayer]]) need to remember to always turn on [[Protect from Missiles]] '''before''' climbing down and starting the fight. Start with [[Snare]] to prevent Obor from reaching you and recast it every time Obor is able to walk again. Use the highest available Magic spell to kill him. To efficiently maintain distance and minimise damage taken, wait for Obor to be as close to one end of the room before Snaring, then run to the other side, casting offensive spells in between. Wait until he walks to the opposite wall again before repeating. Even with this strategy, remember to bring enough food. Obor can do serious damage as soon as the Snare wears off. If you are free-to-play you might want to bring an [[energy potion]] as well.
+
+It can be useful to know that Obor does not always keep walking up to [[melee]] distance before attacking. This means he might stop walking towards you before standing next to you, giving you the time to snare or bind him without having to run to the other side of the arena. This makes it easier to cast more spells in a shorter amount of time, making the fight more efficient.
+
+Note: It's been observed that [[Snare]] does not seem to immobilize Obor for the full 9.6 seconds on occasion (consistently?). If you're a member, try using higher level binding abilities such as [[Entangle]] or the [[Ice spells]].
+
+===Magic (Tank)===
+As Obor is weak to magic, this is the preferred combat style for members with at least 50 [[Magic]], 60 [[Defence]] and 42 in the other combat stats. You should wear [[Void Knight equipment|void knight]] or [[Elite Void Knight equipment|elite void knight]] equipment with the [[void mage helm]]. Stand with your back against a wall to avoid knock-backs. Pray a Defence-boosting prayer such as [[Steel Skin]]. Expect to take more damage using this method.
+
+===Ranged===
+For free-to-play, at least 50 [[Defence]] and 60 [[Ranged]] along with 40 [[Prayer]] for [[Protect from Missiles]] are recommended for Obor. Players should wear a [[rune chainbody]] as it provides the best Defence against Obor's crush without lowering Ranged attack bonus. Members with 75 [[Ranged]] should use a [[toxic blowpipe]] as Obor's low Defence level combined with its fast attack speed makes it the strongest weapon to use against him.
+
+===Melee===
+Melee is also a good option, as it is faster than the magic method (snare) to kill Obor, but it will be more dangerous. At least level 50 Attack/Strength/Defence and 40 [[Prayer]] for [[Protect from Missiles]] are recommended. Obor's slam attack can knock you back, and your next attack will be slightly delayed whether you are standing next to a wall or not. Members can use an [[abyssal whip]] or a [[dragon scimitar]], while free players can use a [[rune scimitar]]. You'll also want good melee armour with decent ranged and melee defensive stats. If you are free-to-play, you may also want to bring a [[Strength potion]]. 
+
+==Members' worlds drops==
+{{DropLogProject|kills=35205}}
+
+{{Average drop value|mob=Obor#Members}}
+
+Obor drops items on the floor when he dies, including [[giant bones]], which cannot be picked up but are instead buried directly from the ground. 
+
+The [[Chest (Obor's lair)|chest]] in Obor's lair can be opened once after Obor dies with a [[giant key]]. It contains more valuable loot, including the [[Hill giant club]].
+
+===100%===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Giant bones|quantity=1|rarity=Always|gemw=no}}
+{{DropsTableBottom}}
+
+===Giant key===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Giant key|quantity=1|rarity=1/16|raritynotes={{CiteNews|url=https://secure.runescape.com/m=news/stackable-clues-are-here?oldschool=1|title=Stackable Clues are here!|newsdate=02 July 2025|quote=The keys from Obor and Bryophyta are now more common, dropping at a rate of 1/16 instead of 1/32.|name=key}}|gemw=no}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Iron full helm|quantity=1|rarity=5/135}}
+{{DropsLine|name=Iron dagger|quantity=1|rarity=4/135}}
+{{DropsLine|name=Iron kiteshield|quantity=1|rarity=3/135}}
+{{DropsLine|name=Steel longsword|quantity=1|rarity=2/135}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Iron arrow|quantity=3|rarity=6/135}}
+{{DropsLine|name=Fire rune|quantity=15|rarity=3/135}}
+{{DropsLine|name=Water rune|quantity=7|rarity=3/135}}
+{{DropsLine|name=Law rune|quantity=2|rarity=3/135}}
+{{DropsLine|name=Steel arrow|quantity=10|rarity=2/135}}
+{{DropsLine|name=Mind rune|quantity=3|rarity=2/135}}
+{{DropsLine|name=Cosmic rune|quantity=2|rarity=2/135}}
+{{DropsLine|name=Nature rune|quantity=6|rarity=2/135}}
+{{DropsLine|name=Chaos rune|quantity=2|rarity=1/135}}
+{{DropsLine|name=Death rune|quantity=2|rarity=1/135}}
+{{DropsTableBottom}}
+
+===Herbs===
+{{HerbDropTableInfo|7/135}}
+{{DropsTableHead|dropversion=Members}}
+{{HerbDropLines|7/135}}  <!-- becomes 10x coins in f2p -->
+{{DropsTableBottom}}
+
+===Seeds===
+{{GeneralSeedDropTableInfo|18/135}}
+{{DropsTableHead|dropversion=Members}}
+{{GeneralSeedDropLines|18/135|106}}  <!-- becomes 5x coins in f2p -->
+{{DropsTableBottom}}
+
+===Coins===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Coins|quantity=38|rarity=14/135}}
+{{DropsLine|name=Coins|quantity=52|rarity=10/135}}
+{{DropsLine|name=Coins|quantity=15|rarity=8/135}}
+{{DropsLine|name=Coins|quantity=8|rarity=6/135}}
+{{DropsLine|name=Coins|quantity=88|rarity=2/135}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Limpwurt root|quantity=1|rarity=11/135}}
+{{DropsLine|name=Beer|quantity=1|rarity=6/135}}
+{{DropsLine|name=Body talisman|quantity=1|rarity=2/135}}
+{{DropsLine|name=Nothing|rarity=1/135}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|3/135|naturetalisman=yes|dropversion=Members}}
+
+===Tertiary===
+{{DropsTableHead|dropversion=Members}}
+{{DropsLine|name=Ensouled giant head|quantity=1|rarity=1/25}}
+{{DropsLineClue|type=beginner|rarity=1/50|approx=yes}}
+{{DropsLine|name=Long bone|quantity=1|rarity=1/400|gemw=No}}
+{{DropsLine|name=Giant champion scroll|quantity=1|rarity=1/5000|gemw=No}}
+{{DropsLine|name=Curved bone|quantity=1|rarity=1/5012.5|gemw=No}}
+{{DropsTableBottom}}
+
+==Free-to-play worlds drops==
+{{Average drop value|mob=Obor#Free-to-play}}
+
+Obor drops items on the floor when he dies. The [[Chest (Obor's lair)|chest]] in Obor's lair can be opened once after Obor dies with a [[giant key]]. It contains more valuable loot, including the [[Hill giant club]].
+
+===100%===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Big bones|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Giant key===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Giant key|quantity=1|rarity=1/16|raritynotes={{Refn|name=key}}|gemw=no}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Iron full helm|quantity=1|rarity=5/135}}
+{{DropsLine|name=Iron dagger|quantity=1|rarity=4/135}}
+{{DropsLine|name=Iron kiteshield|quantity=1|rarity=3/135}}
+{{DropsLine|name=Steel longsword|quantity=1|rarity=2/135}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Iron arrow|quantity=3|rarity=6/135}}
+{{DropsLine|name=Fire rune|quantity=15|rarity=3/135}}
+{{DropsLine|name=Water rune|quantity=7|rarity=3/135}}
+{{DropsLine|name=Law rune|quantity=2|rarity=3/135}}
+{{DropsLine|name=Steel arrow|quantity=10|rarity=2/135}}
+{{DropsLine|name=Mind rune|quantity=3|rarity=2/135}}
+{{DropsLine|name=Cosmic rune|quantity=2|rarity=2/135}}
+{{DropsLine|name=Nature rune|quantity=6|rarity=2/135}}
+{{DropsLine|name=Chaos rune|quantity=2|rarity=1/135}}
+{{DropsLine|name=Death rune|quantity=2|rarity=1/135}}
+{{DropsTableBottom}}
+
+===Coins===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Coins|quantity=5|rarity=18/135}}
+{{DropsLine|name=Coins|quantity=38|rarity=14/135}}
+{{DropsLine|name=Coins|quantity=52|rarity=10/135}}
+{{DropsLine|name=Coins|quantity=15|rarity=8/135}}
+{{DropsLine|name=Coins|quantity=10|rarity=7/135}}
+{{DropsLine|name=Coins|quantity=8|rarity=6/135}}
+{{DropsLine|name=Coins|quantity=88|rarity=2/135}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLine|name=Limpwurt root|quantity=1|rarity=11/135}}
+{{DropsLine|name=Beer|quantity=1|rarity=6/135}}
+{{DropsLine|name=Body talisman|quantity=1|rarity=2/135}}
+{{DropsLine|name=Nothing|rarity=1/135}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|3/135|f2pOnly=yes|dropversion=Free-to-play}}
+
+===Tertiary===
+{{DropsTableHead|dropversion=Free-to-play}}
+{{DropsLineClue|type=beginner|rarity=1/50|approx=yes}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Obor}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|date = 6 August 2025
+|change = There is now a quick leave option while fighting Obor.
+}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = The drop rate of the [[giant key]] has been increased from 1/32 to 1/16.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+* Obor no longer requires a [[giant key]] to be fought. However, the first encounter with him will still require the key as a means to permanently unlock access to the boss.
+* Obor's drop table has been replaced with a simpler loot table similar to [[hill giant]]s, with an increased chance at a [[giant key]], as well as a chance of [[giant bones]] for members.
+* Obor's original loot table has been moved to [[Chest (Obor's Lair)|a chest]] within his lair, which is opened using a [[giant key]] and can only be opened when he is defeated.
+* Obor now has a 20% [[elemental weakness]] to [[earth spells]].
+}}
+{{Subject changes
+|date = 9 December 2021
+|update = Grand Exchange Tax & Item Sink
+|change = The minimum [[HiScores]] killcount required for Obor has been lowered from 10 to 5.
+}}
+{{Subject changes
+|date = 19 January 2017
+|update = Raids Tweaks & QoL
+|change = [[Giant champion scroll]] added to drop table.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* 'Obor' translates to 'Giant' in the {{wp|Slovak language}}.
+* Obor was originally suggested by Reddit user ''Mjterp''.{{CiteForum|author = Mjterp|url = https://www.reddit.com/r/2007scape/comments/4zdg98/f2p_hill_giant_boss_suggestion/|title = F2P Hill Giant Boss Suggestion|forum = Reddit|postdate = 24 August 2016}}
+* Obor is acquainted with [[Kovac]], who considers him a good friend.
+
+==References==
+{{Reflist}}
+
+{{Giants}}
+{{Edgeville Dungeon}}
+{{Bosses}}

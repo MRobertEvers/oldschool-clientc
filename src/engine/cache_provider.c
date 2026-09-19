@@ -7,11 +7,19 @@
 
 #include <assert.h>
 #include <rscache.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define CACHE_PROVIDER_MODEL_CAPACITY 8192
-#define CACHE_PROVIDER_SPRITE_CAPACITY 4096
+/*
+ * Initial map sizes, not ceilings: cache_provider_hmap_prepare_insert doubles
+ * the buffer past 75% load, so a map that outgrows its number costs one rehash
+ * and nothing else. Each is the next power of two above twice what a booted
+ * osrs239 session actually holds, measured rather than guessed -- the old
+ * uniform 4096s were paying 1.5 MB to hold 5.6k entries.
+ */
+#define CACHE_PROVIDER_MODEL_CAPACITY 4096
+#define CACHE_PROVIDER_SPRITE_CAPACITY 2048
 /*
  * How much of each derived cache survives a trim (see
  * CacheProvider_TrimDerivedCaches). These are working-set sizes, not hard
@@ -31,33 +39,62 @@
  */
 #define CACHE_PROVIDER_MODEL_KEEP ((size_t)1536)
 #define CACHE_PROVIDER_SPRITE_KEEP ((size_t)1024)
-#define CACHE_PROVIDER_FONT_CAPACITY 256
-#define CACHE_PROVIDER_ENUM_CAPACITY 2048
-#define CACHE_PROVIDER_STRUCT_CAPACITY 2048
-#define CACHE_PROVIDER_PARAM_CAPACITY 2048
-#define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 512
-#define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
-#define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
-#define CACHE_PROVIDER_NPCTYPE_CAPACITY 4096
-#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 1024
-#define CACHE_PROVIDER_SOUND_CAPACITY 1024
+/*
+ * Map squares (terrain + scenery) are trimmed at the same seam. A square is
+ * ~200 KB of terrain plus its loc list, and a rebuild touches at most a 4x4
+ * of them (a 104-tile scene straddling square borders), so 32 holds the
+ * current scene, the previous one, and an entity-viewer view's squares
+ * beside them. Squares were never evicted before this: every square walked
+ * past stayed resident until shutdown.
+ */
+#define CACHE_PROVIDER_MAP_SQUARE_KEEP ((size_t)32)
+#define CACHE_PROVIDER_FONT_CAPACITY 16
+#define CACHE_PROVIDER_ENUM_CAPACITY 256
+#define CACHE_PROVIDER_STRUCT_CAPACITY 128
+#define CACHE_PROVIDER_PARAM_CAPACITY 128
+#define CACHE_PROVIDER_INVTYPE_CAPACITY 16
+#define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 64
+#define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 2048
+#define CACHE_PROVIDER_OBJTYPE_CAPACITY 512
+#define CACHE_PROVIDER_NPCTYPE_CAPACITY 64
+#define CACHE_PROVIDER_SPOTANIMTYPE_CAPACITY 16
+#define CACHE_PROVIDER_SOUND_CAPACITY 16
 #define CACHE_PROVIDER_IDK_CAPACITY 512
-#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 512
-#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 512
+#define CACHE_PROVIDER_MAP_TERRAIN_CAPACITY 32
+#define CACHE_PROVIDER_MAP_SCENERY_CAPACITY 32
 #define CACHE_PROVIDER_LOCATION_CAPACITY 4096
-#define CACHE_PROVIDER_FLOTYPE_CAPACITY 512
-#define CACHE_PROVIDER_UNDERLAY_CAPACITY 512
-#define CACHE_PROVIDER_TEXTURE_CAPACITY 512
-#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 256
-#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 4096
-#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 1024
+#define CACHE_PROVIDER_FLOTYPE_CAPACITY 128
+#define CACHE_PROVIDER_UNDERLAY_CAPACITY 64
+#define CACHE_PROVIDER_TEXTURE_CAPACITY 128
+#define CACHE_PROVIDER_SPRITE_NAME_CAPACITY 32
+#define CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY 64
+#define CACHE_PROVIDER_MAPELEMENT_CAPACITY 64
 #define CACHE_PROVIDER_DBROW_CAPACITY 2048
 /* The renderer releases each region once baked, so only the in-flight ones sit
  * here — a map surface never has hundreds resident. */
-#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 64
-#define CACHE_PROVIDER_DBINDEX_CAPACITY 256
-/* One record per table; cache.osrs239 has 247 of them. */
-#define CACHE_PROVIDER_DBTABLE_CAPACITY 256
+#define CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY 16
+#define CACHE_PROVIDER_DBINDEX_CAPACITY 16
+/* One record per table -- cache.osrs239 has 247 -- but they load on demand and a
+ * session touches a couple. The map doubles itself past 75% load, so this is a
+ * starting size, not a ceiling. */
+#define CACHE_PROVIDER_DBTABLE_CAPACITY 16
+
+static void
+cache_provider_ui_assets_changed(struct CacheProvider* provider)
+{
+    assert(provider);
+    provider->ui_asset_revision++;
+    /* Zero is the never-mutated value and is useful in zeroed fixtures. */
+    if( provider->ui_asset_revision == 0 )
+        provider->ui_asset_revision++;
+}
+
+uint64_t
+CacheProvider_UIAssetRevision(struct CacheProvider const* provider)
+{
+    assert(provider);
+    return provider->ui_asset_revision;
+}
 
 /*
  * `last_used` is the LRU clock for the two caches that grow without bound over
@@ -115,6 +152,12 @@ struct MapEntry_ProviderParamType
 {
     int id;
     struct ToriRS_ParamType* param;
+};
+
+struct MapEntry_ProviderInvtype
+{
+    int id;
+    int size;
 };
 
 struct MapEntry_ProviderSound
@@ -181,12 +224,14 @@ struct MapEntry_ProviderMapTerrain
 {
     int id;
     struct ToriRS_MapTerrain* terrain;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderMapScenery
 {
     int id;
     struct ToriRS_MapLocs* locs;
+    uint64_t last_used;
 };
 
 struct MapEntry_ProviderLocation
@@ -305,6 +350,29 @@ cache_provider_hmap_prepare_insert(struct HMap** map_out)
         cache_provider_hmap_maybe_grow(map_out);
 }
 
+/*
+ * Why every CacheProvider_*Add below releases the value it displaces.
+ *
+ * `hmap_search(..., HMAP_INSERT)` returns the EXISTING entry when the key is
+ * already present -- only a fresh slot is memset, which hmap.h states as the
+ * contract ("callers test value fields to decide whether to free"). So an Add
+ * for an id the map already holds overwrites the stored pointer in place. The
+ * maps are the sole owner of what they hold (every reader borrows; each
+ * CacheProvider_*Cleanup is what finally frees them), so the displaced value is
+ * this map's to release, and an Add that just assigns over it leaks it.
+ *
+ * It is not a rare path. The dat2/dat1 load tasks guard on CacheProvider_*Has()
+ * when they are CREATED, and a second task for the same id can be created and
+ * land before the first one's Add runs -- ordinary once a world load fans its
+ * model/loc/texture loads out as siblings. Measured over a 98-rebuild walk of
+ * the osrs239 surface, macOS `leaks` found ~1,300 unreachable objects rooted
+ * here: 839 whole ToriRS_Models (4.3 MB, each dragging its bones tree), 1,079
+ * loc configs, 185 client scripts, plus npctypes, sprites and sounds.
+ *
+ * The `!= incoming` half of each test is what keeps a caller that Gets a value
+ * and Adds the same pointer back from freeing the thing it is installing.
+ */
+
 void
 CacheProvider_SetProfile(
     struct CacheProvider* provider,
@@ -320,6 +388,9 @@ void
 CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
+
+    provider->derived_clock = 0;
+    provider->ui_asset_revision = 0;
 
     /* Unset until the boot path calls CacheProvider_SetProfile. Decoding through
      * CacheProvider_Profile before that asserts. */
@@ -337,6 +408,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+    provider->invtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderInvtype), CACHE_PROVIDER_INVTYPE_CAPACITY);
     provider->componentpack_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderComponentPack), CACHE_PROVIDER_COMPONENTPACK_CAPACITY);
     provider->clientscript_cache = cache_provider_hmap_new(
@@ -386,12 +459,20 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
 
+    /* TEMP census: occupancy vs capacity for every provider map, so the
+     * CACHE_PROVIDER_*_CAPACITY constants can be set from what a session
+     * actually holds instead of from a guess. Runs before the cleanups, which
+     * empty the maps and rebuild them at the compiled capacity. */
     CacheProvider_ModelsCleanup(provider);
     CacheProvider_SpritesCleanup(provider);
     CacheProvider_FontsCleanup(provider);
     CacheProvider_EnumsCleanup(provider);
+    free(provider->varclan_types.base_type);
+    provider->varclan_types.base_type = NULL;
+    provider->varclan_types.count = 0;
     CacheProvider_StructsCleanup(provider);
     CacheProvider_ParamsCleanup(provider);
+    CacheProvider_InvtypesCleanup(provider);
     CacheProvider_ComponentPacksCleanup(provider);
     CacheProvider_ClientScriptsCleanup(provider);
     CacheProvider_ObjtypesCleanup(provider);
@@ -425,6 +506,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->struct_cache = NULL;
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = NULL;
+    cache_provider_hmap_free(provider->invtype_cache);
+    provider->invtype_cache = NULL;
     cache_provider_hmap_free(provider->componentpack_cache);
     provider->componentpack_cache = NULL;
     cache_provider_hmap_free(provider->clientscript_cache);
@@ -482,8 +565,12 @@ CacheProvider_ModelAdd(
     assert(entry && "Model must be inserted into hmap");
 
     entry->id = model_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->model && entry->model != model )
+        ToriRS_ModelFree(entry->model);
     entry->model = model;
     entry->last_used = ++provider->derived_clock;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Model*
@@ -611,6 +698,8 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
             ToriRS_ModelFree(entry->model);
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_EVICT, doomed_count);
+    if( doomed_count > 0 )
+        cache_provider_ui_assets_changed(provider);
     free(doomed);
 }
 
@@ -653,6 +742,90 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
             ToriRS_SpriteFree(entry->sprite);
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_EVICT, doomed_count);
+    if( doomed_count > 0 )
+        cache_provider_ui_assets_changed(provider);
+    free(doomed);
+}
+
+static void
+cache_provider_trim_map_terrain(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapTerrain* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->map_terrain_cache || (size_t)provider->map_terrain_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->map_terrain_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderMapTerrain, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->map_terrain_cache->size * sizeof(*doomed));
+    assert(doomed);
+
+    iter = hmap_iter_new(provider->map_terrain_cache);
+    while( (entry = (struct MapEntry_ProviderMapTerrain*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderMapTerrain*)hmap_search(
+            provider->map_terrain_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->terrain )
+            ToriRS_MapTerrainFree(entry->terrain);
+    }
+    free(doomed);
+}
+
+static void
+cache_provider_trim_map_scenery(struct CacheProvider* provider, size_t keep)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderMapScenery* entry;
+    uint64_t threshold;
+    int* doomed;
+    int doomed_count = 0;
+
+    if( !provider->map_scenery_cache || (size_t)provider->map_scenery_cache->size <= keep )
+        return;
+
+    threshold = cache_provider_lru_threshold(
+        provider->map_scenery_cache,
+        sizeof(*entry),
+        offsetof(struct MapEntry_ProviderMapScenery, last_used),
+        keep);
+    if( threshold == 0 )
+        return;
+
+    doomed = malloc((size_t)provider->map_scenery_cache->size * sizeof(*doomed));
+    assert(doomed);
+
+    iter = hmap_iter_new(provider->map_scenery_cache);
+    while( (entry = (struct MapEntry_ProviderMapScenery*)hmap_iter_next(iter)) )
+    {
+        if( entry->last_used <= threshold )
+            doomed[doomed_count++] = entry->id;
+    }
+    hmap_iter_free(iter);
+
+    for( int i = 0; i < doomed_count; i++ )
+    {
+        entry = (struct MapEntry_ProviderMapScenery*)hmap_search(
+            provider->map_scenery_cache, &doomed[i], HMAP_REMOVE);
+        if( entry && entry->locs )
+            ToriRS_MapLocsFree(entry->locs);
+    }
     free(doomed);
 }
 
@@ -662,6 +835,8 @@ CacheProvider_TrimDerivedCaches(struct CacheProvider* provider)
     assert(provider);
     cache_provider_trim_models(provider, CACHE_PROVIDER_MODEL_KEEP);
     cache_provider_trim_sprites(provider, CACHE_PROVIDER_SPRITE_KEEP);
+    cache_provider_trim_map_terrain(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
+    cache_provider_trim_map_scenery(provider, CACHE_PROVIDER_MAP_SQUARE_KEEP);
 }
 
 void
@@ -669,10 +844,12 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderModel* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->model_cache )
         return;
+    changed = provider->model_cache->size > 0;
 
     iter = hmap_iter_new(provider->model_cache);
     while( (entry = (struct MapEntry_ProviderModel*)hmap_iter_next(iter)) )
@@ -685,6 +862,8 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->model_cache);
     provider->model_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -704,8 +883,12 @@ CacheProvider_SpriteAdd(
     assert(entry && "Sprite must be inserted into hmap");
 
     entry->id = sprite_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->sprite && entry->sprite != sprite )
+        ToriRS_SpriteFree(entry->sprite);
     entry->sprite = sprite;
     entry->last_used = ++provider->derived_clock;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Sprite*
@@ -803,10 +986,12 @@ CacheProvider_SpritesCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderSprite* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->sprite_cache )
         return;
+    changed = provider->sprite_cache->size > 0;
 
     iter = hmap_iter_new(provider->sprite_cache);
     while( (entry = (struct MapEntry_ProviderSprite*)hmap_iter_next(iter)) )
@@ -819,6 +1004,8 @@ CacheProvider_SpritesCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->sprite_cache);
     provider->sprite_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -838,7 +1025,11 @@ CacheProvider_FontAdd(
     assert(entry && "Font must be inserted into hmap");
 
     entry->id = font_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->font && entry->font != font )
+        ToriRS_FontFree(entry->font);
     entry->font = font;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Font*
@@ -869,10 +1060,12 @@ CacheProvider_FontsCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderFont* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->font_cache )
         return;
+    changed = provider->font_cache->size > 0;
 
     iter = hmap_iter_new(provider->font_cache);
     while( (entry = (struct MapEntry_ProviderFont*)hmap_iter_next(iter)) )
@@ -885,6 +1078,8 @@ CacheProvider_FontsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->font_cache);
     provider->font_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -904,6 +1099,9 @@ CacheProvider_EnumAdd(
     assert(entry && "Enum must be inserted into hmap");
 
     entry->id = enum_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->e && entry->e != e )
+        ToriRS_EnumFree(entry->e);
     entry->e = e;
 }
 
@@ -970,6 +1168,9 @@ CacheProvider_StructAdd(
     assert(entry && "Struct must be inserted into hmap");
 
     entry->id = struct_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->s && entry->s != s )
+        ToriRS_StructFree(entry->s);
     entry->s = s;
 }
 
@@ -1037,6 +1238,9 @@ CacheProvider_ParamAdd(
     assert(entry && "Param must be inserted into hmap");
 
     entry->id = param_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->param && entry->param != param )
+        ToriRS_ParamTypeFree(entry->param);
     entry->param = param;
 }
 
@@ -1088,6 +1292,62 @@ CacheProvider_ParamsCleanup(struct CacheProvider* provider)
 }
 
 void
+CacheProvider_InvtypeAdd(
+    struct CacheProvider* provider,
+    int inv_id,
+    int size)
+{
+    struct MapEntry_ProviderInvtype* entry;
+
+    assert(provider);
+    assert(provider->invtype_cache);
+    assert(inv_id >= 0);
+    assert(size >= 0);
+
+    cache_provider_hmap_prepare_insert(&provider->invtype_cache);
+    entry = (struct MapEntry_ProviderInvtype*)hmap_search(
+        provider->invtype_cache, &inv_id, HMAP_INSERT);
+    assert(entry && "Inventory type must be inserted into hmap");
+
+    entry->id = inv_id;
+    entry->size = size;
+}
+
+bool
+CacheProvider_InvtypeGet(
+    struct CacheProvider* provider,
+    int inv_id,
+    int* out_size)
+{
+    struct MapEntry_ProviderInvtype* entry;
+
+    assert(provider);
+    assert(out_size);
+    *out_size = 0;
+    if( !provider->invtype_cache || inv_id < 0 )
+        return false;
+
+    entry = (struct MapEntry_ProviderInvtype*)hmap_search(
+        provider->invtype_cache, &inv_id, HMAP_FIND);
+    if( !entry )
+        return false;
+    *out_size = entry->size;
+    return true;
+}
+
+void
+CacheProvider_InvtypesCleanup(struct CacheProvider* provider)
+{
+    assert(provider);
+    if( !provider->invtype_cache )
+        return;
+
+    cache_provider_hmap_free(provider->invtype_cache);
+    provider->invtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderInvtype), CACHE_PROVIDER_INVTYPE_CAPACITY);
+}
+
+void
 CacheProvider_DbRowAdd(
     struct CacheProvider* provider,
     int row_id,
@@ -1104,6 +1364,9 @@ CacheProvider_DbRowAdd(
     assert(entry && "DbRow must be inserted into hmap");
 
     entry->id = row_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->row && entry->row != row )
+        ToriRS_DbRowFree(entry->row);
     entry->row = row;
 }
 
@@ -1170,6 +1433,9 @@ CacheProvider_DbTableAdd(
     assert(entry && "DbTable must be inserted into hmap");
 
     entry->id = table_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->table && entry->table != table )
+        ToriRS_DbTableFree(entry->table);
     entry->table = table;
 }
 
@@ -1237,6 +1503,9 @@ CacheProvider_DbTableIndexAdd(
     assert(entry && "DbTableIndex must be inserted into hmap");
 
     entry->id = table_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->index && entry->index != index )
+        ToriRS_DbTableIndexFree(entry->index);
     entry->index = index;
 }
 
@@ -1325,6 +1594,14 @@ CacheProvider_WorldMapGeographyAdd(
     assert(entry && "World map geography must be inserted into hmap");
 
     entry->id = key;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->geography && entry->geography != geography )
+    {
+        /* Two steps, as CacheProvider_WorldMapGeographyRemove does it: the
+         * struct's interior is freed in place, then the struct itself. */
+        RSCache_WorldMapGeographyFreeInplace(entry->geography);
+        free(entry->geography);
+    }
     entry->geography = geography;
 }
 
@@ -1392,6 +1669,9 @@ CacheProvider_MapElementAdd(
     assert(entry && "Map element must be inserted into hmap");
 
     entry->id = element_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->element && entry->element != element )
+        ToriRS_MapElementFree(entry->element);
     entry->element = element;
 }
 
@@ -1461,6 +1741,9 @@ CacheProvider_ComponentPackAdd(
     assert(entry && "Component pack must be inserted into hmap");
 
     entry->id = iface_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->pack && entry->pack != pack )
+        ToriRS_ComponentPackFree(entry->pack);
     entry->pack = pack;
 }
 
@@ -1583,6 +1866,9 @@ CacheProvider_ClientScriptAdd(
     assert(entry && "Client script must be inserted into hmap");
 
     entry->id = script_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->script && entry->script != script )
+        CS2VM2_ScriptFree(entry->script);
     entry->script = script;
 }
 
@@ -1678,6 +1964,9 @@ CacheProvider_ObjtypeAdd(
     assert(entry && "Objtype must be inserted into hmap");
 
     entry->id = obj_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->objtype && entry->objtype != objtype )
+        ToriRS_ObjtypeFree(entry->objtype);
     entry->objtype = objtype;
 
     /* Mirror the insert into the name index so CacheProvider_ObjtypeIdByName and
@@ -1701,6 +1990,7 @@ CacheProvider_ObjtypeAdd(
             }
         }
     }
+    cache_provider_ui_assets_changed(provider);
 }
 
 /*
@@ -1726,6 +2016,7 @@ CacheProvider_ObjtypeGet(
 {
     struct MapEntry_ProviderObjtype* entry;
     struct ToriRS_Objtype* objtype;
+    bool changed = false;
 
     assert(provider);
 
@@ -1742,7 +2033,11 @@ CacheProvider_ObjtypeGet(
      * resident; a non-empty name marks the copy as already done. */
     if( objtype && objtype->cert_template > 0 )
     {
-        objtype->stackable = 1;
+        if( !objtype->stackable )
+        {
+            objtype->stackable = 1;
+            changed = true;
+        }
         if( objtype_name_is_unset(objtype->name) && objtype->cert_link > 0 )
         {
             struct MapEntry_ProviderObjtype* link_entry =
@@ -1766,6 +2061,9 @@ CacheProvider_ObjtypeGet(
                         : "a";
                 snprintf(objtype->desc, sizeof(objtype->desc),
                          "Swap this note at any bank for %s %s.", article, link_name);
+                /* genCert copies the base item's members flag too. */
+                objtype->members = link_entry->objtype->members;
+                changed = true;
             }
         }
     }
@@ -1793,8 +2091,13 @@ CacheProvider_ObjtypeGet(
         {
             memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
             memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));
+            /* The reference's placeholder takes the item's members flag. */
+            objtype->members = link_entry->objtype->members;
+            changed = true;
         }
     }
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
     return objtype;
 }
 
@@ -1811,10 +2114,12 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderObjtype* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->objtype_cache )
         return;
+    changed = provider->objtype_cache->size > 0;
 
     iter = hmap_iter_new(provider->objtype_cache);
     while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
@@ -1837,6 +2142,8 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
             sizeof(struct MapEntry_ProviderObjtypeName), CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY);
     }
     provider->objtypes_all_loaded = false;
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 int
@@ -1884,6 +2191,7 @@ int
 CacheProvider_ObjtypeSearchByName(
     struct CacheProvider* provider,
     char const* lower_query,
+    bool ge_tradeable_only,
     int** out_ids)
 {
     struct HMapIter* iter;
@@ -1909,6 +2217,8 @@ CacheProvider_ObjtypeSearchByName(
             continue;
         objtype_name_lower_hash(objtype->name, lower, sizeof(lower));
         if( strcmp(lower, "null") == 0 )
+            continue;
+        if( ge_tradeable_only && !objtype->ge_tradeable )
             continue;
         if( !strstr(lower, lower_query) )
             continue;
@@ -1936,6 +2246,35 @@ CacheProvider_ObjtypeSearchByName(
     return count;
 }
 
+int
+CacheProvider_ObjtypeFindResident(
+    struct CacheProvider* provider,
+    bool (*match)(struct ToriRS_Objtype const* objtype, void* user),
+    void* user)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderObjtype* entry;
+    int found = -1;
+
+    assert(provider);
+    assert(match);
+    if( !provider->objtype_cache )
+        return -1;
+
+    iter = hmap_iter_new(provider->objtype_cache);
+    while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
+    {
+        if( !entry->objtype )
+            continue;
+        if( !match(entry->objtype, user) )
+            continue;
+        found = entry->id;
+        break;
+    }
+    hmap_iter_free(iter);
+    return found;
+}
+
 void
 CacheProvider_NpctypeAdd(
     struct CacheProvider* provider,
@@ -1953,6 +2292,9 @@ CacheProvider_NpctypeAdd(
     assert(entry && "Npctype must be inserted into hmap");
 
     entry->id = npc_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->npctype && entry->npctype != npctype )
+        ToriRS_NpctypeFree(entry->npctype);
     entry->npctype = npctype;
 }
 
@@ -2020,6 +2362,9 @@ CacheProvider_SpotanimtypeAdd(
     assert(entry && "Spotanimtype must be inserted into hmap");
 
     entry->id = spotanim_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->spotanimtype && entry->spotanimtype != spotanimtype )
+        ToriRS_SpotanimtypeFree(entry->spotanimtype);
     entry->spotanimtype = spotanimtype;
 }
 
@@ -2094,6 +2439,9 @@ CacheProvider_SoundAdd(
     assert(entry && "Sound must be inserted into hmap");
 
     entry->id = sound_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->sound && entry->sound != sound )
+        ToriRS_SoundFree(entry->sound);
     entry->sound = sound;
 }
 
@@ -2160,6 +2508,9 @@ CacheProvider_IdkAdd(
     assert(entry && "Idk must be inserted into hmap");
 
     entry->id = idk_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->idk && entry->idk != idk )
+        ToriRS_IdkFree(entry->idk);
     entry->idk = idk;
 }
 
@@ -2228,7 +2579,11 @@ CacheProvider_MapTerrainAdd(
     assert(entry && "Map terrain must be inserted into hmap");
 
     entry->id = map_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->terrain && entry->terrain != terrain )
+        ToriRS_MapTerrainFree(entry->terrain);
     entry->terrain = terrain;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_MapTerrain*
@@ -2244,6 +2599,7 @@ CacheProvider_MapTerrainGet(
         provider->map_terrain_cache, &map_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->terrain;
 }
 
@@ -2295,7 +2651,11 @@ CacheProvider_MapSceneryAdd(
     assert(entry && "Map scenery must be inserted into hmap");
 
     entry->id = map_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->locs && entry->locs != locs )
+        ToriRS_MapLocsFree(entry->locs);
     entry->locs = locs;
+    entry->last_used = ++provider->derived_clock;
 }
 
 struct ToriRS_MapLocs*
@@ -2311,6 +2671,7 @@ CacheProvider_MapSceneryGet(
         provider->map_scenery_cache, &map_id, HMAP_FIND);
     if( !entry )
         return NULL;
+    entry->last_used = ++provider->derived_clock;
     return entry->locs;
 }
 
@@ -2362,7 +2723,70 @@ CacheProvider_LocationAdd(
     assert(entry && "Location must be inserted into hmap");
 
     entry->id = loc_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->location && entry->location != location )
+        ToriRS_LocationFree(entry->location);
     entry->location = location;
+}
+
+int
+CacheProvider_VisitLoaded(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    CacheProvider_CatalogVisitFn visit,
+    void* user)
+{
+    struct HMapIter* iter;
+    void* raw;
+    int count = 0;
+
+    assert(provider);
+    assert(visit);
+
+    switch( kind )
+    {
+    case CACHEPROVIDER_CATALOG_LOC:
+        iter = hmap_iter_new(provider->location_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderLocation const* e = raw;
+            if( !e->location )
+                continue;
+            visit(user, e->id, e->location->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+
+    case CACHEPROVIDER_CATALOG_NPC:
+        iter = hmap_iter_new(provider->npctype_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderNpctype const* e = raw;
+            if( !e->npctype )
+                continue;
+            visit(user, e->id, e->npctype->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+
+    case CACHEPROVIDER_CATALOG_OBJ:
+        iter = hmap_iter_new(provider->objtype_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderObjtype const* e = raw;
+            if( !e->objtype )
+                continue;
+            visit(user, e->id, e->objtype->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+    }
+
+    assert(0 && "unknown catalog kind");
+    return 0;
 }
 
 struct ToriRS_Location*
@@ -2429,6 +2853,9 @@ CacheProvider_FlotypeAdd(
     assert(entry && "Flotype must be inserted into hmap");
 
     entry->id = flo_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->flotype && entry->flotype != flotype )
+        ToriRS_FlotypeFree(entry->flotype);
     entry->flotype = flotype;
 }
 
@@ -2496,6 +2923,9 @@ CacheProvider_UnderlayAdd(
     assert(entry && "Underlay must be inserted into hmap");
 
     entry->id = underlay_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->flotype && entry->flotype != underlay )
+        ToriRS_FlotypeFree(entry->flotype);
     entry->flotype = underlay;
 }
 
@@ -2563,6 +2993,9 @@ CacheProvider_TextureAdd(
     assert(entry && "Texture must be inserted into hmap");
 
     entry->id = texture_id;
+    /* Replacing a cached value: the map owns the old one. */
+    if( entry->texture && entry->texture != texture )
+        ToriRS_TextureFree(entry->texture);
     entry->texture = texture;
 }
 
@@ -2580,6 +3013,16 @@ CacheProvider_TextureGet(
     if( !entry )
         return NULL;
     return entry->texture;
+}
+
+void
+CacheProvider_SetAssetQueue(
+    struct CacheProvider* provider,
+    struct ToriRS_TaskQueue* queue)
+{
+    assert(provider);
+    assert(queue);
+    provider->asset_queue = queue;
 }
 
 bool

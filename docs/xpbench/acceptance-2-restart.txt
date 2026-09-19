@@ -1,0 +1,53 @@
+drainer-start  {"owner": "MatthewLLM:35152:1787620907"}
+drainer-start  {"owner": "MatthewLLM:31720:1787621465"}
+drainer-start  {"owner": "MatthewLLM:35828:1787621720"}
+drainer-start  {"owner": "MatthewLLM:3664:1787622421"}
+drainer-start  {"owner": "MatthewLLM:33304:1787622424"}
+recover        {"attempts": 1, "decision": "rerun", "job_id": "0824-204702-f406c9"}
+drainer-start  {"owner": "MatthewLLM:27552:1787622445"}
+drainer-start  {"owner": "MatthewLLM:30860:1787622501"}
+drainer-start  {"owner": "MatthewLLM:22784:1787622505"}
+recover        {"attempts": 1, "decision": "rerun", "job_id": "0824-204823-094678"}
+drainer-start  {"owner": "MatthewLLM:6864:1787622526"}
+drainer-start  {"owner": "MatthewLLM:3704:1787622551"}
+recover        {"attempts": 1, "decision": "adopt-live", "job_id": "0824-204847-548eb3"}
+drainer-start  {"owner": "MatthewLLM:36408:1787622583"}
+drainer-start  {"owner": "MatthewLLM:23192:1787622617"}
+
+=== scenario "early": kill the drainer before the box starts ===
+  submitted 0824-204823-094678 [accept-restart-early]
+  job is in running/; killing drainer pid 30860
+  confirmed: box has no progress file, nothing was measured
+  restarting drainer...
+  runlog decision: rerun
+  PASS: re-run and completed, attempts=2, 1 timed run(s)
+
+=== scenario "live": kill the drainer while the box is running ===
+  submitted 0824-204847-548eb3 [accept-restart-live]
+  box is mid-benchmark; killing drainer pid 6864
+  the dead drainer left its lease behind (heartbeat 23 s old) but its pid is gone, so the restart takes over at once
+  restarting drainer...
+  runlog decision: adopt-live
+  PASS: adopted, attempts=1, 4 timed run(s) -- the box was never asked to repeat work
+
+=== the queue keeps moving after both restarts ===
+  submitted 0824-204944-942edf [accept-restart-after]
+  PASS: a job submitted after the restarts ran normally (39.167 ms)
+
+=== recovery events recorded ===
+drainer-start  {"owner": "MatthewLLM:35152:1787620907"}
+drainer-start  {"owner": "MatthewLLM:31720:1787621465"}
+drainer-start  {"owner": "MatthewLLM:35828:1787621720"}
+drainer-start  {"owner": "MatthewLLM:3664:1787622421"}
+drainer-start  {"owner": "MatthewLLM:33304:1787622424"}
+recover        {"attempts": 1, "decision": "rerun", "job_id": "0824-204702-f406c9"}
+drainer-start  {"owner": "MatthewLLM:27552:1787622445"}
+drainer-start  {"owner": "MatthewLLM:30860:1787622501"}
+drainer-start  {"owner": "MatthewLLM:22784:1787622505"}
+recover        {"attempts": 1, "decision": "rerun", "job_id": "0824-204823-094678"}
+drainer-start  {"owner": "MatthewLLM:6864:1787622526"}
+drainer-start  {"owner": "MatthewLLM:3704:1787622551"}
+recover        {"attempts": 1, "decision": "adopt-live", "job_id": "0824-204847-548eb3"}
+drainer-start  {"owner": "MatthewLLM:36408:1787622583"}
+
+ALL RESTART SCENARIOS PASSED

@@ -109,7 +109,7 @@ struct CP_PackStats
  *
  * So `pack` now emits both halves from the *same* merged record: the client band
  * into the target cache, and the server band into a second dat2 under the content
- * tree. `src/net/mock/mock230_servercodec.c` reads that band back; the opcodes and
+ * tree. `src/torirsserver/torirs_server_servercodec.c` reads that band back; the opcodes and
  * widths on both sides come from `fields/<type>.ini` and from nowhere else.
  *
  * ## Addressed as (config kind, record id)
@@ -349,7 +349,7 @@ resolve_field_value(
  * Named, because four places have to agree about it and one of them got it
  * wrong: the seeder wrote `default` into `pack/npc.server`, where it is a claim
  * that an entity with that name has a server half — and there is no such entity,
- * so `mock230_pack`'s id check reported the name as unresolvable. That is the
+ * so `ToriRSServer_Pack`'s id check reported the name as unresolvable. That is the
  * check doing its job; the fix is that a defaults block is not a membership
  * candidate at all. The spelling stays in one function so a second type's
  * defaults block cannot be handled by three of the four.
@@ -513,7 +513,7 @@ server_band_build(
  * `records = client` in the type's register is the opt-in. Without it a block
  * that exists only under `server/scripts` is taken for a server table wearing a
  * config type's grammar, which is what the authored enums are: `bank_tabs` and
- * `worn_slots` are read by `mock230_content_enum` and no client script has ever
+ * `worn_slots` are read by `ToriRSServer_ContentEnum` and no client script has ever
  * heard of them. Writing them would add records with no reader.
  *
  * It reads `origin_rank`, so it is provenance — which is exactly why it is no
@@ -1320,6 +1320,12 @@ pack_server_names(
     struct CP_Ctx* ctx,
     const char* server_dir)
 {
+    /* A names-only pack has no band record to create this directory first. */
+    if( ensure_dir_p(server_dir) != 0 )
+    {
+        fprintf(stderr, "cachepack: cannot create %s\n", server_dir);
+        return 0;
+    }
     int group_count = 0;
     const struct CP_ServerGroup* groups = cp_server_groups(&group_count);
 
@@ -1508,7 +1514,7 @@ pack_type(
 
         if( !cp_config_file_load(&layer, found[i]) )
             continue;
-        ok = cp_merge_add(&merged, &layer, i == 0 ? 0 : 1, found[i]);
+        ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(i, found[i]), found[i]);
         cp_config_file_free(&layer);
     }
     if( !ok )
@@ -1768,7 +1774,7 @@ cp_pack_run(
  * heavy to run on every build — it was OOM-killed the first time a test bar ran
  * it that way. The server pack needs none of that: `pack_server_type` reads the
  * merged text and the name packs and never opens a cache, so the band the boot
- * depends on can be refreshed in the build the way `mock230-scripts` refreshes
+ * depends on can be refreshed in the build the way `torirsserver-scripts` refreshes
  * the script pack.
  *
  * The bar for this mode is byte-identity: the bands it writes must be exactly
@@ -1838,7 +1844,7 @@ cp_pack_server_run(
 
             if( !cp_config_file_load(&layer, found[f]) )
                 continue;
-            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
             cp_config_file_free(&layer);
         }
         /*
@@ -1870,7 +1876,7 @@ cp_pack_server_run(
     /*
      * An unresolved name is a failure, not a note.
      *
-     * It used to `return 1` regardless, so `make mock230-servpack` was green with
+     * It used to `return 1` regardless, so `make torirsserver-servpack` was green with
      * a band that had silently dropped whatever did not resolve — and the dropped
      * field reads back as *absent*, which the param-defaults path answers with the
      * declared default. That is triage §13 bar 1 one layer below the config
@@ -2205,7 +2211,7 @@ cp_membership_emit(
 
             if( !cp_config_file_load(&layer, found[f]) )
                 continue;
-            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
             cp_config_file_free(&layer);
         }
         if( !ok )
@@ -2279,7 +2285,7 @@ cp_membership_emit(
  * provenance. The second, membership against the id range, is not here: its
  * authority is `server_base`, which lives in `src/content/content_register.c` and
  * is overlaid by `content.ini`, and cachepack deliberately links nothing from
- * `src/` (`cp_register.h`). It runs in `mock230_pack`, which holds that register
+ * `src/` (`cp_register.h`). It runs in `ToriRSServer_Pack`, which holds that register
  * and the base cache already. One check per tool, each where its fact is.
  *
  * This check does not route anything, and it is not what enforces membership —
@@ -2359,7 +2365,7 @@ struct CP_MembershipVerdict
  *
  * `client = drop` with no `server = opcode:` row means the value reaches neither
  * the cache nor the band: the packer reads it, drops it, and the only reader left
- * is `mock230_content.c`'s parse of the same text. That is a **real server half
+ * is `torirs_server_content.c`'s parse of the same text. That is a **real server half
  * with no artifact**, and it is what separates the two kinds of unclaimed
  * overlay — a `param=` row on an obj is routed and merely unstated, while
  * `protect=` on a varp is a fact no packed file carries at all.
@@ -2684,7 +2690,7 @@ cp_membership_check(
 
             if( !cp_config_file_load(&layer, found[f]) )
                 continue;
-            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
             cp_config_file_free(&layer);
         }
         if( !ok )

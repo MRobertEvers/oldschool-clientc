@@ -1,0 +1,31 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolts (Emerald)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 27
+|spellbook = Normal
+|type = Utility
+|exp = 37
+|cost = {{RuneReq|Cosmic=1|Air=3|Nature=1}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on emerald-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Emerald bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolts (Emerald)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 27 to cast. It imbues 10 [[emerald bolts]] each cast and turns them into [[emerald bolts (e)]] or 10 [[emerald dragon bolts]] into 10 [[emerald dragon bolts (e)]]. The enchantment gives the effect ''magical poison.'' Each bolt has a high chance of [[poison]]ing your target for 5 damage initially. This is an alternative way of poisoning your enemies if you don't have a poisoning weapon in your inventory. It's also a great way to poison them from a distance. It is sometimes used in [[PvP]] to poison another player before switching to a different weapon or better bolts.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Air
+|Rune1num = 3
+|Rune2 = nature
+|Rune2num = 1
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Standard spellbook}}

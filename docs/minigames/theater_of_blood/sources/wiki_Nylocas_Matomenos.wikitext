@@ -1,0 +1,460 @@
+{{Multi Infobox
+|text1 = Entry Mode
+|item1 = 
+{{Infobox Monster
+|version1 = Entry Mode Maiden
+|version2 = Entry Mode Verzik
+|name = Nylocas Matomenos
+|image = [[File:Nylocas Matomenos.png|200px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat = 68
+|size = 2
+|examine = Dripping with blood.
+|xpbonus = 0
+|max hit = 11
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints1 = 64
+|hitpoints2 = Varies
+|scaledhp = Yes
+|att = 100
+|str = 100
+|def = 100
+|mage = 100
+|range = 100
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance1 = 100
+|poisonresistance2 = 0
+|venomresistance1 = 100
+|venomresistance2 = 0
+|id1 = 10820
+|id2 = 10845
+}}
+|text2 = Normal Mode
+|item2 = 
+{{Infobox Monster
+|version1 = Normal Mode Maiden
+|version2 = Normal Mode Verzik
+|name = Nylocas Matomenos
+|image = [[File:Nylocas Matomenos.png|200px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|combat = 115
+|size = 2
+|examine = Dripping with blood.
+|xpbonus = 0
+|max hit1 = 11
+|max hit2 = 1
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints1 = 100
+|hitpoints2 = 200
+|scaledhp = Yes
+|att1 = 100
+|att2 = 1
+|str1 = 100
+|str2 = 1
+|def1 = 100
+|def2 = 50
+|mage1 = 100
+|mage2 = 50
+|range1 = 100
+|range2 = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance1 = 100
+|poisonresistance2 = 0
+|venomresistance1 = 100
+|venomresistance2 = 0
+|id1 = 8366
+|id2 = 8385
+}}
+|text3 = Hard Mode
+|item3 = 
+{{Infobox Monster
+|version1 = Hard Mode Maiden
+|version2 = Hard Mode Verzik
+|name = Nylocas Matomenos
+|image = [[File:Nylocas Matomenos.png|200px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat = 138
+|size = 2
+|examine = Dripping with blood.
+|xpbonus = 0
+|max hit = 11
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints1 = 100
+|hitpoints2 = 200
+|scaledhp = Yes
+|att = 100
+|str = 100
+|def = 100
+|mage = 100
+|range = 100
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 15
+|poisonresistance1 = 100
+|poisonresistance2 = 0
+|venomresistance1 = 100
+|venomresistance2 = 0
+|id1 = 10828
+|id2 = 10862
+}}
+}}
+'''Nylocas Matomenos''' spawn during [[The Maiden of Sugadinti]] and [[Verzik Vitur]] encounters in the [[Theatre of Blood]].
+
+The Nylocas Matomenos that spawn during the Maiden fight will heal her for double their remaining [[hitpoints]] if they reach her, so binding them in place using [[ice spell]]s is necessary to prevent massive amounts of hitpoints being restored.
+
+The Nylocas Matomenos that spawn during the Verzik fight will only heal her for their remaining [[hitpoints]].
+
+Despite never attacking the player directly, casting [[Monster Examine]] will reveal that it has a stab attack style and a max hit of 11.
+
+Dark Lure does not work on these creatures.
+
+==Freezing Nylocas Matomenos==
+
+The chance of freezing (including binding and grasping) the Nylocas Matomenos during the Maiden encounter scales based on the player's magic attack bonus, with a 100% freeze rate when it is at +140. However, other factors can affect the freeze rate, such as [[Void Knight equipment]] and the [[Augury]] prayer. To effectively achieve a 100% freeze rate, the player should reach a [[Damage_per_second/Magic#Step_four:_Calculate_the_accuracy_roll|magic accuracy roll]] of (Base Magic level + 9) * 204<ref>Mikle's video demonstrates 100% accuracy on an account with far below the previously documented 22,000 accuracy bonus. The probability of catching this many freezes with a static accuracy check of 22,000 is well below 0.01%, when including further unlisted videos and testing performed.https://www.youtube.com/watch?v=SdoCk5K3hZ0</ref> or higher. This threshold, at 99 Magic, is 22,032.
+
+Below, a table lists the magic attack bonus that must be worn in order to guarantee freezing a Nylocas Matomenos at any Magic level. Due to rounding, the required Attack Bonus can ''sometimes'' be one lower than listed and still achieve 100% freeze rate, see the footnotes as applicable for a complete listing of exceptions:
+
+{| class="wikitable" style="text-align:center"
+<!--|+ Required Attack Bonus at {{SCP|Magic|99 Magic}}-->
+! Armour 
+!{{plinkp|Mystic Vigour}}!! {{plinkp|Augury}} !! {{plinkp|Imbued heart}} !! {{plinkp|Saturated heart}} !! Attack Bonus !! Effective Level
+|-
+| rowspan="10" | {{plinkp|Virtus robe top}}{{plinkp|Ancestral robe top}}{{plinkp|Ahrim's robetop}}<br>[[Magic armour]]
+|-
+|
+|
+|
+|
+| +140
+| 108
+|-
+|[[File:Yes check.svg]]
+|
+|
+|
+| +113
+|
+|-
+|[[File:Yes check.svg]]
+|
+|[[File:Yes check.svg]]
+|
+| +97
+|
+|-
+|[[File:Yes check.svg]]
+|
+|
+|[[File:Yes check.svg]]
+| +93
+|
+|-
+|
+| [[File:Yes check.svg]]
+|
+|
+| +104<ref group="m">Magic levels 91, 95 require +104, others can use +103</ref>
+| 132
+|-
+|
+|
+| [[File:Yes check.svg]]
+|
+| +123<ref group="m">Magic levels 95, 96, 97, 98, 99 require +123, others can use +122</ref>
+| 118
+|-
+|
+| [[File:Yes check.svg]]
+| [[File:Yes check.svg]]
+|
+| +89<ref group="m">Magic level 97 requires +89, others can use +88</ref>
+| 145
+|-
+|
+|
+|
+| [[File:Yes check.svg]]
+| +119<ref group="m">Magic level 99 requires +119, others can use +118</ref>
+| 121
+|-
+|
+| [[File:Yes check.svg]]
+|
+| [[File:Yes check.svg]]
+| +85<ref group="m">Magic levels 97, 98 require +85, others can use +84</ref>
+| 149
+|-
+| rowspan="10" | {{plinkp|Void mage helm}}{{plinkp|Elite void top}}<br>[[Void Knight equipment|Void Knight<br>equipment]]<!-- br tag in a wikilink :^) -->{{efn|[[Elite Void Knight equipment]] is recommended, as it provides an additional 5% damage bonus. Although, it is not required as it doesn't provide any more accuracy bonuses over regular void.|name=void}}<br>([[Void mage helm|mage]])
+|-
+|
+|
+|
+|
+| +82<ref group="v">Magic levels 90, 91, 92, 93, 95, 97 require +82, others can use +81</ref>
+| 152
+|-
+|[[File:Yes check.svg]]
+|
+|
+|
+| +61
+|
+|-
+|[[File:Yes check.svg]]
+|
+|[[File:Yes check.svg]]
+|
+| +50
+|
+|-
+|[[File:Yes check.svg]]
+|
+|
+|[[File:Yes check.svg]]
+| +47
+|
+|-
+|
+| [[File:Yes check.svg]]
+|
+|
+| +55<ref group="v">Magic levels 90, 91, 94 require +55, others can use +54</ref>
+| 187
+|-
+|
+|
+| [[File:Yes check.svg]]
+|
+| +69<ref group="v">Magic levels 92, 94, 96, 98 require +69, others can use +68</ref>
+| 167
+|-
+|
+| [[File:Yes check.svg]]
+| [[File:Yes check.svg]]
+|
+| +44<ref group="v">Magic levels 93, 95, 96, 97 require +44, others can use +43</ref>
+| 206
+|-
+|
+|
+|
+| [[File:Yes check.svg]]
+| +66<ref group="v">Magic level 98 requires +66, others can use +65</ref>
+| 171
+|-
+|
+| [[File:Yes check.svg]]
+|
+| [[File:Yes check.svg]]
+| +41<ref group="v">Magic levels 90, 92, 93, 94, 97, 98 require +41, others can use +40</ref>
+| 212
+|-
+| rowspan="7" | {{plinkp|Ancestral robe top}}{{plinkp|Ice ancient sceptre}}<br>[[Magic armour]] +<br>[[ice ancient sceptre]]
+|-
+|
+|
+|
+|
+| +122
+| 
+|-
+|
+| [[File:Yes check.svg]]
+|
+|
+| +88
+| 
+|-
+|
+|
+| [[File:Yes check.svg]]
+|
+| +106
+| 
+|-
+|
+| [[File:Yes check.svg]]
+| [[File:Yes check.svg]]
+|
+| +75
+| 
+|-
+|
+|
+|
+| [[File:Yes check.svg]]
+| +102
+| 
+|-
+|
+| [[File:Yes check.svg]]
+|
+| [[File:Yes check.svg]]
+| +71
+| 
+|-
+| rowspan="11" | {{plinkp|Void mage helm}}{{plinkp|Ice ancient sceptre}}<br>[[Void Knight equipment|Void Knight<br>equipment]]{{efn|name=void}}<br>([[Void mage helm|mage]]) +<br>[[ice ancient sceptre]]
+|-
+|
+|
+|
+|
+| +68
+| 
+|-
+| [[File:Yes check.svg]]
+|
+|
+|
+| +58
+| 
+|-
+| [[File:Yes check.svg]]
+|
+| [[File:Yes check.svg]]
+|
+| +48
+| 
+|-
+| [[File:Yes check.svg]]
+|
+| 
+| [[File:Yes check.svg]]
+| +44
+| 
+|-
+|
+| [[File:Yes check.svg]]
+|
+|
+| +44
+| 
+|-
+|
+|
+| [[File:Yes check.svg]]
+|
+| +56
+| 
+|-
+|
+| [[File:Yes check.svg]]
+| [[File:Yes check.svg]]
+|
+| +34
+| 
+|-
+|
+|
+|
+| [[File:Yes check.svg]]
+| +54
+| 
+|-
+|
+| [[File:Yes check.svg]]
+|
+| [[File:Yes check.svg]]
+| +31
+| 
+|}
+General Notes:{{notelist}}Exceptions by Magic level ≥ 90 (non-void):
+<references group="m" />
+Exceptions by Magic level ≥ 90 (void)
+<references group="v" />
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Nylocas Matomenos now have a 15% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Nylocas can now be affected by burn damage.
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Damage towards Nylocas now counts towards MVP at Maiden and Verzik.
+}}
+{{Subject changes
+|date = 18 June 2020
+|update = Poll 71 and Darkmeyer Updates
+|change = The death animation of a Nylocas Matomenos has been reduced.
+}}
+{{Subject changes
+|date = 9 January 2020
+|update = Eating in the Bank
+|poll = Old School Content Poll 69: Game Improvements
+|change = The chance of successfully freezing Nylocas Matomenos now scale based on the player's effective magic attack bonus (including hidden bonuses such as the Void knight set), reaching 100% at +140 and above.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The word "Nylocas" is very similar to the Hungarian word "Nyolcas", meaning "eight", referencing the eight legs of this arachnid-like creature.
+*The latter part of the name of the Nylocas Matomenos likely derives from the Greek term "ματωμένος" ("matoménos"), meaning "bloody" or "bleeding", referencing its background within the lore and its ability to heal The Maiden and Verzik Vitur.
+*The Nylocas Matomenos in Maiden's room ''cannot'' be poisoned.  The Nylocas Matomenos in Verzik Vitur's second phase ''can'' be poisoned, dealing 6 damage each time.
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}

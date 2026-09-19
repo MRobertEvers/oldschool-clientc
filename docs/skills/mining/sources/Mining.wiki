@@ -1,0 +1,796 @@
+{{External|rs|rsc|dw}}
+{{Otheruses|def=no|a list of all requirements and unlockables within the Mining skill|Mining/Level up table}}
+{{Has calculator|Calculator:Mining}}
+{{Has skill guide|members=Pay-to-play Mining training|free=Free-to-play Mining training|iron=Ironman Guide/Mining|UIM=Ultimate Ironman Guide/Mining}}
+{{Infobox Skill
+|name = Mining
+|image = [[File:Mining icon.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|members = No
+|type = Gathering
+}}
+[[File:Mining icon (detail).png|left]]
+'''Mining''' is a [[skill]] that allows players to obtain [[ores]] and [[gems]] from [[mining rocks|rocks]]. The higher a player's Mining level is the more likely they are to successfully extract ore. With ores, a player can then either smelt [[bars]] and make [[equipment]] using the [[Smithing]] skill or sell them for profit. Mining areas are identified with a regular pickaxe [[File:Mining site icon.png]] [[icon]], and [[mining shops]] are identified with a gold pickaxe [[File:Mining shop icon.png]] [[icon]] on the [[minimap]] and [[world map]].
+
+{{Listen
+|align = right
+|title = [[Mining Level Up!]]
+|filename = Mining Level Up!.ogg
+|desc = The music that plays when levelling up.}}
+{{Listen
+|align = right
+|title = [[Mining Level Up! (Unlocks)]]
+|filename = Mining Level Up! (Unlocks).ogg
+|desc = The music that plays when levelling up and unlocking new content.}}
+
+==How to mine==
+[[File:Mining.gif|frame|A player using a [[rune pickaxe]] to mine ores.]]
+The player can click on [[Rock#Mining rocks|rocks]] in a [[List of mines|mine]] to mine them, as long as they are wielding a [[pickaxe]] or have one in their inventory. After mining for a short amount of time, the player will obtain an [[ore]] or a [[gemstone]], depending on the rock mined. Ores can be used for [[Smithing]], and gemstones for [[Crafting]]. Rocks cannot be mined with a full inventory.
+
+Every mining cycle, there is a chance to succeed and obtain an ore. Using a higher-tier pickaxe can increase mining speed by reducing the time to the next mining cycle. The chance of success each cycle varies by ore and increases with the player's Mining level.
+
+==Pickaxes==
+{{Main|Pickaxe}}
+[[Pickaxe]]s, or "picks," are needed to mine [[mining rocks|rocks]]. They can be equipped as a [[weapon]], giving players one extra space in their [[inventory]]. Pickaxes cannot be made using the [[Smithing]] [[skill]]. Pickaxes can be bought from [[mining shop]]s or from other players.
+
+A player's Mining level determines the type of pickaxe they can mine with. Higher-level pickaxes grant more frequent opportunities to obtain an ore from a [[rock]] but do not impact the [[skilling success rate|success rate]] of doing so. As such, [[tick manipulation]] can be used to bypass the pickaxe mining speed. {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1188758467399618560|date=28 October 2019|archiveurl=https://reldo.runescape.wiki/i/99025|archivedate=16 May 2020|quote=Your level affects the chance of getting ore each time the game rolls; your pickaxe affects how often that happens.}}
+{| class="wikitable align-left-2 align-left-5" style="text-align:center;"
+! colspan="2" |Pickaxe
+!{{SCP|Mining}} Level
+!{{SCP|Attack}} Level<ref group=p>The listed [[Attack]] levels are only required to wield the pickaxes, not use them.</ref>
+![[Grand Exchange|GE]] Price
+!Members
+!Weight
+!Ticks between rolls
+|-
+|{{plinkt|Bronze pickaxe}}
+|1
+|1
+|{{Coins|{{GEP|Bronze pickaxe}}}}
+|{{Members|No}}
+|2.267&nbsp;kg
+|8
+|-
+|{{plinkt|Iron pickaxe}}
+|1
+|1
+|{{Coins|{{GEP|Iron pickaxe}}}}
+|{{Members|No}}
+|2.267&nbsp;kg
+|7
+|-
+|{{plinkt|Steel pickaxe}}
+|6
+|5
+|{{Coins|{{GEP|Steel pickaxe}}}}
+|{{Members|No}}
+|2.267&nbsp;kg
+|6
+|-
+|{{plinkt|Black pickaxe}}
+|11
+|10
+|{{Coins|{{GEP|Black pickaxe}}}}
+|{{Members|No}}
+|0.01&nbsp;kg
+|5
+|-
+|{{plinkt|Mithril pickaxe}}
+|21
+|20
+|{{Coins|{{GEP|Mithril pickaxe}}}}
+|{{Members|No}}
+|1.814&nbsp;kg
+|5
+|-
+|{{plinkt|Adamant pickaxe}}
+|31
+|30
+|{{Coins|{{GEP|Adamant pickaxe}}}}
+|{{Members|No}}
+|2.721&nbsp;kg
+|4
+|-
+|{{plinkt|Rune pickaxe}}
+|41
+|40
+|{{Coins|{{GEP|Rune pickaxe}}}}
+|{{Members|No}}
+|2.267&nbsp;kg
+|3
+|-
+|{{plinkt|Dragon pickaxe}}
+|61
+|60
+|{{Coins|{{GEP|Dragon pickaxe}}}}
+|{{Members|Yes}}
+|2.4&nbsp;kg
+|2.83<ref group="p" name=":0">3 ticks by default, 1/6 chance to be 2 ticks.</ref>
+|-
+|{{plinkt|Infernal pickaxe}}<ref group=p>The infernal pickaxe also requires 85 [[Smithing]] to use.</ref>
+|61
+|60
+|{{Coins|{{GEP|Dragon pickaxe}}+{{GEP|Smouldering stone}}}}<ref group=p>Listed price is the combined cost of a [[smouldering stone]] and a dragon pickaxe.</ref>
+|{{Members|Yes}}
+|1.36&nbsp;kg
+|2.83<ref name=":0" group="p" />
+|-
+|{{plinkt|3rd Age pickaxe}}
+|61
+|65
+|{{Coins|{{GEP|3rd Age pickaxe}}}}
+|{{Members|Yes}}
+|2.4&nbsp;kg
+|2.83<ref group=p>3 ticks by default, 1/6 chance to be 2 ticks.</ref>
+|-
+|{{plinkt|Crystal pickaxe}}<ref group=p>Requires completion of [[Song of the Elves]] to create and use.</ref>
+|71
+|70<ref group=p>The crystal pickaxe has an additional requirement of 50 [[Agility]] to wield.</ref>
+|{{Coins|{{GEP|Dragon pickaxe}}+{{GEP|Crystal tool seed}}}}<ref group=p>Listed price is the combined cost of a [[crystal tool seed]] and a dragon pickaxe, and does not include the value of the crystal shards.</ref>
+|{{Members|Yes}}
+|1.36&nbsp;kg
+|2.75<ref group=p>3 ticks by default, 1/4 chance to be 2 ticks.</ref>
+|}
+{{Reflist|group=p}}
+
+==Other equipment==
+Besides [[pickaxes]], the following items have some effect on mining:
+
+*Parts of [[prospector outfit]] increase Mining experience rates.
+*[[Varrock armour]] provides a 10% chance to mine two ores of certain types (depending on tier) simultaneously, giving experience for both ores.
+*[[Mining cape]] provides a 5% chance of receiving an extra ore while mining ore up to adamantite, giving experience for both ores.
+*[[Mining gloves]], [[Superior mining gloves]] and [[Expert mining gloves]] saves certain rocks from becoming depleted for a number of times after an ore is mined.
+*The [[bracelet of clay]] causes [[soft clay]] to be obtained from [[clay rocks]] rather than raw [[clay]], and doubles the yield from [[soft clay rocks]].
+*The [[celestial ring]] provides an invisible +4 boost to the player's Mining level. This boost does not allow the player to mine ore above their Mining level. When charged with [[stardust]], it gives the player a 10% chance to obtain an extra ore from rocks up to [[Adamantite rocks|adamantite]].
+*The [[elven signet]] offers a 10% chance to prevent the [[crystal pickaxe]] from consuming a charge when an ore is mined.
+*The [[celestial signet]] combines the effects of the celestial ring and the elven signet.
+*[[Coal bag]] stores up to 27 [[coal]], possibly improving mining efficiency.
+*[[Gem bag]] stores up to 60 uncut gems of each [[sapphire]] to [[dragonstone]], possibly improving efficiency when mining [[gem rocks]] or perhaps even in [[Motherlode Mine]].
+*A charged [[amulet of glory]] increases the chances of randomly finding [[gems]] while mining from 1/256 to 1/86. It also significantly boosts mining [[gem rocks]].
+*[[Ring of wealth (i)]] doubles the chance to receive [[clue geode]]s when in the [[Wilderness]].
+
+==Mineable items==
+Ores are obtained from the different types of rocks, usually found in [[List of mines|mines]]. On the [[minimap]], mines are labelled with a grey pickaxe. The colour of a rock corresponds to the ore's colour.
+
+When players click on a rock, they will hit it with their [[pickaxe]] and try to get the ore out. Higher-level rocks such as [[Mithril rocks|mithril]] and [[Adamantite rocks|adamantite]] take longer to mine and may require some patience.
+
+After the ore has been mined, the rock will turn grey for a while. Eventually the ore will [[Spawning|respawn]] and the rock will regain its colour. Players can only mine a rock when ore is available. Ore respawn times differ with the difficulty of the rock. For example, [[runite rocks]] take 12 minutes to respawn while [[iron rocks]] take about five seconds.
+
+{| class="wikitable sortable align-left-2 align-right-3 align-right-4" style="text-align:center;"
+! rowspan="2" colspan="2" |Item
+! colspan="2" style="white-space:nowrap;" |{{SCP|Mining|link=y}}
+! rowspan="2" |[[Grand Exchange|GE]] Price
+! rowspan="2" |Members
+|-
+!Level
+!Exp
+|-
+|{{plinkt|Clay}}
+|1||5
+|{{Coins|{{GEP|Clay}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Rune essence}}
+|1||5
+|{{Coins|{{GEP|Rune essence}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Copper ore|txt=Copper}}
+|1||17.5
+|{{Coins|{{GEP|Copper ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Tin ore|txt=Tin}}
+|1||17.5
+|{{Coins|{{GEP|Tin ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Limestone}}
+|10||26.5
+|{{Coins|{{GEP|Limestone}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Stardust}}
+|10-90||32
+|{{NA}}
+|{{Members|No}}
+|-
+|{{plinkt|Blurite ore|txt=Blurite}}
+|10||17.5
+|{{NA}}
+|{{Members|No}}
+|-
+|{{plinkt|Barronite shards|txt=Barronite}}
+|14||16
+|{{NA}}
+|{{Members|No}}
+|-
+|{{plinkt|Iron ore|txt=Iron}}
+|15||35
+|{{Coins|{{GEP|Iron ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Daeyalt ore|txt=Daeyalt}}
+|20||17.5
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Silver ore|txt=Silver}}
+|20||40
+|{{Coins|{{GEP|Silver ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Volcanic ash}}
+|22||10
+|{{Coins|{{GEP|Volcanic ash}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Lead ore|txt=Lead}}
+|25||40.5
+|{{Coins|{{GEP|Lead ore}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Pure essence}}
+|30||5
+|{{Coins|{{GEP|Pure essence}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Coal}}
+|30||50
+|{{Coins|{{GEP|Coal}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Pay-dirt}}
+|30||60
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Sandstone|pic=Sandstone (10kg)}}
+|35||30-60
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Dense essence block}}
+|38||12
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Gem rocks|pic=Uncut red topaz}}
+|40||65
+|Varies
+|{{Members|Yes}}
+|-
+|{{plinkt|Gold ore|txt=Gold}}
+|40||65
+|{{Coins|{{GEP|Gold ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Calcified rocks|txt=Calcified rocks|pic=Calcified deposit}}
+|41||33
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Volcanic sulphur}}
+|42||25
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Blasted ore}}
+|43||20
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Granite|pic=Granite (5kg)}}
+|45||50-75
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Rubium splinters|txt=Rubium splinters}}
+|48||30
+|{{Coins|{{GEP|Rubium splinters}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Sunstone|txt=Sunstone}}
+|53||15<ref group="n" name="Monolith">When mining the Sunstone Monolith.</ref> / 23-28 <ref group="n" name="rocks">When mining the sunstone rocks; with momentum active, it increases the experience to 28.</ref>
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Mithril ore|txt=Mithril}}
+|55||80
+|{{Coins|{{GEP|Mithril ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Lunar ore|txt=Lunar}}
+|60||0
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Daeyalt shard|txt=Daeyalt shard}}
+|60||5
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Lovakite ore|txt=Lovakite}}
+|65||60
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Rubium geode|txt=Rubium geode}}
+|68||10-100
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Adamantite ore|txt=Adamantite}}
+|70||95
+|{{Coins|{{GEP|Adamantite ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Soft clay}}
+|70||5
+|{{Coins|{{GEP|Soft clay}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Salt|pic=Efh salt}}s
+|72||5
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Nickel ore}}
+|74||80.5
+|{{Coins|{{GEP|Nickel ore}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Ancient essence|pic=Ancient essence}}
+|75||13.5
+|{{Coins|{{GEP|Ancient essence}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Infernal shale|pic=Infernal shale}}
+|78||10-103
+|{{NA}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Runite ore|txt=Runite}}
+|85||125
+|{{Coins|{{GEP|Runite ore}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Amethyst}}
+|92||240
+|{{Coins|{{GEP|Amethyst}}}}
+|{{Members|Yes}}
+|}
+<references group="n" />
+
+===Gems===
+{{MiningPreGemDropTable|bucket=no}}
+
+===Clue geodes===
+[[Clue geode]]s are rare hollow rocks that can be found when mining instead of receiving an ore. Searching the geode will give players a [[clue scroll]] of the same difficulty as the geode received.
+
+===Other===
+* [[Barronite deposit]]s have a chance to be obtained when mining for [[barronite shards]].
+* [[Crystal shard]]s have a chance to be obtained alongside the main product of rocks in the [[Trahaearn Mine]].
+* [[Iron ore fragment|Iron]], [[Silver ore fragment|silver]], [[Coal fragment|coal]], [[Gold ore fragment|gold]], [[Mithril ore fragment|mithril]], [[Adamantite ore fragment|adamantite]] and [[runite ore fragment]] are mined from the boulder in the [[Volcanic Mine]].
+* [[Soda ash]] is occasionally obtained while mining [[ash pile]]s.
+* [['perfect' gold ore]] can be obtained from the rocks in [[Witchaven Dungeon]]. They are used during the [[Family Crest]] quest but can still be mined and smelted after the quest is completed.
+* A [[Magic stone (Tears of Guthix)|magic stone]] is mined during the [[Tears of Guthix]] quest. The area cannot be accessed again after the quest is completed.
+* Various items can be obtained from [[Digsite]] digs.
+* Various items can be obtained by [[Panning tray|panning]], notably [[Nuggets|gold nuggets]].
+* [[Tephra]] is mined while fighting [[Zalcano]].
+* [[Rock (elemental)|Rocks]] can be mined from [[Pile of Rock|piles of rock]], giving the player 1 experience.
+* [[Daeyalt ore]] (not to be confused with [[daeyalt shard]]s) can be mined from [[daeyalt rocks]] in the [[Meiyerditch mine]] for 17.5 experience, requiring level 20 Mining. 15 pieces must be placed in the minecart to escape the mine.
+* [[Saltpetre]] can be obtained by digging deposits in [[Hosidius]] with a [[spade]]. Although it grants no experience, the amount obtained scales with Mining level.
+* [[Book page 3]] can be obtained randomly by mining most types of rock in the [[Dwarven Mines]] during [[Between a Rock...]]
+* A grey [[Crystal (Watchtower)|crystal]] is obtained by mining the [[Rock of Dalgroth]] during the [[Watchtower]] quest, requiring level 40 Mining.
+* [[Lunar ore]] is mined from [[Stalagmites (Lunar Isle)|stalagmites]] in the [[Lunar Isle mine]], requiring level 60 Mining and granting no experience. It can still be mined after the quest is completed.
+* [[Crystal ore]] is mined from [[Crystal deposit]]s in the [[Gauntlet]], with a chance of granting [[Crystal shards (The Gauntlet)|crystal shards]]. In the [[Corrupted Gauntlet]], [[corrupted ore]] and [[corrupted shards]] are obtained instead.
+* [[Guardian fragments]] are mined from [[Large guardian remains]], [[Guardian remains]], or [[Guardian parts]], and [[Guardian essence]] is mined from [[Huge guardian remains]] or [[Fallen guardian]]s, during the [[Guardians of the Rift]] minigame.
+* [[Salax salt]] is mined from [[Salt Deposit|Salt deposits]] in the centre of the asylum where [[Duke Sucellus]] resides, yielding 5 experience and 3 to 6 salax salt depending on Mining level.
+* [[Stone]]s could be mined during the [[Big Cats & WWF]] event.
+
+==Mines==
+{{main|List of mines}}
+[[List of mines|Mines]] are areas where players can mine their ores. These may be on the surface or underground and are scattered around [[Gielinor]]. Some of these locations are accessible only after certain [[quests]] are complete and some are [[members]]-only.
+
+==Special mining areas and activities==
+===Mining Guild===
+{{Main|Mining Guild}}The [[Mining Guild]] is a special mining area within the dwarven mines, requiring level 60 Mining to enter (can be [[Temporary skill boost|boosted]]). While accessible by [[Free-to-play]] players, an area of the mine is accessible solely by [[Members]]. There are numerous rocks in both sections, with especially large numbers of [[coal rocks]].
+
+Within the members' area of the Mining Guild, players will receive an invisible +7 level [[Temporary_skill_boost#Invisible_boosts|boost]] to their Mining, and have a chance to receive [[unidentified minerals]] while mining, which can be traded in for various [[Mining gloves (disambiguation)|mining gloves]]. It also contains two [[runite rocks]] and is the only place players can mine [[Amethyst]]. Players also have access to a [[Bank chest]] to deposit their ores quickly.
+
+===Motherlode Mine===
+{{Main|Motherlode Mine}}The [[Motherlode Mine]], is a members-only mine requiring level 30 Mining and found within the dwarven mines, allows players to instead mine [[Pay-dirt]] and deposit it into a dwarven machine. When withdrawn, the player receives various random ores attainable at their current Mining level. This process also has a chance of rewarding [[Gold nugget]]s, used to purchase helpful mining-related items such as the [[Coal bag]], [[Gem bag]], and [[Prospector outfit]], as well as [[Soft clay pack]]s and [[Bag full of gems|Bags full of gems]].
+
+===Blast mine===
+{{Main|Blast mine}}The [[Blast mine]], requiring level 43 Mining and found within [[Lovakengj]], allows players to collect [[Blasted ore]]s through the use of [[Dynamite]]; the usage of which also rewards a small amount of [[Firemaking|Firemaking experience]]. [[Blasted ore]]s are then deposited to obtain various random ores; the blast mine is unique as players can receive ores that have level requirements up to ten above their current level.
+
+===Coal Trucks===
+{{Main|Coal Trucks}}Coal from the nearby coal rocks can be loaded onto the trucks, and unloaded in [[Seers' Village]], which makes banking more convenient.
+
+===Trahaearn mine===
+{{Main|Trahaearn mine}}The rocks in this mine have a chance of yielding [[crystal shard]]s alongside the ore.
+
+===Volcanic mine===
+{{Main|Volcanic mine}}Players may mine ore fragments from a boulder in a volcanic chamber. This may be performed individually or in groups. In order to successfully mine here, players must maintain the stability of the mine, avoid [[lava beast]]s and navigate across pools of lava.
+
+===Shooting stars===
+{{Main|Shooting stars}}Shooting Stars are a [[Distraction and Diversion]] in which a meteoroid falls from the sky approximately every hour and a half (90 minutes) across every in-game [[server]]. These appear as [[Crashed Star|Crashed Stars]] that can be mined for [[stardust]], which can be exchanged at [[Dusuri's Star Shop|a shop]] run by [[Dusuri]] at the [[Mining Guild]] entrance in [[Falador]].
+
+===Zalcano===
+{{Main|Zalcano}}Zalcano is a [[skilling boss]]. In order to defeat her, players must mine [[tephra]], refine it using the [[Smithing]] skill, imbue it using the [[Runecrafting]] skill, throw it at her and mine her once her armour is damaged enough.
+
+===Digsite===
+{{Main|Digsite}}Various digs at the Digsite yield a variety of cheap or useless items and low amounts of experience. The [[Panning tray|panning activity]] yields a variety of inexpensive items (including [[nuggets]], three sets of which can be exchanged for [[gold ore]]), and minuscule amounts of mining and [[fishing]] experience.
+
+===Wyrmscraig Mine===
+{{Main|Wyrmscraig Mine}}Wyrmscraig Mine contains [[Sunstone]] used for the [[Golem crafting]] minigame. The mine contains [[Sunstone rocks]] and a [[Sunstone monolith]]. Sunstone rocks use the [[Sunstone_rocks#Momentum|Momentum]] mechanic, while the Sunstone Monolith can be mined slower but more AFK.
+
+===Cam Torum Mine===
+{{Main|Cam Torum Mine}}Cam Torum Mine's walls contain [[calcified rocks]]. When mined, these drop [[blessed bone shards]] and [[calcified deposit]]s. With [[jug of blessed wine|blessed wine]] players can sacrifice [[blessed bone shards|shards]] at a [[Libation bowl]], yielding [[prayer|prayer]] xp.
+
+===Ruins of Camdozaal===
+{{Main|Camdozaal Mines}}The Camdozaal Mines within the [[Ruins of Camdozaal]] contain [[Barronite rocks]]. When mined, these drop [[Barronite shards|Barronite Shards]] and [[Barronite deposit|Barronite deposits]].  The deposits can be broken down on the nearby [[Barronite Crusher]] to receive additional Barronite shards, ancient artefacts, or most notably, the [[Imcando hammer (broken)]].  The Imcando hammer, when repaired with Barronite shards, can be wielded and used instead of a normal [[hammer]].
+
+==Other uses==
+* In [[Castle Wars]], players can mine certain parts of the wall underground in order to fill the passageway with rocks. If other players are located under the rocks, they will be instantly killed.
+* In the [[Chambers of Xeric]], the player's Mining level and the average Mining level of the team affect the damage on [[Guardian (Chambers of Xeric)|Guardian]]s.
+* Several passages are blocked by objects that have to be mined before they can be crossed, such as rocks in the [[Abyss]] and the entrance to the [[Ice Queen's Lair]].
+* Mining is used to animate the [[earth elemental]]s that drop [[elemental ore]]. Although no actual mining is involved, a pickaxe that the player has the Mining level to use is required.
+* In Tombs of Amascut, mining is used in the [[Tombs of Amascut/Strategies#Path of Het|Path of Het]] challenge room, with 85 Mining being needed to guarantee a one-down of the pillar.
+
+==Tips==
+===Power-mining===
+Also known as '''drop mining''', this is where a player fills their [[inventory]] with ores, drops them all, and repeats. While this method of mining allows players to raise their Mining level quickly, dropping a whole inventory of ores can take some time (although this can be minimised by making use of [[Update:Shift-Click Drop & QoL|shift-click dropping]]). Also, by using this method, a player would be missing out on [[Smithing]] [[experience]]. Some locations useful for drop mining:
+
+*[[Al Kharid mine]] - The scorpions can be [[aggressive]] at low [[combat level]]s.
+*[[Dwarven Mine]]
+*[[Quarry]] - Players will be susceptible to damage from [[desert heat]]
+* [[Cape Conch mine|Cape Conch Mine]] - Granite & Sandstone without the [[desert heat]]
+*[[Mining Guild]] - The ores in the [[members]]-only section respawn twice as fast, allowing for non-stop iron mining.
+
+====Power-mining iron====
+There are currently 19 locations that have three iron rocks in a triangle formation.
+
+* [[Al Kharid mine]] - The only location available to free-to-play players.
+* [[Cam Torum mine]]
+* [[East Salvager Overlook mine]]
+* [[Isle of Souls mine]] - Accessible via [[Soul Wars]] minigame teleport or the Soul Wars portals at the [[Ferox Enclave]] or [[Edgeville]].
+* [[Legends' Guild mine]]
+* [[Lovakengj mine]]
+* [[Mining Guild]] - Members' area only. This is the preferred area to power-mine due to the iron rocks having a decreased respawn time. This mine has two spots with three iron rocks close together.
+* [[Mount Karuulm mine]]
+* [[Piscatoris mine]]
+* [[Sisterhood Sanctuary mine]]
+* [[Stonecutter Outpost]]
+* [[The Stranglewood mine]]
+* [[Trahaearn mine]]
+* [[South Mor Ul Rek mine]]
+* [[Verdant Valley]]
+* Wilderness [[Resource Area]]
+* [[Gemstone Crab|South-west Gemstone Crab Area]] 
+* [[Pandemonium Cave]]
+* [[Ynysdail]] (Requires 73 [[Sailing]])
+
+===Mining gloves===
+[[Members]] can purchase two different types of [[Mining gloves (disambiguation)|mining gloves]] from the [[Mining Guild Mineral Exchange]], a store run by [[Belona]] in the [[Mining Guild]]. Each pair of gloves saves certain [[Rock#Mining_rocks|rocks]] from becoming depleted for a number of times after an ore is mined, which is very beneficial for players power-mining or mining higher tier ores. After purchasing both pairs of gloves, the player can combine the gloves to create [[Expert mining gloves]] by talking to Belona.
+
+{|class="wikitable"
+!Item
+!Name
+!Effect
+|-
+|{{plinkt|Mining gloves}}
+|Saves [[iron rocks]], [[silver rocks]], [[coal rocks]], and [[gold rocks]] from becoming depleted one time.
+|-
+|{{plinkt|Superior mining gloves}}
+|
+* Saves [[mithril rocks]] and [[adamantite rocks]] from becoming depleted one time.
+* Saves the rocks affected by mining gloves two times.
+|-
+|{{plinkt|Expert mining gloves}}
+|
+* Saves [[sandstone rocks]], [[runite rocks]], and [[amethyst crystals]] from becoming depleted one time.
+* Saves the rocks affected by superior mining gloves two times.
+* Saves the rocks affected by mining gloves three times.
+|-
+|}
+
+===Reduce total weight===
+Players are recommended to wear few items or nothing at all other than their [[pickaxe]]. [[Members]] can wear the [[weight-reducing clothing]]. Wearing fewer items allows a player to run longer, as less [[energy]] is spent while running at lower [[weight]] values.
+
+===Switch worlds===
+For higher level rocks such as [[Adamantite rocks|adamantite]] or [[Runite rocks|runite]], it is often faster to [[switch worlds]] rather than waiting for the rocks to [[respawn]]. This is not recommended for lower level rocks as they respawn much faster.
+
+==Mining pet==
+[[File:Rock golem (follower).png|right|120px]]
+{{Main|Rock golem}}
+The [[rock golem]] is a members-only skilling [[pet]] that can be obtained while training [[Mining]]. The chances of getting it are dependent on the player's Mining level, and the time it takes to gather a resource.
+
+==Temporary boosts==
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Mining}}
+
+==Quests==
+{{Sync}}
+
+===Quests requiring Mining===
+{| class="wikitable sortable lighttable qc-active oqg-table" style="text-align:center;"
+!Quest
+!Mining<br/>requirement
+!Other skill requirements
+|-
+|[[The Knight's Sword]]||{{SCP|Mining|10}}||-
+|-
+|[[Tale of the Righteous]]
+|{{SCP|Mining|10}}
+|{{SCP|Strength|16}}
+|-
+|[[In Aid of the Myreque]]||{{SCP|Mining|15}}||{{SCP|Crafting|25}}, {{SCP|Magic|7}}
+|-
+|[[The Lost Tribe]]||{{SCP|Mining|17}}||{{SCP|Agility|13}}, {{SCP|Thieving|13}}
+|-
+|[[Tears of Guthix]]||{{SCP|Mining|20}}|| {{SCP|Firemaking|49}}, {{SCP|Crafting|20}}
+|-
+|[[Darkness of Hallowvale]]||{{SCP|Mining|20}}||{{SCP|Strength|40}}, {{SCP|Thieving|22}}, {{SCP|Construction|5}}, {{SCP|Agility|26}}, {{SCP|Crafting|32}}, {{SCP|Magic|33}}
+|-
+|[[Elemental Workshop I]]||{{SCP|Mining|20}}||{{SCP|Smithing|20}}, {{SCP|Crafting|20}}
+|-
+|[[Spirits of the Elid]]||{{SCP|Mining|37}}|| {{SCP|Thieving|37}}, {{SCP|Magic|33}}, {{SCP|Ranged|37}}
+|-
+|[[Between a Rock...]]||{{SCP|Mining|40}}||{{SCP|Defence|30}}, {{SCP|Smithing|50}}
+|-
+|[[Family Crest]]||{{SCP|Mining|40}}||{{SCP|Magic|59}}, {{SCP|Smithing|40}}, {{SCP|Crafting|40}}
+|-
+|[[Watchtower]]||{{SCP|Mining|40}}||{{SCP|Magic|15}}, {{SCP|Thieving|15}}, {{SCP|Agility|25}}, {{SCP|Herblore|14}}
+|-
+|[[A Kingdom Divided]]||{{SCP|Mining|42}}||{{SCP|Agility|54}}, {{SCP|Thieving|52}}, {{SCP|Woodcutting|52}}, {{SCP|Herblore|50}}, {{SCP|Crafting|38}}, {{SCP|Magic|35}}
+|-
+|[[Heroes' Quest]]||{{SCP|Mining|50}}||{{SCP|Quest|55}}, {{SCP|Cooking|53}}, {{SCP|Fishing|53}}, {{SCP|Herblore|25}}
+|-
+|[[Legends' Quest]]||{{SCP|Mining|52}}||{{SCP|Agility|50}}, {{SCP|Crafting|50}}, {{SCP|Herblore|45}}, {{SCP|Magic|56}}, {{SCP|Prayer|42}}, {{SCP|Smithing|50}}, {{SCP|Strength|50}}, {{SCP|Thieving|50}}, {{SCP|Woodcutting|50}}
+|-
+|[[Fallen From Grace]]||{{SCP|Mining|53}}||{{SCP|Sailing|62}}, {{SCP|Crafting|60}}, {{SCP|Runecraft|47}}
+|-
+|[[The Heart of Darkness]]||{{SCP|Mining|55}}||{{SCP|Agility|46}}, {{SCP|Slayer|48}}, {{SCP|Thieving|48}}
+|-
+|[[Lunar Diplomacy]]||{{SCP|Mining|60}}||{{SCP|Magic|65}}, {{SCP|Crafting|61}}, {{SCP|Defence|40}}, {{SCP|Firemaking|49}}, {{SCP|Herblore|5}}, {{SCP|Woodcutting|55}}
+|-
+|[[The Curse of Arrav]]
+|{{SCP|Mining|64}}
+|{{SCP|Ranged|62}},{{SCP|Thieving|62}},{{SCP|Agility|61}},{{SCP|Strength|58}},{{SCP|Slayer|37}}
+|-
+|[[The Blood Moon Rises]]
+|{{SCP|Mining|66}}
+|{{SCP|Slayer|74}}, {{SCP|Woodcutting|74}}, {{SCP|Cooking|72}}, {{SCP|Smithing|72}}, {{SCP|Fletching|70}}, {{SCP|Hunter|65}}, {{SCP|Crafting|64}}, {{SCP|Herblore|64}},{{SCP|Magic|57}}
+|-
+|[[Dragon Slayer II]]||{{SCP|Mining|68}}||{{SCP|Magic|75}}, {{SCP|Smithing|70}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Thieving|60}}, {{SCP|Construction|50}}, {{SCP|Hitpoints|50}}
+|-
+|[[Song of the Elves]]||{{SCP|Mining|70}}||{{SCP|Agility|70}}, {{SCP|construction|70}}, {{SCP|Farming|70}}, {{SCP|Herblore|70}}, {{SCP|Hunter|70}}, {{SCP|Smithing|70}}, {{SCP|Woodcutting|70}}
+|-
+|[[Making Friends with My Arm]]||{{SCP|Mining|72}}||{{SCP|construction|35}}, {{SCP|Firemaking|66}}, {{SCP|Agility|68}}
+|}
+
+===Quests rewarding Mining experience===
+{{Main|Quest experience rewards}}
+
+{| class="wikitable sortable lighttable qc-active oqg-table" style="text-align:center;"
+!Quest
+!Experience<br/>reward
+!Mining<br/>requirement
+!Other requirements
+|-
+|[[The Forsaken Tower]]
+|500
+| -
+| -
+|-
+|[[Doric's Quest]]||1,300||-||-
+|-
+|[[Plague City]]||2,425||-||-
+|-
+|[[The Giant Dwarf]]||2,500||-||{{SCP|Thieving|14}}, {{SCP|Crafting|12}}, {{SCP|Firemaking|16}}, {{SCP|Magic|33}}
+|-
+|[[Heroes' Quest]]||2,575||{{SCP|Mining|50}}||{{SCP|Quest|55}}, {{SCP|Cooking|53}}, {{SCP|Fishing|53}}, {{SCP|Herblore|25}}
+|-
+|[[Another Slice of H.A.M.]]||3,000||-||{{SCP|Attack|15}}, {{SCP|Prayer|25}}
+|-
+|[[The Lost Tribe]]||3,000||{{SCP|Mining|17}}||{{SCP|Agility|13}}, {{SCP|Thieving|13}}
+|-
+|[[Between a Rock...]]||5,000||{{SCP|Mining|40}}||{{SCP|Defence|30}}, {{SCP|Smithing|50}}
+|-
+|[[Fallen From Grace]]||5,000||{{SCP|Mining|53}}||{{SCP|Sailing|62}}, {{SCP|Crafting|60}}, {{SCP|Runecraft|47}}
+|-
+|[[Enakhra's Lament]]||7,000||{{SCP|Mining|45}} [[File:Ironman_chat_badge.png]]||{{SCP|Crafting|50}}, {{SCP|Firemaking|45}}, {{SCP|Prayer|43}}, {{SCP|Magic|39}}
+|-
+|[[The Heart of Darkness]]
+|8,000
+|{{SCP|Mining|55}}
+|{{SCP|Agility|46}}, {{SCP|Slayer|48}}, {{SCP|Thieving|48}}
+|-
+|[[The Dig Site]]||15,300||-||{{SCP|Agility|10}}, {{SCP|Herblore|10}}, {{SCP|Thieving|25}} 
+|-
+|[[The Curse of Arrav]]
+|40,000
+|{{SCP|Mining|64}}
+|{{SCP|Ranged|62}},{{SCP|Thieving|62}},{{SCP|Agility|61}},{{SCP|Strength|58}},{{SCP|Slayer|37}}
+|-
+|[[Song of the Elves]]||40,000||{{SCP|Mining|70}}||{{SCP|Agility|70}}, {{SCP|Construction|70}}, {{SCP|Farming|70}}, {{SCP|Herblore|70}}, {{SCP|Hunter|70}}, {{SCP|Smithing|70}}, {{SCP|Woodcutting|70}}
+|-
+|[[Making Friends with My Arm]]||50,000||{{SCP|Mining|72}}||{{SCP|construction|35}}, {{SCP|Firemaking|66}}, {{SCP|Agility|68}}
+|-
+|[[Dragon Slayer II]]||60,000||{{SCP|Mining|68}}||{{SCP|Quest|200}}, {{SCP|Magic|75}}, {{SCP|Smithing|70}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Thieving|60}}, {{SCP|Construction|50}}, {{SCP|Hitpoints|50}}
+|-
+!Total
+!240,600
+! colspan="2" |
+|}
+
+===Diaries requiring Mining===
+{{main|Achievement_Diary#Mining}}
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Diary
+!Mining<br/>requirement
+!Other requirements for<br/> tasks requiring mining
+|-
+|[[Desert_Diary#Easy|Desert Easy Diary]]
+|{{SCP|Mining|5}}
+| -
+|-
+|[[Desert_Diary#Hard|Desert Hard Diary]]
+|{{SCP|Mining|45}}
+| -
+|-
+|[[Falador_Diary#Easy|Falador Easy Diary]]
+|{{SCP|Mining|10}}
+|{{SCP|Smithing|13}}
+|-
+|[[Falador_Diary#Medium|Falador Medium Diary]]
+|{{SCP|Mining|40}}
+|{{SCP|Crafting|40}}
+|-
+|[[Falador_Diary#Hard|Falador Hard Diary]]
+|{{SCP|Mining|60}}
+| -
+|-
+|[[Fremennik_Diary#Easy|Fremennik Easy Diary]]
+|{{SCP|Mining|20}}
+|{{SCP|Crafting|23}}, {{SCP|Smithing|20}}
+|-
+|[[Fremennik_Diary#Medium|Fremennik Medium Diary]]
+|{{SCP|Mining|40}}
+| -
+|-
+|[[Fremennik_Diary#Hard|Fremennik Hard Diary]]
+|{{SCP|Mining|70}}
+| -
+|-
+|[[Kandarin_Diary#Medium|Kandarin Medium Diary]]
+|{{SCP|Mining|30}}
+| -
+|-
+|[[Karamja_Diary#Easy|Karamja Easy Diary]]
+|{{SCP|Mining|40}}
+| -
+|-
+|[[Karamja_Diary#Medium|Karamja Medium Diary]]
+|{{SCP|Mining|40}}
+| -
+|-
+|[[Karamja_Diary#Hard|Karamja Hard Diary]]
+|{{SCP|Mining|52}}
+|{{SCP|Woodcutting|15}}, {{SCP|Strength|50}}, {{SCP|Agility|50}}, {{SCP|Thieving|50}}
+|-
+|[[Kourend_%26_Kebos_Diary#Easy|Kourend & Kebos Easy Diary]]
+|{{SCP|Mining|15}}
+| -
+|-
+|[[Kourend_%26_Kebos_Diary#Medium|Kourend & Kebos Medium Diary]]
+|{{SCP|Mining|42}}
+| -
+|-
+|[[Kourend_%26_Kebos_Diary#Hard|Kourend & Kebos Hard Diary]]
+|{{SCP|Mining|65}}
+| -
+|-
+|[[Kourend_%26_Kebos_Diary#Elite|Kourend & Kebos Elite Diary]]
+|{{SCP|Mining|38}}
+|{{SCP|Runecraft|77}}, {{SCP|Crafting|38}}
+|-
+|[[Lumbridge_%26_Draynor_Diary#Easy|Lumbridge & Draynor Easy Diary]]
+|{{SCP|Mining|15}}
+| -
+|-
+|[[Morytania_Diary#Hard|Morytania Hard Diary]]
+|{{SCP|Mining|55}}
+| -
+|-
+|[[Varrock_Diary#Easy|Varrock Easy Diary]]
+|{{SCP|Mining|15}}
+| -
+|-
+|[[Western_Provinces_Diary#Easy|Western Provinces Easy Diary]]
+|{{SCP|Mining|15}}
+| -
+|-
+|[[Western_Provinces_Diary#Medium|Western Provinces Medium Diary]]
+|{{SCP|Mining|40}}
+| -
+|-
+|[[Western_Provinces_Diary#Hard|Western Provinces Hard Diary]]
+|{{SCP|Mining|70}}
+| -
+|-
+|[[Wilderness_Diary#Easy|Wilderness Easy Diary]]
+|{{SCP|Mining|15}}
+| -
+|-
+|[[Wilderness_Diary#Medium|Wilderness Medium Diary]]
+|{{SCP|Mining|55}}
+| -
+|-
+|[[Wilderness_Diary#Elite|Wilderness Elite Diary]]
+|{{SCP|Mining|85}}
+|{{SCP|Smithing|90}}
+|}
+
+
+===Skill choice===
+Upon completing any of the following quests, players may choose to allocate experience to Mining. These rewards usually come in the form of items, such as lamps or books, and are independent of any experience rewards directly received for completing the quest.
+{{SkillChoice|Mining}}
+
+==Level up messages==
+{{hastranscript|skill}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 March 2026
+|update = More from the Getting Around Poll
+|change = The Mining skill guide now correctly lists the requirement for runite ore as 85; the previous week's update caused it to be incorrectly listed as 92.
+}}
+{{Subject changes
+|date = 15 March 2023
+|update = The Last of Poll 78
+|poll = New Skill: Community Consultation and Poll 78
+|change = Most mining objects named "Rocks" have been renamed to "[ore type] rock". As a result, the "Prospect" option on all mineable rocks has been removed as it is no longer necessary.
+}}
+{{Subject changes
+|date = 7 December 2022
+|update = Quest Speedrunning: Batch 3 & More
+|change = The random tick delay after mining [[Copper rocks|copper]], [[Tin rocks|tin]], [[Coal rocks|coal]], [[Blurite rocks|blurite]], [[Silver rocks|silver]], [[ash pile|volcanic ash]], [[gem rocks]], [[Gold rocks|gold]], [[Mithril rocks|mithril]], [[Lovakite rocks|Lovakite]], [[Adamantite rocks|adamantite]], [[Clay rocks|clay]], [[salt]]s, [[Runite rocks|runite]] and [[Amethyst crystals|amethyst]] has been removed.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You now have a 10% chance to mine 2 ores at once for the completion of [[Varrock Diary|Varrock Diaries]]:
+*Ore up to [[gold ore|gold]] while wearing [[Varrock armour 1]].
+*Ore up to [[mithril ore|mithril]] while wearing [[Varrock armour 2]].
+*Ore up to [[adamantite ore|adamantite]] while wearing [[Varrock armour 3]].
+*Ore up to [[runite ore|runite]] while wearing [[Varrock armour 4]].
+}}
+{{Subject changes
+|date = 6 June 2013
+|update = Patch Notes (6 June 2013)
+|change = The mining animation has been updated to make it play an appropriate sound effect.
+}}
+{{Subject changes
+|date = 31 May 2013
+|update = Patch Notes (31 May 2013)
+|poll = Old School feature poll 4 – May 2013
+|change = The pickaxe animation, used when players mine normal rocks, has been reverted to an older version.
+}}
+{{Subject changes footer}}
+
+==See also==
+* [[Mining/Experience table]], a list of all Mining experience sources
+* [[Mining/Level up table]], a list of all requirements and unlockables within the Mining skill
+
+==References==
+{{Reflist}}
+
+{{Mining}}
+{{Skills}}
+[[Category:Free-to-play skills]]

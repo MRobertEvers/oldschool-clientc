@@ -142,6 +142,23 @@ RSCache_CS2_CommandName(int opcode)
     return info ? info->name : NULL;
 }
 
+static bool
+cs2_command_name_equals(const char* candidate, const char* name)
+{
+    while( *candidate && *name )
+    {
+        char ca = *candidate;
+        char cb = *name;
+        if( cb >= 'A' && cb <= 'Z' )
+            cb = (char)(cb - 'A' + 'a');
+        if( ca != cb )
+            return false;
+        candidate++;
+        name++;
+    }
+    return !*candidate && !*name;
+}
+
 int
 RSCache_CS2_CommandOfName(const char* name)
 {
@@ -153,21 +170,35 @@ RSCache_CS2_CommandOfName(const char* name)
         if( !candidate )
             continue;
         /* The table stores lowercase; source may be written in any case. */
-        const char* a = candidate;
-        const char* b = name;
-        while( *a && *b )
-        {
-            char ca = *a;
-            char cb = *b;
-            if( cb >= 'A' && cb <= 'Z' )
-                cb = (char)(cb - 'A' + 'a');
-            if( ca != cb )
-                break;
-            a++;
-            b++;
-        }
-        if( !*a && !*b )
+        if( cs2_command_name_equals(candidate, name) )
             return i;
+    }
+
+    /* Source-only spellings (old names, alternate spellings). Generated with the
+     * table, from the same name sources, so they cannot drift from it. */
+    for( size_t i = 0; i < sizeof(cs2_command_aliases) / sizeof(cs2_command_aliases[0]); i++ )
+        if( cs2_command_name_equals(cs2_command_aliases[i].name, name) )
+            return cs2_command_aliases[i].opcode;
+
+    /* Numeric command spellings are the decompiler's compatibility format
+     * for opcodes that were unnamed at the time source was produced.  Once an
+     * opcode gains a semantic name the generated row changes, but that should
+     * not make an older source tree stop compiling.  Accept `_1234` only when
+     * that opcode has a real command row; arbitrary numeric identifiers remain
+     * errors.  The decompiler still prints the row's current canonical name. */
+    if( name[0] == '_' && name[1] >= '0' && name[1] <= '9' )
+    {
+        int opcode = 0;
+        for( const char* p = name + 1; *p; p++ )
+        {
+            if( *p < '0' || *p > '9' )
+                return -1;
+            if( opcode > (CS2_COMMAND_TABLE_COUNT - 1 - (*p - '0')) / 10 )
+                return -1;
+            opcode = opcode * 10 + (*p - '0');
+        }
+        if( RSCache_CS2_CommandGet(opcode) )
+            return opcode;
     }
     return -1;
 }
@@ -201,9 +232,9 @@ RSCache_CS2_CommandCalcInfix(int opcode)
         return "-";
     case RSCACHE_CS2_OP_MULTIPLY:
         return "*";
-    case RSCACHE_CS2_OP_DIV:
+    case RSCACHE_CS2_OP_DIVIDE:
         return "/";
-    case RSCACHE_CS2_OP_MOD:
+    case RSCACHE_CS2_OP_MODULO:
         return "%";
     case RSCACHE_CS2_OP_AND:
         return "&";
@@ -246,8 +277,8 @@ RSCache_CS2_CommandPrecedence(int opcode)
     switch( opcode )
     {
     case RSCACHE_CS2_OP_MULTIPLY:
-    case RSCACHE_CS2_OP_DIV:
-    case RSCACHE_CS2_OP_MOD:
+    case RSCACHE_CS2_OP_DIVIDE:
+    case RSCACHE_CS2_OP_MODULO:
         return 1;
     case RSCACHE_CS2_OP_ADD:
     case RSCACHE_CS2_OP_SUB:

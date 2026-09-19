@@ -1,0 +1,284 @@
+{
+  "corpus": "benchmarks/krait_model_chains/live-animation.chain.gz",
+  "sha256": "4d6fb5c717a2548c9e8440747afa69aec70c517581b4dbf05f4753448739a2a5",
+  "binary_sha256": "9ce492c74026647d8604506db08182aada888fae3d32be1da2aba3abce3ebd36",
+  "events": {
+    "cpu-cycles": {
+      "arms": {
+        "0": 92949.4005,
+        "1": 49244.3495
+      },
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 795,
+          "count": 73902575,
+          "per_call": 92959.214,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "calls": 795,
+          "count": 38561533,
+          "per_call": 48505.073,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "calls": 795,
+          "count": 38931076,
+          "per_call": 48969.907,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "calls": 795,
+          "count": 71564120,
+          "per_call": 90017.761,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "calls": 795,
+          "count": 73886972,
+          "per_call": 92939.587,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "calls": 795,
+          "count": 39419681,
+          "per_call": 49584.504,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "calls": 795,
+          "count": 39411262,
+          "per_call": 49573.914,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "calls": 795,
+          "count": 74178876,
+          "per_call": 93306.762,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "calls": 795,
+          "count": 73917371,
+          "per_call": 92977.825,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "calls": 795,
+          "count": 39269740,
+          "per_call": 49395.899,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "calls": 795,
+          "count": 39028776,
+          "per_call": 49092.8,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "calls": 795,
+          "count": 71418580,
+          "per_call": 89834.692,
+          "arm": 0
+        }
+      ]
+    },
+    "instructions": {
+      "arms": {
+        "0": 81550.009,
+        "1": 44283.374
+      },
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 795,
+          "count": 64832257,
+          "per_call": 81550.009,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "calls": 795,
+          "count": 35205283,
+          "per_call": 44283.375,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "calls": 795,
+          "count": 35205282,
+          "per_call": 44283.374,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "calls": 795,
+          "count": 64832257,
+          "per_call": 81550.009,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "calls": 795,
+          "count": 64832257,
+          "per_call": 81550.009,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "calls": 795,
+          "count": 35205282,
+          "per_call": 44283.374,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "calls": 795,
+          "count": 35205283,
+          "per_call": 44283.375,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "calls": 795,
+          "count": 64832257,
+          "per_call": 81550.009,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "calls": 795,
+          "count": 64832258,
+          "per_call": 81550.01,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "calls": 795,
+          "count": 35205282,
+          "per_call": 44283.374,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "calls": 795,
+          "count": 35205282,
+          "per_call": 44283.374,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "calls": 795,
+          "count": 64832257,
+          "per_call": 81550.009,
+          "arm": 0
+        }
+      ]
+    },
+    "L1-dcache-load-misses": {
+      "arms": {
+        "0": 201.464,
+        "1": 102.791
+      },
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 795,
+          "count": 160057,
+          "per_call": 201.33,
+          "arm": 0
+        },
+        {
+          "sample": 2,
+          "calls": 795,
+          "count": 81719,
+          "per_call": 102.791,
+          "arm": 1
+        },
+        {
+          "sample": 3,
+          "calls": 795,
+          "count": 81839,
+          "per_call": 102.942,
+          "arm": 1
+        },
+        {
+          "sample": 4,
+          "calls": 795,
+          "count": 160204,
+          "per_call": 201.514,
+          "arm": 0
+        },
+        {
+          "sample": 5,
+          "calls": 795,
+          "count": 160124,
+          "per_call": 201.414,
+          "arm": 0
+        },
+        {
+          "sample": 6,
+          "calls": 795,
+          "count": 81573,
+          "per_call": 102.608,
+          "arm": 1
+        },
+        {
+          "sample": 7,
+          "calls": 795,
+          "count": 81687,
+          "per_call": 102.751,
+          "arm": 1
+        },
+        {
+          "sample": 8,
+          "calls": 795,
+          "count": 160232,
+          "per_call": 201.55,
+          "arm": 0
+        },
+        {
+          "sample": 9,
+          "calls": 795,
+          "count": 160257,
+          "per_call": 201.581,
+          "arm": 0
+        },
+        {
+          "sample": 10,
+          "calls": 795,
+          "count": 81919,
+          "per_call": 103.043,
+          "arm": 1
+        },
+        {
+          "sample": 11,
+          "calls": 795,
+          "count": 81719,
+          "per_call": 102.791,
+          "arm": 1
+        },
+        {
+          "sample": 12,
+          "calls": 795,
+          "count": 160068,
+          "per_call": 201.343,
+          "arm": 0
+        }
+      ]
+    }
+  },
+  "workload": "verified: 795 real pose calls, 0 skeletal, 449 matching prior poses, both arms"
+}

@@ -1,0 +1,480 @@
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..cdb3adb08 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -1,4 +1,5 @@
+ #include "toridraw.h"
++#include "toridraw_floor.h"
+ #include <assert.h>
+ 
+ #include "toridraw_types.h"
+@@ -799,6 +800,13 @@ ToriDraw_RenderModel2SortFaces(
+     struct ToriDraw_ModelHandle hnd,
+     struct ToriDraw_Scene* scene)
+ {
++    /* r4-floor rung 3: skip the depth/priority face sort entirely. */
++    if( torirs_floor() >= 3 )
++    {
++        torirs_floor_hit(3);
++        scene->tmp_face_order_count = 0;
++        return 0;
++    }
+     if( scene->flags & TORIDRAW_SCENE_SMALL )
+         ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd);
+     else
+diff --git a/3rd/toridraw/toridraw_floor.c b/3rd/toridraw/toridraw_floor.c
+new file mode 100644
+index 000000000..3403070e7
+--- /dev/null
++++ b/3rd/toridraw/toridraw_floor.c
+@@ -0,0 +1,46 @@
++/* ABLATION FLOOR LADDER -- measurement only. See toridraw_floor.h. */
++#include "toridraw_floor.h"
++
++#include <assert.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++int g_torirs_floor_level = -1;
++int g_torirs_floor_stat = 0;
++long g_torirs_floor_hits[8];
++
++void
++torirs_floor_resolve(void)
++{
++    char const* s = getenv("TORIRS_FLOOR");
++    char const* t = getenv("TORIRS_FLOOR_STAT");
++    int level = s ? atoi(s) : 0;
++
++    if( level < 0 )
++        level = 0;
++    if( level > 7 )
++        level = 7;
++    g_torirs_floor_stat = (t && t[0] == '1') ? 1 : 0;
++    g_torirs_floor_level = level;
++    if( g_torirs_floor_stat )
++        atexit(torirs_floor_report);
++
++    /* Once, to stderr, before any frame: a ladder whose knob never reached the
++     * binary is the one failure mode that reads as "the floor is the whole
++     * frame". The run log has to be able to say which rung it ran. */
++    fprintf(stderr, "floor: level=%d stat=%d\n", level, g_torirs_floor_stat);
++    fflush(stderr);
++}
++
++void
++torirs_floor_report(void)
++{
++    int i;
++    if( !g_torirs_floor_stat )
++        return;
++    fprintf(stderr, "floor_hits: level=%d", g_torirs_floor_level);
++    for( i = 1; i <= 7; i++ )
++        fprintf(stderr, " r%d=%ld", i, g_torirs_floor_hits[i]);
++    fprintf(stderr, "\n");
++    fflush(stderr);
++}
+diff --git a/3rd/toridraw/toridraw_floor.h b/3rd/toridraw/toridraw_floor.h
+new file mode 100644
+index 000000000..7a6270f3b
+--- /dev/null
++++ b/3rd/toridraw/toridraw_floor.h
+@@ -0,0 +1,73 @@
++#ifndef TORIDRAW_FLOOR_H
++#define TORIDRAW_FLOOR_H
++
++/*
++ * ABLATION FLOOR LADDER -- measurement only, never shippable.
++ *
++ * One binary, one runtime knob, seven strictly nested rungs. TORIRS_FLOOR=<n>
++ * (0 = full render, the self-control) selects how much of the frame is
++ * removed. Every gate is written `if( torirs_floor() >= N )`, so rung N+1
++ * necessarily fires every gate rung N fires -- monotonicity is structural, not
++ * something the reader has to audit call site by call site.
++ *
++ *   0  full render. Codegen-identical to every rung above it, so a delta
++ *      against rung 1 cannot be a code-layout artefact of a different build.
++ *   1  the eight ToriDraw_TriangleFace* entry points return at once. Per-face
++ *      dispatch, texture lookup and argument marshalling all still run; not
++ *      one span is walked and not one pixel is written by model geometry.
++ *   2  ToriDraw_RasterWithFaceIndices returns at once: no raster context, no
++ *      ordered-face walk, no per-face setup.
++ *   3  ToriDraw_RenderModel2SortFaces returns 0: the face sorter is gone.
++ *   4  soft3d_draw_model / soft3d_draw_model_widget return at entry: the
++ *      per-model projection, transform and cull are gone. The frame command
++ *      stream is still generated and the 2D UI still draws.
++ *   5  the frame's command walk is skipped entirely: no command stream, no
++ *      sprites, no fonts, no rects. The full-screen clear still runs.
++ *   6  app_world_paint's painter/bucket/occluder/cull work is skipped. THE
++ *      FLOOR: game logic, UI tree, clear and present, and nothing else.
++ *   7  the present BitBlt and the per-frame SetWindowTextA are skipped too.
++ *      Below the floor -- what the floor costs minus the window system.
++ *
++ * TORIRS_FLOOR_STAT=1 tallies how often each gate fired and prints the tally
++ * at exit. It is a predicted not-taken branch when unset, and it is unset for
++ * every timed run.
++ */
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++/* -1 until the environment has been read; torirs_floor() resolves on first
++ * use. A sentinel rather than a plain 0 default so a build where the resolve
++ * never ran is a level that never changes rather than a ladder that silently
++ * reports the control at every rung. */
++extern int g_torirs_floor_level;
++extern int g_torirs_floor_stat;
++extern long g_torirs_floor_hits[8];
++
++void
++torirs_floor_resolve(void);
++
++void
++torirs_floor_report(void);
++
++static inline int
++torirs_floor(void)
++{
++    if( g_torirs_floor_level < 0 )
++        torirs_floor_resolve();
++    return g_torirs_floor_level;
++}
++
++static inline void
++torirs_floor_hit(int rung)
++{
++    if( g_torirs_floor_stat )
++        g_torirs_floor_hits[rung]++;
++}
++
++#ifdef __cplusplus
++}
++#endif
++
++#endif /* TORIDRAW_FLOOR_H */
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..3f7241b9d 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -5,6 +5,7 @@
+ #include "toridraw_model.h"
+ #include "toridraw_model_internal.h"
+ #include "toridraw_types.h"
++#include "toridraw_floor.h"
+ #include "graphics/winding.h"
+ 
+ #include <assert.h>
+@@ -1304,6 +1305,14 @@ ToriDraw_RasterWithFaceIndices(
+     bool unsorted)
+ {
+     struct ToriDrawModelRasterContext ctx;
++
++    /* r4-floor rung 2: skip the raster dispatch loop entirely. */
++    if( torirs_floor() >= 2 )
++    {
++        torirs_floor_hit(2);
++        return;
++    }
++
+     context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
+     {
+         int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
+diff --git a/3rd/toridraw/toridraw_unity.c b/3rd/toridraw/toridraw_unity.c
+index e9db3a847..2f4e14364 100644
+--- a/3rd/toridraw/toridraw_unity.c
++++ b/3rd/toridraw/toridraw_unity.c
+@@ -9,6 +9,7 @@
+  * All dependencies live inside the toridraw/ folder; nothing from src/ is required.
+  */
+ 
++#include "toridraw_floor.c"
+ #include "toridraw.c"
+ #include "toridraw_animation.c"
+ #include "toridraw_hsl16.c"
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_flat.u.c b/3rd/toridraw/triangles/toridraw_triangle_flat.u.c
+index acff03bf7..6348a3fcc 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_flat.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_flat.u.c
+@@ -6,6 +6,7 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/shared_tables.h"
+ #include "../toridraw_types.h"
++#include "../toridraw_floor.h"
+ 
+ #include <assert.h>
+ #include <stdbool.h>
+@@ -315,6 +316,13 @@ ToriDraw_TriangleFaceFlat(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     int x1 = screen_vertices_x[face_indices_a[face]];
+     int x2 = screen_vertices_x[face_indices_b[face]];
+     int x3 = screen_vertices_x[face_indices_c[face]];
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+index 22e2fd2eb..10977fbbc 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+@@ -6,6 +6,7 @@
+ #include "graphics/dash_restrict.h"
+ #include "graphics/shared_tables.h"
+ #include "../toridraw_types.h"
++#include "../toridraw_floor.h"
+ 
+ #include <assert.h>
+ #include <stdbool.h>
+@@ -769,6 +770,13 @@ ToriDraw_TriangleFaceGouraud(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     int x1 = screen_vertices_x[face_indices_a[face]];
+     int x2 = screen_vertices_x[face_indices_b[face]];
+     int x3 = screen_vertices_x[face_indices_c[face]];
+@@ -1251,6 +1259,13 @@ ToriDraw_TriangleFaceGouraudSmooth(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     ToriDraw_TriangleFaceGouraudS1(
+         pixel_buffer,
+         face,
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c b/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+index 118d06959..dc173a7dc 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_texture_opaque.u.c
+@@ -5,6 +5,7 @@
+ #define TORIDRAW_TRIANGLE_TEXTURE_OPAQUE_U_C
+ 
+ #include "../toridraw_types.h"
++#include "../toridraw_floor.h"
+ #include "graphics/dash_restrict.h"
+ 
+ #include <assert.h>
+@@ -585,6 +586,13 @@ ToriDraw_TriangleFaceTextureBlendOpaque(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     int x1 = screen_vertices_x[face_indices_a[face]];
+     int x2 = screen_vertices_x[face_indices_b[face]];
+     int x3 = screen_vertices_x[face_indices_c[face]];
+@@ -1101,6 +1109,13 @@ ToriDraw_TriangleFaceTextureFlatOpaque(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     int x1 = screen_vertices_x[face_indices_a[face]];
+     int x2 = screen_vertices_x[face_indices_b[face]];
+     int x3 = screen_vertices_x[face_indices_c[face]];
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_texture_transparent.u.c b/3rd/toridraw/triangles/toridraw_triangle_texture_transparent.u.c
+index 59dc6f2db..220010561 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_texture_transparent.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_texture_transparent.u.c
+@@ -4,6 +4,7 @@
+ #define TORIDRAW_TRIANGLE_TEXTURE_TRANSPARENT_U_C
+ 
+ #include "../toridraw_types.h"
++#include "../toridraw_floor.h"
+ #include "graphics/dash_restrict.h"
+ 
+ #include <assert.h>
+@@ -582,6 +583,13 @@ ToriDraw_TriangleFaceTextureBlendTransparent(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     int x1 = screen_vertices_x[face_indices_a[face]];
+     int x2 = screen_vertices_x[face_indices_b[face]];
+     int x3 = screen_vertices_x[face_indices_c[face]];
+@@ -1098,6 +1106,13 @@ ToriDraw_TriangleFaceTextureFlatTransparent(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     int x1 = screen_vertices_x[face_indices_a[face]];
+     int x2 = screen_vertices_x[face_indices_b[face]];
+     int x3 = screen_vertices_x[face_indices_c[face]];
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_zbuf.u.c b/3rd/toridraw/triangles/toridraw_triangle_zbuf.u.c
+index da2d9e210..892cdbb59 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_zbuf.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_zbuf.u.c
+@@ -16,6 +16,7 @@
+  */
+ 
+ #include "../toridraw_types.h"
++#include "../toridraw_floor.h"
+ #include "graphics/dash_restrict.h"
+ #include "graphics/winding.h"
+ #include "graphics/raster/zbuffer/zbuf.screen.u.c"
+@@ -223,6 +224,13 @@ ToriDraw_TriangleFaceZBuffered(
+     bool allow_near_clip,
+     bool near_clipped)
+ {
++    /* r4-floor rung 1: dispatch runs, kernel returns immediately. */
++    if( torirs_floor() >= 1 )
++    {
++        torirs_floor_hit(1);
++        return;
++    }
++
+     struct ToriDraw_ZbufTriangle tri;
+     int const a = src->face_indices_a[face];
+     int const b = src->face_indices_b[face];
+diff --git a/src/app.c b/src/app.c
+index 3b3ab67e3..d5406307e 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -104,6 +104,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
+ #include "render/torirs_frame.h"
+ #include "render/torirs_pick.h"
+ #include "toridraw.h"
++#include "toridraw_floor.h"
+ #include "toridraw_model_transform.h"
+ #include "ui/uitree_build.h"
+ #include "ui/uitree_iface_stats.h"
+@@ -28074,7 +28075,11 @@ App_BuildFrame(
+         {
+             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PAINT)
+             {
+-                app_world_paint(app);
++                /* r4-floor rung 6: skip painting/bucketing entirely. */
++                if( torirs_floor() >= 6 )
++                    torirs_floor_hit(6);
++                else
++                    app_world_paint(app);
+             }
+             ToriRS_FrameSetWorld(
+                 frame,
+diff --git a/src/main.c b/src/main.c
+index 5ab7f7233..2c0fb3b6d 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -50,6 +50,7 @@ struct ToriRS_D3D9;
+ #include "render/torirs_frame.h"
+ #include "toridraw_eip_sample.h"
+ #include "toridraw_frame_ab.h"
++#include "toridraw_floor.h"
+ #include "toridraw_math.h"
+ #include "ui/uitree_hover.h"
+ #include "ui/uitree_layout.h"
+@@ -619,7 +620,11 @@ interactive_render_present(
+     App_Render(app, PlatformSDL2_Pixels(sdl), UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
+     {
+-        PlatformSDL2_Present(sdl);
++        /* r4-floor rung 7: no blit to the window, no title update. */
++        if( torirs_floor() >= 7 )
++            torirs_floor_hit(7);
++        else
++            PlatformSDL2_Present(sdl);
+     }
+     /* After the present, matching the GL lanes. This one's buffer is
+      * client-side and valid either side of it, so the ordering is chosen to
+@@ -2241,7 +2246,10 @@ frame_loop_step(void)
+         PlatformAudio_Update(audio);
+         PlatformAudio_Feedback(audio, &audio_feedback);
+         App_SetAudioFeedback(&app, &audio_feedback);
+-        update_window_title(sdl, &app, cfg.interface_id);
++        if( torirs_floor() >= 7 )
++            torirs_floor_hit(7);
++        else
++            update_window_title(sdl, &app, cfg.interface_id);
+     }
+     /* Close the work timer before pacing sleeps — otherwise capped runs always
+      * report ~20 ms (sleep fills the residual) and uncapped Delay(1) adds a
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..94d4f8f51 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -5,6 +5,7 @@
+ 
+ #include "graphics/fb_clear.h"
+ #include "toridraw.h"
++#include "toridraw_floor.h"
+ #include "toridraw_2d.h"
+ #include "toridraw_frame_ab.h"
+ #include "toridraw_font.h"
+@@ -843,6 +844,12 @@ soft3d_draw_model_widget(
+ 
+     assert(soft);
+     assert(cmd);
++    /* r4-floor rung 4: skip projection/transform entirely (widget models). */
++    if( torirs_floor() >= 4 )
++    {
++        torirs_floor_hit(4);
++        return;
++    }
+     if( cmd->model.kind != TORIDRAWMK_MODEL || !cmd->model.u.model.model )
+         return;
+ 
+@@ -911,6 +918,12 @@ soft3d_draw_model(
+ 
+     assert(soft);
+     assert(cmd);
++    /* r4-floor rung 4: skip projection/transform entirely (world models). */
++    if( torirs_floor() >= 4 )
++    {
++        torirs_floor_hit(4);
++        return;
++    }
+     if( !soft->has_3d )
+         return;
+     if( cmd->model.kind == TORIDRAWMK_NONE )
+@@ -1629,7 +1642,12 @@ ToriRS_Soft3D_RenderFrame(
+ 
+     soft->has_3d = false;
+     ToriRS_FrameBegin(frame);
+-    if( soft3d_pixowner_armed() )
++    /* r4-floor rung 5: skip the whole render-command walk (scene traversal). */
++    if( torirs_floor() >= 5 )
++    {
++        torirs_floor_hit(5);
++    }
++    else if( soft3d_pixowner_armed() )
+     {
+         soft3d_pixowner_begin(soft);
+         while( ToriRS_FrameNextCommand(frame, &cmd) )

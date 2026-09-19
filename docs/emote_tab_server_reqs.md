@@ -3,7 +3,7 @@
 > **DONE — landed before this lane, and deliberately left alone by it.**
 > Re-verified 2026-08-02: `interface_emote/scripts/emote.rs2` (134 lines),
 > `~emote_login` called from `player/login.rs2:48`, and the permanent check is
-> `mock230 --selftest` section "emotes" — now at `mock230_world.c:6993`/`:7143`,
+> `ToriRSServer --selftest` section "emotes" — now at `torirs_server_world.c:6993`/`:7143`,
 > not the `:5738` this doc cites (line drift only). §0's remaining content gap
 > stands: nothing writes the unlock bits, and `emote_access` (varp 313) is
 > still undeclared under `server/scripts/`. One comment inside `emote.rs2` was
@@ -85,11 +85,11 @@ wired:
 
 `[proc,emote_anim]` (`emote.rs2:72-121`) is the index→seq table, 40 of 56
 indices mapped. `anim()` compiles to `SS_OP_ANIM`
-(`src/net/mock/mock230_scripts.c:3180-3194`), which calls
-**`mock230_anim_play_player`** — confirmed the identical function combat
-calls (`mock230_combat.c:156,180`) — under the same priority gate and
-setting the same `MOCK230_PMASK_SEQUENCE` broadcast mask
-(`mock230.h:290`, confirmed) the player-info encoder already streams to
+(`src/torirsserver/torirs_server_scripts.c:3180-3194`), which calls
+**`ToriRSServer_AnimPlayPlayer`** — confirmed the identical function combat
+calls (`torirs_server_combat.c:156,180`) — under the same priority gate and
+setting the same `TORIRSSERVER_PMASK_SEQUENCE` broadcast mask
+(`torirs_server.h:290`, confirmed) the player-info encoder already streams to
 nearby observers. **This is the direct answer to "is this cheap because it
 reuses combat's plumbing" — yes, confirmed**: no new wire opcode, no new
 host op, nothing new in the engine at all.
@@ -99,7 +99,7 @@ once, generically: `app_if_button_target` (`src/app.c:282`, confirmed,
 called from the click path at `:328` and `:8403`) — documented as covering
 both `chatmenu`'s rows and `emote`'s grid.
 
-**Selftested**: `mock230_world.c:5738` onward (confirmed present) drives
+**Selftested**: `torirs_server_world.c:5738` onward (confirmed present) drives
 `IF_BUTTON1` with real sub-ids for 7 named emotes and asserts
 `player->anim_id` matches the cache's real seq id for each, plus a negative
 case (an unmodelled index) asserting nothing plays rather than silently
@@ -130,7 +130,7 @@ succeeding.
 | index → seq, click dispatch, animate, broadcast | **done** |
 | `emote_access` (varp313) `.varp` overlay, `transmit=yes scope=perm` | **not declared** — exists in `all.varp` but no overlay anywhere in `server/scripts` sets the transmit keys |
 | Something that actually sets the 24 unlock bits (Mime event, Lost Tribe quest, Achievement Diaries, Skill/Max capes) | **not modelled** — no quest/diary/random-event system currently touches any bit; `emote.rs2:33-38` states this is deliberate, not a bug |
-| `last_verb`-based "Loop" op variant | **content gap only** — `last_verb` already exists and is populated (`mock230.h:1201`); `emote_perform` just doesn't branch on it yet |
+| `last_verb`-based "Loop" op variant | **content gap only** — `last_verb` already exists and is populated (`torirs_server.h:1201`); `emote_perform` just doesn't branch on it yet |
 | `p_finduid` busy-guard / Fishing Trawler swim-check | **not ported** — no Trawler content exists yet, consistent with `emote.rs2`'s own note |
 
 ## 6. What this doc does not cover

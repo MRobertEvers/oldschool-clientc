@@ -1,0 +1,2 @@
+# Generation-only dependency for tools/torirs_chrome_fonts.py.
+fonttools==4.59.2

@@ -1,0 +1,51 @@
+{{External|rs=Air Bolt|rsc=Wind bolt}}
+{{Infobox Spell
+|name = Wind Bolt
+|image = [[File:Wind Bolt.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 17
+|spellbook = Normal
+|type = Combat
+|exp = 13.5
+|element = Air
+|damage = 9, 10, 11, or 12
+|cost = {{RuneReq|Air=2|Chaos=1}}
+|speed = 5 ticks
+|description = A low level Air missile
+|anim = [[File:Wind Bolt.gif|300px]]
+|sound = [[File:Wind Bolt.ogg]]
+}}
+[[File:Wind Bolt icon (mobile).png|left]]
+'''Wind Bolt''' is an [[Wind spells|air]]-based [[Bolt spells|bolt spell]] in the [[standard spellbook]], requiring level 17 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Wind Bolt's base maximum hit starts at 9 and increases as the player unlocks additional bolt spells, up to 12. Players who have completed the [[Family Crest]] quest can wear [[Chaos gauntlets]] to increase the maximum hit by an additional +3, up to 15 at level 35 Magic.
+
+As with all combat spells, Wind Bolt's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an air-based spell, Wind Bolt's maximum hit is also increased against targets that are [[Elemental weakness|weak to air]].
+
+===Calculator===
+{{Magic damage calculator|Wind Bolt|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|chaosgauntlets=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 2
+|Rune2 = chaos
+|Rune2num = 1
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[bolt spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2SpotanimLoad
 {
@@ -31,7 +32,7 @@ struct Task_Dat2SpotanimLoad
 static int
 Task_Dat2SpotanimLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2SpotanimLoad* task = (struct Task_Dat2SpotanimLoad*)task_base;
     struct RSCache_Dat2ConfigSpotanim* rscache_spotanim = NULL;
@@ -46,7 +47,7 @@ Task_Dat2SpotanimLoad_Run(
 
     if( !task->group )
     {
-        fprintf(stderr, "Failed to decode dat2 spotanim config group for %d\n", task->spotanim_id);
+        TORIRS_ERR("Failed to decode dat2 spotanim config group for %d\n", task->spotanim_id);
         PT_EXIT(&task->pt);
     }
 
@@ -68,7 +69,7 @@ Task_Dat2SpotanimLoad_Run(
 
     if( !torirs_spotanim )
     {
-        fprintf(stderr, "Failed to load dat2 spotanim %d\n", task->spotanim_id);
+        TORIRS_ERR("Failed to load dat2 spotanim %d\n", task->spotanim_id);
         PT_EXIT(&task->pt);
     }
 

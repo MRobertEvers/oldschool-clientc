@@ -1,0 +1,301 @@
+{{External|rs|dw}}
+{{Infobox Spell
+|name = Humidify
+|image = [[File:Humidify.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 68
+|spellbook = Lunar
+|type = Utility
+|exp = 65
+|cost = {{RuneReq|Astral=1|Water=3|Fire=1}}
+|speed = 3 ticks
+|quest = [[Dream Mentor]]
+|description = Fills certain vessels with water
+|anim = [[File:Humidify.gif|150px]]
+|sound = [[File:Humidify.ogg]]
+}}
+[[File:Humidify icon (mobile).png|left]]
+'''Humidify''' is a [[Lunar spell]] that requires 68 [[Magic]] plus the quests [[Dream Mentor]] and [[Lunar Diplomacy]] to be cast. This spell will fill all empty water-carrying vessels in a player's inventory with a single cast including: [[bucket]]s, [[fishbowl]]s, [[jug]]s, [[vial]]s, [[watering can]]s (including [[Gricoller's can]]), unwatered [[sapling]]s, [[waterskin]]s, [[bowl]]s, and [[clay]]. 
+It yields 65 [[experience]] per cast regardless of the number of vessels filled. It can also be used to extinguish the wall of flames in the [[Chambers of Xeric]] when fighting [[Great Olm]] or to refill waterskins in the [[Kharidian Desert]] instead of needing to cut [[Kharidian cactus|cacti]].
+
+A [[steam battlestaff]], [[twinflame staff]], or [[staff of water]] and [[tome of fire]] or [[staff of fire|vice]] [[tome of water|versa]] can be used for maximum efficiency. It can be used to train [[Magic]] while making profit from some of the items below:
+{|class="wikitable"
+|-
+!colspan="2"|Input!!colspan="2"|Output!!Profit
+|-
+|{{plinkt|Bowl}}||{{plinkt|Bowl of water}}||{{Coins|{{GEP|Bowl of water}}-{{GEP|Bowl}}}}
+|-
+|{{plinkt|Bucket}}||{{plinkt|Bucket of water}}||{{Coins|{{GEP|Bucket of water}}-{{GEP|Bucket}}}}
+|-
+|{{plinkt|Clay}}||{{plinkt|Soft clay}}||{{Coins|{{GEP|Soft clay}}-{{GEP|Clay}}}}
+|-
+|{{plinkt|Empty cup}}||{{plinkt|Cup of water}}||{{Coins|{{GEP|Cup of water}}-{{GEP|Empty cup}}}}
+|-
+|{{plinkt|Jug}}||{{plinkt|Jug of water}}||{{Coins|{{GEP|Jug of water}}-{{GEP|Jug}}}}
+|-
+|{{plinkt|Vial}}||{{plinkt|Vial of water}}||{{Coins|{{GEP|Vial of water}}-{{GEP|Vial}}}}
+|-
+|{{plinkt|Waterskin(0)}}||{{plinkt|Waterskin(4)}}||{{Coins|{{GEP|Waterskin(4)}}-{{GEP|Waterskin(0)}}}}
+|}
+To maximise experience per hour with this spell, put a [[fishbowl]] underneath the spell (similar to High Level Alchemy) and to the "F1" and "F6" keys (or custom F-keys) to switch between spellbook and inventory. Left-click empties the fishbowl. Casting High Level Alchemy is always cheaper when alchemising profitable items while this method always results in loss. Upon hearing the sound effect, all vessels have been filled.
+
+Casting this spell while holding an empty waterskin in the desert is a requirement for the [[Hard Desert Diary|hard Desert diary]].
+
+==Money making==
+{{Mmgsection|Humidifying clay}}
+
+==Saplings==
+
+Because it is time consuming and gives little to no experience, planting tree seeds in [[filled plant pot]]s to grow saplings is often skipped in favour of buying the saplings directly from the [[Grand Exchange]]. This opens up an opportunity to grow saplings for profit. Like all methods involving large amounts of buying and selling, which require a relatively high capital to start, it is recommended to test the market by growing one sapling first to make sure it is profitable.
+
+To plant the seeds in the pots, use one of them on the other with a [[gardening trowel]] in your inventory. This produces a [[seedling]]. When all the plant pots are filled with seeds, cast [[Humidify]] to water them. These watered seedlings will take approximately five minutes to turn into saplings, but this will happen even when [[bank]]ed. Repeating this process quickly will make around 1,700 saplings an hour.
+
+Please note that tree seeds have a relatively low [[Grand Exchange#Buying limit|buying limit]], so you may want to stock up on them beforehand, or grow several different trees at once.
+
+''{{Purge|tag=span|Click here to refresh the prices on the table below.}}''
+
+{|class="wikitable sortable"
+!Tree seed
+!Farming level required
+!Seed price
+!Sapling price
+!Profit per seed
+!Daily volume
+!Tax
+!Profit after tax
+|-
+|[[Acorn]]
+|15
+|{{Coins|{{GEP|Acorn}}}}
+|{{Coins|{{GEP|Oak sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Oak sapling }} - {{ GEP|Acorn }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Oak sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Oak sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Oak sapling }}*0.98 - {{ GEP|Acorn }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Apple tree seed]]
+|27
+|{{Coins|{{GEP|Apple tree seed}}}}
+|{{Coins|{{GEP|Apple sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Apple sapling }} - {{ GEP|Apple tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Apple sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Apple sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Apple sapling }}*0.98 - {{ GEP|Apple tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Willow seed]]
+|30
+|{{Coins|{{GEP|Willow seed}}}}
+|{{Coins|{{GEP|Willow sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Willow sapling }} - {{ GEP|Willow seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Willow sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Willow sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Willow sapling }}*0.98 - {{ GEP|Willow seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Banana tree seed]]
+|33
+|{{Coins|{{GEP|Banana tree seed}}}}
+|{{Coins|{{GEP|Banana sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Banana sapling }} - {{ GEP|Banana tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Banana sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Banana sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Banana sapling }}*0.98 - {{ GEP|Banana tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Teak seed]]
+|35
+|{{Coins|{{GEP|Teak seed}}}}
+|{{Coins|{{GEP|Teak sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Teak sapling }} - {{ GEP|Teak seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Teak sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Teak sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Teak sapling }}*0.98 - {{ GEP|Teak seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Orange tree seed]]
+|39
+|{{Coins|{{GEP|Orange tree seed}}}}
+|{{Coins|{{GEP|Orange sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Orange sapling }} - {{ GEP|Orange tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Orange sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Orange sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Orange sapling }}*0.98 - {{ GEP|Orange tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Curry tree seed]]
+|42
+|{{Coins|{{GEP|Curry tree seed}}}}
+|{{Coins|{{GEP|Curry sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Curry sapling }} - {{ GEP|Curry tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Curry sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Curry sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Curry sapling }}*0.98 - {{ GEP|Curry tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Maple seed]]
+|45
+|{{Coins|{{GEP|Maple seed}}}}
+|{{Coins|{{GEP|Maple sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Maple sapling }} - {{ GEP|Maple seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Maple sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Maple sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Maple sapling }}*0.98 - {{ GEP|Maple seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Pineapple seed]]
+|51
+|{{Coins|{{GEP|Pineapple seed}}}}
+|{{Coins|{{GEP|Pineapple sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Pineapple sapling }} - {{ GEP|Pineapple seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Pineapple sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Pineapple sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Pineapple sapling }}*0.98 - {{ GEP|Pineapple seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Mahogany seed]]
+|55
+|{{Coins|{{GEP|Mahogany seed}}}}
+|{{Coins|{{GEP|Mahogany sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Mahogany sapling }} - {{ GEP|Mahogany seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Mahogany sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Mahogany sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Mahogany sapling }}*0.98 - {{ GEP|Mahogany seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Papaya tree seed]]
+|57
+|{{Coins|{{GEP|Papaya tree seed}}}}
+|{{Coins|{{GEP|Papaya sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Papaya sapling }} - {{ GEP|Papaya tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Papaya sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Papaya sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Papaya sapling }}*0.98 - {{ GEP|Papaya tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Yew seed]]
+|60
+|{{Coins|{{GEP|Yew seed}}}}
+|{{Coins|{{GEP|Yew sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Yew sapling }} - {{ GEP|Yew seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Yew sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Yew sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Yew sapling }}*0.98 - {{ GEP|Yew seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Camphor seed]]
+|66
+|{{Coins|{{GEP|Camphor seed}}}}
+|{{Coins|{{GEP|Camphor sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Camphor sapling }} - {{ GEP|Camphor seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Camphor sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Camphor sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Camphor sapling }}*0.98 - {{ GEP|Camphor seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Palm tree seed]]
+|68
+|{{Coins|{{GEP|Palm tree seed}}}}
+|{{Coins|{{GEP|Palm sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Palm sapling }} - {{ GEP|Palm tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Palm sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Palm sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Palm sapling }}*0.98 - {{ GEP|Palm tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Calquat tree seed]]
+|72
+|{{Coins|{{GEP|Calquat tree seed}}}}
+|{{Coins|{{GEP|Calquat sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Calquat sapling }} - {{ GEP|Calquat tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Calquat sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Calquat sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Calquat sapling }}*0.98 - {{ GEP|Calquat tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Magic seed]]
+|75
+|{{Coins|{{GEP|Magic seed}}}}
+|{{Coins|{{GEP|Magic sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Magic sapling }} - {{ GEP|Magic seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Magic sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Magic sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Magic sapling }}*0.98 - {{ GEP|Magic seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Ironwood seed]]
+|80
+|{{Coins|{{GEP|Ironwood seed}}}}
+|{{Coins|{{GEP|Ironwood sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Ironwood sapling }} - {{ GEP|Ironwood seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Ironwood sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Ironwood sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Ironwood sapling }}*0.98 - {{ GEP|Ironwood seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Dragonfruit tree seed]]
+|81
+|{{Coins|{{GEP|Dragonfruit tree seed}}}}
+|{{Coins|{{GEP|Dragonfruit sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Dragonfruit sapling }} - {{ GEP|Dragonfruit tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Dragonfruit sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Dragonfruit sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Dragonfruit sapling }}*0.98 - {{ GEP|Dragonfruit tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Celastrus seed]]
+|85
+|{{Coins|{{GEP|Celastrus seed}}}}
+|{{Coins|{{GEP|Celastrus sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Celastrus sapling }} - {{ GEP|Celastrus seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Celastrus sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Celastrus sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Celastrus sapling }}*0.98 - {{ GEP|Celastrus seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Redwood tree seed]]
+|90
+|{{Coins|{{GEP|Redwood tree seed}}}}
+|{{Coins|{{GEP|Redwood sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Redwood sapling }} - {{ GEP|Redwood tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Redwood sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Redwood sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Redwood sapling }}*0.98 - {{ GEP|Redwood tree seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|-
+|[[Rosewood seed]]
+|92
+|{{Coins|{{GEP|Rosewood seed}}}}
+|{{Coins|{{GEP|Rosewood sapling}}}}
+|{{Coins|{{ #expr:( {{ GEP|Rosewood sapling }} - {{ GEP|Rosewood seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|{{GEInfo|Rosewood sapling|volume}}
+|{{Coins|{{#expr:floor({{ GEP|Rosewood sapling }}*0.02)}}}}
+|{{Coins|{{#expr:floor({{ GEP|Rosewood sapling }}*0.98 - {{ GEP|Rosewood seed }} - {{ GEP|Filled plant pot }} - ( {{ GEP|Astral rune }} / 25 ) ) }} }}
+|}
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 1
+|Rune2 = Fire
+|Rune2num = 1
+|Rune3 = Water
+|Rune3num = 3
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 January 2026
+|update = Holy Moleys and the Hooded Slayer Helm are Here!
+|change = The Humidify spell now works on the new seeds from Sailing as well, which are Camphor, Ironwood and Rosewood seeds.
+}}
+{{Subject changes
+|date = 14 August 2024
+|update = Slayer Partners
+|change = The Humidify [[spell]] can now fill [[empty cup]]s with water.
+}}
+{{Subject changes
+|date = 9 September 2021
+|update = Deadman Reborn and QoL Changes
+|change = [[Gricoller's Can|Gricoller's Watering Can]] may now be filled by casting the Humidify Spell.
+}}
+{{Subject changes
+|date = 30 October 2014
+|update = Target Teleport & Fedora Tip
+|poll = Old School Content Poll 26
+|change = The Lunar spell Humidify will now work on saplings held in your inventory.
+}}
+{{Subject changes
+|date = 15 August 2013
+|update = Patch Notes (15 August 2013)
+|poll = Old School feature poll 8
+|change = The 'Humidify' spell can now be used to soften clay.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

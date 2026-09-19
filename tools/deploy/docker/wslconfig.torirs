@@ -1,0 +1,35 @@
+# Install as C:\Users\<you>\.wslconfig, then `wsl --shutdown` to apply.
+#
+# NOTE: `networkingMode=mirrored` is deliberately NOT set here, and that is the
+# opposite of what you will read everywhere else. It was tried on this box
+# first and does not work for this deployment:
+#
+#   - Mirrored mode did come up correctly: the distro saw the host's own
+#     interfaces, including `eth1 10.0.0.5/24`, and 127.0.0.1:<port> reached a
+#     WSL listener from Windows.
+#   - But an inbound connection from the LAN to 10.0.0.5:<port> was REFUSED,
+#     with the Hyper-V firewall's DefaultInboundAction set to Allow and
+#     per-port allow rules in both the persistent and active stores.
+#   - 10.0.0.5 on this machine is a WireGuard tunnel adapter, not a physical
+#     NIC, and mirrored mode does not mirror inbound on it.
+#
+# So the world is reached the classic way instead: WSL stays on its default NAT
+# network and `netsh interface portproxy` forwards the Windows ports to the
+# distro. start-torirs.ps1 re-establishes that forwarding at every boot, which
+# is what makes it survive the WSL address changing (it changes every time).
+
+[wsl2]
+
+# Never tear the utility VM down for being idle.
+#
+# This is not a tuning knob, it is the difference between a server and a toy.
+# WSL stops a distro once nothing is attached to it, and stopping the distro
+# stops dockerd, which stops the container — cleanly, via SIGTERM, so the world
+# logs everyone out and the only trace is that the world is gone. Observed
+# directly while building this: the container was stopped and restarted on
+# every ssh session, and the world never finished booting because each boot was
+# cut short by the next teardown.
+#
+# This alone is not enough. start-torirs.ps1 holds a session open, which is
+# what stops the "no sessions left" teardown; this stops the idle timer.
+vmIdleTimeout=-1

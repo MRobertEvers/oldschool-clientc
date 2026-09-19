@@ -36,7 +36,7 @@ family:
 The toplevels are all named in the pack
 (`OSRS-Content/osrs239-content/pack/3_interfaces.pack`): 80 `toplevel_spectator`,
 161 `toplevel_osrs_stretch`, 164 `toplevel_pre_eoc`, 165 `toplevel_display`,
-548 `toplevel`, 601 `toplevel_osm`. `manifest_osrs230.ini` boots **161**.
+548 `toplevel`, 601 `toplevel_osm`. `manifests/manifest_osrs230.ini` boots **161**.
 
 **The layout script was never the gap.** It runs correctly and always did.
 
@@ -50,7 +50,7 @@ The canvas existed as three unrelated variables:
 |---|---|---|
 | layout root | `src/ui/uitree_layout.c` `UITree_LayoutRootWidth/Height` (765×503), read through `UITREE_LAYOUT_ROOT_W/H` at ~25 sites | `UITree_LayoutSetRootSize`, called once from `TORIRS_ROOT_SIZE` in `main.c` |
 | VM canvas | `RS_CS2Host.viewport_w/h`, handed to the VM by `CS2VM2_ThreadSetCanvas` and returned by `GETCANVASSIZE` **and** `VIEWPORT_GETEFFECTIVESIZE` | hardcoded 765×503 in `RS_CS2Host_Init`, **never written again** |
-| backbuffer | `PlatformSDL2.width/height` | `PlatformSDL2_Init`, never again |
+| backbuffer | `PlatformWindow.width/height` | `PlatformWindow_Init`, never again |
 
 Measured before the fix, `TORIRS_ROOT_SIZE=1024x768`:
 
@@ -107,7 +107,7 @@ listeners `cc_create`/`cc_delete`, which reallocates `tree->components`.
   batch**: a window drag emits one event per mouse-move and each would cost a
   relayout plus every gameframe onResize script.
 - `App_DrainCommands` applies it via `App_SetCanvasSize`.
-- `PlatformSDL2_SetCanvasFollowsWindow(platform, bus, follow)` is the mode gate.
+- `PlatformWindow_SetCanvasFollowsWindow(platform, bus, follow)` is the mode gate.
   Off by default: fixed mode keeps a 765×503 backbuffer and letterboxes.
 
 ### 3.4 The four window-mode ops
@@ -141,7 +141,7 @@ The authority is the dialect's own type table (runestar cs2
   the layout scripts in either window mode and can therefore never tell the two
   modes apart. Use it to test the layout, not the mode.
 - `TORIRS_SIM_WINDOW="frame,WxH[;frame,WxH]"` — resize the **window**, i.e. do
-  what a user's drag does (`PlatformSDL2_SetWindowSize`). Everything after that
+  what a user's drag does (`PlatformWindow_SetWindowSize`). Everything after that
   is the client's own decision, so this is the only knob that tests the follow
   gate. **Correction to an earlier claim in this doc:** `SDL_VIDEODRIVER=dummy`
   does deliver `SDL_WINDOWEVENT_SIZE_CHANGED` for a programmatic
@@ -168,11 +168,11 @@ missing read at boot:
 | | says | measured |
 |---|---|---|
 | `RS_CS2Host_Init` | `window_mode = RESIZABLE` | every clientscript's `getwindowmode` answers **resizable** from the first frame |
-| `PlatformSDL2.canvas_follows_window` | starts `false` | a real window resize was **dropped in the poll loop** |
+| `PlatformWindow.canvas_follows_window` | starts `false` | a real window resize was **dropped in the poll loop** |
 
 So the client told its own scripts it was resizable, and then letterboxed and
 upscaled a 765×503 canvas into whatever window it was given. Nothing could clear
-that: `PlatformSDL2_SetCanvasFollowsWindow` was only ever called from the
+that: `PlatformWindow_SetCanvasFollowsWindow` was only ever called from the
 post-frame `App_TakeWindowModeChange` drain, which fires only when a script
 *changes* the mode — and **nothing binds 3998**, so no script ever did (§3.5).
 The mode was unreachable and the two halves disagreed for the whole session.
@@ -182,7 +182,7 @@ The mode was unreachable and the two halves disagreed for the whole session.
 - **`App_WindowMode(app)` / `App_SetBootWindowMode(app, mode)`** (`src/app.c`,
   `src/app.h`). The shell reads the mode once, right after `App_Init` and before
   `App_OpenRootInterface`, and hands it to
-  `PlatformSDL2_SetCanvasFollowsWindow` — the same call the runtime switch
+  `PlatformWindow_SetCanvasFollowsWindow` — the same call the runtime switch
   makes, so the two paths cannot drift. `App_SetBootWindowMode` deliberately
   does **not** raise `window_mode_dirty`: config is not a user action.
 - **A stateable mode.** `[ui:boot] windowmode = fixed|resizable` in the boot
@@ -197,7 +197,7 @@ The mode was unreachable and the two halves disagreed for the whole session.
   window is not allowed there rather than silently scaling.
 - **Fixed mode snaps the window to the floor, and resizable puts it back.**
   Entering fixed is the one window change the user did not ask for, so
-  `PlatformSDL2` remembers the size it snapped away from (`resizable_w/h`) and
+  `PlatformWindow` remembers the size it snapped away from (`resizable_w/h`) and
   restores it when the mode goes back. Without that, a round trip through the
   Display dropdown shrank the window permanently — measured, then fixed.
 - **`--window` no longer needs `--windowmode`.** The boot-size branch tested
@@ -225,7 +225,7 @@ Per frame:
 
 1. poll SDL → bus
 2. `App_DrainCommands` — applies the canvas change
-3. **`PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)`** and
+3. **`PlatformWindow_Resize(platform, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H)`** and
    `ToriRS_GL3_SetViewport` with the same pair
 4. `App_RunOnce` (may raise `window_mode_dirty`)
 5. render / present
@@ -233,7 +233,7 @@ Per frame:
 
 Step 3 sizes the backbuffer **from the canvas, not from the window**, and that
 is not a preference: `App_Render` writes exactly `ROOT_W * ROOT_H` ints into
-`PlatformSDL2_Pixels()`. The canvas is clamped to a floor the window does not
+`PlatformWindow_Pixels()`. The canvas is clamped to a floor the window does not
 respect, so sizing the backbuffer from the raw window would overrun it the
 moment a user drags below 765×503. Below the floor the window letterboxes the
 clamped canvas — which is what fixed mode does anyway.
@@ -243,9 +243,9 @@ reason.
 
 ---
 
-## 5. Verified (2026-08-02, `SDL_VIDEODRIVER=dummy`, live mock230 on 43595)
+## 5. Verified (2026-08-02, `SDL_VIDEODRIVER=dummy`, live ToriRSServer on 43595)
 
-Boot canvas unchanged — `manifest_osrs230.ini` with no knobs still gives
+Boot canvas unchanged — `manifests/manifest_osrs230.ini` with no knobs still gives
 `(161|0) 765x503`, `(161|92) 765x503`, and a pixel-identical frame.
 
 **The drift, gone.** `TORIRS_ROOT_SIZE=1024x768 TORIRS_DUMP_BOUNDS=161`:
@@ -307,12 +307,12 @@ Tests: `cmdbus_test`, `uitree_test`, `ss_provider_test`,
 
 ---
 
-## 5A. Verified for §3A (2026-08-02, `SDL_VIDEODRIVER=dummy`, fresh mock230)
+## 5A. Verified for §3A (2026-08-02, `SDL_VIDEODRIVER=dummy`, fresh ToriRSServer)
 
 Method: two binaries, one stimulus. **before** = `2f167941` (the commit before
 the boot-mode wiring), rebuilt in a throwaway worktree with the
 `TORIRS_SIM_WINDOW` knob patched in so it receives the same window resize.
-**after** = this tree. Both run `manifest_osrs230.ini` (port-swapped) against
+**after** = this tree. Both run `manifests/manifest_osrs230.ini` (port-swapped) against
 the same mock, `TORIRS_MAX_FRAMES=400`, resize injected at frame 260.
 
 **Geometry — the window resize is now heard.**
@@ -406,7 +406,7 @@ ceiling: 2560×1440 was measured working, and any cap would be invented.
    `ENUM` op would blank the fixed frame.
 
 Also: `%varbit542` (cutscene/chrome-hide) and `%varbit4606` (widescreen
-viewport/FOV) are read-only in CS2 and server-written. mock230 never writes
+viewport/FOV) are read-only in CS2 and server-written. ToriRSServer never writes
 them, so they default to 0, which puts `toplevel_resize` on its `else` branch —
 the correct classic-viewport path for a normal session. Nothing to do there.
 
@@ -466,8 +466,8 @@ from `gameframe.enum` block named after that toplevel.
 ### 8.2 Verification (re-measured 2026-08-03)
 
 Embed client (`make -C src torirs EMBED_SERVER=1`,
-`manifest_osrs230_embed.ini`), against a cache baked from the tree
-(`make -C src mock230-cache`, §8.3):
+`manifests/manifest_osrs230_embed.ini`), against a cache baked from the tree
+(`make -C src torirsserver-cache`, §8.3):
 
 ```
 TORIRS_SIM_RUNSCRIPT="400,3967,12,0;1000,3967,12,2;1600,3967,12,1"
@@ -496,7 +496,7 @@ looks correct — always re-measure the baked archive, not the `.cs2` alone.
      chat      (161|96) 519x165 @0,338
 ```
 
-`mock230_pack --check-only`: 0 errors. `test-cmdbus` / `test-bootmanifest` /
+`ToriRSServer_Pack --check-only`: 0 errors. `test-cmdbus` / `test-bootmanifest` /
 `test-uitree` green. Selftest still pins `ids->iface_gameframe == 161` as the
 **login default** pack id (session top is `player->gameframe_*`).
 
@@ -531,11 +531,11 @@ downloaded* and the case-12 arm in `script_3967` / `script_4569` was simply not
 in the cache it ran. No content edit to a client-visible record had ever reached
 a running client.
 
-`make -C src mock230-cache` is the missing step — `cachepack pack --base
+`make -C src torirsserver-cache` is the missing step — `cachepack pack --base
 cache.osrs239 --out cache.osrs239.baked --assets --binary`, the client half of
 the bake PORTING_GUIDE §1 already draws. `--base` means the result is the
 pristine cache plus what the tree changes, so it is not a second corpus. The
-mock230 manifest family points at it; the offline-render and worldmap manifests
+ToriRSServer manifest family points at it; the offline-render and worldmap manifests
 still boot pristine, which is what they want.
 
 Two engine faults in `cachepack` had to be fixed first, both of which made an
@@ -574,7 +574,7 @@ calling `[clientscript,script753]`). Measured 2026-08-03: after that spelling
 change, baked idx12 archives 3967/4569 differ from pristine and contain
 `GOSUB_WITH_PARAMS 3998`; the §8.2 sim then remounts 161→548→164→161.
 
-**Hard rule when editing these two scripts:** after `mock230-cache`, confirm the
+**Hard rule when editing these two scripts:** after `torirsserver-cache`, confirm the
 baked archive MD5 changed (or that decompressed bytecode contains id 3998). A
 tree that says `~script3998` while the bake still matches pristine is the same
 bug as before — only quieter.
@@ -588,7 +588,7 @@ bug as before — only quieter.
 - **OpenRune intermediate hop** (fixed→pre_eoc via stretch) — deferred unless a
   measured break needs it.
 - Content `.rs2` files may still *spell* `toplevel_osrs_stretch:mainmodal` /
-  `:sidemodal` / `:floater`. That is fine: `mock230_send_if_opensub` /
+  `:sidemodal` / `:floater`. That is fine: `ToriRSServer_SendIfOpensub` /
   `closesub` / `movesub` rewrite those role suffixes to the live top's matching
   slot (bound by `if_opentop` on the player) whenever the named component's
   interface differs from the session gameframe. No per-call-site mode table.
@@ -651,17 +651,17 @@ match them by even if it wanted to.
 `tli_listener`, `side0..13`, `mainmodal`, `sidemodal` — reaches the client as
 a real, observable `IF_OPENSUB` packet:
 
-- The HUD/tab set is driven by `mock230_gameframe_opentop`
-  (`src/net/mock/mock230_encode.c:1047`), called once from the login burst
-  (`mock230_world_login_finish`, `src/net/mock/mock230_world.c:8859`). It
+- The HUD/tab set is driven by `ToriRSServer_GameframeOpentop`
+  (`src/torirsserver/torirs_server_encode.c:1047`), called once from the login burst
+  (`ToriRSServer_WorldLoginFinish`, `src/torirsserver/torirs_server_world.c:8859`). It
   reads the content enum named after the toplevel (§8 above —
   `player/configs/gameframe.enum`, `[toplevel_osrs_stretch]` /
   `[toplevel]` / `[toplevel_pre_eoc]`) and calls
-  `mock230_send_if_opensub` once per row, in file order.
+  `ToriRSServer_SendIfOpensub` once per row, in file order.
 - `mainmodal`/`sidemodal` are bound the same way but opened later, per
   destination, by content `[login,_]` procs (`orbs_login`,
-  `combat_tab_login`, …) via the same `mock230_send_if_opensub` — see the
-  many `toplevel_osrs_stretch:mainmodal` call sites in `mock230_world.c`.
+  `combat_tab_login`, …) via the same `ToriRSServer_SendIfOpensub` — see the
+  many `toplevel_osrs_stretch:mainmodal` call sites in `torirs_server_world.c`.
 - On the client, every one of those packets runs the same explicit path:
   `PKT_NAME_IF_OPENSUB` (`rs_gameproto_exec.c:831`) →
   `App_OpenSubInterface`/`Task_OpenSubRefresh` (`app.c:5648`) →
@@ -675,7 +675,7 @@ a real, observable `IF_OPENSUB` packet:
 
 Traced live with `TORIRS_NET_DEBUG=1 TORIRS_CS2_MOUNT_DEBUG=1
 TORIRS_SPILLOVER_DEBUG=1` against the embed transport
-(`manifest_osrs230_embed.ini`, `make -C src torirs EMBED_SERVER=1`): every
+(`manifests/manifest_osrs230_embed.ini`, `make -C src torirs EMBED_SERVER=1`): every
 mount at login is an `if-opensub: iface=N target=0x00a1xxxx` line, `pvp_icons`
 included — group 90 into `161:3`, from the enum row, same as every other
 panel.
@@ -688,13 +688,13 @@ widget's own onload chain (script 865 → `~pvp_icons_layout`, script 386,
 `OSRS-Content/osrs239-content/scripts/script_386.cs2`) then reads
 `deadman_world` / `wildwars_world` / `kots_world` / `clanwars_ffa_arena(coord)`
 / `wilderness_level` to pick a branch, and a normal world presumably resolves
-to something that stays visually inert. mock230 implements none of those
+to something that stays visually inert. ToriRSServer implements none of those
 world-type signals — it has no PVP worlds, wilderness, deadman mode, FFA
 arenas or KOTS — so every one of those reads always answers false/zero and
 execution always falls into script 386's shared "plain world" `else`
 (lines 194–283), whose only hide/show gate is `%varbit542` (cutscene status).
 Outside a cutscene that branch unconditionally shows the icon container
-(`interface_90:44`), so an ordinary mock230 login always drew a stray PVP/skull
+(`interface_90:44`), so an ordinary ToriRSServer login always drew a stray PVP/skull
 icon — not because the client mounted something it should not have, but
 because the *server* opened a widget whose correct rendering depends entirely
 on state this server doesn't model.
@@ -705,12 +705,12 @@ Interface 90 is now never opened, exactly like a real non-PVP-world server
 apparently leaves some login-time widget unopened rather than shipping a
 script that cannot answer its own preconditions — its `onload` never fires,
 `~pvp_icons_layout` never runs, nothing renders. This is a content-only
-change (`.enum` files are read directly at mock230 boot,
-`mock230_content.c`'s generic `walk_configs(path, ".enum", …)`; no
-`mock230-cache`/`cachepack` rebuild needed) and it is scoped to exactly one
+change (`.enum` files are read directly at ToriRSServer boot,
+`torirs_server_content.c`'s generic `walk_configs(path, ".enum", …)`; no
+`torirsserver-cache`/`cachepack` rebuild needed) and it is scoped to exactly one
 row per toplevel — every other `gameframe.enum` row, and the explicit-open
-mechanism itself, is untouched. Verified with `mock230 --selftest` (both the
-default and `MOCK230_REV=osrs239` lanes) byte-identical before/after aside
+mechanism itself, is untouched. Verified with `ToriRSServer --selftest` (both the
+default and `TORIRSSERVER_REV=osrs239` lanes) byte-identical before/after aside
 from one heap-pointer debug print, and with the embed-transport trace above
 showing the other 20 `161:xx` mounts land in the same order with the same
 ids as before the row was removed.

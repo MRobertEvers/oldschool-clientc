@@ -150,9 +150,14 @@ enum ToriRS_AudioCommandKind
  * being under-filled: the backend asks for exactly the frames it is about to
  * play, at the moment it plays them.
  *
- * `render` runs inside the backend's mix, on the frame thread like everything
- * else -- so its cost is frame time. It must not do IO, must not block, and
- * should not allocate: whatever it needs is resident before the asset loads.
+ * `render` runs inside the backend's mix -- which on SDL2 and Android is a
+ * real-time device thread, not the frame thread. It must not do IO, must not
+ * block, and must not allocate: whatever it needs is resident, and sized,
+ * before the asset loads.
+ *
+ * The same applies to `ctx`: the device thread is inside it for the duration,
+ * so the game mutates it only under the backend's exclusion (see
+ * `struct ToriRS_AudioExclusion` below).
  */
 struct ToriRS_AudioSource
 {
@@ -261,6 +266,56 @@ struct ToriRS_AudioFeedback
      *  rather than prepare audio nobody will hear. */
     bool device_open;
 };
+
+/**
+ * Mutual exclusion against the backend's render, when the backend has a thread.
+ *
+ * Two of the four backends run `ToriRS_Mixer_Render` on a device thread (SDL2
+ * on SDL's audio thread, Android on OpenSL ES's callback thread); the other two
+ * render from the frame loop and have nothing to exclude. So this is a handle
+ * the backend fills in and the game borrows, zeroed where there is no thread.
+ *
+ * ## What it has to cover, and why the mixer's own lock is not enough
+ *
+ * A backend locking its own Submit protects the mixer's tables. It does not
+ * protect what a *pull source* points at: `ToriRS_AudioSource.render` is called
+ * from inside Render with the game's own `ctx`, so every byte that ctx reaches
+ * is read on the device thread too. The music player is the live case -- its
+ * ctx is a `ToriRS_MusicPlayer`, whose synth the game tears down and rewires
+ * when a song lands.
+ *
+ * The rule is therefore stronger than "the backend locks its own calls":
+ *
+ *   **Anything the device thread can reach is mutated only under this.** That
+ *   means the mixer's tables (the backend's job) and every live pull source's
+ *   state (the game's job).
+ *
+ * Acquire is recursive on every backend that fills it in, so a locked region
+ * may call another.
+ */
+struct ToriRS_AudioExclusion
+{
+    /** NULL on a backend with no device thread; both are set, or neither is. */
+    void (*acquire)(void* ctx);
+    void (*release)(void* ctx);
+    void* ctx;
+};
+
+/** Both are no-ops on a zeroed handle, which is what a frame-fed backend
+ *  hands out -- so a caller never tests before locking. */
+static inline void
+ToriRS_AudioExclusion_Acquire(const struct ToriRS_AudioExclusion* exclusion)
+{
+    if( exclusion && exclusion->acquire )
+        exclusion->acquire(exclusion->ctx);
+}
+
+static inline void
+ToriRS_AudioExclusion_Release(const struct ToriRS_AudioExclusion* exclusion)
+{
+    if( exclusion && exclusion->release )
+        exclusion->release(exclusion->ctx);
+}
 
 #define TORIRS_AUDIO_STREAM_MAX 4
 

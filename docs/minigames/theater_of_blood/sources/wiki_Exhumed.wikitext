@@ -1,0 +1,26 @@
+{{Infobox Scenery
+|name = Exhumed
+|image = [[File:Exhumed.png|250px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|quest = None
+|location = [[Theatre of Blood]]
+|options = None
+|examine = Nourishment for a famished yarasa.
+|map = {{Map|name=Exhumed|3163,4395|3178,4395|3178,4380|3163,4380|mtype=polygon|plane=1|mapID=-1}}
+|id = 32743
+}}
+The '''Exhumed''' appear during the phase 1 of the encounter with [[Xarpus]] in the [[Theatre of Blood]]. Players must go on the tile the exhumed is located so they can prevent it from healing Xarpus, and thus lengthening the fight during phase 2.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = The word "Yarasa" in the examine text was changed to "yarasa."
+}}
+{{Subject changes footer}}
+
+{{Theatre of Blood}}

@@ -29,4 +29,21 @@ ObjModelLoad_NeedsWork(
     int obj_id,
     int count);
 
+/**
+ * The objtype whose inventory model actually draws for `obj_id` at `count` —
+ * the stack variant when the obj declares one (`count_obj`/`count_co`), else
+ * `obj_id` itself. Never -1 for a positive `obj_id`.
+ *
+ * Callers that rasterize an icon get this for free inside the icon path; a
+ * caller binding the obj's MODEL to a widget has to ask, because baking the
+ * BASE model for a stackable asks for a model the loader never fetched.
+ * `arrow_shaft` on the make-menu was exactly that: its cell drew nothing while
+ * the four beside it drew fine.
+ */
+int
+ObjModelLoad_RenderObjId(
+    struct CacheProvider* provider,
+    int obj_id,
+    int count);
+
 #endif

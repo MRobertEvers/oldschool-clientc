@@ -65,7 +65,7 @@ struct VarPManager
      * The type table is a cache fact — one record per varplayer the cache
      * declares — while the value arrays are sized by what actually gets
      * written. This tree lets content allocate varps ABOVE the cache's highest
-     * id (mock230.h MOCK230_VARP_SERVER_HEADROOM), so those two numbers
+     * id (torirs_server.h TORIRSSERVER_VARP_SERVER_HEADROOM), so those two numbers
      * genuinely differ: id 6000 has a value and no type. Reading a clientcode
      * for such an id must answer "none", not walk off the end of the table.
      */
@@ -207,5 +207,31 @@ VarPManager_ResolveTransform(
     int transform_count,
     int transform_varbit,
     int transform_varp);
+
+/**
+ * Whether a transform table would resolve differently if `varp_id` changed.
+ *
+ * A multiloc or multinpc picks its child from one of two keys: a varp
+ * directly, or a VARBIT -- which is a field packed inside some varp, and it is
+ * that BASE varp the wire actually carries. So a table keyed on a varbit still
+ * depends on a varp, just not one it names anywhere, and a reader that only
+ * compares `transform_varp` sees no dependency at all.
+ *
+ * That is the failure this exists to prevent, and its symptom is a door that
+ * never opens or an npc that never changes state while every packet involved
+ * arrives correctly: the varp lands, nothing thinks it is interested, and the
+ * placement keeps the child it resolved at scene build.
+ *
+ * A table with no entries depends on nothing -- that is a record with no
+ * transform at all, not one whose key is missing.
+ */
+bool
+VarPManager_TransformDependsOnVarp(
+    const struct VarPManager* mgr,
+    const int* transforms,
+    int transform_count,
+    int transform_varbit,
+    int transform_varp,
+    int varp_id);
 
 #endif /* VARP_MANAGER_H */

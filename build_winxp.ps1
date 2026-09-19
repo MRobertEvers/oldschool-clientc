@@ -11,26 +11,36 @@
         standalone (no separate game server needed) -- what you want on XP.
 
     The binary is built HERE (the XP box has no compiler) with a 32-bit MinGW
-    toolchain, then copied to dist\win32\torirs.exe for deployment. Deploy + run
-    it on XP with the RemoteProxyDesktopXP build server (rpdxpctl).
+    toolchain, then staged with its IE6/7-safe local plugin_chrome bundle under
+    dist\win32. Deploy + run it on XP with the RemoteProxyDesktopXP build
+    server (rpdxpctl).
 
 .PARAMETER Toolchain
     Path to a MinGW root or 'bin' directory (must contain gcc, mingw32-make,
     and objdump).
     Defaults to the repository-owned lib\mingw32-win32-toolchain.zip, extracted
-    on demand under the ignored toolchain\mingw32 directory.
+    on demand under the toolchains\mingw32 directory.
+
+.PARAMETER DebugBuild
+    Unoptimized build (OPT=0). The default is the release build -- the XP lane
+    exists to be measured, and an OPT=0 artifact is not comparable to the
+    numbers in docs\xpbench, so the flagless invocation must be the one that
+    produces them.
 
 .PARAMETER Opt
-    Release build (OPT=1). Default is a debug build.
+    Accepted and ignored. Release is the default now; the switch stays so the
+    invocations written down in readme.md, BUILD_AND_RUN.md and every existing
+    shell history keep working instead of failing on an unknown parameter.
 
 .EXAMPLE
-    .\build_winxp.ps1
-    .\build_winxp.ps1 -Opt
+    .\build_winxp.ps1              # release -- the measured lane
+    .\build_winxp.ps1 -DebugBuild
     .\build_winxp.ps1 -Toolchain C:\mingw32\bin
 #>
 [CmdletBinding()]
 param(
     [string]$Toolchain = "",
+    [switch]$DebugBuild,
     [switch]$Opt
 )
 
@@ -50,7 +60,9 @@ Write-Host "[winxp] sh: $($buildEnvironment.Sh)"
 
 # --- build ----------------------------------------------------------------
 # All build knowledge lives in the makefile's lane targets: `winxp` is
-# PLATFORM=win32 OPT=1 and `winxp-debug` is OPT=0, and both run `lane-check`
+# PLATFORM=win32 OPT=1 -- the default here, and the configuration every number
+# in docs\xpbench was measured on -- and `winxp-debug` is OPT=0, reached with
+# -DebugBuild. Both run `lane-check`
 # first so a wrong-architecture toolchain fails here with one line rather than
 # as an unexplained loader error on the XP box. This script only puts a
 # toolchain on PATH and stages the result -- if you find yourself adding a
@@ -60,7 +72,7 @@ Write-Host "[winxp] sh: $($buildEnvironment.Sh)"
 # a build flavor rather than a platform property, which is why it is set here
 # and not in the lane. Passing it on the command line propagates to the
 # makefile's own sub-makes through MAKEFLAGS.
-$laneTarget = if ($Opt) { "winxp" } else { "winxp-debug" }
+$laneTarget = if ($DebugBuild) { "winxp-debug" } else { "winxp" }
 Write-Host "[winxp] building: make -C src EMBED_SERVER=1 $laneTarget"
 Push-Location $repo
 try {
@@ -91,11 +103,12 @@ if (-not (Test-Path $built)) {
 $dist = Join-Path $repo "dist\win32"
 New-Item -ItemType Directory -Force $dist | Out-Null
 Copy-Item $built (Join-Path $dist "torirs.exe") -Force
-Write-Host ("[winxp] done -> dist\win32\torirs.exe  ({0:N0} KB)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
+Copy-ToriRSPluginChromeBundle -RepoRoot $repo -Destination (Join-Path $dist "plugin_chrome")
+Write-Host ("[winxp] done -> dist\win32\  (torirs.exe {0:N0} KB + IE6/7-safe local chrome bundle)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
 Write-Host "[winxp] local run (nonpacked OSRS239, fixed-function D3D9):"
-Write-Host "        .\src\torirs.exe --manifest .\manifest_osrs239.ini"
+Write-Host "        .\src\torirs.exe --manifest .\manifests/manifest_osrs239.ini"
 Write-Host "[winxp] deploy + run on XP with the RemoteProxyDesktopXP build server, e.g.:"
-Write-Host "        rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe"
+Write-Host "        deploy dist\win32\torirs.exe and dist\win32\plugin_chrome together"
 } finally {
     $env:PATH = $originalPath
 }

@@ -296,9 +296,9 @@ shrink_seed(uint32_t failing_seed)
 int
 main(int argc, char** argv)
 {
-    init_sin_table();
-    init_cos_table();
-    init_tan_table();
+    ToriDraw_InitSinTable();
+    ToriDraw_InitCosTable();
+    ToriDraw_InitTanTable();
 
     uint32_t start = 1u;
     uint32_t count = 500u;

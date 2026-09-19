@@ -3,6 +3,7 @@
 #include "engine/world_builder/collision_map.h"
 #include "features/features.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -204,6 +205,7 @@ World_EntityPathingPushXZ(
     pathing->route_x[0] = (uint8_t)x;
     pathing->route_z[0] = (uint8_t)z;
     pathing->route_run[0] = step_type == WORLD_PATHSTEP_RUN ? 1 : 0;
+    pathing->unplaced = 0;
 }
 
 void
@@ -227,11 +229,13 @@ World_EntityPathingJump(
     int x,
     int z)
 {
-    if( force_teleport )
+    /* A spawned entity's first placement snaps: see `unplaced`. */
+    if( force_teleport || pathing->unplaced )
     {
         pathing->route_length = 0;
         pathing->route_x[0] = (uint8_t)x;
         pathing->route_z[0] = (uint8_t)z;
+        pathing->unplaced = 0;
         return WORLD_PATHING_JUMP_TELEPORT;
     }
 
@@ -257,6 +261,10 @@ World_EntityPathingJumpCollisionAware(
 {
     int src_x = pathing->route_x[0];
     int src_z = pathing->route_z[0];
+    /* The run-route smoothing below queues intermediate tiles, and queuing is
+     * a placement -- it would clear `unplaced` and turn the endpoint jump
+     * into a walk from the spawn tile. Decide the teleport once, up front. */
+    bool teleport = force_teleport || pathing->unplaced != 0;
 
     /* RuneLite rev-239 Statics.method3189 -> method2600: RUN traversal is
      * geometry-independent from the GPI WALK/RUN displacement opcode. Before
@@ -264,7 +272,7 @@ World_EntityPathingJumpCollisionAware(
      * newest queued tile and retain every intermediate turn. The renderer then
      * consumes a continuous run route around the corner instead of either
      * cutting the diagonal or slowing the server tick to a walk. */
-    if( !force_teleport && collision && step_type == WORLD_PATHSTEP_RUN )
+    if( !teleport && collision && step_type == WORLD_PATHSTEP_RUN )
     {
         int route_x[10];
         int route_z[10];
@@ -288,8 +296,7 @@ World_EntityPathingJumpCollisionAware(
     }
 
     {
-        enum World_PathingJump jump =
-            World_EntityPathingJump(pathing, force_teleport, x, z);
+        enum World_PathingJump jump = World_EntityPathingJump(pathing, teleport, x, z);
         if( jump == WORLD_PATHING_JUMP_WALK )
             pathing->route_run[0] = step_type == WORLD_PATHSTEP_RUN ? 1 : 0;
         return jump;
@@ -304,6 +311,21 @@ World_EntityDrawPositionSetToTile(
     int size_x,
     int size_z)
 {
-    draw_position->x = (uint32_t)(tile_x * 128 + size_x * 64);
-    draw_position->z = (uint32_t)(tile_z * 128 + size_z * 64);
+    World_DrawPositionSet(
+        draw_position, tile_x * 128 + size_x * 64, tile_z * 128 + size_z * 64);
+}
+
+void
+World_EntityApplyHeadbar(
+    struct WorldEntityFacet_Combat* combat,
+    struct WorldEntity_Headbar bar)
+{
+    assert(combat);
+    assert(bar.type >= 0);
+    combat->healthbar_type = bar.type;
+    combat->healthbar_start_cycle = bar.start_cycle;
+    combat->healthbar_duration = bar.duration;
+    combat->healthbar_start_fill = bar.start_fill;
+    combat->healthbar_end_fill = bar.end_fill;
+    combat->healthbar_end_cycle = bar.end_cycle;
 }

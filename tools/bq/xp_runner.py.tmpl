@@ -1,0 +1,324 @@
+# -*- coding: utf-8 -*-
+# Box-side benchmark runner. Generated per job by the drainer; @@JOB@@ is
+# replaced with the job JSON.
+#
+# WINDOWS XP, PYTHON 3.2. No f-strings, no subprocess.DEVNULL, no
+# subprocess.run, no os.replace, no capture_output. Keep it dumb.
+#
+# The HTTP shim times a script out at 120 s, so this relaunches itself
+# detached and the caller polls for the output file.
+import ctypes
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+
+JOB = json.loads(r'''@@JOB@@''')
+
+ROOT = r'C:\dev\oldschool-clientc'
+BQDIR = os.path.join(ROOT, 'bq')
+JOB_ID = JOB['job_id']
+PROGRESS = os.path.join(BQDIR, JOB_ID + '.progress.json')
+FINAL = os.path.join(BQDIR, JOB_ID + '.result.json')
+
+ARGS = ['--manifest', 'build/manifests/osrs239-bench-xp.ini',
+        '--soft3d', '--offline', '--uncapped',
+        '--windowmode', 'resizable', '--window', '765x503']
+
+
+def sha256(path):
+    h = hashlib.sha256()
+    f = open(path, 'rb')
+    while True:
+        b = f.read(1 << 20)
+        if not b:
+            break
+        h.update(b)
+    f.close()
+    return h.hexdigest()
+
+
+def bench_env(extra):
+    e = dict(os.environ)
+    e['TORIRS_WORLD_MAP'] = '50,50;51,50;50,51;51,51'
+    # The [bench:lumbridge-ground] scene: the castle circled at 10 tiles from
+    # eye level, one full turn per 300 frames. MOVING, deliberately.
+    #
+    # The still overhead wedge this queue started on ('2880,-2000,2368,450,0')
+    # measures a camera that never moves, and a renderer hunt against it scores
+    # every cross-frame cache at its best possible value -- occlusion verdicts,
+    # face orders and projected vertices are all bit-identical across all 900
+    # frames, so caching them reads as an enormous win that no played frame
+    # would ever see. It also looks 79 degrees down, where a building is its
+    # roof: one flat quad, no walls, and almost no overdraw.
+    #
+    # pitch 200 is 35 degrees, inside the live client's 128..383 clamp, so the
+    # near walls fill the frame and overdraw is a real term again. The orbit
+    # means no single bearing owns the number.
+    #
+    # 300 frames is one whole traversal, so a run's frame count MUST be a
+    # multiple of 300 or each run covers a different arc of the ring and the
+    # reps stop being repeats of one measurement. 900 = 3 cycles.
+    e['TORIRS_WEDGE_CAM'] = '2880,-900,2368,200,0'
+    e['TORIRS_WEDGE_CAM_PATH'] = (
+        'spline,300,loop'
+        ';2880,-900,3648,200,1025'
+        ';3785,-900,3273,200,767'
+        ';4160,-900,2368,200,511'
+        ';3785,-900,1463,200,255'
+        ';2880,-900,1088,200,0'
+        ';1975,-900,1463,200,1793'
+        ';1600,-900,2368,200,1537'
+        ';1975,-900,3273,200,1281')
+    e['TORIRS_MAX_FRAMES'] = str(JOB['frames'])
+    # The XP lane is PLATFORM=win32 -- platform_win32gdi.c, and there is no
+    # SDL2.dll in the import table at all, so SDL_VIDEODRIVER was inert here
+    # for the whole hunt. TORIRS_WIN32_HIDDEN is the switch that actually
+    # makes this backend headless (platform_win32gdi.c:652), and it has to be
+    # set: with the window shown, the remote-desktop server that hosts this
+    # very API encodes the changing screen and takes 33% of the box's ONE
+    # cpu, landing on wall time as ~22 ms/frame no client code is
+    # responsible for -- and taking MORE from arms that render faster.
+    e['TORIRS_WIN32_HIDDEN'] = '1'
+    e['TORIDRAW_RASTER_SCANLINE'] = '0'
+    e['PYTHONIOENCODING'] = 'utf-8'
+    # The profiler is ~69% of the XP frame. UNSET, not =0 -- a stray CSV var
+    # re-arms the brackets.
+    for k in list(e.keys()):
+        if k.startswith('TORIRS_PERF'):
+            del e[k]
+    if 'TORIRS_FB_CLEAR' in e:
+        del e['TORIRS_FB_CLEAR']
+    for k in sorted(extra.keys()):
+        e[str(k)] = str(extra[k])
+    return e
+
+
+def kill_strays():
+    """A leftover torirs*.exe contaminates every measurement after it."""
+    killed = []
+    for name in ('torirs.exe', 'torirs-kernelbench.exe', 'torirs-profile.exe',
+                 'torirs-dense.exe', 'torirs-new.exe', 'torirs-base.exe'):
+        try:
+            p = subprocess.Popen(['taskkill', '/F', '/IM', name],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            out = p.communicate()[0]
+            if p.returncode == 0:
+                killed.append(name)
+        except Exception:
+            pass
+    # anything we uploaded is named bq_<sha12>.exe
+    try:
+        p = subprocess.Popen(['tasklist'], stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
+        out = p.communicate()[0].decode('ascii', 'replace')
+        for line in out.splitlines():
+            tok = line.split()
+            if tok and tok[0].startswith('bq_') and tok[0].endswith('.exe'):
+                subprocess.Popen(['taskkill', '/F', '/IM', tok[0]],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT).communicate()
+                killed.append(tok[0])
+    except Exception:
+        pass
+    return killed
+
+
+def write_json(path, obj):
+    tmp = path + '.tmp'
+    f = open(tmp, 'w')
+    f.write(json.dumps(obj, indent=1, sort_keys=True))
+    f.flush()
+    os.fsync(f.fileno())
+    f.close()
+    if os.path.exists(path):
+        os.remove(path)
+    os.rename(tmp, path)
+
+
+class _FILETIME(ctypes.Structure):
+    _fields_ = [('lo', ctypes.c_ulong), ('hi', ctypes.c_ulong)]
+
+
+def child_cpu_seconds(p):
+    """Kernel+user cpu the child actually received, in seconds.
+
+    Wall time on this box is the client's cost divided by whatever share of
+    the single cpu it won against everything else awake -- and the biggest of
+    those, the desktop streamer, works harder exactly when the client
+    repaints more. That correlation is what makes wall time misattribute
+    another process's work to the arm under test. Cpu time cannot be stolen.
+    """
+    def v(f):
+        return (f.hi << 32) | f.lo
+    c, e, k, u = _FILETIME(), _FILETIME(), _FILETIME(), _FILETIME()
+    ok = ctypes.windll.kernel32.GetProcessTimes(
+        int(p._handle), ctypes.byref(c), ctypes.byref(e),
+        ctypes.byref(k), ctypes.byref(u))
+    assert ok
+    return (v(k) + v(u)) / 1e7
+
+
+def run_one(remote_exe, log_path, extra_env, tag):
+    env = dict(extra_env)
+    # A profile run asks for the EIP sampler by setting TORIDRAW_EIP_SAMPLE=1
+    # and nothing else. Point its dump at a per-run file under bq/ so reps do
+    # not overwrite each other and the host can fetch them by name; an arm
+    # that named its own file keeps it.
+    eip = None
+    if str(env.get('TORIDRAW_EIP_SAMPLE', '0')) not in ('0', ''):
+        if not env.get('TORIDRAW_EIP_SAMPLE_FILE'):
+            eip = tag + '.eip.txt'
+            env['TORIDRAW_EIP_SAMPLE_FILE'] = os.path.join(BQDIR, eip)
+        else:
+            eip = os.path.basename(env['TORIDRAW_EIP_SAMPLE_FILE'])
+
+    # Kill strays before EVERY run, not just once per job. Killing only at job
+    # start assumes nothing new can appear afterwards, and that assumption
+    # broke: when the host drainer died mid-job its box-side runner stayed
+    # alive detached and kept launching arms, so job 0824-231945-703204 timed
+    # itself against another benchmark for half its duration and recorded runs
+    # of 150-168 ms against a 64 ms baseline. Serialization is the one property
+    # this whole queue exists to guarantee, so re-establish it per run.
+    strays = kill_strays()
+
+    f = open(log_path, 'wb')
+    t0 = time.time()
+    p = subprocess.Popen([os.path.join(ROOT, remote_exe)] + ARGS,
+                         cwd=ROOT, env=bench_env(env),
+                         stdout=f, stderr=subprocess.STDOUT)
+    rc = p.wait()
+    dt = time.time() - t0
+    # Before f.close() and before the Popen handle can be collected.
+    cpu = child_cpu_seconds(p)
+    f.close()
+    return rc, dt, t0, eip, strays, cpu
+
+
+def main():
+    if not os.path.isdir(BQDIR):
+        os.makedirs(BQDIR)
+
+    frames = JOB['frames']
+    arms = JOB['arms']
+
+    # Order: palindrome each rep so box drift lands on both ends equally.
+    names = [a['name'] for a in arms]
+    if JOB.get('palindrome', True) and len(names) > 1:
+        order = names + list(reversed(names))
+    else:
+        order = list(names)
+
+    by_name = {}
+    for a in arms:
+        by_name[a['name']] = a
+
+    result = {
+        'job_id': JOB_ID,
+        'label': JOB.get('label', ''),
+        'frames': frames,
+        'reps': JOB['reps'],
+        'order': order,
+        'box_start': time.time(),
+        'box_start_str': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'killed_strays': kill_strays(),
+        'runs': [],
+        'exe_sha256': {},
+        'status': 'running',
+    }
+
+    # Hash on the box, not on the host: a result whose sha256 was only ever
+    # claimed by the uploader proves nothing about what executed here.
+    for a in arms:
+        p = os.path.join(ROOT, a['remote'])
+        if os.path.isfile(p):
+            result['exe_sha256'][a['name']] = sha256(p)
+        else:
+            result['exe_sha256'][a['name']] = 'MISSING'
+    write_json(PROGRESS, result)
+
+    bad = [n for n in result['exe_sha256']
+           if result['exe_sha256'][n] != by_name[n]['sha256']]
+    if bad:
+        result['status'] = 'error'
+        result['error'] = 'sha256 mismatch on box for arms: ' + ','.join(bad)
+        result['box_end'] = time.time()
+        write_json(FINAL, result)
+        return
+
+    for rep in range(JOB['reps']):
+        for slot in range(len(order)):
+            name = order[slot]
+            arm = by_name[name]
+            tag = '%s_%s_r%d_s%d' % (JOB_ID, name, rep, slot)
+            log_path = os.path.join(BQDIR, tag + '.log')
+            rc, dt, t0, eip, strays, cpu = run_one(
+                arm['remote'], log_path, arm.get('env', {}), tag)
+            result['runs'].append({
+                'arm': name, 'rep': rep, 'slot': slot, 'rc': rc,
+                'wall_s': dt, 'ms_per_frame': dt * 1000.0 / frames,
+                'cpu_s': cpu, 'cpu_ms_per_frame': cpu * 1000.0 / frames,
+                'cpu_share': (cpu / dt) if dt > 0 else 0.0,
+                'start': t0, 'end': t0 + dt,
+                'log': os.path.basename(log_path),
+                'eip': eip,
+                'strays_killed': strays,
+            })
+            # Progress doubles as the heartbeat the drainer polls.
+            write_json(PROGRESS, result)
+
+    result['status'] = 'ok'
+    result['box_end'] = time.time()
+    result['box_end_str'] = time.strftime('%Y-%m-%d %H:%M:%S')
+    write_json(FINAL, result)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == 'child':
+        # Earliest possible proof of life. A launch that fails does so before
+        # any of this, and the drainer distinguishes "did not start" from
+        # "started and is slow" by whether this file exists.
+        try:
+            if not os.path.isdir(BQDIR):
+                os.makedirs(BQDIR)
+            f = open(os.path.join(BQDIR, JOB_ID + '.started'), 'w')
+            f.write(str(time.time()))
+            f.close()
+        except Exception:
+            pass
+        try:
+            main()
+        except Exception:
+            import traceback
+            try:
+                f = open(FINAL, 'w')
+                f.write(json.dumps({'job_id': JOB_ID, 'status': 'error',
+                                    'error': traceback.format_exc()[:4000],
+                                    'box_end': time.time()}))
+                f.close()
+            except Exception:
+                pass
+    else:
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP. The shim times a script
+        # out at 120 s and a batched job runs for many minutes, so the run has
+        # to outlive this call and the caller polls for the output file.
+        #
+        # `env` is not optional here. A detached child has no console, and
+        # Python 3.2 probing the console encoding at startup on a box with no
+        # console dies before it executes a line -- silently, because stdout is
+        # devnull. Passing an environment with PYTHONIOENCODING set skips that
+        # probe. Measured on the box: identical launches with and without `env`
+        # differ exactly in whether the child ever runs.
+        DETACHED = 0x00000008 | 0x00000200
+        env = dict(os.environ)
+        env['PYTHONIOENCODING'] = 'utf-8'
+        devnull_w = open(os.devnull, 'wb')
+        devnull_r = open(os.devnull, 'rb')
+        subprocess.Popen([sys.executable, os.path.abspath(__file__), 'child'],
+                         creationflags=DETACHED,
+                         stdin=devnull_r, stdout=devnull_w, stderr=devnull_w,
+                         env=env)
+        print('launched ' + JOB_ID)

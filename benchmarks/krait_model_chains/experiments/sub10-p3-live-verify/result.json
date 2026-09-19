@@ -1,0 +1,9 @@
+{
+  "pid": "26673",
+  "last_verified": [
+    "I/torirs  (26673): overlay-retain verification: 1400 full command lists matched",
+    "I/torirs  (26673): overlay-retain verification: 1500 full command lists matched"
+  ],
+  "library_sha256": "729472b9ce12a05a60d1c746fea231f90d703f8cd6331e16f90068911562ad44",
+  "scope": "Partial UI command buffer versus complete full walk; diagnostic only, no timing claim."
+}

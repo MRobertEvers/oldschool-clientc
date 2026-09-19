@@ -1,0 +1,35 @@
+100 [command,cc_create](component $component, iftype $type, int $subid)
+100 [command,cc_create](component $component, iftype $type, int $subid, boolean $assert_empty) 230
+101 [command,cc_delete]
+102 [command,cc_deleteall](component $component)
+103 [command,cc_create_entityoverlay](entityoverlay $overlay, iftype $type, int $subid)
+104 [command,cc_deleteall_entityoverlay](entityoverlay $overlay)
+105 [command,cc_copy](component $layer, int $layersubid)
+105 [command,cc_copy](component $layer, int $layersubid, int $subid) 230
+106 [command,cc_create_child](iftype $type, int $subid)
+107 [command,cc_create_sibling](iftype $type, int $subid)
+
+200 [command,cc_find](component $component, int $subid)(boolean)
+201 [command,if_find](component $component)(boolean)
+202 [command,if_find_entityoverlay](entityoverlay $overlay)(boolean)
+203 [command,cc_find_entityoverlay](entityoverlay $overlay, int $subid)(boolean)
+204 [command,cc_find_parent]()(boolean)
+205 [command,cc_find_layer]()(boolean)
+206 [command,cc_find_next_sibling]()(boolean)
+207 [command,cc_find_prev_sibling]()(boolean)
+208 [command,cc_childcount]()(int)
+209 [command,cc_parentid]()(int)
+210 [command,cc_find_param](component $layer, param $param1, unknown $value1, param $param2, unknown $value2, basevartype $x6, basevartype $x7)(boolean)
+211 [command,if_query](int $mode, component $layer, int $subid)(int)
+212 [command,cc_query](int $mode)(int)
+213 [command,if_query_next]()(boolean)
+214 [command,if_query_nextid]()(int)
+215 [command,if_query_ids]()(intarray)
+216 [command,if_query_refine](param $param, unknown $value, basevartype $x3)(int)
+217 [command,cc_find_child](int $index)(boolean)
+218 [command,cc_find_first_sibling]()(boolean)
+219 [command,cc_find_last_sibling]()(boolean)
+220 [command,cc_find_first_child]()(boolean)
+221 [command,cc_find_last_child]()(boolean)
+222 [command,cc_assert]
+

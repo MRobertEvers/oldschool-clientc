@@ -363,11 +363,11 @@ test_resolve_transform(void)
     TEST_ASSERT(
         VarPManager_ResolveTransform(&mgr, transforms, 3, 0, -1) == 300, "oob index uses last");
 
-    /* transforms[index] == -1 → last entry */
+    /* -1 is a positional hide entry, not a request for the fallback. */
     const int with_hide[] = { -1, 200, 300 };
     mgr.var[0] = 0;
     TEST_ASSERT(
-        VarPManager_ResolveTransform(&mgr, with_hide, 3, 0, -1) == 300, "hide entry uses last");
+        VarPManager_ResolveTransform(&mgr, with_hide, 3, 0, -1) == -1, "hide entry stays hidden");
 
     VarPManager_Free(&mgr);
 }
@@ -418,7 +418,7 @@ test_untyped_mode_accessors(void)
  *
  * The reference cannot reach this: its varp array is sized from the cache
  * varplayer table. This tree can, because content allocates its own varps past
- * the cache's highest id (mock230.h MOCK230_VARP_SERVER_HEADROOM) — so once the
+ * the cache's highest id (torirs_server.h TORIRSSERVER_VARP_SERVER_HEADROOM) — so once the
  * dat2 varplayer loader installs a real table, "id beyond the table" stops
  * being hypothetical. Dropping those writes is silent and total: the value
  * never lands, no hook fires, and nothing reports it.
@@ -455,6 +455,125 @@ test_varp_above_the_type_table(void)
     VarPManager_Free(&mgr);
 }
 
+/*
+ * Which varp a transform table is listening to.
+ *
+ * A multiloc or multinpc picks its child from one of two keys, and only one of
+ * them is a varp id the record names. The other is a VARBIT, which is a field
+ * packed inside some varp -- and it is that base varp the wire carries. So a
+ * table keyed on a varbit depends on a varp it mentions nowhere, and a reader
+ * that only compares `transform_varp` concludes there is no dependency at all.
+ *
+ * That failure has a shape worth naming, because it does not look like a bug
+ * in this code: every packet arrives, the varp lands, nothing thinks it is
+ * interested, and the door never opens. The placement keeps whatever child it
+ * resolved at scene build, for the whole session.
+ */
+static void
+test_transform_depends_on_varp(void)
+{
+    struct VarPManager mgr;
+    const int transforms[] = { 100, 200, 300 };
+
+    printf("TEST: transform dependency on a varp\n");
+
+    VarPManager_Init(&mgr);
+    {
+        struct VarPType types[4] = { { 0 }, { 0 }, { 0 }, { 0 } };
+        TEST_ASSERT(VarPManager_SetVarpTypes(&mgr, types, 4), "SetVarpTypes");
+    }
+    {
+        /* Varbit 0 lives in varp 2; varbit 1 lives in varp 3. Two of them, in
+         * different varps, because one would let a stuck index pass. */
+        struct VarBitType varbits[2] = {
+            { .basevar = 2, .startbit = 0, .endbit = 4 },
+            { .basevar = 3, .startbit = 0, .endbit = 4 },
+        };
+        TEST_ASSERT(VarPManager_SetVarbitTypes(&mgr, varbits, 2), "SetVarbitTypes");
+    }
+
+    /* The direct key: the table names the varp itself. */
+    TEST_ASSERT(
+        VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, -1, 1, 1),
+        "a table keyed on varp 1 does not depend on varp 1");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, -1, 1, 0),
+        "a table keyed on varp 1 depends on varp 0");
+
+    /*
+     * The indirect key, which is the whole point. The table names varbit 0 and
+     * nothing else; varbit 0 lives in varp 2; so a change to varp 2 changes
+     * what this table resolves to, and a change to the varbit's own INDEX (0)
+     * does not, because that is not a varp id.
+     */
+    TEST_ASSERT(
+        VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 0, -1, 2),
+        "a table keyed on a varbit does not follow the varbit's base varp");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 0, -1, 0),
+        "the varbit's own index was matched against a varp id");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 0, -1, 3),
+        "varbit 0 was read as varbit 1");
+    TEST_ASSERT(
+        VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 1, -1, 3),
+        "varbit 1 does not follow its own base varp");
+
+    /* Both keys present: the varbit is the one the resolve prefers, but the
+     * dependency is on EITHER, because either changing re-resolves the table. */
+    TEST_ASSERT(
+        VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 0, 1, 1),
+        "a table with both keys stopped following its varp");
+    TEST_ASSERT(
+        VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 0, 1, 2),
+        "a table with both keys stopped following its varbit's base");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 0, 1, 3),
+        "a table with both keys followed an unrelated varp");
+
+    /* A varbit index past the end of the loaded table is not a dependency and
+     * is not a read either: a cache whose varbit archive is short of what a
+     * loc record names must not walk off the array. */
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 2, -1, 2),
+        "a varbit index past the table was resolved anyway");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, 99999, -1, 2),
+        "a wildly out-of-range varbit index was resolved");
+
+    /*
+     * No table is no dependency. This is a record with no transform at all --
+     * an ordinary loc or npc -- and every one of them is asked this question
+     * on every varp change, so the answer has to be cheap and it has to be no.
+     * `-1` for both keys is what an ordinary record carries, and it must not
+     * match a caller asking about varp -1.
+     */
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 3, -1, -1, 1),
+        "an unkeyed table claimed a dependency");
+
+    /*
+     * And each of those three ways of having no table is checked with a key
+     * that WOULD match, which is the only way to see the guard at all: with
+     * both keys at -1 the arms below decline anyway, and an "empty table
+     * depends on everything" bug reads as correct.
+     */
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, NULL, 0, -1, 1, 1),
+        "an empty table claimed a dependency on the varp it names");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, transforms, 0, -1, 1, 1),
+        "a zero-length table claimed a dependency on the varp it names");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, NULL, 3, -1, 1, 1),
+        "a table with no entries pointer claimed a dependency on the varp it names");
+    TEST_ASSERT(
+        !VarPManager_TransformDependsOnVarp(&mgr, NULL, 0, 0, -1, 2),
+        "an empty table claimed a dependency through its varbit");
+
+    VarPManager_Free(&mgr);
+}
+
 int
 main(void)
 {
@@ -468,6 +587,7 @@ main(void)
     test_load_varbit_dat();
     test_single_bit_varbit();
     test_resolve_transform();
+    test_transform_depends_on_varp();
     test_untyped_mode_accessors();
     test_varp_above_the_type_table();
 

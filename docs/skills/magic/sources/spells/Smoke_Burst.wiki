@@ -1,0 +1,53 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Smoke Burst
+|image = [[File:Smoke Burst.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 62
+|spellbook = Ancient
+|type = Combat
+|exp = 36
+|element = Smoke
+|damage = 17
+|cost = {{RuneReq|Air=2|Fire=2|Chaos=4|Death=2}}
+|speed = 5 ticks
+|description = A multi-target smoke attack
+|anim = [[File:Smoke Burst.gif|300px]]
+|sound = [[File:Smoke Burst.ogg]]
+}}
+[[File:Smoke Burst icon (mobile).png|left]]
+'''Smoke Burst''' is the second tier [[smoke spell]] from the [[Ancient Magicks]] spellbook, available at level 62 [[Magic]]. It is capable of hitting up to 17 damage (without any [[magic damage]] boosts) per cast.
+
+Smoke Burst is capable of [[poison]]ing a target at a 1/8 chance on hit, having a [[poison severity]] of 10 (where poison starts at 2 damage every 30 [[Tick|ticks]] or 18 seconds); this can be increased to 11 with an [[ancient sceptre]]. Increasing the total poison damage to 18 (first hit does 3 damage), instead of 15. It is also able to target up to nine targets in a 3x3 grid around its primary target, just like all other [[Burst spells|burst]] and [[barrage spells]].
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Smoke Burst|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = chaos
+|Rune1num = 4
+|Rune2 = death
+|Rune2num = 2
+|Rune3 = fire
+|Rune3num = 2
+|Rune4 = air
+|Rune4num = 2
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 September 2013
+|update = Patch Notes (12 September 2013)
+|change = The smoke spells on the Ancient Magicks spellbook no longer try to poison creatures that are immune to poison.
+}}
+{{Subject changes footer}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

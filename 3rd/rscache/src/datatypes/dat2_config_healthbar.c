@@ -31,8 +31,8 @@ RSCache_Dat2ConfigHealthbarInit(struct RSCache_Dat2ConfigHealthbar* entry)
         return;
     /* -1, not 0: sprite 0 exists, so it cannot double as "no sprite". Kept out of
      * the loop so a per-opcode caller cannot miss it — see the hitsplat note. */
-    entry->sprite_id_a = -1;
-    entry->sprite_id_b = -1;
+    entry->front_sprite_id = -1;
+    entry->back_sprite_id = -1;
 }
 
 bool
@@ -46,30 +46,30 @@ RSCache_Dat2ConfigHealthbarDecodeOp(
     switch( opcode )
     {
     case 2:
-        entry->opcode_2 = g1(buffer);
-        entry->has_opcode_2 = true;
+        entry->draw_order = g1(buffer);
+        entry->has_draw_order = true;
         return true;
     case 3:
-        entry->opcode_3 = g1(buffer);
-        entry->has_opcode_3 = true;
+        entry->evict_priority = g1(buffer);
+        entry->has_evict_priority = true;
         return true;
     case 5:
-        entry->opcode_5 = g2(buffer);
-        entry->has_opcode_5 = true;
+        entry->persist_cycles = g2(buffer);
+        entry->has_persist_cycles = true;
         return true;
     case 7:
-        entry->sprite_id_a = g2(buffer);
+        entry->front_sprite_id = g2(buffer);
         return true;
     case 8:
-        entry->sprite_id_b = g2(buffer);
+        entry->back_sprite_id = g2(buffer);
         return true;
     case 11:
-        entry->opcode_11 = g2(buffer);
-        entry->has_opcode_11 = true;
+        entry->fade_threshold = g2(buffer);
+        entry->has_fade_threshold = true;
         return true;
     case 14:
-        entry->opcode_14 = g1(buffer);
-        entry->has_opcode_14 = true;
+        entry->width = g1(buffer);
+        entry->has_width = true;
         return true;
     default:
         /* Unknown opcode: stop rather than guess its width. See the header. */
@@ -87,8 +87,8 @@ RSCache_Dat2ConfigHealthbarDecodeInplace(
         return;
     if( !data || data_size <= 0 )
     {
-        entry->sprite_id_a = -1;
-        entry->sprite_id_b = -1;
+        entry->front_sprite_id = -1;
+        entry->back_sprite_id = -1;
         return;
     }
 
@@ -130,40 +130,40 @@ RSCache_Dat2ConfigHealthbarEncode(
      * byte-exactness would read 0% and the tracked figure would stop being a
      * regression signal.
      */
-    if( entry->sprite_id_a >= 0 )
+    if( entry->front_sprite_id >= 0 )
     {
         p1(&buffer, 7);
-        p2(&buffer, entry->sprite_id_a);
+        p2(&buffer, entry->front_sprite_id);
     }
-    if( entry->sprite_id_b >= 0 )
+    if( entry->back_sprite_id >= 0 )
     {
         p1(&buffer, 8);
-        p2(&buffer, entry->sprite_id_b);
+        p2(&buffer, entry->back_sprite_id);
     }
-    if( entry->has_opcode_2 )
+    if( entry->has_draw_order )
     {
         p1(&buffer, 2);
-        p1(&buffer, entry->opcode_2);
+        p1(&buffer, entry->draw_order);
     }
-    if( entry->has_opcode_3 )
+    if( entry->has_evict_priority )
     {
         p1(&buffer, 3);
-        p1(&buffer, entry->opcode_3);
+        p1(&buffer, entry->evict_priority);
     }
-    if( entry->has_opcode_5 )
+    if( entry->has_persist_cycles )
     {
         p1(&buffer, 5);
-        p2(&buffer, entry->opcode_5);
+        p2(&buffer, entry->persist_cycles);
     }
-    if( entry->has_opcode_11 )
+    if( entry->has_fade_threshold )
     {
         p1(&buffer, 11);
-        p2(&buffer, entry->opcode_11);
+        p2(&buffer, entry->fade_threshold);
     }
-    if( entry->has_opcode_14 )
+    if( entry->has_width )
     {
         p1(&buffer, 14);
-        p1(&buffer, entry->opcode_14);
+        p1(&buffer, entry->width);
     }
 
     p1(&buffer, 0);

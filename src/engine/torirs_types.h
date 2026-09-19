@@ -149,10 +149,35 @@ struct ToriRS_MapFloor
 {
     uint16_t overlay_id;
     uint8_t underlay_id;
+    /**
+     * The RESOLVED height the renderer meshes from: scaled by the tile-height
+     * basis, generated from Perlin noise where the file authored none, and
+     * carrying the level below where it sits above level 0.
+     *
+     * Nothing writable survives in this field — see the authored pair below.
+     */
     int16_t height;
     uint8_t settings;
     uint8_t shape;
     uint8_t rotation;
+
+    /**
+     * What the FILE said about this tile's height, kept beside what the
+     * renderer uses.
+     *
+     * The height fixup rewrites `height` for every tile, so after it has run
+     * "the file gave no height" and "the file gave this height" are the same
+     * state as far as `height` is concerned. Anything that has to write terrain
+     * back — the map editor — needs the difference: a tile whose height was
+     * never authored must stay unauthored on disk, or a save bakes generated
+     * terrain into the source and the square stops being procedural forever.
+     *
+     * `has_authored_height` records that the height opcode was present;
+     * `authored_height` keeps the raw byte, because a tile that genuinely
+     * authored zero is spelled `h1` in text and would otherwise be lost.
+     */
+    uint8_t has_authored_height;
+    uint8_t authored_height;
 };
 
 struct ToriRS_MapTerrain
@@ -283,6 +308,30 @@ struct ToriRS_Location
      *  ground item stacks on this loc's tile are drawn raised by the model
      *  height (Client-TS objRaise = minY). Defaulted in Dat2ConfigLocFinish. */
     int raiseobject;
+    /**
+     * The record's params (config opcode 249), as CS2's `%s` reads them.
+     *
+     * The WHOLE table, unlike the handful of keys this client resolves into
+     * plain fields. That distinction used to be the rule here -- "the client is
+     * not a script host, and a param it does not know the meaning of is not
+     * data it can act on" -- and it stopped being true: the client IS a script
+     * host, and clientscript 5350 reads `param_2312` off whatever the pointer
+     * is over to decide which highlight group it belongs in. A key the content
+     * never sets costs nothing; only records that carry params allocate.
+     */
+    /**
+     * The record's `category` (loc opcode 61 / npc opcode 18).
+     *
+     * Carried for the client TRIGGER lookup: a trigger script can be bound to
+     * a whole category rather than to one id, and the fishing spot indicators
+     * are bound that way -- seventeen npc categories, one script each. Without
+     * it the category form of the hash cannot be formed and those scripts stay
+     * unreachable, which is indistinguishable from a cache that has none.
+     * See game/rs_client_trigger.h. 0 is "no category".
+     */
+    int category;
+    struct ToriRS_Param* params;
+    int param_count;
 };
 
 /**
@@ -301,12 +350,21 @@ struct ToriRS_Location
  */
 #define TORIRS_PARAM_ZBUFFER_MODEL 2730 /* param.alloc: 2730=zbuffer_model */
 
+/* Maximum number of nested NpcType.multiNpc selections followed for one
+ * effective type. Shared by world entities and interface chatheads so the two
+ * cannot disagree about which child a shell names. */
+#define TORIRS_NPC_MULTI_MAX_DEPTH 4
+
 struct ToriRS_Npctype
 {
     int id;
     char name[TORIRS_NAME_MAX];
-    /** Examine text (NpcType.desc, config opcode 3). Empty on dat2 (OSRS) caches,
-     *  where NPC examine is server-driven and no config opcode carries it. */
+    /** Examine text (NpcType.desc, config opcode 3). Jagex's own dat2 records
+     *  state none -- OldSchool retired the opcode in 2006 and sends npc examine
+     *  from the server -- so on a pristine cache this stays empty and the
+     *  examine handler falls back to "It's a <name>.". The content pack authors
+     *  it into the npc archive under that same opcode; see
+     *  tools/import_examine.py. */
     char desc[TORIRS_DESC_MAX];
     char actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     int combat_level;
@@ -340,16 +398,56 @@ struct ToriRS_Npctype
     int* retextures_from;
     int* retextures_to;
     int retexture_count;
-    /* Movement animation set (dat1 config; -1 = none). This rev's NPC config
-     * has no turnanim/runanim — turning falls back to walkanim. */
+    /*
+     * Movement animation set (-1 = none).
+     *
+     * The comment that used to sit here said "this rev's NPC config has no
+     * turnanim/runanim — turning falls back to walkanim". That is true of dat1
+     * and it quietly became the rule for dat2 as well, where the whole set
+     * exists: opcodes 15/16 are the turn-on-the-spot pair, 114/115 the run set
+     * and 116/117 the crawl set, and `dat2_config_npc.c` has decoded all of
+     * them for as long as it has existed. They stopped here.
+     *
+     * The cost was not theoretical. `World_UpdateMoverMovementAndAnimation`
+     * already picks `runanim` over `walkanim` at move_speed >= 8, and
+     * `World_EntityFace` already prefers `turnanim` — both have worked for
+     * players the whole time — so every one of the 347 npcs that states a run
+     * animation ran with its walking legs, and none of the 65 that state a turn
+     * animation ever turned on the spot.
+     */
     int readyanim;
     int walkanim;
     int walkanim_b;
     int walkanim_r;
     int walkanim_l;
+    /** Opcodes 15/16: turn-on-the-spot, left and right. The world facet carries
+     *  one `turnanim`; the reference picks by turn direction, which this client
+     *  does not model, so the left one is the entity's turn animation and the
+     *  right is carried for the day it does. */
+    int turnanim_l;
+    int turnanim_r;
+    /** Opcodes 114/115: the run set, chosen by the mover at speed. */
+    int runanim;
+    int runanim_b;
+    int runanim_r;
+    int runanim_l;
+    /** Opcodes 116/117: the crawl set. Decoded and carried; this client's mover
+     *  has no crawl speed band to select it with, so nothing reads these yet --
+     *  stated here so that the next person finds a field rather than a gap. */
+    int crawlanim;
+    int crawlanim_b;
+    int crawlanim_r;
+    int crawlanim_l;
     /** NpcType.turnspeed (dat1 opcode 103, default 32). 0 = the entity never
      *  turns — Client-TS entityFace returns immediately for those. */
     int turn_speed;
+    /** NpcType opcode 130 (rev 236+): when an ACTION animation finishes, the
+     *  entity's idle animator is reset to frame 0 instead of being left wherever
+     *  it drifted to underneath. The reference gates its `method9990` on this
+     *  exact flag (`class86.method2909` -> `class405.field5176`), and players
+     *  never have it (`class105.method2909` returns a hard false). 33 npcs in
+     *  osrs239 set it. */
+    bool idle_anim_restart;
     /** Model scale, 128 == 1.0 (reference widthScale/heightScale, dat1 resizeh/resizev,
      *  dat2 opcodes 97/98). Applied as scale(width, height, width) — NpcModelLoader. */
     int width_scale;
@@ -363,6 +461,21 @@ struct ToriRS_Npctype
      *  like npcs (spawn points, glyphs, invisible event npcs) from the map.
      *  Defaults true; only a record that states opcode 93 turns it off. */
     bool minimap_visible;
+    /** NpcType.interactable (dat2 opcode 107, another bare flag that *clears*
+     *  the default; dat1 has no such opcode and this is true there).
+     *
+     *  The reference's minimap gate is BOTH flags, not opcode 93 alone:
+     *  `if (var8 != null && var8.isMinimapVisible() && var8.isInteractible())`
+     *  in rev-239's `method2403`, tested on the TRANSFORMED composition. Which
+     *  is how Jagex hides the Theatre of Blood's Nylocas supports without ever
+     *  touching opcode 93 on them — 8358 states `interactable=no` and nothing
+     *  else, and the dot never draws. Reading only opcode 93 put a dot on every
+     *  such record and made the cache look like it was stating the wrong thing.
+     *
+     *  Named for the reference field and not for pickability: nothing else in
+     *  this client reads it yet, and the minimap is the one place the reference
+     *  spends it that we have. */
+    bool interactable;
     /**
      * Overhead prayer icon (dat2 opcode 102 / dat1 opcode 102).
      *
@@ -399,7 +512,108 @@ struct ToriRS_Npctype
      *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does
      *  not name it, which is the shipping behaviour. */
     int zbuffer_model;
+    /** NpcType.multiNpc (dat2 opcode 106) -- same shape as a loc's transform
+     *  table (ToriRS_Location.transform_*), resolved the same way, through
+     *  VarPManager_ResolveTransform. A shell record with transform_count > 0
+     *  carries no model of its own; `transforms[N]` is the live variant's id
+     *  for varp/varbit value N, and the last entry is the fallback. -1 dat1
+     *  and any record with no opcode 106. */
+    int transform_varbit;
+    int transform_varp;
+    int* transforms;
+    int transform_count;
+    /**
+     * The record's params (config opcode 249), as CS2's `%s` reads them.
+     *
+     * The WHOLE table, unlike the handful of keys this client resolves into
+     * plain fields. That distinction used to be the rule here -- "the client is
+     * not a script host, and a param it does not know the meaning of is not
+     * data it can act on" -- and it stopped being true: the client IS a script
+     * host, and clientscript 5350 reads `param_2312` off whatever the pointer
+     * is over to decide which highlight group it belongs in. A key the content
+     * never sets costs nothing; only records that carry params allocate.
+     */
+    /**
+     * The record's `category` (loc opcode 61 / npc opcode 18).
+     *
+     * Carried for the client TRIGGER lookup: a trigger script can be bound to
+     * a whole category rather than to one id, and the fishing spot indicators
+     * are bound that way -- seventeen npc categories, one script each. Without
+     * it the category form of the hash cannot be formed and those scripts stay
+     * unreachable, which is indistinguishable from a cache that has none.
+     * See game/rs_client_trigger.h. 0 is "no category".
+     */
+    int category;
+    struct ToriRS_Param* params;
+    int param_count;
 };
+
+/*
+ * The entity's own facts, for a multinpc, are the RUNG's where it states them
+ * and the SHELL's where it does not.
+ *
+ * A multinpc is one shell record plus a rung per state, and this client
+ * resolves the rung BEFORE it spawns anything (Task_AppSpawn,
+ * Task_ExecNpcInfo) -- so without this the whole entity was built out of the
+ * rung, defaults and all. Rungs are not authored to stand alone: they are
+ * deltas. `verzik_initial_base` states a name, a model, a chathead, two ops and
+ * nothing else, while its shell `verzik_initial` carries `size=5` and
+ * `readyanim=verzik_phase1_idle`. Read straight off the rung, Verzik was size
+ * 1 -- which puts her draw origin at `tile * 128 + 64` instead of
+ * `tile * 128 + 5 * 64`, two tiles south-west of her own dais -- and readyanim
+ * -1, so no sequence ever bound to the element and she sat in the model's bind
+ * pose for the whole of phase one. One record's absent fields, two bugs that
+ * looked unrelated.
+ *
+ * Across this cache the gap is 102 rungs silently size 1 under a shell that
+ * states a size, and 526 silently animation-less under a shell that states a
+ * readyanim. NOTHING here changes a rung that states the field itself: the 49
+ * records whose readyanim genuinely disagrees with their shell keep the rung's,
+ * and no rung anywhere disagrees about size.
+ *
+ * That last point is a deliberate deviation, flagged rather than hidden. The
+ * reference reads these off ONE record -- `npc.type`, the id the WIRE sent,
+ * i.e. the shell -- at both the NPC add and the CHANGETYPE mask (Client.ts
+ * 8344-8353, 8455-8464), and `transform()` is called later and only where the
+ * MODEL, the name and the ops are chosen. By that rule the shell would win
+ * outright and those 49 rungs' readyanims would be dead data. There is no
+ * revision-239 client in this tree to confirm it against, and taking the shell
+ * outright would silently restyle the 674 rungs whose shell states nothing, so
+ * this fills gaps and never overrides. Revisit with a rev-239 deob in hand.
+ *
+ * `turn_speed` is deliberately absent: its default is 32 rather than a
+ * sentinel, so "absent" and "authored 32" are the same value and gap-filling
+ * cannot be expressed for it.
+ */
+struct ToriRS_NpcEntityFacts
+{
+    int size;
+    int readyanim;
+    int walkanim;
+    int walkanim_b;
+    int walkanim_l;
+    int walkanim_r;
+    int turnanim;
+    int runanim;
+    int runanim_b;
+    int runanim_l;
+    int runanim_r;
+};
+
+/**
+ * Fill `out` from the rung, then from the shell wherever the rung said
+ * nothing.
+ *
+ * `shell` may be NULL: an ordinary npc has no shell, and there is nothing to
+ * fill from. It may also BE `drawn`, which every non-multinpc is once the
+ * caller has looked the wire's id up -- that is a short circuit rather than a
+ * rule, since a record can only ever agree with itself.
+ */
+void
+ToriRS_NpctypeEntityFacts(
+    struct ToriRS_Npctype const* drawn,
+    struct ToriRS_Npctype const* shell,
+    struct ToriRS_NpcEntityFacts* out);
 
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).
  * A single model animated by a seq, with recolour/retexture, resize and a
@@ -478,6 +692,17 @@ struct ToriRS_Objtype
     /** Base GE/alch value (cache opcode 12). The loot tracker's value column
      *  is cost*qty; CS2 reads it through OC_COST (cs2_command 4003). */
     int cost;
+    /** Grand Exchange tradeable: dat2 obj opcode 65 (reference ObjType
+     *  field5059). OC_FIND's second argument restricts a search to these. dat1
+     *  has no Grand Exchange and leaves it 0. */
+    int ge_tradeable;
+    /** Members-only: dat2 obj opcode 16 (reference ObjType field5030, read by
+     *  OC_MEMBERS). A note or placeholder answers for the item it stands for,
+     *  copied in once that item is resident (CacheProvider_ObjtypeGet). */
+    int members;
+    /** Bought-variant template: dat2 obj opcode 140, -1 when this is not a
+     *  bought variant. Such a record is never Grand Exchange tradeable. */
+    int bought_template;
     /** Shift-click inventory op, dat2 opcode 42 (reference ObjType field5070,
      *  read by OC_SHIFTCLICKIOP). A 0-based index into `inv_actions`, -1 for
      *  "this item has no shift-click op", and **-2 for "unstated"**, which is
@@ -634,6 +859,9 @@ struct ToriRS_SpriteFrame
     int crop_y;
     int crop_width;
     int crop_height;
+    /* Whether the alpha byte is a real channel; carried to the ToriDraw
+     * sprite this frame becomes. @see ToriDraw_Sprite::alpha_channel. */
+    unsigned char alpha_channel;
 };
 
 struct ToriRS_Sprite
@@ -660,6 +888,8 @@ struct ToriRS_Font
 struct ToriRS_Enum
 {
     int id;
+    /** The key type character (config opcode 1); 0 when the record has none. */
+    char input_type;
     bool output_is_string;
     int default_int;
     char* default_string;
@@ -681,6 +911,17 @@ struct ToriRS_Struct
     int id;
     struct ToriRS_Param* params;
     int param_count;
+};
+
+/**
+ * The base type of every VarClanType (config group 47): what a VARCLAN packet
+ * carries for the var and what PUSH_VARCLAN may read. Indexed by var id;
+ * -1 for an id with no record or no type.
+ */
+struct ToriRS_VarClanTypes
+{
+    signed char* base_type; /* 0 int, 1 long, 2 string */
+    int count;
 };
 
 struct ToriRS_ParamType
@@ -878,6 +1119,33 @@ struct ToriRS_ScriptHook
     char strv[TORIRS_COMPONENT_HOOK_STR_MAX][TORIRS_COMPONENT_HOOK_STR_LEN];
 };
 
+struct ToriRS_Component;
+
+/* The four inv-slot columns, split out of struct ToriRS_Component and minted
+ * only for the components that are inventories. Inline they were 2800 of a
+ * component's 4556 bytes -- 61% -- carried by every label, rectangle, model
+ * and line in every loaded pack, roughly 4 MB across a gameframe, for the sake
+ * of the few dozen grids that use them. sprite_ref is the bulk of it.
+ *
+ * NULL means not-an-inventory, and reads the same as the all-zero columns a
+ * non-inventory component used to carry: every reader either tests the id for
+ * > 0 or is already handed a NULL-checked pointer. */
+struct ToriRS_ComponentInvSlots
+{
+    /** Raw cache inv-slot graphic ids (dat2 invSlotGraphicId). */
+    int graphic_id[TORIRS_INV_SLOT_MAX];
+    /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
+    int offset_x[TORIRS_INV_SLOT_MAX];
+    int offset_y[TORIRS_INV_SLOT_MAX];
+    /** Empty-slot background sprite refs (dat1 invSlotGraphic name or dat2 spr:id). */
+    char sprite_ref[TORIRS_INV_SLOT_MAX][TORIRS_SPRITE_REF_MAX];
+};
+
+/* Mints the block on first write. Every caller is already inside a branch that
+ * has established the component is an inventory. */
+struct ToriRS_ComponentInvSlots*
+ToriRS_ComponentInvSlotsEnsure(struct ToriRS_Component* component);
+
 struct ToriRS_Component
 {
     int id;
@@ -923,8 +1191,6 @@ struct ToriRS_Component
     int sprite_angle;
     uint8_t horizontal_flip;
     uint8_t vertical_flip;
-    /** Raw cache inv-slot graphic ids (dat2 invSlotGraphicId). */
-    int inv_slot_graphic_id[TORIRS_INV_SLOT_MAX];
     int transparency;
     /** Raw text horizontal alignment (dat2 textHorizontalAlignment). */
     int text_h_align;
@@ -959,6 +1225,7 @@ struct ToriRS_Component
     int active_model_id;
     /** MODEL cache sequence (dat2 modelSeqId); -1 = none. Reference widget.sequenceId. */
     int model_seq_id;
+    int model_active_seq_id;
     /** MODEL preview camera: dat2 modelZoom / dat1 zoom. */
     int model_zoom;
     /** MODEL preview pitch: dat2 modelXAngle / dat1 xan. */
@@ -1010,11 +1277,9 @@ struct ToriRS_Component
     int inv_obj_use;
     /** LINE widget line thickness (dat2 lineWidth). */
     int line_width;
-    /** Per-slot pixel offsets (dat1 invSlotOffsetX/Y). */
-    int inv_slot_offset_x[TORIRS_INV_SLOT_MAX];
-    int inv_slot_offset_y[TORIRS_INV_SLOT_MAX];
-    /** Empty-slot background sprite refs (dat1 invSlotGraphic name or dat2 spr:id). */
-    char inv_slot_sprite_ref[TORIRS_INV_SLOT_MAX][TORIRS_SPRITE_REF_MAX];
+    /** Inv-slot columns, or NULL when this component is not an inventory.
+     *  Owned; released by torirs_component_release_owned. */
+    struct ToriRS_ComponentInvSlots* inv_slots;
     /** Client.ts hide: layer skipped unless hovered_component_id == component id. */
     uint8_t hide;
     int button_type;

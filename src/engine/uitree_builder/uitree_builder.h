@@ -11,6 +11,7 @@ struct InvManager;
 struct RS_CS2Host;
 struct UIBuilderManifest;
 struct UITreeSceneBridge;
+struct UITreeRoleTable;
 
 #define UITREE_BUILDER_NAME_MAX 64
 #define UITREE_BUILDER_ONLOAD_ARGV_MAX 64
@@ -56,6 +57,13 @@ struct UITreeBuilder
      * and uploads fonts (EnsureFont) so the tree renders directly. NULL keeps
      * raw provider/cache ids on the nodes. */
     struct UITreeSceneBridge* bridge;
+    /** Next synthetic id for an authored control that carries a menu row.
+     *  @see TORIRS_REVCONFIG_ID_BASE. */
+    int authored_id_next;
+    /** Optional: where a component's `role=` is interned. NULL leaves the tag
+     *  unbaked, which is what a headless builder test wants. @see
+     *  ui/uitree_role.h. */
+    struct UITreeRoleTable* roles;
     char ini_path[512];
     /** Optional second RevConfig file (sprites/fonts). Empty = unused. */
     char cache_ini_path[512];
@@ -67,6 +75,11 @@ struct UITreeBuilder
      *  interface, or whatever the server last re-rooted to. -1 = none, which is
      *  what UITreeBuilder_Init leaves behind. */
     int root_interface_id;
+    /** Which `[layout:<group>]` this bake takes, and which it refuses. Empty =
+     *  take everything / refuse nothing, the pre-title behaviour.
+     *  @see UIBuilderManifestSources::layout_group. */
+    char layout_group[32];
+    char layout_group_exclude[32];
 
     struct UIBuilderSpriteEntry* sprites;
     int sprite_count;

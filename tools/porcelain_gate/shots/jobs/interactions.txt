@@ -1,0 +1,79 @@
+# THE INTERACTION MATRIX.
+#
+# Every shot above this file photographs ONE plugin in ONE steady state. None
+# of them can see the class of defect that only exists at a TRANSITION -- the
+# frame root being replaced, a plugin being switched off while its controls are
+# on screen, two plugins reaching for the same anchor in the same fence. Both
+# frame regressions this programme found were of exactly that class and both
+# were invisible to every static lane.
+#
+# Each pair is BEFORE (the steady state) and AFTER (the same client past the
+# transition), same binary, same drive up to the transition frame.
+
+# --- 1. Layout remount: the frame root is replaced under live controls -------
+# All plugins on. The AFTER must show every owned control back on the new
+# toplevel; a port with no re-parent arm loses the lot and the picture is a
+# bare frame.
+remount-548-before all cs2       TORIRS_MAX_FRAMES=600 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+remount-548-after  all cs2       'TORIRS_SIM_CMD=500,layout 1' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+remount-161-after  all classic161 'TORIRS_SIM_CMD=500,layout 2' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+remount-164-after  all modern164  'TORIRS_SIM_CMD=500,layout 0' TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# --- 2. Enable and disable a plugin while its controls are on screen ---------
+# minimap-orbs owns four covers over the lane's native orbs. Switching it off
+# must remove them and leave the lane's own orbs behind, not a hole.
+#
+# TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all is what makes this checkable. The covers are a
+# faithful reproduction of the art they sit on, so ON and OFF are very nearly
+# the same PICTURE and a pixel diff cannot tell "the covers went away and the
+# native ones showed" from "the covers are still there" -- it reads 0.0% for
+# both. The OWNED_WIDGET lines say who owns what, which is the actual question.
+toggle-orbs-on     all cs2 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+toggle-orbs-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+toggle-orbs-back   all cs2 'TORIRS_SIM_PLUGIN_TOGGLE=500,minimap-orbs,0;700,minimap-orbs,1' TORIRS_MAX_FRAMES=1100 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+# Two more owners, to show a teardown is not special to the orbs.
+toggle-tile-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,tile-indicator-c,0 TORIRS_SIM_MOVE_AT=600,300,180 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+toggle-perf-off    all cs2 TORIRS_SIM_PLUGIN_TOGGLE=500,performance-display,0 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# A FRAME PROVIDER HAS NO SUCH SWITCH, and that is deliberate, not a gap:
+# PluginHost_SetEnabled returns early for one ("its runtime state is derived
+# from the one Gameframe preference; it deliberately has no independent
+# checkbox"). Driving TORIRS_SIM_PLUGIN_TOGGLE at it reports applied=1 -- the
+# index resolved -- and changes nothing, which reads exactly like a provider
+# that refused to tear down. preferred_frame is the switch, so these two ask
+# the question the supported way: the same client, one with the provider and
+# one without.
+frame-provider-on  all cs2 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+frame-provider-off all cs2 TORIRS_SHOT_FRAME=auto TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# --- 3. Window resize: the canvas moves under every anchored control ---------
+resize-before      all modern164 TORIRS_MAX_FRAMES=600 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+resize-after       all modern164 TORIRS_SIM_RESIZE=500,1024x700 TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# --- 4. Two plugins reaching for the same surface ----------------------------
+# NOT ACTUALLY CONTENDING, and the name now says so. minimap-orbs owns
+# x521..610; xp-drop-orbs publishes its globe at x=237, the middle of the world
+# view. Their boxes do not overlap, so this pair does not test the claim it was
+# written for. Left in because it is still a useful two-plugins-on picture, and
+# renamed because a case that quietly tests something easier than its name is
+# worse than no case: it reports green.
+# Both tile indicators draw the same tile; both orb plugins want the orb column.
+pair-tiles         all cs2 TORIRS_SIM_MOVE_AT=600,300,180 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+pair-orbs-nocontend all cs2 'TORIRS_SIM_CMD=660,setlevel 10 45' TORIRS_MAX_FRAMES=800 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# --- 5. Panel SWITCH, not panel over panel -----------------------------------
+# There is ONE shared page pane, so opening xp-tracker over loot-tracker
+# REPLACES it at identical geometry. "A panel drawn over something it should sit
+# beside" cannot be expressed here at all; this is a switch test and is named
+# for what it does.
+panel-single       all cs2 TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page TORIRS_MAX_FRAMES=900 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+panel-switch       all cs2 'TORIRS_SIM_PLUGIN_PANEL=600,loot-tracker,page;700,xp-tracker,page' TORIRS_MAX_FRAMES=1000 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+
+# --- 6. Frame provider at BOOT, desktop vs touch -----------------------------
+# Nothing switches at runtime here: these are two clients booted with different
+# preferences.ini. A genuine runtime provider swap still has no drive knob --
+# preferred_frame is read at boot and PluginHost_SetEnabled refuses a frame
+# provider on purpose. That gap is real and is recorded rather than papered over
+# with a name that implies it is covered.
+provider-boot-desktop all cs2     TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all
+provider-boot-stone   all stone601 TORIRS_MAX_FRAMES=700 TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all

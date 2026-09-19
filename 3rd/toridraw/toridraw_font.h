@@ -26,8 +26,12 @@ struct ToriDraw_Font
     uint8_t* glyph_alpha[TORIDRAW_FONT_GLYPH_COUNT];
     int glyph_width[TORIDRAW_FONT_GLYPH_COUNT];
     int glyph_height[TORIDRAW_FONT_GLYPH_COUNT];
-    int offset_x[TORIDRAW_FONT_GLYPH_COUNT];
-    int offset_y[TORIDRAW_FONT_GLYPH_COUNT];
+    /* One past the glyphs, like `advance` below: font_glyph_index answers
+     * TORIDRAW_FONT_ADVANCE_ONLY_GLYPH for a character this font does not map,
+     * and the draw loop reads the pen offsets before it learns the glyph has
+     * no bitmap. A zero slot is what that read must find. */
+    int offset_x[TORIDRAW_FONT_GLYPH_COUNT + 1];
+    int offset_y[TORIDRAW_FONT_GLYPH_COUNT + 1];
     int advance[TORIDRAW_FONT_GLYPH_COUNT + 1];
     int draw_width[256];
     int line_height;
@@ -123,6 +127,16 @@ ToriDraw2D_WrapLineCount(
     char const* text,
     int max_width);
 
+/* Shared by software and GPU text paths. 0=none, 1=shadow, 2=outline. */
+static inline int ToriDraw_FontShadowPassCount(int style)
+{ return style==2 ? 4 : style ? 1 : 0; }
+static inline void ToriDraw_FontShadowOffset(int style,int pass,int* x,int* y)
+{
+    static const int offsets[4][2]={{-1,0},{1,0},{0,-1},{0,1}};
+    *x=style==2 ? offsets[pass][0] : 1;
+    *y=style==2 ? offsets[pass][1] : 1;
+}
+
 /** Returns the number of opaque glyph pixels written (0 if nothing drawn). */
 int
 ToriDraw2D_DrawString(
@@ -133,8 +147,57 @@ ToriDraw2D_DrawString(
     char const* text,
     int color,
     bool center,
-    bool shadowed,
-    int* pixel_buffer);
+    int shadowed,
+    toripixel_t* pixel_buffer);
+
+/**
+ * Scale every later text draw on this thread from layout to buffer pixels:
+ * positions, advances and line heights stay in layout units, glyphs and rules
+ * land at buf/layout their size, and the view port's clip is read as buffer
+ * pixels. Equal sizes restore 1:1. A renderer sets it around its 2D pass.
+ */
+void
+ToriDraw2D_FontSetOutputScale(int buf_w, int layout_w, int buf_h, int layout_h);
+
+enum
+{
+    TORIDRAW_FONT_BOX_MAX_LINES = 64,
+};
+
+/** One drawable line of a laid-out text box: `x`,`y` are the glyph-walk
+ *  origin, the same x/y ToriDraw_FontVisitGlyphs and ToriDraw2D_DrawString's
+ *  internals take. `text` is NOT NUL-terminated at `len`. */
+struct ToriDraw_FontBoxLine
+{
+    char const* text;
+    int len;
+    int x;
+    int y;
+};
+
+/**
+ * Where every line of a widget text box goes (OSRS drawLines semantics):
+ * `<br>`/newline splits, auto-wrap when the box is tall enough, then x/y
+ * alignment. Lines that draw nothing -- `"Game<br> "`'s second line -- are
+ * counted for alignment but not written to `out`. Returns the number written,
+ * at most TORIDRAW_FONT_BOX_MAX_LINES.
+ *
+ * This is the only copy of the box layout. Every renderer, software or GPU,
+ * places box text through it; a renderer-local copy drifts, and the drift is
+ * a label that sits somewhere else on one renderer.
+ */
+int
+ToriDraw2D_LayoutStringBox(
+    struct ToriDraw_Font* font,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* text,
+    int x_align,
+    int y_align,
+    int line_height,
+    struct ToriDraw_FontBoxLine out[TORIDRAW_FONT_BOX_MAX_LINES]);
 
 /** Multi-line widget text with box alignment (OSRS drawLines semantics). */
 int
@@ -150,7 +213,7 @@ ToriDraw2D_DrawStringBox(
     int x_align,
     int y_align,
     int line_height,
-    bool shadowed,
-    int* pixel_buffer);
+    int shadowed,
+    toripixel_t* pixel_buffer);
 
 #endif

@@ -36,10 +36,10 @@ ones.
 | `net/net_out.c` | 10 | `out_p1_alt1..3` `out_p2_alt1..3` `out_p4_alt1..3` `out_p8` |
 | `net/rev/osrs230/osrs230_parse.c` | 6 | `c_g1` `c_g1alt2` `c_g2` `c_g4` `c_g4alt1` `c_gsmart` |
 | `net/rev/packets/pkt_player_appearance.c` | 2 | (local `g`-helpers) |
-| `net/mock/mock230_wire.c` | 2 | `w239_p3_alt2` `w239_psmart1or2` |
-| `net/mock/mock230_encode.c` | 1 | `ext_psmart1or2` |
-| `net/mock/mock239_playerinfo.c` | 1 | `v5_psmart1or2` |
-| `net/mock/mock239_interface_inbound.c` | 1 | `anim_g2` |
+| `torirsserver/torirs_server_wire.c` | 2 | `w239_p3_alt2` `w239_psmart1or2` |
+| `torirsserver/torirs_server_encode.c` | 1 | `ext_psmart1or2` |
+| `torirsserver/mock239_playerinfo.c` | 1 | `v5_psmart1or2` |
+| `torirsserver/mock239_interface_inbound.c` | 1 | `anim_g2` |
 
 **The same smart-encoding is written five times** under five names —
 `gsmart1or2`, `c_gsmart`, `ext_psmart1or2`, `v5_psmart1or2`,
@@ -151,10 +151,10 @@ checks each reader inverts its writer. Verified to fail: pointing `P4_3412` at
 | `net/net_out.c` | 10 | 1 |
 | `net/rev/osrs230/osrs230_parse.c` | 6 | 0 |
 | `net/rev/packets/pkt_player_appearance.c` | 2 | 2 |
-| `net/mock/mock230_wire.c` | 2 | 0 |
-| `net/mock/mock230_encode.c` | 1 | 0 |
-| `net/mock/mock239_playerinfo.c` | 1 | 0 |
-| `net/mock/mock239_interface_inbound.c` | 1 | 0 |
+| `torirsserver/torirs_server_wire.c` | 2 | 0 |
+| `torirsserver/torirs_server_encode.c` | 1 | 0 |
+| `torirsserver/mock239_playerinfo.c` | 1 | 0 |
+| `torirsserver/mock239_interface_inbound.c` | 1 | 0 |
 
 Two private cursors are gone — `struct Cur` (osrs239) and
 `struct Osrs230Cursor` — replaced by `RSProt_Buffer`. All five copies of
@@ -207,7 +207,7 @@ library, three separate times. It is now its own object.
 | `src/net` at audit time | 40 | 8 |
 | `src/net` now | **38** | **7** |
 
-Done — `src/net/mock/mock230_wire.c`, now clean:
+Done — `src/torirsserver/torirs_server_wire.c`, now clean:
 
 - `w239_psmart1or2` → `rsab_psmart`. Byte-identical in range, and the library
   version *latches an overflow* where the copy silently truncated.
@@ -224,9 +224,9 @@ Remaining, largest first:
 | `net/net_out.c` | 10 | `out_p*` writers |
 | `net/rev/osrs230/osrs230_parse.c` | 6 | `c_g*`, own cursor |
 | `net/rev/packets/pkt_player_appearance.c` | 2 | |
-| `net/mock/mock230_encode.c` | 1 | `ext_psmart1or2` → `rsab_psmart` |
-| `net/mock/mock239_playerinfo.c` | 1 | `v5_psmart1or2` → `rsab_psmart` |
-| `net/mock/mock239_interface_inbound.c` | 1 | `anim_g2` |
+| `torirsserver/torirs_server_encode.c` | 1 | `ext_psmart1or2` → `rsab_psmart` |
+| `torirsserver/mock239_playerinfo.c` | 1 | `v5_psmart1or2` → `rsab_psmart` |
+| `torirsserver/mock239_interface_inbound.c` | 1 | `anim_g2` |
 | `3rd/rscache/.../dat2_config_loc.c` | 2 | `gstringfl`, `loc_pstringfl` → `rsbuffer.h` |
 
 Three of the five duplicate smart encoders are still out there

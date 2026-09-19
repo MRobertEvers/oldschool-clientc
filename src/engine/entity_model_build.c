@@ -54,6 +54,20 @@ PlayerModel_DesignColourCount(int part)
     return k_recol1d[part].count;
 }
 
+/* PlayerComposition's seven design-part -> wear-slot table (Statics.method8884
+ * / class389.field4882 in the 239 client). @see PlayerModel_DesignPartWearpos. */
+static int const k_design_part_wearpos[7] = {
+    8, 11, 4, 6, 9, 7, 10,
+};
+
+int
+PlayerModel_DesignPartWearpos(int part)
+{
+    if( part < 0 || part >= (int)(sizeof(k_design_part_wearpos) / sizeof(int)) )
+        return -1;
+    return k_design_part_wearpos[part];
+}
+
 static void
 obj_wear_models(
     struct ToriRS_Objtype const* obj,
@@ -137,6 +151,43 @@ PlayerModel_CollectAppearanceModelIds(
 }
 
 int
+PlayerModel_AppearanceResident(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int gender)
+{
+    assert(provider);
+    assert(slots);
+
+    for( int s = 0; s < 12; s++ )
+    {
+        int value = slots[s];
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
+        {
+            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
+            if( !idk )
+                return 0;
+            for( int m = 0; m < idk->model_ids_count; m++ )
+                if( idk->model_ids[m] >= 0 && !CacheProvider_ModelHas(provider, idk->model_ids[m]) )
+                    return 0;
+        }
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
+        {
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
+            int wear[3];
+            if( !obj )
+                return 0;
+            obj_wear_models(obj, gender, wear);
+            for( int m = 0; m < 3; m++ )
+                if( wear[m] >= 0 && !CacheProvider_ModelHas(provider, wear[m]) )
+                    return 0;
+        }
+    }
+    return 1;
+}
+
+int
 PlayerHeadModel_CollectHeadModelIds(
     struct CacheProvider* provider,
     int const slots[12],
@@ -205,6 +256,12 @@ PlayerModel_BuildFromAppearance(
 
     assert(provider && slots);
 
+    /* All or nothing (reference PlayerComposition.getModel's isReady gate):
+     * a body missing a part is not a body, and whoever holds the previous
+     * one keeps drawing it until this one can be whole. */
+    if( !PlayerModel_AppearanceResident(provider, slots, gender) )
+        return NULL;
+
     for( int s = 0; s < 12; s++ )
     {
         int value = slots[s];
@@ -212,14 +269,13 @@ PlayerModel_BuildFromAppearance(
         {
             struct ToriRS_Idk* idk =
                 CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
-            if( !idk )
-                continue;
+            assert(idk);
             for( int m = 0; m < idk->model_ids_count; m++ )
             {
                 struct ToriRS_Model* rs;
                 struct ToriDraw_Model* model;
                 int mid = idk->model_ids[m];
-                if( mid < 0 || !CacheProvider_ModelHas(provider, mid) )
+                if( mid < 0 )
                     continue;
                 rs = CacheProvider_ModelGet(provider, mid);
                 model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
@@ -238,14 +294,13 @@ PlayerModel_BuildFromAppearance(
             struct ToriRS_Objtype* obj =
                 CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int wear[3];
-            if( !obj )
-                continue;
+            assert(obj);
             obj_wear_models(obj, gender, wear);
             for( int m = 0; m < 3; m++ )
             {
                 struct ToriRS_Model* rs;
                 struct ToriDraw_Model* model;
-                if( wear[m] < 0 || !CacheProvider_ModelHas(provider, wear[m]) )
+                if( wear[m] < 0 )
                     continue;
                 rs = CacheProvider_ModelGet(provider, wear[m]);
                 model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;

@@ -12,6 +12,7 @@ extern const struct CP_AssetCodec cp_codec_worldmap;
 extern const struct CP_AssetCodec cp_codec_worldmapgeo;
 extern const struct CP_AssetCodec cp_codec_dbindex;
 extern const struct CP_AssetCodec cp_codec_font;
+extern const struct CP_AssetCodec cp_codec_defaults;
 
 #include "archive.h"
 #include "checksum.h"
@@ -29,6 +30,7 @@ extern const struct CP_AssetCodec cp_codec_font;
 
 #include <ctype.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -160,6 +162,31 @@ static const struct CP_Asset g_assets[CP_ASSET_COUNT] = {
         CP_ASSET_SPLIT, -1, &cp_codec_dbindex },
     [CP_ASSET_ANIMAYA] = {
         "animayas", "22_animayas", "animaya", "animaya", RSCACHE_DAT2_TABLE_ANIMAYAS, 0, -1, NULL },
+    /*
+     * The defaults table — OldSchool idx17, RS2 idx28. See docs/CACHE_INDEX_16_17.md.
+     *
+     * `CP_ASSET_SPLIT` because its two groups are opposite shapes and the table is
+     * too small to justify a third: osrs239 group 3 is a single 83-byte record and
+     * lands as a bare `.dflt`, while group 1 holds ~4,000 opaque files and lands as
+     * a directory plus a filepack. That is the worldmap-geography shape exactly.
+     *
+     * The codec writes both shapes — `.defaults` for the record, `.colours` for a
+     * group-1 member — and declines to the raw payload for anything it cannot
+     * re-encode byte-for-byte. That check is what makes a codec safe here at all:
+     * bigsmart lets an id under 32767 be written two bytes or four, and only the
+     * source bytes say which, so a record that does not round-trip is written raw
+     * rather than quietly rewritten.
+     *
+     * rs727's idx28 is the same table with a different schema, and declining is
+     * the right answer there rather than a gap: its group 3 opens on opcode 3,
+     * and 45 bytes later the next byte is 142, which is not an opcode this record
+     * has. See test_dat2_defaults.c, which pins that decline — a decoder that
+     * limped on instead would write 3,067 bytes of misread RS2 record into an
+     * OldSchool-shaped struct.
+     */
+    [CP_ASSET_DEFAULTS] = {
+        "defaults", "17_defaults", "defaults", "dflt", RSCACHE_DAT2_TABLE_DEFAULTS,
+        CP_ASSET_SPLIT, -1, &cp_codec_defaults },
 };
 /* clang-format on */
 
@@ -616,7 +643,7 @@ cp_assets_name_maps(struct CP_Ctx* ctx)
     for( int i = 0; i < rt->id_count; i++ )
     {
         int id = rt->ids[i];
-        if( id < rt->archive_count && rt->archives[id].identifier != 0 )
+        if( id < rt->archive_count && RSCache_ReferenceTableIdentifier(rt, id) != 0 )
             identified = 1;
     }
 
@@ -654,7 +681,7 @@ cp_assets_name_maps(struct CP_Ctx* ctx)
         name[0] = '\0';
         if( identified )
         {
-            int want = id < rt->archive_count ? rt->archives[id].identifier : 0;
+            int want = id < rt->archive_count ? RSCache_ReferenceTableIdentifier(rt, id) : 0;
             for( int x = 0; x < 256 && !name[0]; x++ )
             {
                 for( int z = 0; z < 256 && !name[0]; z++ )
@@ -823,6 +850,162 @@ parse_asset_list(
         }
         *out_mask |= 1u << asset;
         cursor = comma ? comma + 1 : NULL;
+    }
+    return 1;
+}
+
+/*
+ * Optional archive-level selection for an on-the-fly cache overlay.
+ *
+ * `--assets=interfaces,scripts` restricts kinds, but an authoring preview wants
+ * one interface and the scripts reachable from its hooks, not all 9,725 client
+ * scripts. The list is deliberately a tiny text file rather than a command-line
+ * CSV so a large call graph does not run into an argv length ceiling:
+ *
+ *     interfaces=12
+ *     scripts=274
+ */
+struct CP_ArchivePick
+{
+    int asset;
+    int archive;
+};
+
+struct CP_ArchiveFilter
+{
+    struct CP_ArchivePick* picks;
+    int count;
+};
+
+static char*
+trim_space(char* text)
+{
+    while( *text && isspace((unsigned char)*text) ) text++;
+    char* end = text + strlen(text);
+    while( end > text && isspace((unsigned char)end[-1]) ) end--;
+    *end = '\0';
+    return text;
+}
+
+static void
+cp_archive_filter_free(
+    struct CP_ArchiveFilter* filter)
+{
+    free(filter->picks);
+    memset(filter, 0, sizeof(*filter));
+}
+
+static int
+cp_archive_filter_contains(
+    const struct CP_ArchiveFilter* filter,
+    int asset,
+    int archive)
+{
+    for( int i = 0; i < filter->count; i++ )
+        if( filter->picks[i].asset == asset && filter->picks[i].archive == archive )
+            return 1;
+    return 0;
+}
+
+static int
+cp_archive_filter_load(
+    struct CP_ArchiveFilter* filter,
+    const char* path)
+{
+    FILE* input = fopen(path, "rb");
+    if( !input )
+    {
+        fprintf(stderr, "cachepack: cannot read archive list %s: %s\n", path,
+                strerror(errno));
+        return 0;
+    }
+
+    char line[512];
+    int line_number = 0;
+    while( fgets(line, sizeof(line), input) )
+    {
+        line_number++;
+        char* comment = strchr(line, '#');
+        if( comment ) *comment = '\0';
+        char* row = trim_space(line);
+        if( !*row ) continue;
+
+        char* separator = strchr(row, '=');
+        if( !separator ) separator = strchr(row, ':');
+        if( !separator )
+        {
+            fprintf(stderr, "cachepack: %s:%d: expected <asset>=<archive id>\n", path,
+                    line_number);
+            fclose(input);
+            cp_archive_filter_free(filter);
+            return 0;
+        }
+        *separator = '\0';
+        char* kind = trim_space(row);
+        char* number = trim_space(separator + 1);
+        int asset = cp_asset_by_name(kind);
+        char* after = NULL;
+        errno = 0;
+        long archive = strtol(number, &after, 10);
+        after = after ? trim_space(after) : after;
+        if( asset < 0 || errno != 0 || !number[0] || !after || *after || archive < 0 ||
+            archive > INT_MAX )
+        {
+            fprintf(stderr, "cachepack: %s:%d: invalid archive selection '%s=%s'\n", path,
+                    line_number, kind, number);
+            fclose(input);
+            cp_archive_filter_free(filter);
+            return 0;
+        }
+        if( cp_archive_filter_contains(filter, asset, (int)archive) )
+            continue;
+
+        struct CP_ArchivePick* grown =
+            realloc(filter->picks, (size_t)(filter->count + 1) * sizeof(*grown));
+        if( !grown )
+        {
+            fclose(input);
+            cp_archive_filter_free(filter);
+            return 0;
+        }
+        filter->picks = grown;
+        filter->picks[filter->count].asset = asset;
+        filter->picks[filter->count].archive = (int)archive;
+        filter->count++;
+    }
+    fclose(input);
+    if( filter->count == 0 )
+    {
+        fprintf(stderr, "cachepack: archive list %s is empty\n", path);
+        return 0;
+    }
+    return 1;
+}
+
+static int
+cp_archive_filter_validate(
+    const struct CP_Ctx* ctx,
+    const struct CP_ArchiveFilter* filter,
+    unsigned asset_mask,
+    int all_assets,
+    const char* path)
+{
+    for( int i = 0; i < filter->count; i++ )
+    {
+        const struct CP_ArchivePick* pick = &filter->picks[i];
+        if( !all_assets && !(asset_mask & (1u << pick->asset)) )
+        {
+            fprintf(stderr, "cachepack: %s selects %s=%d, but --assets excludes %s\n", path,
+                    cp_asset(pick->asset)->dir, pick->archive, cp_asset(pick->asset)->dir);
+            return 0;
+        }
+        const struct LC_Pack* pack = &ctx->names.asset_packs[pick->asset];
+        if( pick->archive >= pack->max || !pack->names || !pack->names[pick->archive] )
+        {
+            fprintf(stderr, "cachepack: %s selects unknown archive %s=%d\n", path,
+                    cp_asset(pick->asset)->dir, pick->archive);
+            return 0;
+        }
     }
     return 1;
 }
@@ -1175,6 +1358,44 @@ export_one(
                 written++;
                 bytes += payload_size;
             }
+
+            /*
+             * The member ids, beside the bytes, when they are not the single
+             * file 0 a minted reference entry defaults to (cp_reference_sync).
+             *
+             * A whole payload carries its chunk table but not its file ids —
+             * those live only in the reference table — and a pack with no
+             * --base has no donor entry to inherit them from. Animsets are the
+             * big case: 10,855 of osrs239's 10,902 list sparse frame ids, up
+             * to 295 per archive. The single-file tables write nothing here,
+             * which is why models do not grow 61,615 sidecars.
+             */
+            int plain_single = archive->file_count == 1 &&
+                               (!archive->file_ids || archive->file_ids[0] == 0);
+            if( archive->file_count > 0 && !plain_single )
+            {
+                struct LC_Pack members;
+                char stem[1600];
+
+                snprintf(stem, sizeof(stem), "%s/%s", root, name);
+                memset(&members, 0, sizeof(members));
+                snprintf(members.type, sizeof(members.type), "record");
+                int member_ok = 1;
+                for( int f = 0; f < archive->file_count && member_ok; f++ )
+                {
+                    int file_id = archive->file_ids ? archive->file_ids[f] : f;
+                    char filler[32];
+                    snprintf(filler, sizeof(filler), "record_%d", file_id);
+                    member_ok = lc_pack_set(&members, file_id, filler);
+                }
+                if( !member_ok || !cp_member_pack_save(&members, stem, "memberpack") )
+                {
+                    lc_pack_free(&members);
+                    RSCache_Dat2DiskArchiveFree(archive);
+                    return -1;
+                }
+                lc_pack_free(&members);
+            }
         }
 
         RSCache_Dat2DiskArchiveFree(archive);
@@ -1270,7 +1491,7 @@ archive_in_cache(struct CP_Ctx* ctx, int table_id, int archive_id)
     rt = ctx->cache.disk->tables[table_id];
     if( !rt || !rt->archives || archive_id < 0 || archive_id >= rt->archive_count )
         return 0;
-    return rt->archives[archive_id].index >= 0;
+    return RSCache_ReferenceTableHasArchive(rt, archive_id);
 }
 
 static int
@@ -1316,6 +1537,7 @@ put_archive(
     const char* out_cache_dir,
     int table_id,
     int archive_id,
+    const struct LC_Pack* pack,
     /* The archive's pack name, so the reference table can carry the identifier
      * the client resolves by. NULL where the caller has no name for it. */
     const char* name,
@@ -1345,9 +1567,13 @@ put_archive(
     if( rc == 0 )
         cp_reference_sync(ctx, table_id, archive_id, container, (int)container_size, file_ids,
                           file_count, out_dirty);
-    /* The archive's name is only known here, and without it the entry the sync
-     * just made is unreachable by name (see cp_reference_set_name). */
-    cp_reference_set_name(ctx, table_id, archive_id, name, out_dirty);
+    /* The identifier is only known here. A pack line may carry hashname/hashcode
+     * when the filename is not what the client hashes (world-map scripts). */
+    if( name && name[0] )
+    {
+        int identifier = cp_pack_archive_identifier(pack, archive_id, name);
+        cp_reference_set_identifier(ctx, table_id, archive_id, identifier, out_dirty);
+    }
     free(container);
     return rc == 0;
 }
@@ -1357,8 +1583,10 @@ import_one(
     struct CP_Ctx* ctx,
     enum CP_AssetId id,
     const char* out_cache_dir,
+    const struct CP_ArchiveFilter* filter,
     int* out_files,
-    int* out_missing)
+    int* out_missing,
+    int* out_declined)
 {
     const struct CP_Asset* asset = cp_asset(id);
     int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, asset->table);
@@ -1395,10 +1623,17 @@ import_one(
      * just means that one file is read cold, exactly as before.
      */
     struct Tool_Prefetch prefetch;
-    tool_prefetch_begin(&prefetch, root);
+    memset(&prefetch, 0, sizeof(prefetch));
+    /* A sparse overlay normally reads a few dozen files out of a table holding
+     * thousands. Warming the whole directory would make the optimisation more
+     * expensive than the work it is meant to accelerate. */
+    if( !filter )
+        tool_prefetch_begin(&prefetch, root);
 
     for( int archive_id = 0; archive_id < pack->max; archive_id++ )
     {
+        if( filter && !cp_archive_filter_contains(filter, id, archive_id) )
+            continue;
         const char* name = pack->names ? pack->names[archive_id] : NULL;
         if( !name )
             continue;
@@ -1604,6 +1839,7 @@ import_one(
                  * gameval archive 14 names one this revision never shipped. Nothing
                  * to write and nothing wrong. */
                 phantom++;
+                if( filter ) missing++;
             }
             free(file_ids);
             continue;
@@ -1622,7 +1858,7 @@ import_one(
              * ran as a full pack. */
             written++;
         }
-        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, name, payload,
+        else if( put_archive(ctx, out_cache_dir, table_id, archive_id, pack, name, payload,
                              payload_size, file_ids, file_count, key, &dirty) )
         {
             written++;
@@ -1650,6 +1886,7 @@ import_one(
         printf("  %-19s %6d missing, %d codec-declined, %d not in cache\n", asset->dir,
                missing, declined, phantom);
         *out_missing += missing;
+        *out_declined += declined;
     }
     *out_files += written;
     return 1;
@@ -1658,12 +1895,33 @@ import_one(
 int
 cp_assets_import(
     struct CP_Ctx* ctx,
-    const char* out_cache_dir)
+    const char* out_cache_dir,
+    const char* assets_csv,
+    const char* archive_list_path)
 {
     assert_extensions_distinct();
 
+    unsigned mask = 0;
+    if( !parse_asset_list(assets_csv, &mask) )
+        return 0;
+    int all = mask == 0;
+
+    struct CP_ArchiveFilter filter;
+    memset(&filter, 0, sizeof(filter));
+    if( archive_list_path && !cp_archive_filter_load(&filter, archive_list_path) )
+        return 0;
+    const struct CP_ArchiveFilter* active_filter = archive_list_path ? &filter : NULL;
+    const int filtered = active_filter != NULL;
+    if( active_filter &&
+        !cp_archive_filter_validate(ctx, active_filter, mask, all, archive_list_path) )
+    {
+        cp_archive_filter_free(&filter);
+        return 0;
+    }
+
     int total = 0;
     int missing = 0;
+    int declined = 0;
     struct Tool_Progress progress;
 
     /*
@@ -1673,9 +1931,14 @@ cp_assets_import(
      * names itself as it goes, which is the question being asked here anyway —
      * "what is it doing", not "how many bytes are left".
      */
-    tool_progress_begin(&progress, "assets", CP_ASSET_COUNT);
+    int selected_kinds = 0;
+    for( int i = 0; i < CP_ASSET_COUNT; i++ )
+        if( all || (mask & (1u << i)) ) selected_kinds++;
+    tool_progress_begin(&progress, "assets", selected_kinds);
     for( int i = 0; i < CP_ASSET_COUNT; i++ )
     {
+        if( !all && !(mask & (1u << i)) )
+            continue;
         /*
          * Per-kind wall time. The kinds are not remotely the same size — models
          * alone is tens of thousands of archives against a handful for fonts —
@@ -1685,9 +1948,10 @@ cp_assets_import(
         time_t kind_started = time(NULL);
         int before = total;
 
-        if( !import_one(ctx, i, out_cache_dir, &total, &missing) )
+        if( !import_one(ctx, i, out_cache_dir, active_filter, &total, &missing, &declined) )
         {
             tool_progress_end(&progress);
+            cp_archive_filter_free(&filter);
             return 0;
         }
         tool_progress_step(&progress, 1);
@@ -1704,7 +1968,15 @@ cp_assets_import(
      */
     printf("%s %d asset archives, %d indexed but missing.\n",
            out_cache_dir ? "Imported" : "Checked", total, missing);
-    return missing == 0;
+    cp_archive_filter_free(&filter);
+    /* A full repack may legitimately retain the base bytecode for a friendly
+     * form the codec declines. An explicit archive list is different: every
+     * row is a record the caller asked to replace, so silently retaining its
+     * base bytes would produce an overlay whose key claims an edit it does not
+     * contain. */
+    if( filtered && declined )
+        fprintf(stderr, "cachepack: %d selected archive(s) were codec-declined\n", declined);
+    return missing == 0 && (!filtered || declined == 0);
 }
 
 /* ---- fidelity ----------------------------------------------------------- */

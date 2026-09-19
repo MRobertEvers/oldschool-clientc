@@ -2,8 +2,8 @@
  * The CLIENT half of friends / ignore / private chat, as a test.
  *
  * Why this file exists. When the feature landed, the server half had two
- * permanent checks (`mock230 --selftest`'s "the friend service" section and
- * `test-mock230-embed`'s social block) and the client half had **none** — the
+ * permanent checks (`ToriRSServer --selftest`'s "the friend service" section and
+ * `test-torirsserver-embed`'s social block) and the client half had **none** — the
  * store, the CS2 host ops and the friend-transmit repaint channel were proved
  * once, by hand, in a headless run, and nothing would have gone red if any of
  * them regressed. Every failure this feature actually hit was on the client
@@ -37,6 +37,7 @@
 #include "cs2vm2/cs2vm2_host.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/dat2/dat2_buildcache.h"
+#include "game/rs_chat.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_social.h"
 #include "game/rs_ui_slots.h"
@@ -153,8 +154,11 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_Social social;
-    struct CS2VM_HostRequest_Chat chat;
+    int social_index;
+    int chat_public_mode;
+    int chat_private_mode;
+    int chat_trade_mode;
+    int chat_colour_effect;
     char seen_name[64];
     char seen_text[64];
 };
@@ -168,28 +172,53 @@ recording_host_exec(
 
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_SOCIAL )
+    if( request->kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME )
     {
-        host->social = request->u.social;
+        host->social_index = request->u.FRIEND_GETNAME.index;
         snprintf(
             host->seen_name,
             sizeof(host->seen_name),
             "%s",
-            request->u.social.name ? request->u.social.name : "");
+            request->u.FRIEND_GETNAME.name
+                ? request->u.FRIEND_GETNAME.name
+                : "");
     }
-    if( request->kind == CS2VM_HOST_REQUEST_CHAT )
+    else if( request->kind == CS2VM_HOST_REQUEST_FRIEND_ADD )
     {
-        host->chat = request->u.chat;
+        host->social_index = request->u.FRIEND_ADD.index;
         snprintf(
             host->seen_name,
             sizeof(host->seen_name),
             "%s",
-            request->u.chat.name ? request->u.chat.name : "");
-        snprintf(
-            host->seen_text,
-            sizeof(host->seen_text),
-            "%s",
-            request->u.chat.text ? request->u.chat.text : "");
+            request->u.FRIEND_ADD.name ? request->u.FRIEND_ADD.name : "");
+    }
+    switch( request->kind )
+    {
+#define RECORD_CHAT(req_name)                                               \
+    case CS2VM_HOST_REQUEST_##req_name:                                     \
+        host->chat_public_mode = request->u.req_name.public_mode;   \
+        host->chat_private_mode = request->u.req_name.private_mode; \
+        host->chat_trade_mode = request->u.req_name.trade_mode;     \
+        host->chat_colour_effect = request->u.req_name.colour_effect; \
+        snprintf(                                                           \
+            host->seen_name,                                                \
+            sizeof(host->seen_name),                                        \
+            "%s",                                                          \
+            request->u.req_name.name                                \
+                ? request->u.req_name.name                          \
+                : "");                                                      \
+        snprintf(                                                           \
+            host->seen_text,                                                \
+            sizeof(host->seen_text),                                        \
+            "%s",                                                          \
+            request->u.req_name.text ? request->u.req_name.text : ""); \
+        break
+        RECORD_CHAT(CHAT_SETFILTER);
+        RECORD_CHAT(CHAT_SENDPUBLIC);
+        RECORD_CHAT(CHAT_SENDPRIVATE);
+#undef RECORD_CHAT
+    default:
+        return CS2VM_EXECNO_OK;
     }
     return CS2VM_EXECNO_OK;
 }
@@ -263,6 +292,110 @@ run_op(
     free(script.string_operands);
 }
 
+/* The friend names in list order, joined with spaces, for one CHECK. */
+static char const*
+friend_order(struct RS_Social const* social)
+{
+    static char order[512];
+    order[0] = '\0';
+    for( int i = 0; i < social->friend_count; i++ )
+    {
+        if( i )
+            strcat(order, " ");
+        strcat(order, social->friend_name[i]);
+    }
+    return order;
+}
+
+/* ==========================================================================
+ * Part 1b — sort chains (FRIENDLIST_SORT_* / IGNORELIST_SORT_*)
+ * ========================================================================== */
+
+static void
+test_sort_chains(void)
+{
+    struct RS_Social social;
+
+    printf("social: friend / ignore list sort chains\n");
+
+    RS_Social_Init(&social);
+    social.node_id = 5;
+    RS_Social_AddFriend(&social, "dave", 0);
+    RS_Social_AddFriend(&social, "bob", 7);
+    RS_Social_AddFriend(&social, "carol", 5);
+    RS_Social_AddFriend(&social, "alice", 7);
+
+    /* No chain: the client's natural order, by name. */
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "alice bob carol dave") == 0,
+        "apply with no chain sorts by name, got \"%s\"", friend_order(&social));
+
+    /* A chaining step defers on a tie: online first, then world descending,
+     * and alice/bob (both world 7) keep their existing order -- the sort is
+     * stable, like Arrays.sort. */
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_ONLINE_STATUS, true);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_WORLD, false);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "alice bob carol dave") == 0,
+        "online, then world descending, stable on ties, got \"%s\"", friend_order(&social));
+
+    /* Own world first; a tie there defers to the next step. */
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_ONLINE_WORLD, true);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_NAME, false);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "carol dave bob alice") == 0,
+        "our world first, the rest by name descending, got \"%s\"", friend_order(&social));
+
+    /* A step after a terminal comparator is dropped, as the client drops it:
+     * name ascending decides everything and the world step never runs. */
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_NAME, true);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_WORLD, true);
+    CHECK(social.friend_sort.count == 1, "a step after a terminal comparator is not added");
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "alice bob carol dave") == 0,
+        "the terminal name step alone orders the list, got \"%s\"", friend_order(&social));
+
+    /* "Both online" decides outright; a pair that is not both online defers to
+     * the next step. Offline dave meets world ascending there, and world 0
+     * sorts first. */
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_ONLINE_NAME, false);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_WORLD, true);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(friend_order(&social), "dave carol bob alice") == 0,
+        "both online orders by name descending; offline dave defers to world, got \"%s\"",
+        friend_order(&social));
+
+    /* The world-change serial: each change takes the next serial, so the
+     * friend who changed most recently sorts last ascending. */
+    int bob = -1;
+    for( int i = 0; i < social.friend_count; i++ )
+        if( strcmp(social.friend_name[i], "bob") == 0 )
+            bob = i;
+    CHECK(bob >= 0, "bob is on the list for the serial check");
+    RS_Social_SetFriendWorld(&social, bob, 9);
+    RS_Social_SortReset(&social.friend_sort);
+    RS_Social_SortAppend(&social.friend_sort, RS_SOCIAL_SORT_LAST_WORLD_CHANGE, true);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(social.friend_name[social.friend_count - 1], "bob") == 0,
+        "the latest world change sorts last, got \"%s\"", friend_order(&social));
+
+    /* A friend first reported offline gets a negated serial and sorts first. */
+    RS_Social_AddFriend(&social, "erin", 0);
+    RS_Social_SortFriends(&social);
+    CHECK(strcmp(social.friend_name[0], "erin") == 0,
+        "a first report of offline negates the serial, got \"%s\"", friend_order(&social));
+
+    /* Ignores: name, either direction. */
+    RS_Social_AddIgnore(&social, "zed");
+    RS_Social_AddIgnore(&social, "amy");
+    RS_Social_SortAppend(&social.ignore_sort, RS_SOCIAL_SORT_LEGACY, false);
+    RS_Social_SortIgnores(&social);
+    CHECK(strcmp(social.ignore_name[0], "zed") == 0, "ignore list sorts by name descending");
+}
+
 static void
 test_vm_dispatch(void)
 {
@@ -275,8 +408,8 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_FRIEND_GETNAME, 0, pushes, 1, NULL, NULL, NULL);
         CHECK(host.calls == 1, "friend_getname reaches the host");
-        CHECK(host.kind == CS2VM_HOST_REQUEST_SOCIAL, "as a SOCIAL request");
-        CHECK(host.social.index == 3, "carrying the index it was given, got %d", host.social.index);
+        CHECK(host.kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME, "as a FRIEND_GETNAME request");
+        CHECK(host.social_index == 3, "carrying the index it was given, got %d", host.social_index);
     }
 
     /* FRIEND_ADD(username): one string arg. */
@@ -287,6 +420,7 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_FRIEND_ADD, 0, pushes, 1, strs, NULL, NULL);
         CHECK(host.calls == 1, "friend_add reaches the host");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_FRIEND_ADD, "as a FRIEND_ADD request");
         CHECK(strcmp(host.seen_name, "bob") == 0, "with the name, got \"%s\"", host.seen_name);
     }
 
@@ -304,9 +438,40 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CHAT_SENDPRIVATE, 0, pushes, 2, strs, NULL, NULL);
         CHECK(host.calls == 1, "chat_sendprivate reaches the host");
-        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT, "as a CHAT request");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE, "as a CHAT_SENDPRIVATE request");
         CHECK(strcmp(host.seen_name, "bob") == 0, "addressed to the first argument, got \"%s\"", host.seen_name);
         CHECK(strcmp(host.seen_text, "hi there") == 0, "with the second as the body, got \"%s\"", host.seen_text);
+    }
+
+    /*
+     * CHAT_SENDPUBLIC(mes, colour_effect) — the mixed-arity twin of the test
+     * above.
+     *
+     * The transposition the case above guards cannot happen here: ints and
+     * strings are separate stacks, so a string argument and an int argument
+     * never contend for a slot. What this pins instead is that the opcode is
+     * read as one of EACH — copying its private twin's two-string shape pops a
+     * string nobody pushed, and the submit aborts with the line still in the
+     * box — and that the int lands in the field the outbound packet reads as
+     * colour/effect rather than being dropped on the floor, which is how a
+     * message would go out in the wrong colour with nothing to show for it.
+     */
+    {
+        struct RecordingHost host;
+        int const pushes[2] = { STR_PUSH, 0x0102 };
+        char const* strs[1] = { "hi there" };
+        memset(&host, 0, sizeof(host));
+        run_op(&host, CS2_OP_CHAT_SENDPUBLIC, 0, pushes, 2, strs, NULL, NULL);
+        CHECK(host.calls == 1, "chat_sendpublic reaches the host");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SENDPUBLIC, "as a CHAT_SENDPUBLIC request");
+        CHECK(
+            strcmp(host.seen_text, "hi there") == 0,
+            "with the first argument as the body, got \"%s\"",
+            host.seen_text);
+        CHECK(
+            host.chat_colour_effect == 0x0102,
+            "and the second as the packed colour/effect, got 0x%X",
+            host.chat_colour_effect);
     }
 
     /* CHAT_SETFILTER(public, private, trade) — three ints in source order. */
@@ -316,12 +481,14 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CHAT_SETFILTER, 0, pushes, 3, NULL, NULL, NULL);
         CHECK(host.calls == 1, "chat_setfilter reaches the host");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SETFILTER, "as a CHAT_SETFILTER request");
         CHECK(
-            host.chat.public_mode == 1 && host.chat.private_mode == 2 && host.chat.trade_mode == 0,
+            host.chat_public_mode == 1 && host.chat_private_mode == 2 &&
+                host.chat_trade_mode == 0,
             "with its three modes in source order, got %d/%d/%d",
-            host.chat.public_mode,
-            host.chat.private_mode,
-            host.chat.trade_mode);
+            host.chat_public_mode,
+            host.chat_private_mode,
+            host.chat_trade_mode);
     }
 
     /*
@@ -372,8 +539,8 @@ test_vm_dispatch(void)
         CHECK(depth == 1, "cc_setonfriendtransmit consumes exactly its own operands, %d left", depth);
         CHECK(top == 0x5EED, "leaving the sentinel below it untouched, got 0x%X", top);
         CHECK(
-            host.kind == CS2VM_HOST_REQUEST_CC_SETON_DISCARD,
-            "and is dropped deliberately rather than falling through to the asserting stub");
+            host.kind == CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT,
+            "and retains its own request kind while the host drops it deliberately");
     }
 }
 
@@ -390,10 +557,32 @@ call_social(
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
-    req.kind = CS2VM_HOST_REQUEST_SOCIAL;
-    req.u.social.opcode = opcode;
-    req.u.social.index = index;
-    req.u.social.name = name;
+    req.kind = (enum CS2VM_HostRequestKind)opcode;
+    switch( req.kind )
+    {
+#define SET_SOCIAL_REQUEST(name_)                                           \
+    case CS2VM_HOST_REQUEST_##name_:                                        \
+        req.u.name_.opcode = opcode;                                \
+        req.u.name_.index = index;                                  \
+        req.u.name_.name = name;                                    \
+        break
+        SET_SOCIAL_REQUEST(FRIEND_COUNT);
+        SET_SOCIAL_REQUEST(FRIEND_GETNAME);
+        SET_SOCIAL_REQUEST(FRIEND_GETWORLD);
+        SET_SOCIAL_REQUEST(FRIEND_GETRANK);
+        SET_SOCIAL_REQUEST(FRIEND_ADD);
+        SET_SOCIAL_REQUEST(FRIEND_DEL);
+        SET_SOCIAL_REQUEST(IGNORE_ADD);
+        SET_SOCIAL_REQUEST(IGNORE_DEL);
+        SET_SOCIAL_REQUEST(FRIEND_TEST);
+        SET_SOCIAL_REQUEST(IGNORE_COUNT);
+        SET_SOCIAL_REQUEST(IGNORE_GETNAME);
+        SET_SOCIAL_REQUEST(IGNORE_TEST);
+#undef SET_SOCIAL_REQUEST
+    default:
+        assert(0 && "call_social: unexpected opcode");
+        return CS2VM_EXECNO_ERROR;
+    }
     return RS_CS2Host_Exec(t, &req);
 }
 
@@ -406,6 +595,7 @@ test_host_ops(void)
     struct InvManager invs;
     struct RS_CS2Host host;
     struct RS_Social social;
+    struct RS_Chat chat;
     struct CS2VM2 vm;
     int filter_modes[3] = { 0, 0, 0 };
     int iv = 0;
@@ -415,10 +605,12 @@ test_host_ops(void)
     printf("social: the host ops answer from the store, and the mutators do both halves\n");
 
     InvManager_Init(&invs);
-    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL);
+    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL, NULL);
     RS_Social_Init(&social);
+    RS_Chat_Init(&chat, "Player");
     RS_Social_AddFriend(&social, "bob", 7);
     RS_CS2Host_SetSocial(&host, &social, filter_modes, 7);
+    RS_CS2Host_SetChat(&host, &chat);
 
     CS2VM2_Init(&vm);
     CS2VM2_BindHost(&vm, &host, RS_CS2Host_Exec);
@@ -442,9 +634,21 @@ test_host_ops(void)
      */
     call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
     CHECK(CS2VM2_PopStr(t, &sv) == CS2VM_EXECNO_OK, "friend_getname pushes a second string");
-    CHECK(sv && sv[0] == '\0', "which is empty (there is no rename model)");
+    CHECK(sv && sv[0] == '\0', "which is empty for a friend who never renamed");
     CHECK(CS2VM2_PopStr(t, &sv2) == CS2VM_EXECNO_OK, "and a first");
     CHECK(sv2 && strcmp(sv2, "Bob") == 0, "which is the display name, got \"%s\"", sv2 ? sv2 : "(null)");
+
+    /* A renamed friend's previous name and rank, as UPDATE_FRIENDLIST gave them. */
+    snprintf(social.friend_previous_name[0], RS_SOCIAL_NAME_LEN, "%s", "old_bob");
+    social.friend_rank[0] = 3;
+    call_social(t, CS2_OP_FRIEND_GETNAME, 0, NULL);
+    CS2VM2_PopStr(t, &sv);
+    CS2VM2_PopStr(t, &sv2);
+    CHECK(sv && strcmp(sv, "Old Bob") == 0, "the second string is the previous display name, got \"%s\"", sv ? sv : "(null)");
+    call_social(t, CS2_OP_FRIEND_GETRANK, 0, NULL);
+    CS2VM2_PopInt(t, &iv);
+    CHECK(iv == 3, "friend_getrank answers the stored rank, got %d", iv);
+    social.friend_previous_name[0][0] = '\0';
 
     /* map_world: the header reads "World N" off this, and a friend row is only
      * green when friend_getworld equals it. Stubbed to 0 it read "World 0". */
@@ -491,6 +695,38 @@ test_host_ops(void)
         CHECK(!RS_CS2Host_TakeSocialSend(&host, &send), "the queue drains empty");
     }
 
+    /* Both history forms have fixed generated stack contracts.  The basic
+     * form still includes friend-state (six results); EX appends its two
+     * reserved values (eight).  An under-push here shifts every later local in
+     * rebuildchatbox even when the history lookup misses. */
+    {
+        struct CS2VM_HostRequest req;
+        int ints_before = t->ints_stack_top;
+        int strs_before = t->strs_stack_top;
+
+        memset(&req, 0, sizeof(req));
+        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID_PRE195;
+        req.u.CHAT_GETHISTORY_BYUID_PRE195.opcode = CS2_OP_CHAT_GETHISTORY_BYUID_PRE195;
+        req.u.CHAT_GETHISTORY_BYUID_PRE195.uid = 999;
+        CHECK(RS_CS2Host_Exec(t, &req) == CS2VM_EXECNO_OK, "basic history lookup completes");
+        CHECK(t->ints_stack_top - ints_before == 3 && t->strs_stack_top - strs_before == 3,
+              "basic history pushes 3 ints/3 strings, got %d/%d",
+              t->ints_stack_top - ints_before, t->strs_stack_top - strs_before);
+        t->ints_stack_top = ints_before;
+        t->strs_stack_top = strs_before;
+
+        memset(&req, 0, sizeof(req));
+        req.kind = CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID;
+        req.u.CHAT_GETHISTORY_BYUID.opcode = CS2_OP_CHAT_GETHISTORY_BYUID;
+        req.u.CHAT_GETHISTORY_BYUID.uid = 999;
+        CHECK(RS_CS2Host_Exec(t, &req) == CS2VM_EXECNO_OK, "extended history lookup completes");
+        CHECK(t->ints_stack_top - ints_before == 4 && t->strs_stack_top - strs_before == 4,
+              "extended history pushes 4 ints/4 strings, got %d/%d",
+              t->ints_stack_top - ints_before, t->strs_stack_top - strs_before);
+        t->ints_stack_top = ints_before;
+        t->strs_stack_top = strs_before;
+    }
+
     /* chat_sendprivate through the real host: the queued packet must carry the
      * addressee and the body in the fields their names claim. */
     {
@@ -500,10 +736,10 @@ test_host_ops(void)
         char body[] = "hi there";
 
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT;
-        req.u.chat.opcode = CS2_OP_CHAT_SENDPRIVATE;
-        req.u.chat.name = to;
-        req.u.chat.text = body;
+        req.kind = CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE;
+        req.u.CHAT_SENDPRIVATE.opcode = CS2_OP_CHAT_SENDPRIVATE;
+        req.u.CHAT_SENDPRIVATE.name = to;
+        req.u.CHAT_SENDPRIVATE.text = body;
         RS_CS2Host_Exec(t, &req);
 
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "chat_sendprivate queues a message");
@@ -524,9 +760,9 @@ test_host_ops(void)
         char cheat[] = "tele 0,50,50";
 
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT;
-        req.u.chat.opcode = CS2_OP_DOCHEAT;
-        req.u.chat.text = cheat;
+        req.kind = CS2VM_HOST_REQUEST_DOCHEAT;
+        req.u.DOCHEAT.opcode = CS2_OP_DOCHEAT;
+        req.u.DOCHEAT.text = cheat;
         RS_CS2Host_Exec(t, &req);
 
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "docheat queues a cheat send");
@@ -539,11 +775,11 @@ test_host_ops(void)
     {
         struct CS2VM_HostRequest req;
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT;
-        req.u.chat.opcode = CS2_OP_CHAT_SETFILTER;
-        req.u.chat.public_mode = 0;
-        req.u.chat.private_mode = 2;
-        req.u.chat.trade_mode = 1;
+        req.kind = CS2VM_HOST_REQUEST_CHAT_SETFILTER;
+        req.u.CHAT_SETFILTER.opcode = CS2_OP_CHAT_SETFILTER;
+        req.u.CHAT_SETFILTER.public_mode = 0;
+        req.u.CHAT_SETFILTER.private_mode = 2;
+        req.u.CHAT_SETFILTER.trade_mode = 1;
         RS_CS2Host_Exec(t, &req);
         CHECK(
             filter_modes[RS_UI_CHAT_FILTER_PRIVATE] == 2,
@@ -558,6 +794,7 @@ test_host_ops(void)
     CHECK(host.friend_transmit_dirty != 0, "NotifyFriendChanged raises the repaint flag");
 
     CS2VM2_Free(&vm);
+    RS_Chat_Free(&chat);
     UITree_Free(tree);
     dat2_buildcache_free(bc);
 }
@@ -590,6 +827,7 @@ test_stack_table(void)
         { CS2_OP_IGNORE_GETNAME, "ignore_getname(index) -> name, prev", 1, 0, 0, 2 },
         { CS2_OP_CHAT_SETFILTER, "chat_setfilter(public, private, trade)", 3, 0, 0, 0 },
         { CS2_OP_CHAT_SENDPRIVATE, "chat_sendprivate(username, mes)", 0, 2, 0, 0 },
+        { CS2_OP_CHAT_SENDPUBLIC, "chat_sendpublic(mes, colour_effect)", 1, 1, 0, 0 },
         { CS2_OP_DOCHEAT, "docheat(text)", 0, 1, 0, 0 },
     };
 
@@ -623,6 +861,7 @@ main(void)
     printf("TEST: friends / ignore / private chat — the client half\n");
 
     test_store();
+    test_sort_chains();
     test_vm_dispatch();
     test_host_ops();
     test_stack_table();

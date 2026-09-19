@@ -66,7 +66,7 @@ fixture_init(struct Fixture* fx, int reverse)
     fx->model.face_colors_a = fx->color_a;
     fx->model.face_colors_b = fx->color_b;
     fx->model.face_colors_c = fx->color_c;
-    fx->model.bounds_cylinder = &fx->bounds;
+    fx->model.has_bounds_cylinder = true;
 
     /* This face is untextured. A nonzero count makes the public raster context
      * retain camera-space vertices, as a real mixed textured model does, so its
@@ -171,8 +171,8 @@ render_lit_pixels(int reverse)
         .clip_bottom = VIEW_H,
     };
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = 512,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = 512,
         .near_plane_z = 50,
     };
     size_t const view_pixels = (size_t)VIEW_W * VIEW_H;
@@ -292,8 +292,8 @@ render_scaled_width(int scale)
         .clip_bottom = VIEW_H,
     };
     struct ToriDraw_Camera camera = {
-        .proj_mode = TORIDRAW_PROJ_MODE_SCALE,
-        .proj_scale = scale,
+        .projection_mode = TORIDRAW_PROJECTION_MODE_SCALE,
+        .projection_scale = scale,
         .near_plane_z = SCALED_NEAR_Z,
     };
     size_t const view_pixels = (size_t)VIEW_W * VIEW_H;

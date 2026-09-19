@@ -114,6 +114,30 @@ collision_map_add_floor(
 }
 
 void
+collision_map_set_water(
+    struct CollisionMap* cm,
+    int tile_x,
+    int tile_z)
+{
+    assert(cm);
+
+    /* The border ring carries the map's own sentinel (collision_map_reset
+     * paints it COLL_FLAG_BOUNDS); flooding it would open the edge of the
+     * world. Clipping at the scene window is a legitimate state for a caller
+     * stamping a patch near it, so this is a guard and not an assert. */
+    if( tile_x <= 0 || tile_x >= cm->size_x - 1 )
+        return;
+    if( tile_z <= 0 || tile_z >= cm->size_z - 1 )
+        return;
+
+    {
+        int idx = collision_map_index_at(cm, tile_x, tile_z);
+
+        cm->flags[idx] = (cm->flags[idx] & ~COLL_FLAG_BOUNDS) | COLL_FLAG_FLOOR;
+    }
+}
+
+void
 collision_map_change_roof(
     struct CollisionMap* cm,
     int tile_x,
@@ -936,6 +960,9 @@ collision_approach_from_shape(
 void
 collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts* out)
 {
+    /* Every arm writes every field: `unbounded` is a feature-flag overlay the
+     * production callers set afterwards, and a caller that does not (the route
+     * tests) must not read stack garbage as "search the whole flood". */
     assert(out);
     switch( nearest_model )
     {
@@ -945,6 +972,7 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
         out->range = 0;
         out->max_dist = 0;
         out->rank_by_rect_distance = 0;
+        out->unbounded = 0;
         return;
 
     case TORIRS_NEAREST_BOX10_RECT:
@@ -958,6 +986,7 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
         out->range = 10;
         out->max_dist = 100;
         out->rank_by_rect_distance = 1;
+        out->unbounded = 0;
         return;
 
     case TORIRS_NEAREST_RING3_STEPS:
@@ -968,6 +997,7 @@ collision_nearest_opts_from_model(int nearest_model, struct CollisionNearestOpts
         out->range = 1;
         out->max_dist = 100;
         out->rank_by_rect_distance = 0;
+        out->unbounded = 0;
         return;
     }
 }
@@ -1476,7 +1506,7 @@ collision_map_reached(
 }
 
 /*
- * Route cost, read by the embedded server's tick breakdown (mock230_world.c).
+ * Route cost, read by the embedded server's tick breakdown (torirs_server_world.c).
  *
  * A flood is the one unbounded thing a game tick does -- it scales with the
  * whole collision map, not with the distance walked -- so when a tick runs long

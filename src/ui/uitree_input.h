@@ -12,11 +12,17 @@ struct UIInputState
 {
     int32_t hovered;
     int32_t pressed;
+    /** Exact array occupant which received mouse-down. Component ids and
+     * array slots are both reused by CC_DELETEALL/CC_CREATE. */
+    uint64_t pressed_incarnation;
     /** Drag gesture (TS OsrsClient widget drag). */
     int drag_active;
     int32_t drag_source_idx;
+    uint64_t drag_source_incarnation;
     int drag_source_id;
     int drag_target_id;
+    int32_t drag_target_idx;
+    uint64_t drag_target_incarnation;
     int drag_pickup_x;
     int drag_pickup_y;
     int drag_click_x;
@@ -26,6 +32,11 @@ struct UIInputState
     /* Non-draggable press already fired result.clicked (Jagex/xrsps onclick on
      * mousedown). Suppress the matching release so on_click runs once. */
     int release_click_suppressed;
+    /* The widget which owned the current physical press became effectively
+     * display:none.  Its UI ownership is cancelled immediately, but the
+     * release still belongs to that cancelled gesture and must not fall
+     * through to the world or a newly exposed widget. */
+    int cancelled_press;
     int thresholds_set;
 };
 
@@ -54,16 +65,24 @@ struct UIInputResult
     int drag_moved;
     int drag_ended;
     int32_t drag_source_idx;
+    uint64_t drag_source_incarnation;
     int drag_source_id;
     int drag_target_id;
+    int32_t drag_target_idx;
+    uint64_t drag_target_incarnation;
     int deferred_click_fired;
     /** Widget that owned this frame's mouse-up, even when the release was not
      * also a click (pointer moved away or a drag completed). */
     int32_t released_source_idx;
+    uint64_t released_source_incarnation;
     int released_source_id;
     /* 1 = clicked was armed on the press edge (non-draggable). interact_click
      * must use the current pointer, not last_click_* (set only on release). */
     int press_click;
+    /** This event belongs to a press whose target disappeared under an
+     * effective display:none transition. No widget hook or world click may be
+     * synthesized from it. */
+    int cancelled_press;
 };
 
 bool
@@ -122,6 +141,27 @@ UITree_PointBlocksWorld(
     int py);
 
 /**
+ * Both of the above, from ONE tree collection.
+ *
+ * The world gate asks them back to back at the same point, and on the plugin
+ * path (any widget anchor at all -> UITree_FrameHasDepth) each one is a whole
+ * ordered walk of the tree. Sharing the collection is free: the two answers are
+ * independent reductions of the same event list, and both entry points remain
+ * for the callers that want only one.
+ *
+ * `*out_blocks_world` gets UITree_PointBlocksWorld's answer, `*out_interactive_hit`
+ * UITree_HitTestInteractive's (a node index, or -1).
+ */
+void
+UITree_PointQuery(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int* out_blocks_world,
+    int32_t* out_interactive_hit);
+
+/**
  * Collect every menu-relevant node under (px,py), TOP-MOST FIRST: interactive
  * nodes plus RS_INV/RS_INV_TEXT grids (whose rows come from inventory slots).
  * Applies the same visibility / clip / scroll / no_click_through rules as
@@ -144,6 +184,14 @@ UITree_InputUpdate(
     struct UITree* tree,
     struct UITreeHost const* host,
     struct UIInputEvent event);
+
+/** Cancel a stored press/drag whose node (or ancestor) became effectively
+ * display:none. Returns non-zero when ownership was retired. The physical
+ * press remains latched as cancelled until mouse-up so it cannot retarget. */
+int
+UITree_InputCancelDisplayHidden(
+    struct UIInputState* state,
+    struct UITree* tree);
 
 /**
  * Advance drag while left button held. Call each frame after InputUpdate.

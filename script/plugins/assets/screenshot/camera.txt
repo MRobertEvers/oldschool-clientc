@@ -1,0 +1,57 @@
+# camera.png -- the screenshot plugin's icon, as pixels.
+#
+# Hand-authored rather than cut from a cache: the OSRS sprite tables carry no
+# front-view camera (the only camera art in them is options_icons,21, a
+# three-quarter movie camera with a rotate arrow). Every colour below is
+# lifted from the options_icons family's own ramp so the icon sits beside
+# the client's settings icons without reading as an import: no black
+# outline, tonal edges only, light from the upper left.
+#
+# '.' is transparent. SOURCES.sh bakes this file into camera.png; edit here,
+# not there.
+
+palette
+  k 0b0c09  lens glass, darkest
+  j 161514  lens glass / barrel shadow
+  i 262523  body shadow, lower-right
+  h 35312c  body shade
+  g 48423b  body
+  f 56504a  body, lit
+  e 666460  barrel, lit
+  d 786f61  body highlight
+  c 9c9899  top plate and bright edge
+  b b3a995  flash housing, warm light
+  a cac9c9  lens glint
+  A dad9d5  flash reflector
+  W fefefd  specular, flash core and lens glint
+  R 8d1414  shutter button
+  r 7a1312  shutter button, shade
+  P ca4244  shutter button, lit
+
+art
+  ............................
+  ......ccc...................
+  .....cAAAc..................
+  ....cAWWWAc.................
+  ....cAAAAAc.........rPPPr...
+  .....cbbbc..........PPPPP...
+  ......hhh...........RRRRR...
+  .....hfffh..........rRRRr...
+  ....cccccccccccccccccccc....
+  ..cccccccccccccccccccccccc..
+  ..cddddddddddddddddddddddi..
+  .cddccccdddffcccccdfffffffc.
+  .cdciijjhfffcciiiiddffffggi.
+  .cdcjjjjhffcciieeigdgfggggi.
+  .cdcjjjjhfccieeeehhgggggggi.
+  .cddhhhhffcieaAjjkhijgggggi.
+  .cdffffffccieAWcjkkijhhgggi.
+  .cfffffffcciejjjkkkijhhgggi.
+  .cfffffffcciejjkkkkijhhgggi.
+  .cffffffffcihhkkkkiijhggggi.
+  .cffffffffddghiiiiijhhggggi.
+  .iffffffffgdggjiijjhhgggggi.
+  ..ggggggggggggjjjjhhgggggi..
+  ..iihhhhhhhhhghhhhhhhhhhii..
+  ....iiiiiiiiiiiiiiiiiiii....
+  ............................

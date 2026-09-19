@@ -1,0 +1,594 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - generic [ref=f11e3]:
+      - text: Website powered by
+      - link [ref=f11e4] [cursor=pointer]:
+        - /url: https://www.artstation.com
+    - banner [ref=f11e5]:
+      - generic [ref=f11e7]:
+        - generic [ref=f11e9]:
+          - link "Dominik Mayer" [ref=f11e10] [cursor=pointer]:
+            - /url: /
+          - generic [ref=f11e11]: Freelance Illustrator
+        - generic [ref=f11e12]:
+          - generic [ref=f11e13]: 
+          - generic [ref=f11e17]:
+            - link "Portfolio" [ref=f11e19] [cursor=pointer]:
+              - /url: /projects
+            - link "Resume" [ref=f11e21] [cursor=pointer]:
+              - /url: /resume
+            - link "Prints" [ref=f11e23] [cursor=pointer]:
+              - /url: /store/art_posters
+    - list [ref=f11e25]:
+      - listitem [ref=f11e26]:
+        - link "All" [ref=f11e27] [cursor=pointer]:
+          - /url: /projects
+      - listitem [ref=f11e28]:
+        - link "Personal Work" [ref=f11e29] [cursor=pointer]:
+          - /url: /albums/35484
+      - listitem [ref=f11e30]:
+        - link "Magic the Gathering" [ref=f11e31] [cursor=pointer]:
+          - /url: /albums/3102642
+      - listitem [ref=f11e32]:
+        - link "Nachthunger" [ref=f11e33] [cursor=pointer]:
+          - /url: /albums/3102641
+      - listitem [ref=f11e34]:
+        - link "Speedpaintings" [ref=f11e35] [cursor=pointer]:
+          - /url: /albums/35483
+      - listitem [ref=f11e36]:
+        - link "Client Work" [ref=f11e37] [cursor=pointer]:
+          - /url: /albums/597594
+      - listitem [ref=f11e38]:
+        - link "Elysium" [ref=f11e39] [cursor=pointer]:
+          - /url: /albums/7352991
+    - generic [ref=f11e42]:
+      - link "Asbest Portier" [ref=f11e45] [cursor=pointer]:
+        - /url: /projects/V2qoQR
+      - link "LANDER" [ref=f11e52] [cursor=pointer]:
+        - /url: /projects/V2RzKN
+      - link "Eerie Ultimatum - MtG" [ref=f11e59] [cursor=pointer]:
+        - /url: /projects/EzJWev
+      - link "The King in Red" [ref=f11e66] [cursor=pointer]:
+        - /url: /projects/4NPkZW
+      - link "Serpent Knight" [ref=f11e73] [cursor=pointer]:
+        - /url: /projects/wrN4Gw
+      - link "MtG - Prismatic Ending" [ref=f11e80] [cursor=pointer]:
+        - /url: /projects/JrwgER
+      - link "Kill Knight Key Art" [ref=f11e87] [cursor=pointer]:
+        - /url: /projects/oJ02Az
+      - link "Incendium Art Book" [ref=f11e94] [cursor=pointer]:
+        - /url: /projects/Dv4eyA
+      - link "Infernal Artifact" [ref=f11e101] [cursor=pointer]:
+        - /url: /projects/YB195V
+      - link "Arrakis" [ref=f11e108] [cursor=pointer]:
+        - /url: /projects/9E4gAQ
+      - link "Night and Day" [ref=f11e115] [cursor=pointer]:
+        - /url: /projects/1xD9de
+      - link "15 min Knight" [ref=f11e122] [cursor=pointer]:
+        - /url: /projects/obeKJm
+      - 'link "Magic: The Gathering - Doomsday Confluence" [ref=f11e129] [cursor=pointer]':
+        - /url: /projects/QX68wL
+      - link "Treasure Token" [ref=f11e136] [cursor=pointer]:
+        - /url: /projects/YBvy6Y
+      - 'link "Magic: The Gathering - Mana Crypt" [ref=f11e143] [cursor=pointer]':
+        - /url: /projects/elvoq3
+      - 'link "Magic: The Gathering - March of the Canonized" [ref=f11e150] [cursor=pointer]':
+        - /url: /projects/w0dYn5
+      - link "Nachthunger 25 - Goblet of Realms" [ref=f11e157] [cursor=pointer]:
+        - /url: /projects/39gnx2
+      - 'link "Dragon Shield: Silver" [ref=f11e164] [cursor=pointer]':
+        - /url: /projects/Kewo9G
+      - 'link "Dragon Shield: Gold" [ref=f11e171] [cursor=pointer]':
+        - /url: /projects/qeX5dP
+      - link "Nachthunger 24 - Music of the Void" [ref=f11e178] [cursor=pointer]:
+        - /url: /projects/9EL4vo
+      - link "Centaur" [ref=f11e185] [cursor=pointer]:
+        - /url: /projects/obRknW
+      - link "Nachthunger 23 - From the Darkness" [ref=f11e192] [cursor=pointer]:
+        - /url: /projects/obRkr4
+      - link "Scarecrow King" [ref=f11e199] [cursor=pointer]:
+        - /url: /projects/ZaVkNm
+      - link "Scopophobia for 'Asbest'" [ref=f11e206] [cursor=pointer]:
+        - /url: /projects/n0lBdo
+      - link "Acrophobia" [ref=f11e213] [cursor=pointer]:
+        - /url: /projects/NyzE6P
+      - link "Nachthunger 22 - The Piercing Eye" [ref=f11e220] [cursor=pointer]:
+        - /url: /projects/bl3Bqk
+      - link "What Ever" [ref=f11e227] [cursor=pointer]:
+        - /url: /projects/Jv8okd
+      - link "Nachthunger 21 - \"Nachthunger\"" [ref=f11e234] [cursor=pointer]:
+        - /url: /projects/OGRNZk
+      - 'link "Magic: the Gathering - Hopeless Nightmare" [ref=f11e241] [cursor=pointer]':
+        - /url: /projects/5vaKvO
+      - 'link "MtG Token: Knight" [ref=f11e248] [cursor=pointer]':
+        - /url: /projects/oblVWk
+      - link "Blasphemy Blue" [ref=f11e255] [cursor=pointer]:
+        - /url: /projects/qeBzky
+      - link "Snow Warrior" [ref=f11e262] [cursor=pointer]:
+        - /url: /projects/OGJ3ww
+      - link "Construct" [ref=f11e269] [cursor=pointer]:
+        - /url: /projects/xDol3X
+      - link "Tree" [ref=f11e276] [cursor=pointer]:
+        - /url: /projects/8bo9kw
+      - link "Gondor Soldier" [ref=f11e283] [cursor=pointer]:
+        - /url: /projects/Ryg0gX
+      - link "Orc Army" [ref=f11e290] [cursor=pointer]:
+        - /url: /projects/8bPmQx
+      - link "Be beautiful in sin" [ref=f11e297] [cursor=pointer]:
+        - /url: /projects/XgOZ3n
+      - 'link "Byode, Inverse Sun for Magic: The Gathering" [ref=f11e304] [cursor=pointer]':
+        - /url: /projects/29OYVY
+      - link "Plague Tyrant" [ref=f11e311] [cursor=pointer]:
+        - /url: /projects/Jvb0YA
+      - link "MtG - Tazri, Stalwart Survivor" [ref=f11e318] [cursor=pointer]:
+        - /url: /projects/JvbBlD
+      - link "Nahiri, Forged in Fury" [ref=f11e325] [cursor=pointer]:
+        - /url: /projects/rJOZrO
+      - link "Elven Druid" [ref=f11e332] [cursor=pointer]:
+        - /url: /projects/XgamP0
+      - link "Nachthunger 17 - Touch of Terror" [ref=f11e339] [cursor=pointer]:
+        - /url: /projects/Ryqdqr
+      - link "MtG - Jin-Gitaxias" [ref=f11e346] [cursor=pointer]:
+        - /url: /projects/6NvzGr
+      - link "Batman" [ref=f11e353] [cursor=pointer]:
+        - /url: /projects/491lLl
+      - link "One Ring To Rule Them All" [ref=f11e360] [cursor=pointer]:
+        - /url: /projects/OGv18g
+      - link "Nachthunger 16 - The Keeper of the Keys" [ref=f11e367] [cursor=pointer]:
+        - /url: /projects/8bBK8q
+      - link "The Old One" [ref=f11e374] [cursor=pointer]:
+        - /url: /projects/LR4wek
+      - link "Night Blade" [ref=f11e381] [cursor=pointer]:
+        - /url: /projects/lDG8lY
+      - link "Nachthunger 15 - Lone Survivor" [ref=f11e388] [cursor=pointer]:
+        - /url: /projects/Gev2Zd
+      - link "MtG - Surge of Salvation" [ref=f11e395] [cursor=pointer]:
+        - /url: /projects/AlZkaq
+      - link "At Dawn" [ref=f11e402] [cursor=pointer]:
+        - /url: /projects/elRlrG
+      - link "Nachthunger 14 - Chaos" [ref=f11e409] [cursor=pointer]:
+        - /url: /projects/5vvDAA
+      - link "Wrath - Speedpainting" [ref=f11e416] [cursor=pointer]:
+        - /url: /projects/5vvqA1
+      - link "Random Waters" [ref=f11e423] [cursor=pointer]:
+        - /url: /projects/BXX2Ol
+      - link "Nachthunger 13 - The Golden Bridge" [ref=f11e430] [cursor=pointer]:
+        - /url: /projects/dK0vR1
+      - link "Nachthunger 12 - Ad Astra" [ref=f11e437] [cursor=pointer]:
+        - /url: /projects/1x4aJq
+      - link "Nachthunger 11 - Crimson Nights" [ref=f11e444] [cursor=pointer]:
+        - /url: /projects/vD2aoa
+      - link "The Lady of the Lake" [ref=f11e451] [cursor=pointer]:
+        - /url: /projects/LR36yA
+      - link "Nachthunger 10 - The Rhombus Guard" [ref=f11e458] [cursor=pointer]:
+        - /url: /projects/Ry3Bam
+      - link "MtG - Drivnod, Carnage Dominus" [ref=f11e465] [cursor=pointer]:
+        - /url: /projects/zPOWLm
+      - link "MtG - Nettling Host" [ref=f11e472] [cursor=pointer]:
+        - /url: /projects/ela0Zb
+      - link "Nachthunger 9 - The Crystal Keep" [ref=f11e479] [cursor=pointer]:
+        - /url: /projects/PXa02n
+      - link "Spellforce - Conquest of EO - Keyart 01" [ref=f11e486] [cursor=pointer]:
+        - /url: /projects/OGqRaK
+      - link "Nachthunger 08 - THE CURSE" [ref=f11e493] [cursor=pointer]:
+        - /url: /projects/g0g89E
+      - link "Nachthunger 07 - The Void" [ref=f11e500] [cursor=pointer]:
+        - /url: /projects/aGKWvJ
+      - link "Nachthunger 06 - The thousand Steps" [ref=f11e507] [cursor=pointer]:
+        - /url: /projects/G8bQdQ
+      - link "Nachthunger 05 - The Seven Gates of Wyss" [ref=f11e514] [cursor=pointer]:
+        - /url: /projects/KONWR9
+      - link "Nachthunger 04 - A King’s Quest" [ref=f11e521] [cursor=pointer]:
+        - /url: /projects/LeDyJR
+      - link "Nachthunger 03 - The Amber" [ref=f11e528] [cursor=pointer]:
+        - /url: /projects/aGKX8z
+      - link "Nachthunger 02 - The Last Light" [ref=f11e535] [cursor=pointer]:
+        - /url: /projects/5BmOeA
+      - link "Nachthunger 01 - The Unsung Hero" [ref=f11e542] [cursor=pointer]:
+        - /url: /projects/3qReaY
+      - link "MtG - Zopandrel, Hunger Dominus" [ref=f11e549] [cursor=pointer]:
+        - /url: /projects/5Bmd1P
+      - link "Rhombus Army" [ref=f11e556] [cursor=pointer]:
+        - /url: /projects/zD2O5Q
+      - link "MtG - Tekuthal, Inquiry Dominus" [ref=f11e563] [cursor=pointer]:
+        - /url: /projects/03NbxV
+      - link "Nachthunger - The Nacred General" [ref=f11e570] [cursor=pointer]:
+        - /url: /projects/4XWzvY
+      - link "MtG - Slobad, Iron Goblin" [ref=f11e577] [cursor=pointer]:
+        - /url: /projects/qQ4Naa
+      - link "MtG - Elesh Norn, Mother of Machines" [ref=f11e584] [cursor=pointer]:
+        - /url: /projects/3q6E3Y
+      - link "King Arthur - Tainted Grail" [ref=f11e591] [cursor=pointer]:
+        - /url: /projects/6b9agx
+      - link "The Ivory King" [ref=f11e598] [cursor=pointer]:
+        - /url: /projects/eJOZ4Y
+      - link "Elysium - Red Legion" [ref=f11e605] [cursor=pointer]:
+        - /url: /projects/Vyw3nb
+      - link "Delivery" [ref=f11e612] [cursor=pointer]:
+        - /url: /projects/vJl2Ov
+      - link "Red Charge" [ref=f11e619] [cursor=pointer]:
+        - /url: /projects/4XDnG2
+      - link "Elysium - Decurio Infernalis" [ref=f11e626] [cursor=pointer]:
+        - /url: /projects/nEAVEK
+      - link "Thank you 2022" [ref=f11e633] [cursor=pointer]:
+        - /url: /projects/DAgN3E
+      - link "Wraith - Dragon Shield" [ref=f11e640] [cursor=pointer]:
+        - /url: /projects/eJkAQ6
+      - link "Fury - Dragon Shield" [ref=f11e647] [cursor=pointer]:
+        - /url: /projects/NGd6qb
+      - link "Ember - DragonShield" [ref=f11e654] [cursor=pointer]:
+        - /url: /projects/VymN64
+      - link "MtG - Visions of Phyrexia" [ref=f11e661] [cursor=pointer]:
+        - /url: /projects/g8eJaL
+      - link "MtG - Titania's Command" [ref=f11e668] [cursor=pointer]:
+        - /url: /projects/LezPy5
+      - link "MtG - Kayla's Command" [ref=f11e675] [cursor=pointer]:
+        - /url: /projects/nEzGJK
+      - link "MtG - Mishra's Command" [ref=f11e682] [cursor=pointer]:
+        - /url: /projects/lR2bva
+      - link "MtG - Urza's Command" [ref=f11e689] [cursor=pointer]:
+        - /url: /projects/r93dYG
+      - link "MtG - Gix's Command" [ref=f11e696] [cursor=pointer]:
+        - /url: /projects/G8Qd9W
+      - link "MtG - Brothers War - Box Art" [ref=f11e703] [cursor=pointer]:
+        - /url: /projects/lR294z
+      - link "MtG - Time Stretch" [ref=f11e710] [cursor=pointer]:
+        - /url: /projects/mzkvnY
+      - link "Elysium - Blue Legion" [ref=f11e717] [cursor=pointer]:
+        - /url: /projects/5BzvaE
+      - link "Unholy Crusade - Solium Infernum" [ref=f11e724] [cursor=pointer]:
+        - /url: /projects/g8Dl6Q
+      - link "Dragon Knight - Part 2" [ref=f11e731] [cursor=pointer]:
+        - /url: /projects/qQm8LR
+      - link "Emerged from Flames" [ref=f11e738] [cursor=pointer]:
+        - /url: /projects/03b3AY
+      - link "Red Knight" [ref=f11e745] [cursor=pointer]:
+        - /url: /projects/mzn3O8
+      - link "MtG - Protect the Negotiators" [ref=f11e752] [cursor=pointer]:
+        - /url: /projects/Pe0gqZ
+      - link "MtG - Hurloon Battle Hymn" [ref=f11e759] [cursor=pointer]:
+        - /url: /projects/ZeYdnN
+      - link "MtG - Cut Down" [ref=f11e766] [cursor=pointer]:
+        - /url: /projects/r9GEb2
+      - link "Ghost Fire Knight" [ref=f11e773] [cursor=pointer]:
+        - /url: /projects/14aEno
+      - link "Warriors of Krynn" [ref=f11e780] [cursor=pointer]:
+        - /url: /projects/o2Y4G4
+      - link "MtG - Braids's Frightful Return" [ref=f11e787] [cursor=pointer]:
+        - /url: /projects/9N0zZN
+      - link "Fall of the Emperor" [ref=f11e794] [cursor=pointer]:
+        - /url: /projects/nEXWQX
+      - link "The Night Rider" [ref=f11e801] [cursor=pointer]:
+        - /url: /projects/Pe10q4
+      - link "Dark Angel" [ref=f11e808] [cursor=pointer]:
+        - /url: /projects/Lew3Nw
+      - link "Yellow Grass" [ref=f11e815] [cursor=pointer]:
+        - /url: /projects/PeVLoL
+      - link "Three Demon Warriors" [ref=f11e822] [cursor=pointer]:
+        - /url: /projects/B3Qbvm
+      - link "MtG - Cloak of the Bat" [ref=f11e829] [cursor=pointer]:
+        - /url: /projects/nEb9dE
+      - link "Golden Night 02" [ref=f11e836] [cursor=pointer]:
+        - /url: /projects/nEbPO6
+      - link "Fortnite - Darth Vader Loading Screen" [ref=f11e843] [cursor=pointer]:
+        - /url: /projects/KOkQDG
+      - link "Raben Ritter" [ref=f11e850] [cursor=pointer]:
+        - /url: /projects/nEbNEE
+      - link "Roots of the World" [ref=f11e857] [cursor=pointer]:
+        - /url: /projects/YKoYNV
+      - link "Golden Night" [ref=f11e864] [cursor=pointer]:
+        - /url: /projects/nE2rB1
+      - link "Rhombus Guard" [ref=f11e871] [cursor=pointer]:
+        - /url: /projects/yk6Yl3
+      - link "Moon Guard" [ref=f11e878] [cursor=pointer]:
+        - /url: /projects/14wQ9o
+      - link "Sun Guard" [ref=f11e885] [cursor=pointer]:
+        - /url: /projects/Lek33P
+      - link "Babylonian Zombie Guard" [ref=f11e892] [cursor=pointer]:
+        - /url: /projects/aGO1z9
+      - link "Infernal Charge" [ref=f11e899] [cursor=pointer]:
+        - /url: /projects/03z4g5
+      - link "MtG - Cut your Losses" [ref=f11e906] [cursor=pointer]:
+        - /url: /projects/lRlJwG
+      - link "MtG - Meeting of the Five" [ref=f11e913] [cursor=pointer]:
+        - /url: /projects/NG8dlb
+      - link "Dead Flowers" [ref=f11e920] [cursor=pointer]:
+        - /url: /projects/Rne9gW
+      - link "Harvest Godess" [ref=f11e927] [cursor=pointer]:
+        - /url: /projects/5BYg5E
+      - link "Angel Token" [ref=f11e934] [cursor=pointer]:
+        - /url: /projects/KOPkGx
+      - link "Ruby Skull" [ref=f11e941] [cursor=pointer]:
+        - /url: /projects/B3yRN8
+      - link "Liliana Cover" [ref=f11e948] [cursor=pointer]:
+        - /url: /projects/3qYlo2
+      - link "Ghost Fire Raid" [ref=f11e955] [cursor=pointer]:
+        - /url: /projects/LeZBbK
+      - link "The Wanderer" [ref=f11e962] [cursor=pointer]:
+        - /url: /projects/03zZXe
+      - link "Unsung Hero - The Souls of the Sun King - 07" [ref=f11e969] [cursor=pointer]:
+        - /url: /projects/AroW1o
+      - link "Thank you 2021!" [ref=f11e976] [cursor=pointer]:
+        - /url: /projects/mzAEJe
+      - link "Migraine" [ref=f11e983] [cursor=pointer]:
+        - /url: /projects/o20vxk
+      - link "Nightly March 02" [ref=f11e990] [cursor=pointer]:
+        - /url: /projects/9NNKzW
+      - link "MtG - Spirit Sister's Call" [ref=f11e997] [cursor=pointer]:
+        - /url: /projects/aGgn32
+      - link "Nightly Marsh" [ref=f11e1004] [cursor=pointer]:
+        - /url: /projects/Zee9vR
+      - link "MtG - Gift of Fangs" [ref=f11e1011] [cursor=pointer]:
+        - /url: /projects/14nw23
+      - link "Night and Day" [ref=f11e1018] [cursor=pointer]:
+        - /url: /projects/d8rA33
+      - link "MtG - Repel the Vile" [ref=f11e1025] [cursor=pointer]:
+        - /url: /projects/klZQkK
+      - link "MtG - Thirst of Discovery" [ref=f11e1032] [cursor=pointer]:
+        - /url: /projects/d0OJB3
+      - link "MtG - Abrade" [ref=f11e1039] [cursor=pointer]:
+        - /url: /projects/3qlYJY
+      - link "Fireball Staff - 30min Speedpainting" [ref=f11e1046] [cursor=pointer]:
+        - /url: /projects/v2lg8d
+      - link "MTG - Tamiyo's Compleation" [ref=f11e1053] [cursor=pointer]:
+        - /url: /projects/b5VBzG
+      - link "Unsung Hero - The Souls of the Sun King - 06" [ref=f11e1060] [cursor=pointer]:
+        - /url: /projects/bKErbo
+      - link "The Nacred General" [ref=f11e1067] [cursor=pointer]:
+        - /url: /projects/B1B2gk
+      - link "Unsung Hero - The Souls of the Sun King - 04" [ref=f11e1074] [cursor=pointer]:
+        - /url: /projects/Kr8vY4
+      - link "MtG - Rona's Vortex" [ref=f11e1081] [cursor=pointer]:
+        - /url: /projects/eJyRBG
+      - link "Unsung Hero - 1" [ref=f11e1088] [cursor=pointer]:
+        - /url: /projects/0nkZ2y
+      - link "The Veined General" [ref=f11e1095] [cursor=pointer]:
+        - /url: /projects/B3mR88
+      - link "Insect Knight" [ref=f11e1102] [cursor=pointer]:
+        - /url: /projects/LeB13P
+      - link "Butterflies" [ref=f11e1109] [cursor=pointer]:
+        - /url: /projects/WKy4BG
+      - link "The Golden King" [ref=f11e1116] [cursor=pointer]:
+        - /url: /projects/OmJnaw
+      - link "Furious Resurrection" [ref=f11e1123] [cursor=pointer]:
+        - /url: /projects/zDDeOD
+      - link "All Zombies Now" [ref=f11e1130] [cursor=pointer]:
+        - /url: /projects/n1yoo
+      - link "Unsung Hero - The Souls of the Sun King - 05" [ref=f11e1137] [cursor=pointer]:
+        - /url: /projects/L36yy5
+      - link "Unsung Hero - The Souls of the Sun King - 03" [ref=f11e1144] [cursor=pointer]:
+        - /url: /projects/0nqkR5
+      - link "Yellow Guard" [ref=f11e1151] [cursor=pointer]:
+        - /url: /projects/GaKbGd
+      - link "MtG - Public Enemy" [ref=f11e1158] [cursor=pointer]:
+        - /url: /projects/KOJgKX
+      - link "Unsung Hero - The Souls of the Sun King - 02" [ref=f11e1165] [cursor=pointer]:
+        - /url: /projects/18VQQK
+      - link "SunKing" [ref=f11e1172] [cursor=pointer]:
+        - /url: /projects/B1WZRz
+      - link "MoonKing" [ref=f11e1179] [cursor=pointer]:
+        - /url: /projects/mD1aDZ
+      - link "The Silver Seven" [ref=f11e1186] [cursor=pointer]:
+        - /url: /projects/DN95n
+      - link "MtG - Curse of Hospitality" [ref=f11e1193] [cursor=pointer]:
+        - /url: /projects/Ze5z90
+      - link "Red Moon" [ref=f11e1200] [cursor=pointer]:
+        - /url: /projects/6zkE0
+      - link "MtG - Better Offer" [ref=f11e1207] [cursor=pointer]:
+        - /url: /projects/X1OwwL
+      - link "MtG - Negate" [ref=f11e1214] [cursor=pointer]:
+        - /url: /projects/8wPZXm
+      - link "MtG - Urzas Rage" [ref=f11e1221] [cursor=pointer]:
+        - /url: /projects/Vyw1y5
+      - link "A night at the Inn" [ref=f11e1228] [cursor=pointer]:
+        - /url: /projects/zDxvnm
+      - link "Butterfly Drive By - 02" [ref=f11e1235] [cursor=pointer]:
+        - /url: /projects/28DkKy
+      - link "MtG - Neon Dynasty - Packaging Art" [ref=f11e1242] [cursor=pointer]:
+        - /url: /projects/Jebx4z
+      - link "MtG - Gods Willing" [ref=f11e1249] [cursor=pointer]:
+        - /url: /projects/R3A8qA
+      - link "MtG - Increasing Vengeance" [ref=f11e1256] [cursor=pointer]:
+        - /url: /projects/xYzlVW
+      - link "MtG - Nature's Embrace" [ref=f11e1263] [cursor=pointer]:
+        - /url: /projects/zDAPoZ
+      - link "MtG - Electrolyze" [ref=f11e1270] [cursor=pointer]:
+        - /url: /projects/ZGnP6G
+      - link "MtG - All Is Dust" [ref=f11e1277] [cursor=pointer]:
+        - /url: /projects/w6aVDg
+      - link "MtG - Defiant Strike" [ref=f11e1284] [cursor=pointer]:
+        - /url: /projects/18296o
+      - link "MtG - Shock" [ref=f11e1291] [cursor=pointer]:
+        - /url: /projects/v2VKZa
+      - link "MtG - Blue Sun's Zenith" [ref=f11e1298] [cursor=pointer]:
+        - /url: /projects/q9Vb3z
+      - link "MtG - Artifact Mutation" [ref=f11e1305] [cursor=pointer]:
+        - /url: /projects/484XoL
+      - link "MtG - Time Warp" [ref=f11e1312] [cursor=pointer]:
+        - /url: /projects/XnvVyw
+      - link "Lords of Ragnarok - Freya" [ref=f11e1319] [cursor=pointer]:
+        - /url: /projects/0nw0b8
+      - link "Fairy" [ref=f11e1326] [cursor=pointer]:
+        - /url: /projects/EaL4e4
+      - link "Planet Surface - ISS Vanguard" [ref=f11e1333] [cursor=pointer]:
+        - /url: /projects/48WX9W
+      - link "Driving Home" [ref=f11e1340] [cursor=pointer]:
+        - /url: /projects/q9Xo4L
+      - link "MtG - Bootleggers' Stash" [ref=f11e1347] [cursor=pointer]:
+        - /url: /projects/3qQbgv
+      - link "The Four Seasons" [ref=f11e1354] [cursor=pointer]:
+        - /url: /projects/0nLLDy
+      - link "MtG - Xander's Lounge" [ref=f11e1361] [cursor=pointer]:
+        - /url: /projects/VyY5V5
+      - link "MtG - Raffine's Tower" [ref=f11e1368] [cursor=pointer]:
+        - /url: /projects/d0RD9J
+      - link "MtG - Jetmir's Garden" [ref=f11e1375] [cursor=pointer]:
+        - /url: /projects/wJ5JP6
+      - link "MtG - Spara's Headquarters" [ref=f11e1382] [cursor=pointer]:
+        - /url: /projects/lRaoRa
+      - link "MtG - Halo Fountain" [ref=f11e1389] [cursor=pointer]:
+        - /url: /projects/b5dZDn
+      - link "MtG - Titan Of Industry" [ref=f11e1396] [cursor=pointer]:
+        - /url: /projects/9NzzaR
+      - link "MtG - Ziatora's Proving Ground" [ref=f11e1403] [cursor=pointer]:
+        - /url: /projects/aGbA9q
+      - link "Rhombus Knight" [ref=f11e1410] [cursor=pointer]:
+        - /url: /projects/WKr3N3
+      - link "Green Vest" [ref=f11e1417] [cursor=pointer]:
+        - /url: /projects/Ye81yV
+      - link "Spiritual Chaos" [ref=f11e1424] [cursor=pointer]:
+        - /url: /projects/nYQ3m1
+      - link "Ambush" [ref=f11e1431] [cursor=pointer]:
+        - /url: /projects/YyRLX
+      - link "Flame Trooper" [ref=f11e1438] [cursor=pointer]:
+        - /url: /projects/XBK2m3
+      - link "Zombie Knight" [ref=f11e1445] [cursor=pointer]:
+        - /url: /projects/8lnqXx
+      - link "Land Speed Record" [ref=f11e1452] [cursor=pointer]:
+        - /url: /projects/Vd4bQg
+      - link "Sharp Scythe" [ref=f11e1459] [cursor=pointer]:
+        - /url: /projects/mqQ61d
+      - link "Breakfast Knight 06" [ref=f11e1466] [cursor=pointer]:
+        - /url: /projects/Ya14OK
+      - link "Iss Vanguard - Cover Art" [ref=f11e1473] [cursor=pointer]:
+        - /url: /projects/oAdl2k
+      - link "Extreme Luck" [ref=f11e1480] [cursor=pointer]:
+        - /url: /projects/q9wkay
+      - link "Circling Skies" [ref=f11e1487] [cursor=pointer]:
+        - /url: /projects/w8EynV
+      - link "MtG - Kaldheim Set Illustration" [ref=f11e1494] [cursor=pointer]:
+        - /url: /projects/48345l
+      - link "MtG - Moraug, Fury of Akoum" [ref=f11e1501] [cursor=pointer]:
+        - /url: /projects/QrWxzr
+      - link "MtG - Skyclave Shade" [ref=f11e1508] [cursor=pointer]:
+        - /url: /projects/lx9VAo
+      - link "MtG - Spitfire Lagac" [ref=f11e1515] [cursor=pointer]:
+        - /url: /projects/oAxmDB
+      - link "MtG - Avenger of Zendikar" [ref=f11e1522] [cursor=pointer]:
+        - /url: /projects/aYLVLk
+      - link "MtG - Canyon Jerboa" [ref=f11e1529] [cursor=pointer]:
+        - /url: /projects/nY4g0X
+      - link "MtG - Canopy Baloth" [ref=f11e1536] [cursor=pointer]:
+        - /url: /projects/q9or6P
+      - link "MtG - Zendikar Rising Trailer - FX Concept Art" [ref=f11e1543] [cursor=pointer]:
+        - /url: /projects/lx6GLJ
+      - link "Magic the Gathering - Theros - Trailer - Concept Art" [ref=f11e1550] [cursor=pointer]:
+        - /url: /projects/2xozxA
+      - link "Prankster" [ref=f11e1557] [cursor=pointer]:
+        - /url: /projects/oA2JJJ
+      - link "Five Headed" [ref=f11e1564] [cursor=pointer]:
+        - /url: /projects/L2Qq6R
+      - link "Charge" [ref=f11e1571] [cursor=pointer]:
+        - /url: /projects/gJ3kwe
+      - link "Berserker" [ref=f11e1578] [cursor=pointer]:
+        - /url: /projects/gJ3aLm
+      - link "Modern Fashion" [ref=f11e1585] [cursor=pointer]:
+        - /url: /projects/W2q053
+      - link "Moth - EvilBook" [ref=f11e1592] [cursor=pointer]:
+        - /url: /projects/2x6eVg
+      - link "Meteor in the sky" [ref=f11e1599] [cursor=pointer]:
+        - /url: /projects/PD8y4
+      - link "The Multiverse" [ref=f11e1606] [cursor=pointer]:
+        - /url: /projects/4b889n
+      - link "The Three Wishes" [ref=f11e1613] [cursor=pointer]:
+        - /url: /projects/m0nGZ
+      - link "A Warrior's End" [ref=f11e1620] [cursor=pointer]:
+        - /url: /projects/Q8NEx
+      - link "Oralce" [ref=f11e1627] [cursor=pointer]:
+        - /url: /projects/rRPgZL
+      - link "Medusa" [ref=f11e1634] [cursor=pointer]:
+        - /url: /projects/3oZarY
+      - link "Winter Harvest" [ref=f11e1641] [cursor=pointer]:
+        - /url: /projects/w8dylZ
+      - link "Viking Duel" [ref=f11e1648] [cursor=pointer]:
+        - /url: /projects/e0vzlD
+      - link "Ghost Fighter" [ref=f11e1655] [cursor=pointer]:
+        - /url: /projects/XBYLl0
+      - link "Nightmare" [ref=f11e1662] [cursor=pointer]:
+        - /url: /projects/DxNOoE
+      - link "Tropical Waters" [ref=f11e1669] [cursor=pointer]:
+        - /url: /projects/x4zJE
+      - link "Beach Battlefront" [ref=f11e1676] [cursor=pointer]:
+        - /url: /projects/QyvB3
+      - link "Wetlands Trek" [ref=f11e1683] [cursor=pointer]:
+        - /url: /projects/n3nLX
+      - link "Canoe" [ref=f11e1690] [cursor=pointer]:
+        - /url: /projects/N5ZVDJ
+      - link "Beach at Night" [ref=f11e1697] [cursor=pointer]:
+        - /url: /projects/BmvwDr
+      - link "The Whaler - Nature's Wrath" [ref=f11e1704] [cursor=pointer]:
+        - /url: /projects/dVJaK
+      - link "A pirate's loyal parrots" [ref=f11e1711] [cursor=pointer]:
+        - /url: /projects/VAeAb
+      - link "Beneath the Waves - The Battle" [ref=f11e1718] [cursor=pointer]:
+        - /url: /projects/vWOmA
+      - link "Rusted Away" [ref=f11e1725] [cursor=pointer]:
+        - /url: /projects/10ox8
+      - link "Blue Light in the Dark" [ref=f11e1732] [cursor=pointer]:
+        - /url: /projects/60J9r
+      - link "Dawn" [ref=f11e1739] [cursor=pointer]:
+        - /url: /projects/4Ovkn
+      - link "Unsung Hero - The Twilight Bark" [ref=f11e1746] [cursor=pointer]:
+        - /url: /projects/RBEkX
+      - link "Robin Hood" [ref=f11e1753] [cursor=pointer]:
+        - /url: /projects/z1G9m
+      - link "Pilgrims" [ref=f11e1760] [cursor=pointer]:
+        - /url: /projects/mdnKZ
+      - link "Demon Priest" [ref=f11e1767] [cursor=pointer]:
+        - /url: /projects/bn8bo
+      - link "Dethroned" [ref=f11e1774] [cursor=pointer]:
+        - /url: /projects/yqYDK
+      - link "Red and Blue" [ref=f11e1781] [cursor=pointer]:
+        - /url: /projects/rvGoa
+      - link "Covered in Dust" [ref=f11e1788] [cursor=pointer]:
+        - /url: /projects/Y6Rxw
+      - link "Unsung Hero - Courage" [ref=f11e1795] [cursor=pointer]:
+        - /url: /projects/5oObz
+      - link "Taser" [ref=f11e1802] [cursor=pointer]:
+        - /url: /projects/gL8yQ
+      - link "Clear Night" [ref=f11e1809] [cursor=pointer]:
+        - /url: /projects/wBJ1w
+      - link "Random Afternoon" [ref=f11e1816] [cursor=pointer]:
+        - /url: /projects/qPeO2
+      - link "A Red Line" [ref=f11e1823] [cursor=pointer]:
+        - /url: /projects/54BQO
+      - link "The Hero we need" [ref=f11e1830] [cursor=pointer]:
+        - /url: /projects/DOJz9
+      - link "Cloud Machine" [ref=f11e1837] [cursor=pointer]:
+        - /url: /projects/Pnl58
+      - link "Front Line" [ref=f11e1844] [cursor=pointer]:
+        - /url: /projects/Y4Pmb
+      - link "Aircraft Flying Overhead" [ref=f11e1851] [cursor=pointer]:
+        - /url: /projects/1RkgL
+      - link "The First People" [ref=f11e1858] [cursor=pointer]:
+        - /url: /projects/lOawz
+      - link "Burnt to the ground" [ref=f11e1865] [cursor=pointer]:
+        - /url: /projects/o6YLq
+      - link "Honor" [ref=f11e1872] [cursor=pointer]:
+        - /url: /projects/xq20r
+      - link "Love is in the Air" [ref=f11e1879] [cursor=pointer]:
+        - /url: /projects/PyJRr
+      - link "Vision in the Fire" [ref=f11e1886] [cursor=pointer]:
+        - /url: /projects/xq2RO
+      - link "Flaming Sword" [ref=f11e1893] [cursor=pointer]:
+        - /url: /projects/qZNw2
+      - link "Born in Fire" [ref=f11e1900] [cursor=pointer]:
+        - /url: /projects/v4gDO
+      - link "The Red Ace" [ref=f11e1907] [cursor=pointer]:
+        - /url: /projects/OwJlk
+      - link "White as snow, red as blood" [ref=f11e1914] [cursor=pointer]:
+        - /url: /projects/oWLnz
+    - link " Report User" [ref=f11e1920] [cursor=pointer]:
+      - /url: https://www.artstation.com/dominikmayerart
+      - generic [ref=f11e1921]: 
+      - generic [ref=f11e1922]: Report User
+  - contentinfo [ref=f11e1923]:
+    - generic [ref=f11e1925]:
+      - link [ref=f11e1928] [cursor=pointer]:
+        - /url: https://www.artstation.com
+      - link "Contact" [ref=f11e1931] [cursor=pointer]:
+        - /url: mailto:dominik.t.mayer@gmail.com
+        - generic [ref=f11e1932]: 
+        - text: Contact
+      - generic [ref=f11e1933]: © All rights reserved
+  - text: 

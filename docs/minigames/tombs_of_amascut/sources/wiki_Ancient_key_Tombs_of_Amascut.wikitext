@@ -1,0 +1,66 @@
+{{Infobox Item
+|name = Ancient key
+|image = [[File:Ancient key (Tombs of Amascut).png]]
+|release = [[14 September]] [[2022]]
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Destroy
+|destroy = You can get another one from the bank camel.
+|examine = A key received from a camel.
+|value = 30
+|alchable = No
+|weight = 0.010
+|id = 27369
+}}
+[[File:Ancient key (Tombs of Amascut) detail.png|left|130px]]
+The '''ancient key''' is an item obtained from the [[Bank Camel]] after properly dealing with certain items dropped by the four bosses in the [[Tombs of Amascut]].
+
+The key is used to enter the [[strange tablet]] and open the [[strange chest]] in order to acquire the [[mask of rebirth]].
+
+Upon death, the ancient key will be lost.
+
+==Obtaining the key==
+To obtain the key, players will first need to complete the [[Into the Tombs]] [[miniquest]].
+
+{{Needed|[[Camulet]], [[big banana]], [[eldritch ashes]], [[Fang (Tombs of Amascut)|fang]], [[scarab dung]], [[spade]], [[bucket of water]], [[m'speak amulet]]}}
+{{Checklist|
+*Speak to the [[Bank Camel]] by using a [[camulet]] on it and going through the dialogue options until it requests you to "restore what is lost". {{Chat option|2So, what do you make of all this?|1I swear, I'm only here to deal with the Devourer's corruption!|3It seems to be important to you.}}
+* Complete the following in any order:
+** Use a [[bucket of water]] on the [[scarab dung]] to get a [[dawn scarab egg]].
+*** Bring the dawn scarab egg to the [[High Priest of Scabaras]] beneath the [[Ruins of Ullek]].
+** Use the [[big banana]] on [[Awowogei]]. You will need a [[Monkeyspeak amulet]] if you have not completed [[Monkey Madness II]].
+** Use the [[eldritch ashes]] on the [[High Priest (Sophanem)|High Priest of Sophanem]].
+** With a spade and the [[Fang (Tombs of Amascut)|fang]], dig at [[Stepping stone (River Elid)|the island]] where players acquired the [[Lily of the Elid]] during [[Beneath Cursed Sands]], located west of [[Nardah]].
+*Speak to the [[Bank Camel]] with the [[camulet]] again for the key. {{Chat option|2I believe I understand now.}}
+}}
+
+==Use==
+The ancient key is used to pass through the [[strange tablet]] in [[Osmumten]]'s burial chamber. Beyond the tablet is the [[strange chest]], which contains the [[mask of rebirth]]. Since the strange tablet is located in the treasure room at the end of the [[Tombs of Amascut]], the key must be brought through the raid to the end each time it is to be used. No other items are required to open the hidden chest.
+
+The key is not consumed when used on the strange tablet nor does the strange tablet stay unlocked, and as such the ancient key must be brought back through the Tombs of Amascut to reacquire the mask of rebirth if the mask is lost or destroyed.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = The item was made obtainable.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = The item was added to the game cache, but was not yet obtainable ingame.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* If the player has asked the bank camel for its name, the key's destroy confirmation text changes to: "You can get another one from Cam the Camel." This does not change examine text.
+
+{{Miniquests}}
+{{Tombs of Amascut}}
+{{Keys}}

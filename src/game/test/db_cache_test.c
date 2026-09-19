@@ -44,7 +44,7 @@ static int g_fail = 0;
 static void
 run_task(
     struct ToriRS_TaskQueue* queue,
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     struct PlatformX_IO* px,
     struct ToriRS_Task* task)
 {
@@ -71,8 +71,29 @@ call_db(
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
-    req.kind = CS2VM_HOST_REQUEST_DB;
-    req.u.db.opcode = opcode;
+    req.kind = (enum CS2VM_HostRequestKind)opcode;
+    switch( req.kind )
+    {
+#define SET_DB_OPCODE(name)                                                 \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        req.u.name.opcode = opcode;                                 \
+        break
+        SET_DB_OPCODE(DB_FIND);
+        SET_DB_OPCODE(DB_FINDNEXT);
+        SET_DB_OPCODE(DB_GETFIELD);
+        SET_DB_OPCODE(DB_GETFIELDCOUNT);
+        SET_DB_OPCODE(DB_LISTALL);
+        SET_DB_OPCODE(DB_GETROWTABLE);
+        SET_DB_OPCODE(DB_FIND_GET);
+        SET_DB_OPCODE(DB_FIND_REFINE);
+        SET_DB_OPCODE(DB_FIND_PRE228);
+        SET_DB_OPCODE(DB_FIND_REFINE_PRE228);
+        SET_DB_OPCODE(DB_LISTALL_PRE228);
+#undef SET_DB_OPCODE
+    default:
+        assert(0 && "call_db: unexpected opcode");
+        return CS2VM_EXECNO_ERROR;
+    }
     return RS_CS2Host_Exec(t, &req);
 }
 
@@ -100,12 +121,12 @@ test_await_isolation(
     a = CS2VM2_ThreadMain(&vm_a);
     b = CS2VM2_ThreadMain(&vm_b);
 
-    req_a.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
-    req_a.u.enum_lookup.enum_id = 1000000001;
-    req_a.u.enum_lookup.input_type = 'i';
-    req_a.u.enum_lookup.output_type = 'i';
+    req_a.kind = CS2VM_HOST_REQUEST_ENUM;
+    req_a.u.ENUM.enum_id = 1000000001;
+    req_a.u.ENUM.input_type = 'i';
+    req_a.u.ENUM.output_type = 'i';
     req_b = req_a;
-    req_b.u.enum_lookup.enum_id = 1000000002;
+    req_b.u.ENUM.enum_id = 1000000002;
 
     CHECK(RS_CS2Host_Exec(a, &req_a) == CS2VM_EXECNO_YIELD, "thread A parks its enum load");
     CHECK(RS_CS2Host_Exec(b, &req_b) == CS2VM_EXECNO_YIELD, "thread B parks a distinct enum load");
@@ -137,7 +158,7 @@ main(void)
         return 0;
     }
 
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
     struct Dat2BuildCache* bc = dat2_buildcache_new();
     struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
@@ -187,7 +208,7 @@ main(void)
     struct InvManager invs;
     InvManager_Init(&invs);
     struct RS_CS2Host host;
-    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL);
+    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL, NULL);
 
     struct CS2VM2 vm;
     CS2VM2_Init(&vm);
@@ -384,7 +405,7 @@ main(void)
 
     /* DB_FINDALL_WITH_COUNT(table 0) -> 198 rows. */
     CS2VM2_PushInt(t, 0);
-    call_db(t, CS2_OP_DB_FINDALL_WITH_COUNT);
+    call_db(t, CS2_OP_DB_LISTALL);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 198, "DB_FINDALL_WITH_COUNT(table0) == 198");
 
@@ -397,7 +418,7 @@ main(void)
     CS2VM2_PushInt(t, pack_col(0, 0, 0));  /* dbcolumn */
     CS2VM2_PushInt(t, 1);                  /* value */
     CS2VM2_PushInt(t, 0);                  /* type tag: int stack */
-    call_db(t, CS2_OP_DB_FIND_WITH_COUNT);
+    call_db(t, CS2_OP_DB_FIND);
     CS2VM2_PopInt(t, &iv);
     CHECK(iv == 1, "DB_FIND_WITH_COUNT(col0==1) == 1");
 
@@ -416,7 +437,7 @@ main(void)
     RSCache_Dat2DiskFree(disk);
     dat2_buildcache_free(bc);
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
 
     if( g_fail )
     {

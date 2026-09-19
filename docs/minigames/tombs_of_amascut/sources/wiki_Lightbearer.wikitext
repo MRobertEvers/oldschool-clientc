@@ -1,0 +1,113 @@
+{{Infobox Item
+|name = Lightbearer
+|image = [[File:Lightbearer.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wear, Drop
+|examine = A heavy ring that glimmers with a strange power.
+|value = 1000000
+|weight = 0.050
+|exchange = Yes
+|id = 25975
+|leagueRegion = Desert
+}}
+[[File:Lightbearer detail.png|left|120px]]
+The '''Lightbearer''' is a ring obtained as a rare reward from the [[Tombs of Amascut]]. The ring was crafted by the warrior [[Ahmek]] from the unstable energy left behind from [[Tumeken]]'s sacrifice that ended the [[Kharidian–Zarosian War]].{{CiteNews|url=https://secure.runescape.com/m=news/tombs-of-amascut?oldschool=1|title=Tombs of Amascut|newsdate=24 August 2022|quote=Ahmek was a formidable warrior who sought to capitalise on the political instability at the end of the war. He crafted a powerful ring, imbued with the unstable energy from Tumeken’s sacrifice. With it, he sought to bend mercenaries and thieves across the desert to his will, and overthrow Osmumten. His scheming proved fruitless, however, when the ring was stolen and Ahmek was murdered in his sleep. In a twist of fate, the thief was almost immediately caught and executed by the Menaphite Guards, who dutifully presented the ring to their pharaoh.}}
+
+The ring has no requirements to wear. It regenerates the player's [[special attack]] energy twice as fast at 15 seconds per 10%, or 2 minutes and 30 seconds for 100%. Equipping the ring will cause the special attack energy restoration timer to reset only if natural regeneration is below half. Unequipping the ring will always cause the special attack energy restoration timer to reset.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = ring
+}}
+
+==Utility==
+Because of the unique way Lightbearer interacts with the existing energy and special attack system, it creates many opportunities for new strategies. 
+
+===Skilling===
+When using dragon tools ([[Dragon harpoon|harpoon]], [[Dragon axe|axe]], [[Dragon pickaxe|pickaxe]]) or their upgraded variants that share the bonus special attack, Lightbearer doubles the frequency of the skilling bonus granted, making it viable to consistently gather resources 1 level (100% uptime) or 2 levels (80% uptime or 100% with [[Preserve]]) above a player's base. 
+
+Because Preserve increases the time before a [[Temporary skill boost|skill boost]] decreases by a level from 60 to 90 seconds, and Lightbearer reduces the special attack recharge time to 150 seconds, mistiming the special attack when skilling can lead to a period of up to 70 seconds where the boost is only +1 level before the special attack is available again. In order to use Preserve and Lightbearer to constantly remain boosted by at least 2 levels, the player '''cannot''' use their special attack as soon as it becomes available. Instead, to maintain a +2 level skilling boost with 100% uptime, the special attack should be used immediately after the skill bonus decreases from +2 to +1.
+
+Similarly, when using Lightbearer alone (without Preserve) to maintain a persistent +1 boost, mis-timing the tool's special attack can lead to a period of up to 30 seconds with no boost before the special attack fully recharges. To eliminate this period, the player should use their special attack immediately after the boost falls from +1 to 0 (no boost), which works out to be every 180 seconds.
+
+===Resource conservation===
+When used alongside special attacks that restore prayer points - particularly the [[Saradomin godsword]] or [[Eldritch Nightmare staff]] - the Lightbearer can allow the endless use of protection or damage boosting prayers without the need for consumables, while health restoring specials like the [[Toxic blowpipe]] and Saradomin godsword can reduce or eliminate the need for food entirely.
+
+These combinations may be very useful for lowering the number of banking trips during any outing, or increasing the number of bosses killed before a bank is necessary.
+
+===Bossing===
+In general, Lightbearer competes with damage-boosting rings when using a strong special attack weapon (such as [[Voidwaker]], [[Zaryte crossbow]] or [[Bandos godsword]]), especially for prolonged encounters. However, it is more situational.
+
+Whether the Lightbearer is more efficient than other rings depends on a number of factors:
+*the amount of downtime – when not attacking anything where a damage bonus would be useful, special attack can regenerate faster without sacrifice
+*the effectiveness of the special attack versus main weapon – if the special attack is only slightly more powerful or useful in comparison, sacrificing damage for more specials is not worthwhile
+*the main weapon itself – some weapons benefit from strength upgrades more than others due to their damage calculation, notably the [[scythe of Vitur]] and [[emberlight]]
+*combat style(s) used – with melee, the [[ultor ring]] (or its downgrades) provides a substantial boost to overall damage, making Lightbearer less useful in comparison; conversely with ranged, the [[venator ring]] provides only a minor boost; and with magic, there are few especially powerful special attacks
+
+For example, at [[Theatre of Blood]] there is usually little downtime (except between rooms, where special attack energy refills automatically) and the main weapon of choice is a scythe of Vitur; as such, the ultor ring provides higher damage output than the extra special attacks provided by Lightbearer would (unless not using the scythe). In contrast, at [[Tombs of Amascut]] special attacks play a more pivotal role (for damage, defence reduction and healing with [[Keris partisan of the sun]]) while damage-boosting rings give less substantial bonuses to [[Tumeken's shadow]] and [[Osmumten's fang]], making the Lightbearer better overall.
+
+===PvP===
+Popular PvP strategies rely heavily on special attacks from various weapons to finish or gain advantages in a fight. Because of this, the lightbearer can be used to trick or surprise players who otherwise believe they are safe from a special attack and may have spent time memorising the default special attack timings.
+
+Because the time to regenerate 10% of your special attack energy is reduced as well, new combinations of weapon special attacks may become more viable. For example, a [[dark bow]] special (55% energy) followed by [[dragon claws]] (50%) combination would usually take 30 seconds but can now be executed in 15.
+
+==Item sources==
+{{Drop sources|Lightbearer}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Lightbearer}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Lightbearer concept art.jpg|Concept art of the Lightbearer by [[Mod Jerv]].
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change = Equipping the Lightbearer shortly before your special attack energy was due to restore will no longer delay the energy restoration.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = The item has been added to the Grand Exchange's [[Grand_Exchange#Items_regulated_via_item_sink|item sink list]].
+}}
+{{Subject changes
+|prerelease = yes
+|page = Lightbearer (beta)
+|daterange =  12 - 17 August 2021
+|beta = Tombs of Amascut: Rewards Beta
+|change = First present in the Tombs of Amascut: Rewards Beta.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Rings}}
+{{Tombs of Amascut}}
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]

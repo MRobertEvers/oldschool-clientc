@@ -317,7 +317,7 @@ cp_pack_obj(
         else if( strcmp(key, "weight") == 0 )
             ok = cp_parse_int(value, &entry->weight);
         else if( strcmp(key, "category") == 0 )
-            ok = cp_parse_int(value, &entry->category);
+            ok = cp_resolve_category(ctx, value, &entry->category);
         else if( strcmp(key, "shiftclickdrop") == 0 )
             ok = cp_parse_int(value, &entry->shift_click_drop_index);
         else if( strcmp(key, "manwear") == 0 )
@@ -366,7 +366,8 @@ cp_pack_obj(
 
         if( !ok )
         {
-            fprintf(stderr, "cachepack: obj [%s]: bad value for %s\n", config->debugname, key);
+            fprintf(stderr, "cachepack: obj [%s]: bad value for %s=%s\n",
+                    config->debugname, key, value);
             goto done;
         }
     }

@@ -17,10 +17,13 @@ ADDS = QBD / "scripts/rs2012_qbd_adds.rs2"
 COMBAT = QBD / "scripts/rs2012_qbd_combat.rs2"
 VARPS = QBD / "configs/rs2012_qbd.varp"
 CONSTANTS = QBD / "configs/rs2012_qbd.constant"
-MANIFEST = ROOT / "manifest_osrs239_rs2012.ini"
+MANIFEST = ROOT / "manifests/manifest_osrs239_rs2012.ini"
 LOGOUT = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
 DEATH = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
-WORLD = ROOT / "src/net/mock/mock230_world.c"
+WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
+# The coffer fixture below is a self-test stanza, and the self-test is its own
+# translation unit since it outgrew the world. Read both as one text.
+WORLD_SELFTEST = ROOT / "src/torirsserver/torirs_server_world_selftest.c"
 
 
 def block(text: str, header: str) -> str:
@@ -47,7 +50,7 @@ def main() -> None:
     for proc in (
         "proc,rs2012_qbd_coord",
         "proc,rs2012_qbd_reward_coord",
-        "proc,rs2012_qbd_lower_coord",
+        "proc,rs2012_qbd_floor_coord",
     ):
         body = block(session, proc)
         assert "%rs2012_qbd_handle" in body
@@ -96,13 +99,15 @@ def main() -> None:
     for queue in (
         "wake",
         "begin",
-        "wall_begin",
         "wall_step",
+        "wall_loop",
+        "wall_stop",
         "shadow_step",
         "time_channel",
         "time_end",
         "worm_spawn",
         "coffer_arrive",
+        "stairs_rise",
         "damage_player",
         "extreme_pulse",
     ):
@@ -141,7 +146,7 @@ def main() -> None:
     assert "softtimer(rs2012_qbd_lifecycle" in stairs
 
     leave = block(session, "proc,rs2012_qbd_leave")
-    assert leave.index("p_teleport(^rs2012_qbd_outside_safe);") < leave.index(
+    assert leave.index("p_teleport(^rs2012_qbd_outside_portal);") < leave.index(
         "~rs2012_qbd_release_handle($handle);"
     )
     logout = block(session, "proc,rs2012_qbd_on_logout")
@@ -162,9 +167,10 @@ def main() -> None:
     # The composed-cache host fixture must observe work performed on both
     # sides of inv_transmit.  Merely seeing the modal is insufficient because
     # rs2012_qbd_coffer_open mounts it immediately before transmitting ID 2000.
-    world = WORLD.read_text(encoding="utf-8")
+    world = (WORLD.read_text(encoding="utf-8")
+             + WORLD_SELFTEST.read_text(encoding="utf-8"))
     for fragment in (
-        "mock230_bank_inv_size(qbd_reward_inv) == 10",
+        "ToriRSServer_BankInvSize(qbd_reward_inv) == 10",
         "contents_listeners == 1",
         "arrival_queues == 0 && close_armed == 1",
         "player->active_script == NULL",

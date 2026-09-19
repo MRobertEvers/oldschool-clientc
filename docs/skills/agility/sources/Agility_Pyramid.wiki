@@ -1,0 +1,167 @@
+{{External|rs}}
+{{Infobox Location
+|name = Agility Pyramid
+|image = [[File:Agility Pyramid.png|300px]]
+|release = [[16 January]] [[2006]]
+|update = Agility Pyramid
+|aka = Jaleustrophos Pyramid
+|members = Yes
+|location = [[Kharidian Desert]]
+|teleport = [[Pharaoh's sceptre]] (Jaleustrophos)
+|map = {{Map|name=Agility Pyramid|x=3365|y=2842}}
+|type = agility course
+|leagueRegion = Desert
+}}
+{{Listen
+|title = [[Top of the Pyramid!]]
+|align = right
+|filename = Top of the Pyramid!.ogg
+|desc = The jingle that plays upon getting the pyramid top.}}
+The '''Agility Pyramid''', also known as the '''Jaleustrophos Pyramid''' (meaning Tomb of the Agile in an old desert language){{CitePostbag|issue=25|letter=Letter 2|author=High Priest (Sophanem)|quote=The more antique pyramids were named long ago, when the people of the desert spoke a very different language. ‘Jal' simply means ‘tomb' in this tongue – so it is that we have the ‘Tomb of Kings', the ‘Tomb of the Agile' and the ‘Tomb of Magic'.}}, is an [[Agility]] training area located in the [[Kharidian Desert]], between [[Sophanem]] and [[Nardah]], available to players with level 30 Agility.
+
+On this course, players start at the bottom of a pyramid with the goal of reaching the top, where they are able to collect the [[pyramid top]]. Players have to successfully traverse each of the five layers of the pyramid, which are filled with obstacles that force the player back to the previous layer upon failure to pass them.
+
+Pyramid tops may be handed in to [[Simon Templeton]] in exchange for {{NoCoins|10,000}} [[coins]] each and respawn only when the player has entered the doorway at the top of the pyramid.
+
+Level 75 Agility or higher ensures success on all of the obstacles, making it possible to complete a maximum of 26 laps per hour, which rewards a maximum of 44,700 experience per hour.
+
+==Introduction==
+The only requirement for this course is level 30 [[Agility]]. However, the fail rate for the obstacles is rather high at that level, sometimes making it feel almost impossible to reach the top.
+* At level 50 Agility, expect to fail 6–12 obstacles on average before reaching the top.
+* At level 58 Agility, the jump gaps will occasionally be failed (~2–5 per climb), while the cross-ledge and cross-gap obstacles will rarely be failed (~1 per 5–10 climbs).
+* At level 60 Agility, expect to fail 1 to 4 obstacles on average before reaching the top.
+* At level 69 Agility, the only failable obstacles are the jump gaps.
+* At level 75 Agility, it is impossible to fail any obstacle.
+
+Upon reaching the top of the pyramid, collect the [[pyramid top]], which may be handed in to [[Simon Templeton]] in exchange for {{NoCoins|10,000|c}}. A maximum of 26 pyramid tops can be collected per hour, resulting in {{NoCoins|260,000|c}}. '''Attention:''' players must not forget to collect the pyramid top relic '''before''' entering the doorway at the end. If they forget to do so and click the doorway, they will be instantly brought to the bottom of the pyramid and will receive no reward.
+
+Players are advised to sell each pyramid top to Simon Templeton immediately after obtaining it, since it weighs 11 kg and would otherwise increase run energy expenditure on future laps.
+
+Upon failure, the Agility Pyramid is capable of hitting a player for 10 damage, so [[Ironman Mode#Hardcore|hardcore ironmen]] should be wary.
+
+Players will suffer from [[desert heat]] while in this area. Those who have completed the [[Desert Diary#Elite|elite Desert Diary]] can wear the [[desert amulet 4]] for complete protection from the heat. Otherwise, players will need to bring enough [[waterskin]]s and [[food]] for the training.
+
+(or) The [[circlet of water]] can be obtained from Maisa as a reward for completing the quest [[Beneath Cursed Sands]]. Wearing it will delay the onset of desert heat by 12 seconds.
+
+The circlet, which acts as an equipable waterskin, is charged with five water runes per charge, and can hold up to 500,000 charges. One charge is consumed whenever the player would have needed to drink water due to the effects of desert heat. The circlet must be equipped in order for the effects to work.
+
+Alternatively, while wearing the [[desert clothing]], players can equip the [[Hitpoints cape]] along with the [[regen bracelet]] to regenerate 4 hitpoints per minute, which will out-heal the damage from the desert heat.
+
+==Transportation==
+[[File:Agility Pyramid Route.png|thumb|upright|Magic carpet routes are shown in ''pink'', and the on-foot routes are in ''blue''.]]
+There are several different methods for travelling to the Agility Pyramid. The best options, ordered from fast to slow, are:
+* Use the ''Jaleustrophos'' teleport of the [[pharaoh's sceptre]].
+* Teleport to [[Nardah]] using a [[Nardah teleport]], [[desert amulet 2]], [[desert amulet 3|3]], or [[desert amulet 4|4]], and run south-west.
+* [[Camulet]] teleport and run south-east.
+* Have the [[player-owned house]] at [[Pollnivneach]] and cast [[Teleport to House]] (or use a [[scroll of redirection]] on a [[Teleport to house (tablet)|Teleport to House tablet]]). From here, either:
+** Take a [[magic carpet]] to [[Sophanem]] (requires starting [[Icthlarin's Little Helper]]), and run north-east to the pyramid.
+** Run south to the Agility Pyramid.
+** Take a magic carpet to [[Nardah]] and walk south-west from Nardah.
+* Use the [[Fairy rings|fairy ring]] system to teleport to {{Fairycode|DLQ}} and run south from there.
+* Alternatively, take a magic carpet from [[Shantay Pass]] to Pollnivneach and follow the instructions above.
+* Take the [[Ferry]] from Al Kharid and run east from the [[Ruins of Unkah]].
+* Use the fairy ring system to teleport to {{Fairycode|AKP}} and run north from there.
+
+{{Clear}}
+
+==Money making==
+{{Mmgsection|Climbing the Agility Pyramid}}
+
+==Obstacles==
+{| class="wikitable align-left-2 align-left-5" style="text-align:center"
+!Image
+!Obstacle
+!Experience
+!Occurrences
+!Description
+|-
+|[[File:Agility Pyramid (1).png|250px]]||[[Stone block (Agility Pyramid)|Stone block]]||12||5{{+=|xp|12*5}}
+|These blocks roll when stepped on. If successful, players will be thrown to the next block. If they fail, it will roll them down one level within the pyramid and cause 6 [[hitpoints]] of damage. When going backwards, the obstacle will always be failed and cause 1 HP of damage. They can be recognised as grey round stones and can be examined on the floor below, and they are called stone blocks.
+|-
+|[[File:Agility Pyramid (2).png|250px]]||[[Low wall (Agility Pyramid)|Low wall]]||8||5{{+=|xp|8*5}}
+|These are low walls that players can climb over. Players may occasionally slip and take 4 hitpoints of damage.
+|-
+|[[File:Agility Pyramid (3).png|250px]]||[[Ledge (Agility Pyramid)|Ledge]]||52||4{{+=|xp|52*4}}
+|Players will have to walk across a small ledge. Players may occasionally trip and fall down one level, causing 10 hitpoints of damage.
+|-
+|[[File:Agility Pyramid (4).png|250px]]||[[Pyramid block (Agility Pyramid)|Pyramid block]]||0||2{{+=|xp|0*2}}
+|Moving blocks may push players off the level. This obstacle is the only obstacle that cannot be bypassed with a high [[Agility]] level. If timed properly, players will be able to get past these blocks. If incorrectly timed, players will be pushed down to the level below and hit for 8 hitpoints of damage. The player's character will not walk into a pyramid block that is already obstructing the player's path; if the player clicks to move to a location opposite a pyramid block while it is obstructing the path, or if the path is obstructed before the character steps on the tiles in front of the pyramid block, then the character will instead pause walking until after the obstruction clears.
+One useful tip is that the RuneLite plugin "NPC Indicators" allows tagging these blocks by shift-clicking and selecting "Tag-all", in order to highlight them even when they are retracted into the pyramid, greatly reducing the instances where the player forgets about their existence and gets pushed off by them.
+|-
+|[[File:Agility Pyramid (5).png|250px]]||[[Plank (Agility Pyramid)|Plank]]||56.4||2{{+=|xp|56.4*2}}
+|Players will have to cross the plank "bridge" to move past. Occasionally, players may slip and fall down one level, causing 10 hitpoints of damage.
+|-
+|[[File:Agility Pyramid (6).png|250px]]||[[Gap (Agility Pyramid)#Cross|Gap]]||56.4||3{{+=|xp|56.4*3}}
+|Players will have to cross a gap. They can lose their grip and fall to the level below, causing 8 hitpoints of damage.
+|-
+|[[File:Agility Pyramid (7).png|250px]]||[[Gap (Agility Pyramid)#Jump|Gap]]||22||6{{+=|xp|22*6}}
+|Players will have to jump over this gap. Players may occasionally miss their footing and comically fall to the level below, causing 8 hitpoints of damage.
+|-
+|[[File:Agility Pyramid (8).png|250px]]||[[Climbing rocks (Agility Pyramid)|Climbing rocks]]||0||1{{+=|xp|0*1}}
+|Climbing up these rocks will get players to collect the pyramid top. '''WARNING:''' Make sure to get this relic BEFORE entering the doorway. There is no confirmation message when entering the doorway, and if you forget to get the relic beforehand, you will earn nothing and have to climb all the way back up again.
+|-
+|[[File:Agility Pyramid (9).png|250px]]||[[Doorway (Agility Pyramid)|Doorway]]||0||1{{+=|xp|0*1}}
+|Entering this doorway will return players to the base of the pyramid. '''WARNING:''' Get the pyramid top before using this doorway!
+|-
+! colspan="2" |'''Total'''
+!{{#var:xp}}
+!Completion bonus
+!<math>300 +Agility \ level \times 8</math><ref group="d">Bonus experience is rewarded for completing the course. The maximum bonus experience is capped at 1,000 at level 88 and higher. [[Temporary skill boost]]s do not affect the bonus experience.</ref>
+|}
+
+{{Agility info
+|name = Agility Pyramid Completion Bonus
+|level = 30
+|xp = Varies
+|course = [[Agility Pyramid]]
+|type = Completion Bonus
+}}
+
+{{Reflist|group="d"}}
+
+==Experience rates==
+A maximum of 26 laps can be completed per hour, however, this asks for high concentration. The maximum experience rates scale with the player's Agility level, capping at level 88:
+* Level 75: 42,100 experience
+* Level 88–99: 44,700 experience
+
+Due to not knowing the exact fail rates of obstacles for other Agility levels, it is hard to predict the experience rates for players with lower Agility levels. Depending on luck with failures, sample rates can vary below.
+
+* Level 55–60: 25,000–30,000 experience. 
+* Level 67–70: 33,000–37,000 experience. Note that no stamina potions or energy recovery were used. This corresponds to about 20–22 laps per hour.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = Updated the gap-crossing animation on the Agility Pyramid to play the arm movements of the player character.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = Click boxes have been improved for the obstacle at the very top of the Agility Pyramid.
+}}
+{{Subject changes
+|date = 15 June 2022
+|update = Giants' Foundry Changes
+|change = Clicking out of the Agility Pyramid's completion dialogue will no longer prevent the associated [[Desert Diary]] task from completing.
+}}
+{{Subject changes
+|date = 11 February 2016
+|update = Tournament Stats & Skilling QoL
+|poll = Quality of Life - Top 10 Skilling Suggestions
+|change = * The amount of Agility experience earned per lap has been increased by 8 experience for every agility level you have (up to a cap of 1000 experience).
+* Pyramid tops can now be exchanged for 10,000 coins each, up from 1,000 coins.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* The word "Eustrophos", from Jaleustrophos, translates to "Versatile, both mentally and physically" in Greek.
+
+==References==
+{{Reflist}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Pyramids}}
+[[Category:Kharidian Desert]]

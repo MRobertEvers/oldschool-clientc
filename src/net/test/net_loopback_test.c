@@ -4,7 +4,7 @@
  * FIFO. No socket; the mock's emitted bytes are handed to the subsystem as
  * NET_RECV commands, exactly as the socket layer would.
  */
-#include "net/mock/mock_server.h"
+#include "torirsserver/mock_server.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/gameproto_parse.h"

@@ -53,7 +53,7 @@ param(
     [int]$Frames = 700,
     [string]$Strip = "",
     [string]$Out = "build/qbd_shots",
-    [string]$Manifest = "manifest_osrs239_rs2012.ini",
+    [string]$Manifest = "manifests/manifest_osrs239_rs2012.ini",
     [switch]$TexDebug,
     [switch]$Sweep,
     [string]$Exe = "dist\win64\torirs.exe"
@@ -80,7 +80,7 @@ try {
     if ($Zoom -gt 0) { $cam += ",$Zoom" }
 
     $env:TORIRS_TRANSPORT = "embed"
-    $env:MOCK230_REV = "osrs239"
+    $env:TORIRSSERVER_REV = "osrs239"
     $env:TORIRS_ORBIT_CAM = $cam
     $env:TORIRS_MAX_FRAMES = "$Frames"
     if ($TexDebug) { $env:TORIRS_RASTER_TEX_DEBUG = "1" }

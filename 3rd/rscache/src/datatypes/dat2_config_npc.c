@@ -158,6 +158,13 @@ RSCache_Dat2ConfigNpcEncodeProfile(
         p1(&buffer, 2);
         pjstr(&buffer, npc->name, RSCACHE_JSTR_TERMINATOR_NULL);
     }
+    /* Same rule as the name: emitted whenever the pointer is non-NULL, so an
+     * authored empty examine stays distinct from an absent one. */
+    if( npc->desc )
+    {
+        p1(&buffer, 3);
+        pjstr(&buffer, npc->desc, RSCACHE_JSTR_TERMINATOR_NULL);
+    }
     if( npc->size != 1 )
     {
         p1(&buffer, 12);
@@ -580,6 +587,7 @@ RSCache_Dat2ConfigNpcFreeInplace(struct RSCache_Dat2ConfigNpc* npc)
         return;
 
     free(npc->name);
+    free(npc->desc);
     free(npc->models);
     free(npc->recolor_to_find);
     free(npc->recolor_to_replace);
@@ -754,11 +762,8 @@ npc_decode_op_rs2_b669(
         npc_b669_read_string(buffer, &npc->name);
         return true;
     case 0x03: /* examine — retired in 2006, still in the opcode table */
-    {
-        char* discard = gcstring(buffer);
-        free(discard);
+        npc_b669_read_string(buffer, &npc->desc);
         return true;
-    }
 
     case 0x1E:
     case 0x1F:
@@ -1117,6 +1122,42 @@ RSCache_Dat2ConfigNpcDecodeOp(
             }
             memset(npc->name, 0, str_len + 1);
             greadto(buffer, npc->name, str_len + 1, str_len + 1);
+            break;
+        }
+        /*
+         * The examine string, same shape as the name above.
+         *
+         * Jagex retired this opcode from npc records in 2006 and the reference
+         * client at this revision ignores it *without consuming a payload*, so
+         * no pristine dat2 record can carry one — verified: all 16,292 npc
+         * records in cache.osrs239 decode to their terminator with the opcode
+         * unused. What does carry one is a record this tree's content pack
+         * authored, which is the whole point: the loc archive already stores
+         * examine text under the same opcode (dat2_config_loc.c case 3) and the
+         * npc archive had no slot for it at all, so an npc's examine could not
+         * be stated anywhere the client could read it.
+         */
+        case 3:
+        {
+            int str_len = 0;
+            while( buffer->position + str_len < buffer->size &&
+                   buffer->data[buffer->position + str_len] != '\0' )
+            {
+                str_len++;
+            }
+            if( buffer->position + str_len >= buffer->size )
+            {
+                printf("decode_npc_type: Buffer overflow while reading desc string\n");
+                return false;
+            }
+            npc->desc = malloc(str_len + 1);
+            if( !npc->desc )
+            {
+                printf("decode_npc_type: Failed to allocate desc string of length %d\n", str_len);
+                return false;
+            }
+            memset(npc->desc, 0, str_len + 1);
+            greadto(buffer, npc->desc, str_len + 1, str_len + 1);
             break;
         }
         case 12:
@@ -1996,6 +2037,8 @@ RSCache_Dat2ConfigNpcEncodeBound(const struct RSCache_Dat2ConfigNpc* npc)
 
     if( npc->name )
         need += (uint32_t)strlen(npc->name) + 2u;
+    if( npc->desc )
+        need += (uint32_t)strlen(npc->desc) + 2u;
     for( i = 0; i < 5; i++ )
     {
         if( npc->actions[i] )

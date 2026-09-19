@@ -9,6 +9,11 @@ main(void)
     test_items_build();
     test_load();
     test_parse();
+    test_parse_numbers();
+    test_refs();
+    test_profile();
+    test_roles();
+    test_tabs();
 
     if( g_failures )
     {

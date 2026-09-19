@@ -50,12 +50,12 @@ TRAPS — these have already burned time, don't rediscover them:
     today's code before relying on any ported animation.
   - Fixing the RS2 sequence codec touches 634 and 727 too — A/B both before and after.
   - A skipped test suite reads as a pass. Every summoning target must assert a non-zero check count.
-  - MOCK230_SAVES=$(mktemp -d) on EVERY headless run. Never bare `pkill -f build/mock230`.
+  - TORIRSSERVER_SAVES=$(mktemp -d) on EVERY headless run. Never bare `pkill -f build/torirsserver`.
   - Never `git stash` in this repo. No ASAN on this Mac. embed_test decode is broken pre-existing.
   - Never name a ported record exactly `summoning` — trigger subjects resolve first-match-wins
     across namespaces and mis-resolution is silent. Prefix everything summoning_*.
 
-DEFINITION OF DONE per content slice: verified in the headless client, mock230_pack --check-only at
+DEFINITION OF DONE per content slice: verified in the headless client, ToriRSServer_Pack --check-only at
 0 errors, existing tests green, the flag-off bake proven byte-identical, and the queue doc updated.
 For a boundary/provenance-only slice, use permanent non-zero audit, mutation, staging-exclusion,
 and archive-integrity checks in place of a content render; it still needs the relevant cache and

@@ -1,0 +1,32 @@
+make: `torirs' is up to date.
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+Connection in progress to localhost:43594
+Connection completed
+app: cache profile epoch=dat1 game=rs2 revision=254 quirks=none
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+Connection in progress to localhost:43594
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+varbit load (dat1): 179 types from varbit.dat
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+RevConfigBuild done: iface=84 ui=manifests/../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini inline=- tree_components=2076 sprites=36 fonts=4 onloads=0 inv_hooks=0 var_hooks=0 mounts=0
+Connection completed
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed
+Connection in progress to localhost:80
+Connection completed
+Socket recv error: connection closed

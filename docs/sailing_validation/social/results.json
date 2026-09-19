@@ -1,0 +1,166 @@
+{
+  "tool": "tools/sailing_social_acceptance.py",
+  "recorded_utc": "2026-09-07T14:37:04Z",
+  "elapsed_ms": 9255.387,
+  "sessions": {
+    "ocean": {
+      "pid": 2664,
+      "process_identity": "Mon Sep  7 09:36:55 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user fin3cap --pass test --soft3d",
+      "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+      "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+      "renderer": "soft3d",
+      "user": "fin3cap",
+      "headless": true,
+      "boat": "skiff",
+      "fixture_tile": [
+        3072,
+        3160
+      ],
+      "resume_save": false,
+      "archived_save": null,
+      "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+      "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+      "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+      "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+      "allow_stale_scripts": false
+    },
+    "dock": {
+      "pid": 2690,
+      "process_identity": "Mon Sep  7 09:37:01 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user fin3dock --pass test --soft3d",
+      "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+      "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+      "renderer": "soft3d",
+      "user": "fin3dock",
+      "headless": true,
+      "boat": "skiff",
+      "fixture_tile": [
+        3073,
+        2987
+      ],
+      "resume_save": false,
+      "archived_save": null,
+      "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+      "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+      "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+      "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+      "allow_stale_scripts": false
+    }
+  },
+  "scope": "two real server players, one native rendering client; the captain clicks cache interfaces with the real mouse and the guest sends the packets a second client would send",
+  "checks": [
+    {
+      "name": "the guest is a rendered actor the captain's own picking can hit",
+      "result": "pass",
+      "detail": "guest published as wire pid 2 on hull view 1; harness projection put its model at screen (422,252) and a real mouse move to that point put element 805308158 in the client's own world pick set (picked=True)",
+      "images": [
+        "docs/sailing_validation/social/guest-aboard-hovered.png"
+      ]
+    },
+    {
+      "name": "Edit-navigator grants and revokes navigation by mouse alone",
+      "result": "pass",
+      "detail": "Real mouse only: crew tab -> Players -> right-click (645, 407) -> left-click the 'Edit-navigator' row at (645, 422) -> left-click the guest at [412, 281] (the client's own pick reports picked=True there), twice. vessel_stat 11 navigator mask 0 -> 2 -> 0 (peer pid 1, bit 2); peer role varbit 19233 3 -> 6 -> 3; ToriRSServer_VesselCanNavigate False -> True -> False. The control image is the same IF3 target mechanism on an inventory item ('Use Coins'), whose priority is a real op slot.",
+      "images": [
+        "docs/sailing_validation/social/crew-players-tab.png",
+        "docs/sailing_validation/social/editnav-rightclick-menu.png",
+        "docs/sailing_validation/social/editnav-armed-on-guest.png",
+        "docs/sailing_validation/social/editnav-mouse-granted.png",
+        "docs/sailing_validation/social/editnav-mouse-revoked.png"
+      ],
+      "control_image": "docs/sailing_validation/social/control-inventory-use-target-row.png"
+    },
+    {
+      "name": "Edit-navigator grant and revoke reach vessel_stat 11, role 6 and helm permission",
+      "result": "pass",
+      "detail": "vessel_stat 11 navigator mask 0 -> 2 -> 0 (peer pid 1, bit 2); peer role varbit 19233 3 -> 6 -> 3; ToriRSServer_VesselCanNavigate False -> True -> False. Driven by harness 'peer target', which puts the same component and the same player index into the same OPPLAYERT the armed click above sends: both halves now name the player by the GPI index the server published (ToriRSServer_WirePlayerIndex \u2014 content_test_sailing.c's 'peer target' writes it, handle_opplayert matches it). This row is the server-side control for the mouse row above: the row above proves the client arms and sends it, this one proves the handler grants on it. The captain's chat carries the content's own 'You grant/remove <name>'s navigation permission' lines.",
+      "images": [
+        "docs/sailing_validation/social/navigator-granted.png",
+        "docs/sailing_validation/social/navigator-revoked.png"
+      ]
+    },
+    {
+      "name": "the captain always reaches their own hold, at privacy 2",
+      "result": "pass",
+      "detail": "with settings_cargo_hold_privacy = 2 the captain's own hold opened (sailing_boat_cargohold:items exists=True hidden=0) and withdrew 5 of 20 bronze cannonballs",
+      "images": [
+        "docs/sailing_validation/social/privacy-2-captain-hold-open.png"
+      ]
+    },
+    {
+      "name": "privacy 0 (Navigators) refuses a non-navigator guest",
+      "result": "pass",
+      "detail": "chose 'Navigators' from the real dropdown row (settings:dropdown_buttons rect [388, 118, 74, 20]); varbit settings_cargo_hold_privacy client=0 server=0; guest ToriRSServer_VesselCargoAllowed=False, guest mainmodal=0 (943 is the native hold), hold 25 -> 25 bronze cannonballs after one 'Withdraw-5'",
+      "images": [
+        "docs/sailing_validation/social/privacy-0-dropdown-open.png",
+        "docs/sailing_validation/social/privacy-0-chosen.png"
+      ]
+    },
+    {
+      "name": "privacy 0 (Navigators) admits a granted navigator",
+      "result": "pass",
+      "detail": "chose 'Navigators' from the real dropdown row (settings:dropdown_buttons rect [388, 118, 74, 20]); varbit settings_cargo_hold_privacy client=0 server=0; guest ToriRSServer_VesselCargoAllowed=True, guest mainmodal=943 (943 is the native hold), hold 25 -> 20 bronze cannonballs after one 'Withdraw-5'",
+      "images": [
+        "docs/sailing_validation/social/privacy-0-dropdown-open.png",
+        "docs/sailing_validation/social/privacy-0-chosen.png"
+      ]
+    },
+    {
+      "name": "privacy 2 (No players) refuses even a navigator",
+      "result": "pass",
+      "detail": "chose 'No players' from the real dropdown row (settings:dropdown_buttons rect [388, 158, 74, 20]); varbit settings_cargo_hold_privacy client=2 server=2; guest ToriRSServer_VesselCargoAllowed=False, guest mainmodal=943 (943 is the native hold), hold 20 -> 20 bronze cannonballs after one 'Withdraw-5'",
+      "images": [
+        "docs/sailing_validation/social/privacy-2-dropdown-open.png",
+        "docs/sailing_validation/social/privacy-2-chosen.png"
+      ]
+    },
+    {
+      "name": "privacy 1 (All players) admits a guest with no navigation permission",
+      "result": "pass",
+      "detail": "chose 'All players' from the real dropdown row (settings:dropdown_buttons rect [388, 138, 74, 20]); varbit settings_cargo_hold_privacy client=1 server=1; guest ToriRSServer_VesselCargoAllowed=True, guest mainmodal=943 (943 is the native hold), hold 15 -> 10 bronze cannonballs after one 'Withdraw-5'",
+      "images": [
+        "docs/sailing_validation/social/privacy-1-dropdown-open.png",
+        "docs/sailing_validation/social/privacy-1-chosen.png"
+      ]
+    },
+    {
+      "name": "guest crew mirror follows the captain's roster, not the guest's own",
+      "result": "pass",
+      "detail": "captain assigned Jobless Jim through the native Crew Management button: sailing_crew_slot_1 client=1 server=1. After ~sailing_crew_sync in the guest's own context the guest's own sailing_crew_slot_1 = 0 while sailing_sidepanel_crew_slot_1 = 1 and sailing_sidepanel_crew_slot_2 = 0",
+      "images": [
+        "docs/sailing_validation/social/crew-management-before-assign.png",
+        "docs/sailing_validation/social/crew-management-assigned.png"
+      ]
+    },
+    {
+      "name": "Board-friend: the guest boards the captain's boat by name",
+      "result": "pass",
+      "detail": "The guest's real OPLOC3 on the Pandemonium gangplank ran [oploc3,sailing_gangplank_embark] -> ~sailing_board_friend and PARKED on p_namedialog (peer active_script=1, execution=7 = SSVM_NAMEDIALOG); the harness answered with RESUME_P_NAMEDIALOG \"fin3dock\" and the script resumed and ran to completion (script=0). The guest went from 3069,2987 level 0 view 0 to 6403,66 level 1 view 1, which is the captain's hull view 1 and the captain's own deck plane 1. Captain's owned-boat registration (sailing_boat_1_owned=1, sailing_boat_1_port=1, hull cargo slot 1, dock_id 1) is read in the CAPTAIN's script context, which is what the vessel_* opcodes now answer for; the client's own world pick reports picked=True on the guest's model. For the deck picture the guest was then walked one tile to 6404,68 (separated=True), because VesselBoardPlayer lands it on the captain's own tile and the two models coincide exactly.",
+      "images": [
+        "docs/sailing_validation/social/captain-private-chat-menu.png",
+        "docs/sailing_validation/social/guest-ashore-at-the-dock.png",
+        "docs/sailing_validation/social/guest-after-board-friend.png",
+        "docs/sailing_validation/social/guest-and-captain-on-deck.png",
+        "docs/sailing_validation/social/guest-aboard-hovered-at-the-berth.png"
+      ]
+    },
+    {
+      "name": "boarding by name grants no navigation permission",
+      "result": "pass",
+      "detail": "peer role varbit sailing_sidepanel_player_role = 3 (the cache's passenger rung 3 -- see docs/sailing_validation/social/roles-results.json), ToriRSServer_VesselCanNavigate=False, vessel_stat 11 navigator mask 0 -> 0",
+      "images": [
+        "docs/sailing_validation/social/guest-and-captain-on-deck.png"
+      ]
+    },
+    {
+      "name": "the guest opens the cargo hold with a real OPLOC on the deck's hold loc",
+      "result": "pass",
+      "detail": "the hold loc sits at deck 6404,65 -- ~sailing_facilities_place puts sailing_boat_cargo_hold_regular_2x5 at the hull frame's base+(4,1) for config 2, and the guest's OPLOC1 walked it from 6404,68 to 6404,66. At privacy 0 (Navigators) a non-navigator guest is refused: mainmodal=0, cargo=False. At privacy 1 (All players) the same click opens the native hold: mainmodal=943 (943), cargo=True. The capture is the CAPTAIN's screen -- the guest has no client of its own, so its open hold is the server reading above, not a rendered panel; what the picture carries is the guest standing at the hold on the captain's deck.",
+      "images": [
+        "docs/sailing_validation/social/guest-opened-the-hold-from-the-deck.png"
+      ]
+    }
+  ],
+  "failed": [],
+  "blocked": [],
+  "ok": true
+}

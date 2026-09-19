@@ -119,6 +119,8 @@ ToriRS_ObjtypeFromRSCacheDat1(
     /* dat1 has no placeholder opcodes — the feature postdates the epoch. */
     objtype->placeholder_link = -1;
     objtype->placeholder_template = -1;
+    objtype->bought_template = -1;
+    objtype->members = src->members ? 1 : 0;
     objtype->zoom2d = src->zoom2d;
     objtype->xan2d = src->xan2d;
     objtype->yan2d = src->yan2d;
@@ -230,6 +232,9 @@ ToriRS_ObjtypeFromRSCacheDat2(
     objtype->stackable = src->stacking_behaviour == 1 ? 1 : 0;
     objtype->category = src->category;
     objtype->cost = src->cost;
+    objtype->ge_tradeable = src->ge_tradeable ? 1 : 0;
+    objtype->members = src->is_members ? 1 : 0;
+    objtype->bought_template = src->bought_template_id;
     objtype->team = src->team;
     objtype->inventory_model_id = src->inventory_model_id;
     objtype->cert_link = src->noted_id;

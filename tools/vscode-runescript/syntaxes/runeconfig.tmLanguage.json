@@ -1,0 +1,58 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "RuneScript config",
+  "scopeName": "source.runeconfig",
+  "comment": "Fallback colouring for the declaration files. As with the script grammar, the server's semantic tokens are what tell a name that resolves from one that does not; this only marks the shapes.",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#section" },
+    { "include": "#record" },
+    { "include": "#constant" },
+    { "include": "#binding" },
+    { "include": "#property" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.line.double-slash.runeconfig",
+      "match": "//.*$"
+    },
+    "section": {
+      "comment": "==== NPC ==== in a .spawn file",
+      "name": "keyword.control.section.runeconfig",
+      "match": "^={2,}.*$"
+    },
+    "record": {
+      "match": "^\\s*(\\[)([^\\]]*)(\\])",
+      "captures": {
+        "1": { "name": "punctuation.definition.bracket.runeconfig" },
+        "2": { "name": "entity.name.type.runeconfig" },
+        "3": { "name": "punctuation.definition.bracket.runeconfig" }
+      }
+    },
+    "constant": {
+      "match": "^\\s*(\\^[A-Za-z0-9_]+)\\s*(=)\\s*(.*)$",
+      "captures": {
+        "1": { "name": "constant.other.runeconfig" },
+        "2": { "name": "keyword.operator.runeconfig" },
+        "3": { "name": "string.unquoted.runeconfig" }
+      }
+    },
+    "binding": {
+      "comment": "id=name, in an .alloc ledger or a .pack name index",
+      "match": "^\\s*([0-9]+)(=)(.*)$",
+      "captures": {
+        "1": { "name": "constant.numeric.runeconfig" },
+        "2": { "name": "keyword.operator.runeconfig" },
+        "3": { "name": "entity.name.type.runeconfig" }
+      }
+    },
+    "property": {
+      "match": "^\\s*([A-Za-z0-9_]+)(=)(.*)$",
+      "captures": {
+        "1": { "name": "support.type.property-name.runeconfig" },
+        "2": { "name": "keyword.operator.runeconfig" },
+        "3": { "name": "string.unquoted.runeconfig" }
+      }
+    }
+  }
+}

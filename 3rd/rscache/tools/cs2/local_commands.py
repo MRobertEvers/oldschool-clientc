@@ -24,10 +24,12 @@ from __future__ import annotations
 
 # id -> NAME. Names are lowercased for output.
 LOCAL_NAMES: dict[int, str] = {
+    # RuneLiteOpcodes.RUNELITE_EXECUTE; event name popped, remaining stacks live.
+    6599: "runelite_callback",
     # First seen in OldSchool 239's gameframe scripts; neither vendored table
     # names it, and its meaning is still unknown. Named so the decompiler can
     # print it — the signature below is what lets it get that far.
-    210: "_210",
+    210: "cc_find_param",
     # Vendored Opcodes.kt still calls this if_haschild_modal (rev-634 name).
     # At osrs239 it is IF_SETPARAM (xrsps WidgetOps); Overview script 9176
     # call sites are five ints and nothing out — haschild's (2i->1i) desyncs.
@@ -36,6 +38,7 @@ LOCAL_NAMES: dict[int, str] = {
 
 # NAME -> (args, defs, dot)
 LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
+    "runelite_callback": (["STRING"], [], False),
     # Command.kt (2021) never gained these, though Opcodes.kt names them. The
     # pop/push counts are src/cs2vm2/cs2vm2_opcode_stack.gen.h's, i.e. taken
     # from a client that executes them, not from the name.
@@ -43,21 +46,14 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # CC_COPY 105 = { int_in 3 }: parent, src_sub, dst_sub. Clones a dynamic
     # child into another slot under the same parent and makes the copy active.
     "CC_COPY": (["COMPONENT", "COMSUBID", "COMSUBID"], [], True),
-    # _210 = { int_in 6 }. Established by `cs2 infer-arity` over cache.osrs239,
-    # not by a client: ten call sites, every one solving to the same six-int pop
-    # with nothing pushed, no other candidate surviving at any of them. The types
-    # are plain INT because the method establishes counts, not meanings — the
-    # first argument is a component in every site traced, but one shape is not a
-    # signature. src/cs2vm2 carries the same counts, and drops the arguments.
-    # The official deob's older method12650/210 is 5 -> 0, but every rev-239
-    # cache call site has the evolved ABI: six inputs and one boolean-like
-    # result (the same net -5). Both the six-push and seven-push/outer-value
-    # shapes then reach their following comparison with exactly two operands.
-    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], False),
+    # Rev-239 opcode 210 has five fixed ints and two values selected by the two
+    # trailing base-type ids. LOCAL_KINDS below models that dynamic payload.
+    "cc_find_param":
+        (["COMPONENT", "INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], False),
     # The cache's 7200-range collection iterators consume their selectors;
     # vendored Command.kt recorded only the result side.
-    "_7206": (["INT"], ["INT"], False),
-    "_7209": (["INT", "INT"], ["INT"], False),
+    "entityoverlay_get_loc": (["INT"], ["INT"], False),
+    "entityoverlay_get_coord": (["INT", "INT"], ["INT"], False),
     # 4016 / 4017 = { int_in 2, int_out 1 }.
     "MIN": (["INT", "INT"], ["INT"], False),
     "MAX": (["INT", "INT"], ["INT"], False),
@@ -79,103 +75,103 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # establishes counts, not meanings.
     # ---------------------------------------------------------------
     # 1152: 2 witnesses, unique.
-    "_1152": ([], ["INT"], False),
+    "cc_crmview_dismiss": ([], ["INT"], False),
     # 1928: 5 witnesses, unique.
     "cc_triggerop": (["INT"], [], False),
     # 3102: 2 witnesses, unique.
-    "_3102": (["INT", "STRING"], [], False),
+    "mes_typed": (["INT", "STRING"], [], False),
     # 3189: 1 witness, unique.
-    "_3189": (["INT"], [], False),
+    "seq_prefetch": (["INT"], [], False),
     # 3223: 2 witnesses, unique.
-    "_3223": (["INT"], [], False),
+    "rt7_setenabled": (["INT"], [], False),
     # 3224: 1 witness, unique.
-    "_3224": ([], [], False),
+    "rt7_sd": ([], [], False),
     # 3225: 1 witness, unique.
-    "_3225": ([], [], False),
+    "rt7_hd": ([], [], False),
     # 3329: 1 witness, unique.
-    "_3329": ([], [], False),
+    "idletimer_reset": ([], [], False),
     # 3931: 1 witness, unique.
-    "_3931": ([], [], False),
+    "stockmarket_sellable": (["INT"], ["INT"], False),
     # 4036: 2 witnesses, unique.
-    "_4036": (["STRING"], ["INT"], False),
+    "parseint": (["STRING"], ["INT"], False),
     # 4124: 30 witnesses, output-equivalent.
-    "_4124": ([], ["STRING"], False),
+    "pronoun": ([], ["STRING"], False),
     # 6863: 1 witness, unique.
-    "_6863": ([], ["INT"], False),
+    "obj_owner": ([], ["INT"], False),
     # 7040: 2 witnesses, unique.
-    "_7040": (["INT", "INT", "INT", "INT", "INT"], [], False),
+    "highlight_group_setup": (["INT", "INT", "INT", "INT", "INT"], [], False),
     # 7044: 1 witness, unique.
-    "_7044": (["INT"], [], False),
+    "highlight_group_clear": (["INT"], [], False),
     # 7406: 2 witnesses, unique.
-    "_7406": (["INT", "INT"], ["STRING"], False),
+    "stringvector_get": (["INT", "INT"], ["STRING"], False),
     # 7409: 2 witnesses, unique.
-    "_7409": (["INT"], [], False),
+    "stringvector_clear": (["INT"], [], False),
     # 7460: 1 witness, unique.
-    "_7460": ([], ["INT"], False),
+    "minimenu_hovered_index": ([], ["INT"], False),
     # 7462: 3 witnesses, unique.
-    "_7462": (["INT", "INT"], [], False),
+    "minimenu_setblockmode": (["INT", "INT"], [], False),
     # 7465: 1 witness, unique.
-    "_7465": ([], [], False),
+    "minimenu_resetorder": ([], [], False),
     # 7466: 1 witness, unique.
-    "_7466": (["INT"], [], False),
+    "minimenu_setorderedit": (["INT"], [], False),
     # 7470: 1 witness, unique.
-    "_7470": ([], [], False),
+    "minimenu_togglescroll": ([], [], False),
     # 7613: 2 witnesses, unique.
-    "_7613": ([], [], False),
+    "loottracker_clear": ([], [], False),
     # 7614: 1 witness, unique.
-    "_7614": (["STRING"], [], False),
+    "loottracker_lootdel_byname": (["STRING"], [], False),
     # 7616: 2 witnesses, unique.
-    "_7616": (["STRING"], [], False),
+    "loottracker_ignorelootadd": (["STRING"], [], False),
     # 7617: 2 witnesses, unique.
-    "_7617": (["STRING"], [], False),
+    "loottracker_ignorelootdel": (["STRING"], [], False),
     # 7621: 1 witness, unique.
-    "_7621": ([], [], False),
+    "loottracker_ignorelootclear": ([], [], False),
     # 7622/7623: source-ignore add/remove (script 1791); mirror 7616/7617.
-    "_7622": (["STRING"], [], False),
-    "_7623": (["STRING"], [], False),
+    "loottracker_ignoresourceadd": (["STRING"], [], False),
+    "loottracker_ignoresourcedel": (["STRING"], [], False),
     # 7809: 1 witness, unique.
-    "_7809": ([], ["INT"], False),
+    "hiscore_getstatus": ([], ["INT"], False),
     # 7810: 2 witnesses, unique.
-    "_7810": ([], [], False),
+    "hiscore_clear": ([], [], False),
     # 7811: 1 witness, unique.
-    "_7811": ([], ["STRING"], False),
+    "hiscore_geterror": ([], ["STRING"], False),
     # 7812: 1 witness, unique.
-    "_7812": (["INT"], [], False),
+    "hiscore_setapi": (["INT"], [], False),
     # 3932: 4 witnesses, unique (round 1).
-    "_3932": ([], ["INT"], False),
+    "stockmarket_value": (["INT"], ["INT", "INT"], False),
     # 7471: 1 witness, unique (round 1).
-    "_7471": ([], ["INT"], False),
+    "minimenu_getscroll": ([], ["INT"], False),
     # 7823: 1 witness, unique (round 1).
-    "_7823": (["INT"], ["STRING"], False),
+    "hiscore_getmembername": (["INT"], ["STRING"], False),
     # 1624: solved jointly with 2624; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_1624": ([], ["INT"], False),
+    "cc_input_getfocus": ([], ["INT"], False),
     # 6761: solved jointly with 6762; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_6761": (["INT", "INT", "INT"], ["STRING"], False),
+    "nc_getopbase": (["INT", "INT", "INT"], ["STRING"], False),
     # 6762: solved jointly with 6761; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_6762": (["INT", "INT", "INT"], ["STRING"], False),
+    "nc_getop": (["INT", "INT", "INT"], ["STRING"], False),
     # 6806: solved jointly with 6807; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_6806": (["INT", "INT"], ["STRING"], False),
+    "lc_getopbase": (["INT", "INT"], ["STRING"], False),
     # 6807: solved jointly with 6806; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_6807": (["INT", "INT", "INT"], ["STRING"], False),
+    "lc_getop": (["INT", "INT", "INT"], ["STRING"], False),
     # 6857: solved jointly with 6858; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_6857": (["INT", "INT"], ["STRING"], False),
+    "oc_getopbase": (["INT", "INT"], ["STRING"], False),
     # 6858: solved jointly with 6857; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_6858": (["INT", "INT", "INT"], ["STRING"], False),
+    "oc_getop": (["INT", "INT", "INT"], ["STRING"], False),
     # 7603: solved jointly with 7604; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_7603": (["STRING"], ["INT"], False),
+    "loottracker_sourceid": (["STRING"], ["INT"], False),
     # 7604: solved jointly with 7603; only one arity for each lets the
     # pair balance the stack in the script they share.
-    "_7604": (["STRING"], ["INT"], False),
+    "loottracker_sourcecount": (["STRING"], ["INT"], False),
     # 6809: 3 witness(es), unique.
-    "_6809": (["INT"], ["STRING"], False),
+    "lc_name": (["INT"], ["STRING"], False),
     # ---------------------------------------------------------------
     # Round 3, solved by `cs2 infer-arity` against cache.osrs239 after the DB
     # family stopped mis-shaping the stack (LOCAL_KINDS below). That fix is what
@@ -187,36 +183,36 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # Single-witness solutions where the tool reported `unique`: exactly one
     # (int in, str in, int out, str out) let the script interpret to its end
     # with every `return` matching the arity its own epilogue declares.
-    "_2214": (["INT", "INT"], [], False),
-    "_2215": (["INT", "INT"], [], False),
-    "_1129": (["STRING"], [], False),
-    "_1214": (["INT"], [], False),
-    "_6531": ([], ["INT", "INT"], False),
-    "_7819": (["STRING"], ["INT"], False),
-    "_7824": (["INT"], [], False),
+    "if_setlocmodel": (["INT", "INT"], [], False),
+    "if_setnpcmodel": (["INT", "INT"], [], False),
+    "cc_sethttpsprite": (["STRING"], [], False),
+    "cc_setlocmodel": (["INT"], [], False),
+    "client_version": ([], ["INT", "INT"], False),
+    "hiscore_getmemberlevel": (["STRING"], ["INT"], False),
+    "hiscore_getmemberhiscores": (["INT"], [], False),
     # Solved jointly, and each of these was reached from more than one partner:
     # The rev-239 client pops the final base-type code, then a value from the
     # selected int/string/long stack, then the param id. The active component
     # comes from the handler preamble and the operand selects its dot form.
-    "_1704": (["INT", "NONE", "INT"], [], True),
+    "cc_setparam": (["INT", "NONE", "INT"], [], True),
     # 2929 has no fixed signature. The rev-239 client calls `method989` — pop a
     # descriptor string, then one value per character, 'i' from the int stack
     # and anything else from the string stack — then pops three fixed ints.
     # DESCRIPTOR_ARGS handles that shape; this tuple only supplies its name.
-    "_2929": (["INT", "INT", "INT", "INT", "STRING"], [], False),
-    "_1506": ([], ["INT"], False),
-    "_213": ([], ["INT"], False),
-    "_214": ([], ["INT"], False),
-    "_222": ([], [], False),
-    "_63": ([], ["STRING"], False),
-    "_8003": (["STRING"], ["INT"], False),
-    "_8021": (["INT", "INT"], ["STRING"], False),
+    "if_script_trigger": (["INT", "INT", "INT", "INT", "STRING"], [], False),
+    "cc_getparentlayer": ([], ["INT"], False),
+    "if_query_next": ([], ["INT"], False),
+    "if_query_nextid": ([], ["INT"], False),
+    "cc_assert": ([], [], False),
+    "push_constant_null": ([], ["STRING"], False),
+    "array_size": (["STRING"], ["INT"], False),
+    "enum_getoutputs": (["INT", "INT"], ["STRING"], False),
     # Round 4, after round 3 turned two-unknown scripts into one-unknown ones.
-    "_7400": (["INT", "STRING"], [], False),
-    "_7802": (["STRING"], ["INT"], False),
-    "_209": ([], ["INT"], False),
-    "_1140": (["INT"], [], False),
-    "_1141": (["INT"], [], False),
+    "stringvector_add": (["INT", "STRING"], [], False),
+    "hiscore_getvalue": (["STRING"], ["INT"], False),
+    "cc_parentid": ([], ["INT"], False),
+    "cc_input_setfocus": (["INT"], [], False),
+    "cc_input_setfocusable": (["INT"], [], False),
     # 8022 was not solved by search -- it appears alongside other unknowns in
     # every script -- but its call sites settle it on their own. In script 8153
     # it occurs three times in a row at a statement boundary, each time as
@@ -224,14 +220,14 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # `pop_string_local`, and 38 further sites have the same shape. Three ints
     # in, one string out is the only reading, and it is worth 40 scripts.
     # xrsps names it ARRAY_NEW (typeCode, length, capacity) -> handle.
-    "_8022": (["INT", "INT", "INT"], ["STRING"], False),
+    "array_create": (["INT", "INT", "INT"], ["STRING"], False),
     # Round 5. The search converges here: rounds 6 and 7 solve nothing new.
-    "_7801": (["STRING"], ["INT"], False),
-    "_1143": (["INT"], [], False),
+    "hiscore_getrank": (["STRING"], ["INT"], False),
+    "cc_input_setcaret": (["INT"], [], False),
     # Round 6. Round 7 solves nothing new: the search has converged, and what
     # remains needs an opcode identified in a client rather than inferred (G4).
-    "_1628": ([], ["INT"], False),
-    "_1139": (["INT"], [], False),
+    "cc_input_getcaretposition": ([], ["INT"], False),
+    "cc_input_setlinewidthlimit": (["INT"], [], False),
 
     # ---------------------------------------------------------------
     # Skill-guide Overview tab (scripts 9150..9199 / 9176), remeasured
@@ -243,22 +239,22 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # 215; pop_string_local; 8003`. Only (3i->1i)+(()->1s) and two weaker
     # pairings decompile; the three-arg form matches the IF_GETCOMPONENTPARAM
     # shape and is the one kept. 215's string is an array handle (8003'd).
-    "_211": (["INT", "INT", "INT"], ["INT"], False),
-    "_215": ([], ["STRING"], False),
+    "if_query": (["INT", "INT", "INT"], ["INT"], False),
+    "if_query_ids": ([], ["STRING"], False),
     # 212: scripts 9179/9186 — after `.cc_find`, `push 1; 212; pop_int_discard;
     # 213…`. (1i->1i) and (0i->0i) both decompile; (1i->0i) fails on the
     # discard. Kept as (1i->1i): start_index in, child-count out — the CC
     # children-find family (203/205) plus a count the scripts discard.
-    "_212": (["INT"], ["INT"], False),
+    "cc_query": (["INT"], ["INT"], False),
     # 8018: script 9183 — `push $s; push "||"; 8018; pop_string_local; 8003`.
     # Two strings in, one string (array handle) out: split.
-    "_8018": (["STRING", "STRING"], ["STRING"], False),
+    "string_split": (["STRING", "STRING"], ["STRING"], False),
     # 8012: script 9194 — after ARRAY_SORT, `push $arr; 8012` twice. One
-    # string in, nothing out. Meaning unknown (mutate-in-place); arity only.
-    "_8012": (["STRING"], [], False),
+    # string in, nothing out: array_reverse, per the client's declaration.
+    "array_reverse": (["STRING"], [], False),
     # 8023: every Overview site is `push $arr; push N; 8023` then N
     # `pop_array_int` writes. Array handle + length in, nothing out: resize.
-    "_8023": (["STRING", "INT"], [], False),
+    "array_resize": (["STRING", "INT"], [], False),
     # 8024: script 9194 — `push $arr; push $value; push 0; 8024` (type 0 =
     # int). Array + int value + type in, nothing out: append. Typed like
     # ARRAY_COUNT_MATCHES when the type names a string; Overview only uses
@@ -266,7 +262,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # cache's sites have no index.
     # The final base-type code tells method6560 which stack holds the inserted
     # value. `NONE` is a deliberate placeholder interpreted by TYPED_POP.
-    "_8024": (["STRING", "NONE", "INT"], [], False),
+    "array_push": (["STRING", "NONE", "INT"], [], False),
     # 2704: IF_SETPARAM. xrsps WidgetOps: (param, value, uid, child, type)
     # with typed value. Script 9176: five ints, nothing consumed. Override
     # scoring `--override 2704:5,0,0,0` recovers 9176; the vendored
@@ -288,34 +284,34 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # effects this reads.
     #
     # Only opcodes where one arity survives at *every* such site are here.
-    "_1137": (["INT"], [], False),
-    "_1145": (["INT"], [], False),
-    "_1151": (["STRING", "STRING", "STRING"], [], False),
-    "_3221": (["INT", "INT", "INT", "INT", "INT", "INT"], [], False),
+    "cc_input_setlinewrappingwidth": (["INT"], [], False),
+    "cc_input_setsubmitmode": (["INT"], [], False),
+    "cc_crmview_init_v2": (["STRING", "STRING", "STRING"], [], False),
+    "sound_song_withsecondary": (["INT", "INT", "INT", "INT", "INT", "INT"], [], False),
     # Dormant notification ABI in this cache: two strings, two ints, then an
     # int result. The rev-239 client handler is only a no-argument stub that
     # pushes 0, so the cache call sites are the source-order evidence.
-    "local_notification": (["STRING", "STRING", "INT", "INT"], ["INT"], False),
+    "notifications_sendlocal": (["STRING", "STRING", "INT", "INT"], ["INT"], False),
     # Two menu indices, generated submenu text, then the explicit component.
     # The older official client has no 2311 case, but both cache witnesses use
     # this same inter-bank order.
-    "if_setopsubmenu": (["INT", "INT", "STRING", "COMPONENT"], [], False),
+    "if_setsubop": (["INT", "INT", "STRING", "COMPONENT"], [], False),
     # Companion clear/reset form: option index and explicit component.
-    "_2310": (["INT", "COMPONENT"], [], False),
+    "if_clearsubops": (["INT", "COMPONENT"], [], False),
     # 4123 pushes a string too, which the call-site pass missed because every
     # site it could use had a `gosub` in the same run. `--override 4123:0,3,0,1`
     # decompiles 14 more scripts than `0,3,0,0`; nothing else in the space beats it.
-    "_4123": (["STRING", "STRING", "STRING"], ["STRING"], False),
-    "_7041": (["STRING", "INT"], [], False),
+    "text_pronoun": (["STRING", "STRING", "STRING"], ["STRING"], False),
+    "highlight_group_on": (["STRING", "INT"], [], False),
     # Source order is string then selector. The physical client pops the two
     # independent banks directly, so a net-only table cannot recover this.
-    "_7042": (["STRING", "INT"], [], False),
-    "_7615": (["INT"], [], False),
+    "highlight_group_off": (["STRING", "INT"], [], False),
+    "loottracker_lootdel_byid": (["INT"], [], False),
     # 8019: was recorded as (str,str)->() from an incomplete call-site pass.
     # Script 9153 pins the push: after `push ""; push $arr; push "||::p||";
     # 8019` the next gosub is 9182 which takes (int, str, str). Only a string
     # out leaves the stack right; xrsps ARRAY_JOIN agrees (array, sep) -> str.
-    "_8019": (["STRING", "STRING"], ["STRING"], False),
+    "string_join": (["STRING", "STRING"], ["STRING"], False),
     # Loot-tracker native store (rev-239). Settled from script 7166's
     # bytecode, not a client: every site sits between empty-stack statement
     # boundaries (or is pinned by the pushes immediately before and the
@@ -328,20 +324,20 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     #   $n = _7605(0, ~script1046(_7601, 10), 1);
     #   while ($i < $n) { $id = _7606($i); $name = _7602($id); … }
     #   $name = _7630($id);   # second list, string-keyed
-    "_7601": ([], ["INT"], False),
-    "_7602": (["INT"], ["STRING"], False),
-    "_7605": (["INT", "INT", "INT"], ["INT"], False),
-    "_7606": (["INT"], ["INT"], False),
-    "_7630": (["INT"], ["STRING"], False),
+    "loottracker_sourcenamecount": ([], ["INT"], False),
+    "loottracker_sourcename": (["INT"], ["STRING"], False),
+    "loottracker_sourcequery_new": (["INT", "INT", "INT"], ["INT"], False),
+    "loottracker_sourcequery_get": (["INT"], ["INT"], False),
+    "loottracker_sourcedropname": (["INT"], ["STRING"], False),
     # Same call-site method, scripts 7200 / 1792 (loottools chrome helpers
     # gosub'd from 7166). 7200 and 1792 are structural twins: begin→count,
     # index→name, then a three-arg write. 7401's args are INT,STRING,INT —
     # the two stacks make that (2,1,0,0) at the VM regardless of interleaving.
-    "_7619": ([], ["INT"], False),
-    "_7620": (["INT"], ["STRING"], False),
-    "_7625": ([], ["INT"], False),
-    "_7626": (["INT"], ["STRING"], False),
-    "_7401": (["INT", "STRING", "INT"], [], False),
+    "loottracker_ignorelootcount": ([], ["INT"], False),
+    "loottracker_ignorelootget": (["INT"], ["STRING"], False),
+    "loottracker_ignoresourcecount": ([], ["INT"], False),
+    "loottracker_ignoresourceget": (["INT"], ["STRING"], False),
+    "stringvector_addunique": (["INT", "STRING", "INT"], [], False),
     # 7408: every site is `_7408(<kind>, <string>, <a>, <b>) -> int` — three
     # ints and one string in, one int out, read off the local stack deltas at
     # 7133 pc149, 4298 pc84, 7158 pc18 and 7199 pc9 (four sites, one reading).
@@ -352,14 +348,14 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # revisit if a client that implements the 7400 range turns up.
     # Documented in chrome_panels §7.6 as un-tryable via `--override`
     # (ints-then-strings only); LOCAL_BASIC keeps the interleaved order.
-    "_7408": (["INT", "STRING", "INT", "INT"], ["INT"], False),
+    "stringvector_contains": (["INT", "STRING", "INT", "INT"], ["INT"], False),
     # 7407: list/store length for a kind id — `_7407($kind) -> $n`, sites
     # 7202/7212/7221 with nothing else on the stacks. `cs2 infer-arity` calls
     # this "2 candidates, under-determined"; scoring settles it, which is the
     # documented tiebreak (tools/README.md, method 3): over its six witnesses
     # (1,0,1,0) decompiles 5 and every other candidate tried — (0,0,1,0),
     # (1,0,0,0), (2,0,1,0), (1,0,0,1) — decompiles 0.
-    "_7407": (["INT"], ["INT"], False),
+    "stringvector_size": (["INT"], ["INT"], False),
     # Tier-B loot row painters (scripts 4298 / 4452) and the remove twin of
     # 7401. Settled from call-site stack deltas + `cs2 decompile --override`
     # where the push order is ints-then-strings-legal; interleaved signatures
@@ -371,15 +367,15 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     #   7610: (int) → int — script 4452 count for an int-keyed group
     #   7611: (string, int) → (int, int) — 4298 index → (obj, qty)
     #   7612: (int, int) → (int, int) — 4452 index → (obj, qty)
-    "_7404": (["INT", "STRING", "INT"], [], False),
-    "_7608": ([], ["INT"], False),
-    "_7609": (["STRING"], ["INT"], False),
-    "_7610": (["INT"], ["INT"], False),
-    "_7611": (["STRING", "INT"], ["INT", "INT"], False),
-    "_7612": (["INT", "INT"], ["INT", "INT"], False),
+    "stringvector_remove": (["INT", "STRING", "INT"], [], False),
+    "loottracker_getdroplimit": ([], ["INT"], False),
+    "loottracker_lootcount_byname": (["STRING"], ["INT"], False),
+    "loottracker_lootcount_byid": (["INT"], ["INT"], False),
+    "loottracker_lootget_byname": (["STRING", "INT"], ["INT", "INT"], False),
+    "loottracker_lootget_byid": (["INT", "INT"], ["INT", "INT"], False),
     # 7628: script 7192 (LOOTTRACKER_ADD_LOOT) — push name, obj, qty, eventId
     # then native store write. RuneLite ScriptPreFired args match that order.
-    "_7628": (["STRING", "INT", "INT", "INT"], [], False),
+    "loottracker_lootadd": (["STRING", "INT", "INT", "INT"], [], False),
 
     # ---------------------------------------------------------------
     # Read out of a deobfuscated client, not inferred.
@@ -406,77 +402,77 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # 8000..8001 and nothing above, while the cache uses opcodes up to 8026. So
     # this settles the long-established ranges and says nothing about the new
     # ones, which is why the 7600+ and 8005+ opcodes are still unknown.
-    "_1130": (["STRING"], [], True),
-    "_1131": (["INT", "INT"], [], True),
+    "cc_crmview_init": (["STRING"], [], True),
+    "cc_crmview_settextfont": (["INT", "INT"], [], True),
     # method12438/1132 calls method7303(popString(), popInt()).
-    "_1132": (["STRING", "INT"], [], True),
-    "_1133": (["INT"], [], True),
-    "_1134": (["INT"], [], True),
-    "_1135": (["STRING"], [], True),
-    "_1136": (["INT"], [], True),
-    "_1138": (["INT"], [], True),
-    "_1142": (["INT", "INT"], [], True),
-    "_1144": (["INT"], [], True),
-    "_1146": (["INT"], [], True),
-    "_1147": (["INT"], [], True),
-    "_1148": (["INT", "INT"], [], True),
-    "_1149": (["INT", "INT"], [], True),
-    "_1150": (["STRING"], [], True),
-    "_1207": (["INT"], [], True),
-    "_1208": (["INT"], [], True),
-    "_1209": (["INT", "INT"], [], True),
-    "_1210": (["INT"], [], True),
-    "_1434": ([], [], True),
-    "_1435": ([], [], True),
+    "cc_crmview_setservertargets": (["STRING", "INT"], [], True),
+    "cc_input_setselectcolour": (["INT"], [], True),
+    "cc_input_setselectbgcolour": (["INT"], [], True),
+    "cc_input_setplaceholdertext": (["STRING"], [], True),
+    "cc_input_setplaceholdertextcolour": (["INT"], [], True),
+    "cc_input_setlinecountlimit": (["INT"], [], True),
+    "cc_input_setselection": (["INT", "INT"], [], True),
+    "cc_input_setwrapmode": (["INT"], [], True),
+    "cc_input_setacceptmode": (["INT"], [], True),
+    "cc_input_setcensormode": (["INT"], [], True),
+    "cc_input_setkeymode": (["INT", "INT"], [], True),
+    "cc_input_setcharmode": (["INT", "INT"], [], True),
+    "cc_crmview_setjson": (["STRING"], [], True),
+    "cc_setplayermodel_self": (["INT"], [], True),
+    "cc_setplayermodel_obj": (["INT"], [], True),
+    "cc_setplayermodel_basecolour": (["INT", "INT"], [], True),
+    "cc_setplayermodel_bodytype": (["INT"], [], True),
+    "cc_crmview_setonupdated": ([], [], True),
+    "cc_setonopt": ([], [], True),
     # method7565 always consumes the string key and pushes an int result; the
     # component itself is implicit in this active-form opcode.
-    "_1708": (["STRING"], ["INT"], True),
-    "_2708": (["INT"], [], False),
-    "_2709": (["INT"], [], False),
-    "_3146": (["INT"], [], False),
-    "_3148": ([], [], False),
-    "_3149": ([], ["INT"], False),
-    "_3150": ([], ["INT"], False),
-    "_3151": ([], ["INT"], False),
-    "_3152": ([], ["INT"], False),
-    "_3153": ([], ["INT"], False),
-    "_3154": ([], ["INT"], False),
-    "_3155": (["STRING"], [], False),
-    "_3156": ([], [], False),
-    "_3158": ([], ["INT"], False),
-    "_3159": ([], ["INT"], False),
-    "_3160": ([], ["INT"], False),
-    "_3161": (["INT"], ["INT"], False),
-    "_3162": (["INT"], ["INT"], False),
-    "_3163": (["STRING"], ["INT"], False),
-    "_3164": (["INT"], ["STRING"], False),
-    "_3165": (["INT"], ["INT"], False),
-    "_3166": (["INT", "INT"], ["INT"], False),
-    "_3167": (["INT", "INT"], ["INT"], False),
+    "cc_crmview_getint": (["STRING"], ["INT"], True),
+    "if_crmview_getint": (["INT"], [], False),
+    "if_crmview_getstring": (["INT"], [], False),
+    "settitlescreensound": (["INT"], [], False),
+    "settermsandprivacy": ([], [], False),
+    "gettermsandprivacy": ([], ["INT"], False),
+    "eligibleforfreetrial": ([], ["INT"], False),
+    "eligibleforintroductoryprice": ([], ["INT"], False),
+    "getpuchasehistorystatus": ([], ["INT"], False),
+    "getloadingprogress": ([], ["INT"], False),
+    "getpreloadprogress": ([], ["INT"], False),
+    "shop_purchaseitem": (["STRING"], [], False),
+    "shop_requestdata": ([], [], False),
+    "shop_purchaseitemstatus": ([], ["INT"], False),
+    "shop_requestdatastatus": ([], ["INT"], False),
+    "shop_getcategorycount": ([], ["INT"], False),
+    "shop_getcategoryid": (["INT"], ["INT"], False),
+    "shop_getindexforcategoryid": (["INT"], ["INT"], False),
+    "shop_getindexforcategoryname": (["STRING"], ["INT"], False),
+    "shop_getcategorydescription": (["INT"], ["STRING"], False),
+    "shop_getproductcount": (["INT"], ["INT"], False),
+    "shop_isproductavailable": (["INT", "INT"], ["INT"], False),
+    "shop_isproductrecommended": (["INT", "INT"], ["INT"], False),
     # 3168: skipped, 2i/0s -> 0i/9s is a loop, not an arity
-    "_3169": ([], [], False),
-    "_3174": (["INT"], [], False),
-    "_3175": ([], ["INT"], False),
-    "_3176": ([], [], False),
-    "_3177": ([], [], False),
-    "_3178": (["STRING"], [], False),
-    "_3179": ([], [], False),
-    "_3180": (["STRING"], [], False),
-    "_3185": (["INT"], [], False),
-    "_3186": ([], ["INT"], False),
-    "_3211": ([], [], False),
-    "_3219": (["INT"], [], False),
-    "_3220": (["INT", "INT"], [], False),
-    "_3222": (["INT", "INT", "INT", "INT"], [], False),
-    "_3331": ([], ["INT"], False),
-    "_3332": (["INT"], ["INT"], False),
-    "_3333": ([], ["STRING"], False),
-    "_6764": (["INT", "INT"], ["INT", "INT"], False),
-    "_7463": (["INT"], [], False),
-    "_7900": (["INT"], [], False),
-    "_7901": ([], ["INT"], False),
-    "_8000": (["INT"], [], False),
-    "_8001": (["INT", "INT", "INT"], [], False),
+    "unknown_command_3169": ([], [], False),
+    "unknown_command_3174": (["INT"], [], False),
+    "notifications_getenabled": ([], ["INT"], False),
+    "unknown_command_3176": ([], [], False),
+    "marketing_initanalytics": ([], [], False),
+    "marketing_sendanalyticsevent": (["STRING"], [], False),
+    "marketing_initattribution": ([], [], False),
+    "marketing_sendattributionevent": (["STRING"], [], False),
+    "setdrawdistance": (["INT"], [], False),
+    "getdrawdistance": ([], ["INT"], False),
+    "unknown_command_3211": ([], [], False),
+    "gameoption_getrange": (["INT"], [], False),
+    "sound_song_stop": (["INT", "INT"], [], False),
+    "sound_song_swap": (["INT", "INT", "INT", "INT"], [], False),
+    "runenergy": ([], ["INT"], False),
+    "stat_unknown": (["INT"], ["INT"], False),
+    "unknown_command_3333": ([], ["STRING"], False),
+    "nc_headicon": (["INT", "INT"], ["INT", "INT"], False),
+    "minimenu_setsingleclick": (["INT"], [], False),
+    "worldentity_setrenderlimit": (["INT"], [], False),
+    "worldentity_getrenderlimit": ([], ["INT"], False),
+    "array_sort": (["INT"], [], False),
+    "array_randomise": (["INT", "INT", "INT"], [], False),
     # ---------------------------------------------------------------
     # Stale signatures, corrected against cache.osrs239.
     #
@@ -490,11 +486,11 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # Mostly one shape of error -- a command that returns a pair or a quad
     # recorded as returning one. WORLDMAP_LISTELEMENT_START reads four values,
     # not one, which is why nothing in the world-map panel decompiled.
-    "DB_GETROW": (["INT"], ["INT"], False),                                # +19
-    "_6618": (["INT"], ["INT", "INT", "INT", "INT"], False),               # +14
-    "_6638": (["INT", "INT"], ["INT", "INT"], False),                      # +14
+    "DB_FIND_GET": (["INT"], ["INT"], False),                                # +19
+    "worldmap_getsourcecoord": (["INT"], ["INT", "INT", "INT", "INT"], False),               # +14
+    "worldmap_findnearestelement": (["INT", "INT"], ["INT", "INT"], False),                      # +14
     "MEC_SPRITE": (["INT"], ["INT", "INT"], False),                        # +14
-    "_6623": (["INT"], ["INT", "INT"], False),                             # +13
+    "worldmap_getmap": (["INT"], ["INT", "INT"], False),                             # +13
     # method3100/6639 and /6640 push element id then packed coord: two ints.
     "WORLDMAP_LISTELEMENT_START": ([], ["INT", "INT"], False),
     "WORLDMAP_LISTELEMENT_NEXT": ([], ["INT", "INT"], False),
@@ -515,7 +511,7 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     #
     # method12337 resolves the param config and pushes its declared int/string/
     # long value from the active component. Its result is not statically int.
-    "_1703": (["INT"], [], True),
+    "cc_param": (["INT"], [], True),
 
     # ---------------------------------------------------------------
     # Read out of the *rev-239* client, which the block above did not have.
@@ -561,54 +557,54 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # flag the interpreter builds from `Script.field272[pc]`. That matches the
     # corpus: 208 reads it and is the one opcode here whose operand byte is 1 at
     # its only call site, and 216, which does not read it, is 0 at all 56 of its.
-    "_208": ([], ["INT"], True),                    # method4548 case 208
-    "_216": (["INT", "NONE", "INT"], ["INT"], False),  # method4548 case 216
-    "_1707": ([], ["INT"], True),                   # method12337 case 1707
+    "cc_childcount": ([], ["INT"], True),                    # method4548 case 208
+    "if_query_refine": (["INT", "NONE", "INT"], ["INT"], False),  # method4548 case 216
+    "cc_crmview_gethasresponse": ([], ["INT"], True),                   # method12337 case 1707
     # 2506/2624: nothing in the case body, one int from the handler preamble.
-    "_2506": (["COMPONENT"], ["INT"], False),       # method4787 preamble + case
-    "_2624": (["COMPONENT"], ["INT"], False),       # method8067 preamble + case
+    "if_getparentlayer": (["COMPONENT"], ["INT"], False),       # method4787 preamble + case
+    "if_input_getfocus": (["COMPONENT"], ["INT"], False),       # method8067 preamble + case
     # 4127 is the least ambiguous case in the client: it is a literal
     # `Integer.parseInt(String)` in a try/catch, pushing the value then 1, or
     # 0 then 0 on NumberFormatException. One string in, two ints out.
-    "_4127": (["STRING"], ["INT", "INT"], False),   # method5814 case 4127
-    "_4223": ([], [], False),                       # method2965 case 4223
+    "safeparseint": (["STRING"], ["INT", "INT"], False),   # method5814 case 4127
+    "oc_id": ([], [], False),                       # method2965 case 4223
     # The 8000 block is the array family (_8022 ARRAY_NEW above hands out the
     # handles). The handle is a string -- `field252` -- and is the first push at
     # every call site, so it leads the argument list, matching _8003/_8018/
     # _8019/_8023/_8024. The trailing int of the four is a *type code*: the
     # client feeds it to `method6560`, which resolves a base var type rather
     # than reading a value, so all four arguments are int-stack.
-    "_8002": (["STRING"], ["INT"], False),                       # method12336
-    "_8005": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
-    "_8006": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
-    "_8007": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
-    "_8010": (["STRING", "NONE", "INT", "INT", "INT"], [], False),
-    "_8011": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
-    "_8014": (["STRING", "INT", "INT"], [], False),              # method12336
-    "_8015": (["STRING", "STRING", "INT", "INT", "INT"], [], False),  # method12336
-    "_8020": (["INT", "INT"], ["STRING"], False),                # method12336
+    "array_isnull": (["STRING"], ["INT"], False),                       # method12336
+    "array_indexof": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
+    "array_lastindexof": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
+    "array_count": (["STRING", "NONE", "INT", "INT", "INT"], ["INT"], False),
+    "array_fill": (["STRING", "NONE", "INT", "INT", "INT"], [], False),
+    "array_generaterange": (["STRING", "INT", "INT", "INT"], [], False),       # method12336
+    "array_swap": (["STRING", "INT", "INT"], [], False),              # method12336
+    "array_copy": (["STRING", "STRING", "INT", "INT", "INT"], [], False),  # method12336
+    "enum_getinputs": (["INT", "INT"], ["STRING"], False),                # method12336
     # 8026 is polymorphic in the client -- it ends in `method7522`
     # (pushValueOfType), so what it pushes is the array's element type, not a
     # fixed stack. It is recorded statically anyway because every one of its 61
     # call sites in cache.osrs239 indexes an int-typed array: each is followed
     # immediately by `pop_int_discard` or an int-consuming op. If a string-typed
     # array ever reaches it this needs a LOCAL_KINDS entry, as db_getfield has.
-    "_8026": (["STRING", "INT"], ["INT"], False),                # method12336
+    "array_delete": (["STRING", "INT"], ["INT"], False),                # method12336
     # Second pass, once the block above stopped hiding these behind other
     # unknowns. Same tree, same method.
-    "_4224": (["INT"], ["INT"], False),          # method2965, the `var0 != 4224` arm
-    "_8025": (["STRING", "INT", "NONE", "INT"], [], False),
-    "_8027": (["STRING", "STRING"], [], False),                  # method12336
+    "oc_byid": (["INT"], ["INT"], False),          # method2965, the `var0 != 4224` arm
+    "array_insert": (["STRING", "INT", "NONE", "INT"], [], False),
+    "array_pushall": (["STRING", "STRING"], [], False),                  # method12336
     # 8009 is polymorphic like 8026 — it pushes to the int stack or the string
     # stack depending on the array's element type. Recorded as int because all
     # three of its call sites in cache.osrs239 are followed by `pop_int_local`
     # or `max`, which only take one.
-    "_8009": (["STRING"], ["INT"], False),                       # method12336
+    "array_max": (["STRING"], ["INT"], False),                       # method12336
     # 7627 has no case in this client (method10020, the 7600 range, is a bare
     # `return 2`). Solved instead by `cs2 infer-arity` against cache.osrs239:
     # one witness script, and exactly one arity in the space lets it interpret
     # to its end with every return matching its own epilogue.
-    "_7627": ([], [], False),
+    "loottracker_ignoresourceclear": ([], [], False),
 
     # ---------------------------------------------------------------
     # No case in the rev-239 client either (their handlers exist but skip these
@@ -624,9 +620,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # opcode leaves an int behind, which settles it as the (n in, 1 out) member
     # of each pair. All three are boolean queries, which is also what the rest
     # of the 6700–6999 range looks like.
-    "_6758": (["INT"], ["INT"], False),          # 9 witnesses, every site
-    "_6803": (["INT", "INT"], ["INT"], False),   # 9 witnesses, every site
-    "_6951": (["INT"], ["INT"], False),          # 5 witnesses, every site
+    "npc_finduid": (["INT"], ["INT"], False),          # 9 witnesses, every site
+    "loc_find": (["INT", "INT"], ["INT"], False),   # 9 witnesses, every site
+    "tile_find": (["INT"], ["INT"], False),          # 5 witnesses, every site
 
     # ---------------------------------------------------------------
     # The rest of the ids this client's handlers skip, settled the same way:
@@ -659,15 +655,15 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     #   7820        `lowercase` gives it a string, and the `~script46` that
     #               follows has a 1i/1s trailer: the int can only have come
     #               from here, so it pushes one and not a string.
-    "_6854": (["INT", "INT"], ["INT"], False),
-    "_6859": (["INT", "INT"], ["INT"], False),
+    "obj_find": (["INT", "INT"], ["INT"], False),
+    "obj_findbyindex": (["INT", "INT"], ["INT"], False),
     # `method3101` handles only 6809, so the official runtime reports 6860 and
     # 6861 as unhandled. In dormant cache paths both are no-argument int
     # producers: each follows the other operand and is consumed by multiply.
-    "_6860": ([], ["INT"], False),
-    "_6861": ([], ["INT"], False),
-    "_7043": (["STRING", "INT"], ["INT"], False),
-    "_7451": (["INT"], ["INT"], False),
+    "obj_despawntime": ([], ["INT"], False),
+    "obj_revealtime": ([], ["INT"], False),
+    "highlight_group_get": (["STRING", "INT"], ["INT"], False),
+    "minimenu_typeat": (["INT"], ["INT"], False),
     # The official rev-239 dispatch (`method12357`) handles only 7463. Targeted
     # `cs2trace` runs therefore record this 7453..7456 block as unhandled
     # (return code 2,
@@ -675,26 +671,26 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # that are unreachable in this client build. Their call sites settle the
     # compiler contract: each consumes one int and leaves the int immediately
     # compared with 1.
-    "_7453": (["INT"], ["INT"], False),
-    "_7454": (["INT"], ["INT"], False),
-    "_7455": (["INT"], ["INT"], False),
-    "_7456": (["INT"], ["INT"], False),
-    "_7600": (["STRING", "INT", "INT", "INT"], [], False),
-    "_7800": (["STRING", "INT"], [], False),
-    "_7803": (["INT"], ["INT"], False),
-    "_7804": (["INT"], ["INT"], False),
-    "_7805": (["INT"], ["INT"], False),
+    "minimenu_findnpcat": (["INT"], ["INT"], False),
+    "minimenu_findlocat": (["INT"], ["INT"], False),
+    "minimenu_findobjat": (["INT"], ["INT"], False),
+    "minimenu_findplayerat": (["INT"], ["INT"], False),
+    "loottracker_sourceadd": (["STRING", "INT", "INT", "INT"], [], False),
+    "hiscore_lookup": (["STRING", "INT"], [], False),
+    "hiscore_getskillrank": (["INT"], ["INT"], False),
+    "hiscore_getgamerank": (["INT"], ["INT"], False),
+    "hiscore_getskillxp": (["INT"], ["INT"], False),
     # `method11128` likewise implements only 7900/7901; the official runtime
     # refuses this older hiscores block. Corpus inference supplies the dormant
     # source contract: lookup by game index returns rank, overall returns the
     # rank and split score, and 7816 supplies a status/result int.
-    "_7806": (["INT"], ["INT"], False),
-    "_7807": ([], ["INT"], False),
-    "_7808": ([], ["INT", "INT"], False),
-    "_7813": (["INT"], ["INT"], False),
-    "_7814": (["INT"], ["INT"], False),
-    "_7816": ([], ["INT"], False),
-    "_7820": (["STRING"], ["INT"], False),
+    "hiscore_getgamecompletions": (["INT"], ["INT"], False),
+    "hiscore_getoverallrank": ([], ["INT"], False),
+    "hiscore_getoverallxp": ([], ["INT", "INT"], False),
+    "hiscore_getbossrank": (["INT"], ["INT"], False),
+    "hiscore_getbosskills": (["INT"], ["INT"], False),
+    "hiscore_getgrouptotalxp": ([], ["INT"], False),
+    "hiscore_getmembercontributedxp_byname": (["STRING"], ["INT"], False),
 
     # ---------------------------------------------------------------
     # Measured in the running client, not read from it.
@@ -718,26 +714,29 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     "if_setop": (["INT", "STRING", "COMPONENT"], [], False),  # net (-2,-1) x3725
     "if_getop": (["COMPONENT", "INT"], ["STRING"], False),    # net (-2,+1) x11
     "oc_iop": (["OBJ", "INT"], ["STRING"], False),        # net (-2,+1) x47
-    "openurl": (["STRING", "INT"], [], False),            # net (-1,-1) x11
+    # The trace settles the physical int bank; Command.kt and the client both
+    # settle its meaning as BOOLEAN. Keeping that prototype lets decompiled
+    # source print `true`/`false` and lets the compiler resolve those literals.
+    "openurl": (["STRING", "BOOLEAN"], [], False),        # net (-1,-1) x11
     "mes": (["STRING"], [], False),                       # net (0,-1)
-    "clan_kickuser": (["STRING"], [], False),             # net (0,-1)
+    "friendschat_kickuser": (["STRING"], [], False),             # net (0,-1)
     "chat_sendpublic": (["STRING", "INT"], [], False),    # net (-1,-1)
     "chat_playername": ([], ["STRING"], False),           # net (0,+1) x186
-    "clan_getchatownername": ([], ["STRING"], False),     # net (0,+1) x7
-    "_4124": ([], ["INT"], False),                        # net (+1,0) x30 — was a string
-    "_6623": (["INT"], ["INT"], False),                   # net (0,0)
+    "friendschat_getchatownername": ([], ["STRING"], False),     # net (0,+1) x7
+    "pronoun": ([], ["INT"], False),                        # net (+1,0) x30 — was a string
+    "worldmap_getmap": (["INT"], ["INT"], False),                   # net (0,0)
     "mec_category": (["INT"], ["INT"], False),            # net (0,0)
-    "_8000": (["STRING", "STRING"], [], False),           # net (0,-2) x26
-    "_8001": (["STRING", "INT", "INT"], [], False),       # net (-2,-1)
+    "array_sort": (["STRING", "STRING"], [], False),           # net (0,-2) x26
+    "array_randomise": (["STRING", "INT", "INT"], [], False),       # net (-2,-1)
     # method10962/5031 pushes into independent physical banks in this source
     # order. The interleaving matters to the tuple reconstructed by the IR.
-    "chat_gethistoryex_byuid": (["INT"], ["INT", "INT", "STRING", "STRING",
+    "chat_gethistory_byuid": (["INT"], ["INT", "INT", "STRING", "STRING",
                                           "STRING", "INT", "STRING", "INT"], False),
     # Rev-239 gameframe scripts pass (x, y) and consume the resulting bound.
-    "safearea_getmaxy_alt": (["INT", "INT"], [], False),
+    "sidebar_setwidth": (["INT", "INT"], [], False),
     # The neighbouring safe-area host command consumes its mode selector. The
     # vendored camera-era name/signature predates this opcode assignment.
-    "cam_getyaw": (["INT"], [], False),
+    "sidebar_clearwidth": (["INT"], [], False),
 
     # ---------------------------------------------------------------
     # Active-component ("dot") forms these rows had marked False.
@@ -773,14 +772,22 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # read `var2` in their own case, and 1128/1506/1624/1704 are in ranges whose
     # handler preamble (method4754/method1470/method6296/method12337) selects
     # field5113 over field2369 before it looks at the opcode at all.
-    "_209": ([], ["INT"], True),
-    "_210": (["INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], True),
-    "_212": (["INT"], ["INT"], True),
-    "_213": ([], ["INT"], True),
-    "_1128": (["INT", "INT"], [], True),
-    "_1506": ([], ["INT"], True),
-    "_1624": ([], ["INT"], True),
-    "cc_setcomponentparam": (["INT", "NONE", "INT"], [], True),
+    "cc_parentid": ([], ["INT"], True),
+    "cc_find_param":
+        (["COMPONENT", "INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], True),
+    "cc_assert": ([], [], True),
+    "cc_sethttpsprite": (["STRING"], [], True),
+    "cc_crmview_dismiss": ([], ["INT"], True),
+    "cc_setlocmodel": (["INT"], [], True),
+    "cc_query": (["INT"], ["INT"], True),
+    "if_query_next": ([], ["INT"], True),
+    "cc_setarc": (["INT", "INT"], [], True),
+    "cc_getparentlayer": ([], ["INT"], True),
+    "cc_getarcstart": ([], ["INT"], True),
+    "cc_getarcend": ([], ["INT"], True),
+    "cc_input_getfocus": ([], ["INT"], True),
+    "cc_input_getcaretposition": ([], ["INT"], True),
+    "cc_setparam": (["INT", "NONE", "INT"], [], True),
     # method1005/1927 reads only the implicit active component; opcode 2927's
     # explicit component is supplied by the generic IF_* preamble.
     "cc_callonresize": ([], [], True),
@@ -805,10 +812,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
 # one out -- desynchronised the operand stack of every script that read a
 # multi-field column, which is what took script 7603 and 79 others.
 LOCAL_KINDS: dict[int, str] = {
-    # Rev-239 call sites carry either six or seven int operands and immediately
-    # consume one int result. Preserve the cache's variable payload explicitly;
-    # the official deob's older 5 -> 0 implementation documents the ABI drift.
-    210: "VARIADIC_INT_RESULT",
+    # Statics.method4548/210 pops two trailing base-type ids, conditionally pops
+    # one value for each non--1 id, then pops two params and a component root.
+    210: "FIND_PARAM",
     216: "TYPED_POP",
     2929: "DESCRIPTOR_ARGS",
     1703: "ACTIVE_PARAM",
@@ -829,5 +835,8 @@ LOCAL_KINDS: dict[int, str] = {
     7500: "DB_FIND",
     7507: "DB_FIND",
     7508: "DB_FIND",
-    7510: "DB_FIND",
+    # 7509 is the no-count REFINE (a typed find); 7510 is the no-count LISTALL,
+    # one dbtable. These two used to be the other way round, matching a host
+    # that had the branches swapped as well.
+    7509: "DB_FIND",
 }

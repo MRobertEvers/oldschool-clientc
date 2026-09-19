@@ -1,0 +1,44 @@
+Cmdline: /data/data/com.torirs.client/simpleperf record -e cpu-cycles:u -c 150000 -p 13505 --duration 15 -o /sdcard/Android/data/com.torirs.client/files/pipeline-sample.data --no-dump-kernel-symbols
+Arch: arm
+Event: cpu-cycles:u (type 0, config 0)
+Samples: 187443
+Event count: 28116450000
+
+Overhead  Sample  EventCount  Command            Symbol
+14.26%    26737   4010550000  com.torirs.client  bucket_paint_world
+11.66%    21851   3277650000  gles2-stage        toridraw_compute_projected_face_order_small_general
+6.09%     11407   1711050000  com.torirs.client  toridraw_compute_projected_face_order_small_general
+5.17%     9687    1453050000  com.torirs.client  scene_occluders_point_hidden_impl
+4.83%     9047    1357050000  com.torirs.client  ToriRS_FrameNextCommand
+4.62%     8654    1298100000  gles2-stage        ToriDraw_ProjectWithVTable
+4.17%     7811    1171650000  gles2-stage        toridraw_projection_prepared_neon32_notex_noyaw_noclip
+3.59%     6726    1008900000  com.torirs.client  gles2_dispatch
+3.41%     6401    960150000   com.torirs.client  __memcpy_base
+3.33%     6247    937050000   com.torirs.client  World_CycleRegisterPainterDynamics
+3.00%     5631    844650000   com.torirs.client  gles2_painter_emit_model
+2.84%     5315    797250000   gles2-stage        GLES2DualCoreStage_ComputeModel
+2.46%     4615    692250000   com.torirs.client  ToriDraw_ProjectWithVTable
+2.15%     4036    605400000   com.torirs.client  toridraw_projection_prepared_neon32_notex_noyaw_noclip
+1.71%     3206    480900000   gles2-stage        dualcore_worker_main
+1.59%     2974    446100000   com.torirs.client  gles2_painter_push_resident
+1.45%     2724    408600000   com.torirs.client  gles2_prefetch_ahead_ids
+1.33%     2497    374550000   com.torirs.client  ToriRS_GLES2DualCore_RenderFrame
+1.07%     2001    300150000   com.torirs.client  dualcore_source_take
+0.97%     1809    271350000   gles2-stage        sort_face_draw_order_small
+0.93%     1738    260700000   com.torirs.client  scene_occluders_ground_tile_hidden
+0.90%     1687    253050000   com.torirs.client  frame_lookahead_element_id
+0.83%     1561    234150000   com.torirs.client  unknown[+c0718358]
+0.72%     1345    201750000   com.torirs.client  @plt
+0.62%     1169    175350000   gles2-stage        toridraw_compute_projected_face_order_small
+0.54%     1006    150900000   gles2-stage        projection_kernel_prepared
+0.53%     998     149700000   com.torirs.client  sort_face_draw_order_small
+0.47%     878     131700000   gles2-stage        toridraw_projection_prepared_neon32_tile4_notex_noyaw
+0.46%     866     129900000   gles2-stage        __udivsi3
+0.38%     703     105450000   com.torirs.client  bucket_gate_blocks
+0.37%     698     104700000   com.torirs.client  App_RunOnce
+0.35%     648     97200000    com.torirs.client  toridraw_compute_projected_face_order_small
+0.33%     624     93600000    gles2-stage        toridraw_projection_near_clip_perspective
+0.33%     621     93150000    com.torirs.client  toridraw_project_vertices_noclip_prepared
+0.33%     618     92700000    gles2-stage        toridraw_project_vertices_noclip_prepared
+0.31%     584     87600000    com.torirs.client  gles2_sequence_commit_indexed
+0.31%     573     85950000    gles2-stage        ToriDraw_AnimApplyTransform

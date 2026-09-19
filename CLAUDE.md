@@ -4,8 +4,7 @@
 
 A function that is handed something it cannot accept must **abort loudly**, not
 return a neutral value and let the caller carry on. Use `assert()` from
-`<assert.h>`. `NDEBUG` is never defined in this tree, so asserts are live in
-every configuration, `OPT=1` included.
+`<assert.h>`.
 
 ```c
 /* NO — the caller's bug becomes a silent no-op, surfacing later as a
@@ -145,3 +144,57 @@ if( fread(data, 1, size, f) != size )
 `TEST_ASSERT(f(NULL) == 0, "f tolerates NULL")` freezes the exact habit above.
 If NULL is a contract violation, delete the line rather than keeping the guard
 alive to satisfy it.
+
+## Never mutate source in this working tree to prove a test fails
+
+Several sessions build from this checkout at once, into shared object
+directories (`src/build_opt_es`, `src/build_opt`, ...). A mutation check that
+edits a real file, runs a test, and restores it leaves a window in which any
+other build compiles the mutant. The restore does not undo that: the object
+can finish after the restore, and GNU Make 3.81 here compares whole-second
+mtimes, so the object never looks stale again.
+
+This happened on 2026-09-16. A check deleted the blank-line rule from
+`3rd/toridraw/toridraw_font.c` for eight seconds; a concurrent build compiled
+`src/build_opt_es/toridraw_unity.o` from it in the same second as the restore,
+and every later `./launch` linked the mutant. The chat filter labels overlapped
+"On" on every renderer while the source, the tests, and every clean private
+build said the bug was fixed.
+
+```sh
+# NO — mutates the tree other builds are reading.
+sed -i '' 's/rule/(void)0/' 3rd/toridraw/toridraw_font.c && make test-x; git checkout 3rd/toridraw/toridraw_font.c
+
+# YES — mutate a throwaway worktree; the shared tree never sees the mutant.
+git worktree add --detach "$SCRATCH/mut" HEAD
+cp 3rd/toridraw/toridraw_font.c src/ui/test/font_markup_test.c ...   # uncommitted work the test needs
+( cd "$SCRATCH/mut" && <apply mutation> && make -C src PLATFORM_OBJ_BASE=build_mut test-x )
+git worktree remove --force "$SCRATCH/mut"
+```
+
+The same holds for any temporary edit to a source file that is not the change
+itself (a probe, a forced branch, a commented-out call): do it in a worktree,
+or make it the committed change.
+
+If a build ever disagrees with its source, delete the object and rebuild; do
+not trust `make` to notice.
+
+## No `switch` inside a protothread
+
+A protothread is any function whose body sits between `PT_BEGIN(...)` and
+`PT_END(...)` — the `PT_*` macros are how you recognise one (`PT_BEGIN`,
+`PT_END`, `PT_YIELD`, `PT_EXIT`, `PT_WAIT_*`, `PT_TASK_AWAITSELF*`,
+`PT_TASK_JOIN`, `TASK_AWAIT_STATE`, `DAT2_GROUP_AWAIT`; anything that expands
+to one of those is a suspension point). `PT_BEGIN` opens a `switch` on the
+saved resume point and every suspension point expands to a `case __LINE__:`
+label. A `switch` written inside that body captures any label inside it, so
+on resume the outer switch finds no case, skips the body, and the task reaches
+`PT_END` as if it had finished — without stepping its child, with a landed
+answer still in its item. That is not a compile error; it is a silent
+use-after-free (`Task_AppPlaceholder_Run`, 2026-09-18).
+
+So: **never write a `switch` anywhere between `PT_BEGIN` and `PT_END`**, even
+one with no suspension point inside it, even one that compiles. Dispatch with
+an `if`/`else` chain, or call a plain (non-PT) helper that contains the
+`switch` and returns a plan, then do the awaits linearly. `make -C src
+check-pt-switch` (tools/pt_switch_audit.py) must print `total 0`.

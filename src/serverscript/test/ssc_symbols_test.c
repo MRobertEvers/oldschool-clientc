@@ -105,6 +105,14 @@ test_fixture(const char* build_dir)
     write_file(path, "1530=poordoor\n");
     snprintf(path, sizeof(path), "%s/all.param.compack", configs);
     write_file(path, "14=attackrate\n");
+    snprintf(path, sizeof(path), "%s/all.dbtable.compack", configs);
+    write_file(path, "111=poh_room\n");
+    snprintf(path, sizeof(path), "%s/all.dbtable", configs);
+    write_file(path,
+               "[poh_room]\n"
+               "columns=12\n"
+               "columndef=0:name,string\n"
+               "columndef=5:source_offset,int,int\n");
 
     /* One level down, which is why the walk has to recurse. */
     snprintf(path, sizeof(path), "%s/bankmain.compack", interfaces);
@@ -113,6 +121,7 @@ test_fixture(const char* build_dir)
     SSC_SymbolsInit(&symbols);
     SSC_SymbolsLoadPackDir(&symbols, pack);
     SSC_SymbolsLoadPackDir(&symbols, configs);
+    SSC_SymbolsLoadDbTableDir(&symbols, configs);
     /* After the packs: it needs the interface ids to compose against. */
     SSC_SymbolsLoadComponentDir(&symbols, root);
 
@@ -125,6 +134,16 @@ test_fixture(const char* build_dir)
     check(resolved(&symbols, "coins", SSC_SYM_OBJ) == 995, "and objs");
     check(resolved(&symbols, "poordoor", SSC_SYM_LOC) == 1530, "and locs");
     check(resolved(&symbols, "attackrate", SSC_SYM_PARAM) == 14, "and params");
+    check(resolved(&symbols, "poh_room:source_offset", SSC_SYM_DBCOLUMN) ==
+              ((111 << 12) | (5 << 4)),
+          "an exported columndef keeps its explicit cache column index");
+    {
+        const struct SSC_Symbol* column =
+            SSC_SymbolsFind(&symbols, "poh_room:source_offset", SSC_SYM_DBCOLUMN);
+
+        check(column && column->text && strcmp(column->text, "int,int") == 0,
+              "an exported columndef keeps its tuple types");
+    }
     check(resolved(&symbols, "bankmain", SSC_SYM_INTERFACE) == 12,
           "`3_interfaces.pack` still resolves as an interface");
     check(resolved(&symbols, "door_open", SSC_SYM_SYNTH) == 7,
@@ -177,11 +196,6 @@ test_completeness(void)
         int found = 0;
 
         if( kind == SSC_SYM_CONSTANT || kind == SSC_SYM_SCRIPT )
-            continue;
-        /* `varn`/`vars` are language keywords whose register rows were removed as
-         * dead — no tree declares one, and neither had a pack file or a reader.
-         * They come back the moment content needs them. */
-        if( kind == SSC_SYM_VARN || kind == SSC_SYM_VARS )
             continue;
         /* These four are the language's own vocabulary, not content namespaces:
          * npc modes, loc shapes, script var types and db columns are spelled by
@@ -262,6 +276,13 @@ test_live_tree(const char* content_dir)
           "live tree: bankmain:items composes");
     check(resolved(&symbols, "attackrate", SSC_SYM_PARAM) == 14,
           "live tree: attackrate is param 14");
+    /* `pack/13_fonts.pack` line 3 is `496=font_496 hashcode(1057075019)`. The
+     * hashcode is provenance for an archive the cache names only by hash; the
+     * name ends before it. Without the cut every entry of the four packs that
+     * carry one loaded under a name no script can spell, and
+     * `split_init(..., font_496)` failed against a pack that lists it. */
+    check(resolved(&symbols, "font_496", SSC_SYM_FONTMETRICS) == 496,
+          "live tree: a hashcode suffix is not part of the name");
 
     SSC_SymbolsFree(&symbols);
 }

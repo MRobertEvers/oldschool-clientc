@@ -1,0 +1,81 @@
+{{Infobox Location
+|name = Draynor Agility Course
+|image = [[File:Draynor Village Rooftop Course (3).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Draynor]]
+|map = {{Map|3103:3279|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Misthalin
+}}
+{{Relativelocation
+|location = Agility course
+|north = Draynor Manor
+|west = Port Sarim
+|south = Wizards' Tower
+|east = Lumbridge
+}}
+The '''Draynor Village Rooftop Course''' is a [[Rooftop Agility Course]] located in [[Draynor Village]] that is available to players with 1 [[Agility]]. It is followed by the [[Al Kharid Rooftop Course]].
+
+The Draynor Village Rooftop Agility course can be started by climbing the Rough Wall next to the wheat field '''''north''''' of Draynor's bank and is finished by climbing down a crate off of [[Ned]]'s house. Players get 120 experience from completing the course, including the 79 experience upon climbing down the crate at the end of the course. 
+
+A player can complete this course in 43.2 seconds (72 [[ticks]]). Using this course, one can reach approximately 10,000 experience per hour.
+
+Completing a lap of the Draynor Village Rooftop Course is a task in the easy [[Lumbridge & Draynor Diary]].
+
+==Obstacles==
+{| class="wikitable align-center-3"
+|+Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Draynor Village Rooftop Course (1).png|250px]]
+|[[Rough wall (Draynor Village Rooftop Course)|Rough wall]]
+|{{+=|xp|5|echo=2}}
+|-
+|[[File:Draynor Village Rooftop Course (2).png|250px]]
+|[[Tightrope (Draynor Village Rooftop Course)|Tightrope 1]]
+|{{+=|xp|8|echo=2}}
+|-
+|[[File:Draynor Village Rooftop Course (3).png|250px]]
+|[[Tightrope (Draynor Village Rooftop Course)#Tightrope 2|Tightrope 2]]
+|{{+=|xp|7|echo=2}}
+|-
+|[[File:Draynor Village Rooftop Course (4).png|250px]]
+|[[Narrow wall (Draynor Village Rooftop Course)|Narrow wall]]
+|{{+=|xp|7|echo=2}}
+|-
+|[[File:Draynor Village Rooftop Course (5).png|250px]]
+|[[Wall (Draynor Village Rooftop Course)|Wall]]
+|{{+=|xp|10|echo=2}}
+|-
+|[[File:Draynor Village Rooftop Course (6).png|250px]]
+|[[Gap (Draynor Village Rooftop Course)|Gap]]
+|{{+=|xp|4|echo=2}}
+|-
+|[[File:Draynor Village Rooftop Course (7).png|250px]]
+|[[Crate (Draynor Village Rooftop Course)|Crate]]
+|{{+=|xp|79|echo=2}}
+|-
+! colspan="2" style="text-align:right;" |Total
+!{{#var:xp}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change =
+The [[experience]] per hour gained at the course has been increased from ~9,000 to ~10,000, as a result of the following changes:
+* The [[Agility]] level requirement of 10 has been removed.
+* It is no longer possible to fail the [[Wall (Draynor Village Rooftop Course)|wall-cross]] and [[Tightrope (Draynor Village Rooftop Course)|tightrope]] obstacles in the course.
+}}
+{{Subject changes footer}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Draynor Village}}

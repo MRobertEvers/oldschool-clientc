@@ -1,0 +1,94 @@
+{{Infobox Monster
+|name = Scion
+|image = [[File:Scion.png|200px]]
+|release = [[1 October]] [[2015]]
+|update = The Abyssal Sire
+|members = Yes
+|combat = 93
+|size = 2
+|examine = A mature spawn.
+|xpbonus = 0
+|max hit = 16 ([[Ranged]]), 10 ([[Melee]])
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Crush]]
+|attack speed = 4
+|hitpoints = 50
+|att = 120
+|str = 90
+|def = 50
+|mage = 1
+|range = 100
+|attbns = 30
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 30
+|rngbns = 30
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = -10
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|id = 5918,6177
+|leagueRegion = General
+}}
+[[File:Spawn maturing.gif|frame|left|A spawn maturing into a scion.]]
+
+'''Scions''' are matured [[spawn]]s during the fight with the [[Abyssal Sire]]. The spawn matures into a scion if it is not killed within 12 seconds. Scions boast more health, accuracy, and damage.
+
+Like the Abyssal Sire, scions can hit through protection prayers. Similarly to [[snakeling]]s, scions will automatically die when the Sire is killed, or if they are unable to attack the player for more than 30 seconds.
+
+Despite visually resembling [[abyssal demon]]s they do not count towards [[Slayer task]] completion or Slayer log score for Abyssal Demons.
+
+==Drops==
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Fiendish ashes|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 June 2025
+|update = Misc Galore & Yama Tweaks
+|change = Scions melee max hit has been decreased from 15 to 10.
+}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|poll = Poll 84 - PvM Improvements, Agility Shortcuts & more!
+|change = 
+* Scions defence has been reduced from 80 to 50.
+* Scions combat level has been reduced from 100 to 93.
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|poll = A Kingdom Divided
+|change = Scions now drop [[fiendish ashes]] in place of regular ashes.
+}}
+{{Subject changes
+|date = 22 October 2015
+|update = Abyssal Bludgeon Buff
+|change = Scions were given a [[graphical update]] to resemble [[abyssal demons]] instead of larger [[spawn]]s.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Scion v1.png|center|300x150px]]
+|[[File:Scion.png|center|300x150px]]
+|-
+|1 October 2015 –<br/>22 October 2015
+|22 October 2015 –<br/>present
+|}
+
+{{Abyssal Sire}}
+{{Abyssal Space}}

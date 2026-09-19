@@ -1290,7 +1290,7 @@ run_op(struct SSVM_State* state, int opcode, int32_t operand, const char* str_op
 
 /*
  * Instructions retired, read by the embedded server's tick breakdown
- * (mock230_world.c). A tick that runs long is either executing a great many
+ * (torirs_server_world.c). A tick that runs long is either executing a great many
  * instructions or sitting inside one engine op, and nothing short of this
  * counter tells those two apart -- the wall clock alone looks identical.
  */
@@ -1458,6 +1458,7 @@ SSVM_StateAlloc(
     state->trigger = SSVM_ScriptTrigger(script);
     state->last_int = 0;
     SSVM_StrPoolInit(&state->pool);
+    state->last_string = "";
     SSVM_ErrorClear(&state->err);
 
     /* Push the caller's arguments so setup_new_script binds them exactly the

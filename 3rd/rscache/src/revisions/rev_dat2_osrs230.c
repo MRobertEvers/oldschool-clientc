@@ -3,10 +3,10 @@
 #include "datatypes/dat2_config_sequence.h"
 
 /*
- * OSRS revision 230 (`cache.osrs230`, manifest_osrs230.ini).
+ * OSRS revision 230 (`cache.osrs230`, manifests/manifest_osrs230.ini).
  *
  * Reference: rsprot's osrs-230 tree for the protocol side, and the mock server
- * under src/net/mock/mock230 which mirrors the Kronos client.
+ * under src/torirsserver/torirsserver which mirrors the Kronos client.
  *
  * Layout notes that follow from `revision = 230` alone, via each datatype's
  * RSCache_*Flags:

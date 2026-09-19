@@ -1,0 +1,9 @@
+panel_icon.png -- where it came from.
+
+The Loot Tracker rail uses the OldSchool popout's own Loot Tools graphic.
+`torirs_popout_icons` (clientscript 5356) reads `enum_4067`; slot 2 is
+`struct_4531`, whose `param_1412` is graphic 4900 (`popout_icons,3`).
+
+SOURCES.sh extracts its complete 30x30 logical canvas from cache.osrs239. That
+keeps the cache-authored padding, palette, and alpha and makes the V2 rail use
+the same icon as the CS2 panel whose layout it reproduces.

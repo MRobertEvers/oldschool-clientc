@@ -1,0 +1,237 @@
+{{External|rs}}
+{{HasStrategy}}
+{{otheruses|the monsters|the music track|Revenants (music track)}}
+[[File:Fighting revenant dragon.png|thumb|A player fights a revenant dragon within the Revenant Caves.]]
+'''Revenants''' are the [[undead|ghostly]] versions of creatures slain during the [[God Wars]] found in the [[Revenant Caves]] within the [[Wilderness]] in levels 19 to 40. They are capable of hitting high and accurately for their [[combat level]]s, although most of the damage can be mitigated with a charged [[bracelet of ethereum]]. As the Revenant Caves location is members-only, all revenants are members-only creatures.
+
+Revenants have a fairly generous drop table, but as they are in the Wilderness, the player is always at risk of getting killed by other players. Due to the revenants' lucrativeness, player killers are common. The caves they inhabit are [[singles-plus combat]], where PvP situations take priority over PvM: a player in combat with a revenant can be attacked by another player.
+
+Unique drops from the revenants include the [[Wilderness weapons]], a set of weapons that have increased effectiveness against monsters in the Wilderness when charged with [[revenant ether]]. They also drop various [[ancient artefact]]s, which can be sold to the [[Emblem Trader]] wandering within the Revenant Caves for a set amount of coins, as well as [[ancient crystal]]s, four of which are used to construct an [[Obelisk (Construction)|obelisk]] in the [[superior garden]] of a [[player-owned house]].
+
+==Strategy==
+{{main|Revenants/Strategies}}
+[[File:Revenant healing.gif|thumb|upright=0.5|A [[revenant imp]] healing itself.]]
+Revenants are capable of using all three forms of [[combat]]. Their attacks have very high accuracy against any player not using a [[bracelet of ethereum]] regardless of their defensive bonuses. In addition, their attacks change based on the player's defensive stats and [[protection prayers]] being used. They are also capable of healing themselves when their health falls below 50%, though this only occurs a limited amount of times. When it heals itself, a lightning strike can be seen.
+
+Being [[undead]], revenants are susceptible to the effects of the [[salve amulet]] and [[salve amulet (e)|its enchanted version]].
+
+==Money making==
+{{Mmgsection|Killing revenants (Craw's bow)|Killing revenants (Magic shortbow)}}
+
+==Drops==
+Revenants drop a variety of high-valued armour, weapons, and [[skilling]] resources as well as the unique [[Wilderness weapons]] and [[Ancient artefacts]].
+
+The Revenant unique drops include:
+*[[Amulet of Avarice]]
+*[[Ancient crystal]]
+*[[Craw's bow]]
+*[[Thammaron's sceptre]]
+*[[Viggora's chainmace]]
+*[[Ancient emblem]]
+*[[Ancient totem]]
+*[[Ancient statuette]]
+*[[Ancient medallion]]
+*[[Ancient effigy]]
+*[[Ancient relic]]
+
+These weapons, while not particularly powerful outside of the Wilderness, are considered to be some of the strongest when charged and used inside. This unique effect is activated by charging them with [[revenant ether]], which they leave behind when killed, and can be further upgraded with further drops in the Wilderness to give them increased stats and a special attack. They can also drop [[ancient artefacts]], which can be sold to the [[Emblem Trader]] on an official Bounty Hunter world for a large lump of [[coins]] or dismantled with a [[chisel]] for a large lump of ether instead.
+
+The drop rates for the Wilderness weapons are increased by 5 times the normal rate when assigned a revenants Slayer task from [[Krystilia]]. This boosted rate is '''not applied''' if the player is assigned [[Slayer task/Ghosts|ghosts]] as a Slayer task. All revenants share the same drop list. However, higher-levelled revenants are more likely to drop these items compared to lower levelled revenants. 
+
+In addition to the combat level modifier, being [[Skull (status)|skulled]] increases the drop rate of various items by ~45%, such as Wilderness weapons, most ancient artefacts, [[yew seed|yew]] and [[magic seed]]s, and the [[ancient crystal]]. Being skulled decreases the drop rate of the [[ancient emblem]] by nearly 3.5 times the normal rate and removes the [[dragon med helm]] from their drop table. The boost for being skulled stacks with the increased drop rate of Wilderness weapons while on a revenants Slayer task. Note that the skull obtained by playing on a [[PvP_world#High-risk_worlds|high-risk world]] does not provide a boost to the revenants' drop table. Wearing an [[amulet of avarice]] will cause all of the revenants' drops to be noted if applicable.
+
+==List of revenants==
+[[File:Revenant Caves map.png|thumb|300px|A map of the Revenant Caves, displaying the spawn locations of different types of revenants.]]
+{|class="wikitable sortable"
+!class="unsortable"|Image
+!Name
+!Combat<br/>level
+!Hitpoints
+!Defence<br/>level
+!Magic<br/>level
+!Max hit
+!Average unskulled loot</br> value (approx.){{efn|name=revappr|See the monsters page for skulled, and accurate unskulled loot information. This is a close approximation with the aim of giving a comparison between the revenants. On task, you will get, on average, a higher drop value. When skulled, this will be much higher.}}
+|-
+|[[File:Revenant imp.png|80px|center]]
+|[[Revenant imp]]
+|7
+|10
+|4
+|9
+|2
+|~{{Coins|{{Average drop value|mob=Revenant imp|raw=yes}}}}
+|-
+|[[File:Revenant goblin.png|60px|center]]
+|[[Revenant goblin]]
+|15
+|14
+|14
+|12
+|3
+|~{{Coins|{{Average drop value|mob=Revenant goblin|raw=yes}}}}
+|-
+|[[File:Revenant pyrefiend.png|40px|center]]
+|[[Revenant pyrefiend]]
+|52
+|48
+|33
+|67
+|5
+|~{{Coins|{{Average drop value|mob=Revenant pyrefiend|raw=yes}}}}
+|-
+|[[File:Revenant hobgoblin.png|50px|center]]
+|[[Revenant hobgoblin]]
+|60
+|72
+|41
+|55
+|8
+|~{{Coins|{{Average drop value|mob=Revenant hobgoblin|raw=yes}}}}
+|-
+|[[File:Revenant cyclops.png|50px|center]]
+|[[Revenant cyclops]]
+|82
+|110
+|49
+|65
+|16
+|~{{Coins|{{Average drop value|mob=Revenant cyclops|raw=yes}}}}
+|-
+|[[File:Revenant hellhound.png|75px|center]]
+|[[Revenant hellhound]]
+|90
+|80
+|80
+|104
+|14
+|~{{Coins|{{Average drop value|mob=Revenant hellhound|raw=yes}}}}
+|-
+|[[File:Revenant demon.png|80px|center]]
+|[[Revenant demon]]
+|98
+|80
+|80
+|120
+|18
+|~{{Coins|{{Average drop value|mob=Revenant demon|raw=yes}}}}
+|-
+|[[File:Revenant ork.png|90px|center]]
+|[[Revenant ork]]
+|105
+|105
+|60
+|110
+|20
+|~{{Coins|{{Average drop value|mob=Revenant ork|raw=yes}}}}
+|-
+|[[File:Revenant dark beast.png|95px|center]]
+|[[Revenant dark beast]]
+|120
+|140
+|80
+|130
+|23
+|~{{Coins|{{Average drop value|mob=Revenant dark beast|raw=yes}}}}
+|-
+|[[File:Revenant knight.png|50px|center]]
+|[[Revenant knight]]
+|126
+|143
+|80
+|145
+|27
+|~{{Coins|{{Average drop value|mob=Revenant knight|raw=yes}}}}
+|-
+|[[File:Revenant dragon.png|100px|center]]
+|[[Revenant dragon]]
+|135
+|155
+|87
+|150
+|30
+|~{{Coins|{{Average drop value|mob=Revenant dragon|raw=yes}}}}
+|-
+|[[File:Revenant maledictus.png|100px|center]]
+|[[Revenant maledictus]] 
+(demiboss)
+|397
+|1250
+|90
+|130
+|30
+|~{{Coins|{{Average drop value|mob=Revenant maledictus|raw=yes}}}}
+|}
+{{notelist}}
+
+==Controversy==
+Initially, revenants were to drop [[Ancient Warriors' equipment]] much like their ''RuneScape'' counterparts had when they were moved into the {{RSL|Forinthry Dungeon}}. Their weapons were not included for balancing reasons; to compensate for this, other rewards were designed. However, the polls for both the armour and the new equipment did not pass. To ensure that revenants would still be worth killing, they were given a generous, but generic drop table as a result. This included a rare drop of 100 [[dragon platelegs]] or [[dragon plateskirt|plateskirts]], which was criticised as it was considered artificial and most of it would be lost if the player was killed.
+
+===8 February 2018 changes===
+On {{UD|PvM QoL updates & Wilderness Rejuvenation improvements|an update}} on [[8 February]] [[2018]], revenants gained a massive drop buff as it was determined that players were not obtaining more than the stated profit per hour (which was {{nocoins|2000000}} per hour). This also added the [[ancient medallion]], [[Ancient effigy|effigy]] and [[Ancient relic|relic]] to replace the 100x multiplier, and revenants were given a massive drop overhaul, dropping many [[resource]] items like [[runite ore]]s and [[black dragonhide]]s.
+
+Immediately after the update, players began to complain about how many resources were entering the game, devaluing other [[bosses]], [[skilling]] and granting players more profit per hour than originally intended. Many players began to compare the revenants to other monsters such as [[brutal black dragon]]s, [[Zulrah]] and [[Vorkath]], other monsters with generous drop tables but had a requirement to access. Since revenants had no requirements to kill and the fact that they were killed much faster, items that the revenants dropped began to crash at an alarming rate. Initially, [[Jagex]] determined that the flow of resources into the game was meeting the expected profit rate that was intended.
+
+===21 February 2018 changes===
+Eventually, more player complaints had [[Jagex]] look into the revenants again, from which they determined that only some players were making profit at or above the expected value, while many others were not, in addition to the inflated kills per hour. On [[21 February]] [[2018]], a {{UD|Revenant Caves: Hotfix|hotfix was implemented}}:
+
+*[[Dwarf multicannon]]s cannot be placed in the revenant section of the caves; they could, however, be placed in any other part of the cave.
+*Revenants' access to the main drop table was significantly reduced, especially the lower levelled revenants. Higher levelled revenants have a better chance of accessing the main drop table.
+*The quantity of several drops, such as [[onyx bolt tips]], were significantly reduced.
+*Revenants in World 345 (permanent [[Deadman mode]]) no longer access the main drop table, now only dropping [[ether]] and the [[bracelet of ethereum]]. Any emblems players had would also be converted into their respective trade-in values.
+
+===1 March 2018 changes===
+The changes made on 21 February caused player complaints on revenants no longer being a viable [[money making]] method for the risk involved by being in a [[multi-combat]] area in the [[Wilderness]]. In an {{UD|QoL Improvements & Deadman Permadeath Beta|update}} on [[1 March]] [[2018]], [[Jagex]] stated that they have "overstepped it a little with the reductions" based on post-change data analysis, and made the following changes as a result:
+*The chances of rolling on the normal loot table rather than [[coins]] have been increased slightly.
+*[[Ancient artefacts]] are now always lost on death, even if it is the only item in the player's possession. This was done to promote the risk of staying in the caves once the player receives it, and when the player attempts to exchange it.
+*Previously, the revenant's magic attack would only target one player. This allowed many players to wear a different pair of gloves instead of the [[bracelet of ethereum]], as there is no necessity for it due to safety in numbers. The revenant's magic attacks now targets up to ten players that stand on the same tile as the main target, with the change intending to promote players to use the bracelet, which is always lost on death.
+
+===21 October 2020 changes===
+Despite revenants being stabilised in terms of drops and the only recent notable change being that the bracelet of ethereum only blocked 75% of a revenant's damage, there were player complaints regarding gold farming and protection clans preventing legitimate players from killing revenants. Players suggested to either change or remove the revenants, although a majority supported roaming revenants, in that they would wander the Wilderness like they did in ''RuneScape'' from 2007 to 2011.
+
+On 16 October 2020, Jagex decided against roaming revenants, instead opting to change how they would work in the caves.
+
+In an {{UD|Halloween 2020|update}} on [[21 October]] [[2020]], the following changes were applied to revenants:
+*In order to enter the caves the revenants resided in, players now have to pay a 100,000 coin fee before entering. This fee can be paid from your bank. This fee does not need to be repaid unless the player dies inside the caves, in which their killer obtains this fee.
+*The cave itself was modified, with all non-revenant monsters being moved to the [[Wilderness Slayer Cave]] and replaced by revenants – the spawn amounts are unchanged. More spawns may be added based on player feedback.
+*The cave's combat preferences were changed to "singles-plus" to prevent piling common in multi-way combat zones. In a standard single-way zone, a player could fight a monster and could not be attacked until the monster died or its aggression was shaken off. Single-plus zones are similar to single-way zones, except another player can attack a player already in combat with a monster. The said monster will lose aggression when this occurs.
+**In addition, a 10 second timer was added to prevent piling by players.
+*Drop tables were modified once more: being skulled plays less of an impact in obtaining rare drops and the item quantities for regular loot were significantly reduced.
+
+===27 October 2021 changes===
+The changes applied on 21 October 2020 were not satisfactory as revenants were providing much less gold than what had been announced on release, as there were very few, extremely far spawns and killing them could be irritating due to their ability to rapidly restore health below half.
+
+On [[27 October]] [[2021]] in an {{UD|Revenant Caves & Deadman Changes|update}}, Jagex gave revenants the following changes:
+
+*The drop tables were readjusted once more:
+**Most drops that were previously noted, such as [[battlestaff|battlestaves]], are no longer noted.
+**Revenants can now drop blighted items, such as supplies and spell sacks.
+**Multiple item drops appear in greater quantities.
+**The amulet of avarice provides a 20% accuracy and damage boost <!--this is bugged, but is intended-->
+*Added an additional spawn to each revenant area.
+*Revenants now heal when below half health, but cannot heal again for 15 [[tick]]s (9 seconds), and heal anywhere from 8-36 times. They will still heal when below half health if available.
+*Revenants respawn 33% faster.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = Revenants and the Revenant Maledictus will no longer invalidate Iron accounts from obtaining loot if another player attacks those NPCs. The Iron account will still only receive a drop if they are the MvP (player that dealt the most damage).
+}}
+{{Subject changes
+|date = 25 January 2023
+|update = Wilderness Boss Rework
+|change =
+* Increased the drop rates of [[Wilderness weapons]] from Revenants by 50%.
+* Increased the drop rates of [[Wilderness weapons]] from Revenants by 5x when killing them on a Wilderness [[Slayer task]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Unlike in ''{{RSL|RuneScape 3}}'', there are no revenant icefiends, vampyres or werewolves in ''Old School RuneScape''. The models used by these revenants are also simply transparent models of their living counterparts, rather than the ghost-like tail the revenants are often recognised with. In addition to this, several revenants cannot be killed for a task (e.g. the [[revenant pyrefiend]] cannot be killed in place of normal pyrefiends).
+*Revenants were originally the replacement for [[player killers]] between {{RSL|10 December}} {{RSL|2007}} and {{RSL|1 February}} {{RSL|2011}} in ''RuneScape'', when free trade and PvP in the Wilderness were removed (to counter [[real world trading]]). Similar to player killers, they could attack players depending on their [[combat level]] and depth in the [[Wilderness]], as well as heal themselves, use [[Tele Block]], and freeze the player.
+*If a revenant attempts to heal at the exact same tick when dealing a killing blow (the animation and sound plays but the revenant dies), you will not be awarded any loot.
+
+{{Revenant Caves}}
+{{Wilderness content}}
+[[Category:Jagex controversies]]

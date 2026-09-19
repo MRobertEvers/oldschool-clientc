@@ -1,0 +1,99 @@
+{
+  "serial": "T062809L3Z",
+  "scope": "Runtime initialization of installed normal ARM32 library; defaults and explicit environment rollback, not a new timing measurement.",
+  "checks": [
+    {
+      "mode": "default",
+      "result": {
+        "expected": 1,
+        "canvas_compact": 1,
+        "actor_direct": 1,
+        "pose_reuse": 1,
+        "actor_world_cache": 1,
+        "static_primary": 1
+      }
+    },
+    {
+      "mode": "rollback",
+      "result": {
+        "expected": 0,
+        "canvas_compact": 0,
+        "actor_direct": 0,
+        "pose_reuse": 1,
+        "actor_world_cache": 1,
+        "static_primary": 1
+      }
+    },
+    {
+      "mode": "explicit-on",
+      "result": {
+        "expected": 1,
+        "canvas_compact": 1,
+        "actor_direct": 1,
+        "pose_reuse": 1,
+        "actor_world_cache": 1,
+        "static_primary": 1
+      }
+    }
+  ],
+  "normal_apk_sha256": "95dac0e0da41ee2c912721a9f1ae422fb36b310a8af418c608e8e8969880bf7e",
+  "build": {
+    "probe": "normal",
+    "source": {
+      "commit": "152dc6469e3c784ddd05dd76d15ae5dfbe02efd0",
+      "changed_source_sha256": {
+        "src/app.c": "04c74adc2d4d2d3c60eff2d4d4d2e6d2c410a62c8778aa93aacb306fa6ffb3aa",
+        "src/main.c": "ef70e0aa1708199db6530695ed46fb83519b5f22e765813090a42c30dee77614",
+        "src/makefile": "b89a2d1944344c2538aafe2b26bfccdb13e263995de54119a58e88d58dd01e70",
+        "src/platform/platform_renderer_gles2_core.c": "40b82037b61606ef8a36dcf2a27e3c8ce993edd14da54aa2f607806db7a00ab5",
+        "src/platform/platform_renderer_gles2_core.h": "e33ed1c9e9ec40d669730a1ae4dc6fe9a31175d211b3b4464d0416635290f583",
+        "src/render/trspk_toridraw.c": "67bdafb09cb1650d27fc758374398b6294ca199a41982e7af40b578630fb46fd",
+        "src/render/trspk_toridraw.h": "254490a3e5e68a4f436e8b26d55e589cdc51d3ff15c8ba4625e7f60bdb5848f5",
+        "src/ui/test/uitree_test_canvas.c": "f41901ecf6a735e548262b0c58f9460b7ea4d5795487d2c7c2edad4d784b9527",
+        "src/ui/test/uitree_test_main.c": "52a76906c0fe8bef9789568ea9188ea659d648ccd20d09c674ec39e7144b028d",
+        "src/ui/uitree.c": "7e5b5cf0e408ab2f89507bb38a6071acf5e9cae0fdee06f70791c6f722503fce",
+        "src/ui/uitree.h": "22b025ab508e98494fc119096a4d09a020ec962b40f0a0c64f936a53840420ba",
+        "src/ui/uitree_canvas_measure.h": "8b1d87d5bc68ec69d393ded7f200cbf5e7f93f4f81ef0cf003bbf22fcce92d64",
+        "tools/perf/bake_chain_replay.c": "4f004064e3895ea5f05688f8d8647ea4dbe2907e77517d8515b29288bae9870e",
+        "tools/perf/bake_chain_test.c": "7d1559ff1c7ca4013f39f81faf95798ba36ccd0198220962aa52d70be36ad399",
+        "tools/perf/build_android_renderer.py": "2c727de4b19cfbbfa5e2a0f6864fc4facc81ea3b9a6d85580611992bdc101ae5",
+        "tools/perf/canvas_chain_capture.u.h": "0f30dcd396eef27ae0533c80d85766138eb4521ccdd60ace98ffedf8d3396657",
+        "tools/perf/canvas_chain_format.h": "4f570c35b2b6fbecf8500fdc3db5a7e7c8f6c2cd6161300adf9167b3b04299bb",
+        "tools/perf/canvas_chain_replay.c": "52d7c451008a7dd9bebd0f66e409881449d46f17ea84221910ead7df2aeba11d",
+        "tools/perf/gles2_frame_times.h": "7ffbf99399c7d84305b98aad67ba809987b34353dda88190fb9319fe88dd2ea8",
+        "tools/perf/gles2_frame_times.py": "2d488c6bdd27302ef4cf554122ddce29d1f92b8bf3bb9db27ef42097dddb94d7",
+        "tools/perf/gles2_frame_times.u.h": "77712f60d6dbfbb5498cbb73f48730d3fa3f44d623dea2dfeb3d5962eb4fb030",
+        "tools/perf/gles2_pipeline_pmu.u.h": "e24dee3ae2e1d2a85bda4337ea7fc91d7ad4e0a05ee99c115e35b45278fd713e",
+        "tools/perf/model_chain.mk": "2e5f408661a5064c313803d5ef43b601130141851831fa8add713712077b03d9",
+        "tools/perf/renderer_provenance.py": "92177327e88b7fccd46574e2cbdf4dbe83a27d101ef0e780a9f31522961ff487"
+      },
+      "tracked_diff_sha256": "48eed1e7122c0131ffa48621cf4a66236adc44307bb94cbc3c8bb81850310d75"
+    },
+    "command": [
+      "make",
+      "-C",
+      "/private/tmp/krait-sub10/worktree/src",
+      "-j8",
+      "PLATFORM=android",
+      "ANDROID_ABI=armeabi-v7a",
+      "OPT=1",
+      "TORIDRAW_PROBE_CFLAGS=",
+      "-W",
+      "/private/tmp/krait-sub10/worktree/3rd/toridraw/toridraw_unity.c",
+      "-W",
+      "platform/platform_renderer_gles2_core.c",
+      "-W",
+      "platform/platform_renderer_gles2_dualcore.c",
+      "-W",
+      "main.c",
+      "-W",
+      "app.c",
+      "-W",
+      "ui/uitree.c",
+      "all"
+    ],
+    "library_sha256": "d17b798c81eaf9727554d5f6350fdb31494a4dae52fcdc044b73ed6f2f739cf0",
+    "apk_sha256": "95dac0e0da41ee2c912721a9f1ae422fb36b310a8af418c608e8e8969880bf7e"
+  },
+  "diagnostic_markers_absent": true
+}

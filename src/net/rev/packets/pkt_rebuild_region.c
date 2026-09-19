@@ -1,4 +1,5 @@
 #include "pkt_rebuild_region.h"
+#include "torirs_env.h"
 #include <assert.h>
 
 #include "net/bitbuffer.h"
@@ -7,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * REBUILD_REGION wire:
@@ -72,10 +74,8 @@ pkt_rebuild_region_read(uint8_t const* data, int len, struct RevPacket* out)
     out->_map_rebuild.zonez = zone_z;
     out->_map_rebuild.zones = zones;
 
-    if( getenv("TORIRS_NET_DEBUG") )
-        fprintf(
-            stderr,
-            "pkt_rebuild_region: zoneX=%d zoneZ=%d zones=%d keys=%d\n",
+    if( torirs_env_net_debug() )
+        TORIRS_LOG("pkt_rebuild_region: zoneX=%d zoneZ=%d zones=%d keys=%d\n",
             zone_x,
             zone_z,
             set_count,

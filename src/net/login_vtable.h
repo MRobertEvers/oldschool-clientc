@@ -48,6 +48,18 @@ struct NetLoginVTable
      * freed before that. Revisions without a reconnect leave this NULL.
      */
     uint8_t const* (*reconnect_block)(void* handle, int* out_len);
+    /**
+     * The server's own rejection byte, or -1 if it has not answered one.
+     *
+     * The code is protocol; the sentence a player reads for it is the
+     * profile's ([login_reply:<code>]). Without this the caller has only
+     * the generic loginproto's field, which these revisions do not use --
+     * so every rejection they receive, whatever the server said, reaches
+     * the login screen as "error connecting to server".
+     *
+     * A revision that surfaces no code leaves this NULL.
+     */
+    int (*reply_code)(void* handle);
     void (*free_)(void* handle);
 };
 

@@ -79,10 +79,13 @@ recording_host_exec(
     host->kind = request->kind;
     host->text[0] = '\0';
     if( request->kind == CS2VM_HOST_REQUEST_RESUME_COUNTDIALOG &&
-        request->u.resume_countdialog.text )
+        request->u.RESUME_COUNTDIALOG.text )
     {
         snprintf(
-            host->text, sizeof(host->text), "%s", request->u.resume_countdialog.text);
+            host->text,
+            sizeof(host->text),
+            "%s",
+            request->u.RESUME_COUNTDIALOG.text);
     }
     return CS2VM_EXECNO_OK;
 }

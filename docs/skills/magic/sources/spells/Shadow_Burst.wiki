@@ -1,0 +1,46 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Shadow Burst
+|image = [[File:Shadow Burst.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 64
+|spellbook = Ancient
+|type = Combat
+|exp = 37
+|element = Shadow
+|damage = 18
+|cost = {{RuneReq|Soul=2|Chaos=4|Air=1|Death=2}}
+|speed = 5 ticks
+|description = A multi-target shadow attack
+|anim = [[File:Shadow Burst.gif|300px]]
+|sound = [[File:Shadow Burst.ogg]]
+}}
+[[File:Shadow Burst icon (mobile).png|left]]
+'''Shadow Burst''' is the second tier [[Shadow spell]] from the [[Ancient Magicks]] spellbook, available at level 64 [[Magic]]. It is capable of hitting up to 18 damage (without any [[magic damage]] boosts) per cast.
+
+Shadow Burst has the ability to lower your target's [[Attack]] level by 10%, this effect '''does not''' stack to lower the target's Attack level to zero. It is also able to target up to nine targets in a 3x3 grid around its primary target, just like all other [[Burst spells|burst]] and [[barrage spells]].
+
+As with all [[Ancient Magicks]] spells, the [[Desert Treasure I]] quest is required to cast this spell.
+
+When used against the [[Abyssal Sire]], Shadow Burst has a 50% chance of disorienting it for the first phase of the fight.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Shadow Burst|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = chaos
+|Rune1num = 4
+|Rune2 = death
+|Rune2num = 2
+|Rune3 = air
+|Rune3num = 1
+|Rune4 = soul
+|Rune4num = 2
+|is_offensive = y
+}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

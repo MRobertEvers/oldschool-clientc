@@ -1,0 +1,19 @@
+{
+  "main_commit": "9fca0e47a",
+  "apk_sha256": "4815f208adc1a4a5ce24cb1c60f8c9a74f411931dc2dd4c1c3ad9477acd9af82",
+  "armv7_library_sha256": "4fbbbfda80024972e493034a33fd83ef4f1af42bee6c065bfd7a33addfe4d4b3",
+  "build": "PLATFORM=android ANDROID_ABI=armeabi-v7a OPT=1; no probe flags",
+  "correctness": {
+    "real_chains": 59352,
+    "face_sort_fixtures": 1869,
+    "faces_compared": 299546,
+    "index_packing_cases": 595,
+    "concurrent_prefix_payloads": 32768,
+    "stage_tiers": [
+      "small",
+      "full"
+    ],
+    "host_format_tests": 5
+  },
+  "normal_binary_pmu_symbols": false
+}

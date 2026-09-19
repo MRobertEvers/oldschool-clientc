@@ -46,7 +46,9 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_ClientOption option;
+    int option_opcode;
+    int option_id;
+    int option_value;
     /** What a getter should push back, so the script can be seen to receive it. */
     int get_result;
 };
@@ -60,18 +62,25 @@ recording_host_exec(
 
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_CLIENT_OPTION )
+    switch( request->kind )
     {
-        host->option = request->u.client_option;
-        switch( request->u.client_option.opcode )
-        {
-        case CS2_OP_GETREMOVEROOFS:
-        case CS2_OP_CLIENTOPTION_GET:
-            return CS2VM2_PushInt(thread, host->get_result);
-        default:
-            break;
-        }
+#define RECORD_OPTION(name)                                                  \
+    case CS2VM_HOST_REQUEST_##name:                                          \
+        host->option_opcode = request->u.name.opcode;                \
+        host->option_id = request->u.name.option_id;                 \
+        host->option_value = request->u.name.value;                  \
+        break
+        RECORD_OPTION(GETREMOVEROOFS);
+        RECORD_OPTION(SETREMOVEROOFS);
+        RECORD_OPTION(CLIENTOPTION_SET);
+        RECORD_OPTION(CLIENTOPTION_GET);
+#undef RECORD_OPTION
+    default:
+        break;
     }
+    if( request->kind == CS2VM_HOST_REQUEST_GETREMOVEROOFS ||
+        request->kind == CS2VM_HOST_REQUEST_CLIENTOPTION_GET )
+        return CS2VM2_PushInt(thread, host->get_result);
     return CS2VM_EXECNO_OK;
 }
 
@@ -136,9 +145,9 @@ main(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_SETREMOVEROOFS, 1, 1, 0);
         CHECK_INT(host.calls, 1, "setremoveroofs reaches the host");
-        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CLIENT_OPTION, "request kind");
-        CHECK_INT(host.option.opcode, CS2_OP_SETREMOVEROOFS, "opcode carried through");
-        CHECK_INT(host.option.value, 1, "the pushed flag is the value");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_SETREMOVEROOFS, "request kind");
+        CHECK_INT(host.option_opcode, CS2_OP_SETREMOVEROOFS, "opcode carried through");
+        CHECK_INT(host.option_value, 1, "the pushed flag is the value");
     }
 
     /* getremoveroofs(): nothing in, the host's answer out. */
@@ -149,7 +158,8 @@ main(void)
         host.get_result = 1;
         run_op(&host, CS2_OP_GETREMOVEROOFS, 0, 0, 0);
         CHECK_INT(host.calls, 1, "getremoveroofs reaches the host");
-        CHECK_INT(host.option.opcode, CS2_OP_GETREMOVEROOFS, "opcode carried through");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_GETREMOVEROOFS, "getter request kind");
+        CHECK_INT(host.option_opcode, CS2_OP_GETREMOVEROOFS, "opcode carried through");
     }
 
     /* clientoption_set(id, value): the id must survive to the host, which is
@@ -161,8 +171,22 @@ main(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CLIENTOPTION_SET, 2, 7, 42);
         CHECK_INT(host.calls, 1, "clientoption_set reaches the host");
-        CHECK_INT(host.option.option_id, 7, "option id (music volume)");
-        CHECK_INT(host.option.value, 42, "option value");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CLIENTOPTION_SET, "set request kind");
+        CHECK_INT(host.option_id, 7, "option id (music volume)");
+        CHECK_INT(host.option_value, 42, "option value");
+    }
+
+    /* The getter has the same payload shape as the setter, but must remain a
+     * distinct host request and return the host-provided value. */
+    {
+        struct RecordingHost host;
+
+        memset(&host, 0, sizeof(host));
+        host.get_result = 73;
+        run_op(&host, CS2_OP_CLIENTOPTION_GET, 1, 7, 0);
+        CHECK_INT(host.calls, 1, "clientoption_get reaches the host");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CLIENTOPTION_GET, "get request kind");
+        CHECK_INT(host.option_id, 7, "getter option id");
     }
 
     if( g_fail )

@@ -1,0 +1,127 @@
+From df05966f8f99693eb79a9cfe704acbf9bdf720fc Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Mon, 24 Aug 2026 23:43:23 -0500
+Subject: [PATCH 2/2] perf(tex): page-spread ablation walk, the TLB control for
+ the 16-row fold
+
+Sixteen rows again -- the same 8 KB of texels, the same 128 cache lines --
+but every eighth row, so they land one per 4 KB page instead of two pages
+holding all sixteen. Cache capacity cannot tell the two apart; a 64-entry
+data TLB asked for 2 entries per texture instead of 16 can. It is what
+decides whether the texture kernel's residual is capacity or page walks.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../graphics/raster/texture/tex_tri_i686.S    | 18 ++++++--
+ 3rd/toridraw/toridraw_raster.u.c              | 42 +++++++++++++------
+ 2 files changed, 44 insertions(+), 16 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+index 617fe1278..49b59630d 100644
+--- a/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/texture/tex_tri_i686.S
+@@ -649,12 +649,14 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 
+ 	/* ABLATION FORK -- a measurement device, not a shipping path.
+ 	 *
+-	 * g_toridraw_abl_texvmode picks which of three 128-wide walks runs.
++	 * g_toridraw_abl_texvmode picks which of four 128-wide walks runs.
+ 	 * They differ in ONE immediate: the mask GATHER1 applies to v_scan.
+ 	 * 0x3F80 keeps all seven v bits, so the walk addresses the whole
+-	 * 64 KB texture; 0x0780 keeps four, folding every sample into the
+-	 * first sixteen rows (8 KB); 0x0000 keeps none, folding the whole
+-	 * triangle onto texel row zero (512 B).
++	 * 64 KB texture; 0x0780 keeps the low four, folding every sample into
++	 * the first sixteen rows (8 KB, two pages); 0x3C00 keeps the high
++	 * four, which is sixteen rows again -- the same 8 KB -- but one per
++	 * 4 KB page; 0x0000 keeps none, folding the whole triangle onto texel
++	 * row zero (512 B).
+ 	 *
+ 	 * Nothing else moves: same instruction sequence, same instruction
+ 	 * count, same span geometry, same pixel count, same quotients. Only
+@@ -670,6 +672,8 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 	je	.Lwalkv16
+ 	cmpl	$2, %eax
+ 	je	.Lwalkv1
++	cmpl	$3, %eax
++	je	.Lwalkv16p
+ 	jmp	.Lwalk128
+ 
+ .Lret:
+@@ -800,3 +804,9 @@ _toridraw_textri_opaque_lerp8_v3_asm:
+ 
+ .Lwalkv1:
+ 	WALK	7, 127, 0x0000, LC_f127, v1
++
++/* Sixteen rows again, but every eighth one: bits 10..13 of v_scan, so the
++ * rows are 0, 8, 16 ... 120. Same 8 KB of texels as .Lwalkv16 and the same
++ * 128 cache lines, spread one per 4 KB page instead of two pages total. */
++.Lwalkv16p:
++	WALK	7, 127, 0x3C00, LC_f127, v16p
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 8b886ed85..9e30cee9d 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -30,11 +30,20 @@ static const int g_empty_texture_texels[128 * 128] = { 0 };
+  *
+  * Two knobs, both read once, both selected per benchmark ARM by env var:
+  *
+- *   TORIDRAW_ABL_TEXVROWS = 128 | 16 | 1
+- *       how many texel ROWS the gather is allowed to address. The asm walk
+- *       folds v into that many rows with a narrower mask -- same
+- *       instructions, same count, same pixels drawn, smaller address set.
+- *       128 KB->64 KB per texture, 16 -> 8 KB, 1 -> 512 B.
++ *   TORIDRAW_ABL_TEXVROWS = 128 | 16 | 1 | 16spread
++ *       which texel ROWS the gather is allowed to address. The asm walk
++ *       folds v into that set with a narrower mask -- same instructions,
++ *       same count, same pixels drawn, smaller address set.
++ *       128 is 64 KB per texture, 16 is 8 KB, 1 is 512 B.
++ *
++ *       16spread is the control for 16, and it is the one that names the
++ *       stall. It keeps sixteen rows too -- the same 8 KB of texels, the
++ *       same 128 cache lines -- but takes every eighth row, so the sixteen
++ *       land one per 4 KB page instead of two pages holding all of them.
++ *       Cache capacity cannot tell 16 from 16spread; the 64-entry data TLB
++ *       can, because one asks it for 2 entries per texture and the other
++ *       for 16. If 16 is fast and 16spread is not, the residual is page
++ *       walks and the fix has to shrink pages, not bytes.
+  *
+  *   TORIDRAW_ABL_TEXSHARE = 1
+  *       every texture of a given size aliases the first one loaded at that
+@@ -44,7 +53,7 @@ static const int g_empty_texture_texels[128 * 128] = { 0 };
+  * The first isolates the stride within one texture, the second the capacity
+  * across many. Both deliberately draw the wrong image.
+  */
+-int g_toridraw_abl_texvmode = 0; /* 0 = 128 rows, 1 = 16 rows, 2 = 1 row */
++int g_toridraw_abl_texvmode = 0; /* see toridraw_abl_tex_init */
+ static int g_toridraw_abl_texshare = 0;
+ 
+ static void
+@@ -55,12 +64,21 @@ toridraw_abl_tex_init(void)
+     g_toridraw_abl_texvmode = 0;
+     if( rows )
+     {
+-        int n = atoi(rows);
+-        /* Only the three the asm has walks for. Anything else is a typo in
+-         * the arm spec, and a typo that silently measured the control arm
+-         * would be reported as "the ablation did nothing". */
+-        assert(n == 128 || n == 16 || n == 1);
+-        g_toridraw_abl_texvmode = (n == 16) ? 1 : (n == 1) ? 2 : 0;
++        /* Spelled out rather than parsed, because "16spread" is not a row
++         * count and atoi() would silently read it as plain 16 -- the two
++         * differ only in WHERE the sixteen rows sit, which is the whole
++         * experiment. A typo that quietly measured the control arm would be
++         * reported as "the ablation did nothing". */
++        if( strcmp(rows, "128") == 0 )
++            g_toridraw_abl_texvmode = 0;
++        else if( strcmp(rows, "16") == 0 )
++            g_toridraw_abl_texvmode = 1;
++        else if( strcmp(rows, "1") == 0 )
++            g_toridraw_abl_texvmode = 2;
++        else if( strcmp(rows, "16spread") == 0 )
++            g_toridraw_abl_texvmode = 3;
++        else
++            assert(!"TORIDRAW_ABL_TEXVROWS must be 128, 16, 1 or 16spread");
+     }
+     g_toridraw_abl_texshare = getenv("TORIDRAW_ABL_TEXSHARE") ? 1 : 0;
+ 

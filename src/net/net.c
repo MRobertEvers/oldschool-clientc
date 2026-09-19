@@ -1,4 +1,5 @@
 #include "net.h"
+#include "torirs_env.h"
 
 #include "cmd/cmdbus.h"
 #include "rev/gameproto_parse.h"
@@ -8,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* --- login-driver dispatch: rev->login vtable (xrsps) vs classic loginproto.c.
  * Every login touch point below goes through these so the drive/drain loops are
@@ -17,6 +19,42 @@ static int
 login_is_active(struct ToriRS_Network* net)
 {
     return net->rev->login ? net->login_generic != NULL : net->loginproto != NULL;
+}
+
+/*
+ * Carry the server's rejection byte across as soon as the handshake has
+ * read it.
+ *
+ * Not on the poll that returns LOGINPROTO_ERROR, which is where this used
+ * to happen: a server that rejects and closes in the same breath gets its
+ * status-driven disconnect in first, and the code is still sitting on the
+ * handshake handle when the login screen goes looking for it. What the
+ * player then reads is "error connecting to server" over a server that
+ * said exactly why -- reply 6, say, which means the client is out of date
+ * and no amount of retrying will help.
+ *
+ * The revisions with their own handshake (osrs239 and friends) never set
+ * the generic field at all, so before this they had no way to reach the
+ * reply table: every refusal they met read as a transport failure.
+ *
+ * Only ever overwrites with a real code, so the CONNECT_FAILED assumption
+ * that connect_login arms stands until a server actually answers.
+ */
+static void
+login_reply_latch(struct ToriRS_Network* net)
+{
+    int code = -1;
+
+    if( net->rev->login )
+    {
+        if( net->rev->login->reply_code && net->login_generic )
+            code = net->rev->login->reply_code(net->login_generic);
+    }
+    else if( net->loginproto )
+        code = net->loginproto->reply_code;
+
+    if( code >= 0 )
+        net->login_reply = code;
 }
 
 static int
@@ -135,6 +173,29 @@ push_out(
     CmdRing_Push(&net->out, type, data, (uint16_t)len);
 }
 
+/*
+ * A handshake ended without reaching the game.
+ *
+ * If it was a seed reconnect, the seed goes with it: the server either has no
+ * session under that key any more (logged out and saved, its slot reused, or
+ * -- over the embedded transport -- a whole new server started for the
+ * redial) or never had one. Presenting it again can only be refused again, so
+ * the next attempt goes out as a fresh login with the password, which is what
+ * the osrs239 driver sends when it has no seed. Without this the link watch
+ * retried the dead key until it gave up.
+ */
+static void
+login_failed(struct ToriRS_Network* net)
+{
+    if( net->state == TORIRS_NET_LOGIN && net->reconnect && net->has_prev_seed )
+    {
+        TORIRS_LOG("net: the reconnect was not accepted; the next attempt logs in afresh\n");
+        net->has_prev_seed = 0;
+    }
+    net->reconnect = 0;
+    net->state = TORIRS_NET_DISCONNECTED;
+}
+
 static void
 connect_login(
     struct ToriRS_Network* net,
@@ -146,6 +207,17 @@ connect_login(
     assert(net);
 
     net->reconnect = reconnect;
+    /*
+     * Assume the socket is the thing that failed, until the protocol says
+     * otherwise.
+     *
+     * A handshake that reaches a server and is refused overwrites this with
+     * the server's own byte. One that never gets that far leaves it standing,
+     * which is the only way the screen can tell "your password is wrong" from
+     * "there was nothing at that address" -- and the second is the one a
+     * player is far more likely to hit.
+     */
+    net->login_reply = TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED;
     strncpy(net->host, host ? host : "", sizeof(net->host) - 1);
     strncpy(net->username, username ? username : "", sizeof(net->username) - 1);
     strncpy(net->password, password ? password : "", sizeof(net->password) - 1);
@@ -165,9 +237,20 @@ connect_login(
         assert(net->loginproto);
         if( net->seed_fn )
             loginproto_set_seed_fn(net->loginproto, net->seed_fn, net->seed_user);
+        /* Whether the opcode actually changes is the revision's call, not this
+         * one's -- see rev->reconnect_kind. */
+        loginproto_set_reconnect(net->loginproto, net->reconnect);
     }
 
     net->state = TORIRS_NET_LOGIN;
+    /* TORIRS_LOGIN_DEBUG=1: the client's side of a login attempt, printed
+     * before the socket is dialled -- so a login that never reaches a server
+     * is distinguishable from one that was never attempted. Paired with the
+     * ui_click trace in ui/uitree_interact.c. */
+    if( getenv("TORIRS_LOGIN_DEBUG") )
+        fprintf(stderr, "login_debug: connect host='%s' user='%s' (%d) pass=%d reconnect=%d\n",
+            net->host, net->username, (int)strlen(net->username),
+            (int)strlen(net->password), reconnect);
     push_out(net, TORIRS_NET_OUT_CONNECT, (uint8_t const*)net->host, (int)strlen(net->host));
 
     /* Run SEND_CONNECT now (v0 drove the login machine from game_poll before
@@ -214,7 +297,46 @@ ToriRS_Network_ConnectLogin(
     char const* username,
     char const* password)
 {
-    connect_login(net, host, username, password, /* reconnect */ 0);
+    int resume;
+
+    assert(net);
+    resume = net->resume_armed;
+    net->resume_armed = 0;
+    net->resume_in_flight = resume;
+    connect_login(net, host, username, password, /* reconnect */ resume);
+}
+
+int
+ToriRS_Network_ArmResume(
+    struct ToriRS_Network* net,
+    int32_t const seed[4],
+    int local_index)
+{
+    assert(net);
+    assert(seed);
+    if( net->rev->reconnect_kind != NET_RECONNECT_SEED )
+    {
+        TORIRS_LOG("net: %s has no seed reconnect; the resumed session logs in afresh\n",
+                   net->rev->name ? net->rev->name : "this revision");
+        return 0;
+    }
+    memcpy(net->prev_seed, seed, sizeof(net->prev_seed));
+    net->has_prev_seed = 1;
+    net->local_index = local_index;
+    net->resume_armed = 1;
+    return 1;
+}
+
+int
+ToriRS_Network_TakeResumeRefused(struct ToriRS_Network* net)
+{
+    assert(net);
+    if( !net->resume_in_flight || net->state != TORIRS_NET_DISCONNECTED )
+        return 0;
+    net->resume_in_flight = 0;
+    net->has_prev_seed = 0;
+    net->local_index = -1;
+    return 1;
 }
 
 void
@@ -241,8 +363,8 @@ ToriRS_Network_SendRaw(
     assert(net);
     if( len > 0 && data )
     {
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "net: -> %d bytes (first 0x%02x)\n", len, data[0]);
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("net: -> %d bytes (first 0x%02x)\n", len, data[0]);
         push_out(net, TORIRS_NET_OUT_SEND_DATA, data, len);
     }
 }
@@ -272,6 +394,7 @@ loginproto_drive(struct ToriRS_Network* net)
         return;
 
     poll_result = login_poll(net);
+    login_reply_latch(net);
 
     while( (bytes = login_send(net, scratch, sizeof(scratch))) > 0 )
         ToriRS_Network_SendRaw(net, scratch, bytes);
@@ -331,15 +454,13 @@ loginproto_drive(struct ToriRS_Network* net)
                 osrs239_playerinfo_init(block, block_len);
         }
         net->reconnect = 0;
+        net->resume_in_flight = 0;
         login_free(net);
         packetbuffer_init(&net->packet_buffer, net->random_in, net->rev);
         net->state = TORIRS_NET_GAME;
     }
     else if( poll_result == LOGINPROTO_ERROR )
-    {
-        net->reconnect = 0;
-        net->state = TORIRS_NET_DISCONNECTED;
-    }
+        login_failed(net);
 }
 
 static int
@@ -390,10 +511,8 @@ net_process_packets(struct ToriRS_Network* net)
         enum GameProtoPktName name = (enum GameProtoPktName)net->rev->packetin_code(wire);
 
         memset(&packet, 0, sizeof(packet));
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(
-                stderr,
-                "net: <- wire=%d name=%d size=%d\n",
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("net: <- wire=%d name=%d size=%d\n",
                 wire,
                 (int)name,
                 packetbuffer_size(&net->packet_buffer));
@@ -409,8 +528,7 @@ net_process_packets(struct ToriRS_Network* net)
             if( wire >= 0 && wire < 256 && !warned[wire] )
             {
                 warned[wire] = 1;
-                fprintf(
-                    stderr, "net: no decoder for wire opcode %d (%s) — dropped\n",
+                TORIRS_LOG("net: no decoder for wire opcode %d (%s) — dropped\n",
                     wire, net->rev->name);
             }
         }
@@ -445,7 +563,19 @@ net_process_packets(struct ToriRS_Network* net)
             if( parsed < 0 )
                 parsed = gameproto_parse(net->rev, name, pdata, psize, &packet);
             if( parsed > 0 )
+            {
+                /* Owned payloads transfer to the queued copy; the stack one
+                 * is abandoned here and never read again. */
                 push_parsed_packet(net, &packet);
+            }
+            else
+            {
+                /* A parser that allocated before deciding the packet was
+                 * malformed -- or not its own -- still owns what it
+                 * allocated, and nothing downstream will ever see this
+                 * packet to free it. */
+                gameproto_free(&packet);
+            }
         }
     }
     packetbuffer_reset(&net->packet_buffer);
@@ -522,7 +652,12 @@ ToriRS_Network_HandleCmd(
             net->conn_status = status;
             if( status == TORIRS_NET_STATUS_DISCONNECTED ||
                 status == TORIRS_NET_STATUS_FAILED )
-                net->state = TORIRS_NET_DISCONNECTED;
+            {
+                /* The transport lost the connection. If the handshake had
+                 * already read a verdict, that is the better explanation. */
+                login_reply_latch(net);
+                login_failed(net);
+            }
         }
         break;
     case TORIRS_CMD_NET_CONNECT:

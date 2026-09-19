@@ -1,0 +1,289 @@
+[[File:Fighting Araxxor.png|thumb|300px|A player fighting Araxxor in his lair.]]
+[[Araxxor]] is a level 92 [[Slayer]] [[boss]] found in the [[Morytania Spider Cave]]. In order to fight him, completion of [[Priest in Peril]] to access [[Morytania]] is required, as well as having been assigned an [[Araxyte]] or [[spider]] Slayer task.
+
+If the player dies while fighting Araxxor, their grave will be placed outside the entrance to his lair, which follows normal death rules. 
+
+==Recommendations==
+* High melee [[combat]] stats
+** Level {{SCP|Attack|85}} or higher
+** Level {{SCP|Strength|85}} or higher
+** Level {{SCP|Defence|70}} or higher
+** Level {{SCP|Hitpoints|85}} or higher
+** Level {{SCP|Prayer|70}} or higher for access to [[Piety]]
+* A way to cure or protect from [[venom]]
+* Completion of [[Sins of the Father]] for access to [[Darkmeyer]]
+
+==Transportation==
+{{Map|name=Morytania Spider Cave|3657,3407|plane=0|mapID=0|mtype=pin|align=right|width=250|height=250|caption=The entrance to the cave}}
+The quickest methods of reaching the [[cave (Morytania Spider Cave)|cave entrance]] are as follows:
+* Teleporting directly to the cave via use of a [[spider cave teleport]]
+* Teleporting to [[Hallowed Sepulchre]] using a [[hallowed crystal shard]], then exiting and using the [[Wall (Darkmeyer)|wall shortcut]] just south-east. Requires completion of [[Sins of the Father]], level 63 [[Agility]], and installing 2 [[long rope]]s.
+* Teleporting via [[ectophial]] or to [[fairy ring]] code {{fairycode|ALQ}}, then running south past the small bridge.
+
+==Fight overview==
+As with all araxytes, Araxxor's attacks can inflict [[venom]], and as with most spiders, is weak to crush. He has a [[Defence]] level of 135, with his lowest defence bonus being crush at +15. His Defence level can be only drained by up to 45 levels, therefore one [[elder maul]] [[special attack]] will suffice. Alternatively, a [[dragon warhammer]] special attack is nearly as effective, draining 40 Defence levels. Though Araxxor has an [[elemental weakness]] to [[fire spells]], his high magical defences makes this trait mostly thematic, and the generally lower defences of magic robes will have the player take more damage overall.
+
+Araxxor spawns in the middle of his chamber and attacks with melee; if out of his melee range, he will close the distance and attack with either magic or ranged - whichever of the player's defensive rolls is lower. Araxxor is capable of attacking diagonally, in which case he will use melee. The melee attack can deal up to 38 damage, and using [[Protect from Melee]] will significantly reduce the damage up to a max of 5. The ranged attacks can deal up to 34 damage, with [[Protect from Missiles]] reduces the damage by ~45%, with a max hit of 18. A successful ranged attack will additionally drain 9% of the player's [[Defence]] level. The magic attacks deal up to 21 damage, with [[Protect from Magic]] reducing the damage by ~50%. A successful magic attack additionally drains 9% of the player's [[Prayer]]. These attacks are calculated upon start and late reactions will not mitigate damage.
+
+As the attack style used is dependent on the player's defence rolls, prayers such as [[Rigour]] might change which style the boss uses. [[Aranea boots]] can be used to block Araxxor's ranged attack once every 8 ticks (4.8 seconds), but '''not''' his magic attacks. Players with high magic defence armour can take advantage of this negation effect by moving out of the melee range every second attack; forcing a ranged attack. The high magic defences are easiest to achieve whilst ranging and using high end ranged gear such as [[Masori (f) set|fortified masori]].
+
+Around Araxxor's lair, there are nine eggs; three each of red, white, and green. The first egg hatches after three standard attacks from Araxxor, hatching clockwise starting from the south-easternmost egg, with subsequent eggs hatching after every six standard attacks. 
+
+The eggs will always follow one of three potential patterns, with the last two sets copying that of the first:
+* Green > White > Red
+* White > Red > Green
+* Red > Green > White
+
+Players can opt to destroy the eggs, which have 65 [[Hitpoints]]. If an egg has been fully destroyed, Araxxor will simply spawn an araxyte from the next egg in the rotation, skipping over the destroyed egg. Any damage dealt to an egg without destroying it will carry over to the hatched araxyte, however if an egg has taken more damage than the araxyte that would have hatched from it (58 Hitpoints), then the egg will simply despawn, and Araxxor will use another six standard attacks before the next egg in sequence hatches.
+
+Players will always [[max hit]] when attacking the hatched araxytes with a [[noxious halberd]], [[crush weapons]], or heavy Ranged weapon (such as a [[Crossbow (weapon)|crossbow]] or [[ballista]]) if crush or ranged is their highest accuracy style respectively. Attacking the hatched eggs with anything else - or attacking the unhatched eggs - does not guarantee a max hit, and rolls damage normally. Both the eggs and the araxytes count as on-task monsters for the purposes of benefiting from the [[slayer helmet]]'s damage bonus, but '''will not reduce''' the player's task kill count.
+
+Every six standard attacks, Araxxor will use the same one of three possible special attacks for the remainder of the fight, which can be quickly determined by identifying the south-easternmost egg. All of these attacks leave acid pools, which inflict venom and deal increasingly larger damage (starting from 4) the longer the player stays on them.
+{| class="wikitable align-center-1" style="text-align:left;"
+! colspan="2" |Appearance
+!Description
+!Araxxor's special attack
+|-
+|[[File:Egg (Acidic Araxyte).png|140px|left]]
+|[[File:Acidic Araxyte.png|140px|left]]
+|[[Acidic Araxyte]]s attack with ranged that can deal up to 15 damage. If killed, it will explode, splattering acid on random squares within a 7x7 AoE surrounding it. The araxyte will always attack off-tick from Araxxor if it is not prompted to move. Some players may choose to ignore killing these should they feel comfortable enough in tanking their attacks.
+| '''Acid Ball:''' Araxxor launches a projectile that flies in a straight line from his direction towards the player. Being in the ball's trajectory (which has a 3x3 Area-of-Effect despite its 1x1 appearance) will deal approximately 18 [[venom]] damage, and it will leave acidic pools behind as it travels. The ball will explode upon hitting a wall, splattering acid in a 7x7 AoE from impact. Try to have Araxxor face a wall so the ragged tiles are less impactful. The splatter '''will damage''' before the pool forms.
+|-
+|[[File:Egg (Mirrorback Araxyte).png|140px|left]]
+|[[File:Mirrorback Araxyte.png|140px|left]]
+|[[Mirrorback Araxyte]]s will redirect 20% of the damage dealt to Araxxor towards themselves, and further recoil 50% of that damage to the player, effectively resulting in players taking damage equal to 10% of the damage they dealt to Araxxor. Attacking the spider directly with a melee weapon will result in the player taking 50% of the damage they deal to it as recoil.
+
+Attacking it with [[ranged]], [[magic]], or with a [[halberd]] (while one tile away) will ignore their deflection. If handling a mirrorback with a halberd at melee distance, run two tiles in any cardinal direction before attacking it. Alternatively, players with [[Vengeance]] active can attack the spider at melee distance, which will negate the reflected damage, although remaining on Lunars is not as useful compared to Arceuus.
+| '''Acid Splatter:''' Araxxor launches venom blobs in a wide arc around the player that hit for low venom damage, leaving acid pools behind. As with the acid ball, the splatters '''will damage''' before the pool forms.
+|-
+|[[File:Egg (Ruptura Araxyte).png|140px|left]]
+|[[File:Ruptura Araxyte.png|140px|left]]
+|[[Ruptura Araxyte]]s do not directly attack the player, but will move towards them and explode once they are in melee range. This explosion has an 8x8 AoE around it. The amount of damage dealt is proportional to its health; at full health, standing underneath a ruptura will deal 70 damage. For every tile away from its hitboxes, the damage is reduced by 21 (so standing next to it deals 49, one tile away 28, two tiles 7 damage). Against enemies (Araxxor, any spawned minions or idle eggs), the explosion deals 80 damage if the target's hitboxes are over it, 64 if next to it, with a minimum of 33 damage if three tiles away from it.
+
+| '''Acid Drip:''' Araxxor launches a single venom blob that homes in onto the player, leaving them dripping in venom and leaving pools behind as they move for 6 ticks. Players should continuously move, avoiding standing on the same tile for the duration of the acid, but also while staying within Araxxor's melee range. One good option is to stand under the boss right after the attack lands, move over a tile, then attack the boss again, then repeat this once more. This should allow the player to avoid all of the acid pools while maintaining attacks on the boss.
+For a 4-tick attack weapon, start 2 tiles to the side and 1 tile back from one of Araxxor's corners. Right before the poison splat lands, run 2 tiles into Araxxor, then control-click attack Araxxor to walk back two tiles and attack. Then control-click to 2 tiles to the side and 1 tile back from the next corner around Araxxor (a 90 degree turn from the initial starting position), to walk 2 tiles to the next corner and 1 tile diagonally into Araxxor. Finally control-click Araxxor to walk back one tile outside of Araxxor and attack. For the next acid drip attack, repeat on the next side around Araxxor.
+|}
+<gallery mode="packed" heights="300" style="text-align:left">
+Araxxor - Mirrorback Vengeance.mp4|To counter the mirrorback araxyte with melee, the player must cast [[Vengeance]] and attack it in quick succession right after Araxxor attacks. Otherwise, Vengeance may deflect Araxxor's attack instead, failing the counter.
+Araxxor - Ruptura Araxyte's own goal.mp4|The player can lure Araxxor towards an egg and lure the ruptura araxyte to explode both him and the next egg. Though the egg has one Hitpoint remaining, it will fail to hatch, forcing Araxxor use another three standard attacks to hatch the next egg.
+</gallery>
+
+It is always best to lure the red araxytes so they explode underneath Araxxor for the extra damage; while optional, it is generally recommended to lure them to white eggs if the player does not wish to directly attack them to avoid wasting time preparing to kill the white araxytes.
+
+If attacking the white araxytes directly, they can be one-hit with a [[Crush weapons|crush]] weapon while under the effects of [[vengeance]], and also with the same methods as all araxytes, listed below. Alternatively, a noxious halberd will one-hit them which saves a lot more time on average than having to weaken the eggs.
+
+{{Recommended equipment
+|style = Araxyte weapon
+| weapon1={{plink|Noxious halberd}}{{efn|Standing one tile away from the [[Mirrorback Araxyte]]; costs 5 ticks}}{{efn|Stand 2+ tiles away from [[Mirrorback Araxyte]] attack '''while walking'''. Enabling "Ctrl+click to invert run mode" in [[Settings#Control Options]] can simplify this.}}
+| weapon2={{plink|Hunters' sunlight crossbow}} with {{plinkp|Moonlight antler bolts}} {{efn|name=ranged}} <br/> {{plink|Karil's crossbow}} with {{plinkp|Bolt rack}} {{efn|name=ranged}} <br/> {{plink|Heavy ballista}} with {{plinkp|Dragon javelin}} {{efn|Costs 6 ticks, will require some combination of potions, prayer, and gear switches|name=ranged}}
+| weapon3={{plink|Rune crossbow}} with {{plinkp|Broad bolts}} {{efn|Costs 10 ticks}} <br/> Any melee weapon with '''Crush''' as your most accurate combat style{{efn|Using [[Vengeance]] for the [[Mirrorback Araxyte]]; will require use of [[Spellbook Swap]], which can delay an attack, as well as inventory spaces, or forgoing use of [[thralls]] and [[Death Charge]]}} {{efn|Costs 4-6 ticks}}
+}}
+{{notelist}}
+
+===Enrage phase===
+When Araxxor falls below 255 health, he will enter an enrage phase. This is signified with a distinct screeching sound, along with Araxxor coating his two front legs with venom. This will additionally increase his Defence level by 35, Magic by 28 and Ranged by 31; drained stats '''will''' carry over to enrage. Alongside the increased stats, Araxxor's attack speed is increased from 6 (3.6 seconds) to 4 (2.4 seconds).
+
+For the remainder of the fight, Araxxor will replace his melee attack with a cleave attack that has an attack range of 2, although he will still try to close the gap. Magic or ranged attacks will be used if the player is more than two tiles away from him. The cleave attack targets a 1x3 area around the player's location, dealing melee damage and leaving acid pools on the ground. If the player is standing underneath or diagonally across from Araxxor, the positioning of the pools will be different. Standing underneath Araxxor as he uses the cleave attack will result in a single poison pool (although the AoE of the cleave is still maintained), while standing diagonally across Araxxor results in pools being left appropriately across him (e.g if attacking while facing southwest the pool will appear both north and east of the player).
+
+The player can dodge the cleave attack by moving outside the targeted area immediately when Araxxor shouts {{overhead|Skree!}}. If the player fails to dodge the cleave attack. they can be hit for up to ~38 damage, with Protect from Melee reducing the damage by ~66%. [[Aranea boots]] can be worn to protect the player from the cleave attack up to once every 20 [[ticks]] (12 seconds) - as well as from Araxxor's ranged attack - although they will not negate the poison damage from the acid pools left behind.
+[[File:Araxxor 5-tick enrage cropped.mp4|thumb|480px|How to use a 5-tick weapon during the enrage phase without tick loss. When the player attacks Araxxor at the same time he raises his arms, the player must dodge the next attack by moving at the same time Araxxor raises his arms.]]
+[[File:Araxxor step-under cropped.mp4|thumb|480px|Using the step-under technique to make Araxxor deal damage to himself. If using a 5-tick weapon, players will only attack with their weapon for every 3 out of 4 cleaves the boss performs. As a result, it is recommended for 5-tick weapon users to watch for when they attack just before stepping under the boss, then skip the next step-under to prevent tick loss, as demonstrated in this clip.]]
+
+A way to finish the enrage phase slightly quicker is to bait Araxxor into attacking the tiles he occupies, which results in him damaging himself for 8-12 damage. To perform this method:
+# When enrage phase starts, move two tiles into him.
+# When Araxxor shouts {{overhead|Skree!}}, click on him to attack. You will move two tiles away to attack.
+# For the rest of the kill, repeat the following: when Araxxor's cleave animation shows his front two legs stabbing forward, click to move to a tile without acid, then immediately click him to attack.
+# Optionally, stepping 1 tile back immediately after attacking allows the player to walk Araxxor and use a new tile each attack to avoid the acid pool damage - it is recommended to use a 4-tick weapon if doing this.
+#* While one acid pool is visually left behind, the attack still has 1x3 AoE.
+
+If players find themselves unable to perform the step-under technique, they can dodge by moving either two tiles to the side or one tile backwards when he shouts {{overhead|Skree!}}. Note that if moving backwards, wait an additional tick before attacking or you will be dragged onto the new acid tiles.
+<gallery mode="packed" heights="300" style="text-align:left">
+Araxxor - enrage encircling.mp4|The player moves two tiles away from where they stood.
+Araxxor - enrage stepback.mp4|The player steps back right as Araxxor attacks.
+</gallery>
+
+Players who've decided to opt out of killing the acidic araxytes and who feel confident in always avoiding the enrage phase melee attack can instead change their overhead prayer to [[Protect from Missiles]] in order to completely negate the araxytes' ranged attacks for the remainder of the fight.
+
+After the fight is finished, Araxxor will not respawn just yet, and players can use this time to recover. When ready, the player must either choose to harvest or destroy the boss's corpse. Harvesting will yield normal rewards, while destroying forfeits all rewards, except elite clue scrolls, for a doubled rate of the pet. The player will not be able to preview loot before destroying the corpse. Unless the player is killing Araxxor with the sole purpose of obtaining the pet, it is generally ill-advised to destroy the corpse as this may result in the loss of an [[araxyte fang]] or [[noxious halberd]] pieces, which are incredibly valuable and make up the majority of the boss's profit. Araxxor will respawn shortly after either decision is made.
+
+If harvesting the boss, players should be mindful of supply drops, as Araxxor can potentially drop up to six items at once; an [[araxyte venom sac]] or a 1-dose [[super combat potion]], one or two 3-dose [[prayer potion]]s or a 4-dose prayer potion, along with 2-3 [[shark]]s or [[wild pie]]s. If the player's inventory is full due to having no space after looting, excess rewards will be dropped to the floor. These last for three hours like player-dropped items do.
+
+==Equipment==
+
+<tabber>
+Melee =
+While a scythe can provide faster kills, each swing costs {{NoCoins|{{GEP|Blood rune|2}}+{{GEP|Vial of blood|0.01}}}} coins. If the player is concerned about costs, they can opt for other crush weapons such as a [[soulreaper axe]] or [[inquisitor's mace]], though kills will be slightly slower as a result.
+
+{{Recommended equipment
+| style = Melee
+| head1 = {{plink|Slayer helmet (i)}}
+| neck1 = {{plink|Amulet of rancour}}
+| neck2 = {{plink|Amulet of torture}}
+| neck3 = {{plink|Amulet of blood fury}}
+| neck4 = {{plink|Amulet of fury}}
+| cape1 = {{plink|Infernal cape}}
+| cape2 = {{plink|Fire cape}}{{efn|Mythical cape is better than fire cape if fire cape does not guarantee a max hit over mythical (with all prayers and potions active), due to high crush bonus. Worth checking with low accuracy gear such as Barrows.|name=firemythical}}
+| cape3 = {{plink|Mythical cape}}{{efn|name=firemythical}}
+| body1 = {{plink|Inquisitor's hauberk}}
+| body2 = {{plink|Torva platebody}} 
+| body3 = {{plink|Bandos chestplate}} (or: {{plinkp|Oathplate chest}} {{plinkp|Blood moon chestplate}} {{plinkp|Fighter torso}})
+| body4 = {{plink|Barrows equipment|pic=Torag's platebody|txt=Barrows body}}
+| legs1 = {{plink|Inquisitor's plateskirt}}
+| legs2 = {{plink|Torva platelegs}}
+| legs3 = {{plink|Bandos tassets}} (or: {{plinkp|Oathplate legs}} {{plinkp|Blood moon tassets}})
+| legs4 = {{plink|Barrows equipment|pic=Torag's platelegs|txt=Barrows legs}}
+| weapon1 = {{plink|Scythe of Vitur}}{{efn|Set to slash if wearing [[oathplate armour]], and crush otherwise.}}
+| weapon2 = {{plink|Inquisitor's mace}} / <br/>{{plink|Soulreaper axe}}{{efn|name=crush}}
+| weapon3 = {{plink|Abyssal bludgeon}} > <br/>{{plink|Ursine chainmace (u)}} ><br />{{plink|Zamorakian hasta}}{{efn|Set to crush.|name=crush}}
+| weapon4 = {{plink|Sarachnis cudgel}} ><br />{{plink|Dual macuahuitl}} ><br />{{plink|Zombie axe}}{{efn|name=crush}}
+| shield1 = {{plink|Avernic defender}}
+| shield2 = {{plink|Dragon defender}}
+| ammo1 = {{plink|Rada's blessing 4}}
+| ammo2 = {{plink|Rada's blessing 3}} /<br/>{{plink|Rada's blessing 2}} /<br/>{{plink|God blessing|pic=Peaceful blessing}}
+| ammo3 = Ammo for killing araxyte spawns
+| hands1 = {{plink|Ferocious gloves}}
+| hands2 = {{plink|Barrows gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Primordial boots}}
+| feet3 = {{plink|Dragon boots}} /<br/>{{plink|Aranea boots}}
+| ring1 = {{plink|Ultor ring}}
+| ring2 = {{plink|Berserker ring (i)}}
+| special1 = {{plink|Elder maul}}{{efn|Due to the Defence reduction cap, only one successful reduction should be applied per kill.|name=defreduction}} +<br />{{plink|Crimson kisten}}
+| special2 = {{plink|Dragon warhammer}}{{efn|name=defreduction}} +<br/>{{plink|Burning claws}}{{efn|Set to slash.}}<!--Do not add this to dclaws, only bclaws spec depends on attack style. Araxxor has a lower slash def than stab.-->
+| special3 = {{plink|Dragon claws}} ><br />{{plink|Bandos godsword}}
+| special4 = {{plink|Voidwaker}}
+}}
+{{Notelist}}
+
+==Inventory==
+{{Inventory|align=right
+|1= Elder maul
+|2= Divine super combat potion(4)
+|3= {{Cheap prayer}}
+|4= {{Cheap prayer}}
+|5= Dragon claws
+|6= Extended anti-venom+(4)
+|7= {{Cheap prayer}}
+|8= {{Cheap prayer}}
+|9= Noxious halberd
+|10= Surge potion(4)
+|11= {{Cheap food}}
+|12= {{Cheap food}}
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= {{Cheap food}}
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= {{Cheap food}}
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= {{Cheap food}}
+|25= Anglerfish
+|26= Teleport to house (tablet)
+|27= Book of the Dead
+|28= Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Aether rune
+|4=Death rune
+}}
+
+*A special attack weapon, such as an [[elder maul]] or [[dragon claws]]
+*A weapon to safely kill araxytes; a [[noxious halberd]] is recommended, even when using a mace (the mace is still able to one hit acidics)
+*[[Extended anti-venom+]] potions
+*[[Prayer potions]] or [[super restore potions]]
+*[[Super combat potions]]
+*High healing food
+*[[Combo food]] such as [[karambwan]]s or [[halibut]] (optional, if struggling to heal fast enough - seek to replace with higher healing food when more skilled at the boss)
+*Runes for [[Vengeance]] if on the [[Lunar spellbook]], [[Resurrection spells|thralls]] and [[Death Charge]] if on [[Arceuus spellbook|Arceuus]], or additional runes for [[Spellbook Swap]] if using both. If using both, a [[ring of shadows]] can be brought and uncharged to provide the needed blood, soul, death, and law runes.
+
+
+|-|
+Ranged =
+The twisted bow with Masori offers DPS better than the [[abyssal bludgeon]] and lower tier melee weapons, but is significantly outclassed by the [[scythe of Vitur]]. 
+
+{{Recommended equipment
+|style = Ranged
+|head1 = {{plink|Slayer helmet (i)}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Amulet of fury}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}} (Best [[Ava's device]])
+|cape3 = {{plink|Max cape}} / {{plink|Ranging cape(t)}}
+|body1 = {{plink|Masori body (f)}}
+|legs1 = {{plink|Masori chaps (f)}}
+|weapon1 = {{plink|Twisted bow}}
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Dragon arrow}}
+|ammo3 = {{plink|Amethyst arrow}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Blessed vambraces|pic=Ancient bracers}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet3 = {{plink|Aranea boots}}{{efn|Slightly less damage than pegasian boots, but greatly reduces damage taken if ensuring every other attack taken is a ranged attack, as it will completely evade the attack.}}
+|feet2 = {{plink|Pegasian boots}}
+|feet4 = {{plink|Ranger boots}} /<br />{{plink|Devout boots}}
+|feet5 = {{plink|Blessed boots|pic=Ancient d'hide boots}}
+|ring1 = {{plink|Lightbearer}}
+|ring2 = {{plink|Ring of the gods (i)}} /<br />{{plink|Archers ring (i)}}
+|special1 = {{plink|Elder maul}}{{efn|Special attack is very accurate even without any gear switches.|name=spec1}}
+|special2 = {{plink|Dragon warhammer}}{{efn|name=spec1}}
+|special3 = {{plink|Zaryte crossbow}}
+}}
+{{Notelist}}
+
+==Inventory==
+{{Inventory|align=right
+|1= Elder maul
+|2= Heavy ballista
+|3= Dragon javelin
+|4= Divine ranging potion(4)
+|5= Extended anti-venom+(4)
+|6= {{Cheap prayer}}
+|7= {{Cheap prayer}}
+|8= {{Cheap prayer}}
+|9= Surge potion(4)
+|10= Spider cave teleport
+|11= {{Cheap food}}
+|12= {{Cheap food}}
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= {{Cheap food}}
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= {{Cheap food}}
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= {{Cheap food}}
+|25= {{Cheap food}}
+|26= Book of the Dead
+|27= Divine rune pouch
+|28= Teleport to house (tablet)
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Aether rune
+|4=Death rune
+}}
+*A special attack weapon, such as an [[elder maul]] for defence reduction or a [[Zaryte crossbow]] with [[ruby bolts (e)]] for damage.
+*A [[heavy ballista]] to kill the [[mirrorback araxyte]]s in one shot.
+*[[Extended anti-venom+]] potions
+*[[Prayer potions]]
+*[[Divine ranging potion]]
+*High healing food
+*[[Combo food]] such as [[karambwan]]s or [[halibut]] (optional, if struggling to heal fast enough - seek to replace with higher healing food when more skilled at the boss)
+*Runes for [[Resurrection spells|thralls]] and [[Death Charge]]
+</tabber>
+
+{{Araxxor}}
+[[Category:Strategies]]

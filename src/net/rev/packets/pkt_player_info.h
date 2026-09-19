@@ -28,6 +28,19 @@
 #define PKT_PLAYER_MASK_EXACT_MOVE 0x200
 #define PKT_PLAYER_MASK_DAMAGE2 0x400
 
+/*
+ * 2047, twice over, meaning two unrelated things:
+ *
+ *  - as an extended-info queue entry it is "the local player", a slot no
+ *    tracked player can occupy;
+ *  - as a new-player pid it is the end of the new-player section.
+ *
+ * They collide only because 11 bits is 11 bits. Naming them apart is what
+ * keeps a reader from looking like it compares the two.
+ */
+#define PKT_PLAYER_INFO_LOCAL_PLAYER_IDX 2047
+#define PKT_PLAYER_INFO_NEW_TERMINATOR 2047
+
 enum PktPlayerInfoOpKind
 {
     PKT_PLAYER_INFO_OP_NONE = 0,
@@ -232,6 +245,14 @@ struct PktPlayerInfoReader
     uint16_t extended_queue[2048];
     int extended_count;
     int current_op;
+    /** Set when the packet asked for more ops than the caller's array holds.
+     *  The ops decoded up to that point are still valid; everything after is
+     *  discarded, so the extended-info blocks no longer line up with the list
+     *  positions they address and the packet should be treated as junk. */
+    int overflowed;
+    /** Where a write goes once the array is full, so a packet claiming more ops
+     *  than fit cannot reach past the end of it. See next_op in the .c. */
+    struct PktPlayerInfoOp op_sink;
 };
 
 /** Decode the raw command stream into `ops`. Returns the op count. */

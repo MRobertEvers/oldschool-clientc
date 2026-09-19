@@ -1,0 +1,561 @@
+{{External|rs=Desert achievements}}
+{{Infobox Achievement Diary
+|name = Desert Diary
+|image = [[File:Desert Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Kharidian Desert]] (not including [[Al Kharid]])
+|members = Yes
+|reward = [[Desert amulet|Amulet]]
+|taskmasters = [[Jarr]]
+|leagueRegion = Desert
+}}
+{{Map|name=Desert Diary|x=3302|y=3122|r=5|width=250|height=250|caption=Jarr's location|align=left|mtype=square}}
+The '''Desert Diary''' is an [[Achievement Diary]] whose tasks revolve around areas within the [[Kharidian Desert]], such as [[Pollnivneach]], [[Nardah]], and [[Sophanem]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Jarr]] in the [[Shantay Pass]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|boostable=true
+|selectable=true
+|maxrefs=2
+|Thieving = 21
+|Hunter = 5
+|Total = 56
+}}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Icthlarin's Little Helper]]
+|}
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 37
+|Agility = 30
+|Herblore = 36
+|Ranged = 37
+|Thieving = 37
+|Prayer = 43
+|PrayerNotes = {{boostable|n}}
+|Crafting = 50
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 45
+|Magic = 39
+|Woodcutting = 35
+|Slayer = 22
+|Construction = 20
+|Hunter = 47
+|Total = 497
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="Enakhra's Lament"
+|[[Enakhra's Lament]]
+|- data-rowid="The Golem"
+|[[The Golem]]
+|- data-rowid="Spirits of the Elid"
+|[[Spirits of the Elid]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Icthlarin's Little Helper]]
+|}
+|}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 50
+|Mining = 60
+|MiningNotes = {{boostable|n}}
+|Agility = 70
+|Smithing = 68
+|Defence = 40
+|DefenceNotes = {{boostable|n}}
+|Herblore = 36
+|Ranged = 40
+|RangedNotes = {{boostable|n}}
+|Thieving = 65
+|Prayer = 43
+|PrayerNotes = {{boostable|n}}
+|Crafting = 61
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 60
+|Magic = 68
+|Fletching = 10
+|Woodcutting = 55
+|WoodcuttingNotes = {{boostable|n}}
+|Slayer = 65
+|Construction = 20
+|Hunter = 47
+|Combat = 85
+|Total = 873
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Contact!"
+|[[Contact!]]
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Dream Mentor"
+|[[Dream Mentor]]
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="Enakhra's Lament"
+|[[Enakhra's Lament]]
+|- data-rowid="The Feud"
+|[[The Feud]]
+|- data-rowid="The Golem"
+|[[The Golem]]
+|- data-rowid="Spirits of the Elid"
+|[[Spirits of the Elid]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Defeat the [[Kalphite Queen]]
+|}
+|}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 50
+|Mining = 60
+|MiningNotes = {{boostable|n}}
+|Agility = 70
+|Smithing = 68
+|Defence = 40
+|DefenceNotes = {{boostable|n}}
+|Herblore = 36
+|Ranged = 40
+|RangedNotes = {{boostable|n}}
+|Thieving = 91
+|ThievingNotes = {{boostable|n}}
+|Cooking = 85
+|Prayer = 85
+|PrayerNotes = {{boostable|n}}
+|Crafting = 61
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 60
+|Magic = 94
+|Fletching = 95
+|Woodcutting = 55
+|WoodcuttingNotes = {{boostable|n}}
+|Slayer = 65
+|Construction = 78
+|Hunter = 47
+|Combat = 85
+|Total = 1194
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Contact!"
+|[[Contact!]]
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Dream Mentor"
+|[[Dream Mentor]]
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="Enakhra's Lament"
+|[[Enakhra's Lament]]
+|- data-rowid="The Feud"
+|[[The Feud]]
+|- data-rowid="The Golem"
+|[[The Golem]]
+|- data-rowid="Spirits of the Elid"
+|[[Spirits of the Elid]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Defeat the [[Kalphite Queen]] and obtain her ([[Kq head (tattered)|tattered]]) [[Kq head|head]]
+|-
+|Open the [[Grand Gold Chest]] in the final room of [[Pyramid Plunder]]
+|}
+|}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Desert" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Golden Warbler]].
+|
+*{{SCP|Hunter|5|link=y}}
+*[[Bird snare]]
+*[[Necklace of passage]] recommended for quick access to Eagle's Eyrie, near the [[Uzer Hunter area]]
+|-
+|2. Mine 5 [[clay]] in the [[Uzer mine|north-eastern desert]].
+|
+*Any [[pickaxe]]
+*[[Necklace of passage]] recommended for quick access to Eagle's Eyrie, near the [[Uzer mine]]
+|-
+|3. Enter the [[Kalphite Lair|Kalphite Hive]].
+|
+*[[Rope]]
+|-
+|4. Enter the [[Desert]] with a set of [[Desert clothing|Desert robes]] equipped.
+''Note: Not to be confused with the [[desert outfit]], which doesn't count for this task. You also cannot use the [[black desert shirt]] or [[black desert robe]].
+|
+*[[Desert shirt]], [[desert robe]], and [[desert boots]]
+|-
+|5. Kill a [[Vulture]]
+''Note: These are found north of [[Menaphos]] or [[Sophanem]].''
+|
+*[[Weaponry]], preferably [[Ranged]] or [[Magic]]
+|-
+|6. Have the [[Zahur|Nardah Herbalist]] clean a [[Herb]] for you.
+''Note: You have to talk to Zahur to complete this task. Do not use the grimy herb on her to clean it.''
+|
+*Any [[grimy herb]] and 200 [[coins]]
+|-
+|7. Collect 5 [[Potato Cactus]]{{sic}} from the [[Kalphite Lair|Kalphite Hive]].
+''Note: You can bring a single [[potato cactus]] to the lair, then drop and pick it up five times.''
+|
+*[[Rope]]
+*[[Antipoison]] and [[food]] recommended if not bringing your own [[potato cactus]]
+|-
+|8. Sell some artefacts to [[Simon Templeton]].
+''Note: The [[pyramid top]] from the nearby [[Agility Pyramid]] does not count.''
+|
+* Players must have started [[Icthlarin's Little Helper]] for access to [[Sophanem]].
+
+*Any [[Pyramid_Plunder#Rewards|artefact]] from [[Pyramid Plunder]].
+|-
+|9. Open the [[Sarcophagus_(Pyramid_Plunder)|Sarcophagus]] in the first room of [[Pyramid Plunder]]
+|
+*{{SCP|Quest}} Started [[Icthlarin's Little Helper]]
+*{{SCP|Thieving|21|link=y}}
+|-
+|10. Cut a [[Kharidian cactus|desert cactus]] open to fill a [[waterskin]].
+|
+*[[Knife]] or a slash weapon, and an empty [[waterskin]]
+|-
+|11. Travel from the [[Shantay Pass]] to [[Pollnivneach]] by [[Magic Carpet]].
+|
+*200 [[coins]] and a [[Shantay pass (item)|Shantay Pass]] or another 5 coins.
+|}
+
+===Rewards===
+*[[Desert amulet 1]]:
+**No benefits aside from cosmetic purposes
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*[[Pharaoh's sceptre]] will now hold up to 10 [[Pharaoh's sceptre#Recharging|charges]], up from 3
+*[[Goat horn]]s from [[goat]]s are now [[Bank note|noted]]
+*[[Simon Templeton]] now also buys artefacts in [[Bank note|noted]] form
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Desert" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Climb to the summit of the [[Agility Pyramid]].
+|
+*{{SCP|Agility|30|link=y}}
+*[[Desert_heat#Protective_clothes_and_gear|Protection against desert heat]] recommended
+|-
+|2. Slay a [[desert lizard]].
+|
+*{{SCP|Slayer|22|link=y}}
+*[[Ice cooler]]
+|-
+|3. Catch an [[Orange salamander (Hunter)|Orange Salamander]].
+|
+*{{SCP|Hunter|47|link=y}}
+*[[Rope]] and a [[small fishing net]]
+|-
+|4. Steal a [[Phoenix feather|feather]] from the [[Desert Phoenix]].
+|
+*{{SCP|Thieving|25|link=y}}
+|-
+|5. Travel to [[Ruins of Uzer|Uzer]] via [[Magic Carpet]].
+|
+*{{SCP|Quest}} Completion of [[The Golem]]
+*200 [[coins]] (or 205 [[coins]] if using the [[Shantay Pass]])
+|-
+|6. Travel to the [[Desert]] via [[Eagle transport system|Eagle]].
+''Note: You'll unlock travel from the [[Eagles' Peak Dungeon]] after the required quest.
+|
+*{{SCP|Quest}} Completion of [[Eagles' Peak]]
+*[[Rope]]
+|-
+|7. Pray at the [[Elidinis statuette]] in [[Nardah]]
+''Note: Requires you to have less than full [[Prayer points]].''
+|
+*{{SCP|Quest}} Completion of [[Spirits of the Elid]]
+|-
+|8. Create a [[combat potion]] in the [[desert]].
+|
+*{{SCP|Herblore|36|link=y}}
+*[[Harralander potion (unf)]] and [[goat horn dust]]
+|-
+|9. Teleport to [[Enakhra's Temple]] with the [[Camulet]].
+|
+*{{SCP|Quest}} Completion of [[Enakhra's Lament]]
+*[[Camulet]]
+|-
+|10. Visit the [[Genie (Spirits of the Elid)|Genie]].
+''Note: This task is automatically completed during [[Spirits of the Elid]].''
+|
+*{{SCP|Quest}} Started [[Spirits of the Elid]]
+*[[Rope]] and [[light source]]
+|-
+|11. Teleport to [[Pollnivneach]] with a [[Teleport_to_house_(tablet)#Redirected_house_tablets|redirected teleport to house tablet]].
+''Note: [[Ironmen]] must instead enter their house via the [[Pollnivneach]] [[Portal (Player-owned house)|house portal]].''
+|
+*{{SCP|Construction|20|link=y}}
+*[[Scroll of redirection]] and a [[Teleport to house (tablet)|house tablet]]
+|-
+|12. Chop some [[Teak Logs]] near [[Ruins of Uzer|Uzer]].
+''Note: [[Teak tree]]s are found north-east of the oasis.''
+|
+*{{SCP|Woodcutting|35|link=y}}
+*Any [[axe]]
+|}
+
+===Rewards===
+*[[Desert amulet 2]]:
+**One daily teleport to [[Nardah]]
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*[[Pharaoh's sceptre]] will now hold up to 25 [[Pharaoh's sceptre#Recharging|charges]], up from 10
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Desert" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Knock out and [[pickpocket]] a [[Menaphite Thug]].
+|
+*{{SCP|Quest}} Partial completion of [[The Feud]]
+*{{SCP|Thieving|65|link=y}}
+*Any [[blackjack]]
+|-
+|2. Mine some [[Granite]].<ref group="d">Mining granite at the [[Cape Conch mine]] in [[The Great Conch]] will also complete this task.</ref>
+|
+*{{SCP|Mining|45|link=y}}
+*Any [[pickaxe]]
+|-
+|3. Refill your [[waterskin]]s in the [[Desert]] using [[Lunar spellbook|Lunar magic]].
+''Note: The spell must be cast outside of a desert settlement.
+|
+*{{SCP|Quest}} Completion of [[Dream Mentor]]
+*{{SCP|Magic|68|link=y}}
+*[[Lunar spellbook]] selected
+*[[Waterskin]] that isn't full and means to cast [[Humidify]] ({{RuneReq|Astral=1|Fire=1|Water=3}})
+|-
+|4. Kill the [[Kalphite Queen]].
+|
+*See the [[Kalphite_Queen/Strategies|strategy guide]]
+|-
+|5. Complete a lap of the [[Pollnivneach Rooftop Course|Pollnivneach agility course]].
+|
+*{{SCP|Agility|70|link=y}}
+|-
+|6. Slay a [[Dust Devil]] in the [[Smoke Dungeon|desert cave]] with a [[Slayer helmet]] equipped.
+|
+*{{SCP|Quest}} Started [[Desert Treasure I]]
+*{{SCP|Slayer|65|link=y}} {{Boostable|y}} and {{SCP|Defence|10|link=y}}
+*[[Slayer helmet]] (requires {{SCP|Crafting|55|link=y}} {{Boostable|y}}) (and {{SCP|Quest}} completion of [[Cabin Fever]] for [[Ironman mode|Ironman accounts]])
+|-
+|7. Activate [[Ancient Magicks]] at the [[Altar_(Ancient_Pyramid)|altar]] in the [[Ancient Pyramid|Jaldraocht Pyramid]].
+|
+*{{SCP|Quest}} Completion of [[Desert Treasure I]]
+|-
+|8. Defeat a [[Locust Rider]] with [[Keris]].
+''Note: This weapon only has to be equipped as it dies, allowing you to deal damage with other weapons. [[Keris partisan]] and its variants also work for completing this task.
+|
+*{{SCP|Quest}} Partial completion of [[Contact!]]
+*{{SCP|Attack|50|link=y}}
+*[[Keris]] or [[Keris partisan]], and any [[light source]]
+|-
+|9. Burn some [[yew logs]] on the [[Nardah Mayor]]'s balcony.
+''Note: He lives directly east of the central fountain.
+|
+*{{SCP|Firemaking|60|link=y}}
+*[[Yew log]] and a [[tinderbox]]
+|-
+|10. Create a [[Mithril Platebody]] in [[Nardah]].
+''Note: The anvil is found in the westernmost building.
+|
+*{{SCP|Smithing|68|link=y}}
+*5 [[mithril bar]]s and a [[hammer]]
+|}
+{{Reflist|group=d}}
+
+===Rewards===
+*[[Desert amulet 3]]:
+**No new benefits
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*[[Pharaoh's sceptre]] will now hold up to 50 [[Pharaoh's sceptre#Recharging|charges]], up from 25
+*Free [[carpet ride]]s throughout the [[Kharidian Desert]], down from a fee of 75-200 [[coins]] per ride
+*[[Rope]]s are now permanently secured once placed at the [[Kalphite Lair]] entrance and [[Kalphite Queen|Queen's Lair]]
+*Roughly 14% increased experience and 25% more [[mark of grace|marks of grace]] from the [[Pollnivneach Rooftop Course]]{{CiteDiscord|author=Mod Lykos|url=https://discord.com/channels/177206626514632704/514602892292784139/1397002033911038144|date=21 July 2025|archiveurl=https://reldo.runescape.wiki/i/27962726#chat-messages-514602892292784139-1397002033911038144|archivedate=7 March 2026|quote=for the Pollnivneach and Rellekka courses, there is a 1/3 chance to have the timer be two minutes if you've completed the hard tier of the respective diary|image=Lykos Desert and Frem diary mark of grace bonus.png}}
+*[[Camulet]] can now be rubbed to teleport to the entrance of [[Enakhra's Temple]], aside from the inner sanctuary of that temple 
+*[[Zahur]] now also cleans [[grimy herb]]s in [[Bank note|noted]] form, and offers her [[Zahur#Unfinished potions|potion-making services]]
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Desert" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Bake a [[wild pie]] at the [[Nardah]] [[Clay oven|Clay Oven]].
+|
+*{{SCP|Cooking|85|link=y}} {{Boostable|y}}
+*[[Raw wild pie]]
+|-
+|2. Cast [[Ice Barrage]] against a foe in the [[Desert]]
+''Note: The spell must be cast outside of a desert settlement, and must successfully hit.
+|
+*{{SCP|Quest}} Completion of [[Desert Treasure I]]
+*{{SCP|Magic|94|link=y}} {{Boostable|y}}
+*Means to cast [[Ice Barrage]] ({{RuneReq|Death=4|Blood=2|Water=6}})
+|-
+|3. Fletch some [[Dragon dart]]s at the [[Bedabin Camp]].
+|
+*{{SCP|Fletching|95|link=y}} {{Boostable|y}}
+*[[Dragon dart tip]] and [[feather]]
+|-
+|4. Speak to the [[Kalphite Queen head (mounted)|KQ head]] in your [[POH]].
+''Note: The [[Kalphite Queen]] has a 1/128 chance of dropping her [[Kq head|head]] on death, and is guaranteed to drop a [[kq head (tattered)|tattered head]] on the 256th kill, both of which can be used to create the [[Kalphite Queen head (mounted)|KQ head]].''
+|
+*{{SCP|Quest}} Completion of [[Priest in Peril]]
+*{{SCP|Construction|78|link=y}} {{Boostable|y}}
+*2 [[mahogany plank]]s, 2 [[gold leaves]], [[saw]], and [[hammer]]
+*[[Kq head]] or [[Kq head (tattered)]], and 50,000 [[coins]] to have the [[taxidermist]] [[Stuffed_kq_head|stuff]] it
+*Additional 15,000 [[coins]] to construct a [[Hall_(skill_trophies)|Skill Hall]] if you haven't already
+|-
+|5. Steal from the [[Grand Gold Chest]] in the final room of [[Pyramid Plunder]].
+|
+*{{SCP|Quest}} Started [[Icthlarin's Little Helper]]
+*{{SCP|Thieving|91|link=y}} {{Boostable|n}}
+|-
+|6. Restore at least 85 [[Prayer points]] when praying at the [[Altar (Sophanem)|Altar]] in [[Sophanem]].
+|
+*{{SCP|Quest}} Started [[Icthlarin's Little Helper]]
+*{{SCP|Prayer|85|link=y}} {{Boostable|n}}
+|}
+
+===Rewards===
+*[[Desert amulet 4]]:
+**Unlimited teleports to [[Nardah]], closer to the [[Elidinis Statuette]] than the previous amulets
+**Unlimited teleports to the entrance of the [[Kalphite Cave]]
+**Fully protects against [[desert heat]] while worn
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*[[Pharaoh's sceptre]] will now hold up to 100 [[Pharaoh's sceptre#Recharging|charges]], up from 50
+*Free passage through [[Shantay Pass]] and the similar pass at [[Ruins of Unkah]], down from a fee of 5 [[coins]]
+*Access to the [[Crevice (Kalphite Lair)|crevice shortcut]] in the [[Kalphite Lair]] (with 86 [[Agility]])
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* Removed Hard diary requirement to use the Al Kharid Palace window agility shortcut.
+* The Hard diary completion now gives increased experience and [[marks of grace]] in the Pollnivneach rooftop course.
+}}
+{{Subject changes
+|date = 26 October 2022
+|update = Halloween 2022
+|change = The Hard Desert Diary Task requiring a player to kill a [[locust rider]] now ''only'' completes upon killing a locust rider rather than any monster in the general area.
+}}
+{{Subject changes
+|date = 15 June 2022
+|update = Giants' Foundry Changes
+|change = Clicking out of the Agility Pyramid's completion dialogue will no longer prevent the associated diary task from completing.
+}}
+{{Subject changes
+|change = The permanent ropes at both the Kalphite Lair and the Kalphite Queen tunnel entrances will now appear with the Hard Diary
+|date = 25 November 2020
+|poll = Old School Content Poll 73: The :Joy: of Polls
+|update = Twisted Tales - Getting Ahead Launch
+}}
+{{Subject changes
+|change = The Nardah Teleport will now drop you inside the temple at Nardah with the Elite Diary
+|date = 26 March 2020
+|poll = Old School Content Poll 70: Game Improvements
+|update = Game Improvements (26 March 2020)
+}}
+{{Subject changes
+|date = 12 November 2015
+|update = Monster Examine & Deadman
+|poll = 
+|change = The easy desert achievement diary task to mine 5 clay in the north-eastern desert now includes all of the clay rocks in the vicinity.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = The [[Shortcut|agility shortcut]] unlocked as a reward from the [[Desert Elite Diary|Elite Desert achievement diary]] now takes you from the very start of the Kalphite Lair directly to the entrance of the Kalphite Queen boss room.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = The ropes used to access the Kalphite Queen will stay permanently for players that have completed the elite desert achievement diary.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|change = Pollnivneach is now spelt correctly on the Desert task list.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|change = Murky Matt will only decant Pharaoh's sceptres with the amount of charges you have unlocked from the desert diary.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* When a player who has completed the hard Desert diary downgrades their Ironman status to a main account, the Pollivneach house task is marked as incomplete. However, the diary as a whole remains in the state of rewards having been claimed. The task does not need to be completed again to receive the benefits from the hard or elite tiers.
+
+==References==
+{{Reflist}}
+
+{{Achievement diary}}

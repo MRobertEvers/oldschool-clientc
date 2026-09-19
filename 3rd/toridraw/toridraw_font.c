@@ -14,7 +14,7 @@ const uint16_t TORIDRAW_FONT_CHARSET[] = {
     'g',    'h', 'i',  'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',  't', 'u', 'v',
     'w',    'x', 'y',  'z', '0', '1', '2', '3', '4', '5', '6', '7', '8',  '9', '!', '"',
     0x00A3, '$', '%',  '^', '&', '*', '(', ')', '-', '_', '=', '+', '[',  '{', ']', '}',
-    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', ' '
+    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', '|'
 };
 
 _Static_assert(
@@ -44,14 +44,17 @@ font_init_charcodeset(struct ToriDraw_Font* font)
     for( int i = 0; i < 256; i++ )
     {
         int c = font_index_of_char((uint8_t)i);
-        if( c == -1 )
-            c = font_index_of_char(' ');
+        /* A character this font has no record for draws nothing and advances
+         * like a space. It must NOT fall back to the last glyph record --
+         * that slot is '|', and every unknown byte would draw a bar. */
         if( c < 0 || c >= TORIDRAW_FONT_GLYPH_COUNT )
-            c = TORIDRAW_FONT_GLYPH_COUNT - 1;
+            c = TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
         font->charcodeset[i] = (char)c;
     }
+    /* The space is the one character with no glyph record: it is the
+     * advance-only slot past the end of the 94 records. @see the CHARSET
+     * note in 3rd/rscache dat1_pix_font.c, which this table mirrors. */
     font->charcodeset[(unsigned char)' '] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
-    font->charcodeset[(unsigned char)'|'] = (char)TORIDRAW_FONT_ADVANCE_ONLY_GLYPH;
 }
 
 static void
@@ -59,8 +62,6 @@ font_finish_draw_widths(struct ToriDraw_Font* font)
 {
     int const fallback = font->advance[8] > 0 ? font->advance[8] : 4;
 
-    if( font->advance[93] < 4 )
-        font->advance[93] = fallback;
     if( font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH] <= 0 )
         font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH] = fallback;
 
@@ -68,7 +69,6 @@ font_finish_draw_widths(struct ToriDraw_Font* font)
         font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
 
     font->draw_width[(unsigned char)' '] = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
-    font->draw_width[(unsigned char)'|'] = font->advance[TORIDRAW_FONT_ADVANCE_ONLY_GLYPH];
 }
 
 void
@@ -391,7 +391,10 @@ font_space_advance(struct ToriDraw_Font const* font)
 static bool
 font_is_rs_space_char(unsigned char ch)
 {
-    return ch == ' ' || ch == '|';
+    /* The space alone. '|' is a printable glyph in this font family -- it is
+     * the caret both references draw on the login screen ("@yel@|") -- and
+     * calling it a space made that caret invisible. */
+    return ch == ' ';
 }
 
 static int
@@ -476,7 +479,16 @@ font_glyph_drawable(
     struct ToriDraw_Font const* font,
     int gi)
 {
-    assert(font && gi >= 0 && gi < TORIDRAW_FONT_GLYPH_COUNT);
+    assert(font);
+    assert(gi >= 0);
+    assert(gi <= TORIDRAW_FONT_ADVANCE_ONLY_GLYPH);
+
+    /* The advance-only glyph is a legitimate answer from font_glyph_index --
+     * a space, or any character this font's charcodeset does not map (an
+     * NBSP out of a chat line) -- and it indexes one past every glyph array.
+     * It moves the pen and draws nothing. */
+    if( gi == TORIDRAW_FONT_ADVANCE_ONLY_GLYPH )
+        return false;
 
     int const gw = font->glyph_width[gi];
     int const gh = font->glyph_height[gi];
@@ -794,6 +806,130 @@ ToriDraw2D_WrapLineCount(
     return total > 0 ? total : 1;
 }
 
+/*
+ * The output scale: layout -> buffer, per axis, as buf/layout. Identity (the
+ * zero value) writes 1:1. Thread-local because a scale is one caller's
+ * frame state, and a renderer on another thread must not inherit it.
+ * @see ToriDraw2D_FontSetOutputScale.
+ */
+static _Thread_local struct
+{
+    int on;
+    int buf_w, layout_w;
+    int buf_h, layout_h;
+} g_font_scale;
+
+void
+ToriDraw2D_FontSetOutputScale(int buf_w, int layout_w, int buf_h, int layout_h)
+{
+    assert(buf_w > 0);
+    assert(layout_w > 0);
+    assert(buf_h > 0);
+    assert(layout_h > 0);
+    g_font_scale.on = buf_w != layout_w || buf_h != layout_h;
+    g_font_scale.buf_w = buf_w;
+    g_font_scale.layout_w = layout_w;
+    g_font_scale.buf_h = buf_h;
+    g_font_scale.layout_h = layout_h;
+}
+
+/* floor(v * num / den) for a positive den, negative v included. */
+static inline int
+font_scale_floor(int v, int num, int den)
+{
+    long long const n = (long long)v * num;
+    long long q = n / den;
+    if( (n % den != 0) && (n < 0) )
+        q--;
+    return (int)q;
+}
+
+/* The layout pixel a buffer pixel belongs to: the largest v whose mapped
+ * edge floor(v * buf / layout) is at or before p. NOT floor(p * layout / buf)
+ * -- that hands the first buffer pixel of every layout pixel to its left
+ * neighbour, and a layout pixel one buffer pixel wide vanishes (letters lost
+ * a stroke at 133%). p is never negative here: it is inside the clip. */
+static inline int
+font_scale_owner(int p, int buf, int layout)
+{
+    return (int)(((long long)(p + 1) * layout + buf - 1) / buf) - 1;
+}
+
+/* One layout-space glyph written into a scaled buffer: every buffer pixel
+ * inside the glyph's mapped box samples the texel it came from. The clip is
+ * already in buffer pixels. */
+static int
+font_draw_glyph_pixels_scaled(
+    struct ToriDraw_Font const* font,
+    int gi,
+    int gx,
+    int gy,
+    int color,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
+    toripixel_t* pixel_buffer)
+{
+    int const gw = font->glyph_width[gi];
+    int const gh = font->glyph_height[gi];
+    int const bw = g_font_scale.buf_w;
+    int const lw = g_font_scale.layout_w;
+    int const bh = g_font_scale.buf_h;
+    int const lh = g_font_scale.layout_h;
+    int x0 = font_scale_floor(gx, bw, lw);
+    int x1 = font_scale_floor(gx + gw, bw, lw);
+    int y0 = font_scale_floor(gy, bh, lh);
+    int y1 = font_scale_floor(gy + gh, bh, lh);
+    int pixels_written = 0;
+
+    if( x0 < cl )
+        x0 = cl;
+    if( x1 > cr )
+        x1 = cr;
+    if( y0 < ct )
+        y0 = ct;
+    if( y1 > cb )
+        y1 = cb;
+    if( x0 >= x1 || y0 >= y1 )
+        return 0;
+
+    /* Walked edge to edge: one divide per texel crossed, not two per pixel --
+     * chat is thousands of glyphs a frame. */
+    int row = font_scale_owner(y0, bh, lh) - gy;
+    int row_edge = font_scale_floor(gy + row + 1, bh, lh);
+    int const col_first = font_scale_owner(x0, bw, lw) - gx;
+    int const col_first_edge = font_scale_floor(gx + col_first + 1, bw, lw);
+    for( int y = y0; y < y1; y++ )
+    {
+        while( y >= row_edge )
+        {
+            row++;
+            row_edge = font_scale_floor(gy + row + 1, bh, lh);
+        }
+        int const r = row < 0 ? 0 : (row >= gh ? gh - 1 : row);
+        uint8_t const* arow = font->glyph_alpha[gi] + (size_t)r * gw;
+        toripixel_t* drow = pixel_buffer + (size_t)y * stride;
+        int col = col_first;
+        int col_edge = col_first_edge;
+        for( int x = x0; x < x1; x++ )
+        {
+            while( x >= col_edge )
+            {
+                col++;
+                col_edge = font_scale_floor(gx + col + 1, bw, lw);
+            }
+            int const c = col < 0 ? 0 : (col >= gw ? gw - 1 : col);
+            if( arow[c] == 0 )
+                continue;
+            drow[x] = toripixel_pack_argb8888((uint32_t)color);
+            pixels_written++;
+        }
+    }
+    return pixels_written;
+}
+
 static int
 font_draw_glyph_pixels(
     struct ToriDraw_Font const* font,
@@ -806,10 +942,13 @@ font_draw_glyph_pixels(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     if( !font_glyph_drawable(font, gi) )
         return 0;
+    if( g_font_scale.on )
+        return font_draw_glyph_pixels_scaled(
+            font, gi, gx, gy, color, cl, ct, cr, cb, stride, pixel_buffer);
 
     int pixels_written = 0;
     int const gw = font->glyph_width[gi];
@@ -838,13 +977,13 @@ font_draw_glyph_pixels(
     for( int row = row_begin; row < row_stop; row++ )
     {
         uint8_t const* arow = font->glyph_alpha[gi] + (size_t)row * gw;
-        int* drow = pixel_buffer + (size_t)(gy + row) * stride + gx;
+        toripixel_t* drow = pixel_buffer + (size_t)(gy + row) * stride + gx;
 
         for( int col = col_begin; col < col_stop; col++ )
         {
             if( arow[col] == 0 )
                 continue;
-            drow[col] = color;
+            drow[col] = toripixel_pack_argb8888((uint32_t)color);
             pixels_written++;
         }
     }
@@ -976,7 +1115,7 @@ font_draw_mask(
     uint8_t const* src,
     int src_off,
     int src_step,
-    int* dst,
+    toripixel_t* dst,
     int dst_off,
     int dst_step,
     int rgb)
@@ -1031,20 +1170,39 @@ font_draw_rule_span(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
-    if( !pixel_buffer || width <= 0 || y < ct || y >= cb )
+    if( !pixel_buffer || width <= 0 )
         return;
-    int x0 = x < cl ? cl : x;
+    int y0 = y;
+    int y1 = y + 1;
+    int x0 = x;
     int x1 = x + width;
+    if( g_font_scale.on )
+    {
+        /* One layout row: as many buffer rows as it covers. */
+        x0 = font_scale_floor(x, g_font_scale.buf_w, g_font_scale.layout_w);
+        x1 = font_scale_floor(x + width, g_font_scale.buf_w, g_font_scale.layout_w);
+        y0 = font_scale_floor(y, g_font_scale.buf_h, g_font_scale.layout_h);
+        y1 = font_scale_floor(y + 1, g_font_scale.buf_h, g_font_scale.layout_h);
+    }
+    if( y0 < ct )
+        y0 = ct;
+    if( y1 > cb )
+        y1 = cb;
+    if( x0 < cl )
+        x0 = cl;
     if( x1 > cr )
         x1 = cr;
-    if( x0 >= x1 )
+    if( x0 >= x1 || y0 >= y1 )
         return;
     int const argb = (int)(0xFF000000u | (uint32_t)(rgb & 0xFFFFFF));
-    int* row = pixel_buffer + y * stride;
-    for( int px = x0; px < x1; px++ )
-        row[px] = argb;
+    for( int py = y0; py < y1; py++ )
+    {
+        toripixel_t* row = pixel_buffer + py * stride;
+        for( int px = x0; px < x1; px++ )
+            row[px] = toripixel_pack_argb8888((uint32_t)argb);
+    }
 }
 
 /** Both rules for one advance — they are independent and can be on together. */
@@ -1060,7 +1218,7 @@ font_draw_style_rules(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     if( style->strike >= 0 )
         font_draw_rule_span(
@@ -1083,7 +1241,7 @@ font_draw_string_range(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(font && text && len > 0 && pixel_buffer);
 
@@ -1179,7 +1337,7 @@ font_draw_string_shadow_range(
     int cr,
     int cb,
     int stride,
-    int* pixel_buffer)
+    toripixel_t* pixel_buffer)
 {
     assert(font && text && len > 0 && pixel_buffer);
 
@@ -1246,8 +1404,8 @@ ToriDraw2D_DrawString(
     char const* text,
     int color,
     bool center,
-    bool shadowed,
-    int* pixel_buffer)
+    int shadowed,
+    toripixel_t* pixel_buffer)
 {
     assert(font && view_port && text && pixel_buffer);
 
@@ -1282,10 +1440,11 @@ ToriDraw2D_DrawString(
 
         if( line_len > 0 )
         {
-            if( shadowed )
+            for( int pass=0;pass<ToriDraw_FontShadowPassCount(shadowed);++pass )
             {
+                int dx,dy;ToriDraw_FontShadowOffset(shadowed,pass,&dx,&dy);
                 pixels_written += font_draw_string_shadow_range(
-                    font, rest, line_len, line_x, y, cl, ct, cr, cb, stride, pixel_buffer);
+                    font, rest, line_len, line_x+dx-1, y+dy-1, cl, ct, cr, cb, stride, pixel_buffer);
             }
             pixels_written += font_draw_string_range(
                 font, rest, line_len, line_x, y, color, cl, ct, cr, cb, stride, pixel_buffer);
@@ -1378,7 +1537,7 @@ font_line_vertical_extents(
 
 enum
 {
-    FONT_DRAW_BOX_MAX_LINES = 64,
+    FONT_DRAW_BOX_MAX_LINES = TORIDRAW_FONT_BOX_MAX_LINES,
 };
 
 /** Glyph line box: max(offset_y + glyph_height) over drawable glyphs.
@@ -1657,28 +1816,21 @@ font_collect_draw_lines(
 }
 
 int
-ToriDraw2D_DrawStringBox(
+ToriDraw2D_LayoutStringBox(
     struct ToriDraw_Font* font,
-    struct ToriDraw_ViewPort* view_port,
     int x,
     int y,
     int w,
     int h,
     char const* text,
-    int color,
     int x_align,
     int y_align,
     int line_height,
-    bool shadowed,
-    int* pixel_buffer)
+    struct ToriDraw_FontBoxLine out[TORIDRAW_FONT_BOX_MAX_LINES])
 {
-    assert(font && view_port && text && pixel_buffer);
-
-    if( !ToriDraw_FontValidate(font) )
-    {
-        assert(!"ToriDraw2D_DrawStringBox: invalid font");
-        return 0;
-    }
+    assert(font);
+    assert(text);
+    assert(out);
 
     char const* lines[FONT_DRAW_BOX_MAX_LINES];
     int line_lens[FONT_DRAW_BOX_MAX_LINES];
@@ -1712,6 +1864,56 @@ ToriDraw2D_DrawStringBox(
     else if( y_align == 2 )
         base_y0 = logical_h - max_descent - resolved_lh * (line_count - 1);
 
+    int written = 0;
+    for( int i = 0; i < line_count; i++ )
+    {
+        if( line_lens[i] <= 0 )
+            continue;
+
+        int line_x = x;
+        int const tw = font_measure_range(font, lines[i], line_lens[i]);
+        if( x_align == 1 )
+            line_x = x + (logical_w - tw) / 2;
+        else if( x_align == 2 )
+            line_x = x + logical_w - tw;
+
+        out[written].text = lines[i];
+        out[written].len = line_lens[i];
+        out[written].x = line_x;
+        out[written].y = y + base_y0 + i * resolved_lh - font_ascent;
+        written++;
+    }
+    return written;
+}
+
+int
+ToriDraw2D_DrawStringBox(
+    struct ToriDraw_Font* font,
+    struct ToriDraw_ViewPort* view_port,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* text,
+    int color,
+    int x_align,
+    int y_align,
+    int line_height,
+    int shadowed,
+    toripixel_t* pixel_buffer)
+{
+    assert(font && view_port && text && pixel_buffer);
+
+    if( !ToriDraw_FontValidate(font) )
+    {
+        assert(!"ToriDraw2D_DrawStringBox: invalid font");
+        return 0;
+    }
+
+    struct ToriDraw_FontBoxLine lines[TORIDRAW_FONT_BOX_MAX_LINES];
+    int const line_count = ToriDraw2D_LayoutStringBox(
+        font, x, y, w, h, text, x_align, y_align, line_height, lines);
+
     int const cl = view_port->clip_left;
     int const ct = view_port->clip_top;
     int const cr = view_port->clip_right;
@@ -1721,31 +1923,19 @@ ToriDraw2D_DrawStringBox(
     int pixels_written = 0;
     for( int i = 0; i < line_count; i++ )
     {
-        int line_x = x;
-        if( line_lens[i] > 0 )
+        struct ToriDraw_FontBoxLine const* line = &lines[i];
+        for( int pass=0;pass<ToriDraw_FontShadowPassCount(shadowed);++pass )
         {
-            int const tw = font_measure_range(font, lines[i], line_lens[i]);
-            if( x_align == 1 )
-                line_x = x + (logical_w - tw) / 2;
-            else if( x_align == 2 )
-                line_x = x + logical_w - tw;
-        }
-
-        int const draw_y = y + base_y0 + i * resolved_lh - font_ascent;
-        if( line_lens[i] <= 0 )
-            continue;
-
-        if( shadowed )
-        {
+            int dx,dy;ToriDraw_FontShadowOffset(shadowed,pass,&dx,&dy);
             pixels_written += font_draw_string_shadow_range(
-                font, lines[i], line_lens[i], line_x, draw_y, cl, ct, cr, cb, stride, pixel_buffer);
+                font, line->text, line->len, line->x+dx-1, line->y+dy-1, cl, ct, cr, cb, stride, pixel_buffer);
         }
         pixels_written += font_draw_string_range(
             font,
-            lines[i],
-            line_lens[i],
-            line_x,
-            draw_y,
+            line->text,
+            line->len,
+            line->x,
+            line->y,
             color,
             cl,
             ct,

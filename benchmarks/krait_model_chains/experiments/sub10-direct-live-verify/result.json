@@ -1,0 +1,9 @@
+{
+  "pid": "22246",
+  "last_verified": [
+    "I/torirs  (22246): bake verification: 13770000 real faces matched",
+    "I/torirs  (22246): bake verification: 13780000 real faces matched"
+  ],
+  "library_sha256": "5ed2d8cdd96fc6c043736f2d7312102cb4706600dfb53b5602eaa8e2d631f640",
+  "scope": "Complete direct packed actor stream versus generic GLES2 writer; diagnostic only, no timing claim."
+}

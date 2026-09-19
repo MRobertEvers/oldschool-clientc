@@ -1,0 +1,29 @@
+{{Infobox Combat Achievement
+|name = Theatre of Blood Grandmaster
+|image = [[File:Fighting Nylocas hordes.png|300px]]
+|release = [[21 July]] [[2021]]
+|update = Combat Achievements
+|members = Yes
+|description = Complete the Theatre of Blood 150 times.
+|tier = Grandmaster
+|monster = Theatre of Blood
+|type = Kill Count
+|id = 239
+|leagueRegion = Morytania
+}}
+'''Theatre of Blood Grandmaster''' is a [[Combat Achievements/Grandmaster|grandmaster combat achievement]] which requires the player to complete the Theatre of Blood 150 times. [[Theatre of Blood/Hard Mode|Hard Mode Theatre of Blood]] completions will also count towards this achievement.
+
+==Other tasks==
+{{Combat Achievements list|Theatre of Blood}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 April 2022
+|update = Easter 2022
+|poll = Old School Content Poll 76: Game Improvements
+|change = The amount of raid completions required to complete the "Theatre of Blood Grandmaster" task has been reduced from 250 to 150.
+}}
+{{Subject changes footer}}
+
+{{Combat Achievements}}

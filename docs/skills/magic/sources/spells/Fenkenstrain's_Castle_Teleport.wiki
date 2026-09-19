@@ -1,0 +1,60 @@
+{{otheruses|the teleport spell|the teleport tablet|Fenkenstrain's castle teleport (tablet)}}
+{{Infobox Spell
+|name = Fenkenstrain's Castle Teleport
+|image = [[File:Fenkenstrain's Castle Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 48
+|spellbook = Arceuus
+|type = Teleport
+|exp = 50
+|cost = {{RuneReq|Law=1|Soul=1|Earth=1}}
+|speed = 4 ticks
+|description = Teleports you to Fenkenstrain's Castle
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Fenkenstrain&#39;s Castle Teleport icon (mobile).png|left|class=pageimage]]
+'''Fenkenstrain's Castle Teleport''' [[teleport]]s the caster to [[Fenkenstrain's Castle]]. In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]]. Completion of the quest [[Priest in Peril]] and receiving [[Drezel]]'s warning is required to use the teleport.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Soul
+|Rune2num = 1
+|Rune3 = Earth
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|3546,3530|3548,3530|3548,3532|3550,3532|3550,3530|3551,3530|3551,3529|3550,3529|3550,3527|3546,3527|mtype=polygon|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 29 January 2016
+|update = System Update (29 January 2016)
+|poll = 
+|change = The spell now correctly uses [[combination rune]]s.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Fenkenstrain's Castle Teleport v1.png|center]]
+|[[File:Fenkenstrain's Castle Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

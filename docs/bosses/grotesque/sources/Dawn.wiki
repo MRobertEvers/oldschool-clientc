@@ -1,0 +1,102 @@
+{{otheruses|the gargoyle boss|music track|Dawn (music track)}}
+{{HasStrategy|page=Grotesque Guardians/Strategies}}
+{{HasTask|Gargoyles}}
+{{Infobox Monster
+|name = Dawn
+|image = [[File:Dawn.png|280px]]
+|release = [[26 October]] [[2017]]
+|update = Grotesque Guardians
+|members = Yes
+|combat = 228
+|size = 4
+|examine = {{*}}The Guardian of Dawn, she's alive!<br/>{{*}}The crack of Dawn. (''upon death'')
+|attributes = Flying, Golem
+|xpbonus = 0
+|max hit = 15
+|aggressive = No
+|poisonous = No
+|attack style = [[Slash]], [[Ranged]], [[Magic]] (special)
+|attack speed = 6
+|slaylvl = 75
+|slayxp = 0
+|cat = Bosses, Gargoyles
+|assignedby = vannaka,chaeldar,konar,nieve,duradel, Mortimer
+|hitpoints = 450
+|att = 140
+|str = 140
+|def = 100
+|mage = 100
+|range = 140
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 80
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 70
+|poisonresistance = 100
+|venomresistance = 100
+|id = 7852,7853,7884,7885
+}}
+[[File:Noon.png|left|link=]]
+'''Dawn''', along with [[Dusk]], are the [[Grotesque Guardians]] that require level 75 [[Slayer]] to kill. She is the [[boss]] version of the [[gargoyle]], found on the [[Slayer Tower]]'s rooftop. In order to access the roof, players must obtain a [[brittle key]] from gargoyles while assigned them for a [[Slayer task]]. Similar to other [[slayer bosses]], such as [[Cerberus]] and the [[Abyssal Sire]], the Grotesque Guardians can only be killed while the player is assigned gargoyles as a Slayer task.
+
+To initiate the fight, players must ring the Cloister Bell in the north side of the roof. This will trigger a cutscene in which the Guardians will awaken, and the fight will begin. Dawn uses [[ranged]] and [[melee]] attacks. She has a special attack in which a grey ball is flung somewhere near her, and if the player is hit by this ball (which covers a 3x3 AoE), they will be [[frozen]], similar to the [[marble gargoyle]]'s special attack.
+
+==The fight==
+''Like gargoyles, players '''must''' bring a [[rock hammer]] or [[granite hammer]] to defeat Dawn.''
+
+In the beginning of the fight, players may attack Dawn with either [[Ranged]], [[Magic]], or a [[halberd]] (as she cannot be harmed with any other form of melee); [[Dusk]] cannot be harmed during this phase of the fight. Once Dawn's health has reached half, she will fly up out of sight, and players may begin to attack Dusk. Once his health has reached half, Dawn will rejoin the fight and together with Dusk, will perform the lightning special attack that spawns purple and orange circles indicating where lightning will strike. Each lightning has an AoE of 3x3, rapidly dealing up to 5-10 damage per tick, and can stack together to rapidly kill players should they find themselves too close to the lightning. Note that not all the lightning spawns at the same time and some of it will start spawning after other spots are already getting struck. 
+[[File:Grotesque Guardians lightning attack.png|thumb|left|250px|The Grotesque Guardians perform their lightning special attack.]]
+After returning, she will occasionally send out three energy spheres (sometimes two) that will grow larger over time. The player may choose to absorb these spheres to prevent Dawn from healing from them. If the player ignores them entirely, each sphere will heal Dawn for 90 hitpoints if they return to her; however, it is not necessary to absorb the spheres if the player is able to deal sufficient damage to Dawn and finish her with the hammer before the spheres would have returned to her and actually heal her; as long as the player does not receive a game chat message stating Dawn is not weak enough to be harmed by the hammer when the player goes to smash her, she will crumble and die, even if she appears to start healing. After defeating Dawn, Dusk will absorb her essence, and initiate the final phase of the fight.
+{{clear|left}}
+
+==Money making==
+{{Mmgsection|Killing the Grotesque Guardians}}
+
+==Drops==
+{{main|Grotesque Guardians#Drops}}Dawn does not give anything upon defeat; instead, Dusk does this.
+
+==Concept art==
+<gallery>
+Dawn work-in-progress.png
+Dawn work-in-progress 2.png
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Dawn is now vulnerable to [[golembane weapons]].
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+*Dawn now has a 70% elemental weakness to [[earth spells]].
+*Dawn can now be attacked with [[Polearm]] weapons.
+}}
+{{Subject changes
+|date = 12 July 2018
+|update = Game Integrity: Pickpocketing
+|change = Dawn's hitpoints were reduced from 600 to 450.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Originally during the opening cutscene of the fight, Dawn had the same combat level as Dusk, with a combat level of 285. After the cutscene was over however, her combat level decreased to 266.
+
+{{Grotesque Guardians}}
+{{Slayer monsters}}
+{{Bosses}}
+[[Category:Slayer monsters that can only be fought on task]]
+[[Category:Zamorakians]]

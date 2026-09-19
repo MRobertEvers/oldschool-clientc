@@ -1,0 +1,9 @@
+[     569ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.ebay.com/itm/195726796852:0
+[     588ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[     929ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1243ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1243ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1244ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1263ms] [LOG] done @ https://www.ebay.com/itm/195726796852:4
+[    1674ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    1697ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0

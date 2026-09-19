@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_SlotMount
 {
@@ -28,7 +29,7 @@ struct Task_SlotMount
 static int
 Task_SlotMount_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_SlotMount* self = (struct Task_SlotMount*)base;
     struct UITree* tree = self->builder->tree;
@@ -61,7 +62,7 @@ Task_SlotMount_Run(
             }
             else
             {
-                fprintf(stderr, "slot_mount: pack %d missing after load\n", self->iface_id);
+                TORIRS_ERR("slot_mount: pack %d missing after load\n", self->iface_id);
             }
         }
     }

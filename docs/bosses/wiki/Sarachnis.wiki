@@ -1,0 +1,248 @@
+{{Otheruses|def=no|the music track|Sarachnis (music track)}}
+{{Instance|optional=yes}}
+{{HasStrategy}}
+{{HasTask|Spiders}}
+{{Infobox Monster
+|name = Sarachnis
+|image = [[File:Sarachnis.png|280px]]
+|release = [[4 July]] [[2019]]
+|update = Forthos Dungeon
+|members = Yes
+|combat = 318
+|size = 5
+|examine = I'm going to need a really big newspaper...
+|xpbonus = 7.5
+|max hit = 31
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Melee]], [[Ranged]]
+|attack speed = 4
+|respawn = 17
+|slayxp = 430
+|cat = Spiders, Bosses
+|assignedby = turael,spria,konar,nieve,duradel
+|hitpoints = 400
+|att = 200
+|str = 240
+|def = 150
+|mage = 150
+|range = 300
+|attbns = 30
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 15
+|rngbns = 15
+|dstab = 60
+|dslash = 40
+|dcrush = 10
+|dmagic = 150
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|id = 8713
+|leagueRegion = Kourend
+}}
+'''Sarachnis''', the mother of the [[temple spider]]s,{{CiteNPC|npc=Slayer Master|quote=Sarachnis can be found in the Forthos Dungeon. She is the mother of the temple spiders, be careful not to get overwhelmed.|loc=|notes=|name=}} is a mid-level [[boss]] found in the [[Forthos Dungeon]], in a former burial tomb south of the Spider Den. 
+
+Sarachnis has several notable unique drops, including the [[Sarachnis cudgel]], a non-degradeable crush weapon, and the [[pristine spider silk]], used to upgrade the [[herb sack]] into the [[Silklined herb sack]]. Other drops include the [[giant egg sac]], which is one of the few consistent sources of non-Wilderness [[red spiders' egg]]s, and improved drop rates of Forthos Dungeon-unique items.
+
+She additionally has a high drop rate of [[clue scroll (elite)|elite clue scroll]]s for the relative time to defeat her.
+
+She can be killed as part of a [[spider]] [[Slayer task]].
+
+Players may choose to pay {{NoCoins|25,000|c}} to fight Sarachnis in an [[instanced]] area via the [[Thick Web|thick web]] opening to her lair. This is reduced to {{NoCoins|12,500|c}} after claiming the rewards from the hard tier of [[Combat Achievements]]. Payment for an instance will be taken from the player's bank.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Sarachnis
+|location = [[Forthos Dungeon]] — Burial tomb
+|levels = 318
+|members = Yes
+|mapID = 32
+|plane = 0
+|x:1840,y:9900
+|mtype = pin
+|leagueRegion = Kourend
+}}
+{{LocTableBottom}}
+Sarachnis is located in the burial tomb in the southern-most part of the dungeon, reached via the entrance across the river to the east of the [[Forthos Ruin]].
+
+Players will need a [[slash weapon]] or a [[knife]] to be able to pass through the [[webs]] that block access to where Sarachnis is located, unless using [[Aranea boots|Aranea Boots]]. The same webs can be peeked through to see how many players are inside the tomb. The last thick webs that block access to the tomb do not need a slash weapon or a knife to be slashed through.
+
+==Fight overview==
+{{Main|Sarachnis/Strategies}}
+Sarachnis attacks with [[melee]] when players are adjacent to her, and [[ranged]] when they are out of melee range; she also heals upon dealing damage. Her attacks are accurate and can hit up to 31, so it is important to pray against her attacks correctly. Every four attacks, she will bind the player with a web that deals no damage but prevents them from moving for a few seconds, and will then move somewhere else in the arena. The web's duration can be fully negated with [[aranea boots]]. Players should use [[Protect from Missiles]] when Sarachnis shoots the web to block her next ranged attack, then quickly close to melee range and switch back to [[Protect from Melee]]. If done perfectly, players will take no damage from her attacks.
+
+When fighting Sarachnis with two or more players, she will only target one player after she moves. If the targeted player is out of melee range, she will use her ranged attack on everyone in the arena. If the targeted player moves within melee range, she will only attack the targeted player with melee.
+
+At 66% and 33% health, Sarachnis will summon two [[Spawn of Sarachnis|Spawns of Sarachnis]], an orange melee user on the west side of the room, and a blue magic user on the east side of the room. It is recommended to tank the hits from the melee spawn, and kill the magic spawn when it appears. While doing this, the player should pray ranged as Sarachnis' ranged attacks are more dangerous than the spawns. Alternatively, with 100+ magic defense, you can ignore the minions, and continue to damage the boss instead.
+
+Upon Sarachnis' death, all her [[Spawn_of_Sarachnis|spawns]] will die as well. Sarachnis will then [[respawn]] in 10 seconds.
+
+==Money making==
+{{Mmgsection|Killing Sarachnis}}
+
+==Drops==
+{{DropLogProject|kills=2900316}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+===Pre-roll===
+{{DropsTableHead}}
+{{DropsLine|name=Dragon med helm|quantity=1|rarity=2/384|raritynotes={{CiteTwitter|author=Mod Husky|url=https://twitter.com/JagexHusky/status/1156844944369377286|date=1 August 2019|archiveurl=https://reldo.runescape.wiki/i/101821|archivedate=1 August 2019|quote=For those interested, here are the drop-rates for the unique items within the Forthos Dungeon.[https://pbs.twimg.com/media/EA3wV4DW4AAVtos?format=jpg&name=small]|name=Forthos Dungeon Droprates}}}}
+{{DropsLine|name=Sarachnis cudgel|quantity=1|rarity=1/384|raritynotes={{NamedRef|Forthos Dungeon Droprates}}}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Battlestaff|quantity=8-10 (noted)|rarity=2/100}}
+{{DropsLine|name=Rune platebody|quantity=1|rarity=2/100}}
+{{DropsLine|name=Rune med helm|quantity=1|rarity=2/100}}
+{{DropsLine|name=Rune 2h sword|quantity=1|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Blood rune|quantity=80-100|rarity=5/100}}
+{{DropsLine|name=Chaos rune|quantity=175-200|rarity=5/100}}
+{{DropsLine|name=Cosmic rune|quantity=125-150|rarity=5/100}}
+{{DropsLine|name=Death rune|quantity=80-100|rarity=5/100}}
+{{DropsLine|name=Soul rune|quantity=80-100|rarity=5/100}}
+{{DropsLine|name=Mithril arrow|quantity=450-600|rarity=2/100}}
+{{DropsLine|name=Mithril bolts|quantity=175-225|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{RareSeedDropTableInfo|2/100}} ''Maple, yew, and papaya tree seeds may also be dropped.''
+{{DropsTableHead}}
+{{DropsLine|name=Maple seed|quantity=2|rarity=1/100}}
+{{DropsLine|name=Papaya tree seed|quantity=2|rarity=1/100}}
+{{DropsLine|name=Yew seed|quantity=1|rarity=1/100}}
+{{RareSeedDropLines|2/100|3}}
+{{DropsTableBottom}}
+
+===Herbs===
+''There is a 6/100 chance to roll the [[combat herb drop table]] and a 4/100 chance to roll the [[useful herb drop table]].''
+{{DropsTableHead}}
+{{DropsLine|name=Grimy kwuarm|quantity=10-15 (noted)|rarity=15/800}} <!-- 6/100 * 5/16 -->
+{{DropsLine|name=Grimy dwarf weed|quantity=10-15 (noted)|rarity=12/800}} <!-- 6/100 * 4/16 -->
+{{DropsLine|name=Grimy cadantine|quantity=10-15 (noted)|rarity=12/800}} <!-- 6/100 * 4/16 -->
+{{DropsLine|name=Grimy avantoe|quantity=5-10 (noted)|rarity=10/800}} <!-- 4/100 * 5/16 -->
+{{DropsLine|name=Grimy lantadyme|quantity=10-15 (noted)|rarity=9/800}} <!-- 6/100 * 3/16 -->
+{{DropsLine|name=Grimy snapdragon|quantity=5-10 (noted)|rarity=8/800}} <!-- 4/100 * 4/16 -->
+{{DropsLine|name=Grimy ranarr weed|quantity=5-10 (noted)|rarity=8/800}} <!-- 4/100 * 4/16 -->
+{{DropsLine|name=Grimy torstol|quantity=5-10 (noted)|rarity=6/800}} <!-- 4/100 * 3/16 -->
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Mithril ore|quantity=60-90 (noted)|rarity=6/100}}
+{{DropsLine|name=Red dragonhide|quantity=15-25 (noted)|rarity=5/100}}
+{{DropsLine|name=Uncut sapphire|quantity=20-30 (noted)|rarity=4/100}}
+{{DropsLine|name=Adamantite ore|quantity=30-40 (noted)|rarity=3/100}}
+{{DropsLine|name=Uncut emerald|quantity=20-30 (noted)|rarity=3/100}}
+{{DropsLine|name=Onyx bolt tips|quantity=8-10|rarity=2/100}}
+{{DropsLine|name=Uncut ruby|quantity=20-30 (noted)|rarity=2/100}}
+{{DropsLine|name=Runite ore|quantity=4-6 (noted)|rarity=1/100}}
+{{DropsLine|name=Uncut diamond|quantity=20-30 (noted)|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=17000-25000|rarity=6/100}}
+{{DropsLine|name=Dragon bones|quantity=10-15 (noted)|rarity=5/100}}
+{{DropsLine|name=Egg potato|quantity=5-8|rarity=5/100}}
+{{DropsLine|name=Weapon poison(++)|quantity=4-6 (noted)|rarity=2/100}}
+{{DropsLine|name=Crystal key|quantity=1|rarity=1/100}}
+{{DropsLine|name=Spider carcass|quantity=10 (noted)|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|1/100|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Tattered moon page|quantity=1|rarity=1/5|raritynotes={{NamedRef|Forthos Dungeon Droprates}}<ref name=page group=d>The drop rate to receive any page is 1/5. When rolled, the player will receive the page they have the fewest of.</ref>|gemw=no}}
+{{DropsLine|name=Tattered sun page|quantity=1|rarity=1/5|raritynotes={{NamedRef|Forthos Dungeon Droprates}}<ref name=page group=d />|gemw=no}}
+{{DropsLine|name=Tattered temple page|quantity=1|rarity=1/5|raritynotes={{NamedRef|Forthos Dungeon Droprates}}<ref name=page group=d />|gemw=no}}
+{{DropsLine|name=Giant egg sac(full)|quantity=1|rarity=1/20|raritynotes={{NamedRef|Forthos Dungeon Droprates}}}}
+{{DropsLine|name=Grubby key|quantity=1|rarity=1/15|raritynotes={{NamedRef|Forthos Dungeon Droprates}}}}
+{{DropsLineClue|type=hard|rarity=1/40|raritynotes={{CiteTwitter|author=Mod Husky|url=https://twitter.com/JagexHusky/status/1156849996987359233|date=1 August 2019|archiveurl=https://reldo.runescape.wiki/i/105812|archivedate=1 August 2019|quote=Clue drops from Forthos are as follows:|name=Forthos Dungeon clue scroll Droprates}}}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|318}}|raritynotes=<ref group=d>Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No}}
+{{DropsLine|name=Pristine spider silk|quantity=1|rarity=1/50|gemw=no}}
+{{DropsLineClue|type=elite|rarity=1/60|raritynotes={{NamedRef|Forthos Dungeon clue scroll Droprates}}}}
+{{DropsLine|name=Jar of Eyes|quantity=1|rarity=1/2000|raritynotes={{NamedRef|Forthos Dungeon Droprates}}}}
+{{DropsLine|name=Sraracha|quantity=1|rarity=1/3000|raritynotes={{NamedRef|Forthos Dungeon Droprates}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Sarachnis}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 June 2026
+|update = The Blood Moon Rises - Out Today!
+|change = Transformation rings can no longer be used to avoid Sarachnis' web attack.
+}}
+{{Subject changes
+|date = 18 March 2026
+|update = Boat Combat Fixes
+|change = Drops in the Sarachnis instance now last longer on the ground before disappearing.
+}}
+{{Subject changes
+|date = 11 March 2026
+|update = More from the Getting Around Poll
+|change = The respawn timer for Sarachnis in a private instance has been reduced from 20 seconds to 10 seconds.
+}}
+{{Subject changes
+|date = 25 February 2026
+|update = Cow Boss is Out Today!
+|poll = Getting Around Poll
+|change =
+* Private instances of Sarachnis can now be created.
+* Sarachnis now has a chance at dropping [[pristine spider silk]].
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Sarachnis now has a 40% [[elemental weakness]] to [[fire spells]].
+}}
+{{Subject changes
+|date = 26 March 2020
+|update = Game Improvements (26 March 2020)
+|poll = Old School Content Poll 70: Game Improvements
+|change = Sarachnis's respawn timer has been reduced from 30 seconds to 10 seconds.
+}}
+{{Subject changes
+|date = 1 August 2019
+|update = SOTE Changes and Small Game Updates
+|poll =
+|change = Players can no longer avoid Sarachnis' web attack via the use of various items.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Upon examining the [[egg sac]]s in Sarachnis' lair, the chatbox will state {{mes|It's making sounds inside. It's going to hatch soon!}} This is the verbatim message that is given upon checking the status of a Pokémon egg that will hatch soon in ''Pokémon Gold'', ''Silver'', and ''Crystal''.
+*Sarachnis was originally going to be an instanced solo boss, but was reworked into a non-instanced boss in a [[multicombat area]] after player complaints about the abundance of bosses being fought in instances already.
+**An instanced option for Sarachnis was added on [[Update:Cow Boss is Out Today!|25 February 2026]] after passing a [[Poll:Getting Around Poll|poll]], roughly six and a half years after release.
+*Her food drop, [[egg potato]]es, could be thematically interpreted as a food made from spider eggs.
+*Sarachnis is one of the few [[NPCs]] in the game that can sprint. Whenever she uses her web attack, she sprints to her next location moving 2 tiles per tick. This makes hitting her while she moves very inconsistent as her model is not representative of where she is.
+* Contrary to popular belief, Sarachnis' body is not a recoloured [[Chompy bird#Dead|dead chompy bird]], despite their visual similarities.{{CiteReddit|author=Mod West|url=https://www.reddit.com/r/2007scape/comments/owb1fv/comment/h7lqoie/|title=Fun fact: Mod Husky used chompy bird’s model as the body while desingning sarachnis.|quote=This comes up often but it’s honestly just a coincidence. I sat next to Mod Gee when she made it and I don’t recall chompy birds ever coming up and highly doubt it’s something she would’ve done intentionally.|date=3 August 2021|archiveurl=https://reldo.runescape.wiki/i/27964000|archivedate=12 May 2026}}
+
+==References==
+{{Reflist}}
+
+{{Spiders}}
+{{Bosses}}
+{{Forthos Dungeon}}

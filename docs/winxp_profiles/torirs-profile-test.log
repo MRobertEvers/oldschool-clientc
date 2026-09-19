@@ -1,0 +1,50 @@
+torirs: js5 host=10.10.10.1 port=43595 fallback=0 revision=239 cache=build/manifests/..\..\cache.osrs239.sparse
+torirs: dat2 cache=build/manifests/..\..\cache.osrs239.sparse iface=161
+torirs: JS5 reference tables primed (23 references, 208 network bytes)
+torirs: JS5 metadata ready (23 references, 208 network bytes)
+audio: no device; running silent
+plugin: 5 of 5 enabled -- tile-indicator-c, nxt-highlight, nxt-bird-nest, nxt-cannon-ammo, lua
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+osrs239 login: OK, local player index 1
+No terrain archive for map (37,81)
+No scenery archive for map (37,81)
+world_load: map 37,81 unavailable (missing archive)
+No terrain archive for map (38,81)
+No scenery archive for map (38,81)
+world_load: map 38,81 unavailable (missing archive)
+textures: sprite-backed system (no materials table)
+world_load: 4 chunks, 1 underlays, 2 overlays, 1 textures, 91 locs, 80 models, 9 seqs
+Failed to load dat2 idk 307
+spawn_player: element=17407 tile=52,52 level=0
+if-opentop: switching root 161 -> 548
+cs2: HIGHLIGHT opcode 7040 is not recorded -- its subject is a name, and the string stack is discarded before the host sees it
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: In the Pits
+windowmode: fixed
+client_layout: mode=0
+net: connection lost (client was not running) — attempting to reestablish
+net: reconnect attempt 1
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+No terrain archive for map (37,81)
+No scenery archive for map (37,81)
+world_load: map 37,81 unavailable (missing archive)
+No terrain archive for map (38,81)
+No scenery archive for map (38,81)
+world_load: map 38,81 unavailable (missing archive)
+world_load: 4 chunks, 1 underlays, 2 overlays, 1 textures, 91 locs, 80 models, 9 seqs
+Failed to load dat2 idk 307
+spawn_player: element=17407 tile=55,52 level=0
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+client_layout: mode=0
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: In the Pits

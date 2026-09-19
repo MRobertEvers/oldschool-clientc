@@ -1,0 +1,1032 @@
+- generic [active] [ref=f17e1]:
+  - generic [ref=f17e3]:
+    - banner [ref=f17e7]:
+      - link "Skip to main content" [ref=f17e9] [cursor=pointer]:
+        - /url: "#mainContent"
+      - navigation [ref=f17e10]:
+        - generic [ref=f17e11]:
+          - generic [ref=f17e13]:
+            - text: Hi!
+            - link "Sign in" [ref=f17e14] [cursor=pointer]:
+              - /url: https://signin.ebay.com/ws/eBayISAPI.dll?SignIn&sgfl=gh&ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F357876380695
+            - generic [ref=f17e15]:
+              - text: or
+              - link "register" [ref=f17e16] [cursor=pointer]:
+                - /url: https://signup.ebay.com/pa/crte?ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F357876380695
+          - link "Deals" [ref=f17e18] [cursor=pointer]:
+            - /url: https://www.ebay.com/deals
+          - link "Brand Outlet" [ref=f17e20] [cursor=pointer]:
+            - /url: https://www.ebay.com/b/Brand-Outlet/bn_7115532402
+          - link "Help & Contact" [ref=f17e22] [cursor=pointer]:
+            - /url: https://www.ebay.com/help/home
+        - generic [ref=f17e23]:
+          - generic [ref=f17e25]:
+            - link "Sell" [ref=f17e26] [cursor=pointer]:
+              - /url: https://www.ebay.com/sl/sell
+            - button "Expand Sell Menu" [ref=f17e28]
+          - generic [ref=f17e29]:
+            - link "Watchlist" [ref=f17e30] [cursor=pointer]:
+              - /url: https://www.ebay.com/mye/myebay/watchlist
+            - button "Expand Watch List" [ref=f17e32]
+          - generic [ref=f17e33]:
+            - link "My eBay" [ref=f17e34] [cursor=pointer]:
+              - /url: https://www.ebay.com/mys/home?source=GBH
+            - button "Expand My eBay" [ref=f17e36]
+          - button "Notifications" [ref=f17e39] [cursor=pointer]
+          - generic [ref=f17e42]:
+            - link "Your shopping cart contains 0 items" [ref=f17e43] [cursor=pointer]:
+              - /url: https://cart.ebay.com
+            - button "Expand Cart" [ref=f17e45]
+      - generic [ref=f17e46]:
+        - generic [ref=f17e47]:
+          - link "eBay Home" [ref=f17e48] [cursor=pointer]:
+            - /url: https://www.ebay.com
+            - img "eBay Home" [ref=f17e49]
+          - button "Shop by category" [ref=f17e57] [cursor=pointer]
+        - generic [ref=f17e59]:
+          - status [ref=f17e60]
+          - generic [ref=f17e62]:
+            - generic [ref=f17e63]:
+              - combobox "Search for anything" [ref=f17e64]
+              - button "Camera icon" [ref=f17e65]
+            - combobox "Select a category for search" [ref=f17e66]:
+              - option "All Categories" [selected]
+              - option "Antiques"
+              - option "Art"
+              - option "Baby"
+              - option "Books"
+              - option "Business & Industrial"
+              - option "Cameras & Photo"
+              - option "Cell Phones & Accessories"
+              - option "Clothing, Shoes & Accessories"
+              - option "Coins & Paper Money"
+              - option "Collectibles"
+              - option "Computers/Tablets & Networking"
+              - option "Consumer Electronics"
+              - option "Crafts"
+              - option "Dolls & Bears"
+              - option "Movies & TV"
+              - option "eBay Motors"
+              - option "Entertainment Memorabilia"
+              - option "Gift Cards & Coupons"
+              - option "Health & Beauty"
+              - option "Home & Garden"
+              - option "Jewelry & Watches"
+              - option "Music"
+              - option "Musical Instruments & Gear"
+              - option "Pet Supplies"
+              - option "Pottery & Glass"
+              - option "Real Estate"
+              - option "Specialty Services"
+              - option "Sporting Goods"
+              - option "Sports Mem, Cards & Fan Shop"
+              - option "Stamps"
+              - option "Tickets & Experiences"
+              - option "Toys & Hobbies"
+              - option "Travel"
+              - option "Video Games & Consoles"
+              - option "Everything Else"
+          - generic [ref=f17e67]:
+            - button "Search" [ref=f17e68] [cursor=pointer]
+            - link "Advanced" [ref=f17e70] [cursor=pointer]:
+              - /url: https://www.ebay.com/sch/ebayadvsearch
+    - main [ref=f17e71]:
+      - generic [ref=f17e73]:
+        - generic [ref=f17e76]:
+          - generic [ref=f17e78]:
+            - img "Warning" [ref=f17e79]
+            - generic [ref=f17e81]:
+              - generic [aria-hidden] [ref=f17e82]: This item is out of stock.
+              - generic [ref=f17e83]: This item is out of stock.
+          - link "Shop live events Discover exclusive drops and deals See what’s live" [ref=f17e90] [cursor=pointer]:
+            - /url: https://www.ebay.com/ebaylive
+            - generic [ref=f17e91]: Shop live events
+            - generic [ref=f17e92]: Discover exclusive drops and deals
+            - button "See what’s live" [ref=f17e93]
+          - generic [ref=f17e102]:
+            - heading "People who viewed this item also viewed" [level=2] [ref=f17e109]
+            - group [ref=f17e111]:
+              - list [ref=f17e114]:
+                - listitem [ref=f17e115]:
+                  - generic [ref=f17e117]:
+                    - generic [ref=f17e123]:
+                      - heading [level=3] [ref=f17e124]:
+                        - link "MTG Streets of New Capenna Sealed Collector Booster Box Magic" [ref=f17e125] [cursor=pointer]:
+                          - /url: https://www.ebay.com/itm/154972445761?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEG1%2B2WCaG5yCLnOPkoUnWRM%3D%26itm%3D154972445761%26noa%3D0%26plcampt%3D0%3A152243739012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20200818143230%26ao%3D1%26rk%3D13%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1&itmprp=cksum%3A154972445761ebb17567bd13493c9a0d8db6182d0757%7Cenc%3AAQALAAABIHtnEaPfUg11W8vv0JntD9TKTnHw5osF6ZhP1q0gmXiI%252FiKTnf8D1OhtEYY%252B%252FAJ8PcW7OwVEbvhZoH2S9744Kj95pj2pkuyGAGp2ge%252FYytEuhY%252FLCdgxY7eW3IiYTFZRR%252BDgvfMAB%252BFYJokBPgU8zI0lw8g04UuB%252Bpl1tts1uo8RRerlp%252FFMiC%252FU8pTfIoM9gugWOwtXl0eeDyqtpit%252BWdUxYhCk9GFuMz4GOifhJLAT5ln6Y9v4PDmgMPYUJLpi9hvPXJIKng5tBoQKjwPeQjO1JcFW57l5jZM3O5p9Ck7%252FPjLh0BUe%252FL4a1vlcuhvLARkuGlOgBOQM1UuaqGjXfZpmfWbDzScue1YuvHYYa9Rii3hlbUWgCK4ubzhffdj6fw%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5YJ41N7STE8QHVXQ530
+                      - generic [ref=f17e126]: $399.99
+                      - generic [ref=f17e128]: Free delivery
+                      - generic [ref=f17e130]: Sponsored
+                    - link [aria-hidden] [ref=f17e132] [cursor=pointer]:
+                      - /url: https://www.ebay.com/itm/154972445761?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEG1%2B2WCaG5yCLnOPkoUnWRM%3D%26itm%3D154972445761%26noa%3D0%26plcampt%3D0%3A152243739012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20200818143230%26ao%3D1%26rk%3D13%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1&itmprp=cksum%3A154972445761ebb17567bd13493c9a0d8db6182d0757%7Cenc%3AAQALAAABIHtnEaPfUg11W8vv0JntD9TKTnHw5osF6ZhP1q0gmXiI%252FiKTnf8D1OhtEYY%252B%252FAJ8PcW7OwVEbvhZoH2S9744Kj95pj2pkuyGAGp2ge%252FYytEuhY%252FLCdgxY7eW3IiYTFZRR%252BDgvfMAB%252BFYJokBPgU8zI0lw8g04UuB%252Bpl1tts1uo8RRerlp%252FFMiC%252FU8pTfIoM9gugWOwtXl0eeDyqtpit%252BWdUxYhCk9GFuMz4GOifhJLAT5ln6Y9v4PDmgMPYUJLpi9hvPXJIKng5tBoQKjwPeQjO1JcFW57l5jZM3O5p9Ck7%252FPjLh0BUe%252FL4a1vlcuhvLARkuGlOgBOQM1UuaqGjXfZpmfWbDzScue1YuvHYYa9Rii3hlbUWgCK4ubzhffdj6fw%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5YJ41N7STE8QHVXQ530
+                - listitem [ref=f17e133]:
+                  - generic [ref=f17e135]:
+                    - generic [ref=f17e141]:
+                      - heading [level=3] [ref=f17e142]:
+                        - link "EMPTY 2022 Streets Of New Capenna Set Booster Box TCG CCG WOTC MTG Empty Box" [ref=f17e143] [cursor=pointer]:
+                          - /url: https://www.ebay.com/itm/135282830839?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26algo%3DHOMESPLICE.SIM%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D0%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEOTlaRZ8VG6BObA4hbrvCnI%3D%26itm%3D135282830839%26noa%3D1%26brand%3DWizards+of+the+Coast%26asc%3D20200818143230%26ao%3D1%26rk%3D2%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1
+                      - generic [ref=f17e144]: $10.00
+                      - generic [ref=f17e146]: + $5.99 delivery
+                    - link [aria-hidden] [ref=f17e148] [cursor=pointer]:
+                      - /url: https://www.ebay.com/itm/135282830839?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26algo%3DHOMESPLICE.SIM%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D0%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEOTlaRZ8VG6BObA4hbrvCnI%3D%26itm%3D135282830839%26noa%3D1%26brand%3DWizards+of+the+Coast%26asc%3D20200818143230%26ao%3D1%26rk%3D2%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1
+                - listitem [ref=f17e149]:
+                  - generic [ref=f17e151]:
+                    - generic [ref=f17e157]:
+                      - heading [level=3] [ref=f17e158]:
+                        - 'link "Magic: The Gathering Streets of New Capenna Bundle Box MTG sealed" [ref=f17e159] [cursor=pointer]':
+                          - /url: https://www.ebay.com/itm/800602868143?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEMmtOif7RcNnhJlona%2BH3YQ%3D%26itm%3D800602868143%26noa%3D1%26plcampt%3D0%3A164732177013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20200818143230%26ao%3D1%26rk%3D3%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1
+                      - generic [ref=f17e160]: $73.99
+                      - generic [ref=f17e162]: + $7.04 delivery
+                    - link [aria-hidden] [ref=f17e164] [cursor=pointer]:
+                      - /url: https://www.ebay.com/itm/800602868143?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEMmtOif7RcNnhJlona%2BH3YQ%3D%26itm%3D800602868143%26noa%3D1%26plcampt%3D0%3A164732177013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20200818143230%26ao%3D1%26rk%3D3%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1
+                - listitem [ref=f17e165]:
+                  - generic [ref=f17e167]:
+                    - generic [ref=f17e173]:
+                      - heading [level=3] [ref=f17e174]:
+                        - 'link "Magic: The Gathering Streets of New Capenna Bundle Box English 2022 Ob Nixilis" [ref=f17e175] [cursor=pointer]':
+                          - /url: https://www.ebay.com/itm/168653348882?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26algo%3DHOMESPLICE.SIM%26asc%3D20200818143230%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D0%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAELcTUwsakIlNk%2B0wZq5HGmM%3D%26itm%3D168653348882%26noa%3D1%26ao%3D1%26rk%3D4%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1
+                      - generic [ref=f17e176]: $78.00
+                      - generic [ref=f17e178]: + $8.17 delivery
+                    - link [aria-hidden] [ref=f17e180] [cursor=pointer]:
+                      - /url: https://www.ebay.com/itm/168653348882?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D5%26algo%3DHOMESPLICE.SIM%26asc%3D20200818143230%26pid%3D101224%26mech%3D1%26algv%3DSimOrganicCassiniWithToraRecalls%26pmt%3D0%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAELcTUwsakIlNk%2B0wZq5HGmM%3D%26itm%3D168653348882%26noa%3D1%26ao%3D1%26rk%3D4%26mehot%3Dnone%26lsid%3D0%26meid%3Debb17567bd13493c9a0d8db6182d0757%26pg%3D2332490&_trksid=p2332490.c101224.m-1
+        - generic [ref=f17e181]:
+          - generic [ref=f17e184]:
+            - generic [ref=f17e186]:
+              - generic [ref=f17e188]:
+                - button "Picture 1 of 4" [ref=f17e189] [cursor=pointer]:
+                  - img "Picture 1 of 4" [ref=f17e190]
+                - button "Picture 2 of 4" [ref=f17e191] [cursor=pointer]:
+                  - img "Picture 2 of 4" [ref=f17e192]
+                - button "Picture 3 of 4" [ref=f17e193] [cursor=pointer]:
+                  - img "Picture 3 of 4" [ref=f17e194]
+                - button "Picture 4 of 4" [ref=f17e195] [cursor=pointer]:
+                  - img "Picture 4 of 4" [ref=f17e196]
+              - generic [ref=f17e197]:
+                - heading "Picture 1 of 4" [level=2] [ref=f17e198]
+                - button "Previous image - Item images thumbnails" [ref=f17e200] [cursor=pointer]
+                - group "Image Gallery, Opens image gallery dialog" [ref=f17e201]:
+                  - img "MTG Streets Of New Capenna Bundle Box Magic Empty - Picture 1 of 4" [ref=f17e203]
+                  - img "MTG Streets Of New Capenna Bundle Box Magic Empty - Picture 2 of 4" [ref=f17e205]
+                  - img "MTG Streets Of New Capenna Bundle Box Magic Empty - Picture 3 of 4" [ref=f17e207]
+                  - img "MTG Streets Of New Capenna Bundle Box Magic Empty - Picture 4 of 4" [ref=f17e209]
+                - generic [ref=f17e210]:
+                  - button "Opens image gallery" [ref=f17e211] [cursor=pointer]
+                  - button "Add to watchlist - 7 watchers" [ref=f17e213] [cursor=pointer]:
+                    - generic [ref=f17e214]: "7"
+                - button "Next image - Item images thumbnails" [ref=f17e216] [cursor=pointer]
+            - generic [ref=f17e221]:
+              - generic [ref=f17e222]: Have one to sell?
+              - link "Sell one like this" [ref=f17e224] [cursor=pointer]:
+                - /url: https://www.ebay.com/sl/list?mode=SellLikeItem&itemId=357876380695&rt=nc&_trksid=p4429486.m117039.l2567
+              - link "Sell something else" [ref=f17e227] [cursor=pointer]:
+                - /url: https://www.ebay.com/sl/prelist/suggest
+            - button "Share" [ref=f17e234] [cursor=pointer]
+          - generic [ref=f17e238]:
+            - heading "MTG Streets Of New Capenna Bundle Box Magic Empty" [level=1] [ref=f17e240]
+            - generic [ref=f17e242] [cursor=pointer]:
+              - generic [ref=f17e245]:
+                - link [aria-hidden] [ref=f17e247]:
+                  - /url: https://www.ebay.com/str/dragoncardsandcollectibles?_trksid=p4429486.m3561.l161210
+                - generic [ref=f17e250]:
+                  - generic [ref=f17e252]:
+                    - link "Mana Spark Cards" [ref=f17e254]:
+                      - /url: https://www.ebay.com/str/dragoncardsandcollectibles?_trksid=p4429486.m3561.l161211
+                    - generic [ref=f17e255]: (6003)
+                  - generic [ref=f17e257]:
+                    - button "100% positive" [ref=f17e259]
+                    - link "Seller's other items" [ref=f17e261]:
+                      - /url: https://www.ebay.com/str/dragoncardsandcollectibles?_trksid=p4429486.m3561.l170197
+                      - generic [aria-hidden] [ref=f17e262]: Seller's other items
+                    - link "Message" [ref=f17e265]:
+                      - /url: https://signin.ebay.com/ws/eBayISAPI.dll?SignIn&ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F357876380695%3Fm2mOpen%3D1
+              - button "See more about this seller" [ref=f17e268]
+            - generic [ref=f17e269]: US $14.98
+            - generic [ref=f17e274]:
+              - generic [ref=f17e275]: "Condition:"
+              - generic [ref=f17e277]:
+                - generic [ref=f17e278]:
+                  - generic [aria-hidden] [ref=f17e279]: Used
+                  - generic [ref=f17e280]: Used
+                - button [ref=f17e281] [cursor=pointer]:
+                  - generic [ref=f17e282]:
+                    - img "More information - About this item condition"
+            - generic [ref=f17e284]:
+              - generic [ref=f17e285]: "Quantity:"
+              - generic [ref=f17e286]:
+                - textbox "Quantity:" [disabled] [ref=f17e288]: "1"
+                - generic [ref=f17e289]: Out of Stock 3 sold
+            - list [ref=f17e292]:
+              - listitem [ref=f17e293]:
+                - generic [ref=f17e295]:
+                  - status [ref=f17e296]: Add to Watchlist
+                  - link "Add to Watchlist" [ref=f17e301] [cursor=pointer]:
+                    - /url: https://signin.ebay.com/ws/eBayISAPI.dll?SignIn&ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F357876380695
+            - generic [ref=f17e305]:
+              - heading "Shipping, returns, and payments" [level=2] [ref=f17e308]
+              - generic [ref=f17e311]:
+                - generic [ref=f17e314]:
+                  - generic [ref=f17e315]: "Shipping:"
+                  - generic [ref=f17e319]:
+                    - generic [ref=f17e320]:
+                      - text: Free eBay Standard Envelope for eligible items up to $20.
+                      - button "See details for shipping" [ref=f17e321] [cursor=pointer]:
+                        - generic [ref=f17e322]:
+                          - text: See details
+                          - generic [ref=f17e323]: for shipping
+                    - generic [ref=f17e324]: "Located in: Chicopee, Massachusetts, United States"
+                - generic [ref=f17e328]:
+                  - generic [ref=f17e329]: "Delivery:"
+                  - generic [ref=f17e334]:
+                    - text: Estimated between Sat, Sep 12 and Wed, Sep 16 to 64068
+                    - button "Information - Estimated delivery date - opens a layer" [ref=f17e340]
+            - generic [ref=f17e347]:
+              - generic [ref=f17e348]: "Returns:"
+              - generic [ref=f17e353]:
+                - text: 60 days returns. Seller pays for return shipping.
+                - button "See details - for more information about returns" [ref=f17e354] [cursor=pointer]:
+                  - generic [ref=f17e355]:
+                    - text: See details
+                    - generic [ref=f17e356]: "- for more information about returns"
+            - generic [ref=f17e359]:
+              - generic [ref=f17e363]:
+                - generic [ref=f17e364]: "Payments:"
+                - generic [ref=f17e369]:
+                  - img "PayPal" [ref=f17e370]
+                  - img "Venmo" [ref=f17e372]
+                  - img "Google Pay" [ref=f17e374]
+                  - img "Visa" [ref=f17e376]
+                  - img "Master Card" [ref=f17e378]
+                  - img "Discover" [ref=f17e380]
+                  - img "Diners Club" [ref=f17e383]
+              - generic [ref=f17e391]:
+                - img "Paypal Credit" [ref=f17e393]
+                - generic [ref=f17e394]:
+                  - text: Special financing available.
+                  - link "Learn more - for PayPal Credit, opens in a new window or tab" [ref=f17e395] [cursor=pointer]:
+                    - /url: https://www.paypal.com/credit-application/paypal-credit/da/us/landing?guid=YKDL34U2&assetId=99SAC&fromCape=true
+                    - generic [ref=f17e396]:
+                      - text: Learn more
+                      - generic [ref=f17e397]: "- for PayPal Credit, opens in a new window or tab"
+            - generic [ref=f17e400]:
+              - heading "Shop with confidence" [level=2] [ref=f17e403]
+              - generic [ref=f17e407]:
+                - generic [ref=f17e408]: Top Rated Plus
+                - generic [ref=f17e409]:
+                  - text: Top rated seller, fast shipping, and free returns.
+                  - link "Learn more - Top Rated Plus - opens in a new window or tab" [ref=f17e410] [cursor=pointer]:
+                    - /url: https://www.ebay.com/help/buying/resolving-issues-sellers/seller-ratings?id=4023#TopRatedPlus
+                    - generic [ref=f17e411]:
+                      - text: Learn more
+                      - generic [ref=f17e412]: "- Top Rated Plus - opens in a new window or tab"
+          - generic [ref=f17e424]:
+            - generic [ref=f17e427]:
+              - generic [ref=f17e429]:
+                - heading "Similar Items" [level=2] [ref=f17e431]
+                - generic [ref=f17e434]:
+                  - generic [ref=f17e435]: S
+                  - generic [ref=f17e436]: ҌエҞ׼ビ׀׺ऑ
+                  - generic [ref=f17e437]: ๭に턩้΅ϕ빬ピ
+                  - generic [ref=f17e438]: 裕쮴뒻Τतダฌ쌠
+                  - generic [ref=f17e439]: p
+                  - generic [ref=f17e440]: ゕ׶즻חब宏땶ا
+                  - generic [ref=f17e442]: ฤΓָ֖؛せ֜ϟ
+                  - generic [ref=f17e443]: o
+                  - generic [ref=f17e444]: ึฬ्อ뇺ボひう
+                  - generic [ref=f17e445]: ユҎワّӄפ주׳
+                  - generic [ref=f17e446]: "n"
+                  - generic [ref=f17e447]: Ѧׁネټ굔ॊ๕औ
+                  - generic [ref=f17e448]: s
+                  - generic [ref=f17e449]: 蠥๮삏幪흳ॱӱϱ
+                  - generic [ref=f17e450]: o
+                  - generic [ref=f17e451]: ΂חֶҥתふ刟ז
+                  - generic [ref=f17e452]: r
+                  - generic [ref=f17e453]: 팝陛ベゝニؔ햔ぽ
+                  - generic [ref=f17e454]: 蕈๚׬뿳ع֗ょィ
+                  - generic [ref=f17e455]: e
+                  - generic [ref=f17e456]: ホ぀こ蛴؁쓹ぢ๢
+                  - generic [ref=f17e458]: งゼキो׭ׂヽְ
+                  - generic [ref=f17e459]: d
+                  - generic [ref=f17e460]: ׵อュゾげザ֦॰
+                  - generic [ref=f17e461]: 怗フはϳ׍ּॸक
+                  - generic [ref=f17e462]: ๚֬へӸΐ؃チׇ
+                  - generic [ref=f17e463]: ؉ί֩じง뭏ј鯾
+                  - generic [ref=f17e465]: レ॥׍υΥぞท僉
+                  - generic [ref=f17e466]: ؃똤れϗ뀑Φ捉Ғ
+                  - generic [ref=f17e467]: 蒚぀४׼Ҍॊϳも
+                  - generic [ref=f17e468]: ϡ竑ֱΡ縣둶ًמ
+                  - generic [ref=f17e469]: ҅ͷہО괡Њ๦ヰ
+                  - generic [ref=f17e470]: ऌँサにゔ潫ซ๧
+                  - generic [ref=f17e471]: ѹО핂オशアѶघ
+                  - generic [ref=f17e473]: ฝソךต॥剤ץड
+                  - generic [ref=f17e474]: ҕٌ擵طש눣흡儌
+                  - generic [ref=f17e475]: ΅χϕैっٝ凅֟
+              - link "See all" [ref=f17e478] [cursor=pointer]:
+                - /url: https://www.ebay.com/recs?component=recs-below-hero-carousel&algos=HOMESPLICE.SIM.SimVIDwebV4WithContextualRankerV42_18SignInOut&placement_title=i18n.Tag_SIs&placement_subTitle=i18n.ModuleSubTitle_Sponsored&sourceModuleId=101875&item_id=357876380695
+            - group [ref=f17e481]:
+              - generic [ref=f17e482]:
+                - button "Go to the previous slide, Similar Items" [disabled] [ref=f17e483]
+                - list [ref=f17e485]:
+                  - listitem [ref=f17e486]:
+                    - generic [ref=f17e488]:
+                      - generic [ref=f17e494]:
+                        - heading [level=3] [ref=f17e495]:
+                          - link "MTG Black Creature Set x243 Magic the Gathering card set/lot" [ref=f17e496] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/127440613864?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAELcsU81WGTI16r3a0k0HtuA%3D%26itm%3D127440613864%26noa%3D0%26plcampt%3D0%3A151723860018%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D1%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1274406138645443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG80A0PUYS7TmVs78YK9Qvf59gonAjFX85HvZMIeeQrj%252FkujGYh%252B%252Fgni2UHlXhzlDRPfVg92u0KC%252Fu9jHBEqdloWqg1oeHRFLb7cM8zcaVI1pmH%252FppCzH0qrz9BhUY6vVG5tJL4tJlPF4utcn8GGekqs0MTkPmiEtmVExt0BVkYDcAF6JSSEui1J%252FAa5%252FnRsMb1TsAE6Rzihfwo2DhbSszmye2ERPXfE5DYr4oeezB4MmrB27OITR8ZqNLSzWQ6HWGVJhiiORArsg--f6t6%252FD%252BgKYRwrDwmtZvHpFOqF%252F8aa%252Bg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5YJ737T7PQJ6DYJWBME
+                        - generic [ref=f17e497]:
+                          - generic [ref=f17e498]: Pre-owned
+                          - generic [ref=f17e500]: $49.99
+                        - generic [ref=f17e501]: + $7.02 delivery
+                        - generic [ref=f17e503]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e505] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/127440613864?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAELcsU81WGTI16r3a0k0HtuA%3D%26itm%3D127440613864%26noa%3D0%26plcampt%3D0%3A151723860018%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D1%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1274406138645443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG80A0PUYS7TmVs78YK9Qvf59gonAjFX85HvZMIeeQrj%252FkujGYh%252B%252Fgni2UHlXhzlDRPfVg92u0KC%252Fu9jHBEqdloWqg1oeHRFLb7cM8zcaVI1pmH%252FppCzH0qrz9BhUY6vVG5tJL4tJlPF4utcn8GGekqs0MTkPmiEtmVExt0BVkYDcAF6JSSEui1J%252FAa5%252FnRsMb1TsAE6Rzihfwo2DhbSszmye2ERPXfE5DYr4oeezB4MmrB27OITR8ZqNLSzWQ6HWGVJhiiORArsg--f6t6%252FD%252BgKYRwrDwmtZvHpFOqF%252F8aa%252Bg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5YJ737T7PQJ6DYJWBME
+                      - button "Add MTG Black Creature Set x243 Magic the Gathering card set/lot to your watch list" [ref=f17e508] [cursor=pointer]
+                  - listitem [ref=f17e509]:
+                    - generic [ref=f17e511]:
+                      - generic [ref=f17e517]:
+                        - generic [ref=f17e518]: LAST ONE
+                        - heading [level=3] [ref=f17e519]:
+                          - link "Vintage Magic the Gathering 40 Card Lots With Great Variety MTG" [ref=f17e520] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/187023397128?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEAMwVw3mRkT50NbUGLKfOD0%3D%26itm%3D187023397128%26noa%3D0%26plcampt%3D0%3A11322016013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D2%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1870233971285443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8UjyaezVF36ZpSqUNMq5%252BqmKYD11mo9Zg9t0sltDUiQuEnhXoKhfTlBRt1e6wsg1Wiok5H%252BdoIIkWWukKavoMWxTRDCcnJvG7ZdeWEM17z3fcxWwrlS0oCUF7S4koGICUQ0vyjH2IYdgnUjuJrVLmjfSoJnIyhbu%252FbDE%252BBZblwFFGHSnYQxTN2Vg%252Ft7NHOl6L1xF%252FdzPqBV21da536B%252Bo0aCZ1Dar9HmiDGHRJTeKcYPYrqANayn1ENHcT2tmnXtpQ4shoIvN0bL1iUBbTZDQqCnzHNzhXeZXi6wtURjZXnQ%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZEX8XDNY2W88R4MZ51
+                        - generic [ref=f17e521]:
+                          - generic [ref=f17e522]: Pre-owned
+                          - generic [ref=f17e524]: $14.99
+                        - generic [ref=f17e525]: Free delivery
+                        - generic [ref=f17e527]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e529] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/187023397128?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEAMwVw3mRkT50NbUGLKfOD0%3D%26itm%3D187023397128%26noa%3D0%26plcampt%3D0%3A11322016013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D2%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1870233971285443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8UjyaezVF36ZpSqUNMq5%252BqmKYD11mo9Zg9t0sltDUiQuEnhXoKhfTlBRt1e6wsg1Wiok5H%252BdoIIkWWukKavoMWxTRDCcnJvG7ZdeWEM17z3fcxWwrlS0oCUF7S4koGICUQ0vyjH2IYdgnUjuJrVLmjfSoJnIyhbu%252FbDE%252BBZblwFFGHSnYQxTN2Vg%252Ft7NHOl6L1xF%252FdzPqBV21da536B%252Bo0aCZ1Dar9HmiDGHRJTeKcYPYrqANayn1ENHcT2tmnXtpQ4shoIvN0bL1iUBbTZDQqCnzHNzhXeZXi6wtURjZXnQ%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZEX8XDNY2W88R4MZ51
+                      - button "Add Vintage Magic the Gathering 40 Card Lots With Great Variety MTG to your watch list" [ref=f17e532] [cursor=pointer]
+                  - listitem [ref=f17e533]:
+                    - generic [ref=f17e535]:
+                      - generic [ref=f17e541]:
+                        - heading [level=3] [ref=f17e542]:
+                          - link "mtg empty box and pack bundle with some sealed and games dice" [ref=f17e543] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/236441171311?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAELIBkAuMPkdxKeT4OrGEAZc%3D%26itm%3D236441171311%26noa%3D0%26plcampt%3D0%3A124057317014%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D3%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A2364411713115443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8mOO6Ua5fzlRacm9rF%252FCRE4SU6Tfa1vRH2%252FqbU%252BETNMyJM%252FykwhK3M7gs5%252BTxx%252BSAMYK%252FjgNw4XEjZMYQZ%252F8I95mNbj2xa2Ov7WT9Q8ahnQV6FIhtcv6YDJ0gITYvHv1ylX%252BGgX2StZU%252FHqZcbJUoAAYZwKFPYji5LduQ5jGN3aW8fAxpz1hWrx0uyKdWOuLD1ZrF22oIfhp0hDN9VcC8Vwa7HJ2lXK%252B%252FYN7PjZnFQl%252F7crmOfQsUzwJ6yZpE09eunIcpfSamNZIvuYD8gwq8RiThbKflM2CjnvisZfG6Z5g%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZHSBCJXW86CBFWX3SE
+                        - generic [ref=f17e544]:
+                          - generic [ref=f17e545]: Pre-owned
+                          - generic [ref=f17e547]: $65.00
+                        - generic [ref=f17e548]: + $13.07 delivery
+                        - generic [ref=f17e550]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e552] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/236441171311?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAELIBkAuMPkdxKeT4OrGEAZc%3D%26itm%3D236441171311%26noa%3D0%26plcampt%3D0%3A124057317014%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D3%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A2364411713115443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8mOO6Ua5fzlRacm9rF%252FCRE4SU6Tfa1vRH2%252FqbU%252BETNMyJM%252FykwhK3M7gs5%252BTxx%252BSAMYK%252FjgNw4XEjZMYQZ%252F8I95mNbj2xa2Ov7WT9Q8ahnQV6FIhtcv6YDJ0gITYvHv1ylX%252BGgX2StZU%252FHqZcbJUoAAYZwKFPYji5LduQ5jGN3aW8fAxpz1hWrx0uyKdWOuLD1ZrF22oIfhp0hDN9VcC8Vwa7HJ2lXK%252B%252FYN7PjZnFQl%252F7crmOfQsUzwJ6yZpE09eunIcpfSamNZIvuYD8gwq8RiThbKflM2CjnvisZfG6Z5g%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZHSBCJXW86CBFWX3SE
+                      - button "Add mtg empty box and pack bundle with some sealed and games dice to your watch list" [ref=f17e555] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e556]:
+                    - generic [ref=f17e558]:
+                      - generic [ref=f17e564]:
+                        - heading [level=3] [ref=f17e565]:
+                          - link [ref=f17e566] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/397539524433?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEK4t1Vg%2BBu8%2BkUHJ%2B24NJAo%3D%26itm%3D397539524433%26noa%3D0%26plcampt%3D0%3A81939755017%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D4%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A3975395244335443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8xVtQovoaD9qn%252FbPUCa89ky6AUM6JzBQfFdJXPMBrPRX9TNkR5d6Izn6IKQnj5tE2TgG71iOwPX7k5bpNJpjk9auPsfaCpP%252BqP%252B5RnuEdtkbBAhTU6lfIoHIRuu0fboM9Qd5k1KCtBNdYAiVw%252BwilqNh3TQ4sVVLvaD79OGH5ARnUV1Omp%252FoNComNYw%252F6qYnSQIuL%252FsbGMnGWipOpytYOz%252BlPNQ9HvmJwnS6zN8I3dGT7IfjMZiQM5f1DsELEniruDvIrlu7gbFZTowhPzgkCbsTPia%252BV%252Ffx3%252BiQ1jTcQ%252Fhg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZNA03F8YVSWZS2HRFC
+                            - text: "Magic the Gathering : Invasion Card Inventory Guide MTG"
+                        - generic [ref=f17e567]:
+                          - generic [ref=f17e568]: Pre-owned
+                          - generic [ref=f17e570]: $55.00
+                        - generic [ref=f17e571]: + $5.97 delivery
+                        - generic [ref=f17e573]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e575] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/397539524433?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEK4t1Vg%2BBu8%2BkUHJ%2B24NJAo%3D%26itm%3D397539524433%26noa%3D0%26plcampt%3D0%3A81939755017%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D4%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A3975395244335443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8xVtQovoaD9qn%252FbPUCa89ky6AUM6JzBQfFdJXPMBrPRX9TNkR5d6Izn6IKQnj5tE2TgG71iOwPX7k5bpNJpjk9auPsfaCpP%252BqP%252B5RnuEdtkbBAhTU6lfIoHIRuu0fboM9Qd5k1KCtBNdYAiVw%252BwilqNh3TQ4sVVLvaD79OGH5ARnUV1Omp%252FoNComNYw%252F6qYnSQIuL%252FsbGMnGWipOpytYOz%252BlPNQ9HvmJwnS6zN8I3dGT7IfjMZiQM5f1DsELEniruDvIrlu7gbFZTowhPzgkCbsTPia%252BV%252Ffx3%252BiQ1jTcQ%252Fhg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZNA03F8YVSWZS2HRFC
+                      - button [ref=f17e578] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e579]:
+                    - generic [ref=f17e581]:
+                      - generic [ref=f17e587]:
+                        - heading [level=3] [ref=f17e588]:
+                          - link [ref=f17e589] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/800303935789?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEAW3Ncr0q2GXdk7dgoUOk5E%3D%26itm%3D800303935789%26noa%3D0%26plcampt%3D0%3A163342561018%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D5%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A8003039357895443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8%252F2nEMl5cecYqCLYMMU2fb4EpsMqGwcEaYVzLBRinA5euTluwDhM7ybWo0c3tNpYeWCfUBozmw5eX98pjgRTGQiPlKZZlpHvosrW6ilVJnYg2AprIqSH6sATB7y8%252Fde7Cwav0pm9gutWja8Unt62DSH6vvJPBXOXqrentDtdmWcqN%252BnplEtAjuvqOXGGAmjtck2fTTDnNnTpCOBuZAChpqBFuplfchsXoOPAsdRG81yNy0iV6qqGoIx4%252FornkWW6pXRR1WH9BDRwqQWra6V558M3bBKGl95qRlz9DQdQYMLQ%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZSPFAN58QRDFV15MAQ
+                            - text: Magic The Gathering MTG 240 Card Lot w/ 4 Deck Boxes
+                        - generic [ref=f17e590]:
+                          - generic [ref=f17e591]: Pre-owned
+                          - generic [ref=f17e593]: $39.99
+                        - generic [ref=f17e594]: + $11.35 delivery
+                        - generic [ref=f17e596]: Top Rated Plus
+                        - generic [ref=f17e600]: Seller 99.7% positive
+                      - link [aria-hidden] [ref=f17e602] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/800303935789?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEAW3Ncr0q2GXdk7dgoUOk5E%3D%26itm%3D800303935789%26noa%3D0%26plcampt%3D0%3A163342561018%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D5%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A8003039357895443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8%252F2nEMl5cecYqCLYMMU2fb4EpsMqGwcEaYVzLBRinA5euTluwDhM7ybWo0c3tNpYeWCfUBozmw5eX98pjgRTGQiPlKZZlpHvosrW6ilVJnYg2AprIqSH6sATB7y8%252Fde7Cwav0pm9gutWja8Unt62DSH6vvJPBXOXqrentDtdmWcqN%252BnplEtAjuvqOXGGAmjtck2fTTDnNnTpCOBuZAChpqBFuplfchsXoOPAsdRG81yNy0iV6qqGoIx4%252FornkWW6pXRR1WH9BDRwqQWra6V558M3bBKGl95qRlz9DQdQYMLQ%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZSPFAN58QRDFV15MAQ
+                      - button [ref=f17e605] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e606]:
+                    - generic [ref=f17e608]:
+                      - generic [ref=f17e614]:
+                        - heading [level=3] [ref=f17e615]:
+                          - link [ref=f17e616] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/406663891300?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEG4XyYLA5V41XwCgu6pjnSo%3D%26itm%3D406663891300%26noa%3D0%26plcampt%3D0%3A162704988019%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D6%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A4066638913005443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8g6ccQzpr2JDQTWCRUAIrCGeP8ek3JhN694Yw7lZzF2O1K%252FylTaHy3DqYKpeyhdIlJHmBC6UwpT6hMxB7Wu6zm1TmqvQNerXIB9rdP5qy8BJPRvW9re3z%252F6pmTd1BF9RAwoamKgWHCOQ1KSUXKetEqL8Yi5Oso0YwTtXS5rzu5O4jd7u9epaiLLR6%252FqhwnPzNU0Fv9FpoUDAIJMf4eeZaRe%252BIsQVc9KsXotGWWkwkOOG8ZuG479UkTihP5iizYeJicypIK1kvOq5Pnqg5UqORRBD9%252Bxfr2e6elNfodBRM9ow%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZXTN72CAATWH9T3M4A
+                            - text: 👀MTG Portal Gift Box 👀 MAGIC THE GATHERING *Read Description*
+                        - generic [ref=f17e617]:
+                          - generic [ref=f17e618]: Pre-owned
+                          - generic [ref=f17e620]: $14.00
+                        - generic [ref=f17e621]: + $9.02 delivery
+                        - generic [ref=f17e623]: 11 watchers
+                      - link [aria-hidden] [ref=f17e625] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/406663891300?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEG4XyYLA5V41XwCgu6pjnSo%3D%26itm%3D406663891300%26noa%3D0%26plcampt%3D0%3A162704988019%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D6%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A4066638913005443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8g6ccQzpr2JDQTWCRUAIrCGeP8ek3JhN694Yw7lZzF2O1K%252FylTaHy3DqYKpeyhdIlJHmBC6UwpT6hMxB7Wu6zm1TmqvQNerXIB9rdP5qy8BJPRvW9re3z%252F6pmTd1BF9RAwoamKgWHCOQ1KSUXKetEqL8Yi5Oso0YwTtXS5rzu5O4jd7u9epaiLLR6%252FqhwnPzNU0Fv9FpoUDAIJMf4eeZaRe%252BIsQVc9KsXotGWWkwkOOG8ZuG479UkTihP5iizYeJicypIK1kvOq5Pnqg5UqORRBD9%252Bxfr2e6elNfodBRM9ow%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A5ZXTN72CAATWH9T3M4A
+                      - button [ref=f17e628] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e629]:
+                    - generic [ref=f17e631]:
+                      - generic [ref=f17e637]:
+                        - heading [level=3] [ref=f17e638]:
+                          - link [ref=f17e639] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/227212077122?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEB5ht5%2BmP9917RXNPQv5rHY%3D%26itm%3D227212077122%26noa%3D0%26plcampt%3D0%3A119908070012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D7%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A2272120771225443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252B0yOI3RF1pVx%252FzKCHKaFlipb5tw%252BNHF5BsLbMMGyRM3lC5Bz6bGzLFU2pd6y7fpbjp9LIJTbCk%252BEJB16nqb6Uvcvx9cs5uS6uDG%252Bae5Vvyx5deMrC2xDISCij%252FpS8WYUbuv2qHOcB1r8OpqaUMG8ZYMt7a8SfX4Grf7JsII3wWQx6K9S8Y8z6n5UibsNCgdA6Ut8aEUvlYHoVz6hABi1YCVcp%252BiAGhuGzl%252FGmbEr50U4ypLDekSAm9%252BnlmN%252BiUGoksB83viK8cI0kcOHSBWfNB1hNu6PjC3t23mVBVhSOCxg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A601PH6H4NXA58V3T1KD
+                            - text: MTG Magic the Gathering Empty Bundle/Fat Pack Box - Used - Pick Your Box
+                        - generic [ref=f17e640]:
+                          - generic [ref=f17e641]: Pre-owned
+                          - generic [ref=f17e643]: $7.99
+                        - generic [ref=f17e644]: + $5.97 delivery
+                        - generic [ref=f17e646]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e648] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/227212077122?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEB5ht5%2BmP9917RXNPQv5rHY%3D%26itm%3D227212077122%26noa%3D0%26plcampt%3D0%3A119908070012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D7%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A2272120771225443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252B0yOI3RF1pVx%252FzKCHKaFlipb5tw%252BNHF5BsLbMMGyRM3lC5Bz6bGzLFU2pd6y7fpbjp9LIJTbCk%252BEJB16nqb6Uvcvx9cs5uS6uDG%252Bae5Vvyx5deMrC2xDISCij%252FpS8WYUbuv2qHOcB1r8OpqaUMG8ZYMt7a8SfX4Grf7JsII3wWQx6K9S8Y8z6n5UibsNCgdA6Ut8aEUvlYHoVz6hABi1YCVcp%252BiAGhuGzl%252FGmbEr50U4ypLDekSAm9%252BnlmN%252BiUGoksB83viK8cI0kcOHSBWfNB1hNu6PjC3t23mVBVhSOCxg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A601PH6H4NXA58V3T1KD
+                  - listitem [aria-hidden] [ref=f17e649]:
+                    - generic [ref=f17e651]:
+                      - generic [ref=f17e657]:
+                        - heading [level=3] [ref=f17e658]:
+                          - link [ref=f17e659] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/287124969138?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEC3SxwDwnbsFaZ%2BZ0cgWg38%3D%26itm%3D287124969138%26noa%3D0%26plcampt%3D0%3A153987286016%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D8%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A2871249691385443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252BjoJZKQONilpjmIx50v6KBxBGvuYWlH379SBD0DGMGNPbPrXcOzsNzwZsbAqnZnBZmr0FozklePTjlIMKfe2oe30e%252Fg0NvcIYjmEykUdgTw%252FmQ8rPggKGTrxWc%252Bo1GHoOwbMdkfJgqZDxRgeHbEnH1POHLU%252FAYPPFKzmplKVN8RFeabXUP4Pt2vCgttJ41DXBjbbPLGLznf4dKE2sQmtRQtU%252BFkYhZ%252Bk0zCvnUVi7FT25buJPGfe4pt9Rew8487hl5xVB0conQ2JazaDrXHmA6%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A604N05H3N1D8HT4H5NR
+                            - text: MAGIC THE GATHERING STORAGE AND TRAVEL PORTABLE BLACK SLEEK VG++ CARD BOX
+                        - generic [ref=f17e660]:
+                          - generic [ref=f17e661]: Pre-owned
+                          - generic [ref=f17e663]: $29.99
+                        - generic [ref=f17e664]: Free delivery
+                      - link [aria-hidden] [ref=f17e666] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/287124969138?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEC3SxwDwnbsFaZ%2BZ0cgWg38%3D%26itm%3D287124969138%26noa%3D0%26plcampt%3D0%3A153987286016%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D8%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A2871249691385443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252BjoJZKQONilpjmIx50v6KBxBGvuYWlH379SBD0DGMGNPbPrXcOzsNzwZsbAqnZnBZmr0FozklePTjlIMKfe2oe30e%252Fg0NvcIYjmEykUdgTw%252FmQ8rPggKGTrxWc%252Bo1GHoOwbMdkfJgqZDxRgeHbEnH1POHLU%252FAYPPFKzmplKVN8RFeabXUP4Pt2vCgttJ41DXBjbbPLGLznf4dKE2sQmtRQtU%252BFkYhZ%252Bk0zCvnUVi7FT25buJPGfe4pt9Rew8487hl5xVB0conQ2JazaDrXHmA6%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A604N05H3N1D8HT4H5NR
+                      - button [ref=f17e669] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e670]:
+                    - generic [ref=f17e672]:
+                      - generic [ref=f17e678]:
+                        - heading [level=3] [ref=f17e679]:
+                          - link [ref=f17e680] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/128065819651?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEC%2Br40caspZUvB23XgQpFrU%3D%26itm%3D128065819651%26noa%3D0%26plcampt%3D0%3A14654065011%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D9%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1280658196515443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8%252BzhiE3amI0KHpFPf0TXMpHB9o5z4OmDIoyZ%252BwaovxbjxGstcgdfUsvK910E6sEqW7NvC%252FccQt2DYVxJaUsEKI5bHSoEoOj8yUSuCEAbiQVMmSMCjzkOfTRpU%252FEGyJ3JoJZR3SkkOiJc7BibvpeYiqWBF4Gc8JNaCFT2dJ9hebOSaXK5rpu3Ai82x3yL2lR11VGvWolqAdchx9GiU8FtyeDMRcaOcnANDaFSMeGdVqc4Mkklz2n9bqpL%252FTFz4kBCiAGtlXL%252FiReOQy75mHA9k%252F%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A608JQJEBP9FF6P5VQE2
+                            - text: Magic The Gathering various deck Rule Insert Lot of 35
+                        - generic [ref=f17e681]:
+                          - generic [ref=f17e682]: Pre-owned
+                          - generic [ref=f17e684]: $150.00
+                        - generic [ref=f17e685]: + $5.93 delivery
+                        - generic [ref=f17e687]: Seller 99.4% positive
+                      - link [aria-hidden] [ref=f17e689] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/128065819651?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEC%2Br40caspZUvB23XgQpFrU%3D%26itm%3D128065819651%26noa%3D0%26plcampt%3D0%3A14654065011%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D9%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1280658196515443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG8%252BzhiE3amI0KHpFPf0TXMpHB9o5z4OmDIoyZ%252BwaovxbjxGstcgdfUsvK910E6sEqW7NvC%252FccQt2DYVxJaUsEKI5bHSoEoOj8yUSuCEAbiQVMmSMCjzkOfTRpU%252FEGyJ3JoJZR3SkkOiJc7BibvpeYiqWBF4Gc8JNaCFT2dJ9hebOSaXK5rpu3Ai82x3yL2lR11VGvWolqAdchx9GiU8FtyeDMRcaOcnANDaFSMeGdVqc4Mkklz2n9bqpL%252FTFz4kBCiAGtlXL%252FiReOQy75mHA9k%252F%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A608JQJEBP9FF6P5VQE2
+                      - button [ref=f17e692] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e693]:
+                    - generic [ref=f17e695]:
+                      - generic [ref=f17e701]:
+                        - heading [level=3] [ref=f17e702]:
+                          - link [ref=f17e703] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/178189507864?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEE10MKTEtyl25MtUNVMxfGs%3D%26itm%3D178189507864%26noa%3D0%26plcampt%3D0%3A13293695017%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D10%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1781895078645443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252B70rTYMJzdNncCmrB%252B9h%252Fn7FNoTfjLpVk%252F4pDXb1oxHBpVLl5Hh21jWS3oBeGvpqOp5CLOyD%252FvP4BdW1Y7cQNqFPKzzxfLhab%252BkUZaI50xKXkmG%252B1qwHsk7vCqkVRkgQOCLOdWc3drVR0zGpmmU0k%252FyggIlYv11TE9I9jZ%252BR3gnx7y7Q%252FgCGxwrZjkFPqgtt%252FeRmcPFMW2B7jDlFvEd1DGOA7iGiur4AyH6Z8DhAuWnyJrUxLkqhH2nXhQaWBGcQv9j2SMomns2900%252B7W2h9gs%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A60CXCBNS78ZR05BNNZP
+                            - text: X4 Lot World’s Smallest MTG Magic The Gathering Heroes Vs Monsters Deck
+                        - generic [ref=f17e704]:
+                          - generic [ref=f17e705]: New
+                          - generic [ref=f17e707]: $69.99
+                        - generic [ref=f17e708]: + $5.93 delivery
+                        - generic [ref=f17e710]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e712] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/178189507864?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEE10MKTEtyl25MtUNVMxfGs%3D%26itm%3D178189507864%26noa%3D0%26plcampt%3D0%3A13293695017%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D10%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1781895078645443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252B70rTYMJzdNncCmrB%252B9h%252Fn7FNoTfjLpVk%252F4pDXb1oxHBpVLl5Hh21jWS3oBeGvpqOp5CLOyD%252FvP4BdW1Y7cQNqFPKzzxfLhab%252BkUZaI50xKXkmG%252B1qwHsk7vCqkVRkgQOCLOdWc3drVR0zGpmmU0k%252FyggIlYv11TE9I9jZ%252BR3gnx7y7Q%252FgCGxwrZjkFPqgtt%252FeRmcPFMW2B7jDlFvEd1DGOA7iGiur4AyH6Z8DhAuWnyJrUxLkqhH2nXhQaWBGcQv9j2SMomns2900%252B7W2h9gs%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A60CXCBNS78ZR05BNNZP
+                      - button [ref=f17e715] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e716]:
+                    - generic [ref=f17e718]:
+                      - generic [ref=f17e724]:
+                        - heading [level=3] [ref=f17e725]:
+                          - link [ref=f17e726] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/147554994290?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEOIDEGwI3%2FpFNFr%2FA1V3De8%3D%26itm%3D147554994290%26noa%3D0%26plcampt%3D0%3A150497707011%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D11%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1475549942905443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG9YTpMBoehpiurKqJwIPZBDCSiXXixROTFBjx4%252FR%252FOevm4G8KpAbgbHa2fEVN%252BiuhEouLQymXRTu%252Fea6gwYxIQn8sr1NQLNcC4PoAzsszZPk36ScIuMVd5I9rlhpOgIQ%252Bcu%252F%252BRW4m%252Fm2uZ329eBISdyjVbQZAlRNaUwSFrUWxZ%252Fy7nUT5d14ckYdXg7stj40KD8cw8ZWa6CLaxUzwXC37pwNNVRYLaLeOjfkgO%252Fe0OuDY4Jm%252FU%252FzWPkBoNBDj4Zc8lUVVxDzn%252BiUNaA0bxXJhhOLw%252FkL%252FYKvJLhkOKAEuwhMA%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A60GR0MRNR3G0YNB9HQ3
+                            - text: "Magic the Gathering: 20 Empty Boxes"
+                        - generic [ref=f17e727]:
+                          - generic [ref=f17e728]: Pre-owned
+                          - generic [ref=f17e730]: $149.99
+                        - generic [ref=f17e731]: + $9.99 delivery
+                        - generic [ref=f17e733]: Top Rated Plus
+                        - generic [ref=f17e737]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e739] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/147554994290?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEOIDEGwI3%2FpFNFr%2FA1V3De8%3D%26itm%3D147554994290%26noa%3D0%26plcampt%3D0%3A150497707011%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231107084023%26ao%3D1%26rk%3D11%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1475549942905443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABIPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG9YTpMBoehpiurKqJwIPZBDCSiXXixROTFBjx4%252FR%252FOevm4G8KpAbgbHa2fEVN%252BiuhEouLQymXRTu%252Fea6gwYxIQn8sr1NQLNcC4PoAzsszZPk36ScIuMVd5I9rlhpOgIQ%252Bcu%252F%252BRW4m%252Fm2uZ329eBISdyjVbQZAlRNaUwSFrUWxZ%252Fy7nUT5d14ckYdXg7stj40KD8cw8ZWa6CLaxUzwXC37pwNNVRYLaLeOjfkgO%252Fe0OuDY4Jm%252FU%252FzWPkBoNBDj4Zc8lUVVxDzn%252BiUNaA0bxXJhhOLw%252FkL%252FYKvJLhkOKAEuwhMA%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A60GR0MRNR3G0YNB9HQ3
+                      - button [ref=f17e742] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f17e743]:
+                    - generic [ref=f17e745]:
+                      - generic [ref=f17e751]:
+                        - heading [level=3] [ref=f17e752]:
+                          - link [ref=f17e753] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/128067524852?_trkparms=itmf%3D2%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEHaOnzJbQ%2FQsBG1RxCxdv%2FY%3D%26itm%3D128067524852%26noa%3D0%26plcampt%3D0%3A166040307015%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D12%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1280675248525443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252FXllpc2d9WtNAZFCwyoyAJJ5KyINp5WGgZMq%252FRSBwPm%252BGB0i18wYThpqZfirq3%252Fahx%252B%252B60dIUiQmrWao0QH5YteZjviO32sll4qFk%252FQuR5R%252B8eLVsFtmkFpoKp7kq5c41K2auMir%252FxoRcqJgRPiA%252FzdOmDM%252FB6r7Dh%252BPkb4x7fElpmyOLEKaav2LLFMUAHQdZ5LeFykom4dXKExChhW%252BR%252BuB9H4igISEVwAP1XUWlQF7Nz6O%252Fzzy%252FsXsq9Xu8VnbvpYNepnIYUVnNWVwW9ry7X%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A60NBN5GFRV1NRQXQFZG
+                            - text: Shadowmoor Booster Pack - Factory Sealed - MTG Magic the gathering
+                        - generic [ref=f17e754]:
+                          - generic [ref=f17e755]: New
+                          - generic [ref=f17e757]: $17.20
+                          - generic [ref=f17e758]: 0 bids
+                        - generic [ref=f17e759]: 7d 19h
+                        - generic [ref=f17e761]: + $5.17 delivery
+                        - generic [ref=f17e763]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f17e765] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/128067524852?_trkparms=itmf%3D2%26aid%3D1110006%26rkt%3D12%26asc%3D20231107084023%26pid%3D101875%26mech%3D1%26algv%3DSimVIDwebV4WithContextualRankerV42_18SignInOut%26pmt%3D1%26amclksrc%3DITM%26sd%3D357876380695%26sid%3DAQALAAAAEHaOnzJbQ%2FQsBG1RxCxdv%2FY%3D%26itm%3D128067524852%26noa%3D0%26plcampt%3D0%3A166040307015%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D12%26mehot%3Dnone%26lsid%3D0%26meid%3D5443a3b875b74070938d94df2693bb7b%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A1280675248525443a3b875b74070938d94df2693bb7b%7Cenc%3AAQALAAABEPublsLHMrwa19e7ruMkC3MA1bD5ySgze%252B0f4QBr6mVMH3bgGFjLCZSScvtNoNg5mDjAm05yApoh7QUriUcQgG%252FXllpc2d9WtNAZFCwyoyAJJ5KyINp5WGgZMq%252FRSBwPm%252BGB0i18wYThpqZfirq3%252Fahx%252B%252B60dIUiQmrWao0QH5YteZjviO32sll4qFk%252FQuR5R%252B8eLVsFtmkFpoKp7kq5c41K2auMir%252FxoRcqJgRPiA%252FzdOmDM%252FB6r7Dh%252BPkb4x7fElpmyOLEKaav2LLFMUAHQdZ5LeFykom4dXKExChhW%252BR%252BuB9H4igISEVwAP1XUWlQF7Nz6O%252Fzzy%252FsXsq9Xu8VnbvpYNepnIYUVnNWVwW9ry7X%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249A60NBN5GFRV1NRQXQFZG
+                      - button [ref=f17e768] [cursor=pointer]
+                - button "Go to the next slide, Similar Items" [ref=f17e769]
+        - generic [ref=f17e770]:
+          - generic [ref=f17e775]:
+            - tablist [ref=f17e776]:
+              - tab "About this item" [selected] [ref=f17e777] [cursor=pointer]
+            - tabpanel "About this item" [ref=f17e780]:
+              - generic [ref=f17e783]:
+                - generic [ref=f17e786]:
+                  - generic [ref=f17e787]: Seller assumes all responsibility for this listing.
+                  - generic [ref=f17e791]: eBay item number:357876380695
+                - generic [ref=f17e797]:
+                  - heading "Item specifics" [level=2] [ref=f17e800]
+                  - generic [ref=f17e803]:
+                    - generic [ref=f17e804]:
+                      - term [ref=f17e805]:
+                        - generic [ref=f17e806]: Condition
+                      - definition [ref=f17e808]:
+                        - generic [ref=f17e811]:
+                          - generic [ref=f17e812]: "Used: An item that has been used previously. See the seller’s listing for full details and ..."
+                          - button "Read more about the condition" [ref=f17e814]:
+                            - generic [ref=f17e815]:
+                              - text: Read more
+                              - generic [ref=f17e816]: about the condition
+                    - generic [ref=f17e817]:
+                      - term [ref=f17e818]:
+                        - generic [ref=f17e819]: Game
+                      - definition [ref=f17e821]:
+                        - generic [ref=f17e822]: "Magic: The Gathering"
+                    - generic [ref=f17e824]:
+                      - term [ref=f17e825]:
+                        - generic [ref=f17e826]: Set
+                      - definition [ref=f17e828]:
+                        - generic [ref=f17e829]: Streets Of New Capenna
+                    - generic [ref=f17e831]:
+                      - term [ref=f17e832]:
+                        - generic [ref=f17e833]: Character
+                      - definition [ref=f17e835]:
+                        - generic [ref=f17e836]: Box
+                    - generic [ref=f17e838]:
+                      - term [ref=f17e839]:
+                        - generic [ref=f17e840]: Language
+                      - definition [ref=f17e842]:
+                        - generic [ref=f17e843]: English
+                    - generic [ref=f17e845]:
+                      - term [ref=f17e846]:
+                        - generic [ref=f17e847]: Color
+                      - definition [ref=f17e849]:
+                        - generic [ref=f17e850]: Black
+                    - generic [ref=f17e852]:
+                      - term [ref=f17e853]:
+                        - generic [ref=f17e854]: Manufacturer
+                      - definition [ref=f17e856]:
+                        - generic [ref=f17e857]: Wizards of the Coast
+                    - generic [ref=f17e859]:
+                      - term [ref=f17e860]:
+                        - generic [ref=f17e861]: Year Manufactured
+                      - definition [ref=f17e863]:
+                        - generic [ref=f17e864]: "2022"
+                    - generic [ref=f17e866]:
+                      - term [ref=f17e867]:
+                        - generic [ref=f17e868]: Material
+                      - definition [ref=f17e870]:
+                        - generic [ref=f17e871]: Cardboard
+                    - generic [ref=f17e873]:
+                      - term [ref=f17e874]:
+                        - generic [ref=f17e875]: Age Level
+                      - definition [ref=f17e877]:
+                        - generic [ref=f17e878]: 13+
+                    - generic [ref=f17e880]:
+                      - term [ref=f17e881]:
+                        - generic [ref=f17e882]: Country of Origin
+                      - definition [ref=f17e884]:
+                        - generic [ref=f17e885]: United States
+                - generic [ref=f17e887]:
+                  - generic [ref=f17e888]: Category
+                  - navigation "breadcrumb" [ref=f17e891]:
+                    - list [ref=f17e893]:
+                      - listitem [ref=f17e894]:
+                        - link "Toys & Hobbies" [ref=f17e895] [cursor=pointer]:
+                          - /url: https://www.ebay.com/b/Toys-Hobbies/220/bn_1865497
+                      - listitem [ref=f17e896]:
+                        - link "Collectible Card Games" [ref=f17e897] [cursor=pointer]:
+                          - /url: https://www.ebay.com/b/Collectible-Card-Games-Accessories/2536/bn_1852210
+                      - listitem [ref=f17e898]:
+                        - link "Other CCG Items" [ref=f17e899] [cursor=pointer]:
+                          - /url: https://www.ebay.com/b/Other-Collectible-Card-Game-Items/2535/bn_7203477
+                - generic [ref=f17e900]:
+                  - heading "Item description from the seller" [level=2] [ref=f17e903]
+                  - iframe [ref=f17e904]:
+                    - generic [ref=f19e2]:
+                      - paragraph [ref=f19e3]: "This MTG Streets Of New Capenna Bundle Box Magic Empty is the perfect addition for any serious Magic: The Gathering collector. With a sleek black design and high-quality manufacturing from Wizards of the Coast in the United States, this box is the ideal storage solution for your collection. The bundle box is from the year 2022 and features the iconic character of Streets Of New Capenna, making it a must-have for any fan."
+                      - paragraph [ref=f19e4]: The box is specifically designed to hold the Streets Of New Capenna set, but can also be used to store other cards and sets. The English language and high-quality finish make this box a premium addition to any collection. Don't miss out on the opportunity to own this stunning MTG Streets Of New Capenna Bundle Box Magic Empty.
+          - generic [ref=f17e907]:
+            - generic [ref=f17e908]:
+              - generic [ref=f17e909]:
+                - heading "About this seller" [level=2] [ref=f17e910]
+                - generic [ref=f17e913]:
+                  - link [aria-hidden] [ref=f17e915] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles?_trksid=p4429486.m145687.l149266
+                  - generic [ref=f17e918]:
+                    - heading [level=3] [ref=f17e919]:
+                      - link "Mana Spark Cards" [ref=f17e920] [cursor=pointer]:
+                        - /url: https://www.ebay.com/str/dragoncardsandcollectibles?_trksid=p4429486.m145687.l149267
+                    - paragraph [ref=f17e921]: 100% positive feedback•19K items sold
+                - generic [ref=f17e924]:
+                  - generic [ref=f17e925]: Joined Feb 2019
+                  - generic [ref=f17e929]: Usually responds within 24 hours
+                - generic [ref=f17e934]:
+                  - generic [ref=f17e935]: Mana Spark Cards is your ultimate destination for collectors and hobbyists alike. Dive into a world where passion meets play, offering a diverse selection of collectibles that spark nostalgia and ...
+                  - group [ref=f17e937]:
+                    - generic "See more" [ref=f17e938]
+                - generic [ref=f17e941]:
+                  - link "Visit store" [ref=f17e942] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles?_trksid=p4429486.m145687.l149086
+                  - link "Message seller - opens in a new dialog" [ref=f17e944] [cursor=pointer]:
+                    - /url: https://signin.ebay.com/ws/eBayISAPI.dll?SignIn&ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F357876380695%3Fm2mOpen%3D1
+                    - generic [ref=f17e945]:
+                      - text: Message seller
+                      - generic [ref=f17e946]: "- opens in a new dialog"
+                  - button "Save seller - Save this seller josdy_71" [ref=f17e948] [cursor=pointer]:
+                    - generic [ref=f17e950]: Save seller
+              - generic [ref=f17e952]:
+                - heading "Detailed seller ratings" [level=3] [ref=f17e953]
+                - generic [ref=f17e954]:
+                  - generic [ref=f17e955]: Average for the last 12 months
+                  - generic [ref=f17e956]:
+                    - generic [ref=f17e957]:
+                      - generic [ref=f17e958]: Accurate description
+                      - progressbar [aria-hidden] [ref=f17e959]
+                      - generic [ref=f17e960]:
+                        - text: "5.0"
+                        - generic [ref=f17e961]: 5 out of 5 stars
+                    - generic [ref=f17e962]:
+                      - generic [ref=f17e963]: Reasonable shipping cost
+                      - progressbar [aria-hidden] [ref=f17e964]
+                      - generic [ref=f17e965]:
+                        - text: "5.0"
+                        - generic [ref=f17e966]: 5 out of 5 stars
+                    - generic [ref=f17e967]:
+                      - generic [ref=f17e968]: Shipping speed
+                      - progressbar [aria-hidden] [ref=f17e969]
+                      - generic [ref=f17e970]:
+                        - text: "5.0"
+                        - generic [ref=f17e971]: 5 out of 5 stars
+                    - generic [ref=f17e972]:
+                      - generic [ref=f17e973]: Communication
+                      - progressbar [aria-hidden] [ref=f17e974]
+                      - generic [ref=f17e975]:
+                        - text: "5.0"
+                        - generic [ref=f17e976]: 5 out of 5 stars
+              - generic [ref=f17e977]:
+                - generic [ref=f17e978]:
+                  - heading "Popular categories from this store" [level=3] [ref=f17e979]
+                  - link "See all categories" [ref=f17e981] [cursor=pointer]:
+                    - /url: https://www.ebay.com/sch/i.html?_dkr=1&iconV2Request=true&_blrs=recall_filtering&_ssn=josdy_71&store_cat=0&store_name=dragoncardsandcollectibles&_oac=1
+                    - generic [ref=f17e982]:
+                      - text: See all
+                      - generic [ref=f17e983]: categories
+                - generic [ref=f17e984]:
+                  - link "Flesh and Blood" [ref=f17e986] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/Flesh-and-Blood/_i.html?store_cat=49411748018
+                  - 'link "Flesh and Blood: Omans" [ref=f17e988] [cursor=pointer]':
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/Flesh-and-Blood-Omans/_i.html?store_cat=49428583018
+                  - link "Lorcana" [ref=f17e990] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/Lorcana/_i.html?store_cat=49411735018
+                  - link "Lorcana Sets:" [ref=f17e992] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/Lorcana-Sets/_i.html?store_cat=49411640018
+                  - link "Magic Singles" [ref=f17e994] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/Magic-Singles/_i.html?store_cat=49411710018
+                  - 'link "MTG : Ravnica Allegiance" [ref=f17e996] [cursor=pointer]':
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/MTG-Ravnica-Allegiance/_i.html?store_cat=32671811018
+                  - link "MTG Commander Marvel SuperHero" [ref=f17e998] [cursor=pointer]:
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/MTG-Commander-Marvel-SuperHero/_i.html?store_cat=49455392018
+                  - 'link "MTG: Murders at Karlov Manor" [ref=f17e1000] [cursor=pointer]':
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/MTG-Murders-at-Karlov-Manor/_i.html?store_cat=49123399018
+                  - 'link "MTG: Starter Commander Deck" [ref=f17e1002] [cursor=pointer]':
+                    - /url: https://www.ebay.com/str/dragoncardsandcollectibles/MTG-Starter-Commander-Deck/_i.html?store_cat=49333556018
+            - generic [ref=f17e1005]:
+              - heading "Seller feedback (7,753)" [level=2] [ref=f17e1006]
+              - generic [ref=f17e1007]:
+                - tablist [ref=f17e1008]:
+                  - tab "This item (3)" [ref=f17e1009]
+                  - tab "All items (7,753)" [selected] [ref=f17e1011]
+                - tabpanel "All items (7,753)" [ref=f17e1014]:
+                  - generic [ref=f17e1016]:
+                    - generic [ref=f17e1017]:
+                      - button "Filter by" [ref=f17e1020] [cursor=pointer]:
+                        - generic [ref=f17e1021]: All ratings
+                      - list [ref=f17e1023]:
+                        - listitem [ref=f17e1024]:
+                          - link "Shipping" [ref=f17e1025] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Ashipping&sort=RELEVANCEV2#tab1
+                        - listitem [ref=f17e1026]:
+                          - link "Seller satisfaction" [ref=f17e1027] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Aseller-satisfaction&sort=RELEVANCEV2#tab1
+                        - listitem [ref=f17e1028]:
+                          - link "Description" [ref=f17e1029] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Adescription&sort=RELEVANCEV2#tab1
+                        - listitem [ref=f17e1030]:
+                          - link "Packaging" [ref=f17e1031] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Apackaging&sort=RELEVANCEV2#tab1
+                        - listitem [ref=f17e1032]:
+                          - link "Customer Loyalty" [ref=f17e1033] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Acustomer-loyalty&sort=RELEVANCEV2#tab1
+                        - listitem [ref=f17e1034]:
+                          - link "Service" [ref=f17e1035] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Aservice&sort=RELEVANCEV2#tab1
+                        - listitem [ref=f17e1036]:
+                          - link "Refund" [ref=f17e1037] [cursor=pointer]:
+                            - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER%2Cfilter_topic%3Arefund&sort=RELEVANCEV2#tab1
+                    - list [ref=f17e1038]:
+                      - listitem [ref=f17e1039]:
+                        - generic [ref=f17e1040]:
+                          - generic [ref=f17e1042]:
+                            - generic [ref=f17e1043]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1044]:
+                              - generic [ref=f17e1045]: p***e (9)
+                              - generic [ref=f17e1046]: "- Feedback left by buyer."
+                            - generic [ref=f17e1047]: Past month
+                            - generic [ref=f17e1051]: Verified purchase
+                          - generic [ref=f17e1053]: This seller is absolutely excellent! he card arrived in perfect condition—mint, pristine, and exactly as described, showing the seller's care for singles. Furthermore, the package arrived on time and in excellent shape. It was securely protected against bending. A five-star, flawless transaction. Highly recommended!
+                          - link "Bilbo Thief in the Night MTG M 33 The Hobbit HOB NM (#358905252264)" [ref=f17e1056] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/358905252264
+                      - listitem [ref=f17e1058]:
+                        - generic [ref=f17e1059]:
+                          - generic [ref=f17e1061]:
+                            - generic [ref=f17e1062]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1063]:
+                              - generic [ref=f17e1064]: t***n (2623)
+                              - generic [ref=f17e1065]: "- Feedback left by buyer."
+                            - generic [ref=f17e1066]: Past 6 months
+                            - generic [ref=f17e1070]: Verified purchase
+                          - generic [ref=f17e1072]: Very Fast shipping! The cards were securely packed in a semi-rigid plastic top loader inside a standard white envelope and arrived just as described in perfect mint condition! Thanks so much! Super Seller! A+++++
+                          - generic [ref=f17e1074]: "Mountain MTG Avatar: The Last Airbender 295 L NM (#357941485066)"
+                      - listitem [ref=f17e1075]:
+                        - generic [ref=f17e1076]:
+                          - generic [ref=f17e1078]:
+                            - generic [ref=f17e1079]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1080]:
+                              - generic [ref=f17e1081]: i***i (136)
+                              - generic [ref=f17e1082]: "- Feedback left by buyer."
+                            - generic [ref=f17e1083]: Past 6 months
+                            - generic [ref=f17e1087]: Verified purchase
+                          - generic [ref=f17e1089]: all cards arrived, well packaged. the seller was out for a time period however communication after that time could have been better. also offer tracking on orders $5 and up.. although the cards are well packaged i had no idea where they were and assumed that it got lost in transit. Happens a lot. so maybe in the future make it an option even if the buy ends up paying for the shipping with tracking.
+                          - generic [ref=f17e1091]: Donatello, the Brains Borderless FOIL 2 MTG Teenage Mutant Ninja Turtles TMT NM (#358295466722)
+                      - listitem [ref=f17e1092]:
+                        - generic [ref=f17e1093]:
+                          - generic [ref=f17e1095]:
+                            - generic [ref=f17e1096]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1097]:
+                              - generic [ref=f17e1098]: "-***o (68)"
+                              - generic [ref=f17e1099]: "- Feedback left by buyer."
+                            - generic [ref=f17e1100]: Past 6 months
+                            - generic [ref=f17e1104]: Verified purchase
+                          - generic [ref=f17e1106]: Super-well packed, good price, and delivered quickly! Appreciate the time the seller took to make sure the card I ordered was safe and came as described. Would buy from this shop again
+                          - generic [ref=f17e1108]: Kit Fisto's Aethersprite - Good Hunting Star Wars Legends of the Force 147/264 R (#358062627546)
+                      - listitem [ref=f17e1109]:
+                        - generic [ref=f17e1110]:
+                          - generic [ref=f17e1112]:
+                            - generic [ref=f17e1113]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1114]:
+                              - generic [ref=f17e1115]: g***t (309)
+                              - generic [ref=f17e1116]: "- Feedback left by buyer."
+                            - generic [ref=f17e1117]: Past month
+                            - generic [ref=f17e1121]: Verified purchase
+                          - generic [ref=f17e1123]: Card was just as described. Shipping was fast and packaged well. A++ seller.
+                          - 'link "Zacama, Primal Calamity M Commander: The Lost Caverns of Ixalan 296 NM (#358198554533)" [ref=f17e1126] [cursor=pointer]':
+                            - /url: https://www.ebay.com/itm/358198554533
+                      - listitem [ref=f17e1128]:
+                        - generic [ref=f17e1129]:
+                          - generic [ref=f17e1131]:
+                            - generic [ref=f17e1132]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1133]:
+                              - generic [ref=f17e1134]: 9***4 (161)
+                              - generic [ref=f17e1135]: "- Feedback left by buyer."
+                            - generic [ref=f17e1136]: Past month
+                            - generic [ref=f17e1140]: Verified purchase
+                          - generic [ref=f17e1142]: Excellent seller. Fast shipping, the card is as described and packaged well. Thank you.
+                          - link "Chandra, Torch of Defiance Foil MTG 1 M Chandra Spellbook NM X1 (#358256187456)" [ref=f17e1145] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/358256187456
+                      - listitem [ref=f17e1147]:
+                        - generic [ref=f17e1148]:
+                          - generic [ref=f17e1150]:
+                            - generic [ref=f17e1151]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1152]:
+                              - generic [ref=f17e1153]: e***a (6325)
+                              - generic [ref=f17e1154]: "- Feedback left by buyer."
+                            - generic [ref=f17e1155]: Past 6 months
+                            - generic [ref=f17e1159]: Verified purchase
+                          - generic [ref=f17e1161]: Great Seller! Prompt shipping, good packaging. Item was exactly as described. Highly recommended! A+
+                          - 'link "Kinetic Ooze MTG R 39 Commander: Secrets of Strixhaven SOC NM (#358486915444)" [ref=f17e1164] [cursor=pointer]':
+                            - /url: https://www.ebay.com/itm/358486915444
+                      - listitem [ref=f17e1166]:
+                        - generic [ref=f17e1167]:
+                          - generic [ref=f17e1169]:
+                            - generic [ref=f17e1170]:
+                              - img "Positive feedback rating"
+                            - generic [ref=f17e1171]:
+                              - generic [ref=f17e1172]: o***y (218)
+                              - generic [ref=f17e1173]: "- Feedback left by buyer."
+                            - generic [ref=f17e1174]: Past 6 months
+                            - generic [ref=f17e1178]: Verified purchase
+                          - generic [ref=f17e1180]: Good communication, shipping, packaging and was as described. Thank you!
+                          - generic [ref=f17e1182]: "X4 Victimize #198 MTG Tarkir Dragonstorm TDC NM X4 (#358556770513)"
+                    - link "See all feedback. Opens in a new tab" [ref=f17e1183] [cursor=pointer]:
+                      - /url: https://www.ebay.com/fdbk/mweb_profile?username=josdy_71&fdbkType=FeedbackReceivedAsSeller&item_id=357876380695&filter=feedback_page%3ARECEIVED_AS_SELLER&sort=RELEVANCEV2#tab1
+                      - text: See all feedback
+          - generic [ref=f17e1185]:
+            - navigation "Quick Links" [ref=f17e1186]:
+              - link "Back to home page" [ref=f17e1187] [cursor=pointer]:
+                - /url: https://www.ebay.com
+              - button "Return to top" [ref=f17e1188] [cursor=pointer]
+            - generic [ref=f17e1190]:
+              - heading "More to explore :" [level=2] [ref=f17e1193]
+              - list [ref=f17e1195]:
+                - listitem [ref=f17e1196]:
+                  - link "Sesame Street Toys & Hobbies ," [ref=f17e1197] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Sesame-Street-Toys-Hobbies/220/bn_80741642
+                    - generic [ref=f17e1198]: Sesame Street Toys & Hobbies
+                    - generic [ref=f17e1199]: ","
+                - listitem [ref=f17e1200]:
+                  - link "Street Fighter Toys & Hobbies ," [ref=f17e1201] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Street-Fighter-Toys-Hobbies/220/bn_80741301
+                    - generic [ref=f17e1202]: Street Fighter Toys & Hobbies
+                    - generic [ref=f17e1203]: ","
+                - listitem [ref=f17e1204]:
+                  - link "Magic the Gathering Toys & Hobbies ," [ref=f17e1205] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Magic-the-Gathering-Toys-Hobbies/220/bn_80743509
+                    - generic [ref=f17e1206]: Magic the Gathering Toys & Hobbies
+                    - generic [ref=f17e1207]: ","
+                - listitem [ref=f17e1208]:
+                  - link "Mattel Sesame Street Toys & Hobbies ," [ref=f17e1209] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Mattel-Sesame-Street-Toys-Hobbies/220/bn_80744096
+                    - generic [ref=f17e1210]: Mattel Sesame Street Toys & Hobbies
+                    - generic [ref=f17e1211]: ","
+                - listitem [ref=f17e1212]:
+                  - link "TYCO Sesame Street Toys & Hobbies ," [ref=f17e1213] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/TYCO-Sesame-Street-Toys-Hobbies/220/bn_80744268
+                    - generic [ref=f17e1214]: TYCO Sesame Street Toys & Hobbies
+                    - generic [ref=f17e1215]: ","
+                - listitem [ref=f17e1216]:
+                  - link "Applause Sesame Street Toys & Hobbies ," [ref=f17e1217] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Applause-Sesame-Street-Toys-Hobbies/220/bn_80744087
+                    - generic [ref=f17e1218]: Applause Sesame Street Toys & Hobbies
+                    - generic [ref=f17e1219]: ","
+                - listitem [ref=f17e1220]:
+                  - link "McDonald's Sesame Street Toys & Hobbies ," [ref=f17e1221] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/McDonalds-Sesame-Street-Toys-Hobbies/220/bn_80741799
+                    - generic [ref=f17e1222]: McDonald's Sesame Street Toys & Hobbies
+                    - generic [ref=f17e1223]: ","
+                - listitem [ref=f17e1224]:
+                  - link "Blue Box Toys & Hobbies ," [ref=f17e1225] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Blue-Box-Toys-Hobbies/220/bn_80741987
+                    - generic [ref=f17e1226]: Blue Box Toys & Hobbies
+                    - generic [ref=f17e1227]: ","
+                - listitem [ref=f17e1228]:
+                  - link "Sesame Street Collectors & Hobbyists Toys & Hobbies ," [ref=f17e1229] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Sesame-Street-Collectors-Hobbyists-Toys-Hobbies/220/bn_80738590
+                    - generic [ref=f17e1230]: Sesame Street Collectors & Hobbyists Toys & Hobbies
+                    - generic [ref=f17e1231]: ","
+                - listitem [ref=f17e1232]:
+                  - link "Mega Bloks Sesame Street Toys & Hobbies" [ref=f17e1233] [cursor=pointer]:
+                    - /url: https://www.ebay.com/b/Mega-Bloks-Sesame-Street-Toys-Hobbies/220/bn_107901418
+            - generic [ref=f17e1236]:
+              - heading "Shop top Collectible Card Games trading cards" [level=2] [ref=f17e1237]
+              - generic [ref=f17e1238]:
+                - generic [ref=f17e1239]:
+                  - heading "Top games" [level=3] [ref=f17e1240]
+                  - list [ref=f17e1241]:
+                    - listitem [ref=f17e1242]:
+                      - link "Pokémon" [ref=f17e1243] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Pokemon-TCG/2536/bn_7117595258
+                    - listitem [ref=f17e1245]:
+                      - 'link "Magic: The Gathering" [ref=f17e1246] [cursor=pointer]':
+                        - /url: https://www.ebay.com/b/Magic-The-Gathering-Trading-Card-Games/2536/bn_7117593350
+                    - listitem [ref=f17e1248]:
+                      - link "Yo-Gi-Oh!" [ref=f17e1249] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Yu-Gi-Oh-TCG/2536/bn_7117594258
+                    - listitem [ref=f17e1251]:
+                      - link "One Piece" [ref=f17e1252] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/One-Piece-CCG-Trading-Card-Games/2536/bn_106543788
+                    - listitem [ref=f17e1254]:
+                      - link "Disney Lorcana" [ref=f17e1255] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Trading-Card-Games-Disney-Lorcana-TCG/2536/bn_7121610158
+                - generic [ref=f17e1257]:
+                  - heading "Top Characters" [level=3] [ref=f17e1258]
+                  - list [ref=f17e1259]:
+                    - listitem [ref=f17e1260]:
+                      - link "Pikachu" [ref=f17e1261] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Pikachu-Pokemon-TCG-Cards/2536/bn_55173629
+                    - listitem [ref=f17e1263]:
+                      - link "Charizard" [ref=f17e1264] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Charizard-Pokemon-TCG-Cards/2536/bn_55173612
+                    - listitem [ref=f17e1266]:
+                      - link "Mewtwo" [ref=f17e1267] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Mewtwo-Pokemon-TCG-Cards/2536/bn_55173622
+                    - listitem [ref=f17e1269]:
+                      - link "Lugia" [ref=f17e1270] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Lugia-Pokemon-TCG-Cards/2536/bn_55173607
+                    - listitem [ref=f17e1272]:
+                      - link "Evee" [ref=f17e1273] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Eevee-Pokemon-TCG-Cards/2536/bn_96233904
+                - generic [ref=f17e1275]:
+                  - heading "More characters" [level=3] [ref=f17e1276]
+                  - list [ref=f17e1277]:
+                    - listitem [ref=f17e1278]:
+                      - link "Jace Beleren" [ref=f17e1279] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Jace-the-Mind-Sculptor-Magic-The-Gathering-Individual-Trading-Card-Games/183454/bn_93493837
+                    - listitem [ref=f17e1281]:
+                      - link "Liliana Vess" [ref=f17e1282] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Liliana-Vess-MTG-Individual-Cards/183454/bn_59488875
+                    - listitem [ref=f17e1284]:
+                      - link "Chandra Nalaar" [ref=f17e1285] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Chandra-Nalaar-Magic-The-Gathering-Individual-Trading-Card-Games/183454/bn_7114602400
+                    - listitem [ref=f17e1287]:
+                      - link "Dark Magician Girl" [ref=f17e1288] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Dark-Magician-Girl-Yu-Gi-Oh-TCG-Individual-Trading-Card-Games/183454/bn_55174034
+                    - listitem [ref=f17e1290]:
+                      - link "Blue-Eyes White Dragon" [ref=f17e1291] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Blue-Eyes-White-Dragon-Individual-Yu-Gi-Oh-Trading-Cards/183454/bn_55173958
+                - generic [ref=f17e1293]:
+                  - heading "Iconic cards" [level=3] [ref=f17e1294]
+                  - list [ref=f17e1295]:
+                    - listitem [ref=f17e1296]:
+                      - link "Charizard 103/128 Base Expansion Pack" [ref=f17e1297] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Charizard-103-128-Base-Expansion-Pack/2536/bn_7124579862
+                    - listitem [ref=f17e1299]:
+                      - link "Pikachu 160/159 Crown Zenith" [ref=f17e1300] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Pikachu-160-159-Crown-Zenith/2536/bn_7124591647
+                    - listitem [ref=f17e1302]:
+                      - link "Eevee 084/108 League & Championship Cards" [ref=f17e1303] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Eevee-084-108-League-Championship-Cards/2536/bn_7124578201
+                    - listitem [ref=f17e1305]:
+                      - 'link "Pikachu GG30/GG70 Crown Zenith: Galarian Gallery" [ref=f17e1306] [cursor=pointer]':
+                        - /url: https://www.ebay.com/b/Pikachu-GG30-GG70-Crown-Zenith-Galarian-Gallery/2536/bn_7124575203
+                    - listitem [ref=f17e1308]:
+                      - link "Pikachu 025/025 McDonald’s 25th Anniversary" [ref=f17e1309] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Pikachu-025-025-McDonalds-25th-Anniversary/2536/bn_7124590263
+                - generic [ref=f17e1311]:
+                  - heading "Popular searches" [level=3] [ref=f17e1312]
+                  - list [ref=f17e1313]:
+                    - listitem [ref=f17e1314]:
+                      - link "PSA 10 Pokémon" [ref=f17e1315] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Pokemon-TCG-Professional-Sports-Authenticator-PSA-Grade-10-Individual-Trading-Card-Games/183454/bn_93430819
+                    - listitem [ref=f17e1317]:
+                      - link "Graded Pokémon" [ref=f17e1318] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Psa-Graded-Pokemon-Cards/183454/bn_7023355264
+                    - listitem [ref=f17e1320]:
+                      - link "Pokémon Trainers" [ref=f17e1321] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Trainer-Item-Pokemon-TCG-Individual-Collectible-Card-Game-Cards/183454/bn_56894881
+                    - listitem [ref=f17e1323]:
+                      - link "Ultra Rare Japanese Pokémon" [ref=f17e1324] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Japanese-Ultra-Rare-Pokemon-Individual-Cards/183454/bn_56895101
+                    - listitem [ref=f17e1326]:
+                      - link "Pokémon VMAX" [ref=f17e1327] [cursor=pointer]:
+                        - /url: https://www.ebay.com/b/Pokemon-TCG-VMAX-Pokemon-Collectible-Individual-Card-Games/183454/bn_7117638159
+  - generic [ref=f17e1337]:
+    - contentinfo [ref=f17e1338]:
+      - list [ref=f17e1339]:
+        - listitem [ref=f17e1340]:
+          - link "About eBay" [ref=f17e1341] [cursor=pointer]:
+            - /url: https://www.ebayinc.com
+        - listitem [ref=f17e1342]:
+          - link "Announcements" [ref=f17e1343] [cursor=pointer]:
+            - /url: https://community.ebay.com/t5/Announcements/bg-p/Announcements
+        - listitem [ref=f17e1344]:
+          - link "Community" [ref=f17e1345] [cursor=pointer]:
+            - /url: https://community.ebay.com
+        - listitem [ref=f17e1346]:
+          - link "Security Center" [ref=f17e1347] [cursor=pointer]:
+            - /url: https://pages.ebay.com/securitycenter/index.html
+        - listitem [ref=f17e1348]:
+          - link "Seller Center" [ref=f17e1349] [cursor=pointer]:
+            - /url: https://www.ebay.com/sellercenter
+        - listitem [ref=f17e1350]:
+          - link "Policies" [ref=f17e1351] [cursor=pointer]:
+            - /url: https://www.ebay.com/help/policies/default/ebays-rules-policies?id=4205
+        - listitem [ref=f17e1352]:
+          - link "Affiliates" [ref=f17e1353] [cursor=pointer]:
+            - /url: https://partnernetwork.ebay.com/
+        - listitem [ref=f17e1354]:
+          - link "Product Safety Tips" [ref=f17e1355] [cursor=pointer]:
+            - /url: https://pages.ebay.com/safetytips
+        - listitem [ref=f17e1356]:
+          - link "Help & Contact" [ref=f17e1357] [cursor=pointer]:
+            - /url: https://www.ebay.com/help/home
+        - listitem [ref=f17e1358]:
+          - link "Site Map" [ref=f17e1359] [cursor=pointer]:
+            - /url: https://pages.ebay.com/sitemap.html
+      - generic [ref=f17e1360]:
+        - text: Copyright © 1995-2026 eBay Inc. All Rights Reserved.
+        - link "Accessibility" [ref=f17e1361] [cursor=pointer]:
+          - /url: https://www.ebayinc.com/accessibility/
+        - text: ","
+        - link "User Agreement" [ref=f17e1362] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/policies/member-behaviour-policies/user-agreement?id=4259
+        - text: ","
+        - link "Privacy" [ref=f17e1363] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/policies/member-behaviour-policies/user-privacy-notice-privacy-policy?id=4260
+        - text: ","
+        - link "Consumer Health Data" [ref=f17e1364] [cursor=pointer]:
+          - /url: https://www.ebayinc.com/company/privacy-center/privacy-notice/consumer-health-data-privacy-policy/
+        - text: ","
+        - link "Payments Terms of Use" [ref=f17e1365] [cursor=pointer]:
+          - /url: https://pages.ebay.com/payment/2.0/terms.html
+        - text: ","
+        - link "Cookies" [ref=f17e1366] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/policies/member-behaviour-policies/ebay-cookie-notice?id=4267
+        - text: ","
+        - link "CA Privacy Notice" [ref=f17e1367] [cursor=pointer]:
+          - /url: https://www.ebayinc.com/company/privacy-center/privacy-notice/state-privacy-disclosures/#california
+        - text: ","
+        - link "Your Privacy Choices" [ref=f17e1368] [cursor=pointer]:
+          - /url: https://www.ebay.com/adchoice/ccpa
+        - text: and
+        - link "AdChoice" [ref=f17e1369] [cursor=pointer]:
+          - /url: https://www.ebay.com/adchoice
+    - generic "ADVERTISEMENT" [ref=f17e1370]

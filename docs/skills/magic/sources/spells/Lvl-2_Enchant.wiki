@@ -1,0 +1,111 @@
+{{External|rs|rsc=Enchant lvl-2 amulet}}
+{{otheruses|the spell|the magic tablet|Enchant emerald or jade}}
+{{Infobox Spell
+|name = Lvl-2 Enchant
+|image = [[File:Lvl-2 Enchant.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 27
+|spellbook = Normal
+|type = Utility
+|exp = 37
+|cost = {{RuneReq|Air=3|Cosmic=1}}
+|speed = 3 ticks (7 on autocast)
+|lectern = [[Demon lectern|Demon]]
+|description = For use on emerald and jade jewellery
+|anim = [[File:Lvl-2 Enchant.gif]]
+|sound = [[File:Lvl-2 Enchant.ogg]]
+}}
+[[File:Lvl-2 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-2 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 27 [[Magic]] to cast. The spell enchants [[emerald]] and [[jade]] items, primarily [[jewellery]], granting 37 Magic experience when doing so.
+
+This spell can be transferred to a [[Enchant emerald or jade|magic tablet]] by bringing the required runes and a piece of [[soft clay]] to a [[lectern]] in the [[study]] of a [[player-owned house]], granting the same experience as casting the spell.
+
+==List of items==
+[[Free-to-play]] players can only use the spell to enchant the [[emerald amulet]].
+
+In addition, even though the [[Castle wars bracelet]] is a free-to-play item, enchanting it requires [[membership]].
+
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs; column assumes an appropriate rune-providing item is used.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Emerald ring}} 
+|{{Coins|{{GEP|Emerald ring}}}}
+|{{plinkt|Ring of dueling}}
+|{{Coins|{{GEP|Ring of dueling(8)}}}}
+|{{coins|{{GEP|Ring of dueling(8)}} - ({{GEP|Emerald ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Emerald necklace}}
+|{{Coins|{{GEP|Emerald necklace}}}}
+|{{plinkt|Binding necklace}}
+|{{Coins|{{GEP|Binding necklace}}}}
+|{{coins|{{GEP|Binding necklace}} - ({{GEP|Emerald necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Emerald bracelet}}
+|{{Coins|{{GEP|Emerald bracelet}}}}
+|{{plinkt|Castle wars bracelet}} 
+|{{Coins|{{GEP|Castle wars bracelet(3)}}}}
+|{{coins|{{GEP|Castle wars bracelet(3)}} - ({{GEP|Emerald bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Emerald amulet}}
+|{{Coins|{{GEP|Emerald amulet}}}}
+|{{plinkt|Amulet of defence}}
+|{{Coins|{{GEP|Amulet of defence}}}}
+|{{coins|{{GEP|Amulet of defence}} - ({{GEP|Emerald amulet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Pre-nature amulet}}
+|{{NA}}
+|{{plinkt|Amulet of nature}}
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Emerald sickle (b)}}
+|{{NA}}
+|{{plinkt|Enchanted emerald sickle (b)}}
+|{{NA}}
+|{{NA}}
+|-
+|{{plinkt|Jade ring}} 
+|{{Coins|{{GEP|Jade ring}}}}
+|{{plinkt|Ring of returning}}
+|{{Coins|{{GEP|Ring of returning(5)}}}}
+|{{coins|{{GEP|Ring of returning(5)}} - ({{GEP|Jade ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Jade bracelet}} 
+|{{Coins|{{GEP|Jade bracelet}}}}
+|{{plinkt|Flamtaer bracelet}}
+|{{Coins|{{GEP|Flamtaer bracelet}}}}
+|{{coins|{{GEP|Flamtaer bracelet}} - ({{GEP|Jade bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Jade necklace}} 
+|{{Coins|{{GEP|Jade necklace}}}}
+|{{plinkt|Necklace of passage}}
+|{{Coins|{{GEP|Necklace of passage(5)}}}}
+|{{coins|{{GEP|Necklace of passage(5)}} - ({{GEP|Jade necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Jade amulet}} 
+|{{Coins|{{GEP|Jade amulet}}}}
+|{{plinkt|Amulet of chemistry}}
+|{{Coins|{{GEP|Amulet of chemistry}}}}
+|{{coins|{{GEP|Amulet of chemistry}} - ({{GEP|Jade amulet}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Spell costs==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 3
+|Rune2 = cosmic
+|Rune2num = 1
+}}
+
+{{Utility spells}}
+{{Standard spellbook}}

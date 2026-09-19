@@ -1,0 +1,171 @@
+{{Infobox NPC
+|name = Probita
+|image = [[File:Probita.png|140px]]
+|release = [[21 August]] [[2014]]
+|update = In-Game Polls & Pet Insurance
+|members = Yes
+|race = [[Human]]
+|location = [[East Ardougne]]
+|shop = Yes
+|gender = Female
+|options = Talk-to, Check
+|examine = A young woman running a pet insurance business.
+|map = {{Map|name=Probita|2622,3293|mtype=pin}}
+|id = 5906
+|leagueRegion = Kandarin
+}}
+[[File:Probita chathead.png|left]]
+'''Probita''' is a self-employed{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1526917303874510848|date=18 May 2022|archiveurl=https://reldo.runescape.wiki/i/106721|archivedate= 22 June 2022}} young woman who runs the [[pet]] insurance bureau in [[East Ardougne]], in the small building next to [[Aemad's Adventuring Supplies.]]
+
+If a player loses a one-off [[pet]], which are automatically insured when received, they may reclaim the pet from Probita at no cost. Checking what pets you have insured is a requirement for the [[Easy Ardougne Diary]]. [[Cat|Cats]] cannot be reclaimed. 
+
+==Pets==
+{| class="wikitable lighttable individual" style="text-align:left;"
+!colspan=4|Pets
+|-
+|{{plink|Abyssal orphan}}
+|{{plink|Ikkle Hydra|pic=Ikkle Hydra (serpentine)}}
+|{{plink|Callisto cub}}
+|{{plink|Hellpuppy}}
+|-
+|{{plink|Pet Chaos Elemental}}
+|{{plink|Pet Zilyana}}
+|{{plink|Pet dark core}}
+|{{plink|Pet Dagannoth Prime}}
+|-
+|{{plink|Pet Dagannoth Supreme}}
+|{{plink|Pet Dagannoth Rex}}
+|{{plink|TzRek-Jad}}
+|{{plink|Pet General Graardor}}
+|-
+|{{plink|Baby Mole}}
+|{{plink|Noon}}
+|{{plink|Jal-Nib-Rek}}
+|{{plink|Kalphite Princess}}
+|-
+|{{plink|Prince Black Dragon}}
+|{{plink|Pet Kraken}}
+|{{plink|Pet Kree'arra}}
+|{{plink|Pet K'ril Tsutsaroth}}
+|-
+|{{plink|Scorpia's offspring}}
+|{{plink|Skotos}}
+|{{plink|Pet Smoke Devil}}
+|{{plink|Venenatis spiderling}}
+|-
+|{{plink|Vet'ion Jr.}}
+|{{plink|Vorki}}
+|{{plink|Phoenix}}
+|{{plink|Pet Snakeling}}
+|-
+|{{plink|Olmlet}}
+|{{plink|Lil' Zik}}
+|{{plink|Bloodhound}}
+|{{plink|Pet Penance Queen}}
+|-
+|{{plink|Heron}}
+|{{plink|Rock golem}}
+|{{plink|Beaver}}
+|{{plink|Baby chinchompa|pic=Baby chinchompa (grey)}}
+|-
+|{{plink|Giant Squirrel}}
+|{{plink|Tangleroot}}
+|{{plink|Rocky}}
+|{{plink|Rift guardian|pic=Rift guardian (air)}}
+|-
+|{{plink|Herbi}}
+|{{plink|Chompy chick}}
+|{{plink|Sraracha}}
+|{{plink|Smolcano}}
+|-
+|{{plink|Youngllef}}
+|{{plink|Little Nightmare}}
+|{{plink|Lil' Creator}}
+|{{plink|Tiny tempor}}
+|-
+|{{plink|Nexling}}
+|{{plink|Abyssal protector}}
+|{{plink|Tumeken's guardian}}
+|{{plink|Muphin|pic=Muphin (ranged)}}
+|-
+|{{plink|Butch}}
+|{{plink|Lil'viathan}}
+|{{plink|Wisp}}
+|{{plink|Baron}}
+|-
+|{{Plink|Scurry}}
+|{{Plink|Smol Heredit}}
+|{{Plink|Quetzin}}
+|{{Plink|Nid}}
+|-
+|{{Plink|Huberte}}
+|{{Plink|Moxi}}
+|{{Plink|Bran}}
+|{{Plink|Yami}}
+|-
+|{{Plink|Dom}}
+|{{Plink|Soup}}
+|{{Plink|Gull (pet)}}
+|{{Plink|Beef}}
+|-
+|{{Plink|Maggot marquess}}
+|{{Plink|Mr McGroot}}
+|{{Plink|Aggy}}
+|}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 May 2026
+|update = The Red Reef is Out Today!
+|change = Probita no longer gives extra copies of Gull to players who have Gulliver in their menageries.
+}}
+{{Subject changes
+|date = 10 September 2025
+|update = Pet Insurance Rework & More
+|poll = Poll 85 - Clan Chat and Player Tweaks
+|change = 
+* Pet reclaims are now free.
+* Reclaim tokens purchased prior to the change were refunded.
+}}
+{{Subject changes
+|date = 26 June 2024
+|update = Colosseum NPC Clickboxes & More
+|change = Probita can now look harder for missing pets if her first search failed.
+}}
+{{Subject changes
+|date = 24 April 2024
+|update = Varlamore Tweaks, GameJam V Commences & More!
+|change = Players who run out of Membership are now able to freely reclaim Quetzin and Smol heredit upon regaining Membership status.
+}}
+{{Subject changes
+|date = 6 July 2022
+|update = PvP Arena: Soft Launch
+|change = Players must now confirm their purchase if they wish to buy more than 10 reclaim tokens at once from Probita.
+}}
+{{Subject changes
+|date = 22 June 2022
+|update = Pride 2022, Pet Reclaim Changes & New Mobile Client!
+|poll = Old School Content Poll 76: Game Improvements
+|change = One-off pets are now automatically insured upon receiving one. Players who've paid the insurance fee of 500,000 coins prior to this update will have the fees paid added to Probita's reclaim fee coffer, which can then be used as a discount towards any further reclaims. For example, if players insured two pets for 500,000 coins each, they will be given one free reclaim token, and if five were insured, they will be given two free reclaim tokens and a 500,000 coins discount towards the next reclaim token purchase.
+}}
+{{Subject changes
+|date = 3 February 2021
+|update = The Isle of Souls
+|change = Probita's menu now shows the price for reclaiming pets.
+}}
+{{Subject changes
+|date = 28 August 2014
+|update = Clan Cup Statues
+|change = Probita now animates correctly when walking.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Song of the Elves}}
+{{East Ardougne}}

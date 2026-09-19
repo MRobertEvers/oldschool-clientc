@@ -40,7 +40,7 @@ Status: `pending` | `in_progress` | `done` | `blocked`.
 **Port loop prompt** (active): read this file + PORTING_GUIDE §4 / §4.7 / §7;
 claim next pending unblocked Finish-queue slice per **Slice selection** below;
 Grep LostCity then 2009scape then Kronos; NEVER park sibling lanes; verify
-(`mock230_pack --check-only`, `make -C src mock230-scripts`); mark `done` +
+(`ToriRSServer_Pack --check-only`, `make -C src torirsserver-scripts`); mark `done` +
 Log; re-arm `AGENT_LOOP_WAKE_skills_port` (~120s). **Stop re-arming** when no
 `pending` unblocked rows remain (only `blocked` / `done` left).
 
@@ -132,22 +132,22 @@ Ordered F2P then members; combat skills first within F2P. Sailing omitted.
 | 5 | Ranged | `skill_combat/` | [Ranged](https://oldschool.runescape.wiki/w/Ranged) · [F2P Ranged](https://oldschool.runescape.wiki/w/Free-to-play_Ranged_training) · [P2P Ranged](https://oldschool.runescape.wiki/w/Pay-to-play_Ranged_training) | done | F2P bow+arrow + XP styles live (CONTENT 8u); finish #16–22; specs→#1 |
 | 6 | Prayer | `skill_prayer/` | [Prayer](https://oldschool.runescape.wiki/w/Prayer) · [Training](https://oldschool.runescape.wiki/w/Prayer/Training) | done | Toggle/drain/bury/altar/quickprayer/Redemption live; finish #23–29 |
 | 7 | Magic | `skill_magic/` + `skill_combat/` | [Magic](https://oldschool.runescape.wiki/w/Magic) · [Training](https://oldschool.runescape.wiki/w/Magic/Training) | done | F2P utility+strike→wave live (8p/8q); finish #30–36; magic def→#9; MTA live do not park |
-| 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | Air..death + essence mine live (CONTENT 8k); finish #37–42 |
+| 8 | Runecraft | `skill_runecraft/` | [Runecraft](https://oldschool.runescape.wiki/w/Runecraft) · [Training](https://oldschool.runescape.wiki/w/Runecraft/Training) | done | #37–40, #42 landed (tiara, pure/daeyalt essence, Kourend dark essence, pouches, Abyss, Ourania, combo runes, cape). Wrath/true-blood altar rows blocked on real coordinates; #41 (GotR) stays a minigame. See RUNECRAFT_COMPLETION_PLAN.md |
 | 9 | Crafting | `skill_crafting/` | [Crafting](https://oldschool.runescape.wiki/w/Crafting) · [Training](https://oldschool.runescape.wiki/w/Crafting/Training) | done | Broad LC suite live (pottery/gems/leather/jewellery/glass/…); finish #43–48 |
 | 10 | Mining | `skill_mining/` | [Mining](https://oldschool.runescape.wiki/w/Mining) · [Training](https://oldschool.runescape.wiki/w/Mining/Training) | done | Clay..runite+blurite+prospect live; finish #49–55; Motherlode→KRONOS done |
-| 11 | Smithing | `skill_smithing/` | [Smithing](https://oldschool.runescape.wiki/w/Smithing) · [Training](https://oldschool.runescape.wiki/w/Smithing/Training) | done | F2P smelt+anvil live; finish #56–62; Blast Furnace→SCAPE2009 done |
-| 12 | Fishing | `skill_fishing/` | [Fishing](https://oldschool.runescape.wiki/w/Fishing) · [Training](https://oldschool.runescape.wiki/w/Fishing/Training) | done | F2P salt/fresh/rare through swordfish live; finish #63–70 |
+| 11 | Smithing | `skill_smithing/` | [Smithing](https://oldschool.runescape.wiki/w/Smithing) · [Training](https://oldschool.runescape.wiki/w/Smithing/Training) | done | SMITHING_COMPLETION_PLAN.md S1–S6,S8,S9,S11,S12,S14 landed; S7 quest-lane, S10 blocked (no Barbarian Training miniquest), S13 (IF 312) separable UI project |
+| 12 | Fishing | `skill_fishing/` | [Fishing](https://oldschool.runescape.wiki/w/Fishing) · [Training](https://oldschool.runescape.wiki/w/Fishing/Training) | done | Full member roster + barbarian + guild + cape/outfit live (#63-65,68 done); #66 movement lands, #67 blocked on Miscellania; Trawler/Tempoross remain #69-70 |
 | 13 | Cooking | `skill_cooking/` | [Cooking](https://oldschool.runescape.wiki/w/Cooking) · [Training](https://oldschool.runescape.wiki/w/Cooking/Training) | done | F2P cook+dough/wine+gnome live; gauntlets/cookomatic wired; finish #71–77 |
 | 14 | Firemaking | `skill_firemaking/` | [Firemaking](https://oldschool.runescape.wiki/w/Firemaking) · [Training](https://oldschool.runescape.wiki/w/Firemaking/Training) | done | Normal→magic logs live; finish #78–84; Wintertodt→KRONOS |
 | 15 | Woodcutting | `skill_woodcutting/` | [Woodcutting](https://oldschool.runescape.wiki/w/Woodcutting) · [Training](https://oldschool.runescape.wiki/w/Woodcutting/Training) | done | Normal→magic+hollow+WC Guild gates live; finish #85–91 |
 | 16 | Agility | `skill_agility/` | [Agility](https://oldschool.runescape.wiki/w/Agility) · [Training](https://oldschool.runescape.wiki/w/Agility/Training) | done | Gnome+8 rooftops+MoG+some shortcuts live; finish #92–99 |
 | 17 | Herblore | `skill_herblore/` | [Herblore](https://oldschool.runescape.wiki/w/Herblore) · [Training](https://oldschool.runescape.wiki/w/Herblore/Training) | done | Clean/grind/unf+many finishes live; Drink→#3 family; finish #100–106 |
 | 18 | Thieving | `skill_thieving/` | [Thieving](https://oldschool.runescape.wiki/w/Thieving) · [Training](https://oldschool.runescape.wiki/w/Thieving/Training) | done | Classic pickpocket/stalls/chests/doors live; finish #107–114; PP→SCAPE2009 |
-| 19 | Fletching | `skill_fletching/` | [Fletching](https://oldschool.runescape.wiki/w/Fletching) · [Training](https://oldschool.runescape.wiki/w/Fletching/Training) | done | F2P bows/arrows + darts + opal/pearl/barb bolts live; finish #115–122 |
+| 19 | Fletching | `skill_fletching/` | [Fletching](https://oldschool.runescape.wiki/w/Fletching) · [Training](https://oldschool.runescape.wiki/w/Fletching/Training) | done | Full recipe set landed (bows/crossbows/arrows/bolts/darts/javelins/ogre+brutal/amethyst/mith grapple/ballistae/blowpipe/shields/battlestaff/cape). `map_members` is now a real world flag (`src/torirsserver/torirs_server.h`), members-on by default. `::fletchingrun` selftest passing. Plan: [`FLETCHING_COMPLETION_PLAN.md`](FLETCHING_COMPLETION_PLAN.md); #115–122 done |
 | 20 | Slayer | `skill_slayer/` | [Slayer](https://oldschool.runescape.wiki/w/Slayer) · [Training](https://oldschool.runescape.wiki/w/Slayer/Training) | done | Masters/assign/kill/points/ops/rewards IF live (KRONOS); finish #123–130 |
 | 21 | Farming | `skill_farming/` | [Farming](https://oldschool.runescape.wiki/w/Farming) · [Training](https://oldschool.runescape.wiki/w/Farming/Training) | done | Classic patches (SCAPE2009 §1a–1g) live; finish #131–138 |
 | 22 | Construction | `skill_construction/` | [Construction](https://oldschool.runescape.wiki/w/Construction) · [Training](https://oldschool.runescape.wiki/w/Construction/Training) | done | Live POH 4a+4b; finish #139–145 redirects; do not park tree |
-| 23 | Hunter | `skill_hunter/` | [Hunter](https://oldschool.runescape.wiki/w/Hunter) · [Training](https://oldschool.runescape.wiki/w/Hunter/Training) | done | Snare/box/impling/falconry+Puro live (SCAPE2009); finish #146–153; **Audit roster complete** |
+| 23 | Hunter | `skill_hunter/` | [Hunter](https://oldschool.runescape.wiki/w/Hunter) · [Training](https://oldschool.runescape.wiki/w/Hunter/Training) | done | Snare/box/impling/falconry+Puro live (SCAPE2009); finish #146–153; plan: [`HUNTER_COMPLETION_PLAN.md`](HUNTER_COMPLETION_PLAN.md) |
 
 ## Finish queue
 
@@ -159,7 +159,7 @@ unblocked row per tick.
 |---|---|---|---|---|
 | 0 | Queue tracker | — | done | This file |
 | 1 | skill_combat: player special attacks (core) | LC | done | Energy model + toggle (`specwep.rs2`), combat hook, PvM dds/dlong/dmace/claws, instant dbaxe/Excalibur; ranged/spear/halberd → #18 / later; `sa_kind` for trailing-`+` poison names |
-| 2 | skill_combat: PvP melee | LC | blocked | Needs secondary-player dialect (`.stat` / `.%varp` / `p_opplayer`) + `MOCK230_PLAYER_MAX>1`; combat_stats.rs2 documents `.` variants deliberately not ported. Host gap — not a content-only finish. Re-open when multi-player active player lands. |
+| 2 | skill_combat: PvP melee | LC | blocked | Needs secondary-player dialect (`.stat` / `.%varp` / `p_opplayer`) + `TORIRSSERVER_PLAYER_MAX>1`; combat_stats.rs2 documents `.` variants deliberately not ported. Host gap — not a content-only finish. Re-open when multi-player active player lands. |
 | 3 | Attack potion consume | LC | done | Drink for 1–4dose attack + super attack (`attack_potion.rs2`); wiki +3/+10% and +5/+15%; dose switch ladder (anti_poison pattern). Combat/divine/zamorak → later slices |
 | 4 | Warriors' Guild Attack activities remainder | Kronos | blocked | → [`KRONOS_CONTENT_PORT_QUEUE.md`](KRONOS_CONTENT_PORT_QUEUE.md) §11 deferred: animator/dummy/catapult/token earn + basement dragon; cyclops core already done |
 | 5 | Attack cape perk | wiki+cache | done | Worn Boost via shared `skillcape_boost.rs2` (+1 Attack); host worn op2 routing |
@@ -194,38 +194,38 @@ unblocked row per tick.
 | 34 | Magic utility remainder | MAGIC | blocked | → MAGIC **M5** done (peaches + Magic Dart; PvP/post-LC teles deferred) |
 | 35 | Magic potion consume | MAGIC | blocked | → MAGIC **M2** done (`magic_potion.rs2`); battlemage/divine deferred in plan |
 | 36 | Magic cape / surge spells | MAGIC | blocked | → MAGIC **M10** |
-| 37 | Runecraft tiara craft + pure essence | LC | pending | CONTENT 8k / runecraft.rs2 deferred tiara crafting + pure essence mining; tiara enter path partially live (`*_ruined_new`) |
-| 38 | Blood / Soul / Wrath altars | wiki+cache | pending | Wiki Arceuus blood/soul + wrath; constants exist; no altar rows/paths (CONTENT 8k deferred soul/blood) |
-| 39 | Ourania / Zeah RC + abyss | wiki+cache | pending | CONTENT 8k deferred Ourania/zeah; no abyss obstacle course / pouches in tree |
-| 40 | Essence mine teleporter remainder | LC | pending | Aubury/Sedridor live; deferred Brimstail/Disentor/Cromperty + Aubury shop (CONTENT 8k) |
-| 41 | Guardians of the Rift | wiki+cache | pending | Wiki primary modern RC training; Temple of the Eye quest gate — no minigame tree |
-| 42 | Runecraft cape / combination runes | wiki+cache | pending | Cape perk absent; combo runes (mist/dust/…) not in runecraft_table |
-| 43 | Crafting weaving (loom) | wiki+cache | pending | Wiki sacks/baskets/drift nets/cloth bolts; no loom scripts in skill_crafting |
-| 44 | Crafting IF + batch craft polish | LC | pending | CONTENT deferred leather_crafting IF, crafting_jewelry.if, weakqueue batch; p_choice menus live |
-| 45 | Glass lens / lantern remainder | LC | pending | glass.rs2 deferred lens_mould/telescope disc + lantern glass |
-| 46 | Modern gems / zenyte jewellery | wiki+cache | pending | Gem table through dragonstone; no amethyst/onyx/zenyte rows |
-| 47 | Pottery urns / modern pottery | wiki+cache | pending | pottery.rs2 pot/pie dish/bowl only; wiki urns/cups absent |
-| 48 | Crafting cape | wiki+cache | pending | Skillcape perk absent |
-| 49 | Essence / pure essence rocks | LC | pending | mining.rs2 + CONTENT 7b/8k deferred; essence tele live, rock mining absent |
-| 50 | Gem rocks + glory gem table | LC | pending | Deferred gem rocks / necklace boost; random 1/256 gem table while mining absent |
-| 51 | Members ore rocks (limestone/sandstone/granite/amethyst) | wiki+cache | pending | mine.dbrow clay..runite+blurite only |
-| 52 | Higher pickaxes (black/dragon/crystal/infernal) | wiki+cache | pending | pickaxe_checker bronze→rune only; Nurmof repair deferred CONTENT 8x |
-| 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | pending | Wiki double-ore / depleted-save / soft clay / XP outfit absent |
-| 54 | Mining special activities (Blast/Volcanic/Stars) | wiki → Kronos | blocked | Motherlode already KRONOS §13 done; remaining post-2009 activities stay KRONOS lane |
-| 55 | Miscellania mining intercept | LC | pending | mining.rs2 + CONTENT 20g Miner Magnus deferred intercept |
-| 56 | Cannonballs | LC | pending | CONTENT 7g / smelting.rs2 deferred; pairs with Ranged #19 dwarf multicannon |
-| 57 | Anvil members products (darts/knives/arrows/wire/studs/bolts/limbs/claws) | LC | pending | smithing.rs2 deferred list; F2P weapon/armour kinds live bronze→rune |
-| 58 | Dragon sq shield + special anvil products | LC | pending | CONTENT 7g deferred dragon sq; claws already in #57 |
-| 59 | Members bars (blurite/elemental/lovakite) | wiki+cache | pending | smelting table bronze→runite only; blurite ore mineable but no bar |
-| 60 | Smithing IF / batch polish | LC | pending | CONTENT 7g deferred CS2 smithing.if; p_choice menus live |
-| 61 | Smithing gear perks (gauntlets/cape/Smiths' Uniform) | wiki+cache | pending | Goldsmith gauntlets gold XP, cape, anvil tick-speed uniform absent |
+| 37 | Runecraft tiara craft + pure essence | wiki+cache | done | Tiara crafting, pure/daeyalt essence ladder, and the `rc_no_tally_required_*` varbit refresh (unblocking tiara `Enter`) landed. See RUNECRAFT_COMPLETION_PLAN.md §1.3, §2 |
+| 38 | Blood / Soul / Wrath altars | wiki+cache | done | Kourend dark essence chain (mine→infuse→chisel→bind) fully landed. True wrath/blood altars: param+category landed, dbrow rows blocked on real-world coordinates this port has no way to source from text configs — see §4 |
+| 39 | Ourania / Zeah RC + abyss | wiki+cache | done | Ourania altar (approximated output weights, flagged), essence pouches (fill/empty/check/degrade), and the Abyss (obstacle course + rifts + Dark mage repair) all landed. See RUNECRAFT_COMPLETION_PLAN.md §6–§8 |
+| 40 | Essence mine teleporter remainder | wiki+cache | done | Correction: all five (Aubury/Sedridor/Distentor/Cromperty/Brimstail) + Aubury's shop were already live in areas/ — queue note was stale. See RUNECRAFT_COMPLETION_PLAN.md §3 |
+| 41 | Guardians of the Rift | wiki+cache | blocked | Wiki primary modern RC training; Temple of the Eye quest gate — no minigame tree. Scoped out of RUNECRAFT_COMPLETION_PLAN.md §8 as its own minigame build, not a skill-interaction slice |
+| 42 | Runecraft cape / combination runes | wiki+cache | done | Combination runes (mist/dust/mud/smoke/steam/lava) + binding necklace, and the Runecraft cape's +1 boost, landed. Cape's guild-teleport perk deferred, same coordinate gap as #38. See RUNECRAFT_COMPLETION_PLAN.md §5 |
+| 43 | Crafting weaving (loom) | wiki+cache | done | `skill_crafting/scripts/weaving/weaving.rs2` — 7 products, `[oploc1,_loom]` on the shared `loom`/`regicide_loom` category (971→2299 in pack/category.pack). See CRAFTING_COMPLETION_PLAN.md §1.2/S4 |
+| 44 | Crafting IF + batch craft polish | LC | pending | Interface 270 `skillmulti` still unbuilt — out of scope for this pass. All new S2–S15 menus instead follow the existing `~p_choice*` pagination convention (see leather.rs2's `craft_leather_menu`), which the plan documents as the stopgap until S1 lands |
+| 45 | Glass lens / lantern remainder | LC | done | 5 new blows (candle lantern, oil lamp, fishbowl, lantern lens, light orb) + oil lantern assembly. Lens mould→telescope disc and the light-orb wire assembly stay deferred — no "filled" light-orb obj or bullseye-nolens source in this cache. See CRAFTING_COMPLETION_PLAN.md §1.11/S5 |
+| 46 | Modern gems / zenyte jewellery | wiki+cache | done | Onyx/zenyte gem cutting; full onyx/zenyte ring/necklace/amulet/bracelet ladder; gold bracelet column; gold tiara; both slayer rings; opal/jade/red-topaz silver jewellery (12 rows). See CRAFTING_COMPLETION_PLAN.md §1.12–§1.14/S6–S8 |
+| 47 | Pottery urns / modern pottery | wiki+cache | done | Row's premise was wrong — OSRS has no urns. Added empty cup (4-per-clay) + empty plant pot; fixed the pot lid, which was level 3/2.5+2.5 XP against the wiki's level 25/20+20. See CRAFTING_COMPLETION_PLAN.md §1.3/S2 |
+| 48 | Crafting cape | wiki+cache | done | +1 Crafting worn Boost (wired into the shared `skillcape_boost.rs2`, mirroring Herblore's), door alternates (golden apron / cape / max cape), Master Crafter sells cape+hood at 99 for 99,000gp. Guild-teleport perk and the mould/tool respawns stay deferred (no verified in-world coordinate, same gap RUNECRAFT_COMPLETION_PLAN.md §4 already flags). See CRAFTING_COMPLETION_PLAN.md §1.20/S15 |
+| 49 | Essence / pure essence rocks | LC | done | blankrunestone/big_essence_rock/lunar_runestone_top wired (get_ore_essence); 30+Mining members branch to blankrune_high |
+| 50 | Gem rocks + glory gem table | LC | done | gemrock/gemrock1 (get_ore_gem_rock) + gem_rock_table drop roll (~roll_on_drop_table, new) + 1/256→1/86 gem-find on ordinary rocks; village_gem_rock1-3 deferred (unverified mechanic) |
+| 51 | Members ore rocks (limestone/sandstone/granite/amethyst) | wiki+cache | done | limestone×3 + Trahaearn soft clay + Desert Quarry sandstone/granite (weighted tier, get_ore_quarry) + amethyst live; quest_enakhraslament's guaranteed-material shortcut replaced by real mining |
+| 52 | Higher pickaxes (black/dragon/crystal/infernal) | wiki+cache | done | full ladder (bronze→crystal, 14 objs) via oc_category=weapon_pickaxe + pickaxes.obj param overlay (mining_rate/mining_animation); Nurmof repair still deferred CONTENT 8x |
+| 53 | Mining gear perks (cape/gloves/prospector/Varrock armour/clay bracelet) | wiki+cache | done | mining_gear.rs2: prospector XP (+2.5% cap), Varrock armour 4 double-ore, mining/superior/expert gloves (deterministic per-rock saves), bracelet of clay (28-charge player varp), cape +1 boost, unidentified minerals (amethyst only). Gem bag/coal bag storage deferred — see MINING_COMPLETION_PLAN.md §6 |
+| 54 | Mining special activities (Blast/Volcanic/Stars) | wiki → Kronos | blocked | Motherlode already KRONOS §13 done (veins/paydirt/hopper/sack) + Mining Guild 60 gate (mining_guild.rs2); remaining post-2009 activities stay KRONOS lane. See MINING_COMPLETION_PLAN.md §9 |
+| 55 | Miscellania mining intercept | LC | done | ~magnus_intercept_ore (miner_magnus.rs2), called from get_ore_normal/get_ore_fast before inv_add — ore-only, same scope as LostCity's own version |
+| 56 | Cannonballs | LC | done | XP bug fixed (375→256, was the steel bar rate not the cannonball rate) + Dwarf Cannon quest gate added + looped; SMITHING_COMPLETION_PLAN.md S8 |
+| 57 | Anvil members products (darts/knives/arrows/wire/studs/bolts/limbs/claws) | LC | done | 56 new dbrows via S2's kind-column refactor (deleted six 17-case switches); SMITHING_COMPLETION_PLAN.md S2–S5 |
+| 58 | Dragon sq shield + special anvil products | LC | done | Dragon sq already lived; dragonfire shield assembly new, godsword blade combine chain found already implemented (missing level-80 gate + XP, now fixed) — SMITHING_COMPLETION_PLAN.md S12 |
+| 59 | Members bars (blurite/elemental/lovakite) | wiki+cache | done | Blurite smelt+anvil products landed (SMITHING_COMPLETION_PLAN.md S6); elemental metal scoped to quest_elemental_workshop (S7, not this lane); lovakite is a Kourend-lane furnace, out of scope |
+| 60 | Smithing IF / batch polish | LC | pending | p_choice menus now cover all 31 product kinds (S2's menu chain); real IF 312 client UI still not wired — SMITHING_COMPLETION_PLAN.md S13 |
+| 61 | Smithing gear perks (gauntlets/cape/Smiths' Uniform) | wiki+cache | done | Imcando hammer, Smithing cape gold-XP bonus, Varrock armour double-smelt landed; Smiths' Uniform is a 2022 Giants' Foundry reward, out of era — SMITHING_COMPLETION_PLAN.md S9 |
 | 62 | Blast Furnace remainder | SCAPE2009 | blocked | Enter+machine already SCAPE2009 §13/13b done; breakage/belt NPCs stay that lane |
-| 63 | Members fish (shark/monkfish/big-net/karambwan/angler/dark crab/eels) | LC | pending | fishing.rs2 deferred memberfish; XP table stops at swordfish |
-| 64 | Barbarian / barehand fishing | wiki+cache | pending | Wiki leaping fish + barehand harpoon; pairs Strength #8; no barb rod spots |
-| 65 | Fishing Guild | LC | pending | fishing.rs2 deferred guild; level-68 gate + guild spots absent |
-| 66 | Fishing spot movement / whirlpools | LC | pending | CONTENT 7d + fishing.rs2 deferred fishing_movement/whirlpools/afk macros |
-| 67 | Miscellania fishing intercept | LC | pending | CONTENT 20h Frodi deferred fishing intercept |
-| 68 | Fishing cape / angler outfit | wiki+cache | pending | Skillcape perk + angler XP bonus absent |
+| 63 | Members fish (shark/monkfish/big-net/karambwan/angler/dark crab/eels) | LC | done | FISHING_COMPLETION_PLAN.md S1-S9,S13; monkfish/anglerfish/dark crab/cave eel/frogspawn/infernal eel/sacred eel/rainbow fish live, table-driven; shark/karambwan/big-net already live |
+| 64 | Barbarian / barehand fishing | wiki+cache | done | FISHING_COMPLETION_PLAN.md S9; leaping trout/salmon/sturgeon live (dual Fishing+Agility+Strength gate, off-skill xp); barehand harpoon not wiki-documented, not attempted |
+| 65 | Fishing Guild | LC | done | Door/gate/Master Fisher/shop already live; S13 fixed 6 mis-mechanic'd guild-area spots (were shark+junk, now correct monkfish/tuna/swordfish) |
+| 66 | Fishing spot movement / whirlpools | LC | pending | FISHING_COMPLETION_PLAN.md S10 landed (ai_timer relocation, coords generated from this tree's own spawn roster via tools/gen_fishing_movement.py — not ported); live-session relocation unconfirmed. Whirlpools/afk macros still deferred tree-wide (era decision, not fishing-specific) |
+| 67 | Miscellania fishing intercept | LC | blocked | Needs a worker/resource allocation system that does not exist anywhere in area_miscellania/ yet — not a fishing-sized task, see FISHING_COMPLETION_PLAN.md S15 |
+| 68 | Fishing cape / angler outfit | wiki+cache | done | FISHING_COMPLETION_PLAN.md S14; skillcape_boost.rs2 +1 Fishing, angler's outfit 0.4/0.8/0.6/0.2%+0.5% set xp bonus (wiki-verified). Fish barrel/spirit flakes not implemented |
 | 69 | Fishing Trawler remainder | CONTENT | blocked | Murphy+hull/net/bail live (19d/19f); control timer+%npc_* varn blocked on CONTENT skip list |
 | 70 | Tempoross / aerial / drift-net fishing | wiki → Kronos | blocked | Post-2009 activities stay KRONOS lane |
 | 71 | Members fish cookables (shark/monkfish/karambwan/angler/…) | LC | pending | cooking.rs2 + cooking_generic deferred members fish; table stops at swordfish |
@@ -253,7 +253,7 @@ unblocked row per tick.
 | 93 | Wilderness Agility course | LC | pending | Same ownership as #92; not in tree |
 | 94 | Mid-era courses (Pyramid/Brimhaven/Ape/Werewolf) | LC/2009 | pending | Wiki classic courses absent; Agility Pyramid ≠ Pyramid Plunder (SCAPE2009 §7) |
 | 95 | Pollnivneach rooftop | wiki+cache | pending | 8 rooftops live (Draynor→Ardougne); Pollnivneach (70) missing |
-| 96 | Shortcuts remainder (grapple/stiles/mid-era) | LC | pending | agility_shortcuts_osrs grapple/stiles deferred; mid-era → CONTENT/SCAPE2009 |
+| 96 | Shortcuts remainder (grapple/mid-era) | LC | pending | Stiles done (stiles.rs2, `[oploc1,_stile]`); grapple still deferred; mid-era → CONTENT/SCAPE2009 |
 | 97 | Agility cape / graceful outfit | wiki+cache | pending | Cape perk + graceful energy restore absent |
 | 98 | Modern courses (Sepulchre/Prif/Shayzien/Wyrm) | wiki → Kronos | blocked | Post-2009 courses stay KRONOS lane |
 | 99 | Agility pet | wiki+cache | pending | Rooftop headers defer agility pet |
@@ -266,20 +266,20 @@ unblocked row per tick.
 | 106 | Huasca + prayer regen | wiki+cache | blocked → HERBLORE_PORT_QUEUE §14,18 | identify.dbrow deferred huasca; wiki prayer regeneration potion |
 | 107 | Expanded pickpockets (HAM/Master Farmer/elf/vyre/bandits/pirate) | wiki+cache | pending | pickpocket.dbrow man→hero; missing HAM/master farmer/modern targets; viking deferred |
 | 108 | Members/misc stalls (fruit/seed/viking markets) | LC | pending | CONTENT 8n/8o deferred viking/misc stalls; Ardougne bakery→gem live |
-| 109 | Blackjacking | wiki+cache | pending | Wiki The Feud bandit blackjack path absent |
+| 109 | Blackjacking | wiki+cache | done | Lure / Knock-Out / two guaranteed pickpockets landed on all six Pollnivneach targets (`skill_thieving/scripts/blackjack.rs2`, `configs/blackjack.{constant,varp}`, four `pickpocket.dbrow` rows), gated by `::blackjackrun`. **The cache already held every piece and this tree had misread it**: `feud_npc_multi` is not cosmetic variety, it is the blackjack-taught rung — its slot-3 records are the ones carrying `op4=Lure`/`op5=Knock-Out`, and the wiki labels the Menaphite Thug's slot-3 id 3550 "After Quest" against slot-1's 3549 "Before Quest". Unlock is therefore quest progress (`^feud_pickpocket3_done`, Ali the Operator's blackjack lesson) and not "is a blackjack wielded" — rung 0 has no `op3` on the thug at all, so gating on the weapon would make thugs permanently unpickpocketable. `stunned_blackjack` (seq 1874 / spotanim 348) had sat unreferenced in the cache; it is played now. Deferred, named: the awake-pickpocket coin *pouch* (→#113, nothing opens one yet, so both paths pay coins directly); the witness rule's radius (the wiki states the rule and the line-of-sight half, not a range) |
 | 110 | Rogues' Den / rogue outfit | wiki+cache | pending | Maze + outfit double-loot absent (Rogues' Castle chests already KRONOS §76) |
 | 111 | Stall guard retaliate polish | LC | pending | stealing.rs2 deferred ~npc_retaliate (npc_aggressive_player varn) |
 | 112 | Thieving cape / gloves of silence / dodgy necklace | wiki+cache | pending | Success/stun/double-loot gear absent |
 | 113 | Coin pouches | wiki+cache | pending | Wiki pouch stack loot model vs direct coin drops |
 | 114 | Pyramid Plunder remainder | SCAPE2009 | blocked | Entrance+rooms SCAPE2009 §7/7b done; snake charm deferred on that lane |
-| 115 | Maple+ bow cut/string | LC | pending | cut_logs/bows F2P normal→willow only; maple/yew/magic deferred |
-| 116 | Mithril+ arrows | LC | pending | arrows.rs2 bronze→steel only; mithril+ deferred |
-| 117 | Crossbow stocks / limbs / unfinished bolts | LC | pending | CONTENT 8r deferred crossbow; bolts tip assembly only (opal/pearl/barb) |
-| 118 | Gem bolt tips remainder | LC | pending | CONTENT 13r deferred tips beyond opal/pearl/barb; enchant combat →#22 |
-| 119 | Ogre / brutal arrows | LC | pending | darts.rs2 ogre/proto deferred; SCAPE2009 Zogre brutal arrows deferred |
-| 120 | Amethyst / dragon ammo + javelins | wiki+cache | pending | Wiki high-tier ammo; no amethyst/dragon/javelin fletch rows |
-| 121 | Broad arrows / bolts | wiki+cache | pending | Wiki Slayer-point unlock training; no broad tip assembly |
-| 122 | Fletching cape / bowstring spool | wiki+cache | pending | Skillcape perk + spool AFK aid absent |
+| 115 | Maple+ bow cut/string | LC | done | Maple/yew/magic cut+string landed, FLETCHING S3 |
+| 116 | Mithril+ arrows | LC | done | Mithril/adamant/rune arrowheads landed, FLETCHING S4 |
+| 117 | Crossbow stocks / limbs / unfinished bolts | LC | done | **Premise corrected**: not "unexpressible" — every part exists as `xbows_crossbow_{stock,limbs,unstrung}_*`, `xbows_crossbow_string`, `*_unfeathered`. 8 stocks/limbs/strings + 9 metal bolt tiers landed, FLETCHING S5+S6 |
+| 118 | Gem bolt tips remainder | LC | done | jade→onyx tip cutting + their tipped bolts landed, FLETCHING S8; enchant combat →#22 still open |
+| 119 | Ogre / brutal arrows | LC | done | Composite ogre bow + 6 brutal arrow tiers landed, FLETCHING S7 (no `nails_steel` obj exists, so no Steel tier — documented, not guessed) |
+| 120 | Amethyst / dragon ammo + javelins | wiki+cache | done | Amethyst 4-way chisel menu, dragon arrow/dart/javelin, 8 javelin tiers landed, FLETCHING S9 |
+| 121 | Broad arrows / bolts | wiki+cache | done | Landed, FLETCHING S10 — level-gated only; no Slayer reward-unlock convention exists in `skill_slayer/` to gate against |
+| 122 | Fletching cape / bowstring spool | wiki+cache | done | Worn Boost perk landed, FLETCHING S14 (`skillcape_boost.rs2`); spool is 2025 Vale Totems → KRONOS, search-for-grapple perk not implemented |
 | 123 | Konar location-restricted tasks | Kronos | pending | Masters assign live; Konar areas column wire deferred (KRONOS §3) |
 | 124 | Monster specials remainder (mirror/gargoyle/banshee/…) | SCAPE2009/Kronos | pending | Rockslug+lizard finishers live (SCAPE2009 §3e); mirror/smash/earmuffs deferred |
 | 125 | Superior unique loot / full type map | Kronos | pending | Bigger and Badder spawn+credit stub (KRONOS §40); loot deferred |
@@ -303,14 +303,21 @@ unblocked row per tick.
 | 143 | Servant / house party / visitor mode | wiki+cache | pending | Wiki servants + friend visits absent |
 | 144 | Gilded altar / POH prayer furniture | SCAPE2009 | blocked | Already Skills #25 → POH remainder; do not edit live tree from Prayer lane |
 | 145 | Construction training furniture (oak larders/mahogany tables/…) | SCAPE2009 | blocked | Beyond garden plants — furniture catalogue → §4c owner |
-| 146 | Expanded bird snare / box-trap prey | SCAPE2009 | pending | Crimson swift + grey chin first; other birds/chins/ferrets absent |
-| 147 | Butterfly netting / barehand | wiki+cache | pending | Wiki butterflies; net used for baby impling only |
-| 148 | Salamander / deadfall / tracking remainder | SCAPE2009 | pending | Salamander net deferred (2c); polar kebbit trails deferred (2d); deadfall absent |
-| 149 | Impling jar loot + higher implings | SCAPE2009 | pending | Baby catch live; jar loot stub; higher implings + Elnock shop deferred (Puro §8) |
-| 150 | Falconry polish (projectile / zone leave) | SCAPE2009 | pending | Catch+retrieve live; projectile visual + zone cleanup deferred |
-| 151 | Hunter cape / camouflage gear | wiki+cache | pending | Skillcape perk + gear catch-rate bonuses absent |
-| 152 | Bird houses / Herbiboar / Hunter Guild | wiki → Kronos | blocked | Post-2009 Fossil Island + Avium Savannah stay KRONOS lane |
-| 153 | Aerial / drift-net / crab trapping | wiki → Kronos | blocked | Post-2009 techniques stay KRONOS (also Fishing #70 overlap) |
+| 146 | Expanded bird snare / box-trap prey | SCAPE2009+wiki | pending | Five birds + ferret/grey/red chin live but singleton trap ownership is wrong; add jerboa, black chin, Letvek. See [`HUNTER_COMPLETION_PLAN.md`](HUNTER_COMPLETION_PLAN.md) H1/H3/H10 |
+| 147 | Butterfly netting / barehand | wiki+cache | pending | Four classic butterflies live with obsolete barehand gates; add sunlight/moonlight moths and current release rules. See Hunter plan §3.3 |
+| 148 | Salamander / deadfall / tracking remainder | SCAPE2009+wiki | pending | Four salamanders + four deadfalls + four partial kebbit trails live; add tecu, fox, monkey, razorback, Herbiboar and complete graphs. See Hunter plan §§3.1/3.5/3.7 |
+| 149 | Impling jar loot + higher implings | SCAPE2009+wiki | pending | Baby–dragon, loot tables, and Puro live; add surface/Puro XP split, direct loot, barehand, Crystal/Lucky, tracker/spawner audit. See Hunter plan §3.4 |
+| 150 | Falconry polish (projectile / zone leave) | SCAPE2009 | pending | Three kebbits, projectile, catch and retrieve live; audit Matthias rental, logout/zone cleanup, ownership races, and rumour hooks. See Hunter plan §3.9 |
+| 151 | Hunter cape / clothing / horn | wiki+cache | pending | Cape and fur exchange absent; camouflage is weight-only, while guild outfit affects catches; horn implementation lacks success boost/doubling. See Hunter plan §§5.4/6 |
+| 152 | Bird houses / Herbiboar / Hunter Guild / modern prey | wiki+cache | pending | Cache has Fossil/Avium/Guild and 2026 Vampyrium assets; implement per-player sites, Rumours, Savannah roster, Letvek/Stymphike. Wyrmscraig goats need a newer cache. See Hunter plan §§4.1/5/7/8 |
+| 153 | Aerial / drift-net / crab trapping | wiki+cache | pending | Cache has aerial spots, drift-net states, and crab guide/assets; implement as shared Hunter/Fishing/Sailing slices with authoritative adjacent gates. See Hunter plan §§4.2–4.4 |
+| 154 | Crafting spinning remainder | wiki+cache | done | Spinning wheel extended from 2 to 10 rows (crossbow string ×5 sources, linen/magic string, rope, hemp/cotton yarn), `spinning.dbtable`, bound to all 9 wheel placements via cache category 971. See CRAFTING_COMPLETION_PLAN.md §1.1/S3 |
+| 155 | Crafting silver casting remainder | wiki+cache | done | Plain silver Tiara (distinct from the gold tiara in #46) + silver bolts (unf), both previously unreachable. See CRAFTING_COMPLETION_PLAN.md §1.15/S9 |
+| 156 | Crafting leather/dragonhide shields + spiky vambraces | wiki+cache | done | Hard leather shield + 4 dragonhide shields (leather-on-wooden-shield + hammer + nails), spiky vambraces (kebbit claws on any vambraces). Depended on Fletching's wooden shields, which had already landed. See CRAFTING_COMPLETION_PLAN.md §1.4–§1.5/S10 |
+| 157 | Crafting snakeskin | wiki+cache | done | 7 products (boots/vambraces/bandana/chaps/body/shield/3 broodoo shields) + a 5th tanning option (snakeskin, 15gp) added to the Al Kharid/Canifis tanner menu. See CRAFTING_COMPLETION_PLAN.md §1.6/S11 |
+| 158 | Crafting fabric/fur armour families | wiki+cache | done | Xerician robes, Splitbark armour, Mixed hide armour, Hueycoatl hide armour (16 products, one `fabric_armour.dbtable`) + Recipe for Disaster's crab armour (2 products via chisel). See CRAFTING_COMPLETION_PLAN.md §1.9–§1.10/S13 |
+| 159 | Crafting dye targets beyond capes | wiki+cache | done | Wizard hat (blue), desert shirt/robe (black, merged into quest_golem's existing `golem_ink` trigger), rose-tinted lens (already existed) + pink cape (merged both directions with quest_handinthesand's `handsand_pink_dye`). See CRAFTING_COMPLETION_PLAN.md §1.19/S14 |
+| 160 | Fletching gem bolt tips / amethyst ammo / toxic blowpipe | wiki+cache | done | Landed by a separate concurrent session ahead of this pass (`skill_fletching/scripts/amethyst.rs2`, bolts.rs2's gem-bolt-tip cases). Crafting's chisel switch (`skill_crafting/scripts/gem/uncut_gem.rs2`) already had the coordinating cases; this pass only added the missing onyx/zenyte gem-cutting rows those cases assumed existed |
 
 ## Opcode gap log
 
@@ -319,7 +326,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 | Slice | Opcode / surface | Why | Status |
 |---|---|---|---|
 | 17 | `inv_dropitem_delayed` | Ammo recovery after ranged shot | done (hosted + content wire #17) |
-| 2 | secondary player (`.` dialect) + `MOCK230_PLAYER_MAX>1` | PvP melee/ranged/magic need `.stat` / `.queue` / `p_opplayer` against another player | blocked — host; content not ported |
+| 2 | secondary player (`.` dialect) + `TORIRSSERVER_PLAYER_MAX>1` | PvP melee/ranged/magic need `.stat` / `.queue` / `p_opplayer` against another player | blocked — host; content not ported |
 
 ## Log
 
@@ -341,7 +348,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - audit Woodcutting done: wiki [Woodcutting](https://oldschool.runescape.wiki/w/Woodcutting). In-tree: normal→magic+hollow chop (CONTENT 7a/9r), axe bronze→rune, WC Guild gates/ropes/shrine (KRONOS §83). Gaps: members trees, higher axes, nests, Leif intercept, redwood/+2, cape/lumberjack; Forestry→Kronos. Emitted #85–91. Next audit = Agility.
 - audit Agility done: wiki [Agility](https://oldschool.runescape.wiki/w/Agility). In-tree: Gnome course (CONTENT 8s), 8 rooftops + MoG (KRONOS §22), Falador wall/GE/wildy shortcuts. Gaps: barb/wild courses, mid-era courses, Pollnivneach, grapples, cape/graceful, pet; modern courses→Kronos. Emitted #92–99. Next audit = Herblore.
 - audit Herblore done: wiki [Herblore](https://oldschool.runescape.wiki/w/Herblore). In-tree: clean/grind/unf+classic finishes through magic (CONTENT 8t), Druidic Ritual (13p). Gaps: decant, sara/stamina/combat/sanfew/coconut+, barb/tar, quest mixes, cape/chemistry, huasca; Drink already #3 family; divine/Mixology→Kronos. Emitted #100–106. Next audit = Thieving.
-- audit Thieving done: wiki [Thieving](https://oldschool.runescape.wiki/w/Thieving). In-tree: pickpocket man→hero, Ardougne stalls, trapped chests, locked doors (CONTENT 8n/8o); Pyramid Plunder (SCAPE2009 §7); Rogues' Castle chests (KRONOS §76). Gaps: expanded pickpockets, misc stalls, blackjack, Rogues' Den/outfit, retaliate, cape/gear, coin pouches. Emitted #107–114. Next audit = Fletching.
+- audit Thieving done: wiki [Thieving](https://oldschool.runescape.wiki/w/Thieving). In-tree: pickpocket man→hero, Ardougne stalls, trapped chests, locked doors (CONTENT 8n/8o); Pyramid Plunder (SCAPE2009 §7); Rogues' Castle chests (KRONOS §76). Gaps: expanded pickpockets, misc stalls, Rogues' Den/outfit, retaliate, cape/gear, coin pouches (blackjacking #109 now live). Emitted #107–114. Next audit = Fletching.
 - audit Fletching done: wiki [Fletching](https://oldschool.runescape.wiki/w/Fletching). In-tree: F2P cut/string/arrows (CONTENT 8r), darts+opal/pearl/barb bolts (13r). Gaps: maple+ bows, mithril+ arrows, crossbows, gem tips remainder, ogre/brutal, amethyst/dragon/javelins, broads, cape/spool. Emitted #115–122. Next audit = Slayer.
 - audit Slayer done: wiki [Slayer](https://oldschool.runescape.wiki/w/Slayer). In-tree: masters/assign/kill/points/cancel-block-store, rewards IF, rockslug/lizard specials, superior stub, imbued heart (KRONOS+SCAPE2009). Gaps: Konar areas, specials remainder, superior loot, category gaps, chest loot, helm effects, cape; Mortimer/boss polish→Kronos. Emitted #123–130. Next audit = Farming.
 - audit Farming done: wiki [Farming](https://oldschool.runescape.wiki/w/Farming). In-tree: classic herb/allot/flower/compost/tree/fruit/hops/bush + farming_view (SCAPE2009 §1a–1g). Gaps: higher tiers, disease/gardeners, Zeah compost, spirit/calquat, Geomancy/secateurs, leprechaun notes, cape; Guild/Tithe→Kronos. Emitted #131–138. Next audit = Construction.
@@ -350,10 +357,10 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - **Audit roster complete** (23/23 OSRS skills, Sailing skipped). Finish queue seeded #1–153. Stop re-arming audit sleeper. Port loop is separate work.
   - **Summoning is a 24th row and is deliberately *not* counted in that 23/23.** It is not an OldSchool skill; it is a flagged port from 2009scape tracked in [`SUMMONING_PORT_QUEUE.md`](SUMMONING_PORT_QUEUE.md). Do not re-open this audit for it.
 - **Port loop armed** (skills_port). Selection: lowest pending, deps-first; stop when no actionable pending rows.
-- port #1 specials done: LC `skill_combat/scripts/player/{specwep,player_special_attack}.rs2` + `specs/pvm_*`. In-tree: `specwep`/`sa_energy`/`sa_kind` params, energy regen timer, `combat_interface:special_attack` + orb `@specbar_pressed`, combat-start divert, equip clears `%sa_attack`, PvM dds/dlong/dmace/claws + instant dbaxe/Excalibur. Era: drop sound_synth; ranged→#18; spear/halberd deferred. Verified pack 0 err + mock230-scripts. Next = #2 PvP melee.
-- port #2 PvP melee → blocked: LC `pvp/pvp_*.rs2` needs secondary-player dialect; `MOCK230_PLAYER_MAX` is 1 (combat_stats.rs2 documents `.` variants not ported). Opcode gap logged. Next = #3 Attack potion.
+- port #1 specials done: LC `skill_combat/scripts/player/{specwep,player_special_attack}.rs2` + `specs/pvm_*`. In-tree: `specwep`/`sa_energy`/`sa_kind` params, energy regen timer, `combat_interface:special_attack` + orb `@specbar_pressed`, combat-start divert, equip clears `%sa_attack`, PvM dds/dlong/dmace/claws + instant dbaxe/Excalibur. Era: drop sound_synth; ranged→#18; spear/halberd deferred. Verified pack 0 err + torirsserver-scripts. Next = #2 PvP melee.
+- port #2 PvP melee → blocked: LC `pvp/pvp_*.rs2` needs secondary-player dialect; `TORIRSSERVER_PLAYER_MAX` is 1 (combat_stats.rs2 documents `.` variants not ported). Opcode gap logged. Next = #3 Attack potion.
 - port #3 Attack potion done: LC consume_effect_stat shape via name-bound Drink (anti_poison pattern). `attack_potion.rs2` — attack +3/+10%, super +5/+15%, dose ladder. Verified pack 0 + scripts. Next = #4.
-- port #5 Attack cape done: wiki +1 Boost; worn op2 host fix in mock230_world.c; `skillcape_attack.rs2`. #4 stays Kronos-blocked.
+- port #5 Attack cape done: wiki +1 Boost; worn op2 host fix in torirs_server_world.c; `skillcape_attack.rs2`. #4 stays Kronos-blocked.
 - port #6 Strength potion done: `strength_potion.rs2` (strength4 ladder). 
 - port #9 magic def 7:3 done: LC blend in `player_combat_stat`. Next = #7 Strength cape.
 - port #5/#7/#11 skillcape Boosts consolidated in `skillcape_boost.rs2` (Attack/Strength/Defence +1). Next = #8.
@@ -372,6 +379,7 @@ Record new Server VM opcodes **before** inventing C content hooks.
 - port #27 Piety/Rigour/Augury combat multipliers done. Smite → #2. Next = #22/#24/#28.
 - port #22 enchanted bolts done (PvM opal…onyx). MAGIC slices #30–36 → blocked MAGIC plan. Next = #24 ectofuntus / #28 retribution.
 - magic lane: plan `MAGIC_CONTENT_PORT_PLAN.md` + loop `AGENT_LOOP_WAKE_magic_port`; M1–M3 done (members combat, magic potion, crumble).
-- port #24 ectofuntus/chaos offer done: LC has no worship/grind — 2009scape Phasmatys + wiki Chaos Temple. `ectofuntus.rs2` (worship 4×, hopper/wind/bin, slime→ectoplasm), `chaos_altar_offer.rs2` (350% + 50% save), `bone_xp.rs2` shared with bury. Verified pack 0 + mock230-scripts. Next = #28 Retribution AoE / #29 cape+peaches / #37 RC.
+- port #24 ectofuntus/chaos offer done: LC has no worship/grind — 2009scape Phasmatys + wiki Chaos Temple. `ectofuntus.rs2` (worship 4×, hopper/wind/bin, slime→ectoplasm), `chaos_altar_offer.rs2` (350% + 50% save), `bone_xp.rs2` shared with bury. Verified pack 0 + torirsserver-scripts. Next = #28 Retribution AoE / #29 cape+peaches / #37 RC.
 - port #28 Retribution AoE done: LC none; multi uses hosted `map_multiway` + npc/player hunt within 1; single `%aggressive_npc`. Verified pack 0 + scripts. Next = #29 Prayer cape / bones-to-peaches.
 - port #29 Prayer cape done: wiki +1 Boost on `skillcape_prayer`/`_trimmed`; peaches already MAGIC M5. Next = #37 RC tiara/pure essence.
+- port #43/#45–48/#154–159 (Crafting finish pass) done, plan `CRAFTING_COMPLETION_PLAN.md`: weaving (new script, `[oploc1,_loom]` on cache category 971/2299 shared with `regicide_loom`); spinning 2→10 rows; glass 3→8 blows + oil lantern assembly; onyx/zenyte gem cutting; full onyx/zenyte + gold bracelet + gold tiara + both slayer rings + 12-row opal/jade/topaz silver jewellery; plain silver Tiara + silver bolts (unf); hard leather + 4 dragonhide shields + spiky vambraces; snakeskin (7 products + tanner row); Xerician/Splitbark/Mixed hide/Hueycoatl hide armour + crab armour (16+2 products, `fabric_armour.dbtable`); wizard hat/desert shirt+robe/pink cape dyes; Crafting cape Boost (wired into shared `skillcape_boost.rs2`) + door alternates + Master Crafter cape sale. #44 (skillmulti IF) stays pending — every new menu used the existing `~p_choice*` pagination convention instead. Verified via `make -C src torirsserver-scripts` (0 errors) at each step; landed alongside a concurrent Magic/Fletching session's commits (`742b4d9b2a`…`95ef473536`) without conflict. `docs/TOOL_TRIGGER_ORGANISATION.md` written from this pass's `[opheldu]` dispatch research. No runtime selftest suite (plan §4) built this pass — sscompile only.

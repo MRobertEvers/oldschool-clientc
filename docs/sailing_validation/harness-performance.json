@@ -1,0 +1,83 @@
+{
+  "ok": true,
+  "worker": "perf",
+  "recorded_utc": "2026-09-07T13:53:00Z",
+  "recorded_local": "2026-09-07 08:53 America/Chicago",
+  "provenance": {
+    "client_src_torirs_sha256": "4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4",
+    "server_src_build_opt_torirsserver_sha256": "214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186",
+    "script_dat_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_count": 30076,
+    "harness_tool_sha256": "2338d9336aedbef1d48be3add495965935ec090a2ddc0504c79e771a5e799892",
+    "manifest_sha256": "64a1d36e78d8a0794420e7c01a1318097a8d8f388a80e3ae1aad286b62573146",
+    "hashes_verified_before_run": true,
+    "renderer": "soft3d --headless",
+    "fixture": "wooden skiff at ocean tile 3072,3160, helm held, sails down"
+  },
+  "machine_conditions": {
+    "note": "PID 65513 (torirs_canoe_cutscene6, another session, protected) holds ~45% of one core throughout every measurement here and in the prior baseline; it cannot be stopped and is a constant, not a variable.",
+    "set_A_contamination": "During set A a foreign LTO link (make/clang PLATFORM_OBJ_BASE=build_removal in the /private/tmp/plugin-engine-removal-wt worktree, pids 65345/65408) started and ran at -j8. It was absent at the task-1 process check and had exited before set B. Set A is retained unfavourably; set B is the quiet-machine measurement.",
+    "no_shared_objdir_touched": true
+  },
+  "target_ms": 100,
+  "set_A_contended": {
+    "session": "/tmp/sailing-fin-perf",
+    "operations": {
+      "state": {"count": 20, "median_ms": 2.843, "p95_ms": 2.947, "max_ms": 2.972},
+      "capture": {"count": 20, "median_ms": 44.736, "p95_ms": 47.187, "max_ms": 47.642},
+      "state_with_step_run": {"count": 20, "median_ms": 2.9, "p95_ms": 4.273, "max_ms": 5.048},
+      "capture_with_step_run": {"count": 20, "median_ms": 42.834, "p95_ms": 45.29, "max_ms": 45.422},
+      "step_30": {"count": 20, "median_ms": 15.459, "p95_ms": 17.983, "max_ms": 18.079}
+    },
+    "checkpoint_operations": {
+      "pause": {"count": 20, "median_ms": 2.811, "p95_ms": 5.33, "max_ms": 5.333},
+      "save": {"count": 20, "median_ms": 2.782, "p95_ms": 2.893, "max_ms": 5.298},
+      "restore": {"count": 20, "median_ms": 7.8, "p95_ms": 10.337, "max_ms": 10.363}
+    },
+    "query_capture_target_met": true
+  },
+  "set_B_quiet": {
+    "session": "/tmp/sailing-fin-perf2",
+    "authoritative": true,
+    "operations": {
+      "state": {"count": 20, "median_ms": 2.795, "p95_ms": 2.865, "max_ms": 2.919},
+      "capture": {"count": 20, "median_ms": 42.295, "p95_ms": 42.977, "max_ms": 43.067},
+      "state_with_step_run": {"count": 20, "median_ms": 2.796, "p95_ms": 2.854, "max_ms": 2.861},
+      "capture_with_step_run": {"count": 20, "median_ms": 42.516, "p95_ms": 43.094, "max_ms": 45.317},
+      "step_30": {"count": 20, "median_ms": 15.424, "p95_ms": 17.324, "max_ms": 17.754}
+    },
+    "checkpoint_operations": {
+      "pause": {"count": 20, "median_ms": 2.825, "p95_ms": 5.308, "max_ms": 5.376},
+      "save": {"count": 20, "median_ms": 2.78, "p95_ms": 2.849, "max_ms": 2.969},
+      "restore": {"count": 20, "median_ms": 7.799, "p95_ms": 7.865, "max_ms": 7.912}
+    },
+    "query_capture_target_met": true
+  },
+  "cold_start_ms": {
+    "definition": "start --headless into a fresh empty session directory: process launch, revision-239 cache load, login, fixture spawn, readiness wait. Reported separately from warm command latency; NOT part of the 100 ms warm-command target.",
+    "set_A_contended": [3527.96, 2754.06, 2595.178],
+    "set_A_note": "3527.96 ms was the first client launch of the run (cold page cache); the other two overlapped the foreign LTO link.",
+    "set_B_quiet": [2698.186, 2478.94, 2472.914],
+    "set_B_note": "2698.186 ms is the warm-bench session's own start; 2478.94 and 2472.914 are the two dedicated fresh-directory cold starts asked for.",
+    "median_quiet_ms": 2478.94
+  },
+  "comparison_with_prior_baseline": {
+    "prior_file_recorded": "2026-09-06 15:06 local, client c7e62cce lineage",
+    "prior": {
+      "state_median_ms": 2.833, "state_max_ms": 2.909,
+      "capture_median_ms": 47.724, "capture_p95_ms": 80.062, "capture_max_ms": 81.176,
+      "step_30_median_ms": 17.381, "step_30_max_ms": 20.14,
+      "pause_median_ms": 2.939, "save_median_ms": 2.896, "restore_median_ms": 9.948
+    },
+    "deltas_set_B_vs_prior": {
+      "state_median": "-1.3% (2.833 -> 2.795 ms)",
+      "capture_median": "-11.4% (47.724 -> 42.295 ms); capture max improved from 81.176 to 43.067 ms, tail collapsed",
+      "step_30_median": "-11.3% (17.381 -> 15.424 ms)",
+      "pause_median": "-3.9% (2.939 -> 2.825 ms)",
+      "save_median": "-4.0% (2.896 -> 2.780 ms)",
+      "restore_median": "-21.6% (9.948 -> 7.799 ms)"
+    },
+    "verdict": "No regression on any operation. Every median is at or below the prior baseline; the capture p95/max tail is the largest improvement. The stated envelope (query/pause/save ~3 ms, restore ~10 ms, capture 40-48 ms) still holds, with restore now under 8 ms."
+  },
+  "sessions_stopped": ["/tmp/sailing-fin-perf", "/tmp/sailing-fin-perf2", "/tmp/sailing-fin-perf-cold1", "/tmp/sailing-fin-perf-cold2", "/tmp/sailing-fin-perf-cold3", "/tmp/sailing-fin-perf-cold4"]
+}

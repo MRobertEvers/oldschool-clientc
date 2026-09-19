@@ -1,0 +1,65 @@
+{{Infobox Spell
+|name = Expert Reanimation
+|image = [[File:Expert Reanimation.png]]
+|release = [[28 April]] [[2021]]
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 72
+|spellbook = Arceuus
+|type = Utility
+|exp = 138
+|cost = {{RuneReq|Nature=3|Blood=1|Soul=2}}
+|speed = 
+|quest = None
+|description = Reanimates a high levelled creature
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Expert Reanimation icon (mobile).png|left]]
+'''Expert Reanimation''' is a spell within the [[Arceuus spellbook]] that requires level 72 [[Magic]] to use. It can be cast on certain [[ensouled head]]s to bring forth a [[reanimated creature]]. Killing the reanimated creature will grant [[Prayer]] experience. Casting the spell grants 138 [[Magic]] experience.
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = nature
+|Rune1num = 3
+|Rune2 = blood
+|Rune2num = 1
+|Rune3 = soul
+|Rune3num = 2
+}}
+
+==Compatible heads==
+{|class="wikitable" style="text-align:center;"
+! colspan="2" |Ensouled head
+!Reanimated monster
+!{{SCP|Prayer|link=yes}} XP
+|-
+|{{plinkt|Ensouled kalphite head|txt=Kalphite}}
+|[[Reanimated kalphite]]
+|884
+|-
+|{{plinkt|Ensouled dagannoth head|txt=Dagannoth}}
+|[[Reanimated dagannoth]]
+|936
+|-
+|{{plinkt|Ensouled bloodveld head|txt=Bloodveld}}
+|[[Reanimated bloodveld]]
+|1,040
+|-
+|{{plinkt|Ensouled tzhaar head|txt=TzHaar}}
+|[[Reanimated TzHaar]]
+|1,104
+|-
+|{{plinkt|Ensouled demon head|txt=Demon}}
+|[[Reanimated demon]]
+|1,170
+|-
+|{{plinkt|Ensouled hellhound head|txt=Hellhound}}
+|[[Reanimated hellhound]]
+|1,200
+|}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

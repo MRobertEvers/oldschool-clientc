@@ -31,8 +31,47 @@ anim_base_from_framemap(struct RSCache_Dat2Framemap const* fm)
         int j;
         if( base->types )
         {
-            /* Dat2SeqBase maps TYPE_6 to ROTATE for apply; keep the wire type
-             * raw on the framemap so encode stays exact. */
+            /*
+             * Transform-group type, as the reference decodes it.
+             *
+             * The complete wire table, read off the rev-727 client
+             * (open727Client, AnimationFrameBase / AnimationFrame /
+             * MeshRasterizer_Sub1.method11268 -- the last-published client that
+             * still implements every one of them):
+             *
+             *   0  ORIGIN     pivot = mean of the group's vertices, + arg<<4
+             *   1  TRANSLATE  verts += arg<<4
+             *   2  ROTATE     verts rotated about the pivot, 14-bit angles
+             *   3  SCALE      verts = v * arg / 128 about the pivot (id 128)
+             *   4  --         unused, never emitted
+             *   5  ALPHA      face alpha += x*8, clamped 0..255
+             *   6  = 2        aliased to ROTATE at framemap load; see below
+             *   7  LIGHT      face HSL: h += x (&63), s += y/4, l += z, clamped
+             *   8  BILLBOARD_TRANSLATE
+             *   9  BILLBOARD_ROTATE
+             *   10 BILLBOARD_SCALE    (identity 128, like SCALE)
+             *
+             * TYPE_6 is not a distinct transform. The reference rewrites it to
+             * ROTATE the moment the framemap is decoded, before anything can
+             * observe the difference -- same 14-bit angle scaling, same sin/cos
+             * pass about the current pivot. Whatever the authoring tool meant
+             * by it (most likely a different Euler order) the client discards;
+             * folding it here rather than at apply is what the reference does,
+             * and it keeps the apply switch from needing a second rotate arm.
+             *
+             * 7 through 10 we do not implement, and the model layer's apply
+             * switch drops them (toridraw_model.c ToriDraw_AnimApplyTransform).
+             * 7 recolours faces in HSL; 8/9/10 do not touch geometry at all --
+             * they drive rev-727 BILLBOARDS, a per-model list of camera-facing
+             * quads anchored to a face centroid, each carrying its own 2D
+             * offset, 2D scale (128 = 1.0), roll (14-bit, in the screen plane)
+             * and ARGB. Their label groups index that billboard list, NOT the
+             * vertex or face bone groups every other type uses, so there is
+             * nothing sane to apply them to until models carry billboards.
+             *
+             * Keep the wire type raw on the framemap so encode stays exact --
+             * only the render-ready base collapses 6.
+             */
             int type = fm->types ? fm->types[i] : 0;
             if( type == 6 )
                 type = 2;

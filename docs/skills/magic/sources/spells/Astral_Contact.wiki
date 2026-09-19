@@ -1,0 +1,345 @@
+{{External|rs=NPC Contact}}
+{{Infobox Spell
+|name = Astral Contact
+|image = [[File:Astral Contact.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 67
+|spellbook = Lunar
+|type = Utility
+|exp = 63
+|cost = {{RuneReq|Astral=1|Cosmic=1|Air=2}}
+|speed = 8 ticks
+|description = Contact various characters across long distances
+|anim = [[File:Astral Contact.gif]]
+|sound = [[File:Astral Contact.ogg]]
+}}
+[[File:Astral Contact icon (mobile).png|left]]
+'''Astral Contact''', previously known as '''NPC Contact''', is a [[magic]] [[spell]] that allows players to talk to various [[non-player character]]s around [[Gielinor]] without having to visit them directly. It is part of the [[Lunar spellbook]]. As with all Lunar spells, the quest [[Lunar Diplomacy]] must be completed to cast this spell. When the spell is cast the runes are spent, experience is granted, and an interface will open showing various characters the player may contact. When one is selected the NPC is contacted.
+
+Players can use a right-click option on the spell's icon in their spellbook to re-contact the character they last contacted through this spell.
+
+Some of the NPCs might have additional requirements (such as quest completions) for you to contact them. They will show up as a grey outline if they can't be contacted.
+
+If you gain access to the Lunar spellbook through having auto-completed Lunar Diplomacy in an event such as [[Deadman Mode]] or a [[League]], the spell still has a direct requirement of 65 [[Magic]] and 40 [[Defence]].
+
+This spell can be cast while running, so long as the last player input was a [[Red-X]]. This allows for efficient use of time during repeated [[Runecraft]] runs, as there's no extra downtime spent contacting the [[Dark Mage (Abyss)]] to replenish [[Essence pouch]] charges.
+
+'''Note:''' Using Astral Contact to contact a person you need to speak for a [[clue]] requirement does '''not''' advance your progress in the [[Treasure Trail]]. You must speak to the person through normal means.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Air
+|Rune1num = 2
+|Rune2 = Cosmic
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 1
+}}
+
+==NPCs==
+{| class="wikitable sortable"
+! Chathead
+! Name
+! Uses
+! Information
+|-
+| [[File:Honest Jimmy chathead.png|center|link=Honest Jimmy]]
+| [[Honest Jimmy]]
+| [[Trouble Brewing]]
+|Controls the [[Trouble Brewing]] minigame, and can tell you when the next game is likely to start.
+|-
+| [[File:Bert chathead.png|center|link=Bert]]
+| [[Bert]] the Sandman
+| Daily sand delivery
+|Can deliver buckets of sand to your bank as long as you have completed the [[Hand in the Sand]].
+|-
+| [[File:Advisor Ghrim chathead.png|center|link=Advisor Ghrim]]
+| [[Advisor Ghrim]]
+| [[Managing Miscellania]]
+|You can collect your resources but you cannot deposit or withdraw money. You must have completed [[Throne of Miscellania]].
+|-
+| [[File:Dark Mage (Abyss) chathead.png|center|link=Dark Mage (Abyss)]]
+| [[Dark Mage (Abyss)]]
+| [[Abyssal book]] and repairs to [[essence pouch]]es
+|Can be contacted after the completion of the [[Enter the Abyss]] miniquest. You can get him to repair your essence pouches and receive another [[Abyssal book]] from him.
+|-
+| [[File:Lanthus chathead.png|center|link=Lanthus]]
+| [[Lanthus]]
+| [[Castle Wars]]
+|Is at [[Castle Wars]] and can tell you when the next game starts.
+|-
+| [[File:Turael chathead.png|center|link=Turael]]
+| [[Turael]]/[[Aya]]
+| Slayer Master
+|Is one of the [[Slayer masters]], and you can obtain tasks from them.
+|-
+| [[File:Spria chathead.png|center|link=Spria]]
+| [[Spria]]
+| Slayer Master
+| Is one of the Slayer masters, and you can obtain tasks from her.
+|-
+| [[File:Mazchna chathead.png|center|link=Mazchna]]
+| [[Mazchna]]{{efn|During [[While Guthix Sleeps]], Mazchna is temporarily replaced by [[Achtryn]], but otherwise retains the existing dialogue.}}
+| Slayer Master
+|Is one of the Slayer masters, and you can obtain tasks from him.
+|-
+| [[File:Vannaka chathead.png|center|link=Vannaka]]
+| [[Vannaka]]
+| Slayer Master
+|Is one of the Slayer masters, and you can obtain tasks from him.
+|-
+| [[File:Chaeldar chathead.png|center|link=Chaeldar]]
+| [[Chaeldar]]
+| Slayer Master
+|Is one of the Slayer masters, and you can obtain tasks from her.
+|-
+| [[File:Nieve chathead.png|center|link=Nieve]]
+| [[Nieve]]/[[Steve]]
+| Slayer Master
+|Is one of the Slayer masters, and you can obtain tasks from them.
+|-
+| [[File:Duradel chathead.png|center|link=Duradel]]
+| [[Duradel]]/[[Kuradal]]
+| Slayer Master
+| Is one of the Slayer masters, and you can obtain tasks from them.
+|-
+| [[File:Krystilia chathead.png|center|link=Krystilia]]
+| [[Krystilia]]{{efn|Krystilia can be called via Astral Contact only after she assigns the player their first Wilderness slayer task.}}
+| Wilderness Slayer Master
+|Is the [[Wilderness]] Slayer master, and you can obtain tasks from her.
+|-
+| [[File:Konar quo Maten chathead.png|center|link=Konar quo Maten]]
+| [[Konar]]
+| Slayer Master
+| Is one of the Slayer masters, and you can obtain tasks from her.
+|-
+| [[File:Mortimer chathead.png|center|link=Mortimer]]
+| [[Mortimer]]
+| Slayer Master
+| Is one of the Slayer masters, and you can obtain tasks from him.
+|-
+| [[File:Murphy chathead.png|center|link=Murphy]]
+| [[Murphy]]
+| [[Fishing Trawler]]
+|Controls the [[Fishing Trawler]] minigame, and can tell you if anyone's playing.
+|-
+| [[File:Cyrisus chathead.png|center|link=Cyrisus]]
+| [[Cyrisus]]{{efn|After the events of [[While Guthix Sleeps]], Cyrisus's chathead will be greyed out and selecting him will result in a chatbox message saying {{mes|You take a moment of silence in honour of your fallen friend, Cyrisus.}}}}
+| [[Dream Mentor|Quest]]
+|Features in the [[Dream Mentor]] quest and will tell you about his adventures.
+|-
+| [[File:Smoggy chathead.png|center|link=Smoggy]]
+| [[Smoggy]]
+| [[Charcoal furnace]]
+|Can be contacted to see [[juniper charcoal]] burning progress.
+|-
+| [[File:Captain Ginea chathead.png|center|link=Captain Ginea]]
+| [[Captain Ginea]]
+| [[Intelligence Gathering]]
+|Can be contacted to discover if any gang meetings are imminent.
+|-
+| [[File:Watson chathead.png|center|link=Watson]]
+| [[Watson]]
+| [[Clue scroll]]s given
+|Can be contacted to find out which tiers of [[clue scroll]] the player has given to him.
+|-
+| [[File:Barbarian guard chathead.png|center|link=Barbarian guard]]
+| [[Barbarian guard]]
+| Automatic [[vial]]-smashing
+|Can be contacted to toggle whether players automatically smash vials upon drinking the last dose of a potion, following the [[Alfred Grimhand's Barcrawl]] miniquest.
+|-
+| [[File:Amy chathead.png|center|link=Amy]]
+| [[Amy]]
+| [[Mahogany Homes]] 
+| Can be contacted to receive a new construction job. If she was the last contacted character, an additional "Last-tier contract" option will be available on the spell's icon to obtain a job of the previously-done tier.
+|}
+
+===Random characters===
+'''Random''' will contact one of 26 possible other characters, resulting in humorous dialogue. The spell may start going in order randomly or just jump around. Using Random requires completion of [[Dream Mentor]]. These characters are:
+
+{| class="wikitable"
+!Chathead
+!Name
+!Fun chat
+|-
+|[[File:Lumbridge Guide chathead.png|center|link=Lumbridge Sage]]
+|[[Lumbridge Guide]]
+|The player calls him a bad boy and makes the Lumbridge Guide admit it, but he doesn't say what he has done.
+|-
+|[[File:Wise Old Man chathead.png|center|link=Wise Old Man]]
+|[[Wise Old Man]]
+|The Wise Old Man will attack the player (not hurting them) and tell them to get out of his head.
+|-
+|[[File:My Arm chathead.png|center|link=My Arm]]
+|[[My Arm]]
+|The player asks how the Goutweed is, OR he tells the voice in his head to go away.
+|-
+|[[File:Hans chathead.png|center|link=Hans]]
+|[[Hans]]
+|The player pretends to be a brave knight coming to "kill everyone in the vicinity of Lumbridge Castle."
+|-
+|[[File:Evil Dave chathead.png|center|link=Evil Dave]]
+|[[Evil Dave]]
+|The player tells him they are [[Zamorak]].
+|-
+|[[File:Clay golem chathead.png|center|link=Clay golem]]
+|[[Clay golem]]
+|The clay golem believes it has a perception mismatch, as he can hear the player but can't see them.
+|-
+|[[File:General Wartface chathead.png|center|link=General Wartface]]
+|[[General Wartface]]
+|The player contacts Wartface, and he gets into an argument with Bentnoze.
+|-
+|[[File:Drunken Dwarf chathead.png|center|link=Drunken Dwarf]]
+|[[Drunken Dwarf]]
+|He's drunk.
+|-
+|[[File:Camel chathead.png|center|link=Al Kharid Camel]]
+|[[Al Kharid Camel]]
+|The player taps directly into the camel's mind, removing language barriers.
+|-
+|[[File:Sandwich lady chathead.png|center|link=Sandwich lady]]
+|[[Sandwich lady]]
+|The Sandwich Lady does not want the player that contacted her to ignore her.
+|-
+|[[File:1337mage43 chathead.png|center|link=1337mage43]]
+|[[1337mage43]]
+|1337mage43 argues with the player over who cast the spell.
+|-
+|[[File:Osman chathead.png|center|link=Osman]]
+|[[Osman]]{{efn|After completion of [[Beneath Cursed Sands]], [[Selim]] will be contacted instead of Osman. The actual conversation however remains almost the same.}}
+|The player makes fun of Osman, and he thinks he may be hallucinating from sq'irks.
+|-
+|[[File:Helpline Assistant chathead.png|center|link=Helpline Assistant]]
+|[[Helpline Assistant]]
+|A typical call to the Lunar Communication Helpline, with extremely poor customer support as usual.
+|-
+|[[File:Father Urhney chathead.png|center|link=Father Urhney]]
+|[[Father Urhney]]
+|Father Urhney believes the player is Saradomin and asks for advice, then goes off to meditate on what it means.
+|-
+|[[File:Romeo chathead.png|center|link=Romeo]]
+|[[Romeo]]
+|Romeo attempts to recite a love poem to the player.
+|-
+|[[File:Blurberry chathead.png|center|link=Blurberry]]
+|[[Blurberry]]
+|The player prank calls him.
+|-
+|[[File:Aris chathead.png|center|link=Aris]]
+|[[Aris]]
+|Aris can tell the future, thus knowing what the player will ask.
+|-
+|[[File:Ali the Sandsweeper chathead.png|center|link=Ali the Sandsweeper]]
+|[[Ali the Sandsweeper]]
+|He claims he is Ali the Sandsweeper, the best sandsweeper there is.
+|-
+|[[File:Man (blue) chathead.png|center|link=Man (Hosidius)]]
+|[[Man (Hosidius)|Man]]
+|He says he's on the toilet.
+|-
+|[[File:Party Pete chathead.png|center|link=Party Pete]]
+|[[Party Pete]]
+|He says "party" in every sentence. He tells the player that partying is a full-time profession.
+|-
+|[[File:Bob (cat) chathead.png|center|link=Bob the Cat]]
+|[[Bob the Cat]]
+|He has a hairball. After [[Dragon Slayer II]], he will not appear when players cast the spell toward a random character.
+|-
+|[[File:Captain Cain chathead.png|center|link=Captain Cain]]
+|[[Captain Cain]]
+|He tells the player to "Drop and give me twenty!"
+|-
+|[[File:Homunculus chathead.png|center|link=Homunculus]]
+|[[Homunculus]]
+|It claims that the Alchemists returned the other day, and it turned them into animals. OR Nothing useful said.
+|-
+|[[File:KGP Agent chathead.png|center|link=KGP Agent]]
+|[[KGP Agent]]
+|It thinks that the voice in its head is an intruder. OR it talks in a series of code phrases that the player doesn't understand.
+|-
+|[[File:Cow chathead.png|center|link=Lumbridge Cow]]
+|[[Lumbridge Cow]]
+|It pretends to not understand, but eventually tells the player to leave it alone.
+|-
+|[[File:Lumbridge Sheep chathead.png|center|link=Lumbridge Sheep]]
+|[[Lumbridge Sheep]]
+|It does not seem to understand. It just "baa's".
+|}
+{{Notelist}}
+
+==Transcript==
+{{hastranscript}}
+
+==Animation override==
+[[File:Astral Contact (Raging Echoes League).gif|thumb|230px|''Leagues V - Raging Echoes'' spell animation]]
+An [[animation override]] is available for Astral Contact, unlockable via the [[Raging echoes astral contact scroll]]. Players can apply and revert the animation override at any time via the "Animation" menu option on the spell's icon.
+
+==Gallery==
+<gallery mode="packed" heights="200" style="text-align:left">
+File:Astral Contact interface.png|Astral Contact's interface
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 August 2026
+|update = Wyrmscraig & Sailing Changes
+|change = The Raging Echoes Astral Contact animation can now be deselected and changed without issue.
+}}
+{{Subject changes
+|date = 29 July 2026
+|update = Wyrmscraig Is Out Today!
+|change =
+* The spell "NPC Contact" has been renamed to "Astral Contact".
+* The spell's description was changed from "Speak to various NPCs" to "Contact various characters across long distances".
+* [[Mortimer]] can now be contacted via Astral Contact.
+}}
+{{Subject changes
+|daterange = 23 October 2024 - 22 January 2025
+|change = The re-contact option for [[Kuradal]] no longer misspells her name as "Kuradel".
+}}
+{{Subject changes
+|date = 23 October 2024
+|update = Halloween Fixes & Miscellaneous Changes
+|change = A "Last-tier contract" option has been added to the NPC Contact spell if Amy was the last contacted NPC.
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Updated NPC contact options have been updated to reflect new NPCs.
+}}
+{{Subject changes
+|date = 26 March 2020
+|update = Game Improvements (26 March 2020)
+|poll = Old School Content Poll 70: Game Improvements
+|change = A few lines of dialogue have been removed from all [[Slayer master]]s except [[Konar quo Maten]].
+}}
+{{Subject changes
+|date = 31 August 2017
+|update = Fossil Island Kudos Display, the Champion's Cape, and much more.
+|change = The [[barbarian guard]] can now be contacted via NPC Contact to toggle automatic vial-smashing.
+}}
+{{Subject changes
+|date = 16 March 2017
+|update = Quality of Life & Deadman Prep
+|change = Players can use a right-click option on the spell in their spellbook to instantly contact their most recently-contacted NPC.
+}}
+{{Subject changes
+|date = 6 January 2014
+|update = Second Slayer Batch: The Helm
+|poll = Old School feature poll 14: Minigames
+|change = [[Nieve]] and the abyssal [[Dark Mage (Abyss)|dark mage]] can now be contacted via NPC Contact.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* If attempting to contact certain NPCs whilst near them, they will give a variety of humorous responses. However, this does not work whilst being next to [[Bert]], as the area "next to him" assigned by the spell is actually in the centre of the [[Dragon Inn]] just south of Bert's house.
+* The player will spin to face the NPC that is being contacted, much like one does when interacting with the NPC normally. This effect works over any distance, including inside underground areas or instances. The faced direction for non-overworld maps will indicate the relative direction between the current mapped area and the area where the NPC resides.
+* During [[While Guthix Sleeps]], after contacting [[Aya]], [[Achtryn]], and [[Kuradal]], the right-click option to re-contact will still show [[Turael]], [[Mazchna]], and [[Duradel]], respectively, however, using the right-click option will correctly contact the replacement Slayer masters.
+
+{{NPC Contact}}
+{{Lunar spellbook}}
+{{Utility spells}}

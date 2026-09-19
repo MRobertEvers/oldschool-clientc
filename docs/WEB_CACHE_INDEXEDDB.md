@@ -1,15 +1,16 @@
 # The browser's cache: IndexedDB behind a dat2 facade
 
-> Build it with `make -C src web-idb`, which also builds both servers. The
-> plain `make -C src web` lane is unchanged and still talks to `io_server`; see
-> [web_build.md](web_build.md). What each server does, and how they are run
-> together, is [WEB_SERVERS.md](WEB_SERVERS.md).
+> This is the web lane: `make -C src web` builds it, together with both
+> servers. See [web_build.md](web_build.md) for the build and
+> [WEB_SERVERS.md](WEB_SERVERS.md) for what each server does. An earlier "wire"
+> lane, in which the browser held no cache and every read crossed a socket to
+> `io_server`, has been removed; some history below still contrasts with it.
 
 The web client has always had a cache-shaped hole in it. `PlatformX_IO_LoadItem`
-is the one place the desktop build touches a file, and a browser has no file, so
-the wire lane moves that call across a socket to `io_server` and lets a native
-process hold the cache. That works, and it means a page cannot run without a
-server that has the cache on disk.
+is the one place the desktop build touches a file, and a browser has no file.
+The wire lane moved that call across a socket to `io_server` and let a native
+process hold the cache, which meant a page could not run without a server that
+had the cache on disk.
 
 This lane closes the hole instead. The browser gets a cache of its own —
 archive records in IndexedDB, presented to the rest of the client as an ordinary
@@ -37,11 +38,12 @@ storage layer is then the code the desktop build runs, including
   └────────────────────────────────────┘       └────────────────────┘
 ```
 
-`io_server`'s `/io` route is never called on this lane — the client does not
-link the wire backend at all. It is still what should serve the page, because
-it is the only server in the tree that answers the conditional requests the
-boot files are revalidated with (see Staleness). Both processes are built by
-`make -C src web-idb`; see [WEB_SERVERS.md](WEB_SERVERS.md).
+`io_server`'s `/io` route is never called — nothing in the client sends to it.
+It is still what should serve the page, because it is the only server in the
+tree that answers the conditional requests the boot files are revalidated with
+(see Staleness), and for a dat1 world it is the proxy the on-demand producer
+reads through. Both processes are built by `make -C src web`; see
+[WEB_SERVERS.md](WEB_SERVERS.md).
 
 ## Why not a dat2 file in MEMFS
 
@@ -92,25 +94,30 @@ never a second encoding to keep in step.
 
 ## Where the records live, and why
 
-IndexedDB is asynchronous and this lane has **no ASYNCIFY** (asserted by
-`make -C src lane-check PLATFORM=web`). A `store.get` that had to reach the
-database could not answer the synchronous call it stands in for.
+In IndexedDB, and nowhere else. Records are read from the database when an
+item asks for them and returned; there is no JavaScript `Map` in front of it
+and no hydrate pass before the first frame.
 
-So the resident records live on the **JavaScript** side, hydrated in one cursor
-pass before `main()` runs, and `get` is a map lookup. Two consequences, both
-intended:
+An earlier design had both, for one reason: the C side reached the store
+through a synchronous facade and could not await a database request, so the
+resident set was walked into the JS heap before `main()`. Everything that
+touches the store is asynchronous now -- the executor awaits the host, the
+host awaits the database -- so the reason is gone, and with it a whole-cache
+cursor walk at boot and the entire resident cache held twice, in the database
+and again on the heap, for the life of the tab. IndexedDB is itself an indexed
+on-disk key/value store with its own page cache; a hand-rolled one in front of
+it is a pessimisation until something profiled says otherwise, and nothing
+has.
 
-- The bytes are not in the wasm heap. Only the archive being decoded right now
-  is copied in, and the caller frees it — so a cache larger than the wasm32
-  4GB ceiling is not itself a reason the module dies.
-- A record the hydrate did not load reads as **absent**, not as an error. That
-  is the same answer an empty cache gives, so JS5 downloads it again and
-  re-writes it. A partial hydrate costs bandwidth; it cannot produce a wrong
+Two properties survive from that design and are still intended:
+
+- The bytes are not in the wasm heap. Only the container being decoded right
+  now is copied in, and the caller frees it -- so a cache larger than the
+  wasm32 4 GB ceiling is not itself a reason the module dies.
+- A record the database does not hold reads as **absent**, not as an error.
+  That is the same answer an empty cache gives, so the producer fetches it
+  and writes it. A lost record costs bandwidth; it cannot produce a wrong
   archive.
-
-Nothing is evicted mid-session. JS5 remembers which groups it validated, and a
-group it believes is ready must still be readable when a task asks for it —
-dropping one would turn a completed download into a failed cache read.
 
 ### Schema
 
@@ -122,62 +129,37 @@ Database `torirs-cache`, version 1.
 | `files` | the client's path | `{k, d: ArrayBuffer}` — the player's saved options |
 | `boot` | the config path | `{k, d: ArrayBuffer, e: ETag}` — manifest and RevConfig INIs, with the validator to revalidate them |
 
-`groups` is scoped by cache; `files` and `boot` are not, which is why the
-hydrate happens in two steps (see The boot barrier).
+`groups` is scoped by cache; `files` and `boot` are not. Records are scoped by
+cache key (the manifest's `[cache:boot] dir=`), so switching manifest in the
+URL cannot mix an osrs239 archive into an osrs230 boot, and `by_cache` is what
+lets `?cache_reset=1` drop one generation instead of every cache the browser
+has ever held.
 
-`by_cache` is what lets the hydrate walk one generation instead of every cache
-the browser has ever held. Records are scoped by cache key (the manifest's
-`[cache:boot] dir=`), so switching manifest in the URL cannot mix an osrs239
-archive into an osrs230 boot.
+## Boot order
 
-Writes are batched — 64 records or 250ms, whichever comes first — because a JS5
-boot installs hundreds of them and a transaction each would cost more than the
-download. A quota failure is reported once and does not fail the session: the
-records stay resident, and what is lost is the warm start next time.
-
-## The boot barrier
-
-The reference tables must be installed before anything opens the cache:
+The reference tables must be readable before anything opens the cache:
 `App_Init` decodes them itself and is not a tolerant reader (see
-[JS5_INCREMENTAL_CACHE.md](JS5_INCREMENTAL_CACHE.md)). On the desktop that is a
-spin loop. Here it cannot be — a WebSocket delivers nothing to a thread that is
-spinning on it — so the loop is inverted and the page drives it.
+[JS5_INCREMENTAL_CACHE.md](JS5_INCREMENTAL_CACHE.md)). On this lane they are
+ordinary reads: the first task that asks for table 255/`<n>` parks like any
+other, the executor fetches the container over JS5, and the task resumes when
+it is filled. Nothing is primed ahead of `main()`.
 
 ```
 runtime initialized
-  └─ open IndexedDB
-  └─ hydrate `files` + `boot`            not scoped to a cache
-  └─ boot.load()                         fetch/revalidate the manifest + INIs
-  └─ torirs_web_cache_key(manifest)      C reads it, names the cache
-  └─ hydrate `groups` for that cache
-  └─ torirs_web_cache_prime_begin(host, port)
-  └─ setTimeout loop: torirs_web_cache_prime_step()   0 = keep going
-  └─ Module.callMain(argv)               main() starts, cache underneath it
+  └─ boot.load()               fetch or revalidate the manifest and the INIs
+  │                            it names, into MEMFS -- and read the cache key
+  │                            out of the manifest on the way
+  └─ Module.callMain(argv)     main() starts; every cache read from here on is
+                               an item on the queue, answered by the executor
 ```
 
-The order looks circular and is not: the cache records are keyed by cache name,
-the name is in the manifest, and the manifest is a boot file that must be
-revalidated first. Hence two hydrate steps rather than one. The wire lane runs
-the same sequence and stops after `boot.load()`.
-
-**This cannot be a `preRun` run-dependency**, which is the obvious shape and the
-one that was tried first. `preRun` runs *before* `initRuntime`, so a dependency
-taken there also holds `initRuntime` back and the native functions the prime is
-made of cannot be called yet. With assertions on, emscripten says so —
+`boot.load()` runs from `Module.onRuntimeInitialized`, one step after
+`preRun`, with `Module.noInitialRun` holding `main()` back until it is done.
+It cannot be a `preRun` run-dependency: `preRun` runs *before* `initRuntime`,
+so a dependency taken there also holds `initRuntime` back and nothing native
+can be called yet. With assertions on, emscripten says so --
 `native function called before runtime initialization`; without them it is a
 wasm trap at a nonsense address, several layers from the cause.
-
-The seam that works is one step later: `Module.noInitialRun` tells the runtime
-to finish initializing and then stop, and `Module.callMain` starts `main()` when
-the barrier is done. The barrier releases `main()` on failure too, so a boot
-with no metadata reports a cache it cannot read rather than leaving the page on
-"loading…" — which is indistinguishable from a hang and has a different fix.
-
-After `App_Init`, JS5 attaches and does **not** wait. The reference tables are
-already in, so the attached client's second pass is a local CRC check, and a
-group read that arrives first parks the ordinary way: `PlatformX_IO_Pending`
-tells `TaskRunner_Step` not to resume a task whose slot is unfilled, and makes
-no distinction between waiting on a download and waiting on this.
 
 ## Demand-only filling
 
@@ -242,12 +224,9 @@ with the `ETag` the server gave them, and each is revalidated on every load:
 The third row is the reason this is a store and not just a conditional fetch: a
 page whose config server has gone away still boots from what it fetched last
 time, rather than failing on a file it has. It is also what makes the ordering
-in the boot sequence circular-looking — the cache records are keyed by cache
+in the boot sequence look circular — the cache records are keyed by cache
 name, the name is in the manifest, and the manifest is itself a boot file that
-must be revalidated first. Hence two hydrate steps rather than one.
-
-This applies to **both** web lanes: the wire build gets it too, since the boot
-sequence is now shared.
+must be revalidated first. Hence the manifest is read before the cache key is.
 
 ### Client files — no server truth to be stale against
 
@@ -274,7 +253,7 @@ in the client changed for this; `sockstream.c` is the same file on both hosts.
 
 The handshake itself is shared with the mock game server through
 [`net_transport_ws_handshake.h`](../src/platform/net_transport_ws_handshake.h),
-a pure function over bytes so that a blocking reader (mock230) and a nonblocking
+a pure function over bytes so that a blocking reader (ToriRSServer) and a nonblocking
 reactor (js5_server) can both use it.
 
 One caveat worth knowing: emscripten requests the `binary` subprotocol, and a
@@ -285,11 +264,13 @@ not listening.
 ## Running it
 
 ```sh
-make -C src web-idb                    # module + both servers
+make -C src web                        # module + both servers
 
-./src/build_opt/js5_server --cache cache.osrs239 --revision 239 --port 43594 &
+TORIRSSERVER_CACHE=cache.osrs239 ./src/build_opt/torirsserver 43594 --rev osrs239 &   # game + JS5
 ./src/build/io_server --root build-web --boot-root . --port 8099
 ```
+
+or, with one command, `./launch run osrs239-web`.
 
 Any static server can serve the page, but `io_server` is the one to use: it is
 the only one in the tree that answers the conditional requests the boot files
@@ -299,7 +280,7 @@ manifest on every load.
 Then open the page with the manifest on the query string:
 
 ```
-http://localhost:8099/index.html?arg=--manifest&arg=manifest_osrs239.ini&arg=--offline
+http://localhost:8099/index.html?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline
 ```
 
 Web-only knobs, beyond the ones in [web_build.md](web_build.md):
@@ -307,7 +288,8 @@ Web-only knobs, beyond the ones in [web_build.md](web_build.md):
 | | |
 |---|---|
 | `?js5_host=H` | where the JS5 server is (default: the page's own host) |
-| `?js5_port=N` | its port (default 43594) |
+| `?js5_port=N` | its port (default 43594, torirsserver's game port) |
+| `?js5_url=U` | a complete socket URL instead, absolute or page-relative; defaults to `?ws=` when that names the game socket, since the server serves both on one port |
 | `?cache_reset=1` | drop this cache's records first — the only way to make a cold boot reproducible once a warm one has been measured |
 
 The status line reports the store rather than the wire:
@@ -337,5 +319,5 @@ cache: the JS5 server answered (1.0MB) but the client rejected its metadata —
 It is a property of the cache and not of this lane: the desktop client and
 `make -C src test-js5 JS5_TEST_CACHE=cache.osrs239.summoning` fail at the same
 table with the same code. Serving such a cache needs either ids packed under
-65536 or a protocol that can carry a wider one; the wire lane (`io_server`) has
-no such limit and remains the way to run those caches in a browser.
+65536 or a protocol that can carry a wider one. The removed wire lane had no
+such limit; with it gone, those caches cannot be run in a browser today.

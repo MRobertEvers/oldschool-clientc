@@ -1,0 +1,17 @@
+# ground-items, and the reason this file is separate.
+#
+# The plugin CANNOT START in an assert-enabled build. Its second
+# expect_unsupported reason is 158 characters and PORCELAIN_DETAIL_MAX is 96,
+# so Porcelain_CopyString's assert fires at on_start and the client aborts
+# (SIGABRT, exit 134) before the first frame -- on BOTH lanes. Under NDEBUG the
+# same call truncates silently, which is why the gate and the matrix, which are
+# release builds, have never seen it. Run this file with
+#
+#   TORIRS_SHOT_BIN=<tree>/src/torirs_shotsrel  (OPT=1)
+#
+# and see tools/porcelain_gate/shots/detail_lengths.py, which finds it without
+# running anything.
+
+grounditems-cs2 ground-items cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1
+grounditems-cs1 ground-items cs1 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1
+gi-tiles-cs2    ground-items cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1' 'TORIRS_SIM_PLUGIN_CONFIG=100,ground-items,highlight_tiles,1;110,ground-items,text_outline,1'

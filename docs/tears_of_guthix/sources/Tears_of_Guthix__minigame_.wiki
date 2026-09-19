@@ -1,0 +1,253 @@
+
+{{external|rs=Tears of Guthix}}
+{{Infobox Activity
+|name = Tears of Guthix
+|image = [[File:Tears of Guthix (minigame).png|300px]]
+|release = [[4 May]] [[2005]]
+|update = Earthquake Rocks Lumbridge
+|type = Minigame
+|members = Yes
+|location = [[Chasm of Tears]]
+|players = 1
+|skills = [[Skills|All skills]] (see article)
+|currency = None
+|tutorial = No
+|music = [[Tears of Guthix (music track)|Tears of Guthix]], [[The Power of Tears]]
+|map = {{Map|name=Tears of Guthix|x=3257|y=9517|zoom=4|mapID=10146}}
+|leagueRegion = Misthalin
+}}
+'''Tears of Guthix''' is a short [[minigame]] located in the [[Chasm of Tears]], guarded by the serpent [[Juna]], playable every seven days. In this minigame, the player must collect as many blue tears from the [[weeping wall]]s as they can within the time limit, while avoiding the green streams. After their time is up, the player will be rewarded with [[experience]] points in their lowest skill. The length of the time limit is based on the number of [[quest points]] the player has.
+
+In order to participate in the minigame, the player must have completed the [[Tears of Guthix]] quest and earned at least 100,000 total experience points or one [[Quest points|quest point]] since they last played it, unless they have never played it before. Players may read the Tears of Guthix entry in their [[Quest Journal]] to find out how many days and how many quest points or experience points are needed before being allowed to play the minigame again. 
+
+Players can speak to Juna to toggle whether or not to receive a chatbox message telling them they are eligible as soon as they become eligible.
+
+To teleport directly to Tears of Guthix, players may use a [[games necklace]]. Otherwise, players may enter through the [[Lumbridge Swamp Caves|dungeon]] in the [[Lumbridge Swamp]].
+
+==Mechanics==
+[[File:Tears of Guthix interface.png|thumb|134px|The "Tears of Guthix" interface. The bowl shows the number of tears collected and the bar represents time remaining. A personal best can be seen below the number of tears collected.]]
+{{Listen
+|title = Collecting blue tears
+|filename = Tears of Guthix (minigame) blue tears.ogg
+}}
+{{Listen
+|title = Collecting green tears
+|filename = Tears of Guthix (minigame) green tears.ogg
+}}
+
+'''Warning:''' Due to Tears of Guthix rewarding experience in the player's lowest skill, it is advised that [[Combat pure|combat]] and [[skill pure]]s do not play this minigame.
+
+Upon telling [[Juna]] a story, she will give the player a bowl which requires two free hands to wield, and allow them into the minigame area. While inside, the player must collect as many blue tears flowing from the [[Weeping wall|weeping walls]] as they can within the time limit, while avoiding the green streams that decrease the number of blue tears collected. The player will automatically leave the area once their time is up. 
+
+There are a total of 9 weeping walls within the area, with 3 blue and 3 green streams being active at all times. Each stream of tears will remain in place for 16 [[Game tick|game ticks]] (9.6 seconds) before moving again. The streams will always move in sequence one after another, with each [[Server|world]] having its own sequence. Knowing the sequence of colours can make it easier for players to predict where they should move next, which can save time. 
+
+The player's time limit depends on the number of quest points they have: the more [[quest points]] they have, the longer their time limit will be and thus the more potential tears they can collect. The player is granted one game tick (0.6 seconds) of time inside of the cave for every quest point obtained: with {{Globals|quest points}} quest points, a theoretical maximum of {{#expr:({{Globals|quest points}}-4)}} tears ({{#expr:({{Globals|quest points}}-4)*60}} experience) is possible, however due to the way the minigame functions, a realistic maximum would be closer to {{#expr:floor(({{Globals|quest points}}-4)/16*13)+12}} ({{#expr:(floor(({{Globals|quest points}}-4)/16*13)+12)*60}} experience).
+
+== Strategy ==
+There are a few things a player can do to maximise their points potential:
+
+* Find a world where the order the streams refresh is Green, Green, Green, Blue, Blue, Blue (GGGBBB). This makes it impossible for a player to accidentally collect green tears once their blue stream has ended as all the green streams would have relocated to a different empty space before the blue streams expire. The rest of these tips will assume the player is using a GGGBBB world. You can easily find a GGGBBB world by either the "ToG Crowdsourcing" RuneLite plugin, the "TOG crowdsourcing" website, or the "ToG World" clan chat.
+* Complete Juna's dialogue (to gain entry) when the first green stream is approximately half way through its duration. This will allow them to enter just as the first blue stream refreshes.
+* Initially using the first blue stream to refresh will give the player the highest chance of being able to stay in the same spot as there will be a 5/9 (56%) chance of one of the other blue streams relocating to the player's current spot.
+* If the player's current spot refreshes, they should note whether it is the 2nd or 3rd stream in the cycle:
+** If it is the 2nd, they have a 1/3 chance for their spot to refresh for a 3rd time allowing them to stay in the same spot for a total of 48 game ticks (28.8 seconds).
+** If it is the 3rd, they should move back to the first blue stream as soon as their current stream ends as there is no chance that a stream will refresh in their current spot.
+* When there is less than one cycle (16 ticks) remaining before their time is up, and their stream ends, the player should prioritise moving to the closest blue stream rather than the first one since they won't have time to get a back to back stream anyway and moving less will save ticks.
+
+It is also possible to try again if you leave through death (although the minigame itself deals no damage), before experience is received at the end of the allotted time.
+
+==Reward==
+{{Listen
+|title = Drinking tears
+|filename = Tears of Guthix (minigame) drink tears.ogg
+}}
+[[File:Player and Juna.png|thumb|A player with Juna at the Tears of Guthix minigame entrance.]]
+
+After time runs out, the player drinks the collected tears; this awards [[experience]] in the [[skill]] with the least experience. The following skills are excluded if the requirements to train them aren't met:
+* {{SCP|Runecraft|link=yes}} requires completing the [[Rune Mysteries]] quest.
+* {{SCP|Herblore|link=yes}} requires completing the [[Druidic Ritual]] quest.
+* {{SCP|Construction|link=yes}} requires owning a [[Player-owned house|house]].
+* {{SCP|Sailing|link=yes}} requires completing the [[Pandemonium]] quest.
+
+If any skills share the same amount of experience, the first eligible skill in the following list will be given the experience: {{SCP|Attack|link=yes}}, {{SCP|Strength|link=yes}}, {{SCP|Ranged|link=yes}}, {{SCP|Magic|link=yes}}, {{SCP|Defence|link=yes}}, {{SCP|Hitpoints|link=yes}}, {{SCP|Prayer|link=yes}}, {{SCP|Agility|link=yes}}, ''{{SCP|Herblore|link=yes}}'', {{SCP|Thieving|link=yes}}, {{SCP|Crafting|link=yes}}, {{SCP|Runecraft|link=yes}}, ''{{SCP|Mining|link=yes}}'', {{SCP|Smithing|link=yes}}, {{SCP|Fishing|link=yes}}, {{SCP|Cooking|link=yes}}, {{SCP|Firemaking|link=yes}}, {{SCP|Woodcutting|link=yes}}, {{SCP|Fletching|link=yes}}, {{SCP|Slayer|link=yes}}, {{SCP|Farming|link=yes}}, ''{{SCP|Construction|link=yes}}'', {{SCP|Hunter|link=yes}}, and {{SCP|Sailing|link=yes}}.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1515793525860466750|date=14 June 2026|quote=The order was changed last November, using the game's generic skill list rather than a custom list, since that's more future-proof to handle things like Sailing arriving (and skills being disabled in Leagues). New order: Attack, Strength, Ranged, Magic, Defence, Hitpoints, Prayer, Agility, Herblore, Thieving, Crafting, Runecraft, Mining, Smithing, Fishing, Cooking, Firemaking, Woodcutting, Fletching, Slayer, Farming, Construction, Hunter, Sailing|ctxquote=|archiveurl=|archivedate=|notes=|name=|group=}}
+
+The amount of experience is based on the number of tears collected and the current experience in the skill. The XP awarded per tear is given by the calculation <math>\min\left\{ 60, 10 + \frac{1}{10} \cdot \left\lfloor \frac{\text{current experience in skill}}{27} \right\rfloor \right\}</math> so that at level 30 or higher, each tear awards 60 XP.
+
+Additionally, there is a '''10% bonus''' to the experience after completion of the [[Lumbridge & Draynor Diary#Hard|hard Lumbridge & Draynor Diary]].
+
+===Message===
+Players receive a message which indicates the skill they received experience for. Additionally, if the player has completed the [[Lumbridge Hard|hard Lumbridge & Draynor Diary]], the player will also receive the message {{mes|You are awarded an additional 10% experience for completing the hard Lumbridge achievement diary.|colour=#dc143c}}
+
+{|class="wikitable"
+!colspan="2"|Skill
+!Message
+|-
+|{{SCP|attack}}
+|[[Attack]]
+|You feel a brief surge of aggression!
+|-
+|{{SCP|strength}}
+|[[Strength]]
+|Your muscles bulge!
+|-
+|{{SCP|defence}}
+|[[Defence]]
+|You feel very defensive!
+|-
+|{{SCP|ranged}}
+|[[Ranged]]
+|Your aim improves.
+|-
+|{{SCP|prayer}}
+|[[Prayer]]
+|You suddenly feel very close to the gods.
+|-
+|{{SCP|magic}}
+|[[Magic]]
+|You feel magical power coursing through your body.
+|-
+|{{SCP|Hitpoints}}
+|[[Hitpoints]]
+|You feel more healthy.
+|-
+|{{SCP|agility}}
+|[[Agility]]
+|You feel very nimble.
+|-
+|{{SCP|herblore}}
+|[[Herblore]]
+|You gain a deep understanding of all kinds of strange plants.
+|-
+|{{SCP|thieving}}
+|[[Thieving]]
+|You feel your respect for others' property slipping away.
+|-
+|{{SCP|crafting}}
+|[[Crafting]]
+|Your fingers feel nimble and suited to delicate work.
+|-
+|{{SCP|fletching}}
+|[[Fletching]]
+|You gain a deep understanding of wooden sticks.
+|-
+|{{SCP|mining}}
+|[[Mining]]
+|You gain a deep understanding of the stones of the earth.
+|-
+|{{SCP|smithing}}
+|[[Smithing]]
+|You gain a deep understanding of metal.
+|-
+|{{SCP|fishing}}
+|[[Fishing]]
+|You gain a deep understanding of the creatures of the sea.
+|-
+|{{SCP|cooking}}
+|[[Cooking]]
+|You have a brief urge to cook some food.
+|-
+|{{SCP|firemaking}}
+|[[Firemaking]]
+|You have a brief urge to set light to something!
+|-
+|{{SCP|woodcutting}}
+|[[Woodcutting]]
+|You gain a deep understanding of the trees in the forest.
+|-
+|{{SCP|runecraft}}
+|[[Runecraft]]
+|You gain a deep understanding of runes.
+|-
+|{{SCP|slayer}}
+|[[Slayer]]
+|You gain a deep understanding of many strange creatures.
+|-
+|{{SCP|farming}}
+|[[Farming]]
+|You gain a deep understanding of the cycles of nature.
+|-
+|{{SCP|construction}}
+|[[Construction]]
+|You feel homesick.
+|-
+|{{SCP|hunter}}
+|[[Hunter]]
+|You briefly experience the joy of the hunt.
+|-
+|{{SCP|sailing}}
+|[[Sailing]]
+|You gain a deep understanding of navigating the sea.
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 December 2025
+|update = Christmas Event 2025
+|change = Juna's chathead no longer appears in place of yours when you tell her stories of certain adventures.
+}}
+{{Subject changes
+|date = 3 December 2025
+|update = Sailing XP Review & Further Fixes
+|change = Tears of Guthix can now reward [[Sailing]] experience.
+}}
+{{Subject changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change = The order of skills that the game goes through to determine what skill should get the experience if multiple skills have identical experience has been updated. All combat skills are now first in the list.
+}}
+{{Subject changes
+|date = 23 May 2024
+|update = Minigame Tweaks, Skilling Adjustments & more!
+|change = Tears of Guthix now shows the player's Personal Best whilst collecting tears.
+}}
+{{Subject changes
+|date = 8 March 2018
+|update = Tournament Worlds: Theatre of Blood rewards
+|poll = Quality of Life - Minigames/Other Suggestions 2018
+|change = Tears of Guthix streams will now last a minimum of 9 seconds before moving.
+}}
+{{Subject changes
+|date = 23 June 2016
+|update = In Other News (23 June 2016)
+|poll = 
+|change = *A right-click ‘Tell Story’ option was added to Juna for faster access to the Tears of Guthix.
+*Players can now speak to Juna to enable a notification message that appears, once a day, on login, if they are eligible to drink the tears.
+}}
+{{Subject changes
+|date = 26 May 2016
+|update = Maniacal Monkey Hunting
+|poll = 
+|change = The Tears of Guthix status bar now displays the remaining time more accurately, as it had been slightly misleading for players whose QP was a multiple of 10.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|poll = Old School Content Poll 31: Easter Holiday Event
+|change = Juna will now reset at the start of the 7th day after the player last completed Tears of Guthix, instead of allowing players access to the Tears of Guthix 6 days and 23 hours since their previous visit.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = The Tears of Guthix minigame now provides 10% increased experience if you have completed the [[Lumbridge Hard|hard Lumbridge & Draynor Diary]].
+}}
+{{Subject changes
+|date = 13 November 2014
+|update = Time Played & Plenty More
+|poll = Old School Content Poll 27
+|change = Players that have completed the quest Tears of Guthix can now teleport to Juna using the games necklace.
+}}
+{{Subject changes
+|date = 19 July 2005
+|update = Plague City Series Continued
+|change = Tears of Guthix can now award [[Farming]] experience.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Tears of Guthix}}
+{{Minigames}}
+{{Lumbridge Swamp Caves}}

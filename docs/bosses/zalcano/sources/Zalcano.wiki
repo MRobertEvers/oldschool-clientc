@@ -1,0 +1,339 @@
+{{Dangerous}}
+{{HasStrategy}}
+{{Infobox Monster
+|version1 = Armoured
+|version2 = Weakened
+|name = Zalcano
+|image1 = [[File:Zalcano.png|200px]]
+|image2 = [[File:Zalcano (weakened).png|280px]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|combat = 336
+|size = 5
+|examine = A former demon of Zamorak that has been turned to stone.
+|xpbonus = 
+|max hit1 = 53
+|max hit2 = N/A
+|aggressive = Yes
+|poisonous = No
+|attack style1 = Various
+|attack style2 = N/A
+|attack speed1 = 5
+|attack speed2 = N/A
+|respawn1 = 37
+|respawn2 = 
+|hitpoints1 = 300
+|hitpoints2 = 1000
+|att = 1
+|str = 1
+|def = 1
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 9049
+|id2 = 9050
+}}
+'''Zalcano''' is a [[demon]] imprisoned beneath [[Prifddinas]] that is fought using skilling rather than conventional combat. Being immune to traditional combat damage, players must use their [[Mining]], [[Smithing]], and [[Runecraft]] skills to create [[imbued tephra]] capable of destroying her stone armour. Once her armour has been destroyed, they must damage her by mining her with a [[pickaxe]].
+
+Zalcano's prison can be accessed from Prifddinas' [[Prifddinas#Trahaearn district|Trahaearn district]] via a [[Teleport_Platform#Zalcano_entrance|teleport plaform]] just west of the south-eastern [[bank]]. As Prifddinas requires completion of [[Song of the Elves]] to access, Zalcano requires a minimum of 70 [[Mining]] and [[Smithing]] to be fought, though higher levels in Mining, Smithing, and Runecraft will be advantageous, as well as higher [[Hitpoints]] to withstand her various attacks. All of Zalcano's attacks are [[typeless]], meaning that protection prayers cannot be used to reduce their chance of taking damage or the damage itself.
+
+[[Ironman_Mode|Ironmen]] are eligible for rewards from Zalcano when defeating it alongside other players.
+
+==History==
+Zalcano is a demon and [[Skotizo]]'s sister, who both held the rank of general in Zamorak's armies. During the [[God Wars]], when [[Zamorak]] personally sent [[Skotizo]] and his squad to recover an artefact in the [[Karamjan Temple]], Skotizo eagerly took the mission only to betray his squad and take the artefact for himself, escaping to [[Zeah|a certain continent]] far west. Zamorak held Zalcano personally responsible for her brother's treachery, and cursed her to slowly turn to stone, which would only be lifted if she brought her brother back to him.
+
+Believing that Skotizo had fled to the elven lands of [[Tirannwn]], Zalcano made her way there. The elves initially believed she was the first of many demons to attack their city, but to their surprise, she was the only one and roamed the forests as if she was looking for something. Amlodd mystics soon learned a curse was slowly turning her to stone, and this prompted the Trahaearn Clan to capture her for study. The Ithell and Trahaearn Clans worked together to create a prison in the volcanic caverns to keep her in the city, and successfully captured her, albeit with many casualties.
+[[File:Zalcano's prison.png|thumb|220px|left|Zalcano, imprisoned beneath the crystal city.]]
+Following her capture, the curse accelerated, with an elf believing it to be the result of Zamorak already knowing she had failed her mission. With the help of Amlodd magic and Meilyr potions, the elves learned why she came to Tirannwn.
+
+Though she had appeared to have slowly descended into madness, the elves dared not to release her as they had lost many of their brethren luring her inside and did not want her power to grow unchecked. The aforementioned elf returned many years later to personally see the demon they were studying, and was surprised when she talked, simply muttering the name "Skotizo".
+
+Today, she remains in Prifddinas, and the Trahaearn elves who study her often require aid in keeping her in check.{{citeText|text=The spurned demon|It was at the height of the God Wars when she came. A demon, invading our home.}}
+
+{{clear|left}}
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to Zalcano:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|375|Germany|mems=yes|Zalcano}}
+{{WorldLine|378|United States (west)|mems=yes|Zalcano}}
+|}
+
+== Recommended Items ==
+
+* A [[Pickaxe]] (Required)
+* [[Graceful outfit]]
+* [[Varrock armour]]
+* [[Food]]
+* [[Stamina potion|Stamina potions]]
+
+==Attacks==
+While the player is inside the prison, Zalcano has six different attacks that the player must watch out for as they attempt to take on the stone demon. Each of the attacks are performed at random intervals throughout the fight.
+
+*Zalcano will stomp on the ground, causing boulders to fall from the ceiling. These are easily avoided by stepping at least one tile away. Boulders can be easily spotted by watching out for the falling pebbles/dirt, which will be followed by the falling boulder. It is also easy to know which tile they are falling onto by the location of their shadow on the ground. When demonic symbols are summoned, they may obscure the shadow, making the attack more difficult to notice. Players who are hit by these can take 40+ damage.
+[[File:Fighting Zalcano.png|thumb|280px|Throwing imbued tephra while standing under a blue demonic symbol will increase the player's accuracy and damage.]]
+[[File:Mining Zalcano.png|thumb|280px|Two players mine Zalcano after breaking her stone armour.]]
+*Zalcano will summon blue and orange [[demonic symbol]]s. If a player is standing on a blue demonic symbol when attacking Zalcano with [[imbued tephra]], it will increase the player's damage by 50%. The orange demonic symbols, however, should be avoided: These will damage the player as well as reduce their run energy if they pass through it or stand in it. After the first three ticks upon spawning, they deal increasing damage every tick (maxing in the low 20s) if a player stands within them and can very quickly kill players that are not paying attention.
+*Zalcano will summon a [[golem (Zalcano)|golem]] on the edge of the prison. If the golem reaches her, it will restore her armour's health based on the health of the golem. If the golem is at full health, it will restore 50 hitpoints towards her armour. It is possible for a player to hurt the golem with the [[imbued tephra]]. The golem will also drop 16-24 imbued tephra when killed.
+*Zalcano will fire a red ball of energy at the current glowing red rock formation to deactivate it, changing its location. If a player is standing within 1 tile of the rock formation when this happens, they will take 21+ damage. These can be avoided by walking away from the rock.
+*After Zalcano has fallen and players have caused her damage, she will rise again. If any players are standing next to her while this occurs, she will create a shock wave that pushes them back, causing the player small amounts of damage and briefly stunning them. Additionally, when she rises she will destroy all of the imbued tephra in the room.
+*Zalcano will randomly hit all players within the prison with a barrage of small pebbles. These are not avoidable, but players will only take a few hitpoints worth of damage.
+
+Players will also get damaged if they stand under Zalcano when she has fallen. Damage rate is much less than an orange symbol, dealing around 3-10 damage per tick, and the danger persists until Zalcano begins to rise again.
+
+==Max Hit Calculation==
+===Attacking Zalcano===
+When attacking Zalcano by throwing imbued tephra at her shield, the max hit can be calculated by the following formula.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1249966331279093760|date=14 April 2020|archiveurl=https://reldo.runescape.wiki/i/105299|archivedate=7 November 2022|quote=The base damage is taken from the average of your Smithing (not Mining) and Runecrafting levels, increasing by 1 for every increase of 7 in that average.}}  
+
+<math>5+\frac{\text{Smithing}+\text{Runecraft}}{14}</math>
+
+Moreover, there is a chance to add an additional point to the maximum hit that increases as the player's average approaches the next threshold of seven levels.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1262263739228794880|date=18 May 2020|archiveurl=https://reldo.runescape.wiki/i/97194|archivedate=7 November 2022|quote=You posted a correct formula yourself. Just add it to 5, as the base damage. And then there's a chance of an extra +1 as you approach the next threshold of 7.}}  The maximum hit will be increased 50% further if the player stands on a blue demonic sigil while throwing the tephra.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1262824376560427014|date=19 May 2020|archiveurl=https://reldo.runescape.wiki/i/97421|archivedate=5 November 2022|quote=50% uplift - hence you calculating 16 but observing 24 :)}}
+
+===Mining Zalcano===
+When attacking Zalcano with a pickaxe the max hit is calculated from the following table based on mining level plus <math>max((P - 40)/15, 0)</math>where <math>P</math> is the level requirement for the pickaxe being used.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1329497523912839171|date=19 November 2020|archiveurl=https://reldo.runescape.wiki/i/108353|archivedate=10 January 2021}}
+{| class="wikitable"
+!Mining Level
+!Max Hit
+|-
+|95–99
+|33
+|-
+|85–94
+|32
+|-
+|75–84
+|31
+|-
+|1–74
+|30
+|}
+{| class="wikitable align-center-3"
+|+Bonus damage from pickaxe
+!Pickaxe
+!{{SCP|Mining}}
+!Bonus
+|-
+|{{Plink|Rune pickaxe}}
+|41
+|<nowiki>+</nowiki>0
+|-
+|{{Plink|Dragon pickaxe}}
+|61
+|<nowiki>+</nowiki>1
+|-
+|{{Plink|Crystal pickaxe}}
+|71
+|<nowiki>+</nowiki>2
+|}
+Regardless of the amount of damage done, the same amount of [[Mining]] experience is awarded per hit.
+
+{{Mining info
+|level = 1
+|skill1note = Has no direct level requirement, but requires completion of [[Song of the Elves]] ({{SCP|Mining|70}}) to access.
+|xp = 35.2
+|tool = Any [[pickaxe]]
+|time = N/A
+}}
+
+==Location==
+{{Map|mtype=pin|3281,6058|mapID=29|align=right|caption=The location of the teleport platform to Zalcano's lair}}
+{{LocTableHead}}
+{{LocLine
+|name = Zalcano
+|location = Volcanic caverns beneath [[Prifddinas]]
+|levels = 336
+|members = Yes
+|mapID = -1
+|plane = 0
+|x:3031,y:6048
+|mtype = pin
+|leagueRegion = Tirannwn
+}}
+{{LocTableBottom}}
+
+The fastest route to travel to Zalcano is by using a [[teleport crystal]] or its [[Eternal teleport crystal|eternal counterpart]]. Other ways include using a spirit tree to [[Prifddinas]] or a [[teleport to house]] with your house location in Prifddinas or a [[scroll of redirection]] on a [[teleport to house (tablet)|tablet]].
+
+==Money making==
+{{Mmgsection|Killing Zalcano|Killing Zalcano (Experience)}}
+
+==Drops==
+Players must do at least 5 damage to Zalcano's shield to be eligible for drops, and 31 combined damage to be eligible for uniques and pet.
+
+Drops from the main table and from the tertiary table scale with the player's points from the kill. The points are calculated as shown in the formula below. For the tertiary table, the damage to hitpoints and shield are capped to a max of 400 and 300 respectively, for a maximum of 1,000 points.{{CiteTwitter|author=Mod Lenny|url=https://twitter.com/JagexLenny/status/1188831844722270208|date=28 October 2019|archiveurl=https://archive.md/lkmqz|archivedate=19 November 2019|quote="Points" get calculated based on the damage you dealt to Zalcano's health plus two times the damage you dealt to her armour. Given those numbers, you'd have 550 points of a total possible 1000, and would have a 1/2175 roll at the pet, for example.}}
+
+<math>\begin{align}
+P_{M} &= H + 2 \times S \\
+P_{T} &= \min(H, 400) + 2 \times \min(S, 300)
+\end{align}</math>
+
+Where <math display="inline">P_{M}</math> is points towards main table, <math display="inline">P_{T}</math> is points towards tertiary table, <math display="inline">H</math> is damage to hitpoints and <math display="inline">S</math> is damage to shield.
+
+The MVP, the player who deals the most damage to Zalcano, will also receive an additional 10% (rounded up) of their non-unique loot.
+
+Players can speak to [[Rhiannon]] to switch between receiving item drops or Mining experience. Experience scales with contribution to approximately <math display="inline">P_{M} + P_{T} \times 5</math>{{Fact|Matches in-game testing but has not been confirmed}}  and is affected by the experience bonus of the [[Prospector kit]]. This does not affect the guaranteed drops or the unique drop table, which is always rolled regardless of choosing items or experience. 
+
+{{DropLogProject|kills=655595}}
+
+''Remark'': Because the crowd sourced data does not contain many solo kills, it may be possible to receive slightly larger quantities than displayed if soloing.
+
+{{Average drop value}}
+===100%===
+''Infernal ashes are only dropped for the MVP. Players eligible for a drop will receive one crystal shard, players eligible for unique drops or pet will receive two shards and the MVP will receive three shards.''{{CiteTwitter|author=Mod Husky|url=https://twitter.com/JagexHusky/status/1237403792867549184|date=10 March 2020|archiveurl=https://reldo.runescape.wiki/i/107070|archivedate=27 March 2020|name=shards|quote=Not sure if we mentioned this but when we adjusted the Zalcano drops we changed how many crystal shards are handed out so that players know how many "points" they earned.
+* 1 Shard - Player eligible for a drop
+* 2 Shards - Player eligible for uniques/pet
+* 3 Shards - Player is the MVP}}
+
+{{DropsTableHead}}
+{{DropsLine|name=Crystal shard|quantity=1-3|rarity=Always}}
+{{DropsLine|name=Infernal ashes|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Blood rune|quantity=64-480|rarity=1/36}}
+{{DropsLine|name=Cosmic rune|quantity=295-926|rarity=1/36}}
+{{DropsLine|name=Death rune|quantity=201-832|rarity=1/36}}
+{{DropsLine|name=Law rune|quantity=166-790|rarity=1/36}}
+{{DropsLine|name=Soul rune|quantity=47-392|rarity=1/36}}
+{{DropsLine|name=Nature rune|quantity=1-937|rarity=1/36}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Silver ore|quantity=86-800 (noted)|rarity=3/36}}
+{{DropsLine|name=Coal|quantity=169-1052 (noted)|rarity=1/36}}
+{{DropsLine|name=Mithril ore|quantity=56-469 (noted)|rarity=2/36}}
+{{DropsLine|name=Adamantite ore|quantity=51-343 (noted)|rarity=2/36}}
+{{DropsLine|name=Runite ore|quantity=3-31 (noted)|rarity=2/36}}
+{{DropsLine|name=Gold ore|quantity=86-756 (noted)|rarity=3/36}}
+{{DropsLine|name=Steel bar|quantity=16-699 (noted)|rarity=3/36}}
+{{DropsLine|name=Mithril bar|quantity=53-501 (noted)|rarity=3/36}}
+{{DropsLine|name=Adamantite bar|quantity=13-111 (noted)|rarity=2/36}}
+{{DropsLine|name=Runite bar|quantity=3-27 (noted)|rarity=2/36}}
+{{DropsLine|name=Uncut diamond|quantity=2-21 (noted)|rarity=2/36}}
+{{DropsLine|name=Uncut dragonstone|quantity=1-12 (noted)|rarity=2/36}}
+{{DropsLine|name=Onyx bolt tips|quantity=1-45|rarity=2/36}}
+{{DropsLine|name=Pure essence|quantity=784-5500 (noted)|rarity=1/36}}
+{{DropsTableBottom}}
+
+===Tertiary===
+''Every Zalcano kill always has a 1/200 chance of rolling the [[crystal tool seed]] table,{{CiteTwitter|author=Mod Ed|url=https://twitter.com/JagexEd/status/1292805694920564736|date=10 August 2020|archiveurl=https://reldo.runescape.wiki/i/97744|archivedate=13 September 2021|quote=It's always a 1/200. If one is dropped, a player is randomly picked to get it, with more contribution giving a higher chance. The MVP will have the best chance of getting one if it is dropped.}} which includes a 1/40 chance for [[uncut onyx]]. If no onyx is dropped, a tool seed will be dropped.{{CiteDiscord|author=Mod Lykos|url=https://discord.com/channels/177206626514632704/424846377621651456/1347540242453893140|date=2025-03-07|quote=there is a 1/200 chance that a unique item will be dropped, then that's 39/40 a seed and 1/40 an onyx|archiveurl=https://reldo.runescape.wiki/i/27962732#chat-messages-424846377621651456-1347540242453893140|archivedate=2026-03-07}} Of the players participating in the kill, the players with more points have a higher chance of receiving the drop. The [[Zalcano shard]] and [[Smolcano]] are rolled independently per player. The chance of rolling [[Smolcano]] is unaffected by performance.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Crystal tool seed|quantity=1|rarity=39/8000}}
+{{DropsLine|name=Zalcano shard|quantity=1|rarity=1/750|altrarity=1/1500|altraritydash=yes|raritynotes={{CiteTwitter|author=Mod Ed|url=https://twitter.com/JagexEd/status/1259855680795742226|date=11 May 2020|archiveurl=https://reldo.runescape.wiki/i/96818|archivedate=11 May 2020|quote=Between 1/750 and 1/1500 depending on contribution.}}}}
+{{DropsLine|name=Smolcano|quantity=1|rarity=1/2250|gemw=No|raritynotes={{CiteNews|url=https://secure.runescape.com/m=news/vanguard-improvements?oldschool=1|title=Vanguard Improvements|quote=Players who have contributed enough to the Zalcano fight will now have a static 1/2,250 chance at the Smolcano pet.|newsdate=21 May 2020}}}}
+{{DropsLine|name=Uncut onyx|quantity=1|rarity=1/8000}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Zalcano}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 23 May 2024
+|update = Minigame Tweaks, Skilling Adjustments & more!
+|type = hotfix
+|change = 
+* The minimum contribution required for loot eligibility at Zalcano has been increased.
+* All players must now deal some ‘armour’ damage to Zalcano to be eligible for drops.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = 
+* Players can talk to [[Rhiannon]] to toggle between resource and experience rewards.
+** Toggling resource rewards off still rolls for unique and pet rewards.
+* The forced amount of downs has been removed from Zalcano.
+* Players can no longer boost another player's unique drop rates by leaving the fight early.
+}}
+{{Subject changes
+|date = 23 June 2021
+|update = New Client Features: Milestone 1
+|poll = A Kingdom Divided
+|change = Zalcano now drops [[infernal ashes]] in place of regular ashes.
+}}
+{{Subject changes
+|date = 21 May 2020
+|update = Vanguard Improvements
+|change = [[Smolcano]] now has a static 1/2,250 drop rate for any eligible players instead of 1/1,500 to 1/2,775 that scaled to player performance.
+}}
+{{Subject changes
+|date = 27 February 2020
+|update = Game Improvements and Email Linking for Mobile Accounts
+|type =
+|change = Damage dealt with [[imbued tephra]] now scales to the player's [[Smithing]] and [[Runecraft]] levels.
+}}
+{{Subject changes
+|date = 20 February 2020
+|update = Old School RuneScape's 7th Birthday
+|poll =
+|change = Zalcano's drop table has been updated. The chance of landing on the crystal tool seed table is now 1/200 with a 1/8000 chance of getting an uncut onyx. The Zalcano shard has been removed from this table and will now be rolled as a tertiary drop (like pets). The amount of mithril, gold and silver ore received as drops has also been reduced.
+}}
+{{Subject changes
+|date = 13 February 2020
+|update = Nightmare Feedback and the Zalcano Loot Table
+|poll =
+|change =
+*The MVP now no longer receives a second roll on the standard loot table, but instead gets 10% extra non-unique loot.
+*Every kill will now trigger a 1/500 roll which, if it passes, will add a unique to the drop table. A separate roll will then be made to decide which unique that will be. Finally, the unique is given to an eligible player, the likelihood of which is determined upon each player's participation. This does not apply to [[Smolcano]], the pet drop.
+*The non-unique drop table for Zalcano has been rebalanced to include less valuable items.
+}}
+{{Subject changes
+|date = 8 August 2019
+|update = Smithing and Silver Crafting Interfaces
+|poll =
+|change =
+*Zalcano's symbols now take slightly longer before dealing damage.
+*The damage taken when standing beneath Zalcano after she's been knocked down has been reduced.
+*The quick-pass option on Zalcano's prison barrier has been removed, as it served a limited purpose.
+*The falling rocks during the Zalcano encounter now deal damage when hitting the floor rather than the player to be consistent with other similar mechanics.
+*Zalcano now takes a consistent amount of time to destroy the glowing rock.
+*Zalcano's death animation has been extended to prevent her from reappearing for a brief moment.
+*The drops from the [[golem (Zalcano)|golem]] will now only be given to the player who deals the most damage.
+}}
+{{Subject changes
+|date = 1 August 2019
+|update = SOTE Changes and Small Game Updates
+|poll =
+|change =
+*Players who contribute a fair amount now receive a drop on Zalcano's better loot table, with the quantities of items being received scaling based on individual contribution.
+*Everybody above a certain threshold of contributing will have a chance of receiving any of the unique drops, including the pet, with the chance scaling based on individual contribution.
+*The MVP still receives Zalcano's additional drop, but from a "lesser" drop table
+*[[Tick manipulation]] can no longer be used to mine the tephra and Zalcano much faster.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In [[Leagues]], it is possible to fight Zalcano without the Mining or Smithing requirement, because Song of the Elves is automatically completed.
+
+==References==
+{{Reflist}}
+
+{{Zalcano}}
+{{Bosses}}
+{{Demons}}
+{{Prifddinas}}
+[[Category:Monster examine impossible]]

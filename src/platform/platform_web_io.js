@@ -1,0 +1,1056 @@
+/*
+ * The browser's platform IO executor.
+ *
+ * ARCHITECTURE: [game -> IO Queue] :> [platform IO executor]. The game puts
+ * items on the queue and the platform's executor executes them. On the desktop
+ * that executor is platform_x_io.c, which has a filesystem and sockets. In a
+ * browser it is THIS FILE -- there is no C shim in between, and there must not
+ * be one: a C file that forwarded each call into JavaScript would be a second
+ * executor in the seam, and the queue would be read twice, in two languages,
+ * with two chances to disagree about what an item says.
+ *
+ * So this is an emscripten JS library (--js-library): the functions below ARE
+ * the definitions of the PlatformWeb_IO_* symbols the client calls. C declares
+ * them, the linker resolves them here, and nothing about the call site changes.
+ *
+ * ## Reading the queue
+ *
+ * The queue is a plain C struct in the wasm heap, so this reads it there. The
+ * offsets are not written down here -- they are asked of the queue itself at
+ * startup (ToriRS_IO_DescribeAbi, src/asyncio_abi.c), because a hand-copied
+ * offset desyncs silently the first time somebody adds a field, and a silently
+ * misread queue dispatches an item on a `kind` decoded out of the middle of a
+ * path.
+ *
+ * ## Plain async/await, and what "pending" means
+ *
+ * A browser cannot read anything synchronously without freezing the tab, so
+ * every real answer arrives after an await. This file therefore writes an
+ * ORDINARY async function -- `execute` below awaits its host call the way any
+ * other JavaScript would, with no callback bookkeeping and no hand-rolled
+ * continuation table. There was a version of this that registered `.then()`
+ * handlers against a table of parked entries; it did by hand exactly what the
+ * language does for free, and it is not what the queue asks for either.
+ *
+ * What the queue asks for is only this: while an item has not been answered,
+ * say so. Process kicks off the async loop and returns immediately, having
+ * marked each item it could not answer on the spot as pending (the item's
+ * own `pending` word, which is what stops the task runner resuming a task
+ * against an empty item), and the loop fills each item in and clears the
+ * mark as its await resolves. The C side needs no ASYNCIFY --
+ * a forbidden flag on this lane (platform_check.mk) -- because nothing in C is
+ * ever suspended: C hands the work over and asks later whether it is done.
+ */
+
+mergeInto(LibraryManager.library, {
+  // ---------------------------------------------------------------- state
+
+  $TORIRS_WEB_IO__postset: 'TORIRS_WEB_IO.init();',
+  $TORIRS_WEB_IO: {
+    /* Filled from ToriRS_IO_DescribeAbi on first use. Never literals: see the
+     * file comment. */
+    abi: null,
+
+    /* handle id -> executor instance. The client holds an opaque
+     * `struct PlatformWeb_IO*` it never dereferences -- the type is declared
+     * and never defined, precisely because the state is here -- so a small
+     * integer is a legal handle and saves pretending to be a struct this file
+     * does not have. Ids start at 1 so a handle is never a false-y pointer on
+     * the C side. */
+    instances: null,
+    nextHandle: 1,
+
+    /*
+     * How many items are still in flight, per queue pointer.
+     *
+     * A COUNT, for the frame loop's pacing (PlatformWeb_PendingTotal) and the
+     * idle-wire telemetry; the runner never asks it. What the runner reads is
+     * each item's own `pending` word, written by run() below: 1 from the
+     * moment Process could not answer the item on the spot until its answer
+     * is in the item, then 0. The async loop already knows which item it is
+     * filling -- that is what a local variable in an async function is.
+     */
+    inflight: null,
+
+    addInflight: function (io, delta) {
+      const now = (this.inflight.get(io) || 0) + delta;
+      if (now > 0) { this.inflight.set(io, now); }
+      else { this.inflight.delete(io); }
+    },
+
+    /* The platform seam's one word: is this item still on the wire? */
+    setPending: function (item, busy) {
+      HEAP32[(item + this.layout().pendingOff) >> 2] = busy ? 1 : 0;
+    },
+
+    init: function () {
+      /* The two Maps are built HERE rather than in the object literal above,
+       * and that is not a style choice. emscripten emits a --js-library `$name`
+       * object by SERIALIZING it -- the generated module carries the literal's
+       * data as JSON, so a `new Map()` written up there arrives as `{}`, a
+       * plain object whose `.set` is not a function. The symptom is main()
+       * refusing to start with "S.instances.set is not a function", which names
+       * neither this file nor the reason.
+       *
+       * __postset runs this at module init, before any executor exists, which
+       * is the earliest point at which a real object can be made.
+       *
+       * The ABI is still fetched lazily: a postset runs before main() has
+       * necessarily set anything up. */
+      this.instances = new Map();
+      this.inflight = new Map();
+      this.telemetry = {
+        batches: 0, items: 0, sync: 0, landed: 0, prefetched: 0,
+        pumps: 0, pumpMs: 0, pumpSteps: 0,
+        /* Milliseconds the wire spent with nothing in flight between one
+         * answer landing and the next batch going out. The stall this whole
+         * design measures: work the client could have had on the wire and
+         * did not. */
+        idleMs: 0, idleGaps: 0, maxIdleMs: 0,
+      };
+      this.lastLandedAt = 0;
+      this.pumpScheduled = false;
+      /*
+       * How a landed answer reaches the runner between frames.
+       *
+       * A MessageChannel message is a macrotask with no clamp: it runs after
+       * every promise continuation of the turn that delivered the bytes and
+       * before the browser's next timer, so the C side is stepped within a
+       * fraction of a millisecond of the answer instead of at the next
+       * animation frame -- or the 4 ms a nested setTimeout(0) degrades to,
+       * which is what the boot's settimeout pacing actually pays per turn.
+       * One message is outstanding at a time; a burst of answers costs one
+       * pump. Absent (a worker, a test), the frame loop still drains as it
+       * always did.
+       */
+      this.pumpChannel = typeof MessageChannel === 'function' ? new MessageChannel() : null;
+      if (this.pumpChannel) {
+        this.pumpChannel.port1.onmessage = () => this.pumpNow();
+      }
+      globalThis.__torirs_io_telemetry = this.telemetry;
+    },
+
+    /* A batch of reads has been answered: step the runner now. */
+    landed: function () {
+      this.telemetry.landed++;
+      if (this.pumpScheduled || !this.pumpChannel) { return; }
+      this.pumpScheduled = true;
+      this.pumpChannel.port2.postMessage(0);
+    },
+
+    pumpNow: function () {
+      this.pumpScheduled = false;
+      /* The C side owns the decision of whether it may be stepped (main.c,
+       * web_pump_armed); this only asks. Not exported in a build that does
+       * not link main.c's hook (a bare library test), which is a no-op. */
+      if (typeof _torirs_web_io_pump !== 'function') { return; }
+      const t0 = performance.now();
+      const stepped = _torirs_web_io_pump();
+      this.telemetry.pumps++;
+      this.telemetry.pumpSteps += stepped ? 1 : 0;
+      this.telemetry.pumpMs += performance.now() - t0;
+    },
+
+    /* Nothing is in flight any more: remember when, so the next batch can
+     * say how long the wire sat idle. */
+    noteWireIdle: function () {
+      let total = 0;
+      this.inflight.forEach(n => { total += n; });
+      if (total === 0) { this.lastLandedAt = performance.now(); }
+    },
+
+    /*
+     * Ask the queue for its own layout, once.
+     *
+     * Refuses loudly on a mismatch rather than reading with what it has: every
+     * value below is an offset into somebody else's memory, and being wrong
+     * about one does not produce an error, it produces a wrong archive.
+     */
+    layout: function () {
+      if (this.abi) { return this.abi; }
+
+      const count = _ToriRS_IO_DescribeAbiCount();
+      const EXPECTED_MAGIC = 0x494f4133; /* "IOA3", see asyncio_abi.c */
+      const EXPECTED_COUNT = 20;
+
+      if (count !== EXPECTED_COUNT) {
+        throw new Error(
+          `torirs: IO queue ABI has ${count} fields, this executor knows ` +
+          `${EXPECTED_COUNT}. asyncio_abi.c and platform_web_io.js are out of step.`);
+      }
+
+      const ptr = _malloc(count * 4);
+      if (!ptr) { throw new Error('torirs: out of memory reading the IO queue ABI'); }
+      try {
+        _ToriRS_IO_DescribeAbi(ptr);
+        const v = new Int32Array(HEAP32.buffer, ptr, count).slice();
+        if (v[0] !== EXPECTED_MAGIC) {
+          throw new Error(
+            `torirs: IO queue ABI magic ${v[0].toString(16)} != ` +
+            `${EXPECTED_MAGIC.toString(16)}; the field order changed.`);
+        }
+        this.abi = {
+          ioSize: v[1], activeOff: v[2], activeCountOff: v[3],
+          itemSize: v[4], kindOff: v[5], errorOff: v[6], dataOff: v[7],
+          dataSizeOff: v[8], pendingOff: v[9], uOff: v[10],
+          cacheEpochOff: v[11], cacheTableOff: v[12], cacheArchiveOff: v[13],
+          cacheFlagsOff: v[14],
+          configPathOff: v[15], scriptPathOff: v[16],
+          refTableOff: v[17], filePathOff: v[18],
+          maxPath: v[19],
+        };
+      } finally {
+        _free(ptr);
+      }
+      return this.abi;
+    },
+
+    // ------------------------------------------------------- queue access
+
+    /* The batch: `active_count` item POINTERS at `active`. Each item lives in
+     * the task that queued it and never moves, so a pointer read here is good
+     * across every await below -- only the HEAP views need re-taking, and
+     * those are globals emscripten refreshes on growth. */
+    batchItem: function (io, index) {
+      const a = this.layout();
+      return HEAP32[(HEAP32[(io + a.activeOff) >> 2] >> 2) + index];
+    },
+
+    /* The `kind` field is an enum, which is an int in this ABI. */
+    itemKind: function (item) {
+      return HEAP32[(item + this.layout().kindOff) >> 2];
+    },
+
+    /* A NUL-terminated path out of one of the union members. Bounded by the
+     * queue's own TORIRS_IOITEM_MAX_PATH so a slot that somehow holds no
+     * terminator cannot walk off into the rest of the heap. */
+    itemPath: function (item, memberOff) {
+      const a = this.layout();
+      const at = item + a.uOff + memberOff;
+      let end = at;
+      const limit = at + a.maxPath;
+      while (end < limit && HEAPU8[end] !== 0) { end++; }
+      return UTF8ArrayToString(HEAPU8, at, end - at);
+    },
+
+    itemCache: function (item) {
+      const a = this.layout();
+      const u = item + a.uOff;
+      return {
+        epoch: HEAP32[(u + a.cacheEpochOff) >> 2],
+        table: HEAP32[(u + a.cacheTableOff) >> 2],
+        archive: HEAP32[(u + a.cacheArchiveOff) >> 2],
+        flags: HEAP32[(u + a.cacheFlagsOff) >> 2],
+      };
+    },
+
+    /*
+     * Answer an item.
+     *
+     * `result` is one of three things, matching what the queue's kinds
+     * actually carry:
+     *
+     *   null            the read failed -- error_code -1 and an empty payload,
+     *                   the same answer the desktop gives for an absent file
+     *   a Uint8Array    bytes, copied into a fresh _malloc the C side then owns
+     *   {ptr, size}     something already IN wasm memory that C allocated -- a
+     *                   decoded archive or reference table. Stored as-is: it is
+     *                   a pointer to a struct, not a buffer to copy, and its
+     *                   `size` is the struct's size because that is what the
+     *                   platform has always written there.
+     *
+     * Either way the client owns what it receives and frees it as it always
+     * has; nothing here is freed by the executor once it is placed.
+     */
+    answer: function (item, result) {
+      const a = this.layout();
+      if (!result) {
+        HEAP32[(item + a.dataOff) >> 2] = 0;
+        HEAP32[(item + a.dataSizeOff) >> 2] = 0;
+        HEAP32[(item + a.errorOff) >> 2] = -1;
+        return;
+      }
+      if (result.ptr !== undefined) {
+        HEAP32[(item + a.dataOff) >> 2] = result.ptr;
+        HEAP32[(item + a.dataSizeOff) >> 2] = result.size;
+        HEAP32[(item + a.errorOff) >> 2] = 0;
+        return;
+      }
+      if (result.prefetched !== undefined) {
+        /* No payload: the groups are resident, and how many landed is the
+         * whole answer. The id array the item lent stays the caller's. */
+        HEAP32[(item + a.dataOff) >> 2] = 0;
+        HEAP32[(item + a.dataSizeOff) >> 2] = result.prefetched;
+        HEAP32[(item + a.errorOff) >> 2] = 0;
+        return;
+      }
+      const ptr = _malloc(result.length ? result.length : 1);
+      if (!ptr) {
+        /* Out of wasm memory is not a read failure and must not be reported as
+         * one -- a caller told "no such file" would carry on with a plausible
+         * empty result. */
+        throw new Error(`torirs: out of memory answering a ${result.length} byte read`);
+      }
+      HEAPU8.set(result, ptr);
+      HEAP32[(item + a.dataOff) >> 2] = ptr;
+      HEAP32[(item + a.dataSizeOff) >> 2] = result.length;
+      HEAP32[(item + a.errorOff) >> 2] = 0;
+    },
+
+    /*
+     * A reference table's raw container, fetched once per table id.
+     *
+     * The BYTES are what is cached, never a decoded table. Every group in a
+     * table needs its metadata, so re-fetching would be a download per model;
+     * but a decoded table handed to the client becomes the client's to free
+     * (the queue's consumer frees `data`), and a cache of pointers it had
+     * already freed would be a use-after-free on the next request. Bytes have
+     * no such problem: each decode below produces a fresh object with a single
+     * owner.
+     *
+     * A table the cache does not ship is remembered as null rather than
+     * retried, so a miss costs one fetch and not one per group.
+     */
+    refTableBytes: function (inst, table) {
+      /* The PROMISE is what is memoised, not its result. This is async, and
+       * a fan-out of hundreds of model reads calls it in one frame: with
+       * the result cached, every one of them missed, fetched and decoded
+       * its own copy of the 61,615-entry models table, and only the last
+       * copy landed in the map -- 621 decodes, 1.06 GB of wasm heap that
+       * nothing ever freed, on one login (memtrace, 2026-09-17). */
+      let pending = inst.refTableBytes.get(table);
+      if (!pending) {
+        pending = inst.host.readReferenceTable(table).then(bytes => bytes || null);
+        inst.refTableBytes.set(table, pending);
+      }
+      return pending;
+    },
+
+    /* One decode of that container. Every call returns a NEW table, owned by
+     * whoever asked. */
+    refTableDecode: async function (inst, table) {
+      const bytes = await this.refTableBytes(inst, table);
+      if (!bytes) { return 0; }
+
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error('torirs: out of memory for a reference table'); }
+      try {
+        HEAPU8.set(bytes, scratch);
+        return _ToriRS_WebApi_ReferenceTableFromContainer(scratch, bytes.length, table);
+      } finally {
+        _free(scratch);
+      }
+    },
+
+    /*
+     * The executor's OWN copy, for attaching metadata to groups.
+     *
+     * Kept apart from the one handed out above precisely because the lifetimes
+     * differ: this one belongs to the executor for as long as the queue lives
+     * and is never given to anybody, which is what makes caching it safe.
+     */
+    refTableForMetadata: function (inst, table) {
+      /* Memoised as a promise for the reason refTableBytes is: concurrent
+       * first readers of a table must share one decode. */
+      let pending = inst.refTablesOwned.get(table);
+      if (!pending) {
+        pending = this.refTableDecode(inst, table).then(ptr => {
+          inst.refTablesReady.set(table, ptr || null);
+          return ptr || null;
+        });
+        inst.refTablesOwned.set(table, pending);
+      }
+      return pending;
+    },
+
+    // ---------------------------------------------------------- execution
+
+    /*
+     * A logical dat2 table as this cache's branch numbers it, or -1.
+     *
+     * The client's ids are roles and the cache's are idx numbers; they agree up
+     * to 15 and part company after it (OldSchool keeps client defaults at 17
+     * where the role's ordinal is 31). Everything below the queue — the wire,
+     * the decode, the metadata table — wants the disk number, which is exactly
+     * what the desktop executor resolves before it reads
+     * (platform_x_io.c, dat2_resolve_table). Resolving here and once keeps the
+     * two executors saying the same thing to the same cache.
+     *
+     * The table itself stays in rscache: a second copy in JavaScript is a
+     * second thing to be wrong, and being wrong here does not fail — it reads
+     * a real archive as the wrong type.
+     */
+    dat2DiskTable: function (inst, logical) {
+      if (inst.cacheGame === null) {
+        throw new Error('torirs: a dat2 read arrived before InitCacheId named the cache');
+      }
+      return _ToriRS_WebApi_Dat2TableDiskId(inst.cacheGame, logical);
+    },
+
+    /*
+     * Everything the host needs to know about one item, read BEFORE any await.
+     *
+     * Read up front on purpose. Once this function awaits, the wasm heap may
+     * have grown -- every HEAPU8/HEAP32 view taken before the await is
+     * detached afterwards -- so reading the request out of the item late is
+     * a read through a dead view. The item's ADDRESS is stable (it lives in
+     * its task); only the views are re-taken after the await.
+     *
+     * FILE_WRITE's payload is copied here for a second reason as well: the
+     * queue only LENDS those bytes for the duration of the request, and the
+     * task may reuse the buffer the moment Process returns.
+     */
+    describe: function (inst, item) {
+      const a = this.layout();
+      const kind = this.itemKind(item);
+      const K = inst.kinds;
+
+      if (kind === K.CONFIG_FILE) {
+        return { kind: kind, path: inst.join(inst.configDir, this.itemPath(item, a.configPathOff)) };
+      }
+      if (kind === K.SCRIPT) {
+        return { kind: kind, path: inst.join(inst.scriptDir, this.itemPath(item, a.scriptPathOff)) };
+      }
+      if (kind === K.FILE_READ) {
+        return { kind: kind, path: this.itemPath(item, a.filePathOff) };
+      }
+      if (kind === K.FILE_WRITE) {
+        const ptr = HEAP32[(item + a.dataOff) >> 2];
+        const size = HEAP32[(item + a.dataSizeOff) >> 2];
+        return {
+          kind: kind,
+          path: this.itemPath(item, a.filePathOff),
+          bytes: HEAPU8.slice(ptr, ptr + size),
+        };
+      }
+      if (kind === K.CACHE) {
+        const c = this.itemCache(item);
+        /* dat1 numbers its own tables and has no roles to resolve; the flags
+         * are what says which container space this read is in. */
+        const table = this.isDat1(c.flags) ? c.table : this.dat2DiskTable(inst, c.table);
+        return { kind: kind, table: table, archive: c.archive, flags: c.flags, epoch: c.epoch };
+      }
+      if (kind === K.CACHE_PREFETCH) {
+        /* Addressed like a CACHE item with the count in archive_id and the
+         * ids lent through data -- copied out of the heap here, before any
+         * await, for the reason FILE_WRITE's bytes are. */
+        const c = this.itemCache(item);
+        const ptr = HEAP32[(item + a.dataOff) >> 2];
+        const table = this.isDat1(c.flags) ? c.table : this.dat2DiskTable(inst, c.table);
+        return {
+          kind: kind, table: table, flags: c.flags, epoch: c.epoch,
+          ids: Array.from(new Int32Array(HEAP32.buffer, ptr, c.archive)),
+        };
+      }
+      if (kind === K.REFERENCE_TABLE) {
+        /* dat2 only — dat1 has a versionlist, not reference tables. */
+        return {
+          kind: kind,
+          table: this.dat2DiskTable(inst, HEAP32[(item + a.uOff + a.refTableOff) >> 2]),
+        };
+      }
+      return { kind: kind };
+    },
+
+    /*
+     * The decoded-archive LRU, per executor instance.
+     *
+     * Keyed by the group's address in its container space (flags, table,
+     * archive); the value is the decoded archive's pointer and its payload
+     * size. The LRU holds ONE reference to every archive it keeps, and a hit
+     * hands the consumer another (ArchiveRetain), so the consumer's Free --
+     * the queue's contract: whoever asked frees `data` -- is a release, and
+     * an archive evicted while a consumer still holds it lives on until that
+     * consumer is done. That is what makes a pointer cache safe here where
+     * the reference-table note above rules one out: those are handed over
+     * unretained. Every dat2 group goes through here, whatever its table: a
+     * config group, an animation's frames, a sprite sheet, an interface pack
+     * are all one container with entries inside. dat1 archives are a
+     * different C type with no holder count and are not cached.
+     *
+     * Bounded by decoded bytes, not entries: one loc group decodes to a few
+     * MB and one sprite to a few KB, and a count would either starve the
+     * former or hoard the latter. Insertion order is the recency order --
+     * a hit re-inserts -- so eviction is the Map's first key.
+     */
+    DECODED_BUDGET_BYTES: 64 * 1024 * 1024,
+
+    /*
+     * Raw containers kept in memory, so that a group read a second time is
+     * answered INSIDE Process rather than a frame later.
+     *
+     * Every answer the web executor gives is asynchronous, because IndexedDB
+     * is: a read costs at least one turn of the event loop, and a task that
+     * resolves one script or sprite per read pays a frame per item. After
+     * login the interface hooks resolve about 900 of them one at a time --
+     * 18 s of "Loading - please wait" for groups the loading screen had
+     * already downloaded (browser_probe + TORIRS_IO_TRACE, 2026-09-17). The
+     * desktop never sees it: its executor reads the disk inside Process and
+     * the runner resumes the task in the same pass.
+     *
+     * So the bytes of every container that passes through here are kept,
+     * bounded, and a request whose container AND reference table are both
+     * resident is decoded and answered before Process returns; the runner
+     * then steps the task again this pass, as on the desktop. The loading
+     * screen's whole-archive fill is what makes the post-login groups
+     * resident. Compressed bytes, so 48 MB holds far more than the 17 MB a
+     * boot downloads; insertion order is recency, a hit re-inserts.
+     */
+    RESIDENT_BUDGET_BYTES: 48 * 1024 * 1024,
+
+    residentKeep: function (inst, key, bytes) {
+      const old = inst.resident.get(key);
+      if (old) { inst.resident.delete(key); inst.residentBytes -= old.length; }
+      inst.resident.set(key, bytes);
+      inst.residentBytes += bytes.length;
+      for (const [k, v] of inst.resident) {
+        if (inst.residentBytes <= this.RESIDENT_BUDGET_BYTES || inst.resident.size <= 1) { break; }
+        inst.resident.delete(k);
+        inst.residentBytes -= v.length;
+      }
+    },
+
+    residentGet: function (inst, key) {
+      const hit = inst.resident.get(key);
+      if (!hit) { return null; }
+      inst.resident.delete(key);
+      inst.resident.set(key, hit);
+      return hit;
+    },
+
+    /*
+     * Answer a dat2 group from memory, or say it cannot be.
+     *
+     * Everything here is synchronous: the decoded-archive LRU, the resident
+     * container bytes, the settled reference table. The one thing the
+     * asynchronous path awaits that has no synchronous twin is the XTEA key,
+     * and the host answers null for every key, so nothing is lost.
+     */
+    answerSync: function (inst, req, item) {
+      if (req.table < 0 || this.isDat1(req.flags)) { return false; }
+      const cached = this.decodedArchive(inst, req.flags, req.table, req.archive);
+      if (cached) {
+        this.answer(item, { ptr: cached, size: _ToriRS_WebApi_ArchiveStructSize() });
+        inst.syncHits++;
+        return true;
+      }
+      if (!inst.refTablesReady.has(req.table)) { return false; }
+      const bytes = this.residentGet(inst, `${req.flags}|${req.table}|${req.archive}`);
+      if (!bytes) { return false; }
+      const ptr = this.decodeArchive(bytes, req.table, req.archive, null);
+      if (!ptr) { return false; }
+      const table = inst.refTablesReady.get(req.table);
+      if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
+      this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
+      this.answer(item, { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() });
+      inst.syncHits++;
+      return true;
+    },
+
+    decodedArchive: function (inst, flags, table, archive) {
+      const key = `${flags}|${table}|${archive}`;
+      const hit = inst.decoded.get(key);
+      if (!hit) { return 0; }
+      inst.decoded.delete(key);
+      inst.decoded.set(key, hit);
+      _ToriRS_WebApi_ArchiveRetain(hit.ptr);
+      inst.decodedHits++;
+      return hit.ptr;
+    },
+
+    decodedArchiveKeep: function (inst, flags, table, archive, ptr) {
+      const bytes = _ToriRS_WebApi_ArchiveDataSize(ptr);
+      /* The consumer gets its own reference now; the LRU keeps the creator's. */
+      _ToriRS_WebApi_ArchiveRetain(ptr);
+      inst.decoded.set(`${flags}|${table}|${archive}`, { ptr: ptr, bytes: bytes });
+      inst.decodedBytes += bytes;
+      for (const [k, v] of inst.decoded) {
+        if (inst.decodedBytes <= this.DECODED_BUDGET_BYTES || inst.decoded.size <= 1) { break; }
+        inst.decoded.delete(k);
+        inst.decodedBytes -= v.bytes;
+        _ToriRS_WebApi_ArchiveFree(v.ptr);
+      }
+    },
+
+    /*
+     * Hand raw container bytes to the cache format's own decoder.
+     *
+     * The decode is C (platform_web_api.c -> 3rd/rscache) and deliberately so:
+     * container framing, bzip2, gzip and XTEA have one implementation in this
+     * tree and this is not the place to grow a second. A wrong decode does not
+     * throw, it yields a plausible archive, so a JavaScript reimplementation
+     * would be wrong in ways nothing downstream could catch.
+     *
+     * Bytes cross by copy into a scratch buffer rather than by view, because
+     * the decoder owns and reallocates what it is given.
+     */
+    decodeArchive: function (bytes, table, archive, xteaKey) {
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error(`torirs: out of memory for a ${bytes.length} byte container`); }
+
+      let keyPtr = 0;
+      try {
+        HEAPU8.set(bytes, scratch);
+        if (xteaKey) {
+          keyPtr = _malloc(16);
+          if (!keyPtr) { throw new Error('torirs: out of memory for an XTEA key'); }
+          for (let i = 0; i < 4; i++) { HEAP32[(keyPtr >> 2) + i] = xteaKey[i] | 0; }
+        }
+        return _ToriRS_WebApi_ArchiveDecode(scratch, bytes.length, table, archive, keyPtr);
+      } finally {
+        _free(scratch);
+        if (keyPtr) { _free(keyPtr); }
+      }
+    },
+
+    /*
+     * Which container space an item is phrased in.
+     *
+     * Mirrors of the queue's cache flags (asyncio.h), and the same values
+     * torirs_hostio.js routes producers by -- the two read the one field for
+     * the two halves of the same decision: who can FETCH this, and who can
+     * DECODE it.
+     */
+    dat1Flags: { DAT1: 1, MAP_TERRAIN: 2, MAP_SCENERY: 3 },
+
+    isDat1: function (flags) {
+      const f = this.dat1Flags;
+      return flags === f.DAT1 || flags === f.MAP_TERRAIN || flags === f.MAP_SCENERY;
+    },
+
+    /*
+     * The dat1 counterpart of decodeArchive.
+     *
+     * Separate because the two produce different TYPES -- a Dat1DiskArchive
+     * and a Dat2DiskArchive -- and the item's data_size is what tells the
+     * client which it was handed. A single "decode" that returned whichever
+     * would leave the size to be guessed here, which is the one thing this
+     * layer must never do.
+     *
+     * No XTEA and no reference table: nothing in the dat1 era is encrypted,
+     * and an archive's file count comes out of the archive itself.
+     */
+    decodeDat1Archive: function (bytes, table, archive) {
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error(`torirs: out of memory for a ${bytes.length} byte container`); }
+      try {
+        HEAPU8.set(bytes, scratch);
+        return _ToriRS_WebApi_Dat1ArchiveDecode(scratch, bytes.length, table, archive);
+      } finally {
+        _free(scratch);
+      }
+    },
+
+    /*
+     * Execute one item. An ordinary async function: it awaits the host and
+     * returns the bytes, or null when there are none.
+     *
+     * The host interface is deliberately small -- read a file, read or write
+     * one of the player's own -- because that is the whole of what a platform
+     * executor does. Everything else in this file is queue mechanics.
+     */
+    execute: async function (inst, req) {
+      const K = inst.kinds;
+
+      if (req.kind === K.CONFIG_FILE || req.kind === K.SCRIPT) {
+        return await inst.host.readFile(req.path);
+      }
+      if (req.kind === K.FILE_READ) {
+        /* The player's own file, and it never leaves this browser -- see
+         * host.readClientFile. */
+        return await inst.host.readClientFile(req.path);
+      }
+      if (req.kind === K.FILE_WRITE) {
+        await inst.host.writeClientFile(req.path, req.bytes);
+        return null;
+      }
+
+      if (req.kind === K.CACHE) {
+        /* A role this branch has no table for: nothing to ask anyone for, and
+         * the same answer the desktop gives (platform_x_io.c returns the item
+         * failed rather than reading table -1). */
+        if (req.table < 0) { return null; }
+        /*
+         * Two awaits, and the order matters only in that both must finish
+         * before the decode: the group's bytes, and the key the cache profile
+         * says this table needs (null for everything but encrypted maps -- the
+         * host decides, because that is a property of the profile and not of
+         * these bytes).
+         */
+        const [bytes, xtea] = await Promise.all([
+          inst.host.readArchive(req.table, req.archive, req.flags),
+          inst.host.xteaKey(req.table, req.archive),
+        ]);
+        if (!bytes) { return null; }
+        if (!this.isDat1(req.flags)) {
+          this.residentKeep(inst, `${req.flags}|${req.table}|${req.archive}`, bytes);
+        }
+
+        /*
+         * WHICH DECODER, decided here, from the flags the item carries.
+         *
+         * The two containers are not variants of one format: a dat2 group is a
+         * compression byte and two lengths, a dat1 archive is a gzip stream or
+         * a jag file, and each has its own decoder in rscache. Handing dat1
+         * bytes to the dat2 one does not fail cleanly -- it reads the first
+         * byte as a compression method and reports "Unknown compression
+         * method: 31", a number that appears nowhere in the cache and names
+         * nothing about what actually went wrong.
+         *
+         * The flags decide it, not the table id: a table number means
+         * different things in the two container spaces, while the flags are
+         * what the client already sets to say which space it is asking in.
+         */
+        if (this.isDat1(req.flags)) {
+          const dat1 = this.decodeDat1Archive(bytes, req.table, req.archive);
+          if (!dat1) { return null; }
+          return { ptr: dat1, size: _ToriRS_WebApi_Dat1ArchiveStructSize() };
+        }
+
+        /*
+         * Decoded once, then handed out retained: see decodedArchive. A
+         * config group holds thousands of records, and a world load reads
+         * one record per loc it places -- 664 reads of the 600 KB bzip2 loc
+         * group in one login, measured -- so decoding per read was a
+         * bzip2 pass per record. The desktop executor has had this LRU
+         * since it was measured there.
+         */
+        const cached = this.decodedArchive(inst, req.flags, req.table, req.archive);
+        if (cached) { return { ptr: cached, size: _ToriRS_WebApi_ArchiveStructSize() }; }
+
+        const ptr = this.decodeArchive(bytes, req.table, req.archive, xtea);
+        if (!ptr) { return null; }
+
+        /* Metadata is a separate fetch, and a group whose table has no entry
+         * for it is a missing archive rather than a failure -- the same
+         * judgement the desktop makes. The executor's own table, never the
+         * client's: see refTableForMetadata. */
+        const table = await this.refTableForMetadata(inst, req.table);
+        if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
+
+        this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
+        return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
+      }
+
+      if (req.kind === K.CACHE_PREFETCH) {
+        /*
+         * Every group through the host and into the resident store, nothing
+         * decoded. The point of a fill is that the reads after login are
+         * answered inside Process, and that takes the raw container AND the
+         * table's metadata -- so the executor's own reference table is
+         * primed here too, rather than on the first post-login decode.
+         */
+        if (req.table < 0) { return { prefetched: 0 }; }
+        const dat1 = this.isDat1(req.flags);
+        if (!dat1) { this.refTableForMetadata(inst, req.table).catch(() => null); }
+        /* The host's many-at-once read when it has one (one database
+         * transaction for the wave); one read per id otherwise. */
+        const answers = typeof inst.host.readArchives === 'function'
+          ? await inst.host.readArchives(req.table, req.ids, req.flags)
+          : await Promise.all(req.ids.map(id => inst.host.readArchive(req.table, id, req.flags)));
+        let n = 0;
+        for (let i = 0; i < req.ids.length; i++) {
+          const bytes = answers[i];
+          if (!bytes) { continue; }
+          if (!dat1) { this.residentKeep(inst, `${req.flags}|${req.table}|${req.ids[i]}`, bytes); }
+          n++;
+        }
+        this.telemetry.prefetched += n;
+        return { prefetched: n };
+      }
+
+      if (req.kind === K.REFERENCE_TABLE) {
+        if (req.table < 0) { return null; }
+        /* A FRESH decode, because this one is handed over and freed by whoever
+         * asked for it. */
+        const table = await this.refTableDecode(inst, req.table);
+        if (!table) { return null; }
+        return { ptr: table, size: _ToriRS_WebApi_ReferenceTableStructSize() };
+      }
+
+      /*
+       * Loud rather than a failed read: an item answered "not found" would
+       * surface far away as a blank model or a missing config, and the thing
+       * that went wrong -- an executor handed a kind it does not know -- would
+       * not appear anywhere in the report.
+       */
+      throw new Error(`torirs: the web IO executor cannot execute kind ${req.kind}`);
+    },
+
+    /*
+     * Run one item to completion and fill it in.
+     *
+     * Kicked off by Process and never awaited by it -- that is what makes the
+     * item outstanding rather than blocking the frame. The item's `pending`
+     * word is set before the first await and cleared after the answer is in
+     * the item, so it is truthful from the instant Process returns to the
+     * instant the runner could look.
+     */
+    /*
+     * TORIRS_IO_TRACE=1 (an ?env= boot parameter) records every Process batch
+     * and every answer with a millisecond clock into window.__torirs_io_trace,
+     * which tools/web/browser_probe.py --log saves. It is what the desktop
+     * executor's TORIRS_IO_TRACE is for: seeing which reads a stall is made
+     * of, and whether they went out together or one after another.
+     */
+    traceOn: function () {
+      if (this.trace === undefined) {
+        const env = typeof ENV !== 'undefined' ? ENV : {};
+        this.trace = env.TORIRS_IO_TRACE ? [] : null;
+        if (this.trace) { globalThis.__torirs_io_trace = this.trace; }
+      }
+      return this.trace !== null;
+    },
+    traceName: function (inst, req) {
+      if (!inst.kindNames) {
+        inst.kindNames = {};
+        for (const name of Object.keys(inst.kinds)) { inst.kindNames[inst.kinds[name]] = name; }
+      }
+      const kind = inst.kindNames[req.kind] || String(req.kind);
+      if (req.path) { return `${kind}:${req.path.replace(/^.*\//, '')}`; }
+      if (req.ids) { return `${kind}:${req.table}x${req.ids.length}`; }
+      if (req.table !== undefined && req.archive !== undefined) { return `${kind}:${req.table}/${req.archive}`; }
+      if (req.table !== undefined) { return `${kind}:${req.table}`; }
+      return kind;
+    },
+
+    run: async function (inst, io, item) {
+      const req = this.describe(inst, item);
+      const traced = this.traceOn();
+      const started = traced ? performance.now() : 0;
+      /* Answered before Process returns: never pending, and the runner steps
+       * the asking task again this pass. */
+      if (req.kind === inst.kinds.CACHE && this.answerSync(inst, req, item)) {
+        this.telemetry.sync++;
+        if (traced) {
+          this.trace.push(`${performance.now().toFixed(1)} sync ${this.traceName(inst, req)} ${(performance.now() - started).toFixed(2)}ms`);
+        }
+        return;
+      }
+      this.addInflight(io, 1);
+      this.setPending(item, true);
+      try {
+        const bytes = await this.execute(inst, req);
+        this.answer(item, bytes);
+        if (traced) {
+          const now = performance.now();
+          const size = !bytes ? 0
+            : bytes.length !== undefined ? bytes.length
+            : bytes.prefetched !== undefined ? bytes.prefetched
+            : bytes.size;
+          this.trace.push(`${now.toFixed(1)} done ${this.traceName(inst, req)} ${(now - started).toFixed(1)}ms ${size}B`);
+        }
+      } catch (err) {
+        /* A transport that answered nothing is a different fact from a file
+         * that is not there, and only the first is an outage. */
+        if (err && err.torirsUnreachable) { inst.transportDown = true; }
+        else { err && console.error(`torirs io: ${err.message}`); }
+        this.answer(item, null);
+      } finally {
+        this.addInflight(io, -1);
+        this.setPending(item, false);
+        this.noteWireIdle();
+      }
+      /* After the finally: the item must read "not pending" by the time the
+       * runner is stepped, or the task whose answer this is stays parked. */
+      this.landed();
+    },
+  },
+
+  // ------------------------------------------------------ PlatformWeb_IO_*
+
+  PlatformWeb_IO_New__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_New: function () {
+    const S = TORIRS_WEB_IO;
+    const handle = S.nextHandle++;
+    S.instances.set(handle, {
+      handle: handle,
+      configDir: '',
+      scriptDir: '',
+      transportDown: false,
+      /* Raw reference-table containers, and the executor's own decoded copies.
+       * Two maps because the two have different owners -- see refTableBytes. */
+      refTableBytes: new Map(),
+      refTablesOwned: new Map(),
+      /* table id -> decoded reference table pointer (or null: the table has
+       * none), filled when refTableForMetadata settles. What lets a later
+       * group be decoded without awaiting anything. */
+      refTablesReady: new Map(),
+      decoded: new Map(),
+      decodedBytes: 0,
+      decodedHits: 0,
+      /* Raw containers by "flags|table|archive", most recent last. */
+      resident: new Map(),
+      residentBytes: 0,
+      syncHits: 0,
+      /* Mirrors of enum ToriRS_IOKind. Not read from the ABI: the ABI
+       * describes the LAYOUT, and these are values -- appending a kind does
+       * not move a field, so the two change for different reasons. */
+      kinds: {
+        NONE: 0, CACHE: 1, CONFIG_FILE: 2, SCRIPT: 3,
+        REFERENCE_TABLE: 4, FILE_READ: 5, FILE_WRITE: 6,
+        CACHE_PREFETCH: 7,
+      },
+      join: function (base, path) {
+        return base && base.length ? `${base}/${path}` : path;
+      },
+      /* Which branch's cache this is, from InitCacheId. Null until it is
+       * called, and a cache read before then is a bug rather than a default —
+       * see dat2DiskTable. */
+      cacheGame: null,
+      /* The page supplies the actual IO. Everything above is queue mechanics;
+       * this is where bytes come from, and it is deliberately the only part a
+       * different host would have to replace. */
+      host: Module.torirsHostIO,
+    });
+    return handle;
+  },
+
+  PlatformWeb_IO_Free__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_Free: function (px) {
+    if (!px) { return; }
+    TORIRS_WEB_IO.instances.delete(px);
+  },
+
+  /* The browser has no cache directory and no disk handle to be given. These
+   * exist so the client's boot reads the same on every platform; a browser
+   * simply has nothing to record. */
+  PlatformWeb_IO_InitDat2Disk: function (px, disk) {},
+  PlatformWeb_IO_InitDat1Disk: function (px, disk) {},
+
+  /*
+   * The cache's identity, of which one field is load-bearing here: the game.
+   *
+   * A dat2 table id is a ROLE on the client's side of the queue and an idx
+   * number on the cache's, and which idx a role lives at is a property of the
+   * branch. The desktop executor asks the open disk; this one has no disk, so
+   * it keeps the game the manifest named and asks rscache directly — see
+   * dat2DiskTable.
+   */
+  PlatformWeb_IO_InitCacheId__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InitCacheId: function (px, epoch, game, revision, quirks, dir) {
+    TORIRS_WEB_IO.instances.get(px).cacheGame = game;
+  },
+  /* The page is served by the file server and reads every stored file relative
+   * to its own boot URL, so there is no other server to be named. */
+  PlatformWeb_IO_InitIoServer: function (px, host, port) {},
+
+  PlatformWeb_IO_InitConfigPath__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InitConfigPath: function (px, path) {
+    TORIRS_WEB_IO.instances.get(px).configDir = UTF8ToString(path);
+  },
+
+  PlatformWeb_IO_InitScriptPath__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InitScriptPath: function (px, path) {
+    TORIRS_WEB_IO.instances.get(px).scriptDir = UTF8ToString(path);
+  },
+
+  /*
+   * There is no synchronous read on this platform, so there is nothing this
+   * can honestly do.
+   *
+   * It exists because the queue's interface has it and the desktop needs it --
+   * a caller that has an answer already may take it without going round the
+   * event loop. Here every answer is an await, so refusing is the truthful
+   * reply and Process is the only way in.
+   */
+  PlatformWeb_IO_LoadItem: function (px, item) {
+    return -1;
+  },
+
+  /*
+   * Hand this pass's items to the executor and return.
+   *
+   * Deliberately NOT async and deliberately not awaited: Process is called
+   * from the frame loop, and a Process that waited for its reads would be the
+   * frozen tab this whole design exists to avoid. Each item runs on its own,
+   * and its `pending` word is how the caller learns when it is finished.
+   */
+  PlatformWeb_IO_Process__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_Process: function (px, io) {
+    const S = TORIRS_WEB_IO;
+    const a = S.layout();
+    const inst = S.instances.get(px);
+    const activeCount = HEAP32[(io + a.activeCountOff) >> 2];
+
+    if (activeCount > 0) {
+      S.telemetry.batches++;
+      S.telemetry.items += activeCount;
+      /* A batch going out onto an idle wire: how long was it idle? Only
+       * once something has landed, so the page's own startup is not
+       * counted as a stall. */
+      if (S.lastLandedAt && S.inflight.size === 0) {
+        const gap = performance.now() - S.lastLandedAt;
+        S.telemetry.idleMs += gap;
+        S.telemetry.idleGaps++;
+        if (gap > S.telemetry.maxIdleMs) { S.telemetry.maxIdleMs = gap; }
+        S.lastLandedAt = 0;
+      }
+    }
+    if (activeCount > 0 && S.traceOn()) {
+      const names = [];
+      for (let i = 0; i < activeCount && i < 16; i++) {
+        names.push(S.traceName(inst, S.describe(inst, S.batchItem(io, i))));
+      }
+      S.trace.push(`${performance.now().toFixed(1)} batch n=${activeCount} inflight=${S.inflight.get(io) || 0} ` +
+        names.join(' ') + (activeCount > 16 ? ' ...' : ''));
+    }
+    for (let i = 0; i < activeCount; i++) {
+      S.run(inst, io, S.batchItem(io, i));
+    }
+
+    /* ToriRS_IOBatch_Reset, done here because the queue expects Process to
+     * have consumed the batch by the time it returns. The items themselves
+     * stay outstanding -- the batch is what is new THIS pass, not what is
+     * unanswered. */
+    HEAP32[(io + a.activeCountOff) >> 2] = 0;
+
+    return activeCount;
+  },
+
+  /*
+   * Nothing to do. An answer lands on its own, between turns of the event
+   * loop, and clears its item's `pending` as it does; the runner's pass has
+   * the same shape on every platform, so the call exists.
+   */
+  PlatformWeb_IO_Pump: function (px) {},
+
+  /*
+   * Everything outstanding, across every queue.
+   *
+   * The frame loop uses this for PACING (platform_web_host.h): while reads are
+   * in flight it runs from the event loop rather than requestAnimationFrame.
+   * Answered here because what is outstanding is exactly what this executor is
+   * still awaiting -- nothing else in the process knows.
+   */
+  PlatformWeb_PendingTotal__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_PendingTotal: function () {
+    let total = 0;
+    TORIRS_WEB_IO.inflight.forEach(n => { total += n; });
+    return total;
+  },
+
+  /*
+   * Nothing to pump.
+   *
+   * There was, when the cache producer was a C state machine that could only
+   * advance while somebody called Tick. Both producers are JavaScript now
+   * (src/web/torirs_js5.js, src/web/torirs_ondemand.js) and their sockets
+   * deliver on their own, so a turn is something the event loop already gives
+   * them. Kept because main()'s loop calls it on every platform, and a browser
+   * saying "nothing needed" is an answer.
+   */
+  PlatformWeb_Pump: function () {},
+
+  /*
+   * Also nothing. There is no synchronous read anywhere on this platform to
+   * suppress -- every answer arrives after an await, which is the design.
+   */
+  PlatformWeb_SetBlockingReads: function (allowed) {},
+
+  PlatformWeb_IO_ServerReachable__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_ServerReachable: function (px) {
+    const inst = TORIRS_WEB_IO.instances.get(px);
+    return inst && inst.transportDown ? 0 : 1;
+  },
+});

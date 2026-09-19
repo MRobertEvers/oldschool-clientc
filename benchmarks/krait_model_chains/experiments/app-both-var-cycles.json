@@ -1,0 +1,160 @@
+{
+  "serial": "T062809L3Z",
+  "scene": "varrock-square-ground",
+  "event": "cpu-cycles",
+  "target": "both",
+  "warmup": 300,
+  "frames": 90,
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "frames": 90,
+      "draw": 654158755,
+      "worker": 524972122,
+      "models": 165150,
+      "worker_models": 118664,
+      "faces": 1573358
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "frames": 90,
+      "draw": 703835671,
+      "worker": 419609450,
+      "models": 165150,
+      "worker_models": 104869,
+      "faces": 1419508
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "frames": 90,
+      "draw": 660167984,
+      "worker": 490634571,
+      "models": 165150,
+      "worker_models": 114727,
+      "faces": 1547614
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "frames": 90,
+      "draw": 788229105,
+      "worker": 430422224,
+      "models": 165150,
+      "worker_models": 102677,
+      "faces": 1353472
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "frames": 90,
+      "draw": 832539075,
+      "worker": 363847406,
+      "models": 165150,
+      "worker_models": 95749,
+      "faces": 1242576
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "frames": 90,
+      "draw": 692940028,
+      "worker": 444297581,
+      "models": 165150,
+      "worker_models": 109681,
+      "faces": 1458260
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "frames": 90,
+      "draw": 597994775,
+      "worker": 526355252,
+      "models": 165150,
+      "worker_models": 120917,
+      "faces": 1663820
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "frames": 90,
+      "draw": 860933666,
+      "worker": 510031287,
+      "models": 165150,
+      "worker_models": 115072,
+      "faces": 1533727
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "frames": 90,
+      "draw": 670761558,
+      "worker": 512346548,
+      "models": 165150,
+      "worker_models": 115707,
+      "faces": 1580108
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "frames": 90,
+      "draw": 661469170,
+      "worker": 471013667,
+      "models": 165150,
+      "worker_models": 114283,
+      "faces": 1534121
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "frames": 90,
+      "draw": 637889235,
+      "worker": 493888925,
+      "models": 165150,
+      "worker_models": 114463,
+      "faces": 1556063
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "frames": 90,
+      "draw": 734895110,
+      "worker": 451077747,
+      "models": 165150,
+      "worker_models": 108064,
+      "faces": 1411974
+    }
+  ],
+  "summary": {
+    "draw": {
+      "baseline": 8461801.194444444,
+      "candidate": 7342428.633333333,
+      "percent": -13.22853770005883,
+      "mad": {
+        "0": 898763.9833333329,
+        "1": 305837.7388888886
+      }
+    },
+    "worker": {
+      "baseline": 5339494.633333333,
+      "candidate": 5342490.211111112,
+      "percent": 0.05610227153480807,
+      "mad": {
+        "0": 423386.86666666716,
+        "1": 275507.4666666668
+      }
+    },
+    "total": {
+      "baseline": 13235329.655555556,
+      "candidate": 12579227.76111111,
+      "percent": -4.957201003067158,
+      "mad": {
+        "0": 111779.75,
+        "1": 71597.67777777836
+      }
+    }
+  },
+  "validation_note": "Provisional: keyguard was not dismissed before these runs; screenshot after instructions run showed lock screen. Use foreground repeats for acceptance."
+}

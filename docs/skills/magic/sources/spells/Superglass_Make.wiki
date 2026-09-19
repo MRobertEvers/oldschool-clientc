@@ -1,0 +1,95 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Superglass Make
+|image = [[File:Superglass Make.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 77
+|spellbook = Lunar
+|type = Utility
+|exp = 78
+|cost = {{RuneReq|Air=10|Fire=6|Astral=2}}
+|speed = 3 ticks
+|description = Make glass without a furnace
+|anim = [[File:Superglass Make.gif|180px]]
+|sound = [[File:Superglass Make.ogg]]
+}}
+[[File:Superglass Make icon (mobile).png|left]]
+'''Superglass Make''' is a [[Lunar spell]] requiring level 77 [[Magic]] to cast. The spell instantly turns all [[Bucket of sand|sand]] and [[soda ash]], [[seaweed]], [[giant seaweed]], or [[swamp weed]] in the player's inventory into [[molten glass]], without the need for a [[furnace]]. Sand buckets are fully consumed, meaning [[empty bucket]]s will not be returned to the player in the process. 
+
+The spell provides a variable bonus yield, netting the player on average 1.3 molten glass per pair of raw materials, or up to 1.6 molten glass if using giant seaweed. In addition to providing [[Magic]] [[experience]], the spell provides 10 [[Crafting]] experience per bucket of sand used. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast it.
+
+==Money making==
+{{Mmgsection|Casting Superglass Make}}
+
+==Uses==
+With regular effort, a player can expect to gain around 50,000 Crafting and 30,000 Magic experience per hour, although it is possible to gain over 140,000 Crafting and 60,000 Magic experience per hour with good focus and fast clicks, depending on the method. A [[smoke battlestaff]] (or a [[tome of fire]] and [[staff of air]]) is recommended, as they provide unlimited fire and air runes and save inventory spaces. The following table shows the profit per cast using different staves and different ingredients:
+
+{|class="wikitable"
+!colspan="2"| !!{{plink|Smoke battlestaff}} !!{{plink|Staff of air}} !!{{plink|Nothing|pic=Bank filler}}
+|-
+!colspan="2"|13 {{plink|Seaweed}}, 13 {{plink|Bucket of sand}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Seaweed|13}}+{{GEP|Bucket of sand|13}})|c}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Seaweed|13}}+{{GEP|Bucket of sand|13}})|c}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Air rune|10}}+{{GEP|Seaweed|13}}+{{GEP|Bucket of sand|13}})|c}}
+|-
+!colspan="2"|13 {{plink|Soda ash}}, 13 {{plink|Bucket of sand}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Soda ash|13}}+{{GEP|Bucket of sand|13}})|c}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Soda ash|13}}+{{GEP|Bucket of sand|13}})|c}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Air rune|10}}+{{GEP|Soda ash|13}}+{{GEP|Bucket of sand|13}})|c}}
+|-
+!colspan="2"|13 {{plink|Swamp weed}}, 13 {{plink|Bucket of sand}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Swamp weed|13}}+{{GEP|Bucket of sand|13}})|c}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Swamp weed|13}}+{{GEP|Bucket of sand|13}})|c}}
+|{{NoCoins|{{GEP|Molten glass|16.9}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Air rune|10}}+{{GEP|Swamp weed|13}}+{{GEP|Bucket of sand|13}})|c}}
+|-
+!rowspan="2"|3 {{plink|Giant seaweed}},<br/>18 {{plink|Bucket of sand}}
+!Pickup<ref group="n">Picking up excess molten glass from the floor</ref>
+|{{NoCoins|{{GEP|Molten glass|28.8}}-({{GEP|Astral rune|2}}+{{GEP|Giant seaweed|3}}+{{GEP|Bucket of sand|18}})|c}}
+|{{NoCoins|{{GEP|Molten glass|28.8}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Giant seaweed|3}}+{{GEP|Bucket of sand|18}})|c}}
+|{{NoCoins|{{GEP|Molten glass|28.8}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Air rune|10}}+{{GEP|Giant seaweed|3}}+{{GEP|Bucket of sand|18}})|c}}
+|-
+!No pickup
+|{{NoCoins|{{GEP|Molten glass|26.2}}-({{GEP|Astral rune|2}}+{{GEP|Giant seaweed|3}}+{{GEP|Bucket of sand|18}})|c}}
+|{{NoCoins|{{GEP|Molten glass|26.2}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Giant seaweed|3}}+{{GEP|Bucket of sand|18}})|c}}
+|{{NoCoins|{{GEP|Molten glass|26.2}}-({{GEP|Astral rune|2}}+{{GEP|Fire rune|6}}+{{GEP|Air rune|10}}+{{GEP|Giant seaweed|3}}+{{GEP|Bucket of sand|18}})|c}}
+|}
+{{reflist|group=n}}
+
+Casting superglass make with [[giant seaweed]] is a popular method among [[Ironman mode|ironmen]] to gain crafting experience and materials as both buckets of sand and giant seaweed can be collected in large quantities relatively easily. 
+
+One method to more efficiently pick up molten glass dropped on the ground is to station yourself at the [[Ferox Enclave]] bank chest with a [[Looting Bag]] in your inventory. Although excess molten glass will not automatically go into the Looting Bag, any molten glass manually picked up will be placed into the bag until it is full. This will allow players to spend less time opening the bank repeatedly while picking up molten glass.
+
+==Products==
+When using [[soda ash]] and [[buckets of sand]] with a [[furnace]], the [[molten glass]] yield is 1.0 molten glass per soda ash and bucket of sand.
+
+When using either soda ash or [[seaweed]] and buckets of sand with Superglass Make, the average molten glass yield is 1.3 molten glass per soda ash and bucket of sand.
+
+When used on a fire, [[giant seaweed]] turns into six soda ash upon successfully cooking, rather than just one given by normal seaweed. You can however fail, resulting in only one soda ash. Note that [[Cooking gauntlets]] '''do not''' decrease the cooking fail chance, however the [[Hosidius Kitchen]] cooking range effect still applies.
+
+When used in conjunction with the Superglass Make spell, giant seaweed similarly acts as six regular seaweed and gives 60 [[Crafting]] experience per seaweed when cast. The combination of 2 giant seaweed and 12 buckets of sand yields on average 1.45 molten glass per bucket of sand, while the combination of three giant seaweed and 18 buckets of sand yields an average of 1.6 glass per sand, although with the latter some of the glass will fall on the floor as it overflows from the inventory. If it is not picked up, it results in an average of 1.45 glass per sand. Not picking up the glass will result in a higher rate of production, at a higher cost of materials. Since both methods using three giant seaweed and 18 buckets result in both a higher yield and rate, the combination of 2 giant seaweed and 12 buckets of sand is not recommended.
+
+The average Crafting experience per giant seaweed and rate of glass production varies:
+
+*For an average of 1.45 glass per sand (two giant seaweed and 12 buckets of sand), each giant seaweed equals 538.5 experience when making [[lantern lens|lantern lenses]], 669 experience when making [[empty light orb|empty light orbs]], or 6,358.8 experience when making [[light orb|light orbs]] and fixing [[Lamp (Dorgesh-Kaan)|lamps]] in [[Dorgesh-Kaan]]. Using this method can produce glass at a rate of approximately 10,000 per hour;
+*For an average of 1.45<ref>Testing 333 casts of superglass make https://www.youtube.com/watch?v=2ckXlKWN7U4</ref> glass per sand (three giant seaweed and 18 buckets of sand ''without'' picking up the excess), each giant seaweed equals 538.5 experience when making lantern lenses, 669 experience when making empty light orbs, or 6,358.8 experience when making light orbs and fixing lamps in Dorgesh-Kaan. Using this method can produce glass at a rate of approximately 15,600 per hour;
+*For an average of 1.6 glass per sand (three giant seaweed and 18 buckets of sand ''and'' picking up the excess), each giant seaweed equals 588 experience when making lantern lenses, 732 experience when making empty light orbs, or 7,010.4 experience when making light orbs and fixing lamps in Dorgesh-Kaan. Using this method can produce glass at a rate of approximately 13,500 per hour.
+*At approximately 3,168,750 xp (level 84) you can begin to superglass make enough times to get you to level 87 crafting (light orbs). At this point you will have enough molten glass to get you to 99 while glassblowing light orbs. This assumes you are using the 3 giant seaweed, 18 buckets of sand method and picking up the excess glass. The required materials are:  13.5k giant seaweed, 81k buckets of sand and 9k astral runes.
+These numbers include the experience from casting Superglass Make.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 2
+|Rune2 = Fire
+|Rune2num = 6
+|Rune3 = Air
+|Rune3num = 10
+}}
+
+==References==
+{{reflist}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

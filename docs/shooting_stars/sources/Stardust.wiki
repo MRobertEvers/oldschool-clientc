@@ -1,0 +1,68 @@
+{{External|rs}}
+{{Infobox Item
+|name = Stardust
+|image = [[File:Stardust 1.png]] [[File:Stardust 25.png]] [[File:Stardust 75.png]] [[File:Stardust 125.png]] [[File:Stardust 175.png]]
+|release = [[17 March]] [[2021]]
+|update = Shooting Stars
+|members = No
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = 
+|options = Drop
+|examine = Small, shiny bits of rock. Someone at the Mining Guild might find them interesting.
+|value = 50
+|alchable = No
+|weight = 0.000
+|id = 25527
+}}
+[[File:Stardust 175 detail.png|left|150px]]
+'''Stardust''' can be mined during the [[Shooting Stars]] activity. It is used as currency in [[Dusuri's Star Shop]] or to add charges to the [[celestial ring]] and [[celestial signet]].
+
+The amount of [[Mining]] experience per stardust is 32, with free-to-play worlds awarding half experience.
+
+The first person to attempt to mine a crashed star will be notified in the chatbox that they are the first to find the star, alongside a jingle. This person will also receive double the stardust for the next 300 they mine as a reward, regardless of which star they mine. Players will not receive bonus XP for the bonus stardust. If players are not the required level to mine a new star, simply prospecting it will give the bonus, even if no mining is done or the player does not have a pickaxe.  Also note that this bonus does '''not''' stack (caps at 300 bonus dust).
+
+Free-to-play players may acquire stardust, but will not be able to use them as [[Dusuri's Star Shop]] is only available to members.
+
+If the player dies (including in PvP), any unprotected stardust will be sent to the [[gravestone]].
+
+Each piece of stardust is valued at {{Coins|{{GEP|Soft clay|100}}/150}} when buying a [[soft clay pack]], or at {{Coins|{{Average drop value|Bag full of gems|raw=y}} / 300}} when buying a [[bag full of gems]] from [[Dusuri's Star Shop]].
+
+On average a player can expect 8.322 [[Crafting]] experience per stardust if they were to purchase a [[bag full of gems]] and cut all the gems received. If you were to also process the cut gems into jewellery, the expected crafting experience would then increase to between 15 and 17.8 Crafting experience per stardust based on what jewellery was made.
+
+{|class="wikitable align-center-1 align-center-3"
+!colspan=2|Item
+![[GE]] Value
+!Price
+!GP / {{plinkp|Stardust}}
+|-
+|{{plinkt|Bag full of gems#Golden nuggets|pic=Bag full of gems (golden nuggets)|txt=Bag full of gems}}
+|{{Coins|{{Average drop value|Bag full of gems|raw=y}}}}
+|300
+|{{Coins|{{Average drop value|Bag full of gems|raw=y}} / 300}}
+|-
+|{{plinkt|Soft clay pack}}
+|{{Coins|{{GEP|Soft clay|100}}}}
+|150
+|{{Coins|{{GEP|Soft clay|100}} / 150}}
+|}
+
+==Products==
+{{Uses material list|Stardust}}
+
+==Item sources==
+{{Drop sources|Stardust}}
+
+==Gallery==
+<gallery captionalign="center" widths="120">
+Stardust 1 detail.png|One stardust
+Stardust 25 detail.png|25 stardust
+Stardust 75 detail.png|75 stardust
+Stardust 125 detail.png|125  stardust
+Stardust 175 detail.png|175 stardust
+</gallery>
+
+{{Shooting Stars}}
+{{Currencies}}

@@ -137,7 +137,20 @@ enum AppearanceEncoding
      *   - and five fields follow the combat level that the classic block has no
      *     room for at all.
      */
-    APPEARANCE_ENC_V5 = 1
+    APPEARANCE_ENC_V5 = 1,
+    /*
+     * lc289 (LostCity's January-2005 build): the classic block plus a two-byte
+     * SKILL LEVEL after the combat level, and nothing else changed
+     * (webclient ClientPlayer.setAppearance, branch 289 — the `team` field
+     * beside it is derived from ObjType and costs no wire bytes).
+     *
+     * A suffix, so a 254 decoder reading a 289 block gets every field it knows
+     * about right and simply stops two bytes early. That is why this went
+     * unnoticed: the appearance blob is length-prefixed inside PLAYER_INFO, so
+     * the under-read cannot desync the packet -- it just silently drops the
+     * one field 289 added.
+     */
+    APPEARANCE_ENC_CLASSIC_LC289 = 2
 };
 
 /* Wire tags, stated together so a mismatch is one line apart rather than one

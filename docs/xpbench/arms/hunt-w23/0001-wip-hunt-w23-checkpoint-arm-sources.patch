@@ -1,0 +1,306 @@
+From b7c9c510a81c707490fbf5f0614aaa0a6d34b080 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:18 -0500
+Subject: [PATCH] wip(hunt-w23): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/w23.
+
+files: 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw_render.u.c | 274 +++++++++++++++++++++++++++++++
+ 1 file changed, 274 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..d007bef77 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1544,6 +1544,276 @@ toridraw_dbg_check_face_order(
+ }
+ /* #endregion */
+ 
++/* #region degenerate-face census (compile-time gated, hunt-w23) */
++#if defined(TORIDRAW_DEGEN_CENSUS) && TORIDRAW_DEGEN_CENSUS
++
++enum
++{
++    DEGCEN_MODELS = 0,
++    DEGCEN_EXAMINED,
++    DEGCEN_FRONT,
++    DEGCEN_BACK,
++    DEGCEN_CLIPCAND,
++    DEGCEN_DEGEN,
++    /* degenerate sub-classes, mutually exclusive, tested in this order */
++    DEGCEN_D_DUPIDX,      /* two of the three face indices are the same index */
++    DEGCEN_D_COINCIDENT,  /* distinct indices, two model-space positions equal */
++    DEGCEN_D_COLLIN3D,    /* model-space 3D cross product is exactly zero */
++    DEGCEN_D_SCRPOINT,    /* all three screen (x,y) equal, but not the above */
++    DEGCEN_D_SCREDGE,     /* exactly two screen (x,y) equal */
++    DEGCEN_D_SCRCOLLIN,   /* three distinct screen points, collinear */
++    /* whole-model observations */
++    DEGCEN_MODELS_ALLDEGEN,
++    DEGCEN_MODELS_ANYDEGEN,
++    DEGCEN_FACES_IN_ALLDEGEN_MODELS,
++    /* model-space zero-area over ALL examined faces, not just degenerate ones */
++    DEGCEN_MS_ZEROAREA_ALL,
++    DEGCEN_MS_ZEROAREA_FRONT,
++    DEGCEN_MS_ZEROAREA_BACK,
++    DEGCEN_DUPIDX_ALL,
++    DEGCEN_DUPIDX_FRONT,
++    DEGCEN_DUPIDX_BACK,
++    DEGCEN_COINCIDENT_ALL,
++    DEGCEN_COUNTERS
++};
++
++static double g_degcen[DEGCEN_COUNTERS];
++/* model screen-extent histogram: bucket by max(w,h) of the model in pixels */
++static double g_degcen_ext[12];
++static double g_degcen_ext_all[12];
++static double g_degcen_extmodels[12];
++static int g_degcen_registered;
++
++static void
++toridraw_degen_census_dump(void)
++{
++    const char* path = getenv("TORIDRAW_DEGEN_CENSUS_FILE");
++    FILE* f = path ? fopen(path, "w") : stderr;
++    static const char* names[DEGCEN_COUNTERS] = {
++        "models_sorted", "faces_examined", "front_facing", "back_facing",
++        "near_clip_cand", "DEGENERATE",
++        "  d_dup_index", "  d_coincident_pos", "  d_collinear_3d",
++        "  d_screen_point", "  d_screen_edge", "  d_screen_collinear",
++        "models_all_degen", "models_any_degen", "faces_in_all_degen_models",
++        "ms_zero_area_ALL", "  ms_zero_area_front", "  ms_zero_area_back",
++        "dup_index_ALL", "  dup_index_front", "  dup_index_back",
++        "coincident_pos_ALL",
++    };
++    static const char* extnames[12] = {
++        "0 px", "1 px", "2 px", "3-4 px", "5-8 px", "9-16 px", "17-32 px",
++        "33-64 px", "65-128 px", "129-256 px", "257-512 px", "gt 512 px",
++    };
++    int i;
++    double frames = 0.0;
++    const char* fs = getenv("TORIDRAW_DEGEN_CENSUS_FRAMES");
++    if( !f )
++        f = stderr;
++    if( fs )
++        frames = atof(fs);
++    if( frames <= 0.0 )
++        frames = 1.0;
++
++    fprintf(f, "\n=== toridraw degenerate-face census ===\n");
++    fprintf(f, "frames=%.0f\n", frames);
++    for( i = 0; i < DEGCEN_COUNTERS; i++ )
++        fprintf(f, "%-28s %16.0f  %12.1f /frame\n",
++                names[i], g_degcen[i], g_degcen[i] / frames);
++    fprintf(f, "\n-- faces by MODEL screen extent max(w,h) --\n");
++    fprintf(f, "%-12s %16s %8s %16s %8s %14s\n",
++            "extent", "degen faces", "%degen", "all examined", "%dgn/ex", "models");
++    for( i = 0; i < 12; i++ )
++        fprintf(f, "%-12s %16.0f %7.2f%% %16.0f %7.2f%% %14.0f\n",
++                extnames[i], g_degcen_ext[i],
++                g_degcen[DEGCEN_DEGEN] > 0.0
++                    ? 100.0 * g_degcen_ext[i] / g_degcen[DEGCEN_DEGEN] : 0.0,
++                g_degcen_ext_all[i],
++                g_degcen_ext_all[i] > 0.0
++                    ? 100.0 * g_degcen_ext[i] / g_degcen_ext_all[i] : 0.0,
++                g_degcen_extmodels[i]);
++    fflush(f);
++    if( path && f != stderr )
++        fclose(f);
++}
++
++static void
++toridraw_degen_census_model(
++    struct ToriDraw_Scene* scene,
++    struct ToriDraw_ModelHandle hnd,
++    const faceint_t* fia,
++    const faceint_t* fib,
++    const faceint_t* fic,
++    int face_count)
++{
++    const struct ToriDraw_Model* m = model_as_full(hnd);
++    const int* vx = scene->screen_vertices_x;
++    const int* vy = scene->screen_vertices_y;
++    const vertexint_t* mx = m->vertices_x;
++    const vertexint_t* my = m->vertices_y;
++    const vertexint_t* mz = m->vertices_z;
++    const bool near_clipped = scene->near_clipped;
++    int degen_here = 0;
++    int minx = 1 << 30;
++    int maxx = -(1 << 30);
++    int miny = 1 << 30;
++    int maxy = -(1 << 30);
++    int ext = 0;
++    int extb = 0;
++    int f;
++
++    if( !g_degcen_registered )
++    {
++        g_degcen_registered = 1;
++        atexit(toridraw_degen_census_dump);
++    }
++
++    for( f = 0; f < m->vertex_count; f++ )
++    {
++        int x = vx[f];
++        int y = vy[f];
++        if( x == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
++            continue;
++        if( x < minx )
++            minx = x;
++        if( x > maxx )
++            maxx = x;
++        if( y < miny )
++            miny = y;
++        if( y > maxy )
++            maxy = y;
++    }
++    if( maxx >= minx )
++    {
++        int w = maxx - minx;
++        int h = maxy - miny;
++        ext = w > h ? w : h;
++    }
++    if( ext <= 0 )
++        extb = 0;
++    else if( ext == 1 )
++        extb = 1;
++    else if( ext == 2 )
++        extb = 2;
++    else if( ext <= 4 )
++        extb = 3;
++    else if( ext <= 8 )
++        extb = 4;
++    else if( ext <= 16 )
++        extb = 5;
++    else if( ext <= 32 )
++        extb = 6;
++    else if( ext <= 64 )
++        extb = 7;
++    else if( ext <= 128 )
++        extb = 8;
++    else if( ext <= 256 )
++        extb = 9;
++    else if( ext <= 512 )
++        extb = 10;
++    else
++        extb = 11;
++
++    g_degcen[DEGCEN_MODELS] += 1.0;
++    g_degcen_extmodels[extb] += 1.0;
++
++    for( f = 0; f < face_count; f++ )
++    {
++        const uint32_t a = fia[f];
++        const uint32_t b = fib[f];
++        const uint32_t c = fic[f];
++        bool clip_candidate =
++            near_clipped &&
++            (vx[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++             vx[b] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
++             vx[c] == TORIDRAW_SCREEN_X_NEAR_CLIPPED);
++        long long winding = 1;
++        int dupidx = (a == b || b == c || a == c);
++        long long e1x = (long long)mx[b] - mx[a];
++        long long e1y = (long long)my[b] - my[a];
++        long long e1z = (long long)mz[b] - mz[a];
++        long long e2x = (long long)mx[c] - mx[a];
++        long long e2y = (long long)my[c] - my[a];
++        long long e2z = (long long)mz[c] - mz[a];
++        long long nx = e1y * e2z - e1z * e2y;
++        long long ny = e1z * e2x - e1x * e2z;
++        long long nz = e1x * e2y - e1y * e2x;
++        int ms_zero = (nx == 0 && ny == 0 && nz == 0);
++        int coincident =
++            (mx[a] == mx[b] && my[a] == my[b] && mz[a] == mz[b]) ||
++            (mx[b] == mx[c] && my[b] == my[c] && mz[b] == mz[c]) ||
++            (mx[a] == mx[c] && my[a] == my[c] && mz[a] == mz[c]);
++
++        if( !clip_candidate )
++            winding = toridraw_winding_2d(vx[a], vy[a], vx[b], vy[b], vx[c], vy[c]);
++
++        g_degcen[DEGCEN_EXAMINED] += 1.0;
++        g_degcen_ext_all[extb] += 1.0;
++        if( ms_zero )
++            g_degcen[DEGCEN_MS_ZEROAREA_ALL] += 1.0;
++        if( dupidx )
++            g_degcen[DEGCEN_DUPIDX_ALL] += 1.0;
++        if( coincident )
++            g_degcen[DEGCEN_COINCIDENT_ALL] += 1.0;
++
++        if( clip_candidate )
++        {
++            g_degcen[DEGCEN_CLIPCAND] += 1.0;
++            g_degcen[DEGCEN_FRONT] += 1.0;
++            if( ms_zero )
++                g_degcen[DEGCEN_MS_ZEROAREA_FRONT] += 1.0;
++            if( dupidx )
++                g_degcen[DEGCEN_DUPIDX_FRONT] += 1.0;
++            continue;
++        }
++        if( toridraw_winding_front_facing(winding) )
++        {
++            g_degcen[DEGCEN_FRONT] += 1.0;
++            if( ms_zero )
++                g_degcen[DEGCEN_MS_ZEROAREA_FRONT] += 1.0;
++            if( dupidx )
++                g_degcen[DEGCEN_DUPIDX_FRONT] += 1.0;
++            continue;
++        }
++        if( winding != 0 )
++        {
++            g_degcen[DEGCEN_BACK] += 1.0;
++            if( ms_zero )
++                g_degcen[DEGCEN_MS_ZEROAREA_BACK] += 1.0;
++            if( dupidx )
++                g_degcen[DEGCEN_DUPIDX_BACK] += 1.0;
++            continue;
++        }
++
++        g_degcen[DEGCEN_DEGEN] += 1.0;
++        g_degcen_ext[extb] += 1.0;
++        degen_here++;
++
++        if( dupidx )
++            g_degcen[DEGCEN_D_DUPIDX] += 1.0;
++        else if( coincident )
++            g_degcen[DEGCEN_D_COINCIDENT] += 1.0;
++        else if( ms_zero )
++            g_degcen[DEGCEN_D_COLLIN3D] += 1.0;
++        else if( vx[a] == vx[b] && vy[a] == vy[b] && vx[b] == vx[c] && vy[b] == vy[c] )
++            g_degcen[DEGCEN_D_SCRPOINT] += 1.0;
++        else if( (vx[a] == vx[b] && vy[a] == vy[b]) ||
++                 (vx[b] == vx[c] && vy[b] == vy[c]) ||
++                 (vx[a] == vx[c] && vy[a] == vy[c]) )
++            g_degcen[DEGCEN_D_SCREDGE] += 1.0;
++        else
++            g_degcen[DEGCEN_D_SCRCOLLIN] += 1.0;
++    }
++
++    if( degen_here > 0 )
++        g_degcen[DEGCEN_MODELS_ANYDEGEN] += 1.0;
++    if( face_count > 0 && degen_here == face_count )
++    {
++        g_degcen[DEGCEN_MODELS_ALLDEGEN] += 1.0;
++        g_degcen[DEGCEN_FACES_IN_ALLDEGEN_MODELS] += (double)face_count;
++    }
++}
++#endif
++/* #endregion */
++
+ static inline void
+ ToriDraw_ComputeProjectedFaceOrder(
+     struct ToriDraw_Scene* scene,
+@@ -1588,6 +1858,10 @@ ToriDraw_ComputeProjectedFaceOrder(
+         break;
+     }
+ 
++#if defined(TORIDRAW_DEGEN_CENSUS) && TORIDRAW_DEGEN_CENSUS
++    toridraw_degen_census_model(scene, hnd, fia, fib, fic, face_count);
++#endif
++
+     const struct ToriDraw_BoundsCylinder* bc = model_bounds_cylinder(hnd);
+     int model_min_depth = bc ? bc->min_z_depth_any_rotation : 0;
+     /* #region agent log */

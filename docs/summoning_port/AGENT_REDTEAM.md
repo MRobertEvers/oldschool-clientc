@@ -78,7 +78,7 @@ centred lone Summoning cell was wrong.
 
 ### E4. The varp-ceiling risk is stale and one design still carries it.
 
-**[measured]** `src/net/mock/mock230.h:325` — `MOCK230_VARP_SERVER_HEADROOM = 1024`, so `MOCK230_VARP_COUNT = 6729`, against a `varp.alloc` high-water of 6225. design-flag-and-risk corrected this; design-skill-and-cs2 residual risk #8 still says *"`MOCK230_VARP_COUNT = 6217` is already exceeded… fix it before slice 10."* Delete it — it will send someone on a fix for a non-bug.
+**[measured]** `src/torirsserver/torirs_server.h:325` — `TORIRSSERVER_VARP_SERVER_HEADROOM = 1024`, so `TORIRSSERVER_VARP_COUNT = 6729`, against a `varp.alloc` high-water of 6225. design-flag-and-risk corrected this; design-skill-and-cs2 residual risk #8 still says *"`TORIRSSERVER_VARP_COUNT = 6217` is already exceeded… fix it before slice 10."* Delete it — it will send someone on a fix for a non-bug.
 
 ### E5. CORRECTED — the review reversed NPC_INFO's index and definition fields.
 
@@ -117,7 +117,7 @@ It isn't. `cachepack` refuses RS2 sharded config layouts outright — the design
 
 **2. The chained-overlay bake.** The two merge mechanisms check out — **[measured]** `cache_edit.c:513` calls `dat2_edit_load_existing_files` before applying puts, and `cp_reference_sync` (`cp_binary.c:396-440`) extends `archives`/`ids` by archive id rather than rebuilding. But three things nobody looked at: (a) `cp_names_emit_gamevals` (`cp_names.c:1342+`) emits **whole archives** from the pack files, so a partial `configs/all.<ns>.compack` truncates that type's gameval table; (b) `cp_reference_write` does `rt->version += 1` on every dirty table, which a JS5 client caches against; (c) a partial `configs/all.<ns>` with a full `.compack` puts every base record at an origin the merge never sees — `resolve_id`/`record_in_base_cache` behaviour untested. The entire "flag-off bake is byte-identical" claim rests on `stage_summoning_overlay.py`, which does not exist.
 
-**3. `IF_OPENSUB` on a group absent from the cache.** Three designs flag it; none resolves it. design-flag-and-risk's mitigation is *"the flag is paired, so the mismatch is unreachable"* — but `MOCK230_SCRIPTS` (env) and `[cache:boot] dir=` (manifest) are independent knobs, `MOCK230_CACHE_DIR_DEFAULT` is **[measured]** `"cache.osrs239"` (pristine), and nothing binds them. That is a convention, not a mechanism.
+**3. `IF_OPENSUB` on a group absent from the cache.** Three designs flag it; none resolves it. design-flag-and-risk's mitigation is *"the flag is paired, so the mismatch is unreachable"* — but `TORIRSSERVER_SCRIPTS` (env) and `[cache:boot] dir=` (manifest) are independent knobs, `TORIRSSERVER_CACHE_DIR_DEFAULT` is **[measured]** `"cache.osrs239"` (pristine), and nothing binds them. That is a convention, not a mechanism.
 
 **4. CORRECTED / VERIFIED.** The rev-239 sidebar renders the modified interface 320. Fresh-save
 headless runs show component 34, exact source-222 wolf pixels through target sprite 229, Sailing
@@ -128,11 +128,11 @@ coordinates; script 1198 is the dedicated Summoning-cell clientscript.
 
 **6. 530 decode exactness beyond npc.** Only npc was measured (8590/8590). obj is 9178/14654 — **37% short**. loc, seq and spotanim at 530 are entirely unmeasured, and `find_named --type loc` returns nothing. Three designs schedule loc and spotanim work on top of that.
 
-**7. `load_inv_sizes` reads the *boot* cache.** **[measured]** `mock230_bank.c:127-152` opens config group INV from disk, so design-server-content's "no `.inv` walker needed" correction is right — **provided the server boots the baked cache**. Nothing in any design states that, and the default is the pristine one. BoB silently returns NULL from `mock230_container_resolve` and every op aborts.
+**7. `load_inv_sizes` reads the *boot* cache.** **[measured]** `torirs_server_bank.c:127-152` opens config group INV from disk, so design-server-content's "no `.inv` walker needed" correction is right — **provided the server boots the baked cache**. Nothing in any design states that, and the default is the pristine one. BoB silently returns NULL from `ToriRSServer_ContainerResolve` and every op aborts.
 
 **8. `script_1010.cs2` in the XP-drop edit set.** design-skill-and-cs2 asserts "all 70 xpdrops-touching scripts compile, 0 failures" and separately lists `script_1010` as an edit target. Nobody checked whether 1010 is in that 70.
 
-For the record, things I **confirmed** so they stop being re-litigated: `SS_OPCODE_MAX 11022` (next free extra opcode is 11022); `SS_TRIGGER_IF_OPEN 178`; `MOCK230_TIMER_MAX 8`, `MOCK230_PLAYER_MAX 8`, `MOCK230_CONTAINER_MAX 16`; all five `pack/*.client` files have **0 data lines**; `RSCache_Dat2FramemapEncode` takes no codec argument and `cache_write.c:564-578` re-encodes without clearing `has_transform_actor`/`has_masks`/`tail` (the V3→V1 silent no-op is real; `transcode.c:118` is the only guard); the sequence codec falls to V3 for any rs2 profile (`dat2_config_sequence.c:1139-1155`); no `rs530` in `revisions.c`; `script_1904.cs2` is the sole failure among the six skill-tab scripts I compiled — `FAIL script_1904.cs2: line 62: unknown command '_1703'` / `compiled 5, failed 1`; `staticons2_14..17` (sprite ids 229-232) are 25×25 blanks with `pack.meta` and no BMP; `SummoningCreationPlugin.java:88` really does say `28278`.
+For the record, things I **confirmed** so they stop being re-litigated: `SS_OPCODE_MAX 11022` (next free extra opcode is 11022); `SS_TRIGGER_IF_OPEN 178`; `TORIRSSERVER_TIMER_MAX 8`, `TORIRSSERVER_PLAYER_MAX 8`, `TORIRSSERVER_CONTAINER_MAX 16`; all five `pack/*.client` files have **0 data lines**; `RSCache_Dat2FramemapEncode` takes no codec argument and `cache_write.c:564-578` re-encodes without clearing `has_transform_actor`/`has_masks`/`tail` (the V3→V1 silent no-op is real; `transcode.c:118` is the only guard); the sequence codec falls to V3 for any rs2 profile (`dat2_config_sequence.c:1139-1155`); no `rs530` in `revisions.c`; `script_1904.cs2` is the sole failure among the six skill-tab scripts I compiled — `FAIL script_1904.cs2: line 62: unknown command '_1703'` / `compiled 5, failed 1`; `staticons2_14..17` (sprite ids 229-232) are 25×25 blanks with `pack.meta` and no BMP; `SummoningCreationPlugin.java:88` really does say `28278`.
 
 ---
 
@@ -197,7 +197,7 @@ extended-path protocol regression case, not a truncation hypothesis.
 
 ### Is design-flag-and-risk's Phase 1 a demonstrable slice?
 
-No. Read what it bundles: rev-530 profile + three codec fixes + a nonexistent import tool + the first-ever `pack/obj.client` + the first-ever new npc id + the first-ever authored asset + `MOCK230_STAT_COUNT` widening + six enum rows + a `stats.if` edit + a `script_8950` edit + three new VM opcodes + owner-bound-NPC engine plumbing + a wolf that follows you through a region boundary and survives logout. At **12–18 days**.
+No. Read what it bundles: rev-530 profile + three codec fixes + a nonexistent import tool + the first-ever `pack/obj.client` + the first-ever new npc id + the first-ever authored asset + `TORIRSSERVER_STAT_COUNT` widening + six enum rows + a `stats.if` edit + a `script_8950` edit + three new VM opcodes + owner-bound-NPC engine plumbing + a wolf that follows you through a region boundary and survives logout. At **12–18 days**.
 
 That is the whole project minus the UI, priced at three weeks. Its own sibling design costs the asset pipeline alone at 3–5 weeks, and Phase 1 sits entirely downstream of it. The estimate is not credible.
 
@@ -205,7 +205,7 @@ That is the whole project minus the UI, priced at three weeks. Its own sibling d
 
 **Summoning appears in the skills tab at level 1, `::setlevel summoning 20` moves it, it persists across logout, total level includes it, and the flag-off bake is proven byte-identical.**
 
-Zero assets. Zero 530 cache reads. Zero new npc ids. Zero interfaces. Zero new opcodes. Touches: `pack/stat.pack`, `MOCK230_STAT_COUNT` 23→25, six `configs/all.enum` rows, one `stats.if` block, one `script_8950.cs2` case, one 25×25 sprite. **~5–8 days.**
+Zero assets. Zero 530 cache reads. Zero new npc ids. Zero interfaces. Zero new opcodes. Touches: `pack/stat.pack`, `TORIRSSERVER_STAT_COUNT` 23→25, six `configs/all.enum` rows, one `stats.if` block, one `script_8950.cs2` case, one 25×25 sprite. **~5–8 days.**
 
 That slice settles the stat decision (E3), proves the rank-1-overlay-into-a-cache-enum mechanism, proves the CS2 compile gate (the near-silent one: a failed compile ships base bytes and only a counter says so), proves the byte-identity gate, and produces a screenshot — all before a single model is transcoded. Every design has these pieces; none of them isolates them.
 

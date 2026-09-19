@@ -1,0 +1,14 @@
+{
+  "corpus": "benchmarks/krait_model_chains/ge-orbit.chain.gz",
+  "corpus_sha256": "15c75d6dd6a6ab284f8a45c5f7cfdfba86087c5ce866fe20ac7089786e14c88f",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "138232c130cedde50be57dff6979e0ebfde182ba7df44d4eb916adfbbdec7eab",
+  "mode": "chain",
+  "env": [],
+  "events": {},
+  "placement": "placement: requested cpu0, effective cpu0=1 cpu1=0",
+  "workload": "verified: 41988 chains, 12 passes, 3726 distinct posed assets, 26864 visible, 336446 faces, 130 clipped, 41 pick hits, 12388 prioritized, 12 animated snapshots, 0 dynamic"
+}

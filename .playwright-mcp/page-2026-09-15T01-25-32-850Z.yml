@@ -1,0 +1,154 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e3]:
+    - banner [ref=f11e4]:
+      - generic [ref=f11e5]:
+        - generic [ref=f11e6]:
+          - generic [ref=f11e7]:
+            - link [ref=f11e10] [cursor=pointer]:
+              - /url: https://lightningelectricllcmo.com
+              - img "lightning-logo" [ref=f11e12]
+            - paragraph [ref=f11e16]: Electrical ContractorsServing Missouri & Kansas
+            - generic [ref=f11e17]:
+              - link "Request Free Estimate 5" [ref=f11e19] [cursor=pointer]:
+                - /url: /contact/
+              - list [ref=f11e22]:
+                - listitem [ref=f11e23]:
+                  - generic [ref=f11e27]:
+                    - generic [ref=f11e28]: 
+                    - heading "(816) 934-5858" [level=4] [ref=f11e32]
+              - list [ref=f11e35]:
+                - listitem [ref=f11e36]:
+                  - generic [ref=f11e40]:
+                    - generic [ref=f11e41]: 
+                    - heading "(417) 614-5848" [level=4] [ref=f11e45]
+          - generic [ref=f11e50]:
+            - navigation [ref=f11e52]:
+              - list [ref=f11e53]:
+                - listitem [ref=f11e54]:
+                  - link "Home" [ref=f11e55] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/
+                - listitem [ref=f11e56]:
+                  - link "Commercial" [ref=f11e57] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/commercial-electrician/
+                - listitem [ref=f11e58]:
+                  - link "Residential" [ref=f11e59] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/residential-electrician/
+                - listitem [ref=f11e60]:
+                  - link "Electrical Panels" [ref=f11e61] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/electrical-panel-upgrades/
+                - listitem [ref=f11e62]:
+                  - link "Electrical Services 3" [ref=f11e63] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/services/
+                - listitem [ref=f11e64]:
+                  - link "About 3" [ref=f11e65] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/about-us/
+                - listitem [ref=f11e66]:
+                  - link "Contact" [ref=f11e67] [cursor=pointer]:
+                    - /url: https://lightningelectricllcmo.com/contact-us/
+            - text: a
+        - text: 3 3 a 5 5
+    - generic [ref=f11e68]:
+      - article [ref=f11e70]:
+        - generic [ref=f11e74]:
+          - generic [ref=f11e78]:
+            - heading "Thank you for contacting Lightning Electric LLC!" [level=2] [ref=f11e79]
+            - paragraph [ref=f11e80]: We look forward to showing you why we’re your best choice.
+          - img "lightning-logo" [ref=f11e85]
+      - contentinfo [ref=f11e86]:
+        - generic [ref=f11e87]:
+          - generic [ref=f11e89]:
+            - generic [ref=f11e90]:
+              - heading "Lightning Electric Proudly Serves Missouri & Kansas" [level=2] [ref=f11e93]
+              - list [ref=f11e96]:
+                - listitem [ref=f11e97]:
+                  - generic [ref=f11e101]:
+                    - generic [ref=f11e102]: 
+                    - heading [level=4] [ref=f11e106]:
+                      - link "(816) 934-5858" [ref=f11e107] [cursor=pointer]:
+                        - /url: tel:8169345858
+            - generic [ref=f11e111]:
+              - generic:
+                - button "Keyboard shortcuts"
+              - region "Map" [ref=f11e112]
+              - generic [ref=f11e113]:
+                - iframe [aria-hidden] [ref=f11e149]
+                - menubar [ref=f11e150] [cursor=pointer]:
+                  - menuitemradio "Show street map" [checked] [ref=f11e151]: Map
+                  - menuitemradio "Show satellite imagery" [ref=f11e152]: Satellite
+                - button "Toggle fullscreen view" [ref=f11e153] [cursor=pointer]
+                - generic:
+                  - generic:
+                    - button "Map camera controls" [ref=f11e155] [cursor=pointer]
+                    - button "Drag Pegman onto the map to open Street View" [ref=f11e156] [cursor=pointer]:
+                      - generic:
+                        - img "Street View Pegman Control"
+                - link "Open this area in Google Maps (opens a new window)" [ref=f11e158] [cursor=pointer]:
+                  - /url: https://maps.google.com/maps?ll=38.551958,-95.430007&z=7&t=m&hl=en-US&gl=US&mapclient=apiv3
+                  - img "Google" [ref=f11e160]
+                - generic [ref=f11e161]:
+                  - button "Keyboard shortcuts" [ref=f11e167] [cursor=pointer]
+                  - generic [ref=f11e168]: Map data ©2026 Google
+                  - link "Terms (opens in new tab)" [ref=f11e177] [cursor=pointer]:
+                    - /url: https://www.google.com/intl/en-US_US/help/terms_maps.html
+                    - text: Terms
+                  - link "Report a map error (opens in new tab)" [ref=f11e182] [cursor=pointer]:
+                    - /url: https://www.google.com/maps/@38.5519581,-95.4300071,7z/data=!10m1!1e1!12b1?source=apiv3&rapsrc=apiv3
+                    - text: Report a map error
+          - generic [ref=f11e183]:
+            - generic [ref=f11e184]:
+              - generic [ref=f11e185]:
+                - img "lightning-logo" [ref=f11e188]
+                - generic [ref=f11e190]:
+                  - paragraph [ref=f11e191]:
+                    - strong [ref=f11e192]: BUSINESS HOURS
+                  - paragraph [ref=f11e193]: "Monday – Friday: 7:00AM – 5:00PM"
+                  - paragraph [ref=f11e194]: "Saturday – Sunday: By Appointment"
+                - list [ref=f11e197]:
+                  - listitem [ref=f11e198]:
+                    - generic [ref=f11e202]:
+                      - generic [ref=f11e203]: 
+                      - heading [level=4] [ref=f11e207]:
+                        - link "(816) 934-5858" [ref=f11e208] [cursor=pointer]:
+                          - /url: tel:8169345858
+                - list [ref=f11e211]:
+                  - listitem [ref=f11e212]:
+                    - generic [ref=f11e216]:
+                      - generic [ref=f11e217]: 
+                      - heading [level=4] [ref=f11e221]:
+                        - link "(417) 614-5848" [ref=f11e222] [cursor=pointer]:
+                          - /url: tel:4176145848
+                - link "Our Service Areas 5" [ref=f11e224] [cursor=pointer]:
+                  - /url: https://lightningelectricllcmo.com/service-areas/
+              - generic [ref=f11e225]:
+                - heading "Our Services" [level=2] [ref=f11e228]
+                - paragraph [ref=f11e231]: Service, Repair & MaintenanceCommercial Outdoor & Exterior Lighting24 Hour Emergency ServiceLighting Control SystemsGround-up Electrical ConstructionTenant Build Outs & ImprovementsParking Lot & Garage LightingNew Construction & RemodelsPanel Replacements & Service Upgrades
+                - link "Read Our Blog 5" [ref=f11e233] [cursor=pointer]:
+                  - /url: https://lightningelectricllcmo.com/about-us/blog/
+              - generic [ref=f11e234]:
+                - heading "Request a Quote" [level=2] [ref=f11e237]
+                - generic [ref=f11e241]:
+                  - generic [ref=f11e243]:
+                    - generic [ref=f11e244]:
+                      - generic [ref=f11e245]:
+                        - text: Name
+                        - generic [ref=f11e246]: "*"
+                      - textbox "Name*" [ref=f11e248]:
+                        - /placeholder: Name
+                    - generic [ref=f11e249]:
+                      - generic [ref=f11e250]: Email
+                      - textbox "Email" [ref=f11e252]
+                    - generic [ref=f11e253]:
+                      - generic [ref=f11e254]: Phone
+                      - textbox "Phone" [ref=f11e256]
+                    - generic [ref=f11e257]:
+                      - generic [ref=f11e258]:
+                        - text: Tell Us About Your Project
+                        - generic [ref=f11e259]: "*"
+                      - textbox "Tell Us About Your Project*" [ref=f11e261]:
+                        - /placeholder: Tell Us More About Your project
+                  - button "SEND NOW" [ref=f11e263] [cursor=pointer]
+            - paragraph [ref=f11e268]: Fully insured and bonded, Lightning Electric LLC electricians are available on call, 24/7, for emergency repairs when prompt response to any electrical emergency is crucial.
+  - iframe [ref=f11e273]:
+    - generic [ref=f12e6]:
+      - text: protected by
+      - strong [ref=f12e7]: reCAPTCHA

@@ -1,0 +1,111 @@
+{
+  "scene": "varrock-square-ground",
+  "serial": "T062809L3Z",
+  "aa": false,
+  "parity": {
+    "width": 1196,
+    "height": 720,
+    "different_pixels": 0,
+    "draw_items": 11
+  },
+  "scope": "Real frozen painter draw-list replay; device-wide shader hardware counts. No time/occupancy/FPS inference.",
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 75761140,
+      "sp_fragment_alu_instructions": 186244160
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 68572266,
+      "sp_fragment_alu_instructions": 136547304
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 68573165,
+      "sp_fragment_alu_instructions": 136547304
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 75761026,
+      "sp_fragment_alu_instructions": 186244160
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 75760000,
+      "sp_fragment_alu_instructions": 186244160
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 68567156,
+      "sp_fragment_alu_instructions": 136547304
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 68576196,
+      "sp_fragment_alu_instructions": 136551336
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 75760990,
+      "sp_fragment_alu_instructions": 186244160
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 75754840,
+      "sp_fragment_alu_instructions": 186244160
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 68569736,
+      "sp_fragment_alu_instructions": 136547304
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "replays": 8,
+      "sp_alu_cycles": 68569345,
+      "sp_fragment_alu_instructions": 136547304
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "replays": 8,
+      "sp_alu_cycles": 75755378,
+      "sp_fragment_alu_instructions": 186248192
+    }
+  ],
+  "library_sha256": "1a5e79d125d7fa864dec61af0088b36ad7da8f2571ebeecc01e8d5b6ee50cc49",
+  "summary": {
+    "sp_alu_cycles": {
+      "reference": 9470061.875,
+      "candidate": 8571375.125,
+      "percent": -9.489766401341493
+    },
+    "sp_fragment_alu_instructions": {
+      "reference": 23280520.0,
+      "candidate": 17068413.0,
+      "percent": -26.68371239130397
+    }
+  }
+}

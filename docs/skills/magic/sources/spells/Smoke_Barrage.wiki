@@ -1,0 +1,53 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Smoke Barrage
+|image = [[File:Smoke Barrage.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 86
+|spellbook = Ancient
+|type = Combat
+|exp = 48
+|element = Smoke
+|damage = 27
+|cost = {{RuneReq|Blood=2|Air=4|Death=4|Fire=4}}
+|speed = 5 ticks
+|description = A multi-target strong smoke attack
+|anim = [[File:Smoke Barrage.gif|300px]]
+|sound = [[File:Smoke Barrage.ogg]]
+}}
+[[File:Smoke Barrage icon (mobile).png|left]]
+'''Smoke Barrage''' is the highest tier [[smoke spell]] from the [[Ancient Magicks]] spellbook, available at level 86 [[Magic]]. It is capable of hitting up to 27 damage (without any [[magic damage]] boosts) per cast.
+
+Smoke Barrage is capable of [[poison]]ing a target at a 1/8 chance on hit, having a [[poison severity]] of 20 (where poison starts at 4 damage every 30 [[tick]]s or 18 seconds) with a maximum damage total of 50; this can be increased to 22 with an [[ancient sceptre]], increasing the total poison damage to 60 (first two hits does 5 damage). It is also able to target up to nine targets in a 3x3 grid around its primary target, just like all other [[Burst spells|burst]] and [[barrage spells]].
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Smoke Barrage|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = death
+|Rune1num = 4
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = fire
+|Rune3num = 4
+|Rune4 = air
+|Rune4num = 4
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 September 2013
+|update = Patch Notes (12 September 2013)
+|change = The smoke spells on the Ancient Magicks spellbook no longer try to poison creatures that are immune to poison.
+}}
+{{Subject changes footer}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

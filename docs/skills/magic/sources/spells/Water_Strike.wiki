@@ -1,0 +1,74 @@
+{{External|rs|rsc=Water strike}}
+{{Infobox Spell
+|name = Water Strike
+|image = [[File:Water Strike.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 5
+|spellbook = Normal
+|type = Combat
+|exp = 7.5
+|element = Water
+|damage = 4, 6, or 8
+|cost = {{RuneReq|Water=1|Air=1|Mind=1}}
+|speed = 5 ticks
+|description = A basic Water missile
+|anim = [[File:Water Strike.gif|300px]]
+|sound = [[File:Water Strike.ogg]]
+}}
+[[File:Water Strike icon (mobile).png|left]]
+'''Water Strike''' is a [[Water spells|water]]-based [[Strike spells|strike spell]] in the [[standard spellbook]], available starting at level 5 [[Magic]]. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Water Strike's base maximum hit starts at 4 and increases as the player unlocks additional strike spells, up to 8 at level 13 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level [[Strike spells|strike spell]] available
+!{{Plink|Water Strike}} base maximum hit
+|-
+|{{SCP|Magic|5}}- 8
+|{{Plink|Water Strike}}
+|4
+|-
+|{{SCP|Magic|9}}- 12
+|{{Plink|Earth Strike}}
+|6
+|-
+|{{SCP|Magic|13}}+
+|{{Plink|Fire Strike}}
+|8
+|}
+As with all combat spells, Water Strike's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a water-based spell, Water Strike's maximum hit is also increased against targets that are [[Elemental weakness|weak to water]].
+
+===Calculator===
+{{Magic damage calculator|Water Strike|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=water}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 1
+|Rune2 = air
+|Rune2num = 1
+|Rune3 = mind
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+
+== Notable uses ==
+
+* As a strike spell, Water Strike is one of the only spells that can be used to damage [[Salarin the twisted]]. When used this way, its damage is scaled up to match that of [[Water Bolt]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[strike spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

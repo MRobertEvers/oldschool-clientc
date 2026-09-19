@@ -1,0 +1,801 @@
+From 5b4157563af256d61c339c1c394562536399a9a6 Mon Sep 17 00:00:00 2001
+From: claude <noreply@anthropic.com>
+Date: Mon, 24 Aug 2026 23:50:43 -0500
+Subject: [PATCH] perf(pick): cursor gate on pick-only projection + batched
+ element-id resolve
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ 3rd/toridraw/toridraw.c                      |  19 ++
+ 3rd/toridraw/toridraw.h                      |  17 ++
+ 3rd/toridraw/toridraw_render.u.c             | 134 ++++++++++++++
+ 3rd/toridraw/toridraw_types.h                |  20 ++
+ src/app.c                                    |   7 +-
+ src/platform/platform_sdl2_renderer_soft3d.c |  19 ++
+ src/render/test/pick_level_test.c            |  62 +++++++
+ src/render/torirs_pick.c                     | 119 +++++-------
+ src/world/world.c                            | 183 +++++++++++++++++++
+ src/world/world.h                            |  42 +++++
+ 10 files changed, 549 insertions(+), 73 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw.c b/3rd/toridraw/toridraw.c
+index b2a4729f7..58874101b 100644
+--- a/3rd/toridraw/toridraw.c
++++ b/3rd/toridraw/toridraw.c
+@@ -782,6 +782,25 @@ ToriDraw_RenderModel(
+     ToriDraw_RenderModel3Raster(scene, view_port, camera, pixel_buffer, false);
+ }
+ 
++void
++ToriDraw_ScenePickReject(
++    struct ToriDraw_Scene* scene,
++    int screen_x,
++    int screen_y)
++{
++    assert(scene);
++    scene->pick_reject_enabled = true;
++    scene->pick_reject_x = screen_x;
++    scene->pick_reject_y = screen_y;
++}
++
++void
++ToriDraw_ScenePickRejectClear(struct ToriDraw_Scene* scene)
++{
++    assert(scene);
++    scene->pick_reject_enabled = false;
++}
++
+ int
+ ToriDraw_RenderModel1Project(
+     struct ToriDraw_ModelHandle hnd,
+diff --git a/3rd/toridraw/toridraw.h b/3rd/toridraw/toridraw.h
+index 372d5679e..fe27bf7e7 100644
+--- a/3rd/toridraw/toridraw.h
++++ b/3rd/toridraw/toridraw.h
+@@ -113,6 +113,23 @@ ToriDraw_RenderZBuffered(
+     toripixel_t* pixel_buffer,
+     bool smooth);
+ 
++/** Arm the cursor gate for the models projected next: ToriDraw_Project answers
++ *  TORIDRAW_CULL_PICK_MISS, without projecting a single vertex, for any model
++ *  whose bounds cannot reach (screen_x, screen_y).
++ *
++ *  Only legitimate for PICK-ONLY geometry — a model whose projection nothing
++ *  but the pick walk will read. Anything that rasterizes must be projected
++ *  whether or not the cursor is over it. */
++void
++ToriDraw_ScenePickReject(
++    struct ToriDraw_Scene* scene,
++    int screen_x,
++    int screen_y);
++
++/** Disarm it. Must be paired with every ToriDraw_ScenePickReject. */
++void
++ToriDraw_ScenePickRejectClear(struct ToriDraw_Scene* scene);
++
+ /** Bounding-box hit test against the last projected model (reference
+  *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face
+  *  test — the reference uses it for npcs, players and ground objs. */
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..3a84fc79d 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -2661,6 +2661,119 @@ toridraw_project_vertices_parallel_noclip(
+     }
+ }
+ 
++/*
++ * Can the armed pick cursor be over this model at all?
++ *
++ * The only consumer of a pick-only model's projection is the pick walk, and
++ * that walk's own first act is ToriDraw_ProjectedModelContainsAabb against the
++ * 8-point box (toridraw_projected_model_hit_face). So the box below has one
++ * obligation and one only: CONTAIN THAT 8-POINT BOX. It does not have to bound
++ * the silhouette, and it deliberately does not try to -- a superset of the box
++ * the real gate uses is exactly as correct and far cheaper to build.
++ *
++ * The bound is a sphere, not the cylinder FastCull uses, because a sphere is
++ * the one shape that survives an unknown rotation. Every one of the eight box
++ * corners lies within sqrt(2*radius^2 + max|y|^2) of the model origin, and
++ * bc->min_z_depth_any_rotation is already >= sqrt(radius^2 + max|y|^2)
++ * (toridraw_model_transform.c), so sqrt(2) * that value bounds all eight. A
++ * rotation about the model origin -- model pitch/yaw/roll -- preserves that
++ * distance outright; a rotation about the CAMERA origin preserves it too,
++ * because it rotates the corner and the origin together and this is a
++ * difference of the two. Hence no trig here at all.
++ *
++ * Camera roll is the one rotation excluded, and not for the corners' sake:
++ * project_orthographic_fast never applied it to `center`, so under roll the
++ * centre this works from is not the centre the 8-point kernel projects around.
++ *
++ * Two slacks, and they are not interchangeable. The WORLD one has to be: the
++ * ball argument above is exact in real arithmetic, but both the corner and the
++ * centre arrive through truncating fixed-point rotations -- at most two shifts
++ * each, so under two units of camera-space error per axis apiece. Absorbing
++ * that in world space is the only spelling that stays sound at short range,
++ * because the divide magnifies it by 512/z: four units at z=200 is ten pixels,
++ * and a fixed pixel slack that covers it there is enormous at z=2000. Inflating
++ * the radius instead lets the same divide shrink the margin with distance.
++ * The SCREEN one is left over for the two truncations in project_divide itself,
++ * which happen after the divide and so really are a pixel or two flat.
++ */
++#define TORIDRAW_PICK_REJECT_WORLD_SLACK 8
++#define TORIDRAW_PICK_REJECT_SLACK 4
++/* sqrt(2) in 15.15, rounded UP: 46341/32768 = 1.4142151 > 1.4142136. */
++#define TORIDRAW_SQRT2_15 46341
++/* Above this the sqrt(2) multiply below leaves 32 bits. No real model is
++ * anywhere near it -- the world coordinate space is +/-32k -- so the test is a
++ * guard rail rather than a case. */
++#define TORIDRAW_PICK_REJECT_MAX_RADIUS 40000
++
++static inline bool
++toridraw_pick_cursor_misses_cylinder(
++    struct ToriDraw_Scene* scene,
++    struct ToriDraw_ViewPort* view_port,
++    struct ToriDraw_Camera* camera,
++    const struct ToriDraw_BoundsCylinder* bc,
++    const struct ProjectedVertex* center)
++{
++    assert(scene);
++    assert(view_port);
++    assert(camera);
++    assert(center);
++
++    if( !bc )
++        return false;
++    if( toridraw_proj_is_parallel(camera->proj_mode) )
++        return false;
++    if( ToriDraw_NormalizeAngle(camera->roll) != 0 )
++        return false;
++    if( bc->min_z_depth_any_rotation > TORIDRAW_PICK_REJECT_MAX_RADIUS )
++        return false;
++
++    int const corner_radius = ((bc->min_z_depth_any_rotation * TORIDRAW_SQRT2_15) >> 15) + 1 +
++                              TORIDRAW_PICK_REJECT_WORLD_SLACK;
++    int const z_near = center->z - corner_radius;
++    int const z_far = center->z + corner_radius;
++
++    /*
++     * Bail rather than clamp. A corner behind the near plane comes back from
++     * the clipping kernel as the -5000 sentinel with its y left undivided, and
++     * the 8-point sweep then reports a box no analytic bound describes. Above
++     * the plane there is no sentinel and the box is an honest projection.
++     */
++    if( camera->near_plane_z < 1 )
++        return false;
++    if( z_near <= camera->near_plane_z )
++        return false;
++
++    int const cot16 = toridraw_proj_cot16(
++        camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
++
++    /* p/z is increasing as z shrinks for p >= 0 and decreasing for p < 0, so
++     * each extreme picks the depth that pushes it further out. */
++    int const x_hi = center->x + corner_radius;
++    int const x_lo = center->x - corner_radius;
++    int const y_hi = center->y + corner_radius;
++    int const y_lo = center->y - corner_radius;
++
++    int const max_sx = project_divide(x_hi, x_hi >= 0 ? z_near : z_far, cot16) +
++                       view_port->x_center + TORIDRAW_PICK_REJECT_SLACK;
++    if( scene->pick_reject_x > max_sx )
++        return true;
++    int const min_sx = project_divide(x_lo, x_lo >= 0 ? z_far : z_near, cot16) +
++                       view_port->x_center - TORIDRAW_PICK_REJECT_SLACK;
++    if( scene->pick_reject_x < min_sx )
++        return true;
++
++    int const max_sy = project_divide(y_hi, y_hi >= 0 ? z_near : z_far, cot16) +
++                       view_port->y_center + TORIDRAW_PICK_REJECT_SLACK;
++    if( scene->pick_reject_y > max_sy )
++        return true;
++    int const min_sy = project_divide(y_lo, y_lo >= 0 ? z_far : z_near, cot16) +
++                       view_port->y_center - TORIDRAW_PICK_REJECT_SLACK;
++    if( scene->pick_reject_y < min_sy )
++        return true;
++
++    return false;
++}
++
+ static inline int
+ ToriDraw_Project(
+     struct ToriDraw_Scene* scene,
+@@ -2758,12 +2871,33 @@ ToriDraw_Project(
+ 
+     scene->projected_vertex = center_projection;
+ 
++    /* Pick-only geometry, cursor demonstrably elsewhere: skip the 8-point box
++     * and the per-vertex projection both. Nothing downstream reads either --
++     * the caller returns without sorting or rastering, and the next model
++     * overwrites the scratch. */
++    if( scene->pick_reject_enabled &&
++        toridraw_pick_cursor_misses_cylinder(
++            scene, view_port, camera, model_bounds_cylinder(hnd), &center_projection) )
++        return TORIDRAW_CULL_PICK_MISS;
++
+     ToriDraw_CalculateCylinderAabb8point(&scene->aabb, hnd, position, view_port, camera);
+ 
+     cull = ToriDraw_AabbCull(&scene->aabb, view_port, camera);
+     if( cull != TORIDRAW_CULL_VISIBLE )
+         return cull;
+ 
++    /* Same question, now against the very box the pick walk itself gates on,
++     * so this arm of the test is not conservative -- it is the identical
++     * comparison (ToriDraw_ProjectedModelContainsAabb, spelled out because
++     * that one is defined further down this unit), moved ahead of the work its
++     * answer makes pointless. */
++    if( scene->pick_reject_enabled &&
++        (scene->pick_reject_x < scene->aabb.min_screen_x ||
++         scene->pick_reject_x > scene->aabb.max_screen_x ||
++         scene->pick_reject_y < scene->aabb.min_screen_y ||
++         scene->pick_reject_y > scene->aabb.max_screen_y) )
++        return TORIDRAW_CULL_PICK_MISS;
++
+     int const model_pitch = ToriDraw_NormalizeAngle(position->pitch);
+     int const model_yaw = ToriDraw_NormalizeAngle(position->yaw);
+     int const model_roll = ToriDraw_NormalizeAngle(position->roll);
+diff --git a/3rd/toridraw/toridraw_types.h b/3rd/toridraw/toridraw_types.h
+index 375b5bbea..20d646f28 100644
+--- a/3rd/toridraw/toridraw_types.h
++++ b/3rd/toridraw/toridraw_types.h
+@@ -602,6 +602,22 @@ struct ToriDraw_Scene
+     struct ToriDraw_AABB aabb;
+     struct ToriDraw_AABB cylinder_fast_aabb;
+ 
++    /*
++     * Cursor gate for pick-only models -- geometry emitted purely so a tile
++     * stays clickable under a hidden roof, which never reaches the raster.
++     *
++     * Set by the executor for exactly those commands (ToriDraw_ScenePickReject
++     * / ...Clear). ToriDraw_Project then answers "can this model possibly
++     * contain the cursor" from the two bounding boxes it already builds, and
++     * returns TORIDRAW_CULL_PICK_MISS instead of projecting every vertex --
++     * which is what the pick walk would have thrown away one AABB test later.
++     * Exactly one of the several hundred such tiles in a frame can hold the
++     * cursor.
++     */
++    bool pick_reject_enabled;
++    int pick_reject_x;
++    int pick_reject_y;
++
+     /*
+      * Whether the model ToriDraw_Project last projected could reach behind the
+      * near plane, and so whether screen_vertices_x may hold
+@@ -735,6 +751,10 @@ struct ToriDraw_Scene
+ #define TORIDRAW_CULL_FAST 1
+ #define TORIDRAW_CULL_AABB 2
+ #define TORIDRAW_CULL_ERROR 3
++/* Not a visibility verdict: the model is on screen, but the pick cursor the
++ * caller armed cannot be over it, so its per-vertex projection was skipped.
++ * Only ever returned when scene->pick_reject_enabled. */
++#define TORIDRAW_CULL_PICK_MISS 4
+ 
+ static inline int*
+ ToriDraw_FaceOrder(struct ToriDraw_Scene* scene)
+diff --git a/src/app.c b/src/app.c
+index 3b3ab67e3..67402c89a 100644
+--- a/src/app.c
++++ b/src/app.c
+@@ -15840,7 +15840,12 @@ app_world_pick_finish(
+         app->world_hover_tile_z = -1;
+     }
+ 
+-    if( getenv("TORIRS_WORLD_PICK_DEBUG") )
++    /* Cached: this runs every frame, and getenv walks the environment block.
++     * Same idiom as pick_debug_dump in torirs_pick.c. */
++    static int pick_debug = -1;
++    if( pick_debug < 0 )
++        pick_debug = getenv("TORIRS_WORLD_PICK_DEBUG") != NULL;
++    if( pick_debug )
+     {
+         fprintf(
+             stderr,
+diff --git a/src/platform/platform_sdl2_renderer_soft3d.c b/src/platform/platform_sdl2_renderer_soft3d.c
+index de701e34e..d85dd8f2a 100644
+--- a/src/platform/platform_sdl2_renderer_soft3d.c
++++ b/src/platform/platform_sdl2_renderer_soft3d.c
+@@ -940,12 +940,31 @@ soft3d_draw_model(
+                  cmd->model.u.model.model &&
+                  cmd->model.u.model.model->vertex_count >= trace_min;
+ 
++    /*
++     * A pick-only command is ground kept clickable under a hidden roof: it
++     * never rasterizes, so its ENTIRE cost is the one hittest below, and only
++     * the model actually under the cursor can answer yes. Hand the cursor to
++     * the projection so it can refuse the per-vertex work for the several
++     * hundred tiles that cannot -- the same AABB question the hittest asks,
++     * asked before the work rather than after it.
++     *
++     * `pickable` and a live element id gate it because the hittest does: a
++     * pick-only command failing either produces nothing at all, and the whole
++     * projection is then dead either way.
++     */
++    bool const pick_gate = cmd->pick_only && soft->pick_enabled && cmd->pickable &&
++                           cmd->element_id >= 0;
++    if( pick_gate )
++        ToriDraw_ScenePickReject(soft->scene, soft->pick_mouse_x, soft->pick_mouse_y);
++
+     position = cmd->position;
+     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_PROJECT)
+     {
+         cull = ToriDraw_RenderModel1Project(
+             cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
+     }
++    if( pick_gate )
++        ToriDraw_ScenePickRejectClear(soft->scene);
+     if( trace_this && cull != g_draw_trace_last_cull )
+     {
+         struct ToriDraw_Model const* m = cmd->model.u.model.model;
+diff --git a/src/render/test/pick_level_test.c b/src/render/test/pick_level_test.c
+index a678cf24d..6bae0530b 100644
+--- a/src/render/test/pick_level_test.c
++++ b/src/render/test/pick_level_test.c
+@@ -215,6 +215,68 @@ main(void)
+         CHECK(pickset.count == 1, "and is clickable once you are standing up there");
+     }
+ 
++    printf("TEST: a frame's worth of hits resolved in one pass\n");
++    {
++        /* The classifier resolves element ids in a BATCH now -- one walk of the
++         * entity pools for every hit in the frame, not four walks per hit -- so
++         * the shapes a per-hit lookup could not get wrong are exactly the ones
++         * worth pinning: several hits at once, the same id twice, and an id no
++         * pool owns sitting between two that are. */
++        struct ToriRS_PickHits hits;
++        struct World_PickSet pickset;
++        struct ToriRS_PickResult result;
++
++        ToriRS_PickHitsReset(&hits);
++        ToriRS_PickHitsAdd(&hits, 71, /* is_terrain */ false, -1, -1, -1);
++        ToriRS_PickHitsAdd(&hits, 70, /* is_terrain */ false, -1, -1, -1);   /* inactive */
++        ToriRS_PickHitsAdd(&hits, 4242, /* is_terrain */ false, -1, -1, -1); /* nobody's */
++        ToriRS_PickHitsAdd(&hits, 71, /* is_terrain */ false, -1, -1, -1);   /* repeat */
++        ToriRS_PickHitsAdd(&hits, flat_x, /* is_terrain */ true, flat_x, flat_z, 0);
++        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
++
++        /* Two, not three: World_PickSetAdd folds the repeated barrier, which is
++         * the point -- the repeat must resolve to the SAME loc and be dropped
++         * as a duplicate, not resolve to nothing and vanish for the wrong
++         * reason. */
++        CHECK(pickset.count == 2, "five hits, two distinct targets");
++        CHECK(pickset.items[0].element_id == 71 && pickset.items[0].type == WORLD_PICK_SCENERY,
++              "the barrier resolves out of a mixed batch");
++        CHECK(pickset.items[0].tile_x == bridge_x && pickset.items[0].tile_z == bridge_z,
++              "and carries its own tile, not a neighbour's");
++        CHECK(pickset.items[1].element_id == flat_x &&
++                  pickset.items[1].type == WORLD_PICK_TERRAIN,
++              "render order survives the batch");
++        CHECK(result.hover_tile_valid && result.hover_tile_x == flat_x,
++              "the terrain hit still sets the hover tile");
++
++        /* The inactive wall and the unowned id are both absent, and for
++         * different reasons -- owned-but-refused versus never claimed. */
++        for( int i = 0; i < pickset.count; i++ )
++        {
++            CHECK(pickset.items[i].element_id != 70, "the inactive wall stays out");
++            CHECK(pickset.items[i].element_id != 4242, "and so does an id no pool owns");
++        }
++    }
++
++    printf("TEST: a saturated hit list\n");
++    {
++        /* A full frame must reach the resolver intact: TORIRS_PICK_HITS_MAX and
++         * WORLD_PICK_RESOLVE_MAX are equal today, so this is exactly the
++         * boundary where an off-by-one would either assert or truncate. */
++        struct ToriRS_PickHits hits;
++        struct World_PickSet pickset;
++        struct ToriRS_PickResult result;
++
++        ToriRS_PickHitsReset(&hits);
++        for( int i = 0; i < TORIRS_PICK_HITS_MAX; i++ )
++            ToriRS_PickHitsAdd(&hits, (i & 1) ? 4242 : 71, /* is_terrain */ false, -1, -1, -1);
++        CHECK(hits.count == TORIRS_PICK_HITS_MAX, "the hit list filled");
++
++        ToriRS_PickHitsClassify(world, &hits, /* player_level */ 0, &pickset, &result);
++        CHECK(pickset.count == 1 && pickset.items[0].element_id == 71,
++              "a saturated frame still finds the one real target");
++    }
++
+     World_Free(world);
+ 
+     if( g_failures )
+diff --git a/src/render/torirs_pick.c b/src/render/torirs_pick.c
+index ebe94405b..a8a853e55 100644
+--- a/src/render/torirs_pick.c
++++ b/src/render/torirs_pick.c
+@@ -8,73 +8,25 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
+-/* Entity picks report the entity's own tile. Players (including local) are
++/*
++ * Entity picks report the entity's own tile. Players (including local) are
+  * pickable so a tile-occupancy winner can expand co-located stackmates into
+- * the minimenu (Client-TS addViewportOptions); local rows are skipped later. */
+-static bool
+-pick_classify_element(
+-    struct World* world,
+-    int element_id,
+-    enum World_PickType* out_type,
+-    int* out_tile_x,
+-    int* out_tile_z,
+-    int* out_tile_level)
+-{
+-    struct WorldEntity_NPC* npc = World_NpcGetByElementId(world, element_id, NULL);
+-    if( npc )
+-    {
+-        *out_type = WORLD_PICK_NPC;
+-        *out_tile_x = npc->grid_position.x;
+-        *out_tile_z = npc->grid_position.z;
+-        *out_tile_level = npc->grid_position.level;
+-        return true;
+-    }
+-
+-    struct WorldEntity_Player* player = World_PlayerGetByElementId(world, element_id);
+-    if( player )
+-    {
+-        *out_type = WORLD_PICK_PLAYER;
+-        *out_tile_x = player->grid_position.x;
+-        *out_tile_z = player->grid_position.z;
+-        *out_tile_level = player->grid_position.level;
+-        return true;
+-    }
+-
+-    struct WorldEntity_Scenery* scenery = World_SceneryGetByElementId(world, element_id);
+-    if( scenery )
+-    {
+-        /* LocType.active gate: the reference negates a non-active loc's
+-         * typecode, and Model.draw only records hits for `typecode > 0`
+-         * (Model.ts:1758) — so walls, gravel and floor decor never produce a
+-         * menu row. Without this every unnamed loc surfaced as
+-         * "Examine @cya@Scenery".
+-         *
+-         * The loc-inspection tools lift the gate, because the locs worth
+-         * inspecting for a placement bug are overwhelmingly the inactive ones —
+-         * a wall, a fence or a patch of ground decor on the wrong square is
+-         * invisible to a menu that refuses to pick them, and so is its
+-         * footprint. See WorldEntity_SceneryPickInactive. */
+-        if( !scenery->interactive && !WorldEntity_SceneryPickInactive() )
+-            return false;
+-        *out_type = WORLD_PICK_SCENERY;
+-        *out_tile_x = scenery->grid_position.x;
+-        *out_tile_z = scenery->grid_position.z;
+-        *out_tile_level = scenery->grid_position.level;
+-        return true;
+-    }
+-
+-    struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(world, element_id);
+-    if( stack )
+-    {
+-        *out_type = WORLD_PICK_OBJSTACK;
+-        *out_tile_x = stack->grid_position.x;
+-        *out_tile_z = stack->grid_position.z;
+-        *out_tile_level = stack->grid_position.level;
+-        return true;
+-    }
+-
+-    return false;
+-}
++ * the minimenu (Client-TS addViewportOptions); local rows are skipped later.
++ *
++ * A loc that is not LocType.active picks as NOTHING: the reference negates a
++ * non-active loc's typecode and Model.draw only records hits for
++ * `typecode > 0` (Model.ts:1758), so walls, gravel and floor decor never
++ * produce a menu row. Without that gate every unnamed loc surfaced as
++ * "Examine @cya@Scenery". The loc-inspection tools lift it -- the locs worth
++ * inspecting for a placement bug are overwhelmingly the inactive ones. Both
++ * live in World_PickResolveBatch now; see WorldEntity_SceneryPickInactive.
++ *
++ * The search is a BATCH for a measured reason. The per-hit spelling called
++ * four World_*GetByElementId walks, three of them full traversals of the live
++ * entity list, and at a few thousand locs that -- not the hit tests -- was the
++ * whole cost of the pick. One pass over the pools now answers every hit in the
++ * frame.
++ */
+ 
+ void
+ ToriRS_PickHitsReset(struct ToriRS_PickHits* hits)
+@@ -195,6 +147,28 @@ ToriRS_PickHitsClassify(
+     if( !world )
+         return;
+ 
++    /* Gather first, resolve once. A terrain hit carries its tile in the hit
++     * and never touches a pool, so a frame that only picks ground still walks
++     * nothing. */
++    struct World_PickResolve resolve[WORLD_PICK_RESOLVE_MAX];
++    short resolve_of_hit[TORIRS_PICK_HITS_MAX];
++    int resolve_count = 0;
++
++    for( int i = 0; i < hits->count; i++ )
++    {
++        resolve_of_hit[i] = -1;
++        if( hits->items[i].is_terrain )
++            continue;
++        if( hits->items[i].element_id < 0 )
++            continue;
++        if( resolve_count >= WORLD_PICK_RESOLVE_MAX )
++            break;
++        resolve[resolve_count].element_id = hits->items[i].element_id;
++        resolve_of_hit[i] = (short)resolve_count;
++        resolve_count++;
++    }
++    World_PickResolveBatch(world, resolve, resolve_count);
++
+     for( int i = 0; i < hits->count; i++ )
+     {
+         struct ToriRS_PickHit const* hit = &hits->items[i];
+@@ -242,13 +216,14 @@ ToriRS_PickHitsClassify(
+         }
+         else
+         {
+-            enum World_PickType type;
+-            int tile_x;
+-            int tile_z;
+-            int tile_level;
+-            if( pick_classify_element(
+-                    world, hit->element_id, &type, &tile_x, &tile_z, &tile_level) )
++            struct World_PickResolve const* r =
++                resolve_of_hit[i] >= 0 ? &resolve[resolve_of_hit[i]] : NULL;
++            if( r && r->resolved )
+             {
++                enum World_PickType const type = r->type;
++                int const tile_x = r->tile_x;
++                int const tile_z = r->tile_z;
++                int const tile_level = r->tile_level;
+                 /* Scenery/NPCs/obj stacks on a level other than the player's are
+                  * unreachable — never surface them in the minimenu.
+                  *
+diff --git a/src/world/world.c b/src/world/world.c
+index 96a03d4ac..a542f50d2 100644
+--- a/src/world/world.c
++++ b/src/world/world.c
+@@ -1409,6 +1409,189 @@ World_PlayerGetByElementId(
+     return NULL;
+ }
+ 
++/*
++ * Open-addressed element_id -> batch slot, linear probing, sized so a full
++ * batch leaves it half empty. Small on purpose: at 512 slots the keys are 2 KB
++ * and stay in L1 across the pool walks, which is the entire point -- the walks
++ * already pay two cache lines a node and cannot afford to miss on the lookup
++ * as well.
++ */
++#define WORLD_PICK_INDEX_SLOTS (WORLD_PICK_RESOLVE_MAX * 2)
++#define WORLD_PICK_INDEX_EMPTY (-1)
++
++struct World_PickIndex
++{
++    int keys[WORLD_PICK_INDEX_SLOTS];
++    short items[WORLD_PICK_INDEX_SLOTS];
++};
++
++static inline int
++World_PickIndexHome(int element_id)
++{
++    /* Knuth multiplicative; the high bits are the mixed ones. Element ids are
++     * dense scene-element indices, so the low bits alone would collide in
++     * runs. */
++    unsigned int h = (unsigned int)element_id * 2654435761u;
++    return (int)((h >> 20) & (WORLD_PICK_INDEX_SLOTS - 1));
++}
++
++static struct World_PickResolve*
++World_PickIndexFind(
++    const struct World_PickIndex* index,
++    struct World_PickResolve* items,
++    int element_id)
++{
++    assert(index);
++    assert(items);
++
++    for( int slot = World_PickIndexHome(element_id);
++         index->keys[slot] != WORLD_PICK_INDEX_EMPTY;
++         slot = (slot + 1) & (WORLD_PICK_INDEX_SLOTS - 1) )
++    {
++        if( index->keys[slot] == element_id )
++            return &items[index->items[slot]];
++    }
++    return NULL;
++}
++
++void
++World_PickResolveBatch(
++    struct World* world,
++    struct World_PickResolve* items,
++    int count)
++{
++    struct World_PickIndex index;
++    struct World_EntityPool* pool;
++
++    assert(world);
++    assert(count >= 0);
++    assert(count <= WORLD_PICK_RESOLVE_MAX);
++
++    if( count == 0 )
++        return;
++    assert(items);
++
++    /* -1 in every byte is -1 in every int. */
++    memset(index.keys, 0xFF, sizeof(index.keys));
++
++    for( int i = 0; i < count; i++ )
++    {
++        /* A scene element id, so never negative -- and the empty marker is -1,
++         * so a negative key would read as an empty slot. */
++        assert(items[i].element_id >= 0);
++
++        items[i].owned = false;
++        items[i].resolved = false;
++
++        int slot = World_PickIndexHome(items[i].element_id);
++        while( index.keys[slot] != WORLD_PICK_INDEX_EMPTY &&
++               index.keys[slot] != items[i].element_id )
++            slot = (slot + 1) & (WORLD_PICK_INDEX_SLOTS - 1);
++        /* A repeated id keeps its first slot: the second hit on the same loc
++         * wants the same answer, and it is copied across at the end. */
++        if( index.keys[slot] == WORLD_PICK_INDEX_EMPTY )
++        {
++            index.keys[slot] = items[i].element_id;
++            index.items[slot] = (short)i;
++        }
++    }
++
++    pool = &world->entities.npc;
++    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
++         i = World_EntityPoolNext(pool, i) )
++    {
++        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
++        if( !npc )
++            continue;
++        struct World_PickResolve* item = World_PickIndexFind(&index, items, npc->element_id);
++        if( !item || item->owned )
++            continue;
++        item->owned = true;
++        item->resolved = true;
++        item->type = WORLD_PICK_NPC;
++        item->tile_x = npc->grid_position.x;
++        item->tile_z = npc->grid_position.z;
++        item->tile_level = npc->grid_position.level;
++    }
++
++    pool = &world->entities.player;
++    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
++         i = World_EntityPoolNext(pool, i) )
++    {
++        struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
++        if( !player )
++            continue;
++        struct World_PickResolve* item = World_PickIndexFind(&index, items, player->element_id);
++        if( !item || item->owned )
++            continue;
++        item->owned = true;
++        item->resolved = true;
++        item->type = WORLD_PICK_PLAYER;
++        item->tile_x = player->grid_position.x;
++        item->tile_z = player->grid_position.z;
++        item->tile_level = player->grid_position.level;
++    }
++
++    pool = &world->entities.scenery;
++    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
++         i = World_EntityPoolNext(pool, i) )
++    {
++        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
++        if( !scenery )
++            continue;
++        struct World_PickResolve* item =
++            World_PickIndexFind(&index, items, scenery->element_id);
++        if( !item || item->owned )
++            continue;
++        /* Owned either way: the LocType.active gate makes a loc pick as
++         * nothing, it does not hand the id on to the obj stacks. See
++         * ToriRS_PickHitsClassify for why the gate is there. */
++        item->owned = true;
++        if( !scenery->interactive && !WorldEntity_SceneryPickInactive() )
++            continue;
++        item->resolved = true;
++        item->type = WORLD_PICK_SCENERY;
++        item->tile_x = scenery->grid_position.x;
++        item->tile_z = scenery->grid_position.z;
++        item->tile_level = scenery->grid_position.level;
++    }
++
++    pool = &world->entities.obj_stack;
++    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
++         i = World_EntityPoolNext(pool, i) )
++    {
++        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
++        if( !stack )
++            continue;
++        struct World_PickResolve* item = World_PickIndexFind(&index, items, stack->element_id);
++        if( !item || item->owned )
++            continue;
++        item->owned = true;
++        item->resolved = true;
++        item->type = WORLD_PICK_OBJSTACK;
++        item->tile_x = stack->grid_position.x;
++        item->tile_z = stack->grid_position.z;
++        item->tile_level = stack->grid_position.level;
++    }
++
++    /* Repeated ids share the one resolution their first slot collected. */
++    for( int i = 0; i < count; i++ )
++    {
++        struct World_PickResolve* first =
++            World_PickIndexFind(&index, items, items[i].element_id);
++        assert(first);
++        if( first != &items[i] )
++        {
++            items[i].owned = first->owned;
++            items[i].resolved = first->resolved;
++            items[i].type = first->type;
++            items[i].tile_x = first->tile_x;
++            items[i].tile_z = first->tile_z;
++            items[i].tile_level = first->tile_level;
++        }
++    }
++}
++
+ struct WorldEntity_NPC*
+ World_NpcGetByElementId(
+     struct World* world,
+diff --git a/src/world/world.h b/src/world/world.h
+index c9a4f4975..81269be98 100644
+--- a/src/world/world.h
++++ b/src/world/world.h
+@@ -3,6 +3,7 @@
+ 
+ #include "entity_pathing.h"
+ #include "world_entity.h"
++#include "world_pickset.h"
+ 
+ #include "engine/world_builder/collision_map.h"
+ #include "engine/world_builder/heightmap.h"
+@@ -756,6 +757,47 @@ World_NpcGetByElementId(
+     int element_id,
+     int* out_index);
+ 
++/**
++ * One element id on the way in, what the entity pools say it is on the way out.
++ * `owned` and `resolved` are separate answers: a loc the LocType.active gate
++ * refuses is owned by the scenery pool and picks as nothing, which is not the
++ * same as an id no pool claims.
++ */
++struct World_PickResolve
++{
++    int element_id; /* in */
++
++    bool owned;    /* out: some pool holds this id */
++    bool resolved; /* out: ...and it may be picked, so type/tile are set */
++    enum World_PickType type;
++    int tile_x;
++    int tile_z;
++    int tile_level;
++};
++
++/** Upper bound on one World_PickResolveBatch call; the index it builds is
++ *  sized to stay half empty at this many keys. */
++#define WORLD_PICK_RESOLVE_MAX 256
++
++/**
++ * Resolve a whole batch of element ids in ONE pass over the entity pools.
++ *
++ * The four World_*GetByElementId walks this replaces are each a traversal of an
++ * intrusive live list -- two cache lines per node, since nodes[] and items[]
++ * are separate arrays -- and the pick classifier ran up to four of them PER
++ * HIT. At a few thousand live locs that is the whole cost of the pick, and
++ * none of it is the hit tests.
++ *
++ * Priority is preserved because the pools are walked in the classifier's own
++ * short-circuit order -- npc, player, scenery, objstack -- and an id already
++ * claimed is never overwritten.
++ */
++void
++World_PickResolveBatch(
++    struct World* world,
++    struct World_PickResolve* items,
++    int count);
++
+ void
+ World_ClearSceneryPicks(struct World* world);
+ 

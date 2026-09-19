@@ -1,0 +1,4 @@
+I/torirs  (18802): memo-reset,0x8402c000,pass=1,resource=1,pick=0,resource_epoch=7639,xyz=7104:-344:5773,angles=128:0,vp=956:576
+I/torirs  (18802): memo-reset,0x84003000,pass=1,resource=1,pick=0,resource_epoch=7639,xyz=7104:-344:5773,angles=128:0,vp=956:576
+I/torirs  (18802): memo-stats,0,8762,6921,1,2
+I/torirs  (18802): memo-stats,1,107440,80466,1,2

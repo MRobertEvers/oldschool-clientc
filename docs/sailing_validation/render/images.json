@@ -1,0 +1,122 @@
+{
+  "falador-control": {
+    "bmp_sha256": "384142c729cc49e3fa495944388be78a741fb11387ac0a771bdc6e1784dd547e",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/falador.soft3d/frame_00299.bmp",
+    "png_sha256": "41d699fbe153e84d4d85eea8eab560c98a0a2b89fd8b17cb3126e6da662ec123"
+  },
+  "falador-sailing": {
+    "bmp_sha256": "384142c729cc49e3fa495944388be78a741fb11387ac0a771bdc6e1784dd547e",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/falador.soft3d/frame_00299.bmp",
+    "png_sha256": "41d699fbe153e84d4d85eea8eab560c98a0a2b89fd8b17cb3126e6da662ec123"
+  },
+  "falador-ground-control": {
+    "bmp_sha256": "2205ebd10fa160dc012cff2bfdc3579c67d7c9d55da4c090a85456e11357868a",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/falador-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "e75591d33c2f3ec549431bfa9e98668304c89acf29417300a13d33bf28c4b959"
+  },
+  "falador-ground-sailing": {
+    "bmp_sha256": "2205ebd10fa160dc012cff2bfdc3579c67d7c9d55da4c090a85456e11357868a",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/falador-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "e75591d33c2f3ec549431bfa9e98668304c89acf29417300a13d33bf28c4b959"
+  },
+  "grand-exchange-control": {
+    "bmp_sha256": "5492e77a17ea9f39dcc8b6c8b5aa6314d0eb25220a003c42d8dd8ffaa258a58e",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/grand-exchange.soft3d/frame_00299.bmp",
+    "png_sha256": "9701b2a1711dd20a6dc132025efba5ef92c2126f595ffb22b6439bca9cbc2b9e"
+  },
+  "grand-exchange-sailing": {
+    "bmp_sha256": "5492e77a17ea9f39dcc8b6c8b5aa6314d0eb25220a003c42d8dd8ffaa258a58e",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/grand-exchange.soft3d/frame_00299.bmp",
+    "png_sha256": "9701b2a1711dd20a6dc132025efba5ef92c2126f595ffb22b6439bca9cbc2b9e"
+  },
+  "grand-exchange-ground-control": {
+    "bmp_sha256": "0ca9d860e012cfbb530eccefdbd672c310960d59b0afbab30929b4fc5f786114",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/grand-exchange-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "9c2320734f6570f52398256cbc95703d1fd77686f67eb0049aef7dd48998d197"
+  },
+  "grand-exchange-ground-sailing": {
+    "bmp_sha256": "0ca9d860e012cfbb530eccefdbd672c310960d59b0afbab30929b4fc5f786114",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/grand-exchange-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "9c2320734f6570f52398256cbc95703d1fd77686f67eb0049aef7dd48998d197"
+  },
+  "grand-exchange-low-control": {
+    "bmp_sha256": "ec94e6e76daad2b10cfa3183176f569ad98ff471c5425ee04139c8afcf9373f4",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/grand-exchange-low.soft3d/frame_00299.bmp",
+    "png_sha256": "e1c9734993f569e7fec88954570642f92e9b0fd28e29e80c5e464eb8a1f4633c"
+  },
+  "grand-exchange-low-sailing": {
+    "bmp_sha256": "ec94e6e76daad2b10cfa3183176f569ad98ff471c5425ee04139c8afcf9373f4",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/grand-exchange-low.soft3d/frame_00299.bmp",
+    "png_sha256": "e1c9734993f569e7fec88954570642f92e9b0fd28e29e80c5e464eb8a1f4633c"
+  },
+  "grand-exchange-orbit-control": {
+    "bmp_sha256": "5eb881d0bf7bfc551196e770319a03846519a68113b1ada16b332881e63ca8e6",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/grand-exchange-orbit.soft3d/frame_00299.bmp",
+    "png_sha256": "76994e292afda97ea14a6f8aa2dad3e90dd3f5dd2720911055c8e9b686600e97"
+  },
+  "grand-exchange-orbit-sailing": {
+    "bmp_sha256": "5eb881d0bf7bfc551196e770319a03846519a68113b1ada16b332881e63ca8e6",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/grand-exchange-orbit.soft3d/frame_00299.bmp",
+    "png_sha256": "76994e292afda97ea14a6f8aa2dad3e90dd3f5dd2720911055c8e9b686600e97"
+  },
+  "lumbridge-control": {
+    "bmp_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/lumbridge.soft3d/frame_00299.bmp",
+    "png_sha256": "c3c9771bf458fa74442a962601d5e477ce7a44e4509e4d3e45fc47146743835e"
+  },
+  "lumbridge-sailing": {
+    "bmp_sha256": "8f99dee7874a908430a4319b3ec486f7501b618c31d7dbc716f36479c539a473",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/lumbridge.soft3d/frame_00299.bmp",
+    "png_sha256": "c3c9771bf458fa74442a962601d5e477ce7a44e4509e4d3e45fc47146743835e"
+  },
+  "lumbridge-ground-control": {
+    "bmp_sha256": "631dfda464d0b6831579497efebe80d09ac4c12530c146b915b9e00888b6c6c1",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/lumbridge-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "0dc1dbc82cfd6ff602ac7333a4fb8326615cf7d0f2f06510bde3ed9a0e187ae4"
+  },
+  "lumbridge-ground-sailing": {
+    "bmp_sha256": "631dfda464d0b6831579497efebe80d09ac4c12530c146b915b9e00888b6c6c1",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/lumbridge-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "0dc1dbc82cfd6ff602ac7333a4fb8326615cf7d0f2f06510bde3ed9a0e187ae4"
+  },
+  "lumbridge-swamp-control": {
+    "bmp_sha256": "eb086e1d987ce9eb8cc58b37e1ba5476029605fe117c93a0021d5ad4926f18e5",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/lumbridge-swamp.soft3d/frame_00299.bmp",
+    "png_sha256": "471db1d245a7a87d7bdcd17763c43543e7a8e27ff5b4ce23cde005346d150466"
+  },
+  "lumbridge-swamp-sailing": {
+    "bmp_sha256": "eb086e1d987ce9eb8cc58b37e1ba5476029605fe117c93a0021d5ad4926f18e5",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/lumbridge-swamp.soft3d/frame_00299.bmp",
+    "png_sha256": "471db1d245a7a87d7bdcd17763c43543e7a8e27ff5b4ce23cde005346d150466"
+  },
+  "varrock-square-control": {
+    "bmp_sha256": "3aa0e15f2384a4f0b1f85ad62e973c254b8a8aeb7c458e165f75fffe047901f9",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/varrock-square.soft3d/frame_00299.bmp",
+    "png_sha256": "49273192415fb5066b99dbca5c73b6fb1d05f32da7a2616c592c466ead13733e"
+  },
+  "varrock-square-sailing": {
+    "bmp_sha256": "3aa0e15f2384a4f0b1f85ad62e973c254b8a8aeb7c458e165f75fffe047901f9",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/varrock-square.soft3d/frame_00299.bmp",
+    "png_sha256": "49273192415fb5066b99dbca5c73b6fb1d05f32da7a2616c592c466ead13733e"
+  },
+  "varrock-square-ground-control": {
+    "bmp_sha256": "cd6d91b72babfaf68e17786089e8c17f6b69f75352f8fc6cc368d10832041f1d",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/varrock-square-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "2a8d457cc71cf9524eede4dbbd6983176999af25954b77e914b66db199e5c12e"
+  },
+  "varrock-square-ground-sailing": {
+    "bmp_sha256": "cd6d91b72babfaf68e17786089e8c17f6b69f75352f8fc6cc368d10832041f1d",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/varrock-square-ground.soft3d/frame_00299.bmp",
+    "png_sha256": "2a8d457cc71cf9524eede4dbbd6983176999af25954b77e914b66db199e5c12e"
+  },
+  "varrock-walk-control": {
+    "bmp_sha256": "de229cd5e8eb57b0c5741d60cb69f48a9412197c9af09a043b8e9edf3097c9b0",
+    "source_bmp": "/private/tmp/sailing-render-final/control/shots/varrock-walk.soft3d/frame_00299.bmp",
+    "png_sha256": "686eea8c0f722f3662e643f3566a13e7aa5131105fc703c8d83ceddddbbf26d6"
+  },
+  "varrock-walk-sailing": {
+    "bmp_sha256": "de229cd5e8eb57b0c5741d60cb69f48a9412197c9af09a043b8e9edf3097c9b0",
+    "source_bmp": "/private/tmp/sailing-render-final/sailing/shots/varrock-walk.soft3d/frame_00299.bmp",
+    "png_sha256": "686eea8c0f722f3662e643f3566a13e7aa5131105fc703c8d83ceddddbbf26d6"
+  }
+}

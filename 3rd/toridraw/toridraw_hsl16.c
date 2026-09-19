@@ -5,5 +5,5 @@
 void
 ToriDraw_InitHsl16(void)
 {
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 }

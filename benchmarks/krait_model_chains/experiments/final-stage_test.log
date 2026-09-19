@@ -1,0 +1,7 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/final-stage_test: unused DT entry: type 0x6ffffef5 arg 0x4b0
+WARNING: linker: /data/local/tmp/final-stage_test: unused DT entry: type 0x6ffffffe arg 0x470
+WARNING: linker: /data/local/tmp/final-stage_test: unused DT entry: type 0x6fffffff arg 0x2
+small tier: ok
+full tier: ok
+gles2_dualcore_stage_test: all passed

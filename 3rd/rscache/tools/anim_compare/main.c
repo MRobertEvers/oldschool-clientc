@@ -31,6 +31,13 @@
  *                      must be the same colour on both sides.
  *   --sheet            also write one contact sheet of every rendered frame
  *
+ * ANIM_YRANGE=1 in the environment also prints each frame's vertical extent for
+ * both sides, plus the bind pose's. That is the reading that answers "is this
+ * sequence lifting the model off the ground, or is the client doing it?" -- a
+ * pose whose maximum y is ~0 stands on its own tile no matter how tall it is,
+ * and a floating entity in the game with a grounded reading here is a renderer
+ * fault rather than bad animation data. World units, negative up.
+ *
  * Writes `frame_NNN.bmp` per frame plus `sheet.bmp`, into --out.
  */
 
@@ -1178,6 +1185,16 @@ main(int argc, char** argv)
         canvas_fill(&pb, 0x141014);
         rig_pose(&ra, f);
         rig_pose(&rb, f);
+        if( getenv("ANIM_YRANGE") )
+        {
+            int amin=1<<30,amax=-(1<<30),bmin=1<<30,bmax=-(1<<30);
+            int omin=1<<30,omax=-(1<<30);
+            for( int i=0;i<ra.vertex_count;i++){ if(ra.vy[i]<amin)amin=ra.vy[i]; if(ra.vy[i]>amax)amax=ra.vy[i];
+                                                 if(ra.oy[i]<omin)omin=ra.oy[i]; if(ra.oy[i]>omax)omax=ra.oy[i]; }
+            for( int i=0;i<rb.vertex_count;i++){ if(rb.vy[i]<bmin)bmin=rb.vy[i]; if(rb.vy[i]>bmax)bmax=rb.vy[i]; }
+            printf("frame %3d  A y[%6d..%6d]  B y[%6d..%6d]  bind y[%6d..%6d]\n",
+                   f, amin, amax, bmin, bmax, omin, omax);
+        }
         rig_render(&ra, &pa, yaw, scale, by_label);
         rig_render(&rb, &pb, yaw, scale, by_label);
         canvas_fill(&pair, 0x000000);

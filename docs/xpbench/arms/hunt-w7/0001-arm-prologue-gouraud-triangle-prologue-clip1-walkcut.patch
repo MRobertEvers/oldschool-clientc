@@ -1,0 +1,300 @@
+From 83c813100d06f9e1a4c4ffea93e4d202176e2f33 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 25 Aug 2026 02:19:33 -0500
+Subject: [PATCH] arm(prologue): gouraud triangle prologue, clip1 + walkcut
+
+Measured, moving camera, 900 frames, best-of-4:
+
+  job 0824-234549-mg2010 [MERGED-gouraudsort]
+  ctl 64.38 ms   p_both 63.65 ms   -0.73 ms  -1.13%   3.7 sigma
+
+The ladder does NOT decompose: clip1 -0.51%, walkcut +0.30%, sum -0.22%,
+measured both -1.13%. A 0.91-point inconsistency against a 0.31% delta
+sigma, so either the two interact or one rung is mismeasured. Do not quote
+the rungs separately.
+
+Touches gouraud_tri_i686.S, which hunt/w6 also edits -- these two arms
+CONFLICT and cannot be stacked without a combined build.
+
+NOT YET adversarially verified.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../gouraudhsllightness/gouraud_tri_i686.S    | 197 +++++++++++++++++-
+ 1 file changed, 196 insertions(+), 1 deletion(-)
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index d8b79f6d2..6d89a0617 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -92,6 +92,23 @@
+  * calling convention, so none are preserved here.
+  */
+ 
++/* ---- round-2 experiment selectors ------------------------------------
++ *
++ * Two independent changes to the per-triangle setup, each switchable so a
++ * benchmark can charge them separately. Both are bit-exact; the arguments are
++ * at their use sites. Default OFF = the kernel exactly as it shipped.
++ *
++ *   GOURAUD_TRI_BBOX_HCLIP  one vertex-bbox proof in place of two edge walks
++ *   GOURAUD_TRI_SEGFOLD     the segment reads the caller's slots, no SETSEG,
++ *                           and drops the subsumed zero-width span test
++ */
++#ifndef GOURAUD_TRI_BBOX_HCLIP
++#define GOURAUD_TRI_BBOX_HCLIP 1
++#endif
++#ifndef GOURAUD_TRI_SEGFOLD
++#define GOURAUD_TRI_SEGFOLD 1
++#endif
++
+ 	.text
+ 
+ /* ---- frame ------------------------------------------------------------ */
+@@ -135,6 +152,7 @@
+ #define V_DAC    144
+ #define V_SAREA  148
+ #define V_TMP    152
++#define V_BBOX   156	/* all three vertices inside [0, screen_width)      */
+ #define FRAME    160
+ 
+ /* four pushes + FRAME + the return address */
+@@ -263,7 +281,112 @@
+  * %ebp colour ish8. The horizontal clamps are hoisted out of the loop: the
+  * caller proved once per segment whether any row can leave the viewport, so
+  * the common case runs a row loop with no clamping in it at all.
++ *
++ * SEGFOLD: the edges, the two steps, the clip verdict and the row count are
++ * named by the CALLER's own slots instead of being copied into a generic set
++ * first. That copy -- SETSEG, as it was -- cost twelve loads and stores per
++ * segment and bought nothing, because this macro is expanded once per segment
++ * per branch either way, so every slot name is already an assembly-time
++ * constant at each use. Only the row counter still needs a writable slot,
++ * since the loop decrements it. The stepped edges are written back to the
++ * caller's own slots too, which also retires the V_ER -> V_EAC hand-off that
++ * carried AC into the second trapezoid.
+  */
++#if GOURAUD_TRI_SEGFOLD
++.macro	SEGMENT el, er, sl, sr, nc, cnt
++	movl	\el(%esp), %ebx
++	movl	\er(%esp), %esi
++	movl	V_HSL(%esp), %ebp
++	movl	\cnt(%esp), %eax
++	testl	%eax, %eax
++	jle	5900f
++	movl	%eax, V_CNT(%esp)
++	cmpl	$0, \nc(%esp)
++	je	5500f
++
++	/* ---- proved inside the viewport: no left/right clamp ---- */
++	.p2align 4
++5000:
++	movl	%ebx, %eax
++	movl	%esi, %ecx
++	addl	\sl(%esp), %ebx
++	addl	\sr(%esp), %esi
++
++	/* The C's `x_start_ish16 == x_end_ish16` early return is not tested
++	 * here. Equal fixed-point edges shift to equal columns, so the
++	 * x_start >= x_end test below already takes that case -- in this loop
++	 * trivially, and in the clamped one below whichever side of the
++	 * viewport the common value falls on, because one end clamps inward
++	 * past the other. It was two instructions and a branch that splits near
++	 * enough to evenly to mispredict on a twenty-stage pipeline. */
++	sarl	$16, %eax
++	sarl	$16, %ecx
++	cmpl	%ecx, %eax
++	jge	5400f
++	subl	%eax, %ecx		/* pixel count                       */
++
++	movl	%eax, %edx
++	imull	V_SXH(%esp), %edx	/* x_start * step, low 32 bits only  */
++	addl	%ebp, %edx
++	addl	V_OFF(%esp), %eax
++	movl	V_PIX(%esp), %edi
++	leal	(%edi,%eax,4), %edi
++	movl	%edx, %eax
++
++	SPANFILL 5400f
++5400:
++	addl	V_SYH(%esp), %ebp	/* every row, drawn or not           */
++	movl	V_STRIDE(%esp), %eax
++	addl	%eax, V_OFF(%esp)
++	decl	V_CNT(%esp)
++	jne	5000b
++	jmp	5900f
++
++	/* ---- may leave the viewport: clamp both ends ---- */
++	.p2align 4
++5500:
++	movl	%ebx, %eax
++	movl	%esi, %ecx
++	addl	\sl(%esp), %ebx
++	addl	\sr(%esp), %esi
++
++	sarl	$16, %ecx
++	movl	V_SCRW(%esp), %edx
++	cmpl	%edx, %ecx
++	jl	5600f
++	leal	-1(%edx), %ecx		/* x_end = screen_width - 1          */
++5600:
++	sarl	$16, %eax
++	testl	%eax, %eax
++	jns	5700f
++	xorl	%eax, %eax		/* x_start = 0                       */
++5700:
++	cmpl	%ecx, %eax
++	jge	5800f
++	subl	%eax, %ecx
++
++	movl	%eax, %edx
++	imull	V_SXH(%esp), %edx
++	addl	%ebp, %edx
++	addl	V_OFF(%esp), %eax
++	movl	V_PIX(%esp), %edi
++	leal	(%edi,%eax,4), %edi
++	movl	%edx, %eax
++
++	SPANFILL 5800f
++5800:
++	addl	V_SYH(%esp), %ebp
++	movl	V_STRIDE(%esp), %eax
++	addl	%eax, V_OFF(%esp)
++	decl	V_CNT(%esp)
++	jne	5500b
++
++5900:
++	movl	%ebx, \el(%esp)
++	movl	%esi, \er(%esp)
++	movl	%ebp, V_HSL(%esp)
++.endm
++#else
+ .macro	SEGMENT
+ 	movl	V_EL(%esp), %ebx
+ 	movl	V_ER(%esp), %esi
+@@ -353,6 +476,7 @@
+ 	movl	%esi, V_ER(%esp)
+ 	movl	%ebp, V_HSL(%esp)
+ .endm
++#endif
+ 
+ /* Copy one of the six vertex orderings into the sorted slots. */
+ .macro	SORTSTORE ia, ib, ic
+@@ -700,6 +824,55 @@ Ln1_ok:
+ Ln2_ok:
+ 	movl	%eax, V_N2(%esp)
+ 
++#if GOURAUD_TRI_BBOX_HCLIP
++	/* ---- horizontal clipping, proved once for the whole triangle ----
++	 *
++	 * NOHCLIP evaluates a segment's two edges at both ends -- two imull,
++	 * four data-dependent branches and a shift -- and it runs twice per
++	 * triangle, plus the AC extrapolation the second call needs. Nearly all
++	 * of that re-proves one thing: that the triangle is on screen
++	 * horizontally.
++	 *
++	 * If all three vertices satisfy 0 <= x < screen_width then every point
++	 * of every edge does too, so BOTH proofs are true without being run --
++	 * not merely safe to assume, but the same verdict NOHCLIP would have
++	 * reached, which is what keeps this bit-exact.
++	 *
++	 *   - each edge slope truncates toward zero, so stepping an edge over
++	 *     its own dy lands at or SHORT of the far vertex, never past it;
++	 *   - every walked row of a segment lies inside that edge's [ya, yb],
++	 *     because the y clamps only ever move the ends inward (a segment
++	 *     whose clamp would move an end outward comes out with zero rows);
++	 *   - so an edge value is a convex combination of its two vertex x's,
++	 *     hence inside [0, (screen_width - 1) << 16], hence >= 0 and
++	 *     < screen_width << 16, which is exactly what NOHCLIP asks;
++	 *   - and no 16.16 product can overflow inside the test: |dx| <
++	 *     screen_width < 32768, and the y pre-step is bounded by
++	 *     |dx| << 16 because |y0| < dy on any edge that is walked at all.
++	 *
++	 * The test is three unsigned compares -- x < 0 and x >= width in one
++	 * each -- and they fall through in the common case. A vertex outside
++	 * the viewport drops into the two exact proofs, unchanged.
++	 */
++	movl	V_SCRW(%esp), %ecx
++	movl	V_X0(%esp), %eax
++	cmpl	%ecx, %eax
++	jae	Lbbox_no
++	movl	V_X1(%esp), %eax
++	cmpl	%ecx, %eax
++	jae	Lbbox_no
++	movl	V_X2(%esp), %eax
++	cmpl	%ecx, %eax
++	jae	Lbbox_no
++	movl	$1, V_NC1(%esp)
++	movl	$1, V_NC2(%esp)
++	movl	$1, V_BBOX(%esp)
++	jmp	Lbbox_done
++Lbbox_no:
++	movl	$0, V_BBOX(%esp)
++Lbbox_done:
++#endif
++
+ 	/* Which edge is on the left for this triangle. */
+ 	movl	V_Y0(%esp), %eax
+ 	cmpl	V_Y1(%esp), %eax
+@@ -716,6 +889,10 @@ Lflat_no:
+ 
+ /* ---- AB/BC on the left, AC on the right ---- */
+ LbranchA:
++#if GOURAUD_TRI_BBOX_HCLIP
++	cmpl	$0, V_BBOX(%esp)
++	jne	LbranchA_walk
++#endif
+ 	NOHCLIP V_EAB, V_SXAB, V_EAC, V_SXAC, V_N1, V_NC1
+ 	/* BC is not advanced during the first trapezoid; AC is. */
+ 	movl	V_N1(%esp), %eax
+@@ -723,7 +900,14 @@ LbranchA:
+ 	addl	V_EAC(%esp), %eax
+ 	movl	%eax, V_TMP(%esp)
+ 	NOHCLIP V_EBC, V_SXBC, V_TMP, V_SXAC, V_N2, V_NC2
+-
++LbranchA_walk:
++
++#if GOURAUD_TRI_SEGFOLD
++	SEGMENT V_EAB, V_EAC, V_SXAB, V_SXAC, V_NC1, V_N1
++	/* AC carries its stepped value into the second trapezoid: the segment
++	 * wrote it straight back to V_EAC. */
++	SEGMENT V_EBC, V_EAC, V_SXBC, V_SXAC, V_NC2, V_N2
++#else
+ 	SETSEG V_EAB, V_EAC, V_SXAB, V_SXAC, V_NC1, V_N1
+ 	SEGMENT
+ 	/* AC carries its stepped value into the second trapezoid. */
+@@ -731,23 +915,34 @@ LbranchA:
+ 	movl	%eax, V_EAC(%esp)
+ 	SETSEG V_EBC, V_EAC, V_SXBC, V_SXAC, V_NC2, V_N2
+ 	SEGMENT
++#endif
+ 	jmp	Lret
+ 
+ /* ---- AC on the left, AB/BC on the right ---- */
+ LbranchB:
++#if GOURAUD_TRI_BBOX_HCLIP
++	cmpl	$0, V_BBOX(%esp)
++	jne	LbranchB_walk
++#endif
+ 	NOHCLIP V_EAC, V_SXAC, V_EAB, V_SXAB, V_N1, V_NC1
+ 	movl	V_N1(%esp), %eax
+ 	imull	V_SXAC(%esp), %eax
+ 	addl	V_EAC(%esp), %eax
+ 	movl	%eax, V_TMP(%esp)
+ 	NOHCLIP V_TMP, V_SXAC, V_EBC, V_SXBC, V_N2, V_NC2
++LbranchB_walk:
+ 
++#if GOURAUD_TRI_SEGFOLD
++	SEGMENT V_EAC, V_EAB, V_SXAC, V_SXAB, V_NC1, V_N1
++	SEGMENT V_EAC, V_EBC, V_SXAC, V_SXBC, V_NC2, V_N2
++#else
+ 	SETSEG V_EAC, V_EAB, V_SXAC, V_SXAB, V_NC1, V_N1
+ 	SEGMENT
+ 	movl	V_EL(%esp), %eax
+ 	movl	%eax, V_EAC(%esp)
+ 	SETSEG V_EAC, V_EBC, V_SXAC, V_SXBC, V_NC2, V_N2
+ 	SEGMENT
++#endif
+ 
+ Lret:
+ 	addl	$FRAME, %esp

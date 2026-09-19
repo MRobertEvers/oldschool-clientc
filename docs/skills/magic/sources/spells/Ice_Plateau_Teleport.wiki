@@ -1,0 +1,36 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Ice plateau teleport (tablet)}}
+{{Infobox Spell
+|name = Ice Plateau Teleport
+|image = [[File:Ice Plateau Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 89
+|spellbook = Lunar
+|type = Teleport
+|exp = 96
+|cost = {{RuneReq|Law=3|Water=8|Astral=3}}
+|speed = 4 ticks
+|description = Teleports you to Ice Plateau
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Ice Plateau Teleport icon (mobile).png|left|class=pageimage]]
+'''Ice Plateau Teleport''' teleports the caster to the members half of the [[Ice Plateau]] in level 53 [[Wilderness]]. Before casting, it warns the player that they are about to teleport into the "Deep Wilderness" with an option to abort. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 8
+|Rune2 = Law
+|Rune2num = 3
+|Rune3 = Astral
+|Rune3num = 3
+}}
+
+==Destination==
+{{Map|2975,3938|mtype=square|r=3|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

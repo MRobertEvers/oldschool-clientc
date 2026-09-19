@@ -1,0 +1,5 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/final-indices_test: unused DT entry: type 0x6ffffef5 arg 0x2cc
+WARNING: linker: /data/local/tmp/final-indices_test: unused DT entry: type 0x6ffffffe arg 0x2ac
+WARNING: linker: /data/local/tmp/final-indices_test: unused DT entry: type 0x6fffffff arg 0x1
+PASS: 595 index-packing cases, scalar and SIMD, tails and invalid faces

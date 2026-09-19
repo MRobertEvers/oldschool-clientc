@@ -4,8 +4,8 @@
 /*
  * Entity model composition from ALREADY-CACHED configs/models — pure CPU, no
  * IO. Callers (the entity-sync exec tasks, spawn tasks) await the idk / obj
- * / model loads first; anything still missing is skipped, matching the
- * reference's skip-render-until-loaded behavior.
+ * / model loads first. The player body is all or nothing: it is not built
+ * until every part is resident, matching the reference's isReady gate.
  */
 
 #include <stdint.h>
@@ -19,13 +19,26 @@ struct ToriDraw_Model;
  * Appearance_PackKit / Appearance_PackObj), 5 design colours
  * (reference ClientPlayer.recol1d/recol2d), gender picks manwear/womanwear
  * models. Lights + captures the model (ready for a dynamic scene element).
- * Returns an owned model or NULL when nothing resolved.
+ * Returns an owned model, or NULL when the appearance is not resident (see
+ * PlayerModel_AppearanceResident) or names no model at all. Never a partial
+ * body: the caller keeps whatever it drew before and asks again later.
  */
 struct ToriDraw_Model*
 PlayerModel_BuildFromAppearance(
     struct CacheProvider* provider,
     int const slots[12],
     int const colors[5],
+    int gender);
+
+/*
+ * Is every idk / obj config the appearance names resident, and every model
+ * those configs name for `gender`? What PlayerModel_BuildFromAppearance
+ * requires before it builds anything.
+ */
+int
+PlayerModel_AppearanceResident(
+    struct CacheProvider* provider,
+    int const slots[12],
     int gender);
 
 /*
@@ -36,6 +49,22 @@ PlayerModel_BuildFromAppearance(
  */
 int
 PlayerModel_DesignColourCount(int part);
+
+/*
+ * Wear position of design part `part` (0 hair, 1 jaw, 2 torso, 3 arms,
+ * 4 hands, 5 legs, 6 feet) — PlayerComposition's own table
+ * (Statics.method8884 in the 239 client). The appearance array is indexed by
+ * WEAR POSITION while the design panel and the idk table speak in body parts,
+ * so anything that writes an identity kit into an appearance goes through
+ * this. Returns -1 for an out-of-range part.
+ *
+ * The server derives the same seven numbers from the other end
+ * (`k_idk_bodypart_wearpos`, torirs_server_content.c, transcribed from the
+ * reference's `Player.body`). The two agreeing is the check worth recording:
+ * they came from different sources.
+ */
+int
+PlayerModel_DesignPartWearpos(int part);
 
 /*
  * List the cache model ids the appearance references (idk part models +

@@ -63,6 +63,31 @@ test_opcode_names(void)
              "compiler command lookup sees player_lock");
     CHECK_EQ(SSVM_OpcodeFromName("obj_add_private"), SS_OP_OBJ_ADD_PRIVATE,
              "compiler command lookup sees private ground drops");
+    CHECK_EQ(SSVM_OpcodeFromName("remote_view_start"), SS_OP_REMOTE_VIEW_START,
+             "compiler command lookup sees remote scene views");
+    CHECK_EQ(SSVM_OpcodeFromName("stat_xp"), SS_OP_STAT_XP,
+             "compiler command lookup sees raw experience reads");
+    CHECK_EQ(SSVM_OpcodeFromName("hitmark"), SS_OP_HITMARK,
+             "compiler command lookup sees cosmetic hitmarks");
+    CHECK_EQ(SSVM_OpcodeFromName("npc_respawn_remaining"),
+             SS_OP_NPC_RESPAWN_REMAINING,
+             "compiler command lookup sees dead-NPC respawn clocks");
+    CHECK_EQ(SSVM_OpcodeFromName("map_instance_flag_set"),
+             SS_OP_MAP_INSTANCE_FLAG_SET,
+             "compiler command lookup sees shared instance flags");
+    CHECK_EQ(SSVM_OpcodeFromName("map_instance_var_set"),
+             SS_OP_MAP_INSTANCE_VAR_SET,
+             "compiler command lookup sees shared instance integers");
+    CHECK_EQ(SSVM_OpcodeFromName("last_step_coord"), SS_OP_LAST_STEP_COORD,
+             "compiler command lookup sees the previous movement tile");
+    CHECK_EQ(SSVM_OpcodeFromName("inv_transmit_from"), SS_OP_INV_TRANSMIT_FROM,
+             "compiler command lookup sees cross-player inventory views");
+    CHECK_EQ(SSVM_OpcodeFromName("p_findvisibleplayer"),
+             SS_OP_P_FINDVISIBLEPLAYER,
+             "compiler command lookup sees social-visibility player lookup");
+    CHECK_EQ(SSVM_OpcodeFromName("map_instance_find_owner"),
+             SS_OP_MAP_INSTANCE_FIND_OWNER,
+             "compiler command lookup sees owned instance lookup");
     CHECK_EQ(strcmp(SSVM_OpcodeName(SS_OP_PLAYER_UNLOCK), "PLAYER_UNLOCK"), 0,
              "player unlock opcode name");
 
@@ -149,6 +174,9 @@ test_command_arities(void)
     CHECK(m->int_in == 1 && m->int_out == 1, "npc_var_get(slot) -> int");
     m = SSVM_OpcodeMeta(SS_OP_NPC_VAR_SET);
     CHECK(m->int_in == 2 && m->int_out == 0, "npc_var_set(slot, value)");
+    m = SSVM_OpcodeMeta(SS_OP_NPC_RESPAWN_REMAINING);
+    CHECK(m->int_in == 3 && m->int_out == 1,
+          "npc_respawn_remaining(coord, npc, range) -> int");
     m = SSVM_OpcodeMeta(SS_OP_PLAYER_LOCK);
     CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "player_lock() has no stack arguments");
@@ -158,6 +186,48 @@ test_command_arities(void)
     m = SSVM_OpcodeMeta(SS_OP_OBJ_ADD_PRIVATE);
     CHECK(m->int_in == 5 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
           "obj_add_private(coord, obj, count, duration, private_ticks)");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_START);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "remote_view_start(coord, ticks)");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_END);
+    CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "remote_view_end()");
+    m = SSVM_OpcodeMeta(SS_OP_STAT_XP);
+    CHECK(m->int_in == 1 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "stat_xp(stat) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_HITMARK);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 0 && m->str_out == 0,
+          "hitmark(uid, hitsplat, amount)");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FLAG_GET);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_flag_get(handle, mask) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FLAG_SET);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_flag_set(handle, mask, enabled) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_VAR_GET);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_var_get(handle, slot) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_VAR_SET);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_var_set(handle, slot, value) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_LAST_STEP_COORD);
+    CHECK(m->int_in == 0 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "last_step_coord() -> coord");
+    m = SSVM_OpcodeMeta(SS_OP_INV_TRANSMIT_FROM);
+    CHECK(m->int_in == 3 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "inv_transmit_from(owner, inv, component) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_P_FINDVISIBLEPLAYER);
+    CHECK(m->int_in == 0 && m->str_in == 1 && m->int_out == 1 && m->str_out == 0,
+          "p_findvisibleplayer(name) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_P_ISFRIEND);
+    CHECK(m->int_in == 1 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "p_isfriend(uid) -> boolean");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_FIND_OWNER);
+    CHECK(m->int_in == 2 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_find_owner(owner, flags) -> int");
+    m = SSVM_OpcodeMeta(SS_OP_MAP_INSTANCE_PLAYERCOUNT);
+    CHECK(m->int_in == 1 && m->str_in == 0 && m->int_out == 1 && m->str_out == 0,
+          "map_instance_playercount(handle) -> int");
 }
 
 static void
@@ -223,6 +293,21 @@ test_pointer_masks(void)
     m = SSVM_OpcodeMeta(SS_OP_PLAYER_UNLOCK);
     CHECK(m->require == 0,
           "player_unlock remains callable from a player-bound softtimer cleanup");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_START);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "remote_view_start requires the protected active player");
+    m = SSVM_OpcodeMeta(SS_OP_REMOTE_VIEW_END);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "remote_view_end requires the protected active player");
+    m = SSVM_OpcodeMeta(SS_OP_INV_TRANSMIT_FROM);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "inv_transmit_from requires the protected active viewer");
+    m = SSVM_OpcodeMeta(SS_OP_P_FINDVISIBLEPLAYER);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "p_findvisibleplayer requires the protected active requester");
+    m = SSVM_OpcodeMeta(SS_OP_P_ISFRIEND);
+    CHECK(m->require == SSVM_PTR_PROTECTED_PLAYER,
+          "p_isfriend requires the protected active player");
 
     /* A pure computation must require nothing, or every arithmetic op would
      * abort in a script with no active entity. */
@@ -285,7 +370,8 @@ test_triggers(void)
     CHECK_EQ(SS_TRIGGER_FRIENDLOGIN, 179, "friendlogin is rev-230 presence");
     CHECK_EQ(SS_TRIGGER_FRIENDLOGOUT, 180, "friendlogout");
     CHECK_EQ(SS_TRIGGER_PLAYERDEATH, 181, "playerdeath when HP hits 0");
-    CHECK_EQ(SS_TRIGGER_MAX, 182, "trigger table size");
+    CHECK_EQ(SS_TRIGGER_LOCSTEP, 182, "locstep when movement finishes on a loc");
+    CHECK_EQ(SS_TRIGGER_MAX, 183, "trigger table size");
 
     /* The numbered form is a *different* trigger from the op-less click, not a
      * relabelling of it: `[if_button,x]` still answers a plain click and
@@ -296,6 +382,7 @@ test_triggers(void)
              "name of if_button2");
     CHECK_EQ(SSVM_TriggerFromName("if_button2"), SS_TRIGGER_IF_BUTTON2, "if_button2 by name");
     CHECK_EQ(SSVM_TriggerFromName("if_button10"), SS_TRIGGER_IF_BUTTON10, "if_button10 by name");
+    CHECK_EQ(SSVM_TriggerFromName("locstep"), SS_TRIGGER_LOCSTEP, "locstep by name");
 
     CHECK_EQ(strcmp(SSVM_TriggerName(SS_TRIGGER_OPNPC1), "opnpc1"), 0, "name of opnpc1");
     CHECK_EQ(SSVM_TriggerFromName("opnpc1"), SS_TRIGGER_OPNPC1, "opnpc1 by name");

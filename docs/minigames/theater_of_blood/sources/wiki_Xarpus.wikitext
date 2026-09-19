@@ -1,0 +1,309 @@
+{{Multi Infobox
+|text1 = Entry Mode
+|item1 = 
+{{Switch infobox
+|text1 = Phase 1
+|item1 = 
+{{Infobox NPC
+|name = Xarpus
+|image = [[File:Xarpus (phase 1).png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|race = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|gender = Male
+|examine = King of the yarasa.
+|map = No
+|id = 10766,10767
+|leagueRegion = Morytania
+}}
+|text2 = Phase 2 & 3
+|item2 = 
+{{Infobox Monster
+|bucketname = Entry mode
+|name = Xarpus
+|image = [[File:Xarpus.png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat = 331
+|size = 5
+|examine = King of the yarasa.
+|xpbonus = 0
+|max hit = 6 (38+ recoil)
+|aggressive = Yes
+|poisonous = Yes
+|attack style = [[Typeless]] [[Ranged]], [[Poison]]
+|attack speed = 4
+|slayxp = Not assigned
+|hitpoints = 3400
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def = 100
+|mage = 80
+|range = 50
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 100
+|dstandard = 100
+|dheavy = 100
+|elementalweaknesstype = Air
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id = 10768
+|leagueRegion = Morytania
+}}
+|text3 = Death
+|item3 = 
+{{Infobox NPC
+|name = Xarpus
+|image = [[File:Xarpus (death).png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|race = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|gender = Male
+|examine = King of the yarasa.
+|map = No
+|id = 10769
+|leagueRegion = Morytania
+}}
+}}
+|text2 = Normal Mode
+|item2 = 
+{{Switch infobox
+|text1 = Phase 1
+|item1 = 
+{{Infobox NPC
+|name = Xarpus
+|image = [[File:Xarpus (phase 1).png|300px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|race = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|gender = Male
+|examine = King of the yarasa.
+|map = No
+|id = 8338,8339
+|leagueRegion = Morytania
+}}
+|text2 = Phase 2 & 3
+|item2 = 
+{{Infobox Monster
+|bucketname = Normal mode
+|name = Xarpus
+|image = [[File:Xarpus.png|300px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|combat = 960
+|size = 5
+|examine = King of the yarasa.
+|xpbonus = 0
+|max hit = 11 (50+ recoil)
+|aggressive = Yes
+|poisonous = Yes
+|attack style = [[Typeless]] [[Ranged]], [[Poison]]
+|attack speed = 4
+|slayxp = Not assigned
+|hitpoints = 5000
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def = 250
+|mage = 220
+|range = 100
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 160
+|dstandard = 160
+|dheavy = 160
+|elementalweaknesstype = Air
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id = 8340
+|leagueRegion = Morytania
+}}
+|text3 = Death
+|item3 = 
+{{Infobox NPC
+|name = Xarpus
+|image = [[File:Xarpus (death).png|300px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|race = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|gender = Male
+|examine = King of the yarasa.
+|map = No
+|id = 8341
+|leagueRegion = Morytania
+}}
+}}
+|text3 = Hard Mode
+|item3 = 
+{{Switch infobox
+|text1 = Phase 1
+|item1 = 
+{{Infobox NPC
+|name = Xarpus
+|image = [[File:Xarpus (phase 1).png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|race = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|gender = Male
+|examine = King of the yarasa.
+|map = No
+|id = 10770,10771
+|leagueRegion = Morytania
+}}
+|text2 = Phase 2 & 3
+|item2 = 
+{{Infobox Monster
+|bucketname = Hard mode
+|name = Xarpus
+|image = [[File:Xarpus.png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|combat = 1160
+|size = 5
+|examine = King of the yarasa.
+|xpbonus = 0
+|max hit = 11 (50+ recoil)
+|aggressive = Yes
+|poisonous = Yes
+|attack style = [[Typeless]] [[Ranged]], [[Poison]]
+|attack speed = 4
+|slayxp = Not assigned
+|hitpoints = 6000
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def = 200
+|mage = 220
+|range = 100
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 160
+|dstandard = 160
+|dheavy = 160
+|elementalweaknesstype = Air
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id = 10772
+|leagueRegion = Morytania
+}}
+|text3 = Death
+|item3 = 
+{{Infobox NPC
+|name = Xarpus
+|image = [[File:Xarpus (death).png|300px]]
+|release = [[3 June]] [[2021]]
+|update = Theatre of Blood: New Modes
+|members = Yes
+|race = [[Yarasa]]
+|location = [[Theatre of Blood]]
+|gender = Male
+|examine = King of the yarasa.
+|map = No
+|id = 10773
+|leagueRegion = Morytania
+}}
+}}
+}}
+'''Xarpus''' is the fifth encounter in the [[Theatre of Blood]]. The [[Yarasa]] King, Xarpus is the last of its kind, and was captured by [[Lord Lowerniel Vergidiyad Drakan]] to be used as a boss in the Theatre. Despite his connection to bats, Xarpus does not count for a [[bat]] [[Slayer]] task.
+
+==Mechanics==
+[[File:Fighting Xarpus.png|thumb|right|300px|A group of players fighting Xarpus.]]
+
+Xarpus has three phases:
+
+*Recovery (Phase 1): Severely weakened, Xarpus will attempt to harvest energy from [[exhumed]] in the ground to restore the remaining 25% of his missing health. This can be temporarily halted by standing on top of the exhumed remains.
+*Poison (Phase 2): Xarpus starts attacking the players after enough time has passed from phase 1 and starts off with the amount of health he had starting from phase 1. He will launch poison at players which lightly damages anyone in a 3x3 grid centred around the player Xarpus was focusing. This poison then occupies that tile for the rest of the fight and deals 4-8 base damage each tick a player stands on or crosses over it, which is further scaled up based on the number of exhumed that Xarpus was able to absorb. Standing under Xarpus will deal light damage every tick. Skipping over a poisoned tile will deal a delayed hit.{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1126920270479015941|date=10 May 2019|archiveurl=https://archive.is/ASzNn|archivedate=30 June 2023|quote=The base damage for poison is 4-8 & is buffed by a percentage based upon how many exhumed absorbs you missed, I imagine people didn't miss enough to have that have much effect.}}
+*Counter (Phase 3): Xarpus screeches once at 25% of his health after healing and stops launching poison around the arena, instead staring intently at one quadrant at a time. If a player attacks him from the area Xarpus is looking at, he will retaliate using a poison attack with a base damage of 50-75 per hit.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1279697326571913216|date=5 July 2020|archiveurl=https://archive.is/e0E9K|archivedate=4 Aug 2020}} The base damage is then scaled up by a percentage equal to 40% of the relative increase to Xarpus' stats brought about by absorbing the exhumed.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1441720356948086784|date=25 September 2021|archiveurl=https://web.archive.org/web/20210925110502/https://twitter.com/JagexAsh/status/1441720356948086784|archivedate=25 September 2021|quote=This one? "Xarpus is staring in your direction and retaliates with a powerful attack!" The base damage is a random number 50-75. A percentage buff is then calculated off 40% of the percentage uplift applied to his stats by absorptions in the pre-fight phase.}}
+
+===Hard Mode===
+At the beginning of the fight, Xarpus will splatter poison at the two outermost layers of his arena, barring the six tiles (two rows of three) at the entrance. This results in the exhumed being more clustered and easier to intercept, while his Defence is lowered from 250 to 200 as a result.
+
+Phase 2 is still the same as in normal mode.
+
+In phase 3, Xarpus will immediately look at the direction from which he was attacked after being successfully hit. This can be used to a team's advantage by attacking from different quadrants, as this forced rotation overrides his natural reaction time.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=The wild hunt|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Xarpus now has a 50% [[elemental weakness]] to [[wind spells]].
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = Xarpus can now be affected by burn damage.
+}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change =
+* Hard mode and entry mode versions of the Theatre of Blood encounters added.
+* The word "Yarasa" in its examine text was changed to "yarasa."
+}}
+{{Subject changes
+|date = 16 May 2019
+|update = Farming Improvements and Rebalancing Existing Content
+|change = The difficulty of phase 1 was reduced, especially for solo-trio teams.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*"Yarasa", the species that Xarpus is classified as, means "bat" in Turkish.
+*When examined, the acidic miasma that Xarpus shoots at the players reads {{mes|Tread softly because you tread on miasma.}} This is a reference to the poem "{{wp|Aedh Wishes for the Cloths of Heaven}}" by W. B. Yeats.
+*The config name for the projectile shown when stepping under Xarpus is tob_xarpus_guano. Guano is the dried excrement of seabirds or bats. Although technically not guano, stepping under Xarpus will result in the player being defecated on.{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/434286997360738305/1430465452974407730|date=22 October 2025|quote=Yes, though someone told me afterwards that it's not technically guano in that state. Actual code extract: https://ibb.co/VWHHV7Lk|archiveurl=https://reldo.runescape.wiki/i/27962753#chat-messages-434286997360738305-1430465452974407730|archivedate=2026-03-07}}
+
+==References==
+{{reflist}}
+
+{{Theatre of Blood}}
+{{Bosses}}

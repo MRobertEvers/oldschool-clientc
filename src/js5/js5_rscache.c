@@ -74,7 +74,7 @@ js5_rscache_activate_reference(
     if( !storage || !storage->disk || !container || archive < 0 ||
         archive >= RSCACHE_DAT2_DISK_TABLE_CAPACITY || size > INT_MAX )
         return JS5_STORAGE_ERROR;
-    if( storage->disk->tables[archive] )
+    if( RSCache_Dat2DiskReferenceTable(storage->disk, archive) )
         return JS5_STORAGE_OK;
     /*
      * A reference can survive an interrupted cache creation while idxN did

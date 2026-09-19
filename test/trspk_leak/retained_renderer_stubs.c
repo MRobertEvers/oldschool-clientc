@@ -2,11 +2,27 @@
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 
+#include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* The retained-resource commands under test never enter the compatibility
  * 2D rasterizer or frame iterator.  Stubbing those independent consumers
  * keeps this test CPU-only while linking the real D3D9 command dispatcher. */
+struct ToriRS_Soft3D*
+ToriRS_Soft3D_New(void)
+{
+    struct ToriRS_Soft3D* soft = calloc(1, sizeof(*soft));
+    assert(soft);
+    return soft;
+}
+
+void
+ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
+{
+    free(soft);
+}
+
 void
 ToriRS_Soft3D_Init(
     struct ToriRS_Soft3D* soft,

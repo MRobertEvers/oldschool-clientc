@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "log/torirs_log.h"
 
 struct MapEntry_CacheModel
 {
@@ -25,12 +26,6 @@ struct MapEntry_Scenery
 {
     int id;
     struct RSCache_MapLocs* locs;
-};
-
-struct MapEntry_ComponentPack
-{
-    int id;
-    struct RSCache_Dat2ComponentPack* pack;
 };
 
 struct MapEntry_ClientScript
@@ -87,15 +82,64 @@ struct MapEntry_Texture
     struct RSCache_Dat2Texture* texture;
 };
 
-#define DAT2_MODEL_MAP_CAPACITY 8192
-#define DAT2_MAP_REGION_CAPACITY 512
-#define DAT2_INTERFACE_MAP_CAPACITY 512
-#define DAT2_CLIENTSCRIPT_MAP_CAPACITY 4096
-#define DAT2_CONFIG_MAP_CAPACITY 4096
-/* Split-group LRU budget. The loc group is the largest single entry (a few MB
- * on an osrs230 cache), so this holds it plus the other config groups a boot
- * interleaves with it, and evicts rather than accumulating all of them. */
+/*
+ * Initial sizes, not ceilings -- the map doubles itself past 75% load. Each is
+ * the next power of two above twice what a booted osrs239 session holds; the
+ * kinds that read zero here are served from the provider's decoded copy, so
+ * the raw side never fills.
+ */
+#define DAT2_MODEL_MAP_CAPACITY 4096
+#define DAT2_MAP_REGION_CAPACITY 32
+#define DAT2_CLIENTSCRIPT_MAP_CAPACITY 2048
+#define DAT2_OBJECT_MAP_CAPACITY 64
+#define DAT2_NPCTYPE_MAP_CAPACITY 64
+#define DAT2_BAS_MAP_CAPACITY 64
+#define DAT2_IDENTKIT_MAP_CAPACITY 1024
+#define DAT2_LOC_MAP_CAPACITY 64
+#define DAT2_UNDERLAY_MAP_CAPACITY 512
+#define DAT2_OVERLAY_MAP_CAPACITY 2048
+#define DAT2_TEXTURE_MAP_CAPACITY 512
+/*
+ * Split-group LRU budget: enough to hold a SESSION's config working set.
+ *
+ * 4 MB was the knee for a BOOT, swept against tracked peak (24 MB cost 108.20,
+ * 8 MB 108.23, 4 MB 105.63, 2 MB 107.35) with the cache topping out around
+ * 4 MB at a 98.9% hit rate. A session is not a boot. Play touches every big
+ * config group -- locs 3.03 MB split, objs 2.90, seqs 2.01, dbrows 1.95, npcs
+ * 1.89, enums 0.62, structs 0.59, plus params, invtypes, hitsplats, dbtables --
+ * and they do not fit in 4 MB together, so each one evicted the next. Measured
+ * over four osrs239 teleports at the old budget: 59 evictions, 79.73 MB
+ * re-split, a 48.1% hit rate. Every miss re-walks the group's chunk table and,
+ * when the IO layer's archive LRU had lost it too, re-runs bzip2 on the whole
+ * group first -- a frame-sized stall on the first door, item icon, npc or
+ * interface after each eviction.
+ *
+ * At 24 MB the same run evicts NOTHING, hits 83.8%, and settles at 13.12 MB
+ * live holding all twelve groups. That 13 MB is the real cost of the change
+ * and is a ceiling rather than an allocation: the cache only ever holds groups
+ * something asked for. DAT2_GROUP_CACHE_MB narrows it where that matters.
+ * See also DAT2_ARCHIVE_CACHE_SLOTS_DEFAULT, the compressed-archive LRU one
+ * layer down, which was sized off the same boot sweep and for the same reason.
+ */
 #define DAT2_GROUP_CACHE_BUDGET ((size_t)24 * 1024 * 1024)
+
+/* DAT2_GROUP_CACHE_MB overrides the budget so it can be swept without a
+ * rebuild. An unparseable or out-of-range value falls back to the compiled
+ * default rather than asserting: this reads a user's environment, not a
+ * caller's argument. */
+static size_t
+dat2_group_cache_budget(void)
+{
+    char const* env = getenv("DAT2_GROUP_CACHE_MB");
+    long mb;
+
+    if( !env || env[0] == '\0' )
+        return DAT2_GROUP_CACHE_BUDGET;
+    mb = strtol(env, NULL, 10);
+    if( mb <= 0 || mb > 4096 )
+        return DAT2_GROUP_CACHE_BUDGET;
+    return (size_t)mb * 1024 * 1024;
+}
 
 static size_t
 dat2_hmap_buffer_bytes(
@@ -246,6 +290,8 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_ModelLoad = CreateTask_Dat2ModelLoad,
     .Task_ComponentPackLoad = CreateTask_Dat2ComponentPackLoad,
     .Task_ClientScriptLoad = CreateTask_Dat2ClientScriptLoad,
+    .Task_ClientScriptTableLoad = CreateTask_Dat2ClientScriptTableLoad,
+    .ClientScriptIdByNameHash = dat2_clientscript_id_by_name_hash,
     .Task_ObjLoad = CreateTask_Dat2ObjLoad,
     .Task_ObjLoadAll = CreateTask_Dat2ObjLoadAll,
     .Task_NpcLoad = CreateTask_Dat2NpcLoad,
@@ -262,10 +308,12 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_SequenceLoad = CreateTask_Dat2SequenceLoad,
     .Task_SpriteLoad = CreateTask_Dat2SpriteLoad,
     .Task_SpriteLoadByName = CreateTask_Dat2SpriteLoadByName,
+    .Task_DefaultsSpriteLoad = CreateTask_Dat2DefaultsSpriteLoad,
     .Task_FontLoad = CreateTask_Dat2FontLoad,
     .Task_EnumLoad = CreateTask_Dat2EnumLoad,
     .Task_StructLoad = CreateTask_Dat2StructLoad,
     .Task_ParamLoad = CreateTask_Dat2ParamLoad,
+    .Task_InvtypeLoad = CreateTask_Dat2InvtypeLoad,
     .Task_DbRowLoad = CreateTask_Dat2DbRowLoad,
     .Task_DbTableLoad = CreateTask_Dat2DbTableLoad,
     .Task_DbTableIndexLoad = CreateTask_Dat2DbTableIndexLoad,
@@ -287,31 +335,30 @@ dat2_buildcache_new(void)
     /* Enough for the handful of config groups a boot reads back to back (the
      * loc group alone is several MB) without letting every table stay resident
      * for the whole session. */
-    dat2_buildcache->group_cache = Dat2GroupCache_New(DAT2_GROUP_CACHE_BUDGET);
+    dat2_buildcache->group_cache =
+        Dat2GroupCache_New(dat2_group_cache_budget());
     dat2_buildcache->models_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_CacheModel), DAT2_MODEL_MAP_CAPACITY);
-    dat2_buildcache->componentpacks_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ComponentPack), DAT2_INTERFACE_MAP_CAPACITY);
     dat2_buildcache->object_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigObject), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigObject), DAT2_OBJECT_MAP_CAPACITY);
     dat2_buildcache->npctype_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigNpctype), DAT2_NPCTYPE_MAP_CAPACITY);
     dat2_buildcache->bas_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigBas), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigBas), DAT2_BAS_MAP_CAPACITY);
     dat2_buildcache->identkit_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigIdentkit), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigIdentkit), DAT2_IDENTKIT_MAP_CAPACITY);
     dat2_buildcache->map_terrain_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_Terrain), DAT2_MAP_REGION_CAPACITY);
     dat2_buildcache->map_scenery_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_Scenery), DAT2_MAP_REGION_CAPACITY);
     dat2_buildcache->loc_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigLoc), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigLoc), DAT2_LOC_MAP_CAPACITY);
     dat2_buildcache->underlay_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigUnderlay), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigUnderlay), DAT2_UNDERLAY_MAP_CAPACITY);
     dat2_buildcache->overlay_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_ConfigOverlay), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_ConfigOverlay), DAT2_OVERLAY_MAP_CAPACITY);
     dat2_buildcache->texture_hmap = dat2_buildcache_map_new(
-        dat2_buildcache, sizeof(struct MapEntry_Texture), DAT2_CONFIG_MAP_CAPACITY);
+        dat2_buildcache, sizeof(struct MapEntry_Texture), DAT2_TEXTURE_MAP_CAPACITY);
     dat2_buildcache->clientscripts_hmap = dat2_buildcache_map_new(
         dat2_buildcache, sizeof(struct MapEntry_ClientScript), DAT2_CLIENTSCRIPT_MAP_CAPACITY);
 
@@ -332,7 +379,6 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_underlays_cleanup(dat2_buildcache);
     dat2_buildcache_overlays_cleanup(dat2_buildcache);
     dat2_buildcache_textures_cleanup(dat2_buildcache);
-    dat2_buildcache_componentpacks_cleanup(dat2_buildcache);
     dat2_buildcache_objects_cleanup(dat2_buildcache);
     dat2_buildcache_npctypes_cleanup(dat2_buildcache);
     dat2_buildcache_bas_cleanup(dat2_buildcache);
@@ -341,7 +387,6 @@ dat2_buildcache_free(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_reference_tables_cleanup(dat2_buildcache);
 
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->models_hmap);
-    dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->componentpacks_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->object_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->npctype_hmap);
     dat2_buildcache_map_free(dat2_buildcache, dat2_buildcache->bas_hmap);
@@ -596,74 +641,9 @@ dat2_buildcache_map_scenery_cleanup(struct Dat2BuildCache* dat2_buildcache)
         DAT2_MAP_REGION_CAPACITY);
 }
 
-void
-dat2_buildcache_componentpack_add(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id,
-    struct RSCache_Dat2ComponentPack* pack)
-{
-    struct MapEntry_ComponentPack* entry;
 
-    assert(dat2_buildcache);
-    assert(pack);
 
-    dat2_buildcache_prepare_hmap_insert(dat2_buildcache, &dat2_buildcache->componentpacks_hmap);
-    entry = (struct MapEntry_ComponentPack*)hmap_search(
-        dat2_buildcache->componentpacks_hmap, &iface_id, HMAP_INSERT);
-    assert(entry && "Component pack must be inserted into hmap");
 
-    entry->id = iface_id;
-    entry->pack = pack;
-}
-
-struct RSCache_Dat2ComponentPack*
-dat2_buildcache_componentpack_get(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id)
-{
-    struct MapEntry_ComponentPack* entry;
-
-    assert(dat2_buildcache);
-
-    entry = (struct MapEntry_ComponentPack*)hmap_search(
-        dat2_buildcache->componentpacks_hmap, &iface_id, HMAP_FIND);
-    if( !entry )
-        return NULL;
-    return entry->pack;
-}
-
-bool
-dat2_buildcache_componentpack_has(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id)
-{
-    return dat2_buildcache_componentpack_get(dat2_buildcache, iface_id) != NULL;
-}
-
-void
-dat2_buildcache_componentpacks_cleanup(struct Dat2BuildCache* dat2_buildcache)
-{
-    struct HMapIter* iter;
-    struct MapEntry_ComponentPack* entry;
-
-    assert(dat2_buildcache);
-    if( !dat2_buildcache->componentpacks_hmap )
-        return;
-
-    iter = hmap_iter_new(dat2_buildcache->componentpacks_hmap);
-    while( (entry = (struct MapEntry_ComponentPack*)hmap_iter_next(iter)) )
-    {
-        if( entry->pack )
-            RSCache_Dat2ComponentPackFree(entry->pack);
-    }
-    hmap_iter_free(iter);
-
-    dat2_buildcache_map_reset(
-        dat2_buildcache,
-        &dat2_buildcache->componentpacks_hmap,
-        sizeof(struct MapEntry_ComponentPack),
-        DAT2_INTERFACE_MAP_CAPACITY);
-}
 
 void
 dat2_buildcache_clientscript_add(
@@ -773,6 +753,10 @@ dat2_buildcache_reference_tables_cleanup(struct Dat2BuildCache* dat2_buildcache)
 {
     int table_id;
 
+    free(dat2_buildcache->clientscript_names);
+    dat2_buildcache->clientscript_names = NULL;
+    dat2_buildcache->clientscript_name_count = 0;
+
     assert(dat2_buildcache);
 
     for( table_id = 0; table_id < RSCACHE_DAT2_TABLE_COUNT; table_id++ )
@@ -871,7 +855,7 @@ dat2_buildcache_objects_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->object_hmap,
         sizeof(struct MapEntry_ConfigObject),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_OBJECT_MAP_CAPACITY);
 }
 
 static void
@@ -1001,7 +985,7 @@ dat2_buildcache_npctypes_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->npctype_hmap,
         sizeof(struct MapEntry_ConfigNpctype),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_NPCTYPE_MAP_CAPACITY);
 }
 
 void
@@ -1121,7 +1105,7 @@ dat2_buildcache_bas_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->bas_hmap,
         sizeof(struct MapEntry_ConfigBas),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_BAS_MAP_CAPACITY);
 }
 
 void
@@ -1226,7 +1210,7 @@ dat2_buildcache_identkits_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->identkit_hmap,
         sizeof(struct MapEntry_ConfigIdentkit),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_IDENTKIT_MAP_CAPACITY);
 }
 
 static void
@@ -1348,7 +1332,7 @@ dat2_buildcache_locs_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->loc_hmap,
         sizeof(struct MapEntry_ConfigLoc),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_LOC_MAP_CAPACITY);
 }
 
 void
@@ -1398,9 +1382,7 @@ dat2_buildcache_locs_init_from_archive_based(
             { "large_ids+osrs220",
               RSCACHE_CONFIG_LOC_DECODE_LARGE_MODEL_IDS | RSCACHE_CONFIG_LOC_DECODE_OSRS_220 },
         };
-        fprintf(
-            stderr,
-            "loc_scan: archive revision=%d files=%d (flags for revision: 0x%x)\n",
+        TORIRS_LOG("loc_scan: archive revision=%d files=%d (flags for revision: 0x%x)\n",
             archive->revision,
             filelist->file_count,
             RSCache_Dat2ConfigLocFlags(CacheProvider_Profile(&dat2_buildcache->base)));
@@ -1419,9 +1401,7 @@ dat2_buildcache_locs_init_from_archive_based(
                     first_bad = archive->file_ids[i];
                 RSCache_Dat2ConfigLocFreeInplace(&scan_loc);
             }
-            fprintf(
-                stderr,
-                "loc_scan: %-18s exact=%d/%d first_mismatch_id=%d\n",
+            TORIRS_ERR("loc_scan: %-18s exact=%d/%d first_mismatch_id=%d\n",
                 combos[c].name,
                 exact,
                 filelist->file_count,
@@ -1535,7 +1515,7 @@ dat2_buildcache_underlays_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->underlay_hmap,
         sizeof(struct MapEntry_ConfigUnderlay),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_UNDERLAY_MAP_CAPACITY);
 }
 
 void
@@ -1650,7 +1630,7 @@ dat2_buildcache_overlays_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->overlay_hmap,
         sizeof(struct MapEntry_ConfigOverlay),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_OVERLAY_MAP_CAPACITY);
 }
 
 void
@@ -1765,7 +1745,7 @@ dat2_buildcache_textures_cleanup(struct Dat2BuildCache* dat2_buildcache)
         dat2_buildcache,
         &dat2_buildcache->texture_hmap,
         sizeof(struct MapEntry_Texture),
-        DAT2_CONFIG_MAP_CAPACITY);
+        DAT2_TEXTURE_MAP_CAPACITY);
 }
 
 void
@@ -1822,7 +1802,6 @@ dat2_buildcache_prune(struct Dat2BuildCache* dat2_buildcache)
     dat2_buildcache_underlays_cleanup(dat2_buildcache);
     dat2_buildcache_overlays_cleanup(dat2_buildcache);
     dat2_buildcache_textures_cleanup(dat2_buildcache);
-    dat2_buildcache_componentpacks_cleanup(dat2_buildcache);
     dat2_buildcache_objects_cleanup(dat2_buildcache);
     dat2_buildcache_npctypes_cleanup(dat2_buildcache);
     dat2_buildcache_bas_cleanup(dat2_buildcache);

@@ -8,7 +8,7 @@ retyping 163 rows by hand.
 
 Reads `configs/all.dbrow` for every `slayer_task` block (columndef=/values=
 grammar — the machine export, not the authored `column=`/`data=` grammar
-`mock230_db.c` reads) and prints one Markdown table row per task: id, name,
+`torirs_server_db.c` reads) and prints one Markdown table row per task: id, name,
 min_comlevel, min_stat_requirement_all (level, stat).
 
 This is a one-shot lister, not a full membership generator — that is

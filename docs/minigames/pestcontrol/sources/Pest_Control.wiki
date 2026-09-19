@@ -1,0 +1,375 @@
+{{External|rs}}
+{{Safe activity|instance=true}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Pest Control
+|image = [[File:Pest Control.png|300px]]
+|release = [[18 April]] [[2006]]
+|update = Pest Control
+|aka = PC
+|type = Minigame
+|members = Yes
+|location = [[Void Knights' Outpost]]
+|players = 5-25
+|skills = [[Combat]], [[Crafting]], [[Woodcutting]]
+|currency = [[Void Knight commendation points]]
+|tutorial = No
+|music = [[Pest Control (music track)|Pest Control]]
+|map = {{Map|name=Pest Control|x=2658|y=2625|zoom=1}}
+|leagueRegion = Asgarnia
+}}
+[[File:Pest Control logo.png|left]]
+{{Relativelocation
+|location=Pest Control
+|north=Void Knights' Outpost
+|south=Pest Control Island
+|east=Unknown
+|west=Unknown
+}}
+
+'''Pest Control''' is a co-operative combat-based [[minigame]], in which players defend the [[Void Knight (Pest Control)|Void Knight]] from an onslaught of pests, while also destroying the portals from which the monsters spawn.
+
+The only requirement to participate in Pest Control is a combat level of 40, 70 or 100 for Novice, Intermediate and Veteran games respectively. To play, players should board one of three landers corresponding to the desired difficulty on the [[Void Knights' Outpost]].
+
+Pest Control is notable for its reward of [[Void Knight equipment]], purchased using [[commendation points]] given to players '''actively''' participating in the minigame.
+
+==Transportation==
+The [[Minigame Teleport]] spell will take players directly to the [[Void Knights' Outpost]] (20 minute cooldown), as will [[Pest Control Teleport]]s, which are obtained as a reward from [[Treasure Trails]], and may also be bought from other players on the [[Grand Exchange]].
+
+Alternatively, players may travel to the island with the [[Squire (Void Knights)|squire]] found on the [[Port Sarim]] docks, south of the ship the [[Lady Lumbridge]].
+
+==Outpost facilities==
+The Outpost contains various utilities, including:
+*[[Bank]]
+*[[General store]] - Sells unique items
+*[[Anvil]] - Nearby is a smith who can repair [[Barrows]] armour
+*[[Void Knight Archery Store]]
+*[[Void Knight Magic Store]] - Stocks [[body rune|body]], [[air rune|air]], [[water rune|water]], [[earth rune|earth]], [[fire rune|fire]], [[mind rune|mind]], [[chaos rune|chaos]], and [[death rune|death]] [[runes]]
+*Three {{wp|Landing Craft Vehicle Personnel|LCVP}}-style ships, called "landers" - Players board these to begin games of Pest Control
+*[[Port]] (requires level 50 [[Sailing]] to dock your boat here)
+
+==Starting a game==
+Pest Control can be played with between 5 and 25 players, in one of three difficulties (Novice, Intermediate, Veteran) depending on the lander the player chooses to board. It is recommended to use the offical worlds to find other players, as the landers will otherwise usually be empty without a dedicated group.
+
+Once at least 5 players have joined the lander, a 2 minute countdown begins before the game will start. If 25 players have joined, the game will begin automatically.
+
+If there are more than 25 players waiting on the lander, any players not taken will be assigned a greater priority of being taken in the next batch of players. This priority number will increase by 1 each time the player is not taken on a consecutive lander.
+
+===Restrictions===
+Pets are allowed on the island, but not on the landers or in the minigame itself. In addition, [[Dwarf multicannons]] and [[Alchemy spells]] may not be used during the activity. Finally, leaving the activity requires right-clicking the Squire by the boat and selecting "Leave"; teleports will not work.
+
+==Official world==
+The following [[Server#Themed servers/worlds|official world]] is assigned to Pest Control:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|344|Germany|mems=yes|Pest Control}}
+|}
+
+As with most minigames, it is not required to use the official world, though landers in most other worlds are usually empty if a dedicated group is not present.
+
+==Gameplay==
+{{main|Pest Control/Strategies}}
+'''This is a 'safe' activity.''' Players who '''die''' keep their items, respawn on the lander, and can rejoin combat immediately.
+
+In Pest Control, the main objective is to protect the '''Void Knight''' from damage that is inflicted by pests that are spawned by four different portals. The players will succeed as long as the Void Knight stays alive. There are two ways to win:
+* Defend the [[Void Knight (Pest Control)|Void Knight]] for 20 minutes until time runs out.
+* Destroy all four portals before the Void Knight is killed (the most common strategy, often completed in under two minutes).
+
+[[File:Shielded portal.png|thumb|right|206x206px|A portal with its shields still active]]
+
+At the start of any game, all four portals are protected by shields, which renders them immune to damage. These shields are visually indicated by faint, white lines which surround the portals. Players must wait for the Void Knight to '''disable''' each shield before they are able to attack the portal. While waiting, they must protect the Void Knight from any damage by the pests that are spawned from the portals.
+
+The Void Knight, as well as the chatbox, will announce that a shield has dropped. The shields always drop in a set '''pattern''', which goes on a specific rotation. For a detailed breakdown on the shield rotations, please see [[Pest Control/Strategies]]. The first shield will always drop '''15 seconds''' into the game, and the remaining shields deactivate every '''30 seconds''' thereafter. All shields will be down by '''1 minute and 45 seconds''' into the game.
+
+When a portal is destroyed, it stops spawning pests and restores 50 health to the Void Knight. In the Novice difficulty, portals have 200hp, while in Intermediate and Veteran they have 250hp. Each portal has high defensive bonuses against every stat, except for its weakness:
+
+{| class="wikitable" style="text-align:center;"
+|-
+!Colour
+!Location
+!Attack weakness
+|-
+|[[File:Purple portal icon.png]]
+|W
+|[[File:Ranged icon.png|Ranged]]
+|-
+|[[File:Blue portal icon.png]]
+|E
+|[[File:Magic icon.png|Magic]]
+|-
+|[[File:Yellow portal icon.png]]
+|SE
+|[[File:White dagger.png|Stab]][[File:White scimitar.png|Slash]]
+|-
+|[[File:Red portal icon.png]]
+|SW
+|[[File:White warhammer.png|Crush]]
+|}
+
+At the end of each game, [[Hitpoints]], [[Prayer]] points, [[special attack]], and run [[energy]] are fully restored, and any skills with boosts applied are reset to their normal levels.
+
+'''For a detailed breakdown of advanced mechanics and tactics, see [[Pest Control/Strategies]].'''
+
+==Pests==
+Pests are the monsters that spawn out of portals to kill players and the [[Void Knight]]. During the game, players must defend the Void Knight from various enemy creatures that spawn from the enemy portals. These pests have different abilities, such as dealing high damage, healing portals, or attacking the Void Knight directly. Some require specific strategies to counter effectively. For a detailed breakdown of each pest and how to handle them, see [[Pest Control/Strategies]].
+
+{| class="wikitable sortable" style="width: 50%"
+|+Monsters
+|-
+! colspan="2" | Name
+!Attack style
+!Combat levels
+!Spawn chance{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1341342728478396428|date=18 February 2025|quote=Nah, the invading pests are spawned off a random roll: 5% brawler, 20% defiler, 5% ravager, 20% shifter, 7% spinner, 23% splatter, 20% torcher|image=Ash Pest Control spawn rates.png|archiveurl=https://reldo.runescape.wiki/i/27962796#chat-messages-431834766325841920-1341342728478396428|archivedate=2026-03-07}}
+|-
+|[[File:Brawler (level 51).png|center|Brawler|75px]]
+|[[Brawler]]
+|Melee
+|51, 76, 101, 111 or 129
+|5%
+|-
+|[[File:Defiler.png|center|Defiler|75px]]
+|[[Defiler]]
+|Ranged
+|33, 50, 66, 80, or 97
+|20%
+|-
+|[[File:Ravager.png|center|Ravager|75px]]
+|[[Ravager]]
+|Melee
+|36, 53, 71, 89, or 106
+|5%
+|-
+|[[File:Shifter.png|center|Shifter|75px]]
+|[[Shifter]]
+|Melee
+|36, 57, 76, 90, or 104
+|20%
+|-
+|[[File:Spinner.png|center|Spinner|75px]]
+|[[Spinner]]
+|Melee
+|37, 55, 74, 88, or 92
+|7%
+|-
+|[[File:Splatter (level 44).png|center|Splatter|75px]]
+|[[Splatter]]
+|Melee
+|22, 33, 44, 54, or 65
+|23%
+|-
+|[[File:Torcher.png|center|Torcher|75px]]
+|[[Torcher]]
+|Magic
+|33, 49, 67, 79, 91 or 92
+|20%
+|}
+
+==Rewards==
+{{main|Void Knights' Reward Options}}
+[[Commendation points]] are the main reward for playing Pest Control and can be exchanged for experience, Void Knight equipment, and other rewards. To earn them, players must maintain their '''activity bar''' throughout the game.
+
+* The activity bar '''must stay above 0%''' to remain eligible for rewards.
+* If it drops to '''0%''' at any point, no commendation points will be awarded.
+* The bar will turn '''red''' when close to depletion as a warning.
+
+Winning players are rewarded with a number of [[commendation points]] dependent on the chosen difficulty level and whether they have completed certain tiers of [[Combat Achievements]]. The most commendation points a player can have at any time is 4,000, as the squire will not let you board a boat while in possession of 4,000 points. Commendation points can be traded in for experience, [[Void Knight equipment]], and various resource packs. You also receive coins for each game of pest control won, equivalent to 10 times your current combat level.
+{{Listen|title = [[Pest Controlled (Pest Control)|Pest Controlled]]|desc=You have successfully defended the island!|filename = Pest Controlled (Pest Control).ogg}}
+{{Listen|title = [[Void Knight Defeated... (Pest Control)|Void Knight Defeated...]]|desc=Alas, the Void Knight has died.|filename = Void Knight Defeated... (Pest Control).ogg}}
+
+{| class="wikitable"
+! rowspan="2" |Lander
+! colspan="4" |Tier of Combat Achievements completed
+|-
+!None
+!Easy
+!Medium
+!Hard or above
+|-
+|'''Novice'''
+|3
+|4
+|5
+|6
+|-
+|'''Intermediate'''
+|4
+|5
+|6
+|7
+|-
+|'''Veteran'''
+|5
+|6
+|7
+|8
+|}
+
+===Set costs===
+The total cost of obtaining a full set of Void armour. Since the [[Void Knight mace]] is not required for any of the full armour sets, its cost should only be considered when calculating for the full collection log.
+{|class="wikitable"
+! !!Regular void!!Elite void
+|-
+!1 helm
+|850 points||1,250 points
+|-
+!2 helms
+|1,050 points||1,450 points
+|-
+!3 helms
+|1,250 points||1,650 points
+|-
+!Collection log
+|1,510 points||1,910 points
+|}
+Players who wish to get the [[Void Knight top|top]], [[Void knight robe|bottom]], [[Void knight gloves|gloves]], and one [[Void Knight helmet|helmet]] must '''win''' the following number of games to gain the 850 points required for the set:
+{| class="wikitable sortable"
+!Lander
+!Combat achievement tier
+!# wins
+!Time (hh:mm)
+!Points/Win
+|-
+| rowspan="4" |Novice
+|None
+| style="text-align: center;" |284
+| style="text-align: right;" |09:28
+|3
+|-
+|Easy
+| style="text-align: center;" |213
+| style="text-align: right;" |07:06
+|4
+|-
+|Medium
+| style="text-align: center;" |170
+| style="text-align: right;" |05:40
+|5
+|-
+|Hard and above
+| style="text-align: center;" |142
+| style="text-align: right;" |04:44
+|6
+|-
+| rowspan="4" |Intermediate
+|None
+| style="text-align: center;" |213
+| style="text-align: right;" |07:06
+|4
+|-
+|Easy
+| style="text-align: center;" |170
+| style="text-align: right;" |05:40
+|5
+|-
+|Medium
+| style="text-align: center;" |142
+| style="text-align: right;" |04:44
+|6
+|-
+|Hard and above
+| style="text-align: center;" |122
+| style="text-align: right;" |04:04
+|7
+|-
+| rowspan="4" |Veteran
+|None
+| style="text-align: center;" |170
+| style="text-align: right;" |05:40
+|5
+|-
+|Easy
+| style="text-align: center;" |142
+| style="text-align: right;" |04:44
+|6
+|-
+|Medium
+| style="text-align: center;" |122
+| style="text-align: right;" |04:04
+|7
+|-
+|Hard and above
+| style="text-align: center;" |107
+| style="text-align: right;" |03:34
+|8
+|}
+'''Note:''' The time estimates above are under ideal conditions (minimal to no wait time between games, no losses, etc.) and assume 2 minutes per game. A more realistic time for the novice lander is 12–14 hours. The official world for Pest Control is 344.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|poll = Future Quests & Combat Achievement Rewards
+|change = With the Easy, Medium, and Hard Combat Achievement tiers you now gain an extra one, two or three points respectively per game.
+}}
+{{Subject changes
+|date = 12 March 2020
+|update = Phosani's Nightmare and HiScores
+|change = Healing hitsplats are now used for when spinners heal a portal or when a dying portal causes the Void Knight to be healed.
+}}
+{{Subject changes
+|date = 30 May 2019
+|update = Poll 67 Updates and Hosidius Improvements
+|change = *A game of Pest Control will now start much faster if a full team of 25 players is present on the lander.
+*If there are at least 5 players on board, but no more are embarking, the same applies.
+*The priority system has been reworked, and is no longer biased towards players standing on the north-western tiles of the lander.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1117918525887111170|date=15 April 2019|archiveurl=https://reldo.runescape.wiki/i/107549|archivedate=21 March 2023|quote=I was in that code earlier today. I believe it's too susceptible to bias from players' positions in the boat, which skews the whole priority thing that the original dev tried to write. I'll attempt to sort that while I do the faster launch job from poll 67 (if that passes).}}
+}}
+{{Subject changes
+|date = 8 June 2017
+|update = Pest Control & Open Weekend
+|change = * An Activity Bar has been added that must be kept above zero for players to earn points in a game.
+* The amount of points rewarded has been increased to 3 points for the easy boat, 4 points for the medium boat and 5 points for the hard boat.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|poll = Old School Content Poll 31: Easter Holiday Event
+|change = The cap on Pest Control points has been raised from 250 to 4000.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = The [[void knight top]] and [[void knight robe]] can now be upgraded to the [[elite void top]] and [[elite void robe]] for 200 Pest Control [[Void Knight commendation points|points]] each after completing the [[Hard Western Provinces Diary]].
+}}
+{{Subject changes
+|date = 18 December 2014
+|update = Christmas 2014
+|poll = Old School Content Poll 28
+|change = Full combat experience will now be given inside the Pest Control minigame.
+}}
+{{Subject changes
+|date = 17 July 2007
+|update = Pest Control Update
+|change = * Boat 1 requires combat level of 40+, this boat now rewards 2 points.
+* Boat 2 requires a combat level of 70+, this boat now rewards 3 points.
+* Boat 3 requires a combat level of 100+, this boat now rewards 4 points.
+* Players can now purchase reward experience in batches of 10, not just 1 or 100.
+* Added the Void knight set effect.
+* Added the Void knight helmets.
+* Portals now have shields to avoid players from ending games too soon.
+}}
+{{Subject changes
+|date = 24 April 2006
+|update = Wilderness graphical update
+|change = * Players now need to have dealt at least 50 points of damage to the attacking monsters over the course of a game to get a reward.
+* Each section repaired now counts as doing 5 points of damage.
+* Level 40 combat is now required to board the lander and play the game.
+* Each player in a game of Pest Control increases the number of monsters in the game.
+* If more than 25 people board the lander, the people left behind will be given priority in being transported to the island on the next game.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Originally, players had to deal at least 50 points of damage or repair 10 barricades in the game in order to receive commendations. This is no longer the case as of an update, due to player complaints about participants simply meeting the minimum requirement and not participating afterwards. To counter this, the activity bar was added, requiring players to continually participate or risk not getting commendations. The commendations awarded by each lander were increased by 1 to compensate for this.
+*The boat that drops players off in the minigame is modelled after the {{wp|LCVP (United States)|American Higgins Landing Boat}}, designed by Andrew Higgins and used by Allied troops on D-Day in World War II.
+
+==References==
+{{Reflist}}
+
+{{Minigames}}
+{{Pest Control}}

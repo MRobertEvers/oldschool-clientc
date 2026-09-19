@@ -20,7 +20,7 @@ The 27 music unlock words have permanent server storage and login/change
 transmission, but remain `blocked` in the review ledger because this repository
 has no region-to-music table or other authoritative exploration-unlock
 producer. That missing producer was already acknowledged in
-`mock230_world.c`; inventing unlocks or setting every bit would be incorrect.
+`torirs_server_world.c`; inventing unlocks or setting every bit would be incorrect.
 
 Implementation also corrected two contracts discovered during review:
 
@@ -51,7 +51,7 @@ Baseline/environment failures kept outside this change:
   problems; the independently run var ledger has 417 problems).
 - `test-ss-corpus` cannot read the optional sibling
   `../LostCity_Server/engine/data/pack/server/script.dat`.
-- `test-mock230-embed` reaches and passes its login save/load assertions, then
+- `test-torirsserver-embed` reaches and passes its login save/load assertions, then
   fails existing sound/entity/social wire assertions unrelated to varps.
 
 ## Goal

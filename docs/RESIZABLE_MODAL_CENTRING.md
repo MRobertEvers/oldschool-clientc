@@ -137,14 +137,14 @@ separates "the cache says centred" from "a script overwrote it with absolute
 coordinates":
 
 ```bash
-MOCK230_SAVES=$SCRATCH/saves \
-MOCK230_SCRIPTS=OSRS-Content/osrs239-content/server/scripts/build_summoning \
-MOCK230_CACHE=$PWD/cache.osrs239.summoning \
+TORIRSSERVER_SAVES=$SCRATCH/saves \
+TORIRSSERVER_SCRIPTS=OSRS-Content/osrs239-content/server/scripts/build_summoning \
+TORIRSSERVER_CACHE=$PWD/cache.osrs239.summoning \
 SDL_VIDEODRIVER=dummy TORIRS_NET_CHEAT="summoning_unlock;summoning_demo" \
 TORIRS_MAX_FRAMES=420 \
 TORIRS_SIM_CLICK_AT="200,1282,621;240,1285,896" \
 TORIRS_EXIT_BMP=$SCRATCH/guide.bmp TORIRS_DUMP_BOUNDS=860 \
-  ./src/torirs cache.osrs239.summoning --manifest manifest_osrs239.ini \
+  ./src/torirs cache.osrs239.summoning --manifest manifests/manifest_osrs239.ini \
   --soft3d --windowmode resizable --window 1511x938
 ```
 

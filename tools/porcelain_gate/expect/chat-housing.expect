@@ -1,0 +1,60 @@
+# What putting the 2004 chat housing back over the seated pack changes.
+#
+#   gate_diff.py --expect tools/porcelain_gate/expect/chat-housing.expect <pairs...>
+#
+# Baseline: the commit this branch left (83c75b410), captured with the same
+# binary family and the same harness. Do NOT concatenate this with
+# gameframe-layout.expect or desktop-frame-chatstrip.expect: each of those
+# declares what a DIFFERENT change did against a different baseline, and every
+# one of their lines would be stale against this one -- which the comparator
+# fails on, correctly.
+#
+# --------------------------------------------------------------------------
+# The defect, and why the fix adds a picture rather than moving a box.
+#
+# Classic Fixed seats the lane's 519x165 chat pack at 17,338, flush with the
+# canvas floor. That is right and it is not changed here: 165 rows is what
+# buys interface 162 the eight message lines the lane's own frame shows, and
+# 338 is the row that leaves no strip of the frame's own filter band standing
+# beside the pack's bar.
+#
+# But 17,338 519x165 is the whole 2004 chat band. `backhmid2` starts at 338,
+# `backleft2`'s sheet runs to 17 and `backvmid3` starts at 496 -- so the board
+# above the chat hole, the torn edge ripped into it, the torn edge down the
+# left and the torn edge down the right all went behind the pack's own flat
+# parchment. What the player saw was a hard-edged rectangle: a straight
+# horizontal cut across the stone at the top, and a straight seam into the
+# frame's columns at either side, on a frame whose every other opening is
+# ripped paper.
+#
+# There is no room to give those rows back. 4 + 334 + 165 = 503 exactly: the
+# scene, the pack and nothing else fill the canvas, and any row spent on the
+# board is a row off the message pane. So the housing is DRAWN AGAIN over the
+# pack, from the frame's own three pieces, with everything that is not rock
+# left transparent -- and it is drawn in the eight rows and eleven columns the
+# pack's own layout leaves free, so no line, no scrollbar and no glyph is
+# covered. The message pane is pixel-for-pixel what it was; only the margin
+# around it changed.
+#
+# --------------------------------------------------------------------------
+# 1. One new owned piece, on the three lanes that run Classic Fixed over an
+#    OldSchool toplevel: classic548, classic161, and remount164, which starts
+#    on Classic Fixed before it switches away.
+#
+# It is a piece like the surround's other thirteen, and it is LAST in the blit
+# list so that no existing piece is renumbered -- an owned key here is the
+# piece's index, and one inserted in the middle would report thirteen controls
+# as moved when nothing moved. Its depth is the CHAT rather than the viewport,
+# which is the only thing that puts it over a surface every other piece is
+# raised under, and it is declared visible_with the chat so it goes away when
+# the chatbox does.
+owned-add piece.13 = the 2004 board and torn edge, re-cut and drawn back over the pack that covered them; it is last in the blit list so that no other piece is renumbered
+
+# 2. The same picture, said about the capture line.
+#
+# A plugin-owned node has no component id (0xffffffff) and the box is the
+# housing band's own: x=0 because `backleft2` leaves six columns of sheet
+# OUTSIDE the pack and they are part of the same defect, 553 because that is
+# `backhmid2`'s width -- the band from the canvas edge to the tab column --
+# and 338x165 because the housing is exactly the pack's rows.
+only-after BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=0,338 553x165 = the housing band itself: a new owned picture, at the band's origin and the band's width

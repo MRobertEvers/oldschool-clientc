@@ -1,0 +1,15 @@
+- generic [active] [ref=f101e1]:
+  - banner [ref=f101e3]:
+    - link "Skip to main content" [ref=f101e5] [cursor=pointer]:
+      - /url: "#mainContent"
+    - link "eBay Home" [ref=f101e8] [cursor=pointer]:
+      - /url: https://www.ebay.com
+      - img "eBay Home" [ref=f101e9]
+  - generic [ref=f101e15]:
+    - generic [ref=f101e16]:
+      - status [ref=f101e17]
+      - status [ref=f101e18]
+      - status [ref=f101e19]
+    - heading "Checking your browser before you access eBay." [level=1] [ref=f101e20]
+    - generic [ref=f101e22]: Your browser will redirect to your requested content shortly. Please wait...
+    - generic [ref=f101e23]: "Reference ID: 086f6242-2c90-49da-95f8-3db438cd17b3"

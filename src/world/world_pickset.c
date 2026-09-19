@@ -16,7 +16,8 @@ World_PickSetAdd(
     enum World_PickType type,
     int tile_x,
     int tile_z,
-    int tile_level)
+    int tile_level,
+    int view_id)
 {
     assert(pickset);
 
@@ -34,5 +35,6 @@ World_PickSetAdd(
     pickset->items[pickset->count].tile_x = tile_x;
     pickset->items[pickset->count].tile_z = tile_z;
     pickset->items[pickset->count].tile_level = tile_level;
+    pickset->items[pickset->count].view_id = view_id;
     pickset->count++;
 }

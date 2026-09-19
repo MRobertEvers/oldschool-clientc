@@ -4,6 +4,10 @@
 #include "ui/uitree_layout.h"
 
 #include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 void
@@ -133,8 +137,7 @@ RS_CS2_DispatchHook(
         return;
     /* Enqueue only — the app's per-frame pump drives it. The task queue is a
      * strict serial FIFO, so hook ordering is preserved across IO yields. */
-    ToriRS_TaskQueue_Add(runner->queue, task);
-    runner->frame_settle_pending = 1;
+    TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 
 void
@@ -167,8 +170,7 @@ RS_CS2_RunScript(
         str_arg_count);
     if( !task )
         return;
-    ToriRS_TaskQueue_Add(runner->queue, task);
-    runner->frame_settle_pending = 1;
+    TaskRunner_AddRenderBlockingSerialTask(runner, task);
 }
 
 /*
@@ -196,7 +198,7 @@ RS_CS2_RunScript(
  * table is empty on the way out, which catches the dual defect: a flag that
  * gains a guard key but not a clear-down re-dispatches on every tick forever.
  */
-#define RS_CS2_DIRTY_FLAG_CAP 8
+#define RS_CS2_DIRTY_FLAG_CAP 16
 
 static size_t
 rs_cs2_dirty_flags(
@@ -211,6 +213,12 @@ rs_cs2_dirty_flags(
     out[n++] = &host->stat_transmit_dirty;
     out[n++] = &host->misc_transmit_dirty;
     out[n++] = &host->friend_transmit_dirty;
+    out[n++] = &host->chat_transmit_dirty;
+    out[n++] = &host->clan_transmit_dirty;
+    out[n++] = &host->stock_transmit_dirty;
+    out[n++] = &host->active_offers_transmit_dirty;
+    out[n++] = &host->clan_settings_transmit_dirty;
+    out[n++] = &host->clan_channel_transmit_dirty;
     assert(n <= RS_CS2_DIRTY_FLAG_CAP);
     return n;
 }
@@ -269,39 +277,58 @@ RS_CS2_PumpTransmits(
 
     runner->frame_settle_pending = 1;
 
-    /* Inv hooks re-run on unhide OR a container change. The container filter
+    /* Inv hooks re-run on a container change. If a matching change reached a
+     * hidden hook, the hook records that fact and the unhide pass below resumes
+     * precisely that deferred work. The container filter
      * mirrors the var one: a plain UPDATE_INV only re-runs the hooks that list
-     * that container as a trigger, while an unhide (which says nothing about
-     * what changed) re-checks everything. Dispatching only on unhide was the
+     * that container as a trigger. Dispatching only on unhide was the
      * bug that left a server-driven inventory permanently blank — the paint
      * script ran once at build time against an empty container and nothing
      * ever asked it to run again. */
-    if( host->widgets_loaded_dirty || host->inv_transmit_dirty )
+    if( host->inv_transmit_dirty )
     {
         int container = -1;
-        if( !host->widgets_loaded_dirty && !host->inv_changed_all &&
-            host->inv_changed_count == 1 )
+        if( !host->inv_changed_all && host->inv_changed_count == 1 )
             container = host->inv_changed_ids[0];
         task = CreateTask_CS2InvTransmitDispatch(host, container);
         assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2InvTransmitUnhideDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
-    /* An unhide has to re-check every hook (a widget that was hidden through any
-     * number of value changes must repaint). A plain value change only re-runs
-     * the hooks that listed one of the changed vars as a trigger — otherwise
-     * rev230's per-tick clock varc drags every hook's script along with it. */
+    /* An unhide resumes hooks that recorded a relevant update while hidden. A
+     * plain value change only re-runs the hooks that listed one of the changed
+     * vars as a trigger — otherwise
+     * rev230's per-tick clock varc drags every hook's script along with it.
+     *
+     * The value-change branch must also be gated on its actual cause. The dispatch
+     * used to be unconditional once *any* dirty flag opened the pump. On a
+     * stat-only update, var_changed_count is zero, and zero deliberately means
+     * "all hooks" for an unhide. Consequently a stat-only XP update could run
+     * every visible var-transmit listener despite changing no var at all. */
+    if( host->var_transmit_dirty )
     {
         int const* ids = host->var_changed_ids;
         int count = host->var_changed_count;
-        if( host->widgets_loaded_dirty || host->var_changed_all )
+        if( host->var_changed_all )
         {
             ids = NULL;
             count = 0;
         }
         task = CreateTask_CS2VarTransmitDispatchSet(host, ids, count);
         assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2VarTransmitUnhideDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /*
@@ -316,7 +343,7 @@ RS_CS2_PumpTransmits(
      * captured at arm time. `script1004` diffs against those and re-arms itself,
      * which is why a *delayed* dispatch does not lose a drop — it merges it into
      * the next one, at the wrong moment and at the summed value. See
-     * mock230_player_systems.md §5.4.
+     * torirs_server_player_systems.md §5.4.
      *
      * `TORIRS_STAT_DEBUG=1` prints each hook this fires, which is how the
      * XP-drop panel's listener was confirmed to be reached at all.
@@ -333,7 +360,13 @@ RS_CS2_PumpTransmits(
         }
         task = CreateTask_CS2StatTransmitDispatchSet(host, ids, count);
         assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+    if( host->widgets_loaded_dirty )
+    {
+        task = CreateTask_CS2StatTransmitUnhideDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* Misc transmits (run energy, run weight). No trigger set to filter on —
@@ -344,7 +377,7 @@ RS_CS2_PumpTransmits(
     {
         task = CreateTask_CS2MiscTransmitDispatch(host);
         assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     /* Friend transmits (the friends and ignore side panels). Like misc there is
@@ -357,7 +390,57 @@ RS_CS2_PumpTransmits(
     {
         task = CreateTask_CS2FriendTransmitDispatch(host);
         assert(task);
-        ToriRS_TaskQueue_Add(runner->queue, task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+
+    /* Chat transmits (the chatbox scrollback). No trigger set either, and no
+     * server repaint behind it: a message goes in the client's own store and
+     * this dispatch is what tells the cache's chatbox scripts to redraw from
+     * it. Gated on a real message rather than on the unhide flag because the
+     * hook rebuilds every visible line. */
+    if( host->chat_transmit_dirty )
+    {
+        task = CreateTask_CS2ChatTransmitDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+
+    /* The server-driven transmits with no trigger list: the friends chat, the
+     * offer slots, the trading post, the clan settings and the clan channel.
+     * Each re-runs every hook registered for it. */
+    if( host->clan_transmit_dirty )
+    {
+        task = CreateTask_CS2ClanTransmitDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+
+    if( host->stock_transmit_dirty )
+    {
+        task = CreateTask_CS2StockTransmitDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+
+    if( host->active_offers_transmit_dirty )
+    {
+        task = CreateTask_CS2ActiveOffersTransmitDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+
+    if( host->clan_settings_transmit_dirty )
+    {
+        task = CreateTask_CS2ClanSettingsTransmitDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
+    }
+
+    if( host->clan_channel_transmit_dirty )
+    {
+        task = CreateTask_CS2ClanChannelTransmitDispatch(host);
+        assert(task);
+        TaskRunner_AddRenderBlockingSerialTask(runner, task);
     }
 
     host->widgets_loaded_dirty = 0;
@@ -372,6 +455,12 @@ RS_CS2_PumpTransmits(
     host->stat_changed_all = 0;
     host->misc_transmit_dirty = 0;
     host->friend_transmit_dirty = 0;
+    host->chat_transmit_dirty = 0;
+    host->clan_transmit_dirty = 0;
+    host->stock_transmit_dirty = 0;
+    host->active_offers_transmit_dirty = 0;
+    host->clan_settings_transmit_dirty = 0;
+    host->clan_channel_transmit_dirty = 0;
 
     /* The clear-down has to cover the whole table. A flag that is a guard key
      * but is not cleared here re-opens the guard on the very next tick and

@@ -1,0 +1,17 @@
+# inv — 5 Tombs of Amascut records from cache.osrs239
+# id	symbol	(record follows)
+
+[807] toa_midraidloot_bundle1
+size=7
+
+[808] toa_midraidloot_bundle2
+size=7
+
+[809] toa_midraidloot_bundle3
+size=7
+
+[810] toa_midraidloot_bag
+size=28
+
+[811] toa_chests
+size=9

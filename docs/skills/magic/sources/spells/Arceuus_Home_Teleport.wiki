@@ -1,0 +1,54 @@
+{{Infobox Spell
+|name = Arceuus Home Teleport
+|image = [[File:Arceuus Home Teleport.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|members = Yes
+|level = 1
+|spellbook = Arceuus
+|type = Teleport
+|exp = 0
+|cost = None ''(see article)''
+|speed = 24 ticks (default)<br/>Variable ([[Animation overrides#Home Teleport|animation]])
+|cooldown = 3,000 ticks
+|description = Requires no runes - recharge time 30 mins. Warning: This spell takes a long time to cast and will be interrupted by combat.
+|anim = [[File:Home Teleport.gif]]
+|sound = [[File:Home Teleport.ogg]]
+}}
+[[File:Arceuus Home Teleport icon (mobile).png|left|class=pageimage]]
+'''Arceuus Home Teleport''' is the [[home teleport]] on the [[Arceuus spellbook]]. It provides players with a free [[teleport]] every half an hour to the [[Dark Altar]] in [[Arceuus]]. It requires no [[runes]] but takes around 10 seconds to cast the spell, and can be interrupted at any time by most actions, including combat, and only can be cast 10 seconds or more after combat has ended (similar to logging out). If a player tries to cast it a second time before 30 minutes have elapsed, they are notified with the remaining time for a new new cast, in minutes.
+
+This cooldown is shared with that of other home teleports. Switching spell book will not allow you to use a different home teleport spell until 30 minutes has elapsed.
+
+As with all home teleports, the Arceuus Home Teleport default animation can be overridden with an alternative [[Animation overrides#Home Teleport|animation]], if unlocked.
+
+==Destination==
+{{Map|1700,3882|mtype=square|r=2|align=left}}
+{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = The spell's icon will now appear grey if it is on cooldown.
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Lumbridge Home Teleport.png|center]]
+|[[File:Arceuus Home Teleport.png|center]]
+|-
+|7 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

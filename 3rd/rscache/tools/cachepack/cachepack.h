@@ -108,6 +108,7 @@ enum CP_AssetId
     CP_ASSET_WORLDMAP_GROUND,
     CP_ASSET_DBINDEX,
     CP_ASSET_ANIMAYA,
+    CP_ASSET_DEFAULTS,
     CP_ASSET_COUNT
 };
 
@@ -367,6 +368,20 @@ cp_names_emit_gamevals(
     struct CP_Ctx* ctx,
     const char* out_cache_dir);
 
+/**
+ * The gameval archives the flat emit cannot regenerate, as raw container bytes.
+ *
+ * Archive 14 is nested (interface + component names), 10 is keyed (dbtable +
+ * column names), and 11 names songs and jingles in one id space no pack file
+ * mirrors. Regenerating any of them flat destroys names nothing else carries,
+ * so they ride as bytes — `gamevals/<name>.bin`, indexed by
+ * `gamevals/gamevals.filepack` — and `cp_names_emit_gamevals` imports them
+ * after the flat archives, which is what makes idx24 complete on a pack with
+ * no --base.
+ */
+int
+cp_names_export_raw_gamevals(struct CP_Ctx* ctx);
+
 /** Name for `id`, or NULL when the pack does not list it. */
 const char*
 cp_name_get(
@@ -504,7 +519,13 @@ struct CP_Ctx
      * Param id -> declared `type=` character, or 0. Built by
      * `cp_param_types_load` before the type loop; see it for why not lazily.
      */
-    char* param_types;
+    struct CP_ParamType
+    {
+        char code;
+        /** A declared asset namespace can share an integer wire type.
+         * Zero = no asset reference; otherwise enum CP_AssetId + 1. */
+        int asset_plus_one;
+    } *param_types;
     int param_types_count;
 
     /**
@@ -675,7 +696,7 @@ cp_membership_emit(
  * The first of the two agreement checks docs/PACK_ENTITY_SPLIT_PLAN.md §3.3
  * names. The second is against the id range and is *not* here: `server_base`
  * belongs to `src/content/content_register.c` and cachepack links nothing from
- * `src/`, so `mock230_pack` runs that half against the register it already holds.
+ * `src/`, so `ToriRSServer_Pack` runs that half against the register it already holds.
  *
  * Returns 0 when a disagreement no gate can explain was found. The large,
  * legitimate populations §8.5 records are counted and printed rather than failed
@@ -732,6 +753,39 @@ cp_binary_import(
     struct CP_Ctx* ctx,
     const char* out_cache_dir);
 
+/* ---- raw passthrough ---------------------------------------------------- */
+
+/**
+ * The config groups no CP_Type decodes, as raw container bytes.
+ *
+ * osrs239's idx2 holds 41 groups and the type table claims 20; the other 21 are
+ * a few hundred bytes of near-empty records the client can still ask for. A
+ * pack with no --base used to drop them, which is the one way a tree-only
+ * cache differed from the original at the index level. They ride as bytes —
+ * `configs/<name>.bin`, indexed by `pack/2_configs.pack` like every other
+ * archive of index 2 — because a group with no decoder has no text form to
+ * take, and raw is byte-exact by construction.
+ *
+ * `cp_raw_groups_import` with a NULL `out_cache_dir` checks that every indexed
+ * raw group has a file, writing nothing (the `--check-only` contract).
+ */
+int
+cp_raw_groups_export(struct CP_Ctx* ctx);
+
+int
+cp_raw_groups_import(
+    struct CP_Ctx* ctx,
+    const char* out_cache_dir);
+
+/** One archive's raw container bytes, straight off the sector chain —
+ *  compression byte, lengths and payload as stored, never decompressed. */
+uint8_t*
+cp_binary_read_raw(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    int* out_size);
+
 /** Record an archive's name (djb2) so the client can resolve it by name.
  *  No-op for a NULL/empty name or an id nothing was written for. */
 int
@@ -741,6 +795,25 @@ cp_reference_set_name(
     int archive_id,
     const char* name,
     int* out_dirty);
+
+/** Write a raw identifier, when the pack line carried `hashcode(N)`. */
+int
+cp_reference_set_identifier(
+    struct CP_Ctx* ctx,
+    int table_id,
+    int archive_id,
+    int identifier,
+    int* out_dirty);
+
+/**
+ * Identifier a pack line wants written: `hashcode`, else djb2(`hashname`),
+ * else djb2(`fallback_name`). `fallback_name` is the pack filename.
+ */
+int
+cp_pack_archive_identifier(
+    const struct LC_Pack* pack,
+    int id,
+    const char* fallback_name);
 
 
 /**

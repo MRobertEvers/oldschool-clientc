@@ -1,0 +1,36 @@
+# varp — 34 Tombs of Amascut records from cache.osrs239
+# id	symbol
+3585	toa_perm_transmit_1
+3586	toa_perm_transmit_2
+3587	toa_perm_transmit_3
+3588	toa_temp_transmit_1
+3589	toa_temp_transmit_2
+3590	toa_temp_transmit_3
+3591	toa_temp_transmit_4
+3592	toa_temp_transmit_5
+3593	toa_temp_transmit_6
+3594	toa_temp_transmit_7
+3603	toa_mycontroller
+3606	toa_personal_contribution
+3635	toa_pickaxe_storage
+3638	toa_camel
+3639	toa_rewards_int
+3640	kephri_temp
+3641	toa_wardens
+3642	baba_temp
+3652	toa_perm_transmit_4
+3680	toa_invocations_preset_1a
+3681	toa_invocations_preset_1b
+3682	toa_invocations_preset_1c
+3683	toa_invocations_preset_2a
+3684	toa_invocations_preset_2b
+3685	toa_invocations_preset_2c
+3686	toa_invocations_preset_3a
+3687	toa_invocations_preset_3b
+3688	toa_invocations_preset_3c
+3689	toa_invocations_preset_4a
+3690	toa_invocations_preset_4b
+3691	toa_invocations_preset_4c
+3692	toa_invocations_preset_5a
+3693	toa_invocations_preset_5b
+3694	toa_invocations_preset_5c

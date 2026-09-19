@@ -1,0 +1,808 @@
+- generic [active] [ref=f436e1]:
+  - banner [ref=f436e2]:
+    - generic [ref=f436e3]:
+      - link [ref=f436e4] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=f436e5]
+      - search [ref=f436e6]:
+        - button "Search" [ref=f436e9] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=f436e10]: magic foundations bundle empty card storage box 2024
+        - generic [ref=f436e11] [cursor=pointer]
+        - button "Search using an image" [ref=f436e16] [cursor=pointer]
+    - complementary "Account Rewards and Preferences" [ref=f436e17]:
+      - button "Microsoft Rewards" [ref=f436e18] [cursor=pointer]:
+        - generic [ref=f436e19]: Rewards
+      - link [ref=f436e35] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - button "Sign in" [ref=f436e38]
+      - button "Settings and quick links" [ref=f436e39] [cursor=pointer]
+    - navigation "Search Filter" [ref=f436e40]:
+      - list [ref=f436e41]:
+        - listitem [ref=f436e42]:
+          - link "All" [ref=f436e43] [cursor=pointer]:
+            - /url: /search?q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=HDRSC1
+        - listitem [ref=f436e44]:
+          - link "Search" [ref=f436e45] [cursor=pointer]:
+            - /url: /copilotsearch?q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=CSSCOP
+        - listitem [ref=f436e48]:
+          - link "Images" [ref=f436e49] [cursor=pointer]:
+            - /url: /images?FORM=HDRSC3
+        - listitem [ref=f436e50]:
+          - list [ref=f436e51]:
+            - listitem [ref=f436e52]:
+              - link "Create" [ref=f436e53] [cursor=pointer]:
+                - /url: /images/create/ai-image-generator?FORM=IRPGEN
+            - listitem [ref=f436e58]:
+              - link "Collections" [ref=f436e59] [cursor=pointer]:
+                - /url: /saves?FORM=IRPCOL
+        - listitem [ref=f436e63]:
+          - link "Videos" [ref=f436e64] [cursor=pointer]:
+            - /url: /videos/search?q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=HDRSC4
+        - listitem [ref=f436e65]:
+          - link "Maps" [ref=f436e66] [cursor=pointer]:
+            - /url: /maps?q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=HDRSC6
+        - listitem [ref=f436e67]:
+          - link "News" [ref=f436e68] [cursor=pointer]:
+            - /url: /news/search?q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=HDRSC7
+        - listitem [ref=f436e69]:
+          - link "Shopping" [ref=f436e70] [cursor=pointer]:
+            - /url: /shop/topics?q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=SHOPTB
+        - listitem [ref=f436e71]:
+          - button [ref=f436e72] [cursor=pointer]
+      - generic [ref=f436e76]:
+        - generic [ref=f436e77]:
+          - list:
+            - listitem [ref=f436e78]:
+              - generic [ref=f436e79]: "SafeSearch:"
+            - listitem [ref=f436e80]:
+              - button "Moderate SafeSearch:" [ref=f436e81] [cursor=pointer]:
+                - generic [ref=f436e82]: Moderate
+        - button "Filter" [ref=f436e85] [cursor=pointer]
+  - main [ref=f436e88]:
+    - navigation [aria-hidden] [ref=f436e89]:
+      - generic [ref=f436e90]:
+        - generic [ref=f436e93]:
+          - link [ref=f436e95] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Storage+Box&FORM=IRMHRS
+            - generic [ref=f436e97]:
+              - text: Magic
+              - strong [ref=f436e98]: The Gathering Storage Box
+          - link [ref=f436e100] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Box+Storage&FORM=IRMHRS
+            - generic [ref=f436e102]:
+              - strong [ref=f436e103]: Mtg
+              - text: Card Box Storage
+          - link [ref=f436e105] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Storage+Box&FORM=IRMHRS
+            - generic [ref=f436e107]:
+              - strong [ref=f436e108]: Mtg
+              - text: Storage Box
+          - link [ref=f436e110] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Collection+Box&FORM=IRMHRS
+            - generic [ref=f436e112]:
+              - text: Mtg Card
+              - strong [ref=f436e113]: Collection Box
+          - link [ref=f436e115] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Card+Box&FORM=IRMHRS
+            - generic [ref=f436e117]: Magic Card Box
+          - link [ref=f436e119] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Organizer+Box&FORM=IRMHRS
+            - generic [ref=f436e121]:
+              - strong [ref=f436e122]: Mtg
+              - text: Card Organizer Box
+          - link [ref=f436e124] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Commander+Card+Case&FORM=IRMHRS
+            - generic [ref=f436e126]:
+              - text: Magic Commander Card
+              - strong [ref=f436e127]: Case
+          - link [ref=f436e129] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Card+Box&FORM=IRMHRS
+            - generic [ref=f436e131]:
+              - text: Magic
+              - strong [ref=f436e132]: The Gathering Card Box
+          - link [ref=f436e134] [cursor=pointer]:
+            - /url: /images/search?q=Tcg+Storage+Box&FORM=IRMHRS
+            - generic [ref=f436e136]:
+              - strong [ref=f436e137]: Tcg
+              - text: Storage Box
+          - link [ref=f436e139] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Deck+Box+Storage&FORM=IRMHRS
+            - generic [ref=f436e141]:
+              - strong [ref=f436e142]: Mtg Deck
+              - text: Box Storage
+          - link [ref=f436e144] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Box&FORM=IRMHRS
+            - generic [ref=f436e146]:
+              - strong [ref=f436e147]: Mtg
+              - text: Card Box
+          - link [ref=f436e149] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Holder+Box&FORM=IRMHRS
+            - generic [ref=f436e151]:
+              - text: Mtg Card
+              - strong [ref=f436e152]: Holder Box
+          - link [ref=f436e154] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Card+Case&FORM=IRMHRS
+            - generic [ref=f436e156]:
+              - text: Mtg Card
+              - strong [ref=f436e157]: Case
+          - link [ref=f436e159] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Foundations+Box&FORM=IRMHRS
+            - generic [ref=f436e161]:
+              - text: Magic
+              - strong [ref=f436e162]: The Gathering Foundations Box
+          - link [ref=f436e164] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f436e166]:
+              - strong [ref=f436e167]: Mtg
+              - text: Bundle Box
+          - link [ref=f436e169] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Card+Holder+Box&FORM=IRMHRS
+            - generic [ref=f436e171]:
+              - strong [ref=f436e172]: Magic The Gathering
+              - text: Card Holder Box
+          - link [ref=f436e174] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Card+Storage&FORM=IRMHRS
+            - generic [ref=f436e176]:
+              - text: Magic
+              - strong [ref=f436e177]: The Gathering Card Storage
+          - link [ref=f436e179] [cursor=pointer]:
+            - /url: /images/search?q=Lorcana+Storage+Box&FORM=IRMHRS
+            - generic [ref=f436e181]:
+              - strong [ref=f436e182]: Lorcana
+              - text: Storage Box
+          - link [ref=f436e184] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Card+Deck+Box&FORM=IRMHRS
+            - generic [ref=f436e186]:
+              - text: Magic Card
+              - strong [ref=f436e187]: Deck Box
+          - link [ref=f436e189] [cursor=pointer]:
+            - /url: /images/search?q=Mtg+Beginner+Box&FORM=IRMHRS
+            - generic [ref=f436e191]:
+              - strong [ref=f436e192]: Mtg Beginner
+              - text: Box
+        - switch [ref=f436e194] [cursor=pointer]:
+          - generic [ref=f436e195]: New Version
+    - generic [ref=f436e199]:
+      - generic "Suggested searches" [ref=f436e201]:
+        - navigation [ref=f436e202]:
+          - region "Carousel" [ref=f436e203]:
+            - list [ref=f436e207]:
+              - listitem [ref=f436e208]:
+                - link [ref=f436e209] [cursor=pointer]:
+                  - /url: /images/search?q=Magic+The+Gathering+Storage+Box&FORM=RESTAB
+                  - img "Magic The Gathering Storage Box" [ref=f436e211]
+                  - generic [aria-hidden] [ref=f436e213]:
+                    - text: Magic
+                    - strong [ref=f436e214]: The Gathering Storage Box
+              - listitem [ref=f436e215]:
+                - link [ref=f436e216] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Card+Box+Storage&FORM=RESTAB
+                  - img "Mtg Card Box Storage" [ref=f436e218]
+                  - generic [aria-hidden] [ref=f436e220]:
+                    - strong [ref=f436e221]: Mtg
+                    - text: Card Box Storage
+              - listitem [ref=f436e222]:
+                - link [ref=f436e223] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Storage+Box&FORM=RESTAB
+                  - img "Mtg Storage Box" [ref=f436e225]
+                  - generic [aria-hidden] [ref=f436e227]:
+                    - strong [ref=f436e228]: Mtg
+                    - text: Storage Box
+              - listitem [ref=f436e229]:
+                - link [ref=f436e230] [cursor=pointer]:
+                  - /url: /images/search?q=Mtg+Card+Collection+Box&FORM=RESTAB
+                  - img "Mtg Card Collection Box" [ref=f436e232]
+                  - generic [aria-hidden] [ref=f436e234]:
+                    - text: Mtg Card
+                    - strong [ref=f436e235]: Collection Box
+              - listitem [ref=f436e236]:
+                - 'link "Search for: Mtg Card Organizer Box" [ref=f436e237] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Organizer+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e240]:
+                    - strong [ref=f436e241]: Mtg
+                    - text: Card Organizer Box
+              - listitem [ref=f436e242]:
+                - 'link "Search for: Magic Commander Card Case" [ref=f436e243] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Commander+Card+Case&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e246]:
+                    - text: Magic Commander Card
+                    - strong [ref=f436e247]: Case
+              - listitem [ref=f436e248]:
+                - 'link "Search for: Magic The Gathering Card Box" [ref=f436e249] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Card+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e252]:
+                    - text: Magic
+                    - strong [ref=f436e253]: The Gathering Card Box
+              - listitem [ref=f436e254]:
+                - 'link "Search for: Tcg Storage Box" [ref=f436e255] [cursor=pointer]':
+                  - /url: /images/search?q=Tcg+Storage+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e258]:
+                    - strong [ref=f436e259]: Tcg
+                    - text: Storage Box
+              - listitem [ref=f436e260]:
+                - 'link "Search for: Mtg Deck Box Storage" [ref=f436e261] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Deck+Box+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e264]:
+                    - strong [ref=f436e265]: Mtg Deck
+                    - text: Box Storage
+              - listitem [ref=f436e266]:
+                - 'link "Search for: Mtg Card Box" [ref=f436e267] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e270]:
+                    - strong [ref=f436e271]: Mtg
+                    - text: Card Box
+              - listitem [ref=f436e272]:
+                - 'link "Search for: Mtg Card Holder Box" [ref=f436e273] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Holder+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e276]:
+                    - text: Mtg Card
+                    - strong [ref=f436e277]: Holder Box
+              - listitem [ref=f436e278]:
+                - 'link "Search for: Mtg Card Case" [ref=f436e279] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Card+Case&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e282]:
+                    - text: Mtg Card
+                    - strong [ref=f436e283]: Case
+              - listitem [ref=f436e284]:
+                - 'link "Search for: Magic The Gathering Foundations Box" [ref=f436e285] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Foundations+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e288]:
+                    - text: Magic
+                    - strong [ref=f436e289]: The Gathering Foundations Box
+              - listitem [ref=f436e290]:
+                - 'link "Search for: Mtg Bundle Box" [ref=f436e291] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Bundle+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e294]:
+                    - strong [ref=f436e295]: Mtg
+                    - text: Bundle Box
+              - listitem [ref=f436e296]:
+                - 'link "Search for: Magic The Gathering Card Holder Box" [ref=f436e297] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Card+Holder+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e300]:
+                    - strong [ref=f436e301]: Magic The Gathering
+                    - text: Card Holder Box
+              - listitem [ref=f436e302]:
+                - 'link "Search for: Magic The Gathering Card Storage" [ref=f436e303] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Card+Storage&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e306]:
+                    - text: Magic
+                    - strong [ref=f436e307]: The Gathering Card Storage
+              - listitem [ref=f436e308]:
+                - 'link "Search for: Lorcana Storage Box" [ref=f436e309] [cursor=pointer]':
+                  - /url: /images/search?q=Lorcana+Storage+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e312]:
+                    - strong [ref=f436e313]: Lorcana
+                    - text: Storage Box
+              - listitem [ref=f436e314]:
+                - 'link "Search for: Magic Card Deck Box" [ref=f436e315] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Card+Deck+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e318]:
+                    - text: Magic Card
+                    - strong [ref=f436e319]: Deck Box
+              - listitem [ref=f436e320]:
+                - 'link "Search for: Mtg Beginner Box" [ref=f436e321] [cursor=pointer]':
+                  - /url: /images/search?q=Mtg+Beginner+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f436e324]:
+                    - strong [ref=f436e325]: Mtg Beginner
+                    - text: Box
+      - switch "New Version" [ref=f436e328] [cursor=pointer]
+    - generic [ref=f436e334]:
+      - list [ref=f436e335]:
+        - listitem [ref=f436e336]:
+          - generic [ref=f436e337]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e339] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2bTYIgS7o&id=2192488A83B71A232210CBAF90F41FA3956BCB3D&thid=OIP.-TYIgS7opMGVOS0upPWsfgHaHa&mediaurl=https%3a%2f%2fd1avvq5q4v8v8k.cloudfront.net%2fmedia%2fproducts%2fMagic__The_Gathering_Foundations__Empty__Starter_Collection__Box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f93608812ee8a4c195392d2ea4f5ac7e%3frik%3dPctrlaMf9JCvyw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=54F48E63C5D942082C1CB7D6C68D0F2B&selectedIndex=0&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e341]
+            - generic [ref=f436e342]:
+              - 'link "Magic: The Gathering Foundations: Empty \"Starter Collection\" Box ..." [ref=f436e343] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=%2bTYIgS7o&id=2192488A83B71A232210CBAF90F41FA3956BCB3D&thid=OIP.-TYIgS7opMGVOS0upPWsfgHaHa&mediaurl=https%3a%2f%2fd1avvq5q4v8v8k.cloudfront.net%2fmedia%2fproducts%2fMagic__The_Gathering_Foundations__Empty__Starter_Collection__Box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f93608812ee8a4c195392d2ea4f5ac7e%3frik%3dPctrlaMf9JCvyw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=54F48E63C5D942082C1CB7D6C68D0F2B&selectedIndex=0&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations: Empty \"Start…" [ref=f436e344] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=%2bTYIgS7o&id=2192488A83B71A232210CBAF90F41FA3956BCB3D&thid=OIP.-TYIgS7opMGVOS0upPWsfgHaHa&mediaurl=https%3a%2f%2fd1avvq5q4v8v8k.cloudfront.net%2fmedia%2fproducts%2fMagic__The_Gathering_Foundations__Empty__Starter_Collection__Box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f93608812ee8a4c195392d2ea4f5ac7e%3frik%3dPctrlaMf9JCvyw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=54F48E63C5D942082C1CB7D6C68D0F2B&selectedIndex=0&itb=0
+        - listitem [ref=f436e345]:
+          - generic [ref=f436e346]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e348] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=t9WU7%2fDQ&id=0EB9EF0C0C2241BF8B5B1E5001CC45ADB4929A61&thid=OIP.t9WU7_DQsPTOYL5pqjhm2gHaHa&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b7d594eff0d0b0f4ce60be69aa3866da%3frik%3dYZqStK1FzAFQHg%26riu%3dhttp%253a%252f%252fthecardvault.co.uk%252fcdn%252fshop%252ffiles%252fMagicTheGathering-Foundations-DisplayCase_6xCollectorBoxes.png%253fv%253d1724832289%26ehk%3dL9sR0g7WogafuqxCRZ1UkQ67tMZiVN3T3gX569ReJ6c%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=1811&expw=1811&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=3174B363430F06772D3644851C6F433B&selectedIndex=1&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e350]
+            - generic [ref=f436e351]:
+              - 'link "Magic: The Gathering - Foundations - Display Case (6x Collector Boxes ..." [ref=f436e352] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=t9WU7%2fDQ&id=0EB9EF0C0C2241BF8B5B1E5001CC45ADB4929A61&thid=OIP.t9WU7_DQsPTOYL5pqjhm2gHaHa&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b7d594eff0d0b0f4ce60be69aa3866da%3frik%3dYZqStK1FzAFQHg%26riu%3dhttp%253a%252f%252fthecardvault.co.uk%252fcdn%252fshop%252ffiles%252fMagicTheGathering-Foundations-DisplayCase_6xCollectorBoxes.png%253fv%253d1724832289%26ehk%3dL9sR0g7WogafuqxCRZ1UkQ67tMZiVN3T3gX569ReJ6c%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=1811&expw=1811&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=3174B363430F06772D3644851C6F433B&selectedIndex=1&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering - Foundations - Display Ca…" [ref=f436e353] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=t9WU7%2fDQ&id=0EB9EF0C0C2241BF8B5B1E5001CC45ADB4929A61&thid=OIP.t9WU7_DQsPTOYL5pqjhm2gHaHa&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b7d594eff0d0b0f4ce60be69aa3866da%3frik%3dYZqStK1FzAFQHg%26riu%3dhttp%253a%252f%252fthecardvault.co.uk%252fcdn%252fshop%252ffiles%252fMagicTheGathering-Foundations-DisplayCase_6xCollectorBoxes.png%253fv%253d1724832289%26ehk%3dL9sR0g7WogafuqxCRZ1UkQ67tMZiVN3T3gX569ReJ6c%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=1811&expw=1811&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=3174B363430F06772D3644851C6F433B&selectedIndex=1&itb=1
+        - listitem [ref=f436e354]:
+          - generic [ref=f436e355]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e357] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=z2Wyen%2fK&id=F355060187FFF2065B2DDD972798F409CC9E2E5A&thid=OIP.z2Wyen_KuLqmAcEJjy6I9QHaHa&mediaurl=https%3a%2f%2fcardboardgarage.com%2fwp-content%2fuploads%2f2024%2f10%2fmtg-fdn-bundle.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cf65b27a7fcab8baa601c1098f2e88f5%3frik%3dWi6ezAn0mCeX3Q%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=71BEEBA0259EDE4A5A47863BBFF345F5&selectedIndex=2&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e359]
+            - generic [ref=f436e360]:
+              - 'link "Magic: The Gathering Foundations - Bundle - Cardboard Garage" [ref=f436e361] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=z2Wyen%2fK&id=F355060187FFF2065B2DDD972798F409CC9E2E5A&thid=OIP.z2Wyen_KuLqmAcEJjy6I9QHaHa&mediaurl=https%3a%2f%2fcardboardgarage.com%2fwp-content%2fuploads%2f2024%2f10%2fmtg-fdn-bundle.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cf65b27a7fcab8baa601c1098f2e88f5%3frik%3dWi6ezAn0mCeX3Q%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=71BEEBA0259EDE4A5A47863BBFF345F5&selectedIndex=2&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations - Bundle - Ca…" [ref=f436e362] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=z2Wyen%2fK&id=F355060187FFF2065B2DDD972798F409CC9E2E5A&thid=OIP.z2Wyen_KuLqmAcEJjy6I9QHaHa&mediaurl=https%3a%2f%2fcardboardgarage.com%2fwp-content%2fuploads%2f2024%2f10%2fmtg-fdn-bundle.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cf65b27a7fcab8baa601c1098f2e88f5%3frik%3dWi6ezAn0mCeX3Q%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=71BEEBA0259EDE4A5A47863BBFF345F5&selectedIndex=2&itb=0
+        - listitem [ref=f436e363]:
+          - generic [ref=f436e364]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e366] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=3tDDeAWY&id=895B04FB1BCC946730DCEAE63ED351DADDFDDB23&thid=OIP.3tDDeAWYh5m3txNA3DK7wgHaHa&mediaurl=https%3a%2f%2fgaming-age.com%2fwp-content%2fuploads%2f2024%2f12%2fMTG-Foundations.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.ded0c37805988799b7b71340dc32bbc2%3frik%3dI9v93dpR0z7m6g%26pid%3dImgRaw%26r%3d0&exph=1500&expw=1500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=A11D29FECDA01A32E247CB4BDBB6DA38&selectedIndex=3&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e368]
+            - generic [ref=f436e369]:
+              - link "Gaming Age Holiday Gift Guide 2024 - Gaming Age" [ref=f436e370] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=3tDDeAWY&id=895B04FB1BCC946730DCEAE63ED351DADDFDDB23&thid=OIP.3tDDeAWYh5m3txNA3DK7wgHaHa&mediaurl=https%3a%2f%2fgaming-age.com%2fwp-content%2fuploads%2f2024%2f12%2fMTG-Foundations.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.ded0c37805988799b7b71340dc32bbc2%3frik%3dI9v93dpR0z7m6g%26pid%3dImgRaw%26r%3d0&exph=1500&expw=1500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=A11D29FECDA01A32E247CB4BDBB6DA38&selectedIndex=3&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Gaming Age Holiday Gift Guide 2024 - Gaming Age" [ref=f436e371] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=3tDDeAWY&id=895B04FB1BCC946730DCEAE63ED351DADDFDDB23&thid=OIP.3tDDeAWYh5m3txNA3DK7wgHaHa&mediaurl=https%3a%2f%2fgaming-age.com%2fwp-content%2fuploads%2f2024%2f12%2fMTG-Foundations.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.ded0c37805988799b7b71340dc32bbc2%3frik%3dI9v93dpR0z7m6g%26pid%3dImgRaw%26r%3d0&exph=1500&expw=1500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=A11D29FECDA01A32E247CB4BDBB6DA38&selectedIndex=3&itb=0
+        - listitem [ref=f436e372]:
+          - generic [ref=f436e373]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e375] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=SpKNWoAN&id=64C4F58AE3F38ED962BF389B0A61474357AC69DD&thid=OIP.SpKNWoANGtpyYJjPOemvpAAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fVmYAAeSwzstpvaSs%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4a928d5a800d1ada726098cf39e9afa4%3frik%3d3WmsV0NHYQqbOA%26pid%3dImgRaw%26r%3d0&exph=500&expw=231&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E98CCB80E066900ED622D81D16853BFA&selectedIndex=4&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e377]
+            - generic [ref=f436e378]:
+              - link "Lot of 8 MTG Magic The Gathering Empty Card Storage Bundle Boxes ..." [ref=f436e379] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=SpKNWoAN&id=64C4F58AE3F38ED962BF389B0A61474357AC69DD&thid=OIP.SpKNWoANGtpyYJjPOemvpAAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fVmYAAeSwzstpvaSs%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4a928d5a800d1ada726098cf39e9afa4%3frik%3d3WmsV0NHYQqbOA%26pid%3dImgRaw%26r%3d0&exph=500&expw=231&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E98CCB80E066900ED622D81D16853BFA&selectedIndex=4&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Lot of 8 MTG Magic The Gat…" [ref=f436e380] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=SpKNWoAN&id=64C4F58AE3F38ED962BF389B0A61474357AC69DD&thid=OIP.SpKNWoANGtpyYJjPOemvpAAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fVmYAAeSwzstpvaSs%2fs-l500.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4a928d5a800d1ada726098cf39e9afa4%3frik%3d3WmsV0NHYQqbOA%26pid%3dImgRaw%26r%3d0&exph=500&expw=231&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E98CCB80E066900ED622D81D16853BFA&selectedIndex=4&itb=0
+        - listitem [ref=f436e381]:
+          - generic [ref=f436e382]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e384] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=6Kb2P7f2&id=BCB006A02B47ED9ED39C9C4120B316A126D59753&thid=OIP.6Kb2P7f2ASbvusyKKpESrQHaHa&mediaurl=https%3a%2f%2ftradingcardmarket.com%2fcdn%2fshop%2ffiles%2fNewProductImage-2024-08-06T101448.979.jpg%3fv%3d1722957297%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e8a6f63fb7f60126efbacc8a2a9112ad%3frik%3dU5fVJqEWsyBBnA%26pid%3dImgRaw%26r%3d0&exph=1445&expw=1445&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5D9BBB59BC3AE8140B3FB13AC766924D&selectedIndex=5&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e386]
+            - generic [ref=f436e387]:
+              - link "Magic The Gathering Foundations Bundle – Trading Card Market" [ref=f436e388] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=6Kb2P7f2&id=BCB006A02B47ED9ED39C9C4120B316A126D59753&thid=OIP.6Kb2P7f2ASbvusyKKpESrQHaHa&mediaurl=https%3a%2f%2ftradingcardmarket.com%2fcdn%2fshop%2ffiles%2fNewProductImage-2024-08-06T101448.979.jpg%3fv%3d1722957297%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e8a6f63fb7f60126efbacc8a2a9112ad%3frik%3dU5fVJqEWsyBBnA%26pid%3dImgRaw%26r%3d0&exph=1445&expw=1445&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5D9BBB59BC3AE8140B3FB13AC766924D&selectedIndex=5&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering Foundations Bundle – Tra…" [ref=f436e389] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=6Kb2P7f2&id=BCB006A02B47ED9ED39C9C4120B316A126D59753&thid=OIP.6Kb2P7f2ASbvusyKKpESrQHaHa&mediaurl=https%3a%2f%2ftradingcardmarket.com%2fcdn%2fshop%2ffiles%2fNewProductImage-2024-08-06T101448.979.jpg%3fv%3d1722957297%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e8a6f63fb7f60126efbacc8a2a9112ad%3frik%3dU5fVJqEWsyBBnA%26pid%3dImgRaw%26r%3d0&exph=1445&expw=1445&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5D9BBB59BC3AE8140B3FB13AC766924D&selectedIndex=5&itb=0
+      - list [ref=f436e390]:
+        - listitem [ref=f436e391]:
+          - generic [ref=f436e392]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e394] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=DqyL3i%2b4&id=C73078F7C080A32147CF5BAB0EAC324A5694A031&thid=OIP.DqyL3i-496Fi0XlVatFGlgHaHa&mediaurl=https%3a%2f%2fmedia.play-in.com%2fimg%2fproduct%2fbundle-storage-mtgfdn.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0eac8bde2fb8f7a162d179556ad14696%3frik%3dMaCUVkoyrA6rWw%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E383B73B78500B52F8F012885808675A&selectedIndex=6&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e396]
+            - generic [ref=f436e397]:
+              - 'link "Magic: The Gathering Foundations Bundle Illustrated Storage Box - Magic ..." [ref=f436e398] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=DqyL3i%2b4&id=C73078F7C080A32147CF5BAB0EAC324A5694A031&thid=OIP.DqyL3i-496Fi0XlVatFGlgHaHa&mediaurl=https%3a%2f%2fmedia.play-in.com%2fimg%2fproduct%2fbundle-storage-mtgfdn.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0eac8bde2fb8f7a162d179556ad14696%3frik%3dMaCUVkoyrA6rWw%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E383B73B78500B52F8F012885808675A&selectedIndex=6&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations Bundle Ill…" [ref=f436e399] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=DqyL3i%2b4&id=C73078F7C080A32147CF5BAB0EAC324A5694A031&thid=OIP.DqyL3i-496Fi0XlVatFGlgHaHa&mediaurl=https%3a%2f%2fmedia.play-in.com%2fimg%2fproduct%2fbundle-storage-mtgfdn.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0eac8bde2fb8f7a162d179556ad14696%3frik%3dMaCUVkoyrA6rWw%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E383B73B78500B52F8F012885808675A&selectedIndex=6&itb=0
+        - listitem [ref=f436e400]:
+          - generic [ref=f436e401]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e403] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=CDuPSgSj&id=FCB75DC0B70F25CDE4050E7275FC374070ACF5DF&thid=OIP.CDuPSgSjCqO-2L6naQS59wAAAA&mediaurl=https%3a%2f%2fv3.netdecker.cl%2f54639-medium_default%2ffoundations-bundle-box.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.083b8f4a04a30aa3bed8bea76904b9f7%3frik%3d3%252fWscEA3%252fHVyDg%26pid%3dImgRaw%26r%3d0&exph=452&expw=452&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=81288AADC2D733123507DC651C04F4F9&selectedIndex=7&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e405]
+            - generic [ref=f436e406]:
+              - link "Foundations Bundle Box" [ref=f436e407] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=CDuPSgSj&id=FCB75DC0B70F25CDE4050E7275FC374070ACF5DF&thid=OIP.CDuPSgSjCqO-2L6naQS59wAAAA&mediaurl=https%3a%2f%2fv3.netdecker.cl%2f54639-medium_default%2ffoundations-bundle-box.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.083b8f4a04a30aa3bed8bea76904b9f7%3frik%3d3%252fWscEA3%252fHVyDg%26pid%3dImgRaw%26r%3d0&exph=452&expw=452&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=81288AADC2D733123507DC651C04F4F9&selectedIndex=7&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Foundations Bundle Box" [ref=f436e408] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=CDuPSgSj&id=FCB75DC0B70F25CDE4050E7275FC374070ACF5DF&thid=OIP.CDuPSgSjCqO-2L6naQS59wAAAA&mediaurl=https%3a%2f%2fv3.netdecker.cl%2f54639-medium_default%2ffoundations-bundle-box.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.083b8f4a04a30aa3bed8bea76904b9f7%3frik%3d3%252fWscEA3%252fHVyDg%26pid%3dImgRaw%26r%3d0&exph=452&expw=452&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=81288AADC2D733123507DC651C04F4F9&selectedIndex=7&itb=0
+        - listitem [ref=f436e409]:
+          - generic [ref=f436e410]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e412] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=F%2fsgbH%2b3&id=51F4F0B66EE0CBB8AFD3E70A2F4974A1970D31A8&thid=OIP.F_sgbH-3IIDWBaP7t0FSFgHaFS&mediaurl=https%3a%2f%2fimages.stockx.com%2fimages%2fMagic-The-Gathering-Foundations-Bundle-Box.jpg%3ffit%3dfill%26bg%3dFFFFFF%26w%3d700%26h%3d500%26fm%3dwebp%26auto%3dcompress%26q%3d90%26dpr%3d2%26trim%3dcolor%26updated_at%3d1742491481&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.17fb206c7fb72080d605a3fbb7415216%3frik%3dqDENl6F0SS8K5w%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1400&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5FAB4FEDC578F8F79971850DC35FBAF1&selectedIndex=8&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e414]
+            - generic [ref=f436e415]:
+              - 'link "Magic: The Gathering Foundations Bundle Box - US" [ref=f436e416] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=F%2fsgbH%2b3&id=51F4F0B66EE0CBB8AFD3E70A2F4974A1970D31A8&thid=OIP.F_sgbH-3IIDWBaP7t0FSFgHaFS&mediaurl=https%3a%2f%2fimages.stockx.com%2fimages%2fMagic-The-Gathering-Foundations-Bundle-Box.jpg%3ffit%3dfill%26bg%3dFFFFFF%26w%3d700%26h%3d500%26fm%3dwebp%26auto%3dcompress%26q%3d90%26dpr%3d2%26trim%3dcolor%26updated_at%3d1742491481&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.17fb206c7fb72080d605a3fbb7415216%3frik%3dqDENl6F0SS8K5w%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1400&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5FAB4FEDC578F8F79971850DC35FBAF1&selectedIndex=8&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations Bundle Box - US" [ref=f436e417] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=F%2fsgbH%2b3&id=51F4F0B66EE0CBB8AFD3E70A2F4974A1970D31A8&thid=OIP.F_sgbH-3IIDWBaP7t0FSFgHaFS&mediaurl=https%3a%2f%2fimages.stockx.com%2fimages%2fMagic-The-Gathering-Foundations-Bundle-Box.jpg%3ffit%3dfill%26bg%3dFFFFFF%26w%3d700%26h%3d500%26fm%3dwebp%26auto%3dcompress%26q%3d90%26dpr%3d2%26trim%3dcolor%26updated_at%3d1742491481&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.17fb206c7fb72080d605a3fbb7415216%3frik%3dqDENl6F0SS8K5w%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1400&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5FAB4FEDC578F8F79971850DC35FBAF1&selectedIndex=8&itb=0
+        - listitem [ref=f436e418]:
+          - generic [ref=f436e419]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e421] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=yt8qNvQ5&id=A6CDE2BB358DC5279B1EE02518EA5DD679ED0503&thid=OIP.yt8qNvQ5pXhWRAj10IEsUAHaHa&mediaurl=https%3a%2f%2fapi.tcgpark.com%2fwp-content%2fuploads%2f2024%2f10%2ffoundations-collector-booster-box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cadf2a36f439a578564408f5d0812c50%3frik%3dAwXtedZd6hgl4A%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=225A04FF1FEA330622C7D53A6FE838EC&selectedIndex=9&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e423]
+            - generic [ref=f436e424]:
+              - link "Magic the Gathering (MTG) cards Foundations Collector Booster Box" [ref=f436e425] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=yt8qNvQ5&id=A6CDE2BB358DC5279B1EE02518EA5DD679ED0503&thid=OIP.yt8qNvQ5pXhWRAj10IEsUAHaHa&mediaurl=https%3a%2f%2fapi.tcgpark.com%2fwp-content%2fuploads%2f2024%2f10%2ffoundations-collector-booster-box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cadf2a36f439a578564408f5d0812c50%3frik%3dAwXtedZd6hgl4A%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=225A04FF1FEA330622C7D53A6FE838EC&selectedIndex=9&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering (MTG) cards Foundati…" [ref=f436e426] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=yt8qNvQ5&id=A6CDE2BB358DC5279B1EE02518EA5DD679ED0503&thid=OIP.yt8qNvQ5pXhWRAj10IEsUAHaHa&mediaurl=https%3a%2f%2fapi.tcgpark.com%2fwp-content%2fuploads%2f2024%2f10%2ffoundations-collector-booster-box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cadf2a36f439a578564408f5d0812c50%3frik%3dAwXtedZd6hgl4A%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=225A04FF1FEA330622C7D53A6FE838EC&selectedIndex=9&itb=0
+        - listitem [ref=f436e427]:
+          - generic [ref=f436e428]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e430] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=L8OMNWZd&id=8AC43BB8409EE02AFBE46E546B6F48F6871E4AF4&thid=OIP.L8OMNWZdc6XYirhG0duHywHaHa&mediaurl=https%3a%2f%2fcardboardgarage.com%2fwp-content%2fuploads%2f2024%2f10%2fmtg-fdn-collectorboosterbox.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fc38c35665d73a5d88ab846d1db87cb%3frik%3d9Eoeh%252fZIb2tUbg%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5702C2DE63566761A10F388336632E02&selectedIndex=10&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e432]
+            - generic [ref=f436e433]:
+              - 'link "Magic: The Gathering Foundations - Collector Booster Box - Cardboard Garage" [ref=f436e434] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=L8OMNWZd&id=8AC43BB8409EE02AFBE46E546B6F48F6871E4AF4&thid=OIP.L8OMNWZdc6XYirhG0duHywHaHa&mediaurl=https%3a%2f%2fcardboardgarage.com%2fwp-content%2fuploads%2f2024%2f10%2fmtg-fdn-collectorboosterbox.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fc38c35665d73a5d88ab846d1db87cb%3frik%3d9Eoeh%252fZIb2tUbg%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5702C2DE63566761A10F388336632E02&selectedIndex=10&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations - Collect…" [ref=f436e435] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=L8OMNWZd&id=8AC43BB8409EE02AFBE46E546B6F48F6871E4AF4&thid=OIP.L8OMNWZdc6XYirhG0duHywHaHa&mediaurl=https%3a%2f%2fcardboardgarage.com%2fwp-content%2fuploads%2f2024%2f10%2fmtg-fdn-collectorboosterbox.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fc38c35665d73a5d88ab846d1db87cb%3frik%3d9Eoeh%252fZIb2tUbg%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5702C2DE63566761A10F388336632E02&selectedIndex=10&itb=0
+        - listitem [ref=f436e436]:
+          - generic [ref=f436e437]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e439] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2fVbEF%2fmR&id=339FD050F3BDE197FB63A86BCF8B8955F539C7A6&thid=OIP._VbEF_mRock7vV1QPwqrmQHaGL&mediaurl=https%3a%2f%2fhobbymaster.co.nz%2fckfinder%2fuserfiles%2ffiles%2fProducts%2fMTG%2fmagic-the-gathering-foundations-bundle-120809_633f1.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd56c417f991a1c93bbd5d503f0aab99%3frik%3dpsc59VWJi89rqA%26pid%3dImgRaw%26r%3d0&exph=417&expw=500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=567CEE9CC333A6A719F0CAE7506FB6F6&selectedIndex=11&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e441]
+            - generic [ref=f436e442]:
+              - 'link "FOUNDATIONS: BUNDLE :: Hobby Master" [ref=f436e443] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=%2fVbEF%2fmR&id=339FD050F3BDE197FB63A86BCF8B8955F539C7A6&thid=OIP._VbEF_mRock7vV1QPwqrmQHaGL&mediaurl=https%3a%2f%2fhobbymaster.co.nz%2fckfinder%2fuserfiles%2ffiles%2fProducts%2fMTG%2fmagic-the-gathering-foundations-bundle-120809_633f1.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd56c417f991a1c93bbd5d503f0aab99%3frik%3dpsc59VWJi89rqA%26pid%3dImgRaw%26r%3d0&exph=417&expw=500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=567CEE9CC333A6A719F0CAE7506FB6F6&selectedIndex=11&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "FOUNDATIONS: BUNDLE :: Hobby Master" [ref=f436e444] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=%2fVbEF%2fmR&id=339FD050F3BDE197FB63A86BCF8B8955F539C7A6&thid=OIP._VbEF_mRock7vV1QPwqrmQHaGL&mediaurl=https%3a%2f%2fhobbymaster.co.nz%2fckfinder%2fuserfiles%2ffiles%2fProducts%2fMTG%2fmagic-the-gathering-foundations-bundle-120809_633f1.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd56c417f991a1c93bbd5d503f0aab99%3frik%3dpsc59VWJi89rqA%26pid%3dImgRaw%26r%3d0&exph=417&expw=500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=567CEE9CC333A6A719F0CAE7506FB6F6&selectedIndex=11&itb=0
+      - list [ref=f436e445]:
+        - listitem [ref=f436e446]:
+          - generic [ref=f436e447]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e449] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=1SdsMFrs&id=B48DD0925E8CAF716474139460E449C675298CAE&thid=OIP.1SdsMFrscSkYVJ13glMTLQHaHa&mediaurl=https%3a%2f%2fcnagamesmt.com%2fcdn%2fshop%2ffiles%2fNewProductImage-2024-08-06T103839.191.webp%3fv%3d1730246624%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5276c305aec712918549d778253132d%3frik%3drowpdcZJ5GCUEw%26pid%3dImgRaw%26r%3d0&exph=1445&expw=1445&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=90882D5DFBF6E24508112A1D576E25A5&selectedIndex=12&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e451]
+            - generic [ref=f436e452]:
+              - link "Magic Foundations Collector Booster Box – CNAGames Middletown" [ref=f436e453] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1SdsMFrs&id=B48DD0925E8CAF716474139460E449C675298CAE&thid=OIP.1SdsMFrscSkYVJ13glMTLQHaHa&mediaurl=https%3a%2f%2fcnagamesmt.com%2fcdn%2fshop%2ffiles%2fNewProductImage-2024-08-06T103839.191.webp%3fv%3d1730246624%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5276c305aec712918549d778253132d%3frik%3drowpdcZJ5GCUEw%26pid%3dImgRaw%26r%3d0&exph=1445&expw=1445&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=90882D5DFBF6E24508112A1D576E25A5&selectedIndex=12&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic Foundations Collector Booster Box …" [ref=f436e454] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=1SdsMFrs&id=B48DD0925E8CAF716474139460E449C675298CAE&thid=OIP.1SdsMFrscSkYVJ13glMTLQHaHa&mediaurl=https%3a%2f%2fcnagamesmt.com%2fcdn%2fshop%2ffiles%2fNewProductImage-2024-08-06T103839.191.webp%3fv%3d1730246624%26width%3d1445&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5276c305aec712918549d778253132d%3frik%3drowpdcZJ5GCUEw%26pid%3dImgRaw%26r%3d0&exph=1445&expw=1445&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=90882D5DFBF6E24508112A1D576E25A5&selectedIndex=12&itb=0
+        - listitem [ref=f436e455]:
+          - generic [ref=f436e456]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e458] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=PZjAHdPK&id=5737167209D3E5E3CE33A397E8A771A1FBA01618&thid=OIP.PZjAHdPKSXpvXmNcMUL6mQHaHa&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f71vtiPRzK%2bL.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3d98c01dd3ca497a6f5e635c3142fa99%3frik%3dGBag%252b6Fxp%252biXow%26pid%3dImgRaw%26r%3d0&exph=2000&expw=2000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=F9BFBB2DF17B91F78C7A1DCDAA02ADE3&selectedIndex=13&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e460]
+            - generic [ref=f436e461]:
+              - 'link "Magic: The Gathering Foundations - Collector Booster Box : Amazon.ca ..." [ref=f436e462] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=PZjAHdPK&id=5737167209D3E5E3CE33A397E8A771A1FBA01618&thid=OIP.PZjAHdPKSXpvXmNcMUL6mQHaHa&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f71vtiPRzK%2bL.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3d98c01dd3ca497a6f5e635c3142fa99%3frik%3dGBag%252b6Fxp%252biXow%26pid%3dImgRaw%26r%3d0&exph=2000&expw=2000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=F9BFBB2DF17B91F78C7A1DCDAA02ADE3&selectedIndex=13&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations - Collecto…" [ref=f436e463] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=PZjAHdPK&id=5737167209D3E5E3CE33A397E8A771A1FBA01618&thid=OIP.PZjAHdPKSXpvXmNcMUL6mQHaHa&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f71vtiPRzK%2bL.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3d98c01dd3ca497a6f5e635c3142fa99%3frik%3dGBag%252b6Fxp%252biXow%26pid%3dImgRaw%26r%3d0&exph=2000&expw=2000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=F9BFBB2DF17B91F78C7A1DCDAA02ADE3&selectedIndex=13&itb=0
+        - listitem [ref=f436e464]:
+          - generic [ref=f436e465]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e467] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=5rR0I11a&id=8172C71B8F59352AA25A7471C5ED3D6517A67500&thid=OIP.5rR0I11aWvaturFKn5aQKgHaIb&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f71vtiPRzK%2bL._AC_SL1500_.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e6b474235d5a5af6adbab14a9f96902a%3frik%3dAHWmF2U97cVxdA%26pid%3dImgRaw%26r%3d0&exph=1500&expw=1317&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=4CC9BAFD1475589A720081237440A9F3&selectedIndex=14&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e469]
+            - generic [ref=f436e470]:
+              - 'link "Magic: The Gathering Foundations - Collector Booster Box : Amazon.co.uk ..." [ref=f436e471] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=5rR0I11a&id=8172C71B8F59352AA25A7471C5ED3D6517A67500&thid=OIP.5rR0I11aWvaturFKn5aQKgHaIb&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f71vtiPRzK%2bL._AC_SL1500_.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e6b474235d5a5af6adbab14a9f96902a%3frik%3dAHWmF2U97cVxdA%26pid%3dImgRaw%26r%3d0&exph=1500&expw=1317&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=4CC9BAFD1475589A720081237440A9F3&selectedIndex=14&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations - Colle…" [ref=f436e472] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=5rR0I11a&id=8172C71B8F59352AA25A7471C5ED3D6517A67500&thid=OIP.5rR0I11aWvaturFKn5aQKgHaIb&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f71vtiPRzK%2bL._AC_SL1500_.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e6b474235d5a5af6adbab14a9f96902a%3frik%3dAHWmF2U97cVxdA%26pid%3dImgRaw%26r%3d0&exph=1500&expw=1317&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=4CC9BAFD1475589A720081237440A9F3&selectedIndex=14&itb=0
+        - listitem [ref=f436e473]:
+          - generic [ref=f436e474]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e476] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=6dxpqfXk&id=63BE211B414DB8D1FC7D912F4D21A66128C5B9B7&thid=OIP.6dxpqfXk56BaZ5jAz6LrJgHaHa&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-Foundations-Bundle_68747f86-8886-4362-8c65-a229b9a69d5e.13a52ab374e3e0fa5849112e6440fae2.jpeg%3fodnHeight%3d117%26odnWidth%3d117%26odnBg%3dFFFFFF&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e9dc69a9f5e4e7a05a6798c0cfa2eb26%3frik%3dt7nFKGGmIU0vkQ%26pid%3dImgRaw%26r%3d0&exph=2100&expw=2100&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=EA61DFFABF6D6A4B3D547F7C01F659C3&selectedIndex=15&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e478]
+            - generic [ref=f436e479]:
+              - 'link "Magic: The Gathering Foundations Bundle - Walmart.com" [ref=f436e480] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=6dxpqfXk&id=63BE211B414DB8D1FC7D912F4D21A66128C5B9B7&thid=OIP.6dxpqfXk56BaZ5jAz6LrJgHaHa&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-Foundations-Bundle_68747f86-8886-4362-8c65-a229b9a69d5e.13a52ab374e3e0fa5849112e6440fae2.jpeg%3fodnHeight%3d117%26odnWidth%3d117%26odnBg%3dFFFFFF&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e9dc69a9f5e4e7a05a6798c0cfa2eb26%3frik%3dt7nFKGGmIU0vkQ%26pid%3dImgRaw%26r%3d0&exph=2100&expw=2100&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=EA61DFFABF6D6A4B3D547F7C01F659C3&selectedIndex=15&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations Bundle - …" [ref=f436e481] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=6dxpqfXk&id=63BE211B414DB8D1FC7D912F4D21A66128C5B9B7&thid=OIP.6dxpqfXk56BaZ5jAz6LrJgHaHa&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-Foundations-Bundle_68747f86-8886-4362-8c65-a229b9a69d5e.13a52ab374e3e0fa5849112e6440fae2.jpeg%3fodnHeight%3d117%26odnWidth%3d117%26odnBg%3dFFFFFF&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e9dc69a9f5e4e7a05a6798c0cfa2eb26%3frik%3dt7nFKGGmIU0vkQ%26pid%3dImgRaw%26r%3d0&exph=2100&expw=2100&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=EA61DFFABF6D6A4B3D547F7C01F659C3&selectedIndex=15&itb=0
+        - listitem [ref=f436e482]:
+          - generic [ref=f436e483]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e485] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=nAt8uefv&id=98EB16A2C49D64EFBA083F2255E1DA8D371F0525&thid=OIP.nAt8uefvd2qURcS8EMx98AHaHa&mediaurl=https%3a%2f%2fp1.comgateway.com%2f2026%2f03%2f11%2fe7ff730c307a.png-lg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9c0b7cb9e7ef776a9445c4bc10cc7df0%3frik%3dJQUfN43a4VUiPw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=F9E804E6C0F3BAC8ED05A2F3C666EB5B&selectedIndex=16&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e487]
+            - generic [ref=f436e488]:
+              - link "MTG Foundations Collector Booster Boxes are cheaper to | comGateway" [ref=f436e489] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=nAt8uefv&id=98EB16A2C49D64EFBA083F2255E1DA8D371F0525&thid=OIP.nAt8uefvd2qURcS8EMx98AHaHa&mediaurl=https%3a%2f%2fp1.comgateway.com%2f2026%2f03%2f11%2fe7ff730c307a.png-lg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9c0b7cb9e7ef776a9445c4bc10cc7df0%3frik%3dJQUfN43a4VUiPw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=F9E804E6C0F3BAC8ED05A2F3C666EB5B&selectedIndex=16&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Foundations Collector Booster Boxe…" [ref=f436e490] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=nAt8uefv&id=98EB16A2C49D64EFBA083F2255E1DA8D371F0525&thid=OIP.nAt8uefvd2qURcS8EMx98AHaHa&mediaurl=https%3a%2f%2fp1.comgateway.com%2f2026%2f03%2f11%2fe7ff730c307a.png-lg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9c0b7cb9e7ef776a9445c4bc10cc7df0%3frik%3dJQUfN43a4VUiPw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=F9E804E6C0F3BAC8ED05A2F3C666EB5B&selectedIndex=16&itb=1
+        - listitem [ref=f436e491]:
+          - generic [ref=f436e492]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e494] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=zvhQ1yn9&id=3AE951B55372C95136EB79591D9B8CBCD550F3E6&thid=OIP.zvhQ1yn9zvnbtIiAj8Nv5AHaF1&mediaurl=https%3a%2f%2fmlpnk72yciwc.i.optimole.com%2fcqhiHLc.IIZS%7e2ef73%2fw%3aauto%2fh%3aauto%2fq%3a75%2fhttps%3a%2f%2fbleedingcool.com%2fwp-content%2fuploads%2f2024%2f08%2fMTG-Foundations-Starter-Box.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cef850d729fdcef9dbb488808fc36fe4%3frik%3d5vNQ1byMmx1ZeQ%26pid%3dImgRaw%26r%3d0&exph=1513&expw=1920&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=8077CDD20AE83394363FB5E1F538C2B2&selectedIndex=17&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e496]
+            - generic [ref=f436e497]:
+              - 'link "Magic: The Gathering Announces New Foundations Beginner Box" [ref=f436e498] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=zvhQ1yn9&id=3AE951B55372C95136EB79591D9B8CBCD550F3E6&thid=OIP.zvhQ1yn9zvnbtIiAj8Nv5AHaF1&mediaurl=https%3a%2f%2fmlpnk72yciwc.i.optimole.com%2fcqhiHLc.IIZS%7e2ef73%2fw%3aauto%2fh%3aauto%2fq%3a75%2fhttps%3a%2f%2fbleedingcool.com%2fwp-content%2fuploads%2f2024%2f08%2fMTG-Foundations-Starter-Box.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cef850d729fdcef9dbb488808fc36fe4%3frik%3d5vNQ1byMmx1ZeQ%26pid%3dImgRaw%26r%3d0&exph=1513&expw=1920&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=8077CDD20AE83394363FB5E1F538C2B2&selectedIndex=17&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Announces New Foundations Beginner Box" [ref=f436e499] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=zvhQ1yn9&id=3AE951B55372C95136EB79591D9B8CBCD550F3E6&thid=OIP.zvhQ1yn9zvnbtIiAj8Nv5AHaF1&mediaurl=https%3a%2f%2fmlpnk72yciwc.i.optimole.com%2fcqhiHLc.IIZS%7e2ef73%2fw%3aauto%2fh%3aauto%2fq%3a75%2fhttps%3a%2f%2fbleedingcool.com%2fwp-content%2fuploads%2f2024%2f08%2fMTG-Foundations-Starter-Box.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cef850d729fdcef9dbb488808fc36fe4%3frik%3d5vNQ1byMmx1ZeQ%26pid%3dImgRaw%26r%3d0&exph=1513&expw=1920&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=8077CDD20AE83394363FB5E1F538C2B2&selectedIndex=17&itb=0
+      - list [ref=f436e500]:
+        - listitem [ref=f436e501]:
+          - generic [ref=f436e502]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e504] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=2Ajy6IPb&id=CA9701C569C5202507C1FFBFB7924C0BC3FCE29A&thid=OIP.2Ajy6IPbRl0H8SG-2UkNTwHaHa&mediaurl=https%3a%2f%2fapi.tcgpark.com%2fwp-content%2fuploads%2f2024%2f10%2ffoundations-beginner-box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d808f2e883db465d07f121bed9490d4f%3frik%3dmuL8wwtMkre%252f%252fw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=39D7491240377A5D19603DE9D50DBE87&selectedIndex=18&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e506]
+            - generic [ref=f436e507]:
+              - link "Magic the Gathering (MTG) cards Foundations Beginner Box" [ref=f436e508] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=2Ajy6IPb&id=CA9701C569C5202507C1FFBFB7924C0BC3FCE29A&thid=OIP.2Ajy6IPbRl0H8SG-2UkNTwHaHa&mediaurl=https%3a%2f%2fapi.tcgpark.com%2fwp-content%2fuploads%2f2024%2f10%2ffoundations-beginner-box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d808f2e883db465d07f121bed9490d4f%3frik%3dmuL8wwtMkre%252f%252fw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=39D7491240377A5D19603DE9D50DBE87&selectedIndex=18&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering (MTG) cards Found…" [ref=f436e509] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=2Ajy6IPb&id=CA9701C569C5202507C1FFBFB7924C0BC3FCE29A&thid=OIP.2Ajy6IPbRl0H8SG-2UkNTwHaHa&mediaurl=https%3a%2f%2fapi.tcgpark.com%2fwp-content%2fuploads%2f2024%2f10%2ffoundations-beginner-box.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d808f2e883db465d07f121bed9490d4f%3frik%3dmuL8wwtMkre%252f%252fw%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=39D7491240377A5D19603DE9D50DBE87&selectedIndex=18&itb=0
+        - listitem [ref=f436e510]:
+          - generic [ref=f436e511]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e513] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2bZyffL%2fQ&id=B0C5B13EBDE5ADE82D8606B99D7C699F17D0259A&thid=OIP.-ZyffL_QfIqR18IO0n2pkgHaG3&mediaurl=https%3a%2f%2fhttp2.mlstatic.com%2fD_NQ_NP_910560-MLB80530483915_112024-O-magic-the-gathering-foundations-play-booster-box-ingls-2024.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f99c9f7cbfd07c8a91d7c20ed27da992%3frik%3dmiXQF59pfJ25Bg%26pid%3dImgRaw%26r%3d0&exph=464&expw=500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=C7904F98996D3FFC3D6883C96AEDFD71&selectedIndex=19&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e515]
+            - generic [ref=f436e516]:
+              - link "Magic The Gathering Foundations Play Booster Box Inglês 2024 ..." [ref=f436e517] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=%2bZyffL%2fQ&id=B0C5B13EBDE5ADE82D8606B99D7C699F17D0259A&thid=OIP.-ZyffL_QfIqR18IO0n2pkgHaG3&mediaurl=https%3a%2f%2fhttp2.mlstatic.com%2fD_NQ_NP_910560-MLB80530483915_112024-O-magic-the-gathering-foundations-play-booster-box-ingls-2024.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f99c9f7cbfd07c8a91d7c20ed27da992%3frik%3dmiXQF59pfJ25Bg%26pid%3dImgRaw%26r%3d0&exph=464&expw=500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=C7904F98996D3FFC3D6883C96AEDFD71&selectedIndex=19&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering Foundations Play Boo…" [ref=f436e518] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=%2bZyffL%2fQ&id=B0C5B13EBDE5ADE82D8606B99D7C699F17D0259A&thid=OIP.-ZyffL_QfIqR18IO0n2pkgHaG3&mediaurl=https%3a%2f%2fhttp2.mlstatic.com%2fD_NQ_NP_910560-MLB80530483915_112024-O-magic-the-gathering-foundations-play-booster-box-ingls-2024.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f99c9f7cbfd07c8a91d7c20ed27da992%3frik%3dmiXQF59pfJ25Bg%26pid%3dImgRaw%26r%3d0&exph=464&expw=500&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=C7904F98996D3FFC3D6883C96AEDFD71&selectedIndex=19&itb=0
+        - listitem [ref=f436e519]:
+          - generic [ref=f436e520]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e522] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=TAt32cjl&id=5BDEEB747700E7BF50B81AA8C2159E047E110FB0&thid=OIP.TAt32cjlTZcvvtJz3cEaowHaEF&mediaurl=https%3a%2f%2fcardgamebase.com%2fwp-content%2fuploads%2fMTG-Foundations-Bundle-Contents-Banner.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4c0b77d9c8e54d972fbed273ddc11aa3%3frik%3dsA8RfgSeFcKoGg%26pid%3dImgRaw%26r%3d0&exph=800&expw=1450&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E124D2D39F5E2F9093866EF7F29689D7&selectedIndex=20&itb=0
+            - generic [ref=f436e530]:
+              - 'link "Foundations Bundle Contents: Hit or Miss?" [ref=f436e531] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=TAt32cjl&id=5BDEEB747700E7BF50B81AA8C2159E047E110FB0&thid=OIP.TAt32cjlTZcvvtJz3cEaowHaEF&mediaurl=https%3a%2f%2fcardgamebase.com%2fwp-content%2fuploads%2fMTG-Foundations-Bundle-Contents-Banner.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4c0b77d9c8e54d972fbed273ddc11aa3%3frik%3dsA8RfgSeFcKoGg%26pid%3dImgRaw%26r%3d0&exph=800&expw=1450&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E124D2D39F5E2F9093866EF7F29689D7&selectedIndex=20&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Foundations Bundle Contents: Hit or Miss?" [ref=f436e532] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=TAt32cjl&id=5BDEEB747700E7BF50B81AA8C2159E047E110FB0&thid=OIP.TAt32cjlTZcvvtJz3cEaowHaEF&mediaurl=https%3a%2f%2fcardgamebase.com%2fwp-content%2fuploads%2fMTG-Foundations-Bundle-Contents-Banner.webp&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.4c0b77d9c8e54d972fbed273ddc11aa3%3frik%3dsA8RfgSeFcKoGg%26pid%3dImgRaw%26r%3d0&exph=800&expw=1450&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E124D2D39F5E2F9093866EF7F29689D7&selectedIndex=20&itb=0
+        - listitem [ref=f436e533]:
+          - generic [ref=f436e534]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e536] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=yt%2bZXlcA&id=079E2D0519C0E300C8A8A18BB22EE1316AE2E210&thid=OIP.yt-ZXlcAv71eB9PwVZF7dAAAAA&mediaurl=https%3a%2f%2fplatform.polygon.com%2fwp-content%2fuploads%2fsites%2f2%2f2024%2f10%2ffoundationsbeginnerbox.jpg%3fquality%3d90%26strip%3dall%26crop%3d16.683168316832%252C0%252C66.633663366337%252C100%26w%3d415&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cadf995e5700bfbd5e07d3f055917b74%3frik%3dEOLiajHhLrKLoQ%26pid%3dImgRaw%26r%3d0&exph=418&expw=415&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=DBF9C3433673F43E3EA82B6A8EA2C6FE&selectedIndex=21&itb=0
+            - generic [ref=f436e544]:
+              - 'link "Magic: The Gathering - Foundations pre-order guide | Polygon" [ref=f436e545] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=yt%2bZXlcA&id=079E2D0519C0E300C8A8A18BB22EE1316AE2E210&thid=OIP.yt-ZXlcAv71eB9PwVZF7dAAAAA&mediaurl=https%3a%2f%2fplatform.polygon.com%2fwp-content%2fuploads%2fsites%2f2%2f2024%2f10%2ffoundationsbeginnerbox.jpg%3fquality%3d90%26strip%3dall%26crop%3d16.683168316832%252C0%252C66.633663366337%252C100%26w%3d415&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cadf995e5700bfbd5e07d3f055917b74%3frik%3dEOLiajHhLrKLoQ%26pid%3dImgRaw%26r%3d0&exph=418&expw=415&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=DBF9C3433673F43E3EA82B6A8EA2C6FE&selectedIndex=21&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering - Foundations pre-order guid…" [ref=f436e546] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=yt%2bZXlcA&id=079E2D0519C0E300C8A8A18BB22EE1316AE2E210&thid=OIP.yt-ZXlcAv71eB9PwVZF7dAAAAA&mediaurl=https%3a%2f%2fplatform.polygon.com%2fwp-content%2fuploads%2fsites%2f2%2f2024%2f10%2ffoundationsbeginnerbox.jpg%3fquality%3d90%26strip%3dall%26crop%3d16.683168316832%252C0%252C66.633663366337%252C100%26w%3d415&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cadf995e5700bfbd5e07d3f055917b74%3frik%3dEOLiajHhLrKLoQ%26pid%3dImgRaw%26r%3d0&exph=418&expw=415&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=DBF9C3433673F43E3EA82B6A8EA2C6FE&selectedIndex=21&itb=0
+        - listitem [ref=f436e547]:
+          - generic [ref=f436e548]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e550] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=MwGwpLu6&id=752FE5057355BC6FDE4A99165A0FE0BE663AC264&thid=OIP.MwGwpLu6u5llAI9oMDE4BQHaF1&mediaurl=https%3a%2f%2fmedia.wizards.com%2f2024%2fimages%2fdaily%2ffr_8fmQzgMLgJ.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3301b0a4bbbabb9965008f6830313805%3frik%3dZMI6Zr7gD1oWmQ%26pid%3dImgRaw%26r%3d0&exph=432&expw=548&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E587E8C8F250E0A812FFFB4DD9E7B991&selectedIndex=22&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e552]
+            - generic [ref=f436e553]:
+              - 'link "Premier aperçu de Fondations de Magic: The Gathering" [ref=f436e554] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=MwGwpLu6&id=752FE5057355BC6FDE4A99165A0FE0BE663AC264&thid=OIP.MwGwpLu6u5llAI9oMDE4BQHaF1&mediaurl=https%3a%2f%2fmedia.wizards.com%2f2024%2fimages%2fdaily%2ffr_8fmQzgMLgJ.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3301b0a4bbbabb9965008f6830313805%3frik%3dZMI6Zr7gD1oWmQ%26pid%3dImgRaw%26r%3d0&exph=432&expw=548&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E587E8C8F250E0A812FFFB4DD9E7B991&selectedIndex=22&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Premier aperçu de Fondations de Magic: The Gathering" [ref=f436e555] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=MwGwpLu6&id=752FE5057355BC6FDE4A99165A0FE0BE663AC264&thid=OIP.MwGwpLu6u5llAI9oMDE4BQHaF1&mediaurl=https%3a%2f%2fmedia.wizards.com%2f2024%2fimages%2fdaily%2ffr_8fmQzgMLgJ.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.3301b0a4bbbabb9965008f6830313805%3frik%3dZMI6Zr7gD1oWmQ%26pid%3dImgRaw%26r%3d0&exph=432&expw=548&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=E587E8C8F250E0A812FFFB4DD9E7B991&selectedIndex=22&itb=1
+      - list [ref=f436e556]:
+        - listitem [ref=f436e557]:
+          - generic [ref=f436e558]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e560] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=5rIo68t%2b&id=BBCD51B34377555F86F8035F86D77763B024FD04&thid=OIP.5rIo68t-djFucWJYKbg04wHaDt&mediaurl=https%3a%2f%2fstatic1.thegamerimages.com%2fwordpress%2fwp-content%2fuploads%2fwm%2f2024%2f08%2ffoundations-beinnger-boxes.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e6b228ebcb7e76316e71625829b834e3%3frik%3dBP0ksGN314ZfAw%26pid%3dImgRaw%26r%3d0&exph=1080&expw=2160&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=23D3BC56B994EAD921FF66D93AC4609D&selectedIndex=23&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e562]
+            - generic [ref=f436e563]:
+              - link "Exclusive Foundations' Beginner Box Primal Deck Reveal - Every Card ..." [ref=f436e564] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=5rIo68t%2b&id=BBCD51B34377555F86F8035F86D77763B024FD04&thid=OIP.5rIo68t-djFucWJYKbg04wHaDt&mediaurl=https%3a%2f%2fstatic1.thegamerimages.com%2fwordpress%2fwp-content%2fuploads%2fwm%2f2024%2f08%2ffoundations-beinnger-boxes.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e6b228ebcb7e76316e71625829b834e3%3frik%3dBP0ksGN314ZfAw%26pid%3dImgRaw%26r%3d0&exph=1080&expw=2160&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=23D3BC56B994EAD921FF66D93AC4609D&selectedIndex=23&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Exclusive Foundations' Beginner Box Primal Deck Reveal - Every Card ..." [ref=f436e565] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=5rIo68t%2b&id=BBCD51B34377555F86F8035F86D77763B024FD04&thid=OIP.5rIo68t-djFucWJYKbg04wHaDt&mediaurl=https%3a%2f%2fstatic1.thegamerimages.com%2fwordpress%2fwp-content%2fuploads%2fwm%2f2024%2f08%2ffoundations-beinnger-boxes.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e6b228ebcb7e76316e71625829b834e3%3frik%3dBP0ksGN314ZfAw%26pid%3dImgRaw%26r%3d0&exph=1080&expw=2160&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=23D3BC56B994EAD921FF66D93AC4609D&selectedIndex=23&itb=0
+        - listitem [ref=f436e566]:
+          - generic [ref=f436e567]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e569] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=uWOJyRqi&id=16E9D698AEA24A6EF812A15C40499D1BA90A95DB&thid=OIP.uWOJyRqixubTa8mr4-d9dgHaHa&mediaurl=https%3a%2f%2fhobbycollectorsaustralia.com.au%2fcdn%2fshop%2ffiles%2f1_b61f2431-0bfa-49cd-a08b-0acb35f46009.png%3fv%3d1725860486&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b96389c91aa2c6e6d36bc9abe3e77d76%3frik%3d25UKqRudSUBcoQ%26pid%3dImgRaw%26r%3d0&exph=2139&expw=2139&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=70484554B5B67CEC4DC0C27799DED1AF&selectedIndex=24&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e571]
+            - generic [ref=f436e572]:
+              - link "Buy [Product Title] in Australia | Hobby Collectors Australia" [ref=f436e573] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=uWOJyRqi&id=16E9D698AEA24A6EF812A15C40499D1BA90A95DB&thid=OIP.uWOJyRqixubTa8mr4-d9dgHaHa&mediaurl=https%3a%2f%2fhobbycollectorsaustralia.com.au%2fcdn%2fshop%2ffiles%2f1_b61f2431-0bfa-49cd-a08b-0acb35f46009.png%3fv%3d1725860486&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b96389c91aa2c6e6d36bc9abe3e77d76%3frik%3d25UKqRudSUBcoQ%26pid%3dImgRaw%26r%3d0&exph=2139&expw=2139&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=70484554B5B67CEC4DC0C27799DED1AF&selectedIndex=24&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Buy [Product Title] in Australia | Hobby C…" [ref=f436e574] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=uWOJyRqi&id=16E9D698AEA24A6EF812A15C40499D1BA90A95DB&thid=OIP.uWOJyRqixubTa8mr4-d9dgHaHa&mediaurl=https%3a%2f%2fhobbycollectorsaustralia.com.au%2fcdn%2fshop%2ffiles%2f1_b61f2431-0bfa-49cd-a08b-0acb35f46009.png%3fv%3d1725860486&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b96389c91aa2c6e6d36bc9abe3e77d76%3frik%3d25UKqRudSUBcoQ%26pid%3dImgRaw%26r%3d0&exph=2139&expw=2139&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=70484554B5B67CEC4DC0C27799DED1AF&selectedIndex=24&itb=0
+        - listitem [ref=f436e575]:
+          - generic [ref=f436e576]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e578] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=GmV9hmTD&id=12DA2CC6CC9FAD849E3D98BEED7912EEA9E45082&thid=OIP.GmV9hmTDqBamXWgtNypQSwHaJk&mediaurl=https%3a%2f%2farte9.com%2fwp-content%2fuploads%2f2024%2f10%2fAJANI-DECK-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1a657d8664c3a816a65d682d372a504b%3frik%3dglDkqe4See2%252bmA%26pid%3dImgRaw%26r%3d0&exph=1033&expw=800&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=11D3CCE58B32508A56623DFF49D6D704&selectedIndex=25&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e580]
+            - generic [ref=f436e581]:
+              - link "100 Card Container Ultra Pro Magic The Gathering Foundations Deck Box ..." [ref=f436e582] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=GmV9hmTD&id=12DA2CC6CC9FAD849E3D98BEED7912EEA9E45082&thid=OIP.GmV9hmTDqBamXWgtNypQSwHaJk&mediaurl=https%3a%2f%2farte9.com%2fwp-content%2fuploads%2f2024%2f10%2fAJANI-DECK-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1a657d8664c3a816a65d682d372a504b%3frik%3dglDkqe4See2%252bmA%26pid%3dImgRaw%26r%3d0&exph=1033&expw=800&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=11D3CCE58B32508A56623DFF49D6D704&selectedIndex=25&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "100 Card Container Ultra …" [ref=f436e583] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=GmV9hmTD&id=12DA2CC6CC9FAD849E3D98BEED7912EEA9E45082&thid=OIP.GmV9hmTDqBamXWgtNypQSwHaJk&mediaurl=https%3a%2f%2farte9.com%2fwp-content%2fuploads%2f2024%2f10%2fAJANI-DECK-2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1a657d8664c3a816a65d682d372a504b%3frik%3dglDkqe4See2%252bmA%26pid%3dImgRaw%26r%3d0&exph=1033&expw=800&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=11D3CCE58B32508A56623DFF49D6D704&selectedIndex=25&itb=0
+        - listitem [ref=f436e584]:
+          - generic [ref=f436e585]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e587] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=gYvMae0h&id=272973C63B43E2B98523C7BFC8D00392CEC2914F&thid=OIP.gYvMae0h5BY1GjTFQmWHmAHaEK&mediaurl=https%3a%2f%2fgeekmom.com%2fwp-content%2fuploads%2f2024%2f11%2fMagic-the-Gathering-Foundations-Starter-Collection.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.818bcc69ed21e416351a34c542658798%3frik%3dT5HCzpID0Mi%252fxw%26pid%3dImgRaw%26r%3d0&exph=675&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=711DF312FAB9F3E17F7726E20A11FB03&selectedIndex=26&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e589]
+            - generic [ref=f436e590]:
+              - 'link "GeekDad/GeekMom Holiday Gift Guide 2024: Games - GeekMom" [ref=f436e591] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=gYvMae0h&id=272973C63B43E2B98523C7BFC8D00392CEC2914F&thid=OIP.gYvMae0h5BY1GjTFQmWHmAHaEK&mediaurl=https%3a%2f%2fgeekmom.com%2fwp-content%2fuploads%2f2024%2f11%2fMagic-the-Gathering-Foundations-Starter-Collection.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.818bcc69ed21e416351a34c542658798%3frik%3dT5HCzpID0Mi%252fxw%26pid%3dImgRaw%26r%3d0&exph=675&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=711DF312FAB9F3E17F7726E20A11FB03&selectedIndex=26&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "GeekDad/GeekMom Holiday Gift Guide 2024: Games - GeekMom" [ref=f436e592] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=gYvMae0h&id=272973C63B43E2B98523C7BFC8D00392CEC2914F&thid=OIP.gYvMae0h5BY1GjTFQmWHmAHaEK&mediaurl=https%3a%2f%2fgeekmom.com%2fwp-content%2fuploads%2f2024%2f11%2fMagic-the-Gathering-Foundations-Starter-Collection.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.818bcc69ed21e416351a34c542658798%3frik%3dT5HCzpID0Mi%252fxw%26pid%3dImgRaw%26r%3d0&exph=675&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=711DF312FAB9F3E17F7726E20A11FB03&selectedIndex=26&itb=0
+        - listitem [ref=f436e593]:
+          - generic [ref=f436e594]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e596] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=ykwHZpww&id=0084873B144703EAFEF806A66A18E2FC8C032748&thid=OIP.ykwHZpwwGykHXkvK1O3F4AHaG3&mediaurl=https%3a%2f%2flevelupgamesatl.com%2fwp-content%2fuploads%2f2024%2f10%2fScreenshot-2024-10-18-105409.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.ca4c07669c301b29075e4bcad4edc5e0%3frik%3dSCcDjPziGGqmBg%26pid%3dImgRaw%26r%3d0&exph=567&expw=611&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5ECA272CFB4B9324F18923E65016F77B&selectedIndex=27&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e598]
+            - generic [ref=f436e599]:
+              - 'link "What to expect from MTG: Foundations – Level Up Games" [ref=f436e600] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=ykwHZpww&id=0084873B144703EAFEF806A66A18E2FC8C032748&thid=OIP.ykwHZpwwGykHXkvK1O3F4AHaG3&mediaurl=https%3a%2f%2flevelupgamesatl.com%2fwp-content%2fuploads%2f2024%2f10%2fScreenshot-2024-10-18-105409.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.ca4c07669c301b29075e4bcad4edc5e0%3frik%3dSCcDjPziGGqmBg%26pid%3dImgRaw%26r%3d0&exph=567&expw=611&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5ECA272CFB4B9324F18923E65016F77B&selectedIndex=27&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "What to expect from MTG: Foundations – L…" [ref=f436e601] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=ykwHZpww&id=0084873B144703EAFEF806A66A18E2FC8C032748&thid=OIP.ykwHZpwwGykHXkvK1O3F4AHaG3&mediaurl=https%3a%2f%2flevelupgamesatl.com%2fwp-content%2fuploads%2f2024%2f10%2fScreenshot-2024-10-18-105409.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.ca4c07669c301b29075e4bcad4edc5e0%3frik%3dSCcDjPziGGqmBg%26pid%3dImgRaw%26r%3d0&exph=567&expw=611&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=5ECA272CFB4B9324F18923E65016F77B&selectedIndex=27&itb=0
+      - list [ref=f436e602]:
+        - listitem [ref=f436e603]:
+          - generic [ref=f436e604]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e606] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=zxNjLFyu&id=BECF2891BF3A3BB4B06D9BEC6C96A460E0CE3159&thid=OIP.zxNjLFyu-ynJE3zZRFeVBQHaHa&mediaurl=https%3a%2f%2fwww.wizardtower.com%2fwp-content%2fuploads%2fCBBox.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cf13632c5caefb29c9137cd944579505%3frik%3dWTHO4GCklmzsmw%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=71CD667DAD0A03665BBC4F3F62AE282A&selectedIndex=28&itb=1
+            - generic [ref=f436e615]:
+              - link "Magic Foundations - WizardTower.com" [ref=f436e616] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=zxNjLFyu&id=BECF2891BF3A3BB4B06D9BEC6C96A460E0CE3159&thid=OIP.zxNjLFyu-ynJE3zZRFeVBQHaHa&mediaurl=https%3a%2f%2fwww.wizardtower.com%2fwp-content%2fuploads%2fCBBox.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cf13632c5caefb29c9137cd944579505%3frik%3dWTHO4GCklmzsmw%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=71CD667DAD0A03665BBC4F3F62AE282A&selectedIndex=28&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic Foundations - WizardTower.com" [ref=f436e617] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=zxNjLFyu&id=BECF2891BF3A3BB4B06D9BEC6C96A460E0CE3159&thid=OIP.zxNjLFyu-ynJE3zZRFeVBQHaHa&mediaurl=https%3a%2f%2fwww.wizardtower.com%2fwp-content%2fuploads%2fCBBox.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.cf13632c5caefb29c9137cd944579505%3frik%3dWTHO4GCklmzsmw%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=71CD667DAD0A03665BBC4F3F62AE282A&selectedIndex=28&itb=1
+        - listitem [ref=f436e618]:
+          - generic [ref=f436e619]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e621] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=1AHBjONL&id=4C3651C7ECD0DE92710AED6B063C15D9316E6D34&thid=OIP.1AHBjONLIPBCgybqA4Fj5QHaGp&mediaurl=https%3a%2f%2fcdn.shoplightspeed.com%2fshops%2f627014%2ffiles%2f66353942%2fmagic-foundations-jumpstart-2025-booster-box-24ct.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d401c18ce34b20f0428326ea038163e5%3frik%3dNG1uMdkVPAZr7Q%26pid%3dImgRaw%26r%3d0&exph=808&expw=900&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=2B52EB72E046D436AB1ED30ED2BF9C8E&selectedIndex=29&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e623]
+            - generic [ref=f436e624]:
+              - link "Magic Foundations Jumpstart 2025 Booster Box(24Ct) - Battlegrounds Gaming" [ref=f436e625] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1AHBjONL&id=4C3651C7ECD0DE92710AED6B063C15D9316E6D34&thid=OIP.1AHBjONLIPBCgybqA4Fj5QHaGp&mediaurl=https%3a%2f%2fcdn.shoplightspeed.com%2fshops%2f627014%2ffiles%2f66353942%2fmagic-foundations-jumpstart-2025-booster-box-24ct.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d401c18ce34b20f0428326ea038163e5%3frik%3dNG1uMdkVPAZr7Q%26pid%3dImgRaw%26r%3d0&exph=808&expw=900&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=2B52EB72E046D436AB1ED30ED2BF9C8E&selectedIndex=29&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic Foundations Jumpstart 2025 Booster Box(24Ct) - Bat…" [ref=f436e626] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=1AHBjONL&id=4C3651C7ECD0DE92710AED6B063C15D9316E6D34&thid=OIP.1AHBjONLIPBCgybqA4Fj5QHaGp&mediaurl=https%3a%2f%2fcdn.shoplightspeed.com%2fshops%2f627014%2ffiles%2f66353942%2fmagic-foundations-jumpstart-2025-booster-box-24ct.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d401c18ce34b20f0428326ea038163e5%3frik%3dNG1uMdkVPAZr7Q%26pid%3dImgRaw%26r%3d0&exph=808&expw=900&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=2B52EB72E046D436AB1ED30ED2BF9C8E&selectedIndex=29&itb=1
+        - listitem [ref=f436e627]:
+          - generic [ref=f436e628]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e630] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=sq6UvHvl&id=BECF2891BF3A3BB4B06D30BC43770AD5B59D8931&thid=OIP.sq6UvHvl4t-ERKnl9HWpdAHaHa&mediaurl=https%3a%2f%2fwww.wizardtower.com%2fwp-content%2fuploads%2fStarter-Coll-Box.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2ae94bc7be5e2df8444a9e5f475a974%3frik%3dMYmdtdUKd0O8MA%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=1A4A1332A9E5157A7B739CD815014A69&selectedIndex=30&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e632]
+            - generic [ref=f436e633]:
+              - link "Magic Foundations - WizardTower.com" [ref=f436e634] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=sq6UvHvl&id=BECF2891BF3A3BB4B06D30BC43770AD5B59D8931&thid=OIP.sq6UvHvl4t-ERKnl9HWpdAHaHa&mediaurl=https%3a%2f%2fwww.wizardtower.com%2fwp-content%2fuploads%2fStarter-Coll-Box.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2ae94bc7be5e2df8444a9e5f475a974%3frik%3dMYmdtdUKd0O8MA%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=1A4A1332A9E5157A7B739CD815014A69&selectedIndex=30&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic Foundations - WizardTower.com" [ref=f436e635] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=sq6UvHvl&id=BECF2891BF3A3BB4B06D30BC43770AD5B59D8931&thid=OIP.sq6UvHvl4t-ERKnl9HWpdAHaHa&mediaurl=https%3a%2f%2fwww.wizardtower.com%2fwp-content%2fuploads%2fStarter-Coll-Box.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2ae94bc7be5e2df8444a9e5f475a974%3frik%3dMYmdtdUKd0O8MA%26pid%3dImgRaw%26r%3d0&exph=1080&expw=1080&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=1A4A1332A9E5157A7B739CD815014A69&selectedIndex=30&itb=1
+        - listitem [ref=f436e636]:
+          - generic [ref=f436e637]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e639] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=Ktjgs7yS&id=4FEDD8C95984F8A475837FC71F442BF9D42E1DF3&thid=OIP.Ktjgs7ySdQLBXCMgv1ZRsgHaHa&mediaurl=https%3a%2f%2fimages.tcdn.com.br%2fimg%2fimg_prod%2f1257377%2fkit_pre_lancamento_magic_foundations_3115_1_2ad8e0b3bc927502c15c2320bf5651b2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2ad8e0b3bc927502c15c2320bf5651b2%3frik%3d8x0u1PkrRB%252fHfw%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=B21292E79C449E6FDA6CCBDF51CCB579&selectedIndex=31&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e641]
+            - generic [ref=f436e642]:
+              - link "Kit Pré-Lançamento - Magic - Foundations - CHQ Jogos" [ref=f436e643] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Ktjgs7yS&id=4FEDD8C95984F8A475837FC71F442BF9D42E1DF3&thid=OIP.Ktjgs7ySdQLBXCMgv1ZRsgHaHa&mediaurl=https%3a%2f%2fimages.tcdn.com.br%2fimg%2fimg_prod%2f1257377%2fkit_pre_lancamento_magic_foundations_3115_1_2ad8e0b3bc927502c15c2320bf5651b2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2ad8e0b3bc927502c15c2320bf5651b2%3frik%3d8x0u1PkrRB%252fHfw%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=B21292E79C449E6FDA6CCBDF51CCB579&selectedIndex=31&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Kit Pré-Lançamento - Magic - Foundations - CHQ Jogos" [ref=f436e644] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=Ktjgs7yS&id=4FEDD8C95984F8A475837FC71F442BF9D42E1DF3&thid=OIP.Ktjgs7ySdQLBXCMgv1ZRsgHaHa&mediaurl=https%3a%2f%2fimages.tcdn.com.br%2fimg%2fimg_prod%2f1257377%2fkit_pre_lancamento_magic_foundations_3115_1_2ad8e0b3bc927502c15c2320bf5651b2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2ad8e0b3bc927502c15c2320bf5651b2%3frik%3d8x0u1PkrRB%252fHfw%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=B21292E79C449E6FDA6CCBDF51CCB579&selectedIndex=31&itb=0
+        - listitem [ref=f436e645]:
+          - generic [ref=f436e646]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e648] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=fQU3rg%2f4&id=6D68CF12504286E43C61C91DA1F5373A9690C96D&thid=OIP.fQU3rg_40fsQcViG0e8X5AHaF1&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7d0537ae0ff8d1fb10715886d1ef17e4%3frik%3dbcmQljo39aEdyQ%26riu%3dhttp%253a%252f%252firrationalpassions.com%252fwp-content%252fuploads%252f2024%252f11%252fimage-1.png%26ehk%3dL%252fG%252bXEPmsuBGr5Rwe%252bNUMmlfoAWbE6X6vpwqmnOqdes%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=432&expw=548&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=091C7420851758F747DC3DAF720A9778&selectedIndex=32&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e650]
+            - generic [ref=f436e651]:
+              - link "2024 Holiday Tabletop Gift Guide – Irrational Passions" [ref=f436e652] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=fQU3rg%2f4&id=6D68CF12504286E43C61C91DA1F5373A9690C96D&thid=OIP.fQU3rg_40fsQcViG0e8X5AHaF1&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7d0537ae0ff8d1fb10715886d1ef17e4%3frik%3dbcmQljo39aEdyQ%26riu%3dhttp%253a%252f%252firrationalpassions.com%252fwp-content%252fuploads%252f2024%252f11%252fimage-1.png%26ehk%3dL%252fG%252bXEPmsuBGr5Rwe%252bNUMmlfoAWbE6X6vpwqmnOqdes%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=432&expw=548&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=091C7420851758F747DC3DAF720A9778&selectedIndex=32&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "2024 Holiday Tabletop Gift Guide – Irrational Passions" [ref=f436e653] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=fQU3rg%2f4&id=6D68CF12504286E43C61C91DA1F5373A9690C96D&thid=OIP.fQU3rg_40fsQcViG0e8X5AHaF1&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7d0537ae0ff8d1fb10715886d1ef17e4%3frik%3dbcmQljo39aEdyQ%26riu%3dhttp%253a%252f%252firrationalpassions.com%252fwp-content%252fuploads%252f2024%252f11%252fimage-1.png%26ehk%3dL%252fG%252bXEPmsuBGr5Rwe%252bNUMmlfoAWbE6X6vpwqmnOqdes%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=432&expw=548&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=091C7420851758F747DC3DAF720A9778&selectedIndex=32&itb=1
+      - list [ref=f436e654]:
+        - listitem [ref=f436e655]:
+          - generic [ref=f436e656]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e658] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2fDj13lKn&id=4FEDD8C95984F8A47583ADEBAA969BEDC1FE4708&thid=OIP._Dj13lKnM_T_fKYQHUYQuAHaHa&mediaurl=https%3a%2f%2fimages.tcdn.com.br%2fimg%2fimg_prod%2f1257377%2fkit_pre_lancamento_magic_foundations_3115_2_fc38f5de52a733f4ff7ca6101d4610b8.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fc38f5de52a733f4ff7ca6101d4610b8%3frik%3dCEf%252bwe2blqrrrQ%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=62D466310EFB54A5F9B7D94107FF9ECD&selectedIndex=33&itb=0
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e660]
+            - generic [ref=f436e661]:
+              - link "Kit Pré-Lançamento - Magic - Foundations - CHQ Jogos" [ref=f436e662] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=%2fDj13lKn&id=4FEDD8C95984F8A47583ADEBAA969BEDC1FE4708&thid=OIP._Dj13lKnM_T_fKYQHUYQuAHaHa&mediaurl=https%3a%2f%2fimages.tcdn.com.br%2fimg%2fimg_prod%2f1257377%2fkit_pre_lancamento_magic_foundations_3115_2_fc38f5de52a733f4ff7ca6101d4610b8.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fc38f5de52a733f4ff7ca6101d4610b8%3frik%3dCEf%252bwe2blqrrrQ%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=62D466310EFB54A5F9B7D94107FF9ECD&selectedIndex=33&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Kit Pré-Lançamento - Magic - Foundations - C…" [ref=f436e663] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=%2fDj13lKn&id=4FEDD8C95984F8A47583ADEBAA969BEDC1FE4708&thid=OIP._Dj13lKnM_T_fKYQHUYQuAHaHa&mediaurl=https%3a%2f%2fimages.tcdn.com.br%2fimg%2fimg_prod%2f1257377%2fkit_pre_lancamento_magic_foundations_3115_2_fc38f5de52a733f4ff7ca6101d4610b8.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fc38f5de52a733f4ff7ca6101d4610b8%3frik%3dCEf%252bwe2blqrrrQ%26pid%3dImgRaw%26r%3d0&exph=1200&expw=1200&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=62D466310EFB54A5F9B7D94107FF9ECD&selectedIndex=33&itb=0
+        - listitem [ref=f436e664]:
+          - generic [ref=f436e665]:
+            - link "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e667] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=4JjvT1x1&id=282812CAD3F806CAB2733FBED09ED17777C5A3B1&thid=OIP.4JjvT1x1EheDW5KN_8aejgHaHa&mediaurl=https%3a%2f%2fwww.stompinggroundstcg.com%2fcdn%2fshop%2ffiles%2fFoundations_Play_Booster_Packs_600x.webp%3fv%3d1726783837&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e098ef4f5c751217835b928dffc69e8e%3frik%3dsaPFd3fRntC%252bPw%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=C3B5DCFA76B3DAC970DC98BD2587C5BB&selectedIndex=34&itb=1
+              - img "Image result for magic foundations bundle empty card storage box 2024" [ref=f436e669]
+            - generic [ref=f436e670]:
+              - 'link "Magic: The Gathering Foundations Bundle" [ref=f436e671] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=4JjvT1x1&id=282812CAD3F806CAB2733FBED09ED17777C5A3B1&thid=OIP.4JjvT1x1EheDW5KN_8aejgHaHa&mediaurl=https%3a%2f%2fwww.stompinggroundstcg.com%2fcdn%2fshop%2ffiles%2fFoundations_Play_Booster_Packs_600x.webp%3fv%3d1726783837&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e098ef4f5c751217835b928dffc69e8e%3frik%3dsaPFd3fRntC%252bPw%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=C3B5DCFA76B3DAC970DC98BD2587C5BB&selectedIndex=34&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Foundations Bundle" [ref=f436e672] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=4JjvT1x1&id=282812CAD3F806CAB2733FBED09ED17777C5A3B1&thid=OIP.4JjvT1x1EheDW5KN_8aejgHaHa&mediaurl=https%3a%2f%2fwww.stompinggroundstcg.com%2fcdn%2fshop%2ffiles%2fFoundations_Play_Booster_Packs_600x.webp%3fv%3d1726783837&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e098ef4f5c751217835b928dffc69e8e%3frik%3dsaPFd3fRntC%252bPw%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=magic+foundations+bundle+empty+card+storage+box+2024&FORM=IRPRST&ck=C3B5DCFA76B3DAC970DC98BD2587C5BB&selectedIndex=34&itb=1
+  - button "Feedback" [ref=f436e675] [cursor=pointer]
+  - contentinfo [ref=f436e677]:
+    - generic [ref=f436e678]:
+      - generic [ref=f436e679]: © 2026 Microsoft
+      - list:
+        - listitem [ref=f436e680]:
+          - link "Privacy" [ref=f436e681] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkId=521839
+        - listitem [ref=f436e682]:
+          - link "Terms" [ref=f436e683] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=246338
+        - listitem [ref=f436e684]:
+          - link "Advertise" [ref=f436e685] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=868922
+        - listitem [ref=f436e686]:
+          - link "About our ads" [ref=f436e687] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=286759
+        - listitem [ref=f436e688]:
+          - link "Help" [ref=f436e689] [cursor=pointer]:
+            - /url: https://support.microsoft.com/topic/82d20721-2d6f-4012-a13d-d1910ccf203f
+        - listitem [ref=f436e690]:
+          - button "Feedback" [ref=f436e691] [cursor=pointer]
+        - listitem [ref=f436e692]:
+          - link "Consumer Health Privacy" [ref=f436e693] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=2259814

@@ -12,7 +12,7 @@
 > GE is 2007. Correctly last.
 
 > **UPDATE 2026-08-02 (lane-blockers): the container blocker is cleared.**
-> `container_for` is a registry ([`mock230_containers.md`](mock230_containers.md));
+> `container_for` is a registry ([`torirs_server_containers.md`](torirs_server_containers.md));
 > all the per-player GE containers resolve and transmit with no new C. Nothing
 > else in this doc changed — the matching engine still has no reference
 > anywhere, and `ge_pricechecker_prices` still needs 28 ints through
@@ -57,7 +57,7 @@
 
 **Fully greenfield on the server** (confirmed zero hits for
 `grand.?exchange|ge_offer|ge_slot|stockmarket|ge_collect` anywhere in
-`src/net/mock/`, `src/game/`, `docs/`) — no `mock230_ge.{c,h}`, no ids, no
+`src/torirsserver/`, `src/game/`, `docs/`) — no `ToriRSServer_Ge.{c,h}`, no ids, no
 prior doc. **And the client isn't fully ready either**, independent of any
 server work: the redraw-trigger opcode and all 9 query ops the client's own
 CS2 depends on are parsed but not modeled (§5). Two separate pieces of work,
@@ -211,7 +211,7 @@ didn't capture. **Flag as corpus gap — do not build against it.**
 
 ## 8. Server obligations
 
-| what | why | mock230 status |
+| what | why | ToriRSServer status |
 |---|---|---|
 | 8-slot per-player offer state machine, exposed via the 9 `stockmarket_*` answers | §1.1 — nothing else supplies this | **not implemented**, no scaffolding |
 | **A world-wide matching engine** — continuously matching buy/sell across every active offer, all players, at compatible prices, advancing `completedcount`/`completedgold` | Implied by "fulfilled" progressing independently of "wanted" — **the single largest piece of unwritten logic in this whole survey series** | **not implemented** |

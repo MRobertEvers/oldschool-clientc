@@ -3,6 +3,7 @@
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
 #include "net/jbase37.h"
+#include "net/wordpack.h"
 #include "zoneprot.h"
 
 #include <stdint.h>
@@ -11,6 +12,7 @@
 #include <string.h>
 
 #include "rsprot_buffer.h"
+#include "rsbuffer.h"
 #include "rsprot_exec.h"
 
 #include "packets/loc_anim.h"
@@ -27,6 +29,7 @@
 #include "packets/obj_add.h"
 #include "packets/obj_enabled_ops.h"
 #include "packets/sound_area.h"
+#include "log/torirs_log.h"
 
 /*
  * Revision-239 parse (server -> this client).
@@ -88,6 +91,82 @@ static int
 sign24(int v)
 {
     return (v & 0x800000) ? v - 0x1000000 : v;
+}
+
+/* WORLDENTITY_INFO's 2-bit-per-axis delta: 0 → 0, 1 → i8, 2 → i16, 3 → i32
+ * (SAILING.md §5.4). Big-endian, signed. */
+static int
+wev_delta(
+    RSProt_Buffer* c,
+    int code)
+{
+    switch( code & 3 )
+    {
+    case 0:
+        return 0;
+    case 1:
+        return (int8_t)RSProt_BufferG1(c);
+    case 2:
+        return (int16_t)RSProt_BufferG2Be(c);
+    default:
+        return (int32_t)RSProt_BufferG4Be(c);
+    }
+}
+
+/*
+ * WORLDENTITY_INFO's updateFlags PAYLOAD (deob Statics.method12230).
+ *
+ * Two bits, and the 0x2 one is read FIRST: it carries the entity's 5-bit
+ * op-enabled mask (class467.field5694) through class617.method13166, the
+ * `(128 - b) & 0xFF` transform. Bit 0x1 then carries a u16 seq id (65535 =
+ * clear, surfaced as -1) plus a u8 delay.
+ *
+ * The flags byte itself is NOT read here, because it is not always adjacent
+ * to its payload: in the spawn trailer the deob reads the byte at field 2 —
+ * right after the id — and consumes this payload only after the absolute
+ * transform, at the very end of the record.
+ */
+static void
+wev_flag_payload_defaults(
+    int* out_has_op_mask,
+    int* out_op_mask,
+    int* out_has_seq,
+    int* out_seq_id,
+    int* out_seq_delay)
+{
+    *out_has_op_mask = 0;
+    *out_op_mask = PKT_WEV_OP_MASK_ALL;
+    *out_has_seq = 0;
+    *out_seq_id = -1;
+    *out_seq_delay = 0;
+}
+
+static int
+wev_read_flag_payload(
+    RSProt_Buffer* c,
+    unsigned flags,
+    int* out_has_op_mask,
+    int* out_op_mask,
+    int* out_has_seq,
+    int* out_seq_id,
+    int* out_seq_delay)
+{
+    wev_flag_payload_defaults(
+        out_has_op_mask, out_op_mask, out_has_seq, out_seq_id, out_seq_delay);
+    if( flags & 0x2 )
+    {
+        *out_has_op_mask = 1;
+        *out_op_mask = RSProt_BufferG1_sub128(c);
+    }
+    if( flags & 0x1 )
+    {
+        int seq = RSProt_BufferG2Be(c);
+
+        *out_has_seq = 1;
+        *out_seq_id = (seq == 65535) ? -1 : seq;
+        *out_seq_delay = RSProt_BufferG1(c);
+    }
+    return c->err ? 0 : 1;
 }
 
 /* Bounds-checked MSB-first bit read used by the instanced-region descriptor
@@ -266,9 +345,9 @@ osrs239_read_zone_sub(
          * packet. Checking the count after the fact would be too late: the
          * codec reads it and loops on it in the same call.
          *
-         * The op text is borrowed into the payload and dropped, because
-         * PktLocAddChange has no home for replacement right-click options. The
-         * hand-written decoder read and freed them for the same reason.
+         * The op text is borrowed from the buffer, so it is COPIED into the
+         * packet here rather than kept as a pointer: the payload outlives the
+         * buffer by the time the exec layer reads it.
          */
         Rsprot_MsgLocAddChangeV2_opsElem ops[256];
         MsgLocAddChangeV2 m;
@@ -278,9 +357,30 @@ osrs239_read_zone_sub(
         if( !zone_run(c, rsprot_loc_add_change_v2_out,
                       rsprot_loc_add_change_v2_out_count, &m) )
             return 0;
+        memset(&out->_loc_add_change, 0, sizeof(out->_loc_add_change));
         out->_loc_add_change.info = m.loc_properties_packed;
         out->_loc_add_change.pos = m.coord_in_zone_packed;
         out->_loc_add_change.loc_id = m.id;
+        out->_loc_add_change.op_flags = m.op_flags;
+        /*
+         * `key` is the ONE-based op number, not the slot index. The wire byte
+         * is the zero-based slot (the reference indexes its five-slot array
+         * with it, unadjusted) and the codec's `RSPROT_XFORM(..., -1)` adds one
+         * back on the way in, so the array index is `key - 1`. Taking `key`
+         * for the index shifts every replacement one slot along, which reads
+         * as the label landing on the wrong menu row rather than as a decode
+         * fault. Anything outside the five slots is dropped, as the reference
+         * drops it.
+         */
+        for( int i = 0; i < m.ops_count; i++ )
+        {
+            int slot = ops[i].key - 1;
+
+            if( slot < 0 || slot >= 5 || !ops[i].value )
+                continue;
+            snprintf(out->_loc_add_change.ops[slot],
+                     sizeof(out->_loc_add_change.ops[slot]), "%s", ops[i].value);
+        }
         return 1;
     }
 
@@ -433,6 +533,10 @@ osrs239_read_zone_sub(
         out->_obj_add.pos = m.coord_in_zone_packed;
         out->_obj_add.obj_id = m.id;
         out->_obj_add.count = m.quantity;
+        out->_obj_add.time_until_public = m.time_until_public;
+        out->_obj_add.time_until_despawn = m.time_until_despawn;
+        out->_obj_add.ownership_type = m.ownership_type;
+        out->_obj_add.never_becomes_public = m.never_becomes_public;
         return 1;
     }
 
@@ -523,6 +627,9 @@ osrs239_parse(
             if( !zone_run(&c, rsprot_rebuild_normal_v2_out,
                           rsprot_rebuild_normal_v2_out_count, &hdr) )
                 return 0;
+            /* The world-entity prefix (0 = root). Dropping it here is how a
+             * boat rebuild would silently rebuild the main scene. */
+            p->world_area = hdr.world_area;
             p->zonez = hdr.zone_z;
             p->zonex = hdr.zone_x;
         }
@@ -761,18 +868,16 @@ osrs239_parse(
     case PKT_NAME_MESSAGE_GAME:
     {
         struct PktMessageGame* p = &out->_message_game;
-        char* name = NULL;
 
-        (void)RSProt_BufferGSmart1or2(&c); /* type -- the chat filter tab, unused here */
+        p->type = RSProt_BufferGSmart1or2(&c);
         if( RSProt_BufferG1(&c) != 0 )
-        {
-            name = gjstr_nul(&c);
-            free(name); /* carried by no field in the canonical struct yet */
-        }
+            p->name = gjstr_nul(&c);
         p->text = gjstr_nul(&c);
         if( c.err || !p->text )
         {
+            free(p->name);
             free(p->text);
+            p->name = NULL;
             p->text = NULL;
             return 0;
         }
@@ -867,7 +972,27 @@ osrs239_parse(
         struct PktChatFilterSettings* p = &out->_chat_filter_settings;
         p->chat_public_mode = RSProt_BufferG1_add128(&c);
         p->chat_trade_mode = RSProt_BufferG1_sub128(&c);
-        p->chat_private_mode = 0;
+        /*
+         * ABSENT, not zero.
+         *
+         * `class243.field3058 = new class243(124, 2)` and its handler
+         * (client.java:2820) writes only field943 (public) and field776 (trade);
+         * it never touches the private filter. That filter has a packet of its
+         * own -- `field2939 = new class243(5, 1)`,
+         * CHAT_FILTER_SETTINGS_PRIVATECHAT, whose handler (client.java:3830) is
+         * the ONLY writer of Statics.field5072, the object CS2 opcode 5005
+         * chat_getfilter_private reads back.
+         *
+         * Fabricating a 0 put "Private On" back under the player the instant
+         * after they chose Show friends, and then fed that fabricated 0 to the
+         * server on their NEXT filter change, through chat_set_filter_184's
+         * `chat_setfilter(chat_getfilter_public, chat_getfilter_private, $new)`
+         * -- silent loss of a setting the player had set and the server had
+         * persisted. A negative value is the executor's "this revision sent no
+         * such field", the same convention the zone headers use for a plane a
+         * revision does not send, and it leaves the client's own copy standing.
+         */
+        p->chat_private_mode = -1;
         return c.err ? 0 : 1;
     }
 
@@ -1123,7 +1248,7 @@ osrs239_parse(
         name = gjstr_nul(&c);
         previous = gjstr_nul(&c);
         p->world = RSProt_BufferG2Be(&c);
-        (void)RSProt_BufferG1(&c); /* rank */
+        p->rank = RSProt_BufferG1(&c);
         (void)RSProt_BufferG1(&c); /* flags */
         if( p->world > 0 )
         {
@@ -1136,6 +1261,7 @@ osrs239_parse(
             (p->world <= 0 || extra) )
         {
             p->name37 = (int64_t)strtobase37(name);
+            snprintf(p->previous_name, sizeof(p->previous_name), "%s", previous);
             p->present = 1;
         }
         free(name);
@@ -1191,8 +1317,126 @@ osrs239_parse(
         out->_set_npc_update_origin.z = RSProt_BufferG1(&c);
         return c.err ? 0 : 1;
 
+    /* SetActiveWorldV2Encoder: p2 world-entity id (0 = root), p1 plane —
+     * the layout ToriRSServer_SendSetActiveWorld writes and the world
+     * selftest pins byte-for-byte. */
+    case PKT_NAME_SET_ACTIVE_WORLD:
+        out->_set_active_world.world_id = RSProt_BufferG2Be(&c);
+        out->_set_active_world.level = RSProt_BufferG1(&c);
+        return c.err ? 0 : 1;
+
     case PKT_NAME_SERVER_TICK_END:
         return len == 0;
+
+    /*
+     * WORLDENTITY_INFO_V7 (op 122): hand-written from docs/SAILING.md §5.4
+     * (deob Statics.method977) — RSProt's generator excludes the whole info
+     * family, so unlike the rest of this file there is no vendored encoder to
+     * transcribe from.
+     *
+     * Three things the deob pins that are easy to get wrong:
+     *
+     *  - The 2-bit axis codes are taken LSB-first (dx bits 0-1 .. dangle
+     *    bits 6-7), each code selecting nothing / i8 / i16 BE / i32 BE.
+     *  - updateFlags is NOT an atomic unit. The flag byte and its payload are
+     *    adjacent only in the update records; in the spawn trailer the byte is
+     *    read right after the id and the payload only after the transform.
+     *    Op 0 (despawn) carries no flag byte at all.
+     *  - The spawn scalars all use alt transforms: sizeByte through
+     *    method13137 `(-b) & 0xFF`, ownerTypeIndex through method13164
+     *    `(b - 128) & 0xFF`, configId through method13178 (signed LE u16).
+     */
+    case PKT_NAME_WORLDENTITY_INFO:
+    {
+        struct PktWorldEntityInfo* p = &out->_worldentity_info;
+
+        memset(p, 0, sizeof(*p));
+        p->count = RSProt_BufferG1(&c);
+        if( c.err || p->count > PKT_WEV_INFO_MAX )
+            return 0;
+        for( int i = 0; i < p->count; i++ )
+        {
+            struct PktWevUpdate* u = &p->updates[i];
+
+            u->op = RSProt_BufferG1(&c);
+            if( c.err || u->op > PKT_WEV_OP_SNAP )
+                return 0;
+            u->update_flags = 0;
+            wev_flag_payload_defaults(
+                &u->has_op_mask, &u->op_mask, &u->has_seq, &u->seq_id, &u->seq_delay);
+            /* Op 0 removes the entity; the deob's `if (op != 0)` guards every
+             * remaining read of the record, flag byte included. */
+            if( u->op == PKT_WEV_OP_DESPAWN )
+                continue;
+            if( u->op == PKT_WEV_OP_ENQUEUE || u->op == PKT_WEV_OP_SNAP )
+            {
+                int mask = RSProt_BufferG1(&c);
+
+                u->dx = wev_delta(&c, mask & 3);
+                u->dy = wev_delta(&c, (mask >> 2) & 3);
+                u->dz = wev_delta(&c, (mask >> 4) & 3);
+                u->dangle = wev_delta(&c, (mask >> 6) & 3);
+            }
+            u->update_flags = (unsigned)RSProt_BufferG1(&c);
+            if( c.err )
+                return 0;
+            if( !wev_read_flag_payload(
+                    &c,
+                    u->update_flags,
+                    &u->has_op_mask,
+                    &u->op_mask,
+                    &u->has_seq,
+                    &u->seq_id,
+                    &u->seq_delay) )
+                return 0;
+        }
+        /* New entities, while bytes remain. */
+        while( !c.err && c.rpos < len )
+        {
+            struct PktWevSpawn* s;
+            int size_byte;
+            int mask;
+
+            if( p->spawn_count >= PKT_WEV_INFO_MAX )
+                return 0;
+            s = &p->spawns[p->spawn_count];
+            s->id = RSProt_BufferG2Be(&c);
+            /* Id 0 is the root view and 16+ is past the registry: a frame
+             * naming either is malformed, not a state to spawn. */
+            if( c.err || s->id <= 0 || s->id > PKT_WEV_INFO_MAX )
+                return 0;
+            s->update_flags = (unsigned)RSProt_BufferG1(&c);
+            size_byte = RSProt_BufferG1_neg(&c);
+            s->size_x_tiles = ((size_byte >> 4) & 0xF) * 8;
+            s->size_z_tiles = (size_byte & 0xF) * 8;
+            /* A zero nibble is a zero-tile view — nothing can live in it. */
+            if( s->size_x_tiles == 0 || s->size_z_tiles == 0 )
+                return 0;
+            s->priority_group = RSProt_BufferG1_add128(&c);
+            s->config_id = RSProt_BufferG2sLe(&c);
+            /* The absolute transform arrives as the same 4-axis bitfield
+             * applied to (0,0,0,0). */
+            mask = RSProt_BufferG1(&c);
+            s->x = wev_delta(&c, mask & 3);
+            s->y = wev_delta(&c, (mask >> 2) & 3);
+            s->z = wev_delta(&c, (mask >> 4) & 3);
+            s->angle = wev_delta(&c, (mask >> 6) & 3) & 0x7FF;
+            if( c.err )
+                return 0;
+            /* The flag payload trails the record, not its own flag byte. */
+            if( !wev_read_flag_payload(
+                    &c,
+                    s->update_flags,
+                    &s->has_op_mask,
+                    &s->op_mask,
+                    &s->has_seq,
+                    &s->seq_id,
+                    &s->seq_delay) )
+                return 0;
+            p->spawn_count++;
+        }
+        return c.err ? 0 : (c.rpos == len);
+    }
 
     /*
      * RunClientScriptEncoder: pjstr types, the arguments in REVERSE order, then
@@ -1205,7 +1449,7 @@ osrs239_parse(
      */
     case PKT_NAME_RUNCLIENTSCRIPT:
     {
-        struct PktRunClientScript* p = &out->_runclientscript;
+        struct PktRunClientScript* p;
         char types[PKT_RUNCLIENTSCRIPT_ARG_MAX + 1];
         int argc = 0;
         int terminated = 0;
@@ -1233,7 +1477,7 @@ osrs239_parse(
         if( c.err || !terminated )
             return 0;
 
-        memset(p, 0, sizeof(*p));
+        p = pkt_runclientscript_reset(out);
         p->argc = argc;
         for( int i = argc - 1; i >= 0; i-- )
         {
@@ -1340,9 +1584,7 @@ osrs239_parse(
             }
             if( !osrs239_read_zone_sub(&c, sub, &enc->entries[enc->count]) )
             {
-                fprintf(
-                    stderr,
-                    "osrs239: ZONE_ENCLOSED unknown sub-ordinal %d at %d/%d\n",
+                TORIRS_ERR("osrs239: ZONE_ENCLOSED unknown sub-ordinal %d at %d/%d\n",
                     ordinal,
                     c.rpos,
                     len);
@@ -1492,6 +1734,124 @@ osrs239_parse(
             return 0;
         }
         return 1;
+    }
+
+    /*
+     * RebuildWorldEntityV4Encoder: p2 baseX, p2 baseZ (absolute root-world
+     * tiles of the ACTIVE view's SW staging corner), then the same
+     * encodeRegionV2 grid REBUILD_REGION carries — p2 distinctSourceSquareCount
+     * and pBit(1)/pBit(26) records — but over [4][viewZonesX][viewZonesZ],
+     * dimensions the server reads off the view being rebuilt (deob
+     * Statics.method6693: field1391/8 x field1412/8) and does NOT put on the
+     * wire. This stateless layer validates and consumes what it can (header +
+     * count; the count is a loading hint here exactly as in the region arm)
+     * and carries the grid bytes raw for the exec layer, which knows the
+     * active view's size (PktRebuildWev_DecodeZones).
+     */
+    case PKT_NAME_REBUILD_WORLDENTITY:
+    {
+        struct PktRebuildWev* p = &out->_rebuild_wev;
+        int source_square_count;
+
+        memset(p, 0, sizeof(*p));
+        p->base_x = RSProt_BufferG2Be(&c);
+        p->base_z = RSProt_BufferG2Be(&c);
+        source_square_count = RSProt_BufferG2Be(&c);
+        if( c.err || source_square_count < 0 ||
+            source_square_count > PKT_MAP_REBUILD_ZONES )
+            return 0;
+        /* The smallest legal view (1x1 zones) still carries 4 presence bits,
+         * so a grid with no bytes at all is a malformed frame. */
+        if( len - c.rpos < 1 )
+            return 0;
+        p->length = len - c.rpos;
+        p->data = malloc((size_t)p->length);
+        assert(p->data);
+        memcpy(p->data, data + c.rpos, (size_t)p->length);
+        return 1;
+    }
+
+    /*
+     * The friends-chat and clan packets are carried raw: their stores decode
+     * them against client state this layer does not have (see pktnames.h).
+     * VARCLAN_ENABLE / VARCLAN_DISABLE are size 0, and an empty friends-chat
+     * FULL is the leave, so an empty payload is a real packet here.
+     */
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL:
+    case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER:
+    case PKT_NAME_VARCLAN:
+    case PKT_NAME_VARCLAN_ENABLE:
+    case PKT_NAME_VARCLAN_DISABLE:
+    case PKT_NAME_CLANCHANNEL_FULL:
+    case PKT_NAME_CLANCHANNEL_DELTA:
+    case PKT_NAME_CLANSETTINGS_FULL:
+    case PKT_NAME_CLANSETTINGS_DELTA:
+    case PKT_NAME_UPDATE_TRADINGPOST:
+    {
+        struct PktRawPayload* p = &out->_raw_payload;
+
+        memset(p, 0, sizeof(*p));
+        if( len == 0 )
+            return 1;
+        p->length = len;
+        p->data = malloc((size_t)len);
+        assert(p->data);
+        memcpy(p->data, data, (size_t)len);
+        return 1;
+    }
+
+    /*
+     * The message text is the chat encoding every other chat path of this
+     * client reads (MESSAGE_PRIVATE, the PLAYER_INFO chat block): the packed
+     * tail after the header, to the end of the frame.
+     */
+    case PKT_NAME_MESSAGE_CLANCHANNEL:
+    case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:
+    {
+        struct PktMessageClanChannel* p = &out->_message_clanchannel;
+        struct RSCache_Buffer text_buffer;
+
+        memset(p, 0, sizeof(*p));
+        p->clan_type = RSProt_BufferG1s(&c);
+        p->crown = -1;
+        if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
+        {
+            int32_t sender_length = 0;
+            char const* sender = RSProt_BufferGJStr(&c, &sender_length);
+            if( c.err || !sender || sender_length >= (int)sizeof(p->sender) )
+                return 0;
+            memcpy(p->sender, sender, (size_t)sender_length);
+            p->sender[sender_length] = '\0';
+        }
+        p->world = RSProt_BufferG2Be(&c);
+        p->counter = RSProt_BufferG3Be(&c);
+        if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
+            p->crown = RSProt_BufferG1(&c);
+        if( c.err || c.rpos > len )
+            return 0;
+        RSCache_BufferInit(&text_buffer, (uint8_t*)data + c.rpos, len - c.rpos);
+        p->text = wordpack_unpack(&text_buffer, len - c.rpos);
+        assert(p->text);
+        return 1;
+    }
+
+    case PKT_NAME_UPDATE_STOCKMARKET_SLOT:
+    {
+        struct PktUpdateStockmarketSlot* p = &out->_update_stockmarket_slot;
+
+        memset(p, 0, sizeof(*p));
+        p->slot = RSProt_BufferG1(&c);
+        p->status = RSProt_BufferG1s(&c);
+        /* An empty slot's remaining 18 bytes are padding. */
+        if( p->status != 0 )
+        {
+            p->obj = RSProt_BufferG2Be(&c);
+            p->price = RSProt_BufferG4Be(&c);
+            p->count = RSProt_BufferG4Be(&c);
+            p->completed_count = RSProt_BufferG4Be(&c);
+            p->completed_gold = RSProt_BufferG4Be(&c);
+        }
+        return c.err ? 0 : 1;
     }
 
     default:

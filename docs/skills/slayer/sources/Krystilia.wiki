@@ -1,0 +1,529 @@
+{{HasStrategy}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Krystilia
+|image = [[File:Krystilia.png|140px]]
+|release = [[11 July]] [[2013]]
+|update = Patch Notes (11 July 2013)
+|members = No
+|race = [[Human]]
+|location = [[Edgeville]] guardhouse
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Female
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = A witch who likes chaos - she looks dangerous!
+|map = {{Map|name=Krystilia|3109,3516|mtype=pin}}
+|id = 7663
+|leagueRegion = Wilderness
+}}
+[[File:Krystilia chathead.png|left]]
+'''Krystilia''' is a [[Slayer master]] found in [[Edgeville]]'s jail north-east of the [[bank]]. When spoken to, she expresses her love for [[magic]] and the Wilderness, and claims the guards locked her in the cell for trouble-making.
+
+Players can speak to her to change their [[respawn]] point to Edgeville for a one-time fee of 5,000,000 [[coins]].
+
+Blocking a task with Krystilia costs 100 [[Slayer reward point|Slayer reward points]].
+
+==Slayer==
+Krystilia is a Slayer master who assigns the player [[monsters]] found within the [[Wilderness]]. '''Only''' kills within the Wilderness count towards her tasks. Before being assigned a Wilderness task, she will warn you that she will assign '''any''' monster regardless of your combat level.
+
+She will refuse to assign tasks to players who are still Level 1 in Slayer, insisting that they first need to speak to the [[Burthorpe]] Slayer Master [[Turael]] so that he teaches the player about the how the skill works. One good way to get around this is by doing the [[Natural history quiz]] at the Varrock Museum, which will give 1,000 XP both in Slayer and in [[Hunter]], bringing both skills to Level 9, assuming both were at Level 1.
+
+Unlike other slayer masters, Krystilia's tasks have a separate counter from the normal slayer masters, thus players must complete five tasks from her to begin their Wilderness point streak. Despite using two different counters, players '''cannot''' have both a normal and Wilderness slayer task at the same time. However, if the player is given a task they do not want and cannot skip it, they can go to [[Turael]] to remove it (provided that he cannot assign it), though this will remove the Wilderness task streak and require players to complete another five tasks from her to start gaining points again.
+
+For a kill to count towards a Krystilia task, the player must be physically located inside the Wilderness when the monster's death occurs. A player who is using a [[dwarf multicannon]] will receive the standard "As your slayer task is from Krystilia, you can only perform it inside the Wilderness" message if they teleport out of the Wilderness to restock and remain outside of it when their cannon kills the monster. The safe zone buffer immediately outside the [[Ferox Enclave]] counts as the Wilderness for task purposes, but the Enclave itself does not. Thus a player using the [[pool of refreshment]] to resupply will not receive credit for the kill if they are inside the Enclave. 
+
+In return for completing her tasks in the Wilderness, players will have a chance to roll for [[Larran's key]] and [[Slayer's enchantment]] drops. Due to the nature of the Wilderness and the varying location(s) of the assigned monster(s), it is recommended that players do not bring items they are not willing to lose, as it is possible to be killed at any time from other players. She also awards significantly more slayer points than any other master.
+
+Completion of a task assigned by Krystilia '''from 5th task streak and beyond''' will grant:
+{|class=wikitable style="text-align:center;"
+!Task interval
+!Points given
+|-
+|Every task
+|25
+|-
+|Every 10th
+|125
+|-
+|Every 50th
+|375
+|-
+|Every 100th
+|625
+|-
+|Every 250th
+|875
+|-
+|Every 1,000th
+|1,250
+|}
+
+==Useful teleports==
+[[File:Wilderness map.png|thumb|200px|link=Krystilia/Strategies#Map of the Wilderness|A detailed map of the [[Wilderness]].]]
+*[[Edgeville]] - [[Fairy rings|Fairy ring]] (code {{Fairycode|dkr}}), [[Amulet of glory]], or [[Paddewwa Teleport]]
+**[[Edgeville Monastery]] - [[Combat bracelet]]
+**[[Lesser Fanatic]] - [[Achievement Diary Cape]] is the closest teleport to [[Krystilia]]
+*[[Corporeal Beast]] lair - [[Games necklace]]
+*[[The Forgotten Cemetery]] - [[Cemetery Teleport]] or [[Dareeyak Teleport]]
+*[[Burning amulet]]
+**[[Chaos Temple (Wilderness)|Chaos Temple]]
+**[[Bandit Camp (Wilderness)|Bandit Camp]]
+**[[Lava Maze]]
+*[[Graveyard of Shadows]] - [[Carrallanger Teleport]]
+*[[Demonic Ruins]] - [[Annakarl Teleport]]
+*[[Frozen Waste Plateau]] - [[Ice Plateau Teleport]] or [[Ghorrock Teleport]]
+*[[Fountain of Rune]] - [[Wilderness sword 4]]
+
+{{clear}}
+==Tasks==
+:''Out of all possible tasks, only [[bloodveld]]s, [[Jelly|jellies]], [[dust devil]]s, [[nechryael]], [[abyssal demon]]s, and [[spiritual creature]]s require a [[Slayer]] level. In addition, the locations will only list those found within the [[Wilderness]].''
+
+{| class="wikitable sortable lighttable"
+|-
+! Monster
+! Amount
+![[Slayer Rewards#Extend|Extended amt.]]
+! Combat Level
+! Slayer Exp
+! Location
+! Wilderness Level
+! [[Slayer task#Task weighing|Task weight]]
+|-
+| [[Abyssal demon]]s<ref group="n">Only assigned to players if they have completed the [[Priest in Peril]] quest and have at least {{SCP|Slayer|85|link=yes}}.</ref><ref group="n" name="barrage">Slayer task assignments of abyssal demons, dust devils, jellies, and nechryaels from Krystilia can be enabled or disabled for free. This is done via the Rewards Shop's "I Wildy More Slayer" unlock.</ref>
+| 75-125
+|200-250
+| 124
+| 150
+| [[Wilderness Slayer Cave]]
+| 35-39
+| {{+=|weight|5|echo=2}}
+|-
+| [[Ankou]]
+| 75-125
+|91-150
+| data-sort-value="86" | 86, 98
+| 70, 100
+| [[The Forgotten Cemetery]], [[Wilderness Slayer Cave]]
+| 27-31, 34-36
+| {{+=|weight|6|echo=2}}
+|-
+| [[Aviansie]]<ref group="n" name="gwd">Only assigned to players who have either {{SCP|Agility|60|link=yes}} or {{SCP|Strength|60|link=yes}} to access the [[Wilderness God Wars Dungeon]].</ref><ref group="n">Only assigned to players who have unlocked ''[[Slayer Rewards#Unlock|Watch the birdie]]'' via spending 80 [[Slayer reward points]].</ref><ref group="n">[[Armadylean guard]]s also count if fought in the Wilderness.</ref>
+| 75-125
+|200-250
+| data-sort-value="69" | 69-137
+| 70-139
+| [[Wilderness God Wars Dungeon]]
+| 26-29
+| {{+=|weight|7|echo=2}}
+|-
+| [[Bandit]]s
+| 75-125
+| {{NA}}
+| data-sort-value="22" | 22, 34, 130
+| 27, 37, 159
+| [[Bandit Camp (Wilderness)|Bandit Camp]]
+| 17-24
+| {{+=|weight|4|echo=2}}
+|-
+| [[Bear]]s<ref group="n">[[Callisto]] and [[Artio]] also count.</ref>
+| 65-100
+| {{NA}}
+| 21, [[Artio|320]], [[Callisto|470]]
+| 17-21, 25, 27
+| North-west of the [[Ferox Enclave]], west of the [[Graveyard of Shadows]], south of the [[Ruins (west)|Western Ruins]]
+| 18-22
+| {{+=|weight|6|echo=2}}
+|-
+| [[Black demon]]s<ref group="n">[[Kolodion|Kolodion's]] final form also counts.</ref>
+| 100-150
+|200-250
+| data-sort-value="172" | 172, 188
+| 157, 200
+| [[Edgeville Dungeon]], [[Wilderness Slayer Cave]]
+| 5-6, 28-31
+| {{+=|weight|7|echo=2}}
+|-
+| [[Black dragon]]s<ref group="n">The [[King Black Dragon]] and [[lava dragon]]s do '''not''' count.</ref>
+| 8-16
+|40-60
+| data-sort-value="227" | 227, 247
+| 199.4
+| [[Lava Maze Dungeon]], [[Wilderness Slayer Cave]]
+| 44-45; 30-31
+| {{+=|weight|4|echo=2}}
+|-
+| [[Black Knight]]s
+| 75-125
+| {{NA}}
+| 33
+| 42
+| South of [[Silk Chasm]], [[Lava Maze]]
+| data-sort-value="35" | ~35, ~40
+| {{+=|weight|3|echo=2}}
+|-
+| [[Bloodveld]]<ref group="n" name="gwd" /><ref group="n">Only assigned to players if they have completed the quest [[Priest in Peril]] and have at least {{SCP|Slayer|50|link=yes}}.</ref>
+| 70-110
+|200-250
+| 81
+| 134
+| [[Wilderness God Wars Dungeon]]
+| 26-29
+| {{+=|weight|4|echo=2}}
+|-
+| [[Chaos druid]]s
+| 50-90
+| {{NA}}
+| data-sort-value=13|13, 129
+| 20, 150
+| [[Edgeville Dungeon]], [[Chaos Temple (Wilderness)|Chaos Temple]] ([[Elder Chaos druid]]s)
+| 1-5, 11-12
+| {{+=|weight|5|echo=2}}
+|-
+| [[Dark warrior]]s
+| 75-125
+| {{NA}}
+| data-sort-value="8" | 8, 145
+| 17, 181.4
+| [[Dark Warriors' Fortress]]
+| 12-16
+| {{+=|weight|4|echo=2}}
+|-
+| [[Dust devil]]s<ref group="n" name="barrage" /><ref group="n">Only assigned to players if they have completed the quest [[Desert Treasure I]] and have at least {{SCP|Slayer|65|link=yes}}.</ref>{{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1306697233588293674|date=14 November 2024|archiveurl=https://reldo.runescape.wiki/i/27962721#chat-messages-431834766325841920-1306697233588293674|archivedate=7 March 2026|quote=She's got an extra check on that task for whether you've "unlocked it in the Wilderness", but I don't see a Priest in Peril check in the code.|image=Ash dust devil quest check.png|ctximage=Ash dust devil quest check original.png|ctxquote=good morning, I had a little question as the wiki seems to be conflicted. Dust devils from krystilia are marked as only requiring priest in peril for her to assign, but the usual req is dt1. Does her list have a different requirement or is this an oversight?}}
+| 75-125
+|200-250
+| 93
+| 105
+| [[Wilderness Slayer Cave]]
+| 18-24
+| {{+=|weight|5|echo=2}}
+|-
+| [[Earth warrior]]s
+| 75-125
+| {{NA}}
+| 51
+| 54
+| [[Edgeville Dungeon]]
+| 7-10
+| {{+=|weight|6|echo=2}}
+|-
+| [[Ent]]s
+| 35-60
+| {{NA}}
+| 101
+| 107.5
+| Forests north and east of the [[Chaos Temple (Wilderness)|Chaos Temple]]
+| 9-14, 20-24
+| {{+=|weight|5|echo=2}}
+|-
+| [[Fire giant]]s
+| 75-125
+| {{NA}}
+| 86
+| 111
+| [[Deep Wilderness Dungeon]]
+| 53
+| {{+=|weight|7|echo=2}}
+|-
+| [[Greater demon]]s
+| 100-150
+|200-250
+| data-sort-value="92" | 92, 104
+| 87, 120
+| [[Demonic Ruins]], [[Lava Maze Dungeon]], [[Wilderness Slayer Cave]]
+| 41-43, 45-48; 25-29
+| {{+=|weight|8|echo=2}}
+|-
+| [[Green dragon]]s
+| 65-100
+| {{NA}}
+| data-sort-value="79" | 79, 88
+| 75, 100
+| West of the [[Dark Warriors' Fortress]], north of the [[Graveyard of Shadows]], south of the [[Lava Maze]], south-west of the [[Bone Yard]], [[Wilderness Slayer Cave]]
+| 12-14, 24-26, 35-38; 18-24
+| {{+=|weight|4|echo=2}}
+|-
+| [[Hellhound]]s<ref group="n">([[Greater Skeleton Hellhound (Vet'ion)|Greater]]) [[Skeleton Hellhound (Vet'ion)|Skeleton Hellhounds]] also count.</ref>
+| 75-125
+| {{NA}}
+| data-sort-value="122" | 122, 136
+| 116, 150
+| North-east of the [[Deserted Keep]], [[Wilderness Slayer Cave]]
+| 49-54; 18-20
+| {{+=|weight|7|echo=2}}
+|-
+| [[Hill Giant]]s
+| 75-125
+| {{NA}}
+| 28
+| 35
+| Near the [[Bone Yard Hunter area]], [[Deep Wilderness Dungeon]]
+| data-sort-value="20" | ~20, ~50
+| {{+=|weight|3|echo=2}}
+|-
+| [[Ice giant]]s
+| 100-150
+| {{NA}}
+| data-sort-value="53" | 53, 67
+| 70, 100
+| [[Frozen Waste Plateau]], [[Wilderness Slayer Cave]]
+| 46-55; ~18
+| {{+=|weight|6|echo=2}}
+|-
+| [[Ice warrior]]s
+| 100-150
+| {{NA}}
+| 57
+| 59
+| [[Frozen Waste Plateau]]
+| 44-55
+| {{+=|weight|7|echo=2}}
+|-
+| [[Jelly|Jellies]]<ref group="n" name="barrage" /><ref group="n">Only assigned to players if they have at least {{SCP|Slayer|52|link=yes}}.</ref>
+| 100-150
+| {{NA}}
+| 78
+| 75
+| [[Wilderness Slayer Cave]]
+| 19-22
+| {{+=|weight|5|echo=2}}
+|-
+| [[Lava dragon]]s
+| 35-60
+| {{NA}}
+| 252
+| 248
+| [[Lava Dragon Isle]]
+| 36-43
+| {{+=|weight|3|echo=2}}
+|-
+| [[Lesser demon]]s
+| 80-120
+| {{NA}}
+| data-sort-value="82" | 82, 94
+| 79, 110
+| [[Muddy chest]], [[King Black Dragon Lair]] cage, south of the [[Demonic Ruins]], [[Wilderness Slayer Cave]]
+| 42-44; 24-26
+| {{+=|weight|6|echo=2}}
+|-
+| [[Magic axe]]s
+| 75-125
+| {{NA}}
+| 42
+| 45
+| [[Magic Axe Hut]] (''Bring a [[lockpick]]!'')
+| 54-56
+| {{+=|weight|7|echo=2}}
+|-
+| [[Mammoth]]s
+| 75-125
+| {{NA}}
+| 80
+| 130
+| West of the [[Chaos Temple (Wilderness)|Chaos Temple]]
+| 7-14
+| {{+=|weight|6|echo=2}}
+|-
+| [[Moss giant]]s
+| 100-150
+| {{NA}}
+| 42
+| 60
+| South-east of the [[Lava Maze]]
+| data-sort-value="35" | ~35
+| {{+=|weight|4|echo=2}}
+|-
+| [[Nechryael]]<ref group="n" name="barrage" /><ref group="n">Only assigned to players if they have at least {{SCP|Slayer|80|link=yes}}.</ref>
+| 75-125
+|200-250
+| 200
+| 105
+| [[Wilderness Slayer Cave]]
+| 19-22
+| {{+=|weight|5|echo=2}}
+|-
+| [[Pirate]]s
+| 62-75
+| {{NA}}
+| data-sort-value="26"| [[Zombie pirate|22]], 26, [[Zombie pirate|28]], [[Zombie pirate|34]]
+| 23
+| [[Pirates' Hideout]] (''Bring a [[lockpick]]!''), [[Chaos Temple (Wilderness)|Chaos Temple]] ([[Zombie pirate|Zombie pirates]])
+| data-sort-value="54" | ~54
+| {{+=|weight|3|echo=2}}
+|-
+| [[Revenant|Revenants]]
+| 40-100
+| 100-150
+| data-sort-value="7" | 7-135
+| 10-140
+| [[Revenant Caves]]
+| 19-38
+| {{+=|weight|5|echo=2}}
+|-
+| [[Rogue]]s
+| 75-125
+| {{NA}}
+| data-sort-value="15" | 15, 135
+| 17, 125
+| [[Rogues' Castle]], east of the [[Mage Arena]]
+| 50-54
+| {{+=|weight|5|echo=2}}
+|-
+| [[Scorpion]]s<ref group="n">[[Scorpia]], her [[Scorpia's guardian|guardians]], and her [[Scorpia's offspring (monster)|offspring]] also count.</ref>
+| 65-100
+| {{NA}}
+| 14
+| 17
+| West of the [[Air Obelisk]], [[Scorpion Pit]], [[Lava Maze]] ([[King Scorpion]]s)
+| 5-9, 39-42, 53-54
+| {{+=|weight|6|echo=2}}
+|-
+| [[Skeleton]]s<ref group="n">[[Vet'ion]], [[Calvar'ion]], and their ([[Greater Skeleton Hellhound (Vet'ion)|Greater]]) [[Skeleton Hellhound (Vet'ion)|Skeleton Hellhound]]s also count.</ref>
+| 65-100
+| {{NA}}
+| data-sort-value="22" | 22, 25, 45, [[Calvar'ion|264]], [[Vet'ion|454]]
+| 29, 17, 59
+| [[Southern Wilderness mine]], [[South-west Wilderness mine]], [[Bone Yard]], [[Edgeville Dungeon]], [[Wilderness Agility Course]]
+| Varies
+| {{+=|weight|5|echo=2}}
+|-
+| [[Spider]]s<ref group="n">[[Venenatis]] and [[Spindel]] also count.</ref>
+| 65-100
+| {{NA}}
+| data-sort-value="2" | 2, [[Giant spider|27]], [[Deadly red spider|34]], [[Ice spider|61]], [[Poison spider|64]], [[Spindel|302]], [[Venenatis|464]]
+| 2, 32, 35, 64
+| North-west of [[Lava Dragon Isle]], south of [[Callisto]], [[Ruins (east)|Eastern Ruins]], [[Edgeville Dungeon]], [[Lava Maze Dungeon]] (also by the [[King Black Dragon Lair]] lever)
+| Varies
+| {{+=|weight|6|echo=2}}
+|-
+| [[Spiritual creature]]s<ref group="n" name="gwd" /><ref group="n">Only assigned to players if they have completed the [[Death Plateau]] quest and have at least {{SCP|Slayer|63|link=yes}}.</ref>
+| 100-150
+|181-250
+| data-sort-value="120" | 120-123
+| 75, 85, 106
+| [[Wilderness God Wars Dungeon]] 
+| 24-29
+| {{+=|weight|6|echo=2}}
+|-
+| [[Zombie]]s
+| 75-125
+| {{NA}}
+| data-sort-value="18"| 18, [[Zombie pirate|22]], 24, [[Zombie pirate|28]], [[Zombie pirate|34]]
+| 24, 30
+| [[Graveyard of Shadows]], [[Ruins (east)|Eastern Ruins]], [[Chaos Temple (Wilderness)|Chaos Temple]] ([[Zombie pirate|Zombie pirates]])
+| 18-21, 25-28
+| {{+=|weight|3|echo=2}}
+|-
+| rowspan="7" | [[Wilderness boss]]es / [[demi-bosses]]<ref group="n">Only assigned to players who have unlocked ''[[Boss#Boss slayer|Like a boss]]'' via spending 200 [[Slayer reward points]].</ref> 
+| rowspan="7" | 3-35
+| {{NA|rowspan=7}}
+| 470
+| 312
+| [[Callisto]]<ref group="n"> [[Artio]] also counts.</ref>: South of the [[Demonic Ruins]]
+|42
+| rowspan="7" |{{+=|weight|8|echo=2}}
+|-
+|305
+|250
+|[[Chaos Elemental]]: West of the [[Rogues' Castle]]
+|52-54
+|-
+| 202
+|225
+|[[Chaos Fanatic]]: West of the [[Lava Maze]]
+|40-42
+|-
+|204
+|235
+|[[Crazy archaeologist]]: [[Ruins (west)|Western Ruins]]
+|22-24
+|-
+|225
+|260
+|[[Scorpia]]: Underneath the [[Scorpion Pit]]
+|52-54
+|-
+|464
+|388.8 
+|[[Venenatis]]<ref group="n"> [[Spindel]] also counts.</ref>: East of the [[Bone Yard]]
+|26-30
+|-
+|454
+| 454 
+|[[Vet'ion]]<ref group="n"> [[Calvar'ion]] also counts.</ref>: North of the [[Bone Yard]]
+|34-36
+|-
+! colspan="7" |Total [[task weight]]
+!{{#var:weight}}
+|}
+<references group="n" />Note: Krystilia is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]].
+
+==Dialogue ==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 23 July 2025
+|update = Varlamore: The Final Dawn Out Now
+|change = Krystilia's Slayer assignments now boost the [[mossy key]] drop rate only within the [[Wilderness]].
+}}
+{{Subject changes
+|date = 9 February 2022
+|update = Land of the Goblins
+|poll = 
+|change = Increased the weighting of the new Wilderness Slayer tasks from 3 to 5.
+}}
+{{Subject changes
+|date = 2 February 2022
+|update = Revenant Maledictus & Wilderness Changes
+|poll = 
+|change = * Krystilia now assigns Abyssal Demons (75-125), Dust Devils (75-125), Jellies (100-150), and Nechryael (75-125)
+* Fire Giant task reduced from 100-150 to 75-125.
+* Hill Giant task reduced from 100-150 to 75-125.
+* Bloodveld task reduced from 90-140 to 70-110.
+}}
+{{Subject changes
+|date = 18 June 2020
+|update = Poll 71 and Darkmeyer Updates
+|change = The number of black knights north of Venenatis were increased from 2 to 7 and the number of bloodveld spawns in the Wilderness Dungeon were increased from 2 to 5.
+}}
+{{Subject changes
+|date = 30 April 2020
+|update = Poll 70 and Bounty Hunter Changes
+|change = Bloodvelds, hill giants, moss giants, black knights, pirates and zombies were added to her list of tasks.
+}}
+{{Subject changes
+|date = 25 January 2018
+|update = Barbarian Assault Ranged Rework
+|change = [[Lesser demon]]s were added to her list of tasks, as was previously stated in the newspost where she became a Slayer master.
+}}
+{{Subject changes
+|date = 23 November 2017
+|update = Mage Arena II, Revenant Caves & Deadman Beta
+|change = [[Chaos druid]]s were added to her list of tasks, as was previously stated in the newspost where she became a Slayer master.
+}}
+{{Subject changes
+|date = 13 April 2017
+|update = Wilderness Slayer
+|change = Krystilia was made into a [[Slayer master]] and she was given a name. Previously, she was simply known as "Witch".
+}}
+{{Subject changes
+|date = 11 July 2013
+|poll = Old School feature poll 6 - Castle Wars, etc.
+|update = Patch Notes (11 July 2013)
+|change = A witch has been added in Edgeville's guardhouse. She can set your default respawn point to Edgeville, for a large fee.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*According to Mod Ash in a Q&A stream, Krystilia was initially going to be named Kystrilia, but due to "[[wiktionary:KYS|Kys]]" being the first three letters, they decided to relocate the R.{{CiteVideo|author=Old School RuneScape|title=New Justiciar Armour from Theatre of Blood - Design Stream with Mod West|url=https://www.youtube.com/watch?v=o3jG9hbZDv4&t=9721s|timestamp=2h42m|date=11 April 2018|site=Youtube}}
+* Krystilia had a festive override wearing a santa-witch hat during the [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+* Krystilia is the witch who killed the merchant [[Larran]], later sending adventurers into the Wilderness to obtain the keys to his chests rather than looting them herself.{{CiteNPC|npc=Larran|quote=Once I was a merchant. I worked hard and became wealthy, very wealthy. I was brave too, storing my possessions in two great chests here, where few would dare to interfere with them. But I was not strong enough. One day a witch allied with the pirates of the north; between their strength and her magic, they killed me. The pirates carried one of my chests away to their ship.|loc=|notes=|name=}}{{CiteNPC|npc=Larran|quote=I do not know why Krystilia sends adventurers to find my keys instead of looting the chest herself. Perhaps it amuses her to send people into this land to risk their lives.|loc=|notes=|name=}}
+* In the [[Demonic Pacts League]], she could be found in [[Ferox Enclave]], as [[Misthalin]] was inaccessible.
+
+==References==
+{{reflist}}
+
+{{Slayer Master}}
+{{Edgeville}}
+{{Astral Contact}}

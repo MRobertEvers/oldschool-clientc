@@ -1,0 +1,67 @@
+{{Infobox Spell
+|name = Basic Reanimation
+|image = [[File:Basic Reanimation.png]]
+|release = [[28 April]] [[2021]]
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 16
+|spellbook = Arceuus
+|type = Utility
+|exp = 32
+|cost = {{RuneReq|Body=4|Nature=2}}
+|speed = 
+|quest = None
+|description = Reanimates a low levelled creature
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Basic Reanimation icon (mobile).png|left]]
+'''Basic Reanimation''' is a spell within the [[Arceuus spellbook]] that requires level 16 [[Magic]] to use. It can be cast on certain [[ensouled head]]s to bring forth a [[reanimated creature]]. Killing the reanimated creature will grant [[Prayer]] experience.
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = body
+|Rune1num = 4
+|Rune2 = nature
+|Rune2num = 2
+}}
+
+==Compatible heads==
+{|class="wikitable" style="text-align:center;"
+! colspan="2" |Ensouled head
+!Reanimated monster
+!{{SCP|Prayer|link=yes}} XP
+|-
+|{{plinkt|Ensouled goblin head|txt=Goblin}}
+|[[Reanimated goblin]]
+|130
+|-
+|{{plinkt|Ensouled monkey head|txt=Monkey}}
+|[[Reanimated monkey]]
+|182
+|-
+|{{plinkt|Ensouled imp head|txt=Imp}}
+|[[Reanimated imp]]
+|286
+|-
+|{{plinkt|Ensouled minotaur head|txt=Minotaur}}
+|[[Reanimated minotaur]]
+|364
+|-
+|{{plinkt|Ensouled scorpion head|txt=Scorpion}}
+|[[Reanimated scorpion]]
+|454
+|-
+|{{plinkt|Ensouled bear head|txt=Bear}}
+|[[Reanimated bear]]
+|480
+|-
+|{{plinkt|Ensouled unicorn head|txt=Unicorn}}
+|[[Reanimated unicorn]]
+|494
+|}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

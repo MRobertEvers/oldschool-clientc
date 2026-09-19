@@ -1,0 +1,201 @@
+- generic [active] [ref=f42e1]:
+  - banner [ref=f42e2]:
+    - generic [ref=f42e4]:
+      - img "Twinco Electric logo" [ref=f42e8]
+      - navigation "Menu" [ref=f42e12]:
+        - list [ref=f42e13]:
+          - listitem [ref=f42e14]:
+            - link "Home" [ref=f42e15] [cursor=pointer]:
+              - /url: https://twincoelectric.org/
+          - listitem [ref=f42e16]:
+            - link "About" [ref=f42e17] [cursor=pointer]:
+              - /url: https://twincoelectric.org/about/
+          - listitem [ref=f42e18]:
+            - link [ref=f42e19] [cursor=pointer]:
+              - /url: "#"
+          - listitem [ref=f42e23]:
+            - link [ref=f42e24] [cursor=pointer]:
+              - /url: https://twincoelectric.org/service-areas/
+          - listitem [ref=f42e28]:
+            - link "FAQs" [ref=f42e29] [cursor=pointer]:
+              - /url: https://twincoelectric.org/faqs/
+          - listitem [ref=f42e30]:
+            - link "Estimate" [ref=f42e31] [cursor=pointer]:
+              - /url: https://twincoelectric.org/estimate/
+      - paragraph [ref=f42e35]:
+        - link "Call (816) 476-1752" [ref=f42e36] [cursor=pointer]:
+          - /url: tel:18164761752
+      - link "Request an Estimate" [ref=f42e40] [cursor=pointer]:
+        - /url: /contact/
+  - generic [ref=f42e43]:
+    - generic [ref=f42e46]:
+      - generic [ref=f42e47]: Contact Twinco Electric
+      - heading "Request an Electrical Estimate" [level=1] [ref=f42e50]
+      - paragraph [ref=f42e52]: Contact Twinco Electric to request an electrical estimate and tell us what you are planning, what you have noticed, and where the property is located. Twinco Electric will review your request and follow up during normal business hours.
+    - generic [ref=f42e55]:
+      - generic [ref=f42e56]:
+        - heading "Contact Twinco Electric for an Electrical Estimate" [level=2] [ref=f42e58]
+        - generic [ref=f42e59]:
+          - paragraph [ref=f42e60]: Use the form below to contact Twinco Electric with as much detail as you can. Helpful details include the property type, affected rooms or equipment, symptoms, project goals, and any known panel or electrical-service information. For an EV charger, generator connection, hot tub, remodel, new appliance, or commercial equipment request, include the model or electrical requirements when available.
+          - paragraph [ref=f42e61]: Photos are optional, and Twinco can ask for anything else needed when we contact you during follow-up. To support an accurate electrical estimate, mention access limitations, tenant or contractor coordination, known deadlines, and whether the property is occupied. Do not open an electrical panel or handle damaged equipment to collect information.
+        - paragraph [ref=f42e63]:
+          - text: By submitting this form, you acknowledge Twinco Electricâ€™s
+          - link "Privacy Policy" [ref=f42e64] [cursor=pointer]:
+            - /url: /privacy-policy/
+          - text: and
+          - link "Terms of Service" [ref=f42e65] [cursor=pointer]:
+            - /url: /terms-of-service/
+          - text: . Submitting a request does not create a service agreement or guarantee scheduling.
+      - generic [ref=f42e66]:
+        - generic [ref=f42e67]:
+          - heading "Give us a Call" [level=2] [ref=f42e69]
+          - generic [ref=f42e70]:
+            - paragraph [ref=f42e71]:
+              - strong [ref=f42e72]: Call
+              - link "(816) 476-1752" [ref=f42e73] [cursor=pointer]:
+                - /url: tel:18164761752
+            - paragraph [ref=f42e74]:
+              - strong [ref=f42e75]: Email
+              - link "sdeleon@twincoelectric.org" [ref=f42e76] [cursor=pointer]:
+                - /url: mailto:sdeleon@twincoelectric.org
+            - paragraph [ref=f42e77]:
+              - strong [ref=f42e78]: Service Area
+              - text: Greater Kansas City Metro
+            - paragraph [ref=f42e79]:
+              - strong [ref=f42e80]: Hours
+              - text: Monday – Friday8:00AM – 6:00 PM
+          - link "Call Twinco Electric" [ref=f42e82] [cursor=pointer]:
+            - /url: tel:18164761752
+        - generic [ref=f42e85]:
+          - heading "What Happens After an Electrical Estimate Request" [level=3] [ref=f42e87]
+          - generic [ref=f42e88]:
+            - paragraph [ref=f42e89]: After an electrical estimate request is submitted, Twinco Electric reviews the information provided and contacts you to clarify the project and timing. The review helps determine whether the next step is a phone conversation, a site evaluation, or a more detailed planning discussion.
+            - paragraph [ref=f42e90]: Project scope matters. A repair request may begin with symptoms such as tripping breakers, dead outlets, flickering lights, heat, or unusual sounds. Installation and upgrade requests may require information about equipment, the existing panel, available breaker space, service capacity, wiring routes, and access. Larger projects may also involve permit, inspection, or utility coordination depending on the work and jurisdiction.
+            - paragraph [ref=f42e91]: An electrical estimate is based on the information and conditions available during evaluation. Concealed conditions, equipment changes, access limitations, or customer-requested scope changes can affect the final work required. Twinco Electric can explain what was evaluated, what assumptions apply, and which next steps fit the project.
+        - generic [ref=f42e92]:
+          - heading "Electrical Emergency?" [level=3] [ref=f42e94]
+          - paragraph [ref=f42e96]:
+            - text: This form is not monitored continuously. For fire, smoke, active sparking, or downed power lines, move to a safe location and call 911 or your electric utility. For general outage preparation and safety information, review
+            - link "Ready.gov’s power outage guidance" [ref=f42e97] [cursor=pointer]:
+              - /url: https://www.ready.gov/power-outages
+            - text: .
+    - generic [ref=f42e100]:
+      - generic [ref=f42e101]:
+        - heading "Serving the Greater Kansas City Metro" [level=2] [ref=f42e103]
+        - generic [ref=f42e104]:
+          - paragraph [ref=f42e105]: Twinco Electric serves homeowners and businesses across the metro, including communities throughout Clay, Jackson, and Platte counties. Electrical estimate requests may cover troubleshooting, panel replacement, service upgrades, EV chargers, generators, lighting, surge protection, remodel wiring, new construction, hot tubs and pool equipment, or commercial improvements. Start with the problem or goal even if you are unsure which service category applies.
+          - paragraph [ref=f42e106]:
+            - text: Before submitting, check that the form includes a working phone number and email address, the correct property location, and a clear description of the request. If another person manages site access, include that context in the project details. This information does not replace an on-site evaluation, but it helps Twinco understand the electrical estimate request and prepare useful follow-up questions. You can also review Twinco’s
+            - link "residential electrical services" [ref=f42e107] [cursor=pointer]:
+              - /url: /services/residential-electrician-services/
+            - text: or
+            - link "commercial electrical services" [ref=f42e108] [cursor=pointer]:
+              - /url: /commercial-electrical-services/
+            - text: before submitting.
+        - link "View All Service Areas" [ref=f42e110] [cursor=pointer]:
+          - /url: /service-areas/
+      - img "Contact Twinco Electric service area map for Kansas City electrical estimate requests" [ref=f42e115]
+  - contentinfo [ref=f42e116]:
+    - generic [ref=f42e119]:
+      - generic [ref=f42e122]:
+        - link "Twinco Electric home" [ref=f42e123] [cursor=pointer]:
+          - /url: /
+          - img "Twinco Electric" [ref=f42e124]
+        - paragraph [ref=f42e125]: Family owned and operated, providing professional electrical services across the Greater Kansas City Metro.
+        - link "Twinco Electric on Facebook" [ref=f42e126] [cursor=pointer]:
+          - /url: https://www.facebook.com/profile.php?id=61580059670672
+      - generic [ref=f42e131]:
+        - heading "Services" [level=4] [ref=f42e132]
+        - list [ref=f42e133]:
+          - listitem [ref=f42e134]:
+            - link "Residential Services" [ref=f42e135] [cursor=pointer]:
+              - /url: /services/residential-electrician-services/
+          - listitem [ref=f42e136]:
+            - link "Service Upgrades" [ref=f42e137] [cursor=pointer]:
+              - /url: /services/electrical-service-upgrades/
+          - listitem [ref=f42e138]:
+            - link "Panel Replacement" [ref=f42e139] [cursor=pointer]:
+              - /url: /services/electrical-panel-replacement/
+          - listitem [ref=f42e140]:
+            - link "EV Charger Installation" [ref=f42e141] [cursor=pointer]:
+              - /url: /services/ev-charger-installation/
+          - listitem [ref=f42e142]:
+            - link "Generator Installation" [ref=f42e143] [cursor=pointer]:
+              - /url: /services/generator-transfer-switch-installation/
+          - listitem [ref=f42e144]:
+            - link "View All Services" [ref=f42e145] [cursor=pointer]:
+              - /url: /services/
+      - generic [ref=f42e148]:
+        - heading "Service Areas" [level=4] [ref=f42e149]
+        - generic [ref=f42e150]:
+          - list [ref=f42e151]:
+            - listitem [ref=f42e152]:
+              - link "Excelsior Springs" [ref=f42e153] [cursor=pointer]:
+                - /url: /service-areas/excelsior-springs-mo/
+            - listitem [ref=f42e154]:
+              - link "Liberty" [ref=f42e155] [cursor=pointer]:
+                - /url: /service-areas/liberty-mo/
+            - listitem [ref=f42e156]:
+              - link "Gladstone" [ref=f42e157] [cursor=pointer]:
+                - /url: /service-areas/gladstone-mo/
+            - listitem [ref=f42e158]:
+              - link "Parkville" [ref=f42e159] [cursor=pointer]:
+                - /url: /service-areas/parkville-mo/
+            - listitem [ref=f42e160]:
+              - link "Blue Springs" [ref=f42e161] [cursor=pointer]:
+                - /url: /service-areas/blue-springs-mo/
+            - listitem [ref=f42e162]:
+              - link "All Service Areas" [ref=f42e163] [cursor=pointer]:
+                - /url: /service-areas/
+          - list [ref=f42e164]:
+            - listitem [ref=f42e165]:
+              - link "Kearney" [ref=f42e166] [cursor=pointer]:
+                - /url: /service-areas/kearney-mo/
+            - listitem [ref=f42e167]:
+              - link "Smithville" [ref=f42e168] [cursor=pointer]:
+                - /url: /service-areas/smithville-mo/
+            - listitem [ref=f42e169]:
+              - link "North Kansas City" [ref=f42e170] [cursor=pointer]:
+                - /url: /service-areas/north-kansas-city-mo/
+            - listitem [ref=f42e171]:
+              - link "Kansas City" [ref=f42e172] [cursor=pointer]:
+                - /url: /service-areas/kansas-city-mo/
+            - listitem [ref=f42e173]:
+              - link "Lee’s Summit" [ref=f42e174] [cursor=pointer]:
+                - /url: /service-areas/lees-summit-mo/
+      - generic [ref=f42e177]:
+        - heading "About" [level=4] [ref=f42e178]
+        - list [ref=f42e179]:
+          - listitem [ref=f42e180]:
+            - link "About Twinco" [ref=f42e181] [cursor=pointer]:
+              - /url: /about/
+          - listitem [ref=f42e182]:
+            - link "Meet the Owners" [ref=f42e183] [cursor=pointer]:
+              - /url: /about/
+          - listitem [ref=f42e184]:
+            - link "Why Choose Twinco" [ref=f42e185] [cursor=pointer]:
+              - /url: /about/
+      - heading [level=4] [ref=f42e189]:
+        - link "FAQ" [ref=f42e190] [cursor=pointer]:
+          - /url: /faqs/
+      - generic [ref=f42e193]:
+        - heading [level=4] [ref=f42e194]:
+          - link "Estimate" [ref=f42e195] [cursor=pointer]:
+            - /url: /contact/
+        - paragraph [ref=f42e196]:
+          - link "(816) 476-1752" [ref=f42e197] [cursor=pointer]:
+            - /url: tel:18164761752
+          - link "sdeleon@twincoelectric.org" [ref=f42e198] [cursor=pointer]:
+            - /url: mailto:sdeleon@twincoelectric.org
+          - text: "Greater Kansas City MetroMon - Fri: 8:00 AM - 6:00 PM"
+    - generic [ref=f42e201]:
+      - paragraph [ref=f42e205]:
+        - text: © 2026 Twinco Electric. All rights reserved. Powered by
+        - link "ClickIt Digital" [ref=f42e206] [cursor=pointer]:
+          - /url: https://clickitdigital.solutions
+      - paragraph [ref=f42e210]:
+        - link "Privacy Policy" [ref=f42e211] [cursor=pointer]:
+          - /url: /privacy-policy/
+        - link "Terms of Service" [ref=f42e212] [cursor=pointer]:
+          - /url: /terms-of-service/
+  - generic [ref=f42e213]: desktop

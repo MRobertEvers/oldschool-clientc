@@ -92,8 +92,17 @@ RS_IF1_ApplyButtonClick(
     }
 
     case REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON:
+        /* One resume per pause. The reference gates the whole of action 30 on
+         * having no answer outstanding, so a second click on a prompt that is
+         * already saying "Please wait..." sends nothing — two resumes for one
+         * p_pausebutton would otherwise skip the page after next. */
+        if( UITree_PausePendingActive(app->tree) )
+            return 1;
         if( app->button_sink.resume_pausebutton )
             app->button_sink.resume_pausebutton(app->button_sink.user, com_id);
+        /* The click has gone; the prompt now says "Please wait..." until the
+         * server's next page (or its close) lands. */
+        UITree_SetPausePending(app->tree, com_id);
         /* Reference waits for the server's next dialog page; offline, clear
          * the dialog so "Click here to continue" still does something. */
         if( !app->button_sink.resume_pausebutton && app->slots.chat_com_id != -1 )

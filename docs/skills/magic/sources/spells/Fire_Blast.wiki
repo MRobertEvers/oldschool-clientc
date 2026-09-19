@@ -1,0 +1,51 @@
+{{External|rs|rsc=Fire blast}}
+{{Infobox Spell
+|name = Fire Blast
+|image = [[File:Fire Blast.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 59
+|spellbook = Normal
+|type = Combat
+|exp = 34.5
+|element = Fire
+|damage = 16
+|cost = {{RuneReq|Fire=5|Air=4|Death=1}}
+|speed = 5 ticks
+|description = A medium level Fire missile
+|anim = [[File:Fire Blast.gif|300px]]
+|sound = [[File:Fire Blast.ogg]]
+}}
+[[File:Fire Blast icon (mobile).png|left]]
+'''Fire Blast''' is a [[Fire spells|fire]]-based [[Blast spells|blast spell]] in the [[standard spellbook]], requiring level 59 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest fire spell available to [[free-to-play]] players.
+
+==Damage==
+Fire Blast has a base maximum hit of 16. As with all combat spells, Fire Blast's maximum hit is increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a fire-based spell, Fire Blast's maximum hit is also increased against targets that are [[Elemental weakness|weak to fire]].
+
+=== Maximum hit ===
+While wearing gear with high magic damage bonus, Fire Blast's maximum hit can be increased up to 24. Wearing a [[Slayer helmet (i)|slayer helm (i)]] while on a Slayer task can further increase the maximum hit to 26.
+
+===Calculator===
+{{Magic damage calculator|Fire Blast|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=fire}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 5
+|Rune2 = air
+|Rune2num = 4
+|Rune3 = death
+|Rune3num = 1
+|uses_pages = y
+|is_offensive = y
+}}
+
+== Notable uses ==
+
+* During the [[Family Crest]] quest, the player must deal damage to the demon [[Chronozon]] with Fire Blast (along with each of the other three blast spells) at least once in order to defeat it.
+{{Standard spellbook}}

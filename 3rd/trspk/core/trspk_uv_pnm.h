@@ -85,7 +85,11 @@ uv_pnm_compute(
     float U_xhat = vV_y * vUVPlane_normal_zhat - vV_z * vUVPlane_normal_yhat;
     float U_yhat = vV_z * vUVPlane_normal_xhat - vV_x * vUVPlane_normal_zhat;
     float U_zhat = vV_x * vUVPlane_normal_yhat - vV_y * vUVPlane_normal_xhat;
-    float U_inv_w = 1.0 / (U_xhat * vU_x + U_yhat * vU_y + U_zhat * vU_z);
+    /* 1.0f, not 1.0: a double literal promoted the whole reciprocal to a
+     * DOUBLE division and converted the result back, and this runs for every
+     * face. On the Pentium 4 target divsd is the most expensive instruction
+     * on the path, for precision no UV coordinate has ever needed. */
+    float U_inv_w = 1.0f / (U_xhat * vU_x + U_yhat * vU_y + U_zhat * vU_z);
 
     // dot product of A and U
     u1 = (U_xhat * dxa + U_yhat * dya + U_zhat * dza) * U_inv_w;
@@ -96,7 +100,7 @@ uv_pnm_compute(
     float V_xhat = vU_y * vUVPlane_normal_zhat - vU_z * vUVPlane_normal_yhat;
     float V_yhat = vU_z * vUVPlane_normal_xhat - vU_x * vUVPlane_normal_zhat;
     float V_zhat = vU_x * vUVPlane_normal_yhat - vU_y * vUVPlane_normal_xhat;
-    float V_inv_w = 1.0 / (V_xhat * vV_x + V_yhat * vV_y + V_zhat * vV_z);
+    float V_inv_w = 1.0f / (V_xhat * vV_x + V_yhat * vV_y + V_zhat * vV_z);
 
     v1 = (V_xhat * dxa + V_yhat * dya + V_zhat * dza) * V_inv_w;
     v2 = (V_xhat * dxb + V_yhat * dyb + V_zhat * dzb) * V_inv_w;

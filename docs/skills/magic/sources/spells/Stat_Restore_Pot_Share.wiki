@@ -1,0 +1,68 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Stat Restore Pot Share
+|image = [[File:Stat Restore Pot Share.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 81
+|spellbook = Lunar
+|type = Combat
+|exp = 84
+|cost = {{RuneReq|Earth=10|Water=10|Astral=2}}
+|speed = 
+|description = Shares a potion with up to 4 nearby players
+|anim = [[File:Stat Restore Pot Share.gif|180px]]
+|sound = [[File:Stat Restore Pot Share.ogg]]
+}}
+[[File:Stat Restore Pot Share icon (mobile).png|left]]
+'''Stat Restore Pot Share''' is a [[Lunar spell]]. When it is cast on any non-barbarian [[potions|potion]] that restores (not [[boost]]s) stats which is in the caster's inventory, it causes the caster to administer 1 dose of the potion to each player (up to 4 if used on a full vial) in a 5x5 square area around the caster (including standing on the player's square) if they have [[Accept Aid]] turned on, or are a member of your [[Group Ironman Mode|Ironman Group]]. Potions that boost stats can be shared using the [[Boost Potion Share]] spell.
+
+As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell. A hidden effect is that doses of potion are only used up on other players; with the caster receiving a "free" dose. If the caster has only 1 target, both will receive the restoration for the cost of a single dose. This makes the spell invaluable for 2 person teams using [[prayer potion|prayer]] or [[super restore]] potions. Players casting Stat Restore Pot Share purely to gain [[experience]] should cast the spell with only one other person so as to maximise the experience.
+
+Despite [[Run energy]] not being a stat, this spell can be used to share [[Energy potion]]s and [[Stamina potion]]s. It cannot share a [[Menaphite remedy]] however, despite primarily being used to restore stats.
+
+==Compatible potions==
+The following potions can be shared using this spell:
+
+{|class=wikitable
+!colspan=2|Potion
+|-
+|{{Plinkt|Energy potion}}
+|-
+|{{Plinkt|Prayer potion}}
+|-
+|{{plinkt|Restore potion}}
+|-
+|{{Plinkt|Super energy}}
+|-
+|{{Plinkt|Super restore}}
+|-
+|{{Plinkt|Sanfew serum}}
+|-
+|{{Plinkt|Stamina potion}}
+|}
+
+Several potions cannot be shared using this spell despite restoring at least one stat: these include [[ancient brew|ancient]] and [[forgotten brew]]s, [[Armadyl brew|Armadyl]], [[zamorak brew|Zamorak]], and [[Saradomin brew]]s, [[menaphite remedy]], [[surge potion]]s, and [[prayer regeneration potion]]s. Despite all other forms of run energy regain being sharable, [[extreme energy potion|extreme energy]] and [[extended stamina potion]]s cannot be shared.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 10
+|Rune2 = Earth
+|Rune2num = 10
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = Stat Restore Pot Share now takes into account the [[Holy Wrench]], [[Prayer cape|Prayer Skillcape]], [[Max Cape]] and [[Ring of the gods (i)]]'s respective effects when used to share the effects of any potion impacted by these items.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Combat spells}}
