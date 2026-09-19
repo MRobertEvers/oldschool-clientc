@@ -1,3 +1,13 @@
+export const meta = {
+  name: 'quest-haiku-loop',
+  description: 'One Haiku author per queued quest test, a Sonnet reviewer that commits each green one and sets the queue row, and an Opus sample of every tenth',
+  phases: [
+    { title: 'Author', detail: 'Haiku: scaffold, resolve CHECKs, run, fix one thing per run, at most eight runs', model: 'haiku' },
+    { title: 'Review', detail: 'Sonnet: gates, shots, diff; commit + queue row' },
+    { title: 'Sample', detail: 'Opus: three of every ten accepted, adversarial' },
+  ],
+}
+
 // The Haiku quest loop -- docs/QUEST_SUITE_KIT.md's phase 5, as a Claude Code
 // Workflow script. Run it with the Workflow tool:
 //
@@ -13,16 +23,6 @@
 // The rules the author gets are the task card in docs/QUEST_AUTHORING.md's
 // terms: eight runs per quest, edit only the quest file, BLOCKED instead of
 // a workaround, content_bug with file:line instead of a driver patch.
-
-export const meta = {
-  name: 'quest-haiku-loop',
-  description: 'One Haiku author per queued quest test, a Sonnet reviewer that commits each green one and sets the queue row, and an Opus sample of every tenth',
-  phases: [
-    { title: 'Author', detail: 'Haiku: scaffold, resolve CHECKs, run, fix one thing per run, at most eight runs', model: 'haiku' },
-    { title: 'Review', detail: 'Sonnet: gates, shots, diff; commit + queue row' },
-    { title: 'Sample', detail: 'Opus: three of every ten accepted, adversarial' },
-  ],
-}
 
 const WT = '/Users/matthewevers/Documents/git_repos/3draster-quest-driver'
 const tests = (args && args.tests) || []
