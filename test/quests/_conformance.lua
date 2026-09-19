@@ -379,12 +379,39 @@ return {
                 field("npc_id", is_number), "the row carried no npc id")
         end)
 
+        -- This row also carries world.tile's only behavioural check, because
+        -- world.tile's own row can only look at the SHAPE of what came back
+        -- and a reader that answered a constant would satisfy that.  Proved,
+        -- not guessed: making QD.world.tile return a fixed {x=0,z=0,level=0}
+        -- without asking the client left its own row PASS (mutation (d), the
+        -- final gate's run).  `nearest` searched a radius around the player's
+        -- real position and found this npc inside it, so a tile the two
+        -- readers disagree about by more than that radius is one of them
+        -- inventing an answer -- and it needs no literal coordinate, which
+        -- ARCHITECT.md's naming rule would not allow here anyway.
+        local NEAREST_RADIUS = 40
         step("npc.nearest", function()
             local fn = verb("npc", "nearest")
             if not fn then return missing("npc", "nearest") end
-            local result, detail = fn(NPC_SYMBOL, 40)
-            return answered(result, detail, NPC_SYMBOL .. " r=40 -> ",
+            local result, detail = fn(NPC_SYMBOL, NEAREST_RADIUS)
+            local graded, text = answered(result, detail,
+                NPC_SYMBOL .. " r=" .. NEAREST_RADIUS .. " -> ",
                 field("npc_id", is_number), "the row carried no npc id")
+            if graded ~= "ok" then
+                return graded, text
+            end
+            if not is_table(player_tile) then
+                return "hollow", "world.tile never produced a tile to cross-check -- " .. text
+            end
+            local dx = math.abs(detail.x - player_tile.x)
+            local dz = math.abs(detail.z - player_tile.z)
+            if dx > NEAREST_RADIUS or dz > NEAREST_RADIUS then
+                return "hollow", "an npc found within " .. NEAREST_RADIUS
+                    .. " tiles of the player sits " .. dx .. "," .. dz
+                    .. " from the tile world.tile reported -- one of the two "
+                    .. "readers is not reading -- " .. text
+            end
+            return "ok", text
         end)
 
         step("world.loc_near", function()
