@@ -203,13 +203,13 @@ def write_wrapper_script(quest_file, out_path):
         "QUEST.run = function(t)\n"
         "    if type(quest_setup) == \"table\" then\n"
         "        for _, cheat in ipairs(quest_setup) do\n"
-        "            local setup_result, setup_detail = t.t.cheat(cheat)\n"
+        "            local setup_result, setup_detail = t.cheat(cheat)\n"
         "            if setup_result ~= \"ok\" then\n"
-        "                t.t.step(\"setup.\" .. cheat, \"FAIL\",\n"
+        "                t.step(\"setup.\" .. cheat, \"FAIL\",\n"
         "                    \"setup cheat answered \" .. tostring(setup_result)\n"
         "                        .. \" (\" .. tostring(setup_detail) .. \")\"\n"
         "                        .. \" -- the world this quest assumes was never stated\")\n"
-        "                t.t.finish(1)\n"
+        "                t.finish(1)\n"
         "                return\n"
         "            end\n"
         "        end\n"
@@ -438,7 +438,7 @@ def last_chat_lines(log_path, count=5):
     """The last `count` lines of client.log that read as driver/chat
     narration. The stderr mirror's own `QUEST ...` lines
     (torirs_plugin_drive.c: drive_ledger_write's per-row mirror and
-    lua_drive_report/t.t.report) are the one shape this log is GUARANTEED
+    lua_drive_report) are the one shape this log is GUARANTEED
     to carry -- captured stdout+stderr, every run (launch_client). A
     server-side `mes()` line is kept too, on a best-effort basis, when it
     is recognisable as one (containing " mes(" or " mes "), since a content

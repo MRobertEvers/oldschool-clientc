@@ -3,7 +3,7 @@
 -- flee and come back -- docs/QUEST_DRIVER_REMAINING.md phase D1. Hans has no
 -- Quest Helper guide, so this file has no scaffold to regenerate from
 -- (tools/quest_gate/new_quest.py); it is rewritten by hand onto the driver
--- kit instead (docs/QUEST_SUITE_KIT.md phase 3, worker 3d): t.do for every
+-- kit instead (docs/QUEST_SUITE_KIT.md phase 3, worker 3d): t.exec for every
 -- click, npc.await_present/npc.await_gone (worker 2c) for the flee/return
 -- waits, and player.teleport to stand the player at a known tile rather than
 -- trusting the fixture's exact placement. No local helper function -- the
@@ -39,7 +39,7 @@
 -- stuck in place there is exactly the bug class `npc_setmode`/
 -- `ToriRSServer_WorldNpcDefaultMode` existed to close.
 --
--- Every row here goes through the bracket-indexed do-verb or t.check, both
+-- Every row here goes through t.exec or t.check, both
 -- of which shoot the row they write (gate.py's minimum-shape rule is per
 -- row -- `shooting_row_names` -- and those are the two verbs it names). Two
 -- pairs that would otherwise fire back to back with no world change between
@@ -63,8 +63,8 @@ return {
         -- "::style" hint, the welcome lines, ...) keeps dribbling in for a
         -- few ticks after login and buries this cheat's own line seven deep
         -- by the time this reads -- msg.last(5) missed it outright.
-        local cheat_result, cheat_detail = t.t.cheat("::hans_test_constants")
-        t.t.ticks(2)
+        local cheat_result, cheat_detail = t.cheat("::hans_test_constants")
+        t.ticks(2)
         local msg_result, lines = t.msg.last(30)
         local flee_ticks, respawn_ticks, source_line = nil, nil, nil
         if msg_result == "ok" and type(lines) == "table" then
@@ -78,20 +78,20 @@ return {
                 end
             end
         end
-        t.t.check("hans.constants", (flee_ticks ~= nil and respawn_ticks ~= nil),
+        t.check("hans.constants", (flee_ticks ~= nil and respawn_ticks ~= nil),
             "cheat=" .. tostring(cheat_result) .. "/" .. tostring(cheat_detail)
                 .. " flee_ticks=" .. tostring(flee_ticks)
                 .. " respawn_ticks=" .. tostring(respawn_ticks)
                 .. " (from " .. tostring(source_line or msg_result) .. ")")
         if not (flee_ticks and respawn_ticks) then
-            t.t.finish(1)
+            t.finish(1)
             return
         end
 
         -- ------------------------------------------- stand somewhere known
         -- A server-side setpos onto the respawn tile, never the fixture's
         -- own placement -- see the file banner.
-        t.t["do"]("stand_lumbridge", t.player.teleport, "lumbridge")
+        t.exec("stand_lumbridge", t.player.teleport, "lumbridge")
 
         -- ------------------------------------------------------- find him
         -- Recorded now, before anything else touches him -- the closest
@@ -104,23 +104,23 @@ return {
         if home_result == "ok" then
             home_x, home_z = home_row.x, home_row.z
         end
-        t.t.check("hans.locate", (target ~= nil and home_x ~= nil),
+        t.check("hans.locate", (target ~= nil and home_x ~= nil),
             "target=" .. (target and "built" or tostring(sym_name))
                 .. " home=" .. tostring(home_x) .. "," .. tostring(home_z)
                 .. " (" .. tostring(home_result) .. ")")
         if not (target and home_x) then
-            t.t.finish(1)
+            t.finish(1)
             return
         end
 
-        t.t["do"]("walk_near_hans", t.player.walk_near, target)
+        t.exec("walk_near_hans", t.player.walk_near, target)
 
         -- ------------------------------------------------------------ talk
-        t.t["do"]("talk_hans", t.player.talk_to, "hans")
-        t.t.check("hans.expect_head", t.chat.expect_head("hans"))
+        t.exec("talk_hans", t.player.talk_to, "hans")
+        t.check("hans.expect_head", t.chat.expect_head("hans"))
 
         local drain_result, drain_detail = t.chat.drain({ stop_at = "options" })
-        t.t.check("hans.drain_to_menu", drain_result == "ok", drain_detail)
+        t.check("hans.drain_to_menu", drain_result == "ok", drain_detail)
 
         -- ------------------------------------------------------ the menu
         local options_result, options = t.chat.options()
@@ -133,16 +133,16 @@ return {
                 end
             end
         end
-        t.t.check("hans.flee_row_present", flee_row ~= nil,
+        t.check("hans.flee_row_present", flee_row ~= nil,
             flee_row and ("row " .. flee_row)
                 or ("'" .. FLEE_ROW_TEXT .. "' not among the rows -- "
                     .. (options_result == "ok" and table.concat(options, " | ") or tostring(options))))
         if not flee_row then
-            t.t.finish(1)
+            t.finish(1)
             return
         end
 
-        t.t["do"]("choose_flee", t.chat.choose, flee_row)
+        t.exec("choose_flee", t.chat.choose, flee_row)
 
         -- Choosing the row only sets $option; the script's own next line is
         -- `~chatplayer_anim(^chat_angry, "I have come to kill everyone...")`
@@ -152,7 +152,7 @@ return {
         -- "gone" await below timed out with the same chat page still on
         -- screen the whole time.
         local drain2_result, drain2_detail = t.chat.drain({ stop_at = "none" })
-        t.t.check("hans.drain_flee_line", drain2_result == "ok", drain2_detail)
+        t.check("hans.drain_flee_line", drain2_result == "ok", drain2_detail)
 
         -- -------------------------------- point the camera at his tile
         -- The three rows below are claims about a PLACE -- he is gone from
@@ -188,8 +188,8 @@ return {
         -- rebuilt by the follow step on the NEXT frame (pointer.lua:134-139),
         -- so the shot this row takes must come a tick later or it photographs
         -- the old eye.
-        t.t.ticks(1)
-        t.t.check("hans.watch_camera", camera_result == "ok" and watch_yaw ~= nil,
+        t.ticks(1)
+        t.check("hans.watch_camera", camera_result == "ok" and watch_yaw ~= nil,
             "aimed from " .. tostring(eye_result == "ok" and eye_tile.x) .. ","
                 .. tostring(eye_result == "ok" and eye_tile.z)
                 .. " at hans_home=" .. tostring(home_x) .. "," .. tostring(home_z)
@@ -198,7 +198,7 @@ return {
 
         -- ---------------------------------------------------- he leaves
         local left_result, left_detail = t.npc.await_gone("hans", 15, flee_ticks + 5)
-        t.t.check("hans.leaves", left_result == "ok",
+        t.check("hans.leaves", left_result == "ok",
             "gone within hans_flee_ticks+5=" .. (flee_ticks + 5) .. " ticks -- " .. tostring(left_detail))
 
         -- --------------------------------- he returns, at his spawn tile
@@ -224,7 +224,7 @@ return {
             spawn_distance = (dx > dz) and dx or dz
         end
         local HOME_TILE_TOLERANCE = 15
-        t.t.check("hans.returns",
+        t.check("hans.returns",
             back_result == "ok" and spawn_distance ~= nil and spawn_distance <= HOME_TILE_TOLERANCE,
             "back within hans_respawn_ticks+10=" .. (respawn_ticks + 10) .. " ticks -- "
                 .. tostring(back_detail)
@@ -239,7 +239,7 @@ return {
         -- `ToriRSServer_WorldNpcDefaultMode` exists to close. npc.nearest
         -- (not by_symbol, which scans the whole pool) also re-confirms he
         -- has not vanished again in the meantime.
-        t.t.ticks(5)
+        t.ticks(5)
         local still_result = t.npc.nearest("hans", 60)
         local moved_result, moved_row = t.npc.by_symbol("hans")
         local moved_x, moved_z, moved_distance = nil, nil, nil
@@ -257,13 +257,13 @@ return {
             end
             moved_distance = (mdx > mdz) and mdx or mdz
         end
-        t.t.check("hans.patrolling",
+        t.check("hans.patrolling",
             (still_result == "ok" and moved_distance ~= nil and moved_distance > 0),
             "still_present=" .. tostring(still_result)
                 .. " returned_tile=" .. tostring(returned_x) .. "," .. tostring(returned_z)
                 .. " five_ticks_later=" .. tostring(moved_x) .. "," .. tostring(moved_z)
                 .. " moved=" .. tostring(moved_distance) .. " tile(s)")
 
-        t.t.finish(0)
+        t.finish(0)
     end,
 }

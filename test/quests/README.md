@@ -2,7 +2,7 @@
 
 One file per quest: `test/quests/<quest>.lua`, returning a table.
 
-The verb kit, a full worked example (`quest.bind`/`t["do"]`/`chat.play`/
+The verb kit, a full worked example (`quest.bind`/`t.exec`/`chat.play`/
 `quest.expect_complete`), the result vocabulary and the twelve traps that cost
 someone hours each all live in `docs/QUEST_AUTHORING.md` -- read that page
 before writing a quest. This file states the rules the runner and the gate
@@ -19,14 +19,13 @@ and `test/quests/hans.lua` (an npc behaviour test, with neither).
 The verbs a test is written in are listed once, with a line each, in
 `docs/QUEST_AUTHORING.md` (phase 3); `tools/quest_gate/verb_list.py` prints
 the live set with the file and line each one is defined at, and is the only
-list that cannot go stale. Two spellings surprise everyone exactly once:
+list that cannot go stale. One shape to know:
 
-- **`t.t["do"](name, verb, ...)`**, never `t.do`. `do` is a Lua keyword, so
-  `t.do` is a syntax error at every call site, not just at the definition.
-- **`t.t.<verb>`** for the scheduler's own verbs (`cheat`, `ticks`, `settle`,
-  `shot`, `step`, `expect`, `check`, `blocked`, `finish`): the `t` a `run(t)`
-  receives IS the driver's root table, and those live in its `t` namespace.
-  Everything else is `t.<namespace>.<verb>` (`t.chat.play`, `t.quest.bind`,
+- The `t` a `run(t)` receives IS the driver's root table. The scheduler's own
+  controls sit directly on it -- `t.cheat`, `t.ticks`, `t.settle`, `t.shot`,
+  `t.step`, `t.expect`, `t.exec`, `t.check`, `t.note`, `t.blocked`,
+  `t.finish`, `t.key`, `t.text` -- and everything else is
+  `t.<namespace>.<verb>` (`t.chat.play`, `t.quest.bind`, `t.skill.read`,
   `t.ui.journal_open`, ...).
 
 Rules the runner and the gate depend on:
@@ -75,9 +74,11 @@ make -C src check-quest-verbs        # just the drift check, no client
   and re-runs with that verb skipped -- so an unrunnable verb costs its own row
   and nobody else's, and all 97 verbs are always scored.
 - Three rows are re-graded outside the coroutine, because Lua cannot check
-  them: `note` (its probe must appear in the row it folds into), `t.finish`
-  (the ledger's `SUMMARY exit=0` and the process exit code) and `t.blocked`
-  (the `BLOCKED` row it wrote, and SUMMARY's own `blocked=` bucket). The last
+  them: `note` (its probe must appear in the row it folds into), `finish`
+  (the ledger's `SUMMARY exit=0` and the process exit code) and `blocked`
+  (the `BLOCKED` row `t.blocked` wrote, and SUMMARY's own `blocked=` bucket --
+  the verb's own row shares that name, so the checker tracks the BLOCKED one
+  separately). The last
   two END the run, so both are called after the harness's loop -- `t.blocked`
   is the terminator, and it calls `t.finish(0)` itself.
 - Cheats that state the world are **setup**, not rows. They reach BOTH cheat

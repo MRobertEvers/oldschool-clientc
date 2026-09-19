@@ -626,7 +626,7 @@ def resolve_quest_prereq(token: str, inventory: list[dict]) -> str | None:
 # -------------------------------------------------------------- emission
 
 def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> tuple[str, bool]:
-    """One t["do"](...) line (or an unresolved comment) for a single leaf
+    """One t.exec(...) line (or an unresolved comment) for a single leaf
     step. Returns (lua_lines_text, was_driven)."""
     kind = info["kind"]
     desc = info["desc"] or var
@@ -647,20 +647,20 @@ def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> t
     if gv_kind == "NpcID":
         op, guessed_by = guess_op(desc)
         lines.append(
-            f'        t.t["do"]({lua_string(name)}, t.player.talk_to, {lua_string(symbol)}, {op}) '
+            f'        t.exec({lua_string(name)}, t.player.talk_to, {lua_string(symbol)}, {op}) '
             f"-- CHECK op {op} guessed from '{guessed_by}'"
         )
         checks.append(f"{var}: op guessed ({guessed_by} -> {op})")
     elif gv_kind == "ObjectID":
         op, guessed_by = guess_op(desc)
         lines.append(
-            f'        t.t["do"]({lua_string(name)}, t.player.click_loc, {lua_string(symbol)}, {op}) '
+            f'        t.exec({lua_string(name)}, t.player.click_loc, {lua_string(symbol)}, {op}) '
             f"-- CHECK op {op} guessed from '{guessed_by}'"
         )
         checks.append(f"{var}: op guessed ({guessed_by} -> {op})")
     elif gv_kind == "ItemID":
         lines.append(
-            f'        t.t["do"]({lua_string(name)}, t.player.click_obj, {lua_string(symbol)})'
+            f'        t.exec({lua_string(name)}, t.player.click_obj, {lua_string(symbol)})'
         )
     else:
         checks.append(f"unresolved gameval kind for step: {var} ({gv_kind})")
@@ -668,13 +668,13 @@ def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> t
 
     # Each dialog line gets its OWN literal step name (`-dialog-1`, `-dialog-2`,
     # ...): a bare `name + "-dialog"` repeated across N lines is the exact
-    # straight-line duplicate lint_quest.py's own duplicate-t["do"]-name rule
+    # straight-line duplicate lint_quest.py's own duplicate-t.exec-name rule
     # exists to catch (two IDENTICAL string literals, not core.lua's runtime
     # -2/-3 suffix, which only fires for a name computed in a loop) --
     # measured against this tool's own output on cooksassistant, 2026-09-19.
     for index, line in enumerate(dialog.get(var, []), start=1):
         lines.append(
-            f'        t.t["do"]({lua_string(name + "-dialog-" + str(index))}, t.chat.play, '
+            f'        t.exec({lua_string(name + "-dialog-" + str(index))}, t.chat.play, '
             f"{{{lua_string('choose:' + line)}}}) -- CHECK dialog row text guessed from Quest Helper"
         )
         checks.append(f"{var}: dialog row guessed ({line!r})")
@@ -859,7 +859,7 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
     lines.append(f"            display = {lua_string(display)}, -- CHECK: content-sourced, confirm against the live quest list")
     lines.append(f"            points = {points},")
     lines.append("        })")
-    lines.append('        t.t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)')
+    lines.append('        t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)')
     lines.append("")
 
     if prereq_lines:
@@ -898,7 +898,7 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
                 stage_index += 1
                 if stage_index % 3 == 0:
                     lines.append(
-                        f'        t.t.check("expect_stage-{stage_index}", '
+                        f'        t.check("expect_stage-{stage_index}", '
                         f'select(1, t.quest.stage()) ~= nil) -- CHECK: bind a real named stage here'
                     )
             for alt in sub_steps.get(var, []):
@@ -916,18 +916,18 @@ def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dic
     lines.append("")
     if boss_fight:
         # docs/QUEST_SUITE_KIT.md phase 3: "`::skipboss` stubs (as
-        # `t.t.blocked(...)` until phase 4) where the manifest lists a
+        # `t.blocked(...)` until phase 4) where the manifest lists a
         # fight" -- quest_inventory.tsv's own `boss_fight` column is this
         # quest's own manifest signal (docs/bosses/quest_combat_manifest.json
         # is the finer-grained per-encounter catalogue phase 4 reads; this
         # column is already that signal folded down to yes/no per quest).
         # Placed after the walked route, not instead of it: everything
         # above this line is real steps a Haiku agent's run can still prove.
-        lines.append(f'        t.t.blocked("skipboss not landed: {boss_npcs or quest_id}")')
+        lines.append(f'        t.blocked("skipboss not landed: {boss_npcs or quest_id}")')
         blocked_stubs += 1
     else:
         lines.append("        t.quest.expect_complete()")
-        lines.append("        t.t.finish(0)")
+        lines.append("        t.finish(0)")
     lines.append("    end,")
     lines.append("}")
 

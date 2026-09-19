@@ -18,12 +18,11 @@ local QD = {
     var = {},       -- core-state
     inv = {},       -- core-state
     msg = {},       -- core-state
-    skill = nil,    -- core-state (a function, not a table)
+    skill = {},     -- core-state: read/snapshot/expect_gain
     ui = {},        -- verbs-ui
     npc = {},       -- verbs-ui
     world = {},     -- verbs-pointer (composed on verbs-ui's readers)
     drive = {},     -- verbs-pointer: the raw pointer verbs
-    t = {},         -- core-scheduler: cheat/ticks/settle/shot/key/text/finish
     quest = {},     -- quest.lua (docs/QUEST_SUITE_KIT.md phase 2, owner 2a):
                      -- bind/stage/expect_stage/expect_complete
 }
@@ -120,9 +119,9 @@ end
 -- pcall, so such a raise does not fail one row, it ends the whole run at that
 -- row with every later verb unreached. Several verbs document a TABLE as
 -- their detail (ui.journal_open's {title, lines, complete}, world.tile's
--- {x,z,level}, chat.options' rows), and t.do exists precisely to wrap a verb
+-- {x,z,level}, chat.options' rows), and t.exec exists precisely to wrap a verb
 -- and write its answer to the ledger, so handing one of those to t.expect or
--- t.do must print, not detonate. Key order inside a rendered table follows
+-- t.exec must print, not detonate. Key order inside a rendered table follows
 -- `pairs`, so it is a summary for a human reading the row, never something to
 -- match on.
 local function detail_text(detail)
@@ -168,12 +167,16 @@ local function flush(name, verdict, detail)
     return verdict == "PASS"
 end
 
--- t.* -- the test's own controls. t.key, t.text and t.shot are verbs-ui's
--- (ui.lua); everything below is the scheduler's.
+-- The test's own controls, and they live on the ROOT table beside the verb
+-- namespaces: `t.cheat`, `t.ticks`, `t.step`, `t.exec`, ... There used to be
+-- a second namespace named `t` inside `t` holding exactly these, so every
+-- quest file spelled the prefix twice; that bought nothing and is gone. t.key,
+-- t.text and t.shot are verbs-ui's (ui.lua); everything below is the
+-- scheduler's.
 
 -- Manual record: the caller already knows the verdict (e.g. a hand-rolled
 -- assertion, or bridging a non-drive check into the same ledger).
-function QD.t.step(name, verdict, detail)
+function QD.step(name, verdict, detail)
     return flush(name, verdict, detail), detail
 end
 
@@ -181,18 +184,18 @@ end
 -- when result == "ok", FAIL otherwise. Returns the verb's own pair back
 -- unchanged, so `local r, d = t.expect("open bank", ui.open(...))` still
 -- reads like the verb call it wraps.
-function QD.t.expect(name, result, detail)
+function QD.expect(name, result, detail)
     flush(name, ok(result) and "PASS" or "FAIL", detail)
     return result, detail
 end
 
--- t.do / t.check share one rule (docs/QUEST_SUITE_KIT.md phase 2 table): a
+-- t.exec / t.check share one rule (docs/QUEST_SUITE_KIT.md phase 2 table): a
 -- repeated `name` in the same run gets -2, -3, ... appended, so two calls
 -- that reuse a name (a "before"/"after" pair, a retried step) still write
 -- two distinguishable ledger rows and two distinguishable shot names instead
 -- of two rows that read identically. QD.core_next_shot's own NN- counter
 -- already keeps the FILES unique; this keeps the NAME -- the ledger's `step`
--- column and gate.py's "one PNG per t.do row" bookkeeping -- unique too.
+-- column and gate.py's "one PNG per t.exec row" bookkeeping -- unique too.
 local step_name_uses = {}
 local function unique_step_name(name)
     local count = (step_name_uses[name] or 0) + 1
@@ -203,16 +206,16 @@ local function unique_step_name(name)
     return name .. "-" .. tostring(count)
 end
 
--- Common tail for t.do/t.check: shoot `name` (and, on a non-PASS verdict,
+-- Common tail for t.exec/t.check: shoot `name` (and, on a non-PASS verdict,
 -- also `name-FAIL`) BEFORE flush -- QD.core_next_shot only queues a shot for
 -- whichever row's flush() runs next (its own banner, above), so the order
 -- here is load-bearing: shoot first, flush second, or the shot lands on the
 -- QUEST's next row instead of this one.
 local function record_with_shot(name, verdict, detail)
     local unique_name = unique_step_name(name)
-    QD.t.shot(unique_name)
+    QD.shot(unique_name)
     if verdict ~= "PASS" then
-        QD.t.shot(unique_name .. "-FAIL")
+        QD.shot(unique_name .. "-FAIL")
     end
     return flush(unique_name, verdict, detail), detail
 end
@@ -220,35 +223,32 @@ end
 -- Assertion form, but not a verb: PASS iff `condition_or_result` is `true`
 -- or the string "ok". Unlike t.expect, t.check takes its own screenshot(s)
 -- (see record_with_shot above) rather than leaving that to the caller.
-function QD.t.check(name, condition_or_result, detail)
+function QD.check(name, condition_or_result, detail)
     local pass = condition_or_result == true or condition_or_result == "ok"
     record_with_shot(name, pass and "PASS" or "FAIL", detail)
     return condition_or_result, detail
 end
 
--- t.do(name, verb, ...) -> verb's own (result, detail), forwarded unchanged.
+-- t.exec(name, verb, ...) -> verb's own (result, detail), forwarded unchanged.
 --
--- NAMED "t.do" BY THE SPEC, IMPLEMENTED AS t["do"]: `do` is a Lua reserved
--- word (3rd/lua/llex.c's keyword table), and `Name` in the Lua grammar
--- explicitly excludes reserved words -- so `function QD.t.do(...)`,
--- `QD.t.do = ...` and even a bare read of `t.do` are ALL syntax errors, not
--- just this definition but every call site a quest file would ever write.
--- Verified against this tree's own vendored Lua (3rd/lua, built standalone
--- and run against a one-line probe): `t.do(1)` and even `print(t.do)` both
--- fail to parse with "<name> expected near 'do'"; `t["do"](1)` parses and
--- runs. So the verb is reachable ONLY through bracket syntax --
--- `t["do"](name, verb, ...)` -- in every quest file and in any generator
--- (new_quest.py, phase 3) that emits one. Flagged in this pass's report for
--- the spec and for tools/quest_gate/verb_list.py, which has no regex that
--- discovers a bracket-indexed `QD.t["do"] = function(...)` definition (its
--- three patterns all require a bare Lua Name) -- until that lands, this verb
--- has no automatic conformance row and needs one written by hand.
+-- NAMED `exec`, NOT `do`: the spec first called this verb after the Lua
+-- reserved word `do` (3rd/lua/llex.c's keyword table), which the grammar's
+-- `Name` rule excludes -- so the definition, a bare read of it, and every
+-- call site a quest file would ever write were all syntax errors, and the
+-- verb had to be defined and called through a string index instead.
+-- Verified against this tree's own vendored Lua at the time: both the call
+-- and a bare read failed to parse with "<name> expected near 'do'". A verb
+-- whose every call site has to be spelled with a string index is a verb the
+-- generator, the linter, the gate and verb_list.py each need a private
+-- regex for, so the name moved instead of the syntax: `exec` is an ordinary
+-- Lua Name, it reads the same at every call site, and nothing in this tree
+-- spells the old one any more.
 --
 -- Bad verb (not a function) or a nil first argument (the "target" every
 -- verb this wraps takes as its own first parameter) is a FAIL naming the
 -- shape, not a call: an untargeted verb is a broken TEST, not a `not_found`
 -- the world answered.
-QD.t["do"] = function(name, verb, ...)
+QD.exec = function(name, verb, ...)
     if type(verb) ~= "function" then
         return record_with_shot(name, "FAIL", "bad verb/target")
     end
@@ -259,10 +259,10 @@ QD.t["do"] = function(name, verb, ...)
     local result, detail = verb(...)
     -- Hollow rule (docs/QUEST_SUITE_KIT.md phase 2, README's hollow rule):
     -- an `ok` verb answer with no detail behind it is graded FAIL `hollow`,
-    -- not PASS -- t.do cannot read a verb's own banner to know whether ITS
+    -- not PASS -- t.exec cannot read a verb's own banner to know whether ITS
     -- particular nil is documented or not (there is no pcall here to probe
     -- with, and no per-verb table the way _conformance.lua's own hand-written
-    -- `answered()` predicates have), so the rule t.do enforces is the blanket
+    -- `answered()` predicates have), so the rule t.exec enforces is the blanket
     -- one the spec states in its own words: ok + nil detail = hollow. A verb
     -- whose successful answer is legitimately empty (t.ticks, t.settle,
     -- drive.camera, ...) is not a "verb" this wrapper should be pointed at --
@@ -281,16 +281,16 @@ end
 -- synchronously but does NOT stop this Lua script from continuing to run:
 -- verified live (build/scratch_2a_blocked.lua), a t.step call placed AFTER
 -- t.blocked still executed and appended its own row to ledger.tsv AFTER the
--- SUMMARY line already on disk. So a quest file MUST treat `t.t.blocked(...)`
--- exactly like a bare `t.t.finish(...)`: `return` immediately after it, same
+-- SUMMARY line already on disk. So a quest file MUST treat `t.blocked(...)`
+-- exactly like a bare `t.finish(...)`: `return` immediately after it, same
 -- as every existing quest file already does after its own early
--- `t.t.finish(1); return` calls (hans.lua, several sites). Flagged for
--- lint_quest.py (phase 3) as a checkable rule: a `t.t.blocked(`/
--- `t.t.finish(` call not immediately followed by `return` in the same block.
-function QD.t.blocked(reason)
-    QD.t.shot("blocked")
+-- `t.finish(1); return` calls (hans.lua, several sites). Flagged for
+-- lint_quest.py (phase 3) as a checkable rule: a `t.blocked(`/
+-- `t.finish(` call not immediately followed by `return` in the same block.
+function QD.blocked(reason)
+    QD.shot("blocked")
     flush("blocked", "BLOCKED", reason)
-    return QD.t.finish(0)
+    return QD.finish(0)
 end
 
 -- After dispatch, wait (<=5 ticks) for any NEW chat line: every cheat ladder
@@ -318,7 +318,7 @@ end
 -- caller that is going to do the waiting ITSELF says so, and gets the old
 -- fire-and-forget dispatch; everybody else -- every quest test, every setup
 -- list -- gets the wait by default and never thinks about it.
-function QD.t.cheat(text, wait_for_reply)
+function QD.cheat(text, wait_for_reply)
     local result, detail = api_drive.cheat(text)
     if wait_for_reply ~= false then
         QD.msg.await("", 5)
@@ -329,14 +329,14 @@ end
 -- Advance the virtual clock by exactly n server ticks and no more: a level
 -- predicate on drive.tick() reaching a target computed ONCE, at call time,
 -- so two overlapping t.ticks calls can never race each other's target.
-function QD.t.ticks(n)
+function QD.ticks(n)
     local target = api_drive.tick() + n
     return await({ level = function() return api_drive.tick() >= target end,
                     note = "t.ticks" }, n + 2)
 end
 
-function QD.t.settle()
+function QD.settle()
     return await({ level = function() return api_drive.settled() end, note = "t.settle" }, 30)
 end
 
-function QD.t.finish(code) return api_drive.finish(code) end
+function QD.finish(code) return api_drive.finish(code) end

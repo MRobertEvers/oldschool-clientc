@@ -38,12 +38,12 @@ blocked-but-not-failing quest exits 0.
 
 MINIMUM SHAPE. The four rules about `quest.*` rows, `quest.varp_complete`/
 BLOCKED, and "every non-setup row has a shot" describe the NEW scaffold
-(`t.quest.bind{...}`, `t["do"](...)`) from docs/QUEST_SUITE_KIT.md phase 2,
+(`t.quest.bind{...}`, `t.exec(...)`) from docs/QUEST_SUITE_KIT.md phase 2,
 which auto-shoots every row it writes (core.lua's own `record_with_shot`) --
-by construction, a well-formed t.do/t.check row can never trip that last
+by construction, a well-formed t.exec/t.check row can never trip that last
 rule, so a shotless non-setup row is a genuine capture failure, not a
 false positive waiting to happen. A quest file that does not yet call
-`t.quest.bind`/`t["do"]` (the two real quests, cooks_assistant/hans, as of
+`t.quest.bind`/`t.exec` (the two real quests, cooks_assistant/hans, as of
 this pass -- hand-written against the OLDER t.step/t.expect idiom, which
 never auto-shoots) has nothing these four rules describe, and enforcing
 them against that older idiom would flag manually-written rows that were
@@ -329,7 +329,7 @@ def strip_lua_comments(source_text):
     string literal left alone.
 
     Why this exists: the two rules below switch on whether a quest file USES
-    `quest.bind`/`t["do"]`, and a raw substring search answers yes to a file
+    `quest.bind`/`t.exec`, and a raw substring search answers yes to a file
     that only NAMES the verb in a comment. That is not a hypothetical --
     test/quests/cooks_assistant.lua's own banner, explaining which idiom it
     was written in, flipped both rules on and drove the file off the idiom to
@@ -381,13 +381,17 @@ def _uses_quest_bind(source_text):
 
 
 # The two verbs that shoot a row by themselves (core.lua's record_with_shot):
-# `t.t["do"](name, verb, ...)` and `t.t.check(name, ...)`. Both are matched
-# with the optional `t.` prefix the root table allows, and only when the row
-# NAME is a plain string literal -- a name built by concatenation is not one
-# this gate can attribute to a row, and a rule that cannot name its row does
-# not get to fail one.
-_DO_CALL_RE = re.compile(r"""\bt\s*(?:\.\s*t\s*)?\[\s*(["'])do\1\s*\]\s*\(\s*(["'])([^"']*)\2""")
-_CHECK_CALL_RE = re.compile(r"""\bt\s*\.\s*t\s*\.\s*check\s*\(\s*(["'])([^"']*)\1""")
+# `t.exec(name, verb, ...)` and `t.check(name, ...)`. Both are TOKEN matches:
+# the root table is `t` and the verb is an ordinary Lua Name, so the pattern
+# bounds BOTH ends -- `(?<![\w.])t` refuses `quest_t.exec` and a preceding
+# `foo.t`, and `exec(`/`check(` must be the whole name before the call's own
+# paren. The text they are matched against has already had its comments
+# stripped (strip_lua_comments, above), so naming the verb in prose switches
+# nothing on. Only a row NAME that is a plain string literal is collected: a
+# name built by concatenation is not one this gate can attribute to a row, and
+# a rule that cannot name its row does not get to fail one.
+_DO_CALL_RE = re.compile(r"""(?<![\w.])t\s*\.\s*exec\s*\(\s*(["'])([^"']*)\1""")
+_CHECK_CALL_RE = re.compile(r"""(?<![\w.])t\s*\.\s*check\s*\(\s*(["'])([^"']*)\1""")
 # core.lua appends `-2`, `-3`, ... to a row name repeated within one run.
 _REPEAT_SUFFIX_RE = re.compile(r"-\d+$")
 
@@ -395,15 +399,15 @@ _REPEAT_SUFFIX_RE = re.compile(r"-\d+$")
 def shooting_row_names(source_text):
     """Every ledger row name this source writes through an auto-shooting verb.
 
-    PER ROW, not per file: the old rule was "this file mentions t[\"do\"]
+    PER ROW, not per file: the old rule was "this file mentions t.exec
     somewhere, so EVERY non-setup/non-quest row must carry a shot", which
-    fails rows written with `t.t.expect` -- a verb that has never shot
+    fails rows written with `t.expect` -- a verb that has never shot
     anything and was never supposed to. A row only owes a shot when the
     source actually wrote it with a verb that takes one."""
     code = strip_lua_comments(source_text)
     names = set()
     for match in _DO_CALL_RE.finditer(code):
-        names.add(match.group(3))
+        names.add(match.group(2))
     for match in _CHECK_CALL_RE.finditer(code):
         names.add(match.group(2))
     return names

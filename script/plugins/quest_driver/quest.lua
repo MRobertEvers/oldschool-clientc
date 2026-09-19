@@ -10,7 +10,7 @@
 -- and NOT `api.drive.*`/`QD.await` are the right names to read here: this
 -- whole plugin is ONE Lua chunk, core.lua is concatenated first, and this
 -- file -- last in DRIVE_SCRIPT_PARTS, right before the entry file -- can
--- also see every other part's QD.* verbs (QD.var.*, QD.scroll.*, QD.t.*),
+-- also see every other part's QD.* verbs (QD.var.*, QD.scroll.*, QD.*),
 -- because a quest RUN (which is when any of this actually executes) only
 -- starts after the whole chunk has loaded once and finished building QD.
 --
@@ -169,17 +169,17 @@ function QD.quest._describe(value)
     return "<" .. kind .. ">"
 end
 
--- Four ledger rows, written directly (QD.t.step -- these are ALREADY graded
+-- Four ledger rows, written directly (QD.step -- these are ALREADY graded
 -- results, not verbs to wrap): quest.varp_complete, quest.scroll_title,
 -- quest.points, quest.journal. Never calls ::complete -- every value it
 -- reads is whatever the quest's own playthrough already put there.
 function QD.quest.expect_complete()
     local bound = QD.quest._bound
     if not bound then
-        QD.t.step("quest.varp_complete", "FAIL", "quest.expect_complete: quest.bind was not called")
-        QD.t.step("quest.scroll_title", "FAIL", "quest.expect_complete: quest.bind was not called")
-        QD.t.step("quest.points", "FAIL", "quest.expect_complete: quest.bind was not called")
-        QD.t.step("quest.journal", "FAIL", "quest.expect_complete: quest.bind was not called")
+        QD.step("quest.varp_complete", "FAIL", "quest.expect_complete: quest.bind was not called")
+        QD.step("quest.scroll_title", "FAIL", "quest.expect_complete: quest.bind was not called")
+        QD.step("quest.points", "FAIL", "quest.expect_complete: quest.bind was not called")
+        QD.step("quest.journal", "FAIL", "quest.expect_complete: quest.bind was not called")
         return "refused", "quest.bind was not called"
     end
 
@@ -189,7 +189,7 @@ function QD.quest.expect_complete()
     local complete_value = bound.constants.complete
     if complete_value == nil then
         all_pass = false
-        QD.t.step("quest.varp_complete", "FAIL",
+        QD.step("quest.varp_complete", "FAIL",
             "quest.bind: constants.complete was not provided")
     else
         local client_result, client_value = QD.var.varp(bound.varp)
@@ -197,7 +197,7 @@ function QD.quest.expect_complete()
         local pass = client_result == "ok" and server_result == "ok"
             and client_value == complete_value and server_value == complete_value
         all_pass = all_pass and pass
-        QD.t.step("quest.varp_complete", pass and "PASS" or "FAIL",
+        QD.step("quest.varp_complete", pass and "PASS" or "FAIL",
             bound.varp .. ": client=" .. tostring(client_value) .. "(" .. tostring(client_result) .. ")"
                 .. " server=" .. tostring(server_value) .. "(" .. tostring(server_result) .. ")"
                 .. " complete=" .. tostring(complete_value))
@@ -223,7 +223,7 @@ function QD.quest.expect_complete()
         and type(bound.display) == "string"
         and string.find(title_name, bound.display, 1, true) ~= nil
     all_pass = all_pass and title_pass
-    QD.t.step("quest.scroll_title", title_pass and "PASS" or "FAIL",
+    QD.step("quest.scroll_title", title_pass and "PASS" or "FAIL",
         "expected a title containing " .. tostring(bound.display)
             .. " got=" .. tostring(title_name)
             .. " (" .. tostring(title_result) .. ") " .. QD.quest._describe(title_detail))
@@ -243,7 +243,7 @@ function QD.quest.expect_complete()
             .. " delta=" .. tostring(delta) .. " expected=" .. tostring(bound.points)
     end
     all_pass = all_pass and points_pass
-    QD.t.step("quest.points", points_pass and "PASS" or "FAIL", points_detail)
+    QD.step("quest.points", points_pass and "PASS" or "FAIL", points_detail)
 
     -- ---------------------------------------------------------- quest.journal
     --
@@ -284,12 +284,12 @@ function QD.quest.expect_complete()
     end
 
     if type(QD.ui) ~= "table" or type(QD.ui.journal_open) ~= "function" then
-        QD.t.step("quest.journal", "BLOCKED", "unsupported -- ui.journal_open not landed")
+        QD.step("quest.journal", "BLOCKED", "unsupported -- ui.journal_open not landed")
     else
         local open_result, open_detail = QD.ui.journal_open(bound.display)
         if open_result ~= "ok" then
             all_pass = false
-            QD.t.step("quest.journal", "FAIL",
+            QD.step("quest.journal", "FAIL",
                 "journal_open(" .. tostring(bound.display) .. ") -> " .. tostring(open_result)
                     .. " " .. QD.quest._describe(open_detail)
                     .. " [scroll.close=" .. tostring(scroll_close_result) .. "]")
@@ -312,7 +312,7 @@ function QD.quest.expect_complete()
 
             local journal_pass = title_ok and complete_ok and close_result == "ok"
             all_pass = all_pass and journal_pass
-            QD.t.step("quest.journal", journal_pass and "PASS" or "FAIL",
+            QD.step("quest.journal", journal_pass and "PASS" or "FAIL",
                 "title=" .. tostring(title)
                     .. " (expected " .. tostring(bound.journal_title or "any non-empty title") .. ")"
                     .. " complete=" .. tostring(complete_ok)

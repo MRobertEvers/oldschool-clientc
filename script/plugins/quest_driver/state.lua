@@ -24,7 +24,7 @@
 -- core.lua declares and binds in QD.core_bind(api) -- visible here because
 -- core.lua is concatenated first (torirs_plugin_drive.c:69-77) and this is
 -- one Lua chunk, so a top-level local's scope runs to the end of it, the same
--- way core.lua's own QD.t.* functions already read it (core.lua's `cheat`,
+-- way core.lua's own QD.* functions already read it (core.lua's `cheat`,
 -- `settle`, `finish`). Do not write `api.drive.*` here again -- fixed 2026-09-19,
 -- R1: every one of the 23 call sites in this file indexed a nil global and
 -- raised on first use.
@@ -341,9 +341,14 @@ end
 
 -- skill -------------------------------------------------------------------
 
+-- t.skill is a TABLE of three reads, not a function: t.skill.read(name),
+-- t.skill.snapshot(), t.skill.expect_gain(name, xp, snapshot). The table is
+-- built in core.lua's QD constructor, which is concatenated first, so this
+-- file only ever adds to it.
+--
 -- `stated` is last_seen_level ~= 0: the pre-login table is a fresh account's,
 -- not an empty one, so "is there a reading yet" cannot be asked of the level.
-QD.skill = function(name)
+function QD.skill.read(name)
     local result, stat_index = api_drive.symbol("stat", name)
     if result ~= "ok" then
         return result, name
@@ -365,39 +370,39 @@ QD._stat_names = {
     "farming", "runecraft", "hunter", "construction", "sailing", "summoning",
 }
 
--- t.skill_snapshot(): every stat's reading, read once, keyed by name. A stat
+-- t.skill.snapshot(): every stat's reading, read once, keyed by name. A stat
 -- whose own read did not answer `ok` (not_found on a lane missing a
 -- feature-flagged skill, refused, ...) keeps that RESULT STRING as its
--- table entry instead of a reading table, so skill_expect_gain below (or any
+-- table entry instead of a reading table, so skill.expect_gain below (or any
 -- other caller) can tell a real reading from an unavailable one with a plain
 -- `type(snapshot[name]) == "table"` check, never a second round of result
 -- comparisons.
-function QD.skill_snapshot()
+function QD.skill.snapshot()
     local snapshot = {}
     for i = 1, #QD._stat_names do
         local name = QD._stat_names[i]
-        local result, reading = QD.skill(name)
+        local result, reading = QD.skill.read(name)
         snapshot[name] = (result == "ok") and reading or result
     end
     return "ok", snapshot
 end
 
--- t.skill_expect_gain(name, xp, snapshot): `snapshot` is an earlier
--- t.skill_snapshot() table. Accepts the delta matching `xp` in either unit
+-- t.skill.expect_gain(name, xp, snapshot): `snapshot` is an earlier
+-- t.skill.snapshot() table. Accepts the delta matching `xp` in either unit
 -- the client's own experience field might be carrying -- whole xp, or the
 -- server's xp*10 "tenths" -- the same two-unit uncertainty
 -- cooksassistant.cooking_xp_up (test/quests/cooks_assistant.lua) already
 -- resolves by hand, and names which one matched rather than leaving the
 -- caller to guess from the raw delta.
-function QD.skill_expect_gain(name, xp, snapshot)
+function QD.skill.expect_gain(name, xp, snapshot)
     if type(snapshot) ~= "table" then
-        return "no_row", "skill_expect_gain: snapshot is not a table"
+        return "no_row", "skill.expect_gain: snapshot is not a table"
     end
     local before = snapshot[name]
     if type(before) ~= "table" or type(before.experience) ~= "number" then
-        return "no_row", "skill_expect_gain: snapshot has no reading for " .. tostring(name)
+        return "no_row", "skill.expect_gain: snapshot has no reading for " .. tostring(name)
     end
-    local result, after = QD.skill(name)
+    local result, after = QD.skill.read(name)
     if result ~= "ok" then
         return result, name
     end

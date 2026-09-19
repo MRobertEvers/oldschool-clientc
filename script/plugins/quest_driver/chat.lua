@@ -200,10 +200,10 @@ function QD.chat.drain(opts)
         end
 
         if shots then
-            QD.t.shot(kind)
+            QD.shot(kind)
         end
 
-        -- QD.t.shot pumps real frames waiting for the capture (D8/A1: a
+        -- QD.shot pumps real frames waiting for the capture (D8/A1: a
         -- screenshot is not free), and the PREVIOUS iteration's own click can
         -- land during that pump -- the page mounted here can already be
         -- stop_at, or a terminal kind, by the time this line runs, even
@@ -280,11 +280,11 @@ function QD.chat.count(n)
         return "unsupported", "chat.count: not a quantity prompt (mode=" .. tostring(mode) .. ")"
     end
 
-    local text_res, text_detail = QD.t.text(tostring(n))
+    local text_res, text_detail = QD.text(tostring(n))
     if text_res ~= "ok" then
         return text_res, text_detail
     end
-    local key_res, key_detail = QD.t.key("enter")
+    local key_res, key_detail = QD.key("enter")
     if key_res ~= "ok" then
         return key_res, key_detail
     end
@@ -307,11 +307,11 @@ function QD.chat.name_entry(text)
         return "unsupported", "chat.name_entry: not a name prompt (mode=" .. tostring(mode) .. ")"
     end
 
-    local text_res, text_detail = QD.t.text(text)
+    local text_res, text_detail = QD.text(text)
     if text_res ~= "ok" then
         return text_res, text_detail
     end
-    local key_res, key_detail = QD.t.key("enter")
+    local key_res, key_detail = QD.key("enter")
     if key_res ~= "ok" then
         return key_res, key_detail
     end
@@ -514,7 +514,7 @@ end
 -- "end", "any" for "*") -- e.g. "npc-p1", "options-p2", "npc-p3". The
 -- filename's actual ordering prefix ("NN-") is QD.core_next_shot's own
 -- run-wide counter, reached the only way any part file reaches it: through
--- QD.t.shot. chat.play supplies a distinguishing suffix, never a second
+-- QD.shot. chat.play supplies a distinguishing suffix, never a second
 -- counter of its own.
 QD.chat._play_kind_by_prefix = {
     npc = "npc",
@@ -593,12 +593,12 @@ function QD.chat.play(list)
         -- the cook's Talk-to page lands its reply during exactly this
         -- window): continue_/choose/count/name_entry can all return "ok" on
         -- the CLIENT's own resume_answered ack, well before the server's
-        -- reply actually remounts the next page. QD.t.shot pumps real
+        -- reply actually remounts the next page. QD.shot pumps real
         -- frames while it waits for its capture, and the previous entry's
         -- click can land during exactly that pump -- so `kind` is read
         -- AFTER the shot, never before it, or this entry grades the page
         -- that was still closing, not the one that is actually live.
-        QD.t.shot(parsed.kind .. "-p" .. index)
+        QD.shot(parsed.kind .. "-p" .. index)
         local actual_kind = QD.chat.kind()
 
         if parsed.action == "expect" or parsed.action == "text" then

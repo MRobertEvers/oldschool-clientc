@@ -283,14 +283,14 @@ return {
         -- t.cheat waits for the cheat's own reply line by default, and a line
         -- that has already arrived is not a line msg.await can wait for.
         local function setup_cheat(text, wait_for_reply)
-            local cheat = verb("t", "cheat")
+            local cheat = verb("cheat")
             if cheat then
                 cheat(text, wait_for_reply)
             end
         end
 
         local function settle(ticks)
-            local advance = verb("t", "ticks")
+            local advance = verb("ticks")
             if advance then
                 advance(ticks)
             end
@@ -317,14 +317,14 @@ return {
 
         -- --------------------------------------------- phase 0: the clock
 
-        step("t.cheat", function()
-            local fn = verb("t", "cheat")
-            if not fn then return missing("t", "cheat") end
+        step("cheat", function()
+            local fn = verb("cheat")
+            if not fn then return missing("cheat") end
             -- ::xp is a [debugproc] whose whole observable effect is a stat
             -- reading, so the row reads that stat on both sides of the call.
             -- A cheat that answered ok and dispatched nothing has the same
             -- experience after as before, and that is the row's verdict.
-            local read = verb("skill")
+            local read = verb("skill", "read")
             local before = nil
             if read then
                 local state, reading = read(STAT_SYMBOL)
@@ -355,23 +355,23 @@ return {
                 .. describe(before) .. " -> " .. describe(after)
         end)
 
-        step("t.ticks", function()
-            local fn = verb("t", "ticks")
-            if not fn then return missing("t", "ticks") end
+        step("ticks", function()
+            local fn = verb("ticks")
+            if not fn then return missing("ticks") end
             local result, detail = fn(2)
             return result, "advance 2 server ticks -> " .. describe(detail)
         end)
 
-        step("t.settle", function()
-            local fn = verb("t", "settle")
-            if not fn then return missing("t", "settle") end
+        step("settle", function()
+            local fn = verb("settle")
+            if not fn then return missing("settle") end
             local result, detail = fn()
             return result, describe(detail)
         end)
 
-        step("t.shot", function()
-            local fn = verb("t", "shot")
-            if not fn then return missing("t", "shot") end
+        step("shot", function()
+            local fn = verb("shot")
+            if not fn then return missing("shot") end
             local result, detail = fn("conformance-world")
             return answered(result, detail, "", is_text, "no file was named")
         end)
@@ -565,20 +565,20 @@ return {
             return result, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> " .. describe(detail)
         end)
 
-        step("skill", function()
-            local fn = verb("skill")
-            if not fn then return missing("skill") end
+        step("skill.read", function()
+            local fn = verb("skill", "read")
+            if not fn then return missing("skill", "read") end
             local result, detail = fn(STAT_SYMBOL)
             return answered(result, detail, STAT_SYMBOL .. " -> ",
                 field("level", at_least(1)), "the reading carried no level")
         end)
 
-        -- Every stat read once.  The snapshot is kept for skill_expect_gain
+        -- Every stat read once.  The snapshot is kept for skill.expect_gain
         -- below, which is the only way to grade a gain: the two verbs are one
         -- before/after pair with a cheat between them.
-        step("skill_snapshot", function()
-            local fn = verb("skill_snapshot")
-            if not fn then return missing("skill_snapshot") end
+        step("skill.snapshot", function()
+            local fn = verb("skill", "snapshot")
+            if not fn then return missing("skill", "snapshot") end
             local result, detail = fn()
             if result == "ok" and is_table(detail) then
                 stat_snapshot = detail
@@ -588,17 +588,17 @@ return {
                 "a snapshot with no " .. STAT_SYMBOL .. " reading is not a snapshot")
         end)
 
-        -- setup: the gain skill_expect_gain is about to be asked to find.
+        -- setup: the gain skill.expect_gain is about to be asked to find.
         stage(function()
             setup_cheat("::xp " .. STAT_SYMBOL .. " " .. XP_CHEAT_AMOUNT)
             settle(4)
         end)
 
-        step("skill_expect_gain", function()
-            local fn = verb("skill_expect_gain")
-            if not fn then return missing("skill_expect_gain") end
+        step("skill.expect_gain", function()
+            local fn = verb("skill", "expect_gain")
+            if not fn then return missing("skill", "expect_gain") end
             if not is_table(stat_snapshot) then
-                return "no_subject", "skill_snapshot built no snapshot to measure against"
+                return "no_subject", "skill.snapshot built no snapshot to measure against"
             end
             local result, detail = fn(STAT_SYMBOL, XP_CHEAT_GAIN, stat_snapshot)
             -- The verb's own detail names which unit matched, so a row that
@@ -910,16 +910,16 @@ return {
             return result, INVENTORY_INTERFACE .. " -> " .. describe(detail)
         end)
 
-        step("t.key", function()
-            local fn = verb("t", "key")
-            if not fn then return missing("t", "key") end
+        step("key", function()
+            local fn = verb("key")
+            if not fn then return missing("key") end
             local result, detail = fn("enter")
             return result, "enter press+release -> " .. describe(detail)
         end)
 
-        step("t.text", function()
-            local fn = verb("t", "text")
-            if not fn then return missing("t", "text") end
+        step("text", function()
+            local fn = verb("text")
+            if not fn then return missing("text") end
             local result, detail = fn("conformance")
             return result, describe(detail)
         end)
@@ -1528,74 +1528,69 @@ return {
             return "ok", "a note was posted and must appear in this detail"
         end)
 
-        -- t.do and t.check both WRITE THEIR OWN ROW (and take their own
+        -- t.exec and t.check both WRITE THEIR OWN ROW (and take their own
         -- screenshot) instead of answering a result for this harness to
         -- record, so each one is called with its own verb name as the row
         -- name and the step returns nil -- the same shape t.step's row below
         -- has used since this harness was written.  The verdict in the ledger
         -- is the one the verb itself decided, from a real answer: an auditor
         -- reading the row sees the wrapped verb's own detail in it.
-        --
-        -- NOTE THE SPELLING.  `do` is a Lua keyword, so this verb is defined
-        -- as QD.t["do"] and called as t.t["do"](...) -- `t.do` does not parse
-        -- anywhere, including at a call site and including a bare read of it.
-        -- `verb("t", "do")` below is an ordinary table index and is fine.
-        step("t.do", function()
-            local fn = verb("t", "do")
-            if not fn then return missing("t", "do") end
+        step("exec", function()
+            local fn = verb("exec")
+            if not fn then return missing("exec") end
             local wrapped = verb("var", "varp")
             if not wrapped then
-                return "no_subject", "t.do wraps a verb and var.varp is not one"
+                return "no_subject", "t.exec wraps a verb and var.varp is not one"
             end
             -- A verb with a knowable answer: the fixture pins `tutorial` at
-            -- VARP_VALUE, so the row t.do writes carries that number as its
-            -- detail.  t.do's own hollow rule (ok with a nil detail is FAIL)
+            -- VARP_VALUE, so the row t.exec writes carries that number as its
+            -- detail.  t.exec's own hollow rule (ok with a nil detail is FAIL)
             -- is what makes that detail load-bearing rather than decoration.
-            fn("t.do", wrapped, VARP_SYMBOL)
+            fn("exec", wrapped, VARP_SYMBOL)
             return nil
         end)
 
-        step("t.check", function()
-            local fn = verb("t", "check")
-            if not fn then return missing("t", "check") end
+        step("check", function()
+            local fn = verb("check")
+            if not fn then return missing("check") end
             local read = verb("var", "varp")
             if not read then
                 return "no_subject", "t.check needs a reading to assert and var.varp is not a function"
             end
             local state, value = read(VARP_SYMBOL)
-            fn("t.check", state == "ok" and value == VARP_VALUE,
+            fn("check", state == "ok" and value == VARP_VALUE,
                 VARP_SYMBOL .. " -> " .. describe(value) .. " (" .. tostring(state)
                 .. "), the fixture pins it at " .. VARP_VALUE)
             return nil
         end)
 
-        step("t.step", function()
-            local fn = verb("t", "step")
-            if not fn then return missing("t", "step") end
-            fn("t.step", "PASS", "this row was written by t.step itself, not by t.expect")
+        step("step", function()
+            local fn = verb("step")
+            if not fn then return missing("step") end
+            fn("step", "PASS", "this row was written by t.step itself, not by t.expect")
             return nil
         end)
 
-        step("t.expect", function()
-            local fn = verb("t", "expect")
-            if not fn then return missing("t", "expect") end
+        step("expect", function()
+            local fn = verb("expect")
+            if not fn then return missing("expect") end
             -- Every other row in this ledger was written by t.expect; a row
             -- named t.expect, in a ledger with a header, IS the evidence.
             return "ok", "wrote every other row in this ledger"
         end)
 
-        step("t.finish", function()
-            local fn = verb("t", "finish")
-            if not fn then return missing("t", "finish") end
+        step("finish", function()
+            local fn = verb("finish")
+            if not fn then return missing("finish") end
             -- finish ENDS the run, so it is called after the loop.  The
             -- ledger's SUMMARY row (exit=) and the process exit code are what
             -- tools/quest_gate/conformance.py re-grades this row against.
             return "ok", "called after this row; SUMMARY exit= and the process exit code are the evidence"
         end)
 
-        step("t.blocked", function()
-            local fn = verb("t", "blocked")
-            if not fn then return missing("t", "blocked") end
+        step("blocked", function()
+            local fn = verb("blocked")
+            if not fn then return missing("blocked") end
             -- t.blocked writes a BLOCKED row and then calls t.finish(0), so
             -- it ENDS THE RUN exactly as t.finish does and is called after
             -- the loop for the same reason -- it is this harness's own
@@ -1604,7 +1599,12 @@ return {
             -- tools/quest_gate/conformance.py, against the evidence Lua
             -- cannot read: a ledger row named `blocked` whose verdict really
             -- is BLOCKED, and a SUMMARY that counts it in its own `blocked=`
-            -- bucket rather than as a failure.
+            -- bucket rather than as a failure.  THIS row is named `blocked`
+            -- too (the controls sit on the root of `t`, so the verb is just
+            -- `blocked`), so the ledger carries two rows under that name and
+            -- only the second one -- the BLOCKED one t.blocked wrote itself
+            -- -- is the evidence; conformance.py tracks it separately for
+            -- exactly that reason.
             return "ok", "called after this row; the ledger's BLOCKED row and SUMMARY's "
                 .. "blocked= bucket are the evidence"
         end)
@@ -1612,20 +1612,20 @@ return {
         -- ------------------------------------------------------ the run
 
         if verb_count ~= VERB_COUNT then
-            local recorder = verb("t", "step")
+            local recorder = verb("step")
             if recorder then
                 recorder("conformance-plan", "FAIL",
                     "the plan holds " .. verb_count .. " verbs, the driver exposes "
                     .. VERB_COUNT .. " -- run tools/quest_gate/verb_list.py to see which")
             end
-            local stop = verb("t", "finish")
+            local stop = verb("finish")
             if stop then
                 stop(1)
             end
             return
         end
 
-        local record = verb("t", "expect")
+        local record = verb("expect")
         for i = 1, #PLAN do
             local entry = PLAN[i]
             if entry.stage then
@@ -1647,12 +1647,12 @@ return {
         -- t.finish(0) itself, so one call ends the run, proves both verbs,
         -- and still leaves the exit=0 SUMMARY that t.finish's row is graded
         -- against.  A driver without t.blocked finishes the old way.
-        local blocked = verb("t", "blocked")
+        local blocked = verb("blocked")
         if blocked then
             blocked("t.blocked is this harness's own terminator -- the row it wrote and "
                 .. "SUMMARY's blocked= bucket are what its conformance row is graded on")
         else
-            local stop = verb("t", "finish")
+            local stop = verb("finish")
             if stop then
                 stop(0)
             end

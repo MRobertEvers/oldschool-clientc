@@ -369,7 +369,7 @@ end
 -- is matched case-insensitively against the scroll's own Titlecase line
 -- ("Cooking XP", "Woodcutting XP", ...) by comparing the matched WORD
 -- lower-cased, not by building a pattern out of the caller's string, so a
--- caller passing t.skill's own lower-case key ("cooking") never has to spell
+-- caller passing t.skill.read's own lower-case key ("cooking") never has to spell
 -- the scroll's capitalisation and a skill name can never be read as a
 -- pattern by accident. The xp-vs-xp*10 unit ambiguity (the client's own xp
 -- field vs the server's xp*10 "tenths", cooks_assistant.lua ~227-236) is left

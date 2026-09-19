@@ -9,7 +9,7 @@ guessed at:
   the world (`run.py`'s own module docstring already names this exact trap:
   "a fixture that is not physically copied in means a fresh character stuck
   on the Character Creator modal, which reads exactly like a broken verb").
-  Captured through the ordinary driver `t.t.shot` path, so it is a real PNG
+  Captured through the ordinary driver `t.shot` path, so it is a real PNG
   in the same format `gate.py` reads from every quest's `shots/*.png`.
 
 - `pre_login.json` -- a VALID fixture (login would eventually succeed), but
@@ -17,7 +17,7 @@ guessed at:
   server round trip completes. The frame itself comes from
   `TORIRS_PRESENT_BMP_FRAME=2` (`platform_sdl2.c`), which dumps the
   SDL-presented frame after 2 real render presents -- independent of login
-  or plugin state entirely, so there is no `t.t.shot` to ask for (the killed
+  or plugin state entirely, so there is no `t.shot` to ask for (the killed
   process never reached `run(t)`). It lands on the client's own "Checking
   for updates - 0%" loading screen.
 

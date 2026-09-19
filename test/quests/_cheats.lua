@@ -47,7 +47,7 @@
 --
 -- Every read below is made through the CLIENT, and a cheat dispatched against
 -- the embedded server reaches the client only after the packet round-trips
--- through a frame or two. So each cheat is followed by `t.t.ticks(n)` or a
+-- through a frame or two. So each cheat is followed by `t.ticks(n)` or a
 -- bounded `t.await`, never by an immediate read -- the same reason
 -- cooks_assistant.lua awaits its varp instead of sleeping a fixed count.
 
@@ -75,11 +75,11 @@ return {
     run = function(t)
         local failures = 0
 
-        -- Record a row and keep score. `t.t.step` writes the ledger row; this
+        -- Record a row and keep score. `t.step` writes the ledger row; this
         -- only adds the exit code, so a red run exits non-zero and
         -- `make test-quest-cheats` is red with it.
         local function record(name, passed, detail)
-            t.t.step(name, passed and "PASS" or "FAIL", detail)
+            t.step(name, passed and "PASS" or "FAIL", detail)
             if not passed then
                 failures = failures + 1
             end
@@ -89,9 +89,9 @@ return {
         -- keeps arriving for a few ticks after login, and a cheat dispatched
         -- into the middle of it is answered correctly but read back against a
         -- client that is still catching up. Settle first, once.
-        t.t.settle()
-        t.t.ticks(3)
-        t.t.shot("cheats-start")
+        t.settle()
+        t.ticks(3)
+        t.shot("cheats-start")
 
         -- ------------------------------------------------ nothing understood it
         -- First, because it touches nothing: `::nosuchcheat` is neither a
@@ -99,7 +99,7 @@ return {
         -- through and must answer NONE -> `no_row`. If this ever answers `ok`
         -- the ladder has grown a branch that matches on shape (the three bare
         -- `sscanf` fallbacks at its end are exactly that hazard).
-        local unknown_result, unknown_detail = t.t.cheat("::nosuchcheat")
+        local unknown_result, unknown_detail = t.cheat("::nosuchcheat")
         record("cheats.unknown", unknown_result == "no_row",
             "::nosuchcheat -> " .. tostring(unknown_result)
                 .. " (" .. tostring(unknown_detail) .. "), want no_row")
@@ -108,8 +108,8 @@ return {
         -- The delta, not the absolute count: a fixture is allowed to carry
         -- eggs, and this row is about what the CHEAT did.
         local before_result, before_count = t.inv.count("egg")
-        local give_result = t.t.cheat("::give egg")
-        t.t.ticks(3)
+        local give_result = t.cheat("::give egg")
+        t.ticks(3)
         local after_result, after_count = t.inv.count("egg")
         local gained = nil
         if before_result == "ok" and after_result == "ok" then
@@ -126,9 +126,9 @@ return {
         -- 40 rather than a small number so it cannot be mistaken for a level
         -- the fixture already carries, and cooking because that is the stat
         -- the first real quest in this suite sets.
-        local setlevel_result = t.t.cheat("::setlevel cooking 40")
-        t.t.ticks(3)
-        local cook_result, cooking = t.skill("cooking")
+        local setlevel_result = t.cheat("::setlevel cooking 40")
+        t.ticks(3)
+        local cook_result, cooking = t.skill.read("cooking")
         record("cheats.setlevel",
             setlevel_result == "ok" and cook_result == "ok" and cooking.level == 40,
             "::setlevel cooking 40 -> " .. tostring(setlevel_result)
@@ -141,8 +141,8 @@ return {
         -- boost, so the level must still be 40 after the world has ticked on.
         -- A boost would have started draining by now; this is the difference
         -- between a stat a quest can rely on and one that expires mid-test.
-        t.t.ticks(10)
-        local kept_result, kept = t.skill("cooking")
+        t.ticks(10)
+        local kept_result, kept = t.skill.read("cooking")
         record("cheats.setlevel_permanent",
             kept_result == "ok" and kept.level == 40 and kept.base_level == 40,
             "ten ticks later: " .. tostring(kept_result)
@@ -154,8 +154,8 @@ return {
         -- `^cook_started`, never `1`: the stage numbering belongs to
         -- quest_cook.constant, and a test that spells the number is pinning
         -- today's value of somebody else's variable.
-        local setvar_result = t.t.cheat("::setvar cookquest ^cook_started")
-        t.t.ticks(3)
+        local setvar_result = t.cheat("::setvar cookquest ^cook_started")
+        t.ticks(3)
         local server_result, server_value = t.var.server("cookquest")
         local client_result, client_value = t.var.varp("cookquest")
         record("cheats.setvar",
@@ -168,7 +168,7 @@ return {
         -- A name nothing declares must be refused, not written somewhere
         -- arbitrary. This is the half of `::setvar` a quest suite depends on
         -- most: a misspelled variable in a 179-quest suite has to be loud.
-        local badvar_result, badvar_detail = t.t.cheat("::setvar no_such_variable_here 1")
+        local badvar_result, badvar_detail = t.cheat("::setvar no_such_variable_here 1")
         record("cheats.setvar_unknown_name", badvar_result == "refused",
             "::setvar no_such_variable_here 1 -> " .. tostring(badvar_result)
                 .. " (" .. tostring(badvar_detail) .. "), want refused")
@@ -179,7 +179,7 @@ return {
         -- two rows after this cannot separate him from the spawn, and the
         -- detail is what says so to whoever reads a red one.
         local prior_man = t.npc.nearest("man", SPAWN_RADIUS)
-        local spawn_result = t.t.cheat("::spawn man")
+        local spawn_result = t.cheat("::spawn man")
         local present_result, present_detail = t.await({
             level = function()
                 return t.npc.nearest("man", SPAWN_RADIUS) == "ok"
@@ -200,7 +200,7 @@ return {
         -- every quest boss's varp advance hangs on. An npc that vanished
         -- without reaching it would prove nothing a quest wants to know, which
         -- is why this waits for the pool to empty rather than for a chat line.
-        local kill_result = t.t.cheat("::kill man")
+        local kill_result = t.cheat("::kill man")
         local gone_result, gone_detail = t.await({
             level = function()
                 return t.npc.nearest("man", SPAWN_RADIUS) ~= "ok"
@@ -241,7 +241,7 @@ return {
         -- A name no npc carries must be refused rather than killing whatever
         -- happens to be nearest -- the failure mode that would make `::kill`
         -- unusable in a test is it quietly killing the wrong thing.
-        local badkill_result, badkill_detail = t.t.cheat("::kill no_such_npc_here")
+        local badkill_result, badkill_detail = t.cheat("::kill no_such_npc_here")
         record("cheats.kill_unknown_name", badkill_result == "refused",
             "::kill no_such_npc_here -> " .. tostring(badkill_result)
                 .. " (" .. tostring(badkill_detail) .. "), want refused")
@@ -254,7 +254,7 @@ return {
         -- the dispatch was broken by the split rather than a branch being
         -- missing.
         local tile_result, before_tile = t.world.tile()
-        local tele_result = t.t.cheat("::tele varrock")
+        local tele_result = t.cheat("::tele varrock")
         local moved_result, moved_detail = t.await({
             level = function()
                 local result, tile = t.world.tile()
@@ -271,9 +271,9 @@ return {
                 .. " -> " .. tostring(after_tile_result == "ok" and (after_tile.x .. "," .. after_tile.z) or after_tile_result)
                 .. " (" .. tostring(moved_result) .. "/" .. tostring(moved_detail) .. ")")
 
-        t.t.ticks(3)
-        t.t.shot("cheats-teleported")
+        t.ticks(3)
+        t.shot("cheats-teleported")
 
-        t.t.finish(failures > 0 and 1 or 0)
+        t.finish(failures > 0 and 1 or 0)
     end,
 }

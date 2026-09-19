@@ -591,7 +591,7 @@ function QD.player.teleport(name)
             "player.teleport " .. tostring(name) .. ": no player tile to compare against"
     end
 
-    local cheat_result, cheat_detail = QD.t.cheat("::tele " .. tostring(name))
+    local cheat_result, cheat_detail = QD.cheat("::tele " .. tostring(name))
     if cheat_result ~= "ok" then
         return cheat_result, "player.teleport " .. tostring(name) .. ": ::tele answered "
             .. tostring(cheat_result)
@@ -938,7 +938,7 @@ function QD.player.inv_op(item, op)
     -- on.  A verb that returns before its own effect has landed hands that
     -- effect to the NEXT verb's assertion, which is how a following equip
     -- came to report this drop as its own success.
-    QD.t.settle()
+    QD.settle()
     QD.player._inv_quiet(item)
     local count_result, after = QD.inv.count(item)
     return settle_result, where .. " -> " .. tostring(count_result == "ok" and after or count_result)

@@ -30,7 +30,7 @@ Landed and verified by driving the client (2026-09-19, phases 1 and 2 of
   `make -C src test-quest-cheats`. A setup cheat that answers `no_row` ends
   the run with a `setup.<cheat>` FAIL row rather than testing a world nobody
   stated.
-- **The verb kit a generated test is written in.** `t["do"]`, `t.check`,
+- **The verb kit a generated test is written in.** `t.exec`, `t.check`,
   `t.blocked` (the `BLOCKED` ledger verdict and its own SUMMARY bucket),
   `quest.bind/stage/expect_stage/expect_complete`, `chat.play`,
   `scroll.reward_xp`, the `await_*` family, `player.teleport`, and
@@ -55,7 +55,7 @@ phase existed to remove.
 What phase 3 added: `tools/quest_gate/new_quest.py` (a skeleton per Quest
 Helper guide -- 179 of 181 guides generate, 0 errors),
 `tools/quest_gate/lint_quest.py` (six refusals: numeric ids, `::complete`
-of your own row, `"PASS"` literals, `-- CHECK` markers, duplicate `t["do"]`
+of your own row, `"PASS"` literals, `-- CHECK` markers, duplicate `t.exec`
 names, symbols absent from the compack), `gate.py`'s minimum shape plus a
 pixel fingerprint against the Character-Creator/pre-login frames, `run.py`'s
 failure block and `TIMEOUT.png`, `test/quests/QUEUE.tsv` (188 rows: 179
@@ -69,10 +69,10 @@ phase-2 verb kit with no local helper functions.
   (`03-npc.png` is an options menu, `16-npc.png` is a player page). Every
   quest's evidence inherits it, so it should be fixed before the Haiku loop
   multiplies it by 179.
-- **A verb that answers `(ok, nil)` can never go through `t["do"]`.** The
+- **A verb that answers `(ok, nil)` can never go through `t.exec`.** The
   hollow rule grades it FAIL. `chat.play`, `chat.continue_`, `t.cheat`,
   `inv.await_all` and `inv.expect_absent` are all in this class -- and
-  `QUEST_SUITE_KIT.md`'s own headline example pairs `t["do"]` with
+  `QUEST_SUITE_KIT.md`'s own headline example pairs `t.exec` with
   `chat.play`, which was measured live this pass writing
   `FAIL ... hollow -- ok with no detail` on a run whose six chat pages all
   matched. Either those verbs return a detail, or the rule gets a

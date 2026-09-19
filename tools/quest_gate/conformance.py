@@ -204,7 +204,7 @@ def script_error(rows):
     return None
 
 
-def score(order, collected, summary, exit_code):
+def score(order, collected, terminal_blocked, summary, exit_code):
     """One result line per verb, in the harness's own plan order, re-graded
     against the evidence a Lua coroutine cannot see."""
     results = []
@@ -220,7 +220,7 @@ def score(order, collected, summary, exit_code):
             verdict = "FAIL"
             detail = "t.note did not fold %s into the next row's detail -- %s" % (
                 NOTE_PROBE, detail)
-        if name == "t.blocked" and verdict != "ERROR":
+        if name == "blocked" and verdict != "ERROR":
             # t.blocked ends the run (it calls t.finish(0) itself), so the
             # harness claims the row and makes the call after its loop -- the
             # same shape t.finish's row has.  What it claims is checkable from
@@ -228,17 +228,25 @@ def score(order, collected, summary, exit_code):
             # fixed name, with the verdict the phase-1 ledger writer reserves
             # for it, and a SUMMARY that counted it in the blocked bucket
             # instead of as a failure.
-            written = collected.get("blocked")
+            #
+            # The verb's own conformance row is ALSO named `blocked` now that
+            # the controls live on the root of `t` (there is no `t.t` to name
+            # it after any more), so `collected` -- first row per name wins --
+            # holds the harness's claim, not the evidence.  The evidence is
+            # the row t.blocked itself wrote: the one row named `blocked`
+            # whose verdict really is BLOCKED, tracked separately as the
+            # attempts run.
+            written = terminal_blocked
             # The whole SUMMARY line: `exit=` is its own column and the
             # counts (`pass=N fail=M blocked=K`) are the one after it, so
             # reading a single field would look for the bucket in the wrong
             # place -- which it did, on the run that landed this.
             bucket = "\t".join(summary) if summary else ""
-            if written is None or written[0] != "BLOCKED" or "blocked=" not in bucket:
+            if written is None or "blocked=" not in bucket:
                 verdict = "FAIL"
                 detail = ("t.blocked left no BLOCKED row behind it (row=%s, summary=%s)"
-                          % ("none" if written is None else written[0], bucket or "none"))
-        if name == "t.finish" and verdict != "ERROR":
+                          % ("none" if written is None else written[2], bucket or "none"))
+        if name == "finish" and verdict != "ERROR":
             clean = summary is not None and "exit=0" in summary[4] and exit_code == 0
             if not clean:
                 verdict = "FAIL"
@@ -295,6 +303,7 @@ def main():
 
     order = verb_list.verbs_from_harness()
     collected = {}          # verb -> (verdict, detail)
+    terminal_blocked = None  # the row t.blocked itself wrote, verdict BLOCKED
     skips = set()
     summary = None
     exit_code = 1
@@ -313,6 +322,8 @@ def main():
         for row in rows:
             if row[1] in ("script-error", "conformance-plan"):
                 continue
+            if row[1] == "blocked" and row[2] == "BLOCKED":
+                terminal_blocked = row
             collected.setdefault(row[1], (row[2], row[5]))
 
         if not rows:
@@ -339,7 +350,7 @@ def main():
     else:
         print("conformance: gave up after %d attempts" % MAX_ATTEMPTS, file=sys.stderr)
 
-    results, unreached = score(order, collected, summary, exit_code)
+    results, unreached = score(order, collected, terminal_blocked, summary, exit_code)
 
     width = max(len(name) for name in order)
     print("")

@@ -30,7 +30,7 @@
 -- author already knows for the content under test. Flagged in the BUILDER
 -- report for the Final agent / design doc to settle.
 function QD.ui.open(interface, cheat_text)
-    local result, detail = QD.t.cheat(cheat_text)
+    local result, detail = QD.cheat(cheat_text)
     if result == "no_row" or result == "refused" then
         return result, detail
     end
@@ -197,7 +197,7 @@ end
 
 -- One raw press-then-release call each, mirroring content_test.c's own
 -- "key " cheat (down + release, no held state a quest test would ever want).
-function QD.t.key(name)
+function QD.key(name)
     local result, detail = api_drive.key(name, true)
     if result ~= "ok" then
         return result, detail
@@ -205,7 +205,7 @@ function QD.t.key(name)
     return api_drive.key(name, false)
 end
 
-function QD.t.text(str)
+function QD.text(str)
     return api_drive.text(str)
 end
 
@@ -215,7 +215,7 @@ end
 -- "refused" if the request itself was refused (no session dir, or the
 -- renderer declined). QD.core_next_shot both numbers the capture and folds
 -- it into the next ledger row.
-function QD.t.shot(name)
+function QD.shot(name)
     local numbered = QD.core_next_shot(name)
     local last_result, last_detail = api_drive.shot(numbered)
     if last_result ~= "timeout" then
@@ -417,7 +417,7 @@ function QD.ui._journal_open_list()
     -- going to land. Two presses are safe: `~journal_show` re-opens the same
     -- sub, and the second press is what the old code was accidentally
     -- relying on.
-    QD.t.ticks(4)
+    QD.ticks(4)
     local pressed, press_detail = QD.ui._journal_press_quest_list()
     if pressed ~= "ok" then
         return pressed, press_detail

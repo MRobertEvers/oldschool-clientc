@@ -14,7 +14,7 @@ end (gate.py's PNG reader is the ONLY reader it needs at runtime).
    all for the login name used. A fresh account boots into the Character
    Creator modal instead of the world (confirmed visually, 2026-09-19: the
    captured shot IS the "Character Creator" panel, not a plain login race).
-   Captured through the ordinary t.t.shot path, so it is a real PNG, exactly
+   Captured through the ordinary t.shot path, so it is a real PNG, exactly
    like every quest shot gate.py ever reads.
 
 2. Pre-login: TORIRS_PRESENT_BMP dumps the SDL-presented frame once, after a
@@ -23,7 +23,7 @@ end (gate.py's PNG reader is the ONLY reader it needs at runtime).
    own "Checking for updates - 0%" loading screen, well before any server
    round trip. The process is then SIGKILLed (this is the "killed before
    login" case) -- it was never going to reach `run(t)` at all, so there is
-   no t.t.shot to ask for one. That frame is a BMP (present_bmp's own
+   no t.shot to ask for one. That frame is a BMP (present_bmp's own
    format, not the driver's PNG writer), decoded once, here, by this
    script's own small BMP reader -- gate.py itself never reads a BMP.
 
@@ -56,9 +56,9 @@ def _write_boot_script(path):
         handle.write(
             "return {\n"
             "    run = function(t)\n"
-            "        t.t.ticks(60)\n"
-            "        t.t.shot(\"boot\")\n"
-            "        t.t.finish(0)\n"
+            "        t.ticks(60)\n"
+            "        t.shot(\"boot\")\n"
+            "        t.finish(0)\n"
             "    end,\n"
             "}\n"
         )
@@ -100,7 +100,7 @@ def capture_pre_login(manifest_path):
     run_mod.write_session_fixture("fresh_lumbridge.ini", saves, "_fp_prelogin")
     script_path = os.path.join(directory, "boot.lua")
     with open(script_path, "w", encoding="utf-8") as handle:
-        handle.write("return { run = function(t) t.t.ticks(200) t.t.finish(0) end }\n")
+        handle.write("return { run = function(t) t.ticks(200) t.finish(0) end }\n")
     bmp_path = os.path.join(directory, "prelogin.bmp")
     environment = run_mod.client_env(directory, saves, script_path)
     environment["TORIRS_PRESENT_BMP"] = bmp_path

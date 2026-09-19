@@ -97,7 +97,7 @@ revconfig role + any C reader in `torirs_plugin_drive_ui.c`. Closer:
 
 | Verb | Owner | Spec |
 | --- | --- | --- |
-| `t.do(name, verb, ...)` -> verb's own returns | 2a | Calls `verb(...)`; if `verb` is not a function or the first arg is a nil target, writes FAIL `name` with detail `bad verb/target`. Writes the ledger row `name` PASS iff result=="ok" (hollow rule: an `ok` whose detail is nil where the verb documents one is graded `hollow` and FAIL). Takes screenshot `name` after the call; on non-ok also `name-FAIL`. A repeated `name` in one run appends `-2`, `-3`. |
+| `t.exec(name, verb, ...)` -> verb's own returns | 2a | Calls `verb(...)`; if `verb` is not a function or the first arg is a nil target, writes FAIL `name` with detail `bad verb/target`. Writes the ledger row `name` PASS iff result=="ok" (hollow rule: an `ok` whose detail is nil where the verb documents one is graded `hollow` and FAIL). Takes screenshot `name` after the call; on non-ok also `name-FAIL`. A repeated `name` in one run appends `-2`, `-3`. |
 | `t.check(name, condition_or_result, detail)` | 2a | Assertion that is not a verb; PASS if `true` or `"ok"`. Same screenshot rule. |
 | `t.blocked(reason)` | 2a | Writes verdict `BLOCKED` row `blocked` with the reason, screenshots `blocked`, then `t.finish(0)`. |
 | `t.cheat` awaits its reply | 2a | After dispatch, `msg.await` any new chat line for <=5 ticks (every ladder branch and debugproc prints one) so effects are visible before the next read. Result unchanged. |
@@ -108,12 +108,12 @@ revconfig role + any C reader in `torirs_plugin_drive_ui.c`. Closer:
 | `npc.await_present(sym, radius, ticks)`, `npc.await_gone(...)` | 2c | Over `t.await` + `npc.nearest`. |
 | `var.await_server(name, value, ticks)` | 2c | Like `var.await` on `var.server`. |
 | `inv.await_all({sym=count,...}, ticks)` | 2c | One await; detail lists what is short. |
-| `skill.snapshot()` -> table; `skill.expect_gain(name, xp, snapshot)` | 2c | Reads every stat once; accepts xp or xp*10, names the unit matched. `t.skill` stays a function; add `QD.skill_snapshot`/`QD.skill_expect_gain` exposed as `t.skill_snapshot`, `t.skill_expect_gain` (verb_list must see them). |
+| `skill.snapshot()` -> table; `skill.expect_gain(name, xp, snapshot)` | 2c | Reads every stat once; accepts xp or xp*10, names the unit matched. `t.skill` is a TABLE: `t.skill.read(name)` is the reading the old `t.skill(name)` gave, plus `QD.skill.snapshot`/`QD.skill.expect_gain` exposed as `t.skill.snapshot`, `t.skill.expect_gain` (verb_list must see all three). |
 | `player.teleport(name)` | 2d | `::tele <name>` then await `world.tile` to change (<=5 ticks). |
 | `player.talk_to` re-talk fix | 2d | `_settle_after_click` treats a chat page whose kind OR text differs from the pre-click page as a fresh mount. Prove: remove the `talk_to_and_settle` shim from `cooks_assistant.lua` and the quest stays green; then in a THROWAWAY worktree delete the `sub_mounted` stamp and `cooks_assistant.handin_talk` must time out. Report both results verbatim. |
 | `ui.journal_open()` -> (ok, {title, first_line}); `ui.journal_close()` | 2e | Open via the quest list row's op 2 for the bound quest (or the questjournal debugproc if one exists -- prefer the click). Needs revconfig roles for `questjournal:title` and `qj1`. Must be verified on the completed Cook's Assistant. |
 
-Hollow rule: every `t.do` row whose verb returned `ok` and a nil/empty detail
+Hollow rule: every `t.exec` row whose verb returned `ok` and a nil/empty detail
 where the verb's banner documents a detail is FAIL `hollow`.
 
 ## Phase 3 -- authoring kit (Python + docs; Sonnet, Opus review)
@@ -134,18 +134,18 @@ new `lint_quest.py`; 3b new `new_quest.py` (extends
   it as `TIMEOUT.png`.
 - `gate.py` minimum shape: >=8 rows; >=1 `quest.expect_stage` or `quest.*`
   row; `quest.varp_complete` present OR (tier 4) a trailing BLOCKED row; >=4
-  distinct PNGs; one PNG per `t.do` row (rows whose `shots` column is empty
+  distinct PNGs; one PNG per `t.exec` row (rows whose `shots` column is empty
   and whose name is not `setup.*` fail); `run.py --all`/`gate.py` with zero
   discovered quests exit non-zero.
 - `lint_quest.py <file>`: refuses numeric ids where a symbol belongs
-  (`talk_to(123)`), `::complete <own row>` in setup, `t.t.step(..., "PASS"`
-  literals, `-- CHECK` markers, duplicate `t.do` names, symbols not in the
+  (`talk_to(123)`), `::complete <own row>` in setup, `t.step(..., "PASS"`
+  literals, `-- CHECK` markers, duplicate `t.exec` names, symbols not in the
   compack (`OSRS-Content/osrs239-content/configs/all.*.compack`).
 - `new_quest.py <helper_dir>`: see the plan's section 5 table. Emits
   `test/quests/<quest>.lua` with header (helper path, varp, constants table,
   tier from the inventory), `quest.bind{...}`, `setup` from requirements
   (`::give`, `::setlevel`, `::complete <prereq row>`, the quest's own reset
-  cheat), one `t.do` per linear step in Quest Helper order with the
+  cheat), one `t.exec` per linear step in Quest Helper order with the
   description as a comment and `-- CHECK` where guessed (op numbers, chat
   rows, routes), `quest.expect_stage` between `steps.put` boundaries,
   `::skipboss` stubs (as `t.blocked("skipboss not landed")` until phase 4)

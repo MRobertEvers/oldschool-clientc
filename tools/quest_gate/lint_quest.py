@@ -18,7 +18,7 @@ confusing failure three steps downstream of where the actual mistake is:
   * `::complete <the quest's own row>` inside `setup` -- a setup cheat that
     completes the very quest under test before `run(t)` gets to play it is
     not "state the world", it is "skip the test and still call it green".
-  * a hardcoded `"PASS"` literal as `t.t.step`'s own verdict argument -- as
+  * a hardcoded `"PASS"` literal as `t.step`'s own verdict argument -- as
     opposed to the `cond and "PASS" or "FAIL"` idiom every real row in this
     project uses -- which is a verdict nothing computed, catching a pinned
     "PASS" masking a bug this exact syntax would exist to catch.
@@ -26,7 +26,7 @@ confusing failure three steps downstream of where the actual mistake is:
     rows, routes an author has not confirmed against a live run yet). A
     generated file legitimately carries these until a human clears them, so
     `--allow-check` turns this one rule off without touching the rest.
-  * a duplicate literal `t.do` step name written twice in straight-line
+  * a duplicate literal `t.exec` step name written twice in straight-line
     source (the runtime's own `-2`/`-3` suffixing, core.lua's
     unique_step_name, exists for a name that legitimately recurs at runtime,
     e.g. inside a loop where the name itself is an expression -- this rule
@@ -36,12 +36,11 @@ confusing failure three steps downstream of where the actual mistake is:
     npc/obj/loc/varp/varbit name that would otherwise only surface as
     `not_found` deep into a real client run.
 
-t.do is `t["do"]` in real Lua source (see core.lua's own banner on
-QD.t["do"]: `do` is a reserved word, so `t.do(...)` and even a bare `t.do`
-are syntax errors in this project's vendored Lua -- verified there, not
-assumed) -- every regex below that means the t.do verb matches the bracket
-form, never the dotted one, because the dotted one cannot appear in a file
-that parses at all.
+The test's own controls sit on the ROOT of `t` -- `t.exec`, `t.step`,
+`t.check`, `t.cheat` -- so every regex below spells one prefix, not two. The
+wrapper verb was once named after the Lua reserved word `do` and had to be
+written as a string index at every call site; `exec` is an ordinary Name and
+that shape is gone from this tree.
 
 Symbol coverage is deliberately a named, closed list of call sites whose
 first argument (or, for `player.by_symbol`, second) IS a content symbol by
@@ -105,7 +104,7 @@ CALL_PACKS = {
 
 # Matches a known call name immediately followed by either `(` (a direct
 # call, `t.player.talk_to("cook")`) or `,` (the same name passed BY VALUE as
-# t.do's verb argument, `t["do"]("name", t.player.talk_to, "cook")` -- in
+# t.exec's verb argument, `t.exec("name", t.player.talk_to, "cook")` -- in
 # both shapes the very next token is the symbol argument this lints).
 _CALLNAMES = sorted(CALL_PACKS, key=len, reverse=True)
 SYMBOL_CALL_RE = re.compile(
@@ -116,8 +115,8 @@ BY_SYMBOL_RE = re.compile(
     r't\.player\.by_symbol\s*[,(]\s*"(npc|loc|obj)"\s*,\s*([^,()]*?)\s*(?=[,)])'
 )
 
-T_DO_OPEN_RE = re.compile(r't\s*\[\s*["\']do["\']\s*\]\s*\(')
-T_STEP_OPEN_RE = re.compile(r'\bt\.t\.step\s*\(')
+T_EXEC_OPEN_RE = re.compile(r'(?<![\w.])t\s*\.\s*exec\s*\(')
+T_STEP_OPEN_RE = re.compile(r'(?<![\w.])t\s*\.\s*step\s*\(')
 QUEST_BIND_OPEN_RE = re.compile(r't\.quest\.bind\s*([{(])')
 SETUP_OPEN_RE = re.compile(r'\bsetup\s*=\s*(\{)')
 CHECK_MARKER_RE = re.compile(r'--\s*CHECK\b')
@@ -161,7 +160,7 @@ def _extract_balanced(text, open_idx):
 
 def _split_top_level(args_text):
     """Top-level comma split, blind to commas inside nested brackets or
-    string literals -- `t.t.step("x", (a and "PASS" or "FAIL"), y)` must
+    string literals -- `t.step("x", (a and "PASS" or "FAIL"), y)` must
     stay three arguments, not five."""
     parts = []
     depth = 0
@@ -324,7 +323,7 @@ def check_step_pass_literal(text):
             kind, _ = _literal_kind(args[1])
             if kind == "string" and args[1].strip().strip("'\"") == "PASS":
                 findings.append((_line_of(text, match.start()),
-                                  "t.t.step(...)'s verdict argument is a bare \"PASS\" "
+                                  "t.step(...)'s verdict argument is a bare \"PASS\" "
                                   "literal -- nothing computed it, so nothing can fail "
                                   "it either"))
     return findings
@@ -339,10 +338,10 @@ def check_marker(text):
     return findings
 
 
-def check_duplicate_t_do_names(text):
+def check_duplicate_exec_names(text):
     findings = []
     seen = {}
-    for match in T_DO_OPEN_RE.finditer(text):
+    for match in T_EXEC_OPEN_RE.finditer(text):
         open_idx = match.end() - 1
         inner, _ = _extract_balanced(text, open_idx)
         args = _split_top_level(inner)
@@ -353,7 +352,7 @@ def check_duplicate_t_do_names(text):
             continue
         line = _line_of(text, match.start())
         if value in seen:
-            findings.append((line, "t[\"do\"](\"%s\", ...) duplicates the literal name "
+            findings.append((line, "t.exec(\"%s\", ...) duplicates the literal name "
                                     "already used at line %d -- a straight-line copy/"
                                     "paste, not core.lua's own -2/-3 runtime suffix "
                                     "(that is for a NAME COMPUTED IN A LOOP, not two "
@@ -368,7 +367,7 @@ def lint_text(text, allow_check=False, packs=None):
     findings.extend(check_numeric_ids_and_symbols(text, packs))
     findings.extend(check_complete_own_row(text))
     findings.extend(check_step_pass_literal(text))
-    findings.extend(check_duplicate_t_do_names(text))
+    findings.extend(check_duplicate_exec_names(text))
     if not allow_check:
         findings.extend(check_marker(text))
     findings.sort(key=lambda item: item[0])

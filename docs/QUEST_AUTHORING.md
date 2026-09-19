@@ -31,14 +31,14 @@ return {
             display = "Cook's Assistant",
             points = 1,
         })
-        t.t.expect("cook.reset", t.quest.expect_stage("not_started"))
+        t.expect("cook.reset", t.quest.expect_stage("not_started"))
 
-        -- t["do"](name, verb, ...) calls verb(...), writes the row `name`
+        -- t.exec(name, verb, ...) calls verb(...), writes the row `name`
         -- from the verb's own (result, detail), and SHOOTS it. A plain
         -- t.expect row does not: photograph the clicks, not the reads.
-        t.t["do"]("cook.greet", t.player.talk_to, "cook")
+        t.exec("cook.greet", t.player.talk_to, "cook")
 
-        -- chat.play answers (ok, nil), so t["do"] would grade it hollow
+        -- chat.play answers (ok, nil), so t.exec would grade it hollow
         -- (trap 12): call it directly and write the detail yourself.
         local played, played_detail = t.chat.play({
             "npc:What am I to do",
@@ -48,12 +48,12 @@ return {
             "npc:forgotten to buy",
             "choose:Yes, I'll help you.",
         })
-        t.t.check("cook.accept", played, played_detail or "six pages, accepted")
-        t.t.expect("cook.started", t.quest.expect_stage("started"))
+        t.check("cook.accept", played, played_detail or "six pages, accepted")
+        t.expect("cook.started", t.quest.expect_stage("started"))
 
         -- ... gather, talk to the Cook a SECOND time, dismiss the mesbox ...
         t.quest.expect_complete()   -- four rows, and it closes the scroll
-        t.t.finish(0)
+        t.finish(0)
     end,
 }
 ```
@@ -70,19 +70,20 @@ One line per verb, `t.<call>` as a quest file spells it, grouped by
 namespace. `(result, detail)` unless noted. Full banners: the `.lua` file
 named in brackets.
 
-### `t` -- the scheduler (`core.lua`, `ui.lua`)
+### the root of `t` -- the test's own controls, on the root table itself, with no second `t` inside it (`core.lua`, `ui.lua`)
 
-- `t.t.cheat(text, wait_for_reply=true)` -> `ok` `refused` `no_row`. Reaches content debugprocs then the server ladder (`::give ::setlevel ::setvar ::kill ::spawn ::tele`). Awaits any new chat line (<=5 ticks) unless `wait_for_reply=false`.
-- `t.t.ticks(n)` -> `ok` `timeout`. Advances the clock exactly `n` SERVER ticks.
-- `t.t.settle()` -> `ok` `timeout`. Waits for `api.drive.settled()`.
-- `t.t.finish(code)`. Writes SUMMARY, ends the process. Does not stop the Lua script -- `return` right after it.
-- `t.t.step(name, verdict, detail)` -> `(bool, detail)`. Manual ledger row; you already know the verdict.
-- `t.t.expect(name, result, detail)` -> the pair unchanged. PASS iff `result == "ok"`.
-- `t.t.check(name, condition_or_result, detail)` -> the pair unchanged. PASS iff `true` or `"ok"`; takes its own shot(s).
-- `t.t["do"](name, verb, ...)` -> the wrapped verb's own `(result, detail)`. FAIL `hollow` if `ok` with a nil detail; FAIL `bad verb/target` if `verb` is not a function or the first arg is nil. Auto-shoots.
-- `t.t.blocked(reason)`. Writes `BLOCKED`, shoots, calls `t.t.finish(0)`. `return` right after it.
-- `t.t.key(name)` -> `ok`/press-release error; `t.t.text(str)` -> `ok`/error.
-- `t.t.shot(name)` -> `ok` (path) `refused` `timeout`. `t["do"]`/`t.check` call this for you; call it yourself only for a bare narrative shot.
+- `t.cheat(text, wait_for_reply=true)` -> `ok` `refused` `no_row`. Reaches content debugprocs then the server ladder (`::give ::setlevel ::setvar ::kill ::spawn ::tele`). Awaits any new chat line (<=5 ticks) unless `wait_for_reply=false`.
+- `t.ticks(n)` -> `ok` `timeout`. Advances the clock exactly `n` SERVER ticks.
+- `t.settle()` -> `ok` `timeout`. Waits for `api.drive.settled()`.
+- `t.finish(code)`. Writes SUMMARY, ends the process. Does not stop the Lua script -- `return` right after it.
+- `t.step(name, verdict, detail)` -> `(bool, detail)`. Manual ledger row; you already know the verdict.
+- `t.expect(name, result, detail)` -> the pair unchanged. PASS iff `result == "ok"`.
+- `t.check(name, condition_or_result, detail)` -> the pair unchanged. PASS iff `true` or `"ok"`; takes its own shot(s).
+- `t.exec(name, verb, ...)` -> the wrapped verb's own `(result, detail)`. FAIL `hollow` if `ok` with a nil detail; FAIL `bad verb/target` if `verb` is not a function or the first arg is nil. Auto-shoots.
+- `t.blocked(reason)`. Writes `BLOCKED`, shoots, calls `t.finish(0)`. `return` right after it.
+- `t.key(name)` -> `ok`/press-release error; `t.text(str)` -> `ok`/error.
+- `t.shot(name)` -> `ok` (path) `refused` `timeout`. `t.exec`/`t.check` call this for you; call it yourself only for a bare narrative shot.
+- `t.note(text)`. Free text folded into the NEXT row's detail -- why a verb answered as it did, without a row of its own.
 - `t.await({level=fn, event="server_tick"|"sub_mounted"|..., note=text}, ticks)` -> `ok` `timeout`. The await primitive every other verb is built on, for a settle no verb covers. `level` is polled; the deadline is SERVER ticks.
 
 ### `quest` (`quest.lua`)
@@ -125,9 +126,9 @@ named in brackets.
 - `t.inv.await(name, count, ticks=10)` -> `ok` `timeout`.
 - `t.inv.await_all({name=count,...}, ticks=10)` -> `ok` `timeout` (detail lists what is short).
 - `t.msg.last(n)` -> `(ok, list)`; `t.msg.expect(substring)` -> `ok` `refused`; `t.msg.await(substring, ticks=10)` -> `ok` `timeout`, only lines newer than the call.
-- `t.skill(name)` -> `(ok, reading)`. A function, not a table -- `t.skill("cooking")`, never `t.skill.cooking`.
-- `t.skill_snapshot()` -> `(ok, table)`, every stat read once.
-- `t.skill_expect_gain(name, xp, snapshot)` -> `ok` `refused` `no_row`. Accepts `xp` or `xp*10`, names the unit matched.
+- `t.skill.read(name)` -> `(ok, reading)`. `t.skill` is a TABLE of three reads -- `t.skill.read("cooking")`, never `t.skill("cooking")` and never `t.skill.cooking`.
+- `t.skill.snapshot()` -> `(ok, table)`, every stat read once.
+- `t.skill.expect_gain(name, xp, snapshot)` -> `ok` `refused` `no_row`. Accepts `xp` or `xp*10`, names the unit matched.
 
 ### `ui` / `npc` (`ui.lua`)
 
@@ -166,7 +167,7 @@ verdicts are `PASS`, `FAIL`, `BLOCKED`.
 
 ## 4. Twelve traps
 
-1. **Server ticks.** `t.t.ticks(n)`, every `ticks=` argument, every await
+1. **Server ticks.** `t.ticks(n)`, every `ticks=` argument, every await
    deadline: all SERVER ticks. One tick is 30 client cycles. `t.ticks(10)`
    is not "wait a bit", it is 200ms of client time for the world to answer
    one thing.
@@ -192,12 +193,12 @@ verdicts are `PASS`, `FAIL`, `BLOCKED`.
    anywhere in it are a red finding, even across unrelated steps. Do not
    shoot the same static page twice on purpose.
 
-5. **No `pcall` -- a guard that raises ends the whole run. `t["do"]` does
-   this for you.** A raw table handed to `t.t.step`/`t.t.expect` as
+5. **No `pcall` -- a guard that raises ends the whole run. `t.exec` does
+   this for you.** A raw table handed to `t.step`/`t.expect` as
    `detail` raises inside `api.drive.ledger` (no `pcall` catches it), and
-   the run dies at that row with everything after it unreached. `t["do"]`
+   the run dies at that row with everything after it unreached. `t.exec`
    stringifies any table detail automatically -- prefer it over hand-rolled
-   `t.t.step` calls for exactly this reason.
+   `t.step` calls for exactly this reason.
 
 6. **Fixture varps are perm-only.** A fixture's `[varps]` section may only
    carry `scope=perm` vars. A temp var belongs to the server, not the
@@ -232,10 +233,10 @@ verdicts are `PASS`, `FAIL`, `BLOCKED`.
     own pages colliding on MD5 is a driver report, not a knob to turn.
 
 12. **A verb that answers `ok` with no detail can never go through
-    `t["do"]`** -- the hollow rule grades that FAIL. Today: `t.chat.play`,
-    `t.chat.continue_`, `t.t.cheat`, `t.inv.await_all`,
+    `t.exec`** -- the hollow rule grades that FAIL. Today: `t.chat.play`,
+    `t.chat.continue_`, `t.cheat`, `t.inv.await_all`,
     `t.inv.expect_absent`. Call each directly and record it with
-    `t.t.check`/`t.t.step`, writing the detail yourself (the counts you
+    `t.check`/`t.step`, writing the detail yourself (the counts you
     read back, the pages you walked) -- an empty detail column is a row
     that proves nothing to whoever reads the ledger later.
 
@@ -284,15 +285,15 @@ file if this drifts. A quest is green when:
   `refused`/`timeout` quietly.
 - **Minimum shape**, gated on your file actually using the verb each rule
   is about (an older `t.step`/`t.expect`-only file is exempt from the
-  `quest.bind`/`t["do"]` rules below, but never from the row/shot counts):
+  `quest.bind`/`t.exec` rules below, but never from the row/shot counts):
   - at least 8 step rows and at least 4 PNGs;
   - if you call `quest.bind`: at least one `quest.*` row, and either a
     passing `quest.varp_complete` or the ledger's last row is `BLOCKED`
     (a tier-4 stub must end there, not fall through);
-  - every row YOU wrote with `t["do"]` or `t.t.check` carries a shot. The
+  - every row YOU wrote with `t.exec` or `t.check` carries a shot. The
     rule is per row and reads your source with the comments stripped
     (`gate.py`'s `shooting_row_names`), so naming the verb in a comment
-    switches nothing on, and a `t.t.expect`/`t.t.step` row -- which has
+    switches nothing on, and a `t.expect`/`t.step` row -- which has
     never shot anything -- is never asked for one.
 - A `BLOCKED` row with `fail==0` reports `blocked`, not `green`, and still
   exits non-zero unless the check is run with `--allow-blocked`.
