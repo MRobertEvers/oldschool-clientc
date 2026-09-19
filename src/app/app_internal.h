@@ -1606,6 +1606,20 @@ app_plugin_window_set_open(struct App* app, int open);
 int
 app_plugin_popout_nav_click(struct App* app, int32_t node);
 
+/**
+ * The owner token on the engine's launcher button on a lane's stone column.
+ * Its own, and not the nav column's, so the minimenu can tell the two engine
+ * buttons apart by owner alone and neither can answer the other's click.
+ * @see APP_PLUGIN_NAV_OWNER for why it is far above any plugin's identity.
+ */
+#define APP_PLUGIN_LAUNCHER_OWNER UINT64_C(0x746F72694C41554E)
+
+/** A click on the engine's lane launcher (`plugin_owner ==
+ *  APP_PLUGIN_LAUNCHER_OWNER`). @return 1 when `node` is it and the plugin
+ *  window was toggled. */
+int
+app_plugin_lane_launcher_click(struct App* app, int32_t node);
+
 int
 app_plugin_panel_overlay_visible(
     struct App const* app,

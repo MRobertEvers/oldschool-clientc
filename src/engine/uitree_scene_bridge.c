@@ -763,6 +763,64 @@ UITreeSceneBridge_ReadPluginImage(
     return pixels;
 }
 
+int
+UITreeSceneBridge_ReadSpriteFrame(
+    struct UITreeSceneBridge* bridge,
+    int scene_id,
+    int frame,
+    uint32_t* out,
+    int max,
+    int* out_w,
+    int* out_h)
+{
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite const* sprite;
+    int count = 0;
+    int pixels;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(out);
+    assert(out_w);
+    assert(out_h);
+
+    /* A widget's scene id and atlas index are live tree state, not a promise:
+     * a node mid-rebuild carries -1 and an atlas that shrank carries an index
+     * past its end. Both are "no picture", which is what the caller asked. */
+    if( scene_id <= 0 || frame < 0 )
+        return 0;
+    sprites = ToriDraw_SceneSpriteGet(bridge->scene, scene_id, &count);
+    if( !sprites || frame >= count )
+        return 0;
+    sprite = sprites[frame];
+    if( !sprite || !sprite->pixels_argb )
+        return 0;
+    pixels = sprite->width * sprite->height;
+    if( pixels <= 0 || pixels > max )
+        return 0;
+    memcpy(out, sprite->pixels_argb, (size_t)pixels * sizeof(uint32_t));
+    *out_w = sprite->width;
+    *out_h = sprite->height;
+    return pixels;
+}
+
+int
+UITreeSceneBridge_PublishLauncherButton(
+    struct UITreeSceneBridge* bridge,
+    int width,
+    int height,
+    uint32_t const* argb)
+{
+    assert(bridge);
+    assert(argb);
+    /* Composed by the engine at the anchor's size, which the caller has
+     * already bounded. */
+    assert(width > 0);
+    assert(height > 0);
+    bridge_publish_argb(bridge, UITREE_SCENE_PLUGIN_LAUNCHER_ID, width, height, argb);
+    return UITREE_SCENE_PLUGIN_LAUNCHER_ID;
+}
+
 void
 UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot)
 {

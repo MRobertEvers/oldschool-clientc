@@ -799,6 +799,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/torirs_chrome_panel_draw.c \
 	ui/torirs_chrome_rail.c \
 	ui/torirs_chrome_popout_nav.c \
+	ui/torirs_chrome_lane_launcher.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -3700,6 +3701,16 @@ test-chrome-popout-nav: $(OBJ_DIR)
 		ui/test/torirs_chrome_popout_nav_test.c \
 		ui/torirs_chrome_popout_nav.c ui/torirs_chrome_exec_kind.c
 	./$(OBJ_DIR)/chrome_popout_nav_test
+
+# The launcher the engine hangs off a lane's own stone: where it lands under a
+# column whose last stone moved, and the picture it composes out of that
+# stone.
+.PHONY: test-chrome-lane-launcher
+test-chrome-lane-launcher: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chrome_lane_launcher_test \
+		ui/test/torirs_chrome_lane_launcher_test.c \
+		ui/torirs_chrome_lane_launcher.c
+	./$(OBJ_DIR)/chrome_lane_launcher_test
 
 # The web panel channel: the wire codec, and a two-tab handshake driven through
 # the real torirs_channel.js with two fake windows. Node only -- no browser, no

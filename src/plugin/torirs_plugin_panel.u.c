@@ -129,6 +129,10 @@ app_plugin_rail_publish(struct App* app);
 static void
 app_plugin_popout_nav_tick(struct App* app);
 
+/* plugin/torirs_plugin_lane_launcher.u.c, included after this file. */
+static void
+app_plugin_lane_launcher_tick(struct App* app);
+
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
 static void
@@ -3259,6 +3263,11 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * column goes first, because whether it carries the destinations is what
      * the rail snapshot's `rail_hidden` reports. */
     app_plugin_popout_nav_tick(app);
+    /* And the launcher on the lane's own stone column, which is the way in on
+     * a root the column above is not on -- the mobile toplevel mounts the
+     * pop-out hidden. Neither stands the other down: only one root at a time
+     * names either of them. */
+    app_plugin_lane_launcher_tick(app);
     app_plugin_rail_publish(app);
     app_plugin_rail_drain(app);
     app_plugin_rail_publish(app);

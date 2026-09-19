@@ -2243,6 +2243,12 @@ app_minimenu_run_option(
                 (void)app_plugin_popout_nav_click(app, node);
                 return 0;
             }
+            /* And its launcher on a lane's stone column, by its own token. */
+            if( c->plugin_owner == APP_PLUGIN_LAUNCHER_OWNER )
+            {
+                (void)app_plugin_lane_launcher_click(app, node);
+                return 0;
+            }
             PluginHost_WidgetOperation(
                 app->plugins,
                 c->plugin_owner,
