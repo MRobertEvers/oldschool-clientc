@@ -263,6 +263,50 @@ App_LocalPlayerTiles(
     return true;
 }
 
+bool
+App_LocalPlayerIdle(struct App* app, bool* out_idle)
+{
+    struct WorldEntity_Player* player;
+
+    assert(app);
+    assert(out_idle);
+    player = app_local_player(app);
+    if( !player )
+        return false;
+    /* Both, because they can settle a tick apart (torirs_plugin_drive.h's
+     * DrivePointer_PlayerIdle banner): route_length reaches 0 the tick the
+     * player arrives, and the minimap flag is cleared by a separate write
+     * that is not guaranteed to land the same tick. */
+    *out_idle = player->pathing.route_length == 0 && app->minimap.flag_tile_x < 0;
+    return true;
+}
+
+/*
+ * content_test.c's own "camera %d %d %d" cheat (content_test.c:545-556)
+ * moved here so the quest driver's DrivePointer_Camera (verbs-pointer) can
+ * share the one validation instead of a second copy drifting from it.
+ * pitch outside [128,383] or zoom outside [-1000,10000] refuses with no
+ * state change -- see torirs_plugin_drive.h's DrivePointer_Camera banner.
+ *
+ * content_test.c is core-scheduler's file (docs/ARCHITECT.md); this group
+ * could not switch its "camera" cheat over to calling this without touching
+ * a file it does not own, so that follow-up is reported rather than done
+ * here (see the BUILDER report).
+ */
+bool
+App_SetCameraPose(struct App* app, int yaw, int pitch, int zoom)
+{
+    assert(app);
+    if( pitch < 128 || pitch > 383 || zoom < -1000 || zoom > 10000 )
+        return false;
+    app->orbit.yaw = app->world_camera.yaw = yaw & 2047;
+    app->orbit.pitch = app->world_camera.pitch = pitch;
+    app->world_cam_zoom = zoom;
+    app->orbit.yaw_velocity = app->orbit.pitch_velocity = 0;
+    app->need_redraw = 1;
+    return true;
+}
+
 void
 App_TraceWorldEntities(struct App* app)
 {

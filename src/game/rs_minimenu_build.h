@@ -16,6 +16,17 @@ struct World;
 struct World_PickSet;
 
 /*
+ * Bit 0 of an IF_SETEVENTS mask: the component accepts Continue (menu action
+ * 30 / RESUME_PAUSEBUTTON). It is what makes a dialogue's prompt live --
+ * @see add_component_rows in rs_minimenu_build.c, which makes the identical
+ * test per row via UIIfEventTable_Effective. Exported for
+ * App_RoleDeriveFallback's `dialog_continue` fact (src/app/app_role_derive.c),
+ * which asks the same question of the whole chat_modal_host subtree rather
+ * than one row a click already landed on.
+ */
+#define RS_MINIMENU_EVENT_CLICK 0x1
+
+/*
  * Minimenu population (reference buildMinimenu, v1 ui_click builders): walks
  * the UI hit stack under the click and turns component ops / inventory-slot
  * obj configs / social client codes into menu rows. Lives in game/ because it

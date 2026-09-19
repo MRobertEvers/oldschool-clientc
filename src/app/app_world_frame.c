@@ -39,12 +39,19 @@ App_WorldDrainEntityRemovedFor(
              * preserves an immutable NPC copy on that event. Prefer it over a
              * live lookup: the slot may be absent or may already belong to a
              * different NPC by the time this render-side drain runs. */
+            struct WorldEntity_NPC const* going = ev->removed_npc;
+            if( !going )
+                going = World_NpcGetByElementId(world, ev->element_id, NULL);
+            /* DRIVE_STAMP: npc_despawn -- a=npc slot b=npc_id. Unconditional,
+             * unlike the plugin-host snapshot below: -1 when the slot's npc
+             * identity could not be recovered, the render side having cleaned
+             * this up late -- the same case that snapshot's -1 sentinels
+             * cover. */
+            App_DriveEvent(
+                app, DRIVE_EVENT_NPC_DESPAWN, ev->element_id, going ? going->npc_id : -1, 0, 0);
             if( app->plugins )
             {
-                struct WorldEntity_NPC const* going = ev->removed_npc;
                 struct ToriRS_NpcSnapshot snap;
-                if( !going )
-                    going = World_NpcGetByElementId(world, ev->element_id, NULL);
                 if( going )
                     app_plugin_fill_npc_for_world(app, world, going, &snap);
                 else

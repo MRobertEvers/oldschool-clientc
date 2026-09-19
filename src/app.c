@@ -518,6 +518,10 @@ App_Init(
             app->plugins = PluginHost_New(&engine);
             app->plugin_prefs_path = PluginPrefs_Path();
             PluginRegistry_RegisterAll(app->plugins);
+            /* The test-only quest driver installs `api.drive` here, before any
+             * script compiles and only when ContentTest_Enabled(). A client a
+             * person is playing never reaches past the gate inside it. */
+            PluginDrive_Init(app);
         }
     }
     app->rebuild_zone_x = -1;
@@ -613,6 +617,10 @@ App_Init(
      * scripts fill, and they read every line back through the CHAT_GETHISTORY*
      * opcodes. This is what those read. */
     RS_CS2Host_SetChat(&app->host, &app->chat);
+    /* Every RS_Chat_AddMessage call -- clan chat and the logout line included,
+     * neither of which reaches App_NotifyChatMessage -- stamps chat_message
+     * onto the drive event ring through this. See RS_Chat_SetDriveApp. */
+    RS_Chat_SetDriveApp(&app->chat, app);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes

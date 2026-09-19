@@ -1,0 +1,426 @@
+-- quest-driver / chat: holding a conversation.
+-- Owner: verbs-chat (docs/ARCHITECT.md).
+--
+-- Every click here drives the RESUME seam (D1).  A chatmenu row is
+-- cc_create'd text with no cache op and no button type, so a real click
+-- builds RESUME_PAUSEBUTTON with action_index -1; a fabricated IF_BUTTON
+-- reaches a row the client would never have built.
+--
+-- Two calls in a row must not both submit: api.drive.pause_pending is checked
+-- BY COMPONENT ID before arming, because a player cannot double-submit and a
+-- test that can is a test that proves nothing.  Identity for chat.continue_'s
+-- click is resolved through api.drive.component -- the qualified
+-- "<iface>:<child>" content symbol -- never a numeric id.
+--
+-- chatmenu's title and rows are cc_create'd at runtime and have no
+-- content-pack symbol at all (chatbox_multi_init / chatbox_multi_addoption),
+-- so neither api.drive.component nor a plain content-symbol lookup can name
+-- one; only the dialog_options_title / dialog_options_row_N revconfig roles
+-- can (plan 5.5 said "zero new C" via api.widgets, but nothing exposes
+-- api.widgets to a part file other than core.lua -- only api.drive is
+-- captured as a chunk-local upvalue in quest_driver/core.lua's core_bind, and
+-- extending that is core-scheduler's file, not this pass's to touch -- see
+-- the report filed for this pass). api.drive.options/option_row read and
+-- identify those roles directly instead, entirely inside verbs-chat's own
+-- files.
+
+-- Private helpers hang off QD.chat as PLAIN FIELDS, never a top-level
+-- `local`: every one of these eight files is concatenated into ONE chunk
+-- before it compiles, so a `local` outside a function body is a register in
+-- that single outer function, and only core.lua may spend one (docs/ARCHITECT.md
+-- section 3, "Only core.lua declares chunk-scope locals").
+
+-- The interface symbols every dialogue-shaped page can mount as, and the
+-- fully-qualified continue-child symbol a real click resumes on. objectbox
+-- has no continue child at all -- if_addresumebutton arms objectbox:universe
+-- itself -- and chatmenu/levelup_display/questscroll are deliberately absent:
+-- continuing those is not this verb's job (options goes through chat.choose,
+-- levelup/scroll through verbs-read).
+QD.chat._continue_symbol_by_iface = {
+    chat_left = "chat_left:continue",
+    chat_right = "chat_right:continue",
+    messagebox = "messagebox:continue",
+    messagebox_titled = "messagebox_titled:continue",
+    messagebox_url = "messagebox_url:continue",
+    objectbox = "objectbox:universe",
+    objectbox_double = "objectbox_double:pausebutton",
+}
+
+-- chat.kind()'s bucketing (plan 5.4): several interfaces collapse into one
+-- kind because the TEXT verbs (verbs-read) do not need to tell them apart at
+-- this level -- only chat.continue_'s exact symbol lookup above does.
+QD.chat._kind_by_iface = {
+    chat_left = "npc",
+    chat_right = "player",
+    messagebox = "mesbox",
+    messagebox_titled = "mesbox",
+    messagebox_url = "mesbox",
+    objectbox = "objbox",
+    objectbox_double = "objbox",
+    chatmenu = "options",
+    levelup_display = "levelup",
+    questscroll = "scroll",
+}
+
+-- meslayer_enter's switch_int(%varcint5): 7/19 answer resume_countdialog, 8
+-- answers resume_namedialog, and every other nonzero value dispatches some
+-- other prompt (friend/ignore add-delete, clan name, world search, chat
+-- filter, autotyper, quantity-button callback, ...) that must not be typed
+-- into blind. 0 and 1 are both "no prompt, ordinary chat line"
+-- (meslayer_mode1.cs2: `%varcint5 <= 0 | %varcint5 = 1`).
+function QD.chat._meslayer_bucket(mode)
+    if mode == 7 or mode == 19 then
+        return "count"
+    end
+    if mode == 8 then
+        return "name"
+    end
+    if mode ~= nil and mode > 1 then
+        return "other_input"
+    end
+    return "none"
+end
+
+-- Which page kind is live right now, synchronous, no await. See plan 5.4.
+function QD.chat.kind()
+    local group_res, group_id = api_drive.modal_group()
+    if group_res == "ok" then
+        local sym_res, sym = api_drive.symbol_name("interface", group_id)
+        if sym_res == "ok" then
+            return QD.chat._kind_by_iface[sym] or "none"
+        end
+        return "none"
+    end
+    local mode_res, mode = api_drive.meslayer_mode()
+    if mode_res ~= "ok" then
+        return "none"
+    end
+    return QD.chat._meslayer_bucket(mode)
+end
+
+-- chat.continue_ -- see docs/QUEST_DRIVER_PLAN.md 5.4 for the five steps this
+-- follows. The await releases on whichever comes first: the client's own ack
+-- of the click (resume_answered, scoped to the exact row -- D6), a fresh
+-- mount under chat_modal_host (a new page arrived), or the host closing.
+-- resume_answered fires the same frame the client drains the click, well
+-- before the server's own reply remounts anything -- which is also why a
+-- SECOND chat.continue_ called right after the first returns sees
+-- pause_pending still active and is refused: only a new mount clears it.
+function QD.chat.continue_()
+    local group_res, group_id = api_drive.modal_group()
+    if group_res ~= "ok" then
+        return group_res, "chat.continue_: nothing mounted under chat_modal_host"
+    end
+
+    local sym_res, sym = api_drive.symbol_name("interface", group_id)
+    local continue_symbol = sym_res == "ok" and QD.chat._continue_symbol_by_iface[sym] or nil
+    if not continue_symbol then
+        return "unsupported", "chat.continue_: " .. tostring(sym) .. " has no continue seam"
+    end
+
+    local pending_res, pending_id = api_drive.pause_pending()
+    if pending_res == "ok" and pending_id >= 0 then
+        return "refused", "chat.continue_: a resume is already outstanding"
+    end
+
+    -- sub=-1: continue_symbol names the component itself (a leaf resume
+    -- button, or objectbox:universe -- the node the role names, not a
+    -- child of it). sub=0 asked DriveUi_Component for THAT component's own
+    -- child at subid 0, which a leaf has none of, so this returned
+    -- not_visible on every real dialogue page (QD-03). content_test.c's
+    -- `resume` command (src/game/content_test.c:586) is the same call with
+    -- the same -1.
+    local com_res, com_id = api_drive.component(continue_symbol, -1)
+    if com_res ~= "ok" then
+        return com_res, "chat.continue_: " .. continue_symbol
+    end
+
+    local armed_res, armed = api_drive.click_armed(com_id)
+    if armed_res ~= "ok" or not armed then
+        return "not_visible", "chat.continue_: " .. continue_symbol .. " not armed"
+    end
+
+    local host_res, host_id = api_drive.component("chatbox:chatmodal", -1)
+
+    local resume_res, resume_detail = api_drive.resume(com_id)
+    if resume_res ~= "ok" then
+        return resume_res, resume_detail
+    end
+
+    local await_result, await_detail = await({
+        match = function(ev)
+            if ev.kind == "resume_answered" then
+                return ev.a == com_id
+            end
+            if host_res == "ok" and (ev.kind == "sub_mounted" or ev.kind == "sub_closed") then
+                return ev.a == host_id
+            end
+            return false
+        end,
+        note = "chat.continue_",
+    }, 6)
+    if await_result ~= "ok" then
+        return await_result, await_detail
+    end
+
+    local still_res = api_drive.modal_group()
+    if still_res ~= "ok" then
+        return "closed", "chat.continue_: modal closed"
+    end
+    return "ok", nil
+end
+
+-- Pure Lua loop over chat.kind + the continue seam (plan 5.4). Stops BEFORE
+-- clicking stop_at's kind. count/name/other_input/none are non-continue
+-- kinds already, so the loop halts on them with no opt-in required. Any
+-- result chat.continue_ cannot turn into another page (unsupported, refused,
+-- not_visible) propagates straight out.
+function QD.chat.drain(opts)
+    opts = opts or {}
+    local max_pages = opts.max_pages or 40
+    local stop_at = opts.stop_at
+    local shots = opts.shots
+    if shots == nil then
+        shots = true
+    end
+    local pages = 0
+
+    while true do
+        local kind = QD.chat.kind()
+        if kind == stop_at then
+            return "ok", kind
+        end
+        if kind == "none" or kind == "count" or kind == "name" or kind == "other_input" then
+            return "ok", kind
+        end
+
+        pages = pages + 1
+        if pages > max_pages then
+            return "timeout", kind
+        end
+
+        if shots then
+            QD.t.shot(kind)
+        end
+
+        local r, d = QD.chat.continue_()
+        if r == "closed" then
+            return "ok", "closed"
+        end
+        if r ~= "ok" then
+            return r, d
+        end
+    end
+end
+
+-- Idempotent (already-clear answers ok immediately): the level predicate
+-- below is already true before any await registers when nothing is open, so
+-- api.drive.await resolves it without ever yielding (EDGE + LEVEL). Also
+-- cancels an outstanding count/name prompt -- ToriRSServer_WorldCloseModalEx
+-- aborts those server-side, and the same level predicate (mode back to
+-- none/other_input-cleared) observes it.
+function QD.chat.close()
+    local function closed_now()
+        local group_res = api_drive.modal_group()
+        if group_res == "ok" then
+            return false
+        end
+        local mode_res, mode = api_drive.meslayer_mode()
+        if mode_res == "ok" and QD.chat._meslayer_bucket(mode) ~= "none" then
+            return false
+        end
+        return true
+    end
+
+    if closed_now() then
+        return "ok", "chat.close: already closed"
+    end
+
+    local close_res, close_detail = api_drive.close_modal()
+    if close_res ~= "ok" then
+        return close_res, close_detail
+    end
+
+    return await({ level = closed_now, note = "chat.close" }, 6)
+end
+
+-- The osrs239 "dialog" for a count/name prompt is chat_input
+-- (chatbox:input), disambiguated only by the meslayer mode VarC -- refuse to
+-- type blind, or the digits/letters land in ordinary chat as a public
+-- message (plan 5.4).
+function QD.chat.count(n)
+    local mode_res, mode = api_drive.meslayer_mode()
+    if mode_res ~= "ok" then
+        return mode_res, "chat.count: meslayer_mode"
+    end
+    if mode ~= 7 and mode ~= 19 then
+        return "unsupported", "chat.count: not a quantity prompt (mode=" .. tostring(mode) .. ")"
+    end
+
+    local text_res, text_detail = QD.t.text(tostring(n))
+    if text_res ~= "ok" then
+        return text_res, text_detail
+    end
+    local key_res, key_detail = QD.t.key("enter")
+    if key_res ~= "ok" then
+        return key_res, key_detail
+    end
+
+    return await({
+        level = function()
+            local m2, mode2 = api_drive.meslayer_mode()
+            return m2 == "ok" and mode2 ~= 7 and mode2 ~= 19
+        end,
+        note = "chat.count",
+    }, 6)
+end
+
+function QD.chat.name_entry(text)
+    local mode_res, mode = api_drive.meslayer_mode()
+    if mode_res ~= "ok" then
+        return mode_res, "chat.name_entry: meslayer_mode"
+    end
+    if mode ~= 8 then
+        return "unsupported", "chat.name_entry: not a name prompt (mode=" .. tostring(mode) .. ")"
+    end
+
+    local text_res, text_detail = QD.t.text(text)
+    if text_res ~= "ok" then
+        return text_res, text_detail
+    end
+    local key_res, key_detail = QD.t.key("enter")
+    if key_res ~= "ok" then
+        return key_res, key_detail
+    end
+
+    return await({
+        level = function()
+            local m2, mode2 = api_drive.meslayer_mode()
+            return m2 == "ok" and mode2 ~= 8
+        end,
+        note = "chat.name_entry",
+    }, 6)
+end
+
+-- api.drive.options reads dialog_options_title/_row_N directly (verbs-chat's
+-- own C, see torirs_plugin_drive_chat.c): ready only once rows 1 and 2 both
+-- resolve -- RUNCLIENTSCRIPT is held to the tick fence (app_cs2_flush.c:71,
+-- drained at rs_gameproto_exec.c:2194), so the container can be mounted and
+-- still empty for a frame, and row 1 alone can answer mid-rebuild.
+function QD.chat.options()
+    local result, options = api_drive.options()
+    if result ~= "ok" then
+        return result, "chat.options: rows not ready"
+    end
+    return "ok", options.rows
+end
+
+function QD.chat.options_title()
+    local result, options = api_drive.options()
+    if result ~= "ok" then
+        return result, "chat.options_title: title not ready"
+    end
+    return "ok", options.title
+end
+
+-- selector is a 1-based row index or an exact row text (plan 5.5). Rows are
+-- cc_create'd with no cache op and no button type: a real click builds
+-- RESUME_PAUSEBUTTON with action_index -1, through api.drive.option_row's
+-- identity seam.
+function QD.chat.choose(selector)
+    local options_res, options = api_drive.options()
+    if options_res ~= "ok" then
+        return options_res, "chat.choose: rows not ready"
+    end
+    local rows = options.rows
+    local title = options.title
+
+    local row_index = nil
+    if type(selector) == "number" then
+        if rows[selector] ~= nil then
+            row_index = selector
+        end
+    else
+        for i, text in ipairs(rows) do
+            if text == selector then
+                row_index = i
+                break
+            end
+        end
+    end
+    if not row_index then
+        return "no_row", "chat.choose: " .. tostring(selector)
+    end
+
+    local pending_res, pending_id = api_drive.pause_pending()
+    if pending_res == "ok" and pending_id >= 0 then
+        return "refused", "chat.choose: a resume is already outstanding"
+    end
+
+    local com_res, com_id = api_drive.option_row(row_index)
+    if com_res ~= "ok" then
+        return com_res, "chat.choose: row " .. tostring(row_index)
+    end
+
+    -- Resolved before resume(), same as chat.continue_ (QD-03: sub=-1 names
+    -- the host component itself, not a child of it).
+    local host_res, host_id = api_drive.component("chatbox:chatmodal", -1)
+
+    local resume_res, resume_detail = api_drive.resume(com_id)
+    if resume_res ~= "ok" then
+        return resume_res, resume_detail
+    end
+
+    -- QD-06: resume_answered is the CLIENT's own ack of the click -- it
+    -- fires the same frame the click drains, well before the server's own
+    -- reply remounts anything (see chat.continue_'s banner above). Ending
+    -- the wait on it meant classify() below ran while the old chatmenu was
+    -- still mounted unchanged, so every successful choose read back its OWN
+    -- pre-click snapshot and was misclassified "refused, stale reopen".
+    -- Release on the server's reply instead -- a fresh mount or a close
+    -- under chat_modal_host -- or on the deadline, and only then classify.
+    local await_result, await_detail = await({
+        match = function(ev)
+            if host_res == "ok" and (ev.kind == "sub_mounted" or ev.kind == "sub_closed") then
+                return ev.a == host_id
+            end
+            return false
+        end,
+        note = "chat.choose",
+    }, 5)
+    if await_result ~= "ok" and await_result ~= "timeout" then
+        return await_result, await_detail
+    end
+
+    -- Classify: gone or changed = ok; identical title+rows = a stale reopen
+    -- the server replayed (chat.rs2:240-263) = refused. This runs whether
+    -- the release above was the server's reply or the deadline -- a
+    -- deadline with the rows still exactly as sent IS the stale-reopen
+    -- shape (CC_DELETEALL rebuilds the same group in place, so no fresh
+    -- chat_modal_host mount fires to release the await early on that path).
+    local now_kind = QD.chat.kind()
+    if now_kind ~= "options" then
+        return "ok", "chat.choose: page changed"
+    end
+
+    local now_options_res, now_options = api_drive.options()
+    if now_options_res ~= "ok" then
+        return "ok", "chat.choose: page changed"
+    end
+    local now_rows = now_options.rows
+    local now_title = now_options.title
+
+    local identical = now_title == title and #now_rows == #rows
+    if identical then
+        for i, text in ipairs(rows) do
+            if now_rows[i] ~= text then
+                identical = false
+                break
+            end
+        end
+    end
+    if identical then
+        return "refused", "stale reopen"
+    end
+    return "ok", "chat.choose: options changed"
+end

@@ -1,6 +1,7 @@
 #ifndef REVCONFIG_CACHE_H
 #define REVCONFIG_CACHE_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #define REVCONFIG_MENU_OPTION_SLOTS 5
@@ -298,6 +299,9 @@ enum RevConfigFieldKind
     RCFIELD_FRAME_CAP_FPS,
     RCFIELD_FRAME_CAP_SOURCE,
     RCFIELD_ROLE_MATCH,
+    /* [role:…] derive=<fact>[(<argument>)] -- rides UITreeRoleTable.fallback
+     * instead of a match= chain. @see revconfig_parse_role_derive. */
+    RCFIELD_ROLE_DERIVE,
     RCFIELD_UICOMPONENT_ROLE,
     RCFIELD_TABS_ENTRY,
     RCFIELD_TABS_COLUMNS,
@@ -499,6 +503,11 @@ enum RevConfigRoleMatchKind
     REVCONFIG_ROLE_MATCH_CC,
 };
 
+/** How many alternates a single `any(v1,…)` may name inside one numeric
+ *  argument (D10: rung-level alternation is already repeated match= lines;
+ *  this is only for the one argument a `|` cannot express, e.g. two uids). */
+#define REVCONFIG_ROLE_MAX_ANY_VALUES 4
+
 /*
  * One component named inside a matcher: the whole of an `id()`/`iface()` line,
  * or the anchor half of a `cc()` one.
@@ -514,6 +523,14 @@ struct RevConfigRoleRef
 
     /* _ID: the uid. _IFACE: the child within the group, 0 when unstated. */
     int value;
+
+    /* Further alternates from an `any(v1,…)` in this argument's position
+     * (id()'s expression, or iface()'s child): `value` holds the first,
+     * these hold up to REVCONFIG_ROLE_MAX_ANY_VALUES - 1 more. 0 for a plain
+     * number -- the common case, and what every reader that predates
+     * any(...) still sees. */
+    int any_value[REVCONFIG_ROLE_MAX_ANY_VALUES - 1];
+    int any_count;
 };
 
 /*
@@ -536,6 +553,18 @@ struct RevConfigRoleMatcher
 
     /* _CLIENTCODE: the code. _CC: the dynamic sub id. -1 otherwise. */
     int value;
+    /* Further any(v1,…) alternates for `value`. @see RevConfigRoleRef::any_value. */
+    int any_value[REVCONFIG_ROLE_MAX_ANY_VALUES - 1];
+    int any_count;
+
+    /* _CC only: an optional third argument, `cc(<anchor>, <sub_id>, <type>)`
+     * -- a node-type filter name ("text", "model", "graphic", "inv",
+     * "inv_text", "layer", "rect", "line", "obj", "arc"; @see
+     * UITree_RoleCcTypeFromName). Empty for none, which is the two-argument
+     * form every existing cc() line uses. Guards against a reused dynamic
+     * sub id landing on the wrong kind of node after a CC_DELETEALL rebuild
+     * built something else there under the same sub id. */
+    char cc_type[24];
 
     /* _ID and _IFACE: the node itself. _CC: its parent. _NONE otherwise. */
     struct RevConfigRoleRef ref;
@@ -566,6 +595,12 @@ struct RevConfigRoleItem
     /* INI: match= — the chain, in declaration order. */
     struct RevConfigRoleMatcher matchers[REVCONFIG_ROLE_MAX_MATCHERS];
     int matcher_count;
+
+    /* INI: derive=<fact>[(<argument>)] — rides UITreeRoleTable.fallback
+     * instead of the chain above; empty for an ordinary role.
+     * `derive_argument` is -1 when no (<expr>) was stated. */
+    char derive_fact[32];
+    int derive_argument;
 };
 
 /*
@@ -1823,6 +1858,43 @@ revconfig_camera_default_band(int rest, int* out_closest, int* out_furthest);
  */
 int
 revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out);
+
+/**
+ * Parse a `[role:…] derive=` line into a fact name and an optional argument:
+ *
+ *   <fact>                dialog_continue
+ *   <fact>(<expr>)        button_type(6)
+ *
+ * `out_fact` is written trimmed; `*out_argument` is -1 when no `(<expr>)` was
+ * stated. Returns 1 on success. Returns 0 and leaves both untouched otherwise,
+ * having REPORTED the line on stderr -- same discipline as
+ * revconfig_parse_role_matcher: a derive= line that does not parse must be
+ * loud, not a role that silently never resolves.
+ */
+int
+revconfig_parse_role_derive(
+    char const* str, char* out_fact, size_t fact_cap, int* out_argument);
+
+/**
+ * `path` with `old_suffix` replaced by `new_suffix`, written into `out`
+ * (`out_cap` bytes). `path` is never NULL -- a lane with no cache ini at all
+ * is the CALLER's condition, both call sites already guard on it (`if(
+ * cache_ini ) ...`) because `cache_ini` is legitimately optional there.
+ * Returns NULL when `path` is empty, does not end in `old_suffix`, or the
+ * result would not fit -- the caller's own missing-file handling (every
+ * revconfig ini reader no-ops on a `fopen` that fails) takes it from there.
+ *
+ * The one place a lane's cache ini and a generated sibling are spelled as the
+ * same stem: `<lane>_dat2_cache.ini` <-> `<lane>_dat2_roles.gen.ini`
+ * (@see UITreeRoleLoad_LoadSources, RevConfigRefs_LoadSources).
+ */
+char const*
+revconfig_derive_sibling_path(
+    char const* path,
+    char const* old_suffix,
+    char const* new_suffix,
+    char* out,
+    size_t out_cap);
 
 /**
  * Parse a `[camera] controls=` comma-separated name list into a

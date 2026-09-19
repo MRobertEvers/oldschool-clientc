@@ -233,7 +233,8 @@ Task_SlotMountRefresh_Run(
     struct Task_SlotMountRefresh* self = (struct Task_SlotMountRefresh*)base;
 
     PT_BEGIN(&self->pt);
-    PT_TASK_AWAITSELF_IF(CreateTask_SlotMount(&self->app->builder, self->owner_index, self->iface_id));
+    PT_TASK_AWAITSELF_IF(
+        CreateTask_SlotMount(self->app, &self->app->builder, self->owner_index, self->iface_id));
     App_RefreshAfterTreeMutation(self->app);
     PT_END(&self->pt);
 }
@@ -328,7 +329,13 @@ RS_UISlots_OpenChat(struct App* app, int iface_id)
     /* Reference IF_OPENCHAT closes any open modals first. */
     if( app->slots.main_modal_id != -1 || app->slots.side_modal_id != -1 )
         RS_UISlots_CloseModal(app);
+    /* DRIVE_STAMP: chat_opened -- a=component_id. The dat1 lane's dialogue
+     * mount: osrs239 binds neither IF_OPENCHAT nor P_COUNTDIALOG and never
+     * reaches here. Gated on iface_id > 0 the same way sub_mounted is -- a
+     * non-positive iface_id clears the mount rather than opening one. */
     app->slots.chat_com_id = iface_id > 0 ? iface_id : -1;
+    if( iface_id > 0 )
+        App_DriveEvent(app, DRIVE_EVENT_CHAT_OPENED, app->slots.chat_com_id, 0, 0, 0);
     slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
 }
 

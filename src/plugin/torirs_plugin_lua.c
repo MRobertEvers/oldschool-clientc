@@ -219,11 +219,9 @@ struct LuaScript
     int source_len;
 };
 
-struct LuaFn
-{
-    char const* name;
-    lua_CFunction fn;
-};
+/* struct LuaFn now lives in torirs_plugin_lua.h: the quest driver's six
+ * files build their own arrays of it and hand them to PluginLua_AppendModule,
+ * and an array type cannot be shared through an opaque tag. */
 
 static struct LuaScript g_scripts[PLUGIN_LUA_MAX_SCRIPTS];
 static int g_script_count;
@@ -464,6 +462,191 @@ lua_register_functions(lua_State* L, struct LuaScript* script, struct LuaFn cons
         lua_pushcclosure(L, fns->fn, 1);
         lua_setfield(L, -2, fns->name);
     }
+}
+
+/*
+ * The test-only module installer. NULL in every ordinary build; set once, by
+ * the quest driver, before any script compiles. See torirs_plugin_lua.h.
+ */
+static PluginLua_TestModulesFn g_test_modules;
+
+void
+PluginLua_SetTestModules(PluginLua_TestModulesFn installer)
+{
+    g_test_modules = installer;
+}
+
+void
+PluginLua_PushModule(struct lua_State* L, void* script, struct LuaFn const* fns)
+{
+    assert(L);
+    assert(script);
+    assert(fns);
+    lua_register_functions(L, (struct LuaScript*)script, fns);
+}
+
+void
+PluginLua_AppendModule(struct lua_State* L, void* script, struct LuaFn const* fns)
+{
+    assert(L);
+    assert(script);
+    assert(fns);
+    for( ; fns->name; fns++ )
+    {
+        lua_pushlightuserdata(L, script);
+        lua_pushcclosure(L, fns->fn, 1);
+        lua_setfield(L, -2, fns->name);
+    }
+}
+
+/*
+ * The quest driver's coroutine seam. Owner: core-scheduler
+ * (docs/ARCHITECT.md). Nothing in an ordinary build can reach these -- the
+ * driver is the only caller and it only registers under TORIRS_CONTENT_TEST.
+ *
+ * lua_State's LUA_EXTRASPACE (one pointer, 3rd/lua/luaconf.h) is what makes
+ * PluginLua_ThreadResume able to find its owning struct LuaScript from just a
+ * `lua_State* thread`: lua_newthread copies the MAIN thread's extraspace into
+ * a fresh coroutine at creation (3rd/lua/lstate.c:280-284), so writing it once
+ * on the coroutine right after lua_newthread is enough -- no registry lookup,
+ * no new struct.
+ *
+ * The registry ref anchors the thread itself against GC; which lua_State the
+ * ref lives in is remembered in g_thread_owner_state because
+ * PluginLua_ThreadDestroy is handed only the ref, never the thread -- true to
+ * the driver's own invariant (torirs_plugin_drive.c: "one client, one quest,
+ * one coroutine").
+ */
+static lua_State* g_thread_owner_state;
+
+static struct LuaScript*
+lua_script_by_name(char const* name)
+{
+    uint32_t hash = 2166136261u;
+    for( char const* at = name; *at; at++ )
+    {
+        hash ^= (unsigned char)*at;
+        hash *= 16777619u;
+    }
+    for( int probe = 0; probe < PLUGIN_LUA_LOOKUP_CAPACITY; probe++ )
+    {
+        int const slot = (int)((hash + (uint32_t)probe) & (PLUGIN_LUA_LOOKUP_CAPACITY - 1u));
+        int const encoded = g_script_lookup[slot];
+        if( encoded == 0 ) return NULL;
+        if( strcmp(g_scripts[encoded - 1].name, name) == 0 )
+            return &g_scripts[encoded - 1];
+    }
+    return NULL;
+}
+
+struct lua_State*
+PluginLua_ThreadCreate(
+    char const* plugin_name,
+    char const* chunk_name,
+    char const* source,
+    int source_len,
+    int* out_registry_ref)
+{
+    /*
+     * A quest test's own chunk (`source`) only ever returns a table -- it is
+     * the caller (torirs_plugin_drive.c) that must go on to call `.run(t)`,
+     * and that call has to happen INSIDE this same resume chain or a later
+     * drive.await's lua_yield would cross a C boundary this thread never
+     * resumed through. This tiny fixed bootstrap is what keeps the whole test,
+     * load through every await, on the ONE coroutine the design calls for: it
+     * is resumed once with (loader, arg) as its two arguments, where `loader`
+     * is `source` compiled onto this same thread below and `arg` is the verb
+     * table the caller pushes before the first PluginLua_ThreadResume.
+     *
+     * When `source` fails to compile, `loader` is the syntax-error STRING
+     * luaL_loadbuffer left behind instead of a function; the guard below
+     * raises it verbatim rather than the generic "attempt to call a string
+     * value" a bare lua_resume would produce.
+     */
+    static char const* const BOOTSTRAP =
+        "local loader, arg = ...\n"
+        "if type(loader) ~= \"function\" then error(loader, 0) end\n"
+        "local quest = loader()\n"
+        "return quest.run(arg)\n";
+    struct LuaScript* script;
+    lua_State* co;
+
+    assert(plugin_name);
+    assert(chunk_name);
+    assert(source);
+    assert(source_len >= 0);
+    assert(out_registry_ref);
+
+    script = lua_script_by_name(plugin_name);
+    assert(script);
+
+    co = lua_newthread(script->L);
+    *out_registry_ref = luaL_ref(script->L, LUA_REGISTRYINDEX);
+    g_thread_owner_state = script->L;
+    *(struct LuaScript**)lua_getextraspace(co) = script;
+
+    if( luaL_loadstring(co, BOOTSTRAP) != LUA_OK )
+        assert(0 && "PluginLua_ThreadCreate: quest_bootstrap must always compile");
+    (void)luaL_loadbuffer(co, source, (size_t)source_len, chunk_name);
+    return co;
+}
+
+int
+PluginLua_ThreadResume(
+    struct lua_State* thread,
+    int argument_count,
+    int* out_result_count,
+    char* error,
+    int error_cap)
+{
+    struct LuaScript* script;
+    int status;
+    int nresults = 0;
+
+    assert(thread);
+    assert(argument_count >= 0);
+    assert(out_result_count);
+    assert(error);
+    assert(error_cap > 0);
+
+    script = *(struct LuaScript**)lua_getextraspace(thread);
+    assert(script);
+
+    /* lua_newthread copies the parent's hook only at creation
+     * (3rd/lua/lstate.c:280-284): a coroutine that sat through several
+     * frames of other Lua activity between resumes is running with whatever
+     * hook happened to exist back then, not this one. Re-arming here, on the
+     * COROUTINE's own state, every resume, is what makes a busy-loop test
+     * chunk with no await die instead of running forever. */
+    lua_sethook(thread, lua_step_hook, LUA_MASKCOUNT, PLUGIN_LUA_STEP_BUDGET);
+    status = lua_resume(thread, script->L, argument_count, &nresults);
+    lua_sethook(thread, NULL, 0, 0);
+
+    error[0] = '\0';
+    if( status == LUA_OK || status == LUA_YIELD )
+    {
+        *out_result_count = nresults;
+        return status;
+    }
+
+    *out_result_count = 0;
+    {
+        char const* message = lua_tostring(thread, -1);
+        snprintf(error, (size_t)error_cap, "%s", message ? message : "error");
+    }
+    lua_pop(thread, 1);
+    /* Fault routing per docs/QUEST_DRIVER_PLAN.md 5.1: an erroring coroutine
+     * disables the quest-driver plugin exactly the way any other handler
+     * error would, through the SAME path lua_call_end already uses. */
+    lua_script_fault(script, script->cur_api, "quest_script", error);
+    return status;
+}
+
+void
+PluginLua_ThreadDestroy(int registry_ref)
+{
+    assert(g_thread_owner_state);
+    luaL_unref(g_thread_owner_state, LUA_REGISTRYINDEX, registry_ref);
 }
 
 static void
@@ -3712,6 +3895,11 @@ lua_build_api_table(struct LuaScript* script)
         }
         lua_setfield(L,-2,module->name);
     }
+    /* Test-only modules last, so one can never shadow a canonical module by
+     * being registered before it -- an installer that tries lands on top of
+     * the real table and the inventory test's duplicate check catches it. */
+    if( g_test_modules )
+        g_test_modules(L, script);
     script->api_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_GRAPHICS_FNS);script->draw_ref=luaL_ref(L,LUA_REGISTRYINDEX);
     lua_register_functions(L,script,LUA_PANEL_BUILDER_FNS);script->panel_builder_ref=luaL_ref(L,LUA_REGISTRYINDEX);

@@ -41,6 +41,8 @@ role_matcher_to_tree(
 
     memset(out, 0, sizeof(*out));
     out->member = -1;
+    /* out->cc_type stays 0 ("no filter") from the memset above unless the
+     * _CC case below states a type name; the enum has no zero member. */
 
     switch( src->kind )
     {
@@ -108,6 +110,17 @@ role_matcher_to_tree(
             out->kind = UITREE_ROLE_MATCH_CC;
             out->uid = uid;
             out->value = src->value;
+            if( src->cc_type[0] != '\0' )
+            {
+                out->cc_type = UITree_RoleCcTypeFromName(src->cc_type);
+                if( out->cc_type < 0 )
+                {
+                    TORIRS_LOG("revconfig: [role:%s] cc(...) names no known type '%s'\n",
+                        role_name,
+                        src->cc_type);
+                    return 0;
+                }
+            }
         }
         else
         {
@@ -124,6 +137,68 @@ role_matcher_to_tree(
 
     default:
         return 0;
+    }
+}
+
+/**
+ * Translate one `match=` line, expanding an `any(v1,…)` in whichever numeric
+ * argument carried it into that many separate rungs appended to `id`'s chain
+ * -- the same effect as the profile having written that many match= lines,
+ * per D10.
+ */
+static void
+role_matcher_expand_add(
+    struct UITreeRoleTable* table,
+    uint16_t id,
+    struct RevConfigRoleMatcher const* src,
+    struct RevConfigRefs const* refs,
+    char const* role_name)
+{
+    int total = 1;
+    int const* extra = NULL;
+    int ref_carries_it = 0;
+
+    assert(table);
+    assert(src);
+    assert(refs);
+    assert(role_name);
+
+    switch( src->kind )
+    {
+    case REVCONFIG_ROLE_MATCH_ID:
+    case REVCONFIG_ROLE_MATCH_IFACE:
+        total = 1 + src->ref.any_count;
+        extra = src->ref.any_value;
+        ref_carries_it = 1;
+        break;
+    case REVCONFIG_ROLE_MATCH_CLIENTCODE:
+    case REVCONFIG_ROLE_MATCH_CC:
+        total = 1 + src->any_count;
+        extra = src->any_value;
+        break;
+    default:
+        break;
+    }
+
+    for( int i = 0; i < total; i++ )
+    {
+        struct RevConfigRoleMatcher copy = *src;
+        struct UITreeRoleMatcher matcher;
+
+        if( i > 0 )
+        {
+            if( ref_carries_it )
+                copy.ref.value = extra[i - 1];
+            else
+                copy.value = extra[i - 1];
+        }
+
+        if( !role_matcher_to_tree(&copy, refs, role_name, &matcher) )
+            continue;
+        if( !UITree_RoleAddMatcher(table, id, &matcher) )
+            TORIRS_LOG("revconfig: [role:%s] has more than %d match= lines; the rest are dropped\n",
+                role_name,
+                UITREE_ROLE_MAX_MATCHERS);
     }
 }
 
@@ -160,17 +235,15 @@ UITreeRoleLoad_AddItems(
             continue;
 
         uint16_t id = UITree_RoleIntern(table, item->u.role.name);
+
+        /* derive= rides UITreeRoleTable.fallback instead of the chain below;
+         * a role that states both is data the fallback wins on, since it is
+         * consulted first (UITree_RoleNode). */
+        if( item->u.role.derive_fact[0] != '\0' )
+            UITree_RoleSetDerive(table, id, item->u.role.derive_fact, item->u.role.derive_argument);
+
         for( int m = 0; m < item->u.role.matcher_count; m++ )
-        {
-            struct UITreeRoleMatcher matcher;
-            if( !role_matcher_to_tree(
-                    &item->u.role.matchers[m], refs, item->u.role.name, &matcher) )
-                continue;
-            if( !UITree_RoleAddMatcher(table, id, &matcher) )
-                TORIRS_LOG("revconfig: [role:%s] has more than %d match= lines; the rest are dropped\n",
-                    item->u.role.name,
-                    UITREE_ROLE_MAX_MATCHERS);
-        }
+            role_matcher_expand_add(table, id, &item->u.role.matchers[m], refs, item->u.role.name);
     }
 }
 
@@ -211,6 +284,8 @@ UITreeRoleLoad_LoadSources(
     char const* cache_ini,
     char const* inline_ini)
 {
+    char generated_roles[512];
+
     assert(table);
     assert(refs);
 
@@ -218,5 +293,23 @@ UITreeRoleLoad_LoadSources(
      * manifest's own inline sections last. */
     role_load_one(table, refs, ui_ini, NULL);
     role_load_one(table, refs, cache_ini, NULL);
+    /*
+     * tools/revconfig_roles_from_pack.py's generated [role:]/[iface:]
+     * companion, a SEPARATE file next to a dat2 lane's cache ini
+     * (osrs239_dat2_cache.ini -> osrs239_dat2_roles.gen.ini) so the
+     * hand-edited ini is never rewritten. `refs` must already carry this same
+     * file's [iface:] sections for its iface(...) rungs to resolve --
+     * RevConfigRefs_LoadSources derives and loads the identical path. A lane
+     * with no generated sibling (dat1, or a dat2 lane not yet generated)
+     * derives nothing and role_load_one's own missing-file handling no-ops.
+     */
+    if( cache_ini &&
+        revconfig_derive_sibling_path(
+            cache_ini,
+            "_dat2_cache.ini",
+            "_dat2_roles.gen.ini",
+            generated_roles,
+            sizeof(generated_roles)) )
+        role_load_one(table, refs, generated_roles, NULL);
     role_load_one(table, refs, inline_ini, "revconfig");
 }

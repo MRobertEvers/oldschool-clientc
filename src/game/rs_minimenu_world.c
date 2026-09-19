@@ -57,7 +57,9 @@ combat_colour_code(int viewer, int other)
  * a lookup so RS_Minimenu_CrossModeForAction (an exact-id switch) still matches
  * and the interact cross appears for ops in slots 1..4 (bug: NPC attack/talk
  * often lands on a non-zero slot → no red cross). */
-static int
+/* Exported in rs_minimenu_world.h (verbs-pointer, docs/ARCHITECT.md): the
+ * quest driver's DrivePointer_ActionForSlot needs this exact table. */
+int
 opnpc_action_for_slot(int slot)
 {
     static int const ids[5] = {
@@ -67,7 +69,7 @@ opnpc_action_for_slot(int slot)
     return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPNPC1;
 }
 
-static int
+int
 oploc_action_for_slot(int slot)
 {
     static int const ids[5] = {
@@ -77,7 +79,7 @@ oploc_action_for_slot(int slot)
     return (slot >= 0 && slot < 5) ? ids[slot] : REVCONFIG_MINIMENU_OPLOC1;
 }
 
-static int
+int
 opobj_action_for_slot(int slot)
 {
     static int const ids[5] = {

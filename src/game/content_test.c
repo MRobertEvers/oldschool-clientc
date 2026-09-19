@@ -32,6 +32,7 @@ int ContentTest_Enabled(void)
 #include <toridraw_scene.h>
 #include "varp/varp_manager.h"
 #include "varc/varc_manager.h"
+#include "plugin/torirs_plugin_drive.h"
 
 /* One warm process, one virtual clock. IO/picking/UI continue at frozen time.
  * A step never waits out the 600 ms server tick in wall-clock time. */
@@ -430,6 +431,38 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
     assert(app);
     assert(bus);
     struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, test_now);
+    /* t.cheat needs the embedded struct ToriRSServer* to call a debugproc
+     * in-process, with no packet; this is the one place a NetTransport is
+     * already turned into one. Handed over every frame, quest mode or not,
+     * since a driver-loaded-but-idle run (no TORIRS_QUEST_SCRIPT) is still a
+     * legitimate way to drive ::commands from the ordinary mailbox below. */
+    PluginDriveCore_SetEmbed(embed);
+    /* verbs-pointer's DrivePointer_MouseMove/MouseButton push onto this bus
+     * (torirs_plugin_drive_pointer.c's own banner reports the seam); handed
+     * over every frame, same as g_embed above, for the same reason. */
+    PluginDriveCore_SetCmdBus(bus);
+    if( PluginDrive_QuestScriptPath() )
+    {
+        /*
+         * Quest-script mode (docs/QUEST_DRIVER_PLAN.md 5.1 / ARCHITECT.md A1):
+         * no mailbox. TORIRS_QUEST_SCRIPT drives itself through api.drive's
+         * scheduler (torirs_plugin_drive.c), polled from the driver plugin's
+         * own on_frame_start -- there is no `request` file to read and no
+         * `command`/`active` state machine to run below.
+         *
+         * The one thing this file still owns is the virtual clock.
+         * PluginDrive_ClockWantsStep answers whether the coroutine still has
+         * a quest to run; capture_path is THIS file's own state (a
+         * screenshot request in flight, `t.shot`'s job, verbs-ui) and is the
+         * hold a step must not race -- checked here rather than threaded
+         * through the driver because nothing outside this file has any
+         * business knowing that variable's name.
+         */
+        if( !capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
+            test_now += 20;
+        NetTransport_TestClock(transport, test_now);
+        return test_now;
+    }
     uint64_t elapsed = last_real ? real_now - last_real : 0;
     last_real = real_now;
     if( !active )

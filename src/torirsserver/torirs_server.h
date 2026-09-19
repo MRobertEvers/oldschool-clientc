@@ -6476,6 +6476,19 @@ ToriRSServer_ScriptsRunDebugproc(
     struct ToriRSServer* srv,
     const char* line);
 
+/*
+ * quest-driver: t.cheat, in-process. Owner: core-scheduler.
+ *
+ * The same call handle_cheat already makes, with the verdict RETURNED instead
+ * of being reported to stderr and thrown away. No packet, no socket: the
+ * caller already holds the embedded struct ToriRSServer*, exactly as a real
+ * cheat packet's handler does.
+ */
+int
+ToriRSServer_RunDebugprocForTest(
+    struct ToriRSServer* srv,
+    const char* line);
+
 /** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
 void
 ToriRSServer_ScriptsResumeWorld(struct ToriRSServer* srv);

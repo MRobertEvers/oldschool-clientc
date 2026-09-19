@@ -7729,6 +7729,25 @@ ToriRSServer_VesselRecover(struct ToriRSServer* srv, int handle,
  *
  * Full reason this boundary exists: docs/CRYSTAL_SET_COMMAND.md.
  */
+/*
+ * quest-driver: t.cheat, in-process. Owner: core-scheduler
+ * (docs/ARCHITECT.md).
+ *
+ * handle_cheat below already computes exactly this at :7784 and only ever
+ * reports it to stderr before throwing it away. A quest test has no packet to
+ * send and no socket to answer on -- it already holds `srv` -- so this is the
+ * same call, kept.
+ */
+int
+ToriRSServer_RunDebugprocForTest(
+    struct ToriRSServer* srv,
+    const char* line)
+{
+    assert(srv);
+    assert(line);
+    return ToriRSServer_ScriptsRunDebugproc(srv, line);
+}
+
 void
 handle_cheat(
     struct ToriRSServer* srv,

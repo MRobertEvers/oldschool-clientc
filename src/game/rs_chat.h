@@ -7,6 +7,7 @@
 
 struct RS_Social;
 struct UITreeHost;
+struct App;
 
 /*
  * Chat model: the 100-entry message ring, filter-aware line layout, the typed
@@ -73,6 +74,14 @@ struct RS_ChatMessage
     int type;
     char sender[RS_CHAT_SENDER_LEN];
     char text[RS_CHAT_TEXT_LEN];
+    /** Monotonic insertion order into `messages[]`, 1 at the first line ever
+     *  added (0 means "never set", which every pre-existing entry in a fresh
+     *  RS_Chat is, since RS_Chat_Init zeroes the struct). Distinct from
+     *  RS_ChatNode.uid -- that counter orders the per-type ring, a different
+     *  object -- because a drive-event await (`msg.await`) must be scoped to
+     *  lines inserted after it registered, and the per-type ring does not
+     *  cover every type a quest test reads `messages[]` for. */
+    int serial;
 };
 
 /*
@@ -128,6 +137,16 @@ struct RS_Chat
     /** Next uid to hand out. Monotonic for the life of the client, so a uid
      *  never names two messages. */
     int next_uid;
+    /** Next `RS_ChatMessage.serial` to hand out. A separate counter from
+     *  `next_uid`: see the field comment on RS_ChatMessage.serial. */
+    int next_message_serial;
+    /** The App this chat's messages are stamped to the drive event ring
+     *  through (RS_Chat_SetDriveApp). NULL for every RS_Chat built off the
+     *  stack by a unit test with no App in scope -- that is a legitimate
+     *  topology, the same way `app->plugins` is NULL when plugins are
+     *  switched off, and RS_Chat_AddMessage skips the stamp rather than
+     *  asserting it. */
+    struct App* drive_app;
     /** One-entry memo for uid lookup. The scripts walk the history strictly
      *  in order -- read uid, ask for the previous one, read that -- so a
      *  single remembered node turns a list walk per line into a pointer hop. */
@@ -168,6 +187,15 @@ struct RS_ChatFilters
 
 void
 RS_Chat_Init(struct RS_Chat* chat, char const* username);
+
+/**
+ * Wire the App a live client stamps `chat_message` drive events through.
+ * Called once, alongside RS_CS2Host_SetChat, by whatever owns both `app` and
+ * `&app->chat`. Never called by a unit test that builds a bare RS_Chat --
+ * `drive_app` stays NULL there and RS_Chat_AddMessage skips the stamp.
+ */
+void
+RS_Chat_SetDriveApp(struct RS_Chat* chat, struct App* app);
 
 /**
  * Does this message occupy a chat line under the current filters?
