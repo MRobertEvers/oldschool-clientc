@@ -4000,11 +4000,12 @@ check-drive-abi:
 
 # The quest gate: one private-session client process per quest test, a ledger
 # and a numbered screenshot per interaction, red on any FAIL row, any missing
-# or undersized shot, and any duplicate shot MD5.
+# or undersized shot, and any duplicate shot MD5. QUEST=<name> runs/checks one
+# quest (test/quests/<name>.lua); with no QUEST, every discovered quest runs.
 .PHONY: test-quests
 test-quests:
-	python3 $(REPO_ROOT)/tools/quest_gate/run.py --all
-	python3 $(REPO_ROOT)/tools/quest_gate/gate.py
+	python3 $(REPO_ROOT)/tools/quest_gate/run.py $(if $(QUEST),$(QUEST),--all)
+	python3 $(REPO_ROOT)/tools/quest_gate/gate.py $(if $(QUEST),$(QUEST))
 
 # Verb conformance: call EVERY verb the quest driver exposes on `t`, exactly
 # once, against a live world, and record what each one actually did. This is

@@ -1,41 +1,408 @@
 #!/usr/bin/env python3
 """Run one quest test per client process, headless, and collect its artefacts.
 
-UNIMPLEMENTED -- owner: tests (docs/ARCHITECT.md).
+One process per quest, never two quests in one process: a quest test leaves
+server saves, varps and a scene behind it, and the next quest starting from
+that would have unattributable failures (docs/QUEST_DRIVER_DESIGN.md).
 
-The shape it must have, so that nothing about it is re-litigated later:
+For each quest named test/quests/<quest>.lua (the shape is in
+test/quests/README.md: `{ id, fixture, setup = {cheats}, run = function(t)
+... end }`), this:
 
-  one process per quest, never one process per two quests: a quest test leaves
-  server saves, varps and a scene behind it, and the next quest starting from
-  that is a test whose failures nobody can attribute.
+  * builds ONE shared binary into its own objdir (OPT=1 EMBED_SERVER=1,
+    PLATFORM_OBJ_BASE=build_questtest, PLATFORM_TARGET=torirs_questtest --
+    never another build's objdir, several sessions build from this checkout
+    at once) and rebuilds the server script pack, which the embedded server
+    refuses to boot on when stale;
+  * rewrites manifests/manifest_osrs239.ini to transport=embed against this
+    checkout's cache.osrs239, into manifests/.questtest.ini (the manifest's
+    OWN directory is load-bearing -- run from a session dir instead and
+    several content openers silently mount nothing, see conformance.py);
+  * for each quest: makes a fresh, private build/quest_gate/<quest>/
+    directory (never reused between runs -- the server writes on exit),
+    copies the quest's fixture into <dir>/saves/<quest>.ini (a fixture that
+    is not physically copied in means a fresh character stuck on the
+    Character Creator modal, which reads exactly like a broken verb),
+    generates a driver script that runs the quest's own `setup` cheats and
+    then `run(t)` (see write_wrapper_script), and launches ONE client
+    process against it, bounded by a wall-clock ceiling so a hung run fails
+    the quest instead of hanging the whole suite.
 
-  env, all of it private to the session directory:
-    TORIRS_CONTENT_TEST=<session>        the virtual clock and the artefact dir
-    TORIRS_QUEST_SCRIPT=<test .lua>      which quest
-    TORIRS_PLUGINS=1
-    TORIRS_PLUGIN_MANIFEST=script/plugins/quest_driver.ini
-    TORIRS_PLUGIN_PREFS=<session>/plugin_prefs.ini
-    TORIRS_PREFS=<session>/preferences.ini
-    TORIRSSERVER_SAVES=<session>/saves
-    TORIRSSERVER_STAFF_LEVEL=2
-    TORIRSSERVER_HOME=3222,3218          skip Tutorial Island
-    SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
-    TORIRS_STDERR_UNBUFFERED=1 TORIRS_PLUGIN_LOG=1
-  argv: --soft3d --window 765x503, manifest manifests/manifest_osrs239.ini
-  rewritten to transport=embed the way tools/content_selftest.py:62-94 does.
+Artefacts land directly under build/quest_gate/<quest>/ (ledger.tsv,
+shots/NN-name.png, client.log) because that IS the TORIRS_CONTENT_TEST
+session directory -- see src/plugin/torirs_plugin_drive.c's ledger writer
+and torirs_plugin_drive_ui.c's shot writer, both of which resolve paths
+under it directly.
 
-  binary: OPT=1 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_questtest
-          PLATFORM_TARGET=torirs_questtest -- its OWN objdir, because several
-          sessions build from this checkout at once.
+This script's own exit code answers one question only -- did every
+requested quest's client process actually run to completion with a ledger
+behind it? -- and says nothing about whether a quest PASSED. That verdict
+belongs to gate.py alone (docs/QUEST_DRIVER_DESIGN.md); test-quests runs
+both in sequence.
 
-  output: build/quest_gate/<quest>/{ledger.tsv, shots/NN-name.png, result}
-
-It exits non-zero until it is written: a runner that prints nothing and
-returns 0 is a green gate that tests nothing, which is the one outcome worse
-than a red one.
+Usage:
+  tools/quest_gate/run.py --all [--jobs N] [--timeout SECONDS]
+  tools/quest_gate/run.py <quest> [--timeout SECONDS]
+  tools/quest_gate/run.py --script test/quests/_conformance.lua --name proof
+      (advanced: drives an arbitrary standalone driver script -- no quest
+      table, no setup cheats -- through this same build/env/launch path.
+      This is how the verb-conformance harness (test/quests/_conformance.lua)
+      can be run THROUGH this runner as a cross-check against `make
+      test-quest-conformance`'s own answer, rather than only ever through
+      conformance.py's separate attempt loop.)
 """
 
+import argparse
+import os
+import re
+import shutil
+import signal
+import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
-print("tools/quest_gate/run.py: UNIMPLEMENTED (owner: tests)", file=sys.stderr)
-sys.exit(2)
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
+sys.path.insert(0, HERE)
+
+import build_support  # noqa: E402
+import quest_list  # noqa: E402
+
+OBJ_BASE = "build_questtest"
+TARGET = "torirs_questtest"
+DEFAULT_MAX_FRAMES = "60000"
+DEFAULT_TIMEOUT = 180
+DEFAULT_FIXTURE = "fresh_lumbridge.ini"
+
+FIXTURE_RE = re.compile(r'fixture\s*=\s*"([^"]+)"')
+NAME_LINE_RE = re.compile(r"(?m)^name\s*=.*$")
+
+
+def run(command, **kwargs):
+    print("+ " + " ".join(command), flush=True)
+    return subprocess.call(command, **kwargs)
+
+
+def build(warm_from):
+    return build_support.build(REPO_ROOT, OBJ_BASE, TARGET, warm_from=warm_from, run=run)
+
+
+def ensure_scripts():
+    """The embedded server refuses to boot on a stale script pack, and this
+    tree routinely carries uncommitted OSRS-Content edits, so it is rebuilt
+    unconditionally, every run (conformance.py does the same)."""
+    return run(["make", "-C", os.path.join(REPO_ROOT, "src"), "torirsserver-scripts"])
+
+
+def write_manifest():
+    """See tools/quest_gate/conformance.py's manifest() -- same rewrite,
+    same reason the output has to live under manifests/ and not a session
+    dir (measured A/B there: 50/78 from manifests/, 46/78 from a session
+    dir)."""
+    source = os.path.join(REPO_ROOT, "manifests", "manifest_osrs239.ini")
+    out = os.path.join(REPO_ROOT, "manifests", ".questtest.ini")
+    lines = []
+    with open(source, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("dir="):
+                line = "dir=%s\n" % os.path.join(REPO_ROOT, "cache.osrs239")
+            elif line.startswith("transport="):
+                line = "transport=embed\n"
+            lines.append(line)
+    with open(out, "w", encoding="utf-8") as handle:
+        handle.writelines(lines)
+    return out
+
+
+def read_fixture_name(quest_file):
+    """The `fixture = "<name>.ini"` field a quest file declares, read by
+    regex rather than a Lua interpreter -- consistent with how
+    tools/quest_gate/verb_list.py already reads the driver's own Lua
+    sources, rather than this tooling embedding a second Lua runtime."""
+    with open(quest_file, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    match = FIXTURE_RE.search(text)
+    assert match, "%s: no fixture = \"...\" field found" % quest_file
+    return match.group(1)
+
+
+def write_session_fixture(fixture_name, saves_dir, user):
+    """Copies the fixture into <saves_dir>/<user>.ini -- the trap that reads
+    as a broken verb if skipped: without it the server makes a fresh
+    character and the run boots into the Character Creator modal, which
+    blocks tab selection."""
+    fixture_path = os.path.join(REPO_ROOT, "test", "quests", "fixtures", fixture_name)
+    assert os.path.isfile(fixture_path), fixture_path
+    with open(fixture_path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    text, count = NAME_LINE_RE.subn("name = %s" % user, text, count=1)
+    assert count == 1, "%s: no `name = ...` line to rewrite" % fixture_path
+    os.makedirs(saves_dir, exist_ok=True)
+    with open(os.path.join(saves_dir, "%s.ini" % user), "w", encoding="utf-8") as handle:
+        handle.write(text)
+
+
+def write_wrapper_script(quest_file, out_path):
+    """A copy of the quest file wrapped so its `setup` cheats run before
+    `run(t)` does, matching test/quests/README.md's
+    `{ id, fixture, setup = {cheats}, run = function(t) ... end }` shape.
+
+    The TORIRS_QUEST_SCRIPT file is NOT resumed with `t` as a vararg -- it is
+    called with ZERO arguments and must itself return a `{ run = ... }`
+    table (src/plugin/torirs_plugin_lua.c's PluginLua_ThreadCreate: the fixed
+    BOOTSTRAP chunk does `local quest = loader(); return quest.run(arg)`,
+    where `loader` is exactly this file compiled, called with no arguments).
+    This was verified against a live run, not assumed from the doc comment:
+    an earlier version of this wrapper opened with `local t = ...` and
+    failed every quest with "attempt to index a nil value (local 't')",
+    because the bootstrap never passes anything to the loaded chunk itself --
+    only to the TABLE's own `run` field, after calling it.
+
+    So this wrapper loads the quest's own `return {...}` with zero arguments
+    (an immediately-invoked function literal, so the source can keep its
+    unmodified top-level `return`), then replaces QUEST.run with a closure
+    that runs `setup` first and defers to the original. The quest file's
+    source is embedded verbatim rather than parsed in Python: a cheat list
+    is exactly the kind of Lua data this project's own tooling refuses to
+    hand-parse (see verb_list.py's header), and letting the quest's own
+    table construct itself as real Lua is the only way `setup` is read
+    correctly no matter how it is written.
+    """
+    with open(quest_file, "r", encoding="utf-8") as handle:
+        source = handle.read()
+    wrapper = (
+        "local QUEST = (function()\n"
+        + source +
+        "\nend)()\n"
+        "if type(QUEST) ~= \"table\" or type(QUEST.run) ~= \"function\" then\n"
+        "    error(\"quest file did not return { run = function(t) ... end }\")\n"
+        "end\n"
+        "local quest_setup = QUEST.setup\n"
+        "local quest_run = QUEST.run\n"
+        "QUEST.run = function(t)\n"
+        "    if type(quest_setup) == \"table\" then\n"
+        "        for _, cheat in ipairs(quest_setup) do\n"
+        "            t.t.cheat(cheat)\n"
+        "        end\n"
+        "    end\n"
+        "    return quest_run(t)\n"
+        "end\n"
+        "return QUEST\n"
+    )
+    with open(out_path, "w", encoding="utf-8") as handle:
+        handle.write(wrapper)
+
+
+def client_env(directory, saves, script):
+    environment = dict(os.environ)
+    environment.update({
+        "SDL_VIDEODRIVER": "dummy",
+        "SDL_AUDIODRIVER": "dummy",
+        "TORIRS_STDERR_UNBUFFERED": "1",
+        "TORIRS_PLUGINS": "1",
+        "TORIRS_PLUGIN_LOG": "1",
+        "TORIRS_CONTENT_TEST": directory,
+        "TORIRS_QUEST_SCRIPT": script,
+        # Resolved UNDER script/: "script/plugins/..." double-prefixes and
+        # silently loads no driver at all, which reads exactly like a dead
+        # one.
+        "TORIRS_PLUGIN_MANIFEST": "plugins/quest_driver.ini",
+        "TORIRS_PLUGIN_PREFS": os.path.join(directory, "plugin_prefs.ini"),
+        "TORIRS_PREFS": "",
+        "TORIRSSERVER_SAVES": saves,
+        "TORIRSSERVER_STAFF_LEVEL": "2",
+        "TORIRSSERVER_HOME": "3222,3218",
+        "TORIRS_MAX_FRAMES": DEFAULT_MAX_FRAMES,
+        "TORIRS_EMBED_CLOCK_MS": "20",
+    })
+    return environment
+
+
+def launch_client(binary, manifest_path, user, directory, saves, script, log_path, timeout):
+    """One client process, killed (whole process group) if it outlives
+    `timeout` seconds of WALL-CLOCK time -- independent of
+    TORIRS_MAX_FRAMES, which only bounds the virtual clock and cannot catch
+    a real hang. Returns (exit_code_or_None, timed_out)."""
+    command = [binary, "--manifest", manifest_path, "--user", user, "--pass", "test",
+               "--soft3d", "--window", "765x503"]
+    environment = client_env(directory, saves, script)
+    print("+ " + " ".join(command), flush=True)
+    with open(log_path, "wb") as log:
+        # cwd is the repo root, ALWAYS: TORIRS_PLUGIN_MANIFEST resolves under
+        # script/ relative to the working directory, not to the binary.
+        process = subprocess.Popen(command, env=environment, cwd=REPO_ROOT,
+                                    stdout=log, stderr=subprocess.STDOUT,
+                                    start_new_session=True)
+        try:
+            code = process.wait(timeout=timeout)
+            return code, False
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            process.wait()
+            return None, True
+
+
+def prepare_session(name, fixture_name):
+    """A fresh, private build/quest_gate/<name>/ directory -- never reused;
+    the server writes into it on exit."""
+    directory = os.path.join(REPO_ROOT, "build", "quest_gate", name)
+    if os.path.isdir(directory):
+        shutil.rmtree(directory)
+    os.makedirs(directory, exist_ok=True)
+    saves = os.path.join(directory, "saves")
+    write_session_fixture(fixture_name, saves, name)
+    return directory, saves
+
+
+def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout):
+    log_path = os.path.join(directory, "client.log")
+    code, timed_out = launch_client(binary, manifest_path, name, directory, saves,
+                                     script, log_path, timeout)
+    ledger_path = os.path.join(directory, "ledger.tsv")
+    has_ledger = os.path.isfile(ledger_path)
+    ok = (not timed_out) and code == 0 and has_ledger
+    return {
+        "name": name, "exit_code": code, "timed_out": timed_out,
+        "has_ledger": has_ledger, "directory": directory, "ok": ok,
+    }
+
+
+def run_quest(name, binary, manifest_path, timeout):
+    quest_file = quest_list.quest_path(REPO_ROOT, name)
+    assert os.path.isfile(quest_file), quest_file
+    fixture_name = read_fixture_name(quest_file)
+    directory, saves = prepare_session(name, fixture_name)
+    script = os.path.join(directory, "%s.lua" % name)
+    write_wrapper_script(quest_file, script)
+    return launch_and_report(name, binary, manifest_path, directory, saves, script, timeout)
+
+
+def run_script_direct(name, script_path, fixture_name, binary, manifest_path, timeout):
+    """The --script escape hatch: runs `script_path` as-is -- no setup-cheat
+    wrapping -- under build/quest_gate/<name>/. test/quests/_conformance.lua
+    is ALSO a `{ run = function(t) ... end }` table (its own `setup = {}` is
+    empty, and its comment says it re-issues any cheats itself through
+    t.cheat "so it can also run standalone"), so it loads through the same
+    zero-argument bootstrap a quest file does with no wrapping needed at
+    all. This is what lets it be driven through this runner as a direct
+    cross-check against `make test-quest-conformance`'s own answer, rather
+    than only ever through conformance.py's separate attempt loop."""
+    assert os.path.isfile(script_path), script_path
+    directory, saves = prepare_session(name, fixture_name)
+    return launch_and_report(name, binary, manifest_path, directory, saves, script_path, timeout)
+
+
+def print_report(results):
+    width = max((len(r["name"]) for r in results), default=5)
+    print("")
+    print("%-*s  %-10s  %-9s  %-6s  %s" % (
+        width, "quest", "exit", "timed_out", "ledger", "directory"))
+    print("%s  %s  %s  %s  %s" % ("-" * width, "-" * 10, "-" * 9, "-" * 6, "-" * 40))
+    for r in results:
+        print("%-*s  %-10s  %-9s  %-6s  %s" % (
+            width, r["name"],
+            "none" if r["exit_code"] is None else str(r["exit_code"]),
+            "yes" if r["timed_out"] else "no",
+            "yes" if r["has_ledger"] else "no",
+            r["directory"]))
+    print("")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("quest", nargs="?", help="run one quest: test/quests/<quest>.lua")
+    parser.add_argument("--quest", dest="quest_flag", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--all", action="store_true", help="run every discovered quest")
+    parser.add_argument("--jobs", type=int, default=1,
+                        help="quest client processes to run in parallel (default 1)")
+    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
+                        help="wall-clock ceiling per quest process, in seconds "
+                             "(default %d) -- a hung run fails, it never hangs the suite"
+                             % DEFAULT_TIMEOUT)
+    parser.add_argument("--warm-from", default="auto",
+                        help="seed a not-yet-existing build_questtest objdir from this "
+                             "directory, or 'auto' for the freshest sibling *_opt_es objdir "
+                             "(default: auto; see build_support.py for why this is safe)")
+    parser.add_argument("--no-warm", action="store_true",
+                        help="always build cold; overrides --warm-from")
+    parser.add_argument("--no-build", action="store_true", help="use the binary already built")
+    parser.add_argument("--script", default=None,
+                        help="advanced: run this .lua file directly as a single session "
+                             "(no quest-table wrapping, no setup cheats) -- see the module "
+                             "docstring")
+    parser.add_argument("--name", default=None,
+                        help="artefact directory name for --script (default: its basename)")
+    parser.add_argument("--fixture", default=DEFAULT_FIXTURE,
+                        help="fixture .ini for --script (default %s)" % DEFAULT_FIXTURE)
+    arguments = parser.parse_args()
+
+    name = arguments.quest_flag or arguments.quest
+    if not arguments.script and not arguments.all and not name:
+        parser.error("give a quest name, --all, or --script")
+    if arguments.jobs < 1:
+        parser.error("--jobs must be at least 1")
+
+    if not arguments.no_build:
+        warm_from = None if arguments.no_warm else arguments.warm_from
+        code, binary, seeded_from = build(warm_from)
+        if code != 0:
+            print("run.py: build failed", file=sys.stderr)
+            return code
+        if seeded_from:
+            print("run.py: seeded %s_opt_es from %s" % (OBJ_BASE, seeded_from), flush=True)
+    else:
+        binary = os.path.join(REPO_ROOT, "src", TARGET)
+    if not os.path.isfile(binary):
+        print("run.py: no binary at %s" % binary, file=sys.stderr)
+        return 1
+
+    code = ensure_scripts()
+    if code != 0:
+        print("run.py: the script pack did not build", file=sys.stderr)
+        return code
+
+    manifest_path = write_manifest()
+
+    if arguments.script:
+        script_path = os.path.abspath(arguments.script)
+        script_name = arguments.name or os.path.splitext(os.path.basename(script_path))[0]
+        result = run_script_direct(script_name, script_path, arguments.fixture,
+                                    binary, manifest_path, arguments.timeout)
+        print_report([result])
+        return 0 if result["ok"] else 1
+
+    if arguments.all:
+        names = quest_list.discover(REPO_ROOT)
+        if not names:
+            print("run.py: no quest files under test/quests/ -- nothing to run "
+                  "(this is a discovery fact, not a pass)", file=sys.stderr)
+            return 0
+    else:
+        quest_file = quest_list.quest_path(REPO_ROOT, name)
+        if not os.path.isfile(quest_file):
+            print("run.py: no such quest file %s" % quest_file, file=sys.stderr)
+            return 1
+        names = [name]
+
+    if arguments.jobs == 1:
+        results = [run_quest(n, binary, manifest_path, arguments.timeout) for n in names]
+    else:
+        with ThreadPoolExecutor(max_workers=arguments.jobs) as pool:
+            results = list(pool.map(
+                lambda n: run_quest(n, binary, manifest_path, arguments.timeout), names))
+
+    print_report(results)
+    failed = [r["name"] for r in results if not r["ok"]]
+    if failed:
+        print("run.py: %d of %d quest process(es) did not complete cleanly: %s"
+              % (len(failed), len(results), ", ".join(failed)), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

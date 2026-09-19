@@ -31,6 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
+import build_support  # noqa: E402
 import verb_list  # noqa: E402
 
 HARNESS = os.path.join(REPO_ROOT, "test", "quests", "_conformance.lua")
@@ -47,23 +48,31 @@ def run(command, **kwargs):
     return subprocess.call(command, **kwargs)
 
 
-def build(label):
-    """Build into THIS gate's own objdir, and never seed it from another one.
+def build(label, warm_from):
+    """Build into THIS gate's own objdir.
 
-    Seeding from a warm objdir was tried and it poisoned the answer: `cp -Rp`
-    preserves mtimes, GNU Make 3.81 here compares whole seconds, and make then
-    declared 465 of 540 copied objects fresh.  The binary that came out ran a
-    client whose npc pool stayed empty, whose backpack never synced and whose
-    tile never moved -- a fabricated R-B "reproduction" that a clean build does
-    not show.  That is CLAUDE.md's "if a build ever disagrees with its source,
-    delete the object and rebuild", and the whole point of this gate is that
-    its answer is real, so the first build here is a cold one.
+    This used to never seed from another objdir: seeding with a plain
+    `cp -Rp` was tried and it poisoned the answer -- mtimes survive the copy,
+    GNU Make 3.81 here compares whole seconds, and make declared 465 of 540
+    copied objects fresh. That is exactly CLAUDE.md's "never mutate source to
+    prove a test fails" hazard, on a build product instead of a source file.
+
+    It is safe now: src/makefile runs tools/objverify.py before make
+    evaluates anything, and objverify deletes any object whose CONTENT hash
+    (not mtime) no longer matches its recorded prerequisites -- precisely the
+    case a mtime-preserving copy produces. See tools/quest_gate/build_support.py
+    for the write-up and the 2026-09-19 measurement (a warm-seeded build here
+    forced 78 genuinely-stale objects to rebuild by content, then finished in
+    ~27s against ~61s cold). warm_from is "auto" (pick the freshest sibling
+    objdir), an explicit directory, or None (always cold, the old behaviour).
     """
     target = "torirs_qd_%s" % label
-    code = run(["make", "-C", os.path.join(REPO_ROOT, "src"), "OPT=1", "EMBED_SERVER=1",
-                "PLATFORM_OBJ_BASE=build_qd_%s" % label,
-                "PLATFORM_TARGET=%s" % target, target])
-    return code, os.path.join(REPO_ROOT, "src", target)
+    code, binary, seeded_from = build_support.build(
+        REPO_ROOT, "build_qd_%s" % label, target, warm_from=warm_from, run=run)
+    if seeded_from:
+        print("conformance: seeded build_qd_%s_opt_es from %s" % (label, seeded_from),
+              flush=True)
+    return code, binary
 
 
 def manifest():
@@ -228,6 +237,12 @@ def main():
                         help="session directory (default build/quest_gate/_conformance)")
     parser.add_argument("--keep", action="store_true", help="keep a previous session directory")
     parser.add_argument("--no-build", action="store_true", help="use the binary already built")
+    parser.add_argument("--warm-from", default="auto",
+                        help="seed a not-yet-existing objdir from this one, or 'auto' for the "
+                             "freshest sibling *_opt_es objdir (default: auto; see "
+                             "build_support.py for why this is safe)")
+    parser.add_argument("--no-warm", action="store_true",
+                        help="always build cold; overrides --warm-from")
     arguments = parser.parse_args()
 
     if run([sys.executable, os.path.join(HERE, "verb_list.py"), "--check"]) != 0:
@@ -237,7 +252,8 @@ def main():
 
     binary = os.path.join(REPO_ROOT, "src", "torirs_qd_%s" % arguments.label)
     if not arguments.no_build:
-        code, binary = build(arguments.label)
+        warm_from = None if arguments.no_warm else arguments.warm_from
+        code, binary = build(arguments.label, warm_from)
         if code != 0:
             print("conformance: build failed", file=sys.stderr)
             return code
