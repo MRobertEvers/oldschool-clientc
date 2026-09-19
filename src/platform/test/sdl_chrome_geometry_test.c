@@ -329,6 +329,48 @@ main(void)
     CHECK_EQ(window_width(window), 500, "hiding a rail that grew the window gives the growth back");
     CHECK_EQ(poll_resize_width(platform, &bus), 500, "and the game area stays");
 
+    /* ---- I. a fixed frame larger than the display ---------------------
+     *
+     * The fixed-mode snap is the classic 765x503 frame times the interface
+     * scale, and the scale is the player's: at 300% it asks for 2295x1509
+     * points, which no laptop display holds. It used to be given exactly
+     * that -- as the window's size AND as its minimum, so the frame could
+     * not be dragged back onto the desk either. The window is capped at the
+     * display instead and the present letterboxes the frame into it.
+     */
+    stage_window(platform, &bus, window, 0, 500);
+    PlatformWindow_ChromeSetRailHidden(platform, true);
+    (void)poll_resize_width(platform, &bus);
+    {
+        int const huge_w = display_w * 3;
+        int const huge_h = usable.h * 3;
+        int minimum_w = 0;
+        int minimum_h = 0;
+
+        PlatformWindow_SetCanvasFollowsWindow(platform, &bus, false, huge_w, huge_h);
+        CHECK(window_width(window) <= display_w,
+            "the fixed-mode snap never asks for a window wider than the display");
+        CHECK(window_height(window) <= usable.h,
+            "nor taller than it");
+        CHECK(window_x(window) >= 0 && window_x(window) + window_width(window) <= display_w,
+            "and the capped window sits inside the display");
+        SDL_GetWindowMinimumSize(window, &minimum_w, &minimum_h);
+        CHECK(minimum_w <= display_w && minimum_h <= usable.h,
+            "and its minimum is capped too, or the window could not be dragged back");
+        (void)take_resize_width(&bus);
+
+        /* SetWindowSize is the other half of the contract: a simulated DRAG,
+         * which a headless layout experiment aims past the display on
+         * purpose. It is not capped, and nothing but that knob sends a size
+         * through it. */
+        PlatformWindow_SetWindowSize(platform, huge_w, INIT_H);
+        CHECK_EQ(window_width(window), huge_w,
+            "a simulated drag is given exactly the size it asked for");
+    }
+    PlatformWindow_SetCanvasFollowsWindow(platform, &bus, true, MIN_W, MIN_H);
+    PlatformWindow_ChromeSetRailHidden(platform, false);
+    (void)poll_resize_width(platform, &bus);
+
     PlatformWindow_Free(platform);
     if( failures )
     {

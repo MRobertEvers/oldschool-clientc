@@ -1811,6 +1811,143 @@ sdl_window_growth_fits(
 }
 
 /*
+ * The largest GAME AREA, in window points, the window's display can show:
+ * its usable bounds less the window's decorations and less the plugin pane,
+ * which is the platform's own allocation beside the game area.
+ *
+ * Every size this file asks the window for is capped by it, because none of
+ * the sizes are the user's: the fixed-mode snap is the classic frame times
+ * the interface scale, and at 300% on a laptop that is 2295x1509 points --
+ * a window larger than the desk, with a MINIMUM size to match, so it cannot
+ * even be dragged back. Capping it here is what client_scale.h rule 5 means
+ * by "the platform caps it at the display": the frame is not cropped, the
+ * present letterboxes it into what the display can hold.
+ *
+ * False when the display's geometry is unknown (a driver with no bounds, or
+ * the web canvas, which the page sizes): no cap then, since the one thing
+ * this must never do is refuse a window a real desk has room for.
+ */
+static bool
+sdl_display_game_area_limit(
+    struct PlatformWindow const* platform,
+    int* out_width,
+    int* out_height)
+{
+    assert(platform);
+    assert(out_width);
+    assert(out_height);
+    *out_width = 0;
+    *out_height = 0;
+    if( !platform->window )
+        return false;
+#if defined(__EMSCRIPTEN__)
+    return false;
+#else
+    {
+        SDL_Rect usable = { 0, 0, 0, 0 };
+        int const display = SDL_GetWindowDisplayIndex(platform->window);
+        int border_top = 0;
+        int border_left = 0;
+        int border_bottom = 0;
+        int border_right = 0;
+        int limit_width;
+        int limit_height;
+
+        if( display < 0 || SDL_GetDisplayUsableBounds(display, &usable) != 0 ||
+            usable.w <= 0 || usable.h <= 0 )
+            return false;
+        /* Fails on drivers without decorations; the sizes stay zero then. */
+        (void)SDL_GetWindowBordersSize(
+            platform->window, &border_top, &border_left, &border_bottom, &border_right);
+        limit_width = usable.w - border_left - border_right - sdl_chrome_pane_points(platform);
+        limit_height = usable.h - border_top - border_bottom;
+        if( limit_width < 1 || limit_height < 1 )
+            return false;
+        *out_width = limit_width;
+        *out_height = limit_height;
+        return true;
+    }
+#endif
+}
+
+/* `*width`x`*height` game-area points, capped at what the display can show. */
+static void
+sdl_cap_game_area_to_display(
+    struct PlatformWindow const* platform,
+    int* width,
+    int* height)
+{
+    int limit_width = 0;
+    int limit_height = 0;
+
+    assert(platform);
+    assert(width);
+    assert(height);
+    if( !sdl_display_game_area_limit(platform, &limit_width, &limit_height) )
+        return;
+    if( *width > limit_width )
+        *width = limit_width;
+    if( *height > limit_height )
+        *height = limit_height;
+}
+
+/*
+ * Size the window's GAME AREA to `width`x`height` points -- capped at the
+ * display, and slid back inside it when the new size would hang off the
+ * right or the bottom (SDL_SetWindowSize keeps the top-left corner). The
+ * plugin pane keeps its own points beside it.
+ *
+ * The caller may not decide any of this: the sizes that arrive here are the
+ * fixed frame times the interface scale, not a size the user dragged.
+ */
+static void
+sdl_set_game_area_size(
+    struct PlatformWindow* platform,
+    int width,
+    int height)
+{
+    SDL_Rect usable = { 0, 0, 0, 0 };
+    int const pane_w = sdl_chrome_pane_points(platform);
+    int display;
+    int window_x = 0;
+    int window_y = 0;
+    int border_top = 0;
+    int border_left = 0;
+    int border_bottom = 0;
+    int border_right = 0;
+
+    assert(platform);
+    assert(platform->window);
+    assert(width > 0);
+    assert(height > 0);
+    sdl_cap_game_area_to_display(platform, &width, &height);
+
+    display = SDL_GetWindowDisplayIndex(platform->window);
+    if( display >= 0 && SDL_GetDisplayUsableBounds(display, &usable) == 0 && usable.w > 0 &&
+        usable.h > 0 )
+    {
+        /* Fails on drivers without decorations; the sizes stay zero then. */
+        (void)SDL_GetWindowBordersSize(
+            platform->window, &border_top, &border_left, &border_bottom, &border_right);
+        SDL_GetWindowPosition(platform->window, &window_x, &window_y);
+        {
+            int const right = usable.x + usable.w - border_right;
+            int const bottom = usable.y + usable.h - border_bottom;
+            int const moved_x = window_x + width + pane_w > right ? right - width - pane_w
+                                                                  : window_x;
+            int const moved_y = window_y + height > bottom ? bottom - height : window_y;
+            int const inside_x = moved_x < usable.x + border_left ? usable.x + border_left
+                                                                  : moved_x;
+            int const inside_y = moved_y < usable.y + border_top ? usable.y + border_top
+                                                                 : moved_y;
+            if( inside_x != window_x || inside_y != window_y )
+                SDL_SetWindowPosition(platform->window, inside_x, inside_y);
+        }
+    }
+    SDL_SetWindowSize(platform->window, width + pane_w, height);
+}
+
+/*
  * The decision for one growth of the pane: grow the window by grow_w x grow_h
  * (after sliding it left by *out_shift_x), or carve the pane out of the game
  * area instead, leaving `game_w_if_refused` points of it.
@@ -2900,6 +3037,14 @@ PlatformWindow_SetCanvasFollowsWindow(
     if( !platform->window )
         return;
 
+    /* Never larger than the display, on either axis, and BEFORE the minimum
+     * is stated: a minimum the desk cannot hold is a window the user cannot
+     * make smaller. The fixed-mode caller's floor is the classic frame times
+     * the interface scale, which at 300% is 2295x1509 points.
+     * @see sdl_display_game_area_limit. */
+    if( min_w > 0 && min_h > 0 )
+        sdl_cap_game_area_to_display(platform, &min_w, &min_h);
+
     /* The floor is a window constraint in both modes — see the header. SDL
      * rejects a non-positive minimum, so a caller that has no floor to state
      * gets no constraint rather than an assert inside SDL. */
@@ -2925,7 +3070,7 @@ PlatformWindow_SetCanvasFollowsWindow(
          * snapped at all -- SDL_SetWindowSize would un-maximise it -- and
          * letterboxes the fixed frame where it is. */
         if( min_w > 0 && min_h > 0 && !sdl_window_frame_locked(platform) )
-            SDL_SetWindowSize(platform->window, min_w + sdl_chrome_pane_points(platform), min_h);
+            sdl_set_game_area_size(platform, min_w, min_h);
         return;
     }
 
@@ -2965,14 +3110,8 @@ PlatformWindow_SetGameAreaFloor(
     int min_w,
     int min_h)
 {
-    SDL_Rect usable = { 0, 0, 0, 0 };
-    int display;
     int have_w = 0;
     int have_h = 0;
-    int border_top = 0;
-    int border_left = 0;
-    int border_bottom = 0;
-    int border_right = 0;
     int const pane_w = sdl_chrome_pane_points(platform);
 
     assert(platform);
@@ -2985,20 +3124,10 @@ PlatformWindow_SetGameAreaFloor(
     return;
 #endif
 
-    display = SDL_GetWindowDisplayIndex(platform->window);
-    if( display >= 0 && SDL_GetDisplayUsableBounds(display, &usable) == 0 && usable.w > 0 &&
-        usable.h > 0 )
-    {
-        /* Fails on drivers without decorations; the sizes stay zero then. */
-        (void)SDL_GetWindowBordersSize(
-            platform->window, &border_top, &border_left, &border_bottom, &border_right);
-        if( min_w > usable.w - border_left - border_right - pane_w )
-            min_w = usable.w - border_left - border_right - pane_w;
-        if( min_h > usable.h - border_top - border_bottom )
-            min_h = usable.h - border_top - border_bottom;
-        if( min_w < 1 || min_h < 1 )
-            return;
-    }
+    /* The same cap every size in this file gets: a floor the desk cannot hold
+     * is a window that cannot be dragged smaller. @see
+     * sdl_display_game_area_limit. */
+    sdl_cap_game_area_to_display(platform, &min_w, &min_h);
 
     /* The minimum is the GAME AREA's, as PlatformWindow_SetCanvasFollowsWindow
      * states it: the pane's growth policy reads it back as that. */
@@ -3012,31 +3141,11 @@ PlatformWindow_SetGameAreaFloor(
     have_w -= pane_w;
     if( have_w >= min_w && have_h >= min_h )
         return;
-    {
-        int const want_w = have_w > min_w ? have_w : min_w;
-        int const want_h = have_h > min_h ? have_h : min_h;
-        int window_x = 0;
-        int window_y = 0;
-
-        /* Grown right and down from the top-left corner, so a window near the
-         * display's edge would hang off it: slide it back inside first. */
-        SDL_GetWindowPosition(platform->window, &window_x, &window_y);
-        if( usable.w > 0 && usable.h > 0 )
-        {
-            int const right = usable.x + usable.w - border_right;
-            int const bottom = usable.y + usable.h - border_bottom;
-            if( window_x + want_w + pane_w > right )
-                window_x = right - want_w - pane_w;
-            if( window_y + want_h > bottom )
-                window_y = bottom - want_h;
-            if( window_x < usable.x + border_left )
-                window_x = usable.x + border_left;
-            if( window_y < usable.y + border_top )
-                window_y = usable.y + border_top;
-            SDL_SetWindowPosition(platform->window, window_x, window_y);
-        }
-        SDL_SetWindowSize(platform->window, want_w + pane_w, want_h);
-    }
+    /* Grown right and down from the top-left corner, so a window near the
+     * display's edge would hang off it: sdl_set_game_area_size slides it back
+     * inside first. */
+    sdl_set_game_area_size(
+        platform, have_w > min_w ? have_w : min_w, have_h > min_h ? have_h : min_h);
 }
 
 void
@@ -3050,11 +3159,17 @@ PlatformWindow_SetWindowSize(
         return;
     /* `width` is the game area: the plugin pane beside it is the platform's
      * own allocation, invisible to the caller, and keeps its points. Never
-     * while the window manager owns the frame -- the fixed-mode strip inset
-     * lands here every time the plugin strip opens, and on a maximised
-     * window each of those was a frame jumping out of maximised. */
+     * while the window manager owns the frame -- a programmatic resize
+     * un-maximises it, which is the frame jumping to a size and place the
+     * user never asked for. */
     if( sdl_window_frame_locked(platform) )
         return;
+    /* NOT capped at the display: this one is a drag, and a headless layout
+     * experiment drags to sizes the dummy driver's 1024x768 display does not
+     * hold (docs/gameframe_layout_resize.md). The client's own policy sizes --
+     * the fixed-mode snap, the resizable floor -- do not come through here;
+     * they are capped where they arrive. @see PlatformWindow_SetGameAreaFloor,
+     * PlatformWindow_SetCanvasFollowsWindow. */
     SDL_SetWindowSize(platform->window, width + sdl_chrome_pane_points(platform), height);
 }
 

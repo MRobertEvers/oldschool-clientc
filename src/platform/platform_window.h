@@ -555,6 +555,17 @@ void
 PlatformWindow_SetTouchOverlayTest(
     struct PlatformWindow* platform, ToriRS_TouchOverlayFn fn, void* user);
 
+/**
+ * Whether the canvas tracks the window, with the game area's floor in points.
+ *
+ * `min_w`/`min_h` is the window's minimum size in both modes, and in FIXED
+ * mode the size the window is snapped to as well -- the classic frame times
+ * the interface scale, which the player picks and the display need not be
+ * able to hold. Both are capped at the display's usable area: an uncapped
+ * 300% fixed frame is a 2295x1509-point window with a minimum to match, so
+ * it cannot be dragged back onto the desk either. What the cap leaves short
+ * the present letterboxes (@see platform/client_scale.h rule 5).
+ */
 void
 PlatformWindow_SetCanvasFollowsWindow(
     struct PlatformWindow* platform,
@@ -586,6 +597,14 @@ PlatformWindow_SetGameAreaFloor(
  * nothing else, so what happens next is decided by the follow gate exactly as it
  * would be for a real drag. It is the only way to exercise that gate headlessly
  * — pushing TORIRS_CMD_WINDOW_RESIZE straight onto the bus skips it.
+ *
+ * `width`/`height` is the GAME AREA in window points; the plugin pane keeps
+ * its own points beside it. NOT capped at the display, because a simulated
+ * drag is one: a headless layout experiment drags to sizes the dummy
+ * driver's display does not hold. The client's own policy sizes -- the fixed
+ * frame times the interface scale, the resizable floor -- never come through
+ * here; they arrive at PlatformWindow_SetCanvasFollowsWindow and
+ * PlatformWindow_SetGameAreaFloor, which do cap them.
  */
 void
 PlatformWindow_SetWindowSize(
