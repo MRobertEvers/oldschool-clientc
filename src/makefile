@@ -4023,6 +4023,23 @@ test-quest-conformance:
 check-quest-verbs:
 	python3 $(REPO_ROOT)/tools/quest_gate/verb_list.py --check
 
+# The cheat ladder, proved from a real client run. test/quests/_cheats.lua is
+# not a quest (the leading underscore keeps it out of `run.py --all`): it is
+# one ledger row per command `t.cheat` now has to be able to reach --
+# ::give, ::setlevel, ::setvar, ::spawn, ::kill, ::tele, and a bogus line that
+# must answer `no_row`. Before ToriRSServer_RunCheatForTest existed, every one
+# of those but ::tele answered `no_row` and did nothing at all to the test that
+# asked for it, which is a setup that silently states nothing
+# (docs/QUEST_SERVER_CHEATS.md B).
+#
+# Red twice over, deliberately: the script itself finishes non-zero on any
+# failed row, and the ledger is re-read afterwards so a run that died before it
+# could write its own verdict cannot pass by leaving no evidence.
+.PHONY: test-quest-cheats
+test-quest-cheats:
+	python3 $(REPO_ROOT)/tools/quest_gate/run.py --script $(REPO_ROOT)/test/quests/_cheats.lua --name cheats --no-publish
+	python3 -c 'import sys; sys.path.insert(0, "$(REPO_ROOT)/tools/quest_gate"); import ledger; rows, summary = ledger.read("$(REPO_ROOT)/build/quest_gate/cheats/ledger.tsv"); bad = [r for r in (rows or []) if r["verdict"] != "PASS"]; [print("FAIL row:", r["step"], r["detail"]) for r in bad]; print("no ledger.tsv") if rows is None else None; sys.exit(1 if (bad or not rows or summary is None) else 0)'
+
 # Walkmerge blend (Model.maskAnimate port) + seq-meta plumbing.
 test-walkmerge: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/walkmerge_test \

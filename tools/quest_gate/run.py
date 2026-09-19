@@ -176,6 +176,17 @@ def write_wrapper_script(quest_file, out_path):
     hand-parse (see verb_list.py's header), and letting the quest's own
     table construct itself as real Lua is the only way `setup` is read
     correctly no matter how it is written.
+
+    A setup cheat that does not answer `ok` ENDS THE RUN with a FAIL row
+    named `setup.<cheat text>`, and that is the whole reason this loop is
+    worth generating rather than leaving to each quest. The failure it
+    catches is silent by construction: `t.cheat` used to reach only content
+    debugprocs, so `setup = { "::give egg" }` answered `no_row`, put nothing
+    in the backpack, and the quest went on to fail four steps later at a
+    dialogue option that never appeared -- with the ledger blaming the
+    dialogue. `no_row` (nothing in the server understood the line) and
+    `refused` (a debugproc or a ladder branch understood it and said no) are
+    both this failure; only `ok` is a setup that happened.
     """
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
@@ -191,7 +202,15 @@ def write_wrapper_script(quest_file, out_path):
         "QUEST.run = function(t)\n"
         "    if type(quest_setup) == \"table\" then\n"
         "        for _, cheat in ipairs(quest_setup) do\n"
-        "            t.t.cheat(cheat)\n"
+        "            local setup_result, setup_detail = t.t.cheat(cheat)\n"
+        "            if setup_result ~= \"ok\" then\n"
+        "                t.t.step(\"setup.\" .. cheat, \"FAIL\",\n"
+        "                    \"setup cheat answered \" .. tostring(setup_result)\n"
+        "                        .. \" (\" .. tostring(setup_detail) .. \")\"\n"
+        "                        .. \" -- the world this quest assumes was never stated\")\n"
+        "                t.t.finish(1)\n"
+        "                return\n"
+        "            end\n"
         "        end\n"
         "    end\n"
         "    return quest_run(t)\n"

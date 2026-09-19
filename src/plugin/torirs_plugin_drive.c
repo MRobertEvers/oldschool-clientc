@@ -356,7 +356,14 @@ DriveCore_Cheat(struct App* app, char const* text)
 
     srv = ToriRSServer_EmbedWorld(g_embed);
     assert(srv);
-    result = ToriRSServer_RunDebugprocForTest(srv, text);
+    /* The WHOLE of handle_cheat's dispatch -- content's `[debugproc]` first,
+     * then the C ladder -- not just its first half. This used to call
+     * ToriRSServer_RunDebugprocForTest, which reaches only content, so
+     * `::give`, `::setlevel`, `::spawn`, `::wield`, `::tele <x> <z>` and every
+     * other engine cheat answered `no_row` and did nothing at all to the test
+     * that asked for one (docs/QUEST_SERVER_CHEATS.md B). The verdict
+     * vocabulary is unchanged, so the mapping below is too. */
+    result = (int)ToriRSServer_RunCheatForTest(srv, text);
     if( result == TORIRSSERVER_TRIGGER_FAILED )
         return DRIVE_REFUSED;
     if( result == TORIRSSERVER_TRIGGER_RAN )
@@ -410,6 +417,16 @@ PluginDriveCore_LevelAwaitPending(void)
 static int g_ledger_index;
 static int g_ledger_pass;
 static int g_ledger_fail;
+/* BLOCKED is its own count, not a third kind of failure.
+ *
+ * A quest that cannot be finished today -- a boss with no skip arm, a step
+ * that needs a verb nobody has written -- must say so in the ledger rather
+ * than be absent from it or lie about passing. Folding it into `fail` would
+ * make a suite of honest stubs look like a suite of regressions, and folding
+ * it into `pass` would make the stub indistinguishable from the real thing.
+ * So the SUMMARY verdict stays keyed on `fail == 0` alone, and this count
+ * rides alongside it for gate.py to report separately. */
+static int g_ledger_blocked;
 static long g_ledger_total_ticks;
 
 static void
@@ -447,6 +464,8 @@ drive_ledger_write(char const* step, char const* verdict, int ticks, char const*
     g_ledger_total_ticks += ticks;
     if( strcmp(verdict, "PASS") == 0 )
         g_ledger_pass++;
+    else if( strcmp(verdict, "BLOCKED") == 0 )
+        g_ledger_blocked++;
     else
         g_ledger_fail++;
 
@@ -481,9 +500,21 @@ drive_ledger_write_summary(int code)
     assert(f);
     if( g_ledger_index == 0 )
         fprintf(f, "quest-ledger-v1\nindex\tstep\tverdict\tticks\tshots\tdetail\n");
-    fprintf(f, "SUMMARY\t%d\t%s\t%ld\texit=%d\tpass=%d fail=%d\n",
+    /* ` blocked=K` is APPENDED, and only when there is one to report.
+     *
+     * The column is a free-text token bag that gate.py splits on whitespace
+     * and reads `key=value` out of, so a new token is compatible by
+     * construction -- but every ledger already published under
+     * OSRS-Content/.../quest_tests/ was written without it, and a suite whose
+     * rows are all PASS or FAIL should keep producing byte-identical summaries
+     * to the ones a human has already read. So the token appears exactly when
+     * it carries information. */
+    fprintf(f, "SUMMARY\t%d\t%s\t%ld\texit=%d\tpass=%d fail=%d",
         g_ledger_index, g_ledger_fail == 0 ? "PASS" : "FAIL", g_ledger_total_ticks, code,
         g_ledger_pass, g_ledger_fail);
+    if( g_ledger_blocked > 0 )
+        fprintf(f, " blocked=%d", g_ledger_blocked);
+    fprintf(f, "\n");
     fclose(f);
 }
 

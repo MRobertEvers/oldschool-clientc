@@ -175,6 +175,20 @@ cheat_npc_from_name(
     char* suggest,
     size_t suggest_size);
 
+/* `::setvar`'s two-rung twins of the pair above -- a var has no display-name
+ * table, so only the numeric/gameval/unique-substring rungs apply. */
+int
+cheat_varp_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size);
+
+int
+cheat_varbit_from_name(
+    const char* arg,
+    char* suggest,
+    size_t suggest_size);
+
 /* Login side-effects, music and ambience. */
 void
 ToriRSServer_WorldSocialLogin(struct ToriRSServerPlayer* player);
