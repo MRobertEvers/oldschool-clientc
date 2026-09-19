@@ -357,3 +357,27 @@ out of draft.
   *prerequisite*: it put the two clocks behind one named ratio, which is what
   that work needs to vary.
 - **`levelup_display`** until the content decision in plan U16.
+
+## Haiku pilots, 2026-09-19 (three batches of four)
+
+Green through the whole loop (Haiku author, Sonnet reviewer, Opus sampler):
+`doric` (3 runs), `druid` (7 runs). Honest BLOCKED, committed: `runemysteries`.
+Rejected and left untracked for the next author to resume: `sheep` (its reward
+rows compared the stat gain against the number the scroll printed, so a wrong
+reward could never fail; assert the literal), `romeojuliet` (the author wrote
+`t.blocked` without ever clicking Juliet, who is visible in its own shot 20),
+`priest` (reported blocked with no `t.blocked` row).
+
+Seams the pilots found, in order of how many quests they will hit:
+
+- **Wizards' Tower basement does not load after a descent.** `runemysteries`
+  (Sedridor) and `priest` (the altar skull) both fail `screen_position` after
+  a ladder or a `::tele` into the basement's region+100 coordinate space; one
+  probe screenshot still showed Lumbridge castle geometry after the jump. A
+  scene/npc-pool load gap on that multi-region transition, not a quest bug.
+  Every quest that visits that basement is blocked until it is fixed.
+- `click_loc` op 1 on some stairs opens a menu instead of climbing; the
+  authoring page's ladder rule was corrected in `20fc79621`.
+- A rejected author twice reported "blocked" with no `t.blocked` row despite
+  the card saying so in capitals. The reviewer catches it; the cost is one
+  wasted author run per occurrence.
