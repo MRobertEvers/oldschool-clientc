@@ -15,9 +15,9 @@ Landed and verified by driving the client (2026-09-19, phases 1 and 2 of
   scratch file) and `gate.py` re-reads what it left behind. `make -C src
   test-quests` is the pair.
 - **Two quest tests, green from a real run.** `test/quests/cooks_assistant.lua`
-  (29 rows) plays Cook's Assistant through the cook's own dialogue and hands
-  the ingredients in; `test/quests/hans.lua` (15 rows) follows Hans around the
-  courtyard. Both are `green` under `gate.py`, and each green run's ledger and
+  (25 rows, 29 shots) plays Cook's Assistant through the cook's own dialogue
+  and hands the ingredients in; `test/quests/hans.lua` (14 rows, 18 shots)
+  follows Hans around the courtyard. Both are `green` under `gate.py`, and each green run's ledger and
   shots are published into `OSRS-Content/.../selftest/quest_tests/<quest>/`.
 - **Every verb, executed.** `test/quests/_conformance.lua` calls all **97**
   verbs against a live world, one ledger row each, and
@@ -41,6 +41,114 @@ Not landed: the authoring kit (phase 3) -- `new_quest.py`, `lint_quest.py`,
 scaffold -- and the `::skipboss` arms (phase 4). Until `QUEST_AUTHORING.md`
 exists, the page an author reads is `test/quests/README.md`, whose headline
 example predates the kit.
+
+## Kit landed 2026-09-19 -- and the seams it left (the phase 6 backlog)
+
+Phases 1, 2 and 3 of `QUEST_SUITE_KIT.md` are in. The spec for what was
+built is that file; the page an author actually reads is
+`docs/QUEST_AUTHORING.md` (test shape, every verb on one line, the result
+vocabulary, twelve traps, the definition of done). `test/quests/README.md`
+now points there and carries no example of its own -- the example it used to
+carry named a fixture that does not exist, which is the exact failure this
+phase existed to remove.
+
+What phase 3 added: `tools/quest_gate/new_quest.py` (a skeleton per Quest
+Helper guide -- 179 of 181 guides generate, 0 errors),
+`tools/quest_gate/lint_quest.py` (six refusals: numeric ids, `::complete`
+of your own row, `"PASS"` literals, `-- CHECK` markers, duplicate `t["do"]`
+names, symbols absent from the compack), `gate.py`'s minimum shape plus a
+pixel fingerprint against the Character-Creator/pre-login frames, `run.py`'s
+failure block and `TIMEOUT.png`, `test/quests/QUEUE.tsv` (188 rows: 179
+quests + the 9 RFD subquests, tiered), and both real quests rebuilt on the
+phase-2 verb kit with no local helper functions.
+
+### Seams in the driver (NOT phase 3's files -- each needs a driver owner)
+
+- **`chat.lua`: a drained page's shot is named for the page it just LEFT.**
+  Nine of this pass's published shots are one page ahead of their filename
+  (`03-npc.png` is an options menu, `16-npc.png` is a player page). Every
+  quest's evidence inherits it, so it should be fixed before the Haiku loop
+  multiplies it by 179.
+- **A verb that answers `(ok, nil)` can never go through `t["do"]`.** The
+  hollow rule grades it FAIL. `chat.play`, `chat.continue_`, `t.cheat`,
+  `inv.await_all` and `inv.expect_absent` are all in this class -- and
+  `QUEST_SUITE_KIT.md`'s own headline example pairs `t["do"]` with
+  `chat.play`, which was measured live this pass writing
+  `FAIL ... hollow -- ok with no detail` on a run whose six chat pages all
+  matched. Either those verbs return a detail, or the rule gets a
+  documented exemption. Until then `QUEST_AUTHORING.md` trap 12 is the
+  workaround.
+- **`quest.lua`: `scroll.close`'s result never reaches a verdict.** Line
+  ~313 grades the JOURNAL close; the reward scroll's own close only lands
+  in a detail string, so a scroll that refused to close reports PASS.
+  `cooks_assistant.lua` works around it with a `scroll.title() ==
+  not_visible` row after `expect_complete`; it belongs in the grade.
+- **`quest.expect_complete` opens and closes the quest journal itself**, so
+  no quest file can photograph it. `quest.journal` is phase 2e's only live
+  proof and has no image behind it.
+- **`pointer.lua`: `drive._ensure_visible` early-outs** the moment
+  `screen_position` answers at all, so a target clinging to the edge of the
+  viewport is never re-aimed. A quest that wants a PICTURE rather than a
+  click has to set `drive.camera` by hand -- `hans.lua` does, with a
+  measured pose, and that reasoning should move into the driver.
+- **`player.by_symbol` returns `(target, result, name)`** -- the reverse of
+  every other verb's `(result, detail)`. Documented once in the verb table;
+  it will still catch someone.
+- **`quest.bind`'s `row=` field is never read by any assertion.**
+  `expect_complete` matches the journal by `display`. Plausible, unproven.
+- **`docs/QUEST_SERVER_CHEATS.md` is stale**: it still says `::kill` and
+  `::setvar` do not exist. They landed in phase 1.
+
+### Backlog in the authoring kit (phase 3's own files)
+
+- `new_quest.py` maps one helper DIRECTORY to one quest, so the 9 RFD
+  subquests have a `QUEUE.tsv` row each and no generator path. Needs a
+  per-file mode.
+- `new_quest.py`'s linear route is a heuristic walk of the
+  `ConditionalStep` chain in written order, not a solve of the requirement
+  graph -- close but not the true play order (measured on Cook's own
+  `getFlour` sub-chain). Every skeleton needs a human to reorder from the
+  `-- CHECK` markers before a live run means anything. The `--all` table
+  now counts every `-- CHECK` line it writes (11,085 across 5,989 steps) so
+  the size of that job is not hidden; before this pass the `unresolved`
+  column read 0 for files carrying four unresolved route entries.
+- `new_quest.py` cannot detect a quest whose own scripts carry a test-only
+  ingredient-giving debugproc (the `quest_cook_test_ingredients.rs2`
+  pattern), so its default `::give`-in-setup can collapse an
+  accept-then-gather quest into one auto-completing Talk-to. A human caught
+  it here by reading the `.rs2`.
+- `new_quest.py` emits the `t.blocked("skipboss not landed")` stub at the
+  END of the file rather than at the fight, so a generated tier-4 file
+  attempts every post-boss step first.
+- `WidgetStep`/`DigStep` and any step class outside
+  `NpcStep`/`ObjectStep`/`ItemStep` are written as a comment, never a
+  guessed verb call -- their ids are raw Java ints with no cache symbol.
+- `quest.bind`'s `display`/`points` are content-sourced guesses (the
+  quest's `_questpoints` constant, or `QuestPointReward(N)`), not read from
+  the cache's `quest` dbtable -- nothing here reads packed dbtable rows.
+- `parse_skill_requirements` scans the whole helper source, so a
+  requirement used only as a hide-condition can still become a `::setlevel`
+  in setup. The self-reference guard catches the `QuestRequirement` case;
+  the skill case needs a human.
+- `gate.py`'s `FINGERPRINT_MATCH_THRESHOLD` (12.0) has measured headroom
+  but has never been tried against a dark dungeon interior, and the two
+  fingerprint JSONs go stale silently if the boot screen changes
+  (`fingerprints/capture_fingerprints.py` regenerates them).
+- `gate.py`'s `quest.bind` shape rules are still gated on the quest's own
+  source using `quest.bind`. The shot rule is now per row and reads
+  comment-stripped source (`shooting_row_names`), so a comment can no
+  longer switch a rule on -- that bug drove the flagship quest file off the
+  phase-2 idiom for a whole review cycle.
+- Nothing enforces that `QUEST_AUTHORING.md` keeps up with the verb set.
+  `tools/quest_gate/verb_list.py --check` is the only list that cannot go
+  stale; the prose page can, exactly as `README.md`'s example did.
+
+### Still unbuilt
+
+Phase 4 (the `::skipboss` arms) has not landed: 65 of the 179 generated
+skeletons end on a `t.blocked(...)` stub because their quest has a fight.
+Phase 5 is the Haiku loop itself, which claims work off `QUEUE.tsv` -- that
+file has a `status`/`owner` column and no mechanism behind it yet.
 
 ## The three rules this work earned
 

@@ -66,6 +66,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
 import build_support  # noqa: E402
+import ledger  # noqa: E402
 import quest_list  # noqa: E402
 
 OBJ_BASE = "build_questtest"
@@ -285,10 +286,34 @@ def prepare_session(name, fixture_name):
     return directory, saves
 
 
+def copy_timeout_shot(directory):
+    """On a wall-clock timeout, the driver's own LAST shot (if it took any
+    at all) is copied to <directory>/TIMEOUT.png -- run.py's own exit code
+    already says the process did not finish cleanly, but a human (or
+    print_failure_block, below) reading build/quest_gate/<quest>/ afterward
+    should not have to re-run the quest just to see what the screen looked
+    like when it hung. Shots are named "NN-name.png" (core.lua:
+    string.format("%02d-%s", ...)), so a plain filename sort is also
+    chronological. None (no copy made) when the run never got far enough to
+    take even one shot -- a timeout that early has nothing to show."""
+    assert directory
+    shots_dir = os.path.join(directory, "shots")
+    if not os.path.isdir(shots_dir):
+        return None
+    pngs = sorted(entry for entry in os.listdir(shots_dir) if entry.endswith(".png"))
+    if not pngs:
+        return None
+    target = os.path.join(directory, "TIMEOUT.png")
+    shutil.copy2(os.path.join(shots_dir, pngs[-1]), target)
+    return target
+
+
 def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout):
     log_path = os.path.join(directory, "client.log")
     code, timed_out = launch_client(binary, manifest_path, name, directory, saves,
                                      script, log_path, timeout)
+    if timed_out:
+        copy_timeout_shot(directory)
     ledger_path = os.path.join(directory, "ledger.tsv")
     has_ledger = os.path.isfile(ledger_path)
     ok = (not timed_out) and code == 0 and has_ledger
@@ -381,6 +406,113 @@ def print_report(results):
     print("")
 
 
+CHAT_MIRROR_LINE_RE = re.compile(r'^QUEST ')
+
+
+def last_fail_or_blocked_row(rows):
+    """The LAST row (in ledger order) whose verdict is FAIL or BLOCKED, or
+    None -- a quest can have several; the one that actually stopped the run
+    (or is the tail of a t.blocked stub) is the last one written."""
+    last = None
+    for row in rows:
+        if row["verdict"] in ("FAIL", "BLOCKED"):
+            last = row
+    return last
+
+
+def fail_shot_path(directory, row):
+    """The row's own "<name>-FAIL" shot (core.lua's record_with_shot takes
+    one on every non-PASS t.do/t.check row, on top of the row's ordinary
+    shot), or None when the row's `shots` column carries no such name --
+    either because the verb was t.step/t.expect (never auto-shoots) or
+    because the capture itself did not make it to disk."""
+    for shot_name in ledger.shot_names(row):
+        if shot_name.endswith("-FAIL"):
+            candidate = os.path.join(directory, "shots", "%s.png" % shot_name)
+            if os.path.isfile(candidate):
+                return candidate
+    return None
+
+
+def last_chat_lines(log_path, count=5):
+    """The last `count` lines of client.log that read as driver/chat
+    narration. The stderr mirror's own `QUEST ...` lines
+    (torirs_plugin_drive.c: drive_ledger_write's per-row mirror and
+    lua_drive_report/t.t.report) are the one shape this log is GUARANTEED
+    to carry -- captured stdout+stderr, every run (launch_client). A
+    server-side `mes()` line is kept too, on a best-effort basis, when it
+    is recognisable as one (containing " mes(" or " mes "), since a content
+    script's own chat text is exactly what a human debugging a FAIL wants
+    to see and some lanes do echo it into this same log -- but only the
+    `QUEST ` lines are something this pass could verify are always there."""
+    if not os.path.isfile(log_path):
+        return []
+    matches = []
+    with open(log_path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            stripped = line.rstrip("\n")
+            if CHAT_MIRROR_LINE_RE.match(stripped) or " mes(" in stripped or " mes " in stripped:
+                matches.append(stripped)
+    return matches[-count:] if count > 0 else matches
+
+
+def quest_is_green(result):
+    """True only for a quest whose process completed cleanly (result["ok"])
+    AND whose ledger has no FAIL/BLOCKED row anywhere and a PASS SUMMARY.
+    This is run.py's own narrow question -- just enough to decide whether
+    print_failure_block has anything to say about a quest -- not the
+    authoritative verdict, which is gate.py's alone (module docstring)."""
+    if not result["ok"]:
+        return False
+    ledger_path = os.path.join(result["directory"], "ledger.tsv")
+    rows, _ = ledger.read(ledger_path)
+    if rows is None:
+        return False
+    if any(row["verdict"] in ("FAIL", "BLOCKED") for row in rows):
+        return False
+    return ledger_verdict(ledger_path) == "PASS"
+
+
+def print_failure_block(results):
+    """After the report table: for every quest that is not a clean PASS,
+    the one screenful a human needs to start debugging without re-running
+    anything -- the last FAIL/BLOCKED row's name and detail, its own -FAIL
+    shot if the driver captured one, and the last few lines of client.log
+    narration."""
+    non_green = [r for r in results if not quest_is_green(r)]
+    if not non_green:
+        return
+    print("---- failures ----")
+    for r in non_green:
+        print("%s:" % r["name"])
+        row = None
+        if r["has_ledger"]:
+            ledger_path = os.path.join(r["directory"], "ledger.tsv")
+            rows, _ = ledger.read(ledger_path)
+            row = last_fail_or_blocked_row(rows) if rows else None
+        if row:
+            print("    last FAIL/BLOCKED row: %s (%s) -- %s"
+                  % (row["step"], row["verdict"], row["detail"]))
+            shot_path = fail_shot_path(r["directory"], row)
+            print("    shot: %s" % (shot_path if shot_path else "none captured"))
+        elif r["timed_out"]:
+            timeout_shot = os.path.join(r["directory"], "TIMEOUT.png")
+            print("    timed out with no FAIL/BLOCKED row written -- %s"
+                  % (timeout_shot if os.path.isfile(timeout_shot) else "no TIMEOUT.png captured"))
+        elif not r["has_ledger"]:
+            print("    no ledger.tsv at all -- the process never got that far")
+        else:
+            print("    ledger has no FAIL/BLOCKED row (see gate.py for the full verdict)")
+        chat_lines = last_chat_lines(os.path.join(r["directory"], "client.log"))
+        if chat_lines:
+            print("    last %d chat/driver line(s):" % len(chat_lines))
+            for line in chat_lines:
+                print("        %s" % line)
+        else:
+            print("    (no QUEST/mes line found in client.log)")
+    print("")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -451,14 +583,19 @@ def main():
         result = run_script_direct(script_name, script_path, arguments.fixture,
                                     binary, manifest_path, arguments.timeout)
         print_report([result])
+        print_failure_block([result])
         return 0 if result["ok"] else 1
 
     if arguments.all:
         names = quest_list.discover(REPO_ROOT)
         if not names:
+            # An empty suite is a discovery FAILURE, not an empty pass --
+            # indistinguishable, from here, from test/quests/ having been
+            # wiped or misconfigured (gate.py makes the same call, same
+            # reasoning, for the same input).
             print("run.py: no quest files under test/quests/ -- nothing to run "
                   "(this is a discovery fact, not a pass)", file=sys.stderr)
-            return 0
+            return 1
     else:
         quest_file = quest_list.quest_path(REPO_ROOT, name)
         if not os.path.isfile(quest_file):
@@ -474,6 +611,7 @@ def main():
                 lambda n: run_quest(n, binary, manifest_path, arguments.timeout), names))
 
     print_report(results)
+    print_failure_block(results)
     if not arguments.no_publish:
         for r in results:
             target, detail = publish(r)

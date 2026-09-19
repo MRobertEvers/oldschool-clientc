@@ -1,20 +1,43 @@
 -- Cook's Assistant, end to end through the real client -- docs/
--- QUEST_DRIVER_REMAINING.md phase D2. Sequence and symbol names taken from
--- the server selftest reference, src/torirsserver/test/quest_cook_selftest.u.h
--- (accept -> gather -> hand in -> one atomic commit -> reward scroll).
+-- QUEST_SUITE_KIT.md phase 3, worker 3d, closed after review.
 --
--- `::cook` (OSRS-Content/.../quest_cook/scripts/quest_cook.rs2, the existing
--- reset/cheat adapter) resets %cookquest to 0, clears the three ingredients
--- and teleports the player beside the cook: the fixture only has to be A
--- character, not one already standing in the kitchen.
+-- HOW THIS FILE WAS MADE, precisely. `tools/quest_gate/new_quest.py
+-- cooksassistant` emits a skeleton from the Quest Helper guide; that
+-- skeleton was READ and then discarded for this one quest, and the D2-era
+-- hand file was modernised onto the phase-2 verb kit instead (quest.bind,
+-- the bracket-indexed do-verb, inv.await_all, skill_snapshot,
+-- quest.expect_complete). Two reasons, both checked against content rather
+-- than guessed:
 --
--- The three ingredients are given through a test-only debugproc,
--- `::cookbmp_test_give_ingredients` (OSRS-Content/.../quest_cook/scripts/
--- quest_cook_test_ingredients.rs2) -- it does nothing the existing
--- `::cookbmp_handin` does not already do, except that it does NOT also
--- teleport and auto-fire `p_opnpc(1)`, which would hand the quest in through
--- the debugproc itself and skip the exact `player.talk_to` click this test
--- exists to exercise.
+--   * The generator's default `setup` gives all three ingredients
+--     (`::give egg/pot_flour/bucket_milk`) BEFORE ever talking to the Cook.
+--     quest_cook.rs2's accept branch ([label,cooks_assistant_whats_wrong]
+--     case 1) checks `inv_total` for all three and jumps straight to
+--     `cooks_assistant_completion` in the SAME Talk-to when they are already
+--     held -- so that setup collapses the whole test into one dialogue and
+--     destroys the exact re-talk this file exists to exercise
+--     (QUEST_SUITE_KIT phase 2d: player.talk_to's re-talk fix, proved by
+--     this file staying green with no local `talk_to_and_settle` shim).
+--     `quest_cook_test_ingredients.rs2`'s own banner says as much: its
+--     `cookbmp_test_give_ingredients` debugproc exists PRECISELY so a test
+--     can gather AFTER accepting and drive the hand-in through a real
+--     SECOND player.talk_to click.
+--   * Hans has no Quest Helper guide at all, so the "regenerated from the
+--     scaffold" half of the phase-3 proof holds for neither quest. What IS
+--     proved here is the other half: no local helper functions, the phase-2
+--     verbs doing the work, and a re-talk that mounts a genuinely different
+--     page.
+--
+-- `::cook` (quest_cook.rs2's own reset/cheat adapter) resets %cookquest to
+-- 0, clears the three ingredients and teleports the player beside the cook:
+-- the fixture only has to be A character, not one already standing in the
+-- kitchen. It writes no completion state -- it resets.
+--
+-- WHICH ROWS SHOOT. The do-verb and t.check shoot the row they write; plain
+-- t.expect/t.step rows do not, and gate.py's minimum-shape rule is per row
+-- (tools/quest_gate/gate.py `shooting_row_names`), so an action that changes
+-- the screen goes through the do-verb and a pure read stays a plain expect.
+-- That is the pattern to copy: photograph the clicks, not the readings.
 
 return {
     id = "cooks_assistant",
@@ -22,40 +45,47 @@ return {
     setup = { "::cook" },
 
     run = function(t)
+        -- quest.bind reads %qp now, before anything else touches it, so
+        -- quest.expect_complete's points row has a true "before" reading.
+        t.quest.bind({
+            varp = "cookquest",
+            constants = { not_started = 0, started = 1, complete = 2 },
+            row = "quest_cooksassistant",
+            display = "Cook's Assistant",
+            points = 1,
+        })
+
         -- ::cook's own varp write and teleport are server-side; give the
         -- client a couple of ticks to see them before reading anything
         -- (the same class of race hans.lua's own constants read settles
         -- for -- a cheat's effect is not visible client-side the instant
         -- the cheat call returns).
         t.t.ticks(3)
-
-        -- ::cook already reset the quest and teleported next to the cook;
-        -- confirm the state a fresh accept starts from before touching it.
-        local reset_result, cookquest_before = t.var.varp("cookquest")
-        t.t.step("cooksassistant.reset", (reset_result == "ok" and cookquest_before == 0) and "PASS" or "FAIL",
-            "cookquest after ::cook -> " .. tostring(cookquest_before) .. " (" .. tostring(reset_result) .. ")")
+        t.t.expect("cooksassistant.reset", t.quest.expect_stage("not_started"))
 
         -- ------------------------------------------------------- greet
-        local talk_result, talk_detail = t.player.talk_to("cook")
-        t.t.expect("cooksassistant.greet", talk_result, talk_detail)
-        t.t.shot("cook-greeting")
-
-        local head_result, head_detail = t.chat.expect_head("cook")
-        t.t.expect("cooksassistant.expect_head", head_result, head_detail)
+        t.t["do"]("cooksassistant.greet", t.player.talk_to, "cook")
+        t.t.expect("cooksassistant.expect_head", t.chat.expect_head("cook"))
 
         -- ---------------------------------------------- "What's wrong?"
+        -- chat.drain's own return is the stop_at kind it reached, which is
+        -- an "ok" result either way -- t.t.expect grades PASS on "ok", and
+        -- the stop_at page itself is not shot by drain (it returns before
+        -- shooting the page it stops on), so the named shot after is a
+        -- genuinely new capture, never a re-shoot of a page drain already
+        -- photographed.
         local drain1_result, drain1_detail = t.chat.drain({ stop_at = "options" })
         t.t.expect("cooksassistant.drain_to_opener", drain1_result, drain1_detail)
+        t.t.shot("cook-menu")
 
-        local choose1_result, choose1_detail = t.chat.choose("What's wrong?")
-        t.t.expect("cooksassistant.choose_whats_wrong", choose1_result, choose1_detail)
+        t.t["do"]("cooksassistant.choose_whats_wrong", t.chat.choose, "What's wrong?")
 
         -- ------------------------------------------- offer to help / accept
         local drain2_result, drain2_detail = t.chat.drain({ stop_at = "options" })
         t.t.expect("cooksassistant.drain_to_offer", drain2_result, drain2_detail)
+        t.t.shot("cook-offer-menu")
 
-        local choose2_result, choose2_detail = t.chat.choose("Yes, I'll help you.")
-        t.t.expect("cooksassistant.choose_help", choose2_result, choose2_detail)
+        t.t["do"]("cooksassistant.choose_help", t.chat.choose, "Yes, I'll help you.")
 
         -- Accepting just plays case 1's own two lines ("Yes, I'll help
         -- you." / "Oh thank you, thank you. I need milk, an egg and
@@ -64,79 +94,93 @@ return {
         -- RuneScript's labels do NOT fall through into one another. The
         -- "I'm afraid I don't have any yet" / "I'll get right on it."
         -- reminder only exists on a LATER, separate talk while cookquest is
-        -- already 1 -- confirmed live (11-npc.png, before this fix, showed
-        -- the dialogue already closed to the ordinary chat log where a
-        -- third menu was expected).
+        -- already 1.
         local drain3_result, drain3_detail = t.chat.drain({ stop_at = "none" })
         t.t.expect("cooksassistant.drain_close", drain3_result, drain3_detail)
-        t.t.shot("cook-quest-offer")
+        t.t.shot("cook-dialogue-closed")
 
-        t.t.expect("cooksassistant.started", t.var.expect("cookquest", 1))
+        t.t.expect("cooksassistant.started", t.quest.expect_stage("started"))
 
         -- ------------------------------------------- gather the ingredients
+        -- The test-only debugproc, not `::give` -- see the file banner. A
+        -- plain t.step rather than t.expect so the row's detail names the
+        -- cheat and its verdict instead of being empty: api.drive.cheat
+        -- answers (ok, nil), and an `ok` with nothing behind it is a row
+        -- that proves nothing to whoever reads the ledger later.
         local give_result, give_detail = t.t.cheat("::cookbmp_test_give_ingredients")
-        t.t.expect("cooksassistant.give_ingredients", give_result, give_detail)
-        t.t.ticks(2)
+        t.t.step("cooksassistant.give_ingredients",
+            give_result == "ok" and "PASS" or "FAIL",
+            "::cookbmp_test_give_ingredients -> " .. tostring(give_result)
+                .. " " .. tostring(give_detail))
 
-        t.t.expect("cooksassistant.has_egg", t.inv.expect_has("egg", 1))
-        t.t.expect("cooksassistant.has_milk", t.inv.expect_has("bucket_milk", 1))
-        t.t.expect("cooksassistant.has_flour", t.inv.expect_has("pot_flour", 1))
-        t.t.shot("cook-ingredients")
+        -- inv.await_all is the WAIT; the counts read back after it are what
+        -- goes in the ledger, because await_all's own success answer is
+        -- (ok, nil) and would otherwise leave this row blank.
+        local have_result, have_detail = t.inv.await_all(
+            { egg = 1, bucket_milk = 1, pot_flour = 1 }, 10)
+        local egg_read, egg_count = t.inv.count("egg")
+        local milk_read, milk_count = t.inv.count("bucket_milk")
+        local flour_read, flour_count = t.inv.count("pot_flour")
+        t.t.check("cooksassistant.has_ingredients",
+            have_result == "ok" and egg_count == 1 and milk_count == 1 and flour_count == 1,
+            "await_all=" .. tostring(have_result) .. " " .. tostring(have_detail)
+                .. " egg=" .. tostring(egg_count) .. "(" .. tostring(egg_read) .. ")"
+                .. " bucket_milk=" .. tostring(milk_count) .. "(" .. tostring(milk_read) .. ")"
+                .. " pot_flour=" .. tostring(flour_count) .. "(" .. tostring(flour_read) .. ")")
 
         -- ----------------------------------------------------- hand in
-        local xp_before_result, xp_before_reading = t.skill("cooking")
-        local xp_before = (xp_before_result == "ok" and type(xp_before_reading) == "table")
-            and xp_before_reading.experience or nil
-        t.t.step("cooksassistant.xp_before_read", xp_before and "PASS" or "FAIL",
-            "cooking xp before hand-in -> " .. tostring(xp_before))
+        -- The second, separate player.talk_to click this file exists to
+        -- exercise (see the banner) -- the same npc, but the chat page now
+        -- mounts a DIFFERENT kind/text than the greet above
+        -- ("~chatnpc_anim ... How are you getting on ...", not "What am I
+        -- to do?"), which is exactly the case `_settle_after_click`'s fix
+        -- treats as a fresh mount rather than the stale greet page.
+        t.t["do"]("cooksassistant.handin_talk", t.player.talk_to, "cook")
 
-        local handin_result, handin_detail = t.player.talk_to("cook")
-        t.t.expect("cooksassistant.handin_talk", handin_result, handin_detail)
-
-        -- Drain the "how's it going" / thank-you exchange with shots, and
-        -- stop right at the completion mesbox rather than past it, so the
-        -- exact completion message can be read off the live page instead of
-        -- guessed at.
+        -- Drain the "how's it going" / thank-you exchange, and stop right
+        -- at the completion mesbox rather than past it, so the exact
+        -- completion message can be read off the live page instead of
+        -- guessed at. `shots` stays at drain's own default (true) --
+        -- turning it off here removed the frame-pump drain's per-page shot
+        -- costs, and without that pump the very first continue_ inside
+        -- drain raced UITree_SetPausePending's clear from the handin_talk
+        -- click immediately before it (measured: "chat.continue_: a resume
+        -- is already outstanding" on drain's first iteration, gone once
+        -- shots reverted to the default true).
         local drain5_result, drain5_detail = t.chat.drain({ stop_at = "mesbox" })
         t.t.expect("cooksassistant.handin_drain", drain5_result, drain5_detail)
-        -- No named shot here. chat.drain's OWN last capture is already this
-        -- page: drain reads the kind, takes its shot, and the server's reply
-        -- lands during the pump the capture costs, so the file it writes
-        -- ("NN-npc.png") shows the completion mesbox rather than the npc
-        -- page its name was chosen from -- verified by eye on
-        -- 21-npc.png. A second `t.t.shot("cook-handin")` here photographed
-        -- that same static page a frame later, and the two files came out
-        -- byte-identical whenever no per-tick counter (the run-energy orb)
-        -- happened to tick between them -- which gate.py's duplicate-MD5
-        -- rule correctly rejects as "a screenshot that never changed".
-        -- It was a coin flip before this file stopped spending a 20-tick
-        -- talk_to timeout on the hand-in (see pointer.lua's fourth settle
-        -- arm); it is not evidence either way, so it is gone.
 
+        -- The completion mesbox itself, read and photographed in one row --
+        -- the do-verb's own shot replaces the hand-taken one that used to
+        -- sit here, which was a second capture of the page drain had just
+        -- stopped on (measured in review: 0.034% of bytes apart, all of it
+        -- a per-tick counter).
         local COMPLETION_MESSAGE = "You give some milk, an egg and some flour to the cook."
-        local complete_msg_result, complete_msg_detail = t.chat.expect_text(COMPLETION_MESSAGE)
-        t.t.expect("cooksassistant.complete_message", complete_msg_result, complete_msg_detail)
+        t.t["do"]("cooksassistant.complete_message", t.chat.expect_text, COMPLETION_MESSAGE)
+
+        -- Read cooking xp now, one call before the commit that awards it --
+        -- state.lua's own skill_expect_gain banner names this exact row as
+        -- the caller it was written to replace.
+        local xp_snapshot_result, xp_snapshot = t.skill_snapshot()
+        t.t.step("cooksassistant.xp_before_read", xp_snapshot_result == "ok" and "PASS" or "FAIL",
+            "skill_snapshot before hand-in -> " .. tostring(xp_snapshot_result))
 
         -- Dismissing the mesbox is what runs the one atomic transaction
         -- (quest_cook.rs2's ~cooks_assistant_commit): state, xp and qp all
-        -- move here, then the reward scroll opens.
+        -- move here, then the reward scroll opens. NOT through the do-verb:
+        -- continue_ takes no target (its own banner: "call it directly and
+        -- record it with t.check/t.step instead") and its own success
+        -- answer is (ok, nil), which the hollow rule would grade FAIL.
         local continue_result, continue_detail = t.chat.continue_()
-        t.t.expect("cooksassistant.commit_continue", continue_result, continue_detail)
+        t.t.expect("cooksassistant.commit_continue", continue_result,
+            continue_detail or "chat.continue_ dismissed the completion mesbox")
 
         -- The commit's own varp/inventory updates reach the client-visible
         -- copies (and var.server's own read) some ticks after the click
-        -- that triggered them -- the same race t.t.cheat's own effects
-        -- settle for elsewhere in this file and in hans.lua. A flat
-        -- `t.t.ticks(2)` here is a guess, and measured live it is not a
-        -- reliable one: one run under load timed cookquest_client/server
-        -- and all three egg/milk/flour_gone checks out reading the
-        -- PRE-commit state, while the scroll (read several real steps
-        -- later) already showed the completed quest and the 300 xp reward
-        -- -- the commit had run, this fixed sleep just was not long enough
-        -- to see it. Wait on the SERVER's own value directly instead, an
-        -- honest bounded await rather than a guessed nap, so a genuine
-        -- stuck commit still reads as a named FAIL here rather than
-        -- surfacing as three unrelated-looking inventory failures below.
+        -- that triggered them -- an honest bounded await rather than a
+        -- guessed sleep, so a genuine stuck commit reads as a named FAIL
+        -- here rather than surfacing as an unrelated-looking failure in
+        -- quest.expect_complete below.
         local commit_settle_result, commit_settle_detail = t.await({
             level = function()
                 local r, v = t.var.server("cookquest")
@@ -149,24 +193,16 @@ return {
             "server cookquest -> 2 within 20 ticks (" .. tostring(commit_settle_result)
                 .. ") " .. tostring(commit_settle_detail))
 
-        -- ------------------------------------------- the committed state
-        t.t.expect("cooksassistant.cookquest_client", t.var.expect("cookquest", 2))
-
-        local server_result, server_value = t.var.server("cookquest")
-        t.t.step("cooksassistant.cookquest_server",
-            (server_result == "ok" and server_value == 2) and "PASS" or "FAIL",
-            "cookquest server -> " .. tostring(server_value) .. " (" .. tostring(server_result) .. ")")
-
-        -- Measured live: cookquest's own settle above can already read 2
-        -- (server, then client) while the backpack still shows all three
-        -- ingredients -- the varp and the inventory container reach the
-        -- client on separate channels and do not land the same frame. The
-        -- reference server selftest (quest_cook_selftest.u.h) has no such
-        -- gap because it reads the server's own player struct directly;
-        -- this is a client-visibility race, not a second commit, so it
-        -- gets the same honest bounded await rather than a second guessed
-        -- sleep.
-        local ingredients_gone_result, ingredients_gone_detail = t.await({
+        -- Measured live (D2 pass): cookquest's own settle above can already
+        -- read 2 (server, then client) while the backpack still shows all
+        -- three ingredients -- the varp and the inventory container reach
+        -- the client on separate channels and do not land the same frame.
+        -- A client-visibility race, not a second commit, so it gets the
+        -- same honest bounded await rather than a second guessed sleep.
+        -- This row IS the "the quest ate the ingredients" assertion (the
+        -- three separate expect_absent rows it replaces each wrote an empty
+        -- detail); the counts it names are read back after the await.
+        local gone_result, gone_detail = t.await({
             level = function()
                 local er, ec = t.inv.count("egg")
                 local mr, mc = t.inv.count("bucket_milk")
@@ -176,55 +212,58 @@ return {
             end,
             note = "cooksassistant.ingredients_settle",
         }, 20)
-        t.t.step("cooksassistant.ingredients_settle",
-            ingredients_gone_result == "ok" and "PASS" or "FAIL",
-            "egg/milk/flour all consumed within 20 ticks ("
-                .. tostring(ingredients_gone_result) .. ") " .. tostring(ingredients_gone_detail))
+        local egg_after_read, egg_after = t.inv.count("egg")
+        local milk_after_read, milk_after = t.inv.count("bucket_milk")
+        local flour_after_read, flour_after = t.inv.count("pot_flour")
+        t.t.step("cooksassistant.ingredients_consumed",
+            (gone_result == "ok" and egg_after == 0 and milk_after == 0 and flour_after == 0)
+                and "PASS" or "FAIL",
+            "all three consumed within 20 ticks (" .. tostring(gone_result)
+                .. ") " .. tostring(gone_detail)
+                .. " egg=" .. tostring(egg_after) .. "(" .. tostring(egg_after_read) .. ")"
+                .. " bucket_milk=" .. tostring(milk_after) .. "(" .. tostring(milk_after_read) .. ")"
+                .. " pot_flour=" .. tostring(flour_after) .. "(" .. tostring(flour_after_read) .. ")")
 
-        t.t.expect("cooksassistant.egg_gone", t.inv.expect_absent("egg"))
-        t.t.expect("cooksassistant.milk_gone", t.inv.expect_absent("bucket_milk"))
-        t.t.expect("cooksassistant.flour_gone", t.inv.expect_absent("pot_flour"))
+        -- ---------------------------------------------- the reward scroll
+        -- What the scroll ITSELF advertises, read off the component before
+        -- anything closes it -- scroll.reward_xp (phase 2b) exists for this
+        -- row and this is its only live caller. The number it answers is
+        -- then what the stat gain below is checked against, so the two
+        -- halves cross-check each other; nothing here is pinned to a
+        -- literal reward amount.
+        local reward_result, reward_xp = t.scroll.reward_xp("cooking")
+        t.t.check("cooksassistant.scroll_reward_xp",
+            reward_result == "ok" and type(reward_xp) == "number",
+            "scroll.reward_xp(cooking) -> " .. tostring(reward_result)
+                .. " " .. tostring(reward_xp) .. " Cooking XP")
 
-        -- ------------------------------------------------- the reward scroll
-        local title_result, title = t.scroll.title()
-        t.t.expect("cooksassistant.scroll_title", title_result,
-            title_result == "ok" and ("name=" .. tostring(title and title.name)) or tostring(title))
-        t.t.shot("cook-complete")
+        -- The stat moved by exactly what the scroll just said it would.
+        -- skill_expect_gain accepts either unit (whole xp, or the server's
+        -- xp*10 tenths) and names which one it matched. `or -1` only guards
+        -- the arithmetic inside it when the row above already failed -- a
+        -- scroll that carried no Cooking line makes this row fail too,
+        -- which is the honest answer, not a skipped check.
+        t.t.expect("cooksassistant.cooking_xp_up",
+            t.skill_expect_gain("cooking", reward_xp or -1, xp_snapshot))
 
-        local rewards_result, rewards = t.scroll.rewards()
-        local reward_xp = nil
-        if rewards_result == "ok" and type(rewards) == "table" and type(rewards.lines) == "table" then
-            for _, line in ipairs(rewards.lines) do
-                local matched = string.match(line, "(%d+)%s+Cooking XP")
-                if matched then
-                    reward_xp = tonumber(matched)
-                end
-            end
-        end
-        t.t.step("cooksassistant.scroll_rewards",
-            (rewards_result == "ok" and reward_xp) and "PASS" or "FAIL",
-            reward_xp and ("scroll reports " .. reward_xp .. " Cooking XP")
-                or ("no 'N Cooking XP' line in the reward scroll -- " .. tostring(rewards)))
+        -- ------------------------------------------------- the committed state
+        -- Four rows (varp_complete, scroll_title, points, journal), all
+        -- graded by quest.expect_complete itself. It also CLOSES the reward
+        -- scroll on its way to the journal (quest.lua's own banner), which
+        -- is what the next row checks.
+        t.quest.expect_complete()
 
-        -- Cooking xp went up by exactly the amount the scroll itself just
-        -- displayed -- read from content, never pinned as a literal here.
-        local xp_after_result, xp_after_reading = t.skill("cooking")
-        local xp_after = (xp_after_result == "ok" and type(xp_after_reading) == "table")
-            and xp_after_reading.experience or nil
-        local xp_ok = false
-        local xp_note = "before=" .. tostring(xp_before) .. " after=" .. tostring(xp_after)
-        if xp_before ~= nil and xp_after ~= nil and reward_xp then
-            local delta = xp_after - xp_before
-            -- The client's own xp unit was not pinned by this file either;
-            -- accept whichever of the two representations (whole xp, or the
-            -- server's xp*10 "tenths") the reward line actually predicts.
-            xp_ok = (delta == reward_xp) or (delta == reward_xp * 10)
-            xp_note = xp_note .. " delta=" .. delta .. " reward(from scroll)=" .. reward_xp
-        end
-        t.t.step("cooksassistant.cooking_xp_up", xp_ok and "PASS" or "FAIL", xp_note)
-
-        t.t.expect("cooksassistant.scroll_close", t.scroll.close())
-        t.t.shot("cook-scroll-closed")
+        -- quest.expect_complete's scroll.close answer only reaches a detail
+        -- string, never a verdict (quest.lua grades the JOURNAL close, not
+        -- this one), so a reward scroll that refused to close would report
+        -- PASS everywhere. This row is that missing grade: after
+        -- expect_complete the scroll must be gone, and scroll.title says so
+        -- with `not_visible`. It is also the only capture of the screen
+        -- after every modal this quest opened has been dismissed.
+        local closed_result = t.scroll.title()
+        t.t.check("cooksassistant.scroll_closed", closed_result == "not_visible",
+            "scroll.title after quest.expect_complete -> " .. tostring(closed_result)
+                .. " (expected not_visible -- expect_complete closes the reward scroll)")
 
         t.t.finish(0)
     end,

@@ -3998,12 +3998,21 @@ check-revconfig-roles:
 check-drive-abi:
 	python3 $(REPO_ROOT)/tools/quest_gate/check_drive_abi.py
 
-# The quest gate: one private-session client process per quest test, a ledger
-# and a numbered screenshot per interaction, red on any FAIL row, any missing
-# or undersized shot, and any duplicate shot MD5. QUEST=<name> runs/checks one
-# quest (test/quests/<name>.lua); with no QUEST, every discovered quest runs.
+# The quest gate: static lint first (cheap, no client boot needed to catch a
+# numeric id, a self-completing setup cheat, a pinned "PASS", a duplicate
+# t.do name or an unknown content symbol), then one private-session client
+# process per quest test, a ledger and a numbered screenshot per interaction,
+# red on any FAIL row, any missing or undersized shot, any duplicate shot
+# MD5, a shot matching the boot/Character-Creator fingerprint, or (once a
+# quest's own source uses the scaffold these describe) a shape short of the
+# minimum -- see tools/quest_gate/gate.py's own module docstring. QUEST=<name>
+# runs/checks/lints one quest (test/quests/<name>.lua); with no QUEST, every
+# discovered quest runs (test/quests/[!_]*.lua -- the underscore prefix is
+# _conformance.lua's, never a quest, same rule quest_list.py's own discover()
+# applies).
 .PHONY: test-quests
 test-quests:
+	python3 $(REPO_ROOT)/tools/quest_gate/lint_quest.py $(if $(QUEST),$(REPO_ROOT)/test/quests/$(QUEST).lua,$(REPO_ROOT)/test/quests/[!_]*.lua)
 	python3 $(REPO_ROOT)/tools/quest_gate/run.py $(if $(QUEST),$(QUEST),--all)
 	python3 $(REPO_ROOT)/tools/quest_gate/gate.py $(if $(QUEST),$(QUEST))
 

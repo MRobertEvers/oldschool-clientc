@@ -1,0 +1,1116 @@
+#!/usr/bin/env python3
+"""Generate a quest test skeleton from a Quest Helper guide.
+
+Owner: 3b (docs/QUEST_SUITE_KIT.md phase 3). Companion to `tools/
+questhelper_extract.py` (imported, not copied -- this file reuses its
+gameval resolution, WorldPoint conversion and quest-dbrow guess) and to
+`tools/quest_gate/quest_inventory.tsv` (179 rows; the varp/const symbol
+names, the reset debugproc, the boss-fight/leftover/cutscene signals a
+generated file's tier and BLOCKED stub come from).
+
+What this does NOT do: run the file it writes. `run.py`/`gate.py` are the
+gate; this is the scaffold. A generated file legitimately carries `-- CHECK`
+markers (guessed op numbers, a guessed step order out of a ConditionalStep's
+branches, an unresolved prerequisite) until a human or a later phase
+confirms them against a live run -- `lint_quest.py --allow-check` is the bar
+this file's own OUTPUT has to clear, not a live client.
+
+Usage
+-----
+    python3 tools/quest_gate/new_quest.py <helper-dir> [--out test/quests]
+    python3 tools/quest_gate/new_quest.py --all [--out build/generated_quests]
+
+`<helper-dir>` is a directory name under quest-helper's `helpers/quests/`
+(e.g. `cooksassistant`) or a path to it. `--all` walks every helper dir that
+maps to a content quest (tools/quest_gate/quest_inventory.tsv) and writes
+one file per match into `build/generated_quests/` (NOT `test/quests/` --
+these are unreviewed until a human moves one), printing a summary table.
+
+Design decisions a reader of the output should know about (see also the
+worker report this pass produced, docs/QUEST_DRIVER_REMAINING.md and this
+module's own inline comments):
+
+  * The "one linear route" a ConditionalStep chain is walked to is: the
+    chain's own DEFAULT step first, then every `.addStep(requirement, step)`
+    target in the file's own written order, recursing into a target that is
+    itself a ConditionalStep, skipping a target already visited (the same
+    finish/default step is often both the last `addStep` guard AND the
+    chain's own default -- see CooksAssistant.java's `doQuest`). This is a
+    heuristic, not a solve of the requirement graph: `addStep` order across
+    STAGES in Quest Helper source generally runs most-complete-state-first
+    (so the chain falls through to less-complete guards as it reads down,
+    ending at the truly-nothing-done default) for a top-level chain, and
+    default-first-then-addStep-in-file-order for a SUB-chain reached only
+    once a top-level guard has already been satisfied (CooksAssistant's own
+    `getFlour`) -- the two are not the same shape, and this walk cannot tell
+    which one it is looking at, so it always guesses default-first and
+    leaves every `-- CHECK` marker in place for a human to reorder. A step
+    reached through `.addSubSteps(...)` is a same-goal ALTERNATE (a
+    location-variant of one logical step, e.g. "climb up" vs "already
+    upstairs") and is emitted as a comment on its primary step, never as a
+    separate route entry.
+  * A step whose Java class this file does not know how to turn into a
+    driver verb (WidgetStep -- its own ids are raw ints, and the driver's
+    own no-numeric-id rule leaves no honest way to name one from Quest
+    Helper source alone; DigStep -- there is no `t.player.dig`; any step
+    class not in STEP_TYPES) is written as a comment, not a guessed verb
+    call, and counted as "unresolved" in the --all table.
+  * `quest.bind`'s `row` comes from `questhelper_extract.guess_quest_dbrow`
+    (imported). `display`/`points` come from content where this file can
+    read it (the quest's own `*.constant` file's `_questpoints` constant,
+    the Quest Helper's own `getQuestPointReward()`) and from
+    `quest_inventory.tsv`'s `human_name` column -- NOT from the cache's
+    `quest` dbtable, which is packed cache data (`quest.dbtable` is a
+    *schema*, not row data) this tool has no reader for; every `display`
+    this file emits is content-sourced and should be read as a guess a
+    human confirms against the in-game quest list, same as every other
+    `-- CHECK`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import re
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent
+sys.path.insert(0, str(REPO / "tools"))
+import questhelper_extract as qhe  # noqa: E402  (reused, not copied)
+
+DEFAULT_QH = qhe.DEFAULT_QH
+DEFAULT_CONTENT = qhe.DEFAULT_CONTENT
+INVENTORY_TSV = REPO / "tools" / "quest_gate" / "quest_inventory.tsv"
+QUESTS_DIR = REPO / "test" / "quests"
+GEN_DIR = REPO / "build" / "generated_quests"
+
+STEP_TYPES = (
+    "NpcStep", "ObjectStep", "ItemStep", "WidgetStep",
+    "PuzzleWrapperStep", "DigStep", "EmoteStep",
+)
+# Which STEP_TYPES this tool can turn into a real driver verb call. The
+# other three (WidgetStep, DigStep, and anything outside STEP_TYPES
+# entirely) are written as a comment -- see the module banner.
+DRIVEN_STEP_TYPES = ("NpcStep", "ObjectStep", "ItemStep")
+
+GAMEVAL_RE = qhe.GAMEVAL_RE
+WORLDPOINT_RE = qhe.WORLDPOINT_RE
+
+_OPEN = set("([{")
+_CLOSE = set(")]}")
+
+
+# --------------------------------------------------------------- utilities
+
+def norm(s: str) -> str:
+    s = s.lower().replace("&", "and")
+    return re.sub(r"[^a-z0-9]", "", s)
+
+
+def extract_balanced(text: str, open_idx: int) -> tuple[str, int]:
+    """(inner_text, index_just_past_the_matching_close) -- same shape as
+    lint_quest.py's own helper (3a's file); reimplemented here rather than
+    imported so this tool has no load-bearing coupling to a sibling worker's
+    in-flight file."""
+    assert text[open_idx] in _OPEN
+    depth = 1
+    i = open_idx + 1
+    in_string = None
+    while i < len(text) and depth > 0:
+        ch = text[i]
+        if in_string:
+            if ch == "\\":
+                i += 1
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+        elif ch in _OPEN:
+            depth += 1
+        elif ch in _CLOSE:
+            depth -= 1
+        i += 1
+    return text[open_idx + 1:i - 1], i
+
+
+def split_top_level(args_text: str) -> list[str]:
+    parts, depth, in_string, current = [], 0, None, []
+    i = 0
+    while i < len(args_text):
+        ch = args_text[i]
+        if in_string:
+            current.append(ch)
+            if ch == "\\" and i + 1 < len(args_text):
+                i += 1
+                current.append(args_text[i])
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+            current.append(ch)
+        elif ch in _OPEN:
+            depth += 1
+            current.append(ch)
+        elif ch in _CLOSE:
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+        i += 1
+    tail = "".join(current).strip()
+    if tail or parts:
+        parts.append(tail)
+    return [p for p in parts if p != ""]
+
+
+KIND_PACK_FILE = {"NpcID": "npc", "ObjectID": "loc", "ItemID": "obj"}
+_PACK_CACHE: dict[str, set[str]] = {}
+_PACK_PLUS_CACHE: dict[str, dict[str, str]] = {}
+
+
+def _load_pack(kind: str) -> tuple[set[str], dict[str, str]]:
+    """(exact_names, underscore_to_plus_index) for a gameval KIND's
+    all.<pack>.compack -- cached across every helper --all processes in one
+    run, since the content tree does not change mid-run. `underscore_to_
+    plus_index` maps `name.replace("+", "_")` back to the pack's own literal
+    spelling, for symbols the cache names with a `+` a Java identifier
+    cannot carry at all (`royal_crate_planks+pulleys` -> gameval
+    `ROYAL_CRATE_PLANKS_PULLEYS`, all.loc.compack alone carries 68 of
+    these)."""
+    pack_name = KIND_PACK_FILE.get(kind)
+    if pack_name is None:
+        return set(), {}
+    if pack_name not in _PACK_CACHE:
+        names = qhe.load_compack_names(
+            REPO / "OSRS-Content" / "osrs239-content" / "configs" / f"all.{pack_name}.compack"
+        )
+        _PACK_CACHE[pack_name] = names
+        _PACK_PLUS_CACHE[pack_name] = {
+            n.replace("+", "_"): n for n in names if "+" in n
+        }
+    return _PACK_CACHE[pack_name], _PACK_PLUS_CACHE[pack_name]
+
+
+def resolve_symbol(kind: str, name: str) -> str:
+    """A gameval NAME (already lowercased by questhelper_extract's own
+    normalize_gameval_name) against its compack, correcting two gaps that
+    function leaves: a gameval whose cache name starts with a digit gets a
+    Java-legal leading `_` in EVERY gameval kind (`NpcID.
+    _0_41_53_SINISTERFISHSPOT` -> cache name `0_41_53_sinisterfishspot`),
+    but `normalize_gameval_name` only strips that underscore for ItemID; and
+    a cache name that carries a literal `+` (`royal_crate_planks+pulleys`)
+    is spelled with an underscore in its own gameval identifier because Java
+    has no other choice. Measured against this tool's own --all output,
+    2026-09-19: three generated files named an npc with its leading
+    underscore still attached, and royaltrouble named a loc
+    'royal_crate_planks_pulleys' with no '+' -- neither is in its own
+    compack and both would have read as a lint typo/not_found forever.
+    Falls back to the given name unchanged (and lets the caller/lint catch
+    it) when no spelling resolves."""
+    pack, plus_index = _load_pack(kind)
+    if not pack or name in pack:
+        return name
+    if name.startswith("_") and name[1:] in pack:
+        return name[1:]
+    if name in plus_index:
+        return plus_index[name]
+    return name
+
+
+def lua_string(text: str) -> str:
+    text = text.replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + text + '"'
+
+
+# ---------------------------------------------------- inventory + matching
+
+def load_inventory() -> list[dict]:
+    with open(INVENTORY_TSV, "r", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle, delimiter="\t"))
+    for row in rows:
+        row["tier"] = str(compute_tier(row))
+    return rows
+
+
+def compute_tier(row: dict) -> int:
+    """The plan's tier rule (docs/QUEST_SUITE_KIT.md phase 3's QUEUE.tsv
+    bullet): 1 no fight/no cutscene/no leftover; 2 fight only; 3 cutscene
+    signal; 4 any leftover_count>0; 5 unknown varp. The five clauses are not
+    mutually exclusive (a quest can have both a boss fight AND a leftover
+    item), so they are applied worst-first: an untestable varp beats a
+    missing item beats "needs a real client to sit through a cutscene" beats
+    "just needs ::skipboss" beats a clean tier-1 quest -- each clause is
+    strictly harder to automate than the one after it, so the worst one
+    present is what should gate a Haiku agent's attempt."""
+    varp = (row.get("varp") or "").strip()
+    if not varp or varp == "?" or varp.startswith("?"):
+        return 5
+    try:
+        leftover = int(row.get("leftover_count") or 0)
+    except ValueError:
+        leftover = 0
+    if leftover > 0:
+        return 4
+    if row.get("cutscene_or_instance") == "yes":
+        return 3
+    if row.get("boss_fight") == "yes":
+        return 2
+    return 1
+
+
+# A handful of helper-dir spellings whose normalized name does not overlap
+# an inventory `dir`/`human_name` at all (checked by hand against the 181
+# quest-helper dirs vs the 179-row inventory, 2026-09-19) -- everything else
+# resolves through the exact-normalized-match rule below.
+MATCH_OVERRIDES = {
+    "blackknightfortress": "quest_blackknight",
+}
+
+
+# OSRS sequel suffixes normalize() never distinguishes from a plain word
+# boundary: "Dragon Slayer II" and "Fairytale I" both normalize their
+# numeral to bare letters, same as "Dragon Slayer 2" would to a digit.
+_ROMAN_SEQUEL_SUFFIXES = {"i", "ii", "iii", "iv", "v", "vi"}
+
+
+def _sequel_collision(a: str, b: str) -> bool:
+    """True when the only difference between the shorter and longer
+    normalized name is a trailing sequel marker -- 'dragonslayer' vs
+    'dragonslayer2', or 'dragonslayer' vs 'dragonslayerii' ("Dragon Slayer
+    II"'s own normalized human name, ROMAN not arabic: caught live in this
+    tool's own --all output, 2026-09-19 -- 'dragonslayer' silently bound to
+    quest_dragonslayer2 and clobbered dragonslayerii's own generated file on
+    the output path, one quest short with no error printed). A same-length
+    prefix match here is almost always two DIFFERENT quests, not a spelling
+    variant, so the substring fallback below must refuse it rather than
+    silently binding a Quest Helper guide for game N to game N+1's content
+    row."""
+    shorter, longer = (a, b) if len(a) <= len(b) else (b, a)
+    if longer.startswith(shorter):
+        rest = longer[len(shorter):]
+    elif longer.endswith(shorter):
+        rest = longer[:len(longer) - len(shorter)]
+    else:
+        return False
+    if rest == "":
+        return False
+    return rest[0].isdigit() or rest in _ROMAN_SEQUEL_SUFFIXES
+
+
+def match_inventory_row(helper_name: str, inventory: list[dict]) -> dict | None:
+    """helper-dir name -> its quest_inventory.tsv row, or None. Exact
+    normalized match against `dir` (minus the `quest_` prefix) or
+    `human_name` first; the override table second; a length-guarded
+    substring match last (guards against the sequel collision above).
+    Deliberately conservative: a wrong match here corrupts quest.bind's
+    varp/constants with ANOTHER quest's, which is worse than reporting
+    "no content quest"."""
+    nh = norm(helper_name)
+    by_dir: dict[str, dict] = {}
+    by_name: dict[str, dict] = {}
+    for row in inventory:
+        d = row["dir"]
+        key_dir = norm(d[len("quest_"):] if d.startswith("quest_") else d)
+        by_dir.setdefault(key_dir, row)
+        by_name.setdefault(norm(row["human_name"]), row)
+
+    if nh in by_dir:
+        return by_dir[nh]
+    if nh in by_name:
+        return by_name[nh]
+    if helper_name in MATCH_OVERRIDES:
+        target_dir = MATCH_OVERRIDES[helper_name]
+        for row in inventory:
+            if row["dir"] == target_dir:
+                return row
+        return None
+
+    best = None
+    for key, row in list(by_dir.items()) + list(by_name.items()):
+        if len(key) < 6:
+            continue
+        if key == nh:
+            continue
+        if (key in nh or nh in key) and not _sequel_collision(key, nh):
+            if best is None or len(key) > len(best[0]):
+                best = (key, row)
+    return best[1] if best else None
+
+
+def load_constants(dir_name: str) -> dict[str, int]:
+    """`^name = <int>` lines from the quest's own configs/<dir>.constant --
+    a coord/string-valued constant (`^cook_coord = 0_50_50_6_14`) is skipped,
+    not stringified, because quest.bind's constants table is documented as
+    plain integers (quest.lua's own banner) and a coord literal there would
+    silently make quest.expect_stage compare a stage varp against a tile
+    encoding."""
+    path = REPO / "OSRS-Content" / "osrs239-content" / "server" / "scripts" \
+        / "quests" / dir_name / "configs" / f"{dir_name}.constant"
+    values: dict[str, int] = {}
+    if not path.is_file():
+        return values
+    for line in path.read_text(errors="replace").splitlines():
+        m = re.match(r"^\^([A-Za-z0-9_]+)\s*=\s*(-?\d+)\s*$", line.strip())
+        if m:
+            values[m.group(1)] = int(m.group(2))
+    return values
+
+
+def strip_common_prefix(names: list[str]) -> dict[str, str]:
+    """{"cook_not_started": .., "cook_started": .., "cook_complete": ..} ->
+    {"not_started": .., "started": .., "complete": ..} -- the same short
+    spelling the hand-written cooks_assistant.lua/_conformance.lua examples
+    use (QUEST_NOT_STARTED etc.), found by trimming the longest leading
+    `token_` run every name shares. Falls back to the raw name for any
+    entry the stripped form would collide on, or when there is nothing
+    common to strip (fewer than 2 names, or no shared token)."""
+    if len(names) < 2:
+        return {n: n for n in names}
+    split = [n.split("_") for n in names]
+    common = 0
+    for tokens in zip(*split):
+        if len(set(tokens)) == 1:
+            common += 1
+        else:
+            break
+    if common == 0:
+        return {n: n for n in names}
+    stripped = {n: "_".join(s[common:]) or n for n, s in zip(names, split)}
+    seen = list(stripped.values())
+    if len(set(seen)) != len(seen):
+        return {n: n for n in names}
+    return stripped
+
+
+# --------------------------------------------------------------- java read
+
+def gather_java(helper_dir: Path) -> str:
+    return qhe.gather_java(helper_dir)
+
+
+def find_method_body(text: str, signature_re: str) -> str | None:
+    m = re.search(signature_re, text)
+    if not m:
+        return None
+    brace = text.find("{", m.end())
+    if brace == -1:
+        return None
+    body, _ = extract_balanced(text, brace)
+    return body
+
+
+def parse_list_of_identifiers(body: str | None) -> list[str]:
+    """The identifiers inside a `return List.of(a, b, c);` /
+    `return Arrays.asList(a, b);` -- the only two return shapes this tool
+    reads; anything else (a built-up ArrayList, a conditional return) yields
+    no requirements rather than a guess, and the generated setup is simply
+    shorter -- an author fills it in, same as any other gap this tool
+    leaves rather than invents."""
+    if not body:
+        return []
+    m = re.search(r"return\s+(?:List\.of|Arrays\.asList)\s*\(", body)
+    if not m:
+        return []
+    inner, _ = extract_balanced(body, m.end() - 1)
+    return [p.strip() for p in split_top_level(inner) if re.match(r"^[A-Za-z_]\w*$", p.strip())]
+
+
+# ------------------------------------------------------------ step parsing
+
+STEP_DECL_RE = re.compile(
+    r"\b(\w+)\s*=\s*new\s+(" + "|".join(STEP_TYPES) + r")\s*\(",
+)
+
+
+def parse_step_decls(text: str) -> dict[str, dict]:
+    """varname -> {kind, args, desc, gameval:(GamevalKind,name)|None}."""
+    steps: dict[str, dict] = {}
+    for m in STEP_DECL_RE.finditer(text):
+        var, kind = m.group(1), m.group(2)
+        open_idx = m.end() - 1
+        args, _ = extract_balanced(text, open_idx)
+        gameval = None
+        gv = GAMEVAL_RE.search(args)
+        if gv:
+            raw_name = qhe.normalize_gameval_name(gv.group(1), gv.group(2))
+            gameval = (gv.group(1), resolve_symbol(gv.group(1), raw_name))
+        # The description is the longest string literal in the constructor
+        # call -- every STEP_TYPES constructor takes exactly one `text`
+        # (the walkthrough line), and every OTHER string argument these
+        # constructors take (an npc's display name override) is always
+        # shorter in practice; a longest-literal heuristic is what
+        # questhelper_extract.py's own report formatter uses for the same
+        # "which string is the human sentence" problem.
+        literals = re.findall(r'"((?:[^"\\]|\\.)*)"', args)
+        desc = max(literals, key=len) if literals else ""
+        steps[var] = {"kind": kind, "args": args, "desc": desc, "gameval": gameval}
+    return steps
+
+
+DIALOG_RE = re.compile(r"\b(\w+)\.addDialogSteps?\s*\(")
+SUBSTEPS_RE = re.compile(r"\b(\w+)\.addSubSteps\s*\(")
+
+
+def parse_dialog_steps(text: str) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for m in DIALOG_RE.finditer(text):
+        var = m.group(1)
+        inner, _ = extract_balanced(text, m.end() - 1)
+        lines = [lit for lit in re.findall(r'"((?:[^"\\]|\\.)*)"', inner)]
+        if lines:
+            out.setdefault(var, []).extend(lines)
+    return out
+
+
+def parse_sub_steps(text: str) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for m in SUBSTEPS_RE.finditer(text):
+        var = m.group(1)
+        inner, _ = extract_balanced(text, m.end() - 1)
+        names = [p.strip() for p in split_top_level(inner) if re.match(r"^[A-Za-z_]\w*$", p.strip())]
+        if names:
+            out.setdefault(var, []).extend(names)
+    return out
+
+
+COND_DECL_RE = re.compile(r"\b(\w+)\s*=\s*new\s+(?:Reorderable)?ConditionalStep\s*\(")
+ADDSTEP_RE_TMPL = r"\b{var}\.addStep\s*\("
+
+
+def parse_conditional_steps(text: str) -> dict[str, dict]:
+    """varname -> {"default": var|None, "adds": [(condition_text, var), ...]}.
+    `adds` keeps the file's own written order -- see the module banner for
+    what that order means and why it is only ever a guess."""
+    conds: dict[str, dict] = {}
+    for m in COND_DECL_RE.finditer(text):
+        var = m.group(1)
+        open_idx = m.end() - 1
+        inner, _ = extract_balanced(text, open_idx)
+        args = split_top_level(inner)
+        # ctor: (this, [Integer id,] QuestStep step, [String text,] Requirement...)
+        # -- drop `this`, drop a lone-integer id, first identifier-looking
+        # remainder is the default step.
+        rest = args[1:]
+        if rest and re.match(r"^-?\d+$", rest[0].strip()):
+            rest = rest[1:]
+        default = rest[0].strip() if rest else None
+        if default is not None and not re.match(r"^[A-Za-z_]\w*$", default):
+            # an inline `new XStep(...)` default, or a literal -- no bare
+            # var name to recurse into.
+            default = None
+        conds[var] = {"default": default, "adds": []}
+    for var in list(conds.keys()):
+        for m in re.finditer(ADDSTEP_RE_TMPL.format(var=re.escape(var)), text):
+            inner, _ = extract_balanced(text, m.end() - 1)
+            call_args = split_top_level(inner)
+            if len(call_args) == 1:
+                cond_text, target = "always", call_args[0].strip()
+            elif len(call_args) >= 2:
+                cond_text, target = call_args[0].strip(), call_args[1].strip()
+            else:
+                continue
+            if re.match(r"^[A-Za-z_]\w*$", target):
+                conds[var]["adds"].append((cond_text, target))
+    return conds
+
+
+def parse_steps_put(text: str) -> list[tuple[int, str]]:
+    out = []
+    for m in qhe.STEPS_PUT_RE.finditer(text):
+        expr = m.group(2).strip()
+        if re.match(r"^[A-Za-z_]\w*$", expr):
+            out.append((int(m.group(1)), expr))
+    out.sort(key=lambda t: t[0])
+    return out
+
+
+# ------------------------------------------------------------- the walk
+
+def walk_route(entry: str, step_decls: dict, cond_decls: dict) -> list[tuple[str, str]]:
+    """entry var -> [("step", var) | ("unresolved", var), ...] in route
+    order, deduped. See the module banner for the ordering rule."""
+    route: list[tuple[str, str]] = []
+    visited: set[str] = set()
+
+    def visit(var: str) -> None:
+        if var in visited:
+            return
+        visited.add(var)
+        if var in step_decls:
+            route.append(("step", var))
+            return
+        if var in cond_decls:
+            chain = cond_decls[var]
+            if chain["default"]:
+                visit(chain["default"])
+            for _cond, target in chain["adds"]:
+                visit(target)
+            return
+        # Neither a known step nor a known ConditionalStep -- an inline
+        # anonymous step, a step type this tool does not parse, or a
+        # forward reference this file's own regex missed.
+        route.append(("unresolved", var))
+
+    visit(entry)
+    return route
+
+
+# --------------------------------------------------------------- op guess
+
+OP_KEYWORDS = (
+    ("talk", 1), ("climb", 1), ("open", 1), ("search", 1),
+    ("pick", 1), ("operate", 1), ("enter", 1),
+)
+
+
+def guess_op(desc: str) -> tuple[int, str]:
+    lowered = desc.lower()
+    for word, op in OP_KEYWORDS:
+        if word in lowered:
+            return op, word
+    return 1, "default"
+
+
+# ---------------------------------------------------------- requirements
+
+ITEM_REQ_RE = re.compile(r"\b(\w+)\s*=\s*new\s+ItemRequirement\s*\(")
+SKILL_REQ_RE = re.compile(r"\bnew\s+SkillRequirement\s*\(\s*Skill\.(\w+)\s*,\s*(-?\d+)")
+QUEST_REQ_RE = re.compile(r"\bnew\s+QuestRequirement\s*\(\s*QuestHelperQuest\.(\w+)")
+
+
+def parse_item_requirements(text: str) -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for m in ITEM_REQ_RE.finditer(text):
+        var = m.group(1)
+        args, _ = extract_balanced(text, m.end() - 1)
+        parts = split_top_level(args)
+        gv = GAMEVAL_RE.search(args)
+        if not gv or gv.group(1) != "ItemID":
+            continue
+        item_name = qhe.normalize_gameval_name("ItemID", gv.group(2))
+        qty = 1
+        for p in parts:
+            if re.match(r"^\d+$", p.strip()) and p.strip() != "1":
+                qty = int(p.strip())
+        qm = re.search(r"\.quantity\s*\(\s*(\d+)\s*\)", text[m.end():m.end() + 400])
+        if qm:
+            qty = int(qm.group(1))
+        out[var] = {"item": item_name, "qty": qty}
+    return out
+
+
+def parse_skill_requirements(text: str) -> list[tuple[str, int]]:
+    return [(sk.lower(), int(lvl)) for sk, lvl in SKILL_REQ_RE.findall(text)]
+
+
+def parse_quest_requirements(text: str) -> list[str]:
+    return list(dict.fromkeys(QUEST_REQ_RE.findall(text)))
+
+
+def resolve_quest_prereq(token: str, inventory: list[dict]) -> str | None:
+    """QuestHelperQuest.XXX -> a prerequisite quest's own `dir` (used as
+    `::complete <dir-without-quest_-prefix's own row is not known here, so
+    the DIR itself is what setup checks against `docs/QUEST_SERVER_CHEATS.md`
+    -- the row a `::complete` cheat wants is content's own, and this tool
+    only has the dir; a human confirms the exact cheat spelling, same as
+    every other CHECK)>, or None."""
+    row = match_inventory_row(token.replace("_", ""), inventory)
+    return row["dir"] if row else None
+
+
+# -------------------------------------------------------------- emission
+
+def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> tuple[str, bool]:
+    """One t["do"](...) line (or an unresolved comment) for a single leaf
+    step. Returns (lua_lines_text, was_driven)."""
+    kind = info["kind"]
+    desc = info["desc"] or var
+    comment = "        -- " + (desc if desc else var)
+    gameval = info["gameval"]
+
+    if kind not in DRIVEN_STEP_TYPES or gameval is None:
+        checks.append(f"unresolved step kind/subject: {var} ({kind})")
+        return (
+            comment + "\n"
+            f"        -- CHECK unresolved: {kind} '{var}' has no symbol this tool "
+            "could resolve to a driver verb -- fill in by hand.\n"
+        ), False
+
+    gv_kind, symbol = gameval
+    lines = [comment]
+    name = f"{var}"
+    if gv_kind == "NpcID":
+        op, guessed_by = guess_op(desc)
+        lines.append(
+            f'        t.t["do"]({lua_string(name)}, t.player.talk_to, {lua_string(symbol)}, {op}) '
+            f"-- CHECK op {op} guessed from '{guessed_by}'"
+        )
+        checks.append(f"{var}: op guessed ({guessed_by} -> {op})")
+    elif gv_kind == "ObjectID":
+        op, guessed_by = guess_op(desc)
+        lines.append(
+            f'        t.t["do"]({lua_string(name)}, t.player.click_loc, {lua_string(symbol)}, {op}) '
+            f"-- CHECK op {op} guessed from '{guessed_by}'"
+        )
+        checks.append(f"{var}: op guessed ({guessed_by} -> {op})")
+    elif gv_kind == "ItemID":
+        lines.append(
+            f'        t.t["do"]({lua_string(name)}, t.player.click_obj, {lua_string(symbol)})'
+        )
+    else:
+        checks.append(f"unresolved gameval kind for step: {var} ({gv_kind})")
+        return comment + f"\n        -- CHECK unresolved gameval kind {gv_kind} for '{var}'\n", False
+
+    # Each dialog line gets its OWN literal step name (`-dialog-1`, `-dialog-2`,
+    # ...): a bare `name + "-dialog"` repeated across N lines is the exact
+    # straight-line duplicate lint_quest.py's own duplicate-t["do"]-name rule
+    # exists to catch (two IDENTICAL string literals, not core.lua's runtime
+    # -2/-3 suffix, which only fires for a name computed in a loop) --
+    # measured against this tool's own output on cooksassistant, 2026-09-19.
+    for index, line in enumerate(dialog.get(var, []), start=1):
+        lines.append(
+            f'        t.t["do"]({lua_string(name + "-dialog-" + str(index))}, t.chat.play, '
+            f"{{{lua_string('choose:' + line)}}}) -- CHECK dialog row text guessed from Quest Helper"
+        )
+        checks.append(f"{var}: dialog row guessed ({line!r})")
+
+    return "\n".join(lines) + "\n", True
+
+
+def generate(helper_dir: Path, inv_row: dict, qh_root: Path, inventory: list[dict]) -> tuple[str, dict]:
+    helper_name = helper_dir.name
+    text = gather_java(helper_dir)
+
+    step_decls = parse_step_decls(text)
+    dialog = parse_dialog_steps(text)
+    sub_steps = parse_sub_steps(text)
+    cond_decls = parse_conditional_steps(text)
+    puts = parse_steps_put(text)
+
+    entries: list[str] = []
+    for _n, var in puts:
+        if var not in entries:
+            entries.append(var)
+    if not entries and step_decls:
+        # No steps.put found at all (a helper this tool's regex missed the
+        # shape of) -- fall back to every declared step in declaration
+        # order rather than emitting an empty run().
+        entries = list(step_decls.keys())
+
+    checks: list[str] = []
+    route: list[tuple[str, str]] = []
+    for entry in entries:
+        for item in walk_route(entry, step_decls, cond_decls):
+            if item not in route:
+                route.append(item)
+
+    dir_name = inv_row["dir"]
+    quest_id = dir_name[len("quest_"):] if dir_name.startswith("quest_") else dir_name
+    display = inv_row["human_name"]
+    varp = inv_row["varp"].lstrip("%")
+
+    dbrow_names = qhe.load_compack_names(
+        REPO / "OSRS-Content" / "osrs239-content" / "configs" / "all.dbrow.compack"
+    )
+    dbrow_names |= qhe.load_compack_names(
+        REPO / "OSRS-Content" / "osrs239-content" / "pack" / "dbrow.alloc"
+    )
+    row_guess = qhe.guess_quest_dbrow(helper_name, text, dbrow_names)
+    # questhelper_extract.guess_quest_dbrow's own fallback candidate comes
+    # from a bare `Quest\.([A-Z0-9_]+)` regex over the WHOLE file, which
+    # also matches inside `QuestHelperQuest.ROVING_ELVES` (the last five
+    # characters of `QuestHelperQuest` spell `Quest`, so the regex fires at
+    # the `.` right after it) -- a requirement naming a DIFFERENT quest, not
+    # this one. Measured against this tool's own --all output, 2026-09-19:
+    # mourningsendparti and pathofglouphrie both got bound to
+    # "quest_rovingelves" this way (a real prerequisite of theirs, but not
+    # their OWN row), and theslugmenace got "quest_wanted" the same way --
+    # each one collided with lint_quest.py's own "setup completes its own
+    # row" rule once the SAME guess also leaked into a resolved prereq's
+    # `::complete`. A guess whose dbrow (minus quest_/miniquest_) has no
+    # normalized overlap with this helper's own name is almost certainly
+    # that regex picking up someone else's quest, so it is discarded here
+    # rather than trusted.
+    if row_guess:
+        bare = row_guess
+        for prefix in ("quest_", "miniquest_"):
+            if bare.startswith(prefix):
+                bare = bare[len(prefix):]
+                break
+        key = norm(bare)
+        nh = norm(helper_name)
+        if key != nh and key not in nh and nh not in key:
+            checks.append(f"row: discarded dbrow guess {row_guess!r} -- no name overlap with "
+                           f"helper '{helper_name}' (likely a same-file QuestRequirement for a "
+                           "DIFFERENT quest, not this one)")
+            row_guess = None
+
+    const_values = load_constants(dir_name)
+    const_not_started_sym = inv_row["const_not_started"].lstrip("^")
+    const_complete_sym = inv_row["const_complete"].lstrip("^")
+    key_map = strip_common_prefix(list(const_values.keys())) if const_values else {}
+    constants_lua = {}
+    for raw_name, value in const_values.items():
+        constants_lua[key_map.get(raw_name, raw_name)] = value
+    complete_value = const_values.get(const_complete_sym)
+    if complete_value is None:
+        checks.append(f"constants.complete: could not resolve {inv_row['const_complete']!r} "
+                       f"in configs/{dir_name}.constant")
+        complete_value = 0
+    constants_lua["complete"] = complete_value
+    not_started_value = const_values.get(const_not_started_sym)
+    if not_started_value is not None:
+        constants_lua["not_started"] = not_started_value
+
+    points = None
+    for name, value in const_values.items():
+        if name.endswith("questpoints"):
+            points = value
+            break
+    if points is None:
+        qm = re.search(r"new\s+QuestPointReward\s*\(\s*(\d+)", text)
+        if qm:
+            points = int(qm.group(1))
+    if points is None:
+        points = 1
+        checks.append("points: no *_questpoints constant or QuestPointReward(N) found -- defaulted to 1")
+
+    setup_cheats: list[str] = []
+    if inv_row.get("has_reset") == "yes" and inv_row.get("reset_name") not in (None, "", "?"):
+        setup_cheats.append(f"::{inv_row['reset_name']}")
+    else:
+        checks.append("setup: no reset debugproc in quest_inventory.tsv -- confirm fixture start state by hand")
+
+    item_reqs = parse_item_requirements(text)
+    itemreq_body = find_method_body(text, r"getItemRequirements\s*\(\s*\)")
+    start_item_vars = parse_list_of_identifiers(itemreq_body)
+    for var in start_item_vars:
+        info = item_reqs.get(var)
+        if info:
+            setup_cheats.append(f"::give {info['item']} {info['qty']}")
+        else:
+            checks.append(f"setup: getItemRequirements() names '{var}' but its ItemID could not be resolved")
+
+    for skill, level in parse_skill_requirements(text):
+        setup_cheats.append(f"::setlevel {skill} {level}")
+
+    # Resolved and folded into `setup_cheats` BEFORE the setup table below is
+    # emitted -- a prereq line appended after that point would land in the
+    # Lua file's comments but never in the setup list itself.
+    prereq_lines: list[tuple[str, str | None]] = []
+    for token in parse_quest_requirements(text):
+        prereq_dir = resolve_quest_prereq(token, inventory)
+        # A QuestRequirement naming THIS quest is not a prerequisite -- Quest
+        # Helper guides use it to branch on the player's OWN progress (a
+        # later-stage check, a miniquest gate), and lint_quest.py's own rule
+        # refuses a setup that completes a quest's own row before run(t)
+        # plays it (measured against this tool's own --all output,
+        # 2026-09-19: curseofarrav, enlightenedjourney, ragandboneman,
+        # shadowsofcustodia and two RFD-adjacent quests all self-matched
+        # this way). Reported as an unresolved CHECK instead of silently
+        # dropped, so an author still sees the guide named a requirement
+        # here.
+        if prereq_dir == dir_name:
+            prereq_dir = None
+            checks.append(f"prereq self-reference dropped: QuestHelperQuest.{token} named this quest's own row")
+        prereq_lines.append((token, prereq_dir))
+        if prereq_dir:
+            setup_cheats.append(f"::complete {prereq_dir}")
+
+    boss_fight = inv_row.get("boss_fight") == "yes"
+    boss_npcs = inv_row.get("boss_npcs", "")
+
+    # ----------------------------------------------------------- emit Lua
+    lines: list[str] = []
+    lines.append(f"-- Generated by tools/quest_gate/new_quest.py from Quest Helper's")
+    lines.append(f"-- helpers/quests/{helper_name}/ -- docs/QUEST_SUITE_KIT.md phase 3.")
+    lines.append(f"-- UNREVIEWED: every '-- CHECK' marker below needs a human or a later")
+    lines.append(f"-- phase to confirm against a live run before this counts as a passing")
+    lines.append(f"-- quest test. Tier (quest_inventory.tsv): {inv_row.get('tier', '?')}.")
+    lines.append("")
+    lines.append("return {")
+    lines.append(f"    id = {lua_string(quest_id)},")
+    lines.append('    fixture = "fresh_lumbridge.ini",')
+    if setup_cheats:
+        lines.append("    setup = {")
+        for cheat in setup_cheats:
+            lines.append(f"        {lua_string(cheat)},")
+        lines.append("    },")
+    else:
+        lines.append("    setup = {}, -- CHECK: nothing resolved automatically")
+    lines.append("")
+    lines.append("    run = function(t)")
+    lines.append(f"        local bind_result, bind_detail = t.quest.bind({{")
+    lines.append(f"            varp = {lua_string(varp)},")
+    lines.append("            constants = {")
+    for key, value in sorted(constants_lua.items()):
+        lines.append(f"                {key} = {value},")
+    lines.append("            },")
+    if row_guess:
+        lines.append(f"            row = {lua_string(row_guess)},")
+    else:
+        lines.append("            row = nil, -- CHECK: quest dbrow guess failed, name it by hand")
+        checks.append("row: quest dbrow guess failed")
+    lines.append(f"            display = {lua_string(display)}, -- CHECK: content-sourced, confirm against the live quest list")
+    lines.append(f"            points = {points},")
+    lines.append("        })")
+    lines.append('        t.t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)')
+    lines.append("")
+
+    if prereq_lines:
+        lines.append("        -- Prerequisite quest(s) this helper names (QuestHelperQuest tokens)")
+        for token, prereq_dir in prereq_lines:
+            if prereq_dir:
+                lines.append(f"        -- CHECK setup already has '::complete {prereq_dir}' "
+                              f"(resolved from QuestHelperQuest.{token}) "
+                              "-- confirm this is really the row this content pack wants")
+                checks.append(f"prereq resolved but unconfirmed: {token} -> {prereq_dir}")
+            else:
+                lines.append(f"        -- CHECK unresolved prereq: QuestHelperQuest.{token} -- add "
+                              "'::complete <its row>' to setup by hand")
+                checks.append(f"prereq unresolved: {token}")
+        lines.append("")
+
+    stage_index = 0
+    driven_count = 0
+    blocked_stubs = 0
+
+    # Every discoverable route step is walked and emitted REGARDLESS of
+    # boss_fight -- a fight the manifest lists does not usually sit at step
+    # 0, and the earlier draft of this function threw away every pre-fight
+    # step (getBucket/getPot/... for a quest whose fight is its very last
+    # stage) to write nothing but a single blocked() call. Whatever the
+    # walk found is real, checkable content; only the TAIL -- the part that
+    # needs the fight to have actually happened -- is unreachable without
+    # `::skipboss`, so that is the only part this replaces.
+    for kind, var in route:
+        if kind == "step":
+            info = step_decls[var]
+            call_text, driven = format_step_call(var, info, dialog, checks)
+            lines.append(call_text)
+            if driven:
+                driven_count += 1
+                stage_index += 1
+                if stage_index % 3 == 0:
+                    lines.append(
+                        f'        t.t.check("expect_stage-{stage_index}", '
+                        f'select(1, t.quest.stage()) ~= nil) -- CHECK: bind a real named stage here'
+                    )
+            for alt in sub_steps.get(var, []):
+                checks.append(f"alternative for {var}: {alt} (location/state variant, not walked)")
+                lines.append(f"        -- CHECK alternative for {var}: {alt} (location/state variant, not walked)")
+        else:
+            # Counted, not just printed. Review 2026-09-19: these were
+            # emitted straight into the file without ever reaching `checks`,
+            # so the --all table's `unresolved` column read 0 for a quest
+            # carrying four of them (xmarksthespot) and an author picking
+            # work off that column opened a file that was not resolved.
+            checks.append(f"unresolved route entry: {var}")
+            lines.append(f"        -- CHECK unresolved route entry: {var}")
+
+    lines.append("")
+    if boss_fight:
+        # docs/QUEST_SUITE_KIT.md phase 3: "`::skipboss` stubs (as
+        # `t.t.blocked(...)` until phase 4) where the manifest lists a
+        # fight" -- quest_inventory.tsv's own `boss_fight` column is this
+        # quest's own manifest signal (docs/bosses/quest_combat_manifest.json
+        # is the finer-grained per-encounter catalogue phase 4 reads; this
+        # column is already that signal folded down to yes/no per quest).
+        # Placed after the walked route, not instead of it: everything
+        # above this line is real steps a Haiku agent's run can still prove.
+        lines.append(f'        t.t.blocked("skipboss not landed: {boss_npcs or quest_id}")')
+        blocked_stubs += 1
+    else:
+        lines.append("        t.quest.expect_complete()")
+        lines.append("        t.t.finish(0)")
+    lines.append("    end,")
+    lines.append("}")
+
+    source = "\n".join(lines) + "\n"
+    stats = {
+        "steps": driven_count,
+        "checks": len(checks),
+        "blocked": blocked_stubs,
+        "unresolved": len([c for c in checks if c.startswith("unresolved")]),
+        # Every `-- CHECK` line actually written into the file -- the size of
+        # the human review this skeleton still owes, which `checks` (the
+        # tool's own internal notes) understates.
+        "checks_todo": sum(1 for line in lines if "-- CHECK" in line),
+    }
+    return source, stats
+
+
+# -------------------------------------------------------------------- CLI
+
+def resolve_helper_dir(arg: str, qh_root: Path) -> Path:
+    p = Path(arg)
+    if p.is_dir():
+        return p.resolve()
+    cand = qh_root / arg
+    if cand.is_dir():
+        return cand.resolve()
+    raise SystemExit(f"helper dir not found: {arg}")
+
+
+def run_one(helper_arg: str, out_dir: Path, qh_root: Path, inventory: list[dict]) -> dict:
+    helper_dir = resolve_helper_dir(helper_arg, qh_root)
+    inv_row = match_inventory_row(helper_dir.name, inventory)
+    result = {"helper": helper_dir.name, "quest": None, "path": None,
+              "steps": 0, "checks": 0, "blocked": 0, "unresolved": 0,
+              "checks_todo": 0, "error": None}
+    if inv_row is None:
+        result["error"] = "no content quest"
+        return result
+    result["quest"] = inv_row["dir"]
+    try:
+        lua_text, stats = generate(helper_dir, inv_row, qh_root, inventory)
+    except Exception as exc:  # pragma: no cover -- --all must survive one bad helper
+        result["error"] = f"{type(exc).__name__}: {exc}"
+        return result
+    quest_id = inv_row["dir"][len("quest_"):] if inv_row["dir"].startswith("quest_") else inv_row["dir"]
+    out_path = out_dir / f"{quest_id}.lua"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(lua_text, encoding="utf-8")
+    result["path"] = str(out_path)
+    result.update(stats)
+    return result
+
+
+# The nine Recipe for Disaster subquests: one physical Quest Helper
+# directory (`helpers/quests/recipefordisaster/`) and one physical content
+# directory (`quest_recipefordisaster`) hold what are, on both sides, ten
+# separate quests (dbrow-wise: subquest_rfd_intro + nine subquest_rfd_*
+# rows -- quest_inventory.tsv's own note on the umbrella row). The intro is
+# already the umbrella row itself (helper dir name `recipefordisaster`
+# matches `quest_recipefordisaster` exactly, so it is already one of the
+# 179 via the ordinary path); these nine are the general's own kitchen
+# subquests, keyed here by the varp name quest_inventory.tsv's notes column
+# already names (`%rfd_<name>`) and the single Java file (not a directory)
+# that implements each one under the shared helper dir -- `new_quest.py`'s
+# own --all walks DIRECTORIES, so it cannot generate any of these nine yet
+# (see the open issue this pass reports); QUEUE.tsv still gets a row for
+# each so phase 4 has something to point a future per-file generator at.
+RFD_SUBQUESTS = [
+    ("amikvarze", "RFDSirAmikVarze.java"),
+    ("dwarf", "RFDDwarf.java"),
+    ("evildave", "RFDEvilDave.java"),
+    ("finale", "RFDFinal.java"),
+    ("goblins", "RFDGoblins.java"),
+    ("lumbridgeguide", "RFDLumbridgeGuide.java"),
+    ("monkey", "RFDAwowogei.java"),
+    ("ogre", "RFDSkrachUglogwee.java"),
+    ("pirate", "RFDPiratePete.java"),
+]
+
+
+def write_queue(path: Path, inventory: list[dict], qh_root: Path) -> int:
+    """test/quests/QUEUE.tsv: quest_dir helper_dir tier status owner
+    last_failure -- one row per inventory quest (179) plus the nine RFD
+    subquests above. `helper_dir` is this tool's own --all mapping (the
+    inverse of match_inventory_row, computed the same way so the two never
+    disagree), or "?" when no helper matches (quest_inventory.tsv's own
+    rows for fairytalei/fairytaleii-adjacent gaps -- see this pass's
+    report)."""
+    helpers = sorted(p.name for p in qh_root.iterdir() if p.is_dir())
+    quest_to_helper: dict[str, str] = {}
+    for h in helpers:
+        row = match_inventory_row(h, inventory)
+        if row is not None and row["dir"] not in quest_to_helper:
+            quest_to_helper[row["dir"]] = h
+
+    rows_out = []
+    for row in inventory:
+        rows_out.append((row["dir"], quest_to_helper.get(row["dir"], "?"), row["tier"], "todo", "", ""))
+    for name, java_file in RFD_SUBQUESTS:
+        quest_dir = f"quest_recipefordisaster_{name}"
+        helper_dir = f"recipefordisaster/{java_file}"
+        # No per-subquest boss/leftover/cutscene signal exists in
+        # quest_inventory.tsv (only the umbrella row's own aggregate, which
+        # mixes all ten sub-quests together) -- tier 5 ("unknown") is the
+        # honest call until a later pass researches each one individually,
+        # not a guess dressed as a computed tier.
+        rows_out.append((quest_dir, helper_dir, "5", "todo", "", ""))
+
+    with open(path, "w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t", lineterminator="\n")
+        writer.writerow(["quest_dir", "helper_dir", "tier", "status", "owner", "last_failure"])
+        for row in rows_out:
+            writer.writerow(row)
+    return len(rows_out)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("helper", nargs="?", help="helpers/quests/<dir> name or path")
+    ap.add_argument("--all", action="store_true", help="generate every helper that maps to a content quest")
+    ap.add_argument("--qh-root", type=Path, default=DEFAULT_QH)
+    ap.add_argument("--content", type=Path, default=DEFAULT_CONTENT)
+    ap.add_argument("--out", type=Path, default=None,
+                     help="output dir (default: test/quests for a single helper, "
+                          "build/generated_quests for --all)")
+    ap.add_argument("--write-queue", type=Path, default=None,
+                     help="write test/quests/QUEUE.tsv (179 inventory rows + 9 RFD "
+                          "subquest rows) to this path and exit")
+    args = ap.parse_args()
+
+    inventory = load_inventory()
+
+    if args.write_queue:
+        count = write_queue(args.write_queue, inventory, args.qh_root)
+        print(f"wrote {count} rows to {args.write_queue}")
+        return 0
+
+    if not args.all and not args.helper:
+        ap.error("helper dir required (or --all, or --write-queue)")
+
+    if args.all:
+        out_dir = args.out or GEN_DIR
+        helpers = sorted(p.name for p in args.qh_root.iterdir() if p.is_dir())
+        results = [run_one(h, out_dir, args.qh_root, inventory) for h in helpers]
+
+        no_content = [r for r in results if r["error"] == "no content quest"]
+        errored = [r for r in results if r["error"] and r["error"] != "no content quest"]
+        written = [r for r in results if r["path"]]
+
+        total_checks = sum(r["checks"] for r in written)
+        total_unresolved = sum(r["unresolved"] for r in written)
+        total_todo = sum(r["checks_todo"] for r in written)
+        total_blocked = sum(r["blocked"] for r in written)
+
+        header = (f"{'quest':<28} {'steps':>5} {'checks':>6} {'blocked':>7} "
+                  f"{'unresolved':>10} {'CHECK lines':>11}")
+        print(header)
+        print("-" * len(header))
+        for r in written:
+            print(f"{r['quest']:<28} {r['steps']:>5} {r['checks']:>6} {r['blocked']:>7} "
+                  f"{r['unresolved']:>10} {r['checks_todo']:>11}")
+        print("-" * len(header))
+        print(f"{'TOTAL':<28} {sum(r['steps'] for r in written):>5} {total_checks:>6} "
+              f"{total_blocked:>7} {total_unresolved:>10} {total_todo:>11}")
+        print()
+        print(f"{len(helpers)} quest-helper dirs; {len(written)} generated into {out_dir}; "
+              f"{len(no_content)} had no matching content quest; {len(errored)} errored")
+        if no_content:
+            print("no content quest: " + ", ".join(r["helper"] for r in no_content))
+        if errored:
+            print("errored: " + ", ".join(f"{r['helper']} ({r['error']})" for r in errored))
+        return 0
+
+    out_dir = args.out or QUESTS_DIR
+    result = run_one(args.helper, out_dir, args.qh_root, inventory)
+    if result["error"]:
+        print(f"FAILED: {args.helper}: {result['error']}", file=sys.stderr)
+        return 1
+    print(f"wrote {result['path']} (quest={result['quest']} steps={result['steps']} "
+          f"checks={result['checks']} blocked={result['blocked']} "
+          f"unresolved={result['unresolved']} check_lines={result['checks_todo']})")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -2,27 +2,19 @@
 
 One file per quest: `test/quests/<quest>.lua`, returning a table.
 
-```lua
-return {
-    id = "cooks_assistant",
-    -- A server save fixture in test/quests/fixtures/. [varps] holds only
-    -- scope=perm vars, which is exactly the quest set -- a fixture carrying a
-    -- temp var would be pinning a value the server owns.
-    fixture = "cooks_assistant_start.ini",
-    -- Cheats run once, after login, before the first step. A fixture states
-    -- the world; setup states the ACCOUNT.
-    setup = { "::setlevel cooking 10", "::give bucket_of_milk 1" },
-    run = function(t)
-        t.player.talk_to("cook")
-        t.chat.expect_head("cook")
-        t.chat.drain({ stop_at = "options" })
-        t.chat.choose("What's wrong?")
-        t.t.shot("cook-quest-offer")
-        t.var.expect("cooks_assistant_progress", 1)
-        t.t.finish(0)
-    end,
-}
-```
+The verb kit, a full worked example (`quest.bind`/`t["do"]`/`chat.play`/
+`quest.expect_complete`), the result vocabulary and the twelve traps that cost
+someone hours each all live in `docs/QUEST_AUTHORING.md` -- read that page
+before writing a quest. This file states the rules the runner and the gate
+enforce, not how to write to them.
+
+A quest file is `{ id, fixture, setup = {cheats}, run = function(t) ... end }`.
+There is deliberately no example on this page: the one that used to sit here
+named a fixture that does not exist and a `run` body that asserted nothing,
+and it was the only page an author read. The worked example lives in
+`docs/QUEST_AUTHORING.md` section 1, and the two complete green files are
+`test/quests/cooks_assistant.lua` (a quest, with a varp and a reward scroll)
+and `test/quests/hans.lua` (an npc behaviour test, with neither).
 
 The verbs a test is written in are listed once, with a line each, in
 `docs/QUEST_AUTHORING.md` (phase 3); `tools/quest_gate/verb_list.py` prints
