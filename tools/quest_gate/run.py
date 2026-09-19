@@ -410,7 +410,11 @@ def main():
         if seeded_from:
             print("run.py: seeded %s_opt_es from %s" % (OBJ_BASE, seeded_from), flush=True)
     else:
-        binary = os.path.join(REPO_ROOT, "src", TARGET)
+        # QUEST_BINARY lets a worker that built the client into a PRIVATE
+        # objdir/target (a C change under test) drive quests with that binary
+        # while other workers keep using src/torirs_questtest untouched --
+        # the shared binary is never swapped under a concurrent run.
+        binary = os.environ.get("QUEST_BINARY") or os.path.join(REPO_ROOT, "src", TARGET)
     if not os.path.isfile(binary):
         print("run.py: no binary at %s" % binary, file=sys.stderr)
         return 1

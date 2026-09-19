@@ -1,0 +1,180 @@
+dir	human_name	varp	const_not_started	const_complete	has_run_selftest	run_name	bmp_count	bmp_numbered	journal_bmp_count	leftover_count	has_reset	reset_name	boss_fight	boss_npcs	post_boss_stage	cutscene_or_instance	notes
+quest_animalmagnetism	Animal Magnetism	%anma_main	^anma_not_started	^anma_complete	no	?	138	yes	22	4	yes	anma	no			yes	17 legacy/unnumbered bmp names alongside numbered; 24 TODO/stub markers; 4 leftover items (unimplemented)
+quest_anothersliceofham	Another Slice of H.A.M.	%slice_quest	^slice_not_started	^slice_complete	yes	anothersliceofhamrun	130	yes	12	3	no	?	yes	slice_ham_mage;slice_ham_archer;slice_sigmund_noprayer	^slice_infiltrate;^slice_finish	yes	16 legacy/unnumbered bmp names alongside numbered; 22 TODO/stub markers; 3 leftover items (unimplemented)
+quest_arena	Fight Arena	%arenaquest	^arena_not_started	^arena_complete	yes	arenarun	0	?	0	0	no	?	yes	arena_ogre;arena_scorpion;arena_bouncer;general_khazard_arena	arena_defeat_ogre;arena_defeat_scorpion;arena_defeat_bouncer;arena_defeat_general	yes	
+quest_arthur	Merlin's Crystal	%arthur	^arthur_not_started	^arthur_complete	yes	arthurrun	0	?	0	0	no	?	no			yes	40 TODO/stub markers
+quest_ascentofarceuus	The Ascent of Arceuus	%arcquest	^aoa_not_started	^aoa_complete	yes	aoarun	63	yes	13	8	yes	ascentofarceuus	yes	arcquest_soul	^aoa_soul;^aoa_kaal2	yes	13 TODO/stub markers; 8 leftover items (unimplemented)
+quest_atailoftwocats	A Tail of Two Cats	%twocats	?	70 (literal int in quest_cheat.rs2, no named ^const)	no	?	0	?	0	0	no	?	no			no	configs/*.constant is an intentionally-empty stub; state lives in %twocats_quest only
+quest_atfirstlight	At First Light	%afl	^afl_not_started	^afl_complete	yes	aflrun	74	yes	8	6	yes	atfirstlight	no			no	8 TODO/stub markers; 6 leftover items (unimplemented)
+quest_ball	Witch's House	%ballquest	^ball_not_started	^ball_complete	yes	ballrun	0	?	0	0	no	?	yes	shapeshifterwolf	queue_defeat_witches_experiment	no	11 TODO/stub markers
+quest_bearyoursoul	Bear Your Soul	%arceuus_soulbearer_story	^bys_not_started	^bys_complete	yes	bysrun	29	yes	4	4	yes	bearyoursoul	no			no	3 TODO/stub markers; 4 leftover items (unimplemented)
+quest_belowicemountain	Below Ice Mountain	%bim	^bim_not_started	^bim_complete	yes	bimrun	102	yes	8	8	yes	belowicemountain	no			yes	8 TODO/stub markers; 8 leftover items (unimplemented)
+quest_beneathcursedsands	Beneath Cursed Sands	%bcs	^bcs_not_started	^bcs_complete	yes	bcsrun	81	yes	6	8	yes	beneathcursedsands	no			yes	5 TODO/stub markers; 8 leftover items (unimplemented)
+quest_betweenarock	Between a Rock...	%dwarfrock_quest	^dwarfrock_not_started	^dwarfrock_complete	no	?	0	?	0	0	no	?	no			no	8 TODO/stub markers
+quest_biohazard	Biohazard	%biohazard	?	^biohazard_complete	no	?	13	no	0	0	yes	biohazardreset	no			no	unnumbered bmp scheme (13 scenes)
+quest_blackarmgang	Shield of Arrav	%blackarmgang	^blackarmgang_not_started	^blackarmgang_complete	yes	blackarmgangrun	0	?	0	0	no	?	no			no	32 TODO/stub markers
+quest_blackknight	Black Knights' Fortress	%spy	^blackknight_not_started	^blackknight_complete	yes	blackknightrun	7	no	0	0	no	?	no			no	unnumbered bmp scheme (7 scenes); 20 TODO/stub markers
+quest_bonevoyage	Bone Voyage	%fossilquest_progress	^bv_not_started	^bv_complete	yes	bvrun	67	yes	12	3	yes	bonevoyage	no			no	12 TODO/stub markers; 3 leftover items (unimplemented)
+quest_cabinfever	Cabin Fever	%fever_quest	^fever_not_started	^fever_complete	no	?	90	no	9	4	no	?	no			yes	unnumbered bmp scheme (77 scenes); 8 TODO/stub markers; 4 leftover items (unimplemented)
+quest_childrenofthesun	Children of the Sun	%vmq1	^cots_not_started	^cots_complete	yes	cotsrun	45	yes	8	7	yes	childrenofthesun	no			yes	8 TODO/stub markers; 7 leftover items (unimplemented)
+quest_chompybird	Big Chompy Bird Hunting	%chompybird_kills	^chompybird_not_started	^chompybird_complete	no	?	0	?	0	0	no	?	yes	chompybird	chompybird_kill	yes	2 TODO/stub markers
+quest_clientofkourend	Client of Kourend	%veos_progress	^cok_not_started	^cok_complete	yes	cokrun	46	yes	6	4	yes	clientofkourend	no			yes	6 TODO/stub markers; 4 leftover items (unimplemented)
+quest_cog	Clock Tower	%cog_bits	^quest_cog_not_started	^quest_cog_complete	yes	cogrun	12	no	0	0	no	?	no			no	unnumbered bmp scheme (12 scenes); 21 TODO/stub markers
+quest_coldwar	Cold War	%peng_quest	^coldwar_not_started	^coldwar_complete	yes	cwrun	168	yes	28	5	yes	coldwar	no			yes	36 legacy/unnumbered bmp names alongside numbered; 23 TODO/stub markers; 5 leftover items (unimplemented)
+quest_contact	Contact!	%contact	^contact_not_started	^contact_complete	yes	contactrun	77	yes	0	3	yes	contact	yes	contact_scarab_boss	^contact_osman_outside;^contact_scarab_killed	yes	9 TODO/stub markers; 3 leftover items (unimplemented)
+quest_cook	Cook's Assistant	%cookquest	^cook_not_started	^cook_complete	yes	cookrun	13	no	0	0	yes	cook	no			no	unnumbered bmp scheme (13 scenes); 14 TODO/stub markers
+quest_corsaircurse	The Corsair Curse	%corscurs_progress	^cc_not_started	^cc_complete	yes	ccrun	59	yes	6	7	yes	corsaircurse	no			yes	6 TODO/stub markers; 7 leftover items (unimplemented)
+quest_crest	Family Crest	%crest_spells_levers_gauntlets	^crest_not_started	^crest_complete	yes	crestrun	0	?	0	0	no	?	yes	chronozon	^crest_cured_johnathon	no	
+quest_currentaffairs	Current Affairs	%current_affairs	^ca_not_started	^ca_complete	yes	carun	0	?	0	0	yes	currentaffairs	no			no	5 TODO/stub markers
+quest_curseofarrav	The Curse of Arrav	%coa	^coa_not_started	^coa_complete	yes	coarun	46	no	5	9	yes	curseofarrav	no			no	unnumbered bmp scheme (32 scenes); 4 TODO/stub markers; 9 leftover items (unimplemented)
+quest_darknessofhallowvale	Darkness of Hallowvale	%myq3_main_quest	^doh_not_started	^doh_complete	yes	dohrun	133	yes	21	3	yes	darknessofhallowvale	no			yes	10 legacy/unnumbered bmp names alongside numbered; 15 TODO/stub markers; 3 leftover items (unimplemented)
+quest_death	Death Plateau	%death_equiproom	^death_not_started	^death_complete	no	?	12	no	0	0	yes	deathreset	no			yes	unnumbered bmp scheme (12 scenes); 45 TODO/stub markers
+quest_deathontheisle	Death on the Isle	%doti	^di_not_started	^di_complete	yes	dirun	79	yes	7	7	yes	deathontheisle	no			no	6 TODO/stub markers; 7 leftover items (unimplemented)
+quest_deathtothedorgeshuun	Death to the Dorgeshuun	%dttd_main	^dttd_not_started	^dttd_complete	yes	dttdrun	82	yes	7	8	yes	deathtothedorgeshuun	yes	dttd_ham_guard_mill;dttd_sigmund_melee	calc;^dttd_mill_entered;^dttd_sigmund_defeated	yes	10 TODO/stub markers; 8 leftover items (unimplemented)
+quest_defenderofvarrock	Defender of Varrock	%dov	^dov_not_started	^dov_complete	yes	dovrun	133	yes	14	7	yes	defenderofvarrock	yes	camdozaal_golem_chaos;dov_armoured_zombie_melee_1	^dov_ramarno;^dov_balcony_1;^dov_zombies_1;^dov_arrav (+more)	yes	13 legacy/unnumbered bmp names alongside numbered; 24 TODO/stub markers; 7 leftover items (unimplemented)
+quest_demon	Demon Slayer	%demonslayer_main	^demon_not_started	^demon_complete	yes	demonrun	11	no	0	0	no	?	yes	delrith	demon_slayer_ready_to_banish	yes	unnumbered bmp scheme (11 scenes); 19 TODO/stub markers
+quest_depthsofdespair	The Depths of Despair	%hosidiusquest	^dod_not_started	^dod_complete	yes	dodrun	65	yes	11	7	yes	depthsofdespair	yes	hosidiusquest_snake	^dod_snake;^dod_chest	yes	11 TODO/stub markers; 7 leftover items (unimplemented)
+quest_desertrescue	Tourist Trap	%desertrescue_map_mechanisms	^desertrescue_not_started	^desertrescue_complete	no	?	0	?	0	0	no	?	yes	desertminingcaptain	^desertrescue_approached_captain;^desertrescue_killed_capt	no	
+quest_deserttreasure	Desert Treasure I	%deserttreasure	^dt_not_started	^dt_complete	no	?	0	?	0	0	yes	deserttreasure	yes	blooddiamond_vampirewarrior;firediamond_firewarrior;icediamond_icewarrior;fd_damis_tougher	^dt_blood_agreed;^dt_blood_killed;^dt_smoke_keyed;^dt_smoke_complete (+more)	yes	18 TODO/stub markers
+quest_deserttreasureii	Desert Treasure II - The Fallen Empire	%dt2	^dt2_not_started	^dt2_complete	yes	dt2run	77	yes	5	10	yes	deserttreasureii	no			yes	4 TODO/stub markers; 10 leftover items (unimplemented)
+quest_deviousminds	Devious Minds	%devious_main	^deviousminds_not_started	^deviousminds_complete	no	?	0	?	0	0	no	?	no			yes	13 TODO/stub markers
+quest_doric	Doric's Quest	%doricquest	^doric_not_started	^doric_complete	yes	doricrun	0	?	0	0	no	?	no			no	7 TODO/stub markers; has checked-in selftest bmps but no debugproc bmp_ found (check); stale: server/scripts/selftest/quest_doric has checked-in .bmp fixtures but no bmp_ debugproc exists in current scripts (drift)
+quest_dragon	Dragon Slayer I	%dragonquest	^quest_dragon_not_started	^dragon_complete	yes	dragonrun	0	?	0	0	no	?	yes	elvarg;elvarg_alive	dragon_complete	yes	49 TODO/stub markers
+quest_dragonslayer2	Dragon Slayer II	%ds2	^ds2_not_started	^ds2_complete	yes	ds2run	226	no	11	8	yes	dragonslayer2	yes	strange_spawn;galvek_earth;ds2_golem_magic;dream_robert_combat	^ds2_spawn;^ds2_finish;add;^ds2_robert (+more)	yes	108 legacy/unnumbered bmp names alongside numbered; 10 TODO/stub markers; 8 leftover items (unimplemented)
+quest_dreammentor	Dream Mentor	%dream_prog	^dreammentor_not_started	^dreammentor_complete	no	?	77	yes	8	2	no	?	no			yes	7 legacy/unnumbered bmp names alongside numbered; 7 TODO/stub markers; 2 leftover items (unimplemented)
+quest_druid	Druidic Ritual	%druidquest	^druid_not_started	^druid_complete	yes	druidrun	9	no	0	0	no	?	no			no	unnumbered bmp scheme (9 scenes); 11 TODO/stub markers
+quest_druidspirit	Nature Spirit	%druidspirit	^druidspirit_not_started	^druidspirit_complete	no	?	0	?	0	0	no	?	yes	ghast_vis	ghast_vis_reward	yes	
+quest_drunkmonk	Monk's Friend	%drunkmonkquest	^drunkmonk_not_started	^drunkmonk_complete	yes	drunkmonkrun	0	?	0	0	no	?	no			no	20 TODO/stub markers
+quest_eadgar	Eadgar's Ruse	%eadgar_bits	^eadgar_pete_dialog_1	^eadgar_complete	no	?	0	?	0	0	no	?	no			no	
+quest_eaglepeak	Eagles' Peak	%eaglepeak_quest	^eaglepeak_not_started	^eaglepeak_complete	no	?	163	yes	11	2	yes	eaglepeaksilver	yes	eaglepeak_uber_kebbit	^eaglepeak_silver_threatened	no	51 legacy/unnumbered bmp names alongside numbered; 7 TODO/stub markers; 2 leftover items (unimplemented)
+quest_elemental_workshop	Elemental Workshop I	%elemental_workshop_bits (bitfield)	?	?	no	?	0	?	0	0	no	?	no			no	Elemental Workshop I tracks progress via testbit() on a shared bitfield varp, not a single staged int varp; no .constant file in this dir at all
+quest_elementalworkshopii	Elemental Workshop II	%elemental_quest_2_main	^elem2_not_started	^elem2_complete	no	?	118	yes	13	3	no	?	no			no	3 legacy/unnumbered bmp names alongside numbered; 13 TODO/stub markers; 3 leftover items (unimplemented)
+quest_elena	Plague City	%elenaquest	^quest_elena_not_started	^elena_complete	no	?	0	?	0	0	no	?	no			yes	2 TODO/stub markers
+quest_enakhraslament	Enakhra's Lament	%enakh_quest	^enakh_not_started	^enakh_complete	yes	enakhraslamentrun	96	no	9	4	yes	enakhraslament	no			yes	unnumbered bmp scheme (83 scenes); 9 TODO/stub markers; 4 leftover items (unimplemented)
+quest_enlightenedjourney	Enlightened Journey	%zep_quest	^ej_not_started	^ej_complete	yes	ejrun	81	yes	9	3	yes	ej	no			yes	16 TODO/stub markers; 3 leftover items (unimplemented)
+quest_entertheabyss	Enter the Abyss	%abyssal_miniquest	^eta_not_started	^eta_complete	yes	etarun	9	no	0	0	yes	entertheabyss	no			no	unnumbered bmp scheme (9 scenes); 8 TODO/stub markers
+quest_ethicallyacquiredantiquities	Ethically Acquired Antiquities	%eaa	^eaa_not_started	^eaa_complete	yes	eaarun	82	yes	12	6	yes	ethicallyacquiredantiquities	no			yes	12 TODO/stub markers; 6 leftover items (unimplemented)
+quest_fenkenstrain	Creature of Fenkenstrain	%fenk_quest	^fenk_not_started	^fenk_complete	no	?	0	?	0	0	yes	fenkenstrain	yes	fenk_experiment_1		no	9 TODO/stub markers
+quest_finaldawn	The Final Dawn	%vmq4	^tfd_not_started	^tfd_complete	yes	tfdrun	69	yes	8	9	yes	finaldawn	no			yes	7 TODO/stub markers; 9 leftover items (unimplemented)
+quest_fishingcompo	Fishing Contest	%fishingcompo	^fishingcompo_not_started	^fishingcompo_complete	yes	fishingcomporun	10	no	0	0	no	?	no			no	unnumbered bmp scheme (10 scenes); 17 TODO/stub markers
+quest_fluffs	Gertrude's Cat	%fluffs	^fluffs_not_started	^fluffs_complete	yes	fluffsrun	9	no	0	0	no	?	no			no	unnumbered bmp scheme (9 scenes); 15 TODO/stub markers
+quest_forgettabletale	Forgettable Tale...	%forget_quest	^forget_not_started	^forget_complete	no	?	0	?	0	0	no	?	no			yes	24 TODO/stub markers
+quest_forsakentower	The Forsaken Tower	%lovaquest	^ft_not_started	^ft_complete	yes	ftrun	49	yes	7	7	yes	forsakentower	no			no	6 TODO/stub markers; 7 leftover items (unimplemented)
+quest_fremennikexiles	The Fremennik Exiles	%vikingexile	^fx_not_started	^fx_complete	yes	fxrun	67	yes	9	10	yes	fremennikexiles	no			yes	8 TODO/stub markers; 10 leftover items (unimplemented)
+quest_gardenofdeath	The Garden of Death	%tgod	^god_not_started	^god_complete	yes	godrun	80	yes	8	5	yes	gardenofdeath	no			no	8 TODO/stub markers; 5 leftover items (unimplemented)
+quest_gardenoftranquility	Garden of Tranquillity	%garden_quest	^garden_not_started	^garden_complete	yes	gardenoftranquilityrun	0	?	0	0	yes	gardenoftranquility	no			yes	6 TODO/stub markers
+quest_gettingahead	Getting Ahead	%ga	^ga_not_started	^ga_complete	yes	garun	52	yes	6	6	yes	gettingahead	no			yes	6 TODO/stub markers; 6 leftover items (unimplemented)
+quest_ghostsahoy	Ghosts Ahoy	%ahoy_questvar	^ahoy_not_started	^ahoy_complete	no	?	14	no	0	0	yes	ghostsahoy	yes	giant_lobster		no	unnumbered bmp scheme (14 scenes); 8 TODO/stub markers
+quest_giantdwarf	The Giant Dwarf	%giantdwarf_quest	^gdwarf_not_started	^gdwarf_complete	yes	gdwarfrun	0	?	0	0	yes	giantdwarf	no			yes	15 TODO/stub markers
+quest_gobdip	Goblin Diplomacy	%gobdip_main	^gobdip_not_started	^gobdip_complete	yes	gobdiprun	0	?	0	0	no	?	no			yes	17 TODO/stub markers; has checked-in selftest bmps but no debugproc bmp_ found (check); stale: server/scripts/selftest/quest_gobdip has checked-in .bmp fixtures but no bmp_ debugproc exists in current scripts (drift)
+quest_golem	The Golem	%golem_a	^golem_not_started	^golem_complete	no	?	0	?	0	0	yes	golem	no			no	8 TODO/stub markers
+quest_grail	Holy Grail	%grail	^grail_not_started	^grail_complete	no	?	0	?	0	0	no	?	yes	black_knight_titan	queue_defeat_titan	no	41 TODO/stub markers
+quest_grandtree	The Grand Tree	%grandtree	^grandtree_not_started	^grandtree_complete	no	?	0	?	0	0	no	?	yes	grandtree_foreman;grandtree_blackdemon	^grandtree_released_prison;^grandtree_obtained_lumber_order;queue_defeat_grandtree_foreman;queue_defeat_blackdemon	yes	62 TODO/stub markers
+quest_grimtales	Grim Tales	%grim_quest	^grim_not_started	^grim_complete	no	?	114	yes	14	5	no	?	yes	grim_glod		yes	9 TODO/stub markers; 5 leftover items (unimplemented)
+quest_handinthesand	The Hand in the Sand	%handsand_quest	^handsand_not_started	^handsand_complete	no	?	116	yes	17	4	no	?	no			yes	31 TODO/stub markers; 4 leftover items (unimplemented)
+quest_haunted	Ernest the Chicken	%haunted	^haunted_not_started	^haunted_complete	yes	hauntedrun	12	no	0	0	yes	haunted	no			no	unnumbered bmp scheme (12 scenes); 9 TODO/stub markers
+quest_hauntedmine	Haunted Mine	%hauntedmine	^hmq_not_started	^hmq_complete	no	?	0	?	0	0	no	?	yes	hauntedmine_boss_ghost	^hmq_dayth_killed	yes	12 TODO/stub markers
+quest_hazeelcult	Hazeel Cult	%hazeelcultquest	^hazeelcult_not_started	^hazeelcult_complete	yes	hazeelcultrun	18	no	0	0	yes	hazeelcultreset	yes	alomone_hazeel_cultist_2op	queue_defeat_alomone_hazeel_cultist	yes	unnumbered bmp scheme (18 scenes); 19 TODO/stub markers
+quest_heartofdarkness	The Heart of Darkness	%vmq3	^hod_not_started	^hod_complete	yes	hodrun	66	yes	5	7	yes	heartofdarkness	no			yes	4 TODO/stub markers; 7 leftover items (unimplemented)
+quest_hero	Heroes' Quest	%heroquest	^hero_not_started	^hero_complete	yes	herorun	0	?	0	0	no	?	no			no	
+quest_hetty	Witch's Potion	%hetty	^hetty_not_started	^hetty_complete	yes	hettyrun	0	?	0	0	no	?	no			no	7 TODO/stub markers
+quest_horror	Horror from the Deep	%horror_boss_active	^horror_not_started	^horror_complete	no	?	0	?	0	0	no	?	yes	horror_dagannoth_jr4	^horror_defeated_dagjr;4	yes	1 TODO/stub markers
+quest_hunt	Pirate's Treasure	%hunt	^hunt_not_started	^hunt_complete	yes	huntrun	0	?	0	0	no	?	no			no	15 TODO/stub markers
+quest_icthlarin	Icthlarin's Little Helper	%ics_little_var	^ics_not_started	^ics_complete	no	?	0	?	0	0	yes	icthlarinceremony	yes	ics_little_possessedpriest	^ics_meet_god	yes	16 TODO/stub markers
+quest_idesofmilk	The Ides of Milk	%cowquest	^iom_not_started	^iom_complete	yes	iomrun	0	?	0	0	yes	idesofmilk	yes	cowboss	^iom_fight;^iom_gillie_end	no	10 TODO/stub markers
+quest_ikov	Temple of Ikov	%ikov	^ikov_not_started	^ikov_completed_armadyl or ^ikov_completed_lucien (two alternate endings)	yes	ikovrun	0	?	0	0	no	?	yes	ikov_lucien2_vis_noattack;ikov_firewarrior	queue_defeat_lucien2;queue_defeat_fire_warrior	yes	2 TODO/stub markers; two mutually exclusive completion states depending on player choice (side with Armadyl or Lucien)
+quest_imp	Imp Catcher	%imp	^imp_not_started	^imp_complete	yes	imprun	0	?	0	0	no	?	no			yes	6 TODO/stub markers; has checked-in selftest bmps but no debugproc bmp_ found (check); stale: server/scripts/selftest/quest_imp has checked-in .bmp fixtures but no bmp_ debugproc exists in current scripts (drift)
+quest_inaidofthemyreque	In Aid of the Myreque	%myreque_2_quest	^myreque2_not_started	^myreque2_complete	no	?	98	yes	9	5	no	?	no			no	8 TODO/stub markers; 5 leftover items (unimplemented)
+quest_insearchofknowledge	In Search of Knowledge	%hosdun_knowledge_search	^isok_not_started	^isok_complete	yes	isokrun	57	yes	4	6	yes	insearchofknowledge	no			no	4 TODO/stub markers; 6 leftover items (unimplemented)
+quest_itexam	The Dig Site	%itexamlevel	^itexam_not_started	^itexam_complete	no	?	0	?	0	0	no	?	no			yes	14 TODO/stub markers
+quest_itgronigen	Observatory Quest	%itgronigen	^itgronigen_not_started	^itgronigen_complete	yes	itgronigenrun	0	?	0	0	no	?	yes	goblin_guard	^rag_collecting;2	yes	1 TODO/stub markers
+quest_itwatchtower	Watchtower	%itwatchtower	^itwatchtower_not_started	^itwatchtower_complete	no	?	0	?	0	0	no	?	yes	gorad	defeat_gorad	no	
+quest_junglepotion	Jungle Potion	%junglepotion	^junglepotion_not_started	^junglepotion_complete	yes	junglepotionrun	11	no	0	0	no	?	no			yes	unnumbered bmp scheme (11 scenes); 28 TODO/stub markers
+quest_kingdomdivided	A Kingdom Divided	%akd	^akd_not_started	^akd_complete	yes	akdrun	77	yes	6	10	yes	kingdomdivided	no			yes	5 TODO/stub markers; 10 leftover items (unimplemented)
+quest_kingsransom	King's Ransom	%kr_quest	^kr_not_started	^kr_complete	yes	kingsransomrun	103	yes	18	2	yes	kingsransom	no			yes	16 TODO/stub markers; 2 leftover items (unimplemented)
+quest_landofthegoblins	Land of the Goblins	%lotg	^lotg_not_started	^lotg_complete	no	?	107	yes	11	2	no	?	no			yes	10 TODO/stub markers; 2 leftover items (unimplemented)
+quest_legends	Legends' Quest	%legendsquest	^legends_not_started	^legends_complete	no	?	0	?	0	0	no	?	yes	irvig_senay;nezikchened;san_tojalon;ranalph_devere	setbit;^legends_summoned_nezikchened_fire;^legends_received_dagger;^legends_spawned_nezikchened_final	yes	2 TODO/stub markers
+quest_losttribe	The Lost Tribe	%lost_tribe_quest	^lt_not_started	^lt_complete	no	?	0	?	0	0	yes	losttribedig	no			yes	16 TODO/stub markers
+quest_lunardiplomacy	Lunar Diplomacy	%lunar_quest_main	^lunardip_not_started	^lunardip_complete	no	?	92	yes	14	5	no	?	yes	quest_lunar_mirror_of_player	^lunardip_games_complete;^lunardip_mirror_defeated	yes	13 TODO/stub markers; 5 leftover items (unimplemented)
+quest_makingfriendswithmyarm	Making Friends with My Arm	%my2arm_status	^mf_not_started	^mf_complete	yes	mfrun	81	yes	10	9	yes	makingfriendswithmyarm	no			yes	9 TODO/stub markers; 9 leftover items (unimplemented)
+quest_makinghistory	Making History	%makinghistory_prog	^makinghistory_not_started	^makinghistory_complete	no	?	0	?	0	0	no	?	no			no	11 TODO/stub markers
+quest_mcannon	Dwarf Cannon	%mcannon	^mcannon_not_started	^mcannon_complete	yes	mcannonrun	12	no	0	0	no	?	no			yes	unnumbered bmp scheme (12 scenes)
+quest_meatandgreet	Meat and Greet	%mag	^mg_not_started	^mg_complete	yes	mgrun	48	yes	8	6	yes	meatandgreet	no			yes	8 TODO/stub markers; 6 leftover items (unimplemented)
+quest_misc	Throne of Miscellania	%misc_quest	^misc_not_started	^misc_complete	no	?	0	?	0	0	no	?	no			no	
+quest_misthalinmystery	Misthalin Mystery	%mistmyst_progress	^mm_not_started	^mm_complete	yes	mmrun	61	yes	7	6	yes	misthalinmystery	no			yes	6 TODO/stub markers; 6 leftover items (unimplemented)
+quest_mm	Monkey Madness I	%mm_main	^monkeymadness_not_started	^monkeymadness_complete	no	?	0	?	0	0	no	?	yes	mm_demon	^monkeymadness_completed_ch3;2;^monkeymadness_defeated_demon	yes	3 TODO/stub markers
+quest_monkeymadnessii	Monkey Madness II	%mm2_progress	^mm2_not_started	^mm2_complete	yes	mm2run	93	yes	5	9	yes	monkeymadnessii	no			yes	4 TODO/stub markers; 9 leftover items (unimplemented)
+quest_mortton	Shades of Mort'ton	%morttonquest	^mortton_not_started	^mortton_quest_complete	no	?	0	?	0	0	no	?	no			no	3 TODO/stub markers
+quest_mountaindaughter	Mountain Daughter	%mdaughter_quest_var	^mdq_not_started	^mdq_complete	no	?	0	?	0	0	no	?	yes	mdaughter_bearman_fighter	^mdq_kendal_found;^mdq_kendal_killed	no	14 TODO/stub markers
+quest_mourningsendparti	Mourning's End Part I	%mourning_quest	^mend1_not_started	^mend1_complete	yes	mend1run	0	?	0	0	yes	mend1	no			no	12 TODO/stub markers
+quest_mourningsendpartii	Mourning's End Part II	%mourning_quest_main	^mend2_not_started	^mend2_complete	yes	mend2run	0	?	0	0	yes	mend2	no			no	
+quest_murder	Murder Mystery	%murderquest	^murder_not_started	^murder_complete	no	?	0	?	0	0	no	?	no			no	20 TODO/stub markers
+quest_myarmsbigadventure	My Arm's Big Adventure	%myarm	^myarm_not_started	^myarm_complete	yes	mabarun	75	yes	0	4	yes	myarmsbigadventure	yes	myarm_baby_roc;myarm_giant_roc	^myarm_ready_for_baby;^myarm_baby_defeated;^myarm_giant_defeated	no	14 TODO/stub markers; 4 leftover items (unimplemented)
+quest_nightatthetheatre	A Night at the Theatre	%tobquest	^natt_not_started	^natt_complete	yes	nattrun	65	yes	15	8	yes	nightatthetheatre	no			yes	14 TODO/stub markers; 8 leftover items (unimplemented)
+quest_olafsquest	Olaf's Quest	%olaf_quest_var	^olafq_not_started	^olafq_complete	no	?	73	yes	9	3	no	?	yes	olaf2_ulfric		no	2 legacy/unnumbered bmp names alongside numbered; 18 TODO/stub markers; 3 leftover items (unimplemented)
+quest_onesmallfavour	One Small Favour	%osf_gang_kills	^osf_not_started	^osf_complete	no	?	0	?	0	0	no	?	yes	slagilith	^osf_slagilith_fight;^osf_slagilith_defeated	no	
+quest_pandemonium	Pandemonium	%sailing_intro	^pan_not_started	^pan_complete	yes	pandrun	56	yes	5	7	yes	pandemonium	no			yes	5 TODO/stub markers; 7 leftover items (unimplemented)
+quest_pathofglouphrie	The Path of Glouphrie	%pog	^pog_not_started	^pog_complete	yes	pogrun	100	yes	14	8	yes	pog	yes	pog_watcher	^pog_creature_revealed;^pog_watcher_dead;^pog_creature_killed	yes	13 TODO/stub markers; 8 leftover items (unimplemented)
+quest_perilousmoons	Perilous Moons	%pmoon_quest	^pm_not_started	^pm_complete	yes	pmrun	75	yes	8	7	yes	perilousmoons	no			no	7 TODO/stub markers; 7 leftover items (unimplemented)
+quest_porcineofinterest	A Porcine of Interest	%porcine	^poi_not_started	^poi_complete	yes	poirun	57	yes	9	7	yes	porcineofinterest	yes	porcine_sourhog_second	^poi_kill;^poi_foot	yes	9 TODO/stub markers; 7 leftover items (unimplemented)
+quest_priest	The Restless Ghost	%prieststart	^priest_not_started	^priest_complete	yes	priestrun	0	?	0	0	no	?	no			no	19 TODO/stub markers
+quest_priestperil	Priest in Peril	%priestperil	^priestperil_not_started	^priestperil_complete	no	?	0	?	0	0	no	?	yes	priestperilguarddog	priestperil_defeat_guardian	yes	
+quest_prince	Prince Ali Rescue	%princequest	^prince_not_started	^prince_complete	yes	princerun	0	?	0	0	no	?	no			no	23 TODO/stub markers
+quest_pryingtimes	Prying Times	%quest_pry	^pry_not_started	^pry_complete	yes	pryrun	0	?	0	0	yes	pryingtimes	no			no	8 TODO/stub markers
+quest_queenofthieves	The Queen of Thieves	%piscquest	^qot_not_started	^qot_complete	yes	qotrun	60	yes	11	3	yes	queenofthieves	no			no	11 TODO/stub markers; 3 leftover items (unimplemented)
+quest_ragandboneman	Rag and Bone Man I	%rag_quest	^rag_not_started	^rag_complete	no	?	51	yes	0	3	yes	ragandboneman	no			no	3 TODO/stub markers; 3 leftover items (unimplemented)
+quest_ratcatchers	Ratcatchers	%ratcatch_var	^ratcatch_not_started	^ratcatch_complete	no	?	0	?	0	0	no	?	no			yes	10 TODO/stub markers
+quest_recipefordisaster	Recipe for Disaster (umbrella dir for 10 subquests)	%recipefordisaster (intro) + 9 more: %rfd_amikvarze, %rfd_dwarf, %rfd_evildave, %rfd_finale, %rfd_goblins, %rfd_lumbridgeguide, %rfd_monkey, %rfd_ogre, %rfd_pirate	?	^rfd_intro_complete + one *_complete const per subquest (see quest_cheat.rs2 arms subquest_rfd_*)	no	?	178	yes	25	10	no	?	yes	100_jubbly_bird;hundred_minion1;hundred_minion2;hundred_minion3;hundred_minion4;hundred_minion5_air (+more)	^rfd_ogre_chompy_given;^rfd_finale_agrith_dead;rfd_finale_next_boss;^rfd_finale_flambeed_dead (+more)	yes	ONE PHYSICAL DIRECTORY = 10 separate dbrow quests (subquest_rfd_intro/amikvarze/dwarf/evildave/goblins/lumbridgeguide/monkey/ogre/pirate + subquest_rfd_finale); plan ~10 client tests, not 1; 44 legacy/unnumbered bmp names alongside numbered; 78 TODO/stub markers; 10 leftover items (unimplemented)
+quest_recruitmentdrive	Recruitment Drive	%rd_main	^rd_not_started	^rd_complete	no	?	0	?	0	0	yes	rdspishyus	yes	rd_combat_npc_room_3		no	5 TODO/stub markers
+quest_redreef	The Red Reef	%trr	^trr_not_started	^trr_complete	yes	rrrun	0	?	0	0	yes	redreef	no			yes	9 TODO/stub markers
+quest_regicide	Regicide	%regicide_quest	^regicide_not_started	^regicide_complete	no	?	0	?	0	0	no	?	no			yes	2 TODO/stub markers
+quest_ribbitingtale	The Ribbiting Tale of a Lily Pad Labour Dispute	%frog_quest	^ribbit_not_started	^ribbit_complete	yes	ribbitrun	81	yes	14	4	yes	ribbitingtale	yes	frog_quest_cuthbert_combat	^ribbit_cuthbert;^ribbit_marcellus_end	yes	14 TODO/stub markers; 4 leftover items (unimplemented)
+quest_romeojuliet	Romeo & Juliet	%rjquest	^romeojuliet_not_started	^romeojuliet_complete	yes	romeojulietrun	0	?	0	0	no	?	no			no	26 TODO/stub markers
+quest_routequest	In Search of the Myreque	%routequest_myreque_bits	^routequest_not_started	^routequest_complete	no	?	0	?	0	0	no	?	yes	skeleton_hellhound	^routequest_saved_myreque	yes	
+quest_rovingelves	Roving Elves	%rovingelves_quest	^rovingelves_not_started	^rovingelves_complete	no	?	0	?	0	0	no	?	no			no	8 TODO/stub markers
+quest_royaltrouble	Royal Trouble	%royal_quest	^royal_not_started	^royal_complete	yes	royaltroublerun	104	no	6	6	yes	royaltrouble	yes	royal_sea_snake_mother_smaller	^royal_misc_dungeon_done;^royal_misc_boss_killed	yes	unnumbered bmp scheme (92 scenes); 13 TODO/stub markers; 6 leftover items (unimplemented)
+quest_rumdeal	Rum Deal	%deal_quest	^deal_not_started	^deal_complete	yes	rumdealrun	0	?	0	0	yes	rumdeal	yes	deal_evil_spirit;deal_fever_spiders1	^deal_kill_spirit;^deal_control_running;^deal_told_kill_spider;^deal_kill_spider	no	12 TODO/stub markers
+quest_runemysteries	Rune Mysteries	%runemysteries	^runemysteries_not_started	^runemysteries_complete	no	?	0	?	0	0	no	?	no			no	18 TODO/stub markers
+quest_scorpcatcher	Scorpion Catcher	%scorpcatcher	^scorpcatcher_not_started	^scorpcatcher_complete	yes	scorpcatcherrun	0	?	0	0	no	?	no			no	
+quest_scrambled	Scrambled!	%scrambled	^sc_not_started	^sc_complete	yes	scrun	51	yes	6	7	yes	scrambled	no			no	1 legacy/unnumbered bmp names alongside numbered; 5 TODO/stub markers; 7 leftover items (unimplemented)
+quest_seaslug	Sea Slug	%seaslugquest	^seaslug_not_started	^seaslug_complete	yes	seaslugrun	0	?	0	0	no	?	no			no	43 TODO/stub markers
+quest_secretsofthenorth	Secrets of the North	%sotn	^sn_not_started	^sn_complete	yes	snrun	77	yes	6	10	yes	secretsofthenorth	no			yes	5 TODO/stub markers; 10 leftover items (unimplemented)
+quest_shadowsofcustodia	Shadows of Custodia	%soc	^soc_not_started	^soc_complete	yes	socrun	77	yes	12	5	yes	shadowsofcustodia	no			no	12 TODO/stub markers; 5 leftover items (unimplemented)
+quest_shadowstorm	Shadow of the Storm	%agrith_quest	^sots_not_started	^sots_complete	no	?	0	?	0	0	yes	shadowstormdye	yes	agrith_naar	^sots_unequip	no	11 TODO/stub markers
+quest_sheep	Sheep Shearer	%sheep	^sheep_not_started	^sheep_complete	yes	sheeprun	0	?	0	0	yes	sheep	no			no	8 TODO/stub markers
+quest_sheepherder	Sheep Herder	%sheepherderquest	^sheepherder_not_started	^sheepherder_complete	yes	sheepherderrun	0	?	0	0	yes	sheepherder	no			no	24 TODO/stub markers
+quest_sinsofthefather	Sins of the Father	%myq5	^sf_not_started	^sf_complete	yes	softrun	105	yes	14	8	yes	sinsofthefather	no			yes	13 TODO/stub markers; 8 leftover items (unimplemented)
+quest_sleepinggiants	Sleeping Giants	%sleeping_giants	^sg_not_started	^sg_complete	yes	sgrun	78	yes	7	6	yes	sleepinggiants	no			no	7 TODO/stub markers; 6 leftover items (unimplemented)
+quest_songoftheelves	Song of the Elves	%sote	^sote_not_started	^sote_complete	yes	soterun	74	yes	7	8	yes	songoftheelves	no			yes	6 TODO/stub markers; 8 leftover items (unimplemented)
+quest_soulsbane	A Soul's Bane	%soulbane_prog	^soulsbane_not_started	^soulsbane_complete	no	?	74	no	10	7	yes	soulsbane	no			yes	unnumbered bmp scheme (57 scenes); 10 TODO/stub markers; 7 leftover items (unimplemented)
+quest_spiritsoftheelid	Spirits of the Elid	%elidquest	^elid_not_started	^elid_complete	no	?	0	?	0	0	no	?	yes	elid_golem_white;elid_golem_grey;elid_golem_black		no	26 TODO/stub markers
+quest_squire	The Knight's Sword	%squire	^squire_not_started	^squire_complete	yes	squirerun	0	?	0	0	no	?	no			no	18 TODO/stub markers
+quest_swansong	Swan Song	%swansong	^ssq_not_started	^ssq_complete	no	?	100	yes	6	6	no	?	yes	swan_troll_ambush;swan_seatroll_queen	calc;^ssq_ready_to_fight;^ssq_trolls_beaten;^ssq_queen_fight (+more)	yes	21 TODO/stub markers; 6 leftover items (unimplemented)
+quest_taleoftherighteous	Tale of the Righteous	%shayzienquest	^tor_not_started	^tor_complete	yes	torrun	54	yes	9	6	yes	taleoftherighteous	no			no	1 legacy/unnumbered bmp names alongside numbered; 9 TODO/stub markers; 6 leftover items (unimplemented)
+quest_tasteofhope	A Taste of Hope	%myq4	^toh_not_started	^toh_complete	yes	tohrun	59	yes	9	7	yes	tasteofhope	no			yes	8 TODO/stub markers; 7 leftover items (unimplemented)
+quest_tbwt	Tai Bwo Wannai Trio	%tbwt_main	^tbwt_not_started	^tbwt_complete	no	?	0	?	0	0	no	?	no			yes	12 TODO/stub markers
+quest_tearsofguthix	Tears of Guthix	%tog_juna_bowl	^tog_not_started	^tog_complete	no	?	0	?	0	0	yes	toglantern	no			no	3 TODO/stub markers
+quest_templeoftheeye	Temple of the Eye	%tote	^toe_not_started	^toe_complete	yes	toerun	64	yes	9	5	yes	templeoftheeye	no			yes	3 legacy/unnumbered bmp names alongside numbered; 8 TODO/stub markers; 5 leftover items (unimplemented)
+quest_theeyesofglouphrie	The Eyes of Glouphrie	%eyeglo_quest	^eyeglo_not_started	^eyeglo_complete	yes	eyesofglouphrierun	57	yes	9	3	no	?	yes	eyeglo_fluffie_1;eyeglo_fluffie_2;eyeglo_fluffie_3;eyeglo_fluffie_4;eyeglo_fluffie_5;eyeglo_fluffie_6	^eyeglo_creature_killed	no	8 TODO/stub markers; 3 leftover items (unimplemented)
+quest_thefeud	The Feud	%feud_var	^feud_not_started	^feud_complete	no	?	0	?	0	0	no	?	yes	feud_menap_toughguy;feud_bandit_toughguy	^feud_ready_confront;^feud_menaphite_beaten;^feud_bandit_beaten	no	30 TODO/stub markers
+quest_thefremennikisles	The Fremennik Isles	%fris_quest	^fris_not_started	^fris_complete	yes	fremennikislesrun	161	yes	0	4	no	?	yes	fris_troll_king_true	^fris_kill_trolls;^fris_decapitate_king	yes	58 legacy/unnumbered bmp names alongside numbered; 27 TODO/stub markers; 4 leftover items (unimplemented)
+quest_thegreatbrainrobbery	The Great Brain Robbery	%brain_quest_var	^brain_not_started	^brain_complete	no	?	92	yes	14	4	no	?	yes	brain_barrel_chest	^brain_confronting;^brain_ready_to_finish	yes	1 legacy/unnumbered bmp names alongside numbered; 12 TODO/stub markers; 4 leftover items (unimplemented)
+quest_theslugmenace	The Slug Menace	%slug2_main	^slug_not_started	^slug_complete	yes	theslugmenacerun	0	?	0	0	yes	theslugmenace	yes	slug2_the_slug_prince	^slug_runes_used;^slug_prince_dead	yes	12 TODO/stub markers; has checked-in selftest bmps but no debugproc bmp_ found (check); stale: server/scripts/selftest/quest_theslugmenace has checked-in .bmp fixtures but no bmp_ debugproc exists in current scripts (drift)
+quest_totem	Tribal Totem	%handelmort_traps_disabled	^totem_not_started	^totem_complete	yes	totemrun	0	?	0	0	no	?	no			yes	
+quest_toweroflife	Tower of Life	%tol_prog	^tol_not_started	^tol_complete	no	?	120	yes	10	3	no	?	no			no	8 legacy/unnumbered bmp names alongside numbered; 18 TODO/stub markers; 3 leftover items (unimplemented)
+quest_tree	Tree Gnome Village quest	%treequest	^tree_not_started	^tree_complete	yes	treerun	0	?	0	0	no	?	yes	khazard_warlord	queue_defeat_warlord	no	26 TODO/stub markers
+quest_troll	Troll Stronghold	%troll_quest	^troll_not_started	^troll_complete	no	?	0	?	0	0	no	?	yes	troll_champion	^troll_started;^troll_defeated_dad;^false	yes	varp name not in a local .varp file, taken from configs/quest_troll.constant's own prose comment
+quest_troll_love	Troll Romance	%troll_love	^troll_love_not_started	^troll_love_complete	no	?	0	?	0	0	no	?	yes	trollromance_arrg_attackable	^troll_love_dispose_of_arrg;^troll_love_defeated_arrg	yes	2 TODO/stub markers
+quest_troubledtortugans	Troubled Tortugans	%tt	^ttq_not_started	^ttq_complete	yes	ttrun	59	yes	8	6	yes	troubledtortugans	no			yes	1 legacy/unnumbered bmp names alongside numbered; 7 TODO/stub markers; 6 leftover items (unimplemented)
+quest_twilightspromise	Twilight's Promise	%vmq2	^tp_not_started	^tp_complete	yes	tprun	94	yes	13	6	yes	twilightspromise	no			yes	13 TODO/stub markers; 6 leftover items (unimplemented)
+quest_upass	Underground Pass quest	%upass	^upass_not_started	^upass_complete	no	?	0	?	0	0	no	?	yes	upass_paladin2;upass_doomion_safe;upass_holthion_safe;upass_othainian_safe;ibanmonk;upass_paladin1 (+more)	upass_respawn_paladin2;upass_respawn_demons;upass_respawn_disciple;upass_respawn_paladin1 (+more)	yes	38 TODO/stub markers
+quest_vampire	Vampyre Slayer	%vampire	^quest_vampire_not_started	^vampire_complete	yes	vampirerun	0	?	0	0	no	?	yes	count_draynor	quest_vampire_complete	no	33 TODO/stub markers
+quest_viking	The Fremennik Trials	%viking	^viking_not_started	^viking_complete	no	?	0	?	0	0	no	?	yes	viking_enemy1;viking_enemy2;viking_enemy3;viking_enemy4;viking_draugen	2;3;4	yes	12 TODO/stub markers
+quest_wanted	Wanted!	%wanted_main	^wanted_not_started	^wanted_complete	yes	wantedrun	0	?	0	0	yes	wanted	yes	wanted_solus_attackable	^wanted_hunt;^wanted_final_battle	no	15 TODO/stub markers
+quest_waterfall	Waterfall Quest	%waterfall_quest	^waterfall_not_started	^waterfall_complete	no	?	0	?	0	0	no	?	no			yes	29 TODO/stub markers
+quest_whatliesbelow	What Lies Below	%surok_quest	^wlb_not_started	^wlb_complete	no	?	70	yes	9	2	yes	whatliesbelow	yes	surok_king	^wlb_arrest	yes	9 TODO/stub markers; 2 leftover items (unimplemented)
+quest_whileguthixsleeps	While Guthix Sleeps	%wgs	^wgs_not_started	^wgs_complete	yes	wgsrun	106	yes	18	10	yes	whileguthixsleeps	no			yes	1 legacy/unnumbered bmp names alongside numbered; 17 TODO/stub markers; 10 leftover items (unimplemented)
+quest_xmarksthespot	X Marks the Spot	%cluequest	^xmarks_not_started	^xmarks_complete	yes	xmarksrun	31	yes	7	3	yes	xmarksthespot	no			no	7 TODO/stub markers; 3 leftover items (unimplemented)
+quest_zanaris	Lost City	%zanaris	^zanaris_not_started	^zanaris_complete	yes	zanarisrun	0	?	0	0	no	?	yes	tree_spirit	queue_defeat_tree_spirit	yes	1 TODO/stub markers
+quest_zogreflesheaters	Zogre Flesh Eaters	%zogre	^zfe_not_started	^zfe_complete	no	?	0	?	0	0	yes	zogre	yes	zogre_human_brentle_vahn;zogre_slash_bash	^zfe_grish_key;^zfe_slash_bash	no	16 TODO/stub markers
+quest_zombiequeen	Shilo Village	%zq_map_mechanisms	^zombiequeen_not_started	^zombiequeen_complete	no	?	0	?	0	0	no	?	yes	zq_mainzombie1;zq_mainzombie2;zq_mainzombie3	defeat_nazastarool1;defeat_nazastarool2;defeat_nazastarool3	yes	
