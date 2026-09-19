@@ -15,6 +15,7 @@ these is non-zero:
   * any verb row that is not PASS,
   * any verb with no row at all (the run aborted before reaching it),
   * t.finish's row without an exit=0 SUMMARY behind it,
+  * t.blocked's row without a real BLOCKED row and a blocked= SUMMARY bucket,
   * t.note's row without its probe folded into the detail.
 
 Usage:
@@ -219,6 +220,24 @@ def score(order, collected, summary, exit_code):
             verdict = "FAIL"
             detail = "t.note did not fold %s into the next row's detail -- %s" % (
                 NOTE_PROBE, detail)
+        if name == "t.blocked" and verdict != "ERROR":
+            # t.blocked ends the run (it calls t.finish(0) itself), so the
+            # harness claims the row and makes the call after its loop -- the
+            # same shape t.finish's row has.  What it claims is checkable from
+            # here and nowhere else: the row t.blocked wrote under its own
+            # fixed name, with the verdict the phase-1 ledger writer reserves
+            # for it, and a SUMMARY that counted it in the blocked bucket
+            # instead of as a failure.
+            written = collected.get("blocked")
+            # The whole SUMMARY line: `exit=` is its own column and the
+            # counts (`pass=N fail=M blocked=K`) are the one after it, so
+            # reading a single field would look for the bucket in the wrong
+            # place -- which it did, on the run that landed this.
+            bucket = "\t".join(summary) if summary else ""
+            if written is None or written[0] != "BLOCKED" or "blocked=" not in bucket:
+                verdict = "FAIL"
+                detail = ("t.blocked left no BLOCKED row behind it (row=%s, summary=%s)"
+                          % ("none" if written is None else written[0], bucket or "none"))
         if name == "t.finish" and verdict != "ERROR":
             clean = summary is not None and "exit=0" in summary[4] and exit_code == 0
             if not clean:

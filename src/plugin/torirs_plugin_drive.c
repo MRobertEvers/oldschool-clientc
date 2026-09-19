@@ -92,6 +92,7 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/pointer.lua",
     "plugins/quest_driver/world.lua",
     "plugins/quest_driver/ui.lua",
+    "plugins/quest_driver/quest.lua",
 };
 
 /* The manifest identity, not a file name: the loader asks by plugin name so a

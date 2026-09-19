@@ -7,16 +7,40 @@ the first two attempts failed.
 
 ## Where this stands
 
-Landed and verified by driving the client: the plugin loads, the scheduler
-owns `lua_resume`, awaits resolve on engine events, the ledger and the
-`QUEST <id> PASS|FAIL` stderr mirror and the numbered PNGs all land, a Lua
-error becomes a FAIL row rather than a hang, and `t.cheat`, `t.ticks`,
-`t.settle`, `t.shot`, `t.key`, `t.text`, `world.tile`, `ui.tab`,
-`ui.is_modal`, `npc.by_name/by_symbol/nearest` and the `var`/`inv`/`skill`
-readers answer correctly.
+Landed and verified by driving the client (2026-09-19, phases 1 and 2 of
+`QUEST_SUITE_KIT.md`):
 
-Not landed: no quest test, no runner, and the `chat` and pointer-click verb
-families have never been executed end to end.
+- **The runner and the gate.** `tools/quest_gate/run.py` runs one
+  private-session client per quest (`--all` for the set, `--script` for a
+  scratch file) and `gate.py` re-reads what it left behind. `make -C src
+  test-quests` is the pair.
+- **Two quest tests, green from a real run.** `test/quests/cooks_assistant.lua`
+  (29 rows) plays Cook's Assistant through the cook's own dialogue and hands
+  the ingredients in; `test/quests/hans.lua` (15 rows) follows Hans around the
+  courtyard. Both are `green` under `gate.py`, and each green run's ledger and
+  shots are published into `OSRS-Content/.../selftest/quest_tests/<quest>/`.
+- **Every verb, executed.** `test/quests/_conformance.lua` calls all **97**
+  verbs against a live world, one ledger row each, and
+  `make -C src test-quest-conformance` is red unless every one of them PASSes.
+  It is 97/97 today. `make -C src check-quest-verbs` refuses a verb with no
+  row.
+- **One cheat path.** `t.cheat` reaches the content debugprocs *and* the
+  server's own ladder (`::give`, `::setlevel`, `::setvar`, `::kill`,
+  `::spawn`, `::tele`), proved row by row by `test/quests/_cheats.lua` /
+  `make -C src test-quest-cheats`. A setup cheat that answers `no_row` ends
+  the run with a `setup.<cheat>` FAIL row rather than testing a world nobody
+  stated.
+- **The verb kit a generated test is written in.** `t["do"]`, `t.check`,
+  `t.blocked` (the `BLOCKED` ledger verdict and its own SUMMARY bucket),
+  `quest.bind/stage/expect_stage/expect_complete`, `chat.play`,
+  `scroll.reward_xp`, the `await_*` family, `player.teleport`, and
+  `ui.journal_open/read/close` driving the real quest-list click.
+
+Not landed: the authoring kit (phase 3) -- `new_quest.py`, `lint_quest.py`,
+`docs/QUEST_AUTHORING.md`, and the regeneration of both quests through that
+scaffold -- and the `::skipboss` arms (phase 4). Until `QUEST_AUTHORING.md`
+exists, the page an author reads is `test/quests/README.md`, whose headline
+example predates the kit.
 
 ## The three rules this work earned
 

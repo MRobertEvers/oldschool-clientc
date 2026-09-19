@@ -14,6 +14,15 @@ with (QD_ROOT, quest_driver/core.lua):
   function QD.<ns>.<verb>(...)   -> "<ns>.<verb>"
   function QD.<verb>(...)        -> "<verb>"          (top level)
   QD.<verb> = <expression>       -> "<verb>"          (ok/fail/await/skill)
+  QD.<ns>["<verb>"] = function   -> "<ns>.<verb>"     (a RESERVED WORD name)
+
+That last form exists for exactly one verb and will keep existing for it:
+`t.do`.  `do` is a Lua keyword, so `function QD.t.do(...)` does not parse --
+neither does a call site's `t.do(...)`, nor a bare read of `t.do` -- and the
+verb has to be both defined and called through bracket syntax,
+`t["do"](name, verb, ...)`.  Without this pattern the one verb a generated
+quest test calls most would be the only verb in the driver with no conformance
+row, which is the drift this whole script exists to refuse.
 
 Excluded, because they are not a test's verbs:
   - any name whose last segment starts with `_` (a part's private helper, and
@@ -35,6 +44,8 @@ HARNESS = os.path.join(REPO_ROOT, "test", "quests", "_conformance.lua")
 FUNC_NS = re.compile(r"^function\s+QD\.([A-Za-z][A-Za-z0-9]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 FUNC_TOP = re.compile(r"^function\s+QD\.([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 ASSIGN_TOP = re.compile(r"^QD\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
+ASSIGN_NS_BRACKET = re.compile(
+    r"^QD\.([A-Za-z][A-Za-z0-9]*)\[\"([A-Za-z_][A-Za-z0-9_]*)\"\]\s*=\s*function")
 HARNESS_ROW = re.compile(r'^\s*step\("([^"]+)"')
 HARNESS_COUNT = re.compile(r"^--\s*@verb-count\s+(\d+)\s*$")
 
@@ -64,6 +75,12 @@ def verbs_from_sources(driver_dir=DRIVER_DIR):
                     verb = match.group(1)
                     if not private(verb):
                         found[verb] = where
+                    continue
+                match = ASSIGN_NS_BRACKET.match(line)
+                if match:
+                    namespace, verb = match.group(1), match.group(2)
+                    if not private(verb):
+                        found["%s.%s" % (namespace, verb)] = where
                     continue
                 match = ASSIGN_TOP.match(line)
                 if match:

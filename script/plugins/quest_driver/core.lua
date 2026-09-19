@@ -24,6 +24,8 @@ local QD = {
     world = {},     -- verbs-pointer (composed on verbs-ui's readers)
     drive = {},     -- verbs-pointer: the raw pointer verbs
     t = {},         -- core-scheduler: cheat/ticks/settle/shot/key/text/finish
+    quest = {},     -- quest.lua (docs/QUEST_SUITE_KIT.md phase 2, owner 2a):
+                     -- bind/stage/expect_stage/expect_complete
 }
 
 -- The one global this chunk exports. QD itself stays `local` -- a register,
@@ -111,10 +113,50 @@ function QD.note(text)
     pending_notes[#pending_notes + 1] = text
 end
 
+-- A detail column that is not a string is DESCRIBED here, once, rather than
+-- at every call site. api.drive.ledger reads that column with luaL_optstring,
+-- which RAISES on a table -- "bad extra argument #-1 to 'ledger' (string
+-- expected, got table)", measured 2026-09-19 -- and this sandbox has no
+-- pcall, so such a raise does not fail one row, it ends the whole run at that
+-- row with every later verb unreached. Several verbs document a TABLE as
+-- their detail (ui.journal_open's {title, lines, complete}, world.tile's
+-- {x,z,level}, chat.options' rows), and t.do exists precisely to wrap a verb
+-- and write its answer to the ledger, so handing one of those to t.expect or
+-- t.do must print, not detonate. Key order inside a rendered table follows
+-- `pairs`, so it is a summary for a human reading the row, never something to
+-- match on.
+local function detail_text(detail)
+    local kind = type(detail)
+    if detail == nil or kind == "string" then
+        return detail
+    end
+    if kind == "number" or kind == "boolean" then
+        return tostring(detail)
+    end
+    if kind ~= "table" then
+        return "<" .. kind .. ">"
+    end
+    local parts = {}
+    for key, value in pairs(detail) do
+        local shown = type(value)
+        if shown == "string" or shown == "number" or shown == "boolean" then
+            shown = tostring(value)
+        else
+            shown = "<" .. shown .. ">"
+        end
+        parts[#parts + 1] = tostring(key) .. "=" .. shown
+    end
+    if #parts == 0 then
+        return "{}"
+    end
+    return "{" .. table.concat(parts, " ") .. "}"
+end
+
 local function flush(name, verdict, detail)
     local now = api_drive.tick()
     local ticks = now - last_tick
     last_tick = now
+    detail = detail_text(detail)
     if #pending_notes > 0 then
         local joined = table.concat(pending_notes, "; ")
         detail = (detail and detail ~= "") and (detail .. " -- " .. joined) or joined
@@ -144,7 +186,145 @@ function QD.t.expect(name, result, detail)
     return result, detail
 end
 
-function QD.t.cheat(text) return api_drive.cheat(text) end
+-- t.do / t.check share one rule (docs/QUEST_SUITE_KIT.md phase 2 table): a
+-- repeated `name` in the same run gets -2, -3, ... appended, so two calls
+-- that reuse a name (a "before"/"after" pair, a retried step) still write
+-- two distinguishable ledger rows and two distinguishable shot names instead
+-- of two rows that read identically. QD.core_next_shot's own NN- counter
+-- already keeps the FILES unique; this keeps the NAME -- the ledger's `step`
+-- column and gate.py's "one PNG per t.do row" bookkeeping -- unique too.
+local step_name_uses = {}
+local function unique_step_name(name)
+    local count = (step_name_uses[name] or 0) + 1
+    step_name_uses[name] = count
+    if count == 1 then
+        return name
+    end
+    return name .. "-" .. tostring(count)
+end
+
+-- Common tail for t.do/t.check: shoot `name` (and, on a non-PASS verdict,
+-- also `name-FAIL`) BEFORE flush -- QD.core_next_shot only queues a shot for
+-- whichever row's flush() runs next (its own banner, above), so the order
+-- here is load-bearing: shoot first, flush second, or the shot lands on the
+-- QUEST's next row instead of this one.
+local function record_with_shot(name, verdict, detail)
+    local unique_name = unique_step_name(name)
+    QD.t.shot(unique_name)
+    if verdict ~= "PASS" then
+        QD.t.shot(unique_name .. "-FAIL")
+    end
+    return flush(unique_name, verdict, detail), detail
+end
+
+-- Assertion form, but not a verb: PASS iff `condition_or_result` is `true`
+-- or the string "ok". Unlike t.expect, t.check takes its own screenshot(s)
+-- (see record_with_shot above) rather than leaving that to the caller.
+function QD.t.check(name, condition_or_result, detail)
+    local pass = condition_or_result == true or condition_or_result == "ok"
+    record_with_shot(name, pass and "PASS" or "FAIL", detail)
+    return condition_or_result, detail
+end
+
+-- t.do(name, verb, ...) -> verb's own (result, detail), forwarded unchanged.
+--
+-- NAMED "t.do" BY THE SPEC, IMPLEMENTED AS t["do"]: `do` is a Lua reserved
+-- word (3rd/lua/llex.c's keyword table), and `Name` in the Lua grammar
+-- explicitly excludes reserved words -- so `function QD.t.do(...)`,
+-- `QD.t.do = ...` and even a bare read of `t.do` are ALL syntax errors, not
+-- just this definition but every call site a quest file would ever write.
+-- Verified against this tree's own vendored Lua (3rd/lua, built standalone
+-- and run against a one-line probe): `t.do(1)` and even `print(t.do)` both
+-- fail to parse with "<name> expected near 'do'"; `t["do"](1)` parses and
+-- runs. So the verb is reachable ONLY through bracket syntax --
+-- `t["do"](name, verb, ...)` -- in every quest file and in any generator
+-- (new_quest.py, phase 3) that emits one. Flagged in this pass's report for
+-- the spec and for tools/quest_gate/verb_list.py, which has no regex that
+-- discovers a bracket-indexed `QD.t["do"] = function(...)` definition (its
+-- three patterns all require a bare Lua Name) -- until that lands, this verb
+-- has no automatic conformance row and needs one written by hand.
+--
+-- Bad verb (not a function) or a nil first argument (the "target" every
+-- verb this wraps takes as its own first parameter) is a FAIL naming the
+-- shape, not a call: an untargeted verb is a broken TEST, not a `not_found`
+-- the world answered.
+QD.t["do"] = function(name, verb, ...)
+    if type(verb) ~= "function" then
+        return record_with_shot(name, "FAIL", "bad verb/target")
+    end
+    local target = ...
+    if target == nil then
+        return record_with_shot(name, "FAIL", "bad verb/target")
+    end
+    local result, detail = verb(...)
+    -- Hollow rule (docs/QUEST_SUITE_KIT.md phase 2, README's hollow rule):
+    -- an `ok` verb answer with no detail behind it is graded FAIL `hollow`,
+    -- not PASS -- t.do cannot read a verb's own banner to know whether ITS
+    -- particular nil is documented or not (there is no pcall here to probe
+    -- with, and no per-verb table the way _conformance.lua's own hand-written
+    -- `answered()` predicates have), so the rule t.do enforces is the blanket
+    -- one the spec states in its own words: ok + nil detail = hollow. A verb
+    -- whose successful answer is legitimately empty (t.ticks, t.settle,
+    -- drive.camera, ...) is not a "verb" this wrapper should be pointed at --
+    -- call it directly and record it with t.check/t.step instead.
+    if result == "ok" and detail == nil then
+        record_with_shot(name, "FAIL", "hollow -- ok with no detail")
+        return result, detail
+    end
+    record_with_shot(name, ok(result) and "PASS" or "FAIL", detail)
+    return result, detail
+end
+
+-- Writes the fixed BLOCKED verdict (docs/QUEST_SUITE_KIT.md phase 1) as row
+-- "blocked", shoots it, and calls t.finish(0) -- which, like every other
+-- t.finish call site in this tree, writes the ledger's SUMMARY row
+-- synchronously but does NOT stop this Lua script from continuing to run:
+-- verified live (build/scratch_2a_blocked.lua), a t.step call placed AFTER
+-- t.blocked still executed and appended its own row to ledger.tsv AFTER the
+-- SUMMARY line already on disk. So a quest file MUST treat `t.t.blocked(...)`
+-- exactly like a bare `t.t.finish(...)`: `return` immediately after it, same
+-- as every existing quest file already does after its own early
+-- `t.t.finish(1); return` calls (hans.lua, several sites). Flagged for
+-- lint_quest.py (phase 3) as a checkable rule: a `t.t.blocked(`/
+-- `t.t.finish(` call not immediately followed by `return` in the same block.
+function QD.t.blocked(reason)
+    QD.t.shot("blocked")
+    flush("blocked", "BLOCKED", reason)
+    return QD.t.finish(0)
+end
+
+-- After dispatch, wait (<=5 ticks) for any NEW chat line: every cheat ladder
+-- branch and every debugproc prints one (phase 1 banner,
+-- src/torirsserver/torirs_server_world.c), so this gives the cheat's own
+-- effect a chance to become visible -- in the chatbox, and by extension in
+-- the world state the chatbox line is reporting on -- before the caller's
+-- very next read runs against a client that has not seen the reply yet.
+-- QD.msg.await's substring match is plain (string.find(..., 1, true)), and
+-- an EMPTY substring matches at position 1 in any text (verified: 3rd/lua,
+-- string.find("x", "", 1, true) == 1), so "" is "any line at all", not a
+-- literal empty-message search. The RESULT returned to the caller is
+-- api_drive.cheat's own (result, detail), unchanged either way: a timed-out
+-- await here (a cheat that prints nothing, or ::nosuchcheat's no_row) is not
+-- folded into it, and t.cheat still answers exactly what the ladder/
+-- debugproc verdict was.
+--
+-- `wait_for_reply = false` IS THE ONE WAY OUT, and it exists because this
+-- wait has a cost the spec did not name: msg.await is scoped to lines that
+-- arrive AFTER it registers, so a cheat whose reply t.cheat already waited
+-- for can never be waited for again -- "dispatch the cheat, then
+-- t.msg.await('Dropped')" times out, honestly, with nothing new to wait for.
+-- Measured 2026-09-19 by the verb conformance harness, whose msg.await row
+-- had exactly that shape and went red the first time this landed. So a
+-- caller that is going to do the waiting ITSELF says so, and gets the old
+-- fire-and-forget dispatch; everybody else -- every quest test, every setup
+-- list -- gets the wait by default and never thinks about it.
+function QD.t.cheat(text, wait_for_reply)
+    local result, detail = api_drive.cheat(text)
+    if wait_for_reply ~= false then
+        QD.msg.await("", 5)
+    end
+    return result, detail
+end
 
 -- Advance the virtual clock by exactly n server ticks and no more: a level
 -- predicate on drive.tick() reaching a target computed ONCE, at call time,

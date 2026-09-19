@@ -107,6 +107,27 @@ function QD.var.await(name, value, ticks)
     }, ticks or 10)
 end
 
+-- Like var.await, but polls var.server/varbit_server instead of the CLIENT's
+-- own read: a cheat's write (::setvar, ::cook's reset) lands on the server
+-- first and reaches the client's var[]/varbit[] copy some ticks later --
+-- cooksassistant.commit_settle (test/quests/cooks_assistant.lua) already
+-- hand-rolls exactly this wait with a raw t.await block; this gives every
+-- quest that same wait as one verb instead of a copy of that block each.
+function QD.var.await_server(name, value, ticks)
+    local kind, id, fail_result, fail_name = QD._var_resolve(name)
+    if not kind then
+        return fail_result, fail_name
+    end
+    local read = (kind == "varbit") and api_drive.varbit_server or api_drive.var_server
+    return await({
+        level = function()
+            local result, current = read(id)
+            return result == "ok" and current == value
+        end,
+        note = "var.await_server " .. name .. " == " .. tostring(value),
+    }, ticks or 10)
+end
+
 -- Requires client == server == value.  A client that already shows the right
 -- number while the server disagrees is exactly the desync this exists to
 -- catch, so that is `refused`, with a detail naming which side disagreed.
@@ -222,6 +243,59 @@ function QD.inv.await(name, count, ticks)
     }, ticks or 10)
 end
 
+-- One await across a whole requirement table, rather than one inv.await per
+-- symbol: a test that needs three ingredients gets one ledger row naming
+-- everything still short instead of three rows that only ever say "no" one
+-- at a time. Every symbol is resolved ONCE, before the wait starts -- same
+-- reason inv.await/inv.count resolve their symbol up front rather than
+-- inside the polled predicate: a name that is not content at all is a test
+-- bug, not a thing to keep silently re-discovering every tick.
+function QD.inv.await_all(items, ticks)
+    local inv_result, container_id = QD._inv_container()
+    if inv_result ~= "ok" then
+        return inv_result, "inv"
+    end
+    local wanted = {}
+    for name, count in pairs(items) do
+        local obj_result, obj_id = api_drive.symbol("obj", name)
+        if obj_result ~= "ok" then
+            return obj_result, name
+        end
+        wanted[#wanted + 1] = { name = name, obj_id = obj_id, count = count }
+    end
+
+    -- Set by the level predicate on every poll; read back below once the
+    -- await itself has settled, so a timeout's detail names what was still
+    -- short at the LAST look rather than forcing a second, separate read
+    -- (which could race the very thing that just timed out).
+    local short_detail = ""
+    local awaited, note = await({
+        level = function()
+            local short = {}
+            for i = 1, #wanted do
+                local entry = wanted[i]
+                local result, total = api_drive.inv_count(container_id, entry.obj_id)
+                if result ~= "ok" then
+                    short[#short + 1] = entry.name .. ": " .. result
+                elseif total < entry.count then
+                    short[#short + 1] = entry.name .. ": " .. tostring(total) .. "<" .. tostring(entry.count)
+                end
+            end
+            short_detail = table.concat(short, ", ")
+            return #short == 0
+        end,
+        note = "inv.await_all",
+    }, ticks or 10)
+
+    if awaited == "ok" then
+        return "ok", nil
+    end
+    if short_detail ~= "" then
+        return awaited, "short: " .. short_detail
+    end
+    return awaited, note
+end
+
 -- msg -----------------------------------------------------------------
 
 function QD.msg.last(n)
@@ -275,4 +349,65 @@ QD.skill = function(name)
         return result, name
     end
     return api_drive.skill(stat_index)
+end
+
+-- The stat pack's own fixed protocol table (OSRS-Content/osrs239-content/
+-- pack/stat.pack: "Skill ids. Fixed by the protocol", torirs_server.h:900-918)
+-- -- there is no drive primitive that enumerates stats, only symbol(name)->id
+-- and skill(id)->reading, so snapshot has to name every stat itself to visit
+-- all of them once. Kept off QD (a `QD._` name, private, same convention as
+-- _var_resolve above) rather than a chunk-scope local: only core.lua may
+-- declare one of those.
+QD._stat_names = {
+    "attack", "defence", "strength", "hitpoints", "ranged", "prayer", "magic",
+    "cooking", "woodcutting", "fletching", "fishing", "firemaking", "crafting",
+    "smithing", "mining", "herblore", "agility", "thieving", "slayer",
+    "farming", "runecraft", "hunter", "construction", "sailing", "summoning",
+}
+
+-- t.skill_snapshot(): every stat's reading, read once, keyed by name. A stat
+-- whose own read did not answer `ok` (not_found on a lane missing a
+-- feature-flagged skill, refused, ...) keeps that RESULT STRING as its
+-- table entry instead of a reading table, so skill_expect_gain below (or any
+-- other caller) can tell a real reading from an unavailable one with a plain
+-- `type(snapshot[name]) == "table"` check, never a second round of result
+-- comparisons.
+function QD.skill_snapshot()
+    local snapshot = {}
+    for i = 1, #QD._stat_names do
+        local name = QD._stat_names[i]
+        local result, reading = QD.skill(name)
+        snapshot[name] = (result == "ok") and reading or result
+    end
+    return "ok", snapshot
+end
+
+-- t.skill_expect_gain(name, xp, snapshot): `snapshot` is an earlier
+-- t.skill_snapshot() table. Accepts the delta matching `xp` in either unit
+-- the client's own experience field might be carrying -- whole xp, or the
+-- server's xp*10 "tenths" -- the same two-unit uncertainty
+-- cooksassistant.cooking_xp_up (test/quests/cooks_assistant.lua) already
+-- resolves by hand, and names which one matched rather than leaving the
+-- caller to guess from the raw delta.
+function QD.skill_expect_gain(name, xp, snapshot)
+    if type(snapshot) ~= "table" then
+        return "no_row", "skill_expect_gain: snapshot is not a table"
+    end
+    local before = snapshot[name]
+    if type(before) ~= "table" or type(before.experience) ~= "number" then
+        return "no_row", "skill_expect_gain: snapshot has no reading for " .. tostring(name)
+    end
+    local result, after = QD.skill(name)
+    if result ~= "ok" then
+        return result, name
+    end
+    local delta = after.experience - before.experience
+    if delta == xp then
+        return "ok", name .. ": +" .. delta .. " xp (whole units)"
+    end
+    if delta == xp * 10 then
+        return "ok", name .. ": +" .. delta .. " xp (tenths units)"
+    end
+    return "refused", name .. ": before=" .. before.experience .. " after=" .. after.experience
+        .. " delta=" .. delta .. " expected=" .. xp .. " or " .. (xp * 10)
 end

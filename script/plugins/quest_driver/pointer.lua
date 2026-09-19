@@ -556,19 +556,124 @@ function QD.player.idle()
     }, 10)
 end
 
--- Shared completion predicate for a world click whose effect surfaces as a
--- dialogue mounting, a chat line, or movement settling: docs/QUEST_DRIVER_PLAN
--- .md S5.3's "sub_mounted, or varp_changed, or map_flag clear with nothing
--- mounted" (talk_to's second branch is chat_message rather than varp_changed
--- -- this function serves both callers with the narrower of the two).
+-- `::tele <name>`, then wait for the world to agree.  `name` is a
+-- destination the content's own `[debugproc,tele]` already knows -- a
+-- landmark (`varrock`), an npc name (`Duke_Horacio`), or the
+-- `level_squarex_squarez_localx_localz` spelling -- never a raw tile pair
+-- assembled here: the naming rule (ARCHITECT.md S2, no numeric ids in
+-- driver Lua) governs a cheat argument the same way it governs a click
+-- target.
 --
--- This is an EDGE-only descriptor (match, no level, no `event=` so every
--- event kind reaches it) on purpose (QD-07): the previous version OR'd a
--- LEVEL check for `player_idle()` into the predicate, and `level` is
--- evaluated at REGISTRATION (torirs_plugin_drive.c's drive.await) -- a
--- player who was already idle when they clicked (the ordinary case: no walk
--- was needed at all) made this resolve `ok` before the click could possibly
--- have opened anything, sent anything, or moved anyone.
+-- The cheat's own answer PASSES THROUGH unchanged when it is not `ok`:
+-- `refused` (the debugproc dispatched and reported FAILED) and `no_row`
+-- (this content pack has no `[debugproc,tele]` at all) are answers the test
+-- has to see verbatim, not a `timeout` invented on top of them.
+--
+-- BUT DO NOT EXPECT `refused` FOR A MISSPELT DESTINATION.  `[debugproc,tele]`
+-- validates the destination itself and simply does not move the player when
+-- it does not like it, while still reporting RAN -- the server's own
+-- selftest pins that ("`::tele nowhere_at_all` should still dispatch",
+-- torirs_server_world_selftest.c, the k_rejected table).  So the cheat
+-- answers `ok`, nothing moves, and the honest answer this verb gives is
+-- `timeout` naming the tile the player never left.  Measured: `::tele
+-- nosuchplace_2d` -> "timeout -- still at 3222,3218 L0 five ticks after
+-- ::tele".
+--
+-- `ok`'s detail is the landing tile ("x,z L<level>"), and the tile has to
+-- have CHANGED for it: a teleport to where the player already stands is
+-- invisible to the client and is reported as that same timeout, rather than
+-- as an `ok` that proves nothing.  Five ticks, per the kit spec -- a tele is
+-- a server-side setpos, not a walk.
+function QD.player.teleport(name)
+    local before_result, before = QD.world.tile()
+    if before_result ~= "ok" then
+        return before_result,
+            "player.teleport " .. tostring(name) .. ": no player tile to compare against"
+    end
+
+    local cheat_result, cheat_detail = QD.t.cheat("::tele " .. tostring(name))
+    if cheat_result ~= "ok" then
+        return cheat_result, "player.teleport " .. tostring(name) .. ": ::tele answered "
+            .. tostring(cheat_result)
+            .. (cheat_detail and (" -- " .. tostring(cheat_detail)) or "")
+    end
+
+    local moved_result = QD.await({
+        level = function()
+            local result, tile = QD.world.tile()
+            if result ~= "ok" then
+                return false
+            end
+            return tile.x ~= before.x or tile.z ~= before.z or tile.level ~= before.level
+        end,
+        note = "teleport",
+    }, 5)
+
+    local after_result, after = QD.world.tile()
+    local where = (after_result == "ok" and after)
+        and (tostring(after.x) .. "," .. tostring(after.z) .. " L" .. tostring(after.level))
+        or "?"
+    if moved_result ~= "ok" then
+        return moved_result, "player.teleport " .. tostring(name)
+            .. ": still at " .. where .. " five ticks after ::tele"
+    end
+    return "ok", where
+end
+
+-- Whatever dialogue page is on screen RIGHT NOW: (kind, text).  Synchronous
+-- and total -- "nothing is up" answers ("none", "") rather than failing.
+--
+-- Deliberately NOT QD.chat.text(): that verb awaits up to ten ticks for a
+-- page to become readable, which is the opposite of what a snapshot of the
+-- present moment means, and this is also read from inside a LEVEL predicate,
+-- where a nested await is not a thing that can exist (torirs_plugin_drive.c:
+-- both predicates run on the suspended coroutine and nothing in them may
+-- yield).  QD.read._presented_text is verbs-read's own synchronous reader
+-- over the same seven dialog_*_text roles chat.text reads; it answers nil,
+-- not "", while a component is mounted but IF_SETTEXT has not landed on it,
+-- and nil is folded to "" here so the two states compare equal -- a page
+-- that is mid-mount is not yet a DIFFERENT page.
+function QD.player._chat_page()
+    return QD.chat.kind(), QD.read._presented_text(QD.read._text_symbols) or ""
+end
+
+-- Shared completion predicate for a world click whose effect surfaces as a
+-- dialogue mounting, a dialogue page CHANGING, a chat line, or movement
+-- settling: docs/QUEST_DRIVER_PLAN.md S5.3's "sub_mounted, or varp_changed,
+-- or map_flag clear with nothing mounted" (talk_to's second branch is
+-- chat_message rather than varp_changed -- this function serves both callers
+-- with the narrower of the two), plus the fourth arm below.
+--
+-- THE FOURTH ARM -- the re-talk fix.  The three edges above are all edges
+-- that a SECOND, stationary conversation with the same npc does not
+-- necessarily produce.  The first talk mounts the chat frame and the frame
+-- is never fully torn down, so the server's reply to the second talk arrives
+-- as IF_SETTEXT on components that are already mounted: no sub_mounted (the
+-- mount task only stamps one when it actually mounts), no chat_message (a
+-- dialogue page is not a chat line), and no map_flag (the player is already
+-- standing next to the npc and no route is issued).  Nothing resolved, and
+-- talk_to timed out at its full 20-tick budget on every hand-in while the
+-- dialogue was demonstrably open on screen -- which cooks_assistant.lua
+-- carried a local `talk_to_and_settle` shim to paper over.
+--
+-- So the page itself is the fourth answer: capture (kind, text) BEFORE the
+-- click and treat a page whose kind OR text differs as the fresh mount the
+-- stamp could not report.  Text alone is not enough (two npcs can say the
+-- same line) and kind alone is not enough (npc -> npc is the ordinary
+-- re-talk); either changing is the edge.
+--
+-- This is a LEVEL predicate and `level` is evaluated at REGISTRATION
+-- (torirs_plugin_drive.c's drive.await, EDGE + LEVEL) -- which is exactly
+-- why the snapshot is the caller's to take, BEFORE its click, and why
+-- QD-07's trap does not apply to it.  QD-07 was `player_idle()`: a state
+-- that is routinely already true when the click happens, so the await
+-- resolved before the click could do anything.  "the page differs from the
+-- page that was up before this click" cannot be true at registration unless
+-- the click has already landed, in which case resolving immediately is the
+-- correct answer and not a false one.  A caller that passes no snapshot
+-- gets one taken here instead: registration-time, so the level is false by
+-- construction at registration and those callers keep exactly their old
+-- behaviour plus the new arm.
 --
 -- sub_mounted is filtered against the "chat" interface (the chat_modal_host
 -- role is `iface(chat, 567)`, revconfig/osrs239/osrs239_dat2_roles.gen.ini)
@@ -580,30 +685,65 @@ end
 -- map_flag's clear is gated behind `route_issued`, seeing the flag SET at
 -- least once, so a target that needed no walk at all cannot resolve on a
 -- flag clear left over from a PREVIOUS click.
-function QD.player._settle_after_click(ticks)
+--
+-- `ok` now carries WHICH arm resolved it as its detail, so a ledger row
+-- reads as evidence rather than as a bare PASS -- and so a mutation that
+-- deletes one arm's stamp shows up as a different word in the row before it
+-- shows up as a timeout.
+function QD.player._settle_after_click(ticks, before_kind, before_text)
     local serial_result, since = api_drive.message_serial()
     local chat_result, chat_interface_id = api_drive.symbol("interface", "chat")
     local route_issued = false
+    local resolved_by = nil
 
-    return QD.await({
+    if before_kind == nil then
+        before_kind, before_text = QD.player._chat_page()
+    end
+
+    local result, detail = QD.await({
         match = function(ev)
             if ev.kind == "sub_mounted" then
-                return chat_result == "ok" and ev.b == chat_interface_id
+                if chat_result == "ok" and ev.b == chat_interface_id then
+                    resolved_by = "sub_mounted"
+                    return true
+                end
+                return false
             end
             if ev.kind == "chat_message" then
-                return serial_result == "ok" and ev.b > since
+                if serial_result == "ok" and ev.b > since then
+                    resolved_by = "chat_message"
+                    return true
+                end
+                return false
             end
             if ev.kind == "map_flag" then
                 if ev.a ~= -1 then
                     route_issued = true
                     return false
                 end
-                return route_issued
+                if route_issued then
+                    resolved_by = "map_flag"
+                    return true
+                end
+                return false
             end
             return false
         end,
+        level = function()
+            local kind, text = QD.player._chat_page()
+            if kind == before_kind and text == before_text then
+                return false
+            end
+            resolved_by = "page " .. tostring(before_kind) .. "->" .. tostring(kind)
+                .. (text ~= before_text and " (text)" or "")
+            return true
+        end,
         note = "settle_after_click",
     }, ticks)
+    if result == "ok" then
+        return "ok", resolved_by or "settled"
+    end
+    return result, detail
 end
 
 function QD.player.talk_to(npc, op)
@@ -612,11 +752,15 @@ function QD.player.talk_to(npc, op)
     if not target then
         return sym_result, sym_name
     end
+    -- BEFORE the click: the page the settle compares against has to be the
+    -- one that was up when the player pressed, not the one the press has
+    -- already begun to replace.  See _settle_after_click's fourth arm.
+    local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.drive.click_minimenu(target, op)
     if click_result ~= "ok" then
         return click_result, click
     end
-    return QD.player._settle_after_click(20)
+    return QD.player._settle_after_click(20, before_kind, before_text)
 end
 
 -- Walks into range BEFORE the click, which a world click on scenery needs and

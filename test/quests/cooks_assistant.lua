@@ -22,31 +22,6 @@ return {
     setup = { "::cook" },
 
     run = function(t)
-        -- player.talk_to's own completion wait (_settle_after_click,
-        -- pointer.lua) resolves on a FRESH "chat" interface mount, a NEW
-        -- chat message, or a map_flag clear -- none of which fires on a
-        -- SECOND, stationary conversation with an npc whose chat frame the
-        -- FIRST conversation already mounted and never fully tore down.
-        -- Confirmed live: the hand-in re-talk always opened the dialogue
-        -- (the very next chat.drain always found a real page on screen),
-        -- but the settle wait timed out at its full budget every run with
-        -- nothing to resolve on. That is a real gap in a shared verb this
-        -- file does not own (docs/ARCHITECT.md: pointer.lua is
-        -- verbs-pointer's), so it is worked around here rather than
-        -- silently weakened: a timed-out talk_to whose dialogue actually
-        -- opened is treated as the success it is.
-        local function talk_to_and_settle(npc)
-            local result, detail = t.player.talk_to(npc)
-            if result == "ok" then
-                return result, detail
-            end
-            local kind = t.chat.kind()
-            if kind ~= "none" and kind ~= "count" and kind ~= "name" and kind ~= "other_input" then
-                return "ok", "settle(" .. tostring(result) .. ") timed out but a dialogue is open ("
-                    .. tostring(kind) .. ") -- " .. tostring(detail)
-            end
-            return result, detail
-        end
         -- ::cook's own varp write and teleport are server-side; give the
         -- client a couple of ticks to see them before reading anything
         -- (the same class of race hans.lua's own constants read settles
@@ -61,7 +36,7 @@ return {
             "cookquest after ::cook -> " .. tostring(cookquest_before) .. " (" .. tostring(reset_result) .. ")")
 
         -- ------------------------------------------------------- greet
-        local talk_result, talk_detail = talk_to_and_settle("cook")
+        local talk_result, talk_detail = t.player.talk_to("cook")
         t.t.expect("cooksassistant.greet", talk_result, talk_detail)
         t.t.shot("cook-greeting")
 
@@ -115,7 +90,7 @@ return {
         t.t.step("cooksassistant.xp_before_read", xp_before and "PASS" or "FAIL",
             "cooking xp before hand-in -> " .. tostring(xp_before))
 
-        local handin_result, handin_detail = talk_to_and_settle("cook")
+        local handin_result, handin_detail = t.player.talk_to("cook")
         t.t.expect("cooksassistant.handin_talk", handin_result, handin_detail)
 
         -- Drain the "how's it going" / thank-you exchange with shots, and
@@ -124,7 +99,19 @@ return {
         -- guessed at.
         local drain5_result, drain5_detail = t.chat.drain({ stop_at = "mesbox" })
         t.t.expect("cooksassistant.handin_drain", drain5_result, drain5_detail)
-        t.t.shot("cook-handin")
+        -- No named shot here. chat.drain's OWN last capture is already this
+        -- page: drain reads the kind, takes its shot, and the server's reply
+        -- lands during the pump the capture costs, so the file it writes
+        -- ("NN-npc.png") shows the completion mesbox rather than the npc
+        -- page its name was chosen from -- verified by eye on
+        -- 21-npc.png. A second `t.t.shot("cook-handin")` here photographed
+        -- that same static page a frame later, and the two files came out
+        -- byte-identical whenever no per-tick counter (the run-energy orb)
+        -- happened to tick between them -- which gate.py's duplicate-MD5
+        -- rule correctly rejects as "a screenshot that never changed".
+        -- It was a coin flip before this file stopped spending a 20-tick
+        -- talk_to timeout on the hand-in (see pointer.lua's fourth settle
+        -- arm); it is not evidence either way, so it is gone.
 
         local COMPLETION_MESSAGE = "You give some milk, an egg and some flour to the cook."
         local complete_msg_result, complete_msg_detail = t.chat.expect_text(COMPLETION_MESSAGE)

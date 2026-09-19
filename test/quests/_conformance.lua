@@ -63,26 +63,32 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 78 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 97 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 78
+-- @verb-count 97
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 78
+local VERB_COUNT = 97
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
 -- exists in this content pack (OSRS-Content/osrs239-content/configs/*.compack).
--- Every cheat below is a [debugproc], never one of torirs_server_world.c's own
--- ::give / ::spawn / ::setlevel branches: DriveCore_Cheat
--- (src/plugin/torirs_plugin_drive.c:357-364) dispatches ONLY through
--- ToriRSServer_RunDebugprocForTest, so an engine-ladder cheat answers no_row
--- and does nothing. Using one here would score a t.cheat defect against
--- whichever verb went without its subject.
+-- Most cheats below are [debugproc]s, which is what this harness needed when
+-- it was written: DriveCore_Cheat used to dispatch ONLY through
+-- ToriRSServer_RunDebugprocForTest, so an engine-ladder cheat (::give,
+-- ::spawn, ::setlevel) answered no_row and did nothing, and using one here
+-- would have scored a t.cheat defect against whichever verb went without its
+-- subject. Phase 1 (docs/QUEST_SUITE_KIT.md; commit "one cheat path for the
+-- test client") closed that: DriveCore_Cheat now calls
+-- ToriRSServer_RunCheatForTest, which tries content FIRST and then the
+-- engine ladder, exactly as handle_cheat does for a logged-in player. So
+-- `::setvar` below is a ladder cheat on purpose, and a cheat that matches
+-- nothing at all still answers no_row -- which is still the only honest
+-- answer for a subject that was never built.
 local NPC_SYMBOL = "man"            -- Lumbridge's own; no debugproc spawns npcs
 local NPC_DISPLAY_NAME = "Man"      -- npc.by_name matches the DISPLAY name
 local COOK_SYMBOL = "cook"          -- the head the cook's dialogue shows
@@ -102,6 +108,30 @@ local ABSENT_OBJ_SYMBOL = "knife"   -- nothing here puts one in the backpack
 local VARP_SYMBOL = "tutorial"      -- the fixture pins it (perm scope)
 local VARP_VALUE = 1000             -- "tutorial finished" (docs/WORKTREE_SETUP.md)
 local VARBIT_SYMBOL = "troll_freed_eadgar"
+-- Cook's Assistant, the one quest this content pack can be driven into every
+-- state of from a cheat: `::setvar cookquest ^cook_started` stages it,
+-- `::cookbmp_reward` completes it and puts the real reward scroll up, and its
+-- journal row is the first in the quest list.  The stage numbers are the
+-- quest's own constants (OSRS-Content/.../quest_cook/configs/quest_cook.constant:
+-- ^cook_not_started 0, ^cook_started 1, ^cook_complete 2) written out, because
+-- quest.bind's `constants` table takes integers: there is no "constant" kind
+-- in DriveSymbolKind for a `^name` to resolve through.
+local QUEST_VARP = "cookquest"
+local QUEST_NOT_STARTED = 0
+local QUEST_STARTED = 1
+local QUEST_COMPLETE = 2
+local QUEST_DISPLAY = "Cook's Assistant"
+local QUEST_POINTS = 1               -- quest:questpoints for this row
+local QUEST_REWARD_XP = 300          -- "300 Cooking XP", quest_cook.rs2:158
+-- ::xp is `stat_advance($stat, $amount)` and $amount is TENTHS of an xp point
+-- on this build: measured 2026-09-19, `::xp cooking 500` moved
+-- skill("cooking").experience by 50.
+local XP_CHEAT_AMOUNT = 500
+local XP_CHEAT_GAIN = 50
+-- An npc symbol this pack defines (npc 1173) with no instance anywhere near
+-- the Lumbridge courtyard -- the chicken coop is ~77 tiles north -- so
+-- "this npc is not within five tiles" is a fact, not a race.
+local ABSENT_NPC_SYMBOL = "chicken"
 local STAT_SYMBOL = "cooking"
 local INVENTORY_INTERFACE = "inventory"
 local OBJECTBOX_INTERFACE = "objectbox"
@@ -247,10 +277,15 @@ return {
 
         -- A cheat that STATES THE WORLD.  Not a row: setup, exactly as a
         -- normal quest test's `setup = { ... }` list is.
-        local function setup_cheat(text)
+        --
+        -- `wait_for_reply` is passed through to t.cheat and is false in
+        -- exactly one place: the stage that gives msg.await its subject.
+        -- t.cheat waits for the cheat's own reply line by default, and a line
+        -- that has already arrived is not a line msg.await can wait for.
+        local function setup_cheat(text, wait_for_reply)
             local cheat = verb("t", "cheat")
             if cheat then
-                cheat(text)
+                cheat(text, wait_for_reply)
             end
         end
 
@@ -267,6 +302,7 @@ return {
         local npc_target = nil
         local player_tile = nil
         local inventory_widget = nil
+        local stat_snapshot = nil
 
         -- ------------------------------------------------------- the world
 
@@ -414,6 +450,49 @@ return {
             return "ok", text
         end)
 
+        -- The two awaits over npc.nearest.  await_present has a real
+        -- subject (a `man` walks the courtyard and npc.nearest just found
+        -- one); await_gone's subject is the absence of a chicken, which is a
+        -- standing fact here rather than a transition, so both rows read the
+        -- world back through npc.nearest after the await answers -- an await
+        -- that resolved on nothing would then be caught saying ok about a
+        -- world that disagrees.  The EDGE (an npc that is here and then is
+        -- not) is proved elsewhere, by test/quests/_cheats.lua's ::kill row
+        -- and by hans.lua's hans.leaves: putting a kill in the middle of this
+        -- harness would take a subject away from the rows after it.
+        step("npc.await_present", function()
+            local fn = verb("npc", "await_present")
+            if not fn then return missing("npc", "await_present") end
+            local result, detail = fn(NPC_SYMBOL, NEAREST_RADIUS, 6)
+            if result ~= "ok" then
+                return result, NPC_SYMBOL .. " within " .. NEAREST_RADIUS .. " -> " .. describe(detail)
+            end
+            local look = verb("npc", "nearest")
+            local state = look and look(NPC_SYMBOL, NEAREST_RADIUS) or "missing"
+            if state ~= "ok" then
+                return "hollow", "await_present answered ok but npc.nearest(" .. NPC_SYMBOL
+                    .. ", " .. NEAREST_RADIUS .. ") answers " .. state
+            end
+            return "ok", NPC_SYMBOL .. " within " .. NEAREST_RADIUS .. " -> ok"
+        end)
+
+        step("npc.await_gone", function()
+            local fn = verb("npc", "await_gone")
+            if not fn then return missing("npc", "await_gone") end
+            local result, detail = fn(ABSENT_NPC_SYMBOL, 5, 6)
+            if result ~= "ok" then
+                return result, ABSENT_NPC_SYMBOL .. " within 5 -> " .. describe(detail)
+            end
+            local look = verb("npc", "nearest")
+            local state = look and look(ABSENT_NPC_SYMBOL, 5) or "missing"
+            if state == "ok" then
+                return "hollow", "await_gone answered ok while npc.nearest still finds a "
+                    .. ABSENT_NPC_SYMBOL .. " within 5 tiles"
+            end
+            return "ok", "no " .. ABSENT_NPC_SYMBOL .. " within 5 tiles (npc.nearest agrees: "
+                .. state .. ")"
+        end)
+
         step("world.loc_near", function()
             local fn = verb("world", "loc_near")
             if not fn then return missing("world", "loc_near") end
@@ -494,6 +573,43 @@ return {
                 field("level", at_least(1)), "the reading carried no level")
         end)
 
+        -- Every stat read once.  The snapshot is kept for skill_expect_gain
+        -- below, which is the only way to grade a gain: the two verbs are one
+        -- before/after pair with a cheat between them.
+        step("skill_snapshot", function()
+            local fn = verb("skill_snapshot")
+            if not fn then return missing("skill_snapshot") end
+            local result, detail = fn()
+            if result == "ok" and is_table(detail) then
+                stat_snapshot = detail
+            end
+            return answered(result, detail, "",
+                field(STAT_SYMBOL, field("experience", is_number)),
+                "a snapshot with no " .. STAT_SYMBOL .. " reading is not a snapshot")
+        end)
+
+        -- setup: the gain skill_expect_gain is about to be asked to find.
+        stage(function()
+            setup_cheat("::xp " .. STAT_SYMBOL .. " " .. XP_CHEAT_AMOUNT)
+            settle(4)
+        end)
+
+        step("skill_expect_gain", function()
+            local fn = verb("skill_expect_gain")
+            if not fn then return missing("skill_expect_gain") end
+            if not is_table(stat_snapshot) then
+                return "no_subject", "skill_snapshot built no snapshot to measure against"
+            end
+            local result, detail = fn(STAT_SYMBOL, XP_CHEAT_GAIN, stat_snapshot)
+            -- The verb's own detail names which unit matched, so a row that
+            -- only forwarded "ok" would still be readable -- but the gain is
+            -- knowable here (::xp ran between the snapshot and now), so the
+            -- unit sentence is what is asserted.
+            return answered(result, detail,
+                STAT_SYMBOL .. " +" .. XP_CHEAT_GAIN .. " -> ", is_text,
+                "the verb names the unit it matched in")
+        end)
+
         step("inv.count", function()
             local fn = verb("inv", "count")
             if not fn then return missing("inv", "count") end
@@ -542,6 +658,27 @@ return {
             return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
         end)
 
+        -- One await over a whole requirement table.  ::runes put 25 air runes
+        -- in the backpack, so the table is satisfiable; the row reads the
+        -- count back afterwards so an await that resolved on nothing cannot
+        -- pass as ok.
+        step("inv.await_all", function()
+            local fn = verb("inv", "await_all")
+            if not fn then return missing("inv", "await_all") end
+            local result, detail = fn({ [OBJ_SYMBOL] = 1 }, 3)
+            if result ~= "ok" then
+                return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
+            end
+            local count = verb("inv", "count")
+            local state, total = "missing", nil
+            if count then state, total = count(OBJ_SYMBOL) end
+            if state ~= "ok" or not is_number(total) or total < 1 then
+                return "hollow", "await_all answered ok but inv.count(" .. OBJ_SYMBOL
+                    .. ") reads " .. describe(total) .. " (" .. state .. ")"
+            end
+            return "ok", OBJ_SYMBOL .. " >= 1 satisfied, inv.count agrees: " .. describe(total)
+        end)
+
         step("msg.last", function()
             local fn = verb("msg", "last")
             if not fn then return missing("msg", "last") end
@@ -563,8 +700,18 @@ return {
         -- setup: msg.await is scoped to lines that arrive AFTER it registers,
         -- so the line it waits for is sent here -- dispatched into the server
         -- now, reaching the client a tick later, inside the await.
+        --
+        -- DISPATCHED WITHOUT t.cheat's own reply wait (the `false`), which is
+        -- the whole reason that argument exists.  Phase 2 gave t.cheat a
+        -- <=5-tick wait for the cheat's own reply line so a cheat's effect is
+        -- visible before the next read; the cost is that the reply has
+        -- already arrived by the time anything else can register an await for
+        -- it, and this row went red the first run after that landed
+        -- ([timeout] new line containing 'Dropped', measured 2026-09-19) --
+        -- correctly, with nothing new left to wait for.  Here the waiting is
+        -- the ROW's job, so the dispatch does not do it.
         stage(function()
-            setup_cheat("::dropobj " .. OBJ_SYMBOL .. " 1")
+            setup_cheat("::dropobj " .. OBJ_SYMBOL .. " 1", false)
         end)
 
         step("msg.await", function()
@@ -618,6 +765,26 @@ return {
             if not fn then return missing("player", "idle") end
             local result, detail = fn()
             return result, describe(detail)
+        end)
+
+        -- Phase 3's first rows click "Talk-to" on a WANDERING man, which
+        -- leaves the player chasing him -- and the three rows below assert
+        -- against the player's OWN tile.  Measured 2026-09-19: player.walk_to
+        -- timed out having moved two tiles WEST, toward the man, instead of
+        -- the one tile east it asked for, on a run where the msg stage above
+        -- stopped spending five ticks waiting for a cheat's reply and phase 3
+        -- therefore started that much earlier.  player.idle's own row is not
+        -- enough on its own: a wandering npc stands still between steps, and
+        -- an idle reading taken in one of those gaps is true while the
+        -- interaction behind it is very much alive.  So the dialogue is
+        -- dismissed and the world is given six ticks to stop before the rows
+        -- that are about the player's own feet.
+        stage(function()
+            local close = verb("chat", "close")
+            if close then
+                close()
+            end
+            settle(6)
         end)
 
         step("player.walk_to", function()
@@ -922,6 +1089,53 @@ return {
             return result, describe(detail)
         end)
 
+        -- setup: the same Talk-to page again, for the one verb that walks a
+        -- whole conversation instead of a page.  %cookquest is still
+        -- ^cook_not_started here -- phase 6 answered the p_choice4 but never
+        -- the p_choice2 behind it, and only that second answer starts the
+        -- quest (quest_cook.rs2, @cooks_assistant_whats_wrong) -- so
+        -- [opnpc1,cook] opens on "What am I to do?" exactly as it did above.
+        stage(function()
+            settle(2)
+            setup_cheat("::cookbmp_talk")
+            settle(4)
+        end)
+
+        step("chat.play", function()
+            local fn = verb("chat", "play")
+            if not fn then return missing("chat", "play") end
+            -- Three entry shapes in one call: a text-checked npc page, a bare
+            -- options check, and the "/lua pattern/" row selector (only
+            -- "What's wrong?" of the four rows contains "wrong").
+            local result, detail = fn({ "npc:What am I to do", "options", "choose:/wrong/" })
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            -- play answers a bare ok, so the row reads the page it left
+            -- behind: choosing "What's wrong?" makes the PLAYER say it
+            -- (~chatplayer_anim), so a play that clicked nothing -- or
+            -- clicked the wrong row, which answers "No! Go away!" from the
+            -- npc -- cannot reach a player page.
+            local kind = verb("chat", "kind")
+            local page = kind and kind() or "missing"
+            if page ~= "player" then
+                return "hollow", "play answered ok but the page it left is " .. describe(page)
+                    .. ", not the player's own reply to the row it was told to choose"
+            end
+            return "ok", "npc page -> options -> /wrong/ -> the player's reply page"
+        end)
+
+        -- The cook is dismissed again, for the same reason phase 6 dismissed
+        -- him: a quantity or a name prompt opened on top of a parked dialogue
+        -- is arguing with a script that already owns the player.
+        stage(function()
+            local close = verb("chat", "close")
+            if close then
+                close()
+            end
+            settle(3)
+        end)
+
         -- ------------------------- phase 6b: the two entry prompts
         --
         -- chat.close above is what makes these reachable: a quantity or a name
@@ -1034,6 +1248,20 @@ return {
                 "a reward scroll with no first line is not a scroll")
         end)
 
+        step("scroll.reward_xp", function()
+            local fn = verb("scroll", "reward_xp")
+            if not fn then return missing("scroll", "reward_xp") end
+            local result, detail = fn(STAT_SYMBOL)
+            -- The number is knowable: this scroll's own reward string is
+            -- "300 Cooking XP|..." (quest_cook.rs2:158), so a parser that
+            -- answered ok with the wrong line -- or with the quest-point
+            -- line's own number, which ~quest_points_reward prepends -- is
+            -- caught here rather than being read as a pass.
+            return answered(result, detail, STAT_SYMBOL .. " -> ",
+                equals(QUEST_REWARD_XP),
+                "this scroll awards " .. QUEST_REWARD_XP .. " " .. STAT_SYMBOL .. " xp")
+        end)
+
         step("scroll.close", function()
             local fn = verb("scroll", "close")
             if not fn then return missing("scroll", "close") end
@@ -1075,6 +1303,184 @@ return {
             local fn = verb("levelup", "continue_")
             if not fn then return missing("levelup", "continue_") end
             return refused_until_u16(fn())
+        end)
+
+        -- ---------------- phase 9: the quest binding and the journal
+        --
+        -- Last, and after the scroll, for three reasons.  `::setvar cookquest`
+        -- changes which branch [opnpc1,cook] takes, so it cannot run before
+        -- phase 6's dialogue rows.  `::cookbmp_reward` has to put a SECOND
+        -- scroll up for quest.expect_complete's own scroll row to read a
+        -- title off, because phase 7 read the first one and then closed it.
+        -- And player.teleport moves the player out of Lumbridge, which every
+        -- npc/loc/obj subject above depends on and nothing below does.
+
+        -- setup: the quest staged at ^cook_started.  A LADDER cheat, not a
+        -- debugproc -- phase 1's one cheat path is what makes `::setvar`
+        -- reachable from here at all, and this row set is the reason it
+        -- exists.
+        stage(function()
+            setup_cheat("::setvar " .. QUEST_VARP .. " ^cook_started")
+        end)
+
+        step("var.await_server", function()
+            local fn = verb("var", "await_server")
+            if not fn then return missing("var", "await_server") end
+            local result, detail = fn(QUEST_VARP, QUEST_STARTED, 10)
+            if result ~= "ok" then
+                return result, QUEST_VARP .. " == " .. QUEST_STARTED .. " -> " .. describe(detail)
+            end
+            -- The await answers a bare ok, so the row reads the server's own
+            -- copy back: an await that resolved without the value ever
+            -- landing is exactly the hollow ok this harness is pointed at.
+            local read = verb("var", "server")
+            local state, value = "missing", nil
+            if read then state, value = read(QUEST_VARP) end
+            if state ~= "ok" or value ~= QUEST_STARTED then
+                return "hollow", "await_server answered ok but var.server(" .. QUEST_VARP
+                    .. ") reads " .. describe(value) .. " (" .. tostring(state) .. ")"
+            end
+            return "ok", QUEST_VARP .. " reached " .. QUEST_STARTED
+                .. " on the server within 10 ticks of ::setvar"
+        end)
+
+        step("quest.bind", function()
+            local fn = verb("quest", "bind")
+            if not fn then return missing("quest", "bind") end
+            local result, detail = fn({
+                varp = QUEST_VARP,
+                constants = {
+                    not_started = QUEST_NOT_STARTED,
+                    started = QUEST_STARTED,
+                    complete = QUEST_COMPLETE,
+                },
+                display = QUEST_DISPLAY,
+                points = QUEST_POINTS,
+            })
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            -- bind touches no world and answers a bare ok, so the row reads
+            -- what it left behind: the binding itself, and the %qp reading it
+            -- must have taken NOW for quest.points to have a baseline to
+            -- measure the award against later.
+            local bound = is_table(t.quest) and t.quest._bound or nil
+            if not is_table(bound) or bound.varp ~= QUEST_VARP then
+                return "hollow", "bind answered ok but nothing was bound -- " .. describe(bound)
+            end
+            if not is_number(bound.qp_before) then
+                return "hollow", "bind answered ok but took no %qp reading to measure the "
+                    .. "award against -- " .. describe(bound.qp_before)
+                    .. " (" .. tostring(bound.qp_before_result) .. ")"
+            end
+            return "ok", QUEST_VARP .. " bound; %qp at bind time = " .. describe(bound.qp_before)
+        end)
+
+        step("quest.stage", function()
+            local fn = verb("quest", "stage")
+            if not fn then return missing("quest", "stage") end
+            local result, detail = fn()
+            return answered(result, detail, QUEST_VARP .. " -> ",
+                equals(QUEST_STARTED), "the ::setvar above staged ^cook_started")
+        end)
+
+        step("quest.expect_stage", function()
+            local fn = verb("quest", "expect_stage")
+            if not fn then return missing("quest", "expect_stage") end
+            -- By NAME, through the bind's constants table -- the spelling a
+            -- generated quest test uses.  A mismatch answers refused naming
+            -- the side that disagreed, so an ok here is client AND server.
+            local result, detail = fn("started")
+            return answered(result, detail, '"started" -> ',
+                equals(QUEST_STARTED), "the stage the ::setvar staged")
+        end)
+
+        step("ui.journal_open", function()
+            local fn = verb("ui", "journal_open")
+            if not fn then return missing("ui", "journal_open") end
+            local result, detail = fn(QUEST_DISPLAY)
+            -- The real click path: the quest tab, the quest-list strip icon,
+            -- then op 2 on the row whose own rendered text is this name.  A
+            -- verb that mounted nothing answers not_visible; one that mounted
+            -- the page before its text landed answers a title and no lines,
+            -- which is what the hollow check below refuses.
+            return answered(result, detail, QUEST_DISPLAY .. " -> ",
+                function(value)
+                    return is_table(value) and is_text(value.title)
+                        and is_number(value.line_count) and value.line_count >= 1
+                end,
+                "an opened journal carries a title and at least one line")
+        end)
+
+        step("ui.journal_read", function()
+            local fn = verb("ui", "journal_read")
+            if not fn then return missing("ui", "journal_read") end
+            -- The journal ui.journal_open just opened, read again with no
+            -- click of its own.
+            local result, detail = fn()
+            return answered(result, detail, "", field("title", is_text),
+                "a mounted journal carries its quest's title")
+        end)
+
+        step("ui.journal_close", function()
+            local fn = verb("ui", "journal_close")
+            if not fn then return missing("ui", "journal_close") end
+            local result, detail = fn()
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            -- Closed means GONE: the reader is asked again, and a journal
+            -- that still reads ok is a close that only said so.
+            local read = verb("ui", "journal_read")
+            local state, again = "missing", nil
+            if read then state, again = read() end
+            if state == "ok" then
+                return "hollow", "journal_close answered ok but ui.journal_read still reads "
+                    .. describe(again)
+            end
+            return "ok", describe(detail) .. "; ui.journal_read now answers " .. tostring(state)
+        end)
+
+        -- setup: the quest completed for real, scroll and all.  ::cookbmp_reward
+        -- sets %cookquest = ^cook_complete and calls ~quest_complete_rewards,
+        -- which awards the quest's points (~quest_award_points) and paints the
+        -- completion scroll -- so all four of expect_complete's rows have a
+        -- live subject, and the point award happened AFTER quest.bind took its
+        -- %qp baseline.
+        stage(function()
+            setup_cheat("::cookbmp_reward")
+            settle(6)
+        end)
+
+        step("quest.expect_complete", function()
+            local fn = verb("quest", "expect_complete")
+            if not fn then return missing("quest", "expect_complete") end
+            -- This verb writes FOUR ledger rows of its own -- quest.varp_complete,
+            -- quest.scroll_title, quest.points, quest.journal -- and those rows
+            -- ARE the evidence; it answers ok only when every one of them
+            -- passed, and `refused` naming the rows that did not.  So this row
+            -- forwards, and the four rows above it in the ledger say why.
+            local result, detail = fn()
+            return result, describe(detail)
+        end)
+
+        -- LAST, because it leaves the player in another city.  It was
+        -- written first in this phase and moved here: a teleport is a region
+        -- load, and the journal rows that followed it then spent their whole
+        -- budget waiting for a client busy building Varrock (the first
+        -- ui.journal_open timed out at 15 ticks with no quest-list rows,
+        -- while the same call later in the same run answered in 0).  Nothing
+        -- after this row reads the world.
+        step("player.teleport", function()
+            local fn = verb("player", "teleport")
+            if not fn then return missing("player", "teleport") end
+            local result, detail = fn("varrock")
+            -- The landing tile IS the answer.  A teleport that did not move
+            -- the player answers `timeout` naming the tile it never left (the
+            -- verb refuses to call standing still a success), so the row only
+            -- has to confirm that a tile came back with the ok.
+            return answered(result, detail, "varrock -> ", is_text,
+                "an ok teleport names the tile it landed on")
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls
@@ -1122,6 +1528,47 @@ return {
             return "ok", "a note was posted and must appear in this detail"
         end)
 
+        -- t.do and t.check both WRITE THEIR OWN ROW (and take their own
+        -- screenshot) instead of answering a result for this harness to
+        -- record, so each one is called with its own verb name as the row
+        -- name and the step returns nil -- the same shape t.step's row below
+        -- has used since this harness was written.  The verdict in the ledger
+        -- is the one the verb itself decided, from a real answer: an auditor
+        -- reading the row sees the wrapped verb's own detail in it.
+        --
+        -- NOTE THE SPELLING.  `do` is a Lua keyword, so this verb is defined
+        -- as QD.t["do"] and called as t.t["do"](...) -- `t.do` does not parse
+        -- anywhere, including at a call site and including a bare read of it.
+        -- `verb("t", "do")` below is an ordinary table index and is fine.
+        step("t.do", function()
+            local fn = verb("t", "do")
+            if not fn then return missing("t", "do") end
+            local wrapped = verb("var", "varp")
+            if not wrapped then
+                return "no_subject", "t.do wraps a verb and var.varp is not one"
+            end
+            -- A verb with a knowable answer: the fixture pins `tutorial` at
+            -- VARP_VALUE, so the row t.do writes carries that number as its
+            -- detail.  t.do's own hollow rule (ok with a nil detail is FAIL)
+            -- is what makes that detail load-bearing rather than decoration.
+            fn("t.do", wrapped, VARP_SYMBOL)
+            return nil
+        end)
+
+        step("t.check", function()
+            local fn = verb("t", "check")
+            if not fn then return missing("t", "check") end
+            local read = verb("var", "varp")
+            if not read then
+                return "no_subject", "t.check needs a reading to assert and var.varp is not a function"
+            end
+            local state, value = read(VARP_SYMBOL)
+            fn("t.check", state == "ok" and value == VARP_VALUE,
+                VARP_SYMBOL .. " -> " .. describe(value) .. " (" .. tostring(state)
+                .. "), the fixture pins it at " .. VARP_VALUE)
+            return nil
+        end)
+
         step("t.step", function()
             local fn = verb("t", "step")
             if not fn then return missing("t", "step") end
@@ -1144,6 +1591,22 @@ return {
             -- ledger's SUMMARY row (exit=) and the process exit code are what
             -- tools/quest_gate/conformance.py re-grades this row against.
             return "ok", "called after this row; SUMMARY exit= and the process exit code are the evidence"
+        end)
+
+        step("t.blocked", function()
+            local fn = verb("t", "blocked")
+            if not fn then return missing("t", "blocked") end
+            -- t.blocked writes a BLOCKED row and then calls t.finish(0), so
+            -- it ENDS THE RUN exactly as t.finish does and is called after
+            -- the loop for the same reason -- it is this harness's own
+            -- terminator (see the tail below).  Like t.finish's row, this one
+            -- is re-graded from outside the coroutine by
+            -- tools/quest_gate/conformance.py, against the evidence Lua
+            -- cannot read: a ledger row named `blocked` whose verdict really
+            -- is BLOCKED, and a SUMMARY that counts it in its own `blocked=`
+            -- bucket rather than as a failure.
+            return "ok", "called after this row; the ledger's BLOCKED row and SUMMARY's "
+                .. "blocked= bucket are the evidence"
         end)
 
         -- ------------------------------------------------------ the run
@@ -1179,9 +1642,20 @@ return {
             end
         end
 
-        local stop = verb("t", "finish")
-        if stop then
-            stop(0)
+        -- The terminator is t.blocked, not t.finish: it writes the BLOCKED
+        -- row its own conformance row above promises and then calls
+        -- t.finish(0) itself, so one call ends the run, proves both verbs,
+        -- and still leaves the exit=0 SUMMARY that t.finish's row is graded
+        -- against.  A driver without t.blocked finishes the old way.
+        local blocked = verb("t", "blocked")
+        if blocked then
+            blocked("t.blocked is this harness's own terminator -- the row it wrote and "
+                .. "SUMMARY's blocked= bucket are what its conformance row is graded on")
+        else
+            local stop = verb("t", "finish")
+            if stop then
+                stop(0)
+            end
         end
     end,
 }

@@ -358,10 +358,25 @@ function QD.chat.choose(selector)
     local rows = options.rows
     local title = options.title
 
+    -- Three selector forms (plan 5.5 + the chat.play pattern form): a
+    -- 1-based row index, an exact row text, or a "/lua pattern/" string
+    -- (leading and trailing "/", the body matched against each row's text
+    -- with string.find, first row wins) -- for a row whose text varies by
+    -- content (an item name, a quantity) where the author cannot spell it
+    -- exactly.
     local row_index = nil
     if type(selector) == "number" then
         if rows[selector] ~= nil then
             row_index = selector
+        end
+    elseif type(selector) == "string" and #selector >= 2
+        and selector:sub(1, 1) == "/" and selector:sub(-1) == "/" then
+        local pattern = selector:sub(2, -2)
+        for i, text in ipairs(rows) do
+            if text:find(pattern) then
+                row_index = i
+                break
+            end
         end
     else
         for i, text in ipairs(rows) do
@@ -446,4 +461,215 @@ function QD.chat.choose(selector)
         return "refused", "stale reopen"
     end
     return "ok", "chat.choose: options changed"
+end
+
+-- ---------------------------------------------------------------- chat.play
+--
+-- A scripted walk over a whole conversation: an author states the pages the
+-- dialogue is expected to show, in order, instead of hand-writing a
+-- drain/choose pair per page and a shot per step (README's own broken
+-- example -- test/quests/README.md, replaced by phase 3 -- was exactly that
+-- hand-written shape, and forgetting the shot is the failure mode plan
+-- section 5 calls out). Every entry is read against whatever the PREVIOUS
+-- entry's own action already settled onto -- continue_/choose/count/
+-- name_entry each already await their own fresh mount -- so chat.play itself
+-- never calls `await`; it only reads chat.kind()/chat.text()/chat.options(),
+-- all synchronous.
+--
+-- Entries (see docs/QUEST_SUITE_KIT.md's phase 2 table):
+--   "npc:<substr>"     current page must be kind "npc", text contains
+--                       substr; then continue_.
+--   "player:<substr>"  same, kind "player".
+--   "mesbox:<substr>"  same, kind "mesbox".
+--   "options"          current page must be kind "options"; a bare check --
+--                       it does not click anything, the NEXT entry (a
+--                       "choose:") does. Two "options" in a row past the
+--                       first is a stuck-page bug in the LIST, same as a
+--                       missing "choose:" -- chat.play does not guess a row.
+--   "choose:<sel>"     kind must be "options"; <sel> is passed straight to
+--                       chat.choose (exact row text, 1-based index text is
+--                       NOT accepted here -- only the string forms -- or a
+--                       "/lua pattern/", chat.choose's own third form).
+--   "*"                any ONE page of kind npc/player/mesbox/objbox (the
+--                       kinds continue_ has a seam for); continue_'d with no
+--                       text check. Landing on options/count/name/none is a
+--                       mismatch here -- there is nothing generic to click.
+--   "count:<n>"        kind must be "count"; chat.count(n).
+--   "name:<text>"      kind must be "name"; chat.name_entry(text).
+--   "end"              kind must be "none" (the dialogue already closed);
+--                       terminal, no action.
+--
+-- Fails on the first mismatch, returning ("mismatch", detail) with the page
+-- kind and (where the kind carries one) its text in detail; a verb called
+-- along the way (continue_/choose/count/name_entry) that itself answers
+-- something other than "ok" propagates that exact (result, detail) instead
+-- of being reworded into "mismatch" -- the caller sees whichever failure
+-- actually happened.
+--
+-- Screenshots: each entry gets exactly one shot, taken as soon as it starts
+-- (so a mismatch still leaves a picture of the page that did not match),
+-- named "<kind>-p<N>" where N is this call's own 1-based page ordinal and
+-- <kind> is the entry's EXPECTED kind ("npc", "player", "mesbox", "options"
+-- for both a bare "options" and a "choose:", "count", "name", "none" for
+-- "end", "any" for "*") -- e.g. "npc-p1", "options-p2", "npc-p3". The
+-- filename's actual ordering prefix ("NN-") is QD.core_next_shot's own
+-- run-wide counter, reached the only way any part file reaches it: through
+-- QD.t.shot. chat.play supplies a distinguishing suffix, never a second
+-- counter of its own.
+QD.chat._play_kind_by_prefix = {
+    npc = "npc",
+    player = "player",
+    mesbox = "mesbox",
+    count = "count",
+    name = "name",
+}
+
+-- One chat.play entry -> {kind=, action=, arg=}, or nil, detail on a
+-- malformed entry ("unsupported" at the call site -- a bad LIST is not a
+-- mismatch against a live page, it is the test itself being unrunnable).
+function QD.chat._play_parse(entry)
+    if entry == "options" then
+        return { kind = "options", action = "expect" }
+    end
+    if entry == "*" then
+        return { kind = "any", action = "any" }
+    end
+    if entry == "end" then
+        return { kind = "none", action = "end" }
+    end
+
+    local colon = entry:find(":", 1, true)
+    if not colon then
+        return nil, "chat.play: malformed entry '" .. tostring(entry) .. "'"
+    end
+    local prefix = entry:sub(1, colon - 1)
+    local arg = entry:sub(colon + 1)
+
+    if prefix == "choose" then
+        return { kind = "options", action = "choose", arg = arg }
+    end
+
+    local kind = QD.chat._play_kind_by_prefix[prefix]
+    if not kind then
+        return nil, "chat.play: unknown entry '" .. tostring(entry) .. "'"
+    end
+    if kind == "count" then
+        local n = tonumber(arg)
+        if not n then
+            return nil, "chat.play: count: needs a number, got '" .. tostring(arg) .. "'"
+        end
+        return { kind = "count", action = "count", arg = n }
+    end
+    if kind == "name" then
+        return { kind = "name", action = "name", arg = arg }
+    end
+    return { kind = kind, action = "text", arg = arg }
+end
+
+-- What the live page currently is, for a mismatch's detail -- the kind, plus
+-- its text (npc/player/mesbox) or its rows (options), read fresh so the
+-- detail shows what actually mounted, not the entry that expected something
+-- else.
+function QD.chat._play_describe(kind)
+    if kind == "npc" or kind == "player" or kind == "mesbox" then
+        local text_res, text = QD.chat.text()
+        return kind .. " text=" .. (text_res == "ok" and ("'" .. tostring(text) .. "'") or tostring(text))
+    end
+    if kind == "options" then
+        local opt_res, rows = QD.chat.options()
+        return "options rows=" .. (opt_res == "ok" and table.concat(rows, "|") or tostring(rows))
+    end
+    return kind
+end
+
+function QD.chat.play(list)
+    for index, entry in ipairs(list) do
+        local parsed, parse_detail = QD.chat._play_parse(entry)
+        if not parsed then
+            return "unsupported", parse_detail
+        end
+
+        -- Same race chat.drain's own banner documents (measured 2026-09-19:
+        -- the cook's Talk-to page lands its reply during exactly this
+        -- window): continue_/choose/count/name_entry can all return "ok" on
+        -- the CLIENT's own resume_answered ack, well before the server's
+        -- reply actually remounts the next page. QD.t.shot pumps real
+        -- frames while it waits for its capture, and the previous entry's
+        -- click can land during exactly that pump -- so `kind` is read
+        -- AFTER the shot, never before it, or this entry grades the page
+        -- that was still closing, not the one that is actually live.
+        QD.t.shot(parsed.kind .. "-p" .. index)
+        local actual_kind = QD.chat.kind()
+
+        if parsed.action == "expect" or parsed.action == "text" then
+            if actual_kind ~= parsed.kind then
+                return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
+                    .. "') expected kind=" .. parsed.kind .. ", got " .. QD.chat._play_describe(actual_kind)
+            end
+            if parsed.action == "text" then
+                local text_res, text = QD.chat.text()
+                if text_res ~= "ok" then
+                    return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
+                        .. "') text unread (" .. tostring(text_res) .. "): " .. tostring(text)
+                end
+                if not QD.read._strip_tags(text):find(parsed.arg, 1, true) then
+                    return "mismatch", "chat.play: entry " .. index .. " ('" .. entry .. "') "
+                        .. actual_kind .. " text does not contain '" .. parsed.arg
+                        .. "' -- text='" .. tostring(text) .. "'"
+                end
+                local r, d = QD.chat.continue_()
+                if r ~= "ok" then
+                    return r, "chat.play: entry " .. index .. " continue_ -- " .. tostring(d)
+                end
+            end
+
+        elseif parsed.action == "choose" then
+            if actual_kind ~= "options" then
+                return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
+                    .. "') expected options, got " .. QD.chat._play_describe(actual_kind)
+            end
+            local r, d = QD.chat.choose(parsed.arg)
+            if r ~= "ok" then
+                return r, "chat.play: entry " .. index .. " ('" .. entry .. "') choose -- " .. tostring(d)
+            end
+
+        elseif parsed.action == "count" then
+            if actual_kind ~= "count" then
+                return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
+                    .. "') expected count, got " .. QD.chat._play_describe(actual_kind)
+            end
+            local r, d = QD.chat.count(parsed.arg)
+            if r ~= "ok" then
+                return r, "chat.play: entry " .. index .. " ('" .. entry .. "') count -- " .. tostring(d)
+            end
+
+        elseif parsed.action == "name" then
+            if actual_kind ~= "name" then
+                return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
+                    .. "') expected name, got " .. QD.chat._play_describe(actual_kind)
+            end
+            local r, d = QD.chat.name_entry(parsed.arg)
+            if r ~= "ok" then
+                return r, "chat.play: entry " .. index .. " ('" .. entry .. "') name_entry -- " .. tostring(d)
+            end
+
+        elseif parsed.action == "end" then
+            if actual_kind ~= "none" then
+                return "mismatch", "chat.play: entry " .. index .. " ('end') expected no dialogue, got "
+                    .. QD.chat._play_describe(actual_kind)
+            end
+
+        elseif parsed.action == "any" then
+            if actual_kind == "options" or actual_kind == "count" or actual_kind == "name"
+                or actual_kind == "none" then
+                return "mismatch", "chat.play: entry " .. index
+                    .. " ('*') cannot blindly continue past " .. QD.chat._play_describe(actual_kind)
+            end
+            local r, d = QD.chat.continue_()
+            if r ~= "ok" then
+                return r, "chat.play: entry " .. index .. " ('*') continue_ -- " .. tostring(d)
+            end
+        end
+    end
+    return "ok", nil
 end

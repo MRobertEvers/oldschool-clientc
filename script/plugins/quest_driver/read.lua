@@ -361,6 +361,39 @@ function QD.scroll.rewards()
     return "ok", { lines = lines, icon = icon }
 end
 
+-- scroll.reward_xp(skill) -> (ok, xp): the one reward line naming <skill>,
+-- parsed as digits immediately before "<Skill> XP" -- the exact shape
+-- cooks_assistant.lua wrote inline before this verb existed
+-- (`string.match(line, "(%d+)%s+Cooking XP")`, test/quests/cooks_assistant.lua
+-- ~211), generalised to any skill instead of one file's own literal. `skill`
+-- is matched case-insensitively against the scroll's own Titlecase line
+-- ("Cooking XP", "Woodcutting XP", ...) by comparing the matched WORD
+-- lower-cased, not by building a pattern out of the caller's string, so a
+-- caller passing t.skill's own lower-case key ("cooking") never has to spell
+-- the scroll's capitalisation and a skill name can never be read as a
+-- pattern by accident. The xp-vs-xp*10 unit ambiguity (the client's own xp
+-- field vs the server's xp*10 "tenths", cooks_assistant.lua ~227-236) is left
+-- for the CALLER to resolve against skill.snapshot -- this verb only reports
+-- the number the scroll itself printed, unscaled.
+function QD.scroll.reward_xp(skill)
+    local rewards_res, rewards = QD.scroll.rewards()
+    if rewards_res ~= "ok" then
+        return rewards_res, rewards
+    end
+    if type(rewards) ~= "table" or type(rewards.lines) ~= "table" then
+        return "no_row", "scroll.reward_xp: rewards() returned no lines"
+    end
+
+    local skill_lower = tostring(skill):lower()
+    for _, line in ipairs(rewards.lines) do
+        local number, word = string.match(line, "(%d+)%s+(%a+)%s+XP")
+        if number and word:lower() == skill_lower then
+            return "ok", tonumber(number)
+        end
+    end
+    return "no_row", "scroll.reward_xp: no '" .. tostring(skill) .. " XP' line in the reward scroll"
+end
+
 function QD.scroll.close()
     local close_id = QD.read._component_of("questscroll:close_button")
     if not close_id then
