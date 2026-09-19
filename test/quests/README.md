@@ -38,6 +38,14 @@ Rules the runner and the gate depend on:
 
 Fixtures live in `test/quests/fixtures/*.ini` and are server saves.
 
+Artefacts land in `build/quest_gate/<quest>/` (ledger, `shots/NN-name.png`,
+`client.log`), which is deleted on the next run. A run whose ledger SUMMARY
+says PASS is also copied to
+`OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/<quest>/`
+(ledger + shots), so the last green run's evidence is versioned with the
+content it photographs. A FAIL never overwrites that set. `run.py
+--no-publish` skips the copy.
+
 ## `_conformance.lua` -- the verb conformance harness
 
 `test/quests/_conformance.lua` is not a quest. It is the gate that replaced

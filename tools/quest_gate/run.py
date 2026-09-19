@@ -74,6 +74,15 @@ DEFAULT_MAX_FRAMES = "60000"
 DEFAULT_TIMEOUT = 180
 DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 
+# Where a PASSING quest's evidence is kept. build/quest_gate/<quest>/ is
+# deleted on every run, so a screenshot there lives exactly until the next
+# run; this directory is inside the OSRS-Content submodule, beside the
+# per-quest `<quest_dir>/*.bmp` sets the content audits already commit
+# (server/scripts/selftest/quest_cook/01_talk_cook.bmp, ...), so the shots
+# a quest test took are versioned with the content they photograph.
+PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
+                           "selftest", "quest_tests")
+
 FIXTURE_RE = re.compile(r'fixture\s*=\s*"([^"]+)"')
 NAME_LINE_RE = re.compile(r"(?m)^name\s*=.*$")
 
@@ -295,6 +304,48 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
     return launch_and_report(name, binary, manifest_path, directory, saves, script_path, timeout)
 
 
+def ledger_verdict(ledger_path):
+    """The SUMMARY row's verdict word (PASS/FAIL), or None when the ledger
+    has no SUMMARY row -- a run that died mid-way."""
+    assert ledger_path
+    with open(ledger_path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("SUMMARY\t"):
+                columns = line.rstrip("\n").split("\t")
+                return columns[2] if len(columns) > 2 else None
+    return None
+
+
+def publish(result):
+    """Copy a PASSING quest's ledger.tsv and every shots/*.png into
+    PUBLISH_DIR/<quest>/, replacing whatever an earlier run published there.
+
+    Only a PASS is published: the directory is the persisted evidence that
+    the quest played through, and a red run overwriting a green set would
+    erase the evidence rather than add to it. A FAIL leaves the previous
+    published set untouched and says so. Returns (path, shot_count) or
+    None when nothing was published and why in the second slot."""
+    if not result["has_ledger"]:
+        return None, "no ledger"
+    ledger_path = os.path.join(result["directory"], "ledger.tsv")
+    verdict = ledger_verdict(ledger_path)
+    if verdict != "PASS":
+        return None, "ledger SUMMARY is %s, not PASS" % verdict
+    target = os.path.join(PUBLISH_DIR, result["name"])
+    if os.path.isdir(target):
+        shutil.rmtree(target)
+    os.makedirs(target)
+    shutil.copy2(ledger_path, os.path.join(target, "ledger.tsv"))
+    shots = os.path.join(result["directory"], "shots")
+    count = 0
+    if os.path.isdir(shots):
+        for entry in sorted(os.listdir(shots)):
+            if entry.endswith(".png"):
+                shutil.copy2(os.path.join(shots, entry), os.path.join(target, entry))
+                count += 1
+    return target, count
+
+
 def print_report(results):
     width = max((len(r["name"]) for r in results), default=5)
     print("")
@@ -330,6 +381,10 @@ def main():
     parser.add_argument("--no-warm", action="store_true",
                         help="always build cold; overrides --warm-from")
     parser.add_argument("--no-build", action="store_true", help="use the binary already built")
+    parser.add_argument("--no-publish", action="store_true",
+                        help="do not copy a PASSING quest's ledger and shots into "
+                             "OSRS-Content (%s); by default every quest run does"
+                             % os.path.relpath(PUBLISH_DIR, REPO_ROOT))
     parser.add_argument("--script", default=None,
                         help="advanced: run this .lua file directly as a single session "
                              "(no quest-table wrapping, no setup cheats) -- see the module "
@@ -396,6 +451,15 @@ def main():
                 lambda n: run_quest(n, binary, manifest_path, arguments.timeout), names))
 
     print_report(results)
+    if not arguments.no_publish:
+        for r in results:
+            target, detail = publish(r)
+            if target:
+                print("run.py: published %s -> %s (%d shot(s) + ledger.tsv)"
+                      % (r["name"], os.path.relpath(target, REPO_ROOT), detail), flush=True)
+            else:
+                print("run.py: not published %s (%s); the previously published set, if any, "
+                      "stands" % (r["name"], detail), flush=True)
     failed = [r["name"] for r in results if not r["ok"]]
     if failed:
         print("run.py: %d of %d quest process(es) did not complete cleanly: %s"
