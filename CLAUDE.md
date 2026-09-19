@@ -178,3 +178,23 @@ or make it the committed change.
 
 If a build ever disagrees with its source, delete the object and rebuild; do
 not trust `make` to notice.
+
+## No `switch` inside a protothread
+
+A protothread is any function whose body sits between `PT_BEGIN(...)` and
+`PT_END(...)` — the `PT_*` macros are how you recognise one (`PT_BEGIN`,
+`PT_END`, `PT_YIELD`, `PT_EXIT`, `PT_WAIT_*`, `PT_TASK_AWAITSELF*`,
+`PT_TASK_JOIN`, `TASK_AWAIT_STATE`, `DAT2_GROUP_AWAIT`; anything that expands
+to one of those is a suspension point). `PT_BEGIN` opens a `switch` on the
+saved resume point and every suspension point expands to a `case __LINE__:`
+label. A `switch` written inside that body captures any label inside it, so
+on resume the outer switch finds no case, skips the body, and the task reaches
+`PT_END` as if it had finished — without stepping its child, with a landed
+answer still in its item. That is not a compile error; it is a silent
+use-after-free (`Task_AppPlaceholder_Run`, 2026-09-18).
+
+So: **never write a `switch` anywhere between `PT_BEGIN` and `PT_END`**, even
+one with no suspension point inside it, even one that compiles. Dispatch with
+an `if`/`else` chain, or call a plain (non-PT) helper that contains the
+`switch` and returns a plan, then do the awaits linearly. `make -C src
+check-pt-switch` (tools/pt_switch_audit.py) must print `total 0`.
