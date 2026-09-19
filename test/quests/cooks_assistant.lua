@@ -9,9 +9,10 @@
 -- quest.expect_complete). Two reasons, both checked against content rather
 -- than guessed:
 --
---   * The generator's default `setup` gives all three ingredients
---     (`::give egg/pot_flour/bucket_milk`) BEFORE ever talking to the Cook.
---     quest_cook.rs2's accept branch ([label,cooks_assistant_whats_wrong]
+--   * Giving all three ingredients (`::give egg/pot_flour/bucket_milk`)
+--     BEFORE ever talking to the Cook -- which the generator used to do in
+--     `setup`, and now emits as `-- CHECK gather` markers instead -- is
+--     wrong for this quest. quest_cook.rs2's accept branch ([label,cooks_assistant_whats_wrong]
 --     case 1) checks `inv_total` for all three and jumps straight to
 --     `cooks_assistant_completion` in the SAME Talk-to when they are already
 --     held -- so that setup collapses the whole test into one dialogue and
