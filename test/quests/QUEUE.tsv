@@ -22,7 +22,7 @@ quest_clientofkourend	clientofkourend	clientofkourend		4	todo
 quest_cog	cog	clocktower		1	todo		
 quest_coldwar	coldwar	coldwar		4	todo		
 quest_contact	contact	contact		4	todo		
-quest_cook	cooks_assistant	cooksassistant		1	todo		
+quest_cook	cooks_assistant	cooksassistant		1	green	hand	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
 quest_currentaffairs	currentaffairs	currentaffairs		1	todo		

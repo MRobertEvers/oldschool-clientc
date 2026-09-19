@@ -11,7 +11,7 @@
 --
 --   * Giving all three ingredients (`::give egg/pot_flour/bucket_milk`)
 --     BEFORE ever talking to the Cook -- which the generator used to do in
---     `setup`, and now emits as `-- CHECK gather` markers instead -- is
+--     `setup`, and now emits as gather markers for the author instead -- is
 --     wrong for this quest. quest_cook.rs2's accept branch ([label,cooks_assistant_whats_wrong]
 --     case 1) checks `inv_total` for all three and jumps straight to
 --     `cooks_assistant_completion` in the SAME Talk-to when they are already
