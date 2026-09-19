@@ -5,6 +5,7 @@
  */
 #include "torirs_server_host.h"
 #include <assert.h>
+#include <signal.h>
 
 #include "torirs_server.h"
 #include "torirs_server_boot.h"
@@ -456,6 +457,61 @@ host_drain_queue(struct ToriRSServerHost* host)
 }
 
 /* ------------------------------------------------------------------ */
+/* Shutdown                                                            */
+/* ------------------------------------------------------------------ */
+
+/* Written by a signal handler, read by the loop. `sig_atomic_t` is the only
+ * type the C standard promises can be assigned there without tearing, and
+ * `volatile` is what stops the compiler hoisting the read out of the loop. */
+static volatile sig_atomic_t g_shutdown_requested;
+
+void
+ToriRSServer_HostRequestShutdown(void)
+{
+    g_shutdown_requested = 1;
+}
+
+int
+ToriRSServer_HostShutdownRequested(void)
+{
+    return g_shutdown_requested != 0;
+}
+
+/*
+ * Log every player out, which is what saves them.
+ *
+ * Deliberately not a save loop of its own. `host_conn_kill` -> LOGOUT job ->
+ * `host_conn_release` -> `ToriRSServer_WorldRemovePlayer` is the ONLY logout
+ * path this host has, and the save inside it is placed where the character is
+ * still whole (torirs_server_world.c says so at the call). A second path that
+ * walked the player table and called `ToriRSServer_SavePlayer` would be a
+ * second definition of what "logged out" means, and would drift from this one.
+ *
+ * Draining after the kills is what actually runs those jobs: `host_conn_kill`
+ * only queues them, and the loop is on its way out and will not reach
+ * `host_drain_queue` again.
+ */
+static void
+host_logout_everyone(struct ToriRSServerHost* host)
+{
+    int live = 0;
+
+    for( int i = 0; i < TORIRSSERVER_HOST_CONN_MAX; i++ )
+    {
+        if( host->conns[i].state == TORIRSSERVER_HOST_CONN_FREE ||
+            host->conns[i].state == TORIRSSERVER_HOST_CONN_CLOSING )
+            continue;
+        if( host->conns[i].session.player )
+            live++;
+        host_conn_kill(host, i);
+    }
+    fprintf(stderr,
+            "torirsserver: shutting down — saving %d player(s)\n",
+            live);
+    host_drain_queue(host);
+}
+
+/* ------------------------------------------------------------------ */
 /* Loop                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -488,6 +544,22 @@ ToriRSServer_HostRun(
         fd_set readable;
         fd_set writable;
         struct timeval timeout;
+
+        /*
+         * Checked here, at the top, because that is where every path lands:
+         * a signal makes select() fail with EINTR (select is never restarted
+         * by SA_RESTART, so `signal()`'s BSD semantics do not hide it), and
+         * the EINTR arm below `continue`s straight back to this line. With no
+         * signal at all the tick timeout brings us here within 600 ms, which
+         * is what Windows relies on — there a signal does not interrupt the
+         * select at all.
+         */
+        if( ToriRSServer_HostShutdownRequested() )
+        {
+            host_logout_everyone(host);
+            free(host);
+            return 0;
+        }
         int top = listener;
         int immediate = 0;
         long wait_ms;

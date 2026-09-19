@@ -63,13 +63,33 @@ enum
  * of that; it owns descriptors and the tick. `config` supplies the script pack
  * and the home tile a login builds the world around, and must outlive the call.
  *
- * Returns only on a listener that cannot be polled, which is not a condition
- * any client can cause.
+ * Returns on a listener that cannot be polled — which is not a condition any
+ * client can cause — or once a shutdown has been requested and every player
+ * has been logged out and saved.
  */
 int
 ToriRSServer_HostRun(
     struct ToriRSServer* srv,
     const struct ToriRSServerBootConfig* config,
     int listener);
+
+/**
+ * Ask the loop to stop at the top of its next pass.
+ *
+ * SIGNAL-HANDLER SAFE, and that is the whole reason it exists: it only sets a
+ * `volatile sig_atomic_t`. A handler cannot write a player save itself —
+ * `ToriRSServer_SavePlayer` allocates, opens files and walks the bank, none of
+ * which is async-signal-safe — so the save has to happen on the loop's own
+ * thread, which is what `ToriRSServer_HostRun` does when it sees this flag.
+ *
+ * Calling it more than once is the same as calling it once, so a second
+ * Ctrl-C does not race the shutdown already in progress.
+ */
+void
+ToriRSServer_HostRequestShutdown(void);
+
+/** Whether `ToriRSServer_HostRequestShutdown` has been called. */
+int
+ToriRSServer_HostShutdownRequested(void);
 
 #endif
