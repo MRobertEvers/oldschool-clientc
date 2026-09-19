@@ -5226,10 +5226,14 @@ frame_loop_teardown(void)
             stats.bus_volume[TORIRS_AUDIO_BUS_EFFECTS],
             stats.bus_volume[TORIRS_AUDIO_BUS_MUSIC],
             stats.bus_volume[TORIRS_AUDIO_BUS_AREA]);
+        /* "callbacks" is wrong on a lane whose schedule is fed from the frame
+         * loop, where the count is Updates. The device period is the tell:
+         * only a callback lane has one. */
         TORIRS_LOG(
-            "audio: %d callbacks, %d underruns, period %.2f ms, "
+            "audio: %d %s, %d underruns, period %.2f ms, "
             "interval %.2f/%.2f/%.2f ms, jitter peak %.2f ms, render peak %.2f ms\n",
             stats.updates,
+            stats.callback_period_ms > 0.0 ? "callbacks" : "updates",
             stats.underruns,
             stats.callback_period_ms,
             stats.update_interval_min_ms,
@@ -5238,7 +5242,8 @@ frame_loop_teardown(void)
             stats.callback_jitter_max_ms,
             stats.render_max_ms);
         TORIRS_LOG(
-            "audio: stream ring %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
+            "audio: %s %d/%.1f/%d frames (now %d), capture dropped %d frames\n",
+            stats.callback_period_ms > 0.0 ? "stream ring" : "schedule depth",
             stats.queue_min_frames,
             stats.queue_mean_frames,
             stats.queue_max_frames,
@@ -7634,6 +7639,16 @@ main(
              * that drops it. */
             App_SetAudioDevicePresent(&app, false);
         }
+        /*
+         * The music player is a generator the mixer pulls, so on a backend with
+         * a device thread the render reaches into its synth. Hand it that
+         * thread's lock: without this every song change races the render.
+         * Zeroed, and free, on the backends that render from the frame loop.
+         */
+        ToriRS_Music_SetExclusion(&app.audio.music, PlatformAudio_Exclusion(audio));
+        /* And size its synth for that backend's block, so the first song does
+         * not grow the accumulator on the device thread. */
+        ToriRS_Music_Reserve(&app.audio.music, PlatformAudio_BlockFrames(audio));
 
         /* TORIRS_SIM_SONG / TORIRS_SIM_JINGLE=<id>: start a music track or a
          * jingle once the client is up. The only way to hear the synth without

@@ -76,6 +76,18 @@ struct ToriRS_MusicPlayer
     struct ToriRS_SoundBank bank;
     struct ToriRS_MidiSynth synth;
 
+    /**
+     * The backend's render exclusion, or a zeroed handle where the backend has
+     * no device thread.
+     *
+     * The player is a pull source: the mixer holds `music_source_render` with
+     * this player as its ctx, so on a callback backend the device thread is
+     * inside `synth` whenever a song is sounding. Every path here that tears
+     * the synth down or rewires it therefore holds this first. Set once, by
+     * ToriRS_Music_SetExclusion, before any song is installed.
+     */
+    struct ToriRS_AudioExclusion exclusion;
+
     /** The Vorbis setup shared by every music sample (index 14 archive 0).
      *  Loaded once and kept: it is a few kilobytes and every sample needs it. */
     struct RSCache_VorbisSetup* vorbis_setup;
@@ -145,6 +157,31 @@ struct ToriRS_MusicPlayer
 
 void
 ToriRS_Music_Init(struct ToriRS_MusicPlayer* player);
+
+/**
+ * Hand the player the backend's render exclusion.
+ *
+ * Call once at startup with `PlatformAudio_Exclusion(audio)`. Without it the
+ * player keeps a zeroed handle, which is correct only for a backend that
+ * renders on the frame loop; on SDL2 or Android, leaving it unset races the
+ * device thread against every song change.
+ */
+void
+ToriRS_Music_SetExclusion(
+    struct ToriRS_MusicPlayer* player,
+    struct ToriRS_AudioExclusion exclusion);
+
+/**
+ * Size the synth's render scratch for a device block of `frames`.
+ *
+ * The synth is pulled from inside the backend's render, so on a callback
+ * backend growing it happens on the device thread. Call once at startup with
+ * the device's block size.
+ */
+void
+ToriRS_Music_Reserve(
+    struct ToriRS_MusicPlayer* player,
+    int frames);
 
 /** Free the bank, the synth, the song and the scratch. */
 void

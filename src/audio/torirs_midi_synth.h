@@ -221,6 +221,18 @@ ToriRS_MidiSynth_PlayFrom(
     bool looping,
     int start_tick);
 
+/**
+ * Grow the render accumulator to `frames` now, so Render never reallocs later.
+ *
+ * Called with the device's block size once the backend is open. Two backends
+ * pull this synth on a device thread (SDL2, Android), and a realloc there is a
+ * malloc lock taken in a real-time callback.
+ */
+void
+ToriRS_MidiSynth_Reserve(
+    struct ToriRS_MidiSynth* synth,
+    int frames);
+
 bool
 ToriRS_MidiSynth_Finished(const struct ToriRS_MidiSynth* synth);
 

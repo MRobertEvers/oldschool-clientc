@@ -344,6 +344,27 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     }
 }
 
+int
+PlatformAudio_BlockFrames(struct PlatformAudio* audio)
+{
+    return audio ? WASM_AUDIO_BLOCK_FRAMES : 0;
+}
+
+struct ToriRS_AudioExclusion
+PlatformAudio_Exclusion(struct PlatformAudio* audio)
+{
+    struct ToriRS_AudioExclusion exclusion;
+
+    /*
+     * Nothing to exclude: this backend renders from the frame loop, on the same
+     * thread the game mutates from. The zeroed handle's acquire and release are
+     * no-ops, so the game locks unconditionally and pays nothing here.
+     */
+    (void)audio;
+    memset(&exclusion, 0, sizeof(exclusion));
+    return exclusion;
+}
+
 void
 PlatformAudio_Feedback(
     struct PlatformAudio* audio,

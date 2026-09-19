@@ -1539,6 +1539,120 @@ manifests platform-neutral unless they are intended for one lane only.
   [`src/game/rs_cs2_host.c`](../src/game/rs_cs2_host.c),
   [`src/cmd/cmdbus.h`](../src/cmd/cmdbus.h)
 
+### ANDROID-CHROME-001 - There is no chrome executor, so a plugin has no launcher
+
+- **Status:** Open gap
+- **Applies to:** Android (and any other lane whose chrome falls back to
+  BUFFER, but on desktop the pop-out column covers for it)
+- **Behavior:** a screen-space plugin overlay draws on the phone -- the
+  performance display is the one verified on the XT1060 -- but there is no
+  plugin rail and no way to open a plugin PAGE. `Manage Plugins`, the XP
+  tracker panel and every other windowed plugin are unreachable, with nothing
+  on screen saying so.
+- **Cause or reason:** three things stack, and only the third is Android's.
+  1. `platform.mk` leaves `PLATFORM_CHROME_EXEC_SRC` empty for this lane
+     (`platform.mk:839`), so `torirs_chrome_exec.c` binds its internal BUFFER
+     sink. This is deliberate and enforced: `LANE_FORBID_android` names
+     `TORIRS_CHROME_EXEC_WEB_AVAILABLE`,
+     `TORIRS_CHROME_EXEC_BROWSER_AVAILABLE` and both sources, and
+     `CHROME_EXEC_FORBID_LEGACY` names the deleted
+     `ui/torirs_chrome_exec_android.c`. The WebView that used to be here was
+     removed for the memory and thread cost measured in
+     `docs/android_architecture.md`.
+  2. The rail's page allocation is **presenter-owned** --
+     `app->plugin_rail_layout` is filled only by an executor that publishes
+     `ToriRSChromeRailIntent` (`torirs_chrome_exec_web.c`,
+     `torirs_chrome_exec_winbrowser.c`, `platform_win32gdi.c`). BUFFER
+     publishes none, so there is no rail geometry to press.
+  3. The engine's second launcher, the pop-out nav column, needs
+     `[role:plugin_nav_column]` (interface 728 child 6) **on screen**. The
+     mobile toplevel mounts 728 hidden, and a hidden column hands its
+     destinations back to the rail by design
+     (`revconfig/osrs239/osrs239_dat2_cache.ini`,
+     `src/plugin/torirs_plugin_popout_nav.u.c`). That is why Linux -- BUFFER
+     chrome too -- is fine and the phone is not: on desktop the column is
+     visible and does the job.
+  4. The third launcher is a profile-authored component carrying
+     `option_action=PLUGIN_PANEL`, which `app_minimenu.c` turns into
+     `app_plugin_window_set_open`. Only `revconfig/rs245_2lc` authors one
+     (`manage_plugins_button`, bottom of the logout tab). The osrs239 dat2
+     profile authors none, because on desktop it has the nav column.
+- **What is NOT missing:** the window itself. BUFFER is, in
+  `torirs_chrome_exec.h`'s words, "an internal sink for that stream because
+  the same model already draws itself in the game canvas" -- `app->plugin_ui`
+  is a full `ToriRSChrome` with widgets, dropdowns and focus, and
+  `app_chrome.c` emits its primitives into the frame. So the missing piece is
+  a **launcher**, not a WebView port, which is a much smaller job than the
+  removed executor was. `TORIRS_CMD_PLUGIN_CHROME_TOGGLE` is already wired
+  from the command bus to that call in `app_frame.c` and has **no producer
+  anywhere in the tree**; a caller for it is the smallest launcher there is.
+  (`ui/torirs_chrome_panel_draw.c` is NOT this path -- it transforms
+  plugin-authored panel primitives, and today only its test calls it.)
+- **A fourth launcher now exists, on the Stone Drawer.** The mobile gameframe
+  (`plugin/plugins/mobile_gameframe.c`) carries a third switch beside its chat
+  and keyboard switches -- the OSRS wrench, sprite 785 -- which calls
+  `client.plugin_window_show`. A frame that has replaced the lane's chrome
+  inherits the ways into the client's own windows the way it already inherits
+  the tab strip. Verified on the XT1060 on 2026-09-19: tapping it logs
+  `chrome: plugin window executor = buffer (default)` and the roster draws
+  in-canvas with working toggles.
+- **What is still open:** the switch is on the STONE DRAWER, and
+  `preferred_frame=auto` on an OldSchool cache deliberately means the cache's
+  own mobile toplevel (interface 601), not this frame -- "selecting this frame
+  on an OldSchool lane is how a player gets that look back". So the phone's
+  default configuration still has no launcher. Reaching it there wants the
+  third kind: an `option_action=PLUGIN_PANEL` component authored in
+  `revconfig/osrs239` for the mobile toplevel, the way `revconfig/rs245_2lc`
+  authors `manage_plugins_button`.
+- **And a smaller one:** on a phone the plugin window covers the switch row, so
+  the switch cannot close what it opened. The window's own title-bar X does.
+- **Verification:** boot the phone lane with `TORIRS_PLUGINS=1` and a plugin
+  set that has both kinds. With `preferred_frame=auto` the screen-space overlay
+  appears, no rail appears, and there is no way to open a page.
+  `TORIRS_FRAME_ROLE_AUDIT=1` prints which frame won; the Stone Drawer is
+  `preferred_frame=mobile-gameframe/stone-drawer` in `preferences.ini`, and the
+  id must be **qualified** -- a bare `stone-drawer` is rejected with
+  `plugin: invalid saved gameframe`.
+- **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`src/app.h`](../src/app.h),
+  [`src/ui/torirs_chrome_panel_draw.h`](../src/ui/torirs_chrome_panel_draw.h),
+  [`src/plugin/torirs_plugin_popout_nav.u.c`](../src/plugin/torirs_plugin_popout_nav.u.c),
+  [`docs/android_architecture.md`](android_architecture.md)
+
+### ANDROID-IO-001 - Plugins can come from io_server; they do not have to be pushed
+
+- **Status:** Contract
+- **Applies to:** Android (and every other native lane -- this is the shared
+  executor, not a browser path)
+- **Behavior:** with `TORIRS_IO_SERVER=<host>[:<port>]` in the data root's
+  `env.txt`, or `[io] host=/port=` in the boot manifest, the phone loads
+  `script/plugins/plugins.ini`, the Lua each entry names, and each shipped
+  asset over HTTP as a plugin asks for it. `tools/android_push_data.sh` is
+  then only the cache.
+- **Cause or reason:** `stored_file_read` in `platform_x_io.c` has two legs --
+  the data root, then `GET /boot/<path>` on the named server -- and
+  `platform_x_http.c` is linked on this lane. Nothing about leg 2 is
+  browser-only; the web lane is simply the one that has always had to use it.
+  Nothing is written back to the data root, deliberately: a local copy is how a
+  device ends up running plugins nobody has looked at in weeks. That is not
+  hypothetical -- on 2026-09-19 this phone was loading a performance overlay
+  from a copy pushed on 2026-09-03, whose Lua predated the V2 plugin definition
+  the client had since started requiring, and the only symptom was "plugin
+  table must declare a non-empty V2 id".
+- **Precedence:** `TORIRS_IO_SERVER` wins over the manifest and is remembered
+  as such (`io_server_from_env`), so a one-off debugging run cannot be silently
+  undone by a manifest read afterwards. An empty manifest host means "no
+  opinion", not "off". Both sides default to port 8088.
+- **Verification (XT1060, 2026-09-19):** rename `script/plugins` away on the
+  device, point `TORIRS_IO_SERVER` at the Mac, boot. `io_server -v` logs
+  `200 ./script/plugins/plugins.ini`, then `performance_display.lua` (11456
+  bytes) and every asset, **each fetched exactly once**, and the overlay draws.
+- **Sources:** [`src/platform/platform_x_io.c`](../src/platform/platform_x_io.c),
+  [`src/platform/platform_x_io.h`](../src/platform/platform_x_io.h),
+  [`src/bootmanifest/bootmanifest.c`](../src/bootmanifest/bootmanifest.c),
+  [`src/ioserver/io_server_main.c`](../src/ioserver/io_server_main.c)
+
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 
 - **Status:** Resolved defect
@@ -1692,6 +1806,56 @@ manifests platform-neutral unless they are intended for one lane only.
   -- the first Update always finds an empty schedule -- so `underruns` is the
   metric to read, not that one.
 - **Source:** [`src/platform/platform_audio_wasm.c`](../src/platform/platform_audio_wasm.c)
+
+### AUDIO-THREAD-001 - Two backends render on a device thread
+
+- **Status:** Implemented
+- **Applies to:** Desktop (SDL2) and Android (OpenSL ES)
+- **Behavior:** `ToriRS_Mixer_Render` is called from SDL's audio thread and from
+  OpenSL ES's callback thread, at the device's cadence rather than the frame
+  loop's. Each backend owns the exclusion and publishes it through
+  `PlatformAudio_Exclusion`; the web and null backends render on the frame loop
+  and hand back a zeroed handle. The rule is wider than "the backend locks its
+  own entry points", because Render calls a pull source's `render` with the
+  game's own ctx: **everything the device thread can reach is mutated only under
+  that exclusion**, which includes the music player's synth and soundbank.
+  `ToriRS_Music_SetExclusion` is how it gets there.
+- **Reason:** SDL2 moved from `SDL_QueueAudio` to callback mode so a loading
+  stall could not drain the queue, and the Android backend copied that shape.
+  Neither is a thread this tree creates, which is why the mixer's header claimed
+  for a while that there were none.
+- **Two things it forbids, both of which were bugs:**
+  - Render must not allocate. `ToriRS_Mixer_Reserve` and
+    `ToriRS_MidiSynth_Reserve` size the scratch at Init instead; before them the
+    first song of a run `realloc`'d inside the audio callback.
+  - Applying a command must not allocate inside the lock. `ToriRS_Mixer_Stage`
+    copies each ASSET_LOAD's PCM on the game thread first, so a scene rebuild's
+    worth of them does not hold the device out for every memcpy.
+- **Source:** [`src/audio/torirs_mixer.h`](../src/audio/torirs_mixer.h),
+  [`src/platform/platform_audio_sdl2.c`](../src/platform/platform_audio_sdl2.c),
+  [`src/platform/platform_audio_opensles.c`](../src/platform/platform_audio_opensles.c)
+
+### AUDIO-MUSIC-001 - A song is retired before the next one's loader runs
+
+- **Status:** Implemented
+- **Applies to:** All platforms
+- **Behavior:** `ToriRS_Music_Tick` releases the outgoing song and closes its
+  stream as soon as a request is pending with no fade-out left, before
+  `ToriRS_Music_TakeLoadRequest` will hand the loader anything. app_tick.c calls
+  them in that order, so the loader still starts on the same tick.
+- **Reason:** The loader grows the soundbank, and growing it `realloc`s
+  `bank->patches` and `bank->samples` -- while a live `ToriRS_MidiNode` holds raw
+  pointers into both (`node->patch`, `node->sound`). The fade path was already
+  safe, because TakeLoadRequest refuses while `fade_ticks > 0` and fade-end
+  releases. A fade-out of **zero** has no such tick, and that is every jingle
+  (`RS_Audio_Jingle` requests 0/0), so a jingle over a playing track moved the
+  arrays under the track's live notes. Not a threading bug -- it happened on
+  every lane.
+- **Verification:** `test_music_jingle_retires_outgoing_before_load` in
+  `src/audio/test/audio_test.c`. It fails four checks against the code before
+  this (the outgoing song is still current, its stream still open, no
+  ASSET_UNLOAD queued).
+- **Source:** [`src/audio/torirs_music.c`](../src/audio/torirs_music.c)
 
 ### WEB-NET-001 - Browser sockets require a WebSocket endpoint
 
