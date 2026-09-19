@@ -254,9 +254,34 @@ app_logout_tick(struct App* app)
         return true;
     }
 
-    /* The IF_BUTTON is already in the outbound ring -- the caller of the
-     * clientCode handler put it there, which is the whole reason the request
-     * is drained a tick late. Nothing more goes out; the answer comes back. */
+    /*
+     * A second click while the first is still waiting does NOT restart the
+     * clock.
+     *
+     * The deadline belongs to the request, and the request has already been
+     * made -- this click's IF_BUTTON goes out beside the first one's, and the
+     * server answers whichever it likes. Re-arming here instead is what turned
+     * a slow button into a dead one: a person who clicks again because nothing
+     * happened pushes the fallback out by another five seconds, and a person
+     * who keeps clicking never reaches it at all. The fallback is ours, not
+     * the reference's (@see APP_LOGOUT_WAIT_CYCLES), so its "five seconds from
+     * when you asked" is ours to mean literally.
+     */
+    if( app->logout_wait_cycles > 0 )
+        return false;
+
+    /*
+     * The IF_BUTTON is already in the outbound ring, which is the whole reason
+     * the request is drained a tick late. Nothing more goes out; the answer
+     * comes back.
+     *
+     * Both lanes put it there before the script that asks for the logout even
+     * runs -- CS1 in the caller of the clientCode handler, CS2 in the numbered
+     * op send (app_minimenu.c), which arms from the cache's own clickmask when
+     * the server has declared no events for the component. `logout.if` gives
+     * 182:8 clickmask=2, so op1 is armed and `[if_button,logout:logout]` is
+     * what the server answers with.
+     */
     app->logout_wait_cycles = APP_LOGOUT_WAIT_CYCLES;
     TORIRS_LOG("logout: requested; waiting for the server\n");
     return false;
@@ -314,8 +339,16 @@ app_net_tear_down_session(
      * `lostCon` (Client.ts:2735): logoutTimer up, log out, do not redial.
      * Redialling here would put the player back into the world they asked to
      * leave, and would do it automatically.
+     *
+     * The armed wait is not the whole of "asked to leave": a server that
+     * answers PROMPTLY answers inside the same tick the click was sent in,
+     * before `app_logout_tick` has drained the request into a wait at all.
+     * That is the good case -- `[if_button,logout:logout]` running `p_logout`
+     * -- and reading it as a lost link put "Connection lost" and a redial in
+     * front of a logout that had already succeeded. The undrained request
+     * counts too.
      */
-    if( app->logout_wait_cycles > 0 )
+    if( app->logout_wait_cycles > 0 || app->logout_requested )
     {
         TORIRS_LOG("logout: server closed the session (%s)\n", why);
         App_Logout(app);
