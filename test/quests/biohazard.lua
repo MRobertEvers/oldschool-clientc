@@ -170,34 +170,22 @@ return {
             "by_symbol(loc,biowatchtower_op) -> " .. tostring(watchtower_lookup))
         t.exec("useBirdfeedOnWatchtower", t.player.use_on, "birdfeed", watchtower_target)
         t.ticks(2)
-        -- DIAGNOSTIC (measured run 3): neither "You throw a handful of
-        -- seeds..." nor the dm_default fallback "Nothing interesting
-        -- happens." appeared after the use_on, and the stage read back 2
-        -- (spoken_jerico), not 3 -- checking whether birdfeed itself was
-        -- even consumed to tell a silent no-trigger apart from a delayed one.
-        local diag_birdfeed_result, diag_birdfeed_count = t.inv.count("birdfeed")
-        local diag_msg_result, diag_msg_list = t.msg.last(6)
-        local diag_msg_text = ""
-        if diag_msg_result == "ok" and type(diag_msg_list) == "table" then
-            for _, entry in ipairs(diag_msg_list) do
-                diag_msg_text = diag_msg_text .. "|" .. tostring(entry.text)
-            end
-        end
-        t.step("diag.postUseOn", diag_msg_result == "ok" and "PASS" or "FAIL",
-            string.format("inv.count(birdfeed) -> %s (%s); msg.last(6) -> %s %s",
-                tostring(diag_birdfeed_result), tostring(diag_birdfeed_count),
-                tostring(diag_msg_result), diag_msg_text))
-        -- NOT t.expect(quest.stage.used_birdfeed): that assertion is known to
-        -- FAIL (this is the blocker itself, established just above by
-        -- diag.postUseOn's birdfeed-uncomsumed/no-message evidence), and
-        -- gate.py's definition of done fails the WHOLE ledger red on any
-        -- FAIL row even when the run ends BLOCKED (section 7: "Every
-        -- ledger.tsv row is PASS"). quest.stage.spoken_jerico above already
-        -- satisfies the ">=1 quest.* row" minimum shape rule.
-        local wt_stage_result, wt_stage_value = t.quest.stage()
-        t.check("watchtower.stageUnchanged", wt_stage_result == "ok" and wt_stage_value == 2,
-            string.format("quest.stage() -> %s %s (still spoken_jerico=2, not used_birdfeed=3 -- useBirdfeedOnWatchtower's use_on never reached the trigger)",
-                tostring(wt_stage_result), tostring(wt_stage_value)))
+        -- RETRY after 73a4251d0: QD.player._reach_retry now walks a loc's
+        -- other approach tiles when the server first answers "I can't reach
+        -- that!" (and no longer grades that refusal PASS on the map_flag
+        -- settle arm), so use_on's press -- previously refused from every
+        -- side probed here -- now lands for real (measured: reached from
+        -- approach tile 3 of 29) and [oplocu,biowatchtower_op]
+        -- (quest_biohazard_locs.rs2:58-66) runs: birdfeed is consumed and
+        -- %biohazard advances spoken_jerico(2) -> used_birdfeed(3). The old
+        -- diag.postUseOn/watchtower.stageUnchanged rows here asserted the
+        -- PRE-fix bug (no message, stage stuck at 2); replaced below with
+        -- the fixed behaviour and the quest driven on.
+        local birdfeed_left_result, birdfeed_left = t.inv.count("birdfeed")
+        t.check("birdfeed.consumed", birdfeed_left_result == "ok" and (birdfeed_left or 0) == 0,
+            string.format("inv.count(birdfeed) -> %s (%s), expected 0 -- consumed by [oplocu,biowatchtower_op]",
+                tostring(birdfeed_left_result), tostring(birdfeed_left)))
+        t.expect("quest.stage.used_birdfeed", t.quest.expect_stage("used_birdfeed"))
 
         -- Pick up the (empty) pigeon cage behind Jerico's house -- a ground
         -- OBJ (areas/world/configs/m40_51.spawn:116-118), never handed over
@@ -213,86 +201,61 @@ return {
             string.format("click_obj(pigeoncage) -> %s (%s); pigeoncage %s -> %s",
                 tostring(cage_pickup_result), tostring(cage_pickup_detail), tostring(cage_before), tostring(cage_after)))
 
-        -- ---- The seam: nothing in this content pack ever fills the cage. ----
+        -- ---- The remaining seam: nothing in this content pack ever fills
+        -- the cage. ----
         --
         -- [opheld1,pigeons] (quest_biohazard_locs.rs2:69-79) is the ONLY
         -- trigger that writes ^biohazard_released_pigeons (state 3->4), and
-        -- it fires on the HELD item "pigeons" (the FULL cage, a distinct
-        -- obj id from "pigeoncage" the ground spawn actually grants -- all.obj:5609
-        -- "pigeons"/"It's full of pigeons." vs all.obj:5625 "pigeoncage"/
-        -- "It's empty..."). No [opheldu,pigeoncage], [oplocu,*] or any other
-        -- trigger anywhere under OSRS-Content/ ever converts a carried
-        -- "pigeoncage" into "pigeons" (whole-tree grep: `grep -rn pigeoncage
-        -- OSRS-Content/` finds only the reset, this same trigger's own
-        -- inv_add(inv, pigeoncage, 1) on RELEASE, and the three ground spawn
-        -- rows -- never a producer of the full "pigeons" item). Both of this
+        -- it fires on the HELD item "pigeons" ("Pigeon cage" / "It's full of
+        -- pigeons.", all.obj:5609, ifop1=Open) -- a distinct obj id from
+        -- "pigeoncage" ("Pigeon cage" / "It's empty...", all.obj:5625, no
+        -- ifop line at all) that the ground spawn behind Jerico's house
+        -- actually grants (areas/world/configs/m40_51.spawn:116-118, three
+        -- rows, all "pigeoncage"). No trigger anywhere under OSRS-Content/
+        -- ever converts a carried "pigeoncage" into "pigeons" -- whole-tree
+        -- grep (`grep -rn pigeoncage OSRS-Content/`) finds only the varp
+        -- reset (quest_biohazard.rs2:70), [opheld1,pigeons]'s own
+        -- inv_add(inv, pigeoncage, 1) on release, and the three ground spawn
+        -- rows -- never a producer of the full "pigeons" item. Both of this
         -- checkout's own C++ selftests confirm the gap by cheating past it
         -- instead of driving it: src/torirsserver/test/quest_biohazard_selftest.u.h:437-439
         -- calls `selftest_give(player, obj_pigeons, 1)` immediately before
         -- firing SS_TRIGGER_OPHELD1 by hand, and
         -- src/torirsserver/torirs_server_world_selftest.c:49160-49161 does
-        -- the same with `inv_set(player, 0, obj_pigeons, 1)`. docs/quests/biohazard.md's
-        -- own Gate-D PASS log (`release_pigeons trigger=opheld1,pigeons`)
-        -- is that same cheat-injected run, not a legitimate click chain.
+        -- the same with `inv_set(player, 0, obj_pigeons, 1)`.
         --
-        -- Probe below: press the EMPTY cage's own op1 (the same op number
-        -- [opheld1,pigeons] uses) while standing in the release zone
+        -- Probe: walk back to the release zone and press the (empty) cage's
+        -- own op1 -- the same op number [opheld1,pigeons] uses -- while
+        -- standing where that trigger checks
         -- (inzone(0_39_51_63_35, 0_40_51_5_43), quest_biohazard_locs.rs2:70)
-        -- to confirm no matching [opheld1,pigeoncage] trigger exists and the
-        -- state never advances.
+        -- to confirm no [opheld1,pigeoncage] trigger exists and the state
+        -- never advances.
+        t.exec("goto-releasePigeons", t.player.goto_tile, 2562, 3301, 0)
         local probe_result, probe_detail = t.player.inv_op("pigeoncage", 1)
         t.check("pigeoncage.releaseProbe", probe_result ~= nil,
             "inv_op(pigeoncage, 1) in the release zone -> " .. tostring(probe_result) .. " (" .. tostring(probe_detail) .. ")")
+        local release_stage_result, release_stage_value = t.quest.stage()
+        t.check("watchtower.stageStillUsedBirdfeed", release_stage_result == "ok" and release_stage_value == 3,
+            string.format("quest.stage() -> %s %s (still used_birdfeed=3, not released_pigeons=4 -- pressing the empty cage's own op1 has no [opheld1,pigeoncage] trigger to run)",
+                tostring(release_stage_result), tostring(release_stage_value)))
 
-        -- The TRUE first blocker is earlier than the pigeoncage/pigeons gap
-        -- above: %biohazard never left spoken_jerico (2) in this run at all,
-        -- because useBirdfeedOnWatchtower's use_on never reached
-        -- [oplocu,biowatchtower_op] (quest_biohazard_locs.rs2:58-66) -- see
-        -- the diag.postUseOn/watchtower.locate rows above. world.loc_near
-        -- confirms the live scene's biowatchtower_op sits at exactly
-        -- 2562,3301,0 (match=base, id=37328) -- the same tile the goto and
-        -- the step-off already used -- so this is not a wrong-coordinate
-        -- guess. investigateWatchtower's plain click_loc succeeds from that
-        -- identical stepped-off tile with no error, but the held-item
-        -- use_on attempt from the same spot answers with a genuine
-        -- "I can't reach that!" in the chat log (diag.postUseOn's
-        -- msg.last(6) capture), and neither the success line ("You throw a
-        -- handful of seeds onto the watch tower") nor the dm_default
-        -- fallback ("Nothing interesting happens.") ever printed --
-        -- birdfeed also stayed uncomsumed (inv.count == 1 throughout),
-        -- confirming [oplocu,biowatchtower_op] itself never ran. This
-        -- matches test/quests/fishingcompo.lua's own documented use_on
-        -- reachability seam (pointer.lua's far-side retry only re-presses
-        -- on a `covered` answer, never on a hard "can't reach" pathing
-        -- failure) rather than anything wrong with this quest file's target
-        -- or item. The downstream pigeoncage/pigeons gap probed just above
-        -- is a second, real defect in the quest's own scripts (no trigger
-        -- anywhere under OSRS-Content/ ever turns a carried 'pigeoncage'
-        -- into the 'pigeons' item [opheld1,pigeons] requires -- confirmed by
-        -- both of this checkout's own selftests cheating past it with
-        -- selftest_give/inv_set instead of driving it,
-        -- src/torirsserver/test/quest_biohazard_selftest.u.h:437-439 and
-        -- src/torirsserver/torirs_server_world_selftest.c:49160-49161), but
-        -- it is unreached by a real player -- the watchtower use_on failure
-        -- stops the quest first.
-        t.blocked("test/quests/biohazard.lua's useBirdfeedOnWatchtower: t.player.use_on(\"birdfeed\", " ..
-            "biowatchtower_op) never reaches quest_biohazard_locs.rs2:58-66 [oplocu,biowatchtower_op] " ..
-            "from the loc's own confirmed tile (world.loc_near -> 2562,3301,0, match=base, id=37328, " ..
-            "the same tile investigateWatchtower's plain click_loc already presses without error). " ..
-            "The chat log's last lines read '" .. diag_msg_text .. "' -- a genuine \"I can't reach that!\" " ..
-            "pathing refusal, not the seed-throwing success line or the dm_default fallback -- and birdfeed " ..
-            "stayed at count 1 (never consumed), so [oplocu,biowatchtower_op] never ran and %biohazard " ..
-            "cannot leave spoken_jerico (2). This is the driver's use_on reachability seam " ..
-            "test/quests/fishingcompo.lua already documents (pointer.lua's far-side retry re-presses only " ..
-            "on a `covered` answer, never on a hard unreachable-pathing refusal), not a wrong target or " ..
-            "item in this file. Downstream of that: even if reachability is fixed, quest_biohazard_locs.rs2:69-79 " ..
-            "[opheld1,pigeons] is the only writer of ^biohazard_released_pigeons and keys on the HELD item " ..
-            "'pigeons' (all.obj:5609), never the 'pigeoncage' the ground spawn at areas/world/configs/m40_51.spawn:116-118 " ..
-            "actually grants (all.obj:5625) -- no trigger anywhere under OSRS-Content/ converts one into the " ..
-            "other (probed above: pressing pigeoncage's own op1 in the release zone answered '" ..
-            tostring(probe_result) .. ": " .. tostring(probe_detail) .. "'), and both of this checkout's own " ..
-            "selftests reach state 4 only by cheating obj_pigeons in directly " ..
-            "(quest_biohazard_selftest.u.h:437-439 selftest_give; torirs_server_world_selftest.c:49160 inv_set).")
+        t.blocked("content_bug: quest_biohazard_locs.rs2:69-79 ([opheld1,pigeons]) is the only " ..
+            "writer of ^biohazard_released_pigeons and keys on the HELD item 'pigeons' (all.obj:5609, " ..
+            "\"Pigeon cage\"/\"It's full of pigeons.\", ifop1=Open), never the 'pigeoncage' item " ..
+            "(all.obj:5625, \"Pigeon cage\"/\"It's empty...\", no ifop line at all) the ground spawn " ..
+            "behind Jerico's house actually grants (areas/world/configs/m40_51.spawn:116-118, three " ..
+            "rows, all 'pigeoncage'). No trigger anywhere under OSRS-Content/ converts a carried " ..
+            "'pigeoncage' into 'pigeons' -- pickupPigeonCage above is this pack's only source of the " ..
+            "item and it granted 'pigeoncage', and pressing that item's own op1 in the release zone " ..
+            "(pigeoncage.releaseProbe) answered '" .. tostring(probe_result) .. ": " .. tostring(probe_detail) ..
+            "' with %biohazard staying at used_birdfeed=3 (watchtower.stageStillUsedBirdfeed), not " ..
+            "released_pigeons=4. Both of this checkout's own selftests reach state 4 only by cheating " ..
+            "obj_pigeons in directly (src/torirsserver/test/quest_biohazard_selftest.u.h:437-439 " ..
+            "selftest_give; src/torirsserver/torirs_server_world_selftest.c:49160-49161 inv_set), " ..
+            "confirming no click chain reaches it either. This is now the quest's own first remaining " ..
+            "stopper: 73a4251d0's reach-retry fix cleared the earlier driver seam here " ..
+            "(useBirdfeedOnWatchtower now lands for real, see quest.stage.used_birdfeed above), so what " ..
+            "is left is the missing pigeoncage->pigeons conversion, a content defect, not a driver one.")
         return
     end,
 }
