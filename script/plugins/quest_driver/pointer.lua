@@ -529,6 +529,17 @@ function QD.player._step_off_for_click(target)
     if target.kind ~= "loc" then
         return "ok", nil
     end
+    -- SEAM loc_approach_reach: the ONE caller that wants the player left on
+    -- the loc's own square, and says so on the target it hands down.  A wall
+    -- decoration (all.loc shape1=4) is served from its own tile and from
+    -- nowhere else -- fishingcompo's `garlicpipe` is reached from 2638,3446
+    -- and refuses all four neighbours (build/quest_gate/seam_reach_p1) -- so
+    -- the standoff this function exists to take is, for that press, the whole
+    -- reason it cannot land.  Nothing but QD.player._reach_retry sets this,
+    -- and it clears it again as soon as its press is taken.
+    if target.reach_no_standoff then
+        return "ok", nil
+    end
     local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
     if tile_result ~= "ok" then
         return tile_result, nil
@@ -660,6 +671,14 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
     local detail = nil
     local attempt = 0
     local hunted = false
+    -- Every pose this loop actually framed, and where the target projected at
+    -- it.  Collected as the loop goes -- no extra camera move, no extra
+    -- projection -- because the last resort below has to choose WHICH pose to
+    -- hunt at, and a pose it has not framed is a pose it cannot rank.
+    -- `framed_pose` is the pose the camera is at right now, 0 being the one
+    -- _ensure_visible left it at.
+    local seen = {}
+    local framed_pose = 0
     while true do
         local result
         result, detail = QD.drive._press_row(target, pos, action, deadline)
@@ -697,33 +716,118 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
             -- failed every other way, so nothing that passes today can move.
             if not hunted then
                 hunted = true
-                -- ONE hunt, at the pose this loop has already reached, and
-                -- that budget is a measurement too.  Sweeping every pose
-                -- again and hunting at each is what cog's black spindle
-                -- actually needs (a high, close pose carries the model off
-                -- the top of the viewport -- 36 of 57 candidates
-                -- off-viewport at the last pose, a clean hit at the first),
-                -- and it takes Clock Tower to 37/37 -- but the cost lands on
-                -- every transient `covered` anywhere in a run, and it took
-                -- Elemental Workshop I and Pirate's Treasure from green to
-                -- red on the full suite (2026-09-20, measured twice each).
-                -- The pixel is right and the budget is not: a hunt that can
-                -- afford five poses needs a probe cap first, and that is a
-                -- seam of its own rather than something to leave loaded here.
-                local hovered, hunt_detail = QD.drive._hover_onto(target, pos, deadline)
-                if hovered then
-                    if before_retry then
-                        local arm_result, arm_detail = before_retry()
-                        if arm_result ~= "ok" then
-                            return arm_result, arm_detail
-                        end
-                    end
-                    result, detail = QD.drive._press_row(target, hovered, action, deadline)
-                    if result ~= "covered" then
-                        return result, detail
+                -- SEAM press_pixel_and_pose_budget (2026-09-20) -- WHICH POSE
+                -- THE HUNT RUNS AT, now that a probe cap exists to pay for it.
+                --
+                -- The last pass could only hunt at the pose the loop happened
+                -- to END on, and for cog's black spindle that is the worst
+                -- pose there is: the high, close camera carries the spindle up
+                -- under the chrome, where a ladder that climbs has almost no
+                -- legal pixel to climb into.  Measured, five poses at the black
+                -- spindle (build/quest_gate/probe_black_spindle, one hunt per
+                -- pose, this checkout, 2026-09-20):
+                --
+                --   pose 1 pitch 128 zoom 600 -> projected 382,282, HELD at
+                --       366,186 (offset -16,-96) after 56 probes
+                --   pose 2 pitch 220 -> projected 382,30, 81 of 99 candidates
+                --       off-viewport, nothing holds it
+                --   pose 3 pitch 300 -> projected 382,41, 81 off-viewport
+                --   pose 4 pitch 340 -> projected 382,137, 27 off-viewport
+                --   pose 5 pitch 383 -> projected 382,115, 36 off-viewport
+                --
+                -- Pose 5 is where the loop ends, and pose 1 is where the answer
+                -- is.  The thing that separates them is free to compute:
+                -- HOW MANY of the ladder's candidates are inside the world
+                -- viewport at all (_hover_reach).  So the poses this loop has
+                -- already framed are ranked by that and hunted in that order,
+                -- all of them sharing ONE probe budget of a single ladder --
+                -- the sweep costs no more probes than last pass's single hunt,
+                -- which is what makes it affordable where the unbudgeted sweep
+                -- was not (it took Elemental Workshop I and Pirate's Treasure
+                -- green -> red).
+                --
+                -- Ties keep the pose the camera is already at first, so a
+                -- target whose poses all reach equally is hunted exactly where
+                -- it was hunted before this seam, with no camera move.
+                --
+                -- Still LAST, and that has not changed: hunting before every
+                -- press moved pixels that were already right (Elemental
+                -- Workshop I 57/57 -> 48/57, plus Gertrude's Cat, Sea Slug and
+                -- Heroes' Quest), hunting on a `held=false` reading did the
+                -- same because that reading is not a veto (see _press_row),
+                -- and hunting after the FIRST covered cost Heroes' Quest a
+                -- dialogue.  The only press this can move is one that has
+                -- already failed every pose.
+                local budget = { left = QD.drive._hover_budget }
+                -- The viewport rectangle the ranking measures against.  A
+                -- binary without DrivePointer_PickPoint answers nothing, and
+                -- `nil` makes _hover_inside say yes to everything: every pose
+                -- then reaches equally, the order is the order the loop
+                -- reached them in, and this is the pre-seam single hunt.
+                local point = nil
+                if api_drive.pick_point then
+                    local point_result, reading = api_drive.pick_point()
+                    if point_result == "ok" then
+                        point = reading
                     end
                 end
-                return "covered", tostring(detail) .. " -- " .. tostring(hunt_detail)
+                local at_pose = framed_pose
+                if #seen == 0 then
+                    -- Not one pose framed: _ensure_visible's own projection is
+                    -- the only reading there is and the camera never moved, so
+                    -- the sweep degenerates to the single hunt at `pos` -- which
+                    -- is exactly what shipped before this seam.
+                    seen[1] = { index = at_pose, pos = pos }
+                end
+                local order = QD.drive._hunt_order(seen, point)
+                local account = {}
+                for i = 1, #order do
+                    local hunt_pos = order[i].pos
+                    local framed_ok = true
+                    if order[i].index ~= at_pose then
+                        local frame_result, framed = QD.drive._frame(target, order[i].index, deadline)
+                        framed_ok = frame_result == "ok"
+                        if framed_ok then
+                            hunt_pos = framed
+                            at_pose = order[i].index
+                        end
+                    end
+                    if not framed_ok then
+                        account[#account + 1] = "pose " .. tostring(order[i].index)
+                            .. " would not re-frame"
+                    else
+                        local hovered, hunt_detail =
+                            QD.drive._hover_onto(target, hunt_pos, deadline, budget)
+                        account[#account + 1] = "pose " .. tostring(order[i].index)
+                            .. " (reach " .. tostring(order[i].reach) .. "): "
+                            .. tostring(hunt_detail)
+                        if hovered then
+                            -- The account goes into the NEXT row whatever the
+                            -- press answers: a hunted press that WORKS used to
+                            -- read like an ordinary one, and "which pixel
+                            -- landed it" is the only thing a later reader has
+                            -- to go on when the same loc is pressed again.
+                            QD.note("click_minimenu: hunted pose "
+                                .. tostring(order[i].index) .. " (reach "
+                                .. tostring(order[i].reach) .. ") -- "
+                                .. tostring(hunt_detail))
+                            if before_retry then
+                                local arm_result, arm_detail = before_retry()
+                                if arm_result ~= "ok" then
+                                    return arm_result, arm_detail
+                                end
+                            end
+                            result, detail = QD.drive._press_row(target, hovered, action, deadline)
+                            if result ~= "covered" then
+                                return result, detail
+                            end
+                        end
+                    end
+                    if budget.left <= 0 then
+                        break
+                    end
+                end
+                return "covered", tostring(detail) .. " -- " .. table.concat(account, "; ")
             end
             return "covered", detail
         end
@@ -741,6 +845,11 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
         local frame_result, framed = QD.drive._frame(target, attempt, deadline)
         if frame_result == "ok" then
             pos = framed
+            framed_pose = attempt
+            -- Remembered for the pose ranking in the last resort above; the
+            -- press that follows is this pose's, so index and projection go in
+            -- together and neither is re-read later.
+            seen[#seen + 1] = { index = attempt, pos = framed }
         end
     end
 end
@@ -1587,6 +1696,28 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
     if not refusal and serial_result == "ok" then
         refusal = QD.player._refusal_since(since)
     end
+    -- SEAM loc_approach_reach: the engine says "I can't reach that!" on the
+    -- tick AFTER the route it refused runs out, so the scan above reads the
+    -- ring one tick too early and a refused press was graded `ok (map_flag)`.
+    --
+    -- THE WAIT FOR IT IS NOT HERE, and that is a measurement.  This function
+    -- is every click verb's settle and its map_flag arm resolves for every
+    -- press that ROUTED, talk_to included, so a wait here is a tick added to
+    -- most rows in most quests -- and a tick costs the WORLD, not just wall
+    -- clock.  The Knight's Sword reaches its last row at exactly 90 ticks in
+    -- the published evidence and its `squire.final` press lands; waiting two
+    -- ticks here put that row at 122 and one tick at 98, and at both the
+    -- squire has walked off the pixel and the quest goes green -> RED with
+    -- six cascading rows.  Gertrude's Cat's kitten and Sea Slug's firemaking
+    -- roll went the same way (closer's suite run, 2026-09-20).
+    --
+    -- So the wait lives on QD.player._reach_verify, which click_loc and use_on
+    -- call for the `map_flag` arm alone -- the two verbs that can DO something
+    -- about a reach refusal (QD.player._reach_retry walks the loc's other
+    -- approach tiles), on the one arm that means nothing else happened.  A
+    -- press this function grades still answers `refused` the instant a refusal
+    -- is already in the ring, which costs nothing; it just does not stop and
+    -- wait for one.
     if refusal then
         return "refused", refusal, "refusal", refusal
     end
@@ -1718,6 +1849,10 @@ function QD.player.click_loc(loc, op)
     -- dialogue that changed during the walk did not change because of the
     -- press.
     local before_kind, before_text = QD.player._chat_page()
+    -- SEAM loc_approach_reach: the pre-click serial, so the sentence that
+    -- lands a tick behind the settle can be attributed to THIS click and to
+    -- nothing older (QD.player._reach_verify).
+    local before_serial_result, before_serial = api_drive.message_serial()
     local click_result, click = QD.drive.click_minimenu(target, op)
     local side = 1
     while click_result == "covered" and side <= QD.player._far_side_attempts do
@@ -1742,7 +1877,32 @@ function QD.player.click_loc(loc, op)
     if click_result ~= "ok" then
         return click_result, click
     end
-    local result, detail = QD.player._settle_after_click(20, before_kind, before_text)
+    local result, detail, settle_arm = QD.player._settle_after_click(
+        20, before_kind, before_text)
+    -- SEAM loc_approach_reach: an `ok` this verb answers is held to the
+    -- refusal that lands a tick behind it -- on the `map_flag` arm, and only
+    -- there.  See _reach_verify for why that one arm and not the others.
+    if settle_arm == "map_flag" and before_serial_result == "ok" then
+        result, detail = QD.player._reach_verify(result, detail, before_serial)
+    end
+    -- And the server refusing the REACH is not this verb's answer either: it
+    -- is a fact about the tile walk_near's standoff chose, so the loc's other
+    -- approach tiles are tried before it is reported.  A retry that pressed
+    -- at all leaves the player somewhere else, which makes the door evidence
+    -- below (a nearest-copy reading taken from the old tile) incomparable, so
+    -- in that case its answer is this verb's answer.
+    local reach_tried
+    result, detail, reach_tried = QD.player._reach_retry(target, result, detail, function()
+        local retry_kind, retry_text = QD.player._chat_page()
+        local retry_result, retry_click = QD.drive.click_minimenu(target, op)
+        if retry_result ~= "ok" then
+            return retry_result, retry_click
+        end
+        return QD.player._settle_after_click(20, retry_kind, retry_text)
+    end)
+    if reach_tried > 0 then
+        return result, detail
+    end
     if result ~= "timeout" or before_result ~= "ok" or before_tile_result ~= "ok" then
         return result, detail
     end
@@ -2255,6 +2415,9 @@ function QD.player.use_on(item, target)
     -- inv_arm sends nothing when the arming survived, so this costs a call
     -- and no packet in the case that needed no re-arm.
     local rearm = function() return QD.player._arm_held(item, cell) end
+    -- SEAM loc_approach_reach: the pre-click serial (click_loc's rule), so
+    -- the refusal that lands a tick behind the settle belongs to this press.
+    local before_serial_result, before_serial = api_drive.message_serial()
     local click_result, click = QD.drive.click_minimenu(target, "select", nil, rearm)
     local side = 1
     while click_result == "covered" and side <= QD.player._far_side_attempts do
@@ -2291,7 +2454,41 @@ function QD.player.use_on(item, target)
         return "refused", "use_on " .. item .. " on " .. target.kind .. " "
             .. tostring(target.symbol or target.id) .. ": " .. held_why
     end
-    return QD.player._settle_after_click(20, before_kind, before_text)
+    local settle_result, settle_detail, settle_arm =
+        QD.player._settle_after_click(20, before_kind, before_text)
+    -- SEAM loc_approach_reach: an `ok` is held to the refusal that lands a
+    -- tick behind it, on the `map_flag` arm alone -- click_loc's rule, and
+    -- _reach_verify's banner says why.
+    if settle_arm == "map_flag" and before_serial_result == "ok" then
+        settle_result, settle_detail =
+            QD.player._reach_verify(settle_result, settle_detail, before_serial)
+    end
+    -- "I can't reach that!" is a fact about the tile walk_near's standoff
+    -- chose, not about the item or about the target, so the
+    -- loc's other approach tiles are tried before it is reported.  The whole
+    -- press is re-taken from each one -- the arming FIRST, because the
+    -- refused press spent it (the re-arm seam, 2026-09-20), then the press,
+    -- then the held-row check above, which no retry may skip.
+    settle_result, settle_detail = QD.player._reach_retry(
+        target, settle_result, settle_detail, function()
+            local retry_arm_result, retry_arm_detail = QD.player._arm_held(item, cell)
+            if retry_arm_result ~= "ok" then
+                return retry_arm_result, "use_on: reach retry: " .. tostring(retry_arm_detail)
+            end
+            local retry_kind, retry_text = QD.player._chat_page()
+            local retry_result, retry_click =
+                QD.drive.click_minimenu(target, "select", nil, rearm)
+            if retry_result ~= "ok" then
+                return retry_result, retry_click
+            end
+            local retry_held, retry_why = QD.player._select_row_is_held(target, retry_click)
+            if not retry_held then
+                return "refused", "use_on " .. item .. " on " .. target.kind .. " "
+                    .. tostring(target.symbol or target.id) .. ": " .. retry_why
+            end
+            return QD.player._settle_after_click(20, retry_kind, retry_text)
+        end)
+    return settle_result, settle_detail
 end
 
 
@@ -2808,6 +3005,50 @@ QD.drive._hover_last = nil
 -- deadline: three is enough to tell that apart from one dropped frame.
 QD.drive._hover_stale_limit = 3
 
+-- SEAM press_pixel_and_pose_budget (2026-09-20) -- THE PROBE CAP, which is the
+-- thing 62c051fb8's closer said had to exist before a hunt could afford to
+-- re-frame ("a hunt that can afford to re-frame needs a probe cap first, and
+-- that is the next seam").  Three numbers, each a measured cost.
+--
+-- `_hover_budget` is how many probes ONE click_minimenu call may spend on
+-- hunting, however many camera poses it spreads them over.  99 is the ladder's
+-- own size (11 dys x 9 dxs), so the whole ranked sweep below costs no more
+-- probes than the SINGLE hunt cost before this seam: the cap does not buy more
+-- searching, it buys the right to spend the same searching where it can work.
+-- That is the difference between this sweep and the one that was measured and
+-- backed out last pass, which re-walked the full ladder at every pose and took
+-- Elemental Workshop I and Pirate's Treasure green -> red.
+--
+-- WHAT THE CAP IS NOT: the probe's own settle deadline.  Shortening THAT was
+-- the obvious other saving -- a probe waits for the pick stamp on the CALLER's
+-- deadline, click_minimenu's 4, so a pixel no frame ever hittests costs four
+-- server ticks, and cog's blocked row paid 24 of them for six such probes
+-- (build/quest_gate/cog, 2026-09-20: "36 off-viewport, 6 never hittested").
+-- One tick looked safe by measurement: the black-spindle probe walked 56, 18,
+-- 18, 72 and 63 pixels at the five poses with a one-tick deadline and NOTHING
+-- came back stale.  It is not safe, and the suite said so.  A/B on Pirate's
+-- Treasure (`hunt`), same binary, same tree, the three variants driven from the
+-- script side (build/seam_press_pixel/, 2026-09-20):
+--
+--   pre-seam (one hunt, caller's deadline)        70/71   (1 flaky combat row)
+--   this seam's ranking + cap, caller's deadline  71/71
+--   the same with a one-tick probe                46/71 -- 25 FAILs, all of
+--       them cascading from `hunt.take_apron`, whose hunt read
+--       "no frame hittested any of 3 pixels ... the world is not picking"
+--
+-- A stamp that has not landed in one tick is not proof of a world that is not
+-- picking, and reading it as one throws away the find.  So the probe keeps the
+-- caller's deadline, and the CAP -- not the settle -- is this seam's budget.
+--
+-- `_hover_stale_cap` bounds the other end, and it counts CONSECUTIVE stale
+-- probes, never cumulative ones: a run of them is a world that has stopped
+-- picking (a modal opening over the viewport halfway through the ladder),
+-- while scattered ones are ordinary -- cog's own pre-seam hunt had six among
+-- 57 good probes and the pixel it wanted was still further down the ladder.
+-- Any probe that answers resets the run.
+QD.drive._hover_budget = 99
+QD.drive._hover_stale_cap = 12
+
 -- Has a frame hittested AT (x, y) yet?  A LEVEL predicate, polled once per
 -- frame, so this resolves in the two or three frames the move takes to land
 -- and render rather than in the whole server tick a blind wait costs.
@@ -2844,11 +3085,69 @@ function QD.drive._hover_probe(element_id, x, y, deadline)
     return hold_result == "ok" and held
 end
 
+-- How many of the ladder's candidates a pose can even ask about: the count
+-- that lands inside the world viewport at `pos`.  Pure arithmetic, no probe
+-- and no frame, so ranking the poses by it is free.
+--
+-- This is the number the last pass measured and could only report -- "36 of 57
+-- candidates are off-viewport at the last pose and a clean hit at the first"
+-- -- turned into the decision it was always describing.  A pose that carries
+-- the model up under the chrome has a handful of legal pixels around its
+-- projection and can only ever answer "nothing holds it"; hunting there is a
+-- hunt spent on a question the viewport already answered.
+function QD.drive._hover_reach(point, pos)
+    local reach = 0
+    for i = 1, #QD.drive._hover_dys do
+        for j = 1, #QD.drive._hover_dxs do
+            if QD.drive._hover_inside(
+                point, pos.x + QD.drive._hover_dxs[j], pos.y + QD.drive._hover_dys[i]) then
+                reach = reach + 1
+            end
+        end
+    end
+    return reach
+end
+
+-- Rank the poses a click has already framed by that reach, most first.
+--
+-- `seen` is click_minimenu's own record of the poses it pressed from and where
+-- the target projected at each -- nothing here re-frames or re-projects to
+-- build it.  Ties keep the LAST pose first, because that is the pose the
+-- camera is already at: when no pose reaches further than the one the loop
+-- ended on, this order is the order the single hunt used before this seam, and
+-- the sweep costs one hunt and no camera move at all.
+function QD.drive._hunt_order(seen, point)
+    local order = {}
+    for i = #seen, 1, -1 do
+        order[#order + 1] = {
+            index = seen[i].index,
+            pos = seen[i].pos,
+            reach = QD.drive._hover_reach(point, seen[i].pos),
+        }
+    end
+    for i = 2, #order do
+        local held = order[i]
+        local j = i - 1
+        while j >= 1 and order[j].reach < held.reach do
+            order[j + 1] = order[j]
+            j = j - 1
+        end
+        order[j + 1] = held
+    end
+    return order
+end
+
 -- The search itself: answer the first pixel around `pos` whose pickset holds
 -- the target, and the account of the hunt that goes into the row's detail.
 -- A caller that gets nil presses the projected pixel anyway -- WHERE TO PRESS
 -- is this function's decision, but whether to press at all is not.
-function QD.drive._hover_onto(target, pos, deadline)
+--
+-- `budget` (optional) is the shared probe cap: a table `{ left = n }` that
+-- several hunts in one click_minimenu call decrement together, so the sweep
+-- across poses cannot cost more probes than one hunt did before this seam.
+-- A caller that passes none gets a full budget of its own, which is what the
+-- conformance seam row and any hand probe want.
+function QD.drive._hover_onto(target, pos, deadline, budget)
     -- A binary built before DrivePointer_PickPoint landed has no
     -- `api_drive.pick_point` FIELD at all, and calling a nil value raises --
     -- which in this sandbox (no pcall) ends the whole run, on every click, for
@@ -2864,6 +3163,7 @@ function QD.drive._hover_onto(target, pos, deadline)
     if api_drive.pick_point == nil then
         return nil, "no pixel search: this binary predates api_drive.pick_point"
     end
+    budget = budget or { left = QD.drive._hover_budget }
     local point_result, point = api_drive.pick_point()
     if point_result ~= "ok" then
         point = nil
@@ -2881,22 +3181,43 @@ function QD.drive._hover_onto(target, pos, deadline)
     local tried = 0
     local skipped = 0
     local stale = 0
+    local stale_run = 0
+    local capped = false
     for i = 1, #candidates do
         local x = pos.x + candidates[i][1]
         local y = pos.y + candidates[i][2]
         if not QD.drive._hover_inside(point, x, y) then
+            -- Free: nothing is moved and nothing is waited for, so an
+            -- off-viewport candidate is not charged to the budget either.
             skipped = skipped + 1
+        elseif budget.left <= 0 then
+            -- THE CAP.  Stop walking rather than keep counting: the account
+            -- below says the budget ran out, which is a different fact from
+            -- "nothing here holds it" and the next pose in the sweep has to be
+            -- able to tell them apart.
+            capped = true
+            break
         else
+            budget.left = budget.left - 1
             local held = QD.drive._hover_probe(pos.element_id, x, y, deadline)
             if held == nil then
                 stale = stale + 1
+                stale_run = stale_run + 1
                 if tried == 0 and stale >= QD.drive._hover_stale_limit then
                     return nil, string.format(
                         "no frame hittested any of %d pixels around the projected %d,%d"
                             .. " -- the world is not picking",
                         stale, pos.x, pos.y)
                 end
+                if stale_run >= QD.drive._hover_stale_cap then
+                    return nil, string.format(
+                        "%d probes in a row around the projected %d,%d were never hittested"
+                            .. " (%d good, %d stale so far) -- the world stopped picking"
+                            .. " mid-search",
+                        stale_run, pos.x, pos.y, tried, stale)
+                end
             else
+                stale_run = 0
                 tried = tried + 1
                 if held then
                     QD.drive._hover_last = candidates[i]
@@ -2907,6 +3228,12 @@ function QD.drive._hover_onto(target, pos, deadline)
                 end
             end
         end
+    end
+    if capped then
+        return nil, string.format(
+            "none of %d pixels hittested around the projected %d,%d holds it"
+                .. " (%d off-viewport, %d never hittested) -- probe budget spent",
+            tried, pos.x, pos.y, skipped, stale)
     end
     return nil, string.format(
         "none of %d pixels hittested around the projected %d,%d holds it"
@@ -2972,3 +3299,460 @@ QD.player._goto_scene_radius = 12
 -- arrival await above it, and an empty-handed expiry costs the run those
 -- ticks once, not the quest.
 QD.player._goto_scene_ticks = 10
+
+-- ==========================================================================
+-- SEAM loc_approach_reach (2026-09-20) -- APPEND-ONLY BLOCK.  Everything
+-- above this line belongs to other seams being fixed in this same tree; this
+-- block adds functions, and the only edits it makes above are the four call
+-- sites that reach them (_settle_after_click's grace, and the verify + retry
+-- in click_loc and use_on).
+--
+-- WHAT WAS WRONG.  The driver never chooses the tile it presses a loc from --
+-- walk_near does, through `minimum` = _loc_standoff, and _ensure_visible does
+-- it again through _step_off_for_click.  Both answer the same question ("get
+-- off the target's own square so the pixel is clear") and neither asks the
+-- only question that decides whether the click can WORK: which side of this
+-- loc the server will let the player interact from.  Whatever tile the
+-- step-off list happens to offer first is the tile the press is made from,
+-- for ever: the far-side walk under it fires on `covered` alone -- "the menu
+-- had no row for it" -- and a press the SERVER refuses opens a menu with a
+-- perfectly good row in it, so that loop never runs.
+--
+-- Measured 2026-09-20 on the shared torirs_questtest, both blocked quests,
+-- one press per orthogonal tile with no standoff walk of the probe's own
+-- (build/seam_reach/probe1.lua -> build/quest_gate/seam_reach_p1,
+-- probe2.lua -> seam_reach_p2, probe3.lua -> seam_reach_p3):
+--
+--   biohazard's `biowatchtower_op` (2562,3301,0) -- from the EAST
+--   (2563,3301) the press lands: `click=ok (Use Bird feed with @cya@
+--   Watchtower) settle=ok (chat_message) birdfeed 9->8 msgs=|You throw a
+--   handful of seeds onto the watch tower` -- [oplocu,biowatchtower_op],
+--   quest_biohazard_locs.rs2:58-66, for real.  From the south, the west and
+--   the tower's own tiles the identical press answers "I can't reach that!";
+--   from the north it answers `covered`.
+--
+--   fishingcompo's `garlicpipe` (2638,3446,0, all.loc:354 shape1=4, a wall
+--   decoration) -- from the WEST (2637,3446): `settle=ok (chat_message)
+--   garlic 5->4 msgs=|You stash the garlic in the pipe.` --
+--   [oplocu,garlicpipe], quest_fishingcompo_gate.rs2:4-9.  South, east and
+--   north all answer "I can't reach that!".
+--
+-- THE TRIAGE'S OWN-TILE HYPOTHESIS IS WRONG, and the measurement is above:
+-- it read the pipe's reaching tile off build/quest_gate/garlic2 row 3, which
+-- is a `drive.op` BYPASS press -- that builds the packet with no pixel and no
+-- menu at all.  A real press cannot be made from the loc's own tile:
+-- _ensure_visible walks the player off it before it projects anything.  Nor
+-- does it need to be -- the west tile lands the same [oplocu] through a real
+-- menu row.  So the retry below walks the loc's neighbours and never its own
+-- squares.
+--
+-- A LOC IS NOT ONE TILE.  The watchtower is three placements of one loc id in
+-- a row (2560..2562, 3301) and _target_tile answers the copy nearest the
+-- PLAYER, so a ring taken around that one answer walks into the tower's own
+-- other squares and never reaches 2563,3301 -- measured, build/quest_gate/
+-- seam_reach_p4 before this was rewritten: `reach retry 1: pressed from
+-- 2562,3300 (asked 2562,3301)`, a tile the tower stands on.  The candidates
+-- are therefore taken from EVERY copy in the client's own loc pool, with the
+-- copies' own squares removed, nearest the player first.
+-- ==========================================================================
+
+-- The two sentences that mean THE PLAYER COULD NOT GET TO IT, a subset of
+-- CLICK_REFUSAL_LINES (the other two mean the click arrived and content did
+-- not claim it, or a climb that moved nobody -- walking to another side
+-- cannot change either).
+QD.player.REACH_REFUSAL_LINES = {
+    "I can't reach that!",
+    "You can't reach that.",
+}
+
+-- The reach sentence `text` IS, or nil.  Exact equality after trimming --
+-- QD.player._refusal_line's rule, for the same reason: a line that quotes the
+-- sentence inside a longer one is content talking.
+function QD.player._reach_refusal(text)
+    if type(text) ~= "string" then
+        return nil
+    end
+    local trimmed = string.match(text, "^%s*(.-)%s*$") or text
+    for i = 1, #QD.player.REACH_REFUSAL_LINES do
+        if trimmed == QD.player.REACH_REFUSAL_LINES[i] then
+            return QD.player.REACH_REFUSAL_LINES[i]
+        end
+    end
+    return nil
+end
+
+-- The OLDEST reach sentence newer than `since`, or nil.  Newest-first is the
+-- order api_drive.messages answers in (QD.player._refusal_since's banner), so
+-- taking the last match takes the one this click provoked rather than a later
+-- consequence of it.
+function QD.player._reach_since(since)
+    local result, rows = api_drive.messages()
+    local found = nil
+    if result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    for i = 1, #rows do
+        if rows[i].serial > since then
+            local line = QD.player._reach_refusal(rows[i].text)
+            if line then
+                found = line
+            end
+        end
+    end
+    return found
+end
+
+-- THE REFUSAL ARRIVES AFTER THE CLICK HAS ALREADY BEEN GRADED.
+--
+-- _settle_after_click's map_flag arm resolves when the route the click issued
+-- runs out; the engine says "I can't reach that!" on the tick AFTER that,
+-- when the interaction is stepped and cannot close the distance
+-- (torirs_server_world.c:2276/:2306).  The fence's tail scan reads the chat
+-- ring the instant the await returns, so it looks one tick too early and
+-- finds nothing.  Measured on the watchtower, build/quest_gate/seam_reach_p2
+-- rows 5 and 9: `click=ok (Use Bird feed with @cya@Watchtower) settle=ok
+-- (map_flag)` with `I can't reach that!` in msg.last two ticks later and the
+-- birdfeed never consumed -- a green row for a press that did nothing, which
+-- is the exact class of row the refusal fence exists to kill.  biohazard.lua
+-- recorded the same reading from the other side and blamed content for it.
+--
+-- The chat_message arm has the same hole from the other end: it resolves on
+-- ANY new line, and a walk to another tile can cross a music zone -- measured
+-- in the same file, `settle=ok (chat_message)` resolved by `<col=ff0000>You
+-- have unlocked a new music track: Sad Meadow` while the press itself was
+-- refused.
+--
+-- So the wait is a LEVEL await for the sentence itself: a refusal already in
+-- the ring costs no ticks at all, and a clean click pays this one tick once.
+--
+-- ONE TICK, AND THE SUITE SET THE NUMBER.  Two is what this seam landed with
+-- and two is one tick more than the engine needs: the refusal is emitted on
+-- the tick after the route runs out, so a second tick can only ever confirm
+-- silence.  That tick is not free -- _settle_after_click's banner has the
+-- arithmetic, and it is why this wait is reached from _reach_verify's one arm
+-- rather than from the settle every click verb shares.
+--
+-- If a later reading shows a refusal arriving two ticks late, raise this --
+-- and re-run the WHOLE suite, because the cost of this number is paid by
+-- every quest that presses a loc anywhere, not by the quests this seam was
+-- measured on.
+QD.player._reach_grace_ticks = 1
+
+function QD.player._reach_grace(since)
+    local found = QD.player._reach_since(since)
+    if found then
+        return found
+    end
+    QD.await({
+        level = function()
+            return QD.player._reach_since(since) ~= nil
+        end,
+        note = "reach_grace",
+    }, QD.player._reach_grace_ticks)
+    return QD.player._reach_since(since)
+end
+
+-- Hold a press's `ok` to the sentence that lands a tick behind it.  `since`
+-- is the caller's OWN pre-click message serial, so nothing older than its
+-- click can answer for it.
+--
+-- ONE ARM, AND THE SUITE CHOSE IT.  click_loc and use_on call this only when
+-- the settle resolved through `map_flag` -- "the route the click issued ran
+-- out and nothing else happened", which IS the hollow-PASS shape this fence
+-- exists to kill (biohazard's watchtower and Heroes' Quest's candlestick
+-- chest are both exactly that row).  On every other arm the press has already
+-- shown an effect -- a mounted dialogue, a changed page, a chat line content
+-- wrote -- and a wait there buys a refusal that is not coming.
+--
+-- It is not caution, it is arithmetic.  This wait costs a tick, and a tick
+-- costs the WORLD: The Knight's Sword reaches its last row at exactly 90
+-- ticks in the published evidence, its `squire.final` press lands, and the
+-- quest is green.  Add one tick to every loc press and it reaches that row at
+-- 98; add one to every routed press, talk_to included, and at 122.  Both fail
+-- there, identically, on a squire who has walked off the pixel -- while the
+-- same file at 90 passes 58/58 (closer's A/B, 2026-09-20: HEAD Lua against
+-- this binary, and this Lua against a HEAD binary, both 90 and both green).
+-- Restricting the wait to `map_flag` costs squire's three loc presses nothing
+-- at all, because every one of them settles on a chat line content wrote.
+--
+-- THE GAP THIS LEAVES, named rather than papered over: the chat_message arm
+-- resolves on ANY new line, and a walk that crosses a music zone can resolve
+-- it on `You have unlocked a new music track: Sad Meadow` while the press
+-- itself was refused (build/quest_gate/seam_reach_p2).  Such a press still
+-- answers `ok` here.  The free half of the fence still runs for it --
+-- _settle_after_click scans the ring for a refusal that has already landed --
+-- and only the one-tick wait is skipped.  Closing it properly needs a settle
+-- that can tell content's line from the world's, not another tick.
+function QD.player._reach_verify(result, detail, since)
+    if result ~= "ok" or type(since) ~= "number" then
+        return result, detail
+    end
+    local reach = QD.player._reach_grace(since)
+    if not reach then
+        return result, detail
+    end
+    -- The detail stays the BARE sentence, and what the press claimed before it
+    -- goes in a note.  Every reader of this answer -- the retry below, and
+    -- click_loc and use_on deciding whether to retry at all -- tests it with
+    -- QD.player._reach_refusal, which is exact equality; a detail decorated
+    -- here was measured (build/quest_gate/seam_reach_p5) to read as "some
+    -- other refusal" and stop the retry at its third tile.
+    QD.note("reach: the press answered ok (" .. tostring(detail)
+        .. ") and the engine refused the reach a tick later")
+    return "refused", reach
+end
+
+-- The four orthogonal approach tiles of a loc square.  Not the diagonals: an
+-- interaction is served from a cardinal neighbour of the loc's face, and a
+-- diagonal step is refused outright whenever either tile it cuts between is
+-- blocked (the note over _step_off_offsets) -- the normal case for the walls
+-- and towers this retry is for.
+QD.player._reach_offsets = {
+    { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+}
+
+-- How far out the loc pool is read for other copies of the target.  Ten
+-- tiles: a loc drawn across several squares is drawn across adjacent ones,
+-- and a copy further away than this is a different placement of the same
+-- symbol, not another square of the one being clicked.
+QD.player._reach_scan_radius = 10
+
+-- How many other tiles a refused press is worth walking to.  Six: the four
+-- sides a single-square loc has, plus one for the multi-square case where two
+-- of those four are the loc's own other squares, plus the own square itself.
+-- It is a bounded search and not a lap of the building -- a loc that refuses
+-- every one of these is a content or a placement fact, and the row says so.
+QD.player._reach_attempts = 6
+
+-- And how many tiles it is worth WALKING AT, which is the other half of the
+-- same budget and a bigger number than the presses: a candidate the router
+-- will not enter costs its walk and no press, and the watchtower alone offers
+-- twenty-nine candidates (three placements in a row, four neighbours each,
+-- minus the squares they stand on).  Twelve, so a loc every one of whose
+-- approaches is walled -- Heroes' Quest's candlestick chest answers exactly
+-- that -- costs a bounded number of walks instead of one per candidate.
+QD.player._reach_walks = 12
+
+-- Four ticks is _step_off_tile's budget and this is ten, because this walk is
+-- one the press DEPENDS on: the tile is the whole point of the retry, and a
+-- press made from the wrong one answers a question nobody asked.  The player
+-- is also coming off a refused interaction, which costs a tick or two before
+-- the server takes his route at all.
+QD.player._reach_walk_ticks = 10
+
+-- Every tile from which this loc could be pressed: the orthogonal neighbours
+-- of EVERY copy of it in the client's loc pool, minus the squares the copies
+-- themselves stand on (a press from one of those is walked off by
+-- _ensure_visible before it happens), nearest the player first.
+--
+-- Nearest-first is not a guess about which side works -- nothing here can
+-- know that, it is a fact about the loc's shape and the wall it is set into
+-- -- it is only the cheapest order to find out in.
+function QD.player._reach_candidates(target)
+    local candidates = {}
+    local result, rows = api_drive.locs(QD.player._reach_scan_radius)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return candidates
+    end
+    local occupied = {}
+    local copies = {}
+    for i = 1, #rows do
+        -- Either half of the multiloc answers: the pool stores the id the MAP
+        -- named and `resolved_loc_id` the child the varbit draws, and a target
+        -- built by by_symbol can carry either one (the three-rule resolve --
+        -- exact, base, multiloc -- is _live_loc_id's, and it does not run
+        -- here).  Matching only `loc_id` left this list EMPTY for a plain
+        -- Lumbridge tree and the retry never walked anywhere (conformance
+        -- seam.reach_retry, 2026-09-20).
+        if rows[i].loc_id == target.id or rows[i].resolved_loc_id == target.id then
+            copies[#copies + 1] = rows[i]
+            occupied[tostring(rows[i].x) .. "," .. tostring(rows[i].z)] = true
+        end
+    end
+    if #copies == 0 then
+        -- Nothing in the pool carries this id under either name.  The target
+        -- still HAS a tile -- _ensure_visible projected it a moment ago -- so
+        -- fall back to the four neighbours of that one square.  It is the
+        -- nearest-copy answer the banner above warns about, and for a loc
+        -- drawn across several squares it can miss the side that works; a
+        -- worse list is still a list, and the alternative is no retry at all.
+        local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
+        if tile_result == "ok" then
+            copies[1] = { x = tile_x, z = tile_z }
+            occupied[tostring(tile_x) .. "," .. tostring(tile_z)] = true
+        end
+    end
+    local player_result, player = api_drive.player_tile()
+    local seen = {}
+    for i = 1, #copies do
+        for j = 1, #QD.player._reach_offsets do
+            local offset = QD.player._reach_offsets[j]
+            local x = copies[i].x + offset[1]
+            local z = copies[i].z + offset[2]
+            local key = tostring(x) .. "," .. tostring(z)
+            if not occupied[key] and not seen[key] then
+                seen[key] = true
+                local distance = 0
+                if player_result == "ok" then
+                    distance = QD.player._tile_distance(player.x, player.z, x, z)
+                end
+                candidates[#candidates + 1] = { x = x, z = z, distance = distance }
+            end
+        end
+    end
+    -- Sorted among themselves, then appended: the copies' OWN squares, which
+    -- are a last resort and not a neighbour.  A wall decoration is served
+    -- from its own tile alone (fishingcompo's garlicpipe, measured in the
+    -- banner above), and that is the one tile the standoff is guaranteed to
+    -- have vacated -- but standing on a loc is also what puts the player's
+    -- own model in front of the pixel (_step_off_tile's banner), so it is
+    -- tried after every tile that does not have that problem.  A square the
+    -- router will not enter -- the watchtower's, a tree's -- costs no press.
+    local own = {}
+    for i = 1, #copies do
+        local key = tostring(copies[i].x) .. "," .. tostring(copies[i].z)
+        if not seen[key] then
+            seen[key] = true
+            local distance = 0
+            if player_result == "ok" then
+                distance = QD.player._tile_distance(player.x, player.z, copies[i].x, copies[i].z)
+            end
+            own[#own + 1] = { x = copies[i].x, z = copies[i].z,
+                              distance = distance, own = true }
+        end
+    end
+    -- Insertion sort, because the lists are four to twelve entries long and
+    -- because this chunk has no business calling table.sort with a comparator
+    -- that a stale row could make inconsistent.
+    QD.player._reach_sort(candidates)
+    QD.player._reach_sort(own)
+    for i = 1, #own do
+        candidates[#candidates + 1] = own[i]
+    end
+    return candidates
+end
+
+function QD.player._reach_sort(list)
+    for i = 2, #list do
+        local entry = list[i]
+        local j = i - 1
+        while j >= 1 and list[j].distance > entry.distance do
+            list[j + 1] = list[j]
+            j = j - 1
+        end
+        list[j + 1] = entry
+    end
+    return list
+end
+
+-- Walk the loc's other approach tiles and press again, while the engine keeps
+-- saying the player cannot reach it.
+--
+-- `press` is the caller's WHOLE press, re-taken from the new tile: click_loc
+-- passes its click_minimenu + settle, use_on passes its re-arm + press +
+-- held-row check + settle (the arming is spent by the refused press, so a
+-- retry that did not re-arm would land an ordinary op row -- the seam fixed
+-- on 2026-09-20, preserved here).  Every retry is verified against the late
+-- sentence exactly as the first press is.
+--
+-- Returns (result, detail, tried).  `tried` is how many presses this made, so
+-- click_loc can tell that its own before-readings (the door evidence) are no
+-- longer comparable -- the player is standing somewhere else now.
+--
+-- It stops at the first press that is neither another reach refusal nor
+-- `covered`: a `refused` for a different reason is content answering on the
+-- merits, and walking further cannot improve that.
+function QD.player._reach_retry(target, result, detail, press)
+    if type(target) ~= "table" or target.kind ~= "loc" then
+        return result, detail, 0
+    end
+    if result ~= "refused" or not QD.player._reach_refusal(detail) then
+        return result, detail, 0
+    end
+    local first = detail
+    local candidates = QD.player._reach_candidates(target)
+    local skip = nil
+    local here_result, here = api_drive.player_tile()
+    if here_result == "ok" then
+        skip = tostring(here.x) .. "," .. tostring(here.z)
+    end
+    local account = {}
+    local tried = 0
+    local walked = 0
+    for i = 1, #candidates do
+        if tried >= QD.player._reach_attempts or walked >= QD.player._reach_walks then
+            break
+        end
+        local want = candidates[i]
+        local key = tostring(want.x) .. "," .. tostring(want.z)
+        if key == skip then
+            -- The tile the refused press was made from, best effort: the
+            -- reading can lag a tick behind a teleport, so this is a saving
+            -- and never a rule -- a candidate wrongly skipped here is one
+            -- press, and pressing the same tile twice is one press too.
+            QD.note("reach retry: " .. key .. " is where the refused press was made -- skipped")
+        else
+            walked = walked + 1
+            QD.player.walk_to(want.x, want.z, QD.player._reach_walk_ticks)
+            -- AND THEN STAND STILL.  walk_to answers the tick the tile reads
+            -- right, and a route the previous candidate's walk left running
+            -- carries the player straight through it: the press is then made
+            -- from a tile he has already left, the server reads his position
+            -- a tick later and refuses the reach again.  Measured,
+            -- build/quest_gate/seam_reach_p5 row 3 -- `reach retry 3: pressed
+            -- from 2563,3301 -> refused` from the tile probe3 had just proved
+            -- lands, with the player five tiles west of it by the next read.
+            QD.player.idle()
+            local now_result, now = api_drive.player_tile()
+            if now_result ~= "ok" then
+                break
+            end
+            if now.x ~= want.x or now.z ~= want.z then
+                -- The router would not put him there (a wall, a fence, the
+                -- loc's own blocked square).  That is an answer about the
+                -- tile and not about the click, so it costs no press.
+                QD.note(string.format(
+                    "reach retry: asked %d,%d and the walk ended %d,%d -- not pressed",
+                    want.x, want.z, now.x, now.z))
+            else
+                tried = tried + 1
+                local serial_result, since = api_drive.message_serial()
+                -- On the loc's own square the standoff is suppressed for this
+                -- press and restored the moment it is taken: every other
+                -- caller of _step_off_for_click, and this verb's own next
+                -- candidate, must keep the behaviour they were written to.
+                target.reach_no_standoff = want.own or nil
+                result, detail = press()
+                target.reach_no_standoff = nil
+                if serial_result == "ok" then
+                    result, detail = QD.player._reach_verify(result, detail, since)
+                end
+                account[#account + 1] = string.format("%d,%d%s -> %s %s",
+                    want.x, want.z, want.own and " (the loc's own square)" or "",
+                    tostring(result), tostring(detail))
+                QD.note(string.format("reach retry %d: pressed from %d,%d%s -> %s",
+                    tried, want.x, want.z,
+                    want.own and " (the loc's own square, standoff suppressed)" or "",
+                    tostring(result)))
+                if result == "ok" then
+                    return "ok", tostring(detail) .. string.format(
+                        " [%s reached from %d,%d, approach tile %d of %d tried:"
+                        .. " the press from the standoff tile answered '%s']",
+                        tostring(target.symbol or target.id), want.x, want.z,
+                        tried, #candidates, tostring(first)), tried
+                end
+                if result ~= "covered" and not QD.player._reach_refusal(detail) then
+                    return result, detail, tried
+                end
+            end
+        end
+    end
+    if tried == 0 then
+        return result, tostring(detail) .. " -- and no other approach tile of "
+            .. tostring(target.symbol or target.id) .. " (" .. tostring(#candidates)
+            .. " known) could be walked to", tried
+    end
+    return result, tostring(detail) .. " -- and from " .. tostring(tried)
+        .. " of its " .. tostring(#candidates) .. " approach tiles: "
+        .. table.concat(account, "; "), tried
+end

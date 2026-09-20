@@ -34,7 +34,7 @@ Excluded, because they are not a test's verbs:
 SEAM ROWS.  The harness also carries `seam("seam.<name>", ...)` rows, which are
 not verbs: each one proves a BEHAVIOUR under the verb layer, in the C the
 driver calls, where the verb above it answers the same word whether the seam
-works or not (the four the 2026-09-20 seam pass landed are named in the
+works or not (the five the 2026-09-20 seam passes landed are named in the
 harness's own banner).  They are counted and checked here too, because the
 alternative -- leaving them out of this file -- is a row that can be deleted
 with nothing going red, which is the failure this whole file exists against.

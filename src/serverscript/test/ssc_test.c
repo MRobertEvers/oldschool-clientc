@@ -1353,6 +1353,102 @@ test_proc_param_kind_hint(void)
     fixture_close(&fixture);
 }
 
+/*
+ * A comparison types the bare name on the other side, and a `switch_<type>`
+ * types its case labels.
+ *
+ * `if (last_useitem = eadgar_troll_thistle)` in skill_cooking/scripts/
+ * cooking.rs2:39 compiled to `= 4767` — the NPC of that name, which no held
+ * obj can ever equal — so Eadgar's Ruse could not dry its troll thistle by any
+ * click sequence and answered "You can't cook that." instead. `last_useitem`
+ * is declared `()(obj)` in engine.rs2, and that declaration is the only thing
+ * in the language that says which namespace the literal beside it is in.
+ *
+ * `shark` stands in for the collision here because it is the one the compiler's
+ * own banner already names: obj 385 and npc 1830, NPC sorting first.
+ *
+ * The last case is the control, and it is the reason this is a hint and not a
+ * rule about names: with nothing to type it, a bare `shark` still resolves the
+ * way the packs order it, and the compiler says so rather than choosing
+ * quietly (report_ambiguous_name).
+ */
+static void
+test_comparison_and_case_operand_kind(void)
+{
+    struct Fixture fixture;
+    const struct SSVM_Script* script;
+
+    printf("a comparison and a switch_obj type their bare names\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,s0]()(int)\n"
+                         "if (last_useitem = shark) {\n"
+                         "    return(1);\n"
+                         "}\n"
+                         "return(0);\n"
+                         "\n"
+                         "[proc,s1]()(int)\n"
+                         "switch_obj(last_useitem) {\n"
+                         "    case shark : return(1);\n"
+                         "}\n"
+                         "return(0);\n"
+                         "\n"
+                         "[proc,s2]()(int)\n"
+                         "return(shark);\n",
+                         "comparison operand kind") )
+        return;
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,s0]");
+    CHECK(script != NULL, "the comparison script exists");
+    if( script )
+    {
+        int pushed = -1;
+
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            if( script->opcodes[op] == SS_OP_PUSH_CONSTANT_INT )
+            {
+                pushed = script->int_operands[op];
+                break;
+            }
+        }
+        CHECK_EQ(pushed, 385,
+                 "`last_useitem = shark` compares against the obj, not the npc");
+    }
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,s1]");
+    CHECK(script != NULL, "the switch_obj script exists");
+    if( script )
+    {
+        int key = -1;
+
+        CHECK_EQ(script->switch_table_count, 1, "the switch compiled one table");
+        if( script->switch_table_count == 1 && script->switch_tables[0].case_count == 1 )
+            key = script->switch_tables[0].cases[0].key;
+        CHECK_EQ(key, 385, "`switch_obj`'s case label is the obj, not the npc");
+    }
+
+    script = SSVM_ProviderGetByName(&fixture.provider, "[proc,s2]");
+    CHECK(script != NULL, "the untyped-position script exists");
+    if( script )
+    {
+        int pushed = -1;
+
+        for( int op = 0; op < script->op_count; op++ )
+        {
+            if( script->opcodes[op] == SS_OP_PUSH_CONSTANT_INT )
+            {
+                pushed = script->int_operands[op];
+                break;
+            }
+        }
+        CHECK_EQ(pushed, 1830,
+                 "a bare name nothing types still resolves by namespace order");
+    }
+
+    fixture_close(&fixture);
+}
+
 static void
 test_param_type_shadowing(void)
 {
@@ -2140,6 +2236,7 @@ main(void)
     test_synth_argument_hint();
     test_obj_command_argument_hint();
     test_proc_param_kind_hint();
+    test_comparison_and_case_operand_kind();
     test_param_type_shadowing();
     test_script_name_argument();
     test_dbcolumn_return_type();

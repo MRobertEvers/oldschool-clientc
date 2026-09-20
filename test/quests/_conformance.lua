@@ -76,8 +76,8 @@
 --
 -- A verb row proves a verb.  A seam row proves a BEHAVIOUR that lives under
 -- the verbs, in the C the driver calls, where the verb above it answers the
--- same word whether the seam works or not.  The 2026-09-20 seam pass landed
--- four of those, and every one of them had already cost real quests before
+-- same word whether the seam works or not.  The 2026-09-20 seam passes landed
+-- five of those, and every one of them had already cost real quests before
 -- anybody looked below the verb:
 --
 --   * use_on's far-side retry RE-ARMS the held item, and a re-arm of an
@@ -99,6 +99,21 @@
 --   * a varp the client's array cannot address at all is read from the
 --     embedded server's own copy, because BOTH client-side reads answer
 --     not_found for such an id forever (build/quest_gate/rovingelves row 33).
+--   * a loc's REACHABLE SIDE is not a fact the driver can read, so a press
+--     the server refuses with "I can't reach that!" is re-taken from the
+--     loc's other approach tiles -- and that refusal, which lands a tick
+--     behind the map_flag the settle resolves on, is no longer graded a PASS
+--     (build/quest_gate/seam_reach_p2, biohazard's watchtower).
+--
+-- The 2026-09-20 seam pass also fixed three ENGINE seams, and those are NOT
+-- rows here because nothing the driver calls can reach them from Lumbridge:
+-- a multiloc's trigger is looked up child-then-base (gate: the server
+-- selftest and quest_golem's statuette alcove), `db_getfield` answers `null`
+-- rather than 0 for a column a row does not state (the herblore brew is
+-- members-gated and Lumbridge is not, so the gate is the selftest and
+-- quest_mortton's serum), and sscompile types a bare name from the position
+-- it sits in (gate: `make -C src test-ssc`, whose
+-- test_comparison_and_case_operand_kind fails at HEAD).
 --
 -- They are ordinary PLAN entries -- same loop, same skip-and-re-run, same
 -- `t.expect` grading, and conformance.py scores them beside the verbs -- but
@@ -112,11 +127,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 4
+-- @seam-count 5
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 101
-local SEAM_COUNT = 4
+local SEAM_COUNT = 5
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1956,48 +1971,108 @@ return {
             settle(2)
         end)
 
-        -- THE PRESS PIXEL: the driver looks for a pixel the target is DRAWN
-        -- at instead of pressing the one the projection answers.
+        -- THE PRESS PIXEL, AND WHICH CAMERA POSE THE SEARCH FOR IT RUNS AT.
         --
-        -- `_hover_onto` walks a ladder of candidates around the projected
-        -- point and answers the first whose PICKSET HOLDS the element.  A
-        -- table back from it is the whole C seam proved at once, because it
-        -- only ever accepts a candidate that survived `_hover_probe`, and
-        -- `_hover_probe` answers nil unless api_drive.pick_point
-        -- (DrivePointer_PickPoint over World_PickSetStamp) says a rendered
-        -- frame hittested at exactly that pixel.  Without that stamp a
-        -- `held=false` is not a reading at all -- it is equally "the model is
-        -- not drawn here" and "the frame has not caught up with my move yet"
-        -- -- and the driver spent a batch of quests reporting the second as
-        -- the first.  nil back is the row's failure, and the account it
-        -- carries names which of the two it was.
-        --
-        -- The pose is taken FIRST, through the same `_frame` a covered press
-        -- retries with, rather than reading whatever projection the rows above
-        -- left behind: measured 2026-09-20, the raw projection after the
-        -- click_loc/click_obj/use_on rows put the Man at 593,198 -- a pixel
-        -- the world never hittests -- and the row failed on where the camera
-        -- happened to be pointing rather than on the seam.
+        -- Re-graded 2026-09-20: the search itself landed in 62c051fb8 and
+        -- could only run ONCE, at whatever pose the retry loop happened to
+        -- end on, because an unbudgeted sweep of all five poses took
+        -- Elemental Workshop I and Pirate's Treasure from green to red.  The
+        -- poses a click has already framed are now RANKED by how many of the
+        -- ladder's candidates land inside the world viewport at all, and the
+        -- whole sweep shares ONE probe cap -- so it costs no more probing
+        -- than the single hunt did.  Measured at cog's black spindle: the
+        -- flattest pose holds it after 56 probes and the other four have 27
+        -- to 81 of their candidates off-viewport and hold it never.
         seam("seam.press_pixel", function()
             local hunt = verb("drive", "_hover_onto")
             local frame = verb("drive", "_frame")
+            local rank = verb("drive", "_hunt_order")
+            local reach_of = verb("drive", "_hover_reach")
             if not hunt then return missing("drive", "_hover_onto") end
             if not frame then return missing("drive", "_frame") end
+            if not rank then return missing("drive", "_hunt_order") end
+            if not reach_of then return missing("drive", "_hover_reach") end
+            local cap = is_table(t.drive) and t.drive._hover_budget or nil
+            if type(cap) ~= "number" then
+                return "missing", "t.drive._hover_budget is not a number -- the ranked sweep "
+                    .. "is only affordable because every pose shares ONE probe cap"
+            end
+
+            -- THE RANKING, on synthetic poses, because the decision is
+            -- arithmetic and must be graded without a camera in it.  The
+            -- viewport is a plain rectangle (`_hover_inside` reads view_x /
+            -- view_y / view_w / view_h and nothing else), and the ladder
+            -- climbs UP to 192 px: a projection near the top of it has almost
+            -- no legal candidate, which is cog's black spindle at the pose the
+            -- retry loop ends on.
+            local view = { view_x = 0, view_y = 0, view_w = 512, view_h = 334 }
+            local middle = { x = 256, y = 200 }
+            local under_the_chrome = { x = 256, y = 20 }
+            local middle_reach = reach_of(view, middle)
+            local edge_reach = reach_of(view, under_the_chrome)
+            if type(middle_reach) ~= "number" or type(edge_reach) ~= "number"
+                or middle_reach <= edge_reach then
+                return "hollow", "_hover_reach does not separate a pose with room to climb "
+                    .. "from one under the chrome: middle " .. describe(middle_reach)
+                    .. ", top " .. describe(edge_reach)
+            end
+            -- Framed in the order click_minimenu frames them, with the BAD
+            -- pose last -- which is the pose the pre-seam hunt was stuck with.
+            local ranked = rank({ { index = 1, pos = middle }, { index = 2, pos = under_the_chrome } },
+                view)
+            if not is_table(ranked) or #ranked ~= 2 then
+                return "hollow", "_hunt_order returned " .. describe(ranked)
+                    .. " for two poses"
+            end
+            if ranked[1].index ~= 1 then
+                return "refused", "the sweep would hunt at the pose the retry loop ENDED on "
+                    .. "(" .. describe(ranked[1].index) .. ", reach " .. describe(ranked[1].reach)
+                    .. ") ahead of the one with room to climb (1, reach "
+                    .. describe(middle_reach) .. ") -- the ranking is what this seam is"
+            end
+            -- The tie rule, which is what keeps a target whose poses all reach
+            -- equally being hunted exactly where it was hunted before this
+            -- seam, with no camera move: the LAST pose framed leads.
+            local tied = rank({ { index = 1, pos = middle }, { index = 2, pos = middle } }, view)
+            if not is_table(tied) or #tied ~= 2 or tied[1].index ~= 2 then
+                return "hollow", "a tie does not keep the pose the camera is already at first: "
+                    .. describe(tied)
+            end
+
             local seam_target = seam_loc_target()
             if not seam_target then
                 return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
             end
-            -- Poses, in the order QD.drive.click_minimenu itself retries
-            -- them.  A pose is not a cosmetic choice here: the projection is
-            -- taken against the whole canvas, and a target the camera has left
-            -- low or far to the side projects onto a pixel the WORLD never
-            -- hittests -- under the chat box, under the sidebar -- where the
-            -- honest answer is "the world is not picking" and says nothing
-            -- about the search.  Measured 2026-09-20: the raw projection after
-            -- the pointer rows put the Man at 593,198, and one pose later at
-            -- 246,472.
+            -- And the live half, the one the pre-seam row already proved: a
+            -- pixel the target is DRAWN at, found by probing.  `_hover_onto`
+            -- walks a ladder of candidates around the projected point and
+            -- answers the first whose PICKSET HOLDS the element.  A table back
+            -- from it is the whole C seam proved at once, because it only ever
+            -- accepts a candidate that survived `_hover_probe`, and
+            -- `_hover_probe` answers nil unless api_drive.pick_point
+            -- (DrivePointer_PickPoint over World_PickSetStamp) says a rendered
+            -- frame hittested at exactly that pixel.  Without that stamp a
+            -- `held=false` is not a reading at all -- it is equally "the model
+            -- is not drawn here" and "the frame has not caught up with my move
+            -- yet" -- and the driver spent a batch of quests reporting the
+            -- second as the first.
+            --
+            -- The pose is taken FIRST, through the same `_frame` a covered
+            -- press retries with, rather than reading whatever projection the
+            -- rows above left behind: measured 2026-09-20, the raw projection
+            -- after the click_loc/click_obj/use_on rows put the Man at
+            -- 593,198 -- a pixel the world never hittests -- and the row
+            -- failed on where the camera happened to be pointing rather than
+            -- on the seam.
+            --
+            -- Every pose shares ONE budget here, exactly as click_minimenu's
+            -- sweep does, and the budget is read back afterwards: a
+            -- `_hover_onto` that ignored its fourth argument would leave it
+            -- untouched, and the whole reason the sweep may visit five poses
+            -- is that together they cost one ladder.
             local poses = is_table(t.drive) and t.drive._frame_poses or nil
             local limit = is_table(poses) and #poses or 1
+            local budget = { left = cap }
             local hovered, account, pos = nil, "no pose framed it", nil
             local tried = {}
             local index = 1
@@ -2005,7 +2080,7 @@ return {
                 local pos_result, framed = frame(seam_target, index, 4)
                 if pos_result == "ok" and is_table(framed) then
                     pos = framed
-                    hovered, account = hunt(seam_target, framed, 4)
+                    hovered, account = hunt(seam_target, framed, 4, budget)
                     tried[#tried + 1] = "pose " .. index .. " at " .. describe(framed.x)
                         .. "," .. describe(framed.y) .. ": " .. describe(account)
                 else
@@ -2017,9 +2092,162 @@ return {
                 return "covered", "no candidate pixel holds " .. LOC_SYMBOL
                     .. " from any pose -- " .. table.concat(tried, "; ")
             end
+            if type(budget.left) ~= "number" or budget.left < 0 then
+                return "refused", "the shared probe cap was overspent: " .. describe(budget.left)
+                    .. " left of " .. describe(cap) .. " -- " .. table.concat(tried, "; ")
+            end
+            if budget.left >= cap then
+                return "hollow", "the hunt charged NOTHING to the shared cap, so the fourth "
+                    .. "argument is not threaded through _hover_onto and a five-pose sweep "
+                    .. "would cost five ladders -- " .. table.concat(tried, "; ")
+            end
             return "ok", "pressing " .. describe(hovered.x) .. "," .. describe(hovered.y)
                 .. " instead of the projected " .. describe(pos.x) .. "," .. describe(pos.y)
-                .. " -- " .. table.concat(tried, "; ")
+                .. "; ranked a reach-" .. describe(middle_reach) .. " pose ahead of a reach-"
+                .. describe(edge_reach) .. " one and spent " .. describe(cap - budget.left)
+                .. " of " .. describe(cap) .. " probes -- " .. table.concat(tried, "; ")
+        end)
+
+        -- "I CAN'T REACH THAT!" IS A FACT ABOUT THE TILE, NOT ABOUT THE CLICK.
+        --
+        -- The driver never chose the tile it presses a loc from: walk_near's
+        -- standoff and `_step_off_for_click` both answer "get off the target's
+        -- own square", and neither asks which side the SERVER serves the
+        -- interaction from.  The far-side walk under them fires on `covered`
+        -- alone -- "the menu had no row for it" -- and a press the server
+        -- refuses opens a menu with a perfectly good row in it, so that loop
+        -- never ran.  biohazard's watchtower is served from the EAST and from
+        -- nowhere else; its file recorded the refusal as a content bug and was
+        -- blocked on it (build/quest_gate/seam_reach_p2, 2026-09-20).
+        --
+        -- Worse, the refusal did not even reach the row: the engine says it on
+        -- the tick AFTER the route runs out, so `_settle_after_click`'s
+        -- map_flag arm resolved first and the press was graded `ok (map_flag)`
+        -- -- a green row for a press that did nothing.
+        --
+        -- Three things, and the row fails if any one of them goes:
+        --   the SENTENCE is matched exactly, so content quoting it is not a
+        --     reach refusal and an ordinary refusal does not start a walk;
+        --   a press with no refusal behind it is NOT regraded, because a fence
+        --     that invents refusals is worse than no fence;
+        --   a refused press is RE-TAKEN from another approach tile of the same
+        --     loc, and the row that comes back names the tile that worked.
+        --
+        -- The retry is driven with an injected press here rather than with a
+        -- genuinely unreachable loc: the press is the caller's own closure
+        -- (click_loc passes its click+settle, use_on its re-arm+press+settle),
+        -- so injecting one grades the WALK and the candidate order -- which is
+        -- the seam -- without needing a Lumbridge loc that refuses a side.
+        seam("seam.reach_retry", function()
+            local refusal_of = verb("player", "_reach_refusal")
+            local verify = verb("player", "_reach_verify")
+            local retry = verb("player", "_reach_retry")
+            local candidates_of = verb("player", "_reach_candidates")
+            local tile_of = verb("world", "tile")
+            if not refusal_of then return missing("player", "_reach_refusal") end
+            if not verify then return missing("player", "_reach_verify") end
+            if not retry then return missing("player", "_reach_retry") end
+            if not candidates_of then return missing("player", "_reach_candidates") end
+            if not tile_of then return missing("world", "tile") end
+            local seam_target = seam_loc_target()
+            if not seam_target then
+                return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
+            end
+
+            -- Exactly the sentence, trimmed -- never a line that quotes it.
+            if refusal_of("I can't reach that!") ~= "I can't reach that!" then
+                return "hollow", "the reach sentence itself is not recognised: "
+                    .. describe(refusal_of("I can't reach that!"))
+            end
+            if refusal_of("The mourner says: I can't reach that! Go away.") ~= nil
+                or refusal_of("Nothing interesting happens.") ~= nil then
+                return "hollow", "a line that merely QUOTES the sentence, or an ordinary "
+                    .. "refusal, would start a walk around the loc"
+            end
+
+            -- The fence does not invent a refusal.  A serial no message can be
+            -- newer than is the cheapest way to state "nothing arrived behind
+            -- this press", and it costs the same tick a real one does.
+            local kept, kept_detail = verify("ok", "the press landed", 2147483000)
+            if kept ~= "ok" then
+                return "refused", "a clean press was regraded " .. describe(kept)
+                    .. " (" .. describe(kept_detail) .. ") with no refusal behind it -- "
+                    .. "every green loc row in the suite would go red"
+            end
+
+            -- The approach tiles: orthogonal neighbours of every copy of the
+            -- loc, the copies' own squares LAST (a press from one of those has
+            -- the player's own model in front of the pixel, so it is a last
+            -- resort and not a neighbour).
+            local candidates = candidates_of(seam_target)
+            if not is_table(candidates) or #candidates == 0 then
+                return "not_found", "no approach tile for " .. LOC_SYMBOL
+                    .. ": " .. describe(candidates)
+            end
+            local saw_own = false
+            for index = 1, #candidates do
+                if candidates[index].own then
+                    saw_own = true
+                elseif saw_own then
+                    return "hollow", "a neighbour tile is listed AFTER the loc's own square, "
+                        .. "so the last resort would be walked to first: " .. describe(candidates)
+                end
+            end
+
+            local before_result, before = tile_of()
+            if before_result ~= "ok" or not is_table(before) then
+                return before_result, "no tile to compare the retry against"
+            end
+            local pressed = 0
+            local pressed_at = nil
+            local result, detail, attempts = retry(
+                seam_target, "refused", "I can't reach that!", function()
+                    pressed = pressed + 1
+                    local at_result, at = tile_of()
+                    if at_result == "ok" and is_table(at) then
+                        pressed_at = at
+                    end
+                    return "ok", "the injected press landed"
+                end)
+            if attempts ~= 1 or pressed ~= 1 then
+                return "refused", "the refused press was re-taken " .. describe(attempts)
+                    .. " time(s) from " .. describe(#candidates) .. " approach tile(s) ("
+                    .. describe(pressed) .. " press(es) made) -- " .. describe(detail)
+            end
+            if result ~= "ok" then
+                return result, "the retry press answered ok and the verb reported "
+                    .. describe(result) .. ": " .. describe(detail)
+            end
+            if not is_table(pressed_at) or (pressed_at.x == before.x and pressed_at.z == before.z)
+            then
+                return "hollow", "the retry pressed from the SAME tile the refused press was "
+                    .. "made from (" .. describe(before.x) .. "," .. describe(before.z)
+                    .. ") -- it walked nowhere: " .. describe(detail)
+            end
+            if not string.find(tostring(detail), "approach tile", 1, true)
+                or not string.find(tostring(detail), "I can't reach that!", 1, true) then
+                return "hollow", "the row does not name the tile that worked or the refusal it "
+                    .. "replaced, so an author cannot tell a retried press from a first one: "
+                    .. describe(detail)
+            end
+
+            -- And an ordinary refusal is content answering on the merits:
+            -- walking to another side cannot improve it, so nothing is pressed.
+            local quiet = 0
+            local other_result, _, other_attempts = retry(
+                seam_target, "refused", "Nothing interesting happens.", function()
+                    quiet = quiet + 1
+                    return "ok", "this press should never have been made"
+                end)
+            if other_attempts ~= 0 or quiet ~= 0 or other_result ~= "refused" then
+                return "refused", "a refusal that is NOT about the reach started a walk around "
+                    .. "the loc (" .. describe(quiet) .. " press(es), "
+                    .. describe(other_attempts) .. " attempt(s), " .. describe(other_result) .. ")"
+            end
+            return "ok", "the refused press was re-taken from " .. describe(pressed_at.x)
+                .. "," .. describe(pressed_at.z) .. " of " .. describe(#candidates)
+                .. " approach tile(s), the row names it, a clean press is not regraded, and an "
+                .. "ordinary refusal presses nothing"
         end)
 
         -- THE RE-ARM, which is use_on's far-side retry with the walking taken

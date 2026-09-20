@@ -1311,6 +1311,70 @@ interaction_category(const struct ToriRSServerInteraction* interaction)
 }
 
 /**
+ * One loc trigger lookup: the varbit-resolved CHILD first, the BASE multiloc
+ * wrapper second.
+ *
+ * `Player.getOpTrigger` looks a multiloc up on the resolved child and stops
+ * there, and for the reference's own scripts that is enough because they bind
+ * the child. This content pack binds the WRAPPER: 420 loc triggers on 381
+ * distinct multiloc bases, of which 274 have no child binding anywhere
+ * (`[oplocu,golem_statuettea]` in quest_golem/scripts/golem_portal.rs2:67,
+ * `[oploc1,dt2_digsite_crevice]`, the Fremennik Isles rope bridges, Beneath
+ * Cursed Sands' plaques and urns). The wrapper is the id an author reads off
+ * `configs/all.loc`; the children are generated art states, and the state test
+ * the child id would have encoded is written inside the script instead.
+ *
+ * With the child lookup alone every one of those bindings is dead code, and the
+ * miss is invisible: the dispatch answers `[proc,nothing_interesting_message]`,
+ * the same sentence content's own `^dm_default` prints, so from a quest file a
+ * trigger that was never found reads exactly like a script that ran and refused.
+ * The Golem's statuette alcove is that case — the press is correct on both ends
+ * (`<- OPLOCU loc=6303 at 2718,4899 use=4618`, 6303=golem_statuettea,
+ * 4618=golem_statuette) and the engine's own verbose line says `no trigger for
+ * [oplocu,golem_statuette_facing_right]` while the binding sits on
+ * `golem_statuettea`.
+ *
+ * Child FIRST, so nothing that passes today moves: `[oploc1,ernest_doorajar]`
+ * and every other child-bound script still wins its own lookup, and the base
+ * rung is reached only where the child lookup found nothing at all. A DECLINE
+ * counts as nothing found here for the same reason it does inside
+ * `run_trigger_impl`'s own ladder — a script that says "not mine" must not
+ * consume the interaction the wrapper's script was written to answer.
+ *
+ * Deliberately NOT applied twice over:
+ *  - `[locstep]` (player_process_locstep) — all ten bindings in the pack name
+ *    base and child explicitly, so a base rung would double-fire.
+ *  - the op-table validation in `handle_oploc` and `p_oploc`. The CLIENT
+ *    resolves the same transform and builds the menu off the CHILD's record
+ *    (world_scenery.u.c `world_builder_resolve_loc_for_place` feeding
+ *    `World_SceneryRegister` the resolved `config_loc->actions`), so validating
+ *    against the child is validating against exactly what the player was
+ *    offered. Accepting the base's op there would admit clicks no client can
+ *    produce and give up the desync guard for nothing. A wrapper whose child
+ *    declares no op at all is not reachable from either end — that is a content
+ *    decision (`dt2_digsite_crevice_blocked_noop`), not this seam.
+ */
+static int
+run_loc_trigger_with_base(
+    struct ToriRSServer* srv,
+    int trigger,
+    int child_type,
+    int child_category,
+    int base_type,
+    int loc_slot)
+{
+    int ran;
+
+    assert(srv);
+
+    ran = ToriRSServer_ScriptsRunTriggerOnLoc(srv, trigger, child_type, child_category, loc_slot);
+    if( ran != TORIRSSERVER_TRIGGER_NONE || base_type == child_type )
+        return ran;
+    return ToriRSServer_ScriptsRunTriggerOnLoc(srv, trigger, base_type,
+                                               ToriRSServer_LocCategory(base_type), loc_slot);
+}
+
+/**
  * Fire one trigger for this interaction, with whatever entity it is *about*
  * bound as the script's active one.
  *
@@ -1384,7 +1448,14 @@ run_interaction_trigger(
         if( type < 0 )
             type = interaction->target_id;
         category = ToriRSServer_LocCategory(type);
-        return ToriRSServer_ScriptsRunTriggerOnLoc(srv, trigger, type, category, slot);
+        /* The ap rung takes the same child-then-base ladder as the op arms, so
+         * the two cannot disagree about which script owns a wrapper. Inert on
+         * today's pack — not one of the 30 `[aploc*]` bindings names a multiloc
+         * base — and that is the point: the `[oplocu]` family stayed broken for
+         * months precisely because one arm of this family was written
+         * differently from the others. */
+        return run_loc_trigger_with_base(srv, trigger, type, category, interaction->target_id,
+                                         slot);
     }
     {
         int category = interaction_category(interaction);
@@ -1905,9 +1976,11 @@ interaction_try(
          * copy survives. Same reason the ap rung above snapshots. */
         struct ToriRSServerInteraction snapshot = *interaction;
 
-        /* Multiloc: scene entity / find stays BASE; trigger type+category use
-         * the varbit-resolved child (LostCity OpLocHandler + getOpTrigger gap
-         * filled for osrs239 child-bound scripts like [oploc1,ernest_doorajar]). */
+        /* Multiloc: scene entity / find stays BASE; the trigger lookup tries the
+         * varbit-resolved child first (LostCity OpLocHandler + getOpTrigger gap
+         * filled for osrs239 child-bound scripts like [oploc1,ernest_doorajar])
+         * and the BASE second — run_loc_trigger_with_base, which both loc arms
+         * below go through. `target_id` is that base. */
         if( kind == TORIRSSERVER_INTERACT_LOC )
         {
             loc_trigger_type = ToriRSServer_LocResolveTransform(player, target_id);
@@ -2009,8 +2082,12 @@ interaction_try(
             if( ap >= 0 )
             {
                 if( kind == TORIRSSERVER_INTERACT_LOC )
-                    ran = ToriRSServer_ScriptsRunTriggerOnLoc(
-                        srv, ap + 7, trigger_type, category,
+                    /* `[oplocu,<wrapper>]` after `[oplocu,<child>]` — see
+                     * run_loc_trigger_with_base. 63 of the pack's 81 wrapper-bound
+                     * use-ons have no child binding at all, the Golem's statuette
+                     * alcove among them. */
+                    ran = run_loc_trigger_with_base(
+                        srv, ap + 7, trigger_type, category, target_id,
                         find_interaction_loc(loc_x, loc_z, loc_level, target_id));
                 else
                     ran = ToriRSServer_ScriptsRunTrigger(srv, ap + 7, trigger_type, category, slot);
@@ -2069,11 +2146,15 @@ interaction_try(
              * reference's own answer for one — `Player.defaultOp`, which is the
              * message and nothing else. Same shape as the use-on arm above, and
              * `FAILED` deliberately says nothing: a script that aborted has
-             * already had its turn. */
-            if( ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1 + (op_num - 1),
-                                                   loc_trigger_type, category,
-                                                   find_interaction_loc(loc_x, loc_z, loc_level,
-                                                                        target_id)) ==
+             * already had its turn.
+             *
+             * The child-then-base ladder is run_loc_trigger_with_base's: 211 of
+             * the pack's 339 wrapper-bound `[oploc<n>]` scripts have no child
+             * binding, so the message below was the whole of what they did. */
+            if( run_loc_trigger_with_base(srv, SS_TRIGGER_OPLOC1 + (op_num - 1), loc_trigger_type,
+                                          category, target_id,
+                                          find_interaction_loc(loc_x, loc_z, loc_level,
+                                                               target_id)) ==
                 TORIRSSERVER_TRIGGER_NONE )
                 ToriRSServer_Say(srv, "nothing_interesting_message", NULL);
             break;
