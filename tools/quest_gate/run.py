@@ -272,6 +272,15 @@ def client_env(directory, saves, script):
         "SDL_AUDIODRIVER": "dummy",
         "TORIRS_STDERR_UNBUFFERED": "1",
         "TORIRS_PLUGINS": "1",
+        # Only the Lua host registers, and its manifest below names only the
+        # quest driver: no item-stats, xp/loot trackers, minimap orbs, tile
+        # indicator or NXT plugins. Run book rule (owner, 2026-09-20): a quest
+        # test's screenshots show the engine's own frame and nothing a plugin
+        # painted, and no plugin's hooks sit between the driver and the
+        # client. TORIRS_PLUGIN_ONLY is torirs_plugin_registry.c's switch;
+        # "lua" is TORIRS_PLUGIN_LUA.id. Proved 2026-09-20: doric green, 23
+        # shots, zero plugin= lines in client.log.
+        "TORIRS_PLUGIN_ONLY": "lua",
         "TORIRS_PLUGIN_LOG": "1",
         "TORIRS_CONTENT_TEST": directory,
         "TORIRS_QUEST_SCRIPT": script,

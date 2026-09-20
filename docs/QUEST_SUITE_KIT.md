@@ -216,3 +216,11 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   last run -- so build them before the next batch overwrites those directories.
   Rejected quests are included: their screenshots are the evidence for the
   rejection.
+- **Only the automation plugin loads.** `run.py` and `conformance.py` set
+  `TORIRS_PLUGIN_ONLY=lua` so the native registry registers only the Lua
+  host, whose manifest (`script/plugins/quest_driver.ini`) names only the
+  quest driver. No item-stats, xp/loot trackers, minimap orbs, tile
+  indicator or NXT plugins run in a quest test: the screenshots show the
+  engine's own frame, and no plugin hook sits between the driver and the
+  client. A quest test that needs another plugin's behaviour is testing that
+  plugin, and belongs in its own harness.
