@@ -1023,9 +1023,739 @@ class RoutePosition:
         ]
 
 
-def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> tuple[str, bool]:
+# --------------------------------------------- chat.play from THIS content
+#
+# WHY (docs/QUEST_SUITE_KIT.md, 2026-09-19): the OLD behaviour below emitted
+# one `t.chat.play({"choose:<row>"})` call PER Quest Helper addDialogStep
+# line -- one call per CHOICE, never the npc/player/mesbox pages a real
+# conversation opens with. Every branch's FIRST page is whatever the .rs2
+# itself opens with (a player line for Brother Omad/Doctor Orbon/Councillor
+# Halgrive, an npc line for Doric), never a bare choice -- two Haiku batches
+# died on exactly that gap. This section builds the FULL page list by
+# reading the npc's own `[opnpc1,<symbol>]` handler, walking the branch a
+# fresh player at the CURRENT known stage takes, and using Quest Helper's
+# addDialogStep lines only to pick which `p_choice*` ROW to take at each
+# fork -- never as the whole page list on their own.
+
+HEADER_RE = re.compile(r"^\[(\w+)(?:,(\w+))?\][^\n]*\n?", re.MULTILINE)
+OPNPC1_RE = re.compile(r"^\[opnpc1,(\w+)\]", re.MULTILINE)
+
+# Suffixes a compack npc symbol carries that an [opnpc1,...] handler
+# routinely does NOT -- `councillor_halgrive_vis` resolves to id 8765 (a
+# skin/visibility variant quest-helper's own NpcID constant names), but
+# `[opnpc1,councillor_halgrive]` (the base, id 1115) is the only handler
+# this content declares (docs/QUEST_SUITE_KIT.md: "the symbol may be the
+# multinpc base or a _vis/_multi variant"). Stripped repeatedly, longest
+# suffix first, before falling back to a prefix scan the other way.
+NPC_SUFFIX_RE = re.compile(r"_(vis|multi\d*)$")
+
+_OPNPC1_INDEX: dict[str, Path] | None = None
+_RS2_SECTION_CACHE: dict[Path, dict[tuple[str, str], str]] = {}
+
+
+def load_opnpc1_index(content: Path) -> dict[str, Path]:
+    """npc symbol -> the *.rs2 file declaring its `[opnpc1,<symbol>]`
+    handler, built once per process (same caching shape as
+    load_spawn_index). First declaration wins on a name collision -- this
+    content's own convention (see fred_the_farmer.rs2's banner: a second
+    `[opnpc1,...]` for the same name does not compose, the compiler just
+    keeps whichever file it reads last, so multiple hits here are a content
+    smell, not this tool's bug to resolve)."""
+    global _OPNPC1_INDEX
+    if _OPNPC1_INDEX is not None:
+        return _OPNPC1_INDEX
+    index: dict[str, Path] = {}
+    scripts_root = content / "server" / "scripts"
+    for path in sorted(scripts_root.rglob("*.rs2")):
+        text = path.read_text(errors="replace")
+        for m in OPNPC1_RE.finditer(text):
+            index.setdefault(m.group(1), path)
+    _OPNPC1_INDEX = index
+    return index
+
+
+def find_opnpc1_handler(symbol: str, index: dict[str, Path]) -> tuple[str | None, Path | None]:
+    """(matched_symbol, path) for npc SYMBOL, or (None, None) when nothing
+    in `index` resolves -- tried in order: (1) the symbol itself; (2) the
+    symbol with a trailing _vis/_multiN suffix stripped, repeatedly (the
+    compack variant -> content's own base); (3) an index symbol that
+    STARTS WITH the given one (the content's own base -> a _vis/_multi
+    variant quest-helper names instead, docs/QUEST_SUITE_KIT.md's own
+    stated order)."""
+    if symbol in index:
+        return symbol, index[symbol]
+    stripped = symbol
+    while True:
+        m = NPC_SUFFIX_RE.search(stripped)
+        if not m:
+            break
+        stripped = stripped[: m.start()]
+        if stripped in index:
+            return stripped, index[stripped]
+    candidates = sorted(s for s in index if s.startswith(symbol))
+    if candidates:
+        return candidates[0], index[candidates[0]]
+    return None, None
+
+
+def parse_rs2_sections(text: str) -> dict[tuple[str, str], str]:
+    """{(kind, name): body_text} for every `[kind,name]` header in an .rs2
+    file (`[opnpc1,doric]`, `[label,doric_not_started]`,
+    `[proc,doric_has_materials]`, ...) -- body runs to the next header or
+    EOF. A header's own trailing tokens on the same line (a proc's own
+    `()(boolean)` return signature) are consumed as part of the header, not
+    left for the body's statement parser to choke on.
+
+    Adjacent headers with nothing but whitespace between them (`[opnpc1,
+    king_arthur]\\n[opnpc1,kr_multi_king_arthur]\\nif (...) {...}`,
+    king_arthur.rs2) are this dialect's own multi-name declaration -- every
+    name in the run shares the FOLLOWING non-blank body, not an empty one.
+    Each one is aliased forward to it (module banner: 'the symbol may be
+    the multinpc base or a _vis/_multi variant' covers the compack-name
+    side of this; this is the .rs2 declaration's own side of the same
+    thing)."""
+    matches = list(HEADER_RE.finditer(text))
+    n = len(matches)
+    raw: list[tuple[str, str, str]] = []
+    for idx, m in enumerate(matches):
+        kind = m.group(1)
+        name = m.group(2) or ""
+        start = m.end()
+        end = matches[idx + 1].start() if idx + 1 < n else len(text)
+        raw.append((kind, name, text[start:end]))
+    sections: dict[tuple[str, str], str] = {}
+    for idx in range(n):
+        kind, name, body = raw[idx]
+        j = idx
+        while not body.strip() and j + 1 < n:
+            j += 1
+            body = raw[j][2]
+        sections[(kind, name)] = body
+    return sections
+
+
+def get_rs2_sections(path: Path) -> dict[tuple[str, str], str]:
+    cached = _RS2_SECTION_CACHE.get(path)
+    if cached is None:
+        cached = parse_rs2_sections(path.read_text(errors="replace"))
+        _RS2_SECTION_CACHE[path] = cached
+    return cached
+
+
+# ---------------------------------------------- a small rs2 statement walk
+
+def _read_simple_stmt(text: str, i: int) -> tuple[str, int]:
+    """Everything up to the next top-level (depth 0, outside a string) ';'
+    -- the same balanced scan extract_balanced/split_top_level use."""
+    depth = 0
+    in_string: str | None = None
+    j = i
+    n = len(text)
+    while j < n:
+        ch = text[j]
+        if in_string:
+            if ch == "\\":
+                j += 1
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+        elif ch in _OPEN:
+            depth += 1
+        elif ch in _CLOSE:
+            depth -= 1
+        elif ch == ";" and depth == 0:
+            return text[i:j], j + 1
+        j += 1
+    return text[i:j], j
+
+
+_IF_RE = re.compile(r"\bif\s*")
+_ELSE_RE = re.compile(r"\belse\s*")
+_ELSEIF_RE = re.compile(r"\bif\s*")
+_SWITCH_RE = re.compile(r"\bswitch_int\s*")
+_CASE_RE = re.compile(r"case\s+([^:]+):\s*([^\n;]*;)")
+
+
+def _skip_ws_comments(text: str, i: int) -> int:
+    n = len(text)
+    while i < n:
+        if text[i].isspace():
+            i += 1
+        elif text[i:i + 2] == "//":
+            nl = text.find("\n", i)
+            i = nl + 1 if nl != -1 else n
+        else:
+            break
+    return i
+
+
+def _parse_block(text: str, j: int) -> tuple[str, int]:
+    """The body of an if/elseif/else arm: a braced `{ ... }` block, or --
+    this dialect allows it (atfirstlight.rs2: `if (~hunter_cape_apatura_
+    unlock = true) return;`) -- a single un-braced statement up to its own
+    ';'. Either way, callers hand the result straight to rs2_statements,
+    which parses a lone statement (no trailing ';' needed) exactly like a
+    braced one."""
+    j = _skip_ws_comments(text, j)
+    if j < len(text) and text[j] == "{":
+        return extract_balanced(text, j)
+    return _read_simple_stmt(text, j)
+
+
+def rs2_statements(text: str) -> list[dict]:
+    """A body's own statements, in order, as a flat list of
+    {"type": "simple", "text": ...} | {"type": "if", "branches":
+    [(cond_or_None, body), ...]} | {"type": "switch", "expr": ...,
+    "cases": [(cond, body), ...]} nodes. `if`/`switch` bodies are NOT
+    recursively parsed here -- the walker below does that lazily, only for
+    the one branch it actually takes."""
+    stmts: list[dict] = []
+    i = 0
+    n = len(text)
+    while True:
+        i = _skip_ws_comments(text, i)
+        if i >= n:
+            break
+        m_if = _IF_RE.match(text, i)
+        m_switch = _SWITCH_RE.match(text, i)
+        if m_if:
+            branches = []
+            j = _skip_ws_comments(text, m_if.end())
+            if j >= n or text[j] != "(":
+                # not really an `if` keyword (e.g. a variable named
+                # `ifoo`) -- \b already guards most of this, but bail to a
+                # simple statement rather than raise.
+                stmt_text, i = _read_simple_stmt(text, i)
+                stmts.append({"type": "simple", "text": stmt_text})
+                continue
+            cond, j = extract_balanced(text, j)
+            body, j = _parse_block(text, j)
+            branches.append((cond, body))
+            while True:
+                save = j
+                j2 = _skip_ws_comments(text, j)
+                m_else = _ELSE_RE.match(text, j2)
+                if not m_else:
+                    j = save
+                    break
+                j = _skip_ws_comments(text, m_else.end())
+                m_elseif = _ELSEIF_RE.match(text, j)
+                if m_elseif:
+                    j = _skip_ws_comments(text, m_elseif.end())
+                    cond, j = extract_balanced(text, j)
+                    body, j = _parse_block(text, j)
+                    branches.append((cond, body))
+                    continue
+                body, j = _parse_block(text, j)
+                branches.append((None, body))
+                break
+            stmts.append({"type": "if", "branches": branches})
+            i = j
+            continue
+        if m_switch:
+            j = _skip_ws_comments(text, m_switch.end())
+            expr, j = extract_balanced(text, j)
+            j = _skip_ws_comments(text, j)
+            body, j = extract_balanced(text, j)
+            cases = [(c.strip(), s.strip()) for c, s in _CASE_RE.findall(body)]
+            stmts.append({"type": "switch", "expr": expr.strip(), "cases": cases})
+            i = j
+            continue
+        stmt_text, i = _read_simple_stmt(text, i)
+        if stmt_text.strip():
+            stmts.append({"type": "simple", "text": stmt_text})
+    return stmts
+
+
+def _strip_outer_parens(text: str) -> str:
+    text = text.strip()
+    while text.startswith("(") and text.endswith(")"):
+        inner, end = extract_balanced(text, 0)
+        if end == len(text):
+            text = inner.strip()
+        else:
+            break
+    return text
+
+
+def _split_top_level_char(text: str, sep: str) -> list[str]:
+    parts, depth, in_string, current = [], 0, None, []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if in_string:
+            current.append(ch)
+            if ch == "\\" and i + 1 < len(text):
+                i += 1
+                current.append(text[i])
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+            current.append(ch)
+        elif ch in _OPEN:
+            depth += 1
+            current.append(ch)
+        elif ch in _CLOSE:
+            depth -= 1
+            current.append(ch)
+        elif ch == sep and depth == 0:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+        i += 1
+    parts.append("".join(current).strip())
+    return parts
+
+
+def _strip_quotes(text: str) -> str:
+    text = text.strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        return text[1:-1]
+    return text
+
+
+def clean_page_text(raw: str) -> str:
+    """A quoted rs2 string literal -> the substring chat.play's own list
+    entries should carry: unescape `\\"`/`\\\\`, drop `<col=...>` tags, keep
+    only the text before the first `|` (a same-page line wrap, per every
+    label read for this pass -- never a page boundary in this dialect)."""
+    raw = raw.replace('\\"', '"').replace("\\\\", "\\")
+    raw = re.sub(r"<[^>]*>", "", raw)
+    raw = raw.split("|", 1)[0]
+    return raw.strip()
+
+
+def _last_string_literal(args_text: str) -> str | None:
+    matches = re.findall(r'"((?:[^"\\]|\\.)*)"', args_text)
+    return matches[-1] if matches else None
+
+
+def _fuzzy_row_match(candidate: str, row: str) -> bool:
+    c = candidate.strip().lower().rstrip(".")
+    r = row.strip().lower().rstrip(".")
+    if not c or not r:
+        return False
+    return c in r or r in c
+
+
+CHATPLAYER_RE = re.compile(r"^~chatplayer(?:_anim)?\s*\(")
+# `~chatnpc_specific` / `~chatnpc_specific_anim` (368 call sites; the proc
+# head is `(string $npc_name, npc $npc, [int $anim,] string $text)`,
+# interface_chat/scripts/chat.rs2:108) open the SAME left-hand npc page as
+# `~chatnpc`, and the text is still the LAST string literal. Not matching
+# them here dropped a real page out of the emitted list with no `-- CHECK`
+# beside it -- a silently wrong page order is the one thing this pass
+# exists to stop.
+CHATNPC_RE = re.compile(r"^~chatnpc(?:_specific)?(?:_anim)?\s*\(")
+MESBOX_RE = re.compile(r"^~mesbox\s*\(")
+CHOICE_RE = re.compile(r"^(?:def_(?:int|boolean)\s+\$(\w+)\s*=\s*)?~(p_choice\d+(?:_header)?)\s*\(")
+JUMP_RE = re.compile(r"^@(\w+)\s*$")
+PROC_CALL_RE = re.compile(r"^~(\w+)\s*\(")
+PAGE_CALL_RE = re.compile(r"~(?:chatnpc|chatplayer|mesbox|p_choice\d)")
+VARP_ASSIGN_RE = re.compile(r"^%(\w+)\s*=\s*\^(\w+)$")
+RETURN_RE = re.compile(r"^return\b")
+IFCLOSE_RE = re.compile(r"^if_close\b")
+LOCAL_CMP_RE = re.compile(r"^\$(\w+)\s*(=|!=)\s*(-?\d+)$")
+VARP_CMP_RE = re.compile(r"^%(\w+)\s*(=|!=|>=|<=|>|<)\s*\^(\w+)$")
+
+MAX_PAGE_ENTRIES = 40
+MAX_JUMP_DEPTH = 6
+
+
+class Rs2DialogueWalker:
+    """Walks ONE npc's `[opnpc1,<symbol>]` handler from a fresh entry,
+    following the branch a player at `known_stage[0]` (a mutable one-item
+    box so a later step for the SAME quest varp sees whatever this walk
+    itself discovered) takes, and returns the `chat.play` entries a real
+    conversation opens with (docs/QUEST_SUITE_KIT.md, module banner
+    above). `dialog_queue` is Quest Helper's own addDialogStep lines for
+    THIS NpcStep, in order -- consumed (never more than once) only when a
+    `p_choice*` row it names actually appears in the current fork; never
+    used to invent a page on its own."""
+
+    def __init__(
+        self,
+        sections: dict[tuple[str, str], str],
+        tracked_varp: str | None,
+        known_stage: list[str | None],
+        const_values: dict[str, int],
+        dialog_queue: list[str],
+        handler_label: str,
+    ) -> None:
+        self.sections = sections
+        self.tracked_varp = tracked_varp
+        self.known_stage = known_stage  # [current_const_symbol_or_None]
+        self.const_values = const_values
+        self.dialog_queue = dialog_queue
+        self.dialog_pos = 0
+        self.handler_label = handler_label
+        self.pages: list[str] = []
+        self.checks: list[str] = []
+        self.choice_vars: dict[str, int] = {}
+        self.jumped_labels: set[str] = set()
+        self.stopped = False
+        self.truncated = False
+
+    def run(self, entry_stmts: list[dict]) -> None:
+        self._walk_stmts(entry_stmts, 0)
+
+    # -- condition evaluation ------------------------------------------
+
+    def _eval_single(self, side: str) -> bool | None:
+        side = side.strip()
+        m = LOCAL_CMP_RE.match(side)
+        if m:
+            var, op, val = m.group(1), m.group(2), int(m.group(3))
+            if var not in self.choice_vars:
+                return None
+            cur = self.choice_vars[var]
+            return (cur == val) if op == "=" else (cur != val)
+        m = VARP_CMP_RE.match(side)
+        if m:
+            varp, op, const_sym = m.groups()
+            if varp != self.tracked_varp or self.known_stage[0] is None:
+                return None
+            lhs = self.const_values.get(self.known_stage[0])
+            rhs = self.const_values.get(const_sym)
+            if lhs is None or rhs is None:
+                return None
+            if op == "=":
+                return lhs == rhs
+            if op == "!=":
+                return lhs != rhs
+            if op == ">=":
+                return lhs >= rhs
+            if op == "<=":
+                return lhs <= rhs
+            if op == ">":
+                return lhs > rhs
+            return lhs < rhs
+        return None
+
+    def _eval_cond(self, cond_text: str) -> bool | None:
+        cond_text = _strip_outer_parens(cond_text)
+        sides = [_strip_outer_parens(s) for s in _split_top_level_char(cond_text, "|")]
+        results = [self._eval_single(s) for s in sides]
+        if any(r is True for r in results):
+            return True
+        if all(r is False for r in results):
+            return False
+        return None
+
+    def _choose_if_branch(self, branches: list[tuple[str | None, str]]) -> tuple[int | None, bool, str | None]:
+        n = len(branches)
+        has_else = branches[-1][0] is None
+        any_unresolved = False
+        for idx, (cond, _body) in enumerate(branches):
+            if cond is None:
+                continue
+            val = self._eval_cond(cond)
+            if val is True:
+                return idx, False, None
+            if val is None:
+                any_unresolved = True
+        if n == 1 and not has_else:
+            # A lone guard clause with no else is, overwhelmingly in this
+            # content, an early-return special case (an inventory check,
+            # an already-done check) -- Fred's own coldwar_fred/
+            # onesmallfavour gates ahead of [opnpc1,fred_the_farmer]'s own
+            # quest dispatch are exactly this shape. Entering one by
+            # default would truncate the ordinary playthrough far more
+            # often than skipping it wrongly would, so an unresolved lone
+            # guard is assumed FALSE (not entered), flagged for a human to
+            # confirm rather than guessed into.
+            if any_unresolved:
+                return None, True, f"single guard {branches[0][0]!r} unresolved -- assumed false, not entered"
+            return None, False, None
+        if any_unresolved:
+            return 0, True, f"chain unresolved -- guessed first arm {branches[0][0]!r}"
+        if has_else:
+            return n - 1, False, None
+        return None, False, None
+
+    def _choose_switch_case(self, expr: str, cases: list[tuple[str, str]]) -> tuple[int | None, bool, str | None]:
+        varp_name = expr.strip().lstrip("%")
+        if not self.tracked_varp or varp_name != self.tracked_varp:
+            return None, False, None
+        if self.known_stage[0] is None:
+            return 0, True, f"switch on '%{varp_name}' -- stage unknown, guessed first case"
+        lhs = self.const_values.get(self.known_stage[0])
+        for idx, (cond, _body) in enumerate(cases):
+            for const_sym in re.findall(r"\^(\w+)", cond):
+                rhs = self.const_values.get(const_sym)
+                if rhs is not None and rhs == lhs:
+                    return idx, False, None
+        return 0, True, f"switch on '%{varp_name}={self.known_stage[0]}' matched no case -- guessed first case"
+
+    # -- statement handling ----------------------------------------------
+
+    def _walk_stmts(self, stmts: list[dict], depth: int) -> bool:
+        """True: control left this list via an unconditional jump/return --
+        the caller must NOT resume with whatever lexically follows the
+        construct that produced it. False: this list ran to its own
+        natural end."""
+        for stmt in stmts:
+            if self.stopped:
+                return True
+            if self._handle(stmt, depth):
+                return True
+        return False
+
+    def _handle(self, stmt: dict, depth: int) -> bool:
+        kind = stmt["type"]
+        if kind == "simple":
+            return self._handle_simple(stmt["text"], depth)
+        if kind == "if":
+            idx, need_check, reason = self._choose_if_branch(stmt["branches"])
+            if need_check and reason:
+                self.checks.append(f"branch (page {len(self.pages) + 1}): {reason}")
+            if idx is None:
+                return False
+            _cond, body = stmt["branches"][idx]
+            return self._walk_stmts(rs2_statements(body), depth)
+        if kind == "switch":
+            # `switch_int(~p_choiceN(...)) { case 1: ...; case 2: ...; }`
+            # (quest_cook.rs2's own cooks_assistant_whats_wrong label) puts
+            # the choice INSIDE the switch's own selector expression --
+            # the case values ARE the row ids, not a quest-varp dispatch.
+            m = CHOICE_RE.match(stmt["expr"].strip())
+            if m:
+                chosen_id = self._resolve_and_emit_choice(stmt["expr"].strip(), m)
+                if chosen_id is None:
+                    return False
+                for cond, body in stmt["cases"]:
+                    case_ids = {int(tok) for tok in re.findall(r"-?\d+", cond)}
+                    if chosen_id in case_ids:
+                        return self._walk_stmts(rs2_statements(body), depth)
+                self.checks.append(
+                    f"branch (page {len(self.pages) + 1}): switch_int(p_choice) case "
+                    f"{chosen_id} matched no case in {stmt['cases']!r} -- nothing entered"
+                )
+                return False
+            idx, need_check, reason = self._choose_switch_case(stmt["expr"], stmt["cases"])
+            if need_check and reason:
+                self.checks.append(f"branch (page {len(self.pages) + 1}): {reason}")
+            if idx is None:
+                return False
+            _cond, body = stmt["cases"][idx]
+            return self._walk_stmts(rs2_statements(body), depth)
+        return False
+
+    def _handle_simple(self, raw_text: str, depth: int) -> bool:
+        text = raw_text.strip()
+        if not text:
+            return False
+        if RETURN_RE.match(text) or IFCLOSE_RE.match(text):
+            self.stopped = True
+            return True
+        m = CHATPLAYER_RE.match(text)
+        if m:
+            self._emit_page("player", text, m.end() - 1)
+            return self.stopped
+        m = CHATNPC_RE.match(text)
+        if m:
+            self._emit_page("npc", text, m.end() - 1)
+            return self.stopped
+        m = MESBOX_RE.match(text)
+        if m:
+            self._emit_page("mesbox", text, m.end() - 1)
+            return self.stopped
+        m = CHOICE_RE.match(text)
+        if m:
+            self._resolve_and_emit_choice(text, m)
+            return self.stopped
+        m = JUMP_RE.match(text)
+        if m:
+            return self._follow_jump(m.group(1), depth)
+        m = VARP_ASSIGN_RE.match(text)
+        if m and m.group(1) == self.tracked_varp:
+            self.known_stage[0] = m.group(2)
+            return False
+        # A bare `~proc()` statement whose own body opens dialogue pages is
+        # NOT a side effect: the conversation continues inside it and this
+        # walk does not follow it, so the list being built is short by
+        # however many pages that proc opens. Say so -- an unmarked short
+        # list is the exact failure this pass exists to stop; a `-- CHECK`
+        # sends the author to the proc.
+        m = PROC_CALL_RE.match(text)
+        if m and PAGE_CALL_RE.search(self.sections.get(("proc", m.group(1)), "")):
+            self.checks.append(
+                f"pages (page {len(self.pages) + 1}): ~{m.group(1)}() opens dialogue "
+                "pages of its own and this walk does not follow it -- pages are MISSING here"
+            )
+            return False
+        # settimer/inv_add/queue/etc -- a side effect this pass does not
+        # model, never a dialogue page.
+        return False
+
+    def _emit_page(self, kind: str, text: str, open_idx: int) -> None:
+        if len(self.pages) >= MAX_PAGE_ENTRIES:
+            self.truncated = True
+            self.stopped = True
+            return
+        inner, _ = extract_balanced(text, open_idx)
+        lit = _last_string_literal(inner)
+        if lit is None:
+            return
+        cleaned = clean_page_text(lit)
+        if not cleaned:
+            return
+        self.pages.append(f"{kind}:{cleaned[:30]}")
+
+    def _resolve_and_emit_choice(self, text: str, m: re.Match) -> int | None:
+        """Parses a `~p_choiceN(...)`/`~p_choiceN_header(...)` call (whether
+        it is its own statement or, `switch_int(~p_choiceN(...))`'s own
+        selector expression), picks a row (Quest Helper's next unconsumed
+        addDialogStep line if it names one of these rows, else row 1 with a
+        CHECK), emits the `choose:<row>` page, records the row's own id
+        against its local var (when it has one) for a later `if ($x = N)`
+        to resolve deterministically, and returns that id -- None only when
+        the call has no rows at all (nothing to choose, nothing emitted)."""
+        if len(self.pages) >= MAX_PAGE_ENTRIES:
+            self.truncated = True
+            self.stopped = True
+            return None
+        var_name = m.group(1) or "__last_choice"
+        is_header = m.group(2).endswith("_header")
+        open_idx = m.end() - 1
+        inner, _ = extract_balanced(text, open_idx)
+        parts = _split_top_level_char(inner, ",")
+        if is_header and len(parts) % 2 == 1:
+            parts = parts[:-1]
+        rows: list[str] = []
+        ids: list[int] = []
+        i = 0
+        while i + 1 < len(parts):
+            row_text = clean_page_text(_strip_quotes(parts[i]))
+            try:
+                slot_id = int(parts[i + 1].strip())
+            except ValueError:
+                slot_id = (i // 2) + 1
+            rows.append(row_text)
+            ids.append(slot_id)
+            i += 2
+        if not rows:
+            return None
+        chosen = None
+        if self.dialog_pos < len(self.dialog_queue):
+            candidate = self.dialog_queue[self.dialog_pos]
+            for ridx, row in enumerate(rows):
+                if _fuzzy_row_match(candidate, row):
+                    chosen = ridx
+                    self.dialog_pos += 1
+                    break
+        if chosen is None:
+            chosen = 0
+            self.checks.append(
+                f"choose (page {len(self.pages) + 1}): no addDialogStep of "
+                f"{self.dialog_queue!r} matched {rows!r} -- row 1 used"
+            )
+        self.choice_vars[var_name] = ids[chosen]
+        self.pages.append(f"choose:{rows[chosen]}")
+        return ids[chosen]
+
+    def _follow_jump(self, label: str, depth: int) -> bool:
+        if depth >= MAX_JUMP_DEPTH:
+            self.checks.append(f"depth limit ({MAX_JUMP_DEPTH}) reached following @{label}")
+            self.stopped = True
+            return True
+        if label in self.jumped_labels:
+            self.checks.append(f"cycle cut: @{label} already visited")
+            self.stopped = True
+            return True
+        body = self.sections.get(("label", label))
+        if body is None:
+            body = self.sections.get(("proc", label))
+        if body is None:
+            self.checks.append(f"@{label} not found in {self.handler_label}")
+            self.stopped = True
+            return True
+        self.jumped_labels.add(label)
+        self._walk_stmts(rs2_statements(body), depth + 1)
+        self.stopped = True
+        return True
+
+
+def build_chat_play_entries(
+    symbol: str,
+    dialog_lines: list[str],
+    tracked_varp: str | None,
+    known_stage: list[str | None],
+    const_values: dict[str, int],
+    content: Path,
+) -> tuple[list[str], list[str], bool, str | None]:
+    """(entries, checks, found_handler, matched_symbol) -- `entries` is the
+    exact list of `chat.play` strings this NpcStep's conversation opens
+    with, `known_stage` mutated in place with whatever this walk itself
+    discovered about `tracked_varp` (docs/QUEST_SUITE_KIT.md: 'follow the
+    branch a fresh player at the CURRENT stage takes')."""
+    index = load_opnpc1_index(content)
+    matched_symbol, path = find_opnpc1_handler(symbol, index)
+    if matched_symbol is None or path is None:
+        return [], [], False, None
+    sections = get_rs2_sections(path)
+    handler_body = sections.get(("opnpc1", matched_symbol))
+    if handler_body is None:
+        return [], [f"opnpc1 section for '{matched_symbol}' vanished after indexing"], False, matched_symbol
+    walker = Rs2DialogueWalker(
+        sections, tracked_varp, known_stage, const_values, list(dialog_lines),
+        f"{path.name} [opnpc1,{matched_symbol}]",
+    )
+    walker.run(rs2_statements(handler_body))
+    checks = list(walker.checks)
+    if walker.truncated:
+        checks.append(f"truncated at {MAX_PAGE_ENTRIES} entries")
+    if not walker.pages:
+        checks.append(f"handler [opnpc1,{matched_symbol}] walked to zero pages")
+    return walker.pages, checks, True, matched_symbol
+
+
+class QuestVarpContext:
+    """The per-quest state `format_step_call` threads through the whole
+    route so an NpcStep's chat.play list can be built from this content's
+    own `[opnpc1,<symbol>]` handler (module banner above `format_step_call`
+    for why). `known_stage` starts at the quest's own not_started constant
+    (fixture setup always resets it) and is mutated by whatever a walked
+    branch itself discovers, so a SECOND talk_to of the same varp later in
+    the route sees the advanced stage, not a re-guessed first arm."""
+
+    def __init__(self, tracked_varp: str | None, not_started_sym: str | None,
+                 const_values: dict[str, int], content: Path) -> None:
+        self.tracked_varp = tracked_varp
+        self.known_stage: list[str | None] = [not_started_sym]
+        self.const_values = const_values
+        self.content = content
+
+    def build(self, symbol: str, dialog_lines: list[str]) -> tuple[list[str], list[str], bool, str | None]:
+        return build_chat_play_entries(
+            symbol, dialog_lines, self.tracked_varp, self.known_stage, self.const_values, self.content
+        )
+
+
+def _emit_legacy_dialogue(lines: list[str], checks: list[str], var: str, name: str, dialog_lines: list[str]) -> None:
+    """The OLD one-t.exec-per-addDialogStep-line behaviour -- kept for
+    ObjectStep/ItemStep (dialog steps this pass does not walk a handler
+    for) and as an NpcStep fallback when no [opnpc1,...] handler resolves
+    at all (docs/QUEST_SUITE_KIT.md: 'Keep the old behaviour as a fallback
+    when no handler is found')."""
+    for index, line in enumerate(dialog_lines, start=1):
+        lines.append(
+            f'        t.exec({lua_string(name + "-dialog-" + str(index))}, t.chat.play, '
+            f"{{{lua_string('choose:' + line)}}}) -- CHECK dialog row text guessed from Quest Helper"
+        )
+        checks.append(f"{var}: dialog row guessed ({line!r})")
+
+
+def format_step_call(
+    var: str, info: dict, dialog: dict, checks: list[str], varp_ctx: "QuestVarpContext | None" = None,
+) -> tuple[str, bool]:
     """One t.exec(...) line (or an unresolved comment) for a single leaf
-    step. Returns (lua_lines_text, was_driven)."""
+    step. Returns (lua_lines_text, was_driven). `varp_ctx` is None only for
+    a caller (none left) that predates it -- an NpcStep with no context
+    falls straight to the legacy per-line dialog behaviour."""
     kind = info["kind"]
     desc = info["desc"] or var
     comment = "        -- " + (desc if desc else var)
@@ -1042,6 +1772,7 @@ def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> t
     gv_kind, symbol = gameval
     lines = [comment]
     name = f"{var}"
+    dialog_lines = dialog.get(var, [])
     if gv_kind == "NpcID":
         op, guessed_by = guess_op(desc)
         lines.append(
@@ -1049,6 +1780,56 @@ def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> t
             f"-- CHECK op {op} guessed from '{guessed_by}'"
         )
         checks.append(f"{var}: op guessed ({guessed_by} -> {op})")
+
+        entries: list[str] = []
+        walk_checks: list[str] = []
+        found = False
+        matched_symbol = None
+        if varp_ctx is not None:
+            entries, walk_checks, found, matched_symbol = varp_ctx.build(symbol, dialog_lines)
+
+        if found and entries:
+            # ONE chat.play call carries the whole conversation -- the
+            # bug this pass exists to fix was one call PER addDialogStep
+            # line, which skips every npc/player/mesbox page in between
+            # (docs/QUEST_SUITE_KIT.md).
+            for msg in walk_checks:
+                lines.append(f"        -- CHECK {msg}")
+            if matched_symbol != symbol:
+                # A `-- CHECK`, not a bare comment: find_opnpc1_handler's
+                # prefix scan resolves a handler whose name merely STARTS
+                # WITH the symbol, and measured over --all that is right
+                # for `ahoy_akharanu -> ahoy_akharanu_multi` but wrong for
+                # `black_knight -> black_knight_titan` and for the five
+                # `lotg_goblin_skeleton_high_priestN -> ..._defeated`
+                # post-fight variants. A whole page list read off ANOTHER
+                # npc's handler must not reach review unconfirmed, and
+                # only a CHECK makes lint_quest.py say so.
+                msg = (
+                    f"opnpc1 handler resolved via '{matched_symbol}', not '{symbol}' "
+                    "-- confirm it is the same npc's conversation"
+                )
+                lines.append(f"        -- CHECK {msg}")
+                checks.append(f"{var}: {msg}")
+            lines.append(f'        t.exec({lua_string(name + "-dialog")}, t.chat.play, {{')
+            for entry in entries:
+                lines.append(f"            {lua_string(entry)},")
+            lines.append("        })")
+            for msg in walk_checks:
+                checks.append(f"{var}: {msg}")
+        elif found and not entries:
+            checks.append(f"{var}: opnpc1 handler for '{matched_symbol}' walked to zero pages -- fell back to Quest Helper's addDialogStep-only list")
+            for msg in walk_checks:
+                lines.append(f"        -- CHECK {msg}")
+                checks.append(f"{var}: {msg}")
+            _emit_legacy_dialogue(lines, checks, var, name, dialog_lines)
+        elif dialog_lines:
+            lines.append(f"        -- CHECK no opnpc1 handler for '{symbol}' -- chat.play below is Quest Helper's addDialogStep choices only, not a real page order")
+            checks.append(f"{var}: no opnpc1 handler for '{symbol}' -- fell back to Quest Helper's addDialogStep-only list")
+            _emit_legacy_dialogue(lines, checks, var, name, dialog_lines)
+        # else: no handler AND no addDialogStep lines -- nothing to add.
+
+        return "\n".join(lines) + "\n", True
     elif gv_kind == "ObjectID":
         op, guessed_by = guess_op(desc)
         lines.append(
@@ -1070,12 +1851,7 @@ def format_step_call(var: str, info: dict, dialog: dict, checks: list[str]) -> t
     # exists to catch (two IDENTICAL string literals, not core.lua's runtime
     # -2/-3 suffix, which only fires for a name computed in a loop) --
     # measured against this tool's own output on cooksassistant, 2026-09-19.
-    for index, line in enumerate(dialog.get(var, []), start=1):
-        lines.append(
-            f'        t.exec({lua_string(name + "-dialog-" + str(index))}, t.chat.play, '
-            f"{{{lua_string('choose:' + line)}}}) -- CHECK dialog row text guessed from Quest Helper"
-        )
-        checks.append(f"{var}: dialog row guessed ({line!r})")
+    _emit_legacy_dialogue(lines, checks, var, name, dialog_lines)
 
     return "\n".join(lines) + "\n", True
 
@@ -1409,6 +2185,9 @@ def generate(
     goto_count = 0
     fight_stub_emitted = False
     route_pos = RoutePosition(DEFAULT_CONTENT)
+    varp_ctx = QuestVarpContext(
+        varp or None, const_not_started_sym if varp else None, const_values, DEFAULT_CONTENT
+    )
 
     # The last "step" route entry is the FINAL hand-in step -- reward_before
     # is snapshotted right ahead of it (H2, docs/QUEST_SUITE_KIT.md). Only
@@ -1447,7 +2226,7 @@ def generate(
                 if pos_lines:
                     goto_count += sum(1 for pl in pos_lines if "t.player.goto_tile" in pl)
                     lines.append(comment_out("\n".join(pos_lines) + "\n"))
-                call_text, _driven = format_step_call(var, info, dialog, checks)
+                call_text, _driven = format_step_call(var, info, dialog, checks, varp_ctx)
                 lines.append(comment_out(call_text))
                 for alt in sub_steps.get(var, []):
                     lines.append(
@@ -1538,7 +2317,7 @@ def generate(
             blocked_stubs += 1
             continue
 
-        call_text, driven = format_step_call(var, info, dialog, checks)
+        call_text, driven = format_step_call(var, info, dialog, checks, varp_ctx)
         lines.append(call_text)
         if driven:
             driven_count += 1

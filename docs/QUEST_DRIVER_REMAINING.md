@@ -370,12 +370,17 @@ reward could never fail; assert the literal), `romeojuliet` (the author wrote
 
 Seams the pilots found, in order of how many quests they will hit:
 
-- **Wizards' Tower basement does not load after a descent.** `runemysteries`
-  (Sedridor) and `priest` (the altar skull) both fail `screen_position` after
-  a ladder or a `::tele` into the basement's region+100 coordinate space; one
-  probe screenshot still showed Lumbridge castle geometry after the jump. A
-  scene/npc-pool load gap on that multi-region transition, not a quest bug.
-  Every quest that visits that basement is blocked until it is fixed.
+- **`screen_position: not_found` one tile from an npc was the multinpc id
+  bug, not a scene-load gap.** `runemysteries` (Sedridor) and `priest` (the
+  altar skull) were both reported blocked on `screen_position` after a
+  descent; the real cause was `player.by_symbol` handing the target builder
+  the symbol's base id while the client's live `WorldEntity_NPC` carries the
+  resolved `npc_id` -- 2,458 npc defs in this cache carry a `multinpc1=` line.
+  Fixed in `pointer.lua` (`455dd4398`, conformance 98/98: `player.by_symbol`
+  now resolves the live id, `_ensure_visible` re-asks once against it, and
+  the detail names the reason). `runemysteries` and `priest` are reopened to
+  `todo` (`1a6a0e3c1`) with a RETRY note -- resume `runemysteries.lua` from
+  its committed file, do not restart it.
 - `click_loc` op 1 on some stairs opens a menu instead of climbing; the
   authoring page's ladder rule was corrected in `20fc79621`.
 - A rejected author twice reported "blocked" with no `t.blocked` row despite
