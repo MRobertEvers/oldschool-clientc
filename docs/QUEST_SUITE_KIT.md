@@ -233,3 +233,10 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   Content, engine and design seams are listed in its report for the content
   queue; they are not fixed by the loop. This is how quests become unblocked --
   never by hand between batches.
+- **Never overlap the seam pass with an author batch.** Authors load
+  `script/plugins/quest_driver/*.lua` at run time; a seam agent's half-written
+  function crashed Between a Rock's author mid-quest on 2026-09-20
+  (`attempt to call a nil value (field 'inv_arm')`). The order is strict:
+  batch, its sampler push, its contact sheet, THEN the seam pass, THEN the next
+  batch. A batch rejected by such a crash is reopened with a RETRY note, not
+  counted against the author.
