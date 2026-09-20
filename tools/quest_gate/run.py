@@ -72,7 +72,11 @@ import quest_list  # noqa: E402
 OBJ_BASE = "build_questtest"
 TARGET = "torirs_questtest"
 DEFAULT_MAX_FRAMES = "60000"
-DEFAULT_TIMEOUT = 180
+# 400, not 180: a 100-shot quest run takes 60-120 s of wall time on this
+# machine, and romeojuliet's legitimate imp-fight retry loop was cut off at 180
+# by a reviewer running the default. A hang still fails in under seven
+# minutes; the virtual clock (TORIRS_MAX_FRAMES) is the tighter bound.
+DEFAULT_TIMEOUT = 400
 DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 
 # Where a PASSING quest's evidence is kept. build/quest_gate/<quest>/ is
