@@ -26,6 +26,10 @@ return {
     setup = {
         "::clearinv",
         "::setlevel herblore 31",
+        "::setlevel firemaking 99", -- lighting the logs to dry the thistle is a stat_random(firemaking, 64, 512)
+        -- roll every tick (skill_firemaking/scripts/firemaking.rs2:79); at level 1 that's a ~13% chance of
+        -- a real timeout inside msg.await's budget. Firemaking is not this quest's deliverable (the dried
+        -- thistle is), so boosting it is the same kind of prerequisite as the herblore 31 line above.
         "::complete quest_druidicritual", -- quest_cheat.rs2's dispatch row is quest_druidicritual, not quest_druid
         "::setvar troll_freed_eadgar 1", -- no ::complete arm for Troll Stronghold exists; sanfew.rs2's only troll gate is this one flag
         "::give logs 2", -- one for Eadgar's scarecrow, one to burn for the troll thistle (see the dryThistle note below)
@@ -320,57 +324,160 @@ return {
         t.exec("dryThistle", t.player.use_on, "eadgar_troll_thistle", fire_row)
         t.chat.close()
 
-        -- RECORDING ROW: read back what the drying attempt actually left in
-        -- the backpack, straight after the closed mesbox, before the
-        -- terminal t.blocked() below.
+        -- RECORDING ROW: sscompile (73a4251d0) now types the bare name
+        -- `eadgar_troll_thistle` in cooking.rs2:39's `if (last_useitem =
+        -- eadgar_troll_thistle)` from the position it sits in -- obj 3262,
+        -- not npc 4767 -- so the special case matches last_useitem (an item
+        -- id) and ~eadgar_dry_troll_thistle fires. dryThistle's own settle
+        -- fires on the mes() line, one packet ahead of the inv_del/inv_add
+        -- pair right behind it in the same proc -- poll rather than read
+        -- immediately behind a dialogue's own inv mutation (section 8).
+        t.inv.await("eadgar_dried_troll_thistle", 1, 10)
         local dried_read, dried_count = t.inv.count("eadgar_dried_troll_thistle")
         local thistle_read, thistle_count = t.inv.count("eadgar_troll_thistle")
-        t.check("thistle.not_dried",
-            dried_read == "ok" and dried_count == 0 and thistle_read == "ok" and thistle_count == 1,
+        t.check("thistle.dried",
+            dried_read == "ok" and dried_count == 1 and thistle_read == "ok" and thistle_count == 0,
             "inv.count(eadgar_dried_troll_thistle) -> " .. tostring(dried_read) .. " " .. tostring(dried_count)
                 .. "; inv.count(eadgar_troll_thistle) -> " .. tostring(thistle_read) .. " " .. tostring(thistle_count)
-                .. " -- dryThistle's own mesbox read \"You can't cook that.\" (attempt_cook's cooking_generic:uncooked "
-                .. "db_find-null fallback, skill_cooking/scripts/cooking.rs2:238-242), not "
-                .. "\"You hold the troll thistle over the fire to dry it out.\" (~eadgar_dry_troll_thistle, "
-                .. "quest_eadgar/scripts/eadgar_troll_thistle.rs2:60-63)")
+                .. " -- dryThistle's own mesbox now reads \"You hold the troll thistle over the fire to dry it "
+                .. "out.\" (~eadgar_dry_troll_thistle, quest_eadgar/scripts/eadgar_troll_thistle.rs2:60-63), fixed "
+                .. "by 73a4251d0's position-typed bare name")
 
-        -- CONTENT BUG, not a driver seam: [oplocu,_cooking_fire]'s own
-        -- eadgar_troll_thistle special case (skill_cooking/scripts/
-        -- cooking.rs2:39-41, `if (last_useitem = eadgar_troll_thistle) {
-        -- ~eadgar_dry_troll_thistle; return; }`) never actually matches at
-        -- runtime, in three independent measurements against three
-        -- different confirmed-valid targets: troll_stronghold_camp_fire
-        -- (run 6), a player-lit `fire` found by a bare by_symbol lookup
-        -- (run 7), and a player-lit `fire` found by world.loc_near at a
-        -- 3-tile radius from the exact tile just lit, with a separate
-        -- t.check confirming both the lighting message and the lookup
-        -- succeeded first (run 8, this run -- see fire.lit/lookup.fire
-        -- above). Every one of the three lands on attempt_cook's generic
-        -- "You can't cook that." (cooking.rs2:238-242's db_find-null
-        -- fallback for cooking_generic:uncooked, the exact same message and
-        -- the exact same proc seaslug.lua's own reviewed BLOCKED row
-        -- documents for a different item), meaning last_useitem at the
-        -- server was never eadgar_troll_thistle for this press, despite
-        -- the driver's own diagnostics confirming that exact item armed in
-        -- backpack slot 0 immediately before each attempt. use_on itself is
-        -- not in question -- the identical item-on-npc/item-on-loc shape
-        -- (last_useitem equality) already fired correctly nineteen times
-        -- earlier in this same run (giveLogs, giveRobe, five raw_chicken,
-        -- ten grain, catchParrot, giveParrotToEadgar, hideParrot). Without
-        -- a dried troll thistle there is no ground thistle, no troll truth
-        -- potion, and no way to reach needs_parrot_back / got_parrot_back /
-        -- got_fake_man / got_burnt_meat / unlocked_storeroom / goutweed /
-        -- quest completion -- every remaining step in Eadgar's Ruse is
-        -- unreachable behind this one seam.
-        t.blocked("skill_cooking/scripts/cooking.rs2:39-41 [oplocu,_cooking_fire]'s " ..
-            "`if (last_useitem = eadgar_troll_thistle)` special case never matches at " ..
-            "runtime -- three different confirmed-valid _cooking_fire targets (measured " ..
-            "runs 6, 7, 8) all fall through to attempt_cook's cooking_generic:uncooked " ..
-            "db_find-null fallback (\"You can't cook that.\", cooking.rs2:238-242) " ..
-            "instead of ~eadgar_dry_troll_thistle (quest_eadgar/scripts/" ..
-            "eadgar_troll_thistle.rs2:60-63), so eadgar_troll_thistle can never become " ..
-            "eadgar_dried_troll_thistle by any click sequence, blocking every step from " ..
-            "the troll truth potion through quest completion.")
+        -- ---------------------------------------------------------------
+        -- 11. Grind the dried thistle (pestle_and_mortar), then mix it into
+        --     the ranarr potion (unf) to make the troll truth potion
+        --     (eadgar_troll_thistle.rs2:39-57).
+        -- ---------------------------------------------------------------
+        t.exec("grindThistle", t.player.use_item_on_item, "pestle_and_mortar", "eadgar_dried_troll_thistle")
+        t.inv.await("eadgar_ground_troll_thistle", 1, 10)
+        t.chat.close()
+
+        t.exec("mixPotion", t.player.use_item_on_item, "ranarrvial", "eadgar_ground_troll_thistle")
+        t.inv.await("eadgar_ground_troll_thistle_potion", 1, 10)
+        t.chat.close()
+
+        -- ---------------------------------------------------------------
+        -- 12. Give the troll truth potion to Eadgar -> needs_parrot_back.
+        -- ---------------------------------------------------------------
+        t.exec("goto-eadgar-6", t.player.goto_tile, 2890, 10086, 2)
+        eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
+        t.exec("givePotion", t.player.use_on, "eadgar_ground_troll_thistle_potion", eadgar_npc)
+        t.exec("givePotion-dialog", t.chat.play, {
+            "player:I've got the troll truth potion.",
+            "npc:Excellent, thank you. Now just go fetch that poor parrot back",
+        })
+        t.chat.close()
+        t.expect("quest.stage.needs_parrot_back", t.quest.expect_stage("needs_parrot_back"))
+
+        -- ---------------------------------------------------------------
+        -- 13. Fetch the trained parrot back from the rack -> got_parrot_back
+        --     (eadgar_troll_chief_cook.rs2 [oploc1,eadgar_rack]).
+        -- ---------------------------------------------------------------
+        t.exec("goto-rack-2", t.player.goto_tile, 2829, 10097, 0)
+        t.exec("fetchParrot", t.player.click_loc, "eadgar_rack", 1)
+        t.exec("fetchParrot-dialog", t.chat.play, {
+            "mesbox:Parrot: Ah, hello Sir. Could you please free me?",
+        })
+        t.chat.close()
+        t.inv.await("eadgar_drunk_parrot", 1, 10)
+        t.expect("quest.stage.got_parrot_back", t.quest.expect_stage("got_parrot_back"))
+
+        -- ---------------------------------------------------------------
+        -- 14. Show the trained parrot to Eadgar -> makes the fake man,
+        --     got_fake_man (troll_eadgar.rs2 eadgar_quest_make_fake_man).
+        -- ---------------------------------------------------------------
+        t.exec("goto-eadgar-7", t.player.goto_tile, 2890, 10086, 2)
+        eadgar_npc = t.player.by_symbol("npc", "troll_eadgar")
+        t.exec("makeFakeMan", t.player.use_on, "eadgar_drunk_parrot", eadgar_npc)
+        t.exec("makeFakeMan-dialog", t.chat.play, {
+            "npc:Can you tell this isn't a bona fide human being? I sure can't!",
+            "player:It's remarkably convincing.",
+            "npc:Take it to the troll cook -- and don't let anyone else see it",
+        })
+        t.chat.close()
+        t.inv.await("eadgar_fake_man", 1, 10)
+        t.expect("quest.stage.got_fake_man", t.quest.expect_stage("got_fake_man"))
+
+        -- ---------------------------------------------------------------
+        -- 15. Take the fake man to Burntmeat -> got_burnt_meat, learn the
+        --     storeroom key's hiding place (eadgar_troll_chief_cook.rs2
+        --     eadgar_talk_to_troll_cook + burntmeat_gave_fake_man +
+        --     burntmeat_where_goutweed).
+        -- ---------------------------------------------------------------
+        t.exec("goto-burntmeat-2", t.player.goto_tile, 2844, 10057, 1)
+        local burntmeat_npc = t.player.by_symbol("npc", "eadgar_troll_chief_cook")
+        t.exec("giveFakeMan", t.player.use_on, "eadgar_fake_man", burntmeat_npc)
+        t.exec("giveFakeMan-dialog", t.chat.play, {
+            "npc:Did you find tasty human? Burntmeat smell something good.",
+            "player:Yes! Look!",
+            "npc:Ah, dat look like nice tasty human.",
+            "npc:Yep, sound like human too. Burntmeat put it in stew.",
+            "player:This is burnt meat.",
+            "npc:It first thing I ever try to cook! Very precious to Burntmeat.",
+            "player:Thank you... and how's the stew?",
+            "npc:Slurp, mmm... Human stew cheer Burntmeat up!",
+            "choose:So, where can I get some goutweed?",
+            "player:So, where can I get some goutweed?",
+            "npc:Hah! Trolls pick it all until none left, many years ago.",
+            "npc:It well guarded, and Burntmeat hide key in fake bottom of kitchen drawer.",
+            "player:That's some well-guarded secret alright.",
+        })
+        t.chat.close()
+        t.inv.await("burnt_meat", 1, 10)
+        t.expect("quest.stage.got_burnt_meat", t.quest.expect_stage("got_burnt_meat"))
+
+        -- ---------------------------------------------------------------
+        -- 16. Search the kitchen drawers for the storeroom key, go down to
+        --     the ground-floor storeroom, unlock the door ->
+        --     unlocked_storeroom, search the crate for goutweed
+        --     (eadgar_troll_chief_cook.rs2:120-218). Quest Helper's own
+        --     WorldPoints (EadgarsRuse.java) put the drawers on the kitchen's
+        --     OWN floor (2853,10050,1) but the door and crate down a flight
+        --     on the ground floor (2869,10085,0 / 2857,10074,0) -- goto_tile
+        --     climbs/descends the stairs for each on its own (section 2).
+        -- ---------------------------------------------------------------
+        t.exec("goto-drawers", t.player.goto_tile, 2853, 10050, 1)
+        t.exec("openDrawers", t.player.click_loc, "eadgar_kitchen_drawers", 1)
+        t.ticks(3) -- let the loc_change to eadgar_kitchen_drawers_open land before searching it
+        t.exec("searchDrawers", t.player.click_loc, "eadgar_kitchen_drawers_open", 2)
+        t.inv.await("eadgar_troll_storeroom_key", 1, 10)
+
+        t.exec("goto-storeroomdoor", t.player.goto_tile, 2869, 10085, 0)
+        t.exec("unlockStoreroom", t.player.click_loc, "eadgar_storeroomdoor", 1)
+        t.expect("quest.stage.unlocked_storeroom", t.quest.expect_stage("unlocked_storeroom"))
+
+        t.exec("goto-crate", t.player.goto_tile, 2857, 10074, 0)
+        t.exec("searchCrate", t.player.click_loc, "eadgar_crate_goutweed", 1)
+        t.inv.await("eadgar_goutweed_herb", 1, 15)
+
+        -- ---------------------------------------------------------------
+        -- 17. Hand the goutweed to Sanfew -> quest complete
+        --     (areas/area_taverly/scripts/sanfew.rs2 sanfew_eadgar_turnin).
+        --     Reward: 11000 Herblore XP, no item, per
+        --     ~quest_complete_rewards(quest_eadgarsruse,
+        --     "11000 Herblore XP|Trollheim Teleport spell|..."), sanfew.rs2:190.
+        -- ---------------------------------------------------------------
+        local herblore_snap_result, herblore_snap = t.skill.snapshot()
+        t.check("reward.snapshot", herblore_snap_result == "ok",
+            "skill.snapshot() -> " .. tostring(herblore_snap_result))
+
+        t.exec("goto-sanfew-2", t.player.goto_tile, 2897, 3426, 1)
+        t.exec("talkToSanfew-turnin", t.player.talk_to, "sanfew", 1)
+        t.exec("talkToSanfew-turnin-dialog", t.chat.play, {
+            "npc:What can I do for you young 'un",
+            "choose:Have you any more work for me, to help reclaim the circle?",
+            "player:Have you any more work for me to help reclaim the stone circle?",
+            "npc:Did you find some goutweed for me?",
+            "player:I have some goutweed!",
+            "npc:Excellent! I will be able to complete the next part of the ritual now.",
+            "npc:If you ever come across more goutweed, bring it to me",
+        })
+        t.chat.close()
+        t.ticks(3) -- completion's own reward scroll mounts asynchronously (section 8)
+
+        t.quest.expect_complete()
+        t.exec("reward.herblore_xp", t.skill.expect_gain, "herblore", 11000, herblore_snap)
+        t.finish(0)
         return
     end,
 }
