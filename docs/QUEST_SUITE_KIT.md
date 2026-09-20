@@ -204,3 +204,15 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   treated as compacted.
 - The reviewer is always Sonnet; the sampler is always Opus; neither changes
   with the author model.
+- **Every batch publishes a contact-sheet artifact.** After the sampler
+  pushes, the orchestrator runs
+  `.venv/bin/python tools/quest_gate/batch_sheet/build_sheet.py . build/batch_sheet/<batch> <the batch's test ids>`
+  then `render_page.py build/batch_sheet/<batch> <batch> "Quest Batch <batch>"`,
+  publishes `build/batch_sheet/<batch>/index.html` with every `*.webp` in that
+  directory as supporting files (one artifact per batch, title "Quest Batch
+  <batch>", favicon the map), and appends a row to `test/quests/BATCHES.tsv`
+  (batch, date, author model, tests, green/blocked/content_bug/rejected counts,
+  artifact link). The sheets read `build/quest_gate/<id>/` -- the reviewers'
+  last run -- so build them before the next batch overwrites those directories.
+  Rejected quests are included: their screenshots are the evidence for the
+  rejection.
