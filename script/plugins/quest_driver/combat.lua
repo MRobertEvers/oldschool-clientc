@@ -101,6 +101,48 @@ function QD._combat_is_dead(result, row)
     return row.health_ratio == 0
 end
 
+-- THE FIGHT THIS DRIVER LAST STARTED, and it exists for exactly one reading.
+--
+-- `QD.player.attack` stamps the target it actually pressed an Attack row on:
+-- the symbol it was called with, that npc's server slot, the health readings
+-- either side of the settle, and the tick it read them at.  Nothing steers
+-- off it -- await_dead still picks its target with a FRESH pool read, because
+-- a stamp is a memory and a fight has to be tracked by something live.
+--
+-- It is here because of what a caller's own sequence means.  A quest file
+-- that writes
+--
+--     t.exec("attack-gardener", t.player.attack, "falador_gardener", 2, 20)
+--     t.exec("gardener-dead",   t.npc.await_dead, "falador_gardener", 60)
+--
+-- has handed the second verb the first one's target, and the first one read
+-- that target's health bar.  When the second verb then finds no live row, the
+-- stamp is the difference between "the fight we were watching finished while
+-- the ledger was writing the row above" and "this name has never had a row in
+-- this run at all".  A detail that can say which is worth more than one that
+-- reports a bare absence.
+QD._combat_last = nil
+
+-- The stamp's own sentence, or "" when this run has never pressed an Attack
+-- row on `npc_symbol` -- so a detail that names a prior fight names a REAL
+-- one, never a plausible-sounding one.
+function QD._combat_prior_text(npc_symbol)
+    local last = QD._combat_last
+    if not last or last.symbol ~= tostring(npc_symbol) then
+        return ""
+    end
+    local text = "; an earlier player.attack in this run engaged slot "
+        .. tostring(last.slot) .. " and read hp " .. tostring(last.health_before)
+        .. " -> " .. tostring(last.health) .. " at tick " .. tostring(last.tick)
+        .. " (" .. tostring(api_drive.tick() - last.tick) .. " tick(s) ago)"
+    if not last.bar_seen then
+        -- Named rather than hidden: an engagement that never saw a bar is a
+        -- weaker fact than one that watched health fall, and the row says so.
+        text = text .. ", though no health bar was ever sent for it"
+    end
+    return text
+end
+
 -- ---------------------------------------------------------------------- attack
 
 -- t.player.attack(npc_symbol, op, ticks) -> `ok` / click_minimenu's own
@@ -217,6 +259,22 @@ function QD.player.attack(npc_symbol, op, ticks)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
         detail = detail .. ", hitsplat " .. tostring(after.hit_damage)
     end
+
+    -- Stamped on the timeout path too: "an Attack row was pressed on this
+    -- slot and the deadline brought no splat" is still a fight that started
+    -- here, and it is the opening of most of them (this verb's banner).  The
+    -- stamp is written only past the row check above, so a click that pressed
+    -- Talk-to never leaves one.
+    QD._combat_last = {
+        symbol = tostring(npc_symbol),
+        slot = slot,
+        health_before = before_health,
+        health = QD._combat_health_text(after),
+        bar_seen = (before_health ~= "no bar" and before_health ~= "gone")
+            or (after_result == "ok" and after ~= nil and after.health_ratio >= 0),
+        tick = api_drive.tick(),
+    }
+
     if settle_result ~= "ok" then
         return "timeout", detail
             .. " -- no hit landed inside " .. tostring(ticks) .. " ticks"
@@ -230,7 +288,9 @@ end
 -- `not_found`.
 --
 -- Resolves when the npc we started fighting has left the pool or its bar
--- reads 0, and RE-ISSUES Attack when the fight has stopped: the npc's health
+-- reads 0 -- including when both were already true before the first tick of
+-- the wait (the `no_row` arm below, `ok` with a detail that names it) --
+-- and RE-ISSUES Attack when the fight has stopped: the npc's health
 -- reading has not moved for five server ticks, no new hitsplat has landed in
 -- that window, and the player is idle.  All three, because any one alone is
 -- normal mid-fight -- a miss streak moves no health, and a player in melee is
@@ -251,6 +311,35 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
     attempts = attempts or 6
 
     local start_result, start_row = QD.npc.nearest(npc_symbol, radius)
+    if start_result == "no_row" then
+        -- ALREADY GONE IS NOT NEVER THERE, and until 2026-09-20 this verb
+        -- could not tell them apart: both left by the same `return
+        -- start_result` and both read `nothing to wait on within 10`.
+        --
+        -- `QD.npc.nearest` answers `not_found` when the SYMBOL does not
+        -- resolve in the compack -- a typo in the quest file, a name that is
+        -- not an npc -- and `no_row` when it resolves and the pool holds no
+        -- live row for that id.  The second is what a WON fight looks like
+        -- from here: the corpse's row leaves the pool a few ticks after the
+        -- kill, so a quest whose press-to-press pace outran the ledger by
+        -- those few ticks asks this verb to watch a death that has already
+        -- happened.  That is Pirate's Treasure's `gardener-dead`, red at
+        -- 73a4251d0 with `hunt.gardener_gone` -- the very next row, which
+        -- asks the same pool the same question -- passing.  There is nothing
+        -- left to wait for and nothing failed, so the answer is `ok` and the
+        -- detail says WHY it is ok rather than claiming a wait it never ran.
+        --
+        -- What this reading cannot see is unchanged and still true of it: the
+        -- pool read is the nearest 64 npcs (DRIVE_UI_POOL_CAP) within
+        -- `radius`, so a live target ranked past the 64th, or standing
+        -- outside the radius the caller named, reads `no_row` here exactly as
+        -- a dead one does -- which is why the detail carries the pool read's
+        -- own count and the radius it searched.
+        return "ok", "await_dead " .. tostring(npc_symbol)
+            .. ": already gone before the wait (no live row at call time"
+            .. (type(start_row) == "string" and (", " .. start_row) or "") .. ")"
+            .. QD._combat_prior_text(npc_symbol)
+    end
     if start_result ~= "ok" then
         return start_result, "await_dead " .. tostring(npc_symbol)
             .. ": nothing to wait on within " .. tostring(radius) .. " (" .. tostring(start_result) .. ")"
