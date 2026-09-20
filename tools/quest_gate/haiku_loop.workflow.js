@@ -105,7 +105,10 @@ For each: read the quest file and the quest's own .rs2 scripts; confirm the test
 // Pipeline: each quest flows author -> review independently; no barrier between quests.
 const results = await pipeline(
   tests,
-  (id) => agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: 'haiku', schema: AUTHOR_SCHEMA }),
+  // A schema failure (the author never called StructuredOutput) THROWS out of
+  // agent(); without the catch the whole item is dropped and its file is
+  // never reviewed. null here reaches the reviewer as a gave_up report.
+  (id) => agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: 'haiku', schema: AUTHOR_SCHEMA }).catch(() => null),
   // An author that never returned a report (no StructuredOutput) still gets a
   // reviewer: whatever it left in test/quests/<id>.lua must be judged or
   // removed, never left untracked for the next author to trip over.
