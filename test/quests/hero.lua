@@ -262,73 +262,205 @@ return {
             .. tostring(unlock_result) .. " " .. tostring(unlock_detail))
 
         -- The chest sequence (shutcandlechest -> opencandlechest via
-        -- loc_change, brimhaven_scarface_mansion.rs2:93-110) needed the
-        -- section-8 "loc placed off a short-range click_loc's own reach"
-        -- fix at every step across runs 4-8: walk_near before the first
-        -- press, goto_tile onto the loc's own freshly re-resolved tile
-        -- before the second, and pressing the ORIGINAL symbol
-        -- "shutcandlechest" even after the transform ("a door or any loc
-        -- that changes form resolves by its base symbol now" -- doors
-        -- section). That got the driver inside the treasure room and
-        -- landed real presses on both the door and the chest, but across
-        -- all 8 runs click_loc(shutcandlechest) never once answered "ok"
-        -- AND grew petecandlestick by two on the same attempt: runs 1-7
-        -- failed on pathing/wrong-element presses ("I can't reach that!",
-        -- "menu has no row for it", not_found on the transformed symbol),
-        -- and run 8 -- after goto_tile onto the loc's own freshly
-        -- re-resolved post-transform tile -- finally landed a clean "ok"
-        -- press with a real chat_message, but petecandlestick stayed at 0.
-        local chest_target = t.player.by_symbol("loc", "shutcandlechest")
-        t.exec("chest.approach", t.player.walk_near, chest_target, 10, 1)
-        t.exec("openChest-1", t.player.click_loc, "shutcandlechest")
+        -- loc_change, brimhaven_scarface_mansion.rs2:93-110) is a plain
+        -- loc_change PAIR, not a multiloc -- trap 20's door bullet ("name
+        -- the _open half") is the rule that applies, confirmed for real in
+        -- run 3 below: press "shutcandlechest" to open it, then
+        -- "opencandlechest" for the second press.
+        --
+        -- RETRY after 73a4251d0: the previous run's `openChest-1` was
+        -- graded PASS but was hollow. QD.player._reach_verify now holds a
+        -- bare `ok (map_flag)` press for one tick and regrades it `refused`
+        -- when the engine's own "I can't reach that!" lands a tick late,
+        -- and click_loc's own _reach_retry then walks the loc's other
+        -- approach tiles itself -- the re-run reported none of the chest's
+        -- five known approach tiles could be WALKED to from wherever
+        -- walk_near's blind (no wall-knowledge) standoff had left the
+        -- player. t.world.loc_near + goto_tile is the same fix
+        -- pete_sidedoor/pete_treasuredoor already use above: goto_tile
+        -- teleports straight onto the loc's own resolved tile (the ::goto
+        -- cheat, not a routed walk), and click_loc steps off a shared tile
+        -- itself before pressing (section 2). This also retires the old
+        -- "ok press, zero growth" mystery from run 8: with openChest-1
+        -- never actually landing that run, the "second" press was that
+        -- run's FIRST real contact with the loc at all, and
+        -- [oploc1,shutcandlechest] only prints "You open the chest." and
+        -- schedules the transform -- zero growth on a first real open
+        -- needs no content bug to explain it. Driving both presses for
+        -- real, below, is what settles that honestly.
+        -- RUN 2 crashed: back-to-back click_loc attempts, each re-resolving
+        -- t.world.loc_near("shutcandlechest", ...) itself, blew the Lua
+        -- instruction budget (quest-driver:2571, inside pointer.lua's
+        -- by_symbol/_live_loc_id neighbourhood) the moment the SECOND
+        -- press's loop re-resolved the symbol immediately after the FIRST
+        -- press had genuinely transformed it (shutcandlechest ->
+        -- opencandlechest) -- a real driver seam in resolving a
+        -- just-transformed multiloc-pair symbol again with no tick between,
+        -- not something this file can fix (rule 7). The loc does not move
+        -- when it changes form, so both presses below share ONE loc_near
+        -- read (before either press) and reuse its tile; the retry itself
+        -- (trap 15's "record the loop's outcome, not one row per attempt")
+        -- re-teleports onto that cached tile with a settle tick between
+        -- attempts, never re-resolving the symbol a second time.
+        local chest_near_result, chest_near = t.world.loc_near("shutcandlechest", 15)
+        local chest_near_detail = "not_found"
+        local chest_x, chest_z, chest_level = nil, nil, nil
+        if chest_near_result == "ok" and chest_near ~= nil then
+            chest_x, chest_z, chest_level = chest_near.tile_x, chest_near.tile_z, chest_near.level
+            chest_near_detail = string.format("match=%s tile=%s,%s,%s",
+                tostring(chest_near.match), tostring(chest_x), tostring(chest_z), tostring(chest_level))
+        end
+        t.check("chest.locNear", chest_near_result == "ok",
+            "t.world.loc_near(shutcandlechest, 15) -> " .. tostring(chest_near_result) .. " " .. chest_near_detail)
+
+        local open1_result, open1_detail, open1_tries = "refused", "not attempted", 0
+        for attempt = 1, 2 do
+            open1_tries = attempt
+            if chest_x ~= nil then
+                t.player.goto_tile(chest_x, chest_z, chest_level)
+            end
+            open1_result, open1_detail = t.player.click_loc("shutcandlechest")
+            if open1_result == "ok" then
+                break
+            end
+            t.ticks(2) -- settle before re-pressing, the same gap pickUpGripKeys's retry uses above
+        end
+        t.check("openChest-1", open1_result == "ok",
+            string.format("click_loc shutcandlechest [oploc1,shutcandlechest], attempt %d/2 -> %s (%s)",
+                open1_tries, tostring(open1_result), tostring(open1_detail)))
         t.ticks(3) -- the loc_change to opencandlechest is not client-side yet (section 8)
 
         local candlesticks_before_result, candlesticks_before = t.inv.count("petecandlestick")
-        local chest_open_near_result, chest_open_near = t.world.loc_near("shutcandlechest", 15)
-        if chest_open_near_result == "ok" and chest_open_near ~= nil then
-            t.exec("chest.goto-open", t.player.goto_tile, chest_open_near.tile_x, chest_open_near.tile_z, chest_open_near.level)
+
+        -- RUN 3 measured this pair for real: NOT base-symbol resolution
+        -- (trap 20's multiloc/varbit case) -- shutcandlechest/
+        -- opencandlechest is a plain loc_change PAIR (no multilocN= line,
+        -- no varbit), so once the transform lands the scene's entity pool
+        -- genuinely no longer holds "shutcandlechest" at all: pressing it
+        -- again answered `not_found: screen_position: no loc 2632
+        -- (shutcandlechest) in the client's entity pool`, not a stale-read
+        -- or a driver bug. Trap 20's OWN door bullet says the fix for a
+        -- pair, not a multiloc: "name the _open half". Same cached tile,
+        -- no second loc_near call on the just-transformed symbol (the
+        -- run-2 crash above), just the other half of the pair.
+        local open2_result, open2_detail, open2_tries = "refused", "not attempted", 0
+        for attempt = 1, 2 do
+            open2_tries = attempt
+            if chest_x ~= nil then
+                t.player.goto_tile(chest_x, chest_z, chest_level)
+            end
+            open2_result, open2_detail = t.player.click_loc("opencandlechest")
+            if open2_result == "ok" then
+                break
+            end
+            t.ticks(2)
         end
-        local chest_result, chest_detail = t.player.click_loc("shutcandlechest")
+        t.check("openChest-2", open2_result == "ok",
+            string.format("click_loc opencandlechest [the transformed pair's other half], attempt %d/2 -> %s (%s)",
+                open2_tries, tostring(open2_result), tostring(open2_detail)))
+
+        -- Section 8: a `~mesbox` PAUSES the content script -- opencandlechest
+        -- (98-109) is entirely inv_add/mesbox/%heroquest INSIDE the branch
+        -- that only runs once the page is dismissed, so the press settling
+        -- on "page none->mesbox" above is the verb being right, not the loot
+        -- landing yet. Read the real text, then dismiss it, before any
+        -- inventory or stage read below means anything.
+        local chest_text_result, chest_text = t.chat.text()
+        t.check("chest.mesboxText", chest_text_result == "ok",
+            "t.chat.text() -> " .. tostring(chest_text_result) .. " " .. tostring(chest_text))
+        t.exec("chest.dismissMesbox", t.chat.continue_, true)
         t.inv.await("petecandlestick", 2, 10)
         local candlesticks_after_result, candlesticks_after = t.inv.count("petecandlestick")
-        -- A plain recording row (trap 15's shape: the row right before
-        -- t.blocked() records what was read, it does not re-assert the
-        -- hypothesis) -- opencandlechest's own branching
-        -- (brimhaven_scarface_mansion.rs2:98-102 vs 103-109) means an "ok"
-        -- press with zero backpack growth can only be its EMPTY-chest
-        -- branch, i.e. ~obj_gettotal(petecandlestick) read >0 for this
-        -- fresh character -- unexplained, since no petecandlestick was
-        -- ever carried, worn or banked by this run before this click.
-        t.check("searchChest", true,
-            string.format("click_loc shutcandlechest [now opencandlechest] -> %s (%s), petecandlestick count %s -> %s "
-                .. "(an ok press with 0 growth means opencandlechest's own obj_gettotal(petecandlestick)>0 check "
-                .. "took the EMPTY branch, brimhaven_scarface_mansion.rs2:98-102, not the two-candlestick one)",
-                tostring(chest_result), tostring(chest_detail), tostring(candlesticks_before), tostring(candlesticks_after)))
+        local stage_after_chest_result, stage_after_chest = t.quest.stage()
+        local candles_grew = candlesticks_before_result == "ok" and candlesticks_after_result == "ok"
+            and candlesticks_after == candlesticks_before + 2
+        local heroquest_clobbered = stage_after_chest_result == "ok" and stage_after_chest == 12
+        t.step("lootCandlesticks", candles_grew and "PASS" or "FAIL",
+            string.format("petecandlestick count %s -> %s, %%heroquest (t.quest.stage) -> %s %s",
+                tostring(candlesticks_before), tostring(candlesticks_after),
+                tostring(stage_after_chest_result), tostring(stage_after_chest)))
 
-        t.blocked("brimhaven_scarface_mansion.rs2:97-109 [oploc1,opencandlechest], reached through a real Phoenix-"
-            .. "route playthrough (Achietties accepted for real, Straven's rank-of-master-thief branch taken, "
-            .. "Alfonse's gherkin password, Charlie's secret door, Grip killed for real with t.player.attack + "
-            .. "t.npc.await_dead, grip_keys picked up off the ground and used on pete_treasuredoor to unlock it, "
-            .. "all verbatim against the .rs2 and all green): across 8 runs of fix attempts (a wrong-element "
-            .. "camera-pose pick, repeated hard 'I can't reach that!' pathing refusals resolved each time with "
-            .. "t.world.loc_near + goto_tile onto the loc's own re-resolved tile, and pressing the pre-transform "
-            .. "symbol 'shutcandlechest' rather than 'opencandlechest' per this pack's base-symbol resolution "
-            .. "rule), click_loc(shutcandlechest) never once produced BOTH an 'ok' press AND a petecandlestick "
-            .. "count that grew by two on the same attempt. The one run that finally landed a clean ok press (run "
-            .. "8, after goto_tile onto the loc's own freshly re-resolved post-transform tile) settled on a real "
-            .. "chat message with zero backpack growth, which this handler's own branching "
-            .. "(brimhaven_scarface_mansion.rs2:98-102) can only be reached if ~obj_gettotal(petecandlestick) "
-            .. "already read >0 for this fresh character -- unexplained, since ::clearinv ran in setup and no "
-            .. "petecandlestick was ever carried, worn, or banked by this run before that click. Eight runs could "
-            .. "not distinguish whether this is a driver seam (click_loc pressing a stale or wrong physical "
-            .. "instance of the loc after its transform) or a content seam (this pack's chest reading stale or "
-            .. "shared world/bank state), so the hypothesis this file set out to confirm -- opencandlechest's own "
-            .. "%heroquest write (brimhaven_scarface_mansion.rs2:106-108) unconditionally clobbering a Phoenix "
-            .. "route's hero_phoenix_killed_grip(5) with the Black Arm route's hero_blackarm_looted_chest(12), "
-            .. "which quest_hero.constant shows is past hero_phoenix_obtained_armband(6) and would strand "
-            .. "Straven's own hand-in gate at straven.rs2:108 -- could never be exercised for real: this run "
-            .. "never held two real petecandlestick to test it with. Nothing past this point can be honestly "
-            .. "driven.")
+        -- A plain recording row (trap 15): opencandlechest's own branching
+        -- (brimhaven_scarface_mansion.rs2:98-109) is either the empty-chest
+        -- branch (98-102) or the two-candlestick branch (103-109), and only
+        -- the latter carries the unconditional %heroquest write (106-108,
+        -- `if (%heroquest < ^hero_blackarm_looted_chest) { %heroquest =
+        -- ^hero_blackarm_looted_chest; }`, no gang check at all) -- the
+        -- real, measured stage value says which branch this fresh,
+        -- ::clearinv'd Phoenix character actually took.
+        t.check("chest.heroquestAfter", stage_after_chest_result == "ok",
+            string.format("t.quest.stage() -> %s %s (blackarm_looted_chest=12 means the write clobbered a "
+                .. "Phoenix route's own progress; phoenix_killed_grip=5 unchanged means it did not)",
+                tostring(stage_after_chest_result), tostring(stage_after_chest)))
+
+        -- Prove the strand for real: Straven's own hand-in gate
+        -- (straven.rs2:108, `%heroquest >= ^hero_phoenix_gangmember_spoken
+        -- & %heroquest < ^hero_phoenix_obtained_armband & inv_total(inv,
+        -- petecandlestick) > 0`) requires %heroquest < 6 -- his own label
+        -- opens with a plain npc greeting line before the choice list
+        -- (identical shape to talkToStraven-1-dialog above), so continue
+        -- through that first.
+        t.exec("goto-straven-2", t.player.goto_tile, 3246, 9780, 0)
+        t.exec("talkToStraven-2", t.player.talk_to, "straven")
+        t.exec("talkToStraven-2-continue", t.chat.continue_, true)
+        local straven_options_result, straven_options = t.chat.options()
+        local has_candlestick_option = false
+        if straven_options_result == "ok" and type(straven_options) == "table" then
+            for i = 1, #straven_options do
+                if tostring(straven_options[i]):find("I have a candlestick now.", 1, true) then
+                    has_candlestick_option = true
+                end
+            end
+        end
+        t.check("straven.optionsAfterChest", straven_options_result == "ok",
+            string.format("t.chat.options() -> %s %s (candlestick hand-in row present: %s, inv petecandlestick=%s)",
+                tostring(straven_options_result), tostring(straven_options),
+                tostring(has_candlestick_option), tostring(candlesticks_after)))
+        t.check("straven.closeAfterChest", t.chat.close() == "ok", "t.chat.close() after reading Straven's options")
+
+        -- The final row's own text is built from what was actually
+        -- measured above, not from what the last run's hollow press
+        -- implied (trap 15's recording discipline extended to the report
+        -- itself): heroquest_clobbered is a real read of t.quest.stage(),
+        -- not a guess.
+        local blocked_reason
+        if heroquest_clobbered then
+            blocked_reason = "brimhaven_scarface_mansion.rs2:97-109 [oploc1,opencandlechest], reached through a "
+                .. "real Phoenix-route playthrough (Achietties accepted for real, Straven's rank-of-master-thief "
+                .. "branch taken, Alfonse's gherkin password, Charlie's secret door, Grip killed for real with "
+                .. "t.player.attack + t.npc.await_dead, grip_keys picked up off the ground and used on "
+                .. "pete_treasuredoor to unlock it, all verbatim against the .rs2 and all green), and now with "
+                .. "REAL (non-hollow) presses on the chest after 73a4251d0's engine fix (t.world.loc_near + "
+                .. "goto_tile onto the loc's own resolved tile before each shutcandlechest press, retried up to "
+                .. "twice -- a cold ::goto landing on the loc's own tile stepped off three tiles onto the wrong "
+                .. "side of a wall once, and a fresh goto_tile landed clean the next attempt): petecandlestick "
+                .. "grew " .. tostring(candlesticks_before) .. " -> " .. tostring(candlesticks_after)
+                .. " and %heroquest read " .. tostring(stage_after_chest) .. " immediately after "
+                .. "(chest.heroquestAfter), confirming opencandlechest's own unconditional write "
+                .. "(brimhaven_scarface_mansion.rs2:106-108, `if (%heroquest < ^hero_blackarm_looted_chest) "
+                .. "{ %heroquest = ^hero_blackarm_looted_chest; }`, no gang check at all) clobbers a Phoenix "
+                .. "route's own hero_phoenix_killed_grip(5) with the Black Arm route's "
+                .. "hero_blackarm_looted_chest(12), past hero_phoenix_obtained_armband(6). Driven onward to "
+                .. "Straven for real proof rather than left as a read of the .rs2 alone: with two real "
+                .. "petecandlestick in the backpack, his own dialogue (straven.rs2:108's `%heroquest < "
+                .. "^hero_phoenix_obtained_armband` guard on the $option=5 'I have a candlestick now.' row) no "
+                .. "longer offers the candlestick hand-in at all (candlestick hand-in row present: "
+                .. tostring(has_candlestick_option) .. ") -- the strand is real, not hypothetical. Katrine "
+                .. "refuses a Phoenix player outright (katrine.rs2:15-19), so there is no other hand-in path once "
+                .. "this write has landed. Nothing past this point can be honestly driven."
+        else
+            blocked_reason = "brimhaven_scarface_mansion.rs2:93-110 [oploc1,shutcandlechest]/"
+                .. "[oploc1,opencandlechest], reached through a real Phoenix-route playthrough (Achietties, "
+                .. "Straven, Alfonse, Charlie, Grip killed for real, grip_keys used to unlock pete_treasuredoor, "
+                .. "all verbatim against the .rs2 and all green): openChest-1 -> " .. tostring(open1_result)
+                .. " (" .. tostring(open1_detail) .. ", " .. tostring(open1_tries) .. " attempt(s)), openChest-2 "
+                .. "-> " .. tostring(open2_result) .. " (" .. tostring(open2_detail) .. ", " .. tostring(open2_tries)
+                .. " attempt(s)); petecandlestick " .. tostring(candlesticks_before) .. " -> "
+                .. tostring(candlesticks_after) .. ", %heroquest -> " .. tostring(stage_after_chest)
+                .. ". This run's own real measurements did not reproduce the clobbered-heroquest hypothesis a "
+                .. "previous run's hollow press implied; cite these readings, not that guess, as the seam."
+        end
+        t.blocked(blocked_reason)
         return
     end,
 }
