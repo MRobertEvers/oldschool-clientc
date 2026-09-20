@@ -950,6 +950,37 @@ out_obj_slot_com(
     return 1 + (int)b.position;
 }
 
+/* The five ObjType inventory actions as COMPONENT ops on rev-239's backpack.
+ * File scope because two callers need it now: the packet below, and
+ * app_minimenu.c's cell flash, which re-enters the cell's own on_op with an
+ * op number and was handing it the OPHELD index instead.  See
+ * net_out_opheld_component_op. */
+static const int OPHELD_IF_BUTTONX_OP[5] = { 2, 3, 4, 6, 7 };
+
+/*
+ * THE OP NUMBER A BACKPACK ROW REALLY CARRIES, for anything that has to speak
+ * to the interface in its own op space rather than OPHELD's.
+ *
+ * The one caller that is not this file is the cell flash in app_minimenu.c:
+ * rev-239's backpack installs cc_setonop on every cell, and that handler is
+ * not cosmetic -- op 1 there is the shift-click-drop chain, which answers by
+ * naming the real Drop op through cc_triggerop.  Dispatching it with the
+ * OPHELD index meant every OPHELD1 press ("Dig", "Eat", "Open", ...) ran the
+ * drop chain a tick later and put the item on the floor: measured on the
+ * spade at three separate dig tiles, `<- OPHELD1 obj=952` followed every time
+ * by `<- IF_BUTTONX 149:0 op=7` and `<- OPHELD5`
+ * (build/quest_gate/seam_heldop1_probe2/client.log, 2026-09-20).
+ *
+ * 0 when `op_num` is not one of the five.
+ */
+int
+net_out_opheld_component_op(int op_num)
+{
+    if( op_num < 1 || op_num > 5 )
+        return 0;
+    return OPHELD_IF_BUTTONX_OP[op_num - 1];
+}
+
 int
 net_out_opheld(
     struct GameProtoRevTable const* rev,
@@ -977,7 +1008,6 @@ net_out_opheld(
      * as OPHELD4, so a right-click Drop answered "Nothing interesting happens."
      * Nothing exercised either op end to end until the quest driver's
      * player.drop verb did. */
-    static const int OPHELD_IF_BUTTONX_OP[5] = { 2, 3, 4, 6, 7 };
     int collapsed;
 
     if( op_num < 1 || op_num > 5 )

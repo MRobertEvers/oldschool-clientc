@@ -188,6 +188,17 @@ PluginDrive_App(void)
     return g_app;
 }
 
+struct ToriRSServer*
+PluginDrive_EmbedWorld(void)
+{
+    /* NULL, not an assert: a socket-server run has no in-process server and
+     * every caller of this answers `unsupported` for that, the same way
+     * DriveCore_Cheat below already does. */
+    if( !g_embed )
+        return NULL;
+    return ToriRSServer_EmbedWorld(g_embed);
+}
+
 /* Defined below, in the scheduler section: writes the ledger's trailing
  * SUMMARY row. Forward-declared here because PluginDrive_Finish is the one
  * guaranteed convergence point for both an explicit t.finish(code) and a

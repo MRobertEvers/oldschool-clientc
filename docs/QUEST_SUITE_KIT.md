@@ -18,6 +18,16 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
   `make -C src OPT=1 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_qd_<you> PLATFORM_TARGET=torirs_qd_<you> torirs_qd_<you>`
   then drive quests with `QUEST_BINARY=src/torirs_qd_<you> python3 tools/quest_gate/run.py --no-build ...`.
 - Lua/Python-only changes run with `python3 tools/quest_gate/run.py <quest> --no-build`.
+- **The Lua is read LIVE from this checkout; the C is not.** Every client that
+  starts loads `script/plugins/quest_driver/*.lua` off disk, while a new
+  `api_drive.*` verb exists only in binaries rebuilt after the C change. So a
+  Lua call to a verb your binary alone has is a `attempt to call a nil value`
+  that ENDS every other worker's run at its first click -- it cost the batch
+  forty minutes on 2026-09-20 (`inv_arm`, `pick_point`). Guard the call site
+  (`if api_drive.<verb> == nil then <the old path, NAMED in the detail> end`)
+  until the shared binary is rebuilt, and rebuild your own private target
+  before every run while other seam workers are live. The closer deletes the
+  guard once `src/torirs_questtest` carries the verb.
 - After ANY OSRS-Content edit: `make -C src torirsserver-scripts` (run.py does
   it too).
 - Never `git stash`. Never commit `saves/`, `build*/`, `cache*`,
@@ -231,7 +241,10 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   conformance rows, runs the gates, commits, pushes, and reopens the freed rows
   with `RETRY after <sha>`. The next author batch then resumes those files.
   Content, engine and design seams are listed in its report for the content
-  queue; they are not fixed by the loop. This is how quests become unblocked --
+  queue; they are not fixed by the loop. A seam worker's own regression runs
+  are `run.py <quest> --no-build --no-publish`: without `--no-publish` a
+  private binary's shots overwrite that quest's committed evidence in
+  OSRS-Content. This is how quests become unblocked --
   never by hand between batches.
 - **Never overlap the seam pass with an author batch.** Authors load
   `script/plugins/quest_driver/*.lua` at run time; a seam agent's half-written

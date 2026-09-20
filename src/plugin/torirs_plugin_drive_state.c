@@ -9,6 +9,13 @@
  * content symbol resolved through DriveSymbol_Lookup or a raw engine struct.
  * var.expect exists to catch client != server, so the client value and
  * varps.var_serv[] are two different reads and must stay that way.
+ *
+ * There is a THIRD read, and it is not one of that pair: DriveState_VarpContent
+ * reads the embedded server's own player varps directly.  It exists for the
+ * vars the client can never hold at all -- a content-allocated varp above the
+ * id the client's varp array can address is never transmitted, so both reads
+ * of the pair answer not_found forever.  It cannot see a desync and is never
+ * a substitute for the pair; see its banner in torirs_plugin_drive.h.
  */
 
 #include "plugin/torirs_plugin_drive.h"
@@ -21,6 +28,7 @@
 #include "game/rs_chat.h"
 #include "game/rs_player_stats.h"
 #include "inv/inv_manager.h"
+#include "torirsserver/torirs_server.h"
 #include "varp/varp_manager.h"
 
 #include "lauxlib.h"
@@ -147,6 +155,36 @@ DriveState_VarbitServer(struct App* app, int varbit_id, int* out_value)
 }
 
 /* ---------------------------------------------------------------- inv.* */
+
+enum DriveResult
+DriveState_VarpContent(struct App* app, int varp_id, int* out_value)
+{
+    struct ToriRSServer* srv;
+    struct ToriRSServerPlayer const* player;
+
+    assert(app);
+    assert(out_value);
+    assert(varp_id >= 0);
+    (void)app; /* the server's copy: this read never touches app->varps */
+
+    *out_value = 0;
+    srv = PluginDrive_EmbedWorld();
+    if( !srv )
+        /* Socket-server run -- the server is on the other end of a wire and
+         * its varps are not ours to read.  Same answer DriveCore_Cheat gives
+         * for the same reason. */
+        return DRIVE_UNSUPPORTED;
+    player = srv->active_player;
+    if( !player )
+        /* Nobody logged in yet.  drive_world_ready() gates the scheduler on
+         * exactly this, so a quest never sees it -- but a verb must not
+         * dereference its way through the one frame that could. */
+        return DRIVE_NOT_FOUND;
+    if( varp_id >= TORIRSSERVER_VARP_COUNT )
+        return DRIVE_NOT_FOUND;
+    *out_value = (int)player->varps[varp_id];
+    return DRIVE_OK;
+}
 
 enum DriveResult
 DriveState_InvCount(struct App* app, int container_id, int obj_id, int* out_total)
@@ -372,6 +410,23 @@ lua_drive_varbit_server(struct lua_State* L)
 }
 
 static int
+lua_drive_var_content(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int varp_id = PluginDrive_ArgInt(L, 1);
+    int value = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = DriveState_VarpContent(app, varp_id, &value);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, NULL);
+    lua_pushstring(L, DriveResultName(result));
+    lua_pushinteger(L, value);
+    return 2;
+}
+
+static int
 lua_drive_inv_count(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
@@ -516,6 +571,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"varbit_base", lua_drive_varbit_base},
     {"var_server", lua_drive_var_server},
     {"varbit_server", lua_drive_varbit_server},
+    {"var_content", lua_drive_var_content},
     {"inv_count", lua_drive_inv_count},
     {"inv_slot", lua_drive_inv_slot},
     {"inv_capacity", lua_drive_inv_capacity},

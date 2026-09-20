@@ -30,6 +30,26 @@ Excluded, because they are not a test's verbs:
   - QD.core_* (the plugin/scheduler seam: core_bind is called from on_start
     with an `api` a test never has, core_next_shot is t.shot's own bookkeeping),
   - a namespace table constructor (`QD.read = {}`).
+
+SEAM ROWS.  The harness also carries `seam("seam.<name>", ...)` rows, which are
+not verbs: each one proves a BEHAVIOUR under the verb layer, in the C the
+driver calls, where the verb above it answers the same word whether the seam
+works or not (the four the 2026-09-20 seam pass landed are named in the
+harness's own banner).  They are counted and checked here too, because the
+alternative -- leaving them out of this file -- is a row that can be deleted
+with nothing going red, which is the failure this whole file exists against.
+
+So the harness declares TWO tables and this file keeps both honest:
+
+  step("<verb>", ...)      one per verb, and exactly the verb set the driver
+                           defines -- `-- @verb-count N`
+  seam("seam.<name>", ...) one per seam, every name `seam.`-prefixed so the
+                           two can never be confused for one another, and none
+                           of them colliding with a verb name -- `-- @seam-count N`
+
+`rows_in_plan_order()` returns both, in the order the harness runs them, and
+that is what conformance.py scores: a failing seam row makes `make -C src
+test-quest-conformance` red exactly as a failing verb row does.
 """
 
 import argparse
@@ -45,7 +65,10 @@ FUNC_NS = re.compile(r"^function\s+QD\.([A-Za-z][A-Za-z0-9]*)\.([A-Za-z_][A-Za-z
 FUNC_TOP = re.compile(r"^function\s+QD\.([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 ASSIGN_TOP = re.compile(r"^QD\.([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 HARNESS_ROW = re.compile(r'^\s*step\("([^"]+)"')
+HARNESS_SEAM = re.compile(r'^\s*seam\("([^"]+)"')
 HARNESS_COUNT = re.compile(r"^--\s*@verb-count\s+(\d+)\s*$")
+HARNESS_SEAM_COUNT = re.compile(r"^--\s*@seam-count\s+(\d+)\s*$")
+SEAM_PREFIX = "seam."
 
 
 def private(segment):
@@ -84,8 +107,10 @@ def verbs_from_sources(driver_dir=DRIVER_DIR):
 
 
 def verbs_from_harness(path=HARNESS):
-    """The names the harness plans a row for, read off its own `step("<name>"`
-    call sites -- the code, not a comment beside it, so the two cannot drift."""
+    """The VERB names the harness plans a row for, read off its own
+    `step("<name>"` call sites -- the code, not a comment beside it, so the two
+    cannot drift.  Seam rows are not verbs and are not in here; see
+    seams_from_harness and rows_in_plan_order."""
     declared = []
     with open(path, "r", encoding="utf-8") as handle:
         for line in handle:
@@ -93,6 +118,41 @@ def verbs_from_harness(path=HARNESS):
             if match:
                 declared.append(match.group(1))
     return declared
+
+
+def seams_from_harness(path=HARNESS):
+    """The SEAM names, off the `seam("<name>"` call sites."""
+    declared = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            match = HARNESS_SEAM.match(line)
+            if match:
+                declared.append(match.group(1))
+    return declared
+
+
+def rows_in_plan_order(path=HARNESS):
+    """Every row the harness plans, verbs and seams together, IN THE ORDER IT
+    RUNS THEM -- which is what conformance.py scores and prints, so a seam row
+    that fails goes red beside the verbs instead of being written to a ledger
+    nobody grades."""
+    declared = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            match = HARNESS_ROW.match(line) or HARNESS_SEAM.match(line)
+            if match:
+                declared.append(match.group(1))
+    return declared
+
+
+def seam_count_from_harness(path=HARNESS):
+    """The seam count the harness asserts at runtime (`-- @seam-count N`)."""
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            match = HARNESS_SEAM_COUNT.match(line.strip())
+            if match:
+                return int(match.group(1))
+    return None
 
 
 def count_from_harness(path=HARNESS):
@@ -123,10 +183,20 @@ def main():
         return 0
 
     declared = verbs_from_harness()
+    seams = seams_from_harness()
     asserted = count_from_harness()
+    seam_asserted = seam_count_from_harness()
     duplicates = sorted(v for v in set(declared) if declared.count(v) > 1)
     missing = sorted(set(found) - set(declared))
     extra = sorted(set(declared) - set(found))
+    # A seam row that forgets its prefix would be read as a verb row by
+    # everything downstream, and a seam row named after a verb would take that
+    # verb's place in conformance.py's `collected` table (first row per name
+    # wins) -- the verb would then be graded on the seam's answer.  Both are
+    # spelling mistakes, and both are caught here rather than in a ledger.
+    unprefixed = sorted(s for s in seams if not s.startswith(SEAM_PREFIX))
+    seam_duplicates = sorted(s for s in set(seams) if seams.count(s) > 1)
+    collisions = sorted(set(seams) & (set(declared) | set(found)))
     for verb in duplicates:
         print("verb_list: %s is declared twice in test/quests/_conformance.lua" % verb,
               file=sys.stderr)
@@ -136,13 +206,28 @@ def main():
     for verb in extra:
         print("verb_list: test/quests/_conformance.lua declares %s, which no driver "
               "source defines" % verb, file=sys.stderr)
+    for name in unprefixed:
+        print("verb_list: seam row %s must be named seam.<something> -- an unprefixed "
+              "seam row reads as a verb row everywhere downstream" % name, file=sys.stderr)
+    for name in seam_duplicates:
+        print("verb_list: seam row %s is declared twice in test/quests/_conformance.lua"
+              % name, file=sys.stderr)
+    for name in collisions:
+        print("verb_list: seam row %s has the same name as a verb row, which would take "
+              "that verb's grade" % name, file=sys.stderr)
     bad_count = asserted != len(found)
     if bad_count:
         print("verb_list: test/quests/_conformance.lua asserts %s verbs, the driver "
               "defines %d" % (asserted, len(found)), file=sys.stderr)
-    if duplicates or missing or extra or bad_count:
+    bad_seam_count = seam_asserted != len(seams)
+    if bad_seam_count:
+        print("verb_list: test/quests/_conformance.lua asserts %s seam rows and plans %d"
+              % (seam_asserted, len(seams)), file=sys.stderr)
+    if (duplicates or missing or extra or bad_count
+            or unprefixed or seam_duplicates or collisions or bad_seam_count):
         return 1
-    print("verb_list: %d verbs, one conformance row each" % len(found))
+    print("verb_list: %d verbs, one conformance row each; %d seam row(s)"
+          % (len(found), len(seams)))
     return 0
 
 

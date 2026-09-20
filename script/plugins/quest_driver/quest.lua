@@ -137,6 +137,120 @@ function QD.quest._read_server(name, kind)
     return result, value, kind or "unknown"
 end
 
+-- ------------------------------------------------- the var with no client half
+--
+-- A THIRD channel, and it is not a third opinion: it is the only reader that
+-- can answer at all for a var the client cannot address.
+--
+-- ToriRSServer_SendVarpSmall refuses to encode a varp id the connected
+-- client's varp array cannot address (torirs_server_encode.c, "the official
+-- client treats it as a fatal protocol error"), so a varp this tree allocates
+-- ABOVE the cache's highest id is never transmitted, the client's array never
+-- grows to cover it, and both halves of the pair above -- var[] and
+-- var_serv[], which are the same array's two records -- answer `not_found`
+-- for the whole run.  `transmit=yes` in the quest's own configs/*.varp does
+-- not change that: the id is past what the wire can carry.  Measured
+-- 2026-09-20 on `rovingelves_quest` (pack/varp.alloc id 6262 against an
+-- all.varp.compack topping out near 5704), with the quest driven to a real
+-- completion and ::setvar writing the value server-side:
+--
+--   var.varp -> not_found | var.server -> not_found | quest.stage -> not_found
+--
+-- so quest.varp_complete could never pass, however complete the quest was --
+-- the row that FAILED was the driver's own reach, not the quest
+-- (test/quests/rovingelves.lua's blocked row, QUEUE.tsv, and the same shape in
+-- test/quests/pryingtimes.lua for the varbit half, which the bind banner above
+-- already fixed).
+--
+-- api_drive.var_content reads the embedded server's OWN copy of the varp, out
+-- of srv->active_player->varps[] (DriveState_VarpContent,
+-- torirs_plugin_drive_state.c).  It cannot see a desync -- it is one number,
+-- not two -- which is exactly why it is reached only when the pair has
+-- answered `not_found` TWICE and there is no desync left to see: the client
+-- holds no copy to disagree with.  Every row that lands on this channel says
+-- so in its detail, so no ledger ever reads as if a client had agreed when
+-- none could.
+--
+-- `unsupported` when the binary predates the reader (a run against an older
+-- torirs_questtest): the row then FAILS with that word in it rather than
+-- raising on a nil call.
+function QD.quest._read_content(name)
+    if type(api_drive.var_content) ~= "function" then
+        return "unsupported", name .. ": this binary has no api_drive.var_content"
+    end
+    local result, id = api_drive.symbol("varp", name)
+    if result ~= "ok" then
+        return result, name
+    end
+    return api_drive.var_content(id)
+end
+
+-- ONE reading of the quest's progress var, from the strongest channel that
+-- can answer, as a table every grader below reads the same way:
+--
+--   result   "ok" with a `value`, "refused" when the two client-side copies
+--            disagree (the desync var.expect exists to catch), or the failing
+--            read's own word.
+--   source   "client+server" -- the pair agreed -- or "server content", the
+--            fallback above.  A row prints it; nothing grades on it.
+--   detail   what a ledger row says when this reading is the answer.
+--
+-- The fallback is tried for a VARP name only.  A varbit can never reach it:
+-- VarPManager_GetVarbit answers 0/`ok` for a varbit whose base varp is past
+-- the client's array (varp_manager.c's basevar bound), never `not_found`, so
+-- there is no not_found pair to trigger on and a varbit on an untransmitted
+-- carrier reads as a confident zero instead.  That is a DIFFERENT seam with a
+-- different signature (test/quests/mourningsendpartii.lua's blocked row names
+-- it), and guessing at it from here would mean grading a quest on the server's
+-- word whenever the client merely disagreed -- which is the desync check
+-- itself.
+function QD.quest._reading(name, kind)
+    kind = kind or QD.quest._kind_of(name)
+    local reading = { name = name, kind = kind or "unknown", source = "client+server" }
+    reading.named = name .. " (" .. reading.kind .. ")"
+    reading.client_result, reading.client_value = QD.quest._read_client(name, kind)
+    reading.server_result, reading.server_value = QD.quest._read_server(name, kind)
+
+    if reading.client_result == "ok" and reading.server_result == "ok" then
+        reading.detail = reading.named .. ": client=" .. tostring(reading.client_value)
+            .. " server=" .. tostring(reading.server_value)
+        if reading.client_value ~= reading.server_value then
+            reading.result = "refused"
+            return reading
+        end
+        reading.result = "ok"
+        reading.value = reading.client_value
+        return reading
+    end
+
+    if reading.kind ~= "varbit"
+        and reading.client_result == "not_found"
+        and reading.server_result == "not_found" then
+        reading.content_result, reading.content_value = QD.quest._read_content(name)
+        reading.source = "server content"
+        if reading.content_result == "ok" then
+            reading.result = "ok"
+            reading.value = reading.content_value
+            reading.detail = reading.named
+                .. " has no client half (client=not_found server=not_found -- an id the"
+                .. " client's varp array cannot address is never transmitted);"
+                .. " read from the server's own varps instead: " .. tostring(reading.content_value)
+            return reading
+        end
+        reading.result = reading.content_result
+        reading.detail = reading.named
+            .. ": client=not_found server=not_found and the server's own copy answered "
+            .. tostring(reading.content_result) .. " " .. tostring(reading.content_value)
+        return reading
+    end
+
+    reading.result = (reading.client_result ~= "ok") and reading.client_result
+        or reading.server_result
+    reading.detail = reading.named .. ": client read -> " .. tostring(reading.client_result)
+        .. ", server read -> " .. tostring(reading.server_result)
+    return reading
+end
+
 -- quest.bind never touches the world (no cheat, no read-and-fail): a test
 -- that binds against a typo'd varp name only finds out at the first
 -- quest.stage/expect_stage/expect_complete call, exactly like every other
@@ -184,9 +298,21 @@ function QD.quest._stage_value(bound, name_or_value)
     return nil
 end
 
--- (result, value, kind).  The third return is additive: every caller in the
--- tree reads the documented pair and is unaffected, and a caller that wants
--- to print which var answered no longer has to guess.
+-- (result, value, kind, source).  The third and fourth returns are additive:
+-- every caller in the tree reads the documented pair and is unaffected.
+--
+-- stage() is the CLIENT's reading and stays one: it is the raw read a quest
+-- calls to look, and a quest that wants both sides graded calls expect_stage.
+-- The one thing it will not do any more is answer `not_found` for a var the
+-- client cannot hold -- it falls through to the server's own copy (see
+-- _read_content) and says so in `source`, which is "client" or
+-- "server content".
+--
+-- The failing detail is the var's own story now.  It used to read
+-- `<name> (no varp and no varbit of that name)` for EVERY failing read, which
+-- was measured wrong on rovingelves_quest: api_drive.symbol resolves that name
+-- to kind=varp perfectly well and it is the VALUE that cannot be read, so the
+-- one line a reader had to go on named the wrong cause.
 function QD.quest.stage()
     local bound = QD.quest._bound
     if not bound then
@@ -194,10 +320,22 @@ function QD.quest.stage()
     end
     local kind = QD.quest._bound_kind(bound)
     local result, value = QD.quest._read_client(bound.varp, kind)
-    if result ~= "ok" then
+    if result == "ok" then
+        return result, value, kind or "unknown", "client"
+    end
+    if kind == nil then
         return result, bound.varp .. " (no varp and no varbit of that name)"
     end
-    return result, value, kind or "unknown"
+    if kind ~= "varbit" then
+        local content_result, content_value = QD.quest._read_content(bound.varp)
+        if content_result == "ok" then
+            return "ok", content_value, kind, "server content"
+        end
+        return result, bound.varp .. " (" .. kind .. "): the client cannot address this var"
+            .. " (client read -> " .. tostring(result) .. ") and the server's own copy answered "
+            .. tostring(content_result)
+    end
+    return result, bound.varp .. " (" .. kind .. "): client read -> " .. tostring(result)
 end
 
 -- refused on a client/server mismatch, naming which side disagreed -- the
@@ -212,27 +350,26 @@ function QD.quest.expect_stage(name_or_value)
         return "refused", "quest.expect_stage: unknown stage " .. tostring(name_or_value)
     end
 
-    -- One resolution, both sides.  The kind is named in EVERY answer below,
-    -- pass or fail: "quest_pry (varbit) = 5" is a row that says what it read,
-    -- where the old bare `quest_pry` could not distinguish "the varp table
-    -- has no such name" from "the value is wrong".
+    -- One resolution, one reading, both sides.  The kind is named in EVERY
+    -- answer below, pass or fail: "quest_pry (varbit) = 5" is a row that says
+    -- what it read, where the old bare `quest_pry` could not distinguish "the
+    -- varp table has no such name" from "the value is wrong".
+    --
+    -- What is graded is unchanged: a read that cannot answer returns its own
+    -- word, a client that disagrees with the server is `refused` naming both
+    -- sides, and a value that is not the one asked for is `refused` naming
+    -- what was read.  What is new is the one case where there is no client
+    -- copy to disagree with at all -- QD.quest._reading falls through to the
+    -- server's own varps there, and its detail says which channel answered.
     local kind = QD.quest._bound_kind(bound)
-    local named = bound.varp .. " (" .. tostring(kind or "unknown") .. ")"
+    local reading = QD.quest._reading(bound.varp, kind)
+    local named = reading.named
 
-    local client_result, client_value = QD.quest._read_client(bound.varp, kind)
-    if client_result ~= "ok" then
-        return client_result, named .. ": client read -> " .. tostring(client_result)
+    if reading.result ~= "ok" then
+        return reading.result, reading.detail
     end
-    if client_value ~= value then
-        return "refused", named .. ": client=" .. tostring(client_value) .. " expected=" .. tostring(value)
-    end
-
-    local server_result, server_value = QD.quest._read_server(bound.varp, kind)
-    if server_result ~= "ok" then
-        return server_result, named .. ": server read -> " .. tostring(server_result)
-    end
-    if server_value ~= value then
-        return "refused", named .. ": server=" .. tostring(server_value) .. " expected=" .. tostring(value)
+    if reading.value ~= value then
+        return "refused", reading.detail .. " expected=" .. tostring(value)
     end
 
     -- THE KIND GOES IN THE ROW, THE VALUE STAYS THE RETURN.  The ok detail
@@ -247,7 +384,8 @@ function QD.quest.expect_stage(name_or_value)
     -- `5 -- quest_pry (varbit) = 5 (deliver)` and a reader can tell a varbit
     -- quest from a varp one without opening the config.
     QD.note(named .. " = " .. tostring(value)
-        .. (type(name_or_value) == "string" and (" (" .. name_or_value .. ")") or ""))
+        .. (type(name_or_value) == "string" and (" (" .. name_or_value .. ")") or "")
+        .. (reading.source ~= "client+server" and (" [" .. reading.source .. "]") or ""))
     return "ok", value
 end
 
@@ -310,17 +448,20 @@ function QD.quest.expect_complete()
         -- varbit-tracked quest (quest_pry) read the varp table here and
         -- answered `no_row` on the client side forever, which is a FAIL that
         -- says nothing about the quest.
+        --
+        -- AND a varp the client cannot address at all reaches the server's own
+        -- copy rather than failing a completed quest over a reading nothing in
+        -- this process could ever take (QD.quest._reading, and
+        -- QD.quest._read_content's banner for why `transmit=yes` does not
+        -- help).  The row's detail names the channel either way, so a PASS
+        -- taken that way is never mistaken for a client that agreed.
         local kind = QD.quest._bound_kind(bound)
-        local client_result, client_value = QD.quest._read_client(bound.varp, kind)
-        local server_result, server_value = QD.quest._read_server(bound.varp, kind)
-        local pass = client_result == "ok" and server_result == "ok"
-            and client_value == complete_value and server_value == complete_value
+        local reading = QD.quest._reading(bound.varp, kind)
+        local pass = reading.result == "ok" and reading.value == complete_value
         all_pass = all_pass and pass
         QD.step("quest.varp_complete", pass and "PASS" or "FAIL",
-            bound.varp .. " (" .. tostring(kind or "unknown") .. ")"
-                .. ": client=" .. tostring(client_value) .. "(" .. tostring(client_result) .. ")"
-                .. " server=" .. tostring(server_value) .. "(" .. tostring(server_result) .. ")"
-                .. " complete=" .. tostring(complete_value))
+            reading.detail .. " complete=" .. tostring(complete_value)
+                .. " [" .. reading.source .. "]")
     end
 
     -- ----------------------------------------------------- quest.scroll_title

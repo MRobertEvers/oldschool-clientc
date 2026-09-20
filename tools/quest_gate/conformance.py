@@ -310,7 +310,11 @@ def main():
     os.makedirs(root, exist_ok=True)
     manifest_path = manifest()
 
-    order = verb_list.verbs_from_harness()
+    # Verbs AND seam rows, in the harness's own plan order: a seam row
+    # proves a behaviour under the verb layer (verb_list.py's banner names
+    # the four), and a seam row nobody grades is a row that can be deleted
+    # with nothing going red.
+    order = verb_list.rows_in_plan_order()
     collected = {}          # verb -> (verdict, detail)
     terminal_blocked = None  # the row t.blocked itself wrote, verdict BLOCKED
     skips = set()
@@ -364,7 +368,7 @@ def main():
     width = max(len(name) for name in order)
     print("")
     print("verb conformance -- %d attempt(s) under %s" % (len(attempts), root))
-    print("%-*s  %-8s  %s" % (width, "verb", "result", "detail"))
+    print("%-*s  %-8s  %s" % (width, "row", "result", "detail"))
     print("%s  %s  %s" % ("-" * width, "-" * 8, "-" * 40))
     passed = 0
     for name, verdict, detail in results:
@@ -375,18 +379,20 @@ def main():
     for attempt, directory, code, count in attempts:
         print("attempt %d: exit %d, %d ledger row(s), %s" % (attempt, code, count, directory))
     print("summary: %s" % ("\t".join(summary) if summary else "NONE"))
-    print("verbs:   %d/%d PASS" % (passed, len(order)))
+    print("rows:    %d/%d PASS (%d verb(s) + %d seam row(s))"
+          % (passed, len(order), len(verb_list.verbs_from_harness()),
+             len(verb_list.seams_from_harness())))
     print("")
 
     if not collected:
         print("conformance: no ledger rows at all -- see the attempt logs", file=sys.stderr)
         return 1
     if unreached:
-        print("conformance: %d verb(s) never got a row"
+        print("conformance: %d row(s) never got written"
               % sum(1 for _, verdict, _ in results if verdict == "no-row"), file=sys.stderr)
         return 1
     if passed != len(order):
-        print("conformance: %d of %d verbs failed" % (len(order) - passed, len(order)),
+        print("conformance: %d of %d rows failed" % (len(order) - passed, len(order)),
               file=sys.stderr)
         return 1
     if summary is None:

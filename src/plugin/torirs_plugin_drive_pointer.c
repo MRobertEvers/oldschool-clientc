@@ -79,7 +79,13 @@ extern int app_plugin_world_op(struct App* app, enum DrivePickKind kind, int ele
 extern int app_plugin_world_walk_to(struct App* app, int abs_x, int abs_z);
 extern int app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, int element_id);
 extern int app_plugin_inv_op(
-    struct App* app, int component_id, int slot, int obj_id, int count, int option);
+    struct App* app,
+    int component_id,
+    int slot,
+    int obj_id,
+    int count,
+    int option,
+    char const** out_reason);
 
 /* app_minimenu.c's "clicked off" convergence point (its own banner: every
  * site that ends a selection funnels through here, so a mode added later
@@ -486,6 +492,42 @@ DrivePointer_PickHolds(struct App* app, int element_id, int* out_held)
             *out_held = 1;
             break;
         }
+    }
+    return DRIVE_OK;
+}
+
+/* Which pixel that set answers for, plus the viewport the frame drew with --
+ * see the header's banner. Pure reads of two public struct App fields, like
+ * DrivePointer_PickHolds just above. */
+enum DriveResult
+DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
+{
+    assert(app);
+    assert(out_point);
+    out_point->valid = app->world_pickset.mouse_valid;
+    out_point->x = app->world_pickset.mouse_x;
+    out_point->y = app->world_pickset.mouse_y;
+    /* `world_emit_desc` is only a rectangle once a frame has emitted the world
+     * into one -- every other reader in this tree gates on world_view_valid
+     * (app_camera.c, app_overlay_entities.c) and this one must too, or a
+     * caller is handed the previous layout's rectangle, or zeroes, with
+     * nothing saying which.  A zero width is the reader's signal that there is
+     * no rectangle to test a candidate pixel against (pointer.lua's
+     * QD.drive._hover_inside gives the pixel the benefit of the doubt and lets
+     * the probe itself answer). */
+    if( app->world_view_valid )
+    {
+        out_point->view_x = app->world_emit_desc.x;
+        out_point->view_y = app->world_emit_desc.y;
+        out_point->view_w = app->world_emit_desc.w;
+        out_point->view_h = app->world_emit_desc.h;
+    }
+    else
+    {
+        out_point->view_x = 0;
+        out_point->view_y = 0;
+        out_point->view_w = 0;
+        out_point->view_h = 0;
     }
     return DRIVE_OK;
 }
@@ -918,13 +960,32 @@ DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int optio
 
 enum DriveResult
 DrivePointer_InvOp(
-    struct App* app, int component_id, int slot, int obj_id, int count, int option)
+    struct App* app,
+    int component_id,
+    int slot,
+    int obj_id,
+    int count,
+    int option,
+    char const** out_reason)
 {
     assert(app);
+    assert(out_reason);
+    *out_reason = NULL;
     if( option > 5 )
+    {
+        *out_reason = "option above 5 is not an OPHELD row";
         return DRIVE_UNSUPPORTED;
-    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, option) )
-        return DRIVE_NOT_FOUND;
+    }
+    /*
+     * A refusal from the dispatcher is REFUSED, never NOT_FOUND, and it
+     * carries the reason: the caller's alternative is to watch for an effect
+     * that was never going to arrive and report the silence as the server's.
+     */
+    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, option, out_reason) )
+    {
+        assert(*out_reason);
+        return DRIVE_REFUSED;
+    }
     /*
      * The arming half of use_on has an observable effect in this process and
      * nothing else does: OPHELD1..5 leave as a packet whose answer arrives
@@ -937,6 +998,68 @@ DrivePointer_InvOp(
     if( option < 0 && (!app->objsel.active || app->objsel.obj_id != obj_id) )
         return DRIVE_REFUSED;
     return DRIVE_OK;
+}
+
+/*
+ * ARM THIS CELL'S "Use" SELECTION, WHATEVER IS ARMED NOW -- the entry point a
+ * caller needs when it must arm a second time and cannot know whether the
+ * first arming is still live.
+ *
+ * Why DrivePointer_InvOp(..., option < 0) cannot be that entry point.
+ *
+ * app_minimenu_inv_action's objsel branch runs BEFORE the switch on the
+ * action, so with a selection already armed EVERY inventory row -- the "Use"
+ * row included -- is encoded as an OPHELDU of the clicked cell on the armed
+ * one and clears the selection (app_minimenu.c, the branch above
+ * REVCONFIG_MINIMENU_TGT_HELD).  Re-arming the SAME cell through that path
+ * therefore sends "use this item on itself", a packet no real menu can
+ * produce (rs_minimenu_build.c omits the row for the arming cell), and leaves
+ * objsel empty -- after which InvOp's own `option < 0 && !objsel.active`
+ * check answers DRIVE_REFUSED.  That is what made the quest driver's use_on
+ * refuse to re-arm between far-side retry presses at all, and so land an
+ * ordinary op row on a target whose arming had not survived the retry
+ * (build/quest_gate/golem row 58, build/quest_gate/fishingcompo row 30,
+ * 2026-09-20).
+ *
+ * So this decides against app->objsel FIRST and only then touches the client:
+ *
+ *   - already armed with THIS cell holding THIS obj: the arming survived,
+ *     nothing at all is sent, `*out_was_armed` says so.  A caller that
+ *     re-arms before every press is then free of charge in the case that
+ *     needed no re-arm, which is the measured cog `redcog` case the driver's
+ *     own banner records;
+ *   - armed with something else: that selection is dropped here
+ *     (app_selection_clear, the reference's own doAction tail) before the
+ *     "Use" row is taken, because leaving it lit would spend it on the next
+ *     world click and the OPHELDU above would fire instead of the arming;
+ *   - nothing armed: the ordinary OPHELDT_START path, with InvOp's own proof
+ *     that objsel came back holding this obj.
+ *
+ * `out_was_armed` is optional; every other argument names the cell exactly as
+ * DrivePointer_InvOp does.  InvOp's refusal sentence is read here only to
+ * satisfy its contract: an arming has no detail channel of its own, and the
+ * word it answers (DRIVE_REFUSED rather than a bare DRIVE_NOT_FOUND) already
+ * says the client declined the cell.
+ */
+enum DriveResult
+DrivePointer_InvArm(
+    struct App* app, int component_id, int slot, int obj_id, int count, int* out_was_armed)
+{
+    char const* out_reason = NULL;
+
+    assert(app);
+    if( out_was_armed )
+        *out_was_armed = 0;
+    if( app->objsel.active && app->objsel.component_id == component_id &&
+        app->objsel.slot == slot && app->objsel.obj_id == obj_id )
+    {
+        if( out_was_armed )
+            *out_was_armed = 1;
+        return DRIVE_OK;
+    }
+    if( app->objsel.active )
+        app_selection_clear(app);
+    return DrivePointer_InvOp(app, component_id, slot, obj_id, count, -1, &out_reason);
 }
 
 /*
@@ -979,6 +1102,8 @@ DrivePointer_InvOp(
 static enum DriveResult
 drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id, int count)
 {
+    char const* refusal = NULL;
+
     assert(app);
     if( !app->objsel.active )
         return DRIVE_REFUSED;
@@ -987,7 +1112,7 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
         app_selection_clear(app);
         return DRIVE_NO_ROW;
     }
-    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, 0) )
+    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, 0, &refusal) )
     {
         app_selection_clear(app);
         return DRIVE_NOT_FOUND;
@@ -1150,6 +1275,35 @@ lua_drive_pick_holds(struct lua_State* L)
 }
 
 static int
+lua_drive_pick_point(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct DrivePickPoint point;
+    enum DriveResult result;
+
+    assert(app);
+    memset(&point, 0, sizeof(point));
+    result = DrivePointer_PickPoint(app, &point);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, 0, 7);
+    lua_pushboolean(L, point.valid);
+    lua_setfield(L, -2, "valid");
+    lua_pushinteger(L, point.x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, point.y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, point.view_x);
+    lua_setfield(L, -2, "view_x");
+    lua_pushinteger(L, point.view_y);
+    lua_setfield(L, -2, "view_y");
+    lua_pushinteger(L, point.view_w);
+    lua_setfield(L, -2, "view_w");
+    lua_pushinteger(L, point.view_h);
+    lua_setfield(L, -2, "view_h");
+    return 2;
+}
+
+static int
 lua_drive_mouse_move(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
@@ -1294,11 +1448,33 @@ lua_drive_inv_op(struct lua_State* L)
     int obj_id = PluginDrive_ArgInt(L, 3);
     int count = PluginDrive_ArgInt(L, 4);
     int option = PluginDrive_ArgInt(L, 5);
+    char const* refusal = NULL;
     enum DriveResult result;
 
     assert(app);
-    result = DrivePointer_InvOp(app, component_id, slot, obj_id, count, option);
-    return PluginDrive_PushResult(L, result, NULL);
+    result = DrivePointer_InvOp(app, component_id, slot, obj_id, count, option, &refusal);
+    return PluginDrive_PushResult(L, result, refusal);
+}
+
+/* api_drive.inv_arm(component_id, slot, obj_id, count) -> (result, detail).
+ * use_on's phase 1, idempotent: the detail says whether an arming was already
+ * live ("already armed, nothing sent") or this call took the "Use" row.  See
+ * DrivePointer_InvArm for why re-arming through inv_op cannot work. */
+static int
+lua_drive_inv_arm(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int slot = PluginDrive_ArgInt(L, 2);
+    int obj_id = PluginDrive_ArgInt(L, 3);
+    int count = PluginDrive_ArgInt(L, 4);
+    int was_armed = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = DrivePointer_InvArm(app, component_id, slot, obj_id, count, &was_armed);
+    return PluginDrive_PushResult(
+        L, result, was_armed ? "already armed, nothing sent" : "armed by this call");
 }
 
 /* api_drive.inv_use_on(component_id, slot, obj_id, count) -> (result, nil).
@@ -1401,6 +1577,7 @@ lua_drive_player_idle(struct lua_State* L)
 static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"screen_position", lua_drive_screen_position},
     {"pick_holds", lua_drive_pick_holds},
+    {"pick_point", lua_drive_pick_point},
     {"mouse_move", lua_drive_mouse_move},
     {"mouse_button", lua_drive_mouse_button},
     {"menu_visible", lua_drive_menu_visible},
@@ -1410,6 +1587,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"world_op", lua_drive_world_op},
     {"op_available", lua_drive_op_available},
     {"inv_op", lua_drive_inv_op},
+    {"inv_arm", lua_drive_inv_arm},
     {"inv_use_on", lua_drive_inv_use_on},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},

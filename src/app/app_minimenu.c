@@ -72,6 +72,11 @@ static int
 app_minimenu_ui_pick_live(
     struct App const* app,
     struct UIMinimenuPick const* pick);
+static int
+app_minimenu_ui_pick_live_reason(
+    struct App const* app,
+    struct UIMinimenuPick const* pick,
+    char const** out_reason);
 
 /*
  * The right-click menu: building the rows, and running the one that was
@@ -1237,7 +1242,27 @@ app_minimenu_inv_action(
                 obj_id,
                 slot,
                 com_id));
-        /* selectedArea / cc_settrans_temporarily — not for Use (below). */
+        /*
+         * selectedArea / cc_settrans_temporarily — not for Use (below).
+         *
+         * KNOWN DEFECT, NOT FIXED HERE (seam pass 2026-09-20).  `op_index` is
+         * handed to the cell's own cc_setonop handler, and on rev-239's
+         * backpack that handler is script 6014, the shift-click-drop chain,
+         * whose op 1 answers by naming the real Drop op through cc_triggerop.
+         * The OPHELD index is NOT the cell's op number (the cell's are 2, 3,
+         * 4, 6, 7 -- net_out_opheld_component_op), so every OPHELD1 press
+         * runs the drop chain one tick later and puts the item on the floor:
+         * `<- OPHELD1 obj=952 (Spade)` followed every time by `<- IF_BUTTONX
+         * 149:0 op=7` and `<- OPHELD5`, at three separate dig tiles
+         * (build/quest_gate/seam_heldop1_probe2/client.log), and in the GREEN
+         * Pirate's Treasure run too (build/quest_gate/hunt/ledger.tsv row 61,
+         * "spade slot 1 op 1 -> 0 left").  The one-line fix is to translate
+         * through net_out_opheld_component_op here; it is held back because
+         * hunt's `quest.varp_complete` row currently depends on the extra
+         * settle ticks the stray drop buys it (measured twice: 70/71 with the
+         * translation in, 71/71 with it out), and that race is
+         * quest.expect_complete's to fix first.
+         */
         app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
         return 1;
     case REVCONFIG_MINIMENU_INV_BUTTON1:
@@ -1884,20 +1909,43 @@ app_inv_drag_tick(
 
 /* A right-click menu is retained across frames, so its component rows must be
  * validated again when selected.  Component ids survive array realloc but not
- * deletion, and effective visibility may change while the popup is open. */
+ * deletion, and effective visibility may change while the popup is open.
+ *
+ * WHY EVERY REFUSAL NAMES ITSELF.  A pick that is not live is dropped in
+ * silence -- app_minimenu_run_option returns 0, no packet leaves, no cross is
+ * painted, nothing is written anywhere.  That is right for a stale popup row,
+ * and it is exactly wrong for a synthesised pick (app_plugin_inv_op, the quest
+ * driver's held-item op): the caller cannot tell "the server ignored it" from
+ * "the client never sent it", and a whole quest gets filed against content for
+ * a press that never left this process.  So the answer travels as a string
+ * naming the condition that failed, and `app_minimenu_pick_refusal` below is
+ * the read-only question a synthesiser asks BEFORE it dispatches.
+ *
+ * `out_reason` is written on every `return 0` and left alone on success. */
 static int
-app_minimenu_ui_pick_live(
+app_minimenu_ui_pick_live_reason(
     struct App const* app,
-    struct UIMinimenuPick const* pick)
+    struct UIMinimenuPick const* pick,
+    char const** out_reason)
 {
     int32_t idx;
+
+    assert(app);
+    assert(pick);
+    assert(out_reason);
+#define PICK_NOT_LIVE(why)                                                                        \
+    do                                                                                            \
+    {                                                                                             \
+        *out_reason = (why);                                                                      \
+        return 0;                                                                                 \
+    } while( 0 )
 
     if( pick->kind != UI_MINIMENU_PICK_UI && pick->kind != UI_MINIMENU_PICK_INV_SLOT )
         return 1;
     if( pick->has_node_identity )
     {
         if( !UITree_MenuPickCurrent(app->tree, pick) )
-            return 0;
+            PICK_NOT_LIVE("the stamped node is gone from the tree");
         /*
          * `pick->id` names the stamped node itself only for a UI pick.
          *
@@ -1916,10 +1964,10 @@ app_minimenu_ui_pick_live(
          */
         if( pick->kind == UI_MINIMENU_PICK_UI && pick->id >= 0 &&
             app->tree->components[pick->node_index].component_id != pick->id )
-            return 0;
+            PICK_NOT_LIVE("another component now occupies that node");
         if( UITree_NodeOrAncestorDisplayHiddenEx(
                 app->tree, pick->node_index, pick->allow_plugin_hidden) )
-            return 0;
+            PICK_NOT_LIVE("the node or an ancestor of it is display-hidden");
         idx = pick->node_index;
     }
     else
@@ -1930,7 +1978,7 @@ app_minimenu_ui_pick_live(
             return 1;
         idx = app_displayable_component_node(app, pick->id);
         if( idx < 0 )
-            return 0;
+            PICK_NOT_LIVE("no DISPLAYED node carries that component id");
     }
     if( pick->has_native_events )
     {
@@ -1939,40 +1987,79 @@ app_minimenu_ui_pick_live(
                 ? App_IfEventsGetAt(app, pick->id, pick->secondary_id)
                 : App_IfEventsGetEffective(app, app->tree->components[idx].component_id);
         if( current != pick->native_events )
-            return 0;
+            PICK_NOT_LIVE("the component's armed event mask changed");
     }
     if( pick->kind == UI_MINIMENU_PICK_INV_SLOT &&
         app->tree->components[idx].type == UIELEM_RS_INV )
     {
         struct InvSlot slot;
         if( pick->has_node_identity && pick->node_index != idx )
-            return 0;
+            PICK_NOT_LIVE("the stamped node is not the container's node any more");
         if( !InvManager_GetSlot(
                 &app->invs,
                 app->tree->components[idx].u.rs_inv.inv_source_id,
                 pick->secondary_id,
                 &slot) ||
             slot.obj_id <= 0 || (pick->tertiary_id > 0 && slot.obj_id != pick->tertiary_id) )
-            return 0;
+            PICK_NOT_LIVE("that container slot does not hold the picked obj");
     }
     else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
     {
         int32_t cell = -1;
         int obj = 0;
         if( !UITree_ObjCellDynamicAtSlot(
-                app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) ||
-            obj <= 0 || UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
-            return 0;
+                app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) )
+            PICK_NOT_LIVE("no dynamic item cell is painted at that slot");
+        if( obj <= 0 )
+            PICK_NOT_LIVE("the dynamic item cell at that slot is empty");
+        if( UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
+            PICK_NOT_LIVE("the item cell or an ancestor of it is display-hidden");
         if( pick->has_node_identity && pick->node_index != cell )
-            return 0;
+            PICK_NOT_LIVE("the stamped node is not the cell at that slot any more");
         /* Do not execute an old item's row on a new item which was painted
          * into the same dynamic slot while the menu was open. */
         if( pick->tertiary_id > 0 && obj != pick->tertiary_id )
-            return 0;
+            PICK_NOT_LIVE("a different obj is painted in that cell now");
     }
     else if( pick->has_node_identity && pick->node_index != idx )
-        return 0;
+        PICK_NOT_LIVE("the stamped node is not that component's node any more");
     return 1;
+#undef PICK_NOT_LIVE
+}
+
+static int
+app_minimenu_ui_pick_live(
+    struct App const* app,
+    struct UIMinimenuPick const* pick)
+{
+    char const* reason = NULL;
+
+    assert(app);
+    assert(pick);
+    return app_minimenu_ui_pick_live_reason(app, pick, &reason);
+}
+
+/*
+ * The same question, asked out loud, for a caller that is about to SYNTHESISE
+ * a pick rather than replay one the user right-clicked.  NULL means the pick
+ * would run; anything else is a sentence naming why it would not, owned by
+ * this file's static storage and safe to hand on.
+ */
+char const*
+app_minimenu_pick_refusal(
+    struct App const* app,
+    struct UIMinimenuPick const* pick)
+{
+    char const* reason = NULL;
+
+    assert(app);
+    assert(pick);
+    if( app_minimenu_ui_pick_live_reason(app, pick, &reason) )
+        return NULL;
+    /* Every refusal above writes one; a new branch that forgets is a bug in
+     * this file, not a caller's missing string. */
+    assert(reason);
+    return reason;
 }
 
 void

@@ -4182,19 +4182,37 @@ app_plugin_world_op(struct App* app, enum DrivePickKind kind, int element_id, in
  * the held-item selection (OPHELDT_START, the "Use" row), which is use_on's
  * phase 1 and carries no op number.
  *
- * Returns 0 when the component is not in the tree or the option is not one of
- * those.  It cannot report the dispatcher's own refusal: app_minimenu_run_option
- * validates the pick itself (app_minimenu_ui_pick_live, which rejects a cell
- * whose node or ancestor is display-hidden -- the ordinary case while the
- * container's tab is not the shown one) and then simply returns, and that
- * helper is static to app_minimenu.c, which is not this translation unit.
- * The caller's own completion check is what separates "dispatched" from
- * "happened": see quest_driver/pointer.lua's _inv_op_until_gone, which waits
- * for the item to leave the backpack rather than trusting this 1.
+ * Returns 0 when the component is not in the tree, the option is not one of
+ * those, or the dispatcher would refuse the pick -- and `*out_reason` names
+ * which, always, on every 0.
+ *
+ * THAT LAST CASE USED TO BE INVISIBLE, and it cost a quest apiece.
+ * app_minimenu_run_option validates the pick itself (app_minimenu_ui_pick_live
+ * rejects a cell whose node or ancestor is display-hidden, which is the
+ * ordinary state while the container's tab is not the shown one) and then
+ * simply RETURNS: no packet, no cross, no message, nothing written anywhere.
+ * This function reported that as the same 1 a real dispatch gets, so the quest
+ * driver's held-item op answered `timeout ... -> 1 left` with no chat line and
+ * no effect, and two quests (Making History's Castle Wars dig, Roving Elves'
+ * consecration seed) were filed BLOCKED against content for a press that never
+ * left this process -- content's own `~displaymessage(^dm_default)` fallback
+ * was missing for the same reason every other effect was.  So the pick is
+ * asked BEFORE it is run (app_minimenu_pick_refusal), and a refusal is
+ * returned as a sentence instead of being run into the ground.
+ *
+ * The caller's own completion check still separates "dispatched" from
+ * "happened": see quest_driver/pointer.lua, which waits for the effect rather
+ * than trusting this 1.
  */
 int
 app_plugin_inv_op(
-    struct App* app, int component_id, int slot, int obj_id, int count, int option)
+    struct App* app,
+    int component_id,
+    int slot,
+    int obj_id,
+    int count,
+    int option,
+    char const** out_reason)
 {
     /* OPHELD1..5 in op order. app_minimenu_inv_action switches on these five
      * ids; there is no exported opheld_action_for_slot to borrow, and the
@@ -4213,10 +4231,18 @@ app_plugin_inv_op(
     int action_index;
 
     assert(app);
+    assert(out_reason);
+    *out_reason = NULL;
     if( option > 5 )
+    {
+        *out_reason = "option above 5 is not an OPHELD row";
         return 0;
+    }
     if( UITree_FindByComponentId(app->tree, component_id) < 0 )
+    {
+        *out_reason = "that component id is not in the interface tree";
         return 0;
+    }
     memset(&pick, 0, sizeof(pick));
     pick.kind = UI_MINIMENU_PICK_INV_SLOT;
     pick.id = component_id;
@@ -4247,10 +4273,20 @@ app_plugin_inv_op(
         option,
         action);
 
+    /* Ask before pressing. app_minimenu_run_option's own call is the one that
+     * counts, but it answers only by doing nothing; this reads the same
+     * verdict out loud while there is still a caller to tell. */
+    *out_reason = app_minimenu_pick_refusal(app, &pick);
+    if( *out_reason )
+        return 0;
+
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->interact.minimenu.font_id;
     if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
+    {
+        *out_reason = "the scratch minimenu would not take the row";
         return 0;
+    }
     saved = app->interact.minimenu;
     app->interact.minimenu = scratch;
     app_minimenu_run_option(app, 0, 0, 0);

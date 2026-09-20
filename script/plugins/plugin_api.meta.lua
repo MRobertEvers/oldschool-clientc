@@ -960,6 +960,7 @@ except the plain readers marked as returning a value.
 ---@field varbit_base fun(varbit_id: integer): string, integer The base varp, because var events carry a varp id.
 ---@field var_server fun(varp_id: integer): string, integer The client's record of the SERVER's value; not the same read as varp.
 ---@field varbit_server fun(varbit_id: integer): string, integer The varbit-width var_server: the bits varbit would read, out of the server record instead of var[].
+---@field var_content fun(varp_id: integer): string, integer The EMBEDDED SERVER's own copy, not the client's arrays at all. For an id the client's varp table cannot address -- never transmitted, so varp and var_server both answer not_found forever. unsupported on a socket-server run. It cannot see a desync; a row that reads it says so.
 ---@field inv_count fun(container_id: integer, obj_id: integer): string, integer
 ---@field inv_slot fun(container_id: integer, slot: integer): string, table
 ---@field inv_capacity fun(container_id: integer): string, integer
@@ -983,6 +984,7 @@ except the plain readers marked as returning a value.
 --- verbs-pointer
 ---@field screen_position fun(kind: string, id: integer): string, table { x, y, element_id }.
 ---@field pick_holds fun(element_id: integer): string, boolean Does this frame's pickset hold it. Meaningless before a frame rendered at the moved-to point.
+---@field pick_point fun(): string, table { valid, x, y, view_x, view_y, view_w, view_h }: WHICH pixel the pickset above was hittested at, so a held=false is a reading of a rendered frame rather than a guess about timing. view_w 0 means there is no world rectangle to test a candidate pixel against.
 ---@field mouse_move fun(x: integer, y: integer): string, string
 ---@field mouse_button fun(button: integer, down: boolean, x: integer, y: integer): string, string
 ---@field menu_visible fun(): string, boolean
@@ -991,7 +993,8 @@ except the plain readers marked as returning a value.
 ---@field action_for_slot fun(kind: string, slot: integer): string, integer The action id the client's own builder would use for that op.
 ---@field world_op fun(kind: string, id: integer, option: integer): string, string The LOGGED bypass. Never the default; every call is a ledger note.
 ---@field op_available fun(kind: string, id: integer, option: integer): string, boolean Does this world target actually OFFER that op? app_minimenu_ui_pick_live validates only UI and INV_SLOT picks, so the bypass owes its own answer.
----@field inv_op fun(component_id: integer, slot: integer, obj_id: integer, count: integer, option: integer): string, string A backpack/worn CELL's numbered held op. 1..5 = OPHELD1..5, 0 = Examine, negative arms the held-item selection (Use) and is refused unless objsel came back holding it.
+---@field inv_op fun(component_id: integer, slot: integer, obj_id: integer, count: integer, option: integer): string, string A backpack/worn CELL's numbered held op. 1..5 = OPHELD1..5, 0 = Examine, negative arms the held-item selection (Use) and is refused unless objsel came back holding it. refused ALSO when the client itself declined the pick, and the detail is then the sentence naming which condition -- nothing was dispatched, so a retry cannot double-send.
+---@field inv_arm fun(component_id: integer, slot: integer, obj_id: integer, count: integer): string, string The same cell's Use arming, taken WHATEVER is armed now -- which inv_op(..., -1) cannot do: with a selection live it is encoded as an OPHELDU of the item on itself and leaves nothing armed. An arming already live for this cell sends nothing and says so.
 ---@field inv_use_on fun(component_id: integer, slot: integer, obj_id: integer, count: integer): string, string The CLICKED cell of an item-on-item (OPHELDU); the armed one is already in app->objsel, put there by inv_op(..., -1). The client encodes the use itself. no_row for a cell used on itself, refused when nothing was armed or the client did not encode it.
 ---@field move_to fun(tile_x: integer, tile_z: integer): string, string
 ---@field move_near fun(kind: string, id: integer): string, string Re-issued every tick while pending: the target can walk.

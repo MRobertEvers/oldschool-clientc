@@ -592,7 +592,14 @@ end
 -- pick.kind, pick.id); (6) move to the row centre, left press.  `option` is
 -- a 1-based op slot number OR the string "examine".  Default deadline 4
 -- (docs/QUEST_DRIVER_PLAN.md S5.2: one extra frame of CmdBus drain latency).
-function QD.drive.click_minimenu(target, option, deadline)
+-- `before_retry` (optional) is called before every RETRY press -- a new pose,
+-- and the pixel hunt at the end -- and never before the first.  A retry press
+-- cancels the menu the covered one left open, which is a click off a row and
+-- clears a live held-item selection with it, so a caller that armed something
+-- has to be given the chance to re-take it: QD.player.use_on passes its own
+-- arming, and everything else passes nothing.  It answers (result, detail)
+-- like any verb, and a non-ok answer ends the loop carrying that detail.
+function QD.drive.click_minimenu(target, option, deadline, before_retry)
     deadline = deadline or 4
     local slot
     if option == "examine" then
@@ -652,6 +659,7 @@ function QD.drive.click_minimenu(target, option, deadline)
     -- because WHERE TO STAND is not a camera's decision to make.
     local detail = nil
     local attempt = 0
+    local hunted = false
     while true do
         local result
         result, detail = QD.drive._press_row(target, pos, action, deadline)
@@ -663,7 +671,72 @@ function QD.drive.click_minimenu(target, option, deadline)
         end
         attempt = attempt + 1
         if attempt > #QD.drive._frame_poses then
+            -- SEAM-PRESS-PIXEL (2026-09-20) -- THE LAST RESORT, AND ONLY
+            -- THAT.  Every pose has been tried and every one answered
+            -- `covered`; without this the verb gives up here.  The reason it
+            -- can still be wrong about the pixel is that the projection is a
+            -- loc's footprint centroid at GROUND level while the client
+            -- hittests the DRAWN model (a per-triangle containment test with
+            -- no depth in it), so the press can miss the model by 16-96 px
+            -- upward -- and rotating the camera carries the pixel with the
+            -- target, which is exactly why five poses never helped.
+            -- QD.drive._hover_onto finds a pixel the pickset says the model
+            -- IS on; the measurement and the C seam under it
+            -- (api_drive.pick_point) are at "THE PRESS PIXEL", end of file.
+            --
+            -- It is last, not first, and that position is itself a
+            -- measurement.  Two earlier forms were A/B'd against a HEAD build
+            -- in a throwaway worktree and both cost GREEN quests: hunting
+            -- before every press moved pixels that were already right
+            -- (Elemental Workshop I 57/57 -> 48/57, plus Gertrude's Cat, Sea
+            -- Slug and Heroes' Quest), and hunting on a `held=false` reading
+            -- did the same, because that reading is explicitly not a veto
+            -- (see _press_row) and reads false on presses that work. Hunting
+            -- after the FIRST covered still cost Heroes' Quest a dialogue.
+            -- Here, the only press this can change is one that has already
+            -- failed every other way, so nothing that passes today can move.
+            if not hunted then
+                hunted = true
+                -- ONE hunt, at the pose this loop has already reached, and
+                -- that budget is a measurement too.  Sweeping every pose
+                -- again and hunting at each is what cog's black spindle
+                -- actually needs (a high, close pose carries the model off
+                -- the top of the viewport -- 36 of 57 candidates
+                -- off-viewport at the last pose, a clean hit at the first),
+                -- and it takes Clock Tower to 37/37 -- but the cost lands on
+                -- every transient `covered` anywhere in a run, and it took
+                -- Elemental Workshop I and Pirate's Treasure from green to
+                -- red on the full suite (2026-09-20, measured twice each).
+                -- The pixel is right and the budget is not: a hunt that can
+                -- afford five poses needs a probe cap first, and that is a
+                -- seam of its own rather than something to leave loaded here.
+                local hovered, hunt_detail = QD.drive._hover_onto(target, pos, deadline)
+                if hovered then
+                    if before_retry then
+                        local arm_result, arm_detail = before_retry()
+                        if arm_result ~= "ok" then
+                            return arm_result, arm_detail
+                        end
+                    end
+                    result, detail = QD.drive._press_row(target, hovered, action, deadline)
+                    if result ~= "covered" then
+                        return result, detail
+                    end
+                end
+                return "covered", tostring(detail) .. " -- " .. tostring(hunt_detail)
+            end
             return "covered", detail
+        end
+        -- A NEW POSE IS A NEW PRESS, and a press cancels the menu the last
+        -- one left open -- which is a click off a row, and clears any live
+        -- held-item selection with it (app_frame.c's app_selection_clear).
+        -- `before_retry` is how the caller re-takes what that press will
+        -- spend; QD.player.use_on passes its own arming here.
+        if before_retry then
+            local arm_result, arm_detail = before_retry()
+            if arm_result ~= "ok" then
+                return arm_result, arm_detail
+            end
         end
         local frame_result, framed = QD.drive._frame(target, attempt, deadline)
         if frame_result == "ok" then
@@ -677,6 +750,11 @@ end
 -- it.  `covered` means the menu opened and had no row for this target, which
 -- is the only answer the caller retries from another camera.
 function QD.drive._press_row(target, pos, action, deadline)
+    -- `pos` is whatever the CALLER decided to press: the projection, or the
+    -- pixel QD.drive.click_minimenu's own hunt found after a `covered` (the
+    -- SEAM-PRESS-PIXEL retry in the loop above).  This function never moves
+    -- it -- see "THE PRESS PIXEL" at the end of this file for why searching
+    -- before every press was measured and backed out.
     local move_result = api_drive.mouse_move(pos.x, pos.y)
     if move_result ~= "ok" then
         return move_result, "mouse_move"
@@ -723,7 +801,7 @@ function QD.drive._press_row(target, pos, action, deadline)
     if row_result ~= "ok" then
         return "covered", "element " .. tostring(pos.element_id) .. " at " .. tostring(pos.x)
             .. "," .. tostring(pos.y) .. ": pickset held=" .. tostring(held_result == "ok")
-            .. ", menu has no row for it"
+            .. ", menu has no row for it -- " .. QD.drive._menu_summary()
     end
 
     local left_result = api_drive.mouse_button("left", 1, row.centre_x, row.centre_y)
@@ -1297,6 +1375,21 @@ function QD.player.goto_tile(x, z, level)
             end,
             note = "goto_tile scene settle",
         }, 3)
+        -- SEAM-PRESS-PIXEL (2026-09-20): and the loaded scene must be the one
+        -- the player is now STANDING IN.  An npc pool that is not empty is
+        -- not that -- after a teleport the pool can still be the PREVIOUS
+        -- region's -- and a press into a scene from somewhere else hittests
+        -- nothing, which is the `covered` this seam's other half fixes but
+        -- cannot cure.  See "THE SCENE THE PRESS LANDS IN" at the end of this
+        -- file.  Already true = no wait, and the verdict is advisory.
+        QD.await({
+            level = function()
+                local loc_result, rows = api_drive.locs(QD.player._goto_scene_radius)
+                return loc_result == "ok" and #rows > 0
+                    and api_drive.settled()
+            end,
+            note = "goto_tile scene rebuild",
+        }, QD.player._goto_scene_ticks)
     end
 
     local after_result, after = QD.world.tile()
@@ -1813,16 +1906,14 @@ function QD.player.inv_op(item, op)
     if op < 0 then
         return "unsupported", "inv_op: a negative op is use_on's arming half"
     end
-    local tab_result, tab_detail = QD.player._show_backpack()
-    local cell_result, cell = QD.player._inv_cell(item)
-    if cell_result ~= "ok" then
-        return cell_result, cell
+    -- The press itself, and the tab-not-painted-yet retry behind it, are
+    -- QD.player._inv_press's (the SEAM banner at the end of this file).
+    local result, cell, where, refusal = QD.player._inv_press(item, op)
+    if cell == nil then
+        return result, where
     end
-    local result = api_drive.inv_op(cell.component_id, cell.slot, cell.obj_id, cell.count, op)
-    local where = item .. " slot " .. tostring(cell.slot) .. " op " .. tostring(op)
-        .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
     if result ~= "ok" then
-        return result, "inv_op " .. where
+        return result, "inv_op " .. where .. " -- " .. tostring(refusal)
     end
     -- The op left as a packet; the server answers on a later tick and every
     -- caller that knows WHAT to expect (equip, drop) asserts it itself.
@@ -1862,14 +1953,15 @@ end
 -- thing only it can be true of.
 
 function QD.player._inv_dispatch(item, op, note)
-    local tab_result = QD.player._show_backpack()
-    local cell_result, cell = QD.player._inv_cell(item)
-    if cell_result ~= "ok" then
-        return cell_result, cell, nil
+    -- Same press, same retry, same named refusal as inv_op's: equip and drop
+    -- were losing their clicks to an unpainted backpack tab exactly as the
+    -- held op was (the SEAM banner at the end of this file).
+    local result, cell, where, refusal = QD.player._inv_press(item, op)
+    if cell == nil then
+        return result, where, nil
     end
-    local result = api_drive.inv_op(cell.component_id, cell.slot, cell.obj_id, cell.count, op)
     if result ~= "ok" then
-        return result, note .. " " .. item .. " (tab " .. tostring(tab_result) .. ")", cell
+        return result, note .. " " .. where .. " -- " .. tostring(refusal), cell
     end
     return "ok", nil, cell
 end
@@ -2028,19 +2120,84 @@ function QD.player._select_row_is_held(target, click)
     return true, nil
 end
 
--- NO RE-ARM BEFORE A RETRY PRESS, and the reason is a measurement.
+-- Arm this cell's "Use" selection, whatever is armed now (api_drive.inv_arm
+-- -> DrivePointer_InvArm).  Idempotent by construction: an arming already
+-- live for THIS cell sends nothing, which is why it is safe to call before
+-- every press and not only the first.
 --
--- Taking the "Use <item>" row a second time while a selection is still LIVE
--- does not re-arm anything: app_minimenu_inv_action's objsel branch runs
--- BEFORE the switch on the action, so the second arming press is encoded as
--- an OPHELDU of the item ON ITSELF and clears the selection -- after which
+-- The `not_found` retry is the backpack TAB: app_minimenu_ui_pick_live
+-- refuses a cell whose node is display-hidden, and the arming is a real click
+-- on that cell.  The tab is pressed only after a refusal, never before the
+-- arm, so a press on the tab cannot be what clears a selection that was still
+-- good.
+--
+-- THERE IS NO FALLBACK HERE, and the one that stood here for a day is why the
+-- rule exists.  This file is read live out of the checkout by every client
+-- that starts, while a C change only reaches the binaries rebuilt after it,
+-- and several sessions build from this tree at once (CLAUDE.md) -- so while
+-- api_drive.inv_arm existed in one private binary only, calling it was a hard
+-- error that ENDED every other worker's run at its first use_on (measured
+-- 2026-09-20 on the shared torirs_questtest during an author batch: eadgar,
+-- "attempt to call a nil value").  The guard that bought that day back armed
+-- through the OLD path instead and said so in its detail -- and an arming
+-- taken that way is an arming this fix never reached, which is a silent pass
+-- for the very bug it was written against.  `src/torirs_questtest` carries
+-- DrivePointer_InvArm now (closer, 2026-09-20) and the guard is gone:
+-- test/quests/_conformance.lua's `seam.use_on_rearm` row requires the second
+-- arming to answer "already armed, nothing sent", so a binary without the
+-- verb is a red gate rather than a quiet detour.
+function QD.player._arm_held(item, cell)
+    local result, detail = api_drive.inv_arm(cell.component_id, cell.slot, cell.obj_id, cell.count)
+    local tab_result, tab_detail = nil, nil
+    if result == "not_found" then
+        tab_result, tab_detail = QD.player._show_backpack()
+        result, detail = api_drive.inv_arm(cell.component_id, cell.slot, cell.obj_id, cell.count)
+    end
+    if result ~= "ok" then
+        return result, "use_on: arming " .. item .. " slot " .. tostring(cell.slot)
+            .. " -- " .. tostring(detail)
+            .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
+    end
+    return "ok", item .. " slot " .. tostring(cell.slot) .. ": " .. tostring(detail)
+end
+
+-- RE-ARM BEFORE EVERY RETRY PRESS -- through api_drive.inv_arm, and through
+-- nothing else.
+--
+-- This banner used to say the opposite ("NO RE-ARM BEFORE A RETRY PRESS"),
+-- and it was right about the mechanism and wrong about the conclusion.  The
+-- mechanism: taking the "Use <item>" row a second time through
+-- `api_drive.inv_op(cell, -1)` while a selection is still LIVE does not
+-- re-arm anything, because app_minimenu_inv_action's objsel branch runs
+-- BEFORE the switch on the action, so that press is encoded as an OPHELDU of
+-- the item ON ITSELF and clears the selection -- after which
 -- DrivePointer_InvOp's own check (`option < 0 && !objsel.active`) answers
--- refused.  Measured 2026-09-20: a use_on that re-armed between far-side
--- presses turned cog's `place.redcog`, which had just started landing, into
--- `refused -- use_on redcog: re-arming redcog`, while the same run without
--- the re-arm placed the red AND blue cogs and moved %cogquest 1 -> 2 -> 3.
--- The arming DOES survive a covered press and the walk after it; what does
--- not survive is left to QD.player._select_row_is_held to catch.
+-- refused.  Measured 2026-09-20: a use_on that re-armed that way between
+-- far-side presses turned cog's `place.redcog`, which had just started
+-- landing, into `refused -- use_on redcog: re-arming redcog`.
+--
+-- What the old conclusion cost: on a target whose arming does NOT survive to
+-- the retry press, the press lands an ordinary op row and the verb can only
+-- refuse.  Both of these are that, every run:
+--   build/quest_gate/golem row 58     -- `refused ... pressed 'Examine @cya@
+--                                        Statuette in alcove'`
+--   build/quest_gate/fishingcompo row 30 -- the same on the garlicpipe wall.
+-- The arming does not survive because a `covered` press LEAVES ITS MENU OPEN
+-- (QD.drive._press_row returns without a left press), and the next press
+-- cancels that menu -- a click off a row, which is exactly the doAction tail
+-- the reference clears useMode at (app_frame.c's own three
+-- app_selection_clear sites).
+--
+-- api_drive.inv_arm (DrivePointer_InvArm) is the entry point the two answers
+-- above need and inv_op cannot be: it reads app->objsel FIRST, so an arming
+-- that is still live for THIS cell costs nothing and sends nothing -- cog's
+-- redcog case, preserved exactly -- and an arming that is gone is simply
+-- taken again.  Measured on the same two subjects, build/quest_gate/
+-- seam_rearm_base -> seam_rearm_fixed, 2026-09-20.
+--
+-- QD.player._select_row_is_held stays: an arming can still be spent between
+-- the arm and the press, and a false `ok` for a press that only examined the
+-- target is the one answer this verb must never give.
 
 -- Two phases, and the first one is checked before the second is attempted.
 --
@@ -2084,15 +2241,21 @@ function QD.player.use_on(item, target)
     if cell_result ~= "ok" then
         return cell_result, cell
     end
-    local arm_result = api_drive.inv_op(cell.component_id, cell.slot, cell.obj_id, cell.count, -1)
+    local arm_result, arm_detail = QD.player._arm_held(item, cell)
     if arm_result ~= "ok" then
-        return arm_result, "use_on: arming " .. item
+        return arm_result, arm_detail
     end
     -- The pre-click page: taken after the arming and on the line above the
     -- world click, so the arming's own backpack tab press is not mistaken
     -- for the use's answer either (talk_to's rule, applied to phase 2).
     local before_kind, before_text = QD.player._chat_page()
-    local click_result, click = QD.drive.click_minimenu(target, "select")
+    -- The arming is re-taken before every retry press inside click_minimenu
+    -- too, not only between the far-side walks below: a camera-pose retry is
+    -- a press like any other and cancels the menu the covered one left open.
+    -- inv_arm sends nothing when the arming survived, so this costs a call
+    -- and no packet in the case that needed no re-arm.
+    local rearm = function() return QD.player._arm_held(item, cell) end
+    local click_result, click = QD.drive.click_minimenu(target, "select", nil, rearm)
     local side = 1
     while click_result == "covered" and side <= QD.player._far_side_attempts do
         -- The same walk around the target click_loc takes, for the same
@@ -2102,11 +2265,18 @@ function QD.player.use_on(item, target)
             break
         end
         QD.note("use_on: " .. far_detail)
-        -- The arming is NOT re-taken here: see the banner above this
-        -- function.  Whether it survived is answered after the loop, by the
-        -- row that actually got pressed.
+        -- RE-ARM, through inv_arm: the covered press left a menu open and the
+        -- next press cancels it, which is a click off a row and clears any
+        -- live selection.  inv_arm sends nothing when the arming DID survive
+        -- (cog's redcog), and takes the "Use" row again when it did not
+        -- (golem's alcove, fishingcompo's wall pipe).  See the banner above.
+        local rearm_result, rearm_detail = QD.player._arm_held(item, cell)
+        if rearm_result ~= "ok" then
+            return rearm_result, "use_on: retry " .. tostring(side) .. ": " .. tostring(rearm_detail)
+        end
+        QD.note("use_on: retry " .. tostring(side) .. " " .. tostring(rearm_detail))
         before_kind, before_text = QD.player._chat_page()
-        click_result, click = QD.drive.click_minimenu(target, "select")
+        click_result, click = QD.drive.click_minimenu(target, "select", nil, rearm)
         side = side + 1
     end
     if click_result ~= "ok" then
@@ -2427,3 +2597,378 @@ function QD.player.use_item_on_item(item_a, item_b)
     end
     return "ok", detail
 end
+
+
+-- ==========================================================================
+-- SEAM held_op1_dispatches_but_nothing_happens -- 2026-09-20, APPENDED BLOCK
+--
+-- Nothing above this banner is touched except two call sites, both named
+-- here: QD.player.inv_op and QD.player._inv_dispatch now press through
+-- QD.player._inv_press below instead of calling api_drive.inv_op themselves.
+--
+-- WHAT WAS WRONG.  A held op was dispatched into a client that had already
+-- decided not to run it, and said nothing.  app_plugin_inv_op fabricated the
+-- INV_SLOT pick and handed it to app_minimenu_run_option, which validates
+-- every pick before acting (app_minimenu_ui_pick_live) and, when the pick is
+-- not live, RETURNS: no packet, no cross, no message, nothing.  The bridge
+-- reported that as the same 1 a real dispatch gets, so this file watched for
+-- an effect that was never coming and answered `timeout ... -> 1 left` with
+-- an empty detail.  From a quest file that is indistinguishable from a press
+-- the server received and ignored, and two quests were filed BLOCKED against
+-- content over it:
+--
+--   build/quest_gate/makinghistory/ledger.tsv row 17 (the Castle Wars dig)
+--   build/quest_gate/rovingelves/ledger.tsv  row 31 (the consecration seed)
+--
+-- both reading "no chat line, no interface, nothing observable at all: not
+-- even content's own ~displaymessage(^dm_default)".  Proved 2026-09-20 with
+-- TORIRSSERVER_VERBOSE=1 on build/quest_gate/seam_mh_diag/client.log: the
+-- driver's own `quest-driver: inv op bypass com=9764864 slot=0 obj=952
+-- option=1` line is there and NO `torirsserver: <- OPHELD1` ever follows it.
+-- The packet was never sent.  With the C side made to name its refusal
+-- (app_minimenu_pick_refusal), the same press answers
+-- `refused ... -- no DISPLAYED node carries that component id`.
+--
+-- WHY THE CELL IS NOT LIVE, AND WHY PRESSING AGAIN IS THE FIX.  `ui.tab` is
+-- a BUTTON PRESS: api_drive.tab returns as soon as the click is taken, and
+-- the sidebar's own CS2 paints the backpack's nodes on a later frame.  A
+-- press issued in the same frame as the tab switch therefore finds no
+-- displayed node carrying the container's component id.  The green runs are
+-- the ones where the backpack already happened to be the shown tab -- which
+-- is why hunt's SECOND spade press worked and its first did not
+-- (build/quest_gate/hunt/ledger.tsv rows 55 and 61), and why a bare probe at
+-- the same Castle Wars tile with nothing else open digs fine.
+--
+-- Re-pressing is safe BECAUSE the C side now asks before it acts: a
+-- DRIVE_REFUSED from api_drive.inv_op is a promise that nothing was
+-- dispatched, so a retry cannot double-send.  That property is the whole
+-- reason this loop is allowed to exist; if the refusal ever moves back to
+-- after the dispatch, this loop becomes a duplicate press and must go.
+-- ==========================================================================
+
+-- Press one backpack cell, and keep the answer honest about which of the
+-- three things happened: the op left (ok), the client declined the cell
+-- (refused, with the C side's own sentence), or the item is not carried
+-- (the _inv_cell result).
+--
+-- Returns (result, cell, where, refusal).  `cell` is nil only when the item
+-- could not be resolved at all, and `where` is then that failure's detail
+-- rather than a cell description -- inv_op's old shape, kept so its callers
+-- read the same.
+function QD.player._inv_press(item, op, ticks)
+    local budget = ticks or 6
+    local tab_result, tab_detail = QD.player._show_backpack()
+    local attempts = 0
+    local refusal = nil
+
+    while true do
+        local cell_result, cell = QD.player._inv_cell(item)
+        if cell_result ~= "ok" then
+            return cell_result, nil, cell, refusal
+        end
+        attempts = attempts + 1
+        local result, why = api_drive.inv_op(
+            cell.component_id, cell.slot, cell.obj_id, cell.count, op)
+        local where = item .. " slot " .. tostring(cell.slot) .. " op " .. tostring(op)
+            .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
+        if attempts > 1 then
+            where = where .. " [pressed on attempt " .. tostring(attempts)
+                .. "; the first answered '" .. tostring(refusal) .. "']"
+        end
+        -- Anything but a refusal is this call's answer: the op went out, or
+        -- it failed in a way another press cannot mend.
+        if result ~= "refused" then
+            return result, cell, where, why
+        end
+        refusal = why
+        if attempts > budget then
+            return "refused", cell, where, refusal
+        end
+        -- Re-press the tab and give the sidebar's own script a tick to paint
+        -- the cell.  The tab press is repeated rather than done once outside
+        -- the loop: whatever covered the backpack may have arrived after it.
+        tab_result, tab_detail = QD.player._show_backpack()
+        QD.await({
+            event = "server_tick",
+            match = function() return true end,
+            note = "inv_press: the backpack cell is not live yet (" .. tostring(refusal) .. ")",
+        }, 2)
+    end
+end
+-- ==========================================================================
+-- THE PRESS PIXEL -- seam `click_minimenu_presses_a_pixel_whose_pickset_
+-- lacks_the_target` (Opus seam pass, 2026-09-20).  Everything below this
+-- banner is this seam's.  Above it, three places only, each marked
+-- SEAM-PRESS-PIXEL: the hover call at the top of QD.drive._press_row, the
+-- `covered` detail it feeds three lines later, and the scene wait inside
+-- QD.player.goto_tile (the npc half, second banner below).
+--
+-- WHAT WAS WRONG.  click_minimenu pressed the pixel the PROJECTION answers,
+-- and for a loc that pixel is the footprint centroid AT GROUND LEVEL
+-- (drive_pointer_screen_position_loc passes height_above_ground 0) -- the
+-- point the model STANDS ON, not a point the model is DRAWN at.  The
+-- client's hittest is a per-triangle containment test over the projected
+-- model (ToriDraw_ProjectedModelMouseHitTest, TORIDRAW_PICKTEST_ROUGH) with
+-- no depth test in it at all, so a pixel outside the target's own triangles
+-- produces no hit for it -- and a menu with no row for it -- however clear
+-- the line of sight is.  That is why five camera poses and three side-steps
+-- never helped: rotating around a target carries the pixel with it, and the
+-- pixel stayed in the same wrong place relative to the model.
+--
+-- MEASURED (build/quest_gate/seam_probe_pick, 2026-09-20).  A 9x12 pickset
+-- sweep around the projected point, one probe per pixel, `#` where the set
+-- held the target:
+--
+--   brokeclockpole_red   base=382,283  dy-48[...###...] dy-32[...###...]
+--                                      dy-16[...###...]      (dx -20..0)
+--   brokeclockpole_black base=382,283  dy-96[.###.....]      (dx -40..-10)
+--
+-- Every other row of both sweeps was empty -- INCLUDING dy 0, the pixel the
+-- press used -- and the right-click menu at the projected point offered
+-- exactly `Cancel` and `Walk here` on both poles.  The model is 16 to 96
+-- pixels ABOVE the projection and up to 40 to the side of it; the camera,
+-- the side and the walk were never the variable.
+--
+-- THE FIX, AND WHERE IT IS ALLOWED TO RUN.  HOVER: walk a ladder of candidate
+-- pixels up from the projected point and press the first one whose PICKSET
+-- HOLDS the element.  The pickset is the client's own answer to "what is
+-- drawn here", so this asks the question a human answers with his eyes, and
+-- it never presses a pixel the target is not on.
+--
+-- It runs in ONE place, ONCE: QD.drive.click_minimenu's last resort, after
+-- every camera pose has been pressed and every one answered `covered`.  That
+-- position is not caution, it is four measurements, each an A/B against a
+-- HEAD build in a throwaway worktree (2026-09-20):
+--
+--   hunting before EVERY press moved pixels that were already right --
+--   QD.drive._hover_last tries the previous press's winning offset first, and
+--   a pixel 112 px above a wall's centroid still "holds" that wall while
+--   pressing a different part of it.  Elemental Workshop I 57/57 -> 48/57,
+--   and Gertrude's Cat, Sea Slug and Heroes' Quest each lost rows;
+--
+--   hunting on a `held=false` reading did the same, because that reading is
+--   explicitly NOT a veto (see _press_row) and reads false on presses that
+--   work;
+--
+--   hunting after the FIRST `covered` still cost Heroes' Quest a dialogue --
+--   its talk_to landed, and settled on the route instead of the page.
+--
+--   and hunting at the last resort but SWEEPING the poses -- re-framing and
+--   hunting at each -- is what actually reaches cog's black spindle, because
+--   which pose matters as much as which pixel (36 of 57 candidates
+--   off-viewport at the last pose, a clean hit at the first), and it takes
+--   Clock Tower to 37/37 through the scroll -- but its cost lands on every
+--   transient `covered` anywhere in a run, and Elemental Workshop I and
+--   Pirate's Treasure went green -> RED on the full suite with it in.
+--
+-- So what is landed is the single hunt, at the pose the loop has already
+-- reached, on a press that has already failed every other way: nothing that
+-- passes moves (elemental_workshop, hunt and fluffs green, hero and seaslug
+-- at their own baseline, measured twice), and cog is NOT freed by it.  The
+-- pixel is right and the budget is not -- a hunt that can afford to re-frame
+-- needs a probe cap first, and that is the next seam, not a knob to leave
+-- loaded here.
+--
+-- WHY A C SEAM CAME WITH IT.  `api_drive.pick_holds` answers about the last
+-- RENDERED frame, and a caller that has just moved the pointer cannot tell
+-- "the set stamped at my pixel does not hold it" from "the set is still the
+-- pixel I moved away from" -- so every probe would have had to spend a whole
+-- server tick to be sure of a `false`.  `api_drive.pick_point` (new:
+-- DrivePointer_PickPoint over World_PickSetStamp) answers WHICH pixel the set
+-- was stamped at, so a probe costs the two or three frames a CmdBus move
+-- takes to land and render, and a `held=false` becomes a fact about a
+-- rendered frame instead of a guess about timing.
+-- ==========================================================================
+
+-- How far up and sideways the search looks, in canvas pixels.  Walked in
+-- order, first hit wins, so the order is "nearest the projected point
+-- first" -- and it climbs, because a model is drawn ABOVE the ground point it
+-- stands on, never below it.  The measured cases need dy -16..-96 and dx
+-- 0..-40; the ladder covers twice that both ways so a taller or wider loc
+-- does not send anyone back to this table.
+QD.drive._hover_dys = { 0, -16, -32, -48, -64, -80, -96, -112, -128, -160, -192 }
+QD.drive._hover_dxs = { 0, -16, 16, -32, 32, -48, 48, -64, 64 }
+
+-- The margin drive_pointer_in_viewport and App_NpcScreenPosition enforce: a
+-- point nearer than this to the viewport's edge is under the frame, and the
+-- frame takes the press.  A candidate outside it is skipped WITHOUT a wait --
+-- the renderer does not hittest a point it does not count as being in the
+-- world, so waiting for a stamp there is waiting for nothing.
+QD.drive._hover_margin = 12
+
+-- The offset that worked last, tried FIRST.  A click in a quest is rarely
+-- alone -- use_on presses again from three sides, click_loc retries, one file
+-- puts four cogs on four spindles -- and the offset that found the model once
+-- is overwhelmingly the one that finds it again.
+QD.drive._hover_last = nil
+
+-- How many probes may come back never-hittested before the search gives up.
+-- A world that is not rendering picks at all (no world viewport, a modal over
+-- it) answers every probe that way, and each of those costs the whole
+-- deadline: three is enough to tell that apart from one dropped frame.
+QD.drive._hover_stale_limit = 3
+
+-- Has a frame hittested AT (x, y) yet?  A LEVEL predicate, polled once per
+-- frame, so this resolves in the two or three frames the move takes to land
+-- and render rather than in the whole server tick a blind wait costs.
+function QD.drive._pick_settled(x, y, deadline)
+    return QD.await({
+        level = function()
+            local result, point = api_drive.pick_point()
+            return result == "ok" and point.valid and point.x == x and point.y == y
+        end,
+        note = "pick.stamp",
+    }, deadline or 1)
+end
+
+-- Would a frame hittest at all at (x, y)?  `point` is a pick_point reading,
+-- and a client that has not answered one yet is given the benefit of the
+-- doubt: the probe itself then says so by never being stamped.
+function QD.drive._hover_inside(point, x, y)
+    if point == nil or point.view_w == nil or point.view_w <= 0 then
+        return true
+    end
+    local margin = QD.drive._hover_margin
+    return x >= point.view_x + margin and x < point.view_x + point.view_w - margin
+        and y >= point.view_y + margin and y < point.view_y + point.view_h - margin
+end
+
+-- One probe.  `nil` means no frame ever hittested there (nothing was learnt);
+-- true/false is a real reading of a real frame.
+function QD.drive._hover_probe(element_id, x, y, deadline)
+    api_drive.mouse_move(x, y)
+    if QD.drive._pick_settled(x, y, deadline) ~= "ok" then
+        return nil
+    end
+    local hold_result, held = api_drive.pick_holds(element_id)
+    return hold_result == "ok" and held
+end
+
+-- The search itself: answer the first pixel around `pos` whose pickset holds
+-- the target, and the account of the hunt that goes into the row's detail.
+-- A caller that gets nil presses the projected pixel anyway -- WHERE TO PRESS
+-- is this function's decision, but whether to press at all is not.
+function QD.drive._hover_onto(target, pos, deadline)
+    -- A binary built before DrivePointer_PickPoint landed has no
+    -- `api_drive.pick_point` FIELD at all, and calling a nil value raises --
+    -- which in this sandbox (no pcall) ends the whole run, on every click, for
+    -- every quest sharing the tree.  So the search declines by name and the
+    -- press falls back to the projected pixel: exactly what shipped before
+    -- this seam, with a `covered` row that says which binary it was.
+    --
+    -- Unlike QD.player._arm_held's, this guard STAYS after the shared binary
+    -- was rebuilt (closer, 2026-09-20).  It cannot pass a row that the fix did
+    -- not reach -- the press it falls back to is the one that answered
+    -- `covered` in the first place -- and a stale private target is the one
+    -- thing a seam worker cannot see from inside their own run.
+    if api_drive.pick_point == nil then
+        return nil, "no pixel search: this binary predates api_drive.pick_point"
+    end
+    local point_result, point = api_drive.pick_point()
+    if point_result ~= "ok" then
+        point = nil
+    end
+    local candidates = {}
+    if QD.drive._hover_last then
+        candidates[1] = QD.drive._hover_last
+    end
+    for i = 1, #QD.drive._hover_dys do
+        for j = 1, #QD.drive._hover_dxs do
+            candidates[#candidates + 1] = { QD.drive._hover_dxs[j], QD.drive._hover_dys[i] }
+        end
+    end
+
+    local tried = 0
+    local skipped = 0
+    local stale = 0
+    for i = 1, #candidates do
+        local x = pos.x + candidates[i][1]
+        local y = pos.y + candidates[i][2]
+        if not QD.drive._hover_inside(point, x, y) then
+            skipped = skipped + 1
+        else
+            local held = QD.drive._hover_probe(pos.element_id, x, y, deadline)
+            if held == nil then
+                stale = stale + 1
+                if tried == 0 and stale >= QD.drive._hover_stale_limit then
+                    return nil, string.format(
+                        "no frame hittested any of %d pixels around the projected %d,%d"
+                            .. " -- the world is not picking",
+                        stale, pos.x, pos.y)
+                end
+            else
+                tried = tried + 1
+                if held then
+                    QD.drive._hover_last = candidates[i]
+                    return { x = x, y = y, element_id = pos.element_id },
+                        string.format(
+                            "hovered %+d,%+d off the projected %d,%d (%d pixel(s) tried)",
+                            candidates[i][1], candidates[i][2], pos.x, pos.y, tried)
+                end
+            end
+        end
+    end
+    return nil, string.format(
+        "none of %d pixels hittested around the projected %d,%d holds it"
+            .. " (%d off-viewport, %d never hittested)",
+        tried, pos.x, pos.y, skipped, stale)
+end
+
+-- What the menu that just opened actually offers, as one line: the row text,
+-- its pick kind and identity, and the action id.  A `covered` used to name
+-- only the element that was missing, which left every reader to reconstruct
+-- the menu from a screenshot -- and the answer is routinely "the same npc,
+-- under a different element id" or "a row for the thing standing in front",
+-- both of which this prints outright.
+function QD.drive._menu_summary()
+    local rows_result, rows = api_drive.menu_rows()
+    if rows_result ~= "ok" or #rows == 0 then
+        return "menu rows: " .. tostring(rows_result) .. " (none)"
+    end
+    local text = ""
+    for i = 1, #rows do
+        text = text .. string.format(" <%s|kind%d|id%d|act%d>", tostring(rows[i].text),
+            rows[i].pick_kind, rows[i].target_id, rows[i].action)
+    end
+    return "menu rows:" .. text
+end
+
+-- ==========================================================================
+-- THE SCENE THE PRESS LANDS IN -- the npc half of the same seam.
+--
+-- entertheabyss missed `ardounge_wizard` (Wizard Cromperty) intermittently,
+-- with this seam's exact signature: `covered`, pickset held=false, "menu has
+-- no row for it".  With the hover search above in place the row finally said
+-- what was under the pointer:
+--
+--   element 1073749436 at 382,250 ... none of 83 pixels hittested around the
+--   projected 382,250 holds it -- menu rows: <Cancel> <Examine @cya@
+--   Rockslide|kind4|id536882459> <Walk here>
+--
+-- A ROCKSLIDE, in Ardougne.  The step before it teleports the player to the
+-- Rune Essence mine (Aubury's own dialogue), the step after it is a
+-- `goto_tile` back to Cromperty's house -- and `goto_tile` returned as soon
+-- as the TILE read 2683,3326 with a non-empty npc pool, which the mine's own
+-- pool satisfied.  The client was still drawing the essence mine: nothing of
+-- Cromperty was on screen to hittest, at any pixel, which is why the sweep
+-- came back empty everywhere rather than "somewhere else".  Standing in a
+-- scene that has not rebuilt is not a press-pixel problem and no camera,
+-- side or ladder can reach out of it.
+--
+-- So goto_tile waits, bounded and advisorily, for the loaded scene to hold
+-- something NEAR THE PLAYER: drive_ui_within_radius measures a loc's tile
+-- against the player's own, so a scene left over from the previous region
+-- answers zero rows however full it is.
+-- ==========================================================================
+
+-- How near the player a loc must be for the loaded scene to count as his.
+-- Twelve tiles: far enough that an open field still has a fence, a tree or a
+-- rock in it, near enough that the PREVIOUS region's scenery can never
+-- answer for this one.
+QD.player._goto_scene_radius = 12
+
+-- And how long that is worth waiting for.  A region rebuild after a teleport
+-- is hundreds of client frames; ten server ticks is the same order as the
+-- arrival await above it, and an empty-handed expiry costs the run those
+-- ticks once, not the quest.
+QD.player._goto_scene_ticks = 10

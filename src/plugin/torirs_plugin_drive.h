@@ -33,6 +33,7 @@
 
 struct App;
 struct lua_State;
+struct ToriRSServer;
 struct ToriRSServerEmbed;
 struct ToriRS_CmdBus;
 
@@ -208,6 +209,19 @@ void PluginDrive_Init(struct App* app);
  *  which every drive seam asserts against -- a verb reached with no app is a
  *  registration bug, not a runtime state. */
 struct App* PluginDrive_App(void);
+
+/**
+ * The embedded server's world, or NULL when this process has none.
+ *
+ * NULL is a runtime state, not a bug: a socket-server run loads the driver
+ * with no in-process server at all (DriveCore_Cheat answers `unsupported` for
+ * exactly that case), so every caller tests it rather than asserting on it.
+ *
+ * It exists so a seam that does NOT live in torirs_plugin_drive.c can read the
+ * server's own copy of something the client cannot hold -- see
+ * DriveState_VarpContent.  Owner: core-scheduler (the embed handle is its).
+ */
+struct ToriRSServer* PluginDrive_EmbedWorld(void);
 
 /** Shutdown: drop the coroutine, close the ledger, forget the app. */
 void PluginDrive_Shutdown(void);
@@ -409,6 +423,34 @@ enum DriveResult DriveState_VarpServer(struct App* app, int varp_id, int* out_va
  *  ever reads var[]) -- this mirrors its bit math rather than widening that
  *  file, which this group does not own (A9). */
 enum DriveResult DriveState_VarbitServer(struct App* app, int varbit_id, int* out_value);
+/**
+ * The SERVER's own value for a varp, read in-process out of the embedded
+ * server's active player, bypassing the client's varp table entirely.
+ *
+ * Why it has to exist.  DriveState_Varp and DriveState_VarpServer both read
+ * `app->varps` -- the CLIENT's arrays -- and the client only ever holds a varp
+ * the server actually transmitted.  `ToriRSServer_SendVarpSmall` refuses to
+ * encode an id the connected client's varp array cannot address (the official
+ * client treats it as a fatal protocol error), so a content-allocated varp
+ * above the cache's highest id is never sent, the client's array never grows
+ * to cover it, and BOTH of those reads answer `not_found` for the rest of the
+ * run.  Measured on `rovingelves_quest` (id 6262 against a cache topping out
+ * near 5704): client not_found, server not_found, at every stage, however long
+ * a test polls -- while the server's own copy holds the right stage the whole
+ * time.  This is the only channel that can read such a var, and quest.lua's
+ * `quest.varp_complete` / `quest.stage` fall back to it when, and only when,
+ * both client-side reads have answered `not_found`.
+ *
+ * NOT a replacement for the pair above: a var the client CAN hold must still
+ * be graded on client-vs-server, which is the desync `var.expect` exists to
+ * catch.  This read cannot see a desync at all -- it is the server's number
+ * and nothing else -- so a caller that reaches for it says so in its row.
+ *
+ * `unsupported` when this process has no embedded server (a socket-server
+ * run), `not_found` when nobody is logged in yet or the id is past
+ * TORIRSSERVER_VARP_COUNT.
+ */
+enum DriveResult DriveState_VarpContent(struct App* app, int varp_id, int* out_value);
 enum DriveResult DriveState_InvCount(
     struct App* app, int container_id, int obj_id, int* out_total);
 enum DriveResult DriveState_InvSlot(
@@ -596,6 +638,32 @@ enum DriveResult DrivePointer_ScreenPosition(
  *  frame, and only then asks. */
 enum DriveResult DrivePointer_PickHolds(struct App* app, int element_id, int* out_held);
 
+/**
+ * WHICH PIXEL the pickset above answers for, and the world viewport it was
+ * drawn in.
+ *
+ * `valid` is 0 when no frame has hittested since the pointer last left the
+ * viewport. Without this a caller that moved the pointer cannot tell a
+ * pickset that does NOT hold its element from one that has not been
+ * re-stamped yet, and every answer it builds on top -- "covered", "there is
+ * no row for it" -- inherits the ambiguity. The quest driver's own hover
+ * search waits on `x`/`y` reaching the pixel it asked for before it believes
+ * a `held=false`, and uses the viewport rectangle to refuse a candidate pixel
+ * the frame would never hittest at all.
+ */
+struct DrivePickPoint
+{
+    int valid;
+    int x;
+    int y;
+    int view_x;
+    int view_y;
+    int view_w;
+    int view_h;
+};
+
+enum DriveResult DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point);
+
 enum DriveResult DrivePointer_MouseMove(struct App* app, int x, int y);
 enum DriveResult DrivePointer_MouseButton(
     struct App* app, int button, int down, int x, int y);
@@ -662,13 +730,38 @@ enum DriveResult DrivePointer_WorldOp(
  * NEGATIVE option arms the held-item selection (OPHELDT_START, the "Use"
  * row), which is use_on's phase 1 and has no op number of its own.
  *
- * DRIVE_NOT_FOUND when the component is not in the tree or the dispatcher
- * refused the row -- which is the ordinary answer when the container's tab is
- * not the displayed one, because app_minimenu_ui_pick_live rejects a cell
- * whose node or ancestor is display-hidden.
+ * DRIVE_REFUSED when the dispatcher would drop the row, and `*out_reason` is
+ * then the sentence naming why -- the ordinary case being a cell whose node or
+ * an ancestor of it is display-hidden while the container's tab is not the
+ * shown one.  This used to be a bare DRIVE_NOT_FOUND with nothing attached,
+ * and a refusal that says nothing is indistinguishable from a press the server
+ * received and ignored: two quests were filed BLOCKED against content over it
+ * (Making History's Castle Wars dig, Roving Elves' consecration seed) because
+ * "no chat line, no effect, not even content's own fallback message" is what
+ * BOTH look like from Lua.  `out_reason` is written on every return, NULL on
+ * DRIVE_OK, and must not be NULL itself.
  */
 enum DriveResult DrivePointer_InvOp(
-    struct App* app, int component_id, int slot, int obj_id, int count, int option);
+    struct App* app,
+    int component_id,
+    int slot,
+    int obj_id,
+    int count,
+    int option,
+    char const** out_reason);
+
+/*
+ * The same cell's "Use" arming, taken WHATEVER is armed right now -- the only
+ * honest way to arm a second time, because DrivePointer_InvOp(..., option < 0)
+ * with a live selection is encoded as an OPHELDU of the item on itself and
+ * ends with nothing armed at all.  Already armed with this cell: nothing is
+ * sent and `*out_was_armed` is 1.  Armed with another: that selection is
+ * cleared first.  Otherwise: InvOp's own arming, its refusal proof included.
+ * `out_was_armed` may be NULL.  The full reasoning, and the two ledger rows
+ * that paid for it, are on the definition.
+ */
+enum DriveResult DrivePointer_InvArm(
+    struct App* app, int component_id, int slot, int obj_id, int count, int* out_was_armed);
 
 /*
  * Is `option` (1..5) a row this target would actually offer?  The world

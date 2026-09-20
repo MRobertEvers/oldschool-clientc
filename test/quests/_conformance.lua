@@ -71,8 +71,52 @@
 -- editing this file alone cannot drift either.
 -- @verb-count 101
 -- ---------------------------------------------------------------------------
+--
+-- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
+--
+-- A verb row proves a verb.  A seam row proves a BEHAVIOUR that lives under
+-- the verbs, in the C the driver calls, where the verb above it answers the
+-- same word whether the seam works or not.  The 2026-09-20 seam pass landed
+-- four of those, and every one of them had already cost real quests before
+-- anybody looked below the verb:
+--
+--   * use_on's far-side retry RE-ARMS the held item, and a re-arm of an
+--     arming that survived sends nothing (api_drive.inv_arm ->
+--     DrivePointer_InvArm).  Re-arming through inv_op instead encodes an
+--     OPHELDU of the item on itself and leaves nothing armed, after which the
+--     retry press lands an ordinary op row: `refused ... pressed 'Examine
+--     @cya@Statuette in alcove'` (build/quest_gate/golem row 58).
+--   * a press pixel is SEARCHED, not projected: the projection answers a
+--     loc's ground centroid and the client's hittest is a per-triangle
+--     containment test over the DRAWN model, so the pressed pixel sat 16-96
+--     px below the model it was aiming at and the menu carried no row for it
+--     -- `covered`, from every camera (build/quest_gate/cog row 23).
+--   * a backpack press the CLIENT declines now names the condition it
+--     declined on and is pressed again, instead of being reported as a server
+--     that ignored the packet: `timeout ... -> 1 left` with no chat line, no
+--     effect and not even content's own fallback message
+--     (build/quest_gate/makinghistory row 19).
+--   * a varp the client's array cannot address at all is read from the
+--     embedded server's own copy, because BOTH client-side reads answer
+--     not_found for such an id forever (build/quest_gate/rovingelves row 33).
+--
+-- They are ordinary PLAN entries -- same loop, same skip-and-re-run, same
+-- `t.expect` grading, and conformance.py scores them beside the verbs -- but
+-- they are NOT verbs, so they carry their own count and their names are all
+-- prefixed `seam.`, which is how verb_list.py tells the two apart without a
+-- hand-maintained list.
+--
+-- A seam row calls the driver's own PRIVATE helpers (`t.player._arm_held`,
+-- `t.drive._hover_onto`, `t.quest._read_content`) on purpose: `t` IS the QD
+-- table (core.lua's QD_ROOT), and the thing under test is the layer BELOW the
+-- public verb -- calling the public verb would prove the wrong thing, because
+-- the public verb is exactly what went on answering plausibly while the seam
+-- under it was broken.
+-- @seam-count 4
+-- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 101
+local SEAM_COUNT = 4
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -105,9 +149,38 @@ local OBJ_SYMBOL = "airrune"        -- ::runes puts 25 in the backpack
 -- refused, with the server's own sentence, not as success").
 local WEARABLE_OBJ_SYMBOL = "bronze_platebody"
 local ABSENT_OBJ_SYMBOL = "knife"   -- nothing here puts one in the backpack
+-- The held op these rows press, and it is NOT op 1: on rev-239 the backpack's
+-- IF3 cell carries a client-side on_op hook at op index 1 that is the
+-- shift-click-drop chain, so `inv_op(airrune, 1)` drops the stack whatever op
+-- 1 is supposed to mean for the obj.  Op 3 carries no such binding, and --
+-- being unbound -- is claimed by no script either, so the world's honest
+-- answer to it is the engine's "Nothing interesting happens."  The long form
+-- of that measurement is on the player.inv_op row below.
+local INV_OP_UNCLAIMED = 3
+-- Any tab that is not the backpack.  The seam row below needs the backpack's
+-- cells NOT painted when it presses, which is the state `ui.tab("inventory")`
+-- itself leaves behind for a frame -- see its own banner.
+local TAB_AWAY_FROM_BACKPACK = "stats"
+-- The seam rows' own backpack subject.  NOT OBJ_SYMBOL: those rows run
+-- after player.drop, which empties the air runes, and putting them back is
+-- not free -- `::runes` states twenty-two of the backpack's twenty-eight
+-- slots, so re-adding one costs phase 7b the room its own `::give` pair
+-- needs (measured 2026-09-20: `::give garlic left 0 in the backpack`).  A
+-- mind rune comes from the same `::runes 25` the world phase opened with,
+-- is never dropped, equipped or used by any row, and -- like the air rune
+-- -- is claimed by no script, so the world's honest answer to a held op on
+-- it is still the engine's "Nothing interesting happens."
+local SEAM_OBJ_SYMBOL = "mindrune"
 local VARP_SYMBOL = "tutorial"      -- the fixture pins it (perm scope)
 local VARP_VALUE = 1000             -- "tutorial finished" (docs/WORKTREE_SETUP.md)
 local VARBIT_SYMBOL = "troll_freed_eadgar"
+-- A varp this content pack allocates ABOVE the id the client's varp array can
+-- address (pack/varp.alloc 6262 against an all.varp.compack topping out near
+-- 5704), so the server never transmits it and both client-side reads answer
+-- not_found for the whole run.  The seam row below is the only thing in this
+-- harness that can read it at all; if a later cache widens the client's table
+-- past 6262 that row says so in its own detail rather than passing quietly.
+local HIGH_ID_VARP = "rovingelves_quest"
 -- Cook's Assistant, the one quest this content pack can be driven into every
 -- state of from a cheat: `::setvar cookquest ^cook_started` stages it,
 -- `::cookbmp_reward` completes it and puts the real reward scroll up, and its
@@ -302,11 +375,21 @@ return {
 
         local PLAN = {}
         local verb_count = 0
+        local seam_count = 0
 
         -- One entry per verb.  `fn` returns (result, detail) -- or nil when it
         -- has already written its own row (t.step is the only one).
         local function step(name, fn)
             verb_count = verb_count + 1
+            PLAN[#PLAN + 1] = { name = name, call = fn }
+        end
+
+        -- One entry per SEAM: same entry shape, same grading, counted apart
+        -- from the verbs (the banner at the top of this file says why, and
+        -- verb_list.py reads the `seam.` prefix to keep the two tables from
+        -- drifting into each other).
+        local function seam(name, fn)
+            seam_count = seam_count + 1
             PLAN[#PLAN + 1] = { name = name, call = fn }
         end
 
@@ -363,6 +446,25 @@ return {
             if advance then
                 advance(ticks)
             end
+        end
+
+        -- The seam rows' own world target, resolved when they run rather than
+        -- held from the top: they are the last rows that touch the world and
+        -- the Man every other pointer row points at is dead by then, so they
+        -- point at a loc instead (trees are in every direction from the
+        -- fixture's own tile).  player.by_symbol answers (target, result) --
+        -- reversed from every other verb -- so this is the one place that
+        -- reversal is spelled out.
+        local function seam_loc_target()
+            local by_symbol = verb("player", "by_symbol")
+            if not by_symbol then
+                return nil
+            end
+            local target, result = by_symbol("loc", LOC_SYMBOL)
+            if result ~= "ok" or type(target) ~= "table" then
+                return nil
+            end
+            return target
         end
 
         -- Subjects the action verbs need, filled in by their own rows below so
@@ -906,7 +1008,6 @@ return {
             local result, detail = fn(OBJ_SYMBOL, npc_target)
             return no_script_probe(result, detail, OBJ_SYMBOL .. " on " .. NPC_SYMBOL .. " -> ")
         end)
-
         step("player.inv_op", function()
             local fn = verb("player", "inv_op")
             if not fn then return missing("player", "inv_op") end
@@ -925,7 +1026,7 @@ return {
             -- clean probe of the OPHELD dispatch path -- and, being clean, one
             -- no script claims either, so the answer this row expects is the
             -- engine's "Nothing interesting happens." (no_script_probe above).
-            local result, detail = fn(OBJ_SYMBOL, 3)
+            local result, detail = fn(OBJ_SYMBOL, INV_OP_UNCLAIMED)
             return no_script_probe(result, detail, "")
         end)
 
@@ -942,6 +1043,8 @@ return {
             local result, detail = fn(OBJ_SYMBOL)
             return result, describe(detail)
         end)
+
+
 
         -- ----------- phase 7b: the three verbs the phase 6 seams landed
         --
@@ -1528,6 +1631,64 @@ return {
                 equals(QUEST_STARTED), "the stage the ::setvar staged")
         end)
 
+        -- THE VAR WITH NO CLIENT HALF.  Two readings, and the row needs both.
+        --
+        -- ToriRSServer_SendVarpSmall refuses to encode a varp id the connected
+        -- client's varp array cannot address, so a varp this content pack
+        -- allocates ABOVE the cache's highest id is never transmitted and both
+        -- client-side reads -- var.varp and var.server, which are the same
+        -- array's two records -- answer not_found for the whole run, however
+        -- complete the quest is.  api_drive.var_content reads the embedded
+        -- server's own player varps instead (DriveState_VarpContent).
+        --
+        -- The DANGER in a reader like that is that it becomes the answer
+        -- everywhere and quietly deletes the client/server desync check, so
+        -- this row pins both ends of its licence:
+        --
+        --   * on a var the client CAN hold (cookquest, staged above) it must
+        --     agree with var.server -- a channel that answered its own number
+        --     here would be free to disagree with the world;
+        --   * on a var the client canNOT hold (HIGH_ID_VARP) it must answer
+        --     where both client reads said not_found -- which is the only
+        --     case quest.lua ever reaches for it in.
+        seam("seam.var_content", function()
+            local read_content = verb("quest", "_read_content")
+            local read_server = verb("var", "server")
+            local read_client = verb("var", "varp")
+            if not read_content then return missing("quest", "_read_content") end
+            if not read_server then return missing("var", "server") end
+            if not read_client then return missing("var", "varp") end
+
+            local server_result, server_value = read_server(QUEST_VARP)
+            local content_result, content_value = read_content(QUEST_VARP)
+            local low = QUEST_VARP .. ": server=" .. describe(server_result) .. "/"
+                .. describe(server_value) .. " content=" .. describe(content_result)
+                .. "/" .. describe(content_value)
+            if content_result ~= "ok" then
+                return content_result, "the server's own copy could not be read at all -- " .. low
+            end
+            if server_result == "ok" and content_value ~= server_value then
+                return "refused", "the server's own copy disagrees with the transmitted one, "
+                    .. "so this channel is not reading the world -- " .. low
+            end
+
+            local client_result, client_value = read_client(HIGH_ID_VARP)
+            local high_result, high_value = read_content(HIGH_ID_VARP)
+            local high = HIGH_ID_VARP .. ": client=" .. describe(client_result) .. "/"
+                .. describe(client_value) .. " content=" .. describe(high_result)
+                .. "/" .. describe(high_value)
+            if high_result ~= "ok" then
+                return high_result, "the one var this channel exists for could not be read -- "
+                    .. high .. " (" .. low .. ")"
+            end
+            if client_result == "ok" then
+                return "hollow", "the client CAN address " .. HIGH_ID_VARP .. " in this pack, so "
+                    .. "this row no longer covers the case it was written for -- pick a varp "
+                    .. "above the compack's top: " .. high
+            end
+            return "ok", low .. "; " .. high
+        end)
+
         step("ui.journal_open", function()
             local fn = verb("ui", "journal_open")
             if not fn then return missing("ui", "journal_open") end
@@ -1766,6 +1927,210 @@ return {
                     or tostring(state)) .. "]"
         end)
 
+        -- ------------------ the seam rows the 2026-09-20 seam pass landed
+        --
+        -- LAST OF EVERYTHING THAT READS THE WORLD, after the fight, and the
+        -- position is a measurement twice over.  A seam row presses, arms and
+        -- moves the camera like any other click: between player.use_on and
+        -- player.inv_op they cost `player.drop` its row on a backpack they
+        -- had been pressing, and one block earlier they cost `player.attack`
+        -- its fight -- 35 ticks of pressing is enough for the wandering Man
+        -- the combat rows read to be somewhere else (measured against a HEAD
+        -- build in a throwaway worktree: 101/101 and 244 ticks there, this
+        -- harness 279 with the seam rows in front of the fight, and the same
+        -- driver 101/101 again under HEAD's own harness).  Their subject is a
+        -- LOC, not the Man, because the two rows above have just killed him.
+        --
+        -- Their subject is SEAM_OBJ_SYMBOL and not OBJ_SYMBOL, because
+        -- player.drop just emptied the air runes -- and a `::give` to put them
+        -- back is not free: `::runes` fills twenty-two of the backpack's
+        -- twenty-eight slots, so re-adding one costs phase 7b below the room
+        -- its own `::give garlic` needs (measured: `::give garlic left 0 in
+        -- the backpack`).  A rune the drop did not touch is a subject that
+        -- costs nothing to state.
+        stage(function()
+            local close = verb("chat", "close")
+            if close then
+                close()
+            end
+            settle(2)
+        end)
+
+        -- THE PRESS PIXEL: the driver looks for a pixel the target is DRAWN
+        -- at instead of pressing the one the projection answers.
+        --
+        -- `_hover_onto` walks a ladder of candidates around the projected
+        -- point and answers the first whose PICKSET HOLDS the element.  A
+        -- table back from it is the whole C seam proved at once, because it
+        -- only ever accepts a candidate that survived `_hover_probe`, and
+        -- `_hover_probe` answers nil unless api_drive.pick_point
+        -- (DrivePointer_PickPoint over World_PickSetStamp) says a rendered
+        -- frame hittested at exactly that pixel.  Without that stamp a
+        -- `held=false` is not a reading at all -- it is equally "the model is
+        -- not drawn here" and "the frame has not caught up with my move yet"
+        -- -- and the driver spent a batch of quests reporting the second as
+        -- the first.  nil back is the row's failure, and the account it
+        -- carries names which of the two it was.
+        --
+        -- The pose is taken FIRST, through the same `_frame` a covered press
+        -- retries with, rather than reading whatever projection the rows above
+        -- left behind: measured 2026-09-20, the raw projection after the
+        -- click_loc/click_obj/use_on rows put the Man at 593,198 -- a pixel
+        -- the world never hittests -- and the row failed on where the camera
+        -- happened to be pointing rather than on the seam.
+        seam("seam.press_pixel", function()
+            local hunt = verb("drive", "_hover_onto")
+            local frame = verb("drive", "_frame")
+            if not hunt then return missing("drive", "_hover_onto") end
+            if not frame then return missing("drive", "_frame") end
+            local seam_target = seam_loc_target()
+            if not seam_target then
+                return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
+            end
+            -- Poses, in the order QD.drive.click_minimenu itself retries
+            -- them.  A pose is not a cosmetic choice here: the projection is
+            -- taken against the whole canvas, and a target the camera has left
+            -- low or far to the side projects onto a pixel the WORLD never
+            -- hittests -- under the chat box, under the sidebar -- where the
+            -- honest answer is "the world is not picking" and says nothing
+            -- about the search.  Measured 2026-09-20: the raw projection after
+            -- the pointer rows put the Man at 593,198, and one pose later at
+            -- 246,472.
+            local poses = is_table(t.drive) and t.drive._frame_poses or nil
+            local limit = is_table(poses) and #poses or 1
+            local hovered, account, pos = nil, "no pose framed it", nil
+            local tried = {}
+            local index = 1
+            while index <= limit and not is_table(hovered) do
+                local pos_result, framed = frame(seam_target, index, 4)
+                if pos_result == "ok" and is_table(framed) then
+                    pos = framed
+                    hovered, account = hunt(seam_target, framed, 4)
+                    tried[#tried + 1] = "pose " .. index .. " at " .. describe(framed.x)
+                        .. "," .. describe(framed.y) .. ": " .. describe(account)
+                else
+                    tried[#tried + 1] = "pose " .. index .. ": " .. describe(pos_result)
+                end
+                index = index + 1
+            end
+            if not is_table(hovered) then
+                return "covered", "no candidate pixel holds " .. LOC_SYMBOL
+                    .. " from any pose -- " .. table.concat(tried, "; ")
+            end
+            return "ok", "pressing " .. describe(hovered.x) .. "," .. describe(hovered.y)
+                .. " instead of the projected " .. describe(pos.x) .. "," .. describe(pos.y)
+                .. " -- " .. table.concat(tried, "; ")
+        end)
+
+        -- THE RE-ARM, which is use_on's far-side retry with the walking taken
+        -- out of it.  Four steps, and the third is the seam:
+        --
+        --   arm  -> "armed by this call"
+        --   arm  -> "already armed, nothing sent"   <- inv_arm read app->objsel
+        --                                             FIRST and did not spend
+        --                                             the live arming on an
+        --                                             OPHELDU of the item on
+        --                                             itself
+        --   press the wildcard row, exactly as the retry press does
+        --   grade the row that was pressed: the HELD row, not an Examine
+        --
+        -- The old path fails this row at step two and again at step four, and
+        -- those are the two halves of what golem and fishingcompo reported.  A
+        -- binary older than DrivePointer_InvArm answers step two through the
+        -- named fallback (`armed by the pre-inv_arm path`), which this row
+        -- reads as the failure it is rather than as a pass.
+        --
+        -- It leaves nothing armed behind it: the press at step three is the
+        -- OPHELDU, and encoding one is the only thing that clears app->objsel.
+        seam("seam.use_on_rearm", function()
+            local cell_of = verb("player", "_inv_cell")
+            local arm = verb("player", "_arm_held")
+            local press = verb("drive", "click_minimenu")
+            local graded = verb("player", "_select_row_is_held")
+            if not cell_of then return missing("player", "_inv_cell") end
+            if not arm then return missing("player", "_arm_held") end
+            if not press then return missing("drive", "click_minimenu") end
+            if not graded then return missing("player", "_select_row_is_held") end
+            local seam_target = seam_loc_target()
+            if not seam_target then
+                return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
+            end
+            local cell_result, cell = cell_of(SEAM_OBJ_SYMBOL)
+            if cell_result ~= "ok" then
+                return "no_subject", SEAM_OBJ_SYMBOL .. " has no backpack cell to arm ("
+                    .. describe(cell_result) .. " " .. describe(cell) .. ")"
+            end
+            local first_result, first_detail = arm(SEAM_OBJ_SYMBOL, cell)
+            if first_result ~= "ok" then
+                return first_result, "the first arming failed -- " .. describe(first_detail)
+            end
+            local second_result, second_detail = arm(SEAM_OBJ_SYMBOL, cell)
+            if second_result ~= "ok" then
+                return second_result, "the SECOND arming failed, which is the seam: a live "
+                    .. "selection must be recognised, not spent -- " .. describe(second_detail)
+            end
+            if not string.find(tostring(second_detail), "already armed, nothing sent", 1, true) then
+                return "hollow", "the second arming answered ok but did not recognise the live "
+                    .. "selection, so something WAS sent: " .. describe(second_detail)
+                    .. " (first: " .. describe(first_detail) .. ")"
+            end
+            local press_result, click = press(seam_target, "select")
+            if press_result ~= "ok" then
+                return press_result, "armed twice, but the wildcard press answered "
+                    .. describe(press_result) .. " -- " .. describe(click)
+            end
+            local held_ok, held_why = graded(seam_target, click)
+            if not held_ok then
+                return "refused", "the press landed, but not on the held-item row -- the arming "
+                    .. "did not survive: " .. describe(held_why)
+            end
+            return "ok", "armed, re-armed without sending ("
+                .. describe(second_detail) .. "), and the wildcard press took the held-item row"
+        end)
+
+        -- A BACKPACK PRESS THE CLIENT DECLINES NAMES ITSELF, and is pressed
+        -- again.  The tab is switched away first, because that is the state
+        -- the seam was measured in and the one every quest meets: `ui.tab` is
+        -- a button press that returns as soon as the click is TAKEN, and the
+        -- sidebar's own CS2 paints the backpack's cells a frame later, so a
+        -- press issued behind it finds no displayed node carrying the
+        -- container's component id.
+        --
+        -- Before the seam that was reported as `timeout ... -> 1 left` with an
+        -- empty detail -- indistinguishable, from a quest file, from a server
+        -- that received the press and ignored it.  Two quests were filed
+        -- BLOCKED against content over it.  What this row requires is the
+        -- refusal SENTENCE and the retry that followed it, both in the detail,
+        -- and the engine's own no-script answer at the end of it -- which is
+        -- the proof the second press really did reach the server.
+        seam("seam.inv_press_names_its_refusal", function()
+            local fn = verb("player", "inv_op")
+            local tab = verb("ui", "tab")
+            if not fn then return missing("player", "inv_op") end
+            if not tab then return missing("ui", "tab") end
+            local tab_result = tab(TAB_AWAY_FROM_BACKPACK)
+            settle(3)
+            local result, detail = fn(SEAM_OBJ_SYMBOL, INV_OP_UNCLAIMED)
+            local text = "tab " .. describe(tab_result) .. " -> " .. describe(detail)
+            local graded, answer = no_script_probe(result, detail, "")
+            if graded ~= "ok" then
+                return graded, "the press did not reach the server -- " .. text
+                    .. " (" .. describe(answer) .. ")"
+            end
+            if not string.find(tostring(detail), "pressed on attempt", 1, true) then
+                return "hollow", "the press landed on the first attempt, so this row proved "
+                    .. "nothing about the refusal path -- the backpack was already painted: "
+                    .. text
+            end
+            if not string.find(tostring(detail), "no DISPLAYED node carries that component id",
+                    1, true) then
+                return "hollow", "it retried, but the first refusal was not named, so a quest "
+                    .. "still cannot tell a declined press from an ignored one: " .. text
+            end
+            return "ok", "the first press was declined BY NAME and the second reached the "
+                .. "server -- " .. text
+        end)
+
         -- ------------------------- phase 8: the scheduler's own controls
 
         step("await", function()
@@ -1894,12 +2259,13 @@ return {
 
         -- ------------------------------------------------------ the run
 
-        if verb_count ~= VERB_COUNT then
+        if verb_count ~= VERB_COUNT or seam_count ~= SEAM_COUNT then
             local recorder = verb("step")
             if recorder then
                 recorder("conformance-plan", "FAIL",
-                    "the plan holds " .. verb_count .. " verbs, the driver exposes "
-                    .. VERB_COUNT .. " -- run tools/quest_gate/verb_list.py to see which")
+                    "the plan holds " .. verb_count .. " verbs and " .. seam_count
+                    .. " seam row(s); this file declares " .. VERB_COUNT .. " and "
+                    .. SEAM_COUNT .. " -- run tools/quest_gate/verb_list.py to see which")
             end
             local stop = verb("finish")
             if stop then
