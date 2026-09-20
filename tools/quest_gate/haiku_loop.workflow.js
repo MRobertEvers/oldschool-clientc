@@ -106,7 +106,13 @@ For each: read the quest file and the quest's own .rs2 scripts; confirm the test
 const results = await pipeline(
   tests,
   (id) => agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: 'haiku', schema: AUTHOR_SCHEMA }),
-  (a, id) => a ? agent(reviewCard(id, a), { label: `review:${id}`, phase: 'Review', model: 'sonnet', schema: REVIEW_SCHEMA }).then(r => ({ ...r, doc_gaps: a.doc_gaps, runs: a.runs })) : null,
+  // An author that never returned a report (no StructuredOutput) still gets a
+  // reviewer: whatever it left in test/quests/<id>.lua must be judged or
+  // removed, never left untracked for the next author to trip over.
+  (a, id) => {
+    const report = a || { test_id: id, outcome: 'gave_up', runs: 0, checks_resolved: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [] }
+    return agent(reviewCard(id, report), { label: `review:${id}`, phase: 'Review', model: 'sonnet', schema: REVIEW_SCHEMA }).then(r => ({ ...r, doc_gaps: report.doc_gaps, runs: report.runs }))
+  },
 )
 
 const done = results.filter(Boolean)
