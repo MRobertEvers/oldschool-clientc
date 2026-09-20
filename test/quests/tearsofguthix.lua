@@ -1,26 +1,52 @@
--- Tears of Guthix: talk to Juna, accept quest, mine stone, make bowl, hand in.
+-- Tears of Guthix: talk to Juna to accept the quest.
+--
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0
--- (Lumbridge, beside Hans). ::tearsofguthix teleports to Juna and resets
--- the quest to stage 0 (not_started).
+-- (Lumbridge, beside Hans), but `setup`'s `::tearsofguthix` debugproc
+-- (quest_tearsofguthix/scripts/tearsofguthix.rs2 [debugproc,tearsofguthix])
+-- p_teleports the player straight to `^tog_juna_stand` (3250,9517, level 2),
+-- forces %qp=^tog_qp_req (43) and grants one `tog_stone` + one `chisel` --
+-- the same shape as Cook's Assistant's `::cookbmp_test_give_ingredients`: a
+-- test-only prerequisite grant so the driver would exercise the dialogue/
+-- craft/hand-in chain instead of the lantern-across-the-chasm mining
+-- minigame (`tearsofguthix_lantern.rs2`, explicitly deferred by that
+-- file's own banner). The debugproc does NOT touch skill levels, so
+-- `setup` still sets Firemaking/Crafting/Mining itself --
+-- `~tog_has_requirements` checks those three stats plus %qp.
 --
--- Quest progression:
--- - Stage 0 (not_started): Talk to Juna, choose "Okay..." to accept
--- - Stage 1 (tog_need_bowl): Mine stone, use chisel to make bowl, go back to Juna
--- - Stage 2 (tog_complete): Quest complete, crafting XP awarded
-
--- Tears of Guthix: quest test.
+-- RETRY after 73a4251d0 (queue last_failure): tog_juna IS a multiloc
+-- (all.loc [tog_juna], children tog_juna_1op/tog_juna_2ops,
+-- multivarbit=tog_juna_bowl), and the previously committed file asserted
+-- `chat.no_dialogue` (kind=="none" right after the click) as the recorded
+-- CONTENT BUG -- measured against a world where the child-then-base
+-- multiloc trigger fallback had not landed, so [oploc1,tog_juna] was never
+-- reached at all. That fallback is fixed now (QUEST_AUTHORING.md trap 20,
+-- 2026-09-20): re-measured below, the click DOES now reach
+-- [label,tog_juna_talk] and a real npc dialogue DOES open ("Tell me... a
+-- story...", `02-tog.greet-p1.png`). But the SAME underlying defect the
+-- old row's comment named survives one step later: the dialogue's first
+-- `p_pausebutton` (inside `~chatnpc_specific` -> `chatnpc_specific_anim`,
+-- interface_chat/scripts/chat.rs2:108-118) never resolves. `chat.continue_`
+-- clicks the resume button, gets an "ok" ack, and the page then never
+-- advances -- ticked out to 45+ server ticks, `chat.continue_` on every
+-- later attempt answers "a resume is already outstanding" (chat.lua:150),
+-- because no new page ever mounts to clear that pending flag.
 --
--- CONTENT BUG: The quest's tog_juna location does not open dialogue when clicked.
--- The quest script at tearsofguthix.rs2:22 uses ~chatnpc_specific("Juna", tog_juna_dummy, $text)
--- to initiate dialogue from within a location click handler context.
--- However, this call requires an active NPC entity, which is not available in the
--- location interaction context. The error "NPC_COORD requires an active entity the
--- script does not have" prevents the quest dialogue from opening, making it impossible
--- to progress past the initial interaction.
---
--- This is a script-side bug where the quest handler needs to bind the NPC entity
--- before attempting to use ~chatnpc_specific, similar to how dttd_bmp.rs2 handles
--- the same NPC with ~dttdbmp_bind(tog_juna_dummy) first.
+-- Root cause, confirmed live: `t.npc.by_symbol("tog_juna_dummy")` (the
+-- exact npc `[proc,tog_juna]` passes to `~chatnpc_specific` at
+-- tearsofguthix.rs2:22) answers `no_row` -- there is no live
+-- `tog_juna_dummy` entity anywhere in the loaded world at all, despite
+-- `areas/world/configs/m50_148.spawn`'s static row for it. Compare
+-- `quest_deathtothedorgeshuun/scripts/dttd_bmp.rs2:72-76`
+-- (`[proc,dttdbmp_bind]`), which calls `~chatnpc_specific("Juna",
+-- tog_juna_dummy, ...)` for this SAME npc symbol but only after
+-- `npc_find(coord, tog_juna_dummy, 12, 0)` and, on a miss, `npc_add(...)`
+-- to spawn one right there first (dttd_bmp.rs2:411/427 call
+-- `~dttdbmp_bind(tog_juna_dummy)` before every `~chatnpc_specific` on it).
+-- `tearsofguthix.rs2`'s own `[proc,tog_juna]` has no equivalent bind/spawn
+-- step, so `~chatnpc_specific` opens its first page display-only (no live
+-- entity needed to paint static head/text) and then hangs forever on the
+-- first resume, which needs the active npc `chatnpc_specific_anim`'s
+-- `facesquare(npc_coord)`/`npc_facesquare(coord)` calls depend on.
 
 return {
     id = "tearsofguthix",
@@ -34,7 +60,8 @@ return {
     },
 
     run = function(t)
-        -- quest.bind records the varp and constants for later checks
+        -- quest.bind records the varp and constants for later checks; no
+        -- world read yet.
         t.quest.bind({
             varp = "tog_juna_bowl",
             constants = {
@@ -46,49 +73,72 @@ return {
             points = 1,
         })
 
-        -- Wait for setup cheat effects to appear client-side
+        -- Wait for the debugproc's teleport/varp/inventory grant and the
+        -- setlevel cheats to be visible client-side before reading anything.
         t.ticks(3)
+        t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- Check initial quest stage (read server side to bypass client varp issue)
-        local stage_result, stage_value = t.var.server("tog_juna_bowl")
-        t.check("quest.stage.initial", stage_result == "ok" and stage_value == 0,
-            "tog_juna_bowl server=" .. tostring(stage_value) .. " result=" .. tostring(stage_result))
-
-        -- Check inventory for the stone from setup
         t.expect("setup.have_stone", t.inv.expect_has("tog_stone", 1))
-
-        -- Check inventory for the chisel from setup
         t.expect("setup.have_chisel", t.inv.expect_has("chisel", 1))
 
-        -- Attempt to click on tog_juna location to trigger initial dialogue
+        -- ------------------------------------------------- greet Juna
+        -- [oploc1,tog_juna] -> @tog_juna_talk (not_started branch): the
+        -- trigger IS reached now (re-measuring the queue's last_failure) --
+        -- a real npc dialogue opens.
         t.exec("tog.greet", t.player.click_loc, "tog_juna", 1)
-        t.shot("after-greet")
 
-        -- Verify player is at Juna location after the click
-        local tile_result, tile_value = t.world.tile()
-        t.check("location.verify_juna", tile_result == "ok",
-            "tile=" .. tostring(tile_value))
+        local greet_kind = t.chat.kind()
+        local greet_text_result, greet_text = t.chat.text()
+        t.check("tog.dialogue_opened", greet_kind == "npc" and greet_text_result == "ok",
+            "kind=" .. tostring(greet_kind) .. " text=" .. tostring(greet_text))
 
-        -- Verify no dialogue opened (the bug prevents it)
-        local kind = t.chat.kind()
-        t.check("chat.no_dialogue", kind == "none",
-            "chat_kind=" .. tostring(kind))
+        -- Root cause probe: the exact npc `[proc,tog_juna]` passes to
+        -- `~chatnpc_specific` at tearsofguthix.rs2:22.
+        local dummy_result, dummy_row = t.npc.by_symbol("tog_juna_dummy")
+        local dummy_detail = "no row read"
+        if dummy_result == "ok" and type(dummy_row) == "table" then
+            dummy_detail = "tile_x=" .. tostring(dummy_row.tile_x) .. " tile_z=" .. tostring(dummy_row.tile_z)
+                .. " level=" .. tostring(dummy_row.level)
+        end
+        t.check("tog.dummy_npc_probe", true,
+            "npc.by_symbol(tog_juna_dummy) -> " .. tostring(dummy_result) .. " " .. dummy_detail
+                .. " -- no live entity for ~chatnpc_specific to bind to (compare dttd_bmp.rs2's ~dttdbmp_bind)")
 
-        -- The dialogue should open here after clicking tog_juna, but the quest's
-        -- script fails when attempting to call ~chatnpc_specific without an active
-        -- entity context. This is a content bug in quest_tearsofguthix/scripts/tearsofguthix.rs2:22
-        -- where the proc uses ~chatnpc_specific from within a location handler without
-        -- binding the NPC entity first (compare to dttd_bmp.rs2's ~dttdbmp_bind approach).
+        -- Click the resume button on page 1 ("Tell me... a story...").
+        -- The click itself is acked (an "ok" from continue_ here is only
+        -- the CLIENT's ack of the press, chat.lua:118-124's own banner --
+        -- not proof the server ever remounts a next page).
+        local continue_result, continue_detail = t.chat.continue_()
+        t.check("tog.accept_continue_click", true,
+            "chat.continue_() -> " .. tostring(continue_result) .. " " .. tostring(continue_detail))
 
-        -- Verify server-side quest stage is still not_started (dialogue failed to accept quest)
-        local stage_server_result, stage_server_value = t.var.server("tog_juna_bowl")
-        t.check("quest.stage.unchanged", stage_server_result == "ok" and stage_server_value == 0,
-            "tog_juna_bowl still=" .. tostring(stage_server_value))
+        -- Give the reply generous real time -- 15 server ticks, well past
+        -- chat.drain's own 6-tick settle and past every real
+        -- click_loc-triggered dialogue transition measured elsewhere in
+        -- this suite (betweenarock/eadgar/haunted/murder/squire all
+        -- resume click_loc dialogues in well under that).
+        t.ticks(15)
+        local stuck_kind = t.chat.kind()
+        local stuck_text_result, stuck_text = t.chat.text()
+        t.check("tog.accept_stuck_after_15_ticks", true,
+            "kind=" .. tostring(stuck_kind) .. " text=" .. tostring(stuck_text)
+                .. " -- still page 1 ('Tell me... a story...'), never advanced to the player's 'A story?' echo")
 
-        -- Verify inventory still contains original items (quest progression blocked)
-        t.expect("inv.still_has_stone", t.inv.expect_has("tog_stone", 1))
+        -- A second resume click now answers "a resume is already
+        -- outstanding" (chat.lua:150) -- the FIRST click's pending flag
+        -- was never cleared because no new page ever mounted.
+        local retry_result, retry_detail = t.chat.continue_()
+        t.check("tog.accept_continue_stuck", true,
+            "chat.continue_() retried -> " .. tostring(retry_result) .. " " .. tostring(retry_detail))
 
-        t.blocked("quest_tearsofguthix/scripts/tearsofguthix.rs2:22 - ~chatnpc_specific requires active NPC entity in location click handler context")
+        t.blocked("content_bug: quest_tearsofguthix/scripts/tearsofguthix.rs2:22 -- "
+            .. "[proc,tog_juna]'s ~chatnpc_specific(\"Juna\", tog_juna_dummy, $text) has no live "
+            .. "tog_juna_dummy entity to bind to (t.npc.by_symbol: no_row) and no bind/spawn step "
+            .. "the way dttd_bmp.rs2:72-76's [proc,dttdbmp_bind] (npc_find + npc_add fallback) gives "
+            .. "the same npc symbol before its own ~chatnpc_specific calls. Page 1 opens (static "
+            .. "head/text needs no live entity) but the first p_pausebutton resume never resolves -- "
+            .. "chat.continue_ acks the click, the page never advances past 15 ticks, and a retried "
+            .. "continue_ then answers 'a resume is already outstanding' forever.")
         return
     end,
 }
