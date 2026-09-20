@@ -147,50 +147,56 @@ return {
 
         -- garlicpipe (configs/all.loc:354, shape1=4 "straight wall") sits at
         -- 2638,3446 exactly, right against the two-hole wall south of the
-        -- Hemenster competition pond. Tried and recorded here, not
-        -- guessed once: player ON its own tile (0 away, the fishbmp_garlic
-        -- debugproc's own SERVER-SIDE p_oploc coordinate, which needs no
-        -- client pixel at all), 1 tile short and 2 tiles short, approaching
-        -- from x=2638 AND x=2639 -- covering both live element ids the scene
-        -- resolves this symbol to nearby (536875057 and 536875058) -- every
-        -- one of the five answers `covered` from all five of click_minimenu's
-        -- own camera poses: "pickset held=false, menu has no row for it".
-        -- This is mortton.lua's shades_experimentshelf seam exactly
-        -- ("the shelf sits tight against the hut's inner wall... occludes
-        -- the pixel every pose lands on"), but that one had a way out --
-        -- drive.op, the numbered-op bypass -- and this one does not:
-        -- DrivePointer_WorldOp (src/plugin/torirs_plugin_drive.h:647) only
-        -- fabricates a NUMBERED op row (op1 "Search" here, which answers
-        -- fine and is not the quest's own trigger), never a held-item
-        -- USEHELD_ON* row -- that wildcard only exists inside
-        -- click_minimenu's own "select" path (pointer.lua:560-564), which is
-        -- exactly the path that is covered. There is no verb in this driver
-        -- that reaches an [oplocu] handler without a clean world pick.
+        -- Hemenster competition pond. Tried and recorded here, not guessed
+        -- once: player ON its own tile, 1 tile short and 2 tiles short,
+        -- approaching from x=2638 AND x=2639 -- covering both live element
+        -- ids the scene resolves this symbol to nearby (536875057 and
+        -- 536875058). This USED to answer `covered` from every pose
+        -- (pointer.lua's click_minimenu "pickset held=false, menu has no row
+        -- for it") -- that is fixed now: use_on walks up to
+        -- QD.player._far_side_attempts other sides of the target on a
+        -- `covered` answer and re-presses (pointer.lua:2095-2111). But the
+        -- fix exposed the real seam underneath: pointer.lua's own banner at
+        -- the fix ("NO RE-ARM BEFORE A RETRY PRESS", pointer.lua:2031-2043)
+        -- says a retry press does NOT re-arm the held item first -- re-arming
+        -- between far-side presses was measured to break a DIFFERENT quest's
+        -- working case (cog's redcog) -- and on garlicpipe the arming does
+        -- not survive to the re-press: QD.player._select_row_is_held
+        -- (pointer.lua:2016-2029) checks the row actually pressed against the
+        -- closed set of ordinary op/examine rows and catches it landing
+        -- "Examine" instead of the held-item row, so use_on now answers
+        -- `refused` naming exactly that, rather than a false `ok` for a press
+        -- that only examined the wall. There is no verb in this driver that
+        -- re-arms before a far-side retry, so there is no way to reach
+        -- [oplocu,garlicpipe] from here.
         t.exec("goto-garlicpipe", t.player.goto_tile, 2638, 3445, 0)
         local stash_result, stash_detail = t.player.use_on("garlic", pipe_target)
-        t.shot("garlicpipe-covered")
-        t.check("garlicpipe.stash_covered", stash_result ~= "ok",
+        t.shot("garlicpipe-refused")
+        t.check("garlicpipe.stash_refused", stash_result ~= "ok",
             "use_on(garlic, garlicpipe) -> " .. tostring(stash_result) .. " " .. tostring(stash_detail)
-                .. " -- confirmed covered at 0/1/2 tiles and both live element ids across separate runs")
+                .. " -- the far-side retry lands a real menu row now, but it is the wall's" ..
+                " ordinary Examine row, never the held-item row; confirmed across separate" ..
+                " runs and both live element ids")
 
         t.blocked("quests/quest_fishingcompo/scripts/quest_fishingcompo_gate.rs2:4-9 " ..
-            "[oplocu,garlicpipe] / script/plugins/quest_driver/pointer.lua:1739 use_on: " ..
-            "using garlic on the garlicpipe wall (2638,3446,0) never lands a menu row " ..
-            "from any client position -- click_minimenu's five camera poses all answer " ..
-            "`covered` (\"pickset held=false, menu has no row for it\") whether the " ..
-            "player stands on the wall's own tile, 1 tile short, or 2 tiles short, and " ..
-            "for both live element ids (536875057, 536875058) the scene resolves the " ..
-            "symbol to nearby. Stashing the garlic is the only way to move the Sinister " ..
-            "Stranger off the sinisterfishspot (quest_fishingcompo_gate.rs2 " ..
-            "[label,stash_garlic]), and hemenster_fishing.rs2's own [label,hemenster_catch] " ..
-            "only ever grants raw_giant_carp at THAT spot -- so this seam blocks the whole " ..
-            "rest of the quest, not just one step. A numbered-op bypass exists " ..
-            "(t.drive.op, src/plugin/torirs_plugin_drive.h:647 DrivePointer_WorldOp, used " ..
-            "for mortton.lua's identically-occluded shades_experimentshelf) but only " ..
-            "fabricates a declared op row (op1 Search here) -- never a held-item " ..
-            "USEHELD_ON* row, which only exists inside the covered click_minimenu " ..
-            "\"select\" path (pointer.lua:560-564) -- so there is no verb in this driver " ..
-            "that reaches an [oplocu] handler without a clean world pick.")
+            "[oplocu,garlicpipe] / script/plugins/quest_driver/pointer.lua:2031-2043,2095-2111 " ..
+            "use_on: using garlic on the garlicpipe wall (2638,3446,0) no longer answers " ..
+            "`covered` -- use_on's far-side retry (pointer.lua:2095-2111) lands a real menu " ..
+            "row -- but the retry press does not re-arm the held item first (the 'NO " ..
+            "RE-ARM BEFORE A RETRY PRESS' banner at pointer.lua:2031-2043: re-arming there " ..
+            "was measured to break cog's working redcog case), and on garlicpipe the " ..
+            "arming does not survive to the re-press, so the row that lands is the wall's " ..
+            "ordinary Examine row, not the held-item row -- caught by " ..
+            "QD.player._select_row_is_held (pointer.lua:2016-2029) and answered `refused " ..
+            "-- pressed 'Examine @cya@Wall Pipe', an ordinary op row and not the held-item " ..
+            "row -- the arming was gone by the time the menu opened`, confirmed at 0/1/2 " ..
+            "tiles and both live element ids (536875057, 536875058) across separate runs. " ..
+            "Stashing the garlic is the only way to move the Sinister Stranger off the " ..
+            "sinisterfishspot (quest_fishingcompo_gate.rs2 [label,stash_garlic]), and " ..
+            "hemenster_fishing.rs2's own [label,hemenster_catch] only ever grants " ..
+            "raw_giant_carp at THAT spot -- so this seam blocks the whole rest of the " ..
+            "quest, not just one step. There is no verb in this driver that re-arms a held " ..
+            "item before a far-side retry press.")
         return
     end,
 }
