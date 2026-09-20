@@ -10,7 +10,7 @@ export const meta = {
 // The seam fixer -- docs/QUEST_SUITE_KIT.md phase 5, the step the plan called
 // "the reviewer turns repeated seams into section 4 work for an Opus agent".
 // Run it after EVERY author batch (after the sampler has pushed), passing this
-// file's content inline to the Workflow tool with no args: Triage groups the
+// file's content inline to the Workflow tool (args {reuse_triage, partial} optional): Triage groups the
 // blocked/content_bug queue rows by seam, one Opus agent fixes each DRIVER
 // seam with a live proof, and the closer adds conformance rows, runs the
 // gates, commits, pushes, and reopens the rows the fixes free
@@ -41,7 +41,16 @@ const LAND = { type: 'object', properties: { commit: { type: 'string' }, pushed:
 const fmt = (r) => r ? JSON.stringify(r, null, 1) : 'null'
 
 phase('Triage')
-const triage = await agent(`${COMMON}
+// args.reuse_triage = a doc under docs/ holding a previous pass's triage (the
+// 2026-09-20 pass died after triage on a usage limit): the triage agent then
+// transcribes it instead of re-deriving it. args.partial = a dir holding that
+// pass's unproven, unaudited partial diffs, offered to the fix agents to read.
+const reuse = args && args.reuse_triage
+const partial = (args && args.partial) ? `A previous attempt at this pass died mid-edit; its UNPROVEN, UNAUDITED partial diffs are under ${args.partial} (driver.patch, content.patch, untracked/). Read the hunks for your seam for ideas; never apply them blindly, and never apply another seam's hunks.` : ''
+const triage = reuse ? await agent(`${COMMON}
+
+YOUR JOB: transcribe, no edits, no verification. Read ${WT}/${reuse} in full: it holds a completed triage (one "## <kind>: <key>" section per seam with its Quests, Files, summary paragraph and Evidence line). Return it EXACTLY as the schema: one seam per section, key and kind from the heading, quests and files from their lines, summary = the paragraph, evidence = the Evidence line. Nothing else.`, { label: 'triage (transcribe)', model: 'sonnet', effort: 'low', schema: TRIAGE_SCHEMA })
+: await agent(`${COMMON}
 
 YOUR JOB: triage, no edits. For each of the 14 non-green tier 1 rows, read the row, the file's t.blocked line, and the evidence it cites (ledgers under build/quest_gate/<id>/ if present, the .rs2 lines named). Group by SEAM and classify: driver, engine, content, design. This time CONTENT seams are fixable: name the exact OSRS-Content files. Expected, from the queue notes -- confirm or correct each: the same-kind chat remount race (haunted, mortton; driver: chat.lua's page identity should include the page's text/serial, not just kind); Between a Rock's Dondakan guards on inv vs worn (content); Current Affairs' councillor with no spawn row (content: add the spawn at ^ca_councillor_coord); A Tail of Two Cats' gertrude dispatch order hiding the topic (content); Tears of Guthix's ~chatnpc_specific from a loc handler with no npc bound (content); Biohazard's pigeoncage vs pigeons (content: the pickup must grant, or the release must accept, one item); Prying Times' drink crate never placed (content: a loc_add/placement); Mourning's End I's varp never written (content); Mourning's End II / Making History's basevar never transmitted (content: transmit=yes on the varbit's basevar, or engine if the transmit path drops it); Heroes' Quest's candle chest (which kind?); Murder Mystery's window handler never firing for a fresh character (content or engine?); Enter the Abyss's three-npc orb sequence (driver press flakiness, or content?); Fishing Contest (was the reach seam -- re-run the committed file on the current binary before believing the row); Ernest's lever maze (design? or is it an ordinary click list now?). Return the schema; every seam names its files.`, { label: 'triage', model: 'opus', schema: TRIAGE_SCHEMA })
 const fixable = (triage?.seams || []).filter(s => s.kind !== 'design')
@@ -51,6 +60,7 @@ phase('Fix')
 const fixes = await parallel(fixable.map(s => () => agent(`${COMMON}
 
 YOUR JOB: fix ONE ${s.kind} seam, prove it, do not commit. Seam "${s.key}", blocking ${s.quests.join(', ')}. Triage summary: ${s.summary}. Evidence: ${s.evidence}. Files: ${s.files.join(', ')}.
+${partial}
 Seams being fixed concurrently, do not touch their files: ${fixable.filter(x => x !== s).map(x => x.key + ' -> ' + x.files.join(',')).join(' | ')}. If a shared file is unavoidable, make the minimal edit and say so in open_issues.
 Rules by kind. DRIVER: Lua in script/plugins/quest_driver (C in src/plugin only if Lua cannot do it honestly); prove with a scratch script and both existing green quests. ENGINE: server/client C; keep the C selftests at their count (the make target test-torirsserver is RED at HEAD on a pre-existing servpack error -- run the selftest binary the way 73a4251d0's closer did and compare failure counts before/after). CONTENT: edit the quest's own scripts/configs under ${CONTENT} (or the shared file the seam names) the way the original author would have -- read the wiki-pinned docs/quests/<quest>.md if one exists and the quest's own selftest under src/torirsserver/test/ or its <abbr>run debugproc; a spawn goes in the area's .spawn file with the constant the script already uses; a guard that can never pass is corrected to the condition the transcript implies; the fix must compile (make -C ${WT}/src torirsserver-scripts) and keep that quest's C selftest / <abbr>run green if one exists. For every kind, the PROOF is through the driver: a scratch script (run.py --script <file> --name <label> --no-build; cheats as t.cheat inside run()) that reproduces the blocked row first, then passes after the fix, AND a copy of the committed test/quests/<id>.lua under build/ with its t.blocked removed driven as far as it now goes (report where it stops next, if anywhere). Regressions: run.py cooks_assistant druid --no-build (+QUEST_BINARY if C) and gate.py; make -C src check-drive-abi check-pt-switch. Do NOT run test-quest-conformance (the closer does). Report unblocks = the quests whose t.blocked reason is gone, each verified by the copied file.`, { label: `fix:${s.kind}:${s.key.slice(0, 34)}`, model: 'opus', schema: REPORT })))
 
