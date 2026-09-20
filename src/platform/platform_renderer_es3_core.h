@@ -29,7 +29,7 @@
  *
  * ## What this renderer uses that the WebGL1 one cannot
  *
- * The GLES2 renderer (platform_renderer_gles2_*.c) is written to OpenGL ES
+ * The GLES2 renderer (platform_androidarmv7_renderer_opengles2_*.c) is written to OpenGL ES
  * 2.0 core with no extension, because that is exactly WebGL1 and exactly a
  * 2013 phone. This one starts from a WebGL2 context -- OpenGL ES 3.0 core,
  * shipped by every browser since 2021 and the only GL the 2024+ browsers
@@ -746,6 +746,16 @@ struct ToriRS_ES3
      *  On unless the knob says 0, so the scalar loop stays A/B-able.
      *  @see es3_painter_write_indices_ex. */
     bool lever_triplet_neon;
+    /** TORIRS_ES3_DRAW_AUDIT: report any frame whose draw sequence lost an
+     *  item or raised a GL error. Off by default; one line per bad frame. */
+    bool draw_audit;
+    /** Which route each static model took this frame, for the painter
+     *  readout: the batch page (baked once, one VBO), the pose table (baked
+     *  once into the arena), or a fresh arena bake. A non-trivial third
+     *  number means static geometry is being re-baked per frame. */
+    double stat_static_page;
+    double stat_static_pose_table;
+    double stat_static_rebake;
     GLuint vao_ui;
     GLuint vao_ui_buffer;
     uint32_t vao_ui_offset;

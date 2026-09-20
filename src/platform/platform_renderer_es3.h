@@ -13,7 +13,7 @@
  *
  * ## Why a second renderer rather than a mode of the first
  *
- * The WebGL1 renderer (platform_renderer_gles2_*.c) is shared with Android,
+ * The WebGL1 renderer (platform_androidarmv7_renderer_opengles2_*.c) is shared with Android,
  * where the target is a 2013 phone, and it is written to OpenGL ES 2.0 core
  * with no extension at all. Most of what that costs is not a missing feature
  * but a missing INDEX: a 16-bit element cannot reach past 65,536 vertices
@@ -53,7 +53,7 @@
  * feature, against what the ES2 renderer has to do instead.
  *
  * The public surface is the same shape as the D3D9 and GLES2 renderers'
- * (platform_win32_renderer_d3d9.h, platform_renderer_gles2.h), so main.c
+ * (platform_win32_renderer_d3d9.h, platform_androidarmv7_renderer_opengles2.h), so main.c
  * drives every GPU renderer the same way. The context comes from the neutral
  * seam in platform_gl_context.h, which on this lane is
  * platform_gl_context_sdl.c over emscripten's EGL emulation; the WebGL

@@ -1,4 +1,4 @@
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 
 #include "graphics/fb_clear.h"
 #include "log/torirs_log.h"
@@ -23,7 +23,7 @@
 /* Every probe, census, ablation arm and environment knob this renderer has.
  * Each site below is a single call into it, and a default build takes one
  * predicted branch per frame or per model for the lot. */
-#include "platform_sdl2_renderer_soft3d_debug.u.c"
+#include "platform_renderer_soft3d_debug.u.c"
 
 #define SOFT3D_SEGMENT_CACHES 4
 #define SOFT3D_SEGMENT_TILE 16

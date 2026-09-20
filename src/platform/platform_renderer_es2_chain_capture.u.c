@@ -2,7 +2,7 @@
  * Run the production GL-free model stage on each real command, snapshot its
  * posed inputs and outputs, then restore the renderer's prepared camera.
  * Capture does extra work and is never used as a performance measurement. */
-#include "platform/platform_renderer_gles2_dualcore_stage.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
 #include "tools/perf/model_chain_format.h"
 
 static uint32_t g_chain_pass;

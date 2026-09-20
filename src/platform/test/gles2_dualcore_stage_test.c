@@ -30,7 +30,7 @@
  *
  * Build/run: make -C src test-gles2-dualcore-stage
  */
-#include "platform/platform_renderer_gles2_dualcore_stage.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
 
 #include "toridraw.h"
 #include "toridraw_model.h"

@@ -399,16 +399,16 @@ else ifeq ($(PLATFORM),web)
   PLATFORM_SRCS     := platform/platform_web_api.c \
                        platform/platform_audio_wasm.c \
                        platform/platform_gl_context_sdl.c \
-                       platform/platform_renderer_es2_core.c \
-                       platform/platform_renderer_es2_ui.c \
-                       platform/platform_renderer_es2_painter.c \
-                       platform/platform_renderer_es2_zbuffer.c \
-                       platform/platform_renderer_webgl1.c \
-                       platform/platform_renderer_es3_core.c \
-                       platform/platform_renderer_es3_ui.c \
-                       platform/platform_renderer_es3_painter.c \
-                       platform/platform_renderer_es3_zbuffer.c \
-                       platform/platform_renderer_webgl2.c
+                       platform/platform_web_renderer_webgl1_core.c \
+                       platform/platform_web_renderer_webgl1_ui.c \
+                       platform/platform_web_renderer_webgl1_painter.c \
+                       platform/platform_web_renderer_webgl1_zbuffer.c \
+                       platform/platform_web_renderer_webgl1.c \
+                       platform/platform_web_renderer_webgl2_core.c \
+                       platform/platform_web_renderer_webgl2_ui.c \
+                       platform/platform_web_renderer_webgl2_painter.c \
+                       platform/platform_web_renderer_webgl2_zbuffer.c \
+                       platform/platform_web_renderer_webgl2.c
   # The queue's ABI reporter. Not in PLATFORM_SRCS because it belongs to the
   # QUEUE, not to any platform: a second non-C executor would need the same
   # numbers, and putting it beside the platform that reads it today would make
@@ -458,7 +458,7 @@ else ifeq ($(PLATFORM),web)
   # --- The GPU variant is the GLES2 renderer, shared with Android ------------
   #
   # WebGL1 IS OpenGL ES 2.0 with no extensions, which is exactly the ceiling
-  # platform_renderer_gles2_*.c was written to (see platform_renderer_gles2_core.h
+  # platform_androidarmv7_renderer_opengles2_*.c was written to (see platform_androidarmv7_renderer_opengles2_core.h
   # for what each GLES2 limit turned into). So the browser links the same four
   # translation units the phone does, unchanged: the context comes from
   # platform_gl_context_sdl.c through the neutral seam in platform_gl_context.h,
@@ -476,7 +476,7 @@ else ifeq ($(PLATFORM),web)
   #
   # --- And the modern one: the WebGL2 renderer -------------------------------
   #
-  # platform_renderer_webgl2_*.c, four more translation units, a SEPARATE
+  # platform_web_renderer_webgl2_*.c, four more translation units, a SEPARATE
   # renderer from the one above and not a build of it (WEB-GL2-000). It is
   # OpenGL ES 3.0 core, which is what a WebGL2 context speaks, and it exists
   # because most of what ES 2.0 costs the shared renderer is not a missing
@@ -694,18 +694,18 @@ else ifeq ($(PLATFORM),android)
                        platform/platform_audio_capture.c \
                        platform/platform_android_jni.c \
                        platform/platform_android_gl.c \
-                       platform/platform_renderer_es2_core.c \
-                       platform/platform_renderer_es2_ui.c \
-                       platform/platform_renderer_es2_painter.c \
-                       platform/platform_renderer_es2_zbuffer.c \
-                       platform/platform_renderer_gles2.c \
-                       platform/platform_renderer_gles2_dualcore.c \
-                       platform/platform_renderer_gles2_dualcore_stage.c \
-                       platform/platform_renderer_es3_core.c \
-                       platform/platform_renderer_es3_ui.c \
-                       platform/platform_renderer_es3_painter.c \
-                       platform/platform_renderer_es3_zbuffer.c \
-                       platform/platform_renderer_gles3.c
+                       platform/platform_androidarmv7_renderer_opengles2_core.c \
+                       platform/platform_androidarmv7_renderer_opengles2_ui.c \
+                       platform/platform_androidarmv7_renderer_opengles2_painter.c \
+                       platform/platform_androidarmv7_renderer_opengles2_zbuffer.c \
+                       platform/platform_androidarmv7_renderer_opengles2.c \
+                       platform/platform_androidarmv7_renderer_opengles2_dualcore.c \
+                       platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c \
+                       platform/platform_androidarmv7_renderer_opengles3_core.c \
+                       platform/platform_androidarmv7_renderer_opengles3_ui.c \
+                       platform/platform_androidarmv7_renderer_opengles3_painter.c \
+                       platform/platform_androidarmv7_renderer_opengles3_zbuffer.c \
+                       platform/platform_androidarmv7_renderer_opengles3.c
   PLATFORM_WINDOW_SRC := platform/platform_android.c
   JS5_SRCS          := $(wildcard js5/*.c)
 
@@ -733,11 +733,11 @@ else ifeq ($(PLATFORM),android)
 
   # --- The GPU variant is the GLES2 renderer, shared with the web lane ---------
   #
-  # platform_renderer_gles2_*.c: OpenGL ES 2.0 core, no extension of
+  # platform_androidarmv7_renderer_opengles2_*.c: OpenGL ES 2.0 core, no extension of
   # any kind, written to the shape of the Windows D3D9 renderer (retained
   # Batch16 pages addressed by 16-bit page-local indices, a material pre-pass
   # on the depth path, native 2D composition) rather than as a build of either
-  # desktop GL renderer. See platform_renderer_gles2_core.h for what
+  # desktop GL renderer. See platform_androidarmv7_renderer_opengles2_core.h for what
   # each GLES2 limit turned into. The four units are peers of the D3D9 lane's
   # core/painter/zbuffer split, plus the 2D stack in its own unit. The web
   # lane links the same four files against WebGL1, which is the same API.
@@ -767,7 +767,7 @@ else ifeq ($(PLATFORM),android)
   #
   # TORIRS_HAVE_GLES2_DUALCORE is the dual-core lane (`--gles2-dualcore`,
   # `--gles2-dualcore-zbuffer`): the same GLES2 renderer with the world's
-  # per-model CPU stage on a second thread (platform_renderer_gles2_dualcore.c).
+  # per-model CPU stage on a second thread (platform_androidarmv7_renderer_opengles2_dualcore.c).
   # Android only: the browser has no second thread to give it.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS) -DTORIRS_HAVE_GLES2=1 -DTORIRS_HAVE_GLES2_DUALCORE=1 \
                       -DTORIRS_HAVE_GLES3=1
@@ -779,8 +779,8 @@ else ifeq ($(PLATFORM),android)
   # here rather than as an UnsatisfiedLinkError on the device.
   #
   # -lGLESv3 as well as -lGLESv2: this lane has two GPU renderers, the ES 2.0
-  # one (platform_renderer_gles2.c) and the ES 3.0 one
-  # (platform_renderer_gles3.c), and the ES3 entry points live in libGLESv3.so.
+  # one (platform_androidarmv7_renderer_opengles2.c) and the ES 3.0 one
+  # (platform_androidarmv7_renderer_opengles3.c), and the ES3 entry points live in libGLESv3.so.
   # It is present from API 18 and this lane's floor is 21, so linking it costs
   # nothing on a device that will only ever run the ES2 renderer -- the Adreno
   # 320 in the phone this targets is an ES 3.0 part, so that is not the usual

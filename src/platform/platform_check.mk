@@ -84,7 +84,7 @@ LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dea
 #
 # This lane carries TWO GPU renderers: TORIRS_HAVE_GLES2, the four GLES2 units
 # the Android lane also links, run against WebGL1; and TORIRS_HAVE_WEBGL2, the
-# four platform_renderer_webgl2_*.c units, run against WebGL2 (WEB-GL2-000).
+# four platform_web_renderer_webgl2_*.c units, run against WebGL2 (WEB-GL2-000).
 # MAX_WEBGL_VERSION is therefore 2 -- the runtime has to be able to make either
 # context -- and which one each renderer gets is decided per renderer at
 # creation, not by the runtime; check-webgl1-es2 below is what keeps the first
@@ -98,10 +98,11 @@ LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 \
                     GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
                     TORIRS_HAVE_WEBGL1=1 \
                     TORIRS_HAVE_WEBGL2=1 \
-                    platform/platform_renderer_es2_core.c \
-                    platform/platform_renderer_webgl1.c \
-                    platform/platform_renderer_es3_core.c \
-                    platform/platform_renderer_webgl2.c \
+                    platform/platform_web_renderer_webgl1_core.c \
+                    platform/platform_web_renderer_webgl1.c \
+                    platform/platform_web_renderer_webgl2_core.c \
+                    platform/platform_web_renderer_webgl2_ui.c \
+                    platform/platform_web_renderer_webgl2.c \
                     TORIRS_CHROME_EXEC_WEB_AVAILABLE=1 \
                     ui/torirs_chrome_exec_web.c
 # -O0 is forbidden here at any OPT level, which is the one lane where that is
@@ -111,7 +112,7 @@ LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 \
 # gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
 LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16 \
                     -sMAX_WEBGL_VERSION=1 \
-                    platform/platform_renderer_gles2.c platform/platform_renderer_gles3.c \
+                    platform/platform_androidarmv7_renderer_opengles2.c platform/platform_androidarmv7_renderer_opengles3.c \
                     TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
                     ui/torirs_chrome_exec_winbrowser.c
 
@@ -144,10 +145,10 @@ LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl
 LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
                         TORIRS_HAVE_GLES2=1 \
                         TORIRS_HAVE_GLES3=1 \
-                        platform/platform_renderer_es2_core.c \
-                        platform/platform_renderer_gles2.c \
-                        platform/platform_renderer_es3_core.c \
-                        platform/platform_renderer_gles3.c \
+                        platform/platform_androidarmv7_renderer_opengles2_core.c \
+                        platform/platform_androidarmv7_renderer_opengles2.c \
+                        platform/platform_androidarmv7_renderer_opengles3_core.c \
+                                                platform/platform_androidarmv7_renderer_opengles3.c \
                         -shared -llog -landroid -lGLESv2 -lGLESv3 -lEGL -lOpenSLES \
                         platform/platform_audio_opensles.c
 # -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
@@ -160,8 +161,10 @@ LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
 LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
                         -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
                         TORIRS_HAVE_GL3 TORIRS_GL_ES2 \
-                        platform/platform_renderer_webgl1.c \
-                        platform/platform_renderer_webgl2.c \
+                        platform/platform_web_renderer_webgl1.c \
+                        platform/platform_web_renderer_webgl2.c \
+                        platform/platform_web_renderer_webgl2_core.c \
+                        platform/platform_web_renderer_webgl1.c \
                         platform/platform_audio_null.c \
                         TORIRS_CHROME_EXEC_WEB_AVAILABLE \
                         TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
@@ -231,17 +234,30 @@ lane-check-all:
 # makes GL calls. The ES2 core is the one with a ceiling to keep -- WebGL1 and
 # a 2013 Adreno both stop at ES 2.0 -- and the ES3 core has only the
 # extension rule, because ES 3.0 is the floor of both lanes that run it.
-ES2_CORE_SRCS := platform/platform_renderer_es2_core.c \
+# Both ES 2.0 families; @see ES3_CORE_SRCS for why the audit reads every copy.
+ES2_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles2_core.c \
+                 platform/platform_androidarmv7_renderer_opengles2_ui.c \
+                 platform/platform_androidarmv7_renderer_opengles2_painter.c \
+                 platform/platform_androidarmv7_renderer_opengles2_zbuffer.c \
+                 platform/platform_web_renderer_webgl1_core.c \
+                 platform/platform_web_renderer_webgl1_ui.c \
+                 platform/platform_web_renderer_webgl1_painter.c \
+                 platform/platform_web_renderer_webgl1_zbuffer.c \
                  platform/platform_renderer_es2_core.h \
-                 platform/platform_renderer_es2_ui.c \
-                 platform/platform_renderer_es2_painter.c \
-                 platform/platform_renderer_es2_zbuffer.c \
                  platform/platform_renderer_es2_shaders.h
-ES3_CORE_SRCS := platform/platform_renderer_es3_core.c \
+# Both ES 3.0 FAMILIES, because the audit is about what the SOURCE may say and
+# each lane now has its own copy: an extension slipping into one of them is
+# still a defect even if the other stays clean. @see platform.mk's four
+# renderer families.
+ES3_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles3_core.c \
+                 platform/platform_androidarmv7_renderer_opengles3_ui.c \
+                 platform/platform_androidarmv7_renderer_opengles3_painter.c \
+                 platform/platform_androidarmv7_renderer_opengles3_zbuffer.c \
+                 platform/platform_web_renderer_webgl2_core.c \
+                 platform/platform_web_renderer_webgl2_ui.c \
+                 platform/platform_web_renderer_webgl2_painter.c \
+                 platform/platform_web_renderer_webgl2_zbuffer.c \
                  platform/platform_renderer_es3_core.h \
-                 platform/platform_renderer_es3_ui.c \
-                 platform/platform_renderer_es3_painter.c \
-                 platform/platform_renderer_es3_zbuffer.c \
                  platform/platform_renderer_es3_shaders.h
 
 lane-check-webgl1-es2:

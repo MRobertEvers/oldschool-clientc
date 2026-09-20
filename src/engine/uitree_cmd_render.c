@@ -1,6 +1,6 @@
 #include "uitree_cmd_render.h"
 
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "ui/uitree_emit.h"
 

@@ -1,6 +1,6 @@
 #ifndef TORIRS_PLACEMENT_CHAIN_FORMAT_H
 #define TORIRS_PLACEMENT_CHAIN_FORMAT_H
-#include "platform/platform_renderer_gles2_placement.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_placement.h"
 #define PLACEMENT_CHAIN_MAGIC 0x504c4331u
 #define PLACEMENT_CHAIN_PREFETCH 0x504c4350u
 #define PLACEMENT_CHAIN_CALL 0x504c4343u

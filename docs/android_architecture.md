@@ -168,8 +168,8 @@ retained model rather than after either desktop GL renderer. The web lane
 links the same four files against WebGL1, which is why nothing in them may say
 "Android" any more than it may say the name of a windowing library.
 
-What names it is the **lane file**: `platform_renderer_gles2.c` here,
-`platform_renderer_webgl1.c` in the browser. Each is a thin translation unit
+What names it is the **lane file**: `platform_androidarmv7_renderer_opengles2.c` here,
+`platform_web_renderer_webgl1.c` in the browser. Each is a thin translation unit
 whose opaque handle simply *is* the core -- no wrapper object, no indirection
 -- and it does three things the core must not: it gives the core the lane's
 name, so a logcat line says `GLES2` and never `WebGL1`; it asks
@@ -211,8 +211,8 @@ The core itself:
 `platform_renderer_es3_{core,ui,painter,zbuffer}.c` is the same renderer
 rewritten against OpenGL ES 3.00 and GLSL ES 3.00, selected by `--gles3` /
 `--gles3-zbuffer` and offered as "OpenGL ES 3". Its lane file is
-`platform_renderer_gles3.c`; the browser's name for the same core is
-`platform_renderer_webgl2.c`.
+`platform_androidarmv7_renderer_opengles3.c`; the browser's name for the same core is
+`platform_web_renderer_webgl2.c`.
 
 The device supports it: the XT1060's Adreno 320 reports `ro.opengles.version`
 196608, which is ES 3.0 exactly -- no 3.1 and no Vulkan, so this is the ceiling
@@ -503,7 +503,7 @@ requirements have failed quietly before:
 |---|---|
 | `-mfpu=neon` | armv7 does not enable NEON by default, and the kernels select their SIMD lane with `#if defined(__ARM_NEON)` at **compile** time. Without it every one silently takes the scalar fallback — no symptom but a slower frame. |
 | `-fPIC` | fails, but deep in the linker naming a *tommath* symbol rather than the cause. |
-| `TORIRS_HAVE_GLES2`, `TORIRS_HAVE_GLES3` | the two GPU lanes, **by their own source files** -- `platform_renderer_gles2.c` and `platform_renderer_gles3.c`, plus the `platform_renderer_es2_core.c` / `platform_renderer_es3_core.c` they call into. The browser's names for the same cores, `platform_renderer_webgl1.c` and `platform_renderer_webgl2.c`, are **forbidden** here, and vice versa on the web lane: a core may be shared, a lane's name may not. `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden too, so `main.c` cannot hand this lane a desktop GL renderer. |
+| `TORIRS_HAVE_GLES2`, `TORIRS_HAVE_GLES3` | the two GPU lanes, **by their own source files** -- `platform_androidarmv7_renderer_opengles2.c` and `platform_androidarmv7_renderer_opengles3.c`, plus the `platform_renderer_es2_core.c` / `platform_renderer_es3_core.c` they call into. The browser's names for the same cores, `platform_web_renderer_webgl1.c` and `platform_web_renderer_webgl2.c`, are **forbidden** here, and vice versa on the web lane: a core may be shared, a lane's name may not. `TORIRS_HAVE_GL3` and `TORIRS_GL_ES2` are forbidden too, so `main.c` cannot hand this lane a desktop GL renderer. |
 | `-lOpenSLES` **and** `platform_audio_opensles.c` | the audio device. Reverting it is a one-word edit — `platform_audio_null.c` defines exactly the same functions — and the result builds, boots and is silent. So the *source* is named too: `LANE_EFFECTIVE` carries `PLATFORM_SRCS`, and the null backend is forbidden here by name. Which implementation of a shared interface a lane picked is invisible in the flags. |
 
 The desktop window library's link flags are **forbidden** by name in

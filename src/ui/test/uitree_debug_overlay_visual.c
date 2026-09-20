@@ -29,7 +29,7 @@
 
 #include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_debug_font_baked.h"
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 
 #include "toridraw_hsl16.h"

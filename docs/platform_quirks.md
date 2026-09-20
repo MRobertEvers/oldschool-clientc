@@ -60,8 +60,8 @@ manifests platform-neutral unless they are intended for one lane only.
 
   | core | files | Android renderer | browser renderer |
   |---|---|---|---|
-  | OpenGL ES 2.0 | `platform_renderer_es2_{core,ui,painter,zbuffer}.c` | `platform_renderer_gles2.c` (`--gles2`) | `platform_renderer_webgl1.c` (`--webgl1`) |
-  | OpenGL ES 3.0 | `platform_renderer_es3_{core,ui,painter,zbuffer}.c` | `platform_renderer_gles3.c` (`--gles3`) | `platform_renderer_webgl2.c` (`--webgl2`) |
+  | OpenGL ES 2.0 | `platform_renderer_es2_{core,ui,painter,zbuffer}.c` | `platform_androidarmv7_renderer_opengles2.c` (`--gles2`) | `platform_web_renderer_webgl1.c` (`--webgl1`) |
+  | OpenGL ES 3.0 | `platform_renderer_es3_{core,ui,painter,zbuffer}.c` | `platform_androidarmv7_renderer_opengles3.c` (`--gles3`) | `platform_web_renderer_webgl2.c` (`--webgl2`) |
 
   A core makes the GL calls and knows nothing about the lane it is in: it has
   no `TORIRS_PLATFORM_WEB`, no `TORIRS_PLATFORM_ANDROID`, and it is told its
@@ -89,15 +89,15 @@ manifests platform-neutral unless they are intended for one lane only.
   (`TRSPK_VertexGLES2`), the atlas, the pose tables, every TRSPK helper. A fix
   to a bake still lands on all four renderers at once.
 - **Verification:** `make -C src lane-check PLATFORM=web` requires the ES2 and
-  ES3 core sources plus `platform_renderer_webgl1.c` and
-  `platform_renderer_webgl2.c`, and FORBIDS `platform_renderer_gles2.c` and
-  `platform_renderer_gles3.c`; `PLATFORM=android` requires the mirror image.
+  ES3 core sources plus `platform_web_renderer_webgl1.c` and
+  `platform_web_renderer_webgl2.c`, and FORBIDS `platform_androidarmv7_renderer_opengles2.c` and
+  `platform_androidarmv7_renderer_opengles3.c`; `PLATFORM=android` requires the mirror image.
   That is what keeps a phone's renderer out of a tab under the wrong name.
   Both lanes run `tools/webgl_lane_audit.py` over the cores.
 - **Sources:** [`src/platform/platform_renderer_es2.h`](../src/platform/platform_renderer_es2.h),
   [`src/platform/platform_renderer_es3.h`](../src/platform/platform_renderer_es3.h),
-  [`src/platform/platform_renderer_webgl1.h`](../src/platform/platform_renderer_webgl1.h),
-  [`src/platform/platform_renderer_gles3.h`](../src/platform/platform_renderer_gles3.h),
+  [`src/platform/platform_web_renderer_webgl1.h`](../src/platform/platform_web_renderer_webgl1.h),
+  [`src/platform/platform_androidarmv7_renderer_opengles3.h`](../src/platform/platform_androidarmv7_renderer_opengles3.h),
   [`src/render/torirs_renderer_kind.h`](../src/render/torirs_renderer_kind.h),
   [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
 
@@ -125,7 +125,7 @@ manifests platform-neutral unless they are intended for one lane only.
   The 32-bit-index win assumes a driver that is not itself the bottleneck, and
   nobody has run this on the device. `--gles3` must not become the lane's
   default on anything but a measurement.
-- **Sources:** [`src/platform/platform_renderer_gles3.h`](../src/platform/platform_renderer_gles3.h),
+- **Sources:** [`src/platform/platform_androidarmv7_renderer_opengles3.h`](../src/platform/platform_androidarmv7_renderer_opengles3.h),
   [`src/platform/platform_android_gl.c`](../src/platform/platform_android_gl.c),
   [`src/platform/platform.mk`](../src/platform/platform.mk)
 
@@ -1097,8 +1097,8 @@ manifests platform-neutral unless they are intended for one lane only.
 
   | | core | lane file | context | flags |
   |---|---|---|---|---|
-  | WebGL1 | `platform_renderer_es2_*.c` | `platform_renderer_webgl1.c` | WebGL1 (OpenGL ES 2.0) | `--webgl1`, `--webgl1-zbuffer` |
-  | WebGL2 | `platform_renderer_es3_*.c` | `platform_renderer_webgl2.c` | WebGL2 (OpenGL ES 3.0) | `--webgl2`, `--webgl2-zbuffer` |
+  | WebGL1 | `platform_renderer_es2_*.c` | `platform_web_renderer_webgl1.c` | WebGL1 (OpenGL ES 2.0) | `--webgl1`, `--webgl1-zbuffer` |
+  | WebGL2 | `platform_renderer_es3_*.c` | `platform_web_renderer_webgl2.c` | WebGL2 (OpenGL ES 3.0) | `--webgl2`, `--webgl2-zbuffer` |
 
   Each core is shared with an Android renderer of the same generation
   (GPU-FAMILY-001); the lane file is what makes it the browser's.
@@ -1336,7 +1336,7 @@ manifests platform-neutral unless they are intended for one lane only.
 
 - **Status:** Fixed 2026-09-02
 - **Applies to:** Every GLES2 lane (Android, and the web build that shares
-  `platform_renderer_gles2_*`)
+  `platform_androidarmv7_renderer_opengles2_*`)
 - **Behavior:** The minimap terrain and the compass drew nothing, on every
   identity and every UI path, with two rotated-mask draws per frame, live
   textures and no GL error. The disc showed the 3D world through it.
@@ -1365,7 +1365,7 @@ manifests platform-neutral unless they are intended for one lane only.
 - **Applies to:** Android `--gles2-dualcore` / `--gles2-dualcore-zbuffer`
   (`TORIRS_HAVE_GLES2_DUALCORE`, the android lane only)
 - **Behavior:** The GLES2 renderer (ANDROID-GLES2-001), unchanged, driven
-  through `platform_renderer_gles2_dualcore.c`: a persistent worker thread
+  through `platform_androidarmv7_renderer_opengles2_dualcore.c`: a persistent worker thread
   replays the frame's world pass on a scratch view of the scene
   (`ToriDraw_SceneScratchViewNew`) and computes each model's pose, cull,
   projection, pick test and face sort one command ahead of the draw. The draw
@@ -1419,8 +1419,8 @@ manifests platform-neutral unless they are intended for one lane only.
   emitter and the kernels are settled by the warm-up frame(s)
   (`TORIRS_GLES2_DUALCORE_WARMUP`, default 1) before the worker starts.
 - **Sources:**
-  [`src/platform/platform_renderer_gles2_dualcore.c`](../src/platform/platform_renderer_gles2_dualcore.c),
-  [`src/platform/platform_renderer_gles2_dualcore_stage.c`](../src/platform/platform_renderer_gles2_dualcore_stage.c),
+  [`src/platform/platform_androidarmv7_renderer_opengles2_dualcore.c`](../src/platform/platform_androidarmv7_renderer_opengles2_dualcore.c),
+  [`src/platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c`](../src/platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c),
   [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h)
   (`GLES2ModelStageSource`),
   [`3rd/toridraw/toridraw.c`](../3rd/toridraw/toridraw.c) (scratch views),

@@ -76,7 +76,7 @@
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
 #include "painters/painters.h"
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "task_runner.h"
 #include "ui/uitree_emit.h"

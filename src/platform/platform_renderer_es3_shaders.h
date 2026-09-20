@@ -5,7 +5,7 @@
  * GLSL ES 3.00 -- the version a WebGL2 context compiles.
  *
  * Every program here is the GLES2 renderer's program
- * (platform_renderer_gles2_shaders.h) expressed in ES 3.00 and using the
+ * (platform_androidarmv7_renderer_opengles2_shaders.h) expressed in ES 3.00 and using the
  * three things ES 1.00 does not have:
  *
  *   layout(location = N) in    the attribute index is declared in the

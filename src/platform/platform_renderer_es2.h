@@ -57,7 +57,7 @@ struct ToriRS_ES2;
  * the LANE, not to the core: the same code is "GLES2" on a phone and "WebGL1"
  * in a browser, and a line naming the wrong one sends the reader after a
  * renderer that is not running. The lane files pass their own
- * (platform_renderer_gles2.c, platform_renderer_webgl1.c). It is stored, not
+ * (platform_androidarmv7_renderer_opengles2.c, platform_web_renderer_webgl1.c). It is stored, not
  * copied, so it must outlive the renderer -- every caller passes a literal.
  */
 struct ToriRS_ES2*

@@ -506,7 +506,7 @@ struct ES2ZBufferWorld;
  * the face sort. Everything in it is a pure function of the command, the
  * scene and the pass camera, and none of it touches GL, which is why it can
  * be computed somewhere other than the draw -- on the second core, one
- * command ahead (platform_renderer_gles2_dualcore.c).
+ * command ahead (platform_androidarmv7_renderer_opengles2_dualcore.c).
  */
 struct ES2ModelStage
 {

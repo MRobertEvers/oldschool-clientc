@@ -6,7 +6,7 @@
  *
  * ## Why this exists
  *
- * platform/platform_renderer_gles2_*.c is ~8k lines of plain GLES2, and
+ * platform/platform_androidarmv7_renderer_opengles2_*.c is ~8k lines of plain GLES2, and
  * platform_sdl2_renderer_gl3.c the same for desktop GL 3.2. Neither has any
  * real dependency on a windowing library: every GL call comes from the GL
  * header, and the ONLY thing either needed SDL for was the handful of calls

@@ -2,7 +2,7 @@
  * work using one pinned hardware event. No software timing or multiplexing.
  * Include in dualcore.c after the lane definition. All arm changes occur
  * between joined frames. Worker state is read only after the join. */
-#include "platform/platform_renderer_gles2_placement.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_placement.h"
 #include "ui/uitree_canvas_measure.h"
 #include "ui/uitree_emit.h"
 #include <linux/perf_event.h>

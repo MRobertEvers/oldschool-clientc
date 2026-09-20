@@ -13,7 +13,7 @@
  *   - The per-segment cache: an identical second frame composites the same
  *     picture, and a changed colour is re-filtered.
  */
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_render.h"
 #include "toridraw.h"
 #include "toridraw_scene.h"

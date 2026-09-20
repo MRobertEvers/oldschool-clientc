@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_WEBGL2_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_WEBGL2_H
+#ifndef SRC_PLATFORM_PLATFORM_WEB_RENDERER_WEBGL2_H
+#define SRC_PLATFORM_PLATFORM_WEB_RENDERER_WEBGL2_H
 
 /*
  * The browser's OpenGL ES 3.0 renderer, on a WebGL2 context.
@@ -7,7 +7,7 @@
  * WebGL2 is OpenGL ES 3.0 -- not all of it, but a well-defined subset -- and
  * the shared core (platform_renderer_es3_*.c) is written to that subset
  * precisely so the Android lane can bind the same code through
- * platform_renderer_gles3.c without a single #if. The one place the two
+ * platform_androidarmv7_renderer_opengles3.c without a single #if. The one place the two
  * genuinely differ is GL_TEXTURE_SWIZZLE_*, which ES 3.0 has and WebGL2 does
  * not; the core does without it, which costs Android nothing.
  *

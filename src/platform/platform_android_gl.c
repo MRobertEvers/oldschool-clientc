@@ -6,7 +6,7 @@
  * program to it and never see EGL.
  *
  * The renderer on the other side of this seam here is the lane's own
- * platform_renderer_gles2_*.c: OpenGL ES 2.0 core with no extensions,
+ * platform_androidarmv7_renderer_opengles2_*.c: OpenGL ES 2.0 core with no extensions,
  * shaped after the Windows D3D9 renderer's retained model. This file's only
  * job is the context it draws into.
  *
@@ -137,7 +137,7 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
      * <EGL/egl.h> in an NDK sysroot may not declare, while every EGL 1.4
      * implementation that can make an ES3 context understands the value.
      *
-     * The Android lane asks for ES3 now: platform_renderer_gles3.c names the
+     * The Android lane asks for ES3 now: platform_androidarmv7_renderer_opengles3.c names the
      * shared ES 3.0 core (platform_renderer_es3_*.c, which the browser binds
      * as WebGL2) and --gles3 selects it. The XT1060's Adreno 320 reports
      * ro.opengles.version 196608, which is ES 3.0 exactly.

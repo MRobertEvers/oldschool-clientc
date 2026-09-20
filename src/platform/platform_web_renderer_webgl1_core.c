@@ -42,6 +42,54 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* ---- this family's specialisations ------------------------------------------------ */
+
+/*
+ * WEB (wasm). The webgl1 counterparts. Portable C only.
+ */
+
+static void
+es2_apply_animation(
+    struct ToriRS_ES2* renderer,
+    const struct ToriRS_RenderCommand_Model* command)
+{
+    assert(renderer);
+    assert(command);
+    /* Re-applied every frame. The resolved path's saving is a phone's to
+     * take; here the pose table it leans on is not the thing under pressure,
+     * and this keeps the browser build free of a decision it cannot make. */
+    ToriDraw_SceneElementApplyAnimation(
+        renderer->scene, command->element_id, command->anim_index == 0, command->anim_frame);
+}
+
+static bool
+es2_bake_ordered_fast(
+    struct TRSPK_VBO* vbo,
+    uint32_t vertex_base,
+    const struct ToriDraw_Model* full_model,
+    const int* face_order,
+    uint32_t written_count,
+    const float* world_xyz,
+    bool ordered_painter)
+{
+    /*
+     * No fast encoder here, so the core's generic loop does every actor.
+     *
+     * Declining in one place is the point: the packed word encoder is written
+     * for armv7 and this lane never calls it, so nothing in the browser build
+     * has to carry a test for whether it should.
+     */
+    (void)vbo;
+    (void)vertex_base;
+    (void)full_model;
+    (void)face_order;
+    (void)written_count;
+    (void)world_xyz;
+    (void)ordered_painter;
+    return false;
+}
+
+
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
 #include "platform_renderer_es2_bake_capture.u.c"
 #elif defined(TORIRS_BAKE_VERIFY)
@@ -1905,18 +1953,12 @@ es2_bake_pose_vertices(
     es2_bake_capture_begin(renderer,model_handle,world_position,face_order,order_count);
 #endif
 
-    if(renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures) {
 #if !defined(TORIRS_BAKE_CHAIN_CAPTURE) && !defined(TORIRS_BAKE_VERIFY)
-        if( renderer->actor_word_encode )
-            trspk_toridraw_gles2_untextured_words(full_model,face_order,written_count,world_xyz,
-                &vbo->vertices.as_gles2[vertex_base]);
-        else
-            trspk_toridraw_gles2_untextured(full_model,face_order,written_count,world_xyz,
-                &vbo->vertices.as_gles2[vertex_base]);
-        trspk_vbo_mark_dirty_range(vbo,vertex_base,written_count*3u);
+    /* This lane's fast encoder, or a decline. @see platform_renderer_es2_lane.h. */
+    if( es2_bake_ordered_fast(
+            vbo, vertex_base, full_model, face_order, written_count, world_xyz, ordered_painter) )
         return true;
 #endif
-    }
 
     for( order_index = 0u; order_index < written_count; order_index++ )
     {
@@ -2926,13 +2968,7 @@ es2_draw_model(struct ToriRS_ES2* renderer, const struct ToriRS_RenderCommand_Mo
     {
         if( !renderer->poses_prepared && command->animation && command->element_id >= 0 )
         {
-            if( renderer->pose_reuse_enabled )
-                ToriDraw_SceneElementApplyAnimationResolved(
-                    ToriDraw_SceneElementGet(renderer->scene,command->element_id),
-                    command->element_id,command->anim_index==0,command->anim_frame,true);
-            else
-                ToriDraw_SceneElementApplyAnimation(renderer->scene,command->element_id,
-                    command->anim_index==0,command->anim_frame);
+            es2_apply_animation(renderer, command);
         }
         projected_position = command->position;
         if( ToriDraw_RenderModel1ProjectWithTable(

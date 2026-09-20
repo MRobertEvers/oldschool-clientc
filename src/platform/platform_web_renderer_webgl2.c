@@ -6,11 +6,11 @@
  * having it in a file of its own is what keeps it from drifting back into
  * the core as a #if on the platform.
  *
- * @see platform_renderer_webgl2.h for what this lane is, and
+ * @see platform_web_renderer_webgl2.h for what this lane is, and
  *      platform_renderer_es3.h for what the core does.
  */
 
-#include "platform/platform_renderer_webgl2.h"
+#include "platform/platform_web_renderer_webgl2.h"
 
 /*
  * The one cast in the lane, in the one file entitled to make it: the handle

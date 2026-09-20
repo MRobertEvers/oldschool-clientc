@@ -1,13 +1,13 @@
 /*
  * The dual-core GLES2 lane. See the header for the shape of a frame.
  */
-#include "platform/platform_renderer_gles2_dualcore.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_dualcore.h"
 
 #include "log/torirs_log.h"
 #include "painters/painters.h"
 #include "platform/platform_renderer_es2.h"
 #include "platform/platform_renderer_es2_core.h"
-#include "platform/platform_renderer_gles2_dualcore_stage.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
 

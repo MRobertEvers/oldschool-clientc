@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_WEBGL1_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_WEBGL1_H
+#ifndef SRC_PLATFORM_PLATFORM_WEB_RENDERER_WEBGL1_H
+#define SRC_PLATFORM_PLATFORM_WEB_RENDERER_WEBGL1_H
 
 /*
  * The browser's OpenGL ES 2.0 renderer, on a WebGL1 context.
@@ -7,7 +7,7 @@
  * WebGL1 IS OpenGL ES 2.0 -- the same API to the letter, with no extension
  * beyond it -- so the drawing is entirely the shared core's
  * (platform_renderer_es2_*.c), which the Android lane binds the same way
- * through platform_renderer_gles2.c. This file is what makes it a WEBGL1
+ * through platform_androidarmv7_renderer_opengles2.c. This file is what makes it a WEBGL1
  * renderer rather than an anonymous one:
  *
  *   - it names it. The core logs through the name it is given, so a browser
@@ -15,7 +15,7 @@
  *     running here;
  *   - it asks the context seam for TORIRS_GL_CLIENT_ES2, which in a browser
  *     is a WebGL1 canvas context by name. The lane can also make a WebGL2
- *     one (platform_renderer_webgl2_*.c is a separate renderer), so which of
+ *     one (platform_web_renderer_webgl2_*.c is a separate renderer), so which of
  *     the two this gets is a decision, not a default;
  *   - it is what --webgl1 / --webgl1-zbuffer select, and what Client
  *     Settings offers as "WebGL 1".

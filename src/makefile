@@ -663,7 +663,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_app_icon.c \
 	platform/platform_memory.c \
-	platform/platform_sdl2_renderer_soft3d.c \
+	platform/platform_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
@@ -3741,7 +3741,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		engine/torirs_chrome_skin_baked.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
-		platform/platform_sdl2_renderer_soft3d.c \
+		platform/platform_renderer_soft3d.c \
 		perf/torirs_perf.c \
 		$(BMP_DIR)/bmp.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) \
@@ -3783,7 +3783,7 @@ test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/soft3d_interface_filter_test \
 		platform/test/soft3d_interface_filter_test.c \
-		platform/platform_sdl2_renderer_soft3d.c \
+		platform/platform_renderer_soft3d.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
@@ -6090,7 +6090,7 @@ test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # the depth path's sort gate, arena exhaustion, view sync. GL-free.
 test-gles2-dualcore-stage: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/gles2_dualcore_stage_test \
-		platform/platform_renderer_gles2_dualcore_stage.c \
+		platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c \
 		platform/test/gles2_dualcore_stage_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/gles2_dualcore_stage_test
 	# Again with every model past the bitonic limit: the radix sort path, which

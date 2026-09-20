@@ -1,11 +1,11 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_GLES2_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_GLES2_H
+#ifndef SRC_PLATFORM_PLATFORM_ANDROIDARMV7_RENDERER_OPENGLES2_H
+#define SRC_PLATFORM_PLATFORM_ANDROIDARMV7_RENDERER_OPENGLES2_H
 
 /*
  * Android's OpenGL ES 2.0 renderer, on an EGL context.
  *
  * The drawing is the shared core's (platform_renderer_es2_*.c), which the
- * browser binds the same way through platform_renderer_webgl1.c. This file
+ * browser binds the same way through platform_web_renderer_webgl1.c. This file
  * is what makes it ANDROID's renderer rather than an anonymous one:
  *
  *   - it names it, so a logcat line says "GLES2" and not "WebGL1";
@@ -14,7 +14,7 @@
  *     config (platform_android_gl.c);
  *   - it is what --gles2 / --gles2-zbuffer select, and what Client Settings
  *     offers as "OpenGL ES 2". The dual-core lane
- *     (platform_renderer_gles2_dualcore.c, --gles2-dualcore) wraps this one
+ *     (platform_androidarmv7_renderer_opengles2_dualcore.c, --gles2-dualcore) wraps this one
  *     and is Android-only for the same reason this file is.
  *
  * The ceiling the core is written to is ANDROID-GLES2-001 in
@@ -106,7 +106,7 @@ ToriRS_GLES2_ReadPixels(
 /**
  * The shared core behind this lane's handle.
  *
- * For the dual-core lane (platform_renderer_gles2_dualcore.c) and nothing
+ * For the dual-core lane (platform_androidarmv7_renderer_opengles2_dualcore.c) and nothing
  * else. That lane is Android-only -- it is the second Krait core, which no
  * browser has -- and it works by installing a model-stage source ON THE CORE,
  * so it needs the core and not the lane's name for it. Anything else reaching

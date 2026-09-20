@@ -5,8 +5,8 @@
 
   --es2 FILE...        does the ES2 core stay inside OpenGL ES 2.0 core? It
                        is the code behind BOTH ES 2.0 renderers -- the
-                       browser's WebGL1 (platform_renderer_webgl1.c) and
-                       Android's GLES2 (platform_renderer_gles2.c) -- so a
+                       browser's WebGL1 (platform_web_renderer_webgl1.c) and
+                       Android's GLES2 (platform_androidarmv7_renderer_opengles2.c) -- so a
                        GLES3 call in it breaks a 2013 phone as surely as a
                        browser. It used to be the link that answered
                        this -- the web lane pinned -sMAX_WEBGL_VERSION=1, so

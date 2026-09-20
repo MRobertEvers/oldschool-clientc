@@ -59,9 +59,9 @@ struct ToriRS_D3D9;
  */
 #if defined(TORIRS_HAVE_GLES2)
 /* Android's OpenGL ES 2.0 renderer (--gles2 / --gles2-zbuffer). */
-#include "platform/platform_renderer_gles2.h"
+#include "platform/platform_androidarmv7_renderer_opengles2.h"
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
-#include "platform/platform_renderer_gles2_dualcore.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_dualcore.h"
 #endif
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
 /* NULL unless --gles2-dualcore was passed: the ES2 core behind `gles2`,
@@ -77,21 +77,21 @@ struct ToriRS_GLES2;
 /* The browser's OpenGL ES 3.0 renderer, on a WebGL2 context
  * (--webgl2 / --webgl2-zbuffer). Runs the shared ES3 core, which Android
  * runs as --gles3. */
-#include "platform/platform_renderer_webgl2.h"
+#include "platform/platform_web_renderer_webgl2.h"
 #else
 struct ToriRS_WebGL2;
 #endif
 #if defined(TORIRS_HAVE_WEBGL1)
 /* The browser's OpenGL ES 2.0 renderer, on a WebGL1 context
  * (--webgl1 / --webgl1-zbuffer). Runs the shared ES2 core. */
-#include "platform/platform_renderer_webgl1.h"
+#include "platform/platform_web_renderer_webgl1.h"
 #else
 struct ToriRS_WebGL1;
 #endif
 #if defined(TORIRS_HAVE_GLES3)
 /* Android's OpenGL ES 3.0 renderer (--gles3 / --gles3-zbuffer).
  * Runs the same ES3 core the browser runs as WebGL2. */
-#include "platform/platform_renderer_gles3.h"
+#include "platform/platform_androidarmv7_renderer_opengles3.h"
 #else
 struct ToriRS_GLES3;
 #endif
@@ -5752,7 +5752,7 @@ main_parse_argument_layer(
          * --webgl1 and --gles2 select the same renderer; they are kept as two
          * names because a manifest carrying the browser's flag must not be
          * aliased onto a phone unnoticed, or the reverse. --webgl2 is a
-         * DIFFERENT renderer from both (platform_renderer_webgl2_*.c), so it
+         * DIFFERENT renderer from both (platform_web_renderer_webgl2_*.c), so it
          * is a third name and not a modifier of the first.
          */
         if( strcmp(argv[argi], "--opengl3") == 0 || strcmp(argv[argi], "--opengl3-zbuffer") == 0 )

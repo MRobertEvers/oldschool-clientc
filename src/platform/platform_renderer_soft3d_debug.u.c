@@ -4,7 +4,7 @@
 /*
  * Measurement and diagnostic probes for the software renderer.
  *
- * Included by platform_sdl2_renderer_soft3d.c once the command and scene types
+ * Included by platform_renderer_soft3d.c once the command and scene types
  * are in scope. Everything here is instrumentation: nothing in this file puts
  * a pixel on the screen that a shipping frame depends on, and the renderer
  * keeps only a one-line call at each site.

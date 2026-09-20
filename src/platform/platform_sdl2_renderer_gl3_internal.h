@@ -12,7 +12,7 @@
  * This file and its two .c files may use anything GL 3.2 core offers: VAOs,
  * 32-bit element indices, sized internal formats, BGRA readback. The browser
  * does not build this renderer at all -- it links the GLES2 one
- * (platform_renderer_gles2_*.c) against WebGL1 -- so there is no ES2 switch
+ * (platform_androidarmv7_renderer_opengles2_*.c) against WebGL1 -- so there is no ES2 switch
  * here and no fallback to keep in step.
  */
 
@@ -60,7 +60,7 @@
  * Two GPU backends, one renderer.
  *
  * This is desktop GL 3.2 core. The browser no longer builds a variant of it:
- * the web lane links the GLES2 renderer (platform_renderer_gles2_*.c) against
+ * the web lane links the GLES2 renderer (platform_androidarmv7_renderer_opengles2_*.c) against
  * WebGL1, so the definitions below have exactly one value each and are kept as
  * names only because the code reads better through them.
  */

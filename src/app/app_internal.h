@@ -119,7 +119,7 @@
 #include "painters/scene_occluders.h"
 #include "perf/torirs_perf.h"
 #include "platform/platform_memory.h"
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "plugin/task_plugin_io.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "plugin/torirs_plugin_mesh.h"

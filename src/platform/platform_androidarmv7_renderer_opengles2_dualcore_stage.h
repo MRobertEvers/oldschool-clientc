@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_GLES2_DUALCORE_STAGE_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_GLES2_DUALCORE_STAGE_H
+#ifndef SRC_PLATFORM_PLATFORM_ANDROIDARMV7_RENDERER_OPENGLES2_DUALCORE_STAGE_H
+#define SRC_PLATFORM_PLATFORM_ANDROIDARMV7_RENDERER_OPENGLES2_DUALCORE_STAGE_H
 
 /*
  * The dual-core lane's model stage: the CPU half of es2_draw_model, with
@@ -18,7 +18,7 @@
  * (platform/test/gles2_dualcore_stage_test.c), which runs the stage on a
  * scratch view next to the same stage on the scene itself and demands the
  * same answers. The thread, the hand-over and the renderer glue live in
- * platform_renderer_gles2_dualcore.c.
+ * platform_androidarmv7_renderer_opengles2_dualcore.c.
  *
  * Producer / consumer contract, one frame at a time:
  *
@@ -381,7 +381,7 @@ GLES2DualCoreStage_EndPass(struct GLES2DualCoreStageContext* context);
 /*
  * Crash breadcrumbs: the stage writes where it is -- which command, which
  * step -- so a fault on the worker can be read back from a signal handler
- * (platform_renderer_gles2_dualcore.c). Plain volatile ints; the reader is a
+ * (platform_androidarmv7_renderer_opengles2_dualcore.c). Plain volatile ints; the reader is a
  * handler on the same thread. Always on: the stores are a few words per
  * model. NOTE (2026-09-02): a worker fault on OSRS239 with plugins off, which
  * every build before these stores reproduced within a minute, has not
