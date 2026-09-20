@@ -73,6 +73,7 @@ import argparse
 import csv
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -106,13 +107,17 @@ def compute_test_id(quest_dir: str) -> str:
     return quest_dir
 
 STEP_TYPES = (
-    "NpcStep", "ObjectStep", "ItemStep", "WidgetStep",
+    "NpcStep", "MultiNpcStep", "ObjectStep", "ItemStep", "WidgetStep",
     "PuzzleWrapperStep", "DigStep", "EmoteStep",
 )
 # Which STEP_TYPES this tool can turn into a real driver verb call. The
 # other three (WidgetStep, DigStep, and anything outside STEP_TYPES
-# entirely) are written as a comment -- see the module banner.
-DRIVEN_STEP_TYPES = ("NpcStep", "ObjectStep", "ItemStep")
+# entirely) are written as a comment -- see the module banner. MultiNpcStep
+# `extends NpcStep` (quest-helper's own steps/MultiNpcStep.java) with the
+# same `(questHelper, NpcID, WorldPoint, text, Requirement...)` constructor
+# shape, so it drives through the identical NpcID.gv_kind branch in
+# format_step_call below -- no separate case needed.
+DRIVEN_STEP_TYPES = ("NpcStep", "MultiNpcStep", "ObjectStep", "ItemStep")
 
 GAMEVAL_RE = qhe.GAMEVAL_RE
 WORLDPOINT_RE = qhe.WORLDPOINT_RE
@@ -814,6 +819,111 @@ def _chebyshev(a: tuple[int, int], b: tuple[int, int]) -> int:
     return max(abs(a[0] - b[0]), abs(a[1] - b[1]))
 
 
+# ---------------------------------------------------------- spawn lookup
+#
+# A step's Quest Helper WorldPoint names where RuneLite's OWN client saw the
+# npc; it says nothing about where THIS content pack spawns it, and the two
+# disagree often enough (romeojuliet's father_lawrence/apothecary, 2026-09-19
+# review) that a goto built from the WorldPoint alone lands the player in an
+# empty scene. Every *.spawn file under content's server/scripts/ carries
+# this pack's own placements -- one NPC section row per spawn, `symbol x z
+# level` (confirmed: 23,162 NPC rows across every *.spawn in this tree are
+# exactly that shape, no trailing direction field, 2026-09-19) -- and that is
+# what a goto should walk to. A row's coordinate is occasionally the encoded
+# `level_mx_mz_lx_lz` form questhelper_extract.worldpoint_to_coord itself
+# produces (docs/QUEST_SUITE_KIT.md's row-format note); coord_to_worldpoint
+# below is that function's inverse, tried first and falling back to the
+# plain `x z level` columns this tree actually uses everywhere observed.
+
+COORD_ENCODED_RE = re.compile(r"^(-?\d+)_(-?\d+)_(-?\d+)_(-?\d+)_(-?\d+)$")
+
+
+def coord_to_worldpoint(coord: str) -> tuple[int, int, int] | None:
+    """Inverse of questhelper_extract.worldpoint_to_coord: a
+    'level_mx_mz_lx_lz' spawn coordinate -> (x, z, level). None when the
+    token is not that shape (the plain 'x z level' columns this tree's own
+    *.spawn rows actually use)."""
+    m = COORD_ENCODED_RE.match(coord)
+    if not m:
+        return None
+    level, mx, mz, lx, lz = (int(g) for g in m.groups())
+    return (mx * 64 + lx, mz * 64 + lz, level)
+
+
+def _parse_spawn_npc_row(tokens: list[str]) -> tuple[str, int, int, int] | None:
+    """[symbol, ...coord tokens] -> (symbol, x, z, level), or None for a
+    line this shape does not fit. Handles the encoded single-token coord
+    form first, then the plain 'symbol x z level [direction]' columns
+    (extra trailing tokens, e.g. a direction, are ignored)."""
+    if len(tokens) < 2:
+        return None
+    symbol = tokens[0]
+    encoded = coord_to_worldpoint(tokens[1])
+    if encoded is not None:
+        return (symbol, encoded[0], encoded[1], encoded[2])
+    if len(tokens) >= 4:
+        try:
+            x, z, level = int(tokens[1]), int(tokens[2]), int(tokens[3])
+        except ValueError:
+            return None
+        return (symbol, x, z, level)
+    return None
+
+
+_SPAWN_INDEX: dict[str, list[tuple[int, int, int]]] | None = None
+
+
+def load_spawn_index(content: Path) -> dict[str, list[tuple[int, int, int]]]:
+    """symbol -> [(x, z, level), ...], one entry per NPC spawn row across
+    EVERY *.spawn file under content/server/scripts/ (areas/world/configs'
+    per-map-square dumps and every other area's own configs/*.spawn) --
+    built once per process and cached at module scope, so `--all`'s ~180
+    quests share one parse (docs/QUEST_SUITE_KIT.md: '--all must not get
+    slower than ~2x')."""
+    global _SPAWN_INDEX
+    if _SPAWN_INDEX is not None:
+        return _SPAWN_INDEX
+    index: dict[str, list[tuple[int, int, int]]] = {}
+    scripts_root = content / "server" / "scripts"
+    for path in sorted(scripts_root.rglob("*.spawn")):
+        section = None
+        for line in path.read_text(errors="replace").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("//"):
+                continue
+            if stripped.startswith("===="):
+                section = "npc" if "NPC" in stripped.upper() else "obj"
+                continue
+            if section != "npc":
+                continue
+            row = _parse_spawn_npc_row(stripped.split())
+            if row is None:
+                continue
+            sym, x, z, level = row
+            index.setdefault(sym, []).append((x, z, level))
+    _SPAWN_INDEX = index
+    return index
+
+
+def nearest_spawn_tile(
+    symbol: str, wp: tuple[int, int, int] | None, content: Path
+) -> tuple[tuple[int, int, int] | None, int]:
+    """(tile, row_count) for npc SYMBOL: the spawn row nearest `wp` (2D
+    Chebyshev against `wp`'s x/z; `wp`-less or a single row picks the
+    file-order first row, deterministic run to run) among every spawn this
+    content places under that exact symbol. tile is None, row_count is 0,
+    when the symbol has no spawn row at all -- the caller keeps the
+    WorldPoint and marks it CHECK (docs/QUEST_SUITE_KIT.md)."""
+    candidates = load_spawn_index(content).get(symbol)
+    if not candidates:
+        return None, 0
+    if wp is None or len(candidates) == 1:
+        return candidates[0], len(candidates)
+    wx, wz, _wl = wp
+    chosen = min(candidates, key=lambda c: _chebyshev((c[0], c[1]), (wx, wz)))
+    return chosen, len(candidates)
+
+
 class RoutePosition:
     """Tracks the player's assumed position as the generated route is
     walked, and decides when a step needs a `player.goto_tile` ahead
@@ -824,17 +934,73 @@ class RoutePosition:
     inherits whatever position the last WorldPoint-bearing step left --
     it does not reset the tracker, and it never forces a goto on its own;
     it only ever gets a '-- CHECK position' comment, per
-    docs/QUEST_SUITE_KIT.md."""
+    docs/QUEST_SUITE_KIT.md.
 
-    def __init__(self) -> None:
+    For an npc-symbol-bearing step (NpcStep, MultiNpcStep, or any other
+    step whose resolved gameval is an NpcID -- covers a use_on's npc
+    target too, since that is the same NpcID gameval this tool already
+    reads off the step) the goto is walked to THIS CONTENT'S OWN spawn
+    tile for that symbol, not Quest Helper's WorldPoint -- the spawn always
+    wins when one exists (docs/QUEST_SUITE_KIT.md, the romeojuliet review:
+    WorldPoints landed 76-78 tiles from where this pack actually spawns
+    father_lawrence/apothecary). `spawn_hits`/`spawn_misses`/
+    `spawn_miss_symbols` tally what the walk found, for the --all table and
+    a run's own report."""
+
+    def __init__(self, content: Path) -> None:
+        self.content = content
         self.pos: tuple[int, int, int] | None = None  # None until the
         # first WorldPoint-bearing step -- see docstring.
+        self.spawn_hits = 0
+        self.spawn_misses = 0
+        self.spawn_miss_symbols: list[str] = []
 
     def lines_for(self, var: str, info: dict) -> list[str]:
         wp = info.get("worldpoint")
+        spawn_check_lines: list[str] = []
+        goto_suffix = ""
+        gameval = info.get("gameval")
+        if gameval is not None and gameval[0] == "NpcID":
+            symbol = gameval[1]
+            tile, row_count = nearest_spawn_tile(symbol, wp, self.content)
+            if tile is None:
+                self.spawn_misses += 1
+                self.spawn_miss_symbols.append(symbol)
+                spawn_check_lines.append(
+                    f"        -- CHECK spawn: {symbol} has no spawn row in this content"
+                )
+            else:
+                self.spawn_hits += 1
+                if wp is not None:
+                    dist = _chebyshev((tile[0], tile[1]), (wp[0], wp[1]))
+                    if dist > GOTO_TILE_THRESHOLD or tile[2] != wp[2]:
+                        goto_suffix = (
+                            f"; spawn {tile[0]},{tile[1]},{tile[2]} ({row_count} row(s)) "
+                            f"disagrees with Quest Helper's WorldPoint {wp[0]},{wp[1]},{wp[2]} "
+                            f"by {dist} tiles -- the spawn wins"
+                        )
+                elif row_count > 1:
+                    # No WorldPoint to pick between this symbol's spawn rows
+                    # with, so `nearest_spawn_tile` fell back to file order.
+                    # Before this tool read spawn tables at all a step like
+                    # this got only a `-- CHECK position` note and no goto;
+                    # emitting a goto to one arbitrary row of a `monkey`
+                    # (67 rows) or a `ghast_invis` (186) would be a guess
+                    # that reads like a resolved coordinate.  Say so instead
+                    # -- the goto is still emitted, and the author is told it
+                    # is the one line here that was chosen, not derived.
+                    spawn_check_lines.append(
+                        f"        -- CHECK spawn: {symbol} has {row_count} spawn rows and "
+                        f"Quest Helper gives no WorldPoint to choose between them -- "
+                        f"{tile[0]},{tile[1]},{tile[2]} is the first in file order"
+                    )
+                wp = tile
+
         if wp is None:
-            return [f"        -- CHECK position: no WorldPoint in Quest Helper for '{var}' "
-                     "-- confirm the player is already near this step's target"]
+            return spawn_check_lines + [
+                f"        -- CHECK position: no WorldPoint in Quest Helper for '{var}' "
+                "-- confirm the player is already near this step's target"
+            ]
         x, z, level = wp
         if self.pos is None:
             reason = "first step -- leaves the fixture's start tile"
@@ -850,10 +1016,10 @@ class RoutePosition:
                 reason = f"{dist} tiles from the last tracked position"
         self.pos = (x, z, level)
         if not need_goto:
-            return []
-        return [
+            return spawn_check_lines
+        return spawn_check_lines + [
             f'        t.exec({lua_string("goto-" + var)}, t.player.goto_tile, {x}, {z}, {level}) '
-            f"-- {reason}"
+            f"-- {reason}{goto_suffix}"
         ]
 
 
@@ -1242,7 +1408,7 @@ def generate(
     blocked_stubs = 0
     goto_count = 0
     fight_stub_emitted = False
-    route_pos = RoutePosition()
+    route_pos = RoutePosition(DEFAULT_CONTENT)
 
     # The last "step" route entry is the FINAL hand-in step -- reward_before
     # is snapshotted right ahead of it (H2, docs/QUEST_SUITE_KIT.md). Only
@@ -1445,6 +1611,12 @@ def generate(
         # the human review this skeleton still owes, which `checks` (the
         # tool's own internal notes) understates.
         "checks_todo": sum(1 for line in lines if "-- CHECK" in line),
+        # Npc-symbol gotos resolved against this content's own *.spawn
+        # tables vs. ones that fell back to Quest Helper's bare WorldPoint
+        # because the symbol has no spawn row here (see RoutePosition).
+        "spawn_hits": route_pos.spawn_hits,
+        "spawn_misses": route_pos.spawn_misses,
+        "spawn_miss_symbols": route_pos.spawn_miss_symbols,
     }
     return source, stats
 
@@ -1469,7 +1641,8 @@ def run_one(helper_arg: str, out_dir: Path, qh_root: Path, inventory: list[dict]
     inv_row = match_inventory_row(helper_dir.name, inventory)
     result = {"helper": helper_dir.name, "quest": None, "test_id": None, "path": None,
               "steps": 0, "checks": 0, "blocked": 0, "gotos": 0, "unresolved": 0,
-              "checks_todo": 0, "error": None}
+              "checks_todo": 0, "spawn_hits": 0, "spawn_misses": 0, "spawn_miss_symbols": [],
+              "error": None}
     if inv_row is None:
         result["error"] = "no content quest"
         return result
@@ -1631,22 +1804,33 @@ def main() -> int:
         total_todo = sum(r["checks_todo"] for r in written)
         total_blocked = sum(r["blocked"] for r in written)
         total_gotos = sum(r["gotos"] for r in written)
+        total_spawn_hits = sum(r["spawn_hits"] for r in written)
+        total_spawn_misses = sum(r["spawn_misses"] for r in written)
 
         header = (f"{'quest':<28} {'test_id':<20} {'steps':>5} {'checks':>6} {'blocked':>7} "
-                  f"{'gotos':>5} {'unresolved':>10} {'CHECK lines':>11}")
+                  f"{'gotos':>5} {'unresolved':>10} {'CHECK lines':>11} {'spawn_hits/misses':>18}")
         print(header)
         print("-" * len(header))
         for r in written:
             print(f"{r['quest']:<28} {r['test_id']:<20} {r['steps']:>5} {r['checks']:>6} {r['blocked']:>7} "
-                  f"{r['gotos']:>5} {r['unresolved']:>10} {r['checks_todo']:>11}")
+                  f"{r['gotos']:>5} {r['unresolved']:>10} {r['checks_todo']:>11} "
+                  f"{str(r['spawn_hits']) + '/' + str(r['spawn_misses']):>18}")
         print("-" * len(header))
         print(f"{'TOTAL':<28} {'':<20} {sum(r['steps'] for r in written):>5} {total_checks:>6} "
-              f"{total_blocked:>7} {total_gotos:>5} {total_unresolved:>10} {total_todo:>11}")
+              f"{total_blocked:>7} {total_gotos:>5} {total_unresolved:>10} {total_todo:>11} "
+              f"{str(total_spawn_hits) + '/' + str(total_spawn_misses):>18}")
         print()
         print(f"{len(helpers)} quest-helper dirs; {len(written)} generated into {out_dir}; "
               f"{len(no_content)} had no matching content quest; {len(errored)} errored")
         if no_content:
             print("no content quest: " + ", ".join(r["helper"] for r in no_content))
+        if total_spawn_misses:
+            miss_counter: Counter = Counter()
+            for r in written:
+                miss_counter.update(r["spawn_miss_symbols"])
+            top10 = miss_counter.most_common(10)
+            print(f"spawn misses: {total_spawn_misses} total; ten most common missing symbols: "
+                  + ", ".join(f"{sym}({n})" for sym, n in top10))
         if errored:
             print("errored: " + ", ".join(f"{r['helper']} ({r['error']})" for r in errored))
         return 0
@@ -1707,7 +1891,8 @@ def main() -> int:
     out_path.write_text(lua_text, encoding="utf-8")
     print(f"wrote {out_path} (quest={quest_dir} steps={stats['steps']} "
           f"checks={stats['checks']} blocked={stats['blocked']} gotos={stats['gotos']} "
-          f"unresolved={stats['unresolved']} check_lines={stats['checks_todo']})")
+          f"unresolved={stats['unresolved']} check_lines={stats['checks_todo']} "
+          f"spawn_hits={stats['spawn_hits']} spawn_misses={stats['spawn_misses']})")
     return 0
 
 

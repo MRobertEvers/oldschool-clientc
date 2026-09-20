@@ -1,9 +1,6 @@
 # Quest authoring
 
-How to write `test/quests/<quest>.lua` -- the ONLY file you write, full
-stop (section 2). `test/quests/README.md` only points here. The live verb
-set with file:line is `tools/quest_gate/verb_list.py` -- read this file for
-the *shape*, that one when a line here goes stale.
+How to write `test/quests/<quest>.lua` -- the ONLY file you write, full stop (section 2). `test/quests/README.md` only points here; the live verb set with file:line is `tools/quest_gate/verb_list.py`, read this file for the *shape*, that one when a line here goes stale.
 
 ## 1. The test shape
 
@@ -65,9 +62,7 @@ this short fails section 7's minimum shape). The complete green file is
   a tile out (the world picks the nearest tile it accepts), the plane never
   does. `screen_position` / `not_visible` / `no_row` from a `talk_to` or npc
   lookup means you are not standing there: **fix the goto's coordinates,
-  never the verb** -- Quest Helper's `WorldPoint(x, z, level)`, or the npc's
-  spawn tile in `OSRS-Content/osrs239-content/server/scripts/areas/<area>/configs/*.npc`
-  (upper floors are level 1/2, never 0).
+  never the verb** -- the scaffold walks to the npc's own `configs/*.spawn` row (trap 13; `configs/*.npc` is definition blocks, no tiles in them at all) and falls back to Quest Helper's `WorldPoint(x, z, level)` only where no spawn row exists; a LOC's tile is its area's `configs/*.loc` row (upper floors are level 1/2, never 0).
 - `walk_near(target, ticks)` takes the `{kind=, id=}` table `player.by_symbol` returns: `local n = t.player.by_symbol("npc", "doric")` then `t.exec("walk.doric", t.player.walk_near, n, 10)`.
 - **`outcome blocked` REQUIRES a `t.blocked("<seam>")` row, then `return` right after it** -- anything else is rejected, not blocked.
 - `chat.play` / `chat.choose` / `chat.continue_` act on a dialogue already open, never opening one; `not_visible: no dialogue is open` means the click before them did not land -- fix that click, not the chat call.
@@ -171,7 +166,7 @@ One line per verb, `t.<call>` as a quest file spells it, grouped by namespace, `
 words (`chat.play`, the hollow rule), not part of the fixed set. Ledger
 verdicts are `PASS`, `FAIL`, `BLOCKED`.
 
-## 5. Twelve traps
+## 5. Seventeen traps
 
 1. **Server ticks.** `t.ticks(n)`, every `ticks=` argument, every await
    deadline: all SERVER ticks, one tick being 30 client cycles. `t.ticks(10)`
@@ -238,6 +233,12 @@ verdicts are `PASS`, `FAIL`, `BLOCKED`.
     target and `t.exec` refuses a nil first vararg. Pass any non-nil filler,
     `t.exec("name", t.chat.continue_, true)`, which `continue_` ignores.
 
+13. **Finding an npc: use `*.spawn` rows, not just Quest Helper.** If `talk_to`/an npc lookup still answers `screen_position`/`no_row` at the WorldPoint tile, `grep -rn --include='*.spawn' "<symbol>" OSRS-Content/osrs239-content/server/scripts/` -- each hit is `symbol  x  z  level`, whitespace-separated, under an `==== NPC ====` header, one file per map square. Search the WHOLE of `server/scripts` as above, not just `areas/`: 972 of the 984 `*.spawn` files are `areas/world/configs`'s map squares but twelve are not, and a quest's own npcs are exactly what lives in those (`quests/quest_demon/configs`, `minigames/...`). `"location unknown"` is never a blocker -- the coordinate is in the tree.
+14. **Name stage-check rows `quest.stage.<constant>`.** `quest.expect_complete()`'s own four rows satisfy section 7's ">=1 `quest.*` row" minimum shape automatically, but `quest.expect_stage` does not name its own row, and a run that ends `t.blocked` before hand-in never reaches `expect_complete` -- then only a stage row you named yourself counts. Name it `quest.stage.started`, never `quest_started` or `cook.started`: the gate matches the literal `quest.` prefix, not the intent.
+15. **Never pad the shot count.** A shot exists because `t.exec`/`t.check` fired after a click that changed something -- never because the file was short of section 7's >=8-row, >=4-PNG minimum. Two byte-identical shots fail the gate (trap 4) whether or not they were padding, but reaching eight rows by repeating a no-op read is a rejection on its own.
+16. **Never cheat the quest's own work.** An item, kill, craft, search or fetch the quest's own `.rs2` makes you do must be driven through clicks (`click_obj`, `use_on`, a real fight, `talk_to` + `chat.play`) -- `::give`/`::kill`/`::setvar` are for `setup` and for prerequisites Quest Helper lists as brought-along items (section 6's `canBeObtainedDuringQuest()` rule), never for the quest's own deliverable. The reviewer reads your file against the `.rs2` and rejects a hand-in it can show was cheated.
+17. **Resolve every `-- CHECK` before the first run, not after.** `lint_quest.py` without `--allow-check` refuses a file that still has one; `--allow-check` is only for the scaffold's freshly generated output, never for something handed to review.
+
 ## 6. Picking one up, scaffolding it, running it
 
 - Resuming: if `test/quests/<id>.lua` already exists and `queue.py show <id>` reports status `todo` with a `last_failure`, that file is the PREVIOUS author's rejected attempt -- read the failure and continue from it, never regenerate over it (`new_quest.py` refuses without `--force` anyway).
@@ -293,7 +294,5 @@ file if this drifts. A quest is green when:
 
 ## 8. Gaps reported by authors
 
-- Completion is asynchronous. The content defers `queue(<quest>_complete, 0, 0)` a tick past the last dialogue page (quest_druid.rs2 records why in its header), so `t.ticks(3)` between the final `chat.play`/`drain` and `quest.expect_complete()` is load-bearing, not padding -- without it the reward scroll has not landed and the `scroll.*` reads answer `not_visible`.
-- A `choose:` entry is not always followed by a `player:` page. The echo exists only where that branch opens with `~chatplayer*` (Fred's `[label,fred_yes_okay]` does; Kaqemeex's first confirm goes mesbox -> options again with no player page between). Read the branch in its `.rs2` before writing the `chat.play` list.
-- `chat.play` vs `chat.drain`. `play` asserts a page list you already read out of the `.rs2`, and puts every page in the ledger's detail; `drain{stop_at="options"}` is the one for a multi-stage dialogue where you choose at each step, because you cannot spell the pages after a branch until you have taken it. Two things `drain` will not do for you: it hands back a real detail that you must pass on (`t.expect(name, result, "ok")` writes a detail that only repeats the verdict -- pass the drain's own `detail`), and its last shot is the page BEFORE the menu, so add a `t.shot("<step>-options")` of your own or the menu you chose from is never photographed.
-- Finding a LOC's tile, not just an npc's. Section 2 sends you to Quest Helper's `WorldPoint` and to `configs/*.npc` for an npc; a searchable loc (Sir Vyvin's cupboard, a quest chest) carries its symbol and tile in the area's `configs/*.loc`, which section 2 names only under Doors. A `::give` of the item that loc would have handed you is not the fix for a coordinate you could not find -- and a `::give` you do make deliberately inside `run` needs its own `t.step` row naming the cheat (doric.lua's `doric.gather_clay`), or the ledger reads as a playthrough that went and got it.
+- Completion is asynchronous: `t.ticks(3)` between the final `chat.play`/`drain` and `quest.expect_complete()` is load-bearing, not padding. `chat.play` asserts a page list already read out of the `.rs2`; `chat.drain{stop_at="options"}` is for a branch you cannot spell until taken, but pass on its real `detail` and shot the menu yourself -- its own last shot is the page before it.
+- A `choose:` entry is not always followed by a `player:` page: the echo exists only where that branch opens with `~chatplayer*` (Fred's `[label,fred_yes_okay]` does; Kaqemeex's first confirm goes mesbox -> options again with no player page between). Read the branch in its `.rs2` before spelling the `chat.play` list.
