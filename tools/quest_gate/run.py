@@ -63,7 +63,12 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.path.insert(0, HERE)
+# append, never insert at 0: this directory holds queue.py (the QUEUE.tsv
+# tool), and at the front of sys.path it shadows the standard library's
+# `queue`, which concurrent.futures imports -- run.py --jobs N crashed on
+# ThreadPoolExecutor with "module 'queue' has no attribute 'SimpleQueue'"
+# (2026-09-20) and the full-suite re-run never ran a quest.
+sys.path.append(HERE)
 
 import build_support  # noqa: E402
 import ledger  # noqa: E402
