@@ -19,6 +19,8 @@
 -- resolved type id> }. QD.player.by_symbol is the only thing that builds one
 -- from a name; nothing else invents a numeric id here (ARCHITECT.md S2
 -- naming rule -- no numeric ids and no client op strings in driver Lua).
+-- For an npc that id is the LIVE one the client's entity carries, which on a
+-- multinpc is not the symbol's -- see QD.player._live_npc_id's banner.
 --
 -- THE INVENTORY CELL, which used to be the KNOWN GAP here: `enum
 -- DrivePickKind` now has DRIVE_PICK_INV_SLOT and the path behind it
@@ -127,10 +129,65 @@ function QD.player._line_by_serial(serial)
     return ""
 end
 
+-- THE MULTINPC MORPH -- why a target's id is not the symbol's id.
+--
+-- Measured 2026-09-19 (build/quest_gate/probe_halgrive, rows 3-6 and 9-12):
+-- the player stands ONE tile from Councillor Halgrive, `npc.by_symbol`
+-- answers `ok npc_id=8765 base=1115 ... name=Councillor Halgrive`, and
+-- `drive.screen_position` on the target this function built answers
+-- `not_found` -- from the default camera AND from all 24 hand-aimed
+-- (yaw, pitch, zoom) poses a probe swept.  The camera was never the problem:
+-- the ID was.
+--
+-- `councillor_halgrive` is id 1115 in all.npc.compack and its def
+-- (OSRS-Content/osrs239-content/configs/all.npc:29997) is a MULTINPC whose
+-- every `multinpcN=` slot is `councillor_halgrive_vis`, id 8765.  The server
+-- spawns and the wire sends 1115; the client resolves it through the multiNpc
+-- table and the live WorldEntity_NPC carries `npc_id = 8765` with
+-- `base_npc_id = 1115` (app_world_spawn.c:1464, app.h:3337).  2,458 of the
+-- pack's npc defs carry a `multinpc1=` line, so this is a class, not one npc
+-- -- `head_wizard` (Sedridor, Rune Mysteries) is another, and its QUEUE row
+-- blames "the NPC pool in multi-level locations" for exactly this.
+--
+-- App_NpcScreenPosition (src/app/app_plugin_api.c:171) filters the pool on
+-- `npc->npc_id != npc_id` -- the RESOLVED id, never the base -- and
+-- drive_pointer_screen_position_npc's found_any pre-check
+-- (torirs_plugin_drive_pointer.c:189) uses the same field, so handing either
+-- the symbol's 1115 answers `not_found` while the npc is on screen.  Every
+-- other reader in this family already matches the pair (`_target_tile` below,
+-- `QD.npc.by_symbol`); the projector is the one that cannot, because a
+-- WorldEntity_NPC's base is not what it draws.
+--
+-- So the target carries the LIVE id.  Exact npc_id matches win over base
+-- matches (both forms can be in the pool at once, and a symbol that names the
+-- live form must not be re-pointed at some other entity's base), and a symbol
+-- with no row in the pool at all keeps the symbol's own id -- that is the
+-- genuinely-absent case, and answering `not_found` for it is correct.
+function QD.player._live_npc_id(id)
+    local result, rows = api_drive.npcs(0)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return id
+    end
+    for i = 1, #rows do
+        if rows[i].npc_id == id then
+            return id
+        end
+    end
+    for i = 1, #rows do
+        if rows[i].base_npc_id == id and rows[i].npc_id ~= nil then
+            return rows[i].npc_id
+        end
+    end
+    return id
+end
+
 function QD.player.by_symbol(kind, name)
     local result, id = api_drive.symbol(kind, name)
     if result ~= "ok" then
         return nil, result, name
+    end
+    if kind == "npc" then
+        id = QD.player._live_npc_id(id)
     end
     return { kind = kind, id = id }, "ok"
 end
@@ -228,8 +285,28 @@ end
 function QD.drive._ensure_visible(target, deadline)
     deadline = deadline or 3
     local result, pos = api_drive.screen_position(target.kind, target.id)
-    if result == "ok" or result == "not_found" then
+    -- `not_found` on an npc is re-asked once against the LIVE id, for a target
+    -- a quest file built by hand rather than through QD.player.by_symbol (see
+    -- the multinpc banner there): the projector matches the resolved npc_id
+    -- and the symbol is the base.  The target is re-pointed in place so the
+    -- click that follows uses the same id the projection did.
+    if result == "not_found" and target.kind == "npc" then
+        local live = QD.player._live_npc_id(target.id)
+        if live ~= target.id then
+            target.id = live
+            result, pos = api_drive.screen_position(target.kind, target.id)
+        end
+    end
+    if result == "ok" then
         return result, pos
+    end
+    if result == "not_found" then
+        -- The C answers a bare nil here; a row that says only `not_found` is
+        -- indistinguishable from `not_visible` to whoever reads the ledger,
+        -- and the two are different bugs (absent from the pool vs. absent
+        -- from the frame).
+        return result, "no " .. target.kind .. " " .. tostring(target.id)
+            .. " in the client's entity pool"
     end
 
     local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
@@ -330,9 +407,20 @@ function QD.drive.click_minimenu(target, option, deadline)
 
     -- Frame it first: the pickset is stamped where the last frame RENDERED,
     -- and a target the camera is not looking at has no pixel to move to.
+    -- THE DETAIL IS _ensure_visible's, NOT THE WORD "screen_position".
+    --
+    -- This used to answer the bare word, and the bare word names nothing: the
+    -- sheepherder pilot's ledger read `talk-halgrive-1 FAIL ... screen_position`
+    -- for a `not_found` (the id the projector was asked for is not the id the
+    -- live npc carries -- see QD.player._live_npc_id) and the author read it as
+    -- "stand somewhere else", moved the goto, and failed again.  `not_visible`
+    -- with "yaw N framed nothing in 5 poses" and `not_found` with "no such npc
+    -- in the pool" are different bugs in different files, and the row has to
+    -- say which.  The word is kept at the front so the authoring page's
+    -- "`screen_position` from a `talk_to`" rule still matches the detail.
     local pos_result, pos = QD.drive._ensure_visible(target, deadline)
     if pos_result ~= "ok" then
-        return pos_result, "screen_position"
+        return pos_result, "screen_position: " .. tostring(pos)
     end
 
     -- Then press -- and if the menu that opens carries no row for this target,
