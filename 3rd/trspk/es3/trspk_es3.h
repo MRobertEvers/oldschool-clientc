@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_ES3_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_ES3_H
+#ifndef TRSPK_ES3_H
+#define TRSPK_ES3_H
 
 /*
  * The WebGL2 GPU renderer: OpenGL ES 3.0 core, no extensions.
@@ -49,7 +49,7 @@
  *   - each vertex layout owns a vertex array object, so changing stream is
  *     one call instead of four.
  *
- * platform_renderer_es3_core.h lists what ES 3.0 is used for, feature by
+ * 3rd/trspk/es3/es3_core.h lists what ES 3.0 is used for, feature by
  * feature, against what the ES2 renderer has to do instead.
  *
  * The public surface is the same shape as the D3D9 and GLES2 renderers'
@@ -70,7 +70,7 @@
 struct ClientScaleSettings;
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
-struct ToriRS_ES3;
+struct TRSPK_Renderer_ES3;
 
 #define TORIRS_ES3_BG 0xFF202428
 
@@ -81,43 +81,55 @@ struct ToriRS_ES3;
  * the LANE: the same code is "WebGL2" in a browser and "GLES3" on a phone.
  * Stored, not copied, so every caller passes a literal.
  */
-struct ToriRS_ES3*
-ToriRS_ES3_New(int width, int height, char const* name);
+struct TRSPK_Renderer_ES3*
+TRSPK_Renderer_ES3_New(int width, int height, char const* name);
 
 /** What the lane named this renderer. Never NULL. */
 char const*
-ToriRS_ES3_Name(struct ToriRS_ES3 const* renderer);
+TRSPK_Renderer_ES3_Name(struct TRSPK_Renderer_ES3 const* renderer);
 
 void
-ToriRS_ES3_Free(struct ToriRS_ES3* renderer);
+TRSPK_Renderer_ES3_Free(struct TRSPK_Renderer_ES3* renderer);
 
 /**
- * Bring up the GL context and every GPU resource.
+ * Bring up the GL context and every GPU resource, as ONE of the two
+ * renderers built on this core.
  *
- * `z_buffer` selects the depth-buffered world pass over the painter one -- the
- * same opt-in D3D9 has (`--d3d9-zbuffer`). It is decided here because the
- * depth buffer is part of the EGL config the context is created with, and the
- * caller must also put the app into TORIRS_WORLD_DEPTH so the visible set is
- * collected without the tile wavefront and the face-distance sort.
+ * There is no `z_buffer` flag any more, and no branch anywhere below these
+ * two functions that asks which one ran. They are two whole renderers --
+ * platform_androidarmv7_renderer_opengles3_painter.c and
+ * ..._zbuffer.c -- composed from the same toolkit; the caller picks one by
+ * calling it, and must keep calling that renderer's Execute, DrawBootBar
+ * and RenderFrame for the life of the handle.
+ *
+ * The depth buffer is part of the EGL config the context is created with,
+ * which is why the choice is made here and cannot be changed after. A
+ * caller choosing the depth renderer must also put the app into
+ * TORIRS_WORLD_DEPTH so the visible set is collected without the tile
+ * wavefront and the face-distance sort.
  */
 bool
-ToriRS_ES3_Init(
-    struct ToriRS_ES3* renderer,
-    ToriRS_GLWindow* window,
-    struct ToriDraw_Scene* scene,
-    bool z_buffer);
+TRSPK_Renderer_ES3_PainterInit(
+    struct TRSPK_Renderer_ES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+bool
+TRSPK_Renderer_ES3_ZBufferInit(
+    struct TRSPK_Renderer_ES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
 
 /** Point the renderer at a new canvas size. Only the letterbox and the 2D
  *  projection depend on it; nothing is reallocated. */
 void
-ToriRS_ES3_SetViewport(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetViewport(
+    struct TRSPK_Renderer_ES3* renderer,
     int width,
     int height);
 
 void
-ToriRS_ES3_SetInterfaceScaleMode(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetInterfaceScaleMode(
+    struct TRSPK_Renderer_ES3* renderer,
     int mode);
 
 /**
@@ -126,19 +138,24 @@ ToriRS_ES3_SetInterfaceScaleMode(
  * offscreen buffer and sampled onto the output rect with the output filter.
  */
 void
-ToriRS_ES3_SetClientScaling(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetClientScaling(
+    struct TRSPK_Renderer_ES3* renderer,
     struct ClientScaleSettings const* settings);
 
 void
-ToriRS_ES3_SetPick(struct ToriRS_ES3* renderer, int mouse_x, int mouse_y);
+TRSPK_Renderer_ES3_SetPick(struct TRSPK_Renderer_ES3* renderer, int mouse_x, int mouse_y);
 
 struct ToriRS_PickHits const*
-ToriRS_ES3_PickHits(struct ToriRS_ES3 const* renderer);
+TRSPK_Renderer_ES3_PickHits(struct TRSPK_Renderer_ES3 const* renderer);
 
+/** Whichever renderer was Init'd, and only that one. */
 void
-ToriRS_ES3_Execute(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_PainterExecute(
+    struct TRSPK_Renderer_ES3* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+TRSPK_Renderer_ES3_ZBufferExecute(
+    struct TRSPK_Renderer_ES3* renderer,
     struct ToriRS_RenderCommand const* command);
 
 /**
@@ -150,14 +167,22 @@ ToriRS_ES3_Execute(
  * renderer was initialised with.
  */
 void
-ToriRS_ES3_DrawBootBar(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_PainterDrawBootBar(
+    struct TRSPK_Renderer_ES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+TRSPK_Renderer_ES3_ZBufferDrawBootBar(
+    struct TRSPK_Renderer_ES3* renderer,
     int progress,
     int caption_font_id,
     char const* caption);
 
 void
-ToriRS_ES3_RenderFrame(struct ToriRS_ES3* renderer, struct ToriRS_Frame* frame);
+TRSPK_Renderer_ES3_PainterRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
+void
+TRSPK_Renderer_ES3_ZBufferRenderFrame(struct TRSPK_Renderer_ES3* renderer, struct ToriRS_Frame* frame);
 
 /**
  * The pixels behind a rotated-masked sprite (the minimap bake) were rewritten
@@ -168,7 +193,7 @@ ToriRS_ES3_RenderFrame(struct ToriRS_ES3* renderer, struct ToriRS_Frame* frame);
  * caller holds no renderer) and safe to call with no renderer alive.
  */
 void
-ToriRS_ES3_RotmaskSourceChanged(void);
+TRSPK_Renderer_ES3_RotmaskSourceChanged(void);
 
 /**
  * Read the frame back off the device into `pixels`, top-down ARGB, sampled
@@ -182,8 +207,8 @@ ToriRS_ES3_RotmaskSourceChanged(void);
  * actually pending.
  */
 bool
-ToriRS_ES3_ReadPixels(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_ReadPixels(
+    struct TRSPK_Renderer_ES3* renderer,
     int* pixels,
     int width,
     int height);

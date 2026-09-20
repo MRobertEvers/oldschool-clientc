@@ -16,7 +16,7 @@ static int checks;
     } while( 0 )
 static void
 same(
-    struct ToriRS_GLES2* r,
+    struct ToriPlatformAndroid_Renderer_GLES2* r,
     int id,
     int track,
     int pose)
@@ -30,7 +30,7 @@ same(
 int
 main(void)
 {
-    struct ToriRS_GLES2* r = calloc(1, sizeof(*r));
+    struct ToriPlatformAndroid_Renderer_GLES2* r = calloc(1, sizeof(*r));
     CHECK(r);
     r->static_primary_enabled = true;
     r->static_batch_count = 1;

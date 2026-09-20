@@ -370,8 +370,8 @@ App_Init(
     assert(app->scene);
     /* Once each, not once a frame: the outline/shadow LRU inside a renderer is
      * only worth having if it survives the frame that filled it. */
-    app->soft = ToriRS_Soft3D_New();
-    app->soft_chrome = ToriRS_Soft3D_New();
+    app->soft = ToriPlatform_Renderer_Soft3D_New();
+    app->soft_chrome = ToriPlatform_Renderer_Soft3D_New();
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
@@ -1271,11 +1271,11 @@ App_Shutdown(struct App* app)
         UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
-    ToriRS_Soft3D_Free(app->soft_chrome);
+    ToriPlatform_Renderer_Soft3D_Free(app->soft_chrome);
     free(app->panel_custom_pixels);
     app->panel_custom_pixels = NULL;
     app->panel_custom_pixel_capacity = 0;
-    ToriRS_Soft3D_Free(app->soft);
+    ToriPlatform_Renderer_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
     /* Only the pair matching cfg.cache_kind was ever created; both frees assert
      * on NULL, so the unused side must not be handed to them. */

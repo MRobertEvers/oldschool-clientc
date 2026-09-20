@@ -2,7 +2,7 @@
 static struct { FILE* f; unsigned count,limit,first; bool initialized,active,done; const char* path; } bake_capture;
 static void bc_write(const void* p,size_t n)
 { if(n && fwrite(p,1,n,bake_capture.f)!=n) {perror("bake capture");abort();} }
-static void es2_bake_capture_begin(struct ToriRS_ES2* r,struct ToriDraw_ModelHandle handle,
+static void es2_bake_capture_begin(struct TRSPK_Renderer_ES2* r,struct ToriDraw_ModelHandle handle,
     const struct ToriDraw_Position* pos,const int* order,int count)
 {
     bake_capture.active=false;

@@ -21,7 +21,7 @@
  *
  *   make test-es3-index-pack
  */
-#include "platform/platform_renderer_es3_indices.h"
+#include "es3/es3_indices.h"
 
 #include <stdio.h>
 #include <string.h>

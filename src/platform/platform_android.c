@@ -846,7 +846,7 @@ PlatformWindow_InitForOpenGL3(struct PlatformWindow* p, int width, int height, c
     p->height = height;
 
     /*
-     * The context itself is created by the renderer's ToriRS_GLES2_Init,
+     * The context itself is created by the renderer's ToriPlatformAndroid_Renderer_GLES2_Init,
      * through the platform_gl_context.h seam -- which on this lane is
      * platform_android_gl.c (EGL). It is not created here because the
      * renderer decides the attributes it needs (depth, above all), and it has
@@ -857,7 +857,7 @@ PlatformWindow_InitForOpenGL3(struct PlatformWindow* p, int width, int height, c
     return true;
 }
 
-ToriRS_GLWindow*
+ToriPlatform_GLWindow*
 PlatformWindow_GLWindow(struct PlatformWindow* p)
 {
     assert(p);
@@ -868,7 +868,7 @@ PlatformWindow_GLWindow(struct PlatformWindow* p)
      * Surface for itself. Non-NULL is the honest answer here: NULL would read
      * as "this platform has no window" to a caller checking for one.
      */
-    return (ToriRS_GLWindow*)p;
+    return (ToriPlatform_GLWindow*)p;
 }
 
 void*

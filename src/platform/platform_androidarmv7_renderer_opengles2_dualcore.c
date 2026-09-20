@@ -5,8 +5,8 @@
 
 #include "log/torirs_log.h"
 #include "painters/painters.h"
-#include "platform/platform_renderer_es2.h"
-#include "platform/platform_renderer_es2_core.h"
+#include "es2/trspk_es2.h"
+#include "es2/es2_core.h"
 #include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
 #include "render/torirs_frame.h"
 #include "render/torirs_pick.h"
@@ -94,9 +94,14 @@ struct GLES2DualCore_KernelKnob
 
 #define GLES2_DUALCORE_KERNEL_KNOBS 3
 
-struct ToriRS_GLES2DualCore
+struct ToriPlatformAndroid_Renderer_GLES2_DualCore
 {
-    struct ToriRS_ES2* renderer;
+    struct TRSPK_Renderer_ES2* renderer;
+    /* Which of the two renderers over ::renderer's handle the caller brought
+     * up. Answered once, at ToriPlatformAndroid_Renderer_GLES2_DualCore_New: there is no mode field
+     * on the renderer to read it back from, and this lane calls the depth or
+     * the painter entry points directly. */
+    bool z_buffer;
 
     /* The scratch view of the renderer's scene, and which scene it views. */
     struct ToriDraw_Scene* view;
@@ -339,7 +344,7 @@ dualcore_env_long(char const* name, long fallback)
 /* ---- the worker ------------------------------------------------------------ */
 
 static void
-dualcore_worker_pass(struct ToriRS_GLES2DualCore* lane)
+dualcore_worker_pass(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     struct GLES2DualCoreStageArena* arena = &lane->arena;
     const struct ToriRS_RenderCommand* entry;
@@ -429,7 +434,7 @@ done:
  * unprivileged threads, presumably for its hotplug governor's sake. Kept
  * for kernels that honour it; the lane must not depend on it. */
 static void
-dualcore_pin_to_cpu(struct ToriRS_GLES2DualCore* lane, int cpu, char const* who)
+dualcore_pin_to_cpu(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, int cpu, char const* who)
 {
 #if defined(__linux__)
     cpu_set_t set;
@@ -457,7 +462,7 @@ dualcore_pin_to_cpu(struct ToriRS_GLES2DualCore* lane, int cpu, char const* who)
 }
 
 static void
-dualcore_worker_pin(struct ToriRS_GLES2DualCore* lane)
+dualcore_worker_pin(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     if( lane->pin == 1 || lane->pin == 2 )
         dualcore_pin_to_cpu(lane, 1, "worker");
@@ -470,7 +475,7 @@ dualcore_worker_pin(struct ToriRS_GLES2DualCore* lane)
  * pinned to it with its mask reset to all CPUs. One sched_setaffinity a
  * frame is a microsecond. */
 static void
-dualcore_draw_pin(struct ToriRS_GLES2DualCore* lane)
+dualcore_draw_pin(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     if( lane->pin == 2 )
         dualcore_pin_to_cpu(lane, 0, "draw");
@@ -481,7 +486,7 @@ dualcore_draw_pin(struct ToriRS_GLES2DualCore* lane)
 static void*
 dualcore_worker_main(void* argument)
 {
-    struct ToriRS_GLES2DualCore* lane = (struct ToriRS_GLES2DualCore*)argument;
+    struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane = (struct ToriPlatformAndroid_Renderer_GLES2_DualCore*)argument;
     uint32_t serial;
 
 #if defined(__linux__)
@@ -533,7 +538,7 @@ dualcore_worker_main(void* argument)
 static void
 dualcore_source_begin_3d(void* user, const struct ToriRS_RenderCommand_Begin3D* command)
 {
-    struct ToriRS_GLES2DualCore* lane = (struct ToriRS_GLES2DualCore*)user;
+    struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane = (struct ToriPlatformAndroid_Renderer_GLES2_DualCore*)user;
     assert(lane);
     assert(command);
     assert(lane->armed);
@@ -577,7 +582,7 @@ dualcore_source_take(
     const struct ToriRS_RenderCommand_Model* command,
     struct ES2ModelStage* out)
 {
-    struct ToriRS_GLES2DualCore* lane = (struct ToriRS_GLES2DualCore*)user;
+    struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane = (struct ToriPlatformAndroid_Renderer_GLES2_DualCore*)user;
     struct GLES2DualCoreStageArena* arena;
     const struct GLES2DualCoreStageResult* result;
     uint32_t index;
@@ -736,7 +741,7 @@ acquired_result:
 /* ---- the frame (draw thread) ----------------------------------------------------- */
 
 static void
-dualcore_join_worker(struct ToriRS_GLES2DualCore* lane)
+dualcore_join_worker(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     uint64_t const began = dualcore_now_ns();
     pthread_mutex_lock(&lane->lock);
@@ -753,9 +758,9 @@ dualcore_join_worker(struct ToriRS_GLES2DualCore* lane)
 }
 
 static bool
-dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+dualcore_arm(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame)
 {
-    struct ToriRS_ES2* renderer = lane->renderer;
+    struct TRSPK_Renderer_ES2* renderer = lane->renderer;
 
     if( !lane->enabled || !renderer->scene || !frame->world || !frame->painters )
         return false;
@@ -798,7 +803,7 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
     lane->context.pick_enabled = renderer->pick_enabled;
     lane->context.pick_mouse_x = renderer->pick_mouse_x;
     lane->context.pick_mouse_y = renderer->pick_mouse_y;
-    lane->context.zbuffer = renderer->zbuffer != NULL;
+    lane->context.zbuffer = lane->z_buffer;
     /* armv7: this renderer applies animations resolved, so the worker always
      * prepares GPU poses. @see es2_apply_animation. */
     frame->prepare_gpu_poses=true;
@@ -827,7 +832,7 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
  * pass's END_3D, at the end of the bus, or when the feed is full.
  */
 static void
-dualcore_translate_ahead(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+dualcore_translate_ahead(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame)
 {
     struct GLES2DualCoreStageArena* arena = &lane->arena;
 
@@ -870,7 +875,7 @@ dualcore_translate_ahead(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame*
  * pointer is live until the next call.
  */
 static const struct ToriRS_RenderCommand*
-dualcore_next_command(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+dualcore_next_command(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame)
 {
     struct GLES2DualCoreStageArena* arena = &lane->arena;
 
@@ -890,7 +895,7 @@ dualcore_next_command(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* fr
 /* The element id of the DRAW_MODEL `ahead` entries past the dispatch cursor,
  * or -1: the input the renderer's prefetch pipeline wants. */
 static int
-dualcore_ahead_element_id(const struct ToriRS_GLES2DualCore* lane, uint32_t ahead)
+dualcore_ahead_element_id(const struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, uint32_t ahead)
 {
     const struct ToriRS_RenderCommand* command;
     if( lane->dispatched + ahead >= lane->arena.feed_count )
@@ -900,9 +905,9 @@ dualcore_ahead_element_id(const struct ToriRS_GLES2DualCore* lane, uint32_t ahea
 }
 
 static void
-dualcore_render_frame_commands(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+dualcore_render_frame_commands(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame)
 {
-    struct ToriRS_ES2* renderer = lane->renderer;
+    struct TRSPK_Renderer_ES2* renderer = lane->renderer;
     const struct ToriRS_RenderCommand* command;
 
     while( (command = dualcore_next_command(lane, frame)) != NULL )
@@ -913,7 +918,13 @@ dualcore_render_frame_commands(struct ToriRS_GLES2DualCore* lane, struct ToriRS_
             dualcore_ahead_element_id(lane, 0u),
             dualcore_ahead_element_id(lane, 1u),
             dualcore_ahead_element_id(lane, 2u));
-        ToriRS_ES2_Execute(renderer, command);
+        /* Whichever renderer this lane was made over. The selection is the
+         * lane's, made once at ToriPlatformAndroid_Renderer_GLES2_DualCore_New; neither renderer
+         * carries a mode to ask about. */
+        if( lane->z_buffer )
+            TRSPK_Renderer_ES2_ZBufferExecute(renderer, command);
+        else
+            TRSPK_Renderer_ES2_PainterExecute(renderer, command);
     }
     GLES2DualCoreStageArena_FeedClose(&lane->arena);
 }
@@ -957,7 +968,7 @@ dualcore_knob_arms(char const* env, int max, int* arms)
  * and a -1 there means "not read yet".
  */
 static void
-dualcore_kernel_knobs_init(struct ToriRS_GLES2DualCore* lane)
+dualcore_kernel_knobs_init(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     struct GLES2DualCore_KernelKnob const table[GLES2_DUALCORE_KERNEL_KNOBS] = {
         /* env, label, target, max */
@@ -990,7 +1001,7 @@ dualcore_kernel_knobs_init(struct ToriRS_GLES2DualCore* lane)
 }
 
 static bool
-dualcore_ab_armed(const struct ToriRS_GLES2DualCore* lane)
+dualcore_ab_armed(const struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     unsigned i;
 
@@ -1007,7 +1018,7 @@ dualcore_ab_armed(const struct ToriRS_GLES2DualCore* lane)
 /* Every kernel knob's live value, for the debug line: the arms only mean
  * something next to the numbers they produced. */
 static void
-dualcore_knob_summary(const struct ToriRS_GLES2DualCore* lane, char* out, size_t cap)
+dualcore_knob_summary(const struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, char* out, size_t cap)
 {
     size_t off = 0;
     unsigned i;
@@ -1033,7 +1044,7 @@ dualcore_knob_summary(const struct ToriRS_GLES2DualCore* lane, char* out, size_t
 }
 
 static void
-dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
+dualcore_debug_line(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     struct timespec ts;
     uint64_t draw_cpu_ns = 0u;
@@ -1136,9 +1147,9 @@ dualcore_debug_line(struct ToriRS_GLES2DualCore* lane)
 }
 
 void
-ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
+ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame)
 {
-    struct ToriRS_ES2* renderer;
+    struct TRSPK_Renderer_ES2* renderer;
 
     assert(lane);
     assert(frame);
@@ -1147,7 +1158,8 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
     lane->armed = false;
     lane->kicked = false;
 
-    if( !es2_render_frame_begin(renderer) )
+    if( !(lane->z_buffer ? es2z_render_frame_begin(renderer)
+                         : es2p_render_frame_begin(renderer)) )
         return;
 #if defined(TORIRS_PIPELINE_PMU)
     pipeline_pmu_frame_begin(renderer);
@@ -1163,7 +1175,12 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
         dualcore_render_frame_commands(lane, frame);
     }
     else
-        es2_render_frame_commands(renderer, frame);
+    {
+        if( lane->z_buffer )
+            es2z_render_frame_commands(renderer, frame);
+        else
+            es2p_render_frame_commands(renderer, frame);
+    }
     if( lane->armed )
     {
         /* Before the frame ends: ToriRS_FrameEnd frees the scene's pending
@@ -1180,7 +1197,10 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
     }
     renderer->poses_prepared=false;
     ToriRS_FrameEnd(frame);
-    es2_render_frame_end(renderer);
+    if( lane->z_buffer )
+        es2z_render_frame_end(renderer);
+    else
+        es2p_render_frame_end(renderer);
 #if defined(TORIRS_PIPELINE_PMU)
     pipeline_pmu_frame_end(lane);
 #endif
@@ -1193,18 +1213,19 @@ ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriR
 
 /* ---- lifetime -------------------------------------------------------------------- */
 
-struct ToriRS_GLES2DualCore*
-ToriRS_GLES2DualCore_New(struct ToriRS_ES2* renderer)
+struct ToriPlatformAndroid_Renderer_GLES2_DualCore*
+ToriPlatformAndroid_Renderer_GLES2_DualCore_New(struct TRSPK_Renderer_ES2* renderer, bool z_buffer)
 {
-    struct ToriRS_GLES2DualCore* lane;
+    struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane;
     long warmup;
 
     assert(renderer);
     /* calloc need not honor the arena's extended 64-byte alignment. */
-    if( posix_memalign((void**)&lane, _Alignof(struct ToriRS_GLES2DualCore), sizeof(*lane)) )
+    if( posix_memalign((void**)&lane, _Alignof(struct ToriPlatformAndroid_Renderer_GLES2_DualCore), sizeof(*lane)) )
         return NULL;
     memset(lane, 0, sizeof(*lane));
     lane->renderer = renderer;
+    lane->z_buffer = z_buffer;
     GLES2DualCoreStageArena_Init(&lane->arena);
     lane->source.user = lane;
     lane->source.take = dualcore_source_take;
@@ -1289,7 +1310,7 @@ ToriRS_GLES2DualCore_New(struct ToriRS_ES2* renderer)
 }
 
 void
-ToriRS_GLES2DualCore_Free(struct ToriRS_GLES2DualCore* lane)
+ToriPlatformAndroid_Renderer_GLES2_DualCore_Free(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     if( !lane )
         return;

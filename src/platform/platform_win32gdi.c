@@ -1289,7 +1289,7 @@ PlatformWindow_InitForOpenGL3(struct PlatformWindow* p, int width, int height, c
     return false;
 }
 
-ToriRS_GLWindow*
+ToriPlatform_GLWindow*
 PlatformWindow_GLWindow(struct PlatformWindow* p)
 {
     (void)p;

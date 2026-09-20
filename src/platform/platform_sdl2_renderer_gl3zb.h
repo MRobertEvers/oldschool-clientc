@@ -31,7 +31,7 @@
  * ## What it needs from the caller
  *
  * The context must have a depth buffer, which is decided at
- * ToriRS_GL3_Init. The app must also be in TORIRS_WORLD_DEPTH so the visible
+ * ToriPlatformSDL2_Renderer_GL3_Init. The app must also be in TORIRS_WORLD_DEPTH so the visible
  * set is collected without the tile wavefront and the opaque face-distance
  * sort; without that the mode is correct but pays for work it discards.
  */
@@ -40,18 +40,18 @@
 
 struct ToriDraw_Camera;
 struct ToriDraw_Scene;
-struct ToriRS_GL3;
+struct ToriPlatformSDL2_Renderer_GL3;
 struct ToriRS_RenderCommand_Model;
 
 /** Release the pass's buffers. Safe on a renderer that never used the mode. */
 void
-GL3ZB_Free(struct ToriRS_GL3* renderer);
+GL3ZB_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 /** Clear depth for one world pass, scissored to the world viewport so the UI
  *  around it is untouched. */
 void
 GL3ZB_BeginPass(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int gl_x,
     int gl_y,
     int gl_w,
@@ -61,18 +61,18 @@ GL3ZB_BeginPass(
  *  Call after the shared matrices are built. */
 void
 GL3ZB_ApplyProjectionDepth(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     const struct ToriDraw_Camera* camera);
 
 /** Depth test/write state for the opaque pass. */
 void
-GL3ZB_BindDrawState(struct ToriRS_GL3* renderer);
+GL3ZB_BindDrawState(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 /** Classify one world model's faces and submit them: opaque now, translucent
  *  queued for GL3ZB_DrawAlphaPass. */
 void
 GL3ZB_SubmitModel(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Model const* mcmd,
     struct ToriDraw_Scene* ctx,
     uint32_t group,
@@ -81,7 +81,7 @@ GL3ZB_SubmitModel(
 
 /** Draw the queued translucent models, back to front. No-op when none. */
 void
-GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer);
+GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 /*
  * Drop a cached face classification.
@@ -94,18 +94,18 @@ GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer);
  */
 void
 GL3ZB_ForgetElement(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id);
 
 void
 GL3ZB_ForgetTrack(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index);
 
 /** Drop the frame's queue. Must run even on a frame that bailed early, or its
  *  models would be drawn against the next frame's depth buffer and camera. */
 void
-GL3ZB_ResetFrame(struct ToriRS_GL3* renderer);
+GL3ZB_ResetFrame(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 #endif

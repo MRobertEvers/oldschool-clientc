@@ -40,7 +40,7 @@
  */
 static enum GL3WorldFacePass
 gl3_world_face_pass(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriDraw_ModelHandle handle,
     uint32_t face)
 {
@@ -99,7 +99,7 @@ gl3_material_pose_clear(struct GL3MaterialPose* pose)
 static bool
 gl3_material_pose_set(
     struct GL3MaterialPose* pose,
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriDraw_ModelHandle handle)
 {
     int face_count = trspk_toridraw_face_count(handle);
@@ -154,7 +154,7 @@ gl3_material_table_get(
 static const struct GL3MaterialPose*
 gl3_material_table_set(
     struct GL3MaterialTable* table,
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -217,7 +217,7 @@ gl3_material_table_set(
 /* Cached lookup, classifying on first use. */
 static const struct GL3MaterialPose*
 gl3_material_for(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -233,7 +233,7 @@ gl3_material_for(
 
 void
 GL3ZB_ForgetElement(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id)
 {
     struct GL3MaterialTable* table;
@@ -255,7 +255,7 @@ GL3ZB_ForgetElement(
 
 void
 GL3ZB_ForgetTrack(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index)
 {
@@ -303,7 +303,7 @@ gl3_material_table_free(struct GL3MaterialTable* table)
  */
 static bool
 gl3_reserve_model_indices(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t count)
 {
     if( count <= renderer->model_index_capacity )
@@ -324,7 +324,7 @@ gl3_reserve_model_indices(
 /* Hold one model's translucent faces for the sorted pass. */
 static bool
 gl3_queue_alpha_submission(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t group,
     int depth,
     const uint32_t* indices,
@@ -390,7 +390,7 @@ gl3_queue_alpha_submission(
  */
 void
 GL3ZB_SubmitModel(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Model const* mcmd,
     struct ToriDraw_Scene* ctx,
     uint32_t group,
@@ -481,7 +481,7 @@ GL3ZB_SubmitModel(
  */
 static void
 gl3_draw_indices32(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t group,
     const uint32_t* idx,
     uint32_t count)
@@ -524,7 +524,7 @@ gl3_alpha_order_cmp(
  * because the order is only known once every model has been submitted.
  */
 void
-GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer)
+GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !renderer->z_buffer_enabled || renderer->alpha_submission_count == 0u )
         return;
@@ -576,7 +576,7 @@ GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer)
 
 
 void
-GL3ZB_Free(struct ToriRS_GL3* renderer)
+GL3ZB_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !renderer )
         return;
@@ -597,7 +597,7 @@ GL3ZB_Free(struct ToriRS_GL3* renderer)
 }
 
 void
-GL3ZB_ResetFrame(struct ToriRS_GL3* renderer)
+GL3ZB_ResetFrame(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     assert(renderer);
     renderer->alpha_submission_count = 0u;
@@ -606,7 +606,7 @@ GL3ZB_ResetFrame(struct ToriRS_GL3* renderer)
 
 void
 GL3ZB_BeginPass(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int gl_x,
     int gl_y,
     int gl_w,
@@ -633,7 +633,7 @@ GL3ZB_BeginPass(
 
 void
 GL3ZB_ApplyProjectionDepth(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     const struct ToriDraw_Camera* camera)
 {
     float near_z;
@@ -664,7 +664,7 @@ GL3ZB_ApplyProjectionDepth(
 }
 
 void
-GL3ZB_BindDrawState(struct ToriRS_GL3* renderer)
+GL3ZB_BindDrawState(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     (void)renderer;
     /* LEQUAL, not LESS: coplanar geometry submitted twice (a decor plane on its

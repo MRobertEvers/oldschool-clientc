@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_ES2_SHADERS_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_ES2_SHADERS_H
+#ifndef TRSPK_ES2_SHADERS_H
+#define TRSPK_ES2_SHADERS_H
 
 /*
  * GLSL ES 1.00, and deliberately as little of it as possible.

@@ -118,8 +118,8 @@ android_gl_sync_surface(void)
     return 1;
 }
 
-ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client)
+ToriPlatform_GLContext
+ToriPlatform_GLContext_Create(ToriPlatform_GLWindow* window, int depth_bits, enum ToriPlatform_GLClient client)
 {
     /*
      * The renderable type the caller's GL needs, and a config whose depth size
@@ -142,7 +142,7 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
      * as WebGL2) and --gles3 selects it. The XT1060's Adreno 320 reports
      * ro.opengles.version 196608, which is ES 3.0 exactly.
      */
-    EGLint const renderable = client == TORIRS_GL_CLIENT_ES3 ? 0x0040 : EGL_OPENGL_ES2_BIT;
+    EGLint const renderable = client == TORIPLATFORM_GL_CLIENT_ES3 ? 0x0040 : EGL_OPENGL_ES2_BIT;
     EGLint const attribs[] = {
         EGL_RENDERABLE_TYPE, renderable,
         EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
@@ -153,14 +153,14 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         EGL_NONE
     };
     EGLint const context_attribs[] = {
-        EGL_CONTEXT_CLIENT_VERSION, client == TORIRS_GL_CLIENT_ES3 ? 3 : 2, EGL_NONE
+        EGL_CONTEXT_CLIENT_VERSION, client == TORIPLATFORM_GL_CLIENT_ES3 ? 3 : 2, EGL_NONE
     };
     EGLint config_count = 0;
 
     (void)window; /* there is exactly one Surface; @see platform_gl_context.h */
 
     if( g_context != EGL_NO_CONTEXT )
-        return (ToriRS_GLContext)g_context; /* already up */
+        return (ToriPlatform_GLContext)g_context; /* already up */
 
     {
         /* The lever, read once: unset or anything but "0" is on. */
@@ -271,14 +271,14 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
             ANDROID_LOG_TAG,
             "EGL/ES%d context up: config %d rgba %d%d%d%d depth %d (asked %d) "
             "stencil %d sample_buffers %d samples %d",
-            client == TORIRS_GL_CLIENT_ES3 ? 3 : 2,
+            client == TORIPLATFORM_GL_CLIENT_ES3 ? 3 : 2,
             cfg_id, r, g, b, a, d, depth_bits, s, sample_buffers, samples);
     }
-    return (ToriRS_GLContext)g_context;
+    return (ToriPlatform_GLContext)g_context;
 }
 
 int
-ToriRS_GLContext_MakeCurrent(ToriRS_GLWindow* window, ToriRS_GLContext context)
+ToriPlatform_GLContext_MakeCurrent(ToriPlatform_GLWindow* window, ToriPlatform_GLContext context)
 {
     (void)window;
     (void)context;
@@ -307,7 +307,7 @@ ToriRS_GLContext_MakeCurrent(ToriRS_GLWindow* window, ToriRS_GLContext context)
 }
 
 void
-ToriRS_GLContext_Delete(ToriRS_GLContext context)
+ToriPlatform_GLContext_Delete(ToriPlatform_GLContext context)
 {
     (void)context;
 
@@ -328,7 +328,7 @@ ToriRS_GLContext_Delete(ToriRS_GLContext context)
 }
 
 void
-ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_height)
+ToriPlatform_GLContext_DrawableSize(ToriPlatform_GLWindow* window, int* out_width, int* out_height)
 {
     EGLint w = 0;
     EGLint h = 0;
@@ -377,14 +377,14 @@ ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_
 }
 
 void
-ToriRS_GLContext_SetSwapInterval(int interval)
+ToriPlatform_GLContext_SetSwapInterval(int interval)
 {
     if( g_display != EGL_NO_DISPLAY )
         eglSwapInterval(g_display, interval);
 }
 
 char const*
-ToriRS_GLContext_LastError(void)
+ToriPlatform_GLContext_LastError(void)
 {
     return g_error;
 }

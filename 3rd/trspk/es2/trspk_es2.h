@@ -1,5 +1,5 @@
-#ifndef SRC_PLATFORM_PLATFORM_RENDERER_ES2_H
-#define SRC_PLATFORM_PLATFORM_RENDERER_ES2_H
+#ifndef TRSPK_ES2_H
+#define TRSPK_ES2_H
 
 /*
  * The GLES2 GPU renderer: OpenGL ES 2.0, core profile, NO extensions.
@@ -46,7 +46,7 @@
 struct ClientScaleSettings;
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
-struct ToriRS_ES2;
+struct TRSPK_Renderer_ES2;
 
 #define TORIRS_GLES2_BG 0xFF202428
 
@@ -60,15 +60,15 @@ struct ToriRS_ES2;
  * (platform_androidarmv7_renderer_opengles2.c, platform_web_renderer_webgl1.c). It is stored, not
  * copied, so it must outlive the renderer -- every caller passes a literal.
  */
-struct ToriRS_ES2*
-ToriRS_ES2_New(int width, int height, char const* name);
+struct TRSPK_Renderer_ES2*
+TRSPK_Renderer_ES2_New(int width, int height, char const* name);
 
 /** What the lane named this renderer. Never NULL. */
 char const*
-ToriRS_ES2_Name(struct ToriRS_ES2 const* renderer);
+TRSPK_Renderer_ES2_Name(struct TRSPK_Renderer_ES2 const* renderer);
 
 void
-ToriRS_ES2_Free(struct ToriRS_ES2* renderer);
+TRSPK_Renderer_ES2_Free(struct TRSPK_Renderer_ES2* renderer);
 
 /**
  * Bring up the GL context and every GPU resource.
@@ -80,23 +80,27 @@ ToriRS_ES2_Free(struct ToriRS_ES2* renderer);
  * collected without the tile wavefront and the face-distance sort.
  */
 bool
-ToriRS_ES2_Init(
-    struct ToriRS_ES2* renderer,
-    ToriRS_GLWindow* window,
-    struct ToriDraw_Scene* scene,
-    bool z_buffer);
+TRSPK_Renderer_ES2_PainterInit(
+    struct TRSPK_Renderer_ES2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+bool
+TRSPK_Renderer_ES2_ZBufferInit(
+    struct TRSPK_Renderer_ES2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
 
 /** Point the renderer at a new canvas size. Only the letterbox and the 2D
  *  projection depend on it; nothing is reallocated. */
 void
-ToriRS_ES2_SetViewport(
-    struct ToriRS_ES2* renderer,
+TRSPK_Renderer_ES2_SetViewport(
+    struct TRSPK_Renderer_ES2* renderer,
     int width,
     int height);
 
 void
-ToriRS_ES2_SetInterfaceScaleMode(
-    struct ToriRS_ES2* renderer,
+TRSPK_Renderer_ES2_SetInterfaceScaleMode(
+    struct TRSPK_Renderer_ES2* renderer,
     int mode);
 
 /**
@@ -105,19 +109,26 @@ ToriRS_ES2_SetInterfaceScaleMode(
  * offscreen buffer and sampled onto the output rect with the output filter.
  */
 void
-ToriRS_ES2_SetClientScaling(
-    struct ToriRS_ES2* renderer,
+TRSPK_Renderer_ES2_SetClientScaling(
+    struct TRSPK_Renderer_ES2* renderer,
     struct ClientScaleSettings const* settings);
 
 void
-ToriRS_ES2_SetPick(struct ToriRS_ES2* renderer, int mouse_x, int mouse_y);
+TRSPK_Renderer_ES2_SetPick(struct TRSPK_Renderer_ES2* renderer, int mouse_x, int mouse_y);
 
 struct ToriRS_PickHits const*
-ToriRS_ES2_PickHits(struct ToriRS_ES2 const* renderer);
+TRSPK_Renderer_ES2_PickHits(struct TRSPK_Renderer_ES2 const* renderer);
 
+/* Whichever renderer was Init'd, and only that one. There is no flag and
+ * no mode field: two whole renderers over one handle, composed from the
+ * same toolkit, selected by which of these the caller calls. */
 void
-ToriRS_ES2_Execute(
-    struct ToriRS_ES2* renderer,
+TRSPK_Renderer_ES2_PainterExecute(
+    struct TRSPK_Renderer_ES2* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+TRSPK_Renderer_ES2_ZBufferExecute(
+    struct TRSPK_Renderer_ES2* renderer,
     struct ToriRS_RenderCommand const* command);
 
 /**
@@ -129,14 +140,22 @@ ToriRS_ES2_Execute(
  * renderer was initialised with.
  */
 void
-ToriRS_ES2_DrawBootBar(
-    struct ToriRS_ES2* renderer,
+TRSPK_Renderer_ES2_PainterDrawBootBar(
+    struct TRSPK_Renderer_ES2* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+TRSPK_Renderer_ES2_ZBufferDrawBootBar(
+    struct TRSPK_Renderer_ES2* renderer,
     int progress,
     int caption_font_id,
     char const* caption);
 
 void
-ToriRS_ES2_RenderFrame(struct ToriRS_ES2* renderer, struct ToriRS_Frame* frame);
+TRSPK_Renderer_ES2_PainterRenderFrame(struct TRSPK_Renderer_ES2* renderer, struct ToriRS_Frame* frame);
+void
+TRSPK_Renderer_ES2_ZBufferRenderFrame(struct TRSPK_Renderer_ES2* renderer, struct ToriRS_Frame* frame);
 
 /**
  * The pixels behind a rotated-masked sprite (the minimap bake) were rewritten
@@ -147,7 +166,7 @@ ToriRS_ES2_RenderFrame(struct ToriRS_ES2* renderer, struct ToriRS_Frame* frame);
  * caller holds no renderer) and safe to call with no renderer alive.
  */
 void
-ToriRS_ES2_RotmaskSourceChanged(void);
+TRSPK_Renderer_ES2_RotmaskSourceChanged(void);
 
 /**
  * Read the frame back off the device into `pixels`, top-down ARGB, sampled
@@ -161,8 +180,8 @@ ToriRS_ES2_RotmaskSourceChanged(void);
  * actually pending.
  */
 bool
-ToriRS_ES2_ReadPixels(
-    struct ToriRS_ES2* renderer,
+TRSPK_Renderer_ES2_ReadPixels(
+    struct TRSPK_Renderer_ES2* renderer,
     int* pixels,
     int width,
     int height);

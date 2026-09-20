@@ -82,7 +82,7 @@
 #include "world/world_pickset.h"
 #include "world/worldview.h"
 
-struct ToriRS_Soft3D;
+struct ToriPlatform_Renderer_Soft3D;
 struct ToriRS_Frame;
 struct ToriRS_PickHits;
 struct PktRunClientScript;
@@ -1044,8 +1044,8 @@ struct App
      * canvas from App_Render, while `soft_chrome` rasterises retained CUSTOM
      * widget bitmaps for WEB/BROWSER without disturbing the game renderer.
      */
-    struct ToriRS_Soft3D* soft;
-    struct ToriRS_Soft3D* soft_chrome;
+    struct ToriPlatform_Renderer_Soft3D* soft;
+    struct ToriPlatform_Renderer_Soft3D* soft_chrome;
 
     /* Phase 4b: world sim + builder (needs provider + scene + varps; the
      * World references assets and scene elements by integer id only). */

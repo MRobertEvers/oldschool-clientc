@@ -243,8 +243,8 @@ ES2_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles2_core.c \
                  platform/platform_web_renderer_webgl1_ui.c \
                  platform/platform_web_renderer_webgl1_painter.c \
                  platform/platform_web_renderer_webgl1_zbuffer.c \
-                 platform/platform_renderer_es2_core.h \
-                 platform/platform_renderer_es2_shaders.h
+                 $(REPO_ROOT)/3rd/trspk/es2/es2_core.h \
+                 $(REPO_ROOT)/3rd/trspk/es2/es2_shaders.h
 # Both ES 3.0 FAMILIES, because the audit is about what the SOURCE may say and
 # each lane now has its own copy: an extension slipping into one of them is
 # still a defect even if the other stays clean. @see platform.mk's four
@@ -257,8 +257,8 @@ ES3_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles3_core.c \
                  platform/platform_web_renderer_webgl2_ui.c \
                  platform/platform_web_renderer_webgl2_painter.c \
                  platform/platform_web_renderer_webgl2_zbuffer.c \
-                 platform/platform_renderer_es3_core.h \
-                 platform/platform_renderer_es3_shaders.h
+                 $(REPO_ROOT)/3rd/trspk/es3/es3_core.h \
+                 $(REPO_ROOT)/3rd/trspk/es3/es3_shaders.h
 
 lane-check-webgl1-es2:
 	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --es2 $(ES2_CORE_SRCS)

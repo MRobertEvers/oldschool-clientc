@@ -57,7 +57,7 @@
  * file drives the command stream itself, so it needs both. */
 static void
 soft3d_execute_measured(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand const* cmd);
 static int
 soft3d_cmd_is_draw(enum ToriRS_RenderCommandKind kind);
@@ -318,7 +318,7 @@ soft3d_dbg_full_clear_nt(void)
  * this frame was.
  */
 static void
-soft3d_dbg_frame_ab_begin(struct ToriRS_Soft3D* soft)
+soft3d_dbg_frame_ab_begin(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     assert(soft);
     (void)soft;
@@ -364,7 +364,7 @@ soft3d_dbg_face_sort_kernel_by_name(const char* name, size_t len)
 }
 
 static void
-soft3d_dbg_frame_ab_kernels_init(struct ToriRS_Soft3D* soft)
+soft3d_dbg_frame_ab_kernels_init(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     static int announced;
     const char* v;
@@ -517,7 +517,7 @@ soft3d_dbg_pixowner_begin(void)
 
 static void
 soft3d_dbg_pixowner_after_command(
-    struct ToriRS_Soft3D const* soft,
+    struct ToriPlatform_Renderer_Soft3D const* soft,
     struct ToriRS_RenderCommand const* cmd)
 {
     int x0 = g_pixowner_rect[0], x1 = g_pixowner_rect[1];
@@ -724,7 +724,7 @@ soft3d_dbg_fb_poison_dump(void)
 }
 
 static void
-soft3d_dbg_fb_poison_scan(const struct ToriRS_Soft3D* soft)
+soft3d_dbg_fb_poison_scan(const struct ToriPlatform_Renderer_Soft3D* soft)
 {
     const uint32_t* p = (const uint32_t*)soft->pixels;
     unsigned live = 0;
@@ -796,7 +796,7 @@ soft3d_dbg_frame_walk_armed(void)
 
 static void
 soft3d_dbg_frame_walk(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_Frame* frame)
 {
     int const pixowner = soft3d_dbg_pixowner_armed();

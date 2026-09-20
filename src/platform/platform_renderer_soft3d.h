@@ -12,10 +12,10 @@ struct ToriRS_Frame;
  * and the outline/shadow LRU (what stops SpriteNewGraphicOutline recomputing
  * the same chrome icons every frame -- idle flamegraphs put it at ~2.5% of
  * samples). Opaque here because nothing outside the renderer reads it; it is
- * allocated by ToriRS_Soft3D_New and released by ToriRS_Soft3D_Free, and
- * ToriRS_Soft3D_Init carries it across the per-frame reset.
+ * allocated by ToriPlatform_Renderer_Soft3D_New and released by ToriPlatform_Renderer_Soft3D_Free, and
+ * ToriPlatform_Renderer_Soft3D_Init carries it across the per-frame reset.
  */
-struct ToriRS_Soft3DScratch;
+struct ToriPlatform_Renderer_Soft3D_Scratch;
 
 #include "render/torirs_polygon.h"
 
@@ -23,7 +23,7 @@ struct ToriRS_Soft3DScratch;
 
 #include "toridraw_raster_kernel.h"
 
-struct ToriRS_Soft3D
+struct ToriPlatform_Renderer_Soft3D
 {
     struct ToriDraw_Scene* scene;
     /* Projection + face sort + raster, named by ONE object, taken once at
@@ -55,12 +55,12 @@ struct ToriRS_Soft3D
     /* The layout every command's 2D coordinates are in. Equal to the buffer
      * unless interface scaling is above 100%, and then every 2D command is
      * written scaled by width/layout_w, height/layout_h. @see
-     * ToriRS_Soft3D_SetLayout. */
+     * ToriPlatform_Renderer_Soft3D_SetLayout. */
     int layout_w;
     int layout_h;
     bool scaled;
     /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
-     * @see ToriRS_Soft3D_SetInterfaceScaleMode. */
+     * @see ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode. */
     int interface_scale_mode;
 
     /* Polygon run state: points accumulate between POLYGON_BEGIN and
@@ -85,24 +85,24 @@ struct ToriRS_Soft3D
     struct ToriRS_PickHits pick_hits;
 
     /* Owned by New/Free, and the one field Init does not reset. */
-    struct ToriRS_Soft3DScratch* scratch;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch;
 };
 
 /** Allocate a renderer and its frame-crossing scratch. The renderer is meant
  * to be made once and re-pointed at each frame's buffer with Init; making one
  * per frame throws the outline cache away with it. */
-struct ToriRS_Soft3D*
-ToriRS_Soft3D_New(void);
+struct ToriPlatform_Renderer_Soft3D*
+ToriPlatform_Renderer_Soft3D_New(void);
 
 /** Release a renderer and everything its scratch holds. Accepts NULL. */
 void
-ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft);
+ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft);
 
 /** Point an already-New'd renderer at this frame's scene and pixel buffer.
  * Resets all frame state; the scratch and its caches carry over. */
 void
-ToriRS_Soft3D_Init(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_Init(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_Scene* scene,
     int* pixels,
     int width,
@@ -115,8 +115,8 @@ ToriRS_Soft3D_Init(
  * point, and is scaled here to the world it tests).
  */
 void
-ToriRS_Soft3D_SetLayout(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_SetLayout(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int layout_w,
     int layout_h);
 
@@ -129,8 +129,8 @@ ToriRS_Soft3D_SetLayout(
  * picture into the buffer once, the way the GPU lanes do.
  */
 void
-ToriRS_Soft3D_SetInterfaceScaleMode(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int mode);
 
 /**
@@ -141,34 +141,34 @@ ToriRS_Soft3D_SetInterfaceScaleMode(
  * is not scaled: LayerBegin returns the buffer itself.
  */
 int*
-ToriRS_Soft3D_LayerBegin(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_LayerBegin(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int x0,
     int y0,
     int x1,
     int y1);
 
 void
-ToriRS_Soft3D_LayerEnd(struct ToriRS_Soft3D* soft);
+ToriPlatform_Renderer_Soft3D_LayerEnd(struct ToriPlatform_Renderer_Soft3D* soft);
 
 /** Arm the world hittest for the next RenderFrame: resets pick_hits and
  * records the mouse point to test pickable models against. */
 void
-ToriRS_Soft3D_SetPick(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_SetPick(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int mouse_x,
     int mouse_y);
 
 /** Clear framebuffer to Soft3D background, then drain frame commands. */
 void
-ToriRS_Soft3D_RenderFrame(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_RenderFrame(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_Frame* frame);
 
 /** Execute a single GFX command into soft->pixels. */
 void
-ToriRS_Soft3D_Execute(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_Execute(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand const* cmd);
 
 #endif

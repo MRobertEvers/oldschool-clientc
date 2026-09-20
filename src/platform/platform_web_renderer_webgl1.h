@@ -13,7 +13,7 @@
  *   - it names it. The core logs through the name it is given, so a browser
  *     console says "WebGL1" and not "GLES2", which is a renderer that is not
  *     running here;
- *   - it asks the context seam for TORIRS_GL_CLIENT_ES2, which in a browser
+ *   - it asks the context seam for TORIPLATFORM_GL_CLIENT_ES2, which in a browser
  *     is a WebGL1 canvas context by name. The lane can also make a WebGL2
  *     one (platform_web_renderer_webgl2_*.c is a separate renderer), so which of
  *     the two this gets is a decision, not a default;
@@ -25,7 +25,7 @@
  * something turns out to be, it belongs here.
  */
 
-#include "platform/platform_renderer_es2.h"
+#include "es2/trspk_es2.h"
 
 struct ClientScaleSettings;
 struct ToriDraw_Scene;
@@ -34,81 +34,103 @@ struct ToriRS_Frame;
 /*
  * The handle.
  *
- * Deliberately never defined: it IS a struct ToriRS_ES2, and only this lane's
+ * Deliberately never defined: it IS a struct TRSPK_Renderer_ES2, and only this lane's
  * .c file knows that. An incomplete type means a caller cannot reach past the
  * lane into the core by accident, and costs nothing -- there is no wrapper
  * object to allocate and no indirection on the way through.
  */
-struct ToriRS_WebGL1;
+struct ToriPlatformWeb_Renderer_WebGL1;
 
 /** The core, named for this lane. */
-struct ToriRS_WebGL1*
-ToriRS_WebGL1_New(int width, int height);
+struct ToriPlatformWeb_Renderer_WebGL1*
+ToriPlatformWeb_Renderer_WebGL1_New(int width, int height);
 
 void
-ToriRS_WebGL1_Free(
-    struct ToriRS_WebGL1* renderer);
+ToriPlatformWeb_Renderer_WebGL1_Free(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer);
 
+/* Two renderers, two entry points: the painter flag brings up the painter
+ * one and the -zbuffer flag the depth one, and whichever was chosen owns the
+ * handle's Execute, DrawBootBar and RenderFrame from then on. There is no
+ * flag and no test below this line. @see 3rd/trspk/es2/trspk_es2.h. */
 bool
-ToriRS_WebGL1_Init(
-    struct ToriRS_WebGL1* renderer,
-    ToriRS_GLWindow* window,
-    struct ToriDraw_Scene* scene,
-    bool z_buffer);
+ToriPlatformWeb_Renderer_WebGL1_PainterInit(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+bool
+ToriPlatformWeb_Renderer_WebGL1_ZBufferInit(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
 
 void
-ToriRS_WebGL1_SetViewport(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_SetViewport(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     int width,
     int height);
 
 void
-ToriRS_WebGL1_SetInterfaceScaleMode(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_SetInterfaceScaleMode(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     int mode);
 
 void
-ToriRS_WebGL1_SetClientScaling(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_SetClientScaling(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     struct ClientScaleSettings const* settings);
 
 void
-ToriRS_WebGL1_SetPick(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_SetPick(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     int mouse_x,
     int mouse_y);
 
 struct ToriRS_PickHits const*
-ToriRS_WebGL1_PickHits(
-    struct ToriRS_WebGL1 const* renderer);
+ToriPlatformWeb_Renderer_WebGL1_PickHits(
+    struct ToriPlatformWeb_Renderer_WebGL1 const* renderer);
 
 void
-ToriRS_WebGL1_Execute(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_PainterExecute(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformWeb_Renderer_WebGL1_ZBufferExecute(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     struct ToriRS_RenderCommand const* command);
 
 void
-ToriRS_WebGL1_DrawBootBar(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_PainterDrawBootBar(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+ToriPlatformWeb_Renderer_WebGL1_ZBufferDrawBootBar(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     int progress,
     int caption_font_id,
     char const* caption);
 
 void
-ToriRS_WebGL1_RenderFrame(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_PainterRenderFrame(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
+    struct ToriRS_Frame* frame);
+void
+ToriPlatformWeb_Renderer_WebGL1_ZBufferRenderFrame(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     struct ToriRS_Frame* frame);
 
 bool
-ToriRS_WebGL1_ReadPixels(
-    struct ToriRS_WebGL1* renderer,
+ToriPlatformWeb_Renderer_WebGL1_ReadPixels(
+    struct ToriPlatformWeb_Renderer_WebGL1* renderer,
     int* pixels,
     int width,
     int height);
 
-/** @see ToriRS_ES2_RotmaskSourceChanged: process-wide, and safe with no
+/** @see TRSPK_Renderer_ES2_RotmaskSourceChanged: process-wide, and safe with no
  *  renderer alive. */
 void
-ToriRS_WebGL1_RotmaskSourceChanged(void);
+ToriPlatformWeb_Renderer_WebGL1_RotmaskSourceChanged(void);
 
 #endif

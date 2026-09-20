@@ -51,7 +51,7 @@
  * a Nearest one is nearest either way.
  */
 static GLint
-gl3_interface_filter(struct ToriRS_GL3 const* renderer)
+gl3_interface_filter(struct ToriPlatformSDL2_Renderer_GL3 const* renderer)
 {
     (void)renderer;
     return GL_NEAREST;
@@ -82,7 +82,7 @@ gl3_blend_ui(void)
  */
 static void
 bind_vbo_attribs(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     GLuint vbo_gpu,
     uint32_t base_vertex)
 {
@@ -151,7 +151,7 @@ bind_vbo_attribs(
  */
 void
 gl3_bind_group_attribs(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3ModelGroup* group,
     uint32_t base_vertex)
 {
@@ -162,13 +162,13 @@ gl3_bind_group_attribs(
 
 
 static void
-gl3_bind_quad_attribs(struct ToriRS_GL3* renderer)
+gl3_bind_quad_attribs(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     glBindVertexArray(renderer->quad_vao);
 }
 
 static void
-gl3_unbind_attribs(struct ToriRS_GL3* renderer)
+gl3_unbind_attribs(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     (void)renderer;
     glBindVertexArray(0);
@@ -184,7 +184,7 @@ gl3_unbind_attribs(struct ToriRS_GL3* renderer)
  */
 static void
 gl3_set_world_uniforms(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     const TRSPK_UboWorld* u)
 {
     renderer->ubo_cpu = *u;
@@ -196,7 +196,7 @@ gl3_set_world_uniforms(
 
 /** Make the current world uniforms visible to program3d (must be current). */
 static void
-gl3_push_world_uniforms(struct ToriRS_GL3* renderer)
+gl3_push_world_uniforms(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     glBindBufferRange(
         GL_UNIFORM_BUFFER, 0u, renderer->ubo, 0, (GLsizeiptr)sizeof(TRSPK_UboWorld));
@@ -244,7 +244,7 @@ gl3_compile_shader(
 }
 
 static void
-gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
+gl3_destroy_gl_resources(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( renderer->program3d )
         glDeleteProgram(renderer->program3d);
@@ -332,7 +332,7 @@ gl3_destroy_gl_resources(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
+gl3_upload_sprite_atlas(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !trspk_atlas_is_initialized(&renderer->sprite_atlas) )
         return;
@@ -429,7 +429,7 @@ gl3_upload_sprite_atlas(struct ToriRS_GL3* renderer)
 
 static void
 gl3_apply_logical_scissor(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int logical_x,
     int logical_y,
     int logical_w,
@@ -475,11 +475,11 @@ gl3_text_debug_enabled(void)
 }
 
 static void
-gl3_flush_2d_batch(struct ToriRS_GL3* renderer);
+gl3_flush_2d_batch(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 static void
 gl3_batch2d_flush_if_needed(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     GLuint texture,
     int text_mode,
     bool uv_clamp,
@@ -492,7 +492,7 @@ gl3_batch2d_flush_if_needed(
 
 static void
 gl3_batch2d_append_verts(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     GLuint texture,
     int text_mode,
     bool uv_clamp,
@@ -542,7 +542,7 @@ gl3_batch2d_append_verts(
 
 static void
 gl3_set_draw_scissor(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int logical_x,
     int logical_y,
     int logical_w,
@@ -555,7 +555,7 @@ gl3_set_draw_scissor(
 }
 
 static void
-gl3_batch2d_reset(struct ToriRS_GL3* renderer)
+gl3_batch2d_reset(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     struct GL3Batch2DState* b = &renderer->batch2d;
     b->vert_count = 0u;
@@ -566,7 +566,7 @@ gl3_batch2d_reset(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_batch2d_free(struct ToriRS_GL3* renderer)
+gl3_batch2d_free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     free(renderer->batch2d.verts);
     renderer->batch2d.verts = NULL;
@@ -574,7 +574,7 @@ gl3_batch2d_free(struct ToriRS_GL3* renderer)
 }
 
 static bool
-gl3_batch2d_init(struct ToriRS_GL3* renderer)
+gl3_batch2d_init(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     renderer->batch2d.verts =
         (struct GL3Vertex2D*)malloc((size_t)GL3_2D_BATCH_MAX_VERTS * sizeof(struct GL3Vertex2D));
@@ -602,11 +602,11 @@ gl3_batch2d_scissor_matches(
 }
 
 static void
-gl3_flush_2d_batch(struct ToriRS_GL3* renderer);
+gl3_flush_2d_batch(struct ToriPlatformSDL2_Renderer_GL3* renderer);
 
 static void
 gl3_batch2d_flush_if_needed(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     GLuint texture,
     int text_mode,
     bool uv_clamp,
@@ -689,7 +689,7 @@ gl3_batch2d_flush_if_needed(
 
 static void
 gl3_batch2d_append_quad(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     GLuint texture,
     int text_mode,
     bool uv_clamp,
@@ -777,7 +777,7 @@ gl3_batch2d_append_quad(
  */
 static uint32_t
 gl3_quad_ring_upload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3Vertex2D const* verts,
     uint32_t count)
 {
@@ -823,7 +823,7 @@ gl3_quad_ring_upload(
 }
 
 static void
-gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
+gl3_flush_2d_batch(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     struct GL3Batch2DState* b = &renderer->batch2d;
     uint32_t first;
@@ -914,7 +914,7 @@ gl3_flush_2d_batch(struct ToriRS_GL3* renderer)
 
 static void
 gl3_draw_textured_quad_immediate(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     float x0,
     float y0,
     float x1,
@@ -939,7 +939,7 @@ gl3_draw_textured_quad_immediate(
 
 static void
 gl3_draw_textured_quad(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     GLuint texture,
     int text_mode,
     bool uv_clamp,
@@ -977,7 +977,7 @@ gl3_draw_textured_quad(
 
 static void
 gl3_draw_textured_quad_uv4(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     float const pos[4][2],
     float const uv[4][2],
     float const rgba[4])
@@ -1019,7 +1019,7 @@ gl3_draw_textured_quad_uv4(
 
 static void
 gl3_draw_sprite_rotated(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command,
     struct ToriDraw_Sprite* sp,
     float u0,
@@ -1062,7 +1062,7 @@ gl3_draw_sprite_rotated(
 
 static int
 gl3_sprite_slot_index(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int scene_id,
     bool create)
 {
@@ -1159,7 +1159,7 @@ gl3_clamp_to_nominal(
 
 static bool
 gl3_sprite_upload_rgba(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint8_t const* crop_pixels,
     uint32_t src_stride,
     int upload_w,
@@ -1247,7 +1247,7 @@ gl3_sprite_prepare_pixels(
 
 static struct GL3SpriteVariant*
 gl3_sprite_find_variant(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Sprite const* cmd,
     bool create)
 {
@@ -1284,7 +1284,7 @@ gl3_sprite_find_variant(
 
 static bool
 gl3_sprite_ensure_base(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int scene_id,
     int atlas_index,
     struct ToriDraw_Sprite** out_sprite,
@@ -1378,7 +1378,7 @@ gl3_sprite_ensure_base(
 
 static bool
 gl3_sprite_ensure_variant(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Sprite const* cmd,
     struct ToriDraw_Sprite** out_sprite,
     float* out_uv,
@@ -1522,7 +1522,7 @@ gl3_sprite_ensure_variant(
 
 static struct GL3RotmaskDedicated*
 gl3_rotmask_dedicated_slot(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int scene_id,
     int mask_scene_id,
     int dst_w,
@@ -1560,7 +1560,7 @@ gl3_rotmask_dedicated_slot(
 
 static bool
 gl3_rotmask_upload_to_slot(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3RotmaskDedicated* slot,
     uint8_t const* rgba,
     int w,
@@ -1598,7 +1598,7 @@ gl3_rotmask_upload_to_slot(
 
 static bool
 gl3_sprite_ensure_rotated_masked(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Sprite const* cmd,
     struct ToriDraw_Sprite* sp,
     float* out_uv,
@@ -1647,7 +1647,7 @@ gl3_sprite_ensure_rotated_masked(
 
 static bool
 gl3_bake_font_atlas(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3FontSlot* slot,
     int font_id)
 {
@@ -1792,7 +1792,7 @@ gl3_bake_font_atlas(
 
 static int
 gl3_font_slot_index(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int font_id,
     bool create)
 {
@@ -1824,7 +1824,7 @@ gl3_font_slot_index(
 
 static struct GL3FontSlot*
 gl3_ensure_font_slot(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int font_id)
 {
     int slot_i = gl3_font_slot_index(renderer, font_id, true);
@@ -1854,7 +1854,7 @@ gl3_ensure_font_slot(
 
 struct GL3FontGlyphCtx
 {
-    struct ToriRS_GL3* renderer;
+    struct ToriPlatformSDL2_Renderer_GL3* renderer;
     struct GL3FontSlot* slot;
     float alpha;
     bool shadow;
@@ -1872,7 +1872,7 @@ gl3_font_glyph_callback(
 {
     (void)font;
     struct GL3FontGlyphCtx* gctx = (struct GL3FontGlyphCtx*)ctx;
-    struct ToriRS_GL3* renderer = gctx->renderer;
+    struct ToriPlatformSDL2_Renderer_GL3* renderer = gctx->renderer;
     struct GL3FontSlot* slot = gctx->slot;
 
     int const gw = slot->font->glyph_width[gi];
@@ -1910,7 +1910,7 @@ gl3_font_glyph_callback(
 
 static void
 gl3_draw_font_glyphs(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3FontSlot* slot,
     struct ToriDraw_Font* font,
     char const* text,
@@ -1956,7 +1956,7 @@ gl3_draw_font_glyphs(
 
 static void
 gl3_draw_font_glyphs_len(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3FontSlot* slot,
     struct ToriDraw_Font* font,
     char const* text,
@@ -1979,7 +1979,7 @@ gl3_draw_font_glyphs_len(
 
 static void
 gl3_draw_font_box(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3FontSlot* slot,
     struct ToriDraw_Font* font,
     struct ToriRS_RenderCommand_Font const* cmd)
@@ -2023,7 +2023,7 @@ gl3_draw_font_box(
 
 static void
 gl3_ev_fill_rect(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     if( !renderer->in2d )
@@ -2094,14 +2094,14 @@ gl3_ev_fill_rect(
 /* A layer only where it changes the picture: an interface filter that is not
  * Nearest, on an interface drawn at a size other than its own. */
 static bool
-gl3_ui_layer_wanted(struct ToriRS_GL3 const* renderer)
+gl3_ui_layer_wanted(struct ToriPlatformSDL2_Renderer_GL3 const* renderer)
 {
     return renderer->interface_scale_mode != 0 &&
            (renderer->lb_w != renderer->width || renderer->lb_h != renderer->height);
 }
 
 static void
-gl3_ui_layer_ensure(struct ToriRS_GL3* renderer)
+gl3_ui_layer_ensure(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     int const w = renderer->width;
     int const h = renderer->height;
@@ -2130,7 +2130,7 @@ gl3_ui_layer_ensure(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_ui_composite_ensure(struct ToriRS_GL3* renderer)
+gl3_ui_composite_ensure(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     static float const quad[8] = { -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, 1.0f };
     GLuint vs;
@@ -2172,7 +2172,7 @@ gl3_ui_composite_ensure(struct ToriRS_GL3* renderer)
 
 /* Redirect the 2D segment into the layer: layout-sized, 1:1, transparent. */
 static void
-gl3_ui_layer_begin(struct ToriRS_GL3* renderer)
+gl3_ui_layer_begin(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     GLint bound = 0;
 
@@ -2197,7 +2197,7 @@ gl3_ui_layer_begin(struct ToriRS_GL3* renderer)
 
 /* Filter the finished segment onto the output rect it would have drawn to. */
 static void
-gl3_ui_layer_composite(struct ToriRS_GL3* renderer)
+gl3_ui_layer_composite(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     GLint const filter = renderer->interface_scale_mode == 1 ? GL_LINEAR : GL_NEAREST;
 
@@ -2233,7 +2233,7 @@ gl3_ui_layer_composite(struct ToriRS_GL3* renderer)
 
 static void
 gl3_ev_begin_2d(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -2270,7 +2270,7 @@ gl3_ev_begin_2d(
 
 static void
 gl3_ev_end_2d(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -2285,7 +2285,7 @@ gl3_ev_end_2d(
 
 static void
 gl3_draw_sprite_tiled(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriDraw_Sprite* sp,
     struct ToriRS_RenderCommand* command,
     int tile_sw,
@@ -2363,7 +2363,7 @@ gl3_draw_sprite_tiled(
 
 static void
 gl3_ev_sprite_load(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)renderer;
@@ -2372,7 +2372,7 @@ gl3_ev_sprite_load(
 
 static void
 gl3_ev_sprite_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     int scene_id = command->u.sprite_load.element_id;
@@ -2402,7 +2402,7 @@ gl3_ev_sprite_unload(
 
 static void
 gl3_ev_sprite(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     struct ToriRS_RenderCommand_Sprite const* spr_cmd = &command->u.sprite;
@@ -2591,7 +2591,7 @@ gl3_ev_sprite(
 
 static void
 gl3_ev_font_load(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     const int font_id = command->u.font_load.font_id;
@@ -2616,7 +2616,7 @@ gl3_ev_font_load(
 
 static void
 gl3_ev_font(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     if( !renderer->in2d )
@@ -2743,7 +2743,7 @@ gl3_ev_font(
 
 static void
 upload_world_ubo(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     const float* view,
     const float* proj)
 {
@@ -2778,7 +2778,7 @@ upload_world_ubo(
  * has to swizzle to BGRA as it copies).
  */
 static void
-gl3_upload_atlas_texture(struct ToriRS_GL3* renderer)
+gl3_upload_atlas_texture(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     struct TRSPK_AtlasDirtyRect dirty;
     size_t need;
@@ -2860,7 +2860,7 @@ gl3_upload_atlas_texture(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_bind_world_draw_state(struct ToriRS_GL3* renderer)
+gl3_bind_world_draw_state(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     glUseProgram(renderer->program3d);
     gl3_push_world_uniforms(renderer);
@@ -2886,7 +2886,7 @@ gl3_bind_world_draw_state(struct ToriRS_GL3* renderer)
 }
 
 static void
-gl3_release_gpu_mesh_buffers(struct ToriRS_GL3* renderer)
+gl3_release_gpu_mesh_buffers(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     /*
      * Shrink by reallocating storage in place — never glDeleteBuffers +
@@ -3008,7 +3008,7 @@ gl3_upload_group(struct GL3ModelGroup* g)
 
 bool
 gl3_ensure_gpu_ibo(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t index_count)
 {
     if( index_count == 0u )
@@ -3088,14 +3088,14 @@ gl3_decode_texture_rgba(
 
 static void
 gl3_ev_model_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command);
 
 /** Allocate or look up the atlas slot for a cache texture id. Returns -1 when
  *  the id is out of range or the atlas is full. */
 static int
 gl3_texture_slot(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int tex_id)
 {
     int slot;
@@ -3126,7 +3126,7 @@ gl3_texture_slot(
 
 static void
 gl3_ev_tex_load(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_TEX_LOAD);
@@ -3157,7 +3157,7 @@ gl3_ev_tex_load(
 
 static void
 gl3_ev_tex_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_TEX_UNLOAD);
@@ -3190,7 +3190,7 @@ gl3_ev_tex_unload(
 
 static void
 gl3_ev_font_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     const int font_id = command->u.font_load.font_id;
@@ -3214,7 +3214,7 @@ gl3_ev_font_unload(
 
 static void
 gl3_ev_anim_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_ANIM_UNLOAD);
@@ -3223,7 +3223,7 @@ gl3_ev_anim_unload(
 
 static void
 gl3_ev_begin_3d(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_BEGIN_3D);
@@ -3314,7 +3314,7 @@ gl3_ev_begin_3d(
 
 static void
 gl3_ev_batch3d_clear(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -3329,7 +3329,7 @@ gl3_ev_batch3d_clear(
 
 static void
 gl3_ev_model_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_MODEL_UNLOAD || command->kind == TORIRSRC_ANIM_UNLOAD);
@@ -3343,7 +3343,7 @@ gl3_ev_model_unload(
 /** Ensure `tex_id` is resident in the atlas. Returns the atlas slot, or -1. */
 static int
 gl3_ensure_texture(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int tex_id)
 {
     struct ToriDraw_Texture* tex;
@@ -3377,7 +3377,7 @@ gl3_ensure_texture(
 
 static uint32_t
 gl3_bake_into_arena(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3ModelGroup* g,
     int element_id,
     int anim_index,
@@ -3485,7 +3485,7 @@ gl3_bake_into_arena(
 
 static void
 gl3_animation_track_unload(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index)
 {
@@ -3511,7 +3511,7 @@ gl3_animation_track_unload(
 
 static void
 gl3_ev_anim_load(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_ANIM_LOAD);
@@ -3599,7 +3599,7 @@ gl3_ev_anim_load(
 
 static void
 gl3_ev_model_load(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     int element_id;
@@ -3620,7 +3620,7 @@ gl3_ev_model_load(
 
 static void
 gl3_ev_batch3d_begin(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)renderer;
@@ -3629,7 +3629,7 @@ gl3_ev_batch3d_begin(
 
 static void
 gl3_ev_batch3d_model_add(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_BATCH3D_MODEL_ADD);
@@ -3648,7 +3648,7 @@ gl3_ev_batch3d_model_add(
 
 static void
 gl3_ev_batch3d_anim_add(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     assert(command->kind == TORIRSRC_BATCH3D_ANIM_ADD);
@@ -3663,7 +3663,7 @@ gl3_ev_batch3d_anim_add(
 
 static void
 gl3_ev_batch3d_end(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -3674,7 +3674,7 @@ gl3_ev_batch3d_end(
 
 static void
 gl3_ev_model_draw(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     struct ToriRS_RenderCommand_Model const* mcmd = &command->u.model;
@@ -3793,7 +3793,7 @@ gl3_ev_model_draw(
 
 static void
 gl3_ev_end_3d(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -3950,7 +3950,7 @@ done:
 
 static void
 gl3_ev_clear_rect(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     struct ToriRS_RenderCommand_ClearRect const* cmd = &command->u.clear_rect;
@@ -3977,7 +3977,7 @@ gl3_ev_clear_rect(
 
 struct gl3_span_ctx
 {
-    struct ToriRS_GL3* renderer;
+    struct ToriPlatformSDL2_Renderer_GL3* renderer;
     float rgba[4];
 };
 
@@ -3997,7 +3997,7 @@ gl3_polygon_span(
 }
 
 static void
-gl3_polygon_end(struct ToriRS_GL3* renderer)
+gl3_polygon_end(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     struct gl3_span_ctx ctx;
     int alpha;
@@ -4030,7 +4030,7 @@ gl3_polygon_end(struct ToriRS_GL3* renderer)
 
 static void
 gl3_ev_line(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     struct ToriRS_RenderCommand_Line const* cmd = &command->u.line;
@@ -4188,7 +4188,7 @@ gl3_widget_model_project_vertex(
  */
 static int
 gl3_widget_model_sort_faces(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriDraw_ModelHandle model_handle,
     struct ToriDraw_WidgetModelTransform const* xf,
     int mid_z)
@@ -4238,7 +4238,7 @@ gl3_widget_model_sort_faces(
 
 static uint32_t
 gl3_bake_widget_model(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3ModelGroup* g,
     struct ToriDraw_ModelHandle model_handle,
     struct ToriDraw_WidgetModelTransform const* xf,
@@ -4434,7 +4434,7 @@ gl3_mat4_ortho_top_left_zf(
 
 static void
 gl3_upload_widget_ubo(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     float const* model_view,
     float const* projection)
 {
@@ -4449,7 +4449,7 @@ gl3_upload_widget_ubo(
 
 static void
 gl3_ev_model_widget(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     struct ToriRS_RenderCommand_ModelWidget const* wcmd = &command->u.model_widget;
@@ -4541,7 +4541,7 @@ gl3_ev_model_widget(
 
 static void
 handle_render_command(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand* command)
 {
     switch( command->kind )
@@ -4693,14 +4693,14 @@ handle_render_command(
  * Public API
  * ----------------------------------------------------------------------- */
 
-struct ToriRS_GL3*
-ToriRS_GL3_New(
+struct ToriPlatformSDL2_Renderer_GL3*
+ToriPlatformSDL2_Renderer_GL3_New(
     int width,
     int height)
 {
-    struct ToriRS_GL3* renderer =
-        (struct ToriRS_GL3*)calloc(
-            1, sizeof(struct ToriRS_GL3));
+    struct ToriPlatformSDL2_Renderer_GL3* renderer =
+        (struct ToriPlatformSDL2_Renderer_GL3*)calloc(
+            1, sizeof(struct ToriPlatformSDL2_Renderer_GL3));
     if( !renderer )
         return NULL;
 
@@ -4744,7 +4744,7 @@ ToriRS_GL3_New(
      * back when the driver cannot allocate that size. GL context may not exist
      * yet here — probe later at GL bring-up, or use preferred and let
      * glTexImage2D fail into the fallback path below if needed. Default to
-     * preferred; ToriRS_GL3_CreateGL overrides after querying MAX_TEXTURE_SIZE. */
+     * preferred; ToriPlatformSDL2_Renderer_GL3_CreateGL overrides after querying MAX_TEXTURE_SIZE. */
     renderer->atlas_dim = TRSPK_GL3_ATLAS_DIM_PREF;
     renderer->atlas_cols = TRSPK_GL3_ATLAS_COLS_PREF;
     renderer->tex_cap = TRSPK_GL3_TEX_CAP_PREF;
@@ -4789,8 +4789,8 @@ fail:
 }
 
 void
-ToriRS_GL3_SetViewport(
-    struct ToriRS_GL3* renderer,
+ToriPlatformSDL2_Renderer_GL3_SetViewport(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int width,
     int height)
 {
@@ -4806,8 +4806,8 @@ ToriRS_GL3_SetViewport(
 }
 
 void
-ToriRS_GL3_SetClientScaling(
-    struct ToriRS_GL3* renderer,
+ToriPlatformSDL2_Renderer_GL3_SetClientScaling(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ClientScaleSettings const* settings)
 {
     assert(renderer);
@@ -4816,7 +4816,7 @@ ToriRS_GL3_SetClientScaling(
 }
 
 void
-ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* renderer, int pixels)
+ToriPlatformSDL2_Renderer_GL3_SetHostRightInset(struct ToriPlatformSDL2_Renderer_GL3* renderer, int pixels)
 {
     assert(renderer);
     if( pixels < 0 )
@@ -4825,13 +4825,13 @@ ToriRS_GL3_SetHostRightInset(struct ToriRS_GL3* renderer, int pixels)
 }
 
 void
-ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
+ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !renderer )
         return;
 
     if( renderer->window && renderer->gl_context )
-        ToriRS_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
+        ToriPlatform_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
 
     gl3_batch2d_free(renderer);
     gl3_destroy_gl_resources(renderer);
@@ -4881,7 +4881,7 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 
     if( renderer->gl_context )
     {
-        ToriRS_GLContext_Delete(renderer->gl_context);
+        ToriPlatform_GLContext_Delete(renderer->gl_context);
         renderer->gl_context = NULL;
     }
 
@@ -4889,9 +4889,9 @@ ToriRS_GL3_Free(struct ToriRS_GL3* renderer)
 }
 
 bool
-ToriRS_GL3_Init(
-    struct ToriRS_GL3* gl3,
-    ToriRS_GLWindow* window,
+ToriPlatformSDL2_Renderer_GL3_Init(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer)
 {
@@ -4919,13 +4919,13 @@ ToriRS_GL3_Init(
      * make-current step here; the calls later in the frame exist because this
      * renderer is written to survive sharing a thread with another context.
      */
-    gl3->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 24 : 0, TORIRS_GL_CLIENT_DEFAULT);
+    gl3->gl_context = ToriPlatform_GLContext_Create(window, z_buffer ? 24 : 0, TORIPLATFORM_GL_CLIENT_DEFAULT);
     if( !gl3->gl_context )
     {
         fprintf(
             stderr,
             "OpenGL3: context creation failed: %s\n",
-            ToriRS_GLContext_LastError());
+            ToriPlatform_GLContext_LastError());
         return false;
     }
     /* Desktop GL needs its entry points resolved; emscripten links the GLES2
@@ -4933,12 +4933,12 @@ ToriRS_GL3_Init(
     if( !trspk_sdlgl_init() )
     {
         fprintf(stderr, "OpenGL3: trspk_sdlgl_init failed\n");
-        ToriRS_GLContext_Delete(gl3->gl_context);
+        ToriPlatform_GLContext_Delete(gl3->gl_context);
         gl3->gl_context = NULL;
         return false;
     }
 
-    ToriRS_GLContext_SetSwapInterval(0);
+    ToriPlatform_GLContext_SetSwapInterval(0);
 
     /* Say what we actually got. The renderer is written against one feature
      * set; if the context is not the one it expects, that is worth seeing on
@@ -5194,13 +5194,13 @@ fail_gl:
     if( fragmentShader )
         glDeleteShader(fragmentShader);
     gl3_destroy_gl_resources(gl3);
-    ToriRS_GLContext_Delete(gl3->gl_context);
+    ToriPlatform_GLContext_Delete(gl3->gl_context);
     gl3->gl_context = NULL;
     return false;
 }
 
 void
-ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y)
+ToriPlatformSDL2_Renderer_GL3_SetPick(struct ToriPlatformSDL2_Renderer_GL3* gl3, int mouse_x, int mouse_y)
 {
     assert(gl3);
     gl3->pick_enabled = true;
@@ -5210,7 +5210,7 @@ ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y)
 }
 
 void
-ToriRS_GL3_SetInterfaceScaleMode(struct ToriRS_GL3* gl3, int mode)
+ToriPlatformSDL2_Renderer_GL3_SetInterfaceScaleMode(struct ToriPlatformSDL2_Renderer_GL3* gl3, int mode)
 {
     assert(gl3);
     if( mode < 0 )
@@ -5222,14 +5222,14 @@ ToriRS_GL3_SetInterfaceScaleMode(struct ToriRS_GL3* gl3, int mode)
 }
 
 struct ToriRS_PickHits const*
-ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3)
+ToriPlatformSDL2_Renderer_GL3_PickHits(struct ToriPlatformSDL2_Renderer_GL3 const* gl3)
 {
     assert(gl3);
     return &gl3->pick_hits;
 }
 
 void
-ToriRS_GL3_Execute(struct ToriRS_GL3* gl3, struct ToriRS_RenderCommand const* cmd)
+ToriPlatformSDL2_Renderer_GL3_Execute(struct ToriPlatformSDL2_Renderer_GL3* gl3, struct ToriRS_RenderCommand const* cmd)
 {
     assert(gl3);
     assert(cmd);
@@ -5252,7 +5252,7 @@ ToriRS_GL3_Execute(struct ToriRS_GL3* gl3, struct ToriRS_RenderCommand const* cm
  */
 static void
 gl3_draw_boot_caption(
-    struct ToriRS_GL3* gl3,
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     int caption_font_id,
     char const* caption)
 {
@@ -5283,7 +5283,7 @@ gl3_draw_boot_caption(
  * y turned into GL's bottom-left origin. */
 static void
 gl3_client_scale_present(
-    struct ToriRS_GL3* gl3,
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     int area_w,
     int area_h,
     struct ClientScalePresent* present,
@@ -5300,7 +5300,7 @@ gl3_client_scale_present(
 /* (Re)allocate the scale FBO at render_w x render_h; no-op when the size holds. */
 static void
 gl3_ensure_scale_fbo(
-    struct ToriRS_GL3* gl3,
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     int render_w,
     int render_h)
 {
@@ -5346,8 +5346,8 @@ gl3_ensure_scale_fbo(
 }
 
 void
-ToriRS_GL3_DrawBootBar(
-    struct ToriRS_GL3* gl3,
+ToriPlatformSDL2_Renderer_GL3_DrawBootBar(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     int progress,
     int caption_font_id,
     char const* caption)
@@ -5361,11 +5361,11 @@ ToriRS_GL3_DrawBootBar(
     if( progress > 100 )
         progress = 100;
 
-    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriPlatform_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
-    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriPlatform_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
     int const full_drawable_w = drawable_w;
     if( gl3->host_right_inset > 0 )
     {
@@ -5456,16 +5456,16 @@ ToriRS_GL3_DrawBootBar(
 }
 
 void
-ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
+ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* gl3, struct ToriRS_Frame* frame)
 {
     assert(gl3);
     assert(frame);
 
-    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriPlatform_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
 
     int drawable_w = gl3->width;
     int drawable_h = gl3->height;
-    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriPlatform_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
     int const full_drawable_w = drawable_w;
     if( gl3->host_right_inset > 0 )
     {
@@ -5514,7 +5514,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     ToriRS_FrameBegin(frame);
     struct ToriRS_RenderCommand command;
     while( ToriRS_FrameNextCommand(frame, &command) )
-        ToriRS_GL3_Execute(gl3, &command);
+        ToriPlatformSDL2_Renderer_GL3_Execute(gl3, &command);
     ToriRS_FrameEnd(frame);
 
     if( use_fbo )
@@ -5571,7 +5571,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
     }
 
     /* TORIRS_GL3_READBACK=path dumps one GL frame (after READBACK_FRAME, default 90).
-     * The readback itself is ToriRS_GL3_ReadPixels, which the app also uses for
+     * The readback itself is ToriPlatformSDL2_Renderer_GL3_ReadPixels, which the app also uses for
      * plugin screenshots -- one path, so a bug in the output-rect arithmetic
      * cannot show up in a debug dump and not in a screenshot. */
     {
@@ -5586,7 +5586,7 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
             void bmp_write_file(const char* filename, int* px, int w, int h);
             done = 1;
             assert(top);
-            if( ToriRS_GL3_ReadPixels(gl3, top, gl3->width, gl3->height) )
+            if( ToriPlatformSDL2_Renderer_GL3_ReadPixels(gl3, top, gl3->width, gl3->height) )
             {
                 int resident = 0;
                 for( int i = 0; i < (int)gl3->tex_cap; i++ )
@@ -5600,8 +5600,8 @@ ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame)
 }
 
 void
-ToriRS_GL3_DrawChromePixels(
-    struct ToriRS_GL3* gl3, int const* pixels, int width, int height)
+ToriPlatformSDL2_Renderer_GL3_DrawChromePixels(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3, int const* pixels, int width, int height)
 {
     int drawable_w = 0;
     int drawable_h = 0;
@@ -5612,8 +5612,8 @@ ToriRS_GL3_DrawChromePixels(
     assert(gl3);
     if( width <= 0 || height <= 0 || gl3->host_right_inset <= 0 )
         return;
-    ToriRS_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
-    ToriRS_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
+    ToriPlatform_GLContext_MakeCurrent(gl3->window, gl3->gl_context);
+    ToriPlatform_GLContext_DrawableSize(gl3->window, &drawable_w, &drawable_h);
     if( drawable_w <= 0 || drawable_h <= 0 )
         return;
     pane_w = gl3->host_right_inset;
@@ -5703,8 +5703,8 @@ ToriRS_GL3_DrawChromePixels(
  *     with the same flip, for the same reason.
  */
 bool
-ToriRS_GL3_ReadPixels(
-    struct ToriRS_GL3* gl3,
+ToriPlatformSDL2_Renderer_GL3_ReadPixels(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     int* pixels,
     int width,
     int height)
@@ -5737,7 +5737,7 @@ ToriRS_GL3_ReadPixels(
     }
     else
     {
-        ToriRS_GLContext_DrawableSize(gl3->window, &fb_w, &fb_h);
+        ToriPlatform_GLContext_DrawableSize(gl3->window, &fb_w, &fb_h);
         if( fb_w <= 0 || fb_h <= 0 )
             return false;
         src_x0 = gl3->lb_x;

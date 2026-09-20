@@ -514,7 +514,7 @@ else ifeq ($(PLATFORM),web)
   # Which one a renderer GETS is not left to the runtime. SDL passes
   # SDL_GL_CONTEXT_MAJOR_VERSION through EGL as EGL_CONTEXT_CLIENT_VERSION, and
   # emscripten's EGL maps 2 to a WebGL1 canvas context and 3 to a WebGL2 one;
-  # platform_gl_context_sdl.c sets it from the ToriRS_GLClient the renderer
+  # platform_gl_context_sdl.c sets it from the ToriPlatform_GLClient the renderer
   # asks for. So the WebGL1 renderer still runs on a WebGL1 context here, and a
   # GLES3 call from it still fails on this build rather than in someone else's
   # browser -- which is what MAX_WEBGL_VERSION=1 used to guarantee and cannot

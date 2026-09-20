@@ -34,28 +34,31 @@
 #include "platform/platform_sdl2_renderer_gl3.h"
 #else
 /* Software-only builds (e.g. the Win32/GDI backend) never include the GL header,
- * so struct ToriRS_GL3 needs a file-scope forward declaration -- otherwise the
+ * so struct ToriPlatformSDL2_Renderer_GL3 needs a file-scope forward declaration -- otherwise the
  * opaque `gl3` pointer in interactive_render_present() and the file-scope `gl3`
  * are two distinct incomplete types and the call is a type error. */
-struct ToriRS_GL3;
+struct ToriPlatformSDL2_Renderer_GL3;
 #endif
 #if defined(TORIRS_HAVE_D3D9)
 #include "platform/platform_win32_renderer_d3d9.h"
 #else
-struct ToriRS_D3D9;
+struct ToriPlatformWin32_Renderer_D3D9;
 #endif
 /*
  * The four GPU renderers of the ES family, two per lane, over two shared
  * cores:
  *
- *   core                        Android lane      browser lane
- *   platform_renderer_es2_*.c   --gles2           --webgl1
- *   platform_renderer_es3_*.c   --gles3           --webgl2
+ *   shared core                 Android lane      browser lane
+ *   3rd/trspk/es2/              --gles2           --webgl1
+ *   3rd/trspk/es3/              --gles3           --webgl2
  *
- * A core is not a renderer: it makes the GL calls, and the lane file beside
- * it names it, picks its context and is what a flag selects. Exactly two of
- * the four are built for any one lane, which is why every block below is
- * behind its own TORIRS_HAVE_*.
+ * A core is not a renderer: it is a TOOLKIT of GL calls with no test in it
+ * for which world path is running. Each lane forks it into its own
+ * translation units and builds TWO renderers on top -- a painter one and a
+ * depth one -- which is why the flags come in pairs and why this file, not
+ * a mode field, is what selects between them. @see renderer_active_is_depth.
+ * Exactly two of the four families are built for any one lane, which is why
+ * every block below is behind its own TORIRS_HAVE_*.
  */
 #if defined(TORIRS_HAVE_GLES2)
 /* Android's OpenGL ES 2.0 renderer (--gles2 / --gles2-zbuffer). */
@@ -68,10 +71,10 @@ struct ToriRS_D3D9;
  * driven through the dual-core lane (which wraps it and does not own it).
  * Android-only -- it is the second Krait core, which no browser has.
  * Declared with the includes, above the frame functions that read it. */
-static struct ToriRS_GLES2DualCore* gles2_dualcore_lane;
+static struct ToriPlatformAndroid_Renderer_GLES2_DualCore* gles2_dualcore_lane;
 #endif
 #else
-struct ToriRS_GLES2;
+struct ToriPlatformAndroid_Renderer_GLES2;
 #endif
 #if defined(TORIRS_HAVE_WEBGL2)
 /* The browser's OpenGL ES 3.0 renderer, on a WebGL2 context
@@ -79,21 +82,21 @@ struct ToriRS_GLES2;
  * runs as --gles3. */
 #include "platform/platform_web_renderer_webgl2.h"
 #else
-struct ToriRS_WebGL2;
+struct ToriPlatformWeb_Renderer_WebGL2;
 #endif
 #if defined(TORIRS_HAVE_WEBGL1)
 /* The browser's OpenGL ES 2.0 renderer, on a WebGL1 context
  * (--webgl1 / --webgl1-zbuffer). Runs the shared ES2 core. */
 #include "platform/platform_web_renderer_webgl1.h"
 #else
-struct ToriRS_WebGL1;
+struct ToriPlatformWeb_Renderer_WebGL1;
 #endif
 #if defined(TORIRS_HAVE_GLES3)
 /* Android's OpenGL ES 3.0 renderer (--gles3 / --gles3-zbuffer).
  * Runs the same ES3 core the browser runs as WebGL2. */
 #include "platform/platform_androidarmv7_renderer_opengles3.h"
 #else
-struct ToriRS_GLES3;
+struct ToriPlatformAndroid_Renderer_GLES3;
 #endif
 /* GL/WebGL remains opt-in. The XP lane instead defaults to classic fixed-
  * function D3D9; --soft3d explicitly selects its GDI fallback. */
@@ -492,7 +495,7 @@ capture_from_gl3(
     int width,
     int height)
 {
-    return ToriRS_GL3_ReadPixels((struct ToriRS_GL3*)user, pixels, width, height) ? 1 : 0;
+    return ToriPlatformSDL2_Renderer_GL3_ReadPixels((struct ToriPlatformSDL2_Renderer_GL3*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
@@ -508,7 +511,7 @@ capture_from_d3d9(
     int width,
     int height)
 {
-    return ToriRS_D3D9_ReadPixels((struct ToriRS_D3D9*)user, pixels, width, height) ? 1 : 0;
+    return ToriPlatformWin32_Renderer_D3D9_ReadPixels((struct ToriPlatformWin32_Renderer_D3D9*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
@@ -520,7 +523,7 @@ capture_from_gles2(
     int width,
     int height)
 {
-    return ToriRS_GLES2_ReadPixels((struct ToriRS_GLES2*)user, pixels, width, height) ? 1 : 0;
+    return ToriPlatformAndroid_Renderer_GLES2_ReadPixels((struct ToriPlatformAndroid_Renderer_GLES2*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
@@ -532,7 +535,7 @@ capture_from_webgl2(
     int width,
     int height)
 {
-    return ToriRS_WebGL2_ReadPixels((struct ToriRS_WebGL2*)user, pixels, width, height) ? 1 : 0;
+    return ToriPlatformWeb_Renderer_WebGL2_ReadPixels((struct ToriPlatformWeb_Renderer_WebGL2*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
@@ -544,7 +547,7 @@ capture_from_webgl1(
     int width,
     int height)
 {
-    return ToriRS_WebGL1_ReadPixels((struct ToriRS_WebGL1*)user, pixels, width, height) ? 1 : 0;
+    return ToriPlatformWeb_Renderer_WebGL1_ReadPixels((struct ToriPlatformWeb_Renderer_WebGL1*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
@@ -556,7 +559,7 @@ capture_from_gles3(
     int width,
     int height)
 {
-    return ToriRS_GLES3_ReadPixels((struct ToriRS_GLES3*)user, pixels, width, height) ? 1 : 0;
+    return ToriPlatformAndroid_Renderer_GLES3_ReadPixels((struct ToriPlatformAndroid_Renderer_GLES3*)user, pixels, width, height) ? 1 : 0;
 }
 #endif
 
@@ -683,17 +686,24 @@ main_damage_to_buffer(
 }
 
 /** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
- * same retained frame and present it. Headless/BMP paths keep using App_Render. */
+ * same retained frame and present it. Headless/BMP paths keep using App_Render.
+ *
+ * `world_depth` is the renderer SELECTION for the families whose painter and
+ * depth passes are two whole renderers rather than two modes of one: this is
+ * the one place that knows which was brought up, and calling the right entry
+ * point here is what keeps the test out of the renderers themselves.
+ * @see renderer_active_is_depth. */
 static void
 interactive_render_present(
     struct App* app,
     struct PlatformWindow* platform,
-    struct ToriRS_GL3* gl3,
-    struct ToriRS_D3D9* d3d9,
-    struct ToriRS_GLES2* gles2,
-    struct ToriRS_WebGL2* webgl2,
-    struct ToriRS_WebGL1* webgl1,
-    struct ToriRS_GLES3* gles3)
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    struct ToriPlatformAndroid_Renderer_GLES2* gles2,
+    struct ToriPlatformWeb_Renderer_WebGL2* webgl2,
+    struct ToriPlatformWeb_Renderer_WebGL1* webgl1,
+    struct ToriPlatformAndroid_Renderer_GLES3* gles3,
+    bool world_depth)
 {
     int const interface_scale_mode = RS_CS2Host_UiScaleMode(&app->host);
     struct ClientScaleSettings client_scale;
@@ -731,8 +741,8 @@ interactive_render_present(
         int pick_armed = 0;
 
         App_NoteFrameDrawn(app);
-        ToriRS_D3D9_SetInterfaceScaleMode(d3d9, interface_scale_mode);
-        ToriRS_D3D9_SetClientScaling(d3d9, &client_scale);
+        ToriPlatformWin32_Renderer_D3D9_SetInterfaceScaleMode(d3d9, interface_scale_mode);
+        ToriPlatformWin32_Renderer_D3D9_SetClientScaling(d3d9, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
@@ -743,19 +753,19 @@ interactive_render_present(
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            ToriRS_D3D9_DrawBootBar(
+            ToriPlatformWin32_Renderer_D3D9_DrawBootBar(
                 d3d9, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             if( app->world_mouse_in_viewport )
             {
-                ToriRS_D3D9_SetPick(d3d9, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWin32_Renderer_D3D9_SetPick(d3d9, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriRS_D3D9_RenderFrame(d3d9, &frame);
+                ToriPlatformWin32_Renderer_D3D9_RenderFrame(d3d9, &frame);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -768,7 +778,7 @@ interactive_render_present(
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
-                    App_PickFinish(app, ToriRS_D3D9_PickHits(d3d9));
+                    App_PickFinish(app, ToriPlatformWin32_Renderer_D3D9_PickHits(d3d9));
                 }
             }
         }
@@ -785,7 +795,7 @@ interactive_render_present(
         App_DrawComplete(app, capture_from_d3d9, d3d9);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
-            ToriRS_D3D9_Present(d3d9);
+            ToriPlatformWin32_Renderer_D3D9_Present(d3d9);
         }
         return;
     }
@@ -801,32 +811,39 @@ interactive_render_present(
         int pick_armed = 0;
 
         App_NoteFrameDrawn(app);
-        ToriRS_GLES2_SetInterfaceScaleMode(gles2, interface_scale_mode);
-        ToriRS_GLES2_SetClientScaling(gles2, &client_scale);
+        ToriPlatformAndroid_Renderer_GLES2_SetInterfaceScaleMode(gles2, interface_scale_mode);
+        ToriPlatformAndroid_Renderer_GLES2_SetClientScaling(gles2, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            ToriRS_GLES2_DrawBootBar(
-                gles2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            if( world_depth )
+                ToriPlatformAndroid_Renderer_GLES2_ZBufferDrawBootBar(
+                    gles2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else
+                ToriPlatformAndroid_Renderer_GLES2_PainterDrawBootBar(
+                    gles2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             if( app->world_mouse_in_viewport )
             {
-                ToriRS_GLES2_SetPick(gles2, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformAndroid_Renderer_GLES2_SetPick(gles2, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
                 if( gles2_dualcore_lane )
-                    ToriRS_GLES2DualCore_RenderFrame(gles2_dualcore_lane, &frame);
+                    ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame(gles2_dualcore_lane, &frame);
                 else
 #endif
-                    ToriRS_GLES2_RenderFrame(gles2, &frame);
+                    if( world_depth )
+                        ToriPlatformAndroid_Renderer_GLES2_ZBufferRenderFrame(gles2, &frame);
+                    else
+                        ToriPlatformAndroid_Renderer_GLES2_PainterRenderFrame(gles2, &frame);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -839,7 +856,7 @@ interactive_render_present(
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
-                    App_PickFinish(app, ToriRS_GLES2_PickHits(gles2));
+                    App_PickFinish(app, ToriPlatformAndroid_Renderer_GLES2_PickHits(gles2));
                 }
             }
         }
@@ -874,27 +891,34 @@ interactive_render_present(
         int pick_armed = 0;
 
         App_NoteFrameDrawn(app);
-        ToriRS_WebGL2_SetInterfaceScaleMode(webgl2, interface_scale_mode);
-        ToriRS_WebGL2_SetClientScaling(webgl2, &client_scale);
+        ToriPlatformWeb_Renderer_WebGL2_SetInterfaceScaleMode(webgl2, interface_scale_mode);
+        ToriPlatformWeb_Renderer_WebGL2_SetClientScaling(webgl2, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            ToriRS_WebGL2_DrawBootBar(
-                webgl2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            if( world_depth )
+                ToriPlatformWeb_Renderer_WebGL2_ZBufferDrawBootBar(
+                    webgl2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else
+                ToriPlatformWeb_Renderer_WebGL2_PainterDrawBootBar(
+                    webgl2, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             if( app->world_mouse_in_viewport )
             {
-                ToriRS_WebGL2_SetPick(webgl2, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWeb_Renderer_WebGL2_SetPick(webgl2, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriRS_WebGL2_RenderFrame(webgl2, &frame);
+                if( world_depth )
+                    ToriPlatformWeb_Renderer_WebGL2_ZBufferRenderFrame(webgl2, &frame);
+                else
+                    ToriPlatformWeb_Renderer_WebGL2_PainterRenderFrame(webgl2, &frame);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -907,7 +931,7 @@ interactive_render_present(
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
-                    App_PickFinish(app, ToriRS_WebGL2_PickHits(webgl2));
+                    App_PickFinish(app, ToriPlatformWeb_Renderer_WebGL2_PickHits(webgl2));
                 }
             }
         }
@@ -938,27 +962,34 @@ interactive_render_present(
         int pick_armed = 0;
 
         App_NoteFrameDrawn(app);
-        ToriRS_WebGL1_SetInterfaceScaleMode(webgl1, interface_scale_mode);
-        ToriRS_WebGL1_SetClientScaling(webgl1, &client_scale);
+        ToriPlatformWeb_Renderer_WebGL1_SetInterfaceScaleMode(webgl1, interface_scale_mode);
+        ToriPlatformWeb_Renderer_WebGL1_SetClientScaling(webgl1, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            ToriRS_WebGL1_DrawBootBar(
-                webgl1, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            if( world_depth )
+                ToriPlatformWeb_Renderer_WebGL1_ZBufferDrawBootBar(
+                    webgl1, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else
+                ToriPlatformWeb_Renderer_WebGL1_PainterDrawBootBar(
+                    webgl1, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             if( app->world_mouse_in_viewport )
             {
-                ToriRS_WebGL1_SetPick(webgl1, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformWeb_Renderer_WebGL1_SetPick(webgl1, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriRS_WebGL1_RenderFrame(webgl1, &frame);
+                if( world_depth )
+                    ToriPlatformWeb_Renderer_WebGL1_ZBufferRenderFrame(webgl1, &frame);
+                else
+                    ToriPlatformWeb_Renderer_WebGL1_PainterRenderFrame(webgl1, &frame);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -971,7 +1002,7 @@ interactive_render_present(
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
-                    App_PickFinish(app, ToriRS_WebGL1_PickHits(webgl1));
+                    App_PickFinish(app, ToriPlatformWeb_Renderer_WebGL1_PickHits(webgl1));
                 }
             }
         }
@@ -1003,27 +1034,34 @@ interactive_render_present(
         int pick_armed = 0;
 
         App_NoteFrameDrawn(app);
-        ToriRS_GLES3_SetInterfaceScaleMode(gles3, interface_scale_mode);
-        ToriRS_GLES3_SetClientScaling(gles3, &client_scale);
+        ToriPlatformAndroid_Renderer_GLES3_SetInterfaceScaleMode(gles3, interface_scale_mode);
+        ToriPlatformAndroid_Renderer_GLES3_SetClientScaling(gles3, &client_scale);
 
         if( App_IsBooting(app, &progress) )
         {
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            ToriRS_GLES3_DrawBootBar(
-                gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            if( world_depth )
+                ToriPlatformAndroid_Renderer_GLES3_ZBufferDrawBootBar(
+                    gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
+            else
+                ToriPlatformAndroid_Renderer_GLES3_PainterDrawBootBar(
+                    gles3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             if( app->world_mouse_in_viewport )
             {
-                ToriRS_GLES3_SetPick(gles3, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformAndroid_Renderer_GLES3_SetPick(gles3, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriRS_GLES3_RenderFrame(gles3, &frame);
+                if( world_depth )
+                    ToriPlatformAndroid_Renderer_GLES3_ZBufferRenderFrame(gles3, &frame);
+                else
+                    ToriPlatformAndroid_Renderer_GLES3_PainterRenderFrame(gles3, &frame);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -1036,7 +1074,7 @@ interactive_render_present(
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
-                    App_PickFinish(app, ToriRS_GLES3_PickHits(gles3));
+                    App_PickFinish(app, ToriPlatformAndroid_Renderer_GLES3_PickHits(gles3));
                 }
             }
         }
@@ -1070,9 +1108,9 @@ interactive_render_present(
         int const chrome_h = PlatformWindow_ChromeHeight(platform);
 
         App_NoteFrameDrawn(app);
-        ToriRS_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
-        ToriRS_GL3_SetClientScaling(gl3, &client_scale);
-        ToriRS_GL3_SetHostRightInset(gl3, chrome_w);
+        ToriPlatformSDL2_Renderer_GL3_SetInterfaceScaleMode(gl3, interface_scale_mode);
+        ToriPlatformSDL2_Renderer_GL3_SetClientScaling(gl3, &client_scale);
+        ToriPlatformSDL2_Renderer_GL3_SetHostRightInset(gl3, chrome_w);
 
         if( App_IsBooting(app, &progress) )
         {
@@ -1083,19 +1121,19 @@ interactive_render_present(
             int caption_font_id = -1;
             char const* caption = App_BootBarCaption(app, &caption_font_id);
 
-            ToriRS_GL3_DrawBootBar(
+            ToriPlatformSDL2_Renderer_GL3_DrawBootBar(
                 gl3, App_BootTextOnly(app) ? -1 : progress, caption_font_id, caption);
         }
         else if( App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
         {
             if( app->world_mouse_in_viewport )
             {
-                ToriRS_GL3_SetPick(gl3, app->world_mouse_x, app->world_mouse_y);
+                ToriPlatformSDL2_Renderer_GL3_SetPick(gl3, app->world_mouse_x, app->world_mouse_y);
                 pick_armed = 1;
             }
             TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
             {
-                ToriRS_GL3_RenderFrame(gl3, &frame);
+                ToriPlatformSDL2_Renderer_GL3_RenderFrame(gl3, &frame);
             }
             if( torirs_env_frame_debug() )
                 TORIRS_LOG(
@@ -1108,7 +1146,7 @@ interactive_render_present(
             {
                 TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PICK_FINISH)
                 {
-                    App_PickFinish(app, ToriRS_GL3_PickHits(gl3));
+                    App_PickFinish(app, ToriPlatformSDL2_Renderer_GL3_PickHits(gl3));
                 }
             }
         }
@@ -1118,7 +1156,7 @@ interactive_render_present(
             int const* pixels = PlatformWindow_ChromeTakeDirty(platform)
                                     ? PlatformWindow_ChromePixels(platform)
                                     : NULL;
-            ToriRS_GL3_DrawChromePixels(gl3, pixels, chrome_w, chrome_h);
+            ToriPlatformSDL2_Renderer_GL3_DrawChromePixels(gl3, pixels, chrome_w, chrome_h);
         }
 #else
         /* The Cocoa child WKWebView owns the reserved right inset directly;
@@ -1210,12 +1248,12 @@ interactive_render_present(
 static void
 interactive_present_retained(
     struct PlatformWindow* platform,
-    struct ToriRS_GL3* gl3,
-    struct ToriRS_D3D9* d3d9,
-    struct ToriRS_GLES2* gles2,
-    struct ToriRS_WebGL2* webgl2,
-    struct ToriRS_WebGL1* webgl1,
-    struct ToriRS_GLES3* gles3)
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
+    struct ToriPlatformAndroid_Renderer_GLES2* gles2,
+    struct ToriPlatformWeb_Renderer_WebGL2* webgl2,
+    struct ToriPlatformWeb_Renderer_WebGL1* webgl1,
+    struct ToriPlatformAndroid_Renderer_GLES3* gles3)
 {
 #if defined(TORIRS_HAVE_D3D9)
     if( d3d9 )
@@ -1338,17 +1376,17 @@ static struct ToriRS_CmdBus bus;
 static FILE* replay;
 static uint64_t replay_now;
 /* NULL unless the desktop-GL renderer was built AND --opengl3 was passed. */
-static struct ToriRS_GL3* gl3;
+static struct ToriPlatformSDL2_Renderer_GL3* gl3;
 /* NULL unless the Win32 fixed-function D3D9 renderer was selected. */
-static struct ToriRS_D3D9* d3d9;
+static struct ToriPlatformWin32_Renderer_D3D9* d3d9;
 /* NULL unless the Android GLES2 renderer was built AND --gles2 was passed. */
-static struct ToriRS_GLES2* gles2;
+static struct ToriPlatformAndroid_Renderer_GLES2* gles2;
 /* NULL unless the WebGL2 renderer was built AND --webgl2 was passed. */
-static struct ToriRS_WebGL2* webgl2;
+static struct ToriPlatformWeb_Renderer_WebGL2* webgl2;
 /* NULL unless the WebGL1 renderer was built AND --webgl1 was passed. */
-static struct ToriRS_WebGL1* webgl1;
+static struct ToriPlatformWeb_Renderer_WebGL1* webgl1;
 /* NULL unless the GLES3 renderer was built AND --gles3 was passed. */
-static struct ToriRS_GLES3* gles3;
+static struct ToriPlatformAndroid_Renderer_GLES3* gles3;
 
 /* --- the renderer, and switching it live ---------------------------------
  *
@@ -1362,6 +1400,25 @@ static struct ToriRS_GLES3* gles3;
  * the next frame with a different renderer.
  */
 static enum ToriRS_RendererKind renderer_active;
+
+/*
+ * Whether the live renderer is a family's DEPTH one.
+ *
+ * The GPU families whose painter and depth passes are separate renderers --
+ * two sets of entry points over one handle, no flag and no mode field --
+ * are selected by this. It is deliberately the only such test in the
+ * program: below it nothing asks again. @see 3rd/trspk/es3/trspk_es3.h.
+ */
+static bool
+renderer_active_is_depth(void)
+{
+    return renderer_active == TORIRS_RENDERER_KIND_OPENGL3_DEPTH ||
+           renderer_active == TORIRS_RENDERER_KIND_GLES2_DEPTH ||
+           renderer_active == TORIRS_RENDERER_KIND_GLES3_DEPTH ||
+           renderer_active == TORIRS_RENDERER_KIND_D3D9_DEPTH ||
+           renderer_active == TORIRS_RENDERER_KIND_WEBGL1_DEPTH ||
+           renderer_active == TORIRS_RENDERER_KIND_WEBGL2_DEPTH;
+}
 /* What the launch's flags chose -- the meaning of RS_CS2_RENDERER_LAUNCH_DEFAULT.
  * Moved to the renderer actually running if the launch's could not start. */
 static enum ToriRS_RendererKind renderer_launch;
@@ -1524,12 +1581,12 @@ renderer_start(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_OPENGL3_DEPTH;
-        gl3 = ToriRS_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        gl3 = ToriPlatformSDL2_Renderer_GL3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(gl3);
-        if( !ToriRS_GL3_Init(gl3, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        if( !ToriPlatformSDL2_Renderer_GL3_Init(gl3, PlatformWindow_GLWindow(platform), app.scene, depth) )
         {
             TORIRS_ERR("GL3 renderer init failed\n");
-            ToriRS_GL3_Free(gl3);
+            ToriPlatformSDL2_Renderer_GL3_Free(gl3);
             gl3 = NULL;
             return false;
         }
@@ -1546,12 +1603,14 @@ renderer_start(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_GLES2_DEPTH:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_GLES2_DEPTH;
-        gles2 = ToriRS_GLES2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        gles2 = ToriPlatformAndroid_Renderer_GLES2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(gles2);
-        if( !ToriRS_GLES2_Init(gles2, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        if( !(depth ? ToriPlatformAndroid_Renderer_GLES2_ZBufferInit(gles2, PlatformWindow_GLWindow(platform), app.scene)
+                    : ToriPlatformAndroid_Renderer_GLES2_PainterInit(
+                          gles2, PlatformWindow_GLWindow(platform), app.scene)) )
         {
             TORIRS_ERR("GLES2 renderer init failed\n");
-            ToriRS_GLES2_Free(gles2);
+            ToriPlatformAndroid_Renderer_GLES2_Free(gles2);
             gles2 = NULL;
             return false;
         }
@@ -1564,7 +1623,7 @@ renderer_start(enum ToriRS_RendererKind kind)
         /* The lane wraps the renderer made here and keeps driving through
          * `gles2` for everything but the frame itself. */
         if( renderer_gles2_dualcore )
-            gles2_dualcore_lane = ToriRS_GLES2DualCore_New(ToriRS_GLES2_Core(gles2));
+            gles2_dualcore_lane = ToriPlatformAndroid_Renderer_GLES2_DualCore_New(ToriPlatformAndroid_Renderer_GLES2_Core(gles2), depth);
 #endif
         return true;
     }
@@ -1574,12 +1633,15 @@ renderer_start(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_WEBGL1_DEPTH:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_WEBGL1_DEPTH;
-        webgl1 = ToriRS_WebGL1_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        webgl1 = ToriPlatformWeb_Renderer_WebGL1_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(webgl1);
-        if( !ToriRS_WebGL1_Init(webgl1, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        if( !(depth
+                  ? ToriPlatformWeb_Renderer_WebGL1_ZBufferInit(webgl1, PlatformWindow_GLWindow(platform), app.scene)
+                  : ToriPlatformWeb_Renderer_WebGL1_PainterInit(
+                        webgl1, PlatformWindow_GLWindow(platform), app.scene)) )
         {
             TORIRS_ERR("WebGL1 renderer init failed\n");
-            ToriRS_WebGL1_Free(webgl1);
+            ToriPlatformWeb_Renderer_WebGL1_Free(webgl1);
             webgl1 = NULL;
             return false;
         }
@@ -1593,12 +1655,14 @@ renderer_start(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_GLES3_DEPTH:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_GLES3_DEPTH;
-        gles3 = ToriRS_GLES3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        gles3 = ToriPlatformAndroid_Renderer_GLES3_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(gles3);
-        if( !ToriRS_GLES3_Init(gles3, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        if( !(depth ? ToriPlatformAndroid_Renderer_GLES3_ZBufferInit(gles3, PlatformWindow_GLWindow(platform), app.scene)
+                    : ToriPlatformAndroid_Renderer_GLES3_PainterInit(
+                          gles3, PlatformWindow_GLWindow(platform), app.scene)) )
         {
             TORIRS_ERR("GLES3 renderer init failed\n");
-            ToriRS_GLES3_Free(gles3);
+            ToriPlatformAndroid_Renderer_GLES3_Free(gles3);
             gles3 = NULL;
             return false;
         }
@@ -1612,12 +1676,15 @@ renderer_start(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_WEBGL2_DEPTH:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_WEBGL2_DEPTH;
-        webgl2 = ToriRS_WebGL2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        webgl2 = ToriPlatformWeb_Renderer_WebGL2_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         assert(webgl2);
-        if( !ToriRS_WebGL2_Init(webgl2, PlatformWindow_GLWindow(platform), app.scene, depth) )
+        if( !(depth
+                  ? ToriPlatformWeb_Renderer_WebGL2_ZBufferInit(webgl2, PlatformWindow_GLWindow(platform), app.scene)
+                  : ToriPlatformWeb_Renderer_WebGL2_PainterInit(
+                        webgl2, PlatformWindow_GLWindow(platform), app.scene)) )
         {
             TORIRS_ERR("WebGL2 renderer init failed\n");
-            ToriRS_WebGL2_Free(webgl2);
+            ToriPlatformWeb_Renderer_WebGL2_Free(webgl2);
             webgl2 = NULL;
             return false;
         }
@@ -1634,12 +1701,12 @@ renderer_start(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_D3D9_DEPTH:
     {
         bool const depth = kind == TORIRS_RENDERER_KIND_D3D9_DEPTH;
-        d3d9 = ToriRS_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        d3d9 = ToriPlatformWin32_Renderer_D3D9_New(UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         if( !d3d9 ||
-            !ToriRS_D3D9_Init(d3d9, PlatformWindow_NativeWindowHandle(platform), app.scene, depth) )
+            !ToriPlatformWin32_Renderer_D3D9_Init(d3d9, PlatformWindow_NativeWindowHandle(platform), app.scene, depth) )
         {
             TORIRS_ERR("D3D9 fixed-function renderer init failed\n");
-            ToriRS_D3D9_Free(d3d9);
+            ToriPlatformWin32_Renderer_D3D9_Free(d3d9);
             d3d9 = NULL;
             return false;
         }
@@ -1661,31 +1728,31 @@ renderer_stop(void)
 {
 #if defined(TORIRS_HAVE_GLES2_DUALCORE)
     /* Before the renderer it wraps: the join must come first. */
-    ToriRS_GLES2DualCore_Free(gles2_dualcore_lane);
+    ToriPlatformAndroid_Renderer_GLES2_DualCore_Free(gles2_dualcore_lane);
     gles2_dualcore_lane = NULL;
 #endif
 #if defined(TORIRS_HAVE_GLES2)
-    ToriRS_GLES2_Free(gles2);
+    ToriPlatformAndroid_Renderer_GLES2_Free(gles2);
     gles2 = NULL;
 #endif
 #if defined(TORIRS_HAVE_WEBGL2)
-    ToriRS_WebGL2_Free(webgl2);
+    ToriPlatformWeb_Renderer_WebGL2_Free(webgl2);
     webgl2 = NULL;
 #endif
 #if defined(TORIRS_HAVE_WEBGL1)
-    ToriRS_WebGL1_Free(webgl1);
+    ToriPlatformWeb_Renderer_WebGL1_Free(webgl1);
     webgl1 = NULL;
 #endif
 #if defined(TORIRS_HAVE_GLES3)
-    ToriRS_GLES3_Free(gles3);
+    ToriPlatformAndroid_Renderer_GLES3_Free(gles3);
     gles3 = NULL;
 #endif
 #if defined(TORIRS_HAVE_GL3)
-    ToriRS_GL3_Free(gl3);
+    ToriPlatformSDL2_Renderer_GL3_Free(gl3);
     gl3 = NULL;
 #endif
 #if defined(TORIRS_HAVE_D3D9)
-    ToriRS_D3D9_Free(d3d9);
+    ToriPlatformWin32_Renderer_D3D9_Free(d3d9);
     d3d9 = NULL;
 #endif
 }
@@ -3984,27 +4051,27 @@ frame_loop_step(void)
         }
 #if defined(TORIRS_HAVE_D3D9)
         if( d3d9 )
-            ToriRS_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            ToriPlatformWin32_Renderer_D3D9_SetViewport(d3d9, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
 #if defined(TORIRS_HAVE_GL3)
         if( gl3 )
-            ToriRS_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            ToriPlatformSDL2_Renderer_GL3_SetViewport(gl3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
 #if defined(TORIRS_HAVE_GLES2)
         if( gles2 )
-            ToriRS_GLES2_SetViewport(gles2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            ToriPlatformAndroid_Renderer_GLES2_SetViewport(gles2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
 #if defined(TORIRS_HAVE_WEBGL2)
         if( webgl2 )
-            ToriRS_WebGL2_SetViewport(webgl2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            ToriPlatformWeb_Renderer_WebGL2_SetViewport(webgl2, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
 #if defined(TORIRS_HAVE_WEBGL1)
         if( webgl1 )
-            ToriRS_WebGL1_SetViewport(webgl1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            ToriPlatformWeb_Renderer_WebGL1_SetViewport(webgl1, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
 #if defined(TORIRS_HAVE_GLES3)
         if( gles3 )
-            ToriRS_GLES3_SetViewport(gles3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+            ToriPlatformAndroid_Renderer_GLES3_SetViewport(gles3, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #endif
     }
 
@@ -4194,7 +4261,9 @@ frame_loop_step(void)
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
         {
-            interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3);
+            interactive_render_present(
+                &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
+                renderer_active_is_depth());
         }
     }
     else
@@ -7745,7 +7814,9 @@ main(
             }
         }
 
-        interactive_render_present(&app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3);
+        interactive_render_present(
+                &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
+                renderer_active_is_depth());
 
         /* TORIRS_MAX_FRAMES=N: exit after N loop iterations (headless smoke
          * runs under SDL_VIDEODRIVER=dummy, where no quit event ever comes). */

@@ -8,7 +8,7 @@
 static uint32_t g_chain_pass;
 
 static void
-es3_chain_capture(struct ToriRS_ES3* renderer,
+es3_chain_capture(struct TRSPK_Renderer_ES3* renderer,
                     const struct ToriRS_RenderCommand_Model* command)
 {
     static int initialized, first_pass, pass_count;

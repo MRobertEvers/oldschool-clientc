@@ -44,7 +44,7 @@ word(FILE* f)
 }
 struct Replay
 {
-    struct ToriRS_GLES2* renderer;
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer;
     struct PlacementChainCall* calls;
     struct GLES2StaticPrimary* output;
     uint32_t count, queries;
@@ -61,7 +61,7 @@ load(const char* path)
         h.elements > 1048576 || h.batches > 65536 || h.pages > 65536 )
         fail("invalid header");
     struct Replay replay = { 0 };
-    struct ToriRS_GLES2* r = allocate(sizeof(*r));
+    struct ToriPlatformAndroid_Renderer_GLES2* r = allocate(sizeof(*r));
     replay.renderer = r;
     r->has_3d = true;
     r->batch_poses.element_count = r->batch_poses.element_cap = h.elements;

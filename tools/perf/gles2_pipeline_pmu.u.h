@@ -57,7 +57,7 @@ static void pipeline_pmu_end_thread(struct PipelinePmuThread* thread)
         || !count.running || count.running!=count.enabled ) pipeline_pmu_error("counter unavailable/multiplexed");
     thread->last=count.value;
 }
-static void pipeline_pmu_frame_begin(struct ToriRS_GLES2* renderer)
+static void pipeline_pmu_frame_begin(struct ToriPlatformAndroid_Renderer_GLES2* renderer)
 {
     if( !pipeline_pmu.initialized )
     {
@@ -174,7 +174,7 @@ static void pipeline_pmu_frame_begin(struct ToriRS_GLES2* renderer)
     pipeline_pmu.worker.last=0;
     pipeline_pmu_begin_thread(&pipeline_pmu.draw);
 }
-static void pipeline_pmu_frame_end(struct ToriRS_GLES2DualCore* lane)
+static void pipeline_pmu_frame_end(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane)
 {
     if( !pipeline_pmu.enabled || pipeline_pmu.sample>=12 ) return;
     if( pipeline_pmu.warmup ) { pipeline_pmu.warmup--; return; }

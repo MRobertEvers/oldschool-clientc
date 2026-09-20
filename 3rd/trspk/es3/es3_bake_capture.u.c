@@ -21,7 +21,7 @@ bc_write(
 
 static void
 es3_bake_capture_begin(
-    struct ToriRS_ES3* r,
+    struct TRSPK_Renderer_ES3* r,
     struct ToriDraw_ModelHandle handle,
     const struct ToriDraw_Position* pos,
     const int* order,

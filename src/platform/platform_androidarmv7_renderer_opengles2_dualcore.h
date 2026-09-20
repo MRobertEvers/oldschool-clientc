@@ -14,14 +14,14 @@
  * the vertex stream, the actor bakes, the interface, and GL.
  *
  * It is a SEPARATE lane, not a mode of the GLES2 renderer. It owns no GL
- * state: it wraps a ToriRS_ES2 that main.c created and drives exactly as
+ * state: it wraps a TRSPK_Renderer_ES2 that main.c created and drives exactly as
  * it drives that renderer, and adds the worker thread, the scene's scratch
  * view (ToriDraw_SceneScratchViewNew), the results arena and the hand-over.
  * The renderer's only knowledge of it is ES2ModelStageSource, a hook it
  * consults when installed and computes past when not; with the hook out,
  * the GLES2 renderer is byte for byte the --gles2 lane.
  *
- * Frame shape (ToriRS_GLES2DualCore_RenderFrame):
+ * Frame shape (ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame):
  *
  *   draw thread                              worker thread
  *   ------------------------------------     ---------------------------------
@@ -100,23 +100,26 @@
 
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
-struct ToriRS_ES2;
-struct ToriRS_GLES2DualCore;
+struct TRSPK_Renderer_ES2;
+struct ToriPlatformAndroid_Renderer_GLES2_DualCore;
 
 /**
  * Wrap an initialised GLES2 renderer. The renderer stays the caller's: it
  * is still what main.c sizes, picks through, reads back from and frees, and
  * it must outlive this. Starts the worker thread.
  */
-struct ToriRS_GLES2DualCore*
-ToriRS_GLES2DualCore_New(struct ToriRS_ES2* renderer);
+struct ToriPlatformAndroid_Renderer_GLES2_DualCore*
+/* `z_buffer` names WHICH of the two renderers over `renderer`'s handle the
+ * caller brought up, because this lane drives its frame directly. It is the
+ * caller's answer, not something the renderer can be asked. */
+ToriPlatformAndroid_Renderer_GLES2_DualCore_New(struct TRSPK_Renderer_ES2* renderer, bool z_buffer);
 
 /** Stops and joins the worker; does not free the wrapped renderer. */
 void
-ToriRS_GLES2DualCore_Free(struct ToriRS_GLES2DualCore* lane);
+ToriPlatformAndroid_Renderer_GLES2_DualCore_Free(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane);
 
-/** ToriRS_ES2_RenderFrame, with the world's model stage on the other core. */
+/** TRSPK_Renderer_ES2_RenderFrame, with the world's model stage on the other core. */
 void
-ToriRS_GLES2DualCore_RenderFrame(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame);
+ToriPlatformAndroid_Renderer_GLES2_DualCore_RenderFrame(struct ToriPlatformAndroid_Renderer_GLES2_DualCore* lane, struct ToriRS_Frame* frame);
 
 #endif

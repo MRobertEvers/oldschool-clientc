@@ -28,7 +28,7 @@
  * Every draw here alpha-tests at 1/255 and blends, as the D3D9 UI states do.
  */
 
-#include "platform/platform_renderer_es3_core.h"
+#include "es3/es3_core.h"
 
 #include "log/torirs_log.h"
 #include "perf/torirs_perf.h"
@@ -54,7 +54,7 @@
 /* Implemented in the core beside the world atlas upload; it shares the
  * packed-row sub-rectangle path. */
 bool
-es3_upload_ui_atlas_texture(struct ToriRS_ES3* renderer, int64_t* out_bytes);
+es3_upload_ui_atlas_texture(struct TRSPK_Renderer_ES3* renderer, int64_t* out_bytes);
 
 /* ---- helpers ------------------------------------------------------------------ */
 
@@ -72,7 +72,7 @@ es3_ui_rect_equal(const struct ES3Rect* a, const struct ES3Rect* b)
  */
 static bool
 es3_ui_clip_from(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -93,7 +93,7 @@ es3_ui_clip_from(
 /* The command's scissor cut down to a destination box, as a logical clip. */
 static bool
 es3_ui_clip_intersect(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -115,7 +115,7 @@ es3_ui_clip_intersect(
 
 static bool
 es3_ui_intersect_scissor_rect(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -142,7 +142,7 @@ es3_ui_intersect_scissor_rect(
  * (es3_ui_layer_composite), and a Nearest one is nearest either way.
  */
 static GLuint
-es3_ui_new_texture(struct ToriRS_ES3* renderer)
+es3_ui_new_texture(struct TRSPK_Renderer_ES3* renderer)
 {
     GLuint texture = 0u;
     glGenTextures(1, &texture);
@@ -156,7 +156,7 @@ es3_ui_new_texture(struct ToriRS_ES3* renderer)
 }
 
 static void
-es3_ui_delete_texture(struct ToriRS_ES3* renderer, GLuint* texture)
+es3_ui_delete_texture(struct TRSPK_Renderer_ES3* renderer, GLuint* texture)
 {
     if( !*texture )
         return;
@@ -174,7 +174,7 @@ es3_ui_delete_texture(struct ToriRS_ES3* renderer, GLuint* texture)
 /* ---- the batch ------------------------------------------------------------------ */
 
 void
-es3_ui_batch_reset(struct ToriRS_ES3* renderer)
+es3_ui_batch_reset(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     renderer->ui_batch.vertex_count = 0u;
@@ -189,7 +189,7 @@ es3_ui_batch_reset(struct ToriRS_ES3* renderer)
 
 /* Room for `additional` UI vertices at the end of the pass array. */
 static void
-es3_ui_pass_reserve_vertices(struct ToriRS_ES3* renderer, uint32_t additional)
+es3_ui_pass_reserve_vertices(struct TRSPK_Renderer_ES3* renderer, uint32_t additional)
 {
     uint32_t needed = renderer->ui_pass_vertex_count + additional;
     uint32_t capacity;
@@ -208,7 +208,7 @@ es3_ui_pass_reserve_vertices(struct ToriRS_ES3* renderer, uint32_t additional)
 }
 
 static void
-es3_ui_pass_reserve_rotmask_vertices(struct ToriRS_ES3* renderer, uint32_t additional)
+es3_ui_pass_reserve_rotmask_vertices(struct TRSPK_Renderer_ES3* renderer, uint32_t additional)
 {
     uint32_t needed = renderer->ui_pass_rotmask_count + additional;
     uint32_t capacity;
@@ -226,7 +226,7 @@ es3_ui_pass_reserve_rotmask_vertices(struct ToriRS_ES3* renderer, uint32_t addit
 }
 
 static struct ES3UIDrawRecord*
-es3_ui_pass_record_append(struct ToriRS_ES3* renderer)
+es3_ui_pass_record_append(struct TRSPK_Renderer_ES3* renderer)
 {
     struct ES3UIDrawRecord* record;
     if( renderer->ui_pass_record_count >= renderer->ui_pass_record_capacity )
@@ -252,7 +252,7 @@ es3_ui_pass_record_append(struct ToriRS_ES3* renderer)
  * deferred arm it is pushed only when projection_2d changed; the control arm
  * pushes it every time, as it always did. */
 static void
-es3_ui_apply_states(struct ToriRS_ES3* renderer)
+es3_ui_apply_states(struct TRSPK_Renderer_ES3* renderer)
 {
     es3_use_program(renderer, &renderer->program_ui);
     if( !renderer->ui_projection_pushed )
@@ -301,7 +301,7 @@ es3_ui_apply_states(struct ToriRS_ES3* renderer)
  *                   issued draw keeps its texture by GL's own rules.
  */
 static void
-es3_ui_submit(struct ToriRS_ES3* renderer)
+es3_ui_submit(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t ui_bytes;
     uint32_t rotmask_bytes;
@@ -425,7 +425,7 @@ es3_ui_submit(struct ToriRS_ES3* renderer)
  * reaches GL until es3_ui_submit.
  */
 static void
-es3_ui_batch_close(struct ToriRS_ES3* renderer)
+es3_ui_batch_close(struct TRSPK_Renderer_ES3* renderer)
 {
     struct ES3UIBatch* batch;
     GLuint texture0;
@@ -489,7 +489,7 @@ es3_ui_batch_close(struct ToriRS_ES3* renderer)
 }
 
 void
-es3_ui_flush(struct ToriRS_ES3* renderer)
+es3_ui_flush(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     es3_ui_batch_close(renderer);
@@ -504,7 +504,7 @@ es3_ui_submit(renderer);
  */
 static bool
 es3_ui_prepare_batch(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint texture1,
     bool uses_sprite_atlas,
     const struct ES3Rect* scissor,
@@ -544,7 +544,7 @@ es3_ui_prepare_batch(
 
 static void
 es3_ui_append_quad_vertices(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint texture,
     bool uses_sprite_atlas,
     const struct ES3Rect* scissor,
@@ -601,7 +601,7 @@ es3_ui_append_quad_vertices(
 
 static void
 es3_ui_append_quad(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint texture,
     bool uses_sprite_atlas,
     const struct ES3Rect* scissor,
@@ -628,7 +628,7 @@ es3_ui_append_quad(
  */
 static void
 es3_ui_append_quad_clipped(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint texture,
     bool uses_sprite_atlas,
     const struct ES3Clip* clip,
@@ -682,7 +682,7 @@ es3_ui_append_quad_clipped(
 /* A layer only where it changes the picture: an interface filter that is not
  * Nearest, on an interface drawn at a size other than its own. */
 static bool
-es3_ui_layer_wanted(const struct ToriRS_ES3* renderer)
+es3_ui_layer_wanted(const struct TRSPK_Renderer_ES3* renderer)
 {
     return renderer->interface_scale_mode != 0 && renderer->width > 0 && renderer->height > 0 &&
         renderer->letterbox_width > 0 && renderer->letterbox_height > 0 &&
@@ -695,7 +695,7 @@ es3_ui_layer_wanted(const struct ToriRS_ES3* renderer)
  * complete colour attachment in core ES2 and in WebGL1 at any (NPOT) size.
  * No depth or stencil: 2D runs with both off, widget models included. */
 static void
-es3_ui_layer_ensure(struct ToriRS_ES3* renderer)
+es3_ui_layer_ensure(struct TRSPK_Renderer_ES3* renderer)
 {
     GLenum status;
     int const width = renderer->width;
@@ -746,7 +746,7 @@ es3_ui_layer_ensure(struct ToriRS_ES3* renderer)
  * rest before compositing -- so a record never straddles the two targets.
  */
 static void
-es3_ui_layer_begin(struct ToriRS_ES3* renderer)
+es3_ui_layer_begin(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(!renderer->ui_layer_open);
     /* Records left over from before this segment belong to the frame, and go
@@ -780,7 +780,7 @@ es3_ui_layer_begin(struct ToriRS_ES3* renderer)
 
 /* Filter the finished segment onto the output rect it would have drawn to. */
 static void
-es3_ui_layer_composite(struct ToriRS_ES3* renderer)
+es3_ui_layer_composite(struct TRSPK_Renderer_ES3* renderer)
 {
     GLint const filter = renderer->interface_scale_mode == 1 ? GL_LINEAR : GL_NEAREST;
 
@@ -827,7 +827,7 @@ es3_ui_layer_composite(struct ToriRS_ES3* renderer)
 }
 
 void
-es3_begin_2d(struct ToriRS_ES3* renderer)
+es3_begin_2d(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     if( !renderer->scene || !renderer->ui_batch.vertices || !renderer->gl_context )
@@ -849,7 +849,7 @@ es3_begin_2d(struct ToriRS_ES3* renderer)
 }
 
 void
-es3_end_2d(struct ToriRS_ES3* renderer)
+es3_end_2d(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     if( renderer->in2d )
@@ -866,7 +866,7 @@ es3_end_2d(struct ToriRS_ES3* renderer)
 
 void
 es3_draw_solid_rect(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int logical_x,
     int logical_y,
     int width,
@@ -898,7 +898,7 @@ es3_draw_solid_rect(
 /* ---- sprites --------------------------------------------------------------------- */
 
 static void
-es3_ui_rotmask_release_slot(struct ToriRS_ES3* renderer, struct ES3UIRotmaskSlot* slot)
+es3_ui_rotmask_release_slot(struct TRSPK_Renderer_ES3* renderer, struct ES3UIRotmaskSlot* slot)
 {
     assert(slot);
     es3_ui_delete_texture(renderer, &slot->source_texture);
@@ -907,7 +907,7 @@ es3_ui_rotmask_release_slot(struct ToriRS_ES3* renderer, struct ES3UIRotmaskSlot
 }
 
 static void
-es3_ui_rotmask_invalidate(struct ToriRS_ES3* renderer, int scene_id)
+es3_ui_rotmask_invalidate(struct TRSPK_Renderer_ES3* renderer, int scene_id)
 {
     uint32_t slot_index;
     if( scene_id <= 0 )
@@ -921,7 +921,7 @@ es3_ui_rotmask_invalidate(struct ToriRS_ES3* renderer, int scene_id)
 }
 
 static int
-es3_ui_sprite_slot_index(struct ToriRS_ES3* renderer, int scene_id, bool create)
+es3_ui_sprite_slot_index(struct TRSPK_Renderer_ES3* renderer, int scene_id, bool create)
 {
     int free_index = -1;
     int slot;
@@ -948,7 +948,7 @@ es3_ui_sprite_slot_index(struct ToriRS_ES3* renderer, int scene_id, bool create)
 }
 
 void
-es3_ui_sprite_invalidate(struct ToriRS_ES3* renderer, int scene_id)
+es3_ui_sprite_invalidate(struct TRSPK_Renderer_ES3* renderer, int scene_id)
 {
     int slot_index;
     uint32_t variant;
@@ -983,7 +983,7 @@ es3_ui_sprite_invalidate(struct ToriRS_ES3* renderer, int scene_id)
  */
 static bool
 es3_ui_upload_sprite_pixels(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const uint32_t* source,
     int width,
     int height,
@@ -1066,7 +1066,7 @@ es3_ui_upload_sprite_pixels(
 
 static bool
 es3_ui_sprite_ensure_base(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int scene_id,
     int atlas_index,
     struct ToriDraw_Sprite** out_sprite,
@@ -1131,7 +1131,7 @@ es3_ui_sprite_ensure_base(
 
 static struct ES3UISpriteVariant*
 es3_ui_sprite_variant(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     bool create)
 {
@@ -1203,7 +1203,7 @@ es3_ui_clamp_sprite(
 
 static bool
 es3_ui_sprite_ensure_variant(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     struct ToriDraw_Sprite** out_sprite,
     float out_uv[4],
@@ -1341,7 +1341,7 @@ es3_ui_sprite_ensure_variant(
 
 static struct ES3UIRotmaskSlot*
 es3_ui_rotmask_slot(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int scene_id,
     int atlas_index,
     int mask_scene_id,
@@ -1440,7 +1440,7 @@ es3_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
  * never both pay in the same frame. The first upload always hashes. */
 static bool
 es3_ui_rotmask_hash_due(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     const struct ES3UIRotmaskSlot* slot,
     bool have_texture)
 {
@@ -1452,7 +1452,7 @@ es3_ui_rotmask_hash_due(
 
 /*
  * Is a rotmask texture up to date? TORIRS_ES3_ROTMASK_GEN (the default):
- * the producer says when it rewrote the pixels (ToriRS_ES3_RotmaskSourceChanged
+ * the producer says when it rewrote the pixels (TRSPK_Renderer_ES3_RotmaskSourceChanged
  * from app_rebuild_world_map), so a texture uploaded at the current generation
  * is current, and a frame costs one integer compare instead of a walk over
  * the 512x512 bake. Under TORIRS_ES3_DEBUG the hash still runs on its old
@@ -1466,7 +1466,7 @@ es3_ui_rotmask_hash_due(
  */
 static bool
 es3_ui_rotmask_needs_upload(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* sprite,
     GLuint texture,
@@ -1486,7 +1486,7 @@ es3_ui_rotmask_needs_upload(
             if( hash_valid && hash != hash_uploaded )
                 TORIRS_ERR(
                     "WebGL2: rotmask %s pixels changed with no generation bump "
-                    "(scene %d): a writer is missing ToriRS_ES3_RotmaskSourceChanged\n",
+                    "(scene %d): a writer is missing TRSPK_Renderer_ES3_RotmaskSourceChanged\n",
                     what,
                     slot->scene_id);
             *out_hash = hash;
@@ -1505,7 +1505,7 @@ es3_ui_rotmask_needs_upload(
 
 static bool
 es3_ui_rotmask_upload_source(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* sprite)
 {
@@ -1584,7 +1584,7 @@ es3_ui_rotmask_upload_source(
 
 static bool
 es3_ui_rotmask_upload_mask(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* mask)
 {
@@ -1707,7 +1707,7 @@ es3_ui_rotated_sprite_quad(
 
 static void
 es3_ui_draw_rotmask_native(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     const struct ES3UIRotmaskSlot* slot,
     const struct ES3Rect* scissor,
@@ -1819,7 +1819,7 @@ es3_ui_draw_rotmask_native(
 
 void
 es3_ui_draw_sprite(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Sprite* command)
 {
     struct ToriDraw_Sprite* sprite = NULL;
@@ -2052,7 +2052,7 @@ es3_ui_draw_sprite(
 
 void
 es3_ui_draw_clear_rect(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_ClearRect* command)
 {
     struct ES3Clip clip;
@@ -2090,7 +2090,7 @@ es3_ui_solid_rgba(int argb)
 
 void
 es3_ui_draw_fill_rect(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_FillRect* command)
 {
     struct ES3Clip clip;
@@ -2138,7 +2138,7 @@ es3_ui_draw_fill_rect(
 }
 
 void
-es3_ui_draw_line(struct ToriRS_ES3* renderer, const struct ToriRS_RenderCommand_Line* command)
+es3_ui_draw_line(struct TRSPK_Renderer_ES3* renderer, const struct ToriRS_RenderCommand_Line* command)
 {
     struct ES3Rect scissor;
     float positions[4][2];
@@ -2201,7 +2201,7 @@ es3_ui_draw_line(struct ToriRS_ES3* renderer, const struct ToriRS_RenderCommand_
 
 void
 es3_ui_polygon_begin(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_PolygonBegin* command)
 {
     assert(renderer);
@@ -2213,7 +2213,7 @@ es3_ui_polygon_begin(
 
 void
 es3_ui_polygon_point(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_PolygonPoint* command)
 {
     assert(renderer);
@@ -2227,7 +2227,7 @@ es3_ui_polygon_point(
 
 struct ES3PolygonSpanContext
 {
-    struct ToriRS_ES3* renderer;
+    struct TRSPK_Renderer_ES3* renderer;
     struct ES3Rect scissor;
     bool scissor_set;
     uint32_t rgba;
@@ -2259,7 +2259,7 @@ es3_ui_polygon_span(void* user_data, int x, int y, int count)
 }
 
 void
-es3_ui_polygon_end(struct ToriRS_ES3* renderer)
+es3_ui_polygon_end(struct TRSPK_Renderer_ES3* renderer)
 {
     struct ES3PolygonSpanContext context;
     uint32_t argb;
@@ -2298,7 +2298,7 @@ es3_ui_polygon_end(struct ToriRS_ES3* renderer)
 /* ---- fonts ------------------------------------------------------------------------------ */
 
 static int
-es3_ui_font_slot_index(struct ToriRS_ES3* renderer, int font_id, bool create)
+es3_ui_font_slot_index(struct TRSPK_Renderer_ES3* renderer, int font_id, bool create)
 {
     int free_index = -1;
     int slot;
@@ -2320,7 +2320,7 @@ es3_ui_font_slot_index(struct ToriRS_ES3* renderer, int font_id, bool create)
 }
 
 static void
-es3_ui_font_release_slot(struct ToriRS_ES3* renderer, struct ES3UIFontSlot* slot)
+es3_ui_font_release_slot(struct TRSPK_Renderer_ES3* renderer, struct ES3UIFontSlot* slot)
 {
     es3_ui_delete_texture(renderer, &slot->texture);
     slot->texture_width = 0;
@@ -2350,7 +2350,7 @@ es3_ui_font_release_slot(struct ToriRS_ES3* renderer, struct ES3UIFontSlot* slot
  * blend the glyph above or below across the quad (the horizontal streak).
  */
 static bool
-es3_ui_bake_font(struct ToriRS_ES3* renderer, struct ES3UIFontSlot* slot)
+es3_ui_bake_font(struct TRSPK_Renderer_ES3* renderer, struct ES3UIFontSlot* slot)
 {
     struct ToriDraw_Font* font;
     uint8_t* texels;
@@ -2422,7 +2422,7 @@ es3_ui_bake_font(struct ToriRS_ES3* renderer, struct ES3UIFontSlot* slot)
 }
 
 static struct ES3UIFontSlot*
-es3_ui_ensure_font(struct ToriRS_ES3* renderer, int font_id)
+es3_ui_ensure_font(struct TRSPK_Renderer_ES3* renderer, int font_id)
 {
     int slot_index = es3_ui_font_slot_index(renderer, font_id, true);
     struct ES3UIFontSlot* slot;
@@ -2437,7 +2437,7 @@ es3_ui_ensure_font(struct ToriRS_ES3* renderer, int font_id)
 }
 
 void
-es3_ui_font_load(struct ToriRS_ES3* renderer, int font_id, struct ToriDraw_Font* font)
+es3_ui_font_load(struct TRSPK_Renderer_ES3* renderer, int font_id, struct ToriDraw_Font* font)
 {
     int slot_index;
     assert(renderer);
@@ -2453,7 +2453,7 @@ es3_ui_font_load(struct ToriRS_ES3* renderer, int font_id, struct ToriDraw_Font*
 }
 
 void
-es3_ui_font_unload(struct ToriRS_ES3* renderer, int font_id)
+es3_ui_font_unload(struct TRSPK_Renderer_ES3* renderer, int font_id)
 {
     int slot_index;
     assert(renderer);
@@ -2468,7 +2468,7 @@ es3_ui_font_unload(struct ToriRS_ES3* renderer, int font_id)
 
 struct ES3UIFontGlyphContext
 {
-    struct ToriRS_ES3* renderer;
+    struct TRSPK_Renderer_ES3* renderer;
     struct ES3UIFontSlot* slot;
     struct ES3Clip clip;
     bool shadow;
@@ -2514,7 +2514,7 @@ es3_ui_font_glyph(
 
 static void
 es3_ui_draw_font_rules(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ToriDraw_Font* font,
     const struct ES3Clip* clip,
     const char* text,
@@ -2524,7 +2524,7 @@ es3_ui_draw_font_rules(
 
 static void
 es3_ui_draw_font_text(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3UIFontSlot* slot,
     const struct ES3Clip* clip,
     const char* text,
@@ -2651,7 +2651,7 @@ es3_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char charact
 
 static void
 es3_ui_append_rule_quad(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ES3Clip* clip,
     int x,
     int y,
@@ -2667,7 +2667,7 @@ es3_ui_append_rule_quad(
  * get their own walk over the same tokens. */
 static void
 es3_ui_draw_font_rule_range(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ToriDraw_Font* font,
     const struct ES3Clip* clip,
     const char* text,
@@ -2728,7 +2728,7 @@ es3_ui_draw_font_rule_range(
 
 static void
 es3_ui_draw_font_rules(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ToriDraw_Font* font,
     const struct ES3Clip* clip,
     const char* text,
@@ -2757,7 +2757,7 @@ es3_ui_draw_font_rules(
 
 static void
 es3_ui_draw_font_range(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3UIFontSlot* slot,
     const struct ES3Clip* clip,
     const char* text,
@@ -2778,7 +2778,7 @@ es3_ui_draw_font_range(
 }
 
 void
-es3_ui_draw_font(struct ToriRS_ES3* renderer, const struct ToriRS_RenderCommand_Font* command)
+es3_ui_draw_font(struct TRSPK_Renderer_ES3* renderer, const struct ToriRS_RenderCommand_Font* command)
 {
     struct ES3UIFontSlot* slot;
     struct ToriDraw_Font* font;
@@ -2890,7 +2890,7 @@ es3_widget_model_transform_vertex(
  * the scene's bounded face sort can order the faces. */
 static bool
 es3_widget_model_project(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_ModelWidget* command,
     const struct ToriDraw_WidgetModelTransform* transform,
     float* out_origin_x,
@@ -3060,7 +3060,7 @@ es3_widget_model_output_vertex(
 }
 
 static void
-es3_reserve_widget_vertices(struct ToriRS_ES3* renderer, uint32_t needed)
+es3_reserve_widget_vertices(struct TRSPK_Renderer_ES3* renderer, uint32_t needed)
 {
     uint32_t capacity;
     struct ES3VertexUI* grown;
@@ -3077,7 +3077,7 @@ es3_reserve_widget_vertices(struct ToriRS_ES3* renderer, uint32_t needed)
 
 static void
 es3_widget_flush_vertices(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ES3Rect* scissor,
     uint32_t vertex_count)
 {
@@ -3139,7 +3139,7 @@ es3_widget_flush_vertices(
  */
 void
 es3_ui_draw_model_widget(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_ModelWidget* command)
 {
     struct ToriDraw_WidgetModelTransform transform;
@@ -3284,7 +3284,7 @@ es3_ui_draw_model_widget(
 /* ---- lifetime ------------------------------------------------------------------------ */
 
 void
-es3_ui_init_state(struct ToriRS_ES3* renderer)
+es3_ui_init_state(struct TRSPK_Renderer_ES3* renderer)
 {
     int font;
     assert(renderer);
@@ -3300,7 +3300,7 @@ es3_ui_init_state(struct ToriRS_ES3* renderer)
 }
 
 bool
-es3_ui_create_gl(struct ToriRS_ES3* renderer)
+es3_ui_create_gl(struct TRSPK_Renderer_ES3* renderer)
 {
     static const uint32_t white_pixel = 0xffffffffu;
     assert(renderer);
@@ -3315,7 +3315,7 @@ es3_ui_create_gl(struct ToriRS_ES3* renderer)
 }
 
 void
-es3_ui_destroy_gl(struct ToriRS_ES3* renderer)
+es3_ui_destroy_gl(struct TRSPK_Renderer_ES3* renderer)
 {
     int font;
     uint32_t slot;
@@ -3337,7 +3337,7 @@ es3_ui_destroy_gl(struct ToriRS_ES3* renderer)
 }
 
 void
-es3_ui_free(struct ToriRS_ES3* renderer)
+es3_ui_free(struct TRSPK_Renderer_ES3* renderer)
 {
     int slot;
     assert(renderer);
@@ -3363,7 +3363,7 @@ es3_ui_free(struct ToriRS_ES3* renderer)
 }
 
 void
-es3_ui_report_memory(struct ToriRS_ES3* renderer)
+es3_ui_report_memory(struct TRSPK_Renderer_ES3* renderer)
 {
     int fonts = 0;
     uint64_t font_bytes = 0u;

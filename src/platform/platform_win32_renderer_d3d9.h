@@ -9,7 +9,7 @@
 
 struct ToriDraw_Scene;
 struct ToriRS_Frame;
-struct ToriRS_D3D9;
+struct ToriPlatformWin32_Renderer_D3D9;
 
 #define TORIRS_D3D9_BG 0xFF202428
 
@@ -20,7 +20,7 @@ struct ToriRS_D3D9;
  * Read-only snapshot of one CPU-side retained model group.  These values are
  * copied out of the renderer; callers never receive renderer-owned pointers.
  */
-struct ToriRS_D3D9RetainedGroupStats
+struct ToriPlatformWin32_Renderer_D3D9_RetainedGroupStats
 {
     uint32_t write_cursor;
     uint32_t vertex_count;
@@ -31,41 +31,41 @@ struct ToriRS_D3D9RetainedGroupStats
 };
 
 /** Read-only diagnostics for the fixed-function renderer's retained state. */
-struct ToriRS_D3D9RetainedStats
+struct ToriPlatformWin32_Renderer_D3D9_RetainedStats
 {
-    struct ToriRS_D3D9RetainedGroupStats groups[TORIRS_D3D9_RETAINED_GROUP_COUNT];
+    struct ToriPlatformWin32_Renderer_D3D9_RetainedGroupStats groups[TORIRS_D3D9_RETAINED_GROUP_COUNT];
     uint32_t pose_element_count;
     uint32_t pose_element_capacity;
 };
 #endif
 
-struct ToriRS_D3D9*
-ToriRS_D3D9_New(int width, int height);
+struct ToriPlatformWin32_Renderer_D3D9*
+ToriPlatformWin32_Renderer_D3D9_New(int width, int height);
 
 void
-ToriRS_D3D9_Free(struct ToriRS_D3D9* d3d9);
+ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* d3d9);
 
 #if defined(TORIRS_D3D9_RETAINED_TEST_API)
 /**
  * Attach a scene without creating a window or D3D device.  This is only for
  * CPU-only renderer tests that execute retained-resource commands; normal
- * clients must attach their scene through ToriRS_D3D9_Init.
+ * clients must attach their scene through ToriPlatformWin32_Renderer_D3D9_Init.
  */
 bool
-ToriRS_D3D9_AttachSceneHeadlessForTest(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_AttachSceneHeadlessForTest(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     struct ToriDraw_Scene* scene);
 
 /** Copy the renderer's current CPU-retained allocation/high-water state. */
 bool
-ToriRS_D3D9_GetRetainedStats(
-    struct ToriRS_D3D9 const* d3d9,
-    struct ToriRS_D3D9RetainedStats* out_stats);
+ToriPlatformWin32_Renderer_D3D9_GetRetainedStats(
+    struct ToriPlatformWin32_Renderer_D3D9 const* d3d9,
+    struct ToriPlatformWin32_Renderer_D3D9_RetainedStats* out_stats);
 
 /** Query a retained pose's base in its owning VBO (page-local for Batch16). */
 bool
-ToriRS_D3D9_GetPoseBase(
-    struct ToriRS_D3D9 const* d3d9,
+ToriPlatformWin32_Renderer_D3D9_GetPoseBase(
+    struct ToriPlatformWin32_Renderer_D3D9 const* d3d9,
     int element_id,
     int anim_index,
     int pose_id,
@@ -73,21 +73,21 @@ ToriRS_D3D9_GetPoseBase(
 #endif
 
 bool
-ToriRS_D3D9_Init(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_Init(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     void* native_window,
     struct ToriDraw_Scene* scene,
     bool z_buffer_enabled);
 
 void
-ToriRS_D3D9_SetViewport(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_SetViewport(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     int width,
     int height);
 
 void
-ToriRS_D3D9_SetInterfaceScaleMode(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_SetInterfaceScaleMode(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     int mode);
 
 struct ClientScaleSettings;
@@ -98,19 +98,19 @@ struct ClientScaleSettings;
  * @see platform/client_scale.h. Takes effect at the next frame.
  */
 void
-ToriRS_D3D9_SetClientScaling(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_SetClientScaling(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     struct ClientScaleSettings const* settings);
 
 void
-ToriRS_D3D9_SetPick(struct ToriRS_D3D9* d3d9, int mouse_x, int mouse_y);
+ToriPlatformWin32_Renderer_D3D9_SetPick(struct ToriPlatformWin32_Renderer_D3D9* d3d9, int mouse_x, int mouse_y);
 
 struct ToriRS_PickHits const*
-ToriRS_D3D9_PickHits(struct ToriRS_D3D9 const* d3d9);
+ToriPlatformWin32_Renderer_D3D9_PickHits(struct ToriPlatformWin32_Renderer_D3D9 const* d3d9);
 
 void
-ToriRS_D3D9_Execute(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_Execute(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     struct ToriRS_RenderCommand const* cmd);
 
 /**
@@ -124,17 +124,17 @@ ToriRS_D3D9_Execute(
  * the face before the id means anything here.
  */
 void
-ToriRS_D3D9_DrawBootBar(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_DrawBootBar(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     int progress,
     int caption_font_id,
     char const* caption);
 
 void
-ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* d3d9, struct ToriRS_Frame* frame);
+ToriPlatformWin32_Renderer_D3D9_RenderFrame(struct ToriPlatformWin32_Renderer_D3D9* d3d9, struct ToriRS_Frame* frame);
 
 void
-ToriRS_D3D9_Present(struct ToriRS_D3D9* d3d9);
+ToriPlatformWin32_Renderer_D3D9_Present(struct ToriPlatformWin32_Renderer_D3D9* d3d9);
 
 /**
  * Read the finished frame off the device into `pixels`, top-down ARGB.
@@ -142,9 +142,9 @@ ToriRS_D3D9_Present(struct ToriRS_D3D9* d3d9);
  * `width`/`height` are the CANVAS size, not the window's -- the back buffer is
  * the client rect and the canvas is letterboxed inside it, so the readback is
  * sampled back down onto the canvas grid, exactly as the GL lanes do
- * (ToriRS_GL3_ReadPixels).
+ * (ToriPlatformSDL2_Renderer_GL3_ReadPixels).
  *
- * MUST be called BEFORE ToriRS_D3D9_Present, the same as the GL twin: the swap
+ * MUST be called BEFORE ToriPlatformWin32_Renderer_D3D9_Present, the same as the GL twin: the swap
  * chain is D3DSWAPEFFECT_DISCARD, so after Present the back buffer's contents
  * are explicitly undefined.
  *
@@ -152,8 +152,8 @@ ToriRS_D3D9_Present(struct ToriRS_D3D9* d3d9);
  * so App_DrawComplete only asks for it when a capture is actually pending.
  */
 bool
-ToriRS_D3D9_ReadPixels(
-    struct ToriRS_D3D9* d3d9,
+ToriPlatformWin32_Renderer_D3D9_ReadPixels(
+    struct ToriPlatformWin32_Renderer_D3D9* d3d9,
     int* pixels,
     int width,
     int height);

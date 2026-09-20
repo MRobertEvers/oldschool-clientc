@@ -9,7 +9,7 @@
  * is what makes it ANDROID's renderer rather than an anonymous one:
  *
  *   - it names it, so a logcat line says "GLES2" and not "WebGL1";
- *   - it asks the context seam for TORIRS_GL_CLIENT_ES2, which on this lane
+ *   - it asks the context seam for TORIPLATFORM_GL_CLIENT_ES2, which on this lane
  *     is an EGL context at client version 2 from an EGL_OPENGL_ES2_BIT
  *     config (platform_android_gl.c);
  *   - it is what --gles2 / --gles2-zbuffer select, and what Client Settings
@@ -22,7 +22,7 @@
  * something turns out to be, it belongs here.
  */
 
-#include "platform/platform_renderer_es2.h"
+#include "es2/trspk_es2.h"
 
 struct ClientScaleSettings;
 struct ToriDraw_Scene;
@@ -31,74 +31,96 @@ struct ToriRS_Frame;
 /*
  * The handle.
  *
- * Deliberately never defined: it IS a struct ToriRS_ES2, and only this lane's
+ * Deliberately never defined: it IS a struct TRSPK_Renderer_ES2, and only this lane's
  * .c file knows that. An incomplete type means a caller cannot reach past the
  * lane into the core by accident, and costs nothing -- there is no wrapper
  * object to allocate and no indirection on the way through.
  */
-struct ToriRS_GLES2;
+struct ToriPlatformAndroid_Renderer_GLES2;
 
 /** The core, named for this lane. */
-struct ToriRS_GLES2*
-ToriRS_GLES2_New(int width, int height);
+struct ToriPlatformAndroid_Renderer_GLES2*
+ToriPlatformAndroid_Renderer_GLES2_New(int width, int height);
 
 void
-ToriRS_GLES2_Free(
-    struct ToriRS_GLES2* renderer);
+ToriPlatformAndroid_Renderer_GLES2_Free(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer);
 
+/* Two renderers, two entry points: the painter flag brings up the painter
+ * one and the -zbuffer flag the depth one, and whichever was chosen owns the
+ * handle's Execute, DrawBootBar and RenderFrame from then on. There is no
+ * flag and no test below this line. @see 3rd/trspk/es2/trspk_es2.h. */
 bool
-ToriRS_GLES2_Init(
-    struct ToriRS_GLES2* renderer,
-    ToriRS_GLWindow* window,
-    struct ToriDraw_Scene* scene,
-    bool z_buffer);
+ToriPlatformAndroid_Renderer_GLES2_PainterInit(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
+bool
+ToriPlatformAndroid_Renderer_GLES2_ZBufferInit(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene);
 
 void
-ToriRS_GLES2_SetViewport(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_SetViewport(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     int width,
     int height);
 
 void
-ToriRS_GLES2_SetInterfaceScaleMode(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_SetInterfaceScaleMode(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     int mode);
 
 void
-ToriRS_GLES2_SetClientScaling(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_SetClientScaling(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     struct ClientScaleSettings const* settings);
 
 void
-ToriRS_GLES2_SetPick(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_SetPick(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     int mouse_x,
     int mouse_y);
 
 struct ToriRS_PickHits const*
-ToriRS_GLES2_PickHits(
-    struct ToriRS_GLES2 const* renderer);
+ToriPlatformAndroid_Renderer_GLES2_PickHits(
+    struct ToriPlatformAndroid_Renderer_GLES2 const* renderer);
 
 void
-ToriRS_GLES2_Execute(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_PainterExecute(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
+    struct ToriRS_RenderCommand const* command);
+void
+ToriPlatformAndroid_Renderer_GLES2_ZBufferExecute(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     struct ToriRS_RenderCommand const* command);
 
 void
-ToriRS_GLES2_DrawBootBar(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_PainterDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption);
+void
+ToriPlatformAndroid_Renderer_GLES2_ZBufferDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     int progress,
     int caption_font_id,
     char const* caption);
 
 void
-ToriRS_GLES2_RenderFrame(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_PainterRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
+    struct ToriRS_Frame* frame);
+void
+ToriPlatformAndroid_Renderer_GLES2_ZBufferRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     struct ToriRS_Frame* frame);
 
 bool
-ToriRS_GLES2_ReadPixels(
-    struct ToriRS_GLES2* renderer,
+ToriPlatformAndroid_Renderer_GLES2_ReadPixels(
+    struct ToriPlatformAndroid_Renderer_GLES2* renderer,
     int* pixels,
     int width,
     int height);
@@ -113,12 +135,12 @@ ToriRS_GLES2_ReadPixels(
  * for this is reaching past the lane, which is what the opaque handle is
  * meant to prevent.
  */
-struct ToriRS_ES2*
-ToriRS_GLES2_Core(struct ToriRS_GLES2* renderer);
+struct TRSPK_Renderer_ES2*
+ToriPlatformAndroid_Renderer_GLES2_Core(struct ToriPlatformAndroid_Renderer_GLES2* renderer);
 
-/** @see ToriRS_ES2_RotmaskSourceChanged: process-wide, and safe with no
+/** @see TRSPK_Renderer_ES2_RotmaskSourceChanged: process-wide, and safe with no
  *  renderer alive. */
 void
-ToriRS_GLES2_RotmaskSourceChanged(void);
+ToriPlatformAndroid_Renderer_GLES2_RotmaskSourceChanged(void);
 
 #endif

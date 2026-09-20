@@ -9,23 +9,23 @@
 /* The retained-resource commands under test never enter the compatibility
  * 2D rasterizer or frame iterator.  Stubbing those independent consumers
  * keeps this test CPU-only while linking the real D3D9 command dispatcher. */
-struct ToriRS_Soft3D*
-ToriRS_Soft3D_New(void)
+struct ToriPlatform_Renderer_Soft3D*
+ToriPlatform_Renderer_Soft3D_New(void)
 {
-    struct ToriRS_Soft3D* soft = calloc(1, sizeof(*soft));
+    struct ToriPlatform_Renderer_Soft3D* soft = calloc(1, sizeof(*soft));
     assert(soft);
     return soft;
 }
 
 void
-ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
+ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     free(soft);
 }
 
 void
-ToriRS_Soft3D_Init(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_Init(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_Scene* scene,
     int* pixels,
     int width,
@@ -40,8 +40,8 @@ ToriRS_Soft3D_Init(
 }
 
 void
-ToriRS_Soft3D_Execute(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_Execute(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand const* command)
 {
     (void)soft;

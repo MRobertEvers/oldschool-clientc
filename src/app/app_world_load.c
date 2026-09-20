@@ -190,8 +190,8 @@ app_rebuild_world_map(
          * rotated-masked minimap and has no event that says they changed --
          * this is the one place they do. Declared here rather than through
          * its header because this is the one call site in this file. */
-        void ToriRS_GLES2_RotmaskSourceChanged(void);
-        ToriRS_GLES2_RotmaskSourceChanged();
+        void ToriPlatformAndroid_Renderer_GLES2_RotmaskSourceChanged(void);
+        ToriPlatformAndroid_Renderer_GLES2_RotmaskSourceChanged();
     }
 #endif
 }

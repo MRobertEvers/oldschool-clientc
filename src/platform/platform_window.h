@@ -39,10 +39,10 @@ PlatformWindow_InitForOpenGL3(
  *
  * On the SDL lanes this IS the SDL_Window; on Android it is a token the EGL
  * backend resolves for itself. Either way nothing above platform/ dereferences
- * it -- it is passed straight to ToriRS_GL3_Init and from there only back into
+ * it -- it is passed straight to ToriPlatformSDL2_Renderer_GL3_Init and from there only back into
  * platform_gl_context.h.
  */
-ToriRS_GLWindow*
+ToriPlatform_GLWindow*
 PlatformWindow_GLWindow(struct PlatformWindow* platform);
 
 /** Return the platform's native window handle without exposing OS headers.

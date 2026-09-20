@@ -60,7 +60,7 @@ struct Soft3DOutlineCacheEntry
  * pre-baked bordered icon; this cache covers the remaining draw-time
  * outline/shadow chrome.
  */
-struct ToriRS_Soft3DScratch
+struct ToriPlatform_Renderer_Soft3D_Scratch
 {
     uint32_t* blit;
     size_t blit_cap;
@@ -123,13 +123,13 @@ soft3d_owner(long long p, int buf, int layout)
 /* A layout coordinate, in buffer pixels. Edges map with floor, so two
  * layout rects that share an edge share it in the buffer too. */
 static inline int
-soft3d_mx(struct ToriRS_Soft3D const* soft, long long x)
+soft3d_mx(struct ToriPlatform_Renderer_Soft3D const* soft, long long x)
 {
     return soft->scaled ? soft3d_floor_scale(x, soft->width, soft->layout_w) : (int)x;
 }
 
 static inline int
-soft3d_my(struct ToriRS_Soft3D const* soft, long long y)
+soft3d_my(struct ToriPlatform_Renderer_Soft3D const* soft, long long y)
 {
     return soft->scaled ? soft3d_floor_scale(y, soft->height, soft->layout_h) : (int)y;
 }
@@ -145,7 +145,7 @@ soft3d_my(struct ToriRS_Soft3D const* soft, long long y)
  */
 static struct ToriDraw_ViewPort
 viewport_from_scissor(
-    struct ToriRS_Soft3D const* soft,
+    struct ToriPlatform_Renderer_Soft3D const* soft,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -174,7 +174,7 @@ viewport_from_scissor(
 
 static uint32_t*
 soft3d_scratch(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     size_t pixels)
 {
     assert(soft);
@@ -194,7 +194,7 @@ soft3d_scratch(
 
 static uint32_t*
 soft3d_outline_cache_get(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     uint32_t const* src,
     int sw,
     int sh,
@@ -288,7 +288,7 @@ soft3d_outline_cache_get(
 
 static uint32_t*
 soft3d_clamp_to_nominal(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     uint32_t const* src,
     int src_w,
     int src_h,
@@ -358,7 +358,7 @@ soft3d_scale_pixel_alpha(
  */
 static void
 soft3d_blit_scaled_alpha(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_ViewPort* vp,
     int x,
     int y,
@@ -386,7 +386,7 @@ soft3d_blit_scaled_alpha(
 
 static void
 soft3d_blit_alpha(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_ViewPort* vp,
     int x,
     int y,
@@ -405,7 +405,7 @@ soft3d_blit_alpha(
 
 static void
 soft3d_blit_tiled_alpha(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_ViewPort* vp,
     int x,
     int y,
@@ -454,9 +454,9 @@ soft3d_blit_tiled_alpha(
 #define SOFT3D_LAYER_EMPTY ((int)0x00FE01FD)
 
 static int*
-soft3d_layer_begin(struct ToriRS_Soft3D* soft, int x0, int y0, int x1, int y1)
+soft3d_layer_begin(struct ToriPlatform_Renderer_Soft3D* soft, int x0, int y0, int x1, int y1)
 {
-    struct ToriRS_Soft3DScratch* scratch;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch;
     size_t n;
 
     assert(soft);
@@ -514,9 +514,9 @@ soft3d_layer_begin(struct ToriRS_Soft3D* soft, int x0, int y0, int x1, int y1)
 }
 
 static void
-soft3d_layer_end(struct ToriRS_Soft3D* soft)
+soft3d_layer_end(struct ToriPlatform_Renderer_Soft3D* soft)
 {
-    struct ToriRS_Soft3DScratch* scratch;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch;
     int bx0, by0, bx1, by1;
 
     assert(soft);
@@ -595,7 +595,7 @@ soft3d_layer_end(struct ToriRS_Soft3D* soft)
 
 static void
 soft3d_draw_sprite(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_Sprite const* cmd)
 {
     struct ToriDraw_Sprite** sprites;
@@ -925,7 +925,7 @@ soft3d_draw_sprite(
 
 static void
 soft3d_draw_font(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_Font const* cmd)
 {
     struct ToriDraw_Font* font;
@@ -976,7 +976,7 @@ soft3d_draw_font(
 
 static void
 soft3d_draw_fill_rect(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_FillRect const* cmd)
 {
     struct ToriDraw_ViewPort vp;
@@ -1016,7 +1016,7 @@ soft3d_draw_fill_rect(
 
 static void
 soft3d_draw_clear_rect(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_ClearRect const* cmd)
 {
     struct ToriDraw_ViewPort vp;
@@ -1046,7 +1046,7 @@ soft3d_draw_clear_rect(
 
 struct soft3d_span_ctx
 {
-    struct ToriRS_Soft3D* soft;
+    struct ToriPlatform_Renderer_Soft3D* soft;
     uint32_t argb;
     int trans;
 };
@@ -1059,7 +1059,7 @@ soft3d_polygon_span(
     int count)
 {
     struct soft3d_span_ctx* ctx = user_data;
-    struct ToriRS_Soft3D* soft = ctx->soft;
+    struct ToriPlatform_Renderer_Soft3D* soft = ctx->soft;
     int* row;
     int alpha;
 
@@ -1105,7 +1105,7 @@ soft3d_polygon_span(
 }
 
 static void
-soft3d_polygon_end(struct ToriRS_Soft3D* soft)
+soft3d_polygon_end(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     struct soft3d_span_ctx ctx;
     int cx;
@@ -1151,7 +1151,7 @@ soft3d_polygon_end(struct ToriRS_Soft3D* soft)
 
 static void
 soft3d_draw_line(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_Line const* cmd)
 {
     struct ToriDraw_ViewPort vp;
@@ -1196,14 +1196,14 @@ soft3d_draw_line(
 }
 
 static void
-soft3d_segment_begin(struct ToriRS_Soft3D* soft);
+soft3d_segment_begin(struct ToriPlatform_Renderer_Soft3D* soft);
 
 static void
-soft3d_segment_end(struct ToriRS_Soft3D* soft);
+soft3d_segment_end(struct ToriPlatform_Renderer_Soft3D* soft);
 
 static void
 soft3d_draw_model_widget(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_ModelWidget const* cmd)
 {
     int draw_x = 0;
@@ -1266,7 +1266,7 @@ soft3d_draw_model_widget(
 
 static void
 soft3d_draw_model(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand_Model const* cmd)
 {
     struct ToriDraw_Position position;
@@ -1378,7 +1378,7 @@ soft3d_draw_model(
  * it from sizing the world.
  */
 static void
-soft3d_scale_world(struct ToriRS_Soft3D* soft)
+soft3d_scale_world(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     struct ToriDraw_ViewPort* vp = &soft->view_port_3d;
     struct ToriDraw_Camera* camera = &soft->camera_3d;
@@ -1431,10 +1431,10 @@ soft3d_scale_world(struct ToriRS_Soft3D* soft)
     }
 }
 
-struct ToriRS_Soft3D*
-ToriRS_Soft3D_New(void)
+struct ToriPlatform_Renderer_Soft3D*
+ToriPlatform_Renderer_Soft3D_New(void)
 {
-    struct ToriRS_Soft3D* soft = calloc(1, sizeof(*soft));
+    struct ToriPlatform_Renderer_Soft3D* soft = calloc(1, sizeof(*soft));
 
     assert(soft);
     soft->scratch = calloc(1, sizeof(*soft->scratch));
@@ -1443,7 +1443,7 @@ ToriRS_Soft3D_New(void)
 }
 
 void
-ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
+ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     int i;
 
@@ -1471,14 +1471,14 @@ ToriRS_Soft3D_Free(struct ToriRS_Soft3D* soft)
 }
 
 void
-ToriRS_Soft3D_Init(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_Init(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_Scene* scene,
     int* pixels,
     int width,
     int height)
 {
-    struct ToriRS_Soft3DScratch* scratch;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch;
 
     assert(soft);
     assert(scene);
@@ -1510,8 +1510,8 @@ ToriRS_Soft3D_Init(
 }
 
 void
-ToriRS_Soft3D_SetLayout(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_SetLayout(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int layout_w,
     int layout_h)
 {
@@ -1524,8 +1524,8 @@ ToriRS_Soft3D_SetLayout(
 }
 
 int*
-ToriRS_Soft3D_LayerBegin(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_LayerBegin(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int x0,
     int y0,
     int x1,
@@ -1536,7 +1536,7 @@ ToriRS_Soft3D_LayerBegin(
 }
 
 void
-ToriRS_Soft3D_LayerEnd(struct ToriRS_Soft3D* soft)
+ToriPlatform_Renderer_Soft3D_LayerEnd(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     assert(soft);
     soft3d_layer_end(soft);
@@ -1544,8 +1544,8 @@ ToriRS_Soft3D_LayerEnd(struct ToriRS_Soft3D* soft)
 }
 
 void
-ToriRS_Soft3D_SetPick(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_SetPick(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int mouse_x,
     int mouse_y)
 {
@@ -1558,8 +1558,8 @@ ToriRS_Soft3D_SetPick(
 }
 
 void
-ToriRS_Soft3D_Execute(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_Execute(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand const* cmd)
 {
     assert(soft);
@@ -1694,7 +1694,7 @@ soft3d_cmd_is_draw(enum ToriRS_RenderCommandKind kind)
     }
 }
 
-/* `ToriRS_Soft3D_Execute` under a per-class timer, so the one opaque `render`
+/* `ToriPlatform_Renderer_Soft3D_Execute` under a per-class timer, so the one opaque `render`
  * bracket splits into world models, sprites, glyphs and rectangles. The classes
  * are disjoint and exhaustive.
  *
@@ -1707,7 +1707,7 @@ soft3d_cmd_is_draw(enum ToriRS_RenderCommandKind kind)
  * the classes. With perf off this costs one predicted branch per command. */
 static void
 soft3d_execute_measured(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_RenderCommand const* cmd)
 {
     assert(soft);
@@ -1721,21 +1721,21 @@ soft3d_execute_measured(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_MODEL, 1);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_MODEL)
         {
-            ToriRS_Soft3D_Execute(soft, cmd);
+            ToriPlatform_Renderer_Soft3D_Execute(soft, cmd);
         }
         return;
     case TORIRSRC_SPRITE:
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_SPRITE, 1);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SPRITE)
         {
-            ToriRS_Soft3D_Execute(soft, cmd);
+            ToriPlatform_Renderer_Soft3D_Execute(soft, cmd);
         }
         return;
     case TORIRSRC_FONT:
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_FONT, 1);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_FONT)
         {
-            ToriRS_Soft3D_Execute(soft, cmd);
+            ToriPlatform_Renderer_Soft3D_Execute(soft, cmd);
         }
         return;
     case TORIRSRC_CLEAR_RECT:
@@ -1743,13 +1743,13 @@ soft3d_execute_measured(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_RECT, 1);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RECT)
         {
-            ToriRS_Soft3D_Execute(soft, cmd);
+            ToriPlatform_Renderer_Soft3D_Execute(soft, cmd);
         }
         return;
     default:
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_OTHER)
         {
-            ToriRS_Soft3D_Execute(soft, cmd);
+            ToriPlatform_Renderer_Soft3D_Execute(soft, cmd);
         }
         return;
     }
@@ -1768,7 +1768,7 @@ soft3d_execute_measured(
 #if defined(__APPLE__)
 
 static void
-soft3d_clear_framebuffer(struct ToriRS_Soft3D* soft)
+soft3d_clear_framebuffer(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     uint32_t bg = SOFT3D_DBG_CLEAR_COLOUR;
 
@@ -1818,7 +1818,7 @@ soft3d_clear_run_plain(
  * graphics/fb_clear_i686.S.
  */
 static void
-soft3d_clear_framebuffer(struct ToriRS_Soft3D* soft)
+soft3d_clear_framebuffer(struct ToriPlatform_Renderer_Soft3D* soft)
 {
     uint32_t* p;
     uint32_t bg = SOFT3D_DBG_CLEAR_COLOUR;
@@ -1943,9 +1943,9 @@ soft3d_clamp_index(int i, int n)
  * the filter rang around each hole and speckled the model's face seams.
  */
 static void
-soft3d_segment_begin(struct ToriRS_Soft3D* soft)
+soft3d_segment_begin(struct ToriPlatform_Renderer_Soft3D* soft)
 {
-    struct ToriRS_Soft3DScratch* scratch = soft->scratch;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch = soft->scratch;
     int const lw = soft->layout_w;
     int const lh = soft->layout_h;
     size_t const n = (size_t)lw * (size_t)lh;
@@ -1982,7 +1982,7 @@ soft3d_segment_begin(struct ToriRS_Soft3D* soft)
  * reach into `cache` for output columns [ox0, ox1). */
 static void
 soft3d_segment_filter_span(
-    struct ToriRS_Soft3DScratch* scratch,
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch,
     int const* encoded,
     int* cache_row,
     int const* yt,
@@ -2078,9 +2078,9 @@ soft3d_segment_filter_span(
  * from the cache.
  */
 static void
-soft3d_segment_end(struct ToriRS_Soft3D* soft)
+soft3d_segment_end(struct ToriPlatform_Renderer_Soft3D* soft)
 {
-    struct ToriRS_Soft3DScratch* scratch = soft->scratch;
+    struct ToriPlatform_Renderer_Soft3D_Scratch* scratch = soft->scratch;
     int const lw = soft->layout_w;
     int const lh = soft->layout_h;
     int const mode = soft->interface_scale_mode;
@@ -2278,8 +2278,8 @@ soft3d_segment_end(struct ToriRS_Soft3D* soft)
 }
 
 void
-ToriRS_Soft3D_SetInterfaceScaleMode(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     int mode)
 {
     assert(soft);
@@ -2288,7 +2288,7 @@ ToriRS_Soft3D_SetInterfaceScaleMode(
 
 static void
 soft3d_run_commands(
-    struct ToriRS_Soft3D* soft,
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand cmd;
@@ -2309,8 +2309,8 @@ soft3d_run_commands(
 }
 
 void
-ToriRS_Soft3D_RenderFrame(
-    struct ToriRS_Soft3D* soft,
+ToriPlatform_Renderer_Soft3D_RenderFrame(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriRS_Frame* frame)
 {
     assert(soft);

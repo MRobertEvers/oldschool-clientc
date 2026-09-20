@@ -4,15 +4,17 @@
  * command dispatch.
  *
  * What it deliberately does not know is how the world's triangles get ordered.
- * There are two implementations of that, they share nothing with each other,
- * and each lives in its own translation unit:
+ * It does not know it in the strong sense: there is no test anywhere in this
+ * file for which of the two world paths is running. Each is a WHOLE renderer
+ * that composes the toolkit below, and they share nothing with each other:
  *
- *   platform_renderer_es3_painter.c   painter's algorithm
- *   platform_renderer_es3_zbuffer.c   hardware depth test
+ *   platform_androidarmv7_renderer_opengles3_painter.c   painter's algorithm
+ *   platform_androidarmv7_renderer_opengles3_zbuffer.c   hardware depth test
  *
- * ToriRS_ES3_Init picks one by creating (or not creating) the depth
- * implementation's state. ::zbuffer is that state and doubles as the selector.
- * See platform_renderer_es3_core.h for the contract and for what the
+ * The caller picks one by calling its Init, and keeps calling that one's
+ * Execute, DrawBootBar and RenderFrame. ::zbuffer is the depth renderer's
+ * own state, not a selector anything reads.
+ * See 3rd/trspk/es3/es3_core.h for the contract and for what the
  * WebGL2 ceiling turned into here.
  *
  * The retained model is the D3D9 renderer's, kept on purpose (see
@@ -21,7 +23,7 @@
  * the scene build, whose pages are the pages the U16 index stream addresses.
  */
 
-#include "platform/platform_renderer_es3_core.h"
+#include "es3/es3_core.h"
 
 #include "core/trspk_math.h"
 #include "engine/boot_bar.h"
@@ -29,7 +31,7 @@
 #include "painters/painters.h"
 #include "perf/torirs_perf.h"
 #include "platform/platform_androidarmv7_renderer_opengles3_placement.h"
-#include "platform/platform_renderer_es3_shaders.h"
+#include "es3/es3_shaders.h"
 #include "toridraw.h"
 #include "toridraw_element_id.h"
 #include "toridraw_math.h"
@@ -49,8 +51,8 @@
  * this file is only ever compiled for the device that wants them.
  */
 
-static void
-es3_apply_animation(struct ToriRS_ES3* renderer, const struct ToriRS_RenderCommand_Model* command)
+void
+es3_apply_animation(struct TRSPK_Renderer_ES3* renderer, const struct ToriRS_RenderCommand_Model* command)
 {
     assert(renderer);
     assert(command);
@@ -94,25 +96,18 @@ es3_bake_ordered_fast(
 
 
 #if defined(TORIRS_BAKE_CHAIN_CAPTURE)
-#include "platform_renderer_es3_bake_capture.u.c"
+#include "es3/es3_bake_capture.u.c"
 #elif defined(TORIRS_BAKE_VERIFY)
 #include "../../tools/perf/bake_chain_format.h"
 #endif
 
 #if defined(TORIRS_PLACEMENT_CAPTURE)
-#include "platform_renderer_es3_placement_capture.u.c"
-#else
-#define es3_static_resolve_recorded es3_static_resolve
+#include "es3/es3_placement_capture.u.c"
 #endif
 
-/* One line of the TORIRS_ES3_DEBUG census. TORIRS_REPORT rather than
- * TORIRS_LOG: the reader asked for it by setting the variable, so it must
- * survive an optimized build. The lane decides where stderr goes -- the
- * console on the desktop and in the browser, logcat on Android. */
-#define es3_report_line(fmt, ...) TORIRS_REPORT(fmt "\n", __VA_ARGS__)
 
 #if defined(TORIRS_MODEL_CHAIN_CAPTURE)
-#include "platform_renderer_es3_chain_capture.u.c"
+#include "es3/es3_chain_capture.u.c"
 #endif
 
 _Static_assert(
@@ -148,7 +143,7 @@ enum ES3StreamLayout
 
 void
 es3_set_blend(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     bool enabled)
 {
     assert(renderer);
@@ -163,7 +158,7 @@ es3_set_blend(
 
 void
 es3_set_depth(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     bool test,
     bool write)
 {
@@ -185,7 +180,7 @@ es3_set_depth(
 
 void
 es3_set_cull(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     bool enabled)
 {
     assert(renderer);
@@ -200,7 +195,7 @@ es3_set_cull(
 
 void
 es3_set_scissor(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ES3Rect* rect)
 {
     assert(renderer);
@@ -227,7 +222,7 @@ es3_set_scissor(
 
 void
 es3_bind_texture0(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint texture)
 {
     assert(renderer);
@@ -249,7 +244,7 @@ es3_bind_texture0(
  */
 void
 es3_prefetch_ahead_ids(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int id_plus1,
     int id_plus2,
     int id_plus3)
@@ -260,9 +255,9 @@ es3_prefetch_ahead_ids(
     es3_static_prefetch_ids(renderer, id_plus1, id_plus2, id_plus3);
 }
 
-static void
+void
 es3_prefetch_ahead(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_Frame* frame)
 {
     assert(renderer);
@@ -278,7 +273,7 @@ es3_prefetch_ahead(
 
 void
 es3_bind_texture1(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint texture)
 {
     assert(renderer);
@@ -292,7 +287,7 @@ es3_bind_texture1(
 
 void
 es3_use_program(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ES3Program* program)
 {
     assert(renderer);
@@ -305,7 +300,7 @@ es3_use_program(
 
 void
 es3_bind_array_buffer(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     GLuint buffer)
 {
     if( renderer->bound_array_buffer == buffer )
@@ -323,8 +318,8 @@ es3_blend_func_default(void)
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 }
 
-static void
-es3_state_reset(struct ToriRS_ES3* renderer)
+void
+es3_state_reset(struct TRSPK_Renderer_ES3* renderer)
 {
     glDisable(GL_BLEND);
     es3_blend_func_default();
@@ -366,7 +361,7 @@ es3_state_reset(struct ToriRS_ES3* renderer)
  * core is neither. A file static for the same reason the ES2 core's is: the
  * places that log a shader or link failure have no renderer in scope, main.c
  * starts at most one GPU renderer at a time, and the value is the lane's,
- * fixed for the build. ToriRS_ES3_New sets it.
+ * fixed for the build. TRSPK_Renderer_ES3_New sets it.
  */
 static char const* g_es3_name = "ES3";
 
@@ -491,7 +486,7 @@ es3_delete_program(struct ES3Program* program)
 /* The interface layer's composite: the present's vertex shader, and the
  * two uniforms ES3Program has no field for. */
 static bool
-es3_link_ui_composite_program(struct ToriRS_ES3* renderer)
+es3_link_ui_composite_program(struct TRSPK_Renderer_ES3* renderer)
 {
     if( !es3_link_program(
             &renderer->program_ui_composite,
@@ -507,7 +502,7 @@ es3_link_ui_composite_program(struct ToriRS_ES3* renderer)
 }
 
 static bool
-es3_create_programs(struct ToriRS_ES3* renderer)
+es3_create_programs(struct TRSPK_Renderer_ES3* renderer)
 {
     /* TORIRS_ES3_FAST_SHADER=0 selects the plain sampling shader as the
      * A/B control arm. The fast one is the default here (the GLES2 renderer
@@ -563,9 +558,9 @@ es3_create_programs(struct ToriRS_ES3* renderer)
 /* The output rect, the render target and the letterbox inside it.
  * `allow_offscreen` false draws direct even when the render size differs
  * (the boot bar, which has no frame end to present from). */
-static void
+void
 es3_update_letterbox(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     bool allow_offscreen)
 {
     struct ClientScalePresent present;
@@ -632,7 +627,7 @@ es3_update_letterbox(
  * software lane would have drawn. */
 bool
 es3_scissor_rect(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     int logical_x,
     int logical_y,
     int logical_width,
@@ -716,7 +711,7 @@ es3_decode_texture_rgba(
 
 void
 es3_reserve_upload_stage(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     size_t needed)
 {
     size_t capacity;
@@ -746,7 +741,7 @@ es3_reserve_upload_stage(
  */
 static bool
 es3_upload_atlas_texture(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_Atlas* atlas,
     GLuint texture,
     bool* allocated,
@@ -811,7 +806,7 @@ es3_upload_atlas_texture(
 }
 
 bool
-es3_upload_atlas(struct ToriRS_ES3* renderer)
+es3_upload_atlas(struct TRSPK_Renderer_ES3* renderer)
 {
     int64_t bytes = 0;
     assert(renderer);
@@ -838,11 +833,11 @@ es3_upload_atlas(struct ToriRS_ES3* renderer)
 /** The UI atlas upload lives with the UI, but shares the in-place path. */
 bool
 es3_upload_ui_atlas_texture(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int64_t* out_bytes);
 bool
 es3_upload_ui_atlas_texture(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int64_t* out_bytes)
 {
     assert(renderer);
@@ -857,7 +852,7 @@ es3_upload_ui_atlas_texture(
 
 int
 es3_texture_slot(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int tex_id)
 {
     int slot;
@@ -922,7 +917,7 @@ es3_texture_anim_bytes(
 
 static struct ToriDraw_Texture*
 es3_scene_texture(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int tex_id)
 {
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY || !renderer->scene )
@@ -992,7 +987,7 @@ es3_refresh_anim_range(
 
 static void
 es3_refresh_texture_animation(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int tex_id)
 {
     const struct ToriDraw_Texture* texture = es3_scene_texture(renderer, tex_id);
@@ -1049,9 +1044,9 @@ es3_refresh_texture_animation(
     }
 }
 
-static bool
+bool
 es3_load_texture_object(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int tex_id,
     const struct ToriDraw_Texture* texture)
 {
@@ -1084,7 +1079,7 @@ es3_load_texture_object(
  *  them. The slot is what a bake encodes, resident or not. */
 int
 es3_ensure_texture(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int tex_id)
 {
     struct ToriDraw_Texture* texture;
@@ -1103,9 +1098,9 @@ es3_ensure_texture(
     return slot;
 }
 
-static void
+void
 es3_unload_texture(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int tex_id)
 {
     int slot;
@@ -1165,8 +1160,8 @@ es3_map_atlas_uv(
 /* ---- per-frame stream sets --------------------------------------------------- */
 
 /* Rotate every stream set onto this frame's buffer. */
-static void
-es3_stream_sets_begin_frame(struct ToriRS_ES3* renderer)
+void
+es3_stream_sets_begin_frame(struct TRSPK_Renderer_ES3* renderer)
 {
     struct ES3StreamSet* sets[4];
     uint32_t set_index;
@@ -1231,7 +1226,7 @@ es3_stream_sets_begin_frame(struct ToriRS_ES3* renderer)
  * set->buffers[slot] afterwards. The VAOs need no help: es3_bind_stream
  * re-specifies a binding whose buffer object changed.
  */
-static uint32_t
+uint32_t
 es3_stream_set_append(
     struct ES3StreamSet* set,
     uint32_t slot,
@@ -1300,7 +1295,7 @@ es3_stream_set_destroy(struct ES3StreamSet* set)
 
 static bool
 es3_upload_group(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3ModelGroup* group)
 {
     uint32_t vertex_count;
@@ -1396,7 +1391,7 @@ es3_upload_group(
     return true;
 }
 
-static void
+void
 es3_reset_group(struct ES3ModelGroup* group)
 {
     assert(group);
@@ -1407,10 +1402,10 @@ es3_reset_group(struct ES3ModelGroup* group)
 /* ---- static batches (Batch16 pages) ------------------------------------------ */
 
 static bool
-es3_upload_dirty_static_batches(struct ToriRS_ES3* renderer);
+es3_upload_dirty_static_batches(struct TRSPK_Renderer_ES3* renderer);
 
 static void
-es3_mark_active_static_batches_dirty(struct ToriRS_ES3* renderer)
+es3_mark_active_static_batches_dirty(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
@@ -1434,7 +1429,7 @@ es3_mark_active_static_batches_dirty(struct ToriRS_ES3* renderer)
 
 static void
 es3_grow_static_batches(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t needed)
 {
     struct ES3StaticBatch* grown;
@@ -1455,9 +1450,9 @@ es3_grow_static_batches(
     renderer->static_batch_capacity = capacity;
 }
 
-static int
+int
 es3_static_batch_slot(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int batch_id,
     bool create)
 {
@@ -1490,8 +1485,8 @@ es3_static_batch_slot(
     return (int)slot;
 }
 
-static void
-es3_rebuild_batch_pose_table(struct ToriRS_ES3* renderer)
+void
+es3_rebuild_batch_pose_table(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
@@ -1530,7 +1525,7 @@ es3_rebuild_batch_pose_table(struct ToriRS_ES3* renderer)
 
 static bool
 es3_grow_static_pages(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t needed)
 {
     struct ES3StaticPageRef* grown;
@@ -1587,7 +1582,7 @@ es3_static_batch_ensure_chunk_storage(
 
 static bool
 es3_static_batch_assign_page(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t batch_slot,
     uint32_t chunk_index)
 {
@@ -1631,7 +1626,7 @@ es3_static_batch_assign_page(
 /* Re-pack every valid page densely, in page order, and re-send them all.
  * Returns the packed high-water mark. */
 static uint32_t
-es3_compact_static_pages(struct ToriRS_ES3* renderer)
+es3_compact_static_pages(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t page_id;
     uint32_t used = 0u;
@@ -1657,9 +1652,9 @@ es3_compact_static_pages(struct ToriRS_ES3* renderer)
     return used;
 }
 
-static void
+void
 es3_invalidate_batch_pages(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ES3StaticBatch* batch)
 {
     uint32_t chunk;
@@ -1678,7 +1673,7 @@ es3_invalidate_batch_pages(
  * allocation and every page has to be re-sent from its CPU chunk. */
 static bool
 es3_ensure_static_batch_vbo(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t required_vertices,
     bool* out_recreated)
 {
@@ -1722,7 +1717,7 @@ es3_ensure_static_batch_vbo(
 
 static bool
 es3_upload_static_batch_chunk(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3StaticBatch* batch,
     uint32_t chunk_index)
 {
@@ -1784,7 +1779,7 @@ es3_upload_static_batch_chunk(
 }
 
 static bool
-es3_upload_dirty_static_batches(struct ToriRS_ES3* renderer)
+es3_upload_dirty_static_batches(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t batch_slot;
     bool recreated = false;
@@ -1812,9 +1807,9 @@ es3_upload_dirty_static_batches(struct ToriRS_ES3* renderer)
     return true;
 }
 
-static bool
+bool
 es3_static_batch_commit(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t batch_slot)
 {
     struct ES3StaticBatch* batch;
@@ -1829,7 +1824,6 @@ es3_static_batch_commit(
     batch->active = false;
     chunk_count = trspk_batch16_chunk_count(batch->cpu);
     es3_static_batch_ensure_chunk_storage(batch, chunk_count);
-    es3_painter_batch_reset(renderer, batch, trspk_batch16_entry_count(batch->cpu));
     es3_invalidate_batch_pages(renderer, batch);
     for( chunk = 0u; chunk < chunk_count; chunk++ )
         if( !es3_static_batch_assign_page(renderer, batch_slot, chunk) )
@@ -1863,7 +1857,7 @@ fail:
 
 static bool
 es3_resolve_static_page(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t page_id,
     struct TRSPK_Batch16Chunk** out_chunk)
 {
@@ -1889,7 +1883,7 @@ es3_resolve_static_page(
 
 bool
 es3_binding_cpu_source(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t binding,
     uint32_t page_id,
     const struct TRSPK_VBO** out_vbo,
@@ -1925,7 +1919,7 @@ es3_binding_cpu_source(
 /* ---- pose tables and the static arena ------------------------------------------ */
 
 static void
-es3_rebuild_static_pose_table(struct ToriRS_ES3* renderer)
+es3_rebuild_static_pose_table(struct TRSPK_Renderer_ES3* renderer)
 {
     struct TRSPK_ModelArena* arena;
     uint32_t slot_index;
@@ -1950,8 +1944,8 @@ es3_rebuild_static_pose_table(struct ToriRS_ES3* renderer)
 
 /* Reclaim unloaded ranges. Without it the arena only grows, and since the
  * draw binding IS the page, growth means more pages and more draws. */
-static void
-es3_compact_static_group(struct ToriRS_ES3* renderer)
+void
+es3_compact_static_group(struct TRSPK_Renderer_ES3* renderer)
 {
     struct TRSPK_ModelArena* arena;
     struct TRSPK_ModelArenaGCResult result;
@@ -1966,7 +1960,7 @@ es3_compact_static_group(struct ToriRS_ES3* renderer)
 
 static bool
 es3_pose_element_is_retained(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     int element_id)
 {
     uint32_t element_index;
@@ -1985,7 +1979,7 @@ es3_pose_element_is_retained(
 
 static bool
 es3_pose_track_is_retained(
-    const struct ToriRS_ES3* renderer,
+    const struct TRSPK_Renderer_ES3* renderer,
     int element_id,
     int anim_index)
 {
@@ -2010,25 +2004,28 @@ es3_pose_track_is_retained(
  * byte order. The vertex keeps its LOCAL uv; the fragment shader wraps and
  * clamps it into the tile.
  */
-static bool
+bool
 es3_bake_pose_vertices(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
     uint32_t vertex_base,
     struct ToriDraw_ModelHandle model_handle,
     const struct ToriDraw_Position* world_position,
     const int* face_order,
-    int order_count)
+    int order_count,
+    bool ordered_painter)
 {
     struct TRSPK_WorldPlacement placement;
     int face_count;
     uint32_t order_index;
     uint32_t written_count;
-    bool const ordered_painter =
-        face_order && !renderer->zbuffer && vbo == renderer->frame_stream_cpu;
 
     assert(renderer);
+    /* ordered_painter is the CALLER's knowledge: only the painter renderer
+     * bakes an actor into the frame stream in sorted face order, and only it
+     * knows that it is doing so. @see es3p_draw_model. */
+    assert(!ordered_painter || face_order);
     assert(renderer->scene);
     assert(vbo);
     assert(triangles);
@@ -2042,7 +2039,7 @@ es3_bake_pose_vertices(
     trspk_toridraw_placement_init(&placement, world_position);
     float* world_xyz = NULL;
     struct ToriDraw_Model* full_model = NULL;
-    if( renderer->actor_world_cache_enabled && face_order && !renderer->zbuffer &&
+    if( renderer->actor_world_cache_enabled && ordered_painter &&
         ToriDraw_ModelKindIsFull(model_handle.kind) )
     {
         full_model = (struct ToriDraw_Model*)ToriDraw_ModelRead(model_handle);
@@ -2071,7 +2068,8 @@ es3_bake_pose_vertices(
 #endif
 
 #if !defined(TORIRS_BAKE_CHAIN_CAPTURE) && !defined(TORIRS_BAKE_VERIFY)
-    /* This lane's fast encoder, or a decline. @see platform_renderer_es3_lane.h. */
+    /* This lane's fast encoder, or a decline. @see es3_bake_ordered_fast at
+     * the top of this file: it is written out per lane, not selected. */
     if( es3_bake_ordered_fast(
             vbo, vertex_base, full_model, face_order, written_count, world_xyz, ordered_painter) )
         return true;
@@ -2313,9 +2311,9 @@ es3_bake_pose_vertices(
     return true;
 }
 
-static uint32_t
+uint32_t
 es3_bake_into_arena(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     struct ES3ModelGroup* group,
     int element_id,
     int anim_index,
@@ -2377,20 +2375,20 @@ es3_bake_into_arena(
                            model_handle,
                            world_position,
                            NULL,
-                           0) )
+                           0,
+                           false) )
         return UINT32_MAX;
     if( update_pose_table )
     {
         trspk_pose_table_set(
             &renderer->poses, element_id, anim_index, pose_id, model_slot->vertex_base);
-        es3_zbuffer_pose_baked(renderer, element_id, anim_index, pose_id, model_handle);
     }
     return model_slot->vertex_base;
 }
 
-static void
+bool
 es3_model_unload(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int element_id)
 {
     assert(renderer);
@@ -2398,16 +2396,16 @@ es3_model_unload(
      * remain immutable until the matching batch rebuild/clear. */
     if( element_id < 0 || !renderer->groups[TRSPK_VBO_GROUP_STATIC].arena ||
         !es3_pose_element_is_retained(renderer, element_id) )
-        return;
+        return false;
     trspk_modelarena_unload_element(renderer->groups[TRSPK_VBO_GROUP_STATIC].arena, element_id);
     trspk_pose_table_remove_element(&renderer->poses, element_id);
-    es3_zbuffer_element_dropped(renderer, element_id);
     es3_compact_static_group(renderer);
+    return true;
 }
 
-static void
+bool
 es3_animation_track_unload(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int element_id,
     int anim_index)
 {
@@ -2415,10 +2413,10 @@ es3_animation_track_unload(
     uint32_t slot_index;
     assert(renderer);
     if( element_id < 0 || anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
-        return;
+        return false;
     arena = renderer->groups[TRSPK_VBO_GROUP_STATIC].arena;
     if( !arena || !es3_pose_track_is_retained(renderer, element_id, anim_index) )
-        return;
+        return false;
     for( slot_index = 0u; slot_index < arena->slot_count; slot_index++ )
     {
         const struct TRSPK_ModelSlot* slot = &arena->slots[slot_index];
@@ -2427,119 +2425,100 @@ es3_animation_track_unload(
             trspk_modelarena_unload(arena, slot_index);
     }
     trspk_pose_table_remove_track(&renderer->poses, element_id, anim_index);
-    es3_zbuffer_track_dropped(renderer, element_id, anim_index);
     es3_compact_static_group(renderer);
+    return true;
 }
 
-static void
-es3_model_load(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand_ModelLoad* command)
+
+/*
+ * Whether ANIM_LOAD's command can be baked at all, and which pose track it
+ * names. The track index is clamped here so every caller keys the arena,
+ * the pose table and its own bookkeeping with the same number.
+ */
+bool
+es3_animation_load_check(
+    const struct ToriRS_RenderCommand_AnimLoad* command,
+    int* out_anim_index)
 {
-    assert(renderer);
     assert(command);
-    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
-        return;
-    /* A model replacement invalidates every pose from the old geometry. */
-    es3_model_unload(renderer, command->element_id);
-    (void)es3_bake_into_arena(
-        renderer,
-        &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-        command->element_id,
-        0,
-        0,
-        command->model,
-        &command->world_position,
-        true);
+    assert(out_anim_index);
+    if( command->element_id < 0 || !command->animation || command->animation->frame_count <= 0 ||
+        !ToriDraw_ModelKindIsFull(command->model.kind) || !command->model.u.model.model )
+        return false;
+    if( !command->animation->skeletal &&
+        (!command->animation->base || !command->animation->frames) )
+        return false;
+    *out_anim_index = es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
+    return true;
 }
 
-static void
-es3_animation_load(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand_AnimLoad* command)
+/*
+ * One frame of the command's animation, posed into a throwaway model at
+ * render scale. Never NULL; the caller bakes it and then ToriDraw_ModelFree's
+ * it. Valid only for a command es3_animation_load_check accepted.
+ */
+struct ToriDraw_Model*
+es3_animation_pose_frame(
+    const struct ToriRS_RenderCommand_AnimLoad* command,
+    int frame)
 {
     struct ToriDraw_Animation* animation;
     struct ToriDraw_SkeletalAnim* skeletal;
     struct ToriDraw_Model* source;
-    int anim_index;
-    int frame;
+    struct ToriDraw_Model* baked;
+    bool posed = false;
 
-    assert(renderer);
     assert(command);
-    if( command->element_id < 0 || !command->animation || command->animation->frame_count <= 0 ||
-        !ToriDraw_ModelKindIsFull(command->model.kind) || !command->model.u.model.model )
-        return;
+    assert(command->animation);
+    assert(frame >= 0);
+    assert(frame < command->animation->frame_count);
     animation = command->animation;
     skeletal = animation->skeletal;
-    if( !skeletal && (!animation->base || !animation->frames) )
-        return;
-    anim_index = es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
-    /* Pose keys do not carry a sequence id. Clear the old track so frame zero
-     * cannot keep resolving to MODEL_LOAD's rest pose and a shorter
-     * replacement cannot serve stale tail frames. */
-    es3_animation_track_unload(renderer, command->element_id, anim_index);
     source = command->model.u.model.model;
-    for( frame = 0; frame < animation->frame_count; frame++ )
+    baked = ToriDraw_ModelCopy(source);
+    assert(baked);
+    /* ModelCopy copies the current vertices, not the captured rest arrays;
+     * seed the copy from the source's rest pose when one exists. */
+    if( source->original_vertices_x && source->original_vertices_y &&
+        source->original_vertices_z && baked->vertex_count == source->vertex_count )
     {
-        struct ToriDraw_Model* baked = ToriDraw_ModelCopy(source);
-        struct ToriDraw_ModelHandle handle;
-        bool posed = false;
-        assert(baked);
-        /* ModelCopy copies the current vertices, not the captured rest arrays;
-         * seed the copy from the source's rest pose when one exists. */
-        if( source->original_vertices_x && source->original_vertices_y &&
-            source->original_vertices_z && baked->vertex_count == source->vertex_count )
+        size_t vertex_bytes = (size_t)baked->vertex_count * sizeof(*baked->vertices_x);
+        memcpy(baked->vertices_x, source->original_vertices_x, vertex_bytes);
+        memcpy(baked->vertices_y, source->original_vertices_y, vertex_bytes);
+        memcpy(baked->vertices_z, source->original_vertices_z, vertex_bytes);
+    }
+    if( baked->face_alphas && source->original_face_alphas &&
+        baked->face_count == source->face_count )
+        memcpy(
+            baked->face_alphas,
+            source->original_face_alphas,
+            (size_t)baked->face_count * sizeof(*baked->face_alphas));
+    ToriDraw_ModelCaptureOriginalVertices(baked);
+    if( skeletal )
+    {
+        int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
+        if( skeletal->frame_count > 0 && skeletal->matrices &&
+            baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
+            baked->animaya_groups && baked->animaya_scales )
         {
-            size_t vertex_bytes = (size_t)baked->vertex_count * sizeof(*baked->vertices_x);
-            memcpy(baked->vertices_x, source->original_vertices_x, vertex_bytes);
-            memcpy(baked->vertices_y, source->original_vertices_y, vertex_bytes);
-            memcpy(baked->vertices_z, source->original_vertices_z, vertex_bytes);
-        }
-        if( baked->face_alphas && source->original_face_alphas &&
-            baked->face_count == source->face_count )
-            memcpy(
-                baked->face_alphas,
-                source->original_face_alphas,
-                (size_t)baked->face_count * sizeof(*baked->face_alphas));
-        ToriDraw_ModelCaptureOriginalVertices(baked);
-        if( skeletal )
-        {
-            int skeletal_frame = frame < skeletal->frame_count ? frame : 0;
-            if( skeletal->frame_count > 0 && skeletal->matrices &&
-                baked->animaya_vertex_count > 0 && baked->animaya_group_counts &&
-                baked->animaya_groups && baked->animaya_scales )
-            {
-                ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
-                posed = true;
-            }
-        }
-        else if( animation->frames[frame].length > 0 )
-        {
-            ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
+            ToriDraw_ModelAnimateSkeletal(baked, skeletal, skeletal_frame);
             posed = true;
         }
-        /* Every pose that DID run has re-applied the model's post-animation
-         * resize; the rest pose still has to be baked at render scale. */
-        if( !posed )
-            ToriDraw_ModelApplyPostTransforms(baked);
-        memset(&handle, 0, sizeof(handle));
-        handle.kind = TORIDRAWMK_MODEL;
-        handle.u.model.model = baked;
-        (void)es3_bake_into_arena(
-            renderer,
-            &renderer->groups[TRSPK_VBO_GROUP_STATIC],
-            command->element_id,
-            anim_index,
-            frame,
-            handle,
-            &command->world_position,
-            true);
-        ToriDraw_ModelFree(baked);
     }
+    else if( animation->frames[frame].length > 0 )
+    {
+        ToriDraw_ModelAnimateFrame(baked, animation->base, &animation->frames[frame]);
+        posed = true;
+    }
+    /* Every pose that DID run has re-applied the model's post-animation
+     * resize; the rest pose still has to be baked at render scale. */
+    if( !posed )
+        ToriDraw_ModelApplyPostTransforms(baked);
+    return baked;
 }
 
 bool
-es3_reserve_model_indices(struct ToriRS_ES3* renderer, uint32_t needed)
+es3_reserve_model_indices(struct TRSPK_Renderer_ES3* renderer, uint32_t needed)
 {
     uint32_t* grown;
     uint32_t capacity;
@@ -2619,7 +2598,7 @@ es3_specify_world_layout(uint32_t byte_offset)
  * here and the callers that need either re-establish it.
  */
 void
-es3_bind_vao(struct ToriRS_ES3* renderer, GLuint vao)
+es3_bind_vao(struct TRSPK_Renderer_ES3* renderer, GLuint vao)
 {
     assert(renderer);
     if( renderer->vao_bound == vao )
@@ -2661,7 +2640,7 @@ es3_bind_vao(struct ToriRS_ES3* renderer, GLuint vao)
  * unlike the ES2 renderer nothing here re-points to reach a page.
  */
 bool
-es3_bind_stream(struct ToriRS_ES3* renderer, uint32_t binding)
+es3_bind_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t binding)
 {
     GLuint buffer;
     uint32_t base_vertex;
@@ -2735,7 +2714,7 @@ es3_ui_vao_ensure(GLuint* vao)
 }
 
 void
-es3_bind_ui_stream(struct ToriRS_ES3* renderer, uint32_t byte_offset)
+es3_bind_ui_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t byte_offset)
 {
     const GLsizei stride = (GLsizei)sizeof(struct ES3VertexUI);
     assert(renderer);
@@ -2789,7 +2768,7 @@ es3_bind_ui_stream(struct ToriRS_ES3* renderer, uint32_t byte_offset)
 }
 
 void
-es3_bind_rotmask_stream(struct ToriRS_ES3* renderer, uint32_t byte_offset)
+es3_bind_rotmask_stream(struct TRSPK_Renderer_ES3* renderer, uint32_t byte_offset)
 {
     const GLsizei stride = (GLsizei)sizeof(struct ES3VertexRotmask);
     assert(renderer);
@@ -2857,7 +2836,7 @@ es3_bind_rotmask_stream(struct ToriRS_ES3* renderer, uint32_t byte_offset)
  */
 uint32_t
 es3_ring_upload(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const void* data,
     uint32_t bytes,
     bool earlier_appends_drawn)
@@ -2895,7 +2874,7 @@ es3_ring_upload(
  * grows past 128 keeps the fract() in the shader exact.
  */
 void
-es3_world_block_upload(struct ToriRS_ES3* renderer)
+es3_world_block_upload(struct TRSPK_Renderer_ES3* renderer)
 {
     float block[20];
     assert(renderer);
@@ -2918,21 +2897,21 @@ es3_world_block_upload(struct ToriRS_ES3* renderer)
 
 void
 es3_use_world_program(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     bool cutout)
 {
     const struct ES3Program* program;
     assert(renderer);
     /* Always the fast pair on this renderer: the slow programs were the
      * control arm of TORIRS_ES3_FAST_SHADER, which defaulted on everywhere.
-     * @see the shader note in platform_renderer_es3_shaders.h. */
+     * @see the shader note in 3rd/trspk/es3/es3_shaders.h. */
     program = cutout ? &renderer->program_world_fast_cutout : &renderer->program_world_fast_plain;
     es3_use_program(renderer, program);
     es3_bind_texture0(renderer, renderer->atlas_texture);
 }
 
 bool
-es3_upload_geometry(struct ToriRS_ES3* renderer)
+es3_upload_geometry(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t group;
     assert(renderer);
@@ -2945,7 +2924,7 @@ es3_upload_geometry(struct ToriRS_ES3* renderer)
 /* ---- the draw sequence and the two per-frame rings -------------------------------- */
 
 void
-es3_sequence_reset(struct ToriRS_ES3* renderer)
+es3_sequence_reset(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     renderer->draw_item_count = 0u;
@@ -2954,7 +2933,7 @@ es3_sequence_reset(struct ToriRS_ES3* renderer)
 }
 
 static struct ES3DrawItem*
-es3_sequence_append(struct ToriRS_ES3* renderer)
+es3_sequence_append(struct TRSPK_Renderer_ES3* renderer)
 {
     if( renderer->draw_item_count >= renderer->draw_item_capacity )
     {
@@ -2971,7 +2950,7 @@ es3_sequence_append(struct ToriRS_ES3* renderer)
 
 void
 es3_sequence_push_indexed(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t binding,
     uint32_t index_min,
     uint32_t index_max,
@@ -2993,7 +2972,7 @@ es3_sequence_push_indexed(
 
 uint32_t*
 es3_sequence_reserve_indexed(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t index_count)
 {
     uint32_t needed;
@@ -3016,7 +2995,7 @@ es3_sequence_reserve_indexed(
 
 void
 es3_sequence_commit_indexed(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t binding,
     uint32_t index_min,
     uint32_t index_max,
@@ -3066,7 +3045,7 @@ es3_sequence_commit_indexed(
 
 void
 es3_sequence_push_array(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t binding,
     uint32_t first,
     uint32_t count,
@@ -3098,7 +3077,7 @@ es3_sequence_push_array(
 
 uint32_t
 es3_frame_stream_reserve(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     uint32_t vertex_count)
 {
     uint32_t first;
@@ -3106,14 +3085,12 @@ es3_frame_stream_reserve(
     assert(renderer->frame_stream_cpu);
     first = renderer->frame_stream_count;
     trspk_vbo_ensure_capacity(renderer->frame_stream_cpu, first + vertex_count);
-    if( renderer->zbuffer )
-        trspk_triangles_ensure(&renderer->frame_stream_triangles, (first + vertex_count) / 3u + 1u);
     renderer->frame_stream_count = first + vertex_count;
     return first;
 }
 
-static void
-es3_frame_stream_upload(struct ToriRS_ES3* renderer)
+void
+es3_frame_stream_upload(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t bytes;
     uint32_t offset;
@@ -3140,152 +3117,11 @@ es3_frame_stream_upload(struct ToriRS_ES3* renderer)
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DYNAMIC_VBO_UPLOADS, 1);
 }
 
-/*
- * Issue the frame's draw sequence.
- *
- *  is where this frame's indices landed in the rotating
- * element-buffer set. The element binding is VERTEX ARRAY OBJECT state in
- * GLES3, not context state, so it is re-attached after each VAO change --
- * tracked, so a run of draws from one stream attaches it once.
- *
- * Indexed draws go through glDrawRangeElements: the range the item's
- * indices touch is known when it is staged, and handing it to the driver
- * lets it bound the vertex fetch instead of scanning the index block.
- */
-static void
-es3_sequence_issue(
-    struct ToriRS_ES3* renderer,
-    uint32_t index_base_bytes)
-{
-    uint32_t item_index, draw_calls = 0;
-    uint32_t skipped = 0u, skipped_binding = 0u, skipped_count = 0u;
-    int program_cutout = -1, pass_blended = -1;
-    GLuint element_buffer = renderer->index_stream.buffers[renderer->frame_slot];
-    es3_world_block_upload(renderer);
-    if( renderer->zbuffer )
-        es3_zbuffer_apply_world_states(renderer);
-    else
-        es3_painter_apply_world_states(renderer);
 
-    for( item_index = 0u; item_index < renderer->draw_item_count; item_index++ )
-    {
-        const struct ES3DrawItem* item = &renderer->draw_items[item_index];
-        if( renderer->zbuffer && pass_blended != (int)item->blended )
-        {
-            es3_zbuffer_apply_pass_states(renderer, item->blended != 0u);
-            pass_blended = (int)item->blended;
-        }
-        if( program_cutout != (int)item->cutout )
-        {
-            es3_use_world_program(renderer, item->cutout != 0u);
-            program_cutout = (int)item->cutout;
-        }
-        if( !es3_bind_stream(renderer, item->binding) )
-        {
-            /*
-             * The binding has no GPU buffer this frame, so every face in this
-             * item is simply NOT DRAWN -- silently, until now. That is a model
-             * (or a run of them) missing for one frame, which is what a
-             * flicker is. @see draw_audit.
-             */
-            if( skipped == 0u )
-            {
-                skipped_binding = item->binding;
-                skipped_count = item->count;
-            }
-            skipped++;
-            continue;
-        }
-        if( item->indexed )
-        {
-            /*
-             * The attachment is this VAO's, so it survives every switch away
-             * and back: one glBindBuffer per binding per frame, not one per
-             * draw item. es3_bind_vao must NOT clear this -- that is what made
-             * it a per-item cost. @see ToriRS_ES3::vao_element_buffer.
-             */
-            if( renderer->vao_element_buffer[item->binding] != element_buffer )
-            {
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, element_buffer);
-                renderer->vao_element_buffer[item->binding] = element_buffer;
-            }
-            glDrawRangeElements(
-                GL_TRIANGLES,
-                item->index_min,
-                item->index_max,
-                (GLsizei)item->count,
-                GL_UNSIGNED_INT,
-                (const void*)(uintptr_t)(index_base_bytes +
-                                         (size_t)item->first * sizeof(uint32_t)));
-        }
-        else
-            glDrawArrays(GL_TRIANGLES, (GLint)item->first, (GLsizei)item->count);
-        draw_calls++;
-    }
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_CALLS, draw_calls);
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_DRAW_RANGES, renderer->draw_item_count);
-    if( renderer->draw_audit )
-    {
-        GLenum audit_error = glGetError();
-        if( skipped != 0u || audit_error != GL_NO_ERROR )
-            TORIRS_ERR(
-                "%s: draw audit -- items %u, drawn %u, SKIPPED %u (first binding %u, %u "
-                "indices), glGetError 0x%x | group0 gpu %u cpu_verts %u dirty %d cap %u | "
-                "group1 gpu %u | static_batch_vbo %u\n",
-                g_es3_name,
-                (unsigned)renderer->draw_item_count,
-                (unsigned)draw_calls,
-                (unsigned)skipped,
-                (unsigned)skipped_binding,
-                (unsigned)skipped_count,
-                (unsigned)audit_error,
-                (unsigned)renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_gpu,
-                (unsigned)(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu
-                               ? renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu->vertex_count
-                               : 0u),
-                renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu
-                    ? (int)trspk_vbo_is_dirty(renderer->groups[TRSPK_VBO_GROUP_STATIC].vbo_cpu)
-                    : -1,
-                (unsigned)renderer->groups[TRSPK_VBO_GROUP_STATIC].gpu_capacity,
-                (unsigned)renderer->groups[TRSPK_VBO_GROUP_DYNAMIC].vbo_gpu,
-                (unsigned)renderer->static_batch_vbo);
-    }
-}
-
-void
-es3_sequence_draw(struct ToriRS_ES3* renderer)
-{
-    uint32_t index_base_bytes = 0u;
-
-    assert(renderer);
-    if( renderer->draw_item_count == 0u )
-        return;
-    if( renderer->ibo_staging_count > 0u )
-    {
-        uint32_t bytes = renderer->ibo_staging_count * (uint32_t)sizeof(uint32_t);
-        /* The element binding belongs to whichever VAO is bound, so the
-         * upload is made against the default one; es3_sequence_issue
-         * attaches the finished buffer to each VAO it draws from. */
-        es3_bind_vao(renderer, 0u);
-        index_base_bytes = es3_stream_set_append(
-            &renderer->index_stream,
-            renderer->frame_slot,
-            GL_ELEMENT_ARRAY_BUFFER,
-            ES3_INDEX_STREAM_INIT_BYTES,
-            renderer->ibo_staging,
-            bytes,
-            false);
-        renderer->ibo = renderer->index_stream.buffers[renderer->frame_slot];
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOAD_BYTES, (int64_t)bytes);
-        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_IBO_UPLOADS, 1);
-    }
-
-    es3_sequence_issue(renderer, index_base_bytes);
-}
 
 /* ---- the 3D pass ------------------------------------------------------------------- */
 
-static void
+void
 es3_mat4_multiply(
     const float* a,
     const float* b,
@@ -3304,393 +3140,10 @@ es3_mat4_multiply(
         }
 }
 
-static void
-es3_begin_3d(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand_Begin3D* command)
-{
-    const struct ToriDraw_ViewPort* viewport;
-    int pass_w;
-    int pass_h;
-    int logical_x;
-    int logical_y;
-    int left;
-    int top;
-    int right;
-    int bottom;
-    uint32_t group;
 
-    assert(renderer);
-    assert(command);
-    if( !renderer->gl_context )
-        return;
-    es3_sequence_reset(renderer);
-    renderer->current_3d = *command;
-#if defined(TORIRS_MODEL_CHAIN_CAPTURE)
-    g_chain_pass++;
-#endif
-#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
-    ToriDraw_AnimCaptureBeginPass();
-#endif
-    renderer->has_3d = true;
-    renderer->in3d = true;
-    /* Publish the prepared camera block: the prepared projection kernels are
-     * gated on this pointer being the one the projection is called with. */
-    if( renderer->scene )
-        ToriDraw_ScenePrepareProjectionCamera(renderer->scene, &renderer->current_3d.camera);
-    /* Every scene event of the frame has been dispatched by now (the frame
-     * drains them before its first non-event command): a stage source may
-     * start reading and posing models. */
-    if( renderer->model_stage_source && renderer->model_stage_source->begin_3d )
-        renderer->model_stage_source->begin_3d(renderer->model_stage_source->user, command);
 
-    viewport = &renderer->current_3d.view_port;
-    pass_w = viewport->width > 0 ? viewport->width : renderer->width;
-    pass_h = viewport->height > 0 ? viewport->height : renderer->height;
-    logical_x = viewport->x_center - pass_w / 2;
-    logical_y = viewport->y_center - pass_h / 2;
-    left = renderer->letterbox_x +
-           (int)((int64_t)logical_x * renderer->letterbox_width / renderer->width);
-    top = renderer->letterbox_top +
-          (int)((int64_t)logical_y * renderer->letterbox_height / renderer->height);
-    right = renderer->letterbox_x +
-            (int)((int64_t)(logical_x + pass_w) * renderer->letterbox_width / renderer->width);
-    bottom = renderer->letterbox_top +
-             (int)((int64_t)(logical_y + pass_h) * renderer->letterbox_height / renderer->height);
-    if( right <= left )
-        right = left + 1;
-    if( bottom <= top )
-        bottom = top + 1;
-    renderer->world_viewport.x = left;
-    renderer->world_viewport.y = renderer->target_height - bottom;
-    renderer->world_viewport.width = right - left;
-    renderer->world_viewport.height = bottom - top;
-    glViewport(
-        renderer->world_viewport.x,
-        renderer->world_viewport.y,
-        renderer->world_viewport.width,
-        renderer->world_viewport.height);
-    if( renderer->zbuffer )
-        es3_zbuffer_begin_pass(renderer);
-
-    trspk_compute_pass_matrices(
-        renderer->view,
-        renderer->projection,
-        (float)command->camera_position.x,
-        (float)command->camera_position.y,
-        (float)command->camera_position.z,
-        ToriDraw_AngleToRadians(command->camera.pitch),
-        ToriDraw_AngleToRadians(command->camera.yaw),
-        pass_w,
-        pass_h,
-        (int)command->camera.projection_mode,
-        command->camera.projection_scale,
-        command->camera.fov_rpi2048,
-        command->camera.parallel_zoom16);
-    if( renderer->zbuffer )
-        es3_zbuffer_setup_projection(renderer, command);
-    else
-        es3_painter_setup_projection(renderer);
-    es3_mat4_multiply(renderer->projection, renderer->view, renderer->model_view_projection);
-
-    for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
-        if( renderer->groups[group].reset_each_frame )
-            es3_reset_group(&renderer->groups[group]);
-}
-
-static void
-es3_draw_model(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand_Model* command)
-{
-    struct ToriDraw_Position projected_position;
-    struct ES3ModelPlacement placement;
-    struct ES3ModelStage stage;
-    struct ES3StaticPrimary static_placement;
-    int static_state;
-    bool staged = false;
-    const int* face_order;
-    bool projected_in_scene;
-    int projected_depth;
-    int face_count;
-    int sorted_face_count = 0;
-    bool dynamic;
-    int anim_index;
-    int pose_id;
-    uint32_t vertex_base;
-    /* Where the model's bake begins in its binding's CPU copy, and where it
-     * begins in that binding's GPU buffer. Equal for everything but a
-     * Batch16 chunk, whose CPU copy starts at its own zero. */
-    uint32_t chunk_base = 0u;
-    uint32_t absolute_base = 0u;
-    uint32_t binding;
-    uint32_t group;
-
-    assert(renderer);
-    assert(command);
-    /* The stage source, when one is installed, is asked about EVERY model
-     * command before any early return: it hands results out in dispatch
-     * order and pairs them with the asks by count. */
-    if( renderer->model_stage_source )
-        staged =
-            renderer->model_stage_source->take(renderer->model_stage_source->user, command, &stage);
-    if( !renderer->has_3d || !renderer->scene || command->model.kind == TORIDRAWMK_NONE )
-        return;
-#if defined(TORIRS_MODEL_CHAIN_CAPTURE)
-    es3_chain_capture(renderer, command);
-#endif
-    placement.page_id = UINT32_MAX;
-    placement.batch_slot = UINT32_MAX;
-    placement.entry_index = UINT32_MAX;
-    placement.entry_vertex_count = 0u;
-    if( staged )
-    {
-        /* Pose, cull, projection, pick test and sort were done by the source
-         * (the dual-core lane's worker, on its own scratch view of the
-         * scene); this thread consumes. The pose the source applied is the
-         * one the bakes below read -- its results were published after it. */
-        if( stage.cull != TORIDRAW_CULL_VISIBLE )
-            return;
-        if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
-            stage.pick_hit )
-            ToriRS_PickHitsAdd(
-                &renderer->pick_hits,
-                command->element_id,
-                command->pick_terrain,
-                command->pick_tile_x,
-                command->pick_tile_z,
-                command->pick_tile_level,
-                command->pick_view);
-        if( command->pick_only )
-            return;
-        if( renderer->zbuffer )
-        {
-            face_count = trspk_toridraw_face_count(command->model);
-            sorted_face_count = stage.sorted ? stage.sorted_face_count : 0;
-        }
-        else
-        {
-            /* The painter draws sorted faces and nothing else; an unsorted
-             * stage here is the producer's bug, not a case. */
-            assert(stage.sorted);
-            face_count = stage.sorted_face_count;
-            sorted_face_count = face_count;
-        }
-        face_order = stage.sorted ? stage.face_order : NULL;
-        projected_depth = stage.projected_depth;
-        projected_in_scene = false;
-    }
-    else
-    {
-        if( !renderer->poses_prepared && command->animation && command->element_id >= 0 )
-        {
-            es3_apply_animation(renderer, command);
-        }
-        projected_position = command->position;
-        if( ToriDraw_RenderModel1ProjectWithTable(
-                command->model,
-                renderer->scene,
-                &projected_position,
-                &renderer->current_3d.view_port,
-                &renderer->current_3d.camera,
-                renderer->kernel) != TORIDRAW_CULL_VISIBLE )
-            return;
-
-        if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
-            (command->pick_aabb
-                 ? ToriDraw_ProjectedModelContainsAabb(
-                       renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
-             : command->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
-                                           renderer->scene,
-                                           command->model,
-                                           &renderer->current_3d.view_port,
-                                           renderer->pick_mouse_x,
-                                           renderer->pick_mouse_y)
-                                     : ToriDraw_ProjectedModelMouseHitTest(
-                                           renderer->scene,
-                                           command->model,
-                                           &renderer->current_3d.view_port,
-                                           renderer->pick_mouse_x,
-                                           renderer->pick_mouse_y)) )
-            ToriRS_PickHitsAdd(
-                &renderer->pick_hits,
-                command->element_id,
-                command->pick_terrain,
-                command->pick_tile_x,
-                command->pick_tile_z,
-                command->pick_tile_level,
-                command->pick_view);
-        if( command->pick_only )
-            return;
-
-        /* The depth path classifies per face during emission and needs no
-         * order up front; the painter path must sort before it can count. */
-        face_count = renderer->zbuffer
-                         ? trspk_toridraw_face_count(command->model)
-                         : es3_painter_sort_faces(renderer, command, &sorted_face_count);
-        face_order = ToriDraw_FaceOrder(renderer->scene);
-        projected_depth = renderer->scene->projected_vertex.z;
-        projected_in_scene = true;
-    }
-    /* The sort census is a debug readout (TORIRS_ES3_DEBUG); it costs a
-     * second trspk_toridraw_face_count per model, so it is gated where it
-     * is gathered, not only where it is printed. */
-    if( !renderer->zbuffer && renderer->debug )
-    {
-        int model_faces = trspk_toridraw_face_count(command->model);
-        int bucket = model_faces <= 2     ? 0
-                     : model_faces <= 16  ? 1
-                     : model_faces <= 64  ? 2
-                     : model_faces <= 256 ? 3
-                                          : 4;
-        renderer->painter_stat_sort_models[bucket]++;
-        renderer->painter_stat_sort_faces_in += (uint32_t)(model_faces > 0 ? model_faces : 0);
-        renderer->painter_stat_sort_faces_out += (uint32_t)(face_count > 0 ? face_count : 0);
-    }
-    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
-        return;
-    dynamic = command->dynamic || command->element_id < 0;
-    anim_index = es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1);
-    pose_id = command->animation && command->anim_frame >= 0 ? command->anim_frame : 0;
-    if( command->animation && command->animation->frame_count > 0 &&
-        pose_id >= command->animation->frame_count )
-        pose_id = 0;
-    group = dynamic ? TRSPK_VBO_GROUP_DYNAMIC : TRSPK_VBO_GROUP_STATIC;
-    binding = group;
-    if( dynamic && !renderer->zbuffer )
-    {
-        /* Painter path: an actor is baked straight into the frame stream in
-         * its sorted face order, so it needs neither the dynamic arena nor an
-         * index. The placement names the stream and the sorted count. */
-        uint32_t first = es3_frame_stream_reserve(renderer, (uint32_t)sorted_face_count * 3u);
-        if( !es3_bake_pose_vertices(
-                renderer,
-                renderer->frame_stream_cpu,
-                &renderer->frame_stream_triangles,
-                first,
-                command->model,
-                &command->world_position,
-                face_order,
-                sorted_face_count) )
-            return;
-        placement.face_order = face_order;
-        placement.projected_in_scene = projected_in_scene;
-        placement.projected_depth = projected_depth;
-        placement.binding = ES3_FRAME_STREAM_BINDING;
-        placement.chunk_base = first;
-        placement.absolute_base = first;
-        placement.face_count = face_count;
-        placement.sorted_face_count = sorted_face_count;
-        placement.anim_index = anim_index;
-        placement.pose_id = pose_id;
-        placement.dynamic = true;
-        es3_painter_emit_model(renderer, &placement);
-        return;
-    }
-    if( dynamic )
-    {
-        vertex_base = es3_bake_into_arena(
-            renderer,
-            &renderer->groups[group],
-            command->element_id,
-            anim_index,
-            pose_id,
-            command->model,
-            &command->world_position,
-            false);
-    }
-    else if(
-        (static_state = es3_static_resolve_recorded(
-             renderer, command->element_id, anim_index, pose_id, &static_placement)) != 0 )
-    {
-        if( static_state < 0 )
-            return;
-        renderer->stat_static_page += 1.0;
-        binding = ES3_STATIC_PAGE_BINDING;
-        placement.page_id = static_placement.page_id;
-        placement.batch_slot = static_placement.batch_slot;
-        placement.entry_index = static_placement.entry_index;
-        placement.entry_vertex_count = static_placement.vertex_count;
-        vertex_base = static_placement.vertex_base;
-        chunk_base = static_placement.vertex_base;
-        absolute_base = static_placement.page_base + static_placement.vertex_base;
-    }
-    else if( !trspk_pose_table_get(
-                 &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
-    {
-        renderer->stat_static_rebake += 1.0;
-        /* A live static element without its load event (renderer creation,
-         * an event-queue overflow): bake the complete animation once on the
-         * first miss, not one pose every frame. */
-        if( command->animation )
-        {
-            struct ToriRS_RenderCommand_AnimLoad load;
-            memset(&load, 0, sizeof(load));
-            load.element_id = command->element_id;
-            load.anim_index = anim_index;
-            load.animation = command->animation;
-            load.model = command->model;
-            load.world_position = command->world_position;
-            es3_animation_load(renderer, &load);
-        }
-        if( !trspk_pose_table_get(
-                &renderer->poses, command->element_id, anim_index, pose_id, &vertex_base) )
-            vertex_base = es3_bake_into_arena(
-                renderer,
-                &renderer->groups[group],
-                command->element_id,
-                anim_index,
-                pose_id,
-                command->model,
-                &command->world_position,
-                true);
-    }
-    if( vertex_base == UINT32_MAX )
-        return;
-    if( !dynamic && binding < ES3_STATIC_PAGE_BINDING )
-        renderer->stat_static_pose_table += 1.0;
-
-    /*
-     * An arena's CPU copy IS its GPU buffer's contents, so the two bases are
-     * the same number. A Batch16 chunk's CPU copy starts at the chunk's own
-     * zero while the GPU buffer packs every chunk of every batch together,
-     * so there the GPU base adds the chunk's page offset -- which the static
-     * branch above has already worked out.
-     *
-     * Neither is split against a 64K page. The GLES2 renderer splits both,
-     * because that is the only way a U16 index can name a vertex; here an
-     * index reaches the whole buffer.
-     */
-    if( binding < ES3_STATIC_PAGE_BINDING )
-    {
-        chunk_base = vertex_base;
-        absolute_base = vertex_base;
-    }
-    /* model_indices is the depth path's per-model index scratch; the painter
-     * writes its indices straight into the sequence staging and never reads
-     * it. */
-    if( renderer->zbuffer && !es3_reserve_model_indices(renderer, (uint32_t)face_count * 3u) )
-        return;
-
-    placement.binding = binding;
-    placement.chunk_base = chunk_base;
-    placement.absolute_base = absolute_base;
-    placement.face_count = face_count;
-    placement.sorted_face_count = sorted_face_count;
-    placement.anim_index = anim_index;
-    placement.pose_id = pose_id;
-    placement.dynamic = dynamic;
-    placement.face_order = face_order;
-    placement.projected_in_scene = projected_in_scene;
-    placement.projected_depth = projected_depth;
-    if( renderer->zbuffer )
-        es3_zbuffer_emit_model(renderer, command, &placement);
-    else
-        es3_painter_emit_model(renderer, &placement);
-}
-
-static void
-es3_set_letterbox_viewport(struct ToriRS_ES3* renderer)
+void
+es3_set_letterbox_viewport(struct TRSPK_Renderer_ES3* renderer)
 {
     glViewport(
         renderer->letterbox_x,
@@ -3699,258 +3152,14 @@ es3_set_letterbox_viewport(struct ToriRS_ES3* renderer)
         renderer->letterbox_height);
 }
 
-static void
-es3_end_3d(struct ToriRS_ES3* renderer)
-{
-    assert(renderer);
-    /* The prepared block describes a camera about to go out of scope;
-     * unpublishing it is what stops a later pass reading a stale one. */
-    if( renderer->scene )
-        ToriDraw_SceneClearProjectionCamera(renderer->scene);
-    if( !renderer->has_3d )
-        goto done;
-    if( !es3_upload_atlas(renderer) )
-        goto done;
-    if( renderer->zbuffer )
-    {
-        /* The retained world is drawn from the GPU: push what changed, then
-         * the opaque and the blended halves of the sequence. */
-        es3_zbuffer_flush_opaque(renderer);
-        if( !es3_upload_geometry(renderer) )
-            goto done;
-        es3_zbuffer_end_pass(renderer);
-    }
-    else
-    {
-        /*
-         * The painter path indexes the retained geometry IN PLACE, so all of
-         * it has to be on the GPU -- not just the frame stream.
-         *
-         * This used to say "the frame stream is the only thing that has to go
-         * up here", which was wrong in the one way that is invisible: a
-         * static element whose pose is in a recorded batch page draws from
-         * ES3_STATIC_PAGE_BINDING, but one that falls back to the model ARENA
-         * draws from TRSPK_VBO_GROUP_STATIC -- and nothing on this path ever
-         * uploaded that arena. es3_bind_stream then found no buffer for the
-         * binding and RETURNED FALSE, which the draw loop answered with
-         * `continue`: the item was dropped with no GL error and no log. So
-         * those models were never drawn, and which models those are changes
-         * as poses move between the pages and the arena -- geometry blinking
-         * in and out.
-         *
-         * The GLES2 painter never needed this because it copies every model
-         * into its resident ring; indexing the retained store in place is
-         * exactly what the 32-bit index bought, and it buys the obligation to
-         * upload that store with it. The depth path already did this.
-         * @see the draw_audit lever, which is what found it.
-         */
-        es3_painter_flush(renderer);
-        if( !es3_upload_geometry(renderer) )
-            goto done;
-        es3_frame_stream_upload(renderer);
-    }
-    es3_sequence_draw(renderer);
-    if( !renderer->zbuffer )
-    {
-        bool debug = renderer->debug;
-        renderer->painter_stat_frames++;
-        renderer->painter_stat_draws += renderer->draw_item_count;
-        if( debug && renderer->painter_stat_frames == 300u )
-        {
-            es3_report_line(
-                "opengles3 painter/frame: faces indexed %.0f actor %.0f; "
-                "draws %.1f; static pages %u %u vertices; static models: page %.1f "
-                "pose_table %.1f REBAKED %.1f",
-                renderer->painter_stat_faces_indexed / 300.0,
-                renderer->painter_stat_faces_actor / 300.0,
-                renderer->painter_stat_draws / 300.0,
-                renderer->static_page_count,
-                renderer->static_batch_gpu_vertex_used,
-                renderer->stat_static_page / 300.0,
-                renderer->stat_static_pose_table / 300.0,
-                renderer->stat_static_rebake / 300.0);
-            es3_report_line(
-                "opengles3 sort/frame: models by bake size tile2 %.0f <=16 %.0f <=64 %.0f <=256 %.0f "
-                "larger %.0f; faces in %.0f out %.0f; radix shallow %.1f two-pass %.1f; "
-                "prio uniform %.1f varied %.1f; k16 %.1f declined %.1f",
-                renderer->painter_stat_sort_models[0] / 300.0,
-                renderer->painter_stat_sort_models[1] / 300.0,
-                renderer->painter_stat_sort_models[2] / 300.0,
-                renderer->painter_stat_sort_models[3] / 300.0,
-                renderer->painter_stat_sort_models[4] / 300.0,
-                renderer->painter_stat_sort_faces_in / 300.0,
-                renderer->painter_stat_sort_faces_out / 300.0,
-                g_toridraw_radix_shallow_models / 300.0,
-                g_toridraw_radix_two_pass_models / 300.0,
-                g_toridraw_prio_uniform_models / 300.0,
-                g_toridraw_prio_varied_models / 300.0,
-                g_toridraw_sort_k16_models / 300.0,
-                g_toridraw_sort_k16_declined / 300.0);
-            es3_report_line(
-                "webgl2 draws/frame: world %.1f; ui batches %.1f (ended by texture %.1f atlas "
-                "%.1f scissor %.1f overflow %.1f asked %.1f) rotmask %.1f widget %.1f; ui "
-                "upload %.0f B",
-                renderer->painter_stat_draws / 300.0,
-                renderer->ui_stat_draws_batch / 300.0,
-                renderer->ui_stat_break_texture / 300.0,
-                renderer->ui_stat_break_atlas / 300.0,
-                renderer->ui_stat_break_scissor / 300.0,
-                renderer->ui_stat_break_overflow / 300.0,
-                ((double)renderer->ui_stat_draws_batch - renderer->ui_stat_break_texture -
-                 renderer->ui_stat_break_atlas - renderer->ui_stat_break_scissor -
-                 renderer->ui_stat_break_overflow) /
-                    300.0,
-                renderer->ui_stat_draws_rotmask / 300.0,
-                renderer->ui_stat_draws_widget / 300.0,
-                renderer->ui_stat_upload_bytes / 300.0);
-            es3_report_line(
-                "project/frame: models %.1f cull_fast %.1f cull_aabb %.1f error %.1f projected "
-                "%.1f vertices %.0f tail_models %.1f",
-                g_toridraw_project_census.calls / 300.0,
-                g_toridraw_project_census.cull_fast / 300.0,
-                g_toridraw_project_census.cull_aabb / 300.0,
-                g_toridraw_project_census.cull_error / 300.0,
-                g_toridraw_project_census.projected / 300.0,
-                g_toridraw_project_census.projected_vertices / 300.0,
-                g_toridraw_project_census.tail_models / 300.0);
-            es3_report_line(
-                "paint/frame: walks %.2f same_inputs %.2f pops %.0f commands %.0f entities %.1f",
-                g_torirs_paint_census.walks / 300.0,
-                g_torirs_paint_census.same_inputs / 300.0,
-                g_torirs_paint_census.pops / 300.0,
-                g_torirs_paint_census.commands / 300.0,
-                g_torirs_paint_census.entity_commands / 300.0);
-            /* A call-site counting shim, when one was built in with -include
-             * (scratch tooling; the symbol is absent in every normal build). */
-            {
-                extern void torirs_shim_dump(void) __attribute__((weak));
-                if( torirs_shim_dump )
-                    torirs_shim_dump();
-            }
-        }
-        if( renderer->painter_stat_frames >= 300u )
-        {
-            renderer->painter_stat_frames = 0u;
-            renderer->stat_static_page = 0.0;
-            renderer->stat_static_pose_table = 0.0;
-            renderer->stat_static_rebake = 0.0;
-            renderer->painter_stat_faces_indexed = 0u;
-            renderer->painter_stat_faces_actor = 0u;
-            renderer->painter_stat_draws = 0u;
-            memset(
-                renderer->painter_stat_sort_models, 0, sizeof(renderer->painter_stat_sort_models));
-            renderer->painter_stat_sort_faces_in = 0u;
-            renderer->painter_stat_sort_faces_out = 0u;
-            g_toridraw_radix_shallow_models = 0;
-            g_toridraw_radix_two_pass_models = 0;
-            g_toridraw_prio_uniform_models = 0;
-            g_toridraw_prio_varied_models = 0;
-            g_toridraw_sort_k16_models = 0;
-            g_toridraw_sort_k16_declined = 0;
-            renderer->ui_stat_draws_batch = 0u;
-            renderer->ui_stat_draws_rotmask = 0u;
-            renderer->ui_stat_draws_widget = 0u;
-            renderer->ui_stat_break_texture = 0u;
-            renderer->ui_stat_break_atlas = 0u;
-            renderer->ui_stat_break_scissor = 0u;
-            renderer->ui_stat_break_overflow = 0u;
-            renderer->ui_stat_upload_bytes = 0u;
-            memset(&g_toridraw_project_census, 0, sizeof(g_toridraw_project_census));
-            memset(&g_torirs_paint_census, 0, sizeof(g_torirs_paint_census));
-        }
-    }
-
-done:
-    renderer->has_3d = false;
-    renderer->in3d = false;
-    es3_sequence_reset(renderer);
-    if( renderer->zbuffer )
-        es3_zbuffer_reset_pass(renderer);
-    /* The world pass leaves a world-sized viewport and depth state; restore
-     * so 2D that follows is neither clipped nor occluded. */
-    es3_set_letterbox_viewport(renderer);
-    es3_set_depth(renderer, false, false);
-    es3_set_cull(renderer, false);
-    es3_set_scissor(renderer, NULL);
-}
 
 /* ---- batch commands --------------------------------------------------------------- */
 
-static void
-es3_batch_begin(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand_Batch* command)
-{
-    struct ES3StaticBatch* batch;
-    int slot;
-    assert(renderer);
-    assert(command);
-    if( command->batch_id < 0 )
-        return;
-    slot = es3_static_batch_slot(renderer, command->batch_id, true);
-    if( slot < 0 )
-        return;
-    batch = &renderer->static_batches[slot];
-    es3_zbuffer_batch_dropped(renderer, batch->cpu);
-    es3_painter_batch_reset(renderer, batch, 0u);
-    es3_invalidate_batch_pages(renderer, batch);
-    trspk_batch16_begin(batch->cpu);
-    batch->active = false;
-    batch->building = true;
-    es3_rebuild_batch_pose_table(renderer);
-    renderer->current_batch_slot = slot;
-}
 
-static void
-es3_batch_add(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand_Batch* command,
-    bool animated)
-{
-    struct ES3StaticBatch* batch;
-    struct TRSPK_Batch16Reservation reservation;
-    int anim_index;
-    int pose_id;
-    int face_count;
-    assert(renderer);
-    assert(command);
-    if( command->element_id < 0 || command->model.kind == TORIDRAWMK_NONE )
-        return;
-    if( renderer->current_batch_slot < 0 ||
-        (uint32_t)renderer->current_batch_slot >= renderer->static_batch_count )
-        return;
-    batch = &renderer->static_batches[renderer->current_batch_slot];
-    if( !batch->building || batch->batch_id != command->batch_id )
-        return;
-    face_count = trspk_toridraw_face_count(command->model);
-    if( face_count <= 0 || (uint32_t)face_count > UINT32_MAX / 3u )
-        return;
-    anim_index = animated ? es3_clampi(command->anim_index, 0, TRSPK_POSE_TRACK_COUNT - 1) : 0;
-    pose_id = command->pose_id >= 0 ? command->pose_id : 0;
-    if( !trspk_batch16_reserve_pose(
-            batch->cpu,
-            command->element_id,
-            anim_index,
-            pose_id,
-            (uint32_t)face_count * 3u,
-            &reservation) )
-        return;
-    if( es3_bake_pose_vertices(
-            renderer,
-            reservation.vbo,
-            reservation.triangles,
-            reservation.vertex_base,
-            command->model,
-            &command->world_position,
-            NULL,
-            0) )
-        es3_zbuffer_batch_pose_baked(
-            renderer, command->element_id, anim_index, pose_id, command->model);
-}
 
-static void
+void
 es3_batch_end(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     const struct ToriRS_RenderCommand_Batch* command)
 {
     struct ES3StaticBatch* batch;
@@ -3969,158 +3178,9 @@ es3_batch_end(
     renderer->current_batch_slot = -1;
 }
 
-static void
-es3_batch_clear(
-    struct ToriRS_ES3* renderer,
-    int batch_id,
-    bool clear_all)
-{
-    uint32_t slot;
-    assert(renderer);
-    for( slot = 0u; slot < renderer->static_batch_count; slot++ )
-    {
-        struct ES3StaticBatch* batch = &renderer->static_batches[slot];
-        if( !clear_all && batch->batch_id != batch_id )
-            continue;
-        es3_zbuffer_batch_dropped(renderer, batch->cpu);
-        es3_painter_batch_reset(renderer, batch, 0u);
-        es3_invalidate_batch_pages(renderer, batch);
-        trspk_batch16_clear(batch->cpu);
-        batch->active = false;
-        batch->building = false;
-    }
-    if( clear_all )
-    {
-        /* Nothing valid remains, so the bump allocator starts over: every
-         * page re-allocates its range the next time its chunk commits. */
-        uint32_t page_id;
-        for( page_id = 0u; page_id < renderer->static_page_count; page_id++ )
-            renderer->static_pages[page_id].gpu_capacity = 0u;
-        renderer->static_batch_gpu_vertex_used = 0u;
-    }
-    es3_rebuild_batch_pose_table(renderer);
-    renderer->current_batch_slot = -1;
-}
 
 /* ---- dispatch ---------------------------------------------------------------------- */
 
-static void
-es3_dispatch(
-    struct ToriRS_ES3* renderer,
-    const struct ToriRS_RenderCommand* command)
-{
-    assert(renderer);
-    assert(command);
-    switch( command->kind )
-    {
-    case TORIRSRC_BEGIN_3D:
-        es3_begin_3d(renderer, &command->u.begin_3d);
-        break;
-    case TORIRSRC_END_3D:
-        es3_end_3d(renderer);
-        break;
-    case TORIRSRC_BEGIN_2D:
-        es3_begin_2d(renderer);
-        break;
-    case TORIRSRC_END_2D:
-        es3_end_2d(renderer);
-        break;
-    case TORIRSRC_TEX_LOAD:
-        if( command->u.tex_load.texture )
-            (void)es3_load_texture_object(
-                renderer, command->u.tex_load.texture_id, command->u.tex_load.texture);
-        break;
-    case TORIRSRC_TEX_UNLOAD:
-        es3_unload_texture(renderer, command->u.tex_load.texture_id);
-        break;
-    case TORIRSRC_MODEL_LOAD:
-        es3_model_load(renderer, &command->u.model_load);
-        break;
-    case TORIRSRC_MODEL_UNLOAD:
-        es3_model_unload(renderer, command->u.model_load.element_id);
-        break;
-    case TORIRSRC_ANIM_LOAD:
-        es3_animation_load(renderer, &command->u.anim_load);
-        break;
-    case TORIRSRC_ANIM_UNLOAD:
-        es3_animation_track_unload(
-            renderer, command->u.anim_load.element_id, command->u.anim_load.anim_index);
-        break;
-    case TORIRSRC_BATCH3D_BEGIN:
-        es3_batch_begin(renderer, &command->u.batch);
-        break;
-    case TORIRSRC_BATCH3D_MODEL_ADD:
-        es3_batch_add(renderer, &command->u.batch, false);
-        break;
-    case TORIRSRC_BATCH3D_ANIM_ADD:
-        es3_batch_add(renderer, &command->u.batch, true);
-        break;
-    case TORIRSRC_BATCH3D_END:
-        es3_batch_end(renderer, &command->u.batch);
-        break;
-    case TORIRSRC_BATCH3D_CLEAR:
-        es3_batch_clear(renderer, command->u.batch.batch_id, command->u.batch.clear_all);
-        if( command->u.batch.clear_all )
-        {
-            trspk_pose_table_clear(&renderer->poses);
-            es3_reset_group(&renderer->groups[TRSPK_VBO_GROUP_STATIC]);
-        }
-        break;
-    case TORIRSRC_DRAW_MODEL:
-        es3_draw_model(renderer, &command->u.model);
-        break;
-
-    case TORIRSRC_CLEAR_RECT:
-        es3_ui_draw_clear_rect(renderer, &command->u.clear_rect);
-        break;
-    case TORIRSRC_FILL_RECT:
-        es3_ui_draw_fill_rect(renderer, &command->u.fill_rect);
-        break;
-    case TORIRSRC_DRAW_MODEL_WIDGET:
-        es3_ui_draw_model_widget(renderer, &command->u.model_widget);
-        break;
-    case TORIRSRC_SPRITE:
-        es3_ui_draw_sprite(renderer, &command->u.sprite);
-        break;
-    case TORIRSRC_FONT:
-        es3_ui_draw_font(renderer, &command->u.font);
-        break;
-    case TORIRSRC_LINE:
-        es3_ui_draw_line(renderer, &command->u.line);
-        break;
-    case TORIRSRC_POLYGON_BEGIN:
-        es3_ui_polygon_begin(renderer, &command->u.polygon_begin);
-        break;
-    case TORIRSRC_POLYGON_POINT:
-        es3_ui_polygon_point(renderer, &command->u.polygon_point);
-        break;
-    case TORIRSRC_POLYGON_END:
-        es3_ui_polygon_end(renderer);
-        break;
-    case TORIRSRC_TEX_BEGIN:
-    case TORIRSRC_TEX_END:
-    case TORIRSRC_SPRITE_BEGIN:
-    case TORIRSRC_SPRITE_END:
-    case TORIRSRC_FONT_BEGIN:
-    case TORIRSRC_FONT_END:
-        break;
-    case TORIRSRC_SPRITE_LOAD:
-        /* The scene owns pixels. Upload stays lazy so assets never drawn by
-         * this backend consume atlas space or transfer bandwidth. */
-        break;
-    case TORIRSRC_SPRITE_UNLOAD:
-        es3_ui_sprite_invalidate(renderer, command->u.sprite_load.element_id);
-        break;
-    case TORIRSRC_FONT_LOAD:
-        es3_ui_font_load(renderer, command->u.font_load.font_id, command->u.font_load.font);
-        break;
-    case TORIRSRC_FONT_UNLOAD:
-        es3_ui_font_unload(renderer, command->u.font_load.font_id);
-        break;
-    case TORIRSRC_NONE:
-        break;
-    }
-}
 
 /* ---- lifetime ----------------------------------------------------------------------- */
 
@@ -4183,7 +3243,7 @@ es3_lever_neon_default(const char* name)
 static uint32_t g_es3_rotmask_source_generation = 1u;
 
 void
-ToriRS_ES3_RotmaskSourceChanged(void)
+TRSPK_Renderer_ES3_RotmaskSourceChanged(void)
 {
     g_es3_rotmask_source_generation++;
     if( g_es3_rotmask_source_generation == 0u )
@@ -4196,13 +3256,13 @@ es3_rotmask_source_generation(void)
     return g_es3_rotmask_source_generation;
 }
 
-struct ToriRS_ES3*
-ToriRS_ES3_New(
+struct TRSPK_Renderer_ES3*
+TRSPK_Renderer_ES3_New(
     int width,
     int height,
     char const* name)
 {
-    struct ToriRS_ES3* renderer;
+    struct TRSPK_Renderer_ES3* renderer;
     static uint8_t white_tile[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
     uint32_t group;
     int texture;
@@ -4210,7 +3270,7 @@ ToriRS_ES3_New(
     assert(width > 0);
     assert(height > 0);
     assert(name);
-    renderer = (struct ToriRS_ES3*)calloc(1u, sizeof(*renderer));
+    renderer = (struct TRSPK_Renderer_ES3*)calloc(1u, sizeof(*renderer));
     assert(renderer);
     renderer->name = name;
     g_es3_name = name;
@@ -4250,7 +3310,7 @@ ToriRS_ES3_New(
             TRSPK_ATLAS_TILE,
             4u) )
     {
-        ToriRS_ES3_Free(renderer);
+        TRSPK_Renderer_ES3_Free(renderer);
         return NULL;
     }
     memset(white_tile, 0xff, sizeof(white_tile));
@@ -4263,7 +3323,7 @@ ToriRS_ES3_New(
             TRSPK_ATLAS_TILE,
             NULL) )
     {
-        ToriRS_ES3_Free(renderer);
+        TRSPK_Renderer_ES3_Free(renderer);
         return NULL;
     }
     renderer->tex_resident[0] = 1u;
@@ -4298,7 +3358,7 @@ es3_pose_table_bytes(const struct TRSPK_PoseTable* table)
  * the peer of d3d9_report_retained_memory. GL buffer sizes are what was
  * asked for; the driver's own copy is not visible from here. */
 static void
-es3_report_retained_memory(struct ToriRS_ES3* renderer)
+es3_report_retained_memory(struct TRSPK_Renderer_ES3* renderer)
 {
     uint64_t batch_vbo_cpu = 0u;
     uint64_t batch_tri_cpu = 0u;
@@ -4398,8 +3458,8 @@ es3_report_retained_memory(struct ToriRS_ES3* renderer)
 
 /* ---- client scaling's offscreen target --------------------------------------- */
 
-static void
-es3_scale_target_destroy_buffers(struct ToriRS_ES3* renderer)
+void
+es3_scale_target_destroy_buffers(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     if( renderer->scale_fbo )
@@ -4426,7 +3486,7 @@ es3_scale_target_destroy_buffers(struct ToriRS_ES3* renderer)
  * in its own VAO. Made once; after that a present is one bind.
  */
 void
-es3_bind_present_quad(struct ToriRS_ES3* renderer)
+es3_bind_present_quad(struct TRSPK_Renderer_ES3* renderer)
 {
     const GLsizei stride = (GLsizei)sizeof(struct ES3VertexUI);
 
@@ -4505,7 +3565,7 @@ es3_bind_present_quad(struct ToriRS_ES3* renderer)
 }
 
 static void
-es3_scale_target_destroy(struct ToriRS_ES3* renderer)
+es3_scale_target_destroy(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     es3_scale_target_destroy_buffers(renderer);
@@ -4532,9 +3592,10 @@ es3_scale_target_destroy(struct ToriRS_ES3* renderer)
 
 /* The offscreen target at this frame's render size, (re)made only when the
  * size changes. Colour is an RGBA texture with no mipmaps and clamped edges,
- * which WebGL1 accepts at any size; depth only on the depth-buffered lane. */
-static void
-es3_scale_target_ensure(struct ToriRS_ES3* renderer)
+ * which WebGL1 accepts at any size. Colour ALONE: a renderer that needs
+ * depth here follows with es3_scale_target_ensure_depth. */
+void
+es3_scale_target_ensure(struct TRSPK_Renderer_ES3* renderer)
 {
     GLint filter;
     GLenum status;
@@ -4585,21 +3646,6 @@ es3_scale_target_ensure(struct ToriRS_ES3* renderer)
     glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
     glFramebufferTexture2D(
         GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderer->scale_texture, 0);
-    if( renderer->zbuffer )
-    {
-        glGenRenderbuffers(1, &renderer->scale_depth);
-        assert(renderer->scale_depth);
-        glBindRenderbuffer(GL_RENDERBUFFER, renderer->scale_depth);
-        /* 24-bit, which is what the window itself is asked for. ES2 only
-         * guarantees GL_DEPTH_COMPONENT16 as a renderbuffer format, so the
-         * GLES2 renderer's offscreen path is a bit shallower than its direct
-         * one; ES3 guarantees 24 and the two match here. */
-        glRenderbufferStorage(
-            GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, renderer->target_width, renderer->target_height);
-        glFramebufferRenderbuffer(
-            GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderer->scale_depth);
-        glBindRenderbuffer(GL_RENDERBUFFER, 0);
-    }
     status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     if( status != GL_FRAMEBUFFER_COMPLETE )
         TORIRS_ERR(
@@ -4611,6 +3657,44 @@ es3_scale_target_ensure(struct ToriRS_ES3* renderer)
     assert(status == GL_FRAMEBUFFER_COMPLETE);
     renderer->scale_fbo_width = renderer->target_width;
     renderer->scale_fbo_height = renderer->target_height;
+}
+
+/*
+ * The depth renderbuffer for the offscreen target, attached to whatever
+ * es3_scale_target_ensure last built. Idempotent: the colour rebuild is what
+ * drops it, so a live ::scale_depth is already the right size.
+ */
+void
+es3_scale_target_ensure_depth(struct TRSPK_Renderer_ES3* renderer)
+{
+    GLenum status;
+
+    assert(renderer);
+    assert(renderer->scale_fbo);
+    if( renderer->scale_depth )
+        return;
+    glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
+    glGenRenderbuffers(1, &renderer->scale_depth);
+    assert(renderer->scale_depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, renderer->scale_depth);
+    /* 24-bit, which is what the window itself is asked for. ES2 only
+     * guarantees GL_DEPTH_COMPONENT16 as a renderbuffer format, so the
+     * GLES2 renderer's offscreen path is a bit shallower than its direct
+     * one; ES3 guarantees 24 and the two match here. */
+    glRenderbufferStorage(
+        GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, renderer->target_width, renderer->target_height);
+    glFramebufferRenderbuffer(
+        GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderer->scale_depth);
+    glBindRenderbuffer(GL_RENDERBUFFER, 0);
+    status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if( status != GL_FRAMEBUFFER_COMPLETE )
+        TORIRS_ERR(
+            "%s: offscreen depth %dx%d incomplete: 0x%x\n",
+            g_es3_name,
+            renderer->target_width,
+            renderer->target_height,
+            (unsigned)status);
+    assert(status == GL_FRAMEBUFFER_COMPLETE);
 }
 
 /* The finished offscreen frame onto the output rect of the drawable, with
@@ -4631,8 +3715,8 @@ es3_scale_target_ensure(struct ToriRS_ES3* renderer)
  * then skip writing those tiles back to memory entirely, and the next frame
  * has nothing to restore.
  */
-static void
-es3_scale_target_present(struct ToriRS_ES3* renderer)
+void
+es3_scale_target_present(struct TRSPK_Renderer_ES3* renderer)
 {
     assert(renderer);
     assert(renderer->scale_fbo);
@@ -4669,7 +3753,7 @@ es3_scale_target_present(struct ToriRS_ES3* renderer)
 }
 
 static void
-es3_destroy_gl_resources(struct ToriRS_ES3* renderer)
+es3_destroy_gl_resources(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t group;
     assert(renderer);
@@ -4743,7 +3827,7 @@ es3_destroy_gl_resources(struct ToriRS_ES3* renderer)
 }
 
 void
-ToriRS_ES3_Free(struct ToriRS_ES3* renderer)
+TRSPK_Renderer_ES3_Free(struct TRSPK_Renderer_ES3* renderer)
 {
     uint32_t batch;
     uint32_t group;
@@ -4752,7 +3836,7 @@ ToriRS_ES3_Free(struct ToriRS_ES3* renderer)
     es3_report_retained_memory(renderer);
     if( renderer->gl_context )
     {
-        ToriRS_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
+        ToriPlatform_GLContext_MakeCurrent(renderer->window, renderer->gl_context);
         es3_destroy_gl_resources(renderer);
     }
     for( group = 0u; group < TRSPK_VBO_GROUP_COUNT; group++ )
@@ -4787,27 +3871,36 @@ ToriRS_ES3_Free(struct ToriRS_ES3* renderer)
     free(renderer->static_pages);
     free(renderer->static_batches);
     if( renderer->gl_context )
-        ToriRS_GLContext_Delete(renderer->gl_context);
+        ToriPlatform_GLContext_Delete(renderer->gl_context);
     free(renderer);
 }
 
+/*
+ * Everything a context needs that neither world path decides: the context
+ * itself at the depth the CALLER asks for, the programs, the atlas, the UI
+ * unit and the attribute state.
+ *
+ * `depth_bits` and `world_pass` are the whole of what the two composing
+ * renderers differ by here, and both are data, not a test: the painter asks
+ * for 0 bits and calls itself "painter", the depth renderer asks for 16 and
+ * calls itself "depth-buffered". @see TRSPK_Renderer_ES3_PainterInit,
+ * TRSPK_Renderer_ES3_ZBufferInit.
+ */
 bool
-ToriRS_ES3_Init(
-    struct ToriRS_ES3* renderer,
-    ToriRS_GLWindow* window,
+es3_init_gl(
+    struct TRSPK_Renderer_ES3* renderer,
+    ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene,
-    bool z_buffer)
+    int depth_bits,
+    char const* world_pass)
 {
     GLint max_texture_size = 0;
 
     assert(renderer);
     assert(window);
     assert(scene);
+    assert(world_pass);
     if( renderer->gl_context )
-        return false;
-    /* The one place the two world implementations are chosen between. */
-    es3_zbuffer_destroy(renderer);
-    if( z_buffer && !es3_zbuffer_create(renderer) )
         return false;
     renderer->scene = scene;
     renderer->kernel = ToriDraw_KernelGetGpu();
@@ -4817,13 +3910,13 @@ ToriRS_ES3_Init(
      * it is a parameter of the create call. 16 bits: the format every WebGL2
      * device offers; EGL treats the request as a floor, so a device with more
      * may hand more back. */
-    renderer->gl_context = ToriRS_GLContext_Create(window, z_buffer ? 16 : 0, TORIRS_GL_CLIENT_ES3);
+    renderer->gl_context = ToriPlatform_GLContext_Create(window, depth_bits, TORIPLATFORM_GL_CLIENT_ES3);
     if( !renderer->gl_context )
     {
-        TORIRS_ERR("%s: context creation failed: %s\n", g_es3_name, ToriRS_GLContext_LastError());
+        TORIRS_ERR("%s: context creation failed: %s\n", g_es3_name, ToriPlatform_GLContext_LastError());
         return false;
     }
-    ToriRS_GLContext_SetSwapInterval(0);
+    ToriPlatform_GLContext_SetSwapInterval(0);
 
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &max_texture_size);
     TORIRS_LOG(
@@ -4874,19 +3967,19 @@ ToriRS_ES3_Init(
         if( !es3_upload_dirty_static_batches(renderer) )
             goto fail;
     }
-    TORIRS_LOG("%s: renderer up (%s world pass)\n", g_es3_name, z_buffer ? "depth-buffered" : "painter");
+    TORIRS_LOG("%s: renderer up (%s world pass)\n", g_es3_name, world_pass);
     return true;
 
 fail:
     es3_destroy_gl_resources(renderer);
-    ToriRS_GLContext_Delete(renderer->gl_context);
+    ToriPlatform_GLContext_Delete(renderer->gl_context);
     renderer->gl_context = NULL;
     return false;
 }
 
 void
-ToriRS_ES3_SetViewport(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetViewport(
+    struct TRSPK_Renderer_ES3* renderer,
     int width,
     int height)
 {
@@ -4901,8 +3994,8 @@ ToriRS_ES3_SetViewport(
 }
 
 void
-ToriRS_ES3_SetInterfaceScaleMode(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetInterfaceScaleMode(
+    struct TRSPK_Renderer_ES3* renderer,
     int mode)
 {
     assert(renderer);
@@ -4912,8 +4005,8 @@ ToriRS_ES3_SetInterfaceScaleMode(
 }
 
 void
-ToriRS_ES3_SetClientScaling(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetClientScaling(
+    struct TRSPK_Renderer_ES3* renderer,
     struct ClientScaleSettings const* settings)
 {
     assert(renderer);
@@ -4922,8 +4015,8 @@ ToriRS_ES3_SetClientScaling(
 }
 
 void
-ToriRS_ES3_SetPick(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_SetPick(
+    struct TRSPK_Renderer_ES3* renderer,
     int mouse_x,
     int mouse_y)
 {
@@ -4935,35 +4028,83 @@ ToriRS_ES3_SetPick(
 }
 
 struct ToriRS_PickHits const*
-ToriRS_ES3_PickHits(struct ToriRS_ES3 const* renderer)
+TRSPK_Renderer_ES3_PickHits(struct TRSPK_Renderer_ES3 const* renderer)
 {
     assert(renderer);
     return &renderer->pick_hits;
 }
 
+/*
+ * TORIRS_ES3_READBACK=path dumps one finished frame, through the same
+ * readback the app's screenshots use, so a bug in the letterbox arithmetic
+ * cannot show in a debug dump and not in a screenshot. Both composing
+ * renderers end their frame with it.
+ */
 void
-ToriRS_ES3_Execute(
-    struct ToriRS_ES3* renderer,
-    struct ToriRS_RenderCommand const* command)
+es3_frame_readback(struct TRSPK_Renderer_ES3* renderer)
 {
-    es3_dispatch(renderer, command);
+    assert(renderer);
+/* TORIRS_ES3_READBACK=path dumps one frame (after
+ * TORIRS_ES3_READBACK_FRAME, default 90) through the same readback the
+ * app's screenshots use, so a bug in the letterbox arithmetic cannot show
+ * in a debug dump and not in a screenshot. */
+{
+    /* Read once: getenv is a linear scan of the environment, and this
+     * ran twice per frame on a path that is dormant in every ordinary
+     * session. */
+    static char const* path = NULL;
+    static long want = 90;
+    static int probed = 0;
+    static int done = 0;
+    if( !probed )
+    {
+        char const* frame = getenv("TORIRS_ES3_READBACK_FRAME");
+        path = getenv("TORIRS_ES3_READBACK");
+        if( frame )
+            want = atol(frame);
+        probed = 1;
+    }
+    if( path && path[0] && !done && renderer->frame_clock >= (double)want )
+    {
+        int* top =
+            (int*)malloc((size_t)renderer->width * (size_t)renderer->height * sizeof(int));
+        void bmp_write_file(const char* filename, int* px, int w, int h);
+        done = 1;
+        assert(top);
+        if( TRSPK_Renderer_ES3_ReadPixels(renderer, top, renderer->width, renderer->height) )
+        {
+            bmp_write_file(path, top, renderer->width, renderer->height);
+            TORIRS_LOG("es3_readback: wrote %s\n", path);
+        }
+        free(top);
+    }
 }
+}
+
 
 /* Bring the surface up for a frame: current, measured, letterboxed, cleared.
  * False when there is no surface to draw on (a stopped activity). */
-static bool
-es3_begin_frame(
-    struct ToriRS_ES3* renderer,
-    bool clear_to_black_only,
+/*
+ * Bring the surface up for a frame: current, measured, letterboxed, state
+ * reset. False when there is no surface to draw on (a stopped activity).
+ *
+ * The FRAMEBUFFER is deliberately not bound here. Whether the frame is drawn
+ * offscreen, and whether that offscreen target carries depth, is the
+ * composing renderer's to say -- @see es3p_begin_frame and es3z_begin_frame,
+ * which bracket this with their own two lines and then call
+ * es3_frame_surface_clear.
+ */
+bool
+es3_frame_surface_begin(
+    struct TRSPK_Renderer_ES3* renderer,
     bool allow_offscreen)
 {
-    struct ES3Rect letterbox;
     assert(renderer);
     if( !renderer->gl_context )
         return false;
-    if( ToriRS_GLContext_MakeCurrent(renderer->window, renderer->gl_context) != 0 )
+    if( ToriPlatform_GLContext_MakeCurrent(renderer->window, renderer->gl_context) != 0 )
         return false;
-    ToriRS_GLContext_DrawableSize(
+    ToriPlatform_GLContext_DrawableSize(
         renderer->window, &renderer->drawable_width, &renderer->drawable_height);
     if( renderer->drawable_width <= 0 || renderer->drawable_height <= 0 )
         return false;
@@ -4972,17 +4113,18 @@ es3_begin_frame(
     es3_update_letterbox(renderer, allow_offscreen);
     es3_state_reset(renderer);
     es3_stream_sets_begin_frame(renderer);
-    if( renderer->target_offscreen )
-    {
-        es3_scale_target_ensure(renderer);
-        glBindFramebuffer(GL_FRAMEBUFFER, renderer->scale_fbo);
-    }
-    else
-    {
-        /* The limit is off or no longer binds: give the memory back now. */
-        es3_scale_target_destroy_buffers(renderer);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
+    return true;
+}
+
+/* The other half: viewport, clear, letterbox fill. Runs once the composing
+ * renderer has bound the framebuffer it drew its own conclusion about. */
+void
+es3_frame_surface_clear(
+    struct TRSPK_Renderer_ES3* renderer,
+    bool clear_to_black_only)
+{
+    struct ES3Rect letterbox;
+    assert(renderer);
     glViewport(0, 0, renderer->target_width, renderer->target_height);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -5002,14 +4144,13 @@ es3_begin_frame(
         es3_set_scissor(renderer, NULL);
     }
     es3_set_letterbox_viewport(renderer);
-    return true;
 }
 
 /* The bar's caption, through the same font path a frame uses, so a boot
  * sentence is one picture and not one per renderer. */
-static void
+void
 es3_draw_boot_caption(
-    struct ToriRS_ES3* renderer,
+    struct TRSPK_Renderer_ES3* renderer,
     int caption_font_id,
     char const* caption)
 {
@@ -5032,142 +4173,10 @@ es3_draw_boot_caption(
     es3_end_2d(renderer);
 }
 
-void
-ToriRS_ES3_DrawBootBar(
-    struct ToriRS_ES3* renderer,
-    int progress,
-    int caption_font_id,
-    char const* caption)
-{
-    assert(renderer);
-    /* progress < 0: clear only, no bar -- the post-login loading screen,
-     * which is a black screen and the sentence alone on every lane. */
-    if( !es3_begin_frame(renderer, progress < 0, false) )
-        return;
-    if( progress >= 0 )
-    {
-        int bar_x;
-        int bar_y;
-        int fill_w;
-        progress = es3_clampi(progress, 0, 100);
-        /* The references' bar, not one of ours (engine/boot_bar.h): a filled
-         * red track, a black inset one pixel in, then the fill two pixels in. */
-        bar_x = renderer->width / 2 - BOOT_BAR_W / 2;
-        bar_y = renderer->height / 2 - BOOT_BAR_ABOVE_CENTRE;
-        fill_w = progress * BOOT_BAR_PX_PER_PERCENT;
-        es3_draw_solid_rect(
-            renderer, bar_x, bar_y, BOOT_BAR_W, BOOT_BAR_H, 0xff000000u | BOOT_BAR_COLOR);
-        es3_draw_solid_rect(
-            renderer, bar_x + 1, bar_y + 1, BOOT_BAR_W - 2, BOOT_BAR_H - 2, 0xff000000u);
-        if( fill_w > 0 )
-            es3_draw_solid_rect(
-                renderer,
-                bar_x + BOOT_BAR_INSET,
-                bar_y + BOOT_BAR_INSET,
-                fill_w,
-                BOOT_BAR_FILL_H,
-                0xff000000u | BOOT_BAR_COLOR);
-    }
-    if( caption && caption[0] && caption_font_id >= 0 )
-        es3_draw_boot_caption(renderer, caption_font_id, caption);
-}
 
-bool
-es3_render_frame_begin(struct ToriRS_ES3* renderer)
-{
-    assert(renderer);
-    if( !es3_begin_frame(renderer, false, true) )
-        return false;
-    renderer->has_3d = false;
-    renderer->in3d = false;
-    renderer->in2d = false;
-    renderer->frame_clock += 1.0;
-    return true;
-}
 
-void
-es3_render_frame_commands(
-    struct ToriRS_ES3* renderer,
-    struct ToriRS_Frame* frame)
-{
-    struct ToriRS_RenderCommand command;
-    assert(renderer);
-    assert(frame);
-    while( ToriRS_FrameNextCommand(frame, &command) )
-    {
-        es3_prefetch_ahead(renderer, frame);
-        es3_dispatch(renderer, &command);
-    }
-}
 
-void
-ToriRS_ES3_RenderFrame(
-    struct ToriRS_ES3* renderer,
-    struct ToriRS_Frame* frame)
-{
-    assert(renderer);
-    assert(frame);
-    if( !es3_render_frame_begin(renderer) )
-        return;
-    ToriRS_FrameBegin(frame);
-    es3_render_frame_commands(renderer, frame);
-    ToriRS_FrameEnd(frame);
-    es3_render_frame_end(renderer);
-}
 
-void
-es3_render_frame_end(struct ToriRS_ES3* renderer)
-{
-    assert(renderer);
-#if defined(TORIRS_ANIM_CHAIN_CAPTURE)
-    ToriDraw_AnimCaptureEndPass();
-#endif
-#if defined(TORIRS_PLACEMENT_CAPTURE)
-    es3_placement_capture_end();
-#endif
-    if( renderer->in3d )
-        es3_end_3d(renderer);
-    if( renderer->in2d )
-        es3_end_2d(renderer);
-    if( renderer->target_offscreen )
-        es3_scale_target_present(renderer);
-
-    /* TORIRS_ES3_READBACK=path dumps one frame (after
-     * TORIRS_ES3_READBACK_FRAME, default 90) through the same readback the
-     * app's screenshots use, so a bug in the letterbox arithmetic cannot show
-     * in a debug dump and not in a screenshot. */
-    {
-        /* Read once: getenv is a linear scan of the environment, and this
-         * ran twice per frame on a path that is dormant in every ordinary
-         * session. */
-        static char const* path = NULL;
-        static long want = 90;
-        static int probed = 0;
-        static int done = 0;
-        if( !probed )
-        {
-            char const* frame = getenv("TORIRS_ES3_READBACK_FRAME");
-            path = getenv("TORIRS_ES3_READBACK");
-            if( frame )
-                want = atol(frame);
-            probed = 1;
-        }
-        if( path && path[0] && !done && renderer->frame_clock >= (double)want )
-        {
-            int* top =
-                (int*)malloc((size_t)renderer->width * (size_t)renderer->height * sizeof(int));
-            void bmp_write_file(const char* filename, int* px, int w, int h);
-            done = 1;
-            assert(top);
-            if( ToriRS_ES3_ReadPixels(renderer, top, renderer->width, renderer->height) )
-            {
-                bmp_write_file(path, top, renderer->width, renderer->height);
-                TORIRS_LOG("es3_readback: wrote %s\n", path);
-            }
-            free(top);
-        }
-    }
-}
 
 /*
  * The frame that is about to be presented, sampled back onto the canvas grid.
@@ -5179,8 +4188,8 @@ es3_render_frame_end(struct ToriRS_ES3* renderer)
  * buffer, at render resolution, not from the scaled copy on the drawable.
  */
 bool
-ToriRS_ES3_ReadPixels(
-    struct ToriRS_ES3* renderer,
+TRSPK_Renderer_ES3_ReadPixels(
+    struct TRSPK_Renderer_ES3* renderer,
     int* pixels,
     int width,
     int height)
@@ -5210,7 +4219,7 @@ ToriRS_ES3_ReadPixels(
         framebuffer_h = renderer->scale_fbo_height;
     }
     else
-        ToriRS_GLContext_DrawableSize(renderer->window, &framebuffer_w, &framebuffer_h);
+        ToriPlatform_GLContext_DrawableSize(renderer->window, &framebuffer_w, &framebuffer_h);
     if( framebuffer_w <= 0 || framebuffer_h <= 0 || renderer->letterbox_width <= 0 ||
         renderer->letterbox_height <= 0 )
         return false;
@@ -5261,7 +4270,7 @@ ToriRS_ES3_ReadPixels(
 }
 
 char const*
-ToriRS_ES3_Name(struct ToriRS_ES3 const* renderer)
+TRSPK_Renderer_ES3_Name(struct TRSPK_Renderer_ES3 const* renderer)
 {
     assert(renderer);
     return renderer->name;

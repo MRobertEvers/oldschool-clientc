@@ -9,8 +9,8 @@
  * Correctness lives entirely in the submission order, so there is nothing to
  * cache and nothing to allocate -- the whole implementation is these four
  * functions over the core's own buffers.  It is the mode the renderer runs when
- * ToriRS_D3D9->zbuffer is NULL, which is also what a renderer that never
- * reached ToriRS_D3D9_Init gets.
+ * ToriPlatformWin32_Renderer_D3D9->zbuffer is NULL, which is also what a renderer that never
+ * reached ToriPlatformWin32_Renderer_D3D9_Init gets.
  *
  * platform_win32_renderer_d3d9_zbuffer.c is the depth-tested alternative.  The
  * two are peers and neither calls the other.
@@ -37,7 +37,7 @@ d3d9_painter_mat4_mul_colmajor(const float* a, const float* b, float* out)
 }
 
 void
-d3d9_painter_setup_projection(struct ToriRS_D3D9* renderer)
+d3d9_painter_setup_projection(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     /* With no depth test clip Z carries no information, so it is folded to the
      * constant half-range D3D expects rather than derived from the camera's
@@ -54,7 +54,7 @@ d3d9_painter_setup_projection(struct ToriRS_D3D9* renderer)
 }
 
 void
-d3d9_painter_apply_world_states(struct ToriRS_D3D9* renderer)
+d3d9_painter_apply_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZENABLE, D3DZB_FALSE);
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZWRITEENABLE, FALSE);
@@ -62,7 +62,7 @@ d3d9_painter_apply_world_states(struct ToriRS_D3D9* renderer)
 
 int
 d3d9_painter_sort_faces(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int* out_sorted_face_count)
 {
@@ -76,7 +76,7 @@ d3d9_painter_sort_faces(
 
 void
 d3d9_painter_emit_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct D3D9ModelPlacement* placement)
 {
     const uint32_t local_base = placement->local_base;

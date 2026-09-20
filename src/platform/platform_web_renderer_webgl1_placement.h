@@ -11,7 +11,7 @@
  */
 
 /* CPU-only retained-pose resolution, shared by renderer and real-chain replay. */
-#include "platform/platform_renderer_es2_core.h"
+#include "es2/es2_core.h"
 #include "toridraw_element_id.h"
 
 #include <stdlib.h>
@@ -30,7 +30,7 @@ _Static_assert(
 /* 0: no retained mapping (bake fallback); -1: invalid mapping (skip); 1: ready. */
 static inline int
 es2_static_resolve_reference(
-    const struct ToriRS_ES2* renderer,
+    const struct TRSPK_Renderer_ES2* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -67,7 +67,7 @@ es2_static_resolve_reference(
 
 static inline int
 es2_static_resolve(
-    const struct ToriRS_ES2* renderer,
+    const struct TRSPK_Renderer_ES2* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -90,7 +90,7 @@ es2_static_resolve(
 /* Called after every complete batch-pose rebuild. Indices/values survive
  * array relocation; page compaction must finish before this snapshot. */
 static inline void
-es2_static_primary_rebuild(struct ToriRS_ES2* renderer)
+es2_static_primary_rebuild(struct TRSPK_Renderer_ES2* renderer)
 {
     renderer->static_resource_epoch++;
     if( renderer->static_primary_capacity )
@@ -165,7 +165,7 @@ es2_static_primary_rebuild(struct ToriRS_ES2* renderer)
  * original dependent prefetch ladder for primary-only retained elements. */
 static inline bool
 es2_primary_prefetch_complete(
-    const struct ToriRS_ES2* r,
+    const struct TRSPK_Renderer_ES2* r,
     int id)
 {
     if( 1 ) /* no table, so never a primary-only prefetch */
@@ -178,7 +178,7 @@ es2_primary_prefetch_complete(
 }
 static inline void
 es2_static_prefetch_ids(
-    struct ToriRS_ES2* renderer,
+    struct TRSPK_Renderer_ES2* renderer,
     int id_plus1,
     int id_plus2,
     int id_plus3)

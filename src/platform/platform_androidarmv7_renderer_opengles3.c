@@ -7,7 +7,7 @@
  * the core as a #if on the platform.
  *
  * @see platform_androidarmv7_renderer_opengles3.h for what this lane is, and
- *      platform_renderer_es3.h for what the core does.
+ *      3rd/trspk/es3/trspk_es3.h for what the core does.
  */
 
 #include "platform/platform_androidarmv7_renderer_opengles3.h"
@@ -15,111 +15,145 @@
 /*
  * The one cast in the lane, in the one file entitled to make it: the handle
  * this lane hands out is the core's, under this lane's name. Nothing
- * dereferences through struct ToriRS_GLES3 -- it has no definition to
+ * dereferences through struct ToriPlatformAndroid_Renderer_GLES3 -- it has no definition to
  * dereference -- so there is no aliasing question, only a name.
  */
-struct ToriRS_GLES3*
-ToriRS_GLES3_New(int width, int height)
+struct ToriPlatformAndroid_Renderer_GLES3*
+ToriPlatformAndroid_Renderer_GLES3_New(int width, int height)
 {
-    return (struct ToriRS_GLES3*)ToriRS_ES3_New(width, height, "GLES3");
+    return (struct ToriPlatformAndroid_Renderer_GLES3*)TRSPK_Renderer_ES3_New(width, height, "GLES3");
 }
 
 void
-ToriRS_GLES3_Free(
-    struct ToriRS_GLES3* renderer)
+ToriPlatformAndroid_Renderer_GLES3_Free(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer)
 {
-    ToriRS_ES3_Free((struct ToriRS_ES3*)renderer);
+    TRSPK_Renderer_ES3_Free((struct TRSPK_Renderer_ES3*)renderer);
 }
 
 bool
-ToriRS_GLES3_Init(
-    struct ToriRS_GLES3* renderer,
-    ToriRS_GLWindow* window,
-    struct ToriDraw_Scene* scene,
-    bool z_buffer)
+ToriPlatformAndroid_Renderer_GLES3_PainterInit(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
 {
-    return ToriRS_ES3_Init((struct ToriRS_ES3*)renderer, window, scene, z_buffer);
+    return TRSPK_Renderer_ES3_PainterInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
+}
+
+bool
+ToriPlatformAndroid_Renderer_GLES3_ZBufferInit(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    ToriPlatform_GLWindow* window,
+    struct ToriDraw_Scene* scene)
+{
+    return TRSPK_Renderer_ES3_ZBufferInit((struct TRSPK_Renderer_ES3*)renderer, window, scene);
 }
 
 void
-ToriRS_GLES3_SetViewport(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_SetViewport(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     int width,
     int height)
 {
-    ToriRS_ES3_SetViewport((struct ToriRS_ES3*)renderer, width, height);
+    TRSPK_Renderer_ES3_SetViewport((struct TRSPK_Renderer_ES3*)renderer, width, height);
 }
 
 void
-ToriRS_GLES3_SetInterfaceScaleMode(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_SetInterfaceScaleMode(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     int mode)
 {
-    ToriRS_ES3_SetInterfaceScaleMode((struct ToriRS_ES3*)renderer, mode);
+    TRSPK_Renderer_ES3_SetInterfaceScaleMode((struct TRSPK_Renderer_ES3*)renderer, mode);
 }
 
 void
-ToriRS_GLES3_SetClientScaling(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_SetClientScaling(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     struct ClientScaleSettings const* settings)
 {
-    ToriRS_ES3_SetClientScaling((struct ToriRS_ES3*)renderer, settings);
+    TRSPK_Renderer_ES3_SetClientScaling((struct TRSPK_Renderer_ES3*)renderer, settings);
 }
 
 void
-ToriRS_GLES3_SetPick(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_SetPick(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     int mouse_x,
     int mouse_y)
 {
-    ToriRS_ES3_SetPick((struct ToriRS_ES3*)renderer, mouse_x, mouse_y);
+    TRSPK_Renderer_ES3_SetPick((struct TRSPK_Renderer_ES3*)renderer, mouse_x, mouse_y);
 }
 
 struct ToriRS_PickHits const*
-ToriRS_GLES3_PickHits(
-    struct ToriRS_GLES3 const* renderer)
+ToriPlatformAndroid_Renderer_GLES3_PickHits(
+    struct ToriPlatformAndroid_Renderer_GLES3 const* renderer)
 {
-    return ToriRS_ES3_PickHits((struct ToriRS_ES3 const*)renderer);
+    return TRSPK_Renderer_ES3_PickHits((struct TRSPK_Renderer_ES3 const*)renderer);
 }
 
 void
-ToriRS_GLES3_Execute(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_PainterExecute(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     struct ToriRS_RenderCommand const* command)
 {
-    ToriRS_ES3_Execute((struct ToriRS_ES3*)renderer, command);
+    TRSPK_Renderer_ES3_PainterExecute((struct TRSPK_Renderer_ES3*)renderer, command);
 }
 
 void
-ToriRS_GLES3_DrawBootBar(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_ZBufferExecute(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_RenderCommand const* command)
+{
+    TRSPK_Renderer_ES3_ZBufferExecute((struct TRSPK_Renderer_ES3*)renderer, command);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_PainterDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     int progress,
     int caption_font_id,
     char const* caption)
 {
-    ToriRS_ES3_DrawBootBar((struct ToriRS_ES3*)renderer, progress, caption_font_id, caption);
+    TRSPK_Renderer_ES3_PainterDrawBootBar((struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
 }
 
 void
-ToriRS_GLES3_RenderFrame(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_ZBufferDrawBootBar(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    int progress,
+    int caption_font_id,
+    char const* caption)
+{
+    TRSPK_Renderer_ES3_ZBufferDrawBootBar((struct TRSPK_Renderer_ES3*)renderer, progress, caption_font_id, caption);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_PainterRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     struct ToriRS_Frame* frame)
 {
-    ToriRS_ES3_RenderFrame((struct ToriRS_ES3*)renderer, frame);
+    TRSPK_Renderer_ES3_PainterRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
+}
+
+void
+ToriPlatformAndroid_Renderer_GLES3_ZBufferRenderFrame(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
+    struct ToriRS_Frame* frame)
+{
+    TRSPK_Renderer_ES3_ZBufferRenderFrame((struct TRSPK_Renderer_ES3*)renderer, frame);
 }
 
 bool
-ToriRS_GLES3_ReadPixels(
-    struct ToriRS_GLES3* renderer,
+ToriPlatformAndroid_Renderer_GLES3_ReadPixels(
+    struct ToriPlatformAndroid_Renderer_GLES3* renderer,
     int* pixels,
     int width,
     int height)
 {
-    return ToriRS_ES3_ReadPixels((struct ToriRS_ES3*)renderer, pixels, width, height);
+    return TRSPK_Renderer_ES3_ReadPixels((struct TRSPK_Renderer_ES3*)renderer, pixels, width, height);
 }
 
 void
-ToriRS_GLES3_RotmaskSourceChanged(void)
+ToriPlatformAndroid_Renderer_GLES3_RotmaskSourceChanged(void)
 {
-    ToriRS_ES3_RotmaskSourceChanged();
+    TRSPK_Renderer_ES3_RotmaskSourceChanged();
 }

@@ -3047,14 +3047,14 @@ app_plugin_panel_raster_custom(
         ToriRS_FrameSetCanvas(
             &frame, row->custom_region.w, row->custom_region.h);
         ToriRS_FrameSetEmit(&frame, &desc, 1);
-        ToriRS_Soft3D_Init(
+        ToriPlatform_Renderer_Soft3D_Init(
             app->soft_chrome,
             app->scene,
             (int*)app->panel_custom_pixels,
             row->custom_region.w,
             row->custom_region.h);
         /*
-         * Drained by hand, never ToriRS_Soft3D_RenderFrame: that call clears
+         * Drained by hand, never ToriPlatform_Renderer_Soft3D_RenderFrame: that call clears
          * the canvas to TORIRS_SOFT3D_BG (an OPAQUE 0xFF202428) first, which
          * overwrote the transparent memset above. Every gap a plugin leaves
          * clear on purpose -- the loot tracker's spacing between its bands --
@@ -3065,7 +3065,7 @@ app_plugin_panel_raster_custom(
             struct ToriRS_RenderCommand cmd;
             ToriRS_FrameBegin(&frame);
             while( ToriRS_FrameNextCommand(&frame, &cmd) )
-                ToriRS_Soft3D_Execute(app->soft_chrome, &cmd);
+                ToriPlatform_Renderer_Soft3D_Execute(app->soft_chrome, &cmd);
             ToriRS_FrameEnd(&frame);
         }
     }

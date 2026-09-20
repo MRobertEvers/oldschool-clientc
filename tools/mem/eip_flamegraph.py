@@ -76,7 +76,7 @@ def rows_of(node, depth, x, out):
 PALETTE = [
     ("raster_", "#d24b3f"), ("toridraw_gouraud", "#d24b3f"),
     ("toridraw_tex", "#e07b39"), ("ToriDraw_Raster", "#d24b3f"),
-    ("ToriDraw_", "#e0a13a"), ("ToriRS_Soft3D", "#c76a2e"),
+    ("ToriDraw_", "#e0a13a"), ("ToriPlatform_Renderer_Soft3D", "#c76a2e"),
     ("soft3d_", "#c76a2e"),
     ("UITree_", "#4f8fc9"), ("uitree_", "#4f8fc9"),
     ("App_", "#5f9e5f"), ("app_", "#5f9e5f"),

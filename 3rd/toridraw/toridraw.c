@@ -1696,7 +1696,7 @@ toridraw_kernel_log_armed(void)
 /*
  * WHY THE REPORT IS NOT SIMPLY PRINTED AT EVERY TAKE.
  *
- * ToriRS_Soft3D_Init -- the renderer's whole kernel setup, and the only
+ * ToriPlatform_Renderer_Soft3D_Init -- the renderer's whole kernel setup, and the only
  * production caller of ToriDraw_KernelTake -- runs once per FRAME, not once
  * per process: it resets the renderer against this frame's pixel buffer, and
  * UITreeCmd_Render goes further and builds a throwaway renderer per picture.
