@@ -240,3 +240,38 @@ Levers:
 Not taken and why: caching the walk per (camera tile, level, cullspan) -- the 2c lever
 in FRAME_BUDGET_PLAN.md -- is exactly the still-camera optimisation the rule forbids,
 even though this profile is a still camera and it would zero the bucket on it.
+
+## 4. Measured: `--gles3` against `--gles3-zbuffer` on the committed HEAD (b3397fbd8)
+
+Same phone, same lane, arms alternated, fresh install of the committed build.
+
+Capped at the phone's 20 fps (frame work, medians of five 300-frame windows):
+
+| arm | pair 1 | pair 2 |
+|---|---:|---:|
+| `--gles3` | 23.74 ms | 22.69 ms |
+| `--gles3-zbuffer` | 20.79 ms | 21.11 ms |
+
+Uncapped, 25 s simpleperf, CPU-ms per drawn frame:
+
+| bucket | gles3 | gles3-zbuffer |
+|---|---:|---:|
+| whole frame | 13.94 | 11.36 |
+| face sort | 2.49 | 0.00 |
+| scene walk / visibility | 1.82 | 0.98 |
+| ES3 renderer | 1.87 | 2.69 |
+| projection | 1.59 | 1.30 |
+| UI tree | 1.29 | 1.12 |
+| command stream | 1.29 | 1.03 |
+
+By symbol: the face sort is gone entirely (2.06 ms in the general body, 0.33 in the
+priority merge and tile front); `bucket_paint_world` (1.69 ms) is replaced by
+`painter_collect_visible_depth` (0.91 ms); the depth lane pays ~0.85 ms more inside the
+renderer, almost all of it baking poses and faces into the stream
+(`trspk_toridraw_bake_face_impl` 0.51, `es3_bake_pose_vertices` 0.34). Net about
+2.6 ms a frame uncapped, 2.3 ms capped, ~18% of the frame.
+
+Not measured here: the picture. The depth path resolves intra-model layering by depth
+rather than the cache's face priorities, so priority-dependent models (capes over
+bodies, hair, the transparent-face cases) need a visual pass before it is the default;
+and once it is, its bake is the largest renderer-side row and the next thing to profile.
