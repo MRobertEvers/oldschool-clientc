@@ -1,0 +1,584 @@
+-- Between a Rock... -- hand-driven from the generated scaffold, rewritten
+-- against the quest's own scripts (server/scripts/quests/quest_betweenarock/)
+-- and docs/quests/between_a_rock.md. Tier 1.
+--
+-- Real prerequisite (betweenarock_shared.rs2's own `dwarfrock_real_prereqs_met`)
+-- is ONLY `%fishingcompo >= ^fishingcompo_complete` -- the cache dbrow's two
+-- `requirement_quests` values decode to the wrong rows (sheep herder / mage
+-- arena 1), and Dwarf Cannon is deliberately soft-skipped in this tree
+-- because `%mcannon` never advances past 0 anywhere in the tree (the audit
+-- doc's own P0 #1 finding). So setup completes only Fishing Contest.
+--
+-- Travel between areas is via t.player.goto_tile (::goto) throughout: the
+-- troll-stronghold/cave tunnels and both ferrymen are this quest's own
+-- flavour transport, but they write no quest state at all (grep-confirmed
+-- in betweenarock_travel.rs2), so clicking them proves nothing about the
+-- quest and is skipped -- goto_tile lands directly at each NPC/loc that
+-- DOES advance state, same convention as the ladder/stairs rule in
+-- QUEST_AUTHORING.md section 2.
+--
+-- The four schematic pieces: Dondakan (from firing the golden cannonball),
+-- the lore book's last page (read the book a SECOND time, at stage 80 --
+-- entirely missing from the scaffold), the Dwarven Engineer, and Khorvak.
+-- "Assemble" is a single opheld1 use on the held schematic1 fragment
+-- (betweenarock_schematics.rs2's own documented simplification of the
+-- native drag/rotate puzzle interface, not a puzzle this engine can drive) --
+-- the scaffold's own unresolved PuzzleWrapperStep marker is resolved by
+-- that comment, not a missing verb.
+--
+-- The Arzinian Avatar's category is chosen by the player's strongest
+-- combat stat (dwarfrock_realm.rs2's own dwarfrock_spawn_avatar) -- this
+-- character is built melee-heavy (attack/strength boosted, ranged/magic
+-- left at 1), so the always-reachable branch is the "mage" category, but
+-- its COLOUR is `random(3)` across dwarf_rock_avatar_mage /
+-- _mage_green / _mage_yellow -- all three are tried in turn after the
+-- flame spawns it.
+
+return {
+    id = "betweenarock",
+    fixture = "fresh_lumbridge.ini",
+    setup = {
+        "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
+        "::setlevel attack 99",
+        "::setlevel strength 99",
+        "::setlevel defence 99", -- exceeds the quest's own req_defence=30 gate
+        "::setlevel hitpoints 99",
+        "::setlevel mining 40", -- exactly the quest's req; real ore/page mining is boostable but this is simplest
+        "::setlevel smithing 50", -- exactly the quest's req_smithing=50 gate
+        "::complete quest_fishingcontest", -- quest_cheat.rs2's dispatch row is `quest_fishingcontest`, not the quest_fishingcompo folder name; the ONLY prereq dwarfrock_real_prereqs_met checks
+        "::give rune_scimitar 1", -- combat prerequisite (Quest Helper: bring a weapon), not the quest's own deliverable
+        "::give bronze_pickaxe 1", -- prerequisite for real mining (page 3, realm gold ore)
+        "::give hammer 1", -- prerequisite for smithing the golden helmet
+        "::give gold_bar 4", -- prerequisite: 1 smelted into the golden cannonball, 3 smithed into the golden helmet -- the quest's own use of them is driven for real below
+        "::give ammo_mould 1", -- prerequisite for casting the golden cannonball
+    },
+
+    run = function(t)
+        t.quest.bind({
+            varp = "dwarfrock_quest",
+            constants = {
+                not_started = 0,
+                told_of_rock = 10,
+                engineer_confirmed = 20,
+                gathering_pages = 30,
+                book_ready = 40,
+                returned_with_book = 50,
+                gold_bar_shown = 60,
+                fired_into_rock = 70,
+                assembling_schematics = 80,
+                in_the_realm = 90,
+                avatar_defeated = 100,
+                complete = 110,
+            },
+            row = "quest_betweenarock",
+            display = "Between a Rock...", -- all.quest.compack's own display text, confirmed by grep
+            points = 2,
+        })
+        t.ticks(3)
+        t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
+
+        -- ============================================================
+        -- Dondakan #1 -- accept the quest (betweenarock_dondakan.rs2's
+        -- dwarfrock_dondakan_talk, %dwarfrock_quest = not_started branch;
+        -- real_prereqs_met is true, so the Fishing-Contest refusal branch
+        -- above it is skipped).
+        -- ============================================================
+        t.exec("goto-talkToDondakan", t.player.goto_tile, 2824, 10168, 0)
+        t.exec("talkToDondakan", t.player.talk_to, "dwarfrock_dondakan", 1)
+        t.exec("talkToDondakan-dialog", t.chat.play, {
+            "player:What are you doing firing a cannon at that wall?",
+            "npc:Ha! I'm trying to blast my way into the rock",
+            "player:So why were you trying to get through the rock again?",
+            "npc:I've heard tales of a lost dwarven realm",
+            "player:Sounds interesting! Can I help?",
+            "npc:You certainly can! Head to Keldagrim",
+        })
+        t.expect("quest.stage.told_of_rock", t.quest.expect_stage("told_of_rock"))
+
+        -- ============================================================
+        -- Dwarven Engineer -- points at Rolad (betweenarock_schematics.rs2).
+        -- ============================================================
+        t.exec("goto-talkToEngineer", t.player.goto_tile, 2871, 10198, 0)
+        t.exec("talkToEngineer", t.player.talk_to, "dwarfrock_engineer1", 1)
+        t.exec("talkToEngineer-dialog", t.chat.play, {
+            "player:Dondakan sent me -- he's trying to blast his way into a rock.",
+            "npc:Ha! A cannonball alone won't crack solid rock like that.",
+        })
+        t.expect("quest.stage.engineer_confirmed", t.quest.expect_stage("engineer_confirmed"))
+
+        -- ============================================================
+        -- Rolad #1 -- accepts the three-page hunt (betweenarock_pages.rs2).
+        -- ============================================================
+        t.exec("goto-talkToRolad", t.player.goto_tile, 3022, 3452, 0)
+        t.exec("talkToRolad", t.player.talk_to, "dwarfrock_rolad", 1)
+        t.exec("talkToRolad-dialog", t.chat.play, {
+            "player:The Engineer sent me to see you about some old dwarven lore.",
+            "npc:Ah, you'll be wanting to know about the old realm",
+            "player:I'll be back later.",
+            "npc:Bring me back three pages",
+        })
+        t.expect("quest.stage.gathering_pages", t.quest.expect_stage("gathering_pages"))
+
+        -- ============================================================
+        -- Dwarven Mine -- page 3 (mine tin/copper/clay/iron), page 1
+        -- (kill a scorpion), page 2 (search the mine cart). All three
+        -- auto-combine into dwarf_rock_pagex3 the instant they are all
+        -- held (betweenarock_pages.rs2's dwarfrock_try_combine_pages).
+        -- m47_153.spawn's own scorpion row (2637..3042,9793..9822) sits
+        -- inside the quest's coordinate-gated bounds -- confirmed by grep,
+        -- not guessed.
+        -- ============================================================
+        t.exec("goto-dwarvenMine", t.player.goto_tile, 3042, 9793, 0)
+
+        local tinrock_result, tinrock = t.world.loc_near("tinrock2", 15)
+        t.check("locate.tinrock2", tinrock_result == "ok",
+            string.format("world.loc_near(tinrock2,15) -> %s %s", tostring(tinrock_result), tostring(tinrock)))
+        if tinrock_result == "ok" then
+            t.exec("goto-tinrock2", t.player.goto_tile, tinrock.tile_x, tinrock.tile_z, tinrock.level)
+        end
+        t.exec("mineRock", t.player.click_loc, "tinrock2", 1)
+        local page3_await_result, page3_await_detail = t.inv.await("dwarf_rock_page3", 1, 40)
+        local page3r, page3c = t.inv.count("dwarf_rock_page3")
+        local pagex3r_a, pagex3c_a = t.inv.count("dwarf_rock_pagex3")
+        t.check("gotPage3", page3_await_result == "ok" or pagex3c_a == 1,
+            string.format("inv.await(dwarf_rock_page3,1,40) -> %s (%s); page3=%s(%s) pagex3=%s(%s)",
+                tostring(page3_await_result), tostring(page3_await_detail),
+                tostring(page3c), tostring(page3r), tostring(pagex3c_a), tostring(pagex3r_a)))
+
+        local attack1_result, attack1_detail = t.player.attack("scorpion", 2, 20)
+        t.check("attackScorpion", attack1_result == "ok" or attack1_result == "timeout", attack1_detail)
+        t.exec("killScorpion", t.npc.await_dead, "scorpion", 60)
+        local page1_await_result, page1_await_detail = t.inv.await("dwarf_rock_page1", 1, 20)
+        local page1r, page1c = t.inv.count("dwarf_rock_page1")
+        local pagex3r_b, pagex3c_b = t.inv.count("dwarf_rock_pagex3")
+        t.check("gotPage1", page1_await_result == "ok" or pagex3c_b == 1,
+            string.format("inv.await(dwarf_rock_page1,1,20) -> %s (%s); page1=%s(%s) pagex3=%s(%s)",
+                tostring(page1_await_result), tostring(page1_await_detail),
+                tostring(page1c), tostring(page1r), tostring(pagex3c_b), tostring(pagex3r_b)))
+
+        local cart_result, cart = t.world.loc_near("dwarfrock_book_cart", 50)
+        t.check("locate.cart", cart_result == "ok",
+            string.format("world.loc_near(dwarfrock_book_cart,50) -> %s %s", tostring(cart_result), tostring(cart)))
+        if cart_result == "ok" then
+            t.exec("goto-cart", t.player.goto_tile, cart.tile_x, cart.tile_z, cart.level)
+        end
+        t.exec("searchCart", t.player.click_loc, "dwarfrock_book_cart", 1)
+        local page2_await_result, page2_await_detail = t.inv.await("dwarf_rock_page2", 1, 20)
+        local page2r, page2c = t.inv.count("dwarf_rock_page2")
+        local pagex3r_c, pagex3c_c = t.inv.count("dwarf_rock_pagex3")
+        t.check("gotPage2", page2_await_result == "ok" or pagex3c_c == 1,
+            string.format("inv.await(dwarf_rock_page2,1,20) -> %s (%s); page2=%s(%s) pagex3=%s(%s)",
+                tostring(page2_await_result), tostring(page2_await_detail),
+                tostring(page2c), tostring(page2r), tostring(pagex3c_c), tostring(pagex3r_c)))
+
+        local pagex3_final_result, pagex3_final_detail = t.inv.await("dwarf_rock_pagex3", 1, 10)
+        local pagex3fr, pagex3fc = t.inv.count("dwarf_rock_pagex3")
+        t.check("pagesCombined", pagex3_final_result == "ok" and pagex3fc == 1,
+            string.format("inv.await(dwarf_rock_pagex3,1,10) -> %s (%s); count=%s(%s)",
+                tostring(pagex3_final_result), tostring(pagex3_final_detail), tostring(pagex3fc), tostring(pagex3fr)))
+
+        -- ============================================================
+        -- Rolad #2 -- hand in the three pages, get the restored book.
+        -- ============================================================
+        t.exec("goto-talkToRoladWithPages", t.player.goto_tile, 3022, 3452, 0)
+        t.exec("talkToRoladWithPages", t.player.talk_to, "dwarfrock_rolad", 1)
+        t.exec("talkToRoladWithPages-dialog", t.chat.play, {
+            "player:I found all three pages.",
+            "npc:Wonderful! Let me bind them back into the book for you.",
+            "mesbox:Rolad hands you the restored dwarven lore book.",
+        })
+        t.expect("quest.stage.book_ready", t.quest.expect_stage("book_ready"))
+
+        -- ============================================================
+        -- Read the book -- first read (opheld1, stage book_ready): a
+        -- two-option choice, then the stage-advancing mesbox. The book
+        -- is a fresh inv_add from the dialogue that just closed -- await
+        -- the backpack sync rather than trust the client copy is already
+        -- current.
+        -- ============================================================
+        local book_sync_result, book_sync_detail = t.inv.await("dwarf_rock_book", 1, 10)
+        t.check("bookSynced", book_sync_result == "ok", "inv.await(dwarf_rock_book,1,10) -> " .. tostring(book_sync_result) .. " " .. tostring(book_sync_detail))
+        local read1_result, read1_detail = t.player.inv_op("dwarf_rock_book", 1)
+        t.check("readBook", read1_result == "ok", "inv_op(dwarf_rock_book,1) -> " .. tostring(read1_result) .. " " .. tostring(read1_detail))
+        t.exec("readBook-dialog", t.chat.play, {
+            "choose:Read the book.",
+            "mesbox:You read through the dwarven lore book.",
+        })
+        t.expect("quest.stage.returned_with_book", t.quest.expect_stage("returned_with_book"))
+
+        -- inv_op's own op-1 press ALSO fires the backpack cell's shift-
+        -- click-drop chain (app_minimenu.c's op_index==1 hook, same seam
+        -- elemental_workshop.lua's readBook documents) -- the read itself
+        -- landed (the stage row above is its proof), but the book is now
+        -- on the ground. Pick it back up: Dondakan #2 below needs it held.
+        local pickup1_result, pickup1_detail = t.player.click_obj("dwarf_rock_book", 3)
+        t.check("pickBookBackUp", pickup1_result == "ok", "click_obj(dwarf_rock_book,3) -> "
+            .. tostring(pickup1_result) .. " " .. tostring(pickup1_detail))
+        local book2_await_result, book2_await_detail = t.inv.await("dwarf_rock_book", 1, 10)
+        local book2_count_result, book2_count = t.inv.count("dwarf_rock_book")
+        t.check("gotBookBack", book2_await_result == "ok" and book2_count == 1,
+            "inv.await(dwarf_rock_book,1,10) after pickup -> " .. tostring(book2_await_result) .. " " .. tostring(book2_await_detail)
+                .. "; count=" .. tostring(book2_count_result == "ok" and book2_count or book2_count_result))
+
+        -- ============================================================
+        -- Dondakan #2 -- show him the book and the gold bar.
+        -- ============================================================
+        t.exec("goto-talkToDondakanWithBook", t.player.goto_tile, 2824, 10168, 0)
+        t.exec("talkToDondakanWithBook", t.player.talk_to, "dwarfrock_dondakan", 1)
+        t.exec("talkToDondakanWithBook-dialog", t.chat.play, {
+            "player:I think I've worked out how we can get through the rock.",
+            "npc:Go on then, I'm listening.",
+            "player:Show him the gold bar.",
+            "npc:A gold bar? You want to fire a gold cannonball at the rock?",
+            "mesbox:Dondakan agrees to try firing a gold cannonball at the rock.",
+        })
+        t.expect("quest.stage.gold_bar_shown", t.quest.expect_stage("gold_bar_shown"))
+
+        -- ============================================================
+        -- Furnace -- smelt a gold bar into the golden cannonball
+        -- (smelting.rs2's shared switch, intercepted by
+        -- dwarfrock_gold_bar_or_menu while this quest is waiting on it).
+        -- Keldagrim's smithing quarter (Quest Helper's own WorldPoint for
+        -- this step) is where both the anvil and the furnace live -- go
+        -- there first, loc_near was searching from Dondakan's alcove.
+        -- ============================================================
+        t.exec("goto-keldagrimSmithing1", t.player.goto_tile, 2869, 10202, 0)
+        local furnace_result, furnace = t.world.loc_near("dwarf_keldagrim_furnace", 60)
+        t.check("locate.furnace", furnace_result == "ok",
+            string.format("world.loc_near(dwarf_keldagrim_furnace,60) -> %s %s", tostring(furnace_result), tostring(furnace)))
+        if furnace_result ~= "ok" then
+            t.blocked("test/quests/betweenarock.lua:smeltCannonball -- dwarf_keldagrim_furnace (skill_smithing/configs/"
+                .. "smithing_sources.loc) cannot be located by world.loc_near within 60 tiles of Keldagrim's smithing "
+                .. "quarter (2869,10202,0, Quest Helper's own WorldPoint for this step) or of the Dwarven Engineer "
+                .. "(2871,10198,0) -- no *.loc placement file exists to read its real tile from (trap 20), and every "
+                .. "candidate tried answered not_found.")
+            return
+        end
+        t.exec("goto-furnace", t.player.goto_tile, furnace.tile_x, furnace.tile_z, furnace.level)
+        local furnace_target = t.player.by_symbol("loc", "dwarf_keldagrim_furnace")
+        t.exec("smeltCannonball", t.player.use_on, "gold_bar", furnace_target)
+        t.exec("smeltCannonball-dialog", t.chat.play, {
+            "mesbox:You melt the gold bar and pour it into the mould",
+        })
+        local ball_sync_result, ball_sync_detail = t.inv.await("dwarf_rock_cannonball_gold", 1, 10)
+        local ball_result, ball_count = t.inv.count("dwarf_rock_cannonball_gold")
+        t.check("gotCannonball", ball_sync_result == "ok" and ball_result == "ok" and ball_count == 1,
+            "inv.await(dwarf_rock_cannonball_gold,1,10) -> " .. tostring(ball_sync_result) .. " " .. tostring(ball_sync_detail)
+                .. "; count=" .. tostring(ball_result == "ok" and ball_count or ball_result))
+
+        -- ============================================================
+        -- Use the golden cannonball on Dondakan -- opnpcu, then a
+        -- SEPARATE talk_to to actually advance the stage (the opnpcu
+        -- handler only sets %dwarfrock_fired_gold_cannonball; the regular
+        -- opnpc1 branch reads that flag on the NEXT click). The furnace
+        -- above left the player in Keldagrim's smithing quarter, well
+        -- outside Dondakan's alcove -- go back first.
+        -- ============================================================
+        t.exec("goto-dondakanForCannonball", t.player.goto_tile, 2824, 10168, 0)
+        local dondakan_target = t.player.by_symbol("npc", "dwarfrock_dondakan")
+        t.exec("useCannonballOnDondakan", t.player.use_on, "dwarf_rock_cannonball_gold", dondakan_target)
+        -- if_close fires for BOTH branches of this p_choice2 (dondakan.rs2's
+        -- dwarfrock_dondakan_fire_cannonball), so the dialogue genuinely
+        -- CLOSES after the choice; a new one-page mesbox opens separately
+        -- after p_delay(1) -- two chat.play calls, not one list across the
+        -- close.
+        t.exec("useCannonballOnDondakan-choice", t.chat.play, {
+            "choose:Yes, I'm sure this will crack open the rock.",
+        })
+        -- if_close, THEN inv_del/p_delay(1), THEN the mesbox opens -- a
+        -- real one-tick gap between the close above and the next page
+        -- mounting, not an immediate continuation.
+        t.await({
+            level = function() return t.chat.kind() ~= "none" end,
+            note = "useCannonballOnDondakan.mesbox_open",
+        }, 5)
+        t.exec("useCannonballOnDondakan-dialog", t.chat.play, {
+            "mesbox:Dondakan loads the golden cannonball and fires it point blank",
+        })
+
+        t.exec("talkToDondakanAfterShot", t.player.talk_to, "dwarfrock_dondakan", 1)
+        t.exec("talkToDondakanAfterShot-dialog", t.chat.play, {
+            "player:So you want to... fire me into the rock?",
+            "npc:Precisely! If I can survive being fired through",
+            "player:I can't argue with that, shoot me in!",
+            "npc:Right then, brace yourself!",
+        })
+        t.expect("quest.stage.fired_into_rock", t.quest.expect_stage("fired_into_rock"))
+
+        t.exec("talkToDondakanForSchematic", t.player.talk_to, "dwarfrock_dondakan", 1)
+        t.exec("talkToDondakanForSchematic-dialog", t.chat.play, {
+            "player:What did you find on the other side?",
+            "npc:A whole realm, hidden behind the rock!",
+            "npc:Head back to the Engineer, and see if Rolad's book",
+        })
+        t.expect("quest.stage.assembling_schematics", t.quest.expect_stage("assembling_schematics"))
+        t.inv.await("dwarf_rock_schematic1", 1, 10)
+        local schematic1_result, schematic1_count = t.inv.count("dwarf_rock_schematic1")
+        t.check("gotSchematic1", schematic1_result == "ok" and schematic1_count == 1,
+            "inv.count(dwarf_rock_schematic1) -> " .. tostring(schematic1_result) .. " " .. tostring(schematic1_count))
+
+        -- ============================================================
+        -- Read the book a SECOND time -- the base schematic (stage
+        -- assembling_schematics, opheld1's second branch: straight
+        -- mesbox, no choice this time).
+        -- ============================================================
+        local read2_result, read2_detail = t.player.inv_op("dwarf_rock_book", 1)
+        t.check("readBookAgain", read2_result == "ok", "inv_op(dwarf_rock_book,1) -> " .. tostring(read2_result) .. " " .. tostring(read2_detail))
+        t.exec("readBookAgain-dialog", t.chat.play, {
+            "mesbox:You turn to the last page of the book again.",
+        })
+        t.inv.await("dwarf_rock_base_schematic", 1, 10)
+        local base_result, base_count = t.inv.count("dwarf_rock_base_schematic")
+        t.check("gotBaseSchematic", base_result == "ok" and base_count == 1,
+            "inv.count(dwarf_rock_base_schematic) -> " .. tostring(base_result) .. " " .. tostring(base_count))
+
+        -- ============================================================
+        -- Engineer's schematic piece.
+        -- ============================================================
+        t.exec("goto-talkToEngineerForSchematic", t.player.goto_tile, 2871, 10198, 0)
+        t.exec("talkToEngineerForSchematic", t.player.talk_to, "dwarfrock_engineer1", 1)
+        t.exec("talkToEngineerForSchematic-dialog", t.chat.play, {
+            "player:I need your help piecing together an old dwarven schematic.",
+            "npc:Ah, I recognise this work!",
+            "mesbox:The Dwarven Engineer hands you a schematic fragment.",
+        })
+        t.inv.await("dwarf_rock_schematic2", 1, 10)
+        local schematic2_result, schematic2_count = t.inv.count("dwarf_rock_schematic2")
+        t.check("gotSchematic2", schematic2_result == "ok" and schematic2_count == 1,
+            "inv.count(dwarf_rock_schematic2) -> " .. tostring(schematic2_result) .. " " .. tostring(schematic2_count))
+
+        -- ============================================================
+        -- Khorvak's schematic piece -- refusing the stout still hands
+        -- it over (betweenarock_schematics.rs2's else branch).
+        -- ============================================================
+        t.exec("goto-talkToKhorvak", t.player.goto_tile, 2864, 9876, 0)
+        t.exec("talkToKhorvak", t.player.talk_to, "dwarfrock_engineer2", 1)
+        t.exec("talkToKhorvak-dialog", t.chat.play, {
+            "player:I'm told you might have a piece of an old dwarven schematic.",
+            "npc:Maybe I do, maybe I don't.",
+            "choose:No, I've had enough of buying drinks for people!",
+            "mesbox:Khorvak laughs and hands over his schematic fragment regardless.",
+        })
+        t.inv.await("dwarf_rock_schematic3", 1, 10)
+        local schematic3_result, schematic3_count = t.inv.count("dwarf_rock_schematic3")
+        t.check("gotSchematic3", schematic3_result == "ok" and schematic3_count == 1,
+            "inv.count(dwarf_rock_schematic3) -> " .. tostring(schematic3_result) .. " " .. tostring(schematic3_count))
+
+        -- ============================================================
+        -- Assemble the four schematic pieces (opheld1 on schematic1 --
+        -- betweenarock_schematics.rs2's documented one-Use simplification
+        -- of the native drag/rotate puzzle interface).
+        -- ============================================================
+        local assemble_result, assemble_detail = t.player.inv_op("dwarf_rock_schematic1", 1)
+        t.check("assembleSchematic", assemble_result == "ok", "inv_op(dwarf_rock_schematic1,1) -> " .. tostring(assemble_result) .. " " .. tostring(assemble_detail))
+        -- p_delay(1) between the two mesbox calls (betweenarock_schematics.rs2)
+        -- means the second page is not ready the instant the first is
+        -- dismissed -- same gap as the cannonball shot above; split and
+        -- let the second page actually mount before reading it.
+        t.exec("assembleSchematic-dialog-1", t.chat.play, {
+            "mesbox:You lay the four schematic fragments out",
+        })
+        t.ticks(2)
+        t.exec("assembleSchematic-dialog-2", t.chat.play, {
+            "mesbox:That's it! It all makes sense now!",
+        })
+        t.inv.await("dwarf_rock_schematic_assembled", 1, 10)
+        local assembled_result, assembled_count = t.inv.count("dwarf_rock_schematic_assembled")
+        if not (assembled_result == "ok" and assembled_count == 1) then
+            -- inv_op's op-1 press also fires the shift-click-drop chain on
+            -- schematic1's own backpack cell (same seam as the book above);
+            -- if the assembled piece landed in that now-freed cell it went
+            -- to the ground with it, not into the backpack -- recover it.
+            local pickup2_result, pickup2_detail = t.player.click_obj("dwarf_rock_schematic_assembled", 3)
+            t.check("pickAssembledBackUp", pickup2_result == "ok", "click_obj(dwarf_rock_schematic_assembled,3) -> "
+                .. tostring(pickup2_result) .. " " .. tostring(pickup2_detail))
+            t.inv.await("dwarf_rock_schematic_assembled", 1, 10)
+            assembled_result, assembled_count = t.inv.count("dwarf_rock_schematic_assembled")
+        end
+        t.check("gotAssembledSchematic", assembled_result == "ok" and assembled_count == 1,
+            "inv.count(dwarf_rock_schematic_assembled) -> " .. tostring(assembled_result) .. " " .. tostring(assembled_count))
+
+        -- ============================================================
+        -- Golden helmet -- 3 gold bars on the anvil (oplocu). Back to
+        -- Keldagrim's smithing quarter first -- Khorvak's talk above left
+        -- the player under White Wolf Mountain, nowhere near it.
+        -- ============================================================
+        t.exec("goto-keldagrimSmithing2", t.player.goto_tile, 2869, 10202, 0)
+        local anvil_result, anvil = t.world.loc_near("dwarf_keldagrim_anvil", 60)
+        t.check("locate.anvil", anvil_result == "ok",
+            string.format("world.loc_near(dwarf_keldagrim_anvil,60) -> %s %s", tostring(anvil_result), tostring(anvil)))
+        if anvil_result ~= "ok" then
+            t.blocked("test/quests/betweenarock.lua:smithHelmet -- dwarf_keldagrim_anvil (skill_smithing/configs/"
+                .. "smithing_sources.loc) cannot be located by world.loc_near within 60 tiles of Keldagrim's smithing "
+                .. "quarter (2869,10202,0, Quest Helper's own WorldPoint for this step) -- no *.loc placement file "
+                .. "exists to read its real tile from (trap 20), and every candidate tried answered not_found.")
+            return
+        end
+        t.exec("goto-anvil", t.player.goto_tile, anvil.tile_x, anvil.tile_z, anvil.level)
+        local anvil_target = t.player.by_symbol("loc", "dwarf_keldagrim_anvil")
+        t.exec("smithHelmet", t.player.use_on, "gold_bar", anvil_target)
+        t.exec("smithHelmet-dialog", t.chat.play, {
+            "mesbox:You carefully hammer three gold bars into a golden helmet.",
+        })
+        local helmet_sync_result, helmet_sync_detail = t.inv.await("dwarf_goldrock_helmet", 1, 10)
+        t.check("helmetSynced", helmet_sync_result == "ok", "inv.await(dwarf_goldrock_helmet,1,10) -> " .. tostring(helmet_sync_result) .. " " .. tostring(helmet_sync_detail))
+
+        -- ============================================================
+        -- Dondakan #3 -- fire into the realm. dondakan.rs2's own stage-80
+        -- branch checks `inv_total(inv, dwarf_goldrock_helmet) = 0` (the
+        -- BACKPACK container) before it checks `inv_total(worn, ...)` --
+        -- equipping first would empty that backpack copy and could make
+        -- the "smith one" refusal fire again even though one is worn, so
+        -- probe with the helmet still held (unworn) first, THEN equip.
+        -- ============================================================
+        t.exec("goto-talkToDondakanForRealm", t.player.goto_tile, 2824, 10168, 0)
+        t.exec("talkToDondakanForRealm-probe", t.player.talk_to, "dwarfrock_dondakan", 1)
+        local probe_drain_result, probe_drain_detail = t.chat.drain({ stop_at = "none" })
+        t.expect("talkToDondakanForRealm-probe-drain", probe_drain_result, probe_drain_detail)
+
+        t.exec("equip.helmet", t.player.equip, "dwarf_goldrock_helmet")
+
+        t.exec("talkToDondakanForRealm", t.player.talk_to, "dwarfrock_dondakan", 1)
+        local realm_kind = t.chat.kind()
+        if realm_kind ~= "player" then
+            local unexpected_text_result, unexpected_text = t.chat.text()
+            t.check("talkToDondakanForRealm-unexpected", true,
+                "chat.kind() -> " .. tostring(realm_kind) .. "; chat.text() -> " .. tostring(unexpected_text_result)
+                    .. " " .. tostring(unexpected_text))
+            t.blocked("test/quests/betweenarock.lua:talkToDondakanForRealm -- betweenarock_dondakan.rs2's stage-80 "
+                .. "branch (dwarfrock_dondakan_talk) did not reach its final \"Ready as I'll ever be.\" case with "
+                .. "dwarf_rock_schematic_assembled held, dwarf_goldrock_helmet worn (equip.helmet answered ok) and "
+                .. "Defence 99 >= the 30 gate -- it opened a '" .. tostring(realm_kind) .. "' page instead ('"
+                .. tostring(unexpected_text) .. "'). The two guards immediately above that line, "
+                .. "`inv_total(inv, dwarf_goldrock_helmet) = 0` (line ~373, the BACKPACK container) and "
+                .. "`inv_total(worn, dwarf_goldrock_helmet) = 0` (line ~381, the EQUIPMENT container), are "
+                .. "mutually exclusive for the same item -- equipping the helmet empties the backpack copy the "
+                .. "first guard wants, so no single state can satisfy both.")
+            return
+        end
+        t.exec("talkToDondakanForRealm-dialog", t.chat.play, {
+            "player:Ready as I'll ever be.",
+            "npc:You may fire when ready!",
+        })
+        t.expect("quest.stage.in_the_realm", t.quest.expect_stage("in_the_realm"))
+        t.exec("enterRealm-dialog", t.chat.play, {
+            "mesbox:Dondakan fires you clean through the rock!",
+        })
+
+        -- ============================================================
+        -- The Arzinian realm -- mine at least 6 gold ore, then face the
+        -- guardian at the central wall of flame.
+        -- ============================================================
+        t.settle()
+        local goldrock_sym = "goldrock1"
+        local goldrock_result, goldrock = t.world.loc_near("goldrock1", 60)
+        if goldrock_result ~= "ok" then
+            goldrock_sym = "goldrock2"
+            goldrock_result, goldrock = t.world.loc_near("goldrock2", 60)
+        end
+        t.check("locate.goldrock", goldrock_result == "ok",
+            string.format("world.loc_near(%s,60) -> %s %s", goldrock_sym, tostring(goldrock_result), tostring(goldrock)))
+        if goldrock_result ~= "ok" then
+            t.blocked("test/quests/betweenarock.lua:mineGoldOre -- neither goldrock1 nor goldrock2 "
+                .. "(server/scripts/skill_mining/scripts/mining.rs2's generic mining rocks) can be located by "
+                .. "world.loc_near within 60 tiles of the realm landing tile -- no *.loc placement file exists to "
+                .. "read a real tile from (trap 20), and both candidates answered not_found.")
+            return
+        end
+        t.exec("goto-goldrock", t.player.goto_tile, goldrock.tile_x, goldrock.tile_z, goldrock.level)
+
+        local ore_attempts = 0
+        local ore_result, ore_count = t.inv.count("gold_ore")
+        while (ore_result ~= "ok" or ore_count < 6) and ore_attempts < 6 do
+            ore_attempts = ore_attempts + 1
+            t.exec("mineGoldOre-" .. ore_attempts, t.player.click_loc, goldrock_sym, 1)
+            t.inv.await("gold_ore", 6, 60)
+            ore_result, ore_count = t.inv.count("gold_ore")
+        end
+        t.check("gotGoldOre", ore_result == "ok" and ore_count >= 6,
+            "inv.count(gold_ore) after " .. tostring(ore_attempts) .. " mineGoldOre attempt(s) -> "
+                .. tostring(ore_result) .. " " .. tostring(ore_count))
+
+        local firewall_result, firewall = t.world.loc_near("dwarf_firewall_centre_straight", 60)
+        t.check("locate.firewall", firewall_result == "ok",
+            string.format("world.loc_near(dwarf_firewall_centre_straight,60) -> %s %s", tostring(firewall_result), tostring(firewall)))
+        if firewall_result ~= "ok" then
+            t.blocked("test/quests/betweenarock.lua:approachFlame -- dwarf_firewall_centre_straight "
+                .. "(server/scripts/quests/quest_betweenarock/scripts/betweenarock_realm.rs2) cannot be located by "
+                .. "world.loc_near within 60 tiles of the realm's gold-ore area -- no *.loc placement file exists "
+                .. "to read a real tile from (trap 20), and the candidate answered not_found.")
+            return
+        end
+        t.exec("goto-firewall", t.player.goto_tile, firewall.tile_x, firewall.tile_z, firewall.level)
+        t.exec("approachFlame", t.player.click_loc, "dwarf_firewall_centre_straight", 1)
+        t.exec("approachFlame-dialog", t.chat.play, {
+            "mesbox:The flames roar and a guardian of the realm steps forth",
+        })
+
+        -- The avatar's colour is random(3) across three symbols in the
+        -- melee-countered "mage" category (this character is built
+        -- melee-heavy) -- try each until one is present.
+        local avatar_candidates = { "dwarf_rock_avatar_mage", "dwarf_rock_avatar_mage_green", "dwarf_rock_avatar_mage_yellow" }
+        local avatar_sym = nil
+        local avatar_present_result = "not_found"
+        for _, candidate in ipairs(avatar_candidates) do
+            avatar_present_result = t.npc.await_present(candidate, 10, 10)
+            if avatar_present_result == "ok" then
+                avatar_sym = candidate
+                break
+            end
+        end
+        t.check("avatarPresent", avatar_sym ~= nil,
+            "tried " .. table.concat(avatar_candidates, ", ") .. " -> resolved " .. tostring(avatar_sym)
+                .. " (" .. tostring(avatar_present_result) .. ")")
+
+        if avatar_sym == nil then
+            t.blocked("test/quests/betweenarock.lua:approachFlame -- dwarf_firewall_centre_straight spawned the "
+                .. "Arzinian Avatar (dwarfrock_realm.rs2's dwarfrock_spawn_avatar), but none of the three "
+                .. "melee-countered variants (dwarf_rock_avatar_mage/_green/_yellow) are present in the npc pool "
+                .. "within 10 tiles/10 ticks of the click -- npc.await_present tried all three and every one "
+                .. "answered " .. tostring(avatar_present_result) .. ".")
+            return
+        end
+
+        local attack2_result, attack2_detail = t.player.attack(avatar_sym, 2, 30)
+        t.check("attackAvatar", attack2_result == "ok" or attack2_result == "timeout", attack2_detail)
+        t.exec("killAvatar", t.npc.await_dead, avatar_sym, 120)
+        t.expect("quest.stage.avatar_defeated", t.quest.expect_stage("avatar_defeated"))
+        t.exec("avatarDefeated-dialog", t.chat.play, {
+            "mesbox:The guardian collapses!",
+        })
+
+        -- ============================================================
+        -- Reward snapshot before the hand-in, then finish the quest.
+        -- ============================================================
+        local reward_snapshot_result, reward_before = t.skill.snapshot()
+        t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL",
+            "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
+        local rune_pickaxe_before_result, rune_pickaxe_before = t.inv.count("rune_pickaxe")
+
+        t.exec("goto-finishQuest", t.player.goto_tile, 2824, 10168, 0)
+        t.exec("finishQuest", t.player.talk_to, "dwarfrock_dondakan", 1)
+        t.exec("finishQuest-dialog", t.chat.play, {
+            "player:It's done -- the guardian is defeated.",
+            "npc:By my beard! You actually did it!",
+        })
+
+        t.quest.expect_complete()
+
+        t.check("reward.defence", t.skill.expect_gain("defence", 5000, reward_before))
+        t.check("reward.mining", t.skill.expect_gain("mining", 5000, reward_before))
+        t.check("reward.smithing", t.skill.expect_gain("smithing", 5000, reward_before))
+        local rune_pickaxe_after_result, rune_pickaxe_after = t.inv.count("rune_pickaxe")
+        t.check("reward.rune_pickaxe",
+            rune_pickaxe_before_result == "ok" and rune_pickaxe_after_result == "ok"
+                and rune_pickaxe_after == rune_pickaxe_before + 1,
+            string.format("rune_pickaxe %s -> %s (want +1), reads %s/%s",
+                tostring(rune_pickaxe_before), tostring(rune_pickaxe_after),
+                tostring(rune_pickaxe_before_result), tostring(rune_pickaxe_after_result)))
+
+        t.finish(0)
+    end,
+}
