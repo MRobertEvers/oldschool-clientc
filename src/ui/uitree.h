@@ -723,6 +723,20 @@ struct UITreeComponent
     int32_t* child_key_index;
     int32_t child_key_index_cap;
     uint8_t child_key_index_bad;
+    /** The children a paint or input walk can reach, in sibling order: every
+     *  child except those that every walk rejects unconditionally (see
+     *  UITree_ChildHiddenForWalks). The walks used to discover that set by
+     *  entering each child and reading its flags -- on the rev-239 gameframe
+     *  the chatbox keeps ~2,650 hidden line slots, and the emit, hover and
+     *  collect walks each entered all of them, every frame, to draw 113 things.
+     *  Built lazily by UITree_VisibleChildren, kept by the flag and topology
+     *  seams (uitree.c: uitree_visible_children_*), dropped with the node.
+     *  `valid` clear means "rebuild before reading"; the storage is kept so a
+     *  walk already iterating it never reads freed memory. */
+    int32_t* visible_children;
+    int32_t visible_child_count;
+    int32_t visible_child_capacity;
+    uint8_t visible_children_valid;
     uint8_t dynamic;
     int dynamic_child_index;
 
@@ -2943,6 +2957,31 @@ bool
 UITree_ComponentVisibleById(
     struct UITreeComponent const* component,
     int hovered_component_id);
+
+/**
+ * True when NO paint or input walk can reach this child, whatever the frame's
+ * hovered id or host state: freed; screen, projection, widget, frame or mount
+ * hidden; a native hide; or an IF3 script hide (an IF1 script hide is
+ * hover-gated -- UITree_ComponentVisibleById -- and stays reachable). This is
+ * the intersection of the walks' own rejections, so a child it excludes is one
+ * every walk would have entered and rejected on these same flags.
+ */
+static inline bool
+UITree_ChildHiddenForWalks(struct UITreeComponent const* c)
+{
+    return c->freed || c->screen_hidden || c->projection_hidden || c->widget_hidden ||
+           c->frame_hidden || c->mount_hidden || c->native_hide ||
+           (c->behavior.hide && c->if3);
+}
+
+/**
+ * The reachable children of `parent`, in sibling order (UITreeComponent::
+ * visible_children), built on first use after a change. Iterate by re-reading
+ * the parent's array and count each step rather than holding the pointer: a
+ * host callback made from inside a walk may append to the container.
+ */
+int32_t const*
+UITree_VisibleChildren(struct UITree const* tree, int32_t parent, int32_t* out_count);
 
 bool
 UITree_ComponentHoveredByIds(

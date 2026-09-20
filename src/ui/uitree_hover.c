@@ -114,20 +114,25 @@ find_hovered_recursive(
     if( clipped && !ordered->items ) return;
 
     struct UITreeComponent const* component = &tree->components[node_index];
-    /* Native visibility for THIS node only; the ancestors' half arrived above.
-     * For the paint question the self and ancestor conditions are the same
-     * test, so `gate.visible` answers both and is what the children get. */
-    struct UITreeNativeGate const gate = UITree_NodeNativeGate(component, -1, host);
-    if( !gate.visible ) return;
-
     /* Match hit-test / emit: any hidden node is pruned (no self-report, no
      * children). IF_SETHIDE on type=5 spell icons must stop on_mouse_repeat
      * from firing — otherwise a later hidden Lumbridge icon overwrites a
      * visible jewellery-enchant sibling (last-match-wins). IF1 overlayer
      * tooltips stay correct: the visible cell redirects via over_layer_id;
-     * the hidden tooltip layer never needs to self-report. */
+     * the hidden tooltip layer never needs to self-report.
+     *
+     * Read before the native gate: both are pure rejections, and this one is
+     * the common one (the ~2,000 hidden chat lines the walk enters a frame),
+     * so it goes first and the gate's host questions are asked only of nodes
+     * that survive it. */
     if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
         component->frame_hidden ) return;
+
+    /* Native visibility for THIS node only; the ancestors' half arrived above.
+     * For the paint question the self and ancestor conditions are the same
+     * test, so `gate.visible` answers both and is what the children get. */
+    struct UITreeNativeGate const gate = UITree_NodeNativeGate(component, -1, host);
+    if( !gate.visible ) return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before this node can self-report as hovered via over_layer_id /
@@ -174,8 +179,24 @@ find_hovered_recursive(
 
     if( ordered->items )
     {
-        assert(ordered->count < ordered->capacity);
-        ordered->items[ordered->count++] = (struct FrameHoverEvent){ node_index + 1, candidate, reset };
+        /*
+         * A record that neither resets nor names a candidate is inert: the
+         * scan over the reordered list does nothing at it. It is left out
+         * rather than recorded, which is exact for the reorder too --
+         * UITree_FrameReorder places a unit's tree at its FIRST record, and
+         * because a unit's subtree is visited contiguously (a mount sweep
+         * happens inside its container's visit), every record between a
+         * unit's first inert one and its first live one belongs to that same
+         * tree, so the surviving records keep their relative order. On the
+         * gameframe this walk enters ~2,850 nodes a frame and a handful are
+         * under the pointer; the rest used to be sorted and scanned for
+         * nothing.
+         */
+        if( candidate >= 0 || reset )
+        {
+            assert(ordered->count < ordered->capacity);
+            ordered->items[ordered->count++] = (struct FrameHoverEvent){ node_index + 1, candidate, reset };
+        }
     }
     else
     {
@@ -227,14 +248,17 @@ find_hovered_recursive(
     int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
     int const has_mounts = mount_rec >= 0;
     int const mount_type = has_mounts ? tree->interface_parents[mount_rec].type : -1;
+    /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, node_index, &vis_count); }
     for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
         if( mount_sweep == 1 && mount_type == 0 )
             *out_hovered_component_id = -1;
 
-        for( int32_t child = component->first_child; child >= 0;
-             child = tree->components[child].next_sibling )
+        for( int32_t vi = 0; vi < tree->components[node_index].visible_child_count; vi++ )
         {
+            int32_t const child = tree->components[node_index].visible_children[vi];
             int const is_mount =
                 has_mounts &&
                 UITree_ChildMountType(

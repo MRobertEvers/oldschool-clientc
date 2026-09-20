@@ -18,6 +18,7 @@ void test_plugin_contract_copy(void);
 
 int g_failures;
 void test_anchor_reorder(void);
+void test_visible_children(void);
 void test_canvas_queries(void);
 void test_canvas_floor_measures(void);
 void test_overlay_retention(void);
@@ -65,6 +66,7 @@ main(void)
     test_owned_image_widgets();
     test_widget_anchor_depth();
     test_input_walk_equivalence();
+    test_visible_children();
     test_anchor_reorder();
     test_widget_skin();
     test_widget_skin_survives_cc_rebuild();

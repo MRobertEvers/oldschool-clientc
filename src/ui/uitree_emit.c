@@ -2694,11 +2694,14 @@ emit_walk_node(
          * deferred drag source deeper in the tree; they do not draw here.
          * Same mount-last sweep as the draw path so both agree on order. */
         int const has_mounts = UITree_ContainerHasMounts(tree, c->component_id);
+        /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, idx, &vis_count); }
         for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
         {
-            for( child = c->first_child; child >= 0;
-                 child = tree->components[child].next_sibling )
+            for( int32_t vi = 0; vi < tree->components[idx].visible_child_count; vi++ )
             {
+                child = tree->components[idx].visible_children[vi];
                 if( has_mounts &&
                     child_is_interface_parent_mount(
                         tree, c->component_id, &tree->components[child]) != mount_sweep )
@@ -2970,10 +2973,14 @@ emit_walk_node(
      * link_under_parent appends, so without this they only stay on top until the
      * container gains another child. */
     int const has_mounts = UITree_ContainerHasMounts(tree, c->component_id);
+    /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, idx, &vis_count); }
     for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
-        for( child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
+        for( int32_t vi = 0; vi < tree->components[idx].visible_child_count; vi++ )
         {
+            child = tree->components[idx].visible_children[vi];
             int sx = child_scroll_x;
             int sy = child_scroll_y;
             int const is_mount =
@@ -3897,10 +3904,13 @@ uitree_node_subtree_paints_art(
         return true;
     /* Still the children on a node that drew nothing itself: a fully
      * transparent parent is exactly the case emit_walk_node keeps walking. */
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, node_index, &vis_count); }
+    for( int32_t vi = 0; vi < tree->components[node_index].visible_child_count; vi++ )
         if( uitree_node_subtree_paints_art(
-                tree, host, child, hovered_component_id, scratch, depth + 1) )
+                tree, host, tree->components[node_index].visible_children[vi],
+                hovered_component_id, scratch, depth + 1) )
             return true;
     return false;
 }

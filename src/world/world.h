@@ -464,6 +464,16 @@ struct World
     /** Monotonic frame counter (reference Client.sceneCycle): bumped once per
      *  dynamic-registration pass so the stamp above never needs clearing. */
     int scene_cycle;
+    /** How many scenery records carry `runtime_spawn` (a LOC_ADD_CHANGE loc
+     *  spawned after the static painter set was baked). The per-cycle painter
+     *  pass re-registers those every frame, and it used to find them by walking
+     *  the WHOLE scenery pool -- every static loc of the scene, tens of
+     *  thousands of pointer-chased nodes -- to reach the handful that qualify,
+     *  which was 3.5% of the Moto X's frame with an open door or two in view
+     *  and exactly as much with none. Maintained at the two seams that write
+     *  the flag (the builder's spawn, World_SceneryRemove) and by the pool
+     *  reset; the pass skips the walk while it is zero. */
+    int runtime_spawn_count;
     /** Server pid of the local player (esync.local_pid), mirrored here so the
      *  render-cycle dynamic pass can register the local player first — the
      *  reference draws `addPlayers(true)` (self) ahead of every other entity,

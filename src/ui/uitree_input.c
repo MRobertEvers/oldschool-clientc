@@ -464,6 +464,9 @@ hit_test_interactive_recursive(
     int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
     int const has_mounts = mount_rec >= 0;
     int const mount_type = has_mounts ? tree->interface_parents[mount_rec].type : -1;
+    /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, node_index, &vis_count); }
     for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
         if( mount_sweep == 1 && mount_type == 0 && point_in_self )
@@ -473,9 +476,9 @@ hit_test_interactive_recursive(
             blocks_world = 1;
         }
 
-        for( int32_t child = component->first_child; child >= 0;
-             child = tree->components[child].next_sibling )
+        for( int32_t vi = 0; vi < tree->components[node_index].visible_child_count; vi++ )
         {
+            int32_t const child = tree->components[node_index].visible_children[vi];
             int const is_mount =
                 has_mounts &&
                 UITree_ChildMountType(
@@ -547,9 +550,12 @@ UITree_HitTestRecursive(
         UITree_PointInComponent(&component->position, px, py) )
         hit = node_index;
 
-    for( int32_t child = component->first_child; child >= 0;
-         child = tree->components[child].next_sibling )
+    /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, node_index, &vis_count); }
+    for( int32_t vi = 0; vi < tree->components[node_index].visible_child_count; vi++ )
     {
+        int32_t const child = tree->components[node_index].visible_children[vi];
         int32_t child_hit = UITree_HitTestRecursive(tree, child, px, py);
         if( child_hit >= 0 )
             hit = child_hit;
@@ -722,7 +728,13 @@ collect_nodes_recursive(
     }
 #undef COLLECT_PASSTHROUGH
 
-    if( ctx->events && ctx->count < ctx->max ) ctx->events[ctx->count++] = event;
+    /* An event with every flag clear is inert to each scan that reads the
+     * list (frame_ordered_hit, UITree_PointQuery, UITree_PointBlocksWorld,
+     * UITree_CollectNodesAt), and leaving it out is exact for the reorder as
+     * well -- see the same rule in find_hovered_recursive. */
+    if( ctx->events && ctx->count < ctx->max &&
+        (event.menu || event.interactive || event.geometric || event.barrier || event.world) )
+        ctx->events[ctx->count++] = event;
 
     int child_scroll_x = scroll_off_x;
     int child_scroll_y = scroll_off_y;
@@ -760,6 +772,9 @@ collect_nodes_recursive(
     int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
     int const has_mounts = mount_rec >= 0;
     int const mount_type = has_mounts ? tree->interface_parents[mount_rec].type : -1;
+    /* Children through the reachable-children sidecar: the hidden ones are
+     * never entered. Re-read per step; a host callback can append. */
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, node_index, &vis_count); }
     for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
     {
         if( mount_sweep == 1 && mount_type == 0 && point_in_self )
@@ -769,9 +784,9 @@ collect_nodes_recursive(
             else ctx->barrier = ctx->count;
         }
 
-        for( int32_t child = component->first_child; child >= 0;
-             child = tree->components[child].next_sibling )
+        for( int32_t vi = 0; vi < tree->components[node_index].visible_child_count; vi++ )
         {
+            int32_t const child = tree->components[node_index].visible_children[vi];
             int const is_mount =
                 has_mounts &&
                 UITree_ChildMountType(

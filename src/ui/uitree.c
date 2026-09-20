@@ -989,6 +989,123 @@ uitree_child_index_drop(struct UITreeComponent* parent)
     parent->child_key_index_cap = 0;
 }
 
+/* ---- the reachable-children sidecar (UITreeComponent::visible_children) --- */
+
+static void
+uitree_visible_children_invalidate(struct UITree* tree, int32_t parent)
+{
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+    tree->components[parent].visible_children_valid = 0;
+}
+
+static void
+uitree_visible_children_push(struct UITree* tree, struct UITreeComponent* p, int32_t child)
+{
+    (void)tree;
+    if( p->visible_child_count == p->visible_child_capacity )
+    {
+        int32_t cap = p->visible_child_capacity ? p->visible_child_capacity * 2 : 8;
+        int32_t* grown = realloc(p->visible_children, (size_t)cap * sizeof(int32_t));
+        assert(grown);
+        p->visible_children = grown;
+        p->visible_child_capacity = cap;
+    }
+    p->visible_children[p->visible_child_count++] = child;
+}
+
+static void
+uitree_visible_children_rebuild(struct UITree* tree, int32_t parent)
+{
+    struct UITreeComponent* p = &tree->components[parent];
+    p->visible_child_count = 0;
+    for( int32_t child = p->first_child; child >= 0; child = tree->components[child].next_sibling )
+        if( !UITree_ChildHiddenForWalks(&tree->components[child]) )
+            uitree_visible_children_push(tree, p, child);
+    p->visible_children_valid = 1;
+}
+
+/* A child appended at the tail of `parent`'s sibling list (uitree_append_child):
+ * the same position at the tail of the sidecar. */
+static void
+uitree_visible_children_appended(struct UITree* tree, int32_t parent, int32_t child)
+{
+    struct UITreeComponent* p = &tree->components[parent];
+    if( !p->visible_children_valid )
+        return;
+    if( !UITree_ChildHiddenForWalks(&tree->components[child]) )
+        uitree_visible_children_push(tree, p, child);
+}
+
+static int32_t
+uitree_visible_children_find(struct UITreeComponent const* p, int32_t child)
+{
+    for( int32_t i = 0; i < p->visible_child_count; i++ )
+        if( p->visible_children[i] == child )
+            return i;
+    return -1;
+}
+
+/* A child leaving `parent`'s sibling list, or becoming unreachable in place. */
+static void
+uitree_visible_children_removed(struct UITree* tree, int32_t parent, int32_t child)
+{
+    struct UITreeComponent* p;
+    int32_t at;
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+    p = &tree->components[parent];
+    if( !p->visible_children_valid )
+        return;
+    at = uitree_visible_children_find(p, child);
+    if( at < 0 )
+        return;
+    memmove(&p->visible_children[at], &p->visible_children[at + 1],
+            (size_t)(p->visible_child_count - at - 1) * sizeof(int32_t));
+    p->visible_child_count--;
+}
+
+/* A reachability flag on `idx` changed (uitree_note_mutation). Becoming
+ * unreachable is a removal in place; becoming reachable needs its sibling
+ * position, which only the chain knows, so that direction rebuilds -- it is
+ * the rare direction (a hidden chat line is hidden for good). */
+static void
+uitree_visible_children_reconcile(struct UITree* tree, int32_t idx)
+{
+    struct UITreeComponent const* c = &tree->components[idx];
+    int32_t const parent = c->parent;
+    struct UITreeComponent* p;
+    bool hidden;
+    bool present;
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+    p = &tree->components[parent];
+    if( !p->visible_children_valid )
+        return;
+    hidden = UITree_ChildHiddenForWalks(c);
+    present = uitree_visible_children_find(p, idx) >= 0;
+    if( hidden && present )
+        uitree_visible_children_removed(tree, parent, idx);
+    else if( !hidden && !present )
+        p->visible_children_valid = 0;
+}
+
+int32_t const*
+UITree_VisibleChildren(struct UITree const* tree, int32_t parent, int32_t* out_count)
+{
+    /* Scratch, not tree state -- the same argument as UITree::emit_visited. */
+    struct UITree* mut = (struct UITree*)tree;
+    struct UITreeComponent* p;
+    assert(tree);
+    assert(out_count);
+    assert(parent >= 0 && (uint32_t)parent < tree->component_count);
+    p = &mut->components[parent];
+    if( !p->visible_children_valid )
+        uitree_visible_children_rebuild(mut, parent);
+    *out_count = p->visible_child_count;
+    return p->visible_children;
+}
+
 /* Fold a newly appended child into its parent's key ceiling. Leaves an unknown
  * ceiling unknown — the next lookup recomputes it once. */
 static void
@@ -1161,6 +1278,7 @@ uitree_append_child(
     {
         parent->first_child = child_index;
         parent->last_child_hint = child_index;
+        uitree_visible_children_appended(tree, parent_index, child_index);
         return;
     }
 
@@ -1177,6 +1295,7 @@ uitree_append_child(
         return; /* already the tail */
     tree->components[walk].next_sibling = child_index;
     parent->last_child_hint = child_index;
+    uitree_visible_children_appended(tree, parent_index, child_index);
 }
 
 static int32_t
@@ -1404,6 +1523,7 @@ UITree_UnlinkChild(
             else
                 tree->components[prev].next_sibling = next;
             uitree_child_key_removed(tree, parent_index, walk);
+            uitree_visible_children_removed(tree, parent_index, walk);
             tree->components[walk].parent = -1;
             tree->components[walk].next_sibling = -1;
             parent->is_dirty = 1;
@@ -1832,6 +1952,11 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     }
     free(c->plugin_key);
     c->plugin_key = NULL;
+    free(c->visible_children);
+    c->visible_children = NULL;
+    c->visible_child_count = 0;
+    c->visible_child_capacity = 0;
+    c->visible_children_valid = 0;
     uitree_widget_geometry_free_list(tree, c->widget_geometry);
     c->widget_geometry = NULL;
     if( c->model_render_cache )
@@ -1930,6 +2055,7 @@ uitree_reclaim_subtree(
     /* Callers unlink before reclaiming, but a reclaim of a still-linked node must
      * not leave its parent claiming a key that just went away. */
     uitree_child_key_removed(tree, c->parent, idx);
+    uitree_visible_children_removed(tree, c->parent, idx);
 
     int32_t child = c->first_child;
     while( child >= 0 )
@@ -2196,7 +2322,10 @@ uitree_note_mutation(
     if( impacts & UITREE_IMPACT_EMIT_SELF )
         UITree_MarkNodeDirty(tree, idx);
     if( impacts & UITREE_IMPACT_REACHABILITY )
+    {
         uitree_topo_bump(tree, __LINE__);
+        uitree_visible_children_reconcile(tree, idx);
+    }
     if( impacts & (UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_LAYOUT_TREE | UITREE_IMPACT_GEOMETRY_STATE) )
         uitree_geometry_audit_stamp(tree, idx);
 }
@@ -3185,6 +3314,7 @@ UITree_ClearChildren(
     }
     c->child_key_max = UITREE_CHILD_KEY_NONE; /* nothing left to match by key */
     uitree_child_index_drop(c);               /* ... and none left to index */
+    c->visible_children_valid = 0;
     c->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     tree->canvas_candidates_valid = 0;
@@ -3635,6 +3765,9 @@ UITree_CcCopy(
     else
         UITreeNodeSet_Remove(&tree->opkeys, idx);
 
+    /* The copy above wrote reachability flags (native_hide, if3) straight into a
+     * node the link seam already recorded as reachable. */
+    uitree_visible_children_invalidate(tree, dst->parent);
     dst->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     tree->canvas_candidates_valid = 0;
@@ -5037,6 +5170,7 @@ UITree_WidgetMoveAfter(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
     tree->components[sibling].next_sibling = idx;
     /* The tail hint is validated on use; a moved tail simply costs one walk. */
     parent->last_child_hint = -1;
+    parent->visible_children_valid = 0;
     parent->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     tree->canvas_candidates_valid = 0;

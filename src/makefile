@@ -3591,7 +3591,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_visible_children.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \

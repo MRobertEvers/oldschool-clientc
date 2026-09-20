@@ -1656,7 +1656,11 @@ World_CycleRegisterPainterDynamics(struct World* world)
      * must be re-registered every cycle. Registered before the dynamics below so
      * they draw with the scenery (behind players/NPCs), matching a normal loc. */
     pool = &world->entities.scenery;
-    for( int si = World_EntityPoolHead(pool); si != WORLD_ENTITY_NIL;
+    /* The pool holds every static loc of the scene as well; walking it to
+     * find the runtime spawns is paid only while there are any. @see
+     * World::runtime_spawn_count. */
+    for( int si = world->runtime_spawn_count > 0 ? World_EntityPoolHead(pool) : WORLD_ENTITY_NIL;
+         si != WORLD_ENTITY_NIL;
          si = World_EntityPoolNext(pool, si) )
     {
         struct WorldEntity_Scenery* sc = World_EntityPoolGet(pool, si);
