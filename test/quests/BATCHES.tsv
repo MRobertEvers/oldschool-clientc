@@ -1,2 +1,3 @@
 batch	date	author_model	tests	green	blocked	content_bug	rejected	artifact
 sonnet-b4	2026-09-20	sonnet	fluffs,mortton,makinghistory,fishingcompo,cog,hunt,golem,biohazard	0	5	1	2	https://claude.ai/artifact/JCJsv1PWsAMversukL82MZ
+sonnet-b5	2026-09-20	sonnet	fluffs,hunt,elemental_workshop,seaslug,murder,prince,rovingelves,blackknight	3	2	2	1	https://claude.ai/artifact/XuhWBBzkPK74s7naABRShx
