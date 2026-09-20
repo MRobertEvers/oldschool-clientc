@@ -14,7 +14,11 @@ Red on, and only on, things that mean the test did not actually happen:
     renderer -- less than 1000 bytes),
   * two shots with the same MD5, anywhere in one quest's shots/ directory --
     the failure that looks most like a pass: a screenshot per interaction,
-    all of them identical, is a driver that never drove anything,
+    all of them identical, is a driver that never drove anything (the driver
+    no longer WRITES a second copy of a frame it has already photographed --
+    see UNCHANGED FRAMES below -- so this rule can no longer fire on a quest
+    whose verbs simply did not move the screen, and what is left of it is the
+    case it was written for),
   * a shot whose own top-left 64x64 corner matches the Character-Creator or
     pre-login fingerprint (tools/quest_gate/fingerprints/) -- a run that
     never actually got past boot/login can still write a ledger full of
@@ -35,6 +39,22 @@ declared stub (`t.blocked(...)`, or `quest.expect_complete`'s own
 `gate.py` still exits non-zero for it BY DEFAULT -- a stub is not nothing,
 CI should see it -- unless `--allow-blocked` is given, in which case a
 blocked-but-not-failing quest exits 0.
+
+UNCHANGED FRAMES. A screenshot request whose frame is byte-identical to the
+last shot the run actually wrote is answered, not written: the file is
+deleted again, the row's `shots` column stays EMPTY and its detail gains
+`[frame unchanged]` (core.lua / torirs_plugin_drive_ui.c, 2026-09-19). That
+is why the "every auto-shooting row carries a shot" rule below exempts a row
+carrying that marker -- `t.exec` shoots after every verb, including the many
+(`npc.await_present` on an npc already there, `inv.count`, a walk to the tile
+the player is on) that change nothing on screen, and Sheep Herder was
+rejected for four byte-identical consecutive PNGs its author could do
+nothing about. The exemption is narrow on purpose: the marker is written by
+the driver, from the bytes of a picture it really did take and really did
+compare, so a row that carries it is a row whose capture SUCCEEDED -- the
+rule's own target, a capture that silently failed, still has an empty shots
+column and no marker, and still fails. A `<name>-FAIL` capture is never
+suppressed, so a FAIL row always keeps its picture.
 
 MINIMUM SHAPE. The four rules about `quest.*` rows, `quest.varp_complete`/
 BLOCKED, and "every non-setup row has a shot" describe the NEW scaffold
@@ -87,6 +107,9 @@ FINGERPRINT_NAMES = ("character_creator", "pre_login")
 FINGERPRINT_MATCH_THRESHOLD = 12.0
 MIN_ROWS = 8
 MIN_SHOTS = 4
+# core.lua's flush() folds this into the detail of a row whose capture was
+# suppressed as an unchanged frame (see UNCHANGED FRAMES in the banner).
+UNCHANGED_MARKER = "[frame unchanged]"
 
 
 def artefact_dir(name):
@@ -445,10 +468,18 @@ def minimum_shape_findings(name, rows, shots_dir):
         step = row["step"]
         if step not in shooting_rows and _REPEAT_SUFFIX_RE.sub("", step) not in shooting_rows:
             continue
-        if not row["shots"]:
-            findings.append("step %r is written with t[\"do\"]/t.check, which always "
-                             "shoots, but has no shot recorded -- an empty shots column "
-                             "there means the capture itself failed" % step)
+        if row["shots"]:
+            continue
+        # The capture happened and was identical to the previous one, so the
+        # driver kept the picture it already had (UNCHANGED FRAMES, above).
+        # That is an empty shots column with a reason attached, and the reason
+        # is written by the driver rather than by the quest file.
+        if UNCHANGED_MARKER in row["detail"]:
+            continue
+        findings.append("step %r is written with t.exec/t.check, which always "
+                         "shoots, but has no shot recorded and no %s in its "
+                         "detail -- an empty shots column there means the "
+                         "capture itself failed" % (step, UNCHANGED_MARKER))
 
     return findings
 

@@ -123,6 +123,8 @@ local last_tick = 0
 local shot_counter = 0
 local pending_shots = {}
 local pending_notes = {}
+-- Set by QD.core_shot_unchanged below; consumed by the next row's flush.
+local pending_unchanged = false
 
 -- verbs-ui's (future) t.shot calls this to learn the "NN-name" its capture
 -- is written under (<session>/shots/NN-name.png, App_RequestScreenshot) and
@@ -153,6 +155,36 @@ function QD.core_next_shot(name)
     local numbered = string.format("%02d-%s", shot_counter, name)
     pending_shots[#pending_shots + 1] = numbered
     return numbered
+end
+
+-- The capture `numbered` asked for was NOT WRITTEN: its frame was
+-- byte-identical to the last shot this run actually wrote, so the driver
+-- deleted it again (torirs_plugin_drive_ui.c's own banner, "The unchanged
+-- frame"). ui.lua's QD.shot calls this on that answer.
+--
+-- Two things have to happen here and neither can happen in C. The name comes
+-- back OUT of `pending_shots`, because a row that names a shot no longer on
+-- disk is exactly what gate.py fails a quest for ("claims shot X, which is
+-- not on disk") -- the row's `shots` column must be empty rather than
+-- hopeful. And the number is HANDED BACK: the file numbering is what a human
+-- reads the shots/ directory by, and a suppressed capture that kept its
+-- number leaves a hole in it that looks like a lost picture. Handing it back
+-- is safe precisely because nothing was written under it -- the next capture
+-- takes the same number, and the only file that ever bore it is gone.
+--
+-- `pending_unchanged` is what the row itself says about it: one
+-- `[frame unchanged]` in the detail, however many of this row's captures
+-- were suppressed, because the row's point is that the screen did not move,
+-- not how many times it was photographed not moving.
+function QD.core_shot_unchanged(numbered)
+    for index = #pending_shots, 1, -1 do
+        if pending_shots[index] == numbered then
+            table.remove(pending_shots, index)
+            break
+        end
+    end
+    shot_counter = shot_counter - 1
+    pending_unchanged = true
 end
 
 -- Free-text context folded into the NEXT step/expect row's detail, so a
@@ -210,6 +242,11 @@ local function flush(name, verdict, detail)
         local joined = table.concat(pending_notes, "; ")
         detail = (detail and detail ~= "") and (detail .. " -- " .. joined) or joined
         pending_notes = {}
+    end
+    if pending_unchanged then
+        local marker = "[frame unchanged]"
+        detail = (detail and detail ~= "") and (detail .. " " .. marker) or marker
+        pending_unchanged = false
     end
     local shots = table.concat(pending_shots, ",")
     pending_shots = {}
@@ -277,7 +314,13 @@ local function record_with_shot(name, verdict, detail)
     local unique_name = unique_step_name(name)
     QD.shot(unique_name)
     if verdict ~= "PASS" then
-        QD.shot(unique_name .. "-FAIL")
+        -- `true` is QD.shot's `keep`: the -FAIL capture is NEVER suppressed
+        -- as an unchanged frame. A verb that failed without moving the screen
+        -- is the commonest failure there is (a timed-out await, a click that
+        -- landed on nothing), and it is the one whose picture a human most
+        -- needs -- "the frame was identical to the last one" is not an
+        -- answer to "what did the screen look like when this failed".
+        QD.shot(unique_name .. "-FAIL", true)
     end
     return flush(unique_name, verdict, detail), detail
 end

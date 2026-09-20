@@ -215,20 +215,39 @@ end
 -- "refused" if the request itself was refused (no session dir, or the
 -- renderer declined). QD.core_next_shot both numbers the capture and folds
 -- it into the next ledger row.
-function QD.shot(name)
+--
+-- THE UNCHANGED FRAME. api_drive.shot has a third return value, true when
+-- the picture it just wrote was byte-identical to the last one this run
+-- wrote and was therefore deleted again (torirs_plugin_drive_ui.c's banner).
+-- The result is still "ok" -- nothing went wrong, and a test that asked for
+-- a shot got a truthful answer about the screen -- but the detail is
+-- "unchanged since <that shot's name>" instead of a path, so a caller that
+-- prints it prints something true. QD.core_shot_unchanged is what keeps the
+-- ledger honest about it: the name leaves this row's `shots` column (there
+-- is no file to claim) and the row's detail gains `[frame unchanged]`.
+--
+-- `keep` is passed straight through: t.exec's `<name>-FAIL` capture sets it
+-- so a FAIL row always keeps a picture (core.lua's record_with_shot).
+function QD.shot(name, keep)
     local numbered = QD.core_next_shot(name)
-    local last_result, last_detail = api_drive.shot(numbered)
+    local last_result, last_detail, last_unchanged = api_drive.shot(numbered, keep)
     if last_result ~= "timeout" then
+        if last_unchanged then
+            QD.core_shot_unchanged(numbered)
+        end
         return last_result, last_detail
     end
     local awaited, note = await({
         level = function()
-            last_result, last_detail = api_drive.shot(numbered)
+            last_result, last_detail, last_unchanged = api_drive.shot(numbered, keep)
             return last_result ~= "timeout"
         end,
         note = "t.shot " .. numbered,
     }, 3)
     if awaited == "ok" then
+        if last_unchanged then
+            QD.core_shot_unchanged(numbered)
+        end
         return last_result, last_detail
     end
     return awaited, note

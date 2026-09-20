@@ -181,15 +181,141 @@ function QD.player._live_npc_id(id)
     return id
 end
 
+-- THE MULTILOC SWAP -- the same bug on the loc half, with the two sides of
+-- the relation the other way round.
+--
+-- Measured 2026-09-19 (build/quest_gate/priest, rows 25 and 27): the player
+-- stands beside the Restless Ghost's coffin, it fills a third of the frame,
+-- and `click_loc("openghostcoffin")` answers `screen_position: no loc 15061
+-- in the client's entity pool`.  The reviewer read that as "the goto is
+-- wrong" and rejected the quest.
+--
+-- `openghostcoffin` is id 15061 and it is a MULTILOC: `multivarbit=
+-- restless_ghost_coffin_var`, `multiloc1=openghostcoffin_no_head` (15052),
+-- `multiloc2=openghostcoffin_with_head` (15053).  Nothing ever places 15061.
+-- The map places `shutghostcoffin` (2145) and `[oploc1,shutghostcoffin]`
+-- (quests/quest_priest/scripts/quest_priest.rs2:19-21) calls
+-- `loc_change(openghostcoffin_no_head, 300)` -- the LEAF -- so the scene goes
+-- 2145 -> 15052 and the symbol a human names is in no pool at any point.
+-- 4,675 of this pack's 62,194 loc defs carry a multiloc line.
+--
+-- Where the npc half differs: a WorldEntity_NPC stores the RESOLVED id and
+-- remembers its base, so `_live_npc_id` only ever has to walk base -> live.
+-- A WorldEntity_Scenery stores what the MAP or the PACKET named and resolves
+-- the transform table on the way to the model (app_varp_transforms.c's
+-- app_varp_refresh_loc_transforms, app_world_spawn.c's APP_SPAWN_LOC_CHANGE
+-- arm), and drive_pointer_screen_position_loc matches `loc->loc_id` -- that
+-- stored id.  So a loc target must carry the PLACED id, and the symbol can be
+-- on either side of the relation:
+--
+--   exact      the scene holds the symbol itself (every non-multiloc loc, and
+--              a multiloc wrapper the map placed unchanged).
+--   base       the scene holds a WRAPPER whose live child is the symbol -- the
+--              author named the leaf, the map placed the multiloc.  The target
+--              takes the WRAPPER's id, because that is what the pool stores.
+--   multiloc   the scene holds one of the SYMBOL's own slots -- the author
+--              named the wrapper, a loc_change put a leaf there.  This is the
+--              coffin.
+--
+-- Exact wins over base wins over slot, for the reason the npc half gives:
+-- both forms can be in the scene at once and a symbol naming the live form
+-- must not be re-pointed at some other placement.  A symbol with no row under
+-- any rule keeps its own id -- genuinely absent, and `not_found` for it is
+-- the right answer.
+--
+-- api_drive.loc_variants answers `timeout` while the def is being fetched:
+-- the wrapper is normally the one loc in the family NO map square placed, so
+-- its config is not resident and the read has to wait for one.  An id the
+-- cache has no record of is remembered here so the wait is paid once.
+QD.player._loc_variants_absent = {}
+
+function QD.player._loc_variants(id)
+    if QD.player._loc_variants_absent[id] then
+        return nil
+    end
+    local result, info = api_drive.loc_variants(id)
+    if result == "timeout" then
+        QD.await({
+            level = function()
+                return api_drive.loc_variants(id) ~= "timeout"
+            end,
+            note = "loc_variants " .. tostring(id),
+        }, 5)
+        result, info = api_drive.loc_variants(id)
+    end
+    if result ~= "ok" or type(info) ~= "table" then
+        QD.player._loc_variants_absent[id] = true
+        return nil
+    end
+    return info
+end
+
+-- (placed id, rule) for a loc symbol's id -- see the banner above.  `rule` is
+-- the word a detail string quotes, never nil.
+function QD.player._live_loc_id(id)
+    local result, rows = api_drive.locs(0)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return id, nil
+    end
+    for i = 1, #rows do
+        if rows[i].loc_id == id then
+            return id, "exact"
+        end
+    end
+    -- base: a placement whose live multiloc child IS this symbol.  Read off
+    -- the row (DriveLocRow.resolved_loc_id) rather than asked per row, so
+    -- this costs nothing on a scene of eight thousand locs.
+    for i = 1, #rows do
+        if rows[i].resolved_loc_id == id and rows[i].loc_id ~= nil then
+            return rows[i].loc_id, "base"
+        end
+    end
+    -- multiloc: a placement that is one of this symbol's own slots.
+    local info = QD.player._loc_variants(id)
+    if info and type(info.slots) == "table" and #info.slots > 0 then
+        local wanted = {}
+        for j = 1, #info.slots do
+            wanted[info.slots[j]] = true
+        end
+        for i = 1, #rows do
+            if wanted[rows[i].loc_id] then
+                return rows[i].loc_id, "multiloc"
+            end
+        end
+    end
+    -- Nothing in the scene under any rule: the symbol keeps its own id and
+    -- the rule is nil, not "exact".  A miss that claimed an exact match would
+    -- put the word into a detail describing a target that is not there.
+    return id, nil
+end
+
+-- How a resolution that was not `exact` reads in a ledger detail: the symbol
+-- the test named, the id the scene actually holds, and which rule got there.
+-- Never a bare id -- the whole cost of the coffin bug was a row that said
+-- `15061` and nothing about why.
+function QD.player._loc_match_note(name, id, rule)
+    if rule == nil or rule == "exact" then
+        return nil
+    end
+    local named_result, named = api_drive.symbol_name("loc", id)
+    return name .. " -> " .. (named_result == "ok" and named or "loc " .. tostring(id))
+        .. " (" .. rule .. ")"
+end
+
 function QD.player.by_symbol(kind, name)
     local result, id = api_drive.symbol(kind, name)
     if result ~= "ok" then
         return nil, result, name
     end
+    local rule = nil
     if kind == "npc" then
         id = QD.player._live_npc_id(id)
+    elseif kind == "loc" then
+        id, rule = QD.player._live_loc_id(id)
     end
-    return { kind = kind, id = id }, "ok"
+    -- `match` rides on the target so every verb built on by_symbol can say
+    -- which rule won without resolving twice; nothing reads it as an id.
+    return { kind = kind, id = id, match = rule, symbol = name }, "ok"
 end
 
 -- drive.* -------------------------------------------------------------
@@ -245,8 +371,12 @@ function QD.drive._target_tile(target)
     for i = 1, #rows do
         local row = rows[i]
         local id = row.npc_id or row.loc_id or row.obj_id
-        -- npc_id OR base_npc_id, the pair QD.npc.by_symbol matches on.
-        if id == target.id or row.base_npc_id == target.id then
+        -- npc_id OR base_npc_id, the pair QD.npc.by_symbol matches on; and on
+        -- the loc half loc_id OR resolved_loc_id, the pair
+        -- QD.player._live_loc_id matches on, so a target a quest file built by
+        -- hand still frames.
+        if id == target.id or row.base_npc_id == target.id
+            or row.resolved_loc_id == target.id then
             return "ok", row.x, row.z
         end
     end
@@ -297,6 +427,19 @@ function QD.drive._ensure_visible(target, deadline)
             result, pos = api_drive.screen_position(target.kind, target.id)
         end
     end
+    -- The same re-ask on the loc half (see the multiloc banner above): the
+    -- projector matches the id the scene STORES, and a multiloc symbol names
+    -- a wrapper the scene never stores.  A target built by QD.player.by_symbol
+    -- has already been through this and answers `exact` a second time for
+    -- nothing; one built by hand is why the arm is here.
+    if result == "not_found" and target.kind == "loc" then
+        local live, rule = QD.player._live_loc_id(target.id)
+        if live ~= target.id then
+            target.match = rule
+            target.id = live
+            result, pos = api_drive.screen_position(target.kind, target.id)
+        end
+    end
     if result == "ok" then
         return result, pos
     end
@@ -305,7 +448,29 @@ function QD.drive._ensure_visible(target, deadline)
         -- indistinguishable from `not_visible` to whoever reads the ledger,
         -- and the two are different bugs (absent from the pool vs. absent
         -- from the frame).
+        -- Named, not numbered.  `no loc 15061` cost the priest pass a whole
+        -- run: the author had no way to see that the number was a multiloc
+        -- wrapper rather than the tile being wrong, and a loc target has now
+        -- already been through all three matching rules before it gets here,
+        -- so the row should say which symbol went unmatched.
+        --
+        -- Only the three CONTENT kinds are named.  A target's `kind` is one
+        -- of npc/loc/obj/player (the banner at the top of this file) and
+        -- `player` is not a symbol pack at all: api_drive.symbol_name raises
+        -- a Lua error on a kind drive_symbol_kind_from_name does not know
+        -- (torirs_plugin_drive.c's luaL_error), which in this chunk -- no
+        -- pcall, no coroutine -- takes the whole run down instead of writing
+        -- the not_found row this branch exists to write.
+        local named = nil
+        if target.kind == "npc" or target.kind == "loc" or target.kind == "obj" then
+            local named_result
+            named_result, named = api_drive.symbol_name(target.kind, target.id)
+            if named_result ~= "ok" then
+                named = nil
+            end
+        end
         return result, "no " .. target.kind .. " " .. tostring(target.id)
+            .. (named and (" (" .. named .. ")") or "")
             .. " in the client's entity pool"
     end
 
@@ -1141,6 +1306,13 @@ function QD.player.click_loc(loc, op)
     if not target then
         return sym_result, sym_name
     end
+    -- A multiloc resolution is a fact about the click, so it goes in the row:
+    -- the reader has to be able to tell "Search on the coffin" from "Search on
+    -- something else that happens to be a slot of the coffin".
+    local note = QD.player._loc_match_note(loc, target.id, target.match)
+    if note then
+        QD.note("click_loc " .. note)
+    end
     QD.player.walk_near(target)
     -- A DOOR SAYS NOTHING, and the settle has no arm for silence.
     --
@@ -1523,6 +1695,15 @@ end
 function QD.player.use_on(item, target)
     if type(target) ~= "table" or target.kind == nil then
         return "unsupported", "use_on: target must be a {kind,id} world target"
+    end
+    -- Inherited, not re-resolved: by_symbol already picked the placed id and
+    -- stamped the rule on the target.  The note is here for the same reason
+    -- it is in click_loc -- the row has to say which loc the item was used on.
+    if target.kind == "loc" and target.symbol then
+        local note = QD.player._loc_match_note(target.symbol, target.id, target.match)
+        if note then
+            QD.note("use_on " .. note)
+        end
     end
     -- Walk into range BEFORE arming: the armed selection is consumed by the
     -- next world click whatever it hits, so a press that misses the target

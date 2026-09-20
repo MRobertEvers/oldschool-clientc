@@ -1004,12 +1004,13 @@ except the plain readers marked as returning a value.
 ---@field tab_by_name fun(name: string): string, integer|nil Tab NAME through app->revconfig_refs' "tab" kind (the [tabs] map, else a panel_<name> role); no_row for a name neither source declares.
 ---@field modal_live fun(): string, boolean Re-verified; modal_host_uid is never cleared on close.
 ---@field npcs fun(radius: integer): string, table Nearest first; names normalised of <col=..>.
----@field locs fun(radius: integer): string, table
+---@field locs fun(radius: integer): string, table Each row carries loc_id (the id the MAP or a zone packet placed) AND resolved_loc_id (the multiloc child it currently draws as).
+---@field loc_variants fun(loc_id: integer): string, table|nil { resolved, slots } -- the multiloc child this def draws as now, and its flattened family. `timeout` while the def is being fetched: poll again next frame.
 ---@field objs fun(radius: integer): string, table
 ---@field player_tile fun(): string, table { x, z, level }.
 ---@field key fun(name: string, down: boolean): string, string
 ---@field text fun(text: string): string, string 1..63 printable ASCII.
----@field shot fun(name: string): string, string Request a capture and await the file.
+---@field shot fun(name: string, keep: boolean|nil): string, string, boolean Request a capture and await the file. A third return, true when the picture was byte-identical to the last one written and was deleted again -- the detail is then "unchanged since <name>", not a path. `keep` writes it regardless (t.exec's -FAIL shot).
 
 ---@class torirs.Plugin
 ---@field id string Stable plugin id.

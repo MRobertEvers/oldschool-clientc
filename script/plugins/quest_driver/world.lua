@@ -3,7 +3,8 @@
 --
 -- A target is always a server content symbol, never an id and never a name a
 -- lane happens to spell.  npc.by_symbol matches npc_id OR base_npc_id so a
--- multiNpc wrapper resolves to the shell a test named.
+-- multiNpc wrapper resolves to the shell a test named, and loc_near below
+-- matches a multiLoc in both directions -- see pointer.lua's MULTILOC SWAP.
 --
 -- api_drive is core.lua's chunk-scope upvalue (QD.core_bind) -- see
 -- state.lua's banner: there is no `api` global in this chunk, only
@@ -15,7 +16,8 @@
 -- `result, rows` where `rows` is a 1-indexed array of tables mirroring
 -- struct DriveLocRow/DriveObjRow's fields, EXCEPT that the two coordinates
 -- are spelled `x`/`z` on the Lua side (loc_id/obj_id, x, z, level,
--- element_id, plus obj's count): lua_drive_locs/lua_drive_objs rename
+-- element_id, plus loc's resolved_loc_id and obj's count):
+-- lua_drive_locs/lua_drive_objs rename
 -- tile_x/tile_z on the way out, and reading the C spelling here filled
 -- this verb's own tile_x/tile_z with nil for the life of the file --
 -- nothing noticed until pointer.lua's _target_tile needed those two
@@ -26,11 +28,24 @@
 -- wrong (QD-05): world.tile()/world.level() below were destructuring the
 -- table itself into `x` and leaving `z`/`level` nil.
 
+-- THE MULTILOC SWAP, on the read verb.  Same three rules as
+-- QD.player._live_loc_id (pointer.lua's banner has the measurement, and why a
+-- loc target carries the PLACED id rather than the symbol's): exact, then a
+-- placement whose live multiloc child IS this symbol, then a placement that
+-- is one of this symbol's own slots.  The row handed back is a click target
+-- -- player.click_loc reads `tile_x`/`element_id` off it -- so it has to name
+-- the id the pool stores, and `match` says which rule found it.
+--
+-- The rule is resolved over the WHOLE pool and the row is then found inside
+-- `radius`: which COPY of a loc is nearest is a different question from which
+-- ID the family resolved to, and answering them together would make one
+-- symbol resolve differently at radius 5 than at radius 50.
 function QD.world.loc_near(sym, radius)
-    local sym_result, id = api_drive.symbol("loc", sym)
+    local sym_result, symbol_id = api_drive.symbol("loc", sym)
     if sym_result ~= "ok" then
         return sym_result, sym
     end
+    local id, match = QD.player._live_loc_id(symbol_id)
     local result, rows = api_drive.locs(radius or 0)
     if result ~= "ok" then
         return result, nil
@@ -40,12 +55,22 @@ function QD.world.loc_near(sym, radius)
             return "ok", {
                 kind = "loc",
                 id = id,
+                symbol = sym,
+                match = match,
                 element_id = rows[i].element_id,
                 tile_x = rows[i].x,
                 tile_z = rows[i].z,
                 level = rows[i].level,
             }
         end
+    end
+    -- `not_found` names the symbol AND the id that went unmatched, because
+    -- after the three rules above those differ, and the difference is the
+    -- whole diagnosis: the family is absent, or it resolved to something
+    -- standing outside this radius.
+    if id ~= symbol_id then
+        return "not_found", sym .. " (" .. tostring(match) .. " -> loc "
+            .. tostring(id) .. ", none within " .. tostring(radius or 0) .. ")"
     end
     return "not_found", sym
 end

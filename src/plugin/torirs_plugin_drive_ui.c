@@ -40,6 +40,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 
@@ -300,6 +301,34 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
     return DRIVE_OK;
 }
 
+/*
+ * The multiloc child a placement currently draws as.
+ *
+ * The client's scenery entity keeps the id the map or the packet named and
+ * resolves the transform table on the way to the model
+ * (app_varp_refresh_loc_transforms, app_world_spawn.c's APP_SPAWN_LOC_CHANGE
+ * arm), so this is the only place a reader can ask "what IS that thing".
+ * Answers `loc_id` for the overwhelming majority of defs, which carry no
+ * transform table at all; -1 is the table's own "hidden" and is passed
+ * through rather than folded into `loc_id`, because a hidden loc and a plain
+ * loc are different answers to a test asking why it cannot click something.
+ */
+static int
+drive_ui_loc_resolved(struct App* app, int loc_id)
+{
+    struct ToriRS_Location* cfg;
+
+    assert(app);
+    if( loc_id < 0 || !app->provider )
+        return loc_id;
+    cfg = CacheProvider_LocationGet(app->provider, loc_id);
+    if( !cfg || cfg->transform_count <= 0 || !cfg->transforms )
+        return loc_id;
+    return VarPManager_ResolveTransform(
+        &app->varps, cfg->transforms, cfg->transform_count, cfg->transform_varbit,
+        cfg->transform_varp);
+}
+
 enum DriveResult
 DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count)
 {
@@ -376,12 +405,113 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
             out[j] = out[j - 1];
         }
         out[j].loc_id = sc->loc_id;
+        out[j].resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
         out[j].tile_x = tile_x;
         out[j].tile_z = tile_z;
         out[j].level = sc->grid_position.level;
         out[j].element_id = sc->element_id;
         if( count < cap )
             count++;
+    }
+    *out_count = count;
+    return DRIVE_OK;
+}
+
+/* The one loc def DriveUi_LocVariants is currently fetching, and how many
+ * times it has been asked since -- see the retry note in the body. */
+static int g_drive_ui_loc_load_id = -1;
+static int g_drive_ui_loc_load_polls;
+
+/*
+ * Flatten a multiloc family.  Breadth-first over `out_slots` itself: each id
+ * appended is visited in turn, so a table whose child is itself a multiloc
+ * (a farming patch's growth chain) comes out whole, and the dedup that guards
+ * the append is also what terminates a table pointing back at an ancestor.
+ *
+ * A child whose own def is not resident contributes no grandchildren -- it is
+ * still IN the list, which is all a symbol match needs -- and no load is
+ * queued for it: the one id worth waiting for is the one the caller named,
+ * and fanning loads across a whole family would queue hundreds of reads for a
+ * question already answered.
+ */
+enum DriveResult
+DriveUi_LocVariants(
+    struct App* app, int loc_id, int* out_resolved, int* out_slots, int cap, int* out_count)
+{
+    struct ToriRS_Location* cfg;
+    int head = 0;
+    int count = 0;
+
+    assert(app);
+    assert(out_resolved);
+    assert(out_slots);
+    assert(cap > 0);
+    assert(out_count);
+    assert(loc_id >= 0);
+
+    *out_count = 0;
+    *out_resolved = loc_id;
+    if( !app->provider )
+        return DRIVE_NO_ROW;
+
+    cfg = CacheProvider_LocationGet(app->provider, loc_id);
+    if( !cfg )
+    {
+        /* One load in flight per id, not one per poll.  The caller polls this
+         * from an await's `level`, which runs once a FRAME, and
+         * CreateTask_Dat2LocLoad dedups only against residency (it has no
+         * in-flight check) -- so asking plainly would queue thirty group
+         * reads a tick for one answer.  The retry every DRIVE_UI_LOC_LOAD_
+         * RETRY polls is there because a dropped task would otherwise hang
+         * the await for its whole deadline with nothing left fetching. */
+        enum
+        {
+            DRIVE_UI_LOC_LOAD_RETRY = 30
+        };
+        struct ToriRS_Task* load = NULL;
+
+        if( loc_id != g_drive_ui_loc_load_id )
+        {
+            g_drive_ui_loc_load_id = loc_id;
+            g_drive_ui_loc_load_polls = 0;
+            load = CreateTask_LocLoad(app->provider, loc_id);
+        }
+        else if( ++g_drive_ui_loc_load_polls % DRIVE_UI_LOC_LOAD_RETRY == 0 )
+            load = CreateTask_LocLoad(app->provider, loc_id);
+        else
+            return DRIVE_TIMEOUT;
+        /* CreateTask_LocLoad answers NULL when there is nothing left to fetch;
+         * with the config still absent after that, this provider cannot
+         * produce one and no amount of polling will change that. */
+        if( !load )
+            return DRIVE_NOT_FOUND;
+        ToriRS_TaskQueue_Add(app->runner.queue, load);
+        return DRIVE_TIMEOUT;
+    }
+    if( loc_id == g_drive_ui_loc_load_id )
+        g_drive_ui_loc_load_id = -1;
+    *out_resolved = drive_ui_loc_resolved(app, loc_id);
+
+    for( ;; )
+    {
+        int i;
+
+        if( cfg && cfg->transforms )
+            for( i = 0; i < cfg->transform_count && count < cap; i++ )
+            {
+                int child = cfg->transforms[i];
+                int seen = child < 0 || child == loc_id;
+                int j;
+
+                for( j = 0; !seen && j < count; j++ )
+                    seen = out_slots[j] == child;
+                if( seen )
+                    continue;
+                out_slots[count++] = child;
+            }
+        if( head >= count )
+            break;
+        cfg = CacheProvider_LocationGet(app->provider, out_slots[head++]);
     }
     *out_count = count;
     return DRIVE_OK;
@@ -580,8 +710,142 @@ static char g_drive_ui_shot_path[1024];
 #define DRIVE_UI_SHOT_MISS_BUDGET 60
 static int g_drive_ui_shot_misses;
 
-enum DriveResult
-DriveUi_Shot(struct App* app, char const* name, char* out_path, int out_cap)
+/*
+ * The unchanged frame, and why a picture of it is not written.
+ *
+ * t.exec/t.check shoot after EVERY verb, including the many that change
+ * nothing on screen -- an await that was already satisfied, a count read out
+ * of the backpack, a walk to a tile the player is standing on. Four
+ * consecutive shots of Sheep Herder (equip-trousers, sheep1-present,
+ * walk-near-sheep1, blocked) came out BYTE-IDENTICAL, and gate.py's
+ * duplicate-MD5 rule -- which exists to catch a driver that drove nothing --
+ * then failed the quest for it. The author had done nothing wrong; the
+ * harness had photographed the same frame four times and the gate called
+ * that a dead driver.
+ *
+ * So the driver stops writing the same picture twice in a row of its own
+ * accord: a capture whose bytes are identical to the LAST SHOT THIS RUN
+ * ACTUALLY WROTE is deleted again and answered ("ok", "unchanged since
+ * <that shot's name>"), the Lua side drops the name from the row's `shots`
+ * column, and the row's detail says `[frame unchanged]` instead. The gate's
+ * duplicate-MD5 rule is left exactly as it was: it can no longer fire on
+ * this class at all, and it still catches a driver whose every INTERACTION
+ * produced the same frame, because those shots are the ones that are
+ * suppressed rather than duplicated -- a quest that really drove nothing
+ * ends up with one PNG and a ledger full of `[frame unchanged]`, which is
+ * far more legible than N copies of one picture.
+ *
+ * The comparison is the written PNG's own bytes, not the framebuffer: the
+ * pixels this capture is made of live in app_plugin_screenshots_write
+ * (src/app/app_plugin_assets.c), one frame shared by every plugin's pending
+ * request and encoded there once -- reaching into that shared path to hash
+ * it for the quest driver alone is a bigger change, in a file this owner
+ * does not own, for the same answer. Encoding is deterministic (one
+ * tdefl_write_image_to_png_file_in_memory_ex call with fixed settings), so
+ * equal frames are equal files and "byte-identical PNG" is precisely the
+ * equivalence gate.py's MD5 rule already measures.
+ *
+ * `keep` is the one way past it, and t.exec's `<name>-FAIL` capture is what
+ * it is for: a FAIL row must keep its picture even when the failing verb
+ * changed nothing, because that picture is the first thing a human opens.
+ * A kept shot still becomes the new "last written", so the next capture is
+ * compared against what is really on disk.
+ */
+static unsigned char* g_drive_ui_shot_last_bytes;
+static long g_drive_ui_shot_last_size;
+static char g_drive_ui_shot_last_name[192];
+/* The in-flight request's own name and keep flag: the poll branch below is
+ * re-entered a frame or two later and only the REQUEST knew them. */
+static char g_drive_ui_shot_name[192];
+static int g_drive_ui_shot_keep;
+
+static unsigned char*
+drive_ui_shot_read(char const* path, long* out_size)
+{
+    FILE* file;
+    unsigned char* bytes;
+    long size;
+
+    assert(path);
+    assert(out_size);
+
+    *out_size = 0;
+    file = fopen(path, "rb");
+    if( !file )
+        return NULL;
+    if( fseek(file, 0, SEEK_END) != 0 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    size = ftell(file);
+    if( size <= 0 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    rewind(file);
+    bytes = malloc((size_t)size);
+    assert(bytes);
+    if( fread(bytes, 1, (size_t)size, file) != (size_t)size )
+    {
+        free(bytes);
+        fclose(file);
+        return NULL;
+    }
+    fclose(file);
+    *out_size = size;
+    return bytes;
+}
+
+/* 1 when `path` is byte-identical to the last shot this run wrote -- in
+ * which case `path` is removed again and the cache is left naming that
+ * earlier shot. 0 otherwise, and then `path` IS the last shot from here on. */
+static int
+drive_ui_shot_dedupe(char const* path, char const* name, int keep)
+{
+    unsigned char* bytes;
+    long size = 0;
+
+    assert(path);
+    assert(name);
+
+    bytes = drive_ui_shot_read(path, &size);
+    if( !bytes )
+    {
+        /* stat() said there was a file and it could not be read back. Forget
+         * what the last frame was rather than compare the NEXT shot against
+         * a cache that no longer describes anything on disk: an unreadable
+         * capture costs one duplicate picture at worst, a stale cache
+         * silently drops a frame that really did change. */
+        free(g_drive_ui_shot_last_bytes);
+        g_drive_ui_shot_last_bytes = NULL;
+        g_drive_ui_shot_last_size = 0;
+        g_drive_ui_shot_last_name[0] = '\0';
+        return 0;
+    }
+    if( !keep && g_drive_ui_shot_last_bytes && size == g_drive_ui_shot_last_size &&
+        memcmp(bytes, g_drive_ui_shot_last_bytes, (size_t)size) == 0 )
+    {
+        free(bytes);
+        remove(path);
+        return 1;
+    }
+    free(g_drive_ui_shot_last_bytes);
+    g_drive_ui_shot_last_bytes = bytes;
+    g_drive_ui_shot_last_size = size;
+    snprintf(g_drive_ui_shot_last_name, sizeof(g_drive_ui_shot_last_name), "%s", name);
+    return 0;
+}
+
+static enum DriveResult
+drive_ui_shot(
+    struct App* app,
+    char const* name,
+    int keep,
+    char* out_path,
+    int out_cap,
+    int* out_unchanged)
 {
     char const* session_dir;
     char dir[900];
@@ -595,6 +859,8 @@ DriveUi_Shot(struct App* app, char const* name, char* out_path, int out_cap)
     assert(out_cap > 0);
 
     out_path[0] = '\0';
+    if( out_unchanged )
+        *out_unchanged = 0;
 
     if( g_drive_ui_shot_path[0] )
     {
@@ -610,7 +876,18 @@ DriveUi_Shot(struct App* app, char const* name, char* out_path, int out_cap)
                 return DRIVE_TIMEOUT;
         if( stat(g_drive_ui_shot_path, &info) == 0 && info.st_size > 0 )
         {
-            snprintf(out_path, (size_t)out_cap, "%s", g_drive_ui_shot_path);
+            /* The banner above: an identical picture is deleted again and
+             * the answer names the shot it would have duplicated, so the
+             * detail a test sees is never a path that is not there. */
+            int unchanged = drive_ui_shot_dedupe(
+                g_drive_ui_shot_path, g_drive_ui_shot_name, g_drive_ui_shot_keep);
+            if( unchanged )
+                snprintf(out_path, (size_t)out_cap, "unchanged since %s",
+                         g_drive_ui_shot_last_name);
+            else
+                snprintf(out_path, (size_t)out_cap, "%s", g_drive_ui_shot_path);
+            if( out_unchanged )
+                *out_unchanged = unchanged;
             g_drive_ui_shot_path[0] = '\0';
             g_drive_ui_shot_misses = 0;
             return DRIVE_OK;
@@ -638,9 +915,19 @@ DriveUi_Shot(struct App* app, char const* name, char* out_path, int out_cap)
      * first, so a leftover from an earlier run cannot be mistaken for this
      * one's completion. */
     remove(g_drive_ui_shot_path);
+    snprintf(g_drive_ui_shot_name, sizeof(g_drive_ui_shot_name), "%s", name);
+    g_drive_ui_shot_keep = keep;
     g_drive_ui_shot_misses = 0;
     app->need_redraw = 1;
     return DRIVE_TIMEOUT; /* queued; the caller polls again next frame */
+}
+
+/* The declared seam (torirs_plugin_drive.h), unchanged: a caller that has no
+ * opinion about duplicate frames gets the ordinary suppressing capture. */
+enum DriveResult
+DriveUi_Shot(struct App* app, char const* name, char* out_path, int out_cap)
+{
+    return drive_ui_shot(app, name, 0, out_path, out_cap, NULL);
 }
 
 /* -------------------------------------------------------------- Lua thunks */
@@ -821,6 +1108,8 @@ lua_drive_locs(struct lua_State* L)
         lua_newtable(L);
         lua_pushinteger(L, rows[i].loc_id);
         lua_setfield(L, -2, "loc_id");
+        lua_pushinteger(L, rows[i].resolved_loc_id);
+        lua_setfield(L, -2, "resolved_loc_id");
         lua_pushinteger(L, rows[i].tile_x);
         lua_setfield(L, -2, "x");
         lua_pushinteger(L, rows[i].tile_z);
@@ -831,6 +1120,47 @@ lua_drive_locs(struct lua_State* L)
         lua_setfield(L, -2, "element_id");
         lua_rawseti(L, -2, i + 1);
     }
+    return 2;
+}
+
+/* (result, {resolved = <id>, slots = {<id>, ...}}).  `timeout` means the def
+ * is being fetched -- poll again next frame; the second return is nil, the way
+ * every non-ok read in this module answers. */
+static int
+lua_drive_loc_variants(struct lua_State* L)
+{
+    enum
+    {
+        DRIVE_UI_VARIANT_CAP = 64
+    };
+    struct App* app = PluginDrive_App();
+    int loc_id = PluginDrive_ArgInt(L, 1);
+    int slots[DRIVE_UI_VARIANT_CAP];
+    int resolved = loc_id;
+    int count = 0;
+    enum DriveResult result;
+    int i;
+
+    assert(app);
+    if( loc_id < 0 )
+        return luaL_error(L, "drive.loc_variants: loc id %d is not a resolved symbol", loc_id);
+    result = DriveUi_LocVariants(app, loc_id, &resolved, slots, DRIVE_UI_VARIANT_CAP, &count);
+    lua_pushstring(L, DriveResultName(result));
+    if( result != DRIVE_OK )
+    {
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_newtable(L);
+    lua_pushinteger(L, resolved);
+    lua_setfield(L, -2, "resolved");
+    lua_newtable(L);
+    for( i = 0; i < count; i++ )
+    {
+        lua_pushinteger(L, slots[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "slots");
     return 2;
 }
 
@@ -929,17 +1259,28 @@ lua_drive_text(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api.drive.shot(name, keep) -> (result, detail, unchanged).
+ *
+ * A THIRD return value, and ui.lua's QD.shot is the only reader: on an
+ * `unchanged` capture the detail is "unchanged since <name>" rather than a
+ * path, and the two are told apart by this boolean instead of by parsing
+ * that sentence. `keep` (t.exec's `-FAIL` shot) writes the picture whether
+ * it changed or not. */
 static int
 lua_drive_shot(struct lua_State* L)
 {
     struct App* app = PluginDrive_App();
     char const* name = PluginDrive_ArgString(L, 1);
+    int keep = lua_toboolean(L, 2);
     char path[1024];
+    int unchanged = 0;
     enum DriveResult result;
 
     assert(app);
-    result = DriveUi_Shot(app, name, path, (int)sizeof(path));
-    return PluginDrive_PushResult(L, result, result == DRIVE_OK ? path : NULL);
+    result = drive_ui_shot(app, name, keep, path, (int)sizeof(path), &unchanged);
+    PluginDrive_PushResult(L, result, result == DRIVE_OK ? path : NULL);
+    lua_pushboolean(L, unchanged);
+    return 3;
 }
 
 
@@ -952,6 +1293,7 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"modal_live", lua_drive_modal_live},
     {"npcs", lua_drive_npcs},
     {"locs", lua_drive_locs},
+    {"loc_variants", lua_drive_loc_variants},
     {"objs", lua_drive_objs},
     {"player_tile", lua_drive_player_tile},
     {"key", lua_drive_key},

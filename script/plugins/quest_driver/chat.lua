@@ -669,6 +669,15 @@ end
 -- run-wide counter, reached the only way any part file reaches it: through
 -- QD.shot. chat.play supplies a distinguishing suffix, never a second
 -- counter of its own.
+--
+-- A page whose frame is byte-identical to the last shot this run wrote is
+-- not WRITTEN (ui.lua's QD.shot, torirs_plugin_drive_ui.c's banner) -- but
+-- it is still REQUESTED, rendered and awaited here, and that is the part
+-- this file depends on: the frame pump these calls buy is what the two
+-- banners below ("`kind` is read AFTER the shot") are built on, and it is
+-- unchanged. Only the file is dropped, afterwards, once its bytes turn out
+-- to match. Consecutive pages of a real dialogue differ, so in practice the
+-- ones this suppresses are the pages nothing moved on.
 QD.chat._play_kind_by_prefix = {
     npc = "npc",
     player = "player",

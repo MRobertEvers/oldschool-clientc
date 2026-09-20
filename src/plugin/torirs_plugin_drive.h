@@ -756,7 +756,21 @@ struct DriveNpcRow
 
 struct DriveLocRow
 {
+    /** The id the MAP or a zone LOC packet put here -- what the client's
+     *  scenery entity stores and what every id-matching reader in this file
+     *  (drive_pointer_screen_position_loc) compares against.  For a multiloc
+     *  that is the WRAPPER; the client never rewrites it to the child. */
     int loc_id;
+    /** The multiloc child `loc_id` currently draws as, under the local
+     *  player's varbits (VarPManager_ResolveTransform, the same resolve
+     *  app_varp_refresh_loc_transforms and the server's op validation use).
+     *  Equal to `loc_id` when the def carries no transform table, and -1 when
+     *  the live slot says hidden.  This is the loc analogue of
+     *  DriveNpcRow.npc_id-vs-base_npc_id, with the two sides the other way
+     *  round: an npc entity stores the RESOLVED id and remembers its base,
+     *  a scenery entity stores the BASE and resolves on the way to the
+     *  model. */
+    int resolved_loc_id;
     int tile_x, tile_z, level;
     int element_id;
 };
@@ -778,6 +792,35 @@ enum DriveResult DriveUi_Locs(
     struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count);
 enum DriveResult DriveUi_Objs(
     struct App* app, int radius, struct DriveObjRow* out, int cap, int* out_count);
+
+/**
+ * A loc def's multiloc family: the child it resolves to NOW, and every id its
+ * transform table (and its children's tables) can name.
+ *
+ * Why a test needs this, measured 2026-09-19 (build/quest_gate/priest, rows 25
+ * and 27): `openghostcoffin` is id 15061, a multiloc whose slots are
+ * `openghostcoffin_no_head` (15052) and `openghostcoffin_with_head` (15053),
+ * and the Restless Ghost's `[oploc1,shutghostcoffin]` calls
+ * `loc_change(openghostcoffin_no_head, 300)` -- the LEAF.  So after the coffin
+ * opens the scene holds 15052 and 15061 is in no pool at all, while a test
+ * that names the symbol a human would name gets `not_found` for a coffin
+ * filling a third of the frame.  4,675 of this pack's 62,194 loc defs carry a
+ * multiloc line, so this is a class, not one coffin.
+ *
+ * `out_resolved` is the live child (or `loc_id` itself where there is no
+ * transform table, or -1 where the live slot is a hide).  `out_slots` is the
+ * flattened family, dedup'd, nearest level first, EXCLUDING `loc_id`.
+ *
+ * DRIVE_TIMEOUT means the def is not resident: a CreateTask_LocLoad has been
+ * queued on the app runner and the caller should poll again next frame (the
+ * editor's catalogue does the same thing for the same reason,
+ * editor_panel.c:970-976).  A loc that no map square and no packet has ever
+ * placed -- which is exactly the multiloc WRAPPER a test names -- is normally
+ * absent, so this answer is the common first one, not an error.
+ * DRIVE_NO_ROW: no cache provider.  Owner: verbs-ui.
+ */
+enum DriveResult DriveUi_LocVariants(
+    struct App* app, int loc_id, int* out_resolved, int* out_slots, int cap, int* out_count);
 
 /** App_LocalPlayerTiles; its false return is DRIVE_NOT_VISIBLE. */
 enum DriveResult DriveUi_PlayerTile(
