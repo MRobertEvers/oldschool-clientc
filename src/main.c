@@ -4140,24 +4140,51 @@ frame_loop_step(void)
         static int debug_draw = -1;
         static int debug_frames = 0;
         static int debug_rendered = 0;
+        static uint64_t debug_work_us = 0;
+        static int debug_work_frames = 0;
         if( debug_draw < 0 )
             debug_draw = getenv("TORIRS_SWAP_DEBUG") != NULL;
         if( debug_draw )
         {
             debug_rendered += app_redraw ? 1 : 0;
+            {
+                /* Zero on a host that never called App_NoteFrameTime; such a
+                 * frame is left out of the mean rather than counted as free. */
+                uint64_t work = App_LastFrameUs(&app);
+                if( work )
+                {
+                    debug_work_us += work;
+                    debug_work_frames++;
+                }
+            }
             if( ++debug_frames == 300 )
             {
+                /*
+                 * WORK, not cadence. Under a cap the wall time between two of
+                 * these lines is the cap and says nothing about the renderer;
+                 * what a capped run can still compare is how much of the
+                 * budget each frame spent. This is the same number the
+                 * developer overlay draws as "Frame" -- App_NoteFrameTime
+                 * closes it before the pacing sleep -- summed here so a run
+                 * needs no screenshot to be read, and reading it needs no adb
+                 * command that would perturb what it measures.
+                 */
                 fprintf(
                     stderr,
                     "draw: %d of %d loop iterations re-rendered "
-                    "(cap %d fps, draw period %d ms, async %d)\n",
+                    "(cap %d fps, draw period %d ms, async %d) work mean %.2f ms "
+                    "over %d frames\n",
                     debug_rendered,
                     debug_frames,
                     App_FrameCapFps(&app),
                     ToriRS_Pacer_DrawPeriodMs(&frame_pacer),
-                    App_AsyncPending(&app) ? 1 : 0);
+                    App_AsyncPending(&app) ? 1 : 0,
+                    debug_work_frames ? (double)debug_work_us / debug_work_frames / 1000.0 : 0.0,
+                    debug_work_frames);
                 debug_frames = 0;
                 debug_rendered = 0;
+                debug_work_us = 0;
+                debug_work_frames = 0;
             }
         }
     }

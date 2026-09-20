@@ -210,6 +210,45 @@ struct RS_CS2TradingPost
  */
 #define RS_CS2_DEVICEOPTION_FPS_CAP 5
 #define RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND 26
+
+/**
+ * What a phone caps at until the player says otherwise.
+ *
+ * Seeded into the option above at boot, not applied beside it, so the value
+ * the pacer honours and the value the Settings menu reads back are the same
+ * number -- and so it persists into preferences.ini like any other choice the
+ * player could have made. @see the seed in app_boot.c.
+ *
+ * Why cap at all on a device that could run faster: BATTERY, which is what
+ * the row's own tooltip says ("Reducing this can increase your battery
+ * life"). Measured on the XT1060, same scene, frame thread and audio thread
+ * together: uncapped 948 CPU-ms per second against 479 capped at 20. Half the
+ * CPU for a frame rate a phone is content with.
+ *
+ * NOT thermal throttling. That was the first explanation and it did not
+ * survive being checked: at 40.4 C under load this device still reaches and
+ * holds its full 1728 MHz, with scaling_max_freq unreduced on both cores. A
+ * cap does not rescue a clock that was never lowered.
+ *
+ * And it costs something, which is worth stating where the number is set. Per
+ * DRAWN frame the client does more work capped than uncapped -- 22.6 ms
+ * against 16.2 on the frame thread -- because each frame spans ~2.6 world
+ * ticks instead of ~0.85, and because a thread that idles 50 ms between
+ * frames starts cold. Only ~0.4 ms of that is the catch-up itself (CS2
+ * scripts, Js5ClientTick); the rest is a near-uniform 1.3-1.4x across every
+ * function on the thread, UI-tree walks included, whose work cannot depend on
+ * elapsed time. Fewer, fatter frames: the total is still half.
+ *
+ * IT MUST BE A VALUE THE ROW CAN SHOW. The cache's own
+ * `[proc,torirs_fps_cap_index]` maps this option back to a dropdown index to
+ * draw the current choice, and it buckets by `<=`: 15, 20, 30, 60, else
+ * Unlimited (enum_3504, rows "15 fps".."Unlimited"; the setter is
+ * `[clientscript,torirs_fps_cap_set]`). A default of 25 would therefore cap
+ * the client at 25 while the Settings menu said "30 fps" -- a setting lying
+ * about itself. 20 is a row, so the menu and the pacer agree, and the lower
+ * budget (50 ms against ~17 ms of work) is the steadier one thermally.
+ */
+#define RS_CS2_MOBILE_DEFAULT_FPS_CAP 20
 #define RS_CS2_UI_SCALE_MODE_NEAREST 0
 #define RS_CS2_UI_SCALE_MODE_LINEAR 1
 #define RS_CS2_UI_SCALE_MODE_BICUBIC 2
