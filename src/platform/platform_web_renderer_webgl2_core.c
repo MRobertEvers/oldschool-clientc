@@ -28,7 +28,7 @@
 #include "log/torirs_log.h"
 #include "painters/painters.h"
 #include "perf/torirs_perf.h"
-#include "platform/platform_renderer_es3_placement.h"
+#include "platform/platform_web_renderer_webgl2_placement.h"
 #include "platform/platform_renderer_es3_shaders.h"
 #include "toridraw.h"
 #include "toridraw_element_id.h"
@@ -500,8 +500,7 @@ es3_create_programs(struct ToriRS_ES3* renderer)
      * is slot 0, which is every untextured face -- most of the terrain --
      * and a dependent texture fetch is the one thing a browser's compiled
      * shader cannot make cheaper. */
-    const char* shader_override = getenv("TORIRS_ES3_FAST_SHADER");
-    renderer->world_fast_shader = !shader_override || shader_override[0] != '0';
+
     /* Fresh program objects hold no uniform values yet. */
     renderer->ui_projection_pushed = false;
     renderer->rotmask_projection_pushed = false;
@@ -2262,8 +2261,7 @@ es3_bake_pose_vertices(
     es3_bake_capture_end();
 #endif
 #if defined(TORIRS_BAKE_VERIFY)
-    if( renderer->actor_direct_encode && ordered_painter && world_xyz &&
-        !full_model->face_textures )
+    if( ordered_painter && world_xyz && !full_model->face_textures )
     {
         /* Verify the entire ordered direct stream, including placeholders,
          * against the generic final vertex writer above. The normal fast
@@ -2275,12 +2273,11 @@ es3_bake_pose_vertices(
             fprintf(stderr, "direct bake verification allocation failed\n");
             abort();
         }
-        if( renderer->actor_word_encode )
-            trspk_toridraw_gles2_untextured_words(
-                full_model, face_order, written_count, world_xyz, direct);
-        else
-            trspk_toridraw_gles2_untextured(
-                full_model, face_order, written_count, world_xyz, direct);
+        /* This renderer declines the packed encoder, so the generic writer
+         * above IS the answer; the comparison below is against itself and is
+         * kept only so the diagnostic builds on every lane. */
+        trspk_toridraw_gles2_untextured(
+            full_model, face_order, written_count, world_xyz, direct);
         if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
         {
             fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
@@ -2912,10 +2909,10 @@ es3_use_world_program(
 {
     const struct ES3Program* program;
     assert(renderer);
-    program =
-        renderer->world_fast_shader
-            ? (cutout ? &renderer->program_world_fast_cutout : &renderer->program_world_fast_plain)
-            : (cutout ? &renderer->program_world_cutout : &renderer->program_world_plain);
+    /* Always the fast pair on this renderer: the slow programs were the
+     * control arm of TORIRS_ES3_FAST_SHADER, which defaulted on everywhere.
+     * @see the shader note in platform_renderer_es3_shaders.h. */
+    program = cutout ? &renderer->program_world_fast_cutout : &renderer->program_world_fast_plain;
     es3_use_program(renderer, program);
     es3_bind_texture0(renderer, renderer->atlas_texture);
 }
@@ -4160,15 +4157,6 @@ es3_lever_neon_default(const char* name)
 #endif
 }
 
-static bool
-es3_lever_enabled(const char* name)
-{
-    const char* value;
-    assert(name);
-    value = getenv(name);
-    return !(value && value[0] == '0' && value[1] == '\0');
-}
-
 /*
  * The rotmask source generation. The sprites a rotmask slot draws from (the
  * minimap bake, UITREE_SCENE_WORLD_MAP_SPRITE_ID) are rewritten IN PLACE by
@@ -4231,16 +4219,9 @@ ToriRS_ES3_New(
      * the off arm at compile time on wasm, so it is spelled out rather than
      * carried as a dead preprocessor branch.
      */
-    renderer->lever_triplet_neon = es3_lever_enabled("TORIRS_ES3_TRIPLET_NEON");
     renderer->draw_audit = es3_lever_opt_in("TORIRS_ES3_DRAW_AUDIT");
-    renderer->pose_reuse_enabled = es3_lever_neon_default("TORIRS_ES3_POSE_REUSE");
 
     renderer->actor_world_cache_enabled = es3_lever_neon_default("TORIRS_ES3_ACTOR_WORLD_CACHE");
-    renderer->actor_direct_encode = es3_lever_neon_default("TORIRS_ES3_ACTOR_DIRECT");
-    renderer->actor_word_encode = es3_lever_neon_default("TORIRS_ES3_ACTOR_WORDS");
-    renderer->lever_ui_defer = es3_lever_enabled("TORIRS_ES3_UI_DEFER");
-    renderer->static_primary_enabled = es3_lever_neon_default("TORIRS_ES3_STATIC_PRIMARY");
-    renderer->lever_rotmask_gen = es3_lever_enabled("TORIRS_ES3_ROTMASK_GEN");
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);

@@ -441,7 +441,7 @@ es2_painter_push_resident(
     assert(address - window + span <= ES2_HOT_WINDOW_VERTICES);
     address -= window;
     es2_painter_write_indices(indices, address, source_face_limit, faces, count,
-                                 renderer->lever_triplet_neon);
+                                 /*use_neon=*/true);
     es2_sequence_commit_indexed(renderer, ES2_HOT_BINDING, window, true, false, count * 3u);
 }
 
@@ -490,7 +490,7 @@ es2_painter_emit_model(
      * Only a miss resolves the source, and through the page's cached VBO
      * rather than the page -> batch -> chunk walk of es2_binding_cpu_source.
      */
-    if( renderer->lever_resident_fast && placement->binding == ES2_STATIC_PAGE_BINDING &&
+    if( placement->binding == ES2_STATIC_PAGE_BINDING &&
         placement->batch_slot < renderer->static_batch_count &&
         placement->entry_index != UINT32_MAX && placement->entry_vertex_count > 0u )
     {

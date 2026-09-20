@@ -587,10 +587,6 @@ struct ToriRS_ES2
      * deprecated code, they are the reference the new arms are judged
      * against.
      */
-    bool lever_ui_defer;      /* TORIRS_GLES2_UI_DEFER: one 2D upload, range draws */
-    bool lever_resident_fast; /* TORIRS_GLES2_RESIDENT_FAST: serial test before the chunk walk */
-    bool lever_triplet_neon;  /* TORIRS_GLES2_TRIPLET_NEON: vst3q_u16 index triplets */
-    bool lever_rotmask_gen;   /* TORIRS_GLES2_ROTMASK_GEN: generation counter, not a hash */
 
     int width;
     int height;
@@ -886,12 +882,8 @@ struct ToriRS_ES2
     uint32_t static_primary_capacity;
     uint32_t* static_primary_bits;
     uint32_t static_resource_epoch;
-    bool static_primary_enabled;
-    bool pose_reuse_enabled;
     bool poses_prepared;
     bool actor_world_cache_enabled;
-    bool actor_direct_encode;
-    bool actor_word_encode;
     bool world_fast_shader;
     float* actor_world_xyz;
     uint32_t actor_world_capacity;

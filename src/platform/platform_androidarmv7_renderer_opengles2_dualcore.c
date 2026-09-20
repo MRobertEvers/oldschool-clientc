@@ -799,7 +799,9 @@ dualcore_arm(struct ToriRS_GLES2DualCore* lane, struct ToriRS_Frame* frame)
     lane->context.pick_mouse_x = renderer->pick_mouse_x;
     lane->context.pick_mouse_y = renderer->pick_mouse_y;
     lane->context.zbuffer = renderer->zbuffer != NULL;
-    frame->prepare_gpu_poses=renderer->pose_reuse_enabled;
+    /* armv7: this renderer applies animations resolved, so the worker always
+     * prepares GPU poses. @see es2_apply_animation. */
+    frame->prepare_gpu_poses=true;
     renderer->poses_prepared=frame->prepare_gpu_poses;
     lane->context.poses_prepared=frame->prepare_gpu_poses;
 

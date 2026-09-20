@@ -1,5 +1,15 @@
-#ifndef TORIRS_ES3_PLACEMENT_H
-#define TORIRS_ES3_PLACEMENT_H
+#ifndef PLATFORM_WEB_RENDERER_WEBGL2_PLACEMENT_H
+#define PLATFORM_WEB_RENDERER_WEBGL2_PLACEMENT_H
+
+/*
+ * web_renderer_webgl2: there is NO static-primary table here.
+ *
+ * This was `renderer->static_primary_enabled`, which defaulted off on
+ * everything but armv7. Rather than ask that per query, this renderer
+ * does not build the table at all and every lookup takes the reference
+ * path.
+ */
+
 /* CPU-only retained-pose resolution, shared by renderer and real-chain replay. */
 #include "platform/platform_renderer_es3_core.h"
 #include "toridraw_element_id.h"
@@ -63,7 +73,7 @@ es3_static_resolve(
     int pose_id,
     struct ES3StaticPrimary* out)
 {
-    if( renderer->static_primary_enabled && element_id >= 0 && anim_index == 0 && pose_id == 0 )
+    if( 0 ) /* no static-primary table here; @see the note at the top */
     {
         uint32_t index = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
         if( index < renderer->static_primary_capacity &&
@@ -92,8 +102,7 @@ es3_static_primary_rebuild(struct ToriRS_ES3* renderer)
             0,
             ((size_t)renderer->static_primary_capacity + 31) / 32 * 4);
     }
-    if( !renderer->static_primary_enabled )
-        return;
+    return; /* no static-primary table on this renderer */
     uint32_t want = renderer->batch_poses.element_count;
     if( want > renderer->static_primary_capacity )
     {
@@ -159,7 +168,7 @@ es3_primary_prefetch_complete(
     const struct ToriRS_ES3* r,
     int id)
 {
-    if( !r->static_primary_enabled || id < 0 )
+    if( 1 ) /* no table, so never a primary-only prefetch */
         return false;
     uint32_t i = (uint32_t)ToriDraw_ElementIndexOfRaw(id);
     /* This is only a prefetch hint. Resolution still checks the full raw ID.

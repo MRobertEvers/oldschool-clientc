@@ -255,7 +255,7 @@ static void
 es3_ui_apply_states(struct ToriRS_ES3* renderer)
 {
     es3_use_program(renderer, &renderer->program_ui);
-    if( !renderer->lever_ui_defer || !renderer->ui_projection_pushed )
+    if( !renderer->ui_projection_pushed )
     {
         glUniformMatrix4fv(renderer->program_ui.u_matrix, 1, GL_FALSE, renderer->projection_2d);
         renderer->ui_projection_pushed = true;
@@ -313,7 +313,6 @@ es3_ui_submit(struct ToriRS_ES3* renderer)
     bool sprite_atlas_ok = true;
 
     assert(renderer);
-    assert(renderer->lever_ui_defer);
     if( renderer->ui_pass_record_count == 0u )
     {
         renderer->ui_pass_vertex_count = 0u;
@@ -436,21 +435,19 @@ es3_ui_batch_close(struct ToriRS_ES3* renderer)
     batch = &renderer->ui_batch;
     if( batch->vertex_count == 0u )
         return;
-    if( renderer->lever_ui_defer )
-    {
-        struct ES3UIDrawRecord* record = es3_ui_pass_record_append(renderer);
-        assert(batch->first + batch->vertex_count == renderer->ui_pass_vertex_count);
-        record->layout = ES3_UI_RECORD_LAYOUT_UI;
-        record->first = batch->first;
-        record->count = batch->vertex_count;
-        record->texture1 = batch->texture1;
-        record->uses_sprite_atlas = batch->uses_sprite_atlas ? 1u : 0u;
-        record->scissor_enabled = batch->scissor_enabled ? 1u : 0u;
-        record->scissor = batch->scissor;
-        batch->vertex_count = 0u;
-        batch->first = renderer->ui_pass_vertex_count;
-        return;
-    }
+    struct ES3UIDrawRecord* record = es3_ui_pass_record_append(renderer);
+    assert(batch->first + batch->vertex_count == renderer->ui_pass_vertex_count);
+    record->layout = ES3_UI_RECORD_LAYOUT_UI;
+    record->first = batch->first;
+    record->count = batch->vertex_count;
+    record->texture1 = batch->texture1;
+    record->uses_sprite_atlas = batch->uses_sprite_atlas ? 1u : 0u;
+    record->scissor_enabled = batch->scissor_enabled ? 1u : 0u;
+    record->scissor = batch->scissor;
+    batch->vertex_count = 0u;
+    batch->first = renderer->ui_pass_vertex_count;
+    return;
+    
     /* Unit 0 is the sprite atlas whenever a quad in the batch samples it
      * (uploaded first if it changed); unit 1 the batch's own texture. A unit
      * a batch does not sample still has to hold a complete texture -- the
@@ -496,8 +493,7 @@ es3_ui_flush(struct ToriRS_ES3* renderer)
 {
     assert(renderer);
     es3_ui_batch_close(renderer);
-    if( renderer->lever_ui_defer )
-        es3_ui_submit(renderer);
+es3_ui_submit(renderer);
 }
 
 /*
@@ -584,15 +580,11 @@ es3_ui_append_quad_vertices(
     }
     if( !es3_ui_prepare_batch(renderer, texture1, uses_sprite_atlas, scissor, 6u) )
         return;
-    if( renderer->lever_ui_defer )
-    {
-        /* Straight into the pass array; the open batch is its tail. */
-        es3_ui_pass_reserve_vertices(renderer, 6u);
-        dst = &renderer->ui_pass_vertices[renderer->ui_pass_vertex_count];
-        renderer->ui_pass_vertex_count += 6u;
-    }
-    else
-        dst = &renderer->ui_batch.vertices[renderer->ui_batch.vertex_count];
+    /* Straight into the pass array; the open batch is its tail. */
+    es3_ui_pass_reserve_vertices(renderer, 6u);
+    dst = &renderer->ui_pass_vertices[renderer->ui_pass_vertex_count];
+    renderer->ui_pass_vertex_count += 6u;
+    
     for( corner_index = 0u; corner_index < 6u; corner_index++ )
     {
         uint8_t corner = order[corner_index];
@@ -1485,28 +1477,26 @@ es3_ui_rotmask_needs_upload(
     uint32_t* out_hash)
 {
     *out_hash = UINT32_MAX;
-    if( renderer->lever_rotmask_gen )
+    uint32_t generation = es3_rotmask_source_generation();
+    if( texture && generation_uploaded == generation )
     {
-        uint32_t generation = es3_rotmask_source_generation();
-        if( texture && generation_uploaded == generation )
+        if( renderer->debug && es3_ui_rotmask_hash_due(renderer, slot, true) )
         {
-            if( renderer->debug && es3_ui_rotmask_hash_due(renderer, slot, true) )
-            {
-                uint32_t hash = es3_ui_rotmask_content_hash(sprite);
-                if( hash_valid && hash != hash_uploaded )
-                    TORIRS_ERR(
-                        "WebGL2: rotmask %s pixels changed with no generation bump "
-                        "(scene %d): a writer is missing ToriRS_ES3_RotmaskSourceChanged\n",
-                        what,
-                        slot->scene_id);
-                *out_hash = hash;
-            }
-            return false;
+            uint32_t hash = es3_ui_rotmask_content_hash(sprite);
+            if( hash_valid && hash != hash_uploaded )
+                TORIRS_ERR(
+                    "WebGL2: rotmask %s pixels changed with no generation bump "
+                    "(scene %d): a writer is missing ToriRS_ES3_RotmaskSourceChanged\n",
+                    what,
+                    slot->scene_id);
+            *out_hash = hash;
         }
-        if( renderer->debug )
-            *out_hash = es3_ui_rotmask_content_hash(sprite);
-        return true;
+        return false;
     }
+    if( renderer->debug )
+        *out_hash = es3_ui_rotmask_content_hash(sprite);
+    return true;
+    
     if( !es3_ui_rotmask_hash_due(renderer, slot, texture && hash_valid) )
         return false;
     *out_hash = es3_ui_rotmask_content_hash(sprite);
@@ -1768,32 +1758,30 @@ es3_ui_draw_rotmask_native(
     for( corner = 0; corner < 6; corner++ )
         vertices[corner] = corners[order[corner]];
 
-    if( renderer->lever_ui_defer )
-    {
-        /* Recorded in sequence with the batches around it and issued by
-         * es3_ui_submit. The source and mask textures were uploaded above
-         * (at most once per frame per slot: the generation is constant for
-         * the frame and the hash schedule visits a slot once a frame), so
-         * the deferred draw samples what this record meant. */
-        struct ES3UIDrawRecord* record;
-        es3_ui_batch_close(renderer);
-        es3_ui_pass_reserve_rotmask_vertices(renderer, 6u);
-        record = es3_ui_pass_record_append(renderer);
-        record->layout = ES3_UI_RECORD_LAYOUT_ROTMASK;
-        record->first = renderer->ui_pass_rotmask_count;
-        record->count = 6u;
-        record->texture0 = slot->source_texture;
-        record->texture1 = slot->mask_texture;
-        record->scissor_enabled = 1u;
-        record->scissor = *scissor;
-        record->mask_invert = command->mask_keep_opaque ? 0.0f : 1.0f;
-        memcpy(
-            renderer->ui_pass_rotmask_vertices + renderer->ui_pass_rotmask_count,
-            vertices,
-            sizeof(vertices));
-        renderer->ui_pass_rotmask_count += 6u;
-        return;
-    }
+    /* Recorded in sequence with the batches around it and issued by
+     * es3_ui_submit. The source and mask textures were uploaded above
+     * (at most once per frame per slot: the generation is constant for
+     * the frame and the hash schedule visits a slot once a frame), so
+     * the deferred draw samples what this record meant. */
+    struct ES3UIDrawRecord* record;
+    es3_ui_batch_close(renderer);
+    es3_ui_pass_reserve_rotmask_vertices(renderer, 6u);
+    record = es3_ui_pass_record_append(renderer);
+    record->layout = ES3_UI_RECORD_LAYOUT_ROTMASK;
+    record->first = renderer->ui_pass_rotmask_count;
+    record->count = 6u;
+    record->texture0 = slot->source_texture;
+    record->texture1 = slot->mask_texture;
+    record->scissor_enabled = 1u;
+    record->scissor = *scissor;
+    record->mask_invert = command->mask_keep_opaque ? 0.0f : 1.0f;
+    memcpy(
+        renderer->ui_pass_rotmask_vertices + renderer->ui_pass_rotmask_count,
+        vertices,
+        sizeof(vertices));
+    renderer->ui_pass_rotmask_count += 6u;
+    return;
+    
 
     es3_ui_flush(renderer);
     es3_use_program(renderer, &renderer->program_rotmask);
@@ -3096,28 +3084,26 @@ es3_widget_flush_vertices(
     uint32_t first = 0u;
     if( vertex_count == 0u )
         return;
-    if( renderer->lever_ui_defer )
-    {
-        /* One record over the world atlas, appended to the pass array in
-         * sequence; no size cap, since nothing indexes it. The open batch
-         * was closed by the caller before the model was built. */
-        struct ES3UIDrawRecord* record;
-        assert(renderer->ui_batch.vertex_count == 0u);
-        es3_ui_pass_reserve_vertices(renderer, vertex_count);
-        memcpy(
-            renderer->ui_pass_vertices + renderer->ui_pass_vertex_count,
-            renderer->widget_vertices,
-            (size_t)vertex_count * sizeof(struct ES3VertexUI));
-        record = es3_ui_pass_record_append(renderer);
-        record->layout = ES3_UI_RECORD_LAYOUT_WIDGET;
-        record->first = renderer->ui_pass_vertex_count;
-        record->count = vertex_count;
-        record->texture0 = renderer->atlas_texture;
-        record->scissor_enabled = 1u;
-        record->scissor = *scissor;
-        renderer->ui_pass_vertex_count += vertex_count;
-        return;
-    }
+    /* One record over the world atlas, appended to the pass array in
+     * sequence; no size cap, since nothing indexes it. The open batch
+     * was closed by the caller before the model was built. */
+    struct ES3UIDrawRecord* record;
+    assert(renderer->ui_batch.vertex_count == 0u);
+    es3_ui_pass_reserve_vertices(renderer, vertex_count);
+    memcpy(
+        renderer->ui_pass_vertices + renderer->ui_pass_vertex_count,
+        renderer->widget_vertices,
+        (size_t)vertex_count * sizeof(struct ES3VertexUI));
+    record = es3_ui_pass_record_append(renderer);
+    record->layout = ES3_UI_RECORD_LAYOUT_WIDGET;
+    record->first = renderer->ui_pass_vertex_count;
+    record->count = vertex_count;
+    record->texture0 = renderer->atlas_texture;
+    record->scissor_enabled = 1u;
+    record->scissor = *scissor;
+    renderer->ui_pass_vertex_count += vertex_count;
+    return;
+    
     es3_ui_apply_states(renderer);
     es3_set_scissor(renderer, scissor);
     es3_bind_texture0(renderer, renderer->atlas_texture);

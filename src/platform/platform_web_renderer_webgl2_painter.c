@@ -152,7 +152,7 @@ es3_painter_push_indexed(
     indices = es3_sequence_reserve_indexed(renderer, count * 3u);
     assert(indices);
     es3_painter_write_indices_ex(
-        indices, address, source_face_limit, faces, count, renderer->lever_triplet_neon);
+        indices, address, source_face_limit, faces, count, /*use_neon=*/false);
     es3_sequence_commit_indexed(
         renderer, binding, address, address + span - 1u, true, false, count * 3u);
 }

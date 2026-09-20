@@ -622,8 +622,6 @@ struct ToriRS_ES3
      * deprecated code, they are the reference the new arms are judged
      * against.
      */
-    bool lever_ui_defer;      /* TORIRS_ES3_UI_DEFER: one 2D upload, range draws */
-    bool lever_rotmask_gen;   /* TORIRS_ES3_ROTMASK_GEN: generation counter, not a hash */
 
     int width;
     int height;
@@ -745,7 +743,6 @@ struct ToriRS_ES3
     /** TORIRS_ES3_TRIPLET_NEON: vst3q_u32 index triplets, four faces a step.
      *  On unless the knob says 0, so the scalar loop stays A/B-able.
      *  @see es3_painter_write_indices_ex. */
-    bool lever_triplet_neon;
     /** TORIRS_ES3_DRAW_AUDIT: report any frame whose draw sequence lost an
      *  item or raised a GL error. Off by default; one line per bad frame. */
     bool draw_audit;
@@ -955,13 +952,8 @@ struct ToriRS_ES3
     uint32_t static_primary_capacity;
     uint32_t* static_primary_bits;
     uint32_t static_resource_epoch;
-    bool static_primary_enabled;
-    bool pose_reuse_enabled;
     bool poses_prepared;
     bool actor_world_cache_enabled;
-    bool actor_direct_encode;
-    bool actor_word_encode;
-    bool world_fast_shader;
     float* actor_world_xyz;
     uint32_t actor_world_capacity;
 };

@@ -22,7 +22,7 @@
  */
 
 #include "platform/platform_renderer_es2_core.h"
-#include "platform/platform_renderer_es2_placement.h"
+#include "platform/platform_web_renderer_webgl1_placement.h"
 
 #include "engine/boot_bar.h"
 #include "log/torirs_log.h"
@@ -2075,7 +2075,7 @@ es2_bake_pose_vertices(
     es2_bake_capture_end();
 #endif
 #if defined(TORIRS_BAKE_VERIFY)
-    if( renderer->actor_direct_encode && ordered_painter && world_xyz && !full_model->face_textures )
+    if( ordered_painter && world_xyz && !full_model->face_textures )
     {
         /* Verify the entire ordered direct stream, including placeholders,
          * against the generic final vertex writer above. The normal fast
@@ -2083,10 +2083,9 @@ es2_bake_pose_vertices(
         size_t bytes = (size_t)written_count * 3u * sizeof(struct TRSPK_VertexGLES2);
         struct TRSPK_VertexGLES2* direct = malloc(bytes ? bytes : 1u);
         if( !direct ) { fprintf(stderr, "direct bake verification allocation failed\n"); abort(); }
-        if( renderer->actor_word_encode )
-            trspk_toridraw_gles2_untextured_words(full_model, face_order, written_count, world_xyz, direct);
-        else
-            trspk_toridraw_gles2_untextured(full_model, face_order, written_count, world_xyz, direct);
+        /* This renderer declines the packed encoder, so the generic writer
+         * above is the answer; kept so the diagnostic builds on every lane. */
+        trspk_toridraw_gles2_untextured(full_model, face_order, written_count, world_xyz, direct);
         if( memcmp(direct, &vbo->vertices.as_gles2[vertex_base], bytes) )
         {
             fprintf(stderr, "direct bake verification FAILED: %u ordered faces\n", written_count);
@@ -3568,16 +3567,6 @@ es2_dispatch(struct ToriRS_ES2* renderer, const struct ToriRS_RenderCommand* com
 
 /* ---- lifetime ----------------------------------------------------------------------- */
 
-/* A lever's environment switch: unset or anything but "0" is on. */
-static bool
-es2_lever_enabled(const char* name)
-{
-    const char* value;
-    assert(name);
-    value = getenv(name);
-    return !(value && value[0] == '0' && value[1] == '\0');
-}
-
 /*
  * The rotmask source generation. The sprites a rotmask slot draws from (the
  * minimap bake, UITREE_SCENE_WORLD_MAP_SPRITE_ID) are rewritten IN PLACE by
@@ -3629,15 +3618,6 @@ ToriRS_ES2_New(int width, int height, char const* name)
     /* The levers (see the struct): each defaults ON; NAME=0 is the control
      * arm. Read once, here, so no frame ever scans the environment. */
     {
-        const char* v=getenv("TORIRS_GLES2_POSE_REUSE");
-        const char* legacy=getenv("TORIDRAW_ANIM_SKIP_SAME");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->pose_reuse_enabled=v ? v[0]!='0' : !(legacy && legacy[0]=='0');
-#else
-        renderer->pose_reuse_enabled=v && v[0]=='1';
-#endif
-    }
-    {
         const char* v=getenv("TORIRS_GLES2_ACTOR_WORLD_CACHE");
 #if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
         renderer->actor_world_cache_enabled=!v || v[0]!='0';
@@ -3646,34 +3626,6 @@ ToriRS_ES2_New(int width, int height, char const* name)
 #endif
     }
     { const char* v=getenv("TORIRS_GLES2_FAST_SHADER");renderer->world_fast_shader=v && v[0]=='1'; }
-    {
-        const char* v=getenv("TORIRS_GLES2_ACTOR_DIRECT");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->actor_direct_encode=!v || v[0]!='0';
-#else
-        renderer->actor_direct_encode=v && v[0]=='1';
-#endif
-    }
-    {
-        const char* v=getenv("TORIRS_GLES2_ACTOR_WORDS");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->actor_word_encode=!v || v[0]!='0';
-#else
-        renderer->actor_word_encode=v && v[0]=='1';
-#endif
-    }
-    renderer->lever_ui_defer = es2_lever_enabled("TORIRS_GLES2_UI_DEFER");
-    {
-        const char* v=getenv("TORIRS_GLES2_STATIC_PRIMARY");
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
-        renderer->static_primary_enabled=!v || v[0]!='0';
-#else
-        renderer->static_primary_enabled=v && v[0]=='1';
-#endif
-    }
-    renderer->lever_resident_fast = es2_lever_enabled("TORIRS_GLES2_RESIDENT_FAST");
-    renderer->lever_triplet_neon = es2_lever_enabled("TORIRS_GLES2_TRIPLET_NEON");
-    renderer->lever_rotmask_gen = es2_lever_enabled("TORIRS_GLES2_ROTMASK_GEN");
     for( texture = 0; texture < TORIDRAW_TEXTURE_ID_CAPACITY; texture++ )
         renderer->tex_slot_of_id[texture] = -1;
     trspk_pose_table_init(&renderer->poses);
