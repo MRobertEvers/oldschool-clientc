@@ -1131,6 +1131,18 @@ end
 -- construction at registration and those callers keep exactly their old
 -- behaviour plus the new arm.
 --
+-- THAT FALLBACK IS NOT A SNAPSHOT OF "BEFORE" and never was -- it is taken
+-- after the caller's click_minimenu has already fired, so it photographs
+-- whatever the click has begun to do, and a page the click has ALREADY
+-- replaced reads as the page that was there all along.  talk_to always
+-- passed its own pre-click pair; click_loc, click_obj and use_on did not
+-- (fixed 2026-09-20), which is why they are the three verbs that could
+-- resolve on a page transition belonging to the row before them.  Every
+-- world-click verb now captures the pair itself, on the line above its own
+-- click_minimenu, and the fallback remains only for the backpack verbs
+-- (inv_op and the paths under it), where no dialogue snapshot was ever taken
+-- and the arm is not what resolves them.
+--
 -- sub_mounted is filtered against the "chat" interface (the chat_modal_host
 -- role is `iface(chat, 567)`, revconfig/osrs239/osrs239_dat2_roles.gen.ini)
 -- by comparing the event's own `interface_id` field -- not
@@ -1213,6 +1225,25 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         level = function()
             local kind, text = QD.player._chat_page()
             if kind == before_kind and text == before_text then
+                return false
+            end
+            -- A PAGE THAT WENT AWAY IS NOT A PAGE THIS CLICK PUT UP.
+            --
+            -- The arm's claim is "the click mounted something": a page is up
+            -- now that was not up before.  "none" is the absence of a page,
+            -- so <anything> -> none is the opposite claim, and it is one the
+            -- driver can make for free out of a page some EARLIER row left
+            -- open -- a mesbox nobody dismissed is torn down by the first
+            -- world click that follows it, whatever that click hit, and this
+            -- arm then reported `ok` with the detail `page mesbox->none` for
+            -- a target that was never touched (blackknight's
+            -- climbToWhiteKnightsCastleF2 `page options->none` and
+            -- rovingelves' returnToIslwyn `page player->none`, both PASS rows
+            -- in runs whose quests were rejected).  So a disappearance never
+            -- resolves this arm; the click has to show a real edge -- a
+            -- mounted sub, a chat line, a route, or a page that IS up and
+            -- differs -- or time out and say so.
+            if kind == "none" then
                 return false
             end
             resolved_by = "page " .. tostring(before_kind) .. "->" .. tostring(kind)
@@ -1342,11 +1373,18 @@ function QD.player.click_loc(loc, op)
     -- rather than claiming an answer this cannot actually give.
     local before_result, before_row = QD.world.loc_near(loc, 3)
     local before_tile_result, before_tile = QD.world.tile()
+    -- BEFORE the click, exactly as talk_to does it: the page this settle
+    -- compares against is the one that was up when the player pressed, never
+    -- the one the press has already begun to replace.  Taken here, below
+    -- walk_near, because the walk is part of this verb's own click and a
+    -- dialogue that changed during the walk did not change because of the
+    -- press.
+    local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.drive.click_minimenu(target, op)
     if click_result ~= "ok" then
         return click_result, click
     end
-    local result, detail = QD.player._settle_after_click(20)
+    local result, detail = QD.player._settle_after_click(20, before_kind, before_text)
     if result ~= "timeout" or before_result ~= "ok" or before_tile_result ~= "ok" then
         return result, detail
     end
@@ -1421,12 +1459,18 @@ function QD.player.click_obj(obj, op)
             before_count = total
         end
     end
+    -- The pre-click page, for the settle below -- see talk_to and
+    -- _settle_after_click's banner.  Only the `before_count == nil` path
+    -- reaches that settle (an obj whose backpack total could not be read at
+    -- all), but that is the path with no other evidence of its own, so it is
+    -- exactly the one that must not resolve on another row's leftovers.
+    local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.drive.click_minimenu(target, op)
     if click_result ~= "ok" then
         return click_result, tostring(click) .. " -- " .. approach_note
     end
     if before_count == nil then
-        return QD.player._settle_after_click(15)
+        return QD.player._settle_after_click(15, before_kind, before_text)
     end
     return QD.await({
         level = function()
@@ -1722,10 +1766,14 @@ function QD.player.use_on(item, target)
     if arm_result ~= "ok" then
         return arm_result, "use_on: arming " .. item
     end
+    -- The pre-click page: taken after the arming and on the line above the
+    -- world click, so the arming's own backpack tab press is not mistaken
+    -- for the use's answer either (talk_to's rule, applied to phase 2).
+    local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.drive.click_minimenu(target, "select")
     if click_result ~= "ok" then
         return click_result, click
     end
-    return QD.player._settle_after_click(20)
+    return QD.player._settle_after_click(20, before_kind, before_text)
 end
 

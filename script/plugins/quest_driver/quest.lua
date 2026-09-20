@@ -15,9 +15,36 @@
 -- starts after the whole chunk has loaded once and finished building QD.
 --
 -- quest.bind{ varp=, constants=, row=, display=, points= }
---   varp       content symbol name of the quest's progress varp (a plain
---              varp, e.g. "cookquest" -- resolved through QD.var.varp/
---              QD.var.server, both varp-or-varbit-transparent already).
+--   varp       content symbol name of the quest's progress var: EITHER a
+--              plain varp ("cookquest", configs/all.varp:61) or a VARBIT
+--              ("quest_pry", configs/all.varbit:84653 basevar=pry_main,
+--              with no all.varp row of its own at all). The field keeps its
+--              name for every quest file already written; what it holds is
+--              a var NAME, and which table that name lives in is this
+--              file's problem, not the author's.
+--
+--              Until 2026-09-20 it was not: quest.stage/expect_stage and
+--              expect_complete's quest.varp_complete row read
+--              QD.var.varp(bound.varp) -- the varp table ONLY -- against a
+--              QD.var.server(bound.varp) that resolves varbit-first, so a
+--              varbit-tracked quest could not pass any of them: every stage
+--              row answered `no_row quest_pry` (measured, test/quests/
+--              pryingtimes.lua's banner and QUEUE.tsv row 123; that file
+--              had to read t.var.varbit directly and end BLOCKED one row
+--              short of expect_complete for this reason alone). The name is
+--              now resolved ONCE, at bind time, through the same
+--              QD._var_resolve state.lua's var.server/var.expect/var.await
+--              use (varbit table first, then varp -- state.lua:37; that
+--              order, not "varp then varbit", is what makes the client read
+--              here and the server read in var.server the SAME var by
+--              construction rather than by luck), the kind is remembered on
+--              the binding, and every read below goes through the matching
+--              pair: var.varbit + var.server->varbit_server, or var.varp +
+--              var.server->var_server. Every ledger row names the kind it
+--              read -- in the detail for a refusal or a failed read, and
+--              through QD.note for expect_stage's `ok`, whose returned detail
+--              stays the stage NUMBER _conformance.lua grades it on -- so a
+--              row always says WHICH var answered.
 --   constants  { name = value, ... } -- the quest's own named stage values,
 --              e.g. { not_started = 0, started = 1, complete = 2 }. This
 --              table's VALUES are plain integers, not content symbols: there
@@ -52,6 +79,64 @@
 --              .../quests/configs/questpoints.varp) at BIND time and again
 --              at expect_complete time, and checks the delta equals this.
 --
+-- ------------------------------------------------------- varbit transparency
+--
+-- WHICH TABLE DOES THIS NAME LIVE IN?  QD._var_resolve (state.lua:37) is the
+-- one answer, and it is deliberately reused rather than re-implemented here:
+-- var.server, var.expect, var.await and var.await_server all pick their
+-- reader from it, so a quest that picks its CLIENT reader from anything else
+-- can silently read a different var than the server half it is compared
+-- against.  It tries the varbit table first and the varp table second.
+--
+-- Returns "varbit", "varp", or nil when NEITHER table has the name.  nil is
+-- not an error here: quest.bind's own contract is that it never fails on a
+-- typo'd name (see below), so the kind is re-resolved on each read until one
+-- of the two tables answers.  A run whose symbols are not up yet at bind time
+-- therefore still gets the right kind at the first stage read.
+function QD.quest._kind_of(name)
+    local kind = QD._var_resolve(name)
+    return kind
+end
+
+-- The binding's kind, resolved at bind time and remembered -- re-resolved
+-- only while it is still unknown.
+function QD.quest._bound_kind(bound)
+    if bound.varp_kind == nil then
+        bound.varp_kind = QD.quest._kind_of(bound.varp)
+    end
+    return bound.varp_kind
+end
+
+-- (result, value, kind) -- the CLIENT's copy, read through the reader that
+-- matches the name's own table.  `kind` is "varbit"/"varp"/"unknown" and is
+-- what a detail string quotes.  An unresolvable name is handed to var.varp so
+-- the failure word and the detail stay exactly what every other verb answers
+-- for an unknown symbol (`no_row <name>`).
+function QD.quest._read_client(name, kind)
+    kind = kind or QD.quest._kind_of(name)
+    if kind == "varbit" then
+        local result, value = QD.var.varbit(name)
+        return result, value, "varbit"
+    end
+    if kind == "varp" then
+        local result, value = QD.var.varp(name)
+        return result, value, "varp"
+    end
+    local result, value = QD.var.varp(name)
+    return result, value, "unknown"
+end
+
+-- (result, value, kind) -- the SERVER's own value.  QD.var.server already
+-- picks api_drive.varbit_server vs api_drive.var_server off the same
+-- QD._var_resolve (state.lua:81-90), so there is nothing missing on the C
+-- side and nothing to add on the Lua side: the pair is complete, and this
+-- wrapper exists only so the kind travels beside the reading into the detail.
+function QD.quest._read_server(name, kind)
+    kind = kind or QD.quest._kind_of(name)
+    local result, value = QD.var.server(name)
+    return result, value, kind or "unknown"
+end
+
 -- quest.bind never touches the world (no cheat, no read-and-fail): a test
 -- that binds against a typo'd varp name only finds out at the first
 -- quest.stage/expect_stage/expect_complete call, exactly like every other
@@ -67,9 +152,10 @@ function QD.quest.bind(spec)
     if type(constants) ~= "table" then
         constants = {}
     end
-    local qp_result, qp_before = QD.var.varp("qp")
+    local qp_result, qp_before = QD.quest._read_client("qp")
     QD.quest._bound = {
         varp = spec.varp,
+        varp_kind = QD.quest._kind_of(spec.varp),
         constants = constants,
         row = spec.row,
         display = spec.display,
@@ -98,12 +184,20 @@ function QD.quest._stage_value(bound, name_or_value)
     return nil
 end
 
+-- (result, value, kind).  The third return is additive: every caller in the
+-- tree reads the documented pair and is unaffected, and a caller that wants
+-- to print which var answered no longer has to guess.
 function QD.quest.stage()
     local bound = QD.quest._bound
     if not bound then
         return "refused", "quest.stage: quest.bind was not called"
     end
-    return QD.var.varp(bound.varp)
+    local kind = QD.quest._bound_kind(bound)
+    local result, value = QD.quest._read_client(bound.varp, kind)
+    if result ~= "ok" then
+        return result, bound.varp .. " (no varp and no varbit of that name)"
+    end
+    return result, value, kind or "unknown"
 end
 
 -- refused on a client/server mismatch, naming which side disagreed -- the
@@ -118,22 +212,42 @@ function QD.quest.expect_stage(name_or_value)
         return "refused", "quest.expect_stage: unknown stage " .. tostring(name_or_value)
     end
 
-    local client_result, client_value = QD.var.varp(bound.varp)
+    -- One resolution, both sides.  The kind is named in EVERY answer below,
+    -- pass or fail: "quest_pry (varbit) = 5" is a row that says what it read,
+    -- where the old bare `quest_pry` could not distinguish "the varp table
+    -- has no such name" from "the value is wrong".
+    local kind = QD.quest._bound_kind(bound)
+    local named = bound.varp .. " (" .. tostring(kind or "unknown") .. ")"
+
+    local client_result, client_value = QD.quest._read_client(bound.varp, kind)
     if client_result ~= "ok" then
-        return client_result, bound.varp
+        return client_result, named .. ": client read -> " .. tostring(client_result)
     end
     if client_value ~= value then
-        return "refused", bound.varp .. ": client=" .. tostring(client_value) .. " expected=" .. tostring(value)
+        return "refused", named .. ": client=" .. tostring(client_value) .. " expected=" .. tostring(value)
     end
 
-    local server_result, server_value = QD.var.server(bound.varp)
+    local server_result, server_value = QD.quest._read_server(bound.varp, kind)
     if server_result ~= "ok" then
-        return server_result, bound.varp
+        return server_result, named .. ": server read -> " .. tostring(server_result)
     end
     if server_value ~= value then
-        return "refused", bound.varp .. ": server=" .. tostring(server_value) .. " expected=" .. tostring(value)
+        return "refused", named .. ": server=" .. tostring(server_value) .. " expected=" .. tostring(value)
     end
 
+    -- THE KIND GOES IN THE ROW, THE VALUE STAYS THE RETURN.  The ok detail
+    -- is still the stage NUMBER, because that pair is what the conformance
+    -- harness grades this verb on (test/quests/_conformance.lua's
+    -- `answered(..., equals(QUEST_STARTED), ...)` -- a string there is a
+    -- `hollow` row, and that file belongs to the conformance closer, not to
+    -- this one).  What the ledger needs -- WHICH var answered -- is added as
+    -- a note instead: core.lua folds it into the next row's detail, which is
+    -- the row the caller is writing with this very pair, so
+    -- `t.expect("...", t.quest.expect_stage("deliver"))` reads
+    -- `5 -- quest_pry (varbit) = 5 (deliver)` and a reader can tell a varbit
+    -- quest from a varp one without opening the config.
+    QD.note(named .. " = " .. tostring(value)
+        .. (type(name_or_value) == "string" and (" (" .. name_or_value .. ")") or ""))
     return "ok", value
 end
 
@@ -192,13 +306,19 @@ function QD.quest.expect_complete()
         QD.step("quest.varp_complete", "FAIL",
             "quest.bind: constants.complete was not provided")
     else
-        local client_result, client_value = QD.var.varp(bound.varp)
-        local server_result, server_value = QD.var.server(bound.varp)
+        -- Both sides through the bound kind -- see the bind banner.  A
+        -- varbit-tracked quest (quest_pry) read the varp table here and
+        -- answered `no_row` on the client side forever, which is a FAIL that
+        -- says nothing about the quest.
+        local kind = QD.quest._bound_kind(bound)
+        local client_result, client_value = QD.quest._read_client(bound.varp, kind)
+        local server_result, server_value = QD.quest._read_server(bound.varp, kind)
         local pass = client_result == "ok" and server_result == "ok"
             and client_value == complete_value and server_value == complete_value
         all_pass = all_pass and pass
         QD.step("quest.varp_complete", pass and "PASS" or "FAIL",
-            bound.varp .. ": client=" .. tostring(client_value) .. "(" .. tostring(client_result) .. ")"
+            bound.varp .. " (" .. tostring(kind or "unknown") .. ")"
+                .. ": client=" .. tostring(client_value) .. "(" .. tostring(client_result) .. ")"
                 .. " server=" .. tostring(server_value) .. "(" .. tostring(server_result) .. ")"
                 .. " complete=" .. tostring(complete_value))
     end
@@ -229,7 +349,10 @@ function QD.quest.expect_complete()
             .. " (" .. tostring(title_result) .. ") " .. QD.quest._describe(title_detail))
 
     -- ----------------------------------------------------------- quest.points
-    local qp_result, qp_after = QD.var.varp("qp")
+    -- `qp` is a plain varp in this pack (configs/all.varp:206) and read
+    -- through the same transparent pair anyway: the point of the pair is
+    -- that no read in this file has to know which table a name lives in.
+    local qp_result, qp_after, qp_kind = QD.quest._read_client("qp")
     local points_pass = false
     local points_detail
     if bound.qp_before == nil then
@@ -239,7 +362,8 @@ function QD.quest.expect_complete()
     else
         local delta = qp_after - bound.qp_before
         points_pass = delta == bound.points
-        points_detail = "qp " .. tostring(bound.qp_before) .. " -> " .. tostring(qp_after)
+        points_detail = "qp (" .. tostring(qp_kind) .. ") " .. tostring(bound.qp_before)
+            .. " -> " .. tostring(qp_after)
             .. " delta=" .. tostring(delta) .. " expected=" .. tostring(bound.points)
     end
     all_pass = all_pass and points_pass

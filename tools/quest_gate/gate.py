@@ -26,9 +26,10 @@ Red on, and only on, things that mean the test did not actually happen:
     the quest's own asserts do not catch; this catches it at the pixel
     level instead of trusting the ledger to have noticed,
   * (once a quest's source uses the scaffold that makes these meaningful --
-    see MINIMUM SHAPE below) fewer than 8 step rows, no quest.* row, no
-    quest.varp_complete row and no trailing BLOCKED row, fewer than 4 PNGs,
-    or a non-setup row with no shot at all.
+    see MINIMUM SHAPE below) too few step rows or PNGs for how the run ended
+    (the rule table below), no quest.* row when the source calls
+    quest.bind, no quest.varp_complete row and no trailing BLOCKED row, or a
+    non-setup row with no shot at all.
 
 BLOCKED is counted separately from PASS/FAIL (phase 1: torirs_plugin_drive.c
 writes `SUMMARY ... pass=N fail=M blocked=K`, the `blocked=K` token present
@@ -56,21 +57,37 @@ rule's own target, a capture that silently failed, still has an empty shots
 column and no marker, and still fails. A `<name>-FAIL` capture is never
 suppressed, so a FAIL row always keeps its picture.
 
-MINIMUM SHAPE. The four rules about `quest.*` rows, `quest.varp_complete`/
-BLOCKED, and "every non-setup row has a shot" describe the NEW scaffold
-(`t.quest.bind{...}`, `t.exec(...)`) from docs/QUEST_SUITE_KIT.md phase 2,
-which auto-shoots every row it writes (core.lua's own `record_with_shot`) --
-by construction, a well-formed t.exec/t.check row can never trip that last
-rule, so a shotless non-setup row is a genuine capture failure, not a
-false positive waiting to happen. A quest file that does not yet call
-`t.quest.bind`/`t.exec` (the two real quests, cooks_assistant/hans, as of
-this pass -- hand-written against the OLDER t.step/t.expect idiom, which
-never auto-shoots) has nothing these four rules describe, and enforcing
-them against that older idiom would flag manually-written rows that were
-never wrong -- so each rule is gated on the quest's OWN source file already
-using the verb it is checking, read once per quest from
-test/quests/<quest>.lua (not from the ledger, which carries no marker for
-which verb wrote a row).
+MINIMUM SHAPE. The rules about row/PNG counts, `quest.*` rows,
+`quest.varp_complete`/BLOCKED, and "every non-setup row has a shot" describe
+the NEW scaffold (`t.quest.bind{...}`, `t.exec(...)`) from
+docs/QUEST_SUITE_KIT.md phase 2, which auto-shoots every row it writes
+(core.lua's own `record_with_shot`) -- by construction, a well-formed
+t.exec/t.check row can never trip the shot rule, so a shotless non-setup row
+is a genuine capture failure, not a false positive waiting to happen. A
+quest file that does not yet call `t.quest.bind`/`t.exec` (the two real
+quests, cooks_assistant/hans, as of this pass -- hand-written against the
+OLDER t.step/t.expect idiom, which never auto-shoots) has nothing these
+rules describe, and enforcing them against that older idiom would flag
+manually-written rows that were never wrong -- so each rule is gated on the
+quest's OWN source file already using the verb it is checking, read once
+per quest from test/quests/<quest>.lua (not from the ledger, which carries
+no marker for which verb wrote a row).
+
+The row/PNG minimum is smaller for a run that ends BLOCKED than for one
+that ends green, because an honest `t.blocked()` reached three or four
+steps into a quest cannot manufacture a fifth without padding (trap 15),
+and the ledger's own trailing verdict already says the run stopped on
+purpose rather than ran out of rows. Rule table (also in
+docs/QUEST_AUTHORING.md section 7 -- re-read that file if this drifts):
+
+    ledger's last row      | min step rows | min PNGs
+    ----------------------- | -------------: | -------:
+    BLOCKED                 |             4 |        2
+    anything else (green)   |             8 |        4
+
+  and, independent of which row of the table applies (unconditional on how
+  the run ended, conditional only on the source calling `quest.bind` at
+  all): at least one `quest.*` row.
 
 Reads build/quest_gate/<quest>/ for every quest `run.py` would run (see
 tools/quest_gate/quest_list.py) unless told to check only specific ones.
@@ -105,8 +122,13 @@ FINGERPRINT_NAMES = ("character_creator", "pre_login")
 # introduce that much run-to-run noise, so this threshold has real headroom
 # on both sides rather than being tuned to just barely pass today's shots.
 FINGERPRINT_MATCH_THRESHOLD = 12.0
-MIN_ROWS = 8
-MIN_SHOTS = 4
+# See the rule table in the MINIMUM SHAPE banner section above: a run whose
+# ledger ends on a BLOCKED row is held to the smaller pair, everything else
+# (a green run) to the larger pair.
+MIN_ROWS_GREEN = 8
+MIN_ROWS_BLOCKED = 4
+MIN_SHOTS_GREEN = 4
+MIN_SHOTS_BLOCKED = 2
 # core.lua's flush() folds this into the detail of a row whose capture was
 # suppressed as an unchanged frame (see UNCHANGED FRAMES in the banner).
 UNCHANGED_MARKER = "[frame unchanged]"
@@ -442,8 +464,16 @@ def minimum_shape_findings(name, rows, shots_dir):
     checks_stage = _uses_quest_bind(source_text)
     shooting_rows = shooting_row_names(source_text)
 
-    if len(rows) < MIN_ROWS:
-        findings.append("only %d step row(s), need >= %d (minimum shape)" % (len(rows), MIN_ROWS))
+    # The rule table (module banner, MINIMUM SHAPE): a run whose ledger ends
+    # on a BLOCKED row is held to the smaller pair -- an honest t.blocked()
+    # three or four steps in cannot reach the green minimum without padding.
+    trailing_blocked = bool(rows) and rows[-1]["verdict"] == "BLOCKED"
+    min_rows = MIN_ROWS_BLOCKED if trailing_blocked else MIN_ROWS_GREEN
+    min_shots = MIN_SHOTS_BLOCKED if trailing_blocked else MIN_SHOTS_GREEN
+
+    if len(rows) < min_rows:
+        findings.append("only %d step row(s), need >= %d (minimum shape, %s run)" % (
+            len(rows), min_rows, "BLOCKED" if trailing_blocked else "green"))
 
     if checks_stage:
         if not any(row["step"].startswith("quest.") for row in rows):
@@ -452,7 +482,6 @@ def minimum_shape_findings(name, rows, shots_dir):
                              "requires one")
         has_varp_complete = any(row["step"] == "quest.varp_complete" and row["verdict"] == "PASS"
                                  for row in rows)
-        trailing_blocked = bool(rows) and rows[-1]["verdict"] == "BLOCKED"
         if not (has_varp_complete or trailing_blocked):
             findings.append("uses quest.bind but has no passing quest.varp_complete row, "
                              "and the last row is not BLOCKED (a tier-4 stub must end on "
@@ -461,8 +490,9 @@ def minimum_shape_findings(name, rows, shots_dir):
     png_count = 0
     if os.path.isdir(shots_dir):
         png_count = sum(1 for entry in os.listdir(shots_dir) if entry.endswith(".png"))
-    if png_count < MIN_SHOTS:
-        findings.append("only %d PNG(s) under shots/, need >= %d" % (png_count, MIN_SHOTS))
+    if png_count < min_shots:
+        findings.append("only %d PNG(s) under shots/, need >= %d (%s run)" % (
+            png_count, min_shots, "BLOCKED" if trailing_blocked else "green"))
 
     for row in rows:
         step = row["step"]
