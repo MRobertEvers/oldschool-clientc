@@ -17,6 +17,9 @@ export const meta = {
 // test that commits green ones and sets the queue row, an Opus sampler that
 // checks three of every ten accepted, commits the queue and pushes the batch.
 //
+// Run book rule: a Haiku author whose context compacts mid-quest is replaced by
+// Sonnet 5 at medium effort for that quest (see ESCALATE_MODEL below).
+//
 // Measured 2026-09-19 over four Haiku batches: 4 green from 24 attempts, every
 // accepted quest under ~20 generated steps; the first Sonnet batch is the
 // comparison. Edit the cards HERE and paste; the two must stay identical.
@@ -39,8 +42,9 @@ const AUTHOR_SCHEMA = {
     last_failure: { type: 'string', description: 'the last failure block verbatim, or empty' },
     blocker: { type: 'string', description: 'for blocked/content_bug: the exact seam or file:line' },
     doc_gaps: { type: 'array', items: { type: 'string' }, description: 'what QUEST_AUTHORING.md did not tell you that you needed' },
+    compacted: { type: 'boolean', description: 'true if your conversation was compacted/summarized at any point during this task' },
   },
-  required: ['test_id', 'outcome', 'runs', 'checks_resolved', 'last_failure', 'blocker', 'doc_gaps'],
+  required: ['test_id', 'outcome', 'runs', 'checks_resolved', 'last_failure', 'blocker', 'doc_gaps', 'compacted'],
 }
 
 const REVIEW_SCHEMA = {
@@ -70,6 +74,7 @@ Steps:
    Doors: "I can't reach that!" in the chat log after a click means a door, gate or wall is between you and the target -- click_loc the door (op 1, its symbol from the area's configs/*.loc) or goto_tile past it; a refused talk_to with that line is the door, not a broken verb. A door or any loc that changes form resolves by its base symbol now; "screen_position: not_found" on a loc that is on screen is a real seam -- t.blocked it with the symbol and tile.
    Chat order: an [opnpc1,...] branch almost always opens with the PLAYER's line (~chatplayer_anim), so a chat.play list starting "npc:..." dies on page 1 with "expected kind=npc, got player" -- the generator now writes the list from the script's own branch; verify it against the .rs2, and when you must write one yourself (a nested p_choice the generator marked -- CHECK) spell every page in the order it actually opens.
    Every row's detail must say something: a t.check whose detail is empty or only a result word is rejected by the sampler; say what was read (the value, the count, the tile). click_obj answers ok with a nil detail: call it directly and write the before/after count yourself.
+   New since the last batch, in the verb table: t.player.use_item_on_item(a, b) for a backpack item used on another; t.player.attack(npc) and t.npc.await_dead(npc, ticks) for a required kill; click_loc steps off the loc's own tile by itself, so covered from every pose is now a real seam.
 2. Read the generated file. Resolve every "-- CHECK" marker by reading the quest's own scripts under ${WT}/OSRS-Content/osrs239-content/server/scripts/quests/<quest_dir>/ : op numbers come from the [oploc<N>,...] / [opnpc<N>,...] trigger heads, chat row text from the ~p_choice lines VERBATIM, stage values from configs/*.constant. Never guess a symbol; the compack is the truth and lint checks it.
 3. python3 ${WT}/tools/quest_gate/run.py ${id} --no-build ; python3 ${WT}/tools/quest_gate/gate.py ${id}
    Read the failure block run.py prints (the last FAIL row, its detail, its -FAIL.png path, the last chat lines). Open the -FAIL.png with the Read tool. Fix ONE thing, run again. Count your runs. STOP after eight runs.
@@ -84,7 +89,8 @@ Five things earlier batches got rejected for -- one line each:
 (d) Never cheat the quest's own work with ::give/::kill/::setvar -- an item, kill, craft, search or fetch the quest's own .rs2 makes you do is driven through clicks; ::give is only for prerequisites Quest Helper lists as brought-along items, never the quest's own deliverable, and the reviewer reads your file against the .rs2 looking for exactly this. Setting the quest's own stage varp with ::setvar mid-run is the same cheat.
 (e) Resolve every "-- CHECK" marker before your FIRST run, not after -- lint_quest.py without --allow-check refuses a file that still has one.
 
-Do NOT commit, push, or edit QUEUE.tsv; the reviewer does both. Report exactly the schema; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput with the schema even if you gave up.`
+Do NOT commit, push, or edit QUEUE.tsv; the reviewer does both. Report exactly the schema; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput with the schema even if you gave up.
+COMPACTION: if your conversation is ever compacted or summarized while you work on this quest (you will see a summary of earlier context instead of the messages themselves), STOP at once, do not edit the file further, and report outcome gave_up with compacted=true and blocker "context compacted"; a larger model resumes the file from where you left it.`
 
 const reviewCard = (id, a) => `${COMMON}
 
@@ -102,12 +108,25 @@ const sampleCard = (accepted) => `${COMMON}
 You are the Opus sampler for this batch. Accepted this batch: ${JSON.stringify(accepted.map(r => r.test_id))}. Pick these three (or all if fewer): ${JSON.stringify(accepted.filter((_, i) => i % Math.max(1, Math.ceil(accepted.length / 3)) === 0).slice(0, 3).map(r => r.test_id))}.
 For each: read the quest file and the quest's own .rs2 scripts; confirm the test drove the real accept and hand-in branches (no cheat did the quest's work), that its ledger's tick counts are plausible for the walks, that no row is ok with an empty detail, that reward rows assert literal documented amounts, and open every published PNG under OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/<id>/ to confirm each shows what its name claims. A quest that fails: python3 tools/quest_gate/queue.py set <id> --status todo --failure "<your finding>" and revert its commit with git revert --no-edit <sha> (parent) -- never reset. Then commit test/quests/QUEUE.tsv ("quests: queue after batch ${owner}", trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>") and push both repos: git -C OSRS-Content push origin HEAD:lane-quest-driver ; git push origin lane-quest-driver. Also collect every author's doc_gaps from this batch: ${JSON.stringify(accepted.flatMap(r => r.doc_gaps || []))} and append the ones that are real, deduplicated, as a "Gaps reported by authors" list at the end of docs/QUEST_AUTHORING.md (stay under 300 lines; if it would exceed, trim the list, not the rules), commit that, push. Report which quests you checked, which you sent back and why, and the doc lines you added.`
 
+// Run book rule (owner, 2026-09-20): if a Haiku author's context compacts during
+// the authoring step, that quest switches to Sonnet 5 at medium effort. The
+// author reports `compacted`; an author that returned no report at all (schema
+// failure, which compaction also causes) is treated the same way. The Sonnet
+// author resumes the file the Haiku author left (the card's own resume rule).
+const ESCALATE_MODEL = 'sonnet', ESCALATE_EFFORT = 'medium'
 const results = await pipeline(
   tests,
-  (id) => agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: authorModel, schema: AUTHOR_SCHEMA }).catch(() => null),
+  async (id) => {
+    const first = await agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: authorModel, schema: AUTHOR_SCHEMA }).catch(() => null)
+    const compacted = !first || first.compacted === true
+    if (!compacted || authorModel === ESCALATE_MODEL) return first
+    log(`${id}: the ${authorModel} author compacted (or returned no report); re-running with ${ESCALATE_MODEL} at ${ESCALATE_EFFORT} effort`)
+    const second = await agent(authorCard(id), { label: `author:${id} (escalated)`, phase: 'Author', model: ESCALATE_MODEL, effort: ESCALATE_EFFORT, schema: AUTHOR_SCHEMA }).catch(() => null)
+    return second ? { ...second, escalated_from: authorModel } : second
+  },
   (a, id) => {
-    const report = a || { test_id: id, outcome: 'gave_up', runs: 0, checks_resolved: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [] }
-    return agent(reviewCard(id, report), { label: `review:${id}`, phase: 'Review', model: 'sonnet', schema: REVIEW_SCHEMA }).then(r => ({ ...r, doc_gaps: report.doc_gaps, runs: report.runs }))
+    const report = a || { test_id: id, outcome: 'gave_up', runs: 0, checks_resolved: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [], compacted: true }
+    return agent(reviewCard(id, report), { label: `review:${id}`, phase: 'Review', model: 'sonnet', schema: REVIEW_SCHEMA }).then(r => ({ ...r, doc_gaps: report.doc_gaps, runs: report.runs, escalated_from: report.escalated_from }))
   },
 )
 

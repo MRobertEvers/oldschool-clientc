@@ -190,3 +190,17 @@ ignored: <name>`) and core.lua parks the script at its next row, shot or
 await, so "reported blocked while the file ran on to expect_complete" is no
 longer possible. The verb is `goto_tile`, never `goto`: `goto` is a reserved
 word in this tree's Lua (3rd/lua/llex.c) and does not parse.
+
+## Phase 5 run book rules (owner, 2026-09-20)
+
+- Authors are Sonnet by default (`author_model` in the loop's args); four Haiku
+  batches landed 4 of 24, the first Sonnet batch 5 of 8 on the same quests.
+- **If a Haiku author's context compacts during the authoring step, that
+  quest switches to Sonnet 5 at medium effort.** The author card tells Haiku to
+  stop and report `compacted=true` the moment it sees a summary in place of its
+  earlier messages; the loop (`tools/quest_gate/haiku_loop.workflow.js`,
+  `ESCALATE_MODEL`/`ESCALATE_EFFORT`) then re-runs the same card with Sonnet,
+  which resumes the file Haiku left. An author that returns no report at all is
+  treated as compacted.
+- The reviewer is always Sonnet; the sampler is always Opus; neither changes
+  with the author model.
