@@ -29,16 +29,14 @@
 --    item -- asserted literally, not read back from the scroll.
 --
 -- Every placement is guarded (called directly, then t.check'd, then
--- t.var.await_server'd) rather than driven through a bare t.exec: measured
--- directly across this file's authoring runs, t.player.use_on(cog, pole)
--- against a brokeclockpole_* loc answers `covered` from all 5 camera poses
--- 4 times out of 5 (element 536888062: "pickset held=false, menu has no
--- row for it") at 0, 1 and 3 tiles off the pole's own tile alike -- and the
--- one time click_minimenu itself answered `ok` (a `map_flag` settle), a
--- 15-tick server-side await on %cogquest afterwards still read the OLD
--- value: that `ok` was the server-authoritative walk starting, not the
--- [oplocu,brokeclockpole_red] op landing. The guard exists so a seam here
--- ends the file in a clean t.blocked, not a stray FAIL.
+-- t.var.await_server'd) rather than driven through a bare t.exec: use_on
+-- against a brokeclockpole_* loc now steps off the pole's own tile and
+-- presses from its far side internally (pointer.lua QD.player.use_on's
+-- _far_side_step, QD.player._loc_standoff), so the goto beforehand only
+-- needs to land the player on the right FLOOR near the pole -- no
+-- hand-computed standoff tile required (dropped below). The guard still
+-- exists so a seam here ends the file in a clean t.blocked, not a stray
+-- FAIL.
 
 return {
     id = "cog",
@@ -96,12 +94,10 @@ return {
         t.check("pickup.redcog", red_pickup_result == "ok" and red_have_result == "ok" and red_have_count >= 1,
             string.format("click_obj(redcog) -> %s (%s); inv redcog=%s", tostring(red_pickup_result), tostring(red_pickup_detail), tostring(red_have_count)))
 
-        -- Stand 3 tiles off the pole's own tile, not on it: walk_near (inside
-        -- use_on) is a no-op within 2 tiles (pointer.lua QD.player.walk_near),
-        -- so a goto_tile landing exactly ON the pole's tile leaves the click
-        -- aimed at a point the player's own avatar model covers on every
-        -- camera pose.
-        t.exec("goto-red-spindle", t.player.goto_tile, 2568, 3240, 0) -- 3 tiles off brokeclockpole_red (2568,3243,0)
+        -- No hand-computed standoff tile: use_on steps off brokeclockpole_red's
+        -- own tile and presses from its far side internally now, so the goto
+        -- only has to land the player on the right floor near the pole.
+        t.exec("goto-red-spindle", t.player.goto_tile, 2568, 3243, 0) -- brokeclockpole_red's own tile
         t.ticks(2) -- gap 8: a target worked right after a goto_tile teleport can answer `covered`
         local tile_r_result, tile_r = t.world.tile()
         local locnear_r_result, locnear_r = t.world.loc_near("brokeclockpole_red", 10)
@@ -169,14 +165,33 @@ return {
         t.exec("goto-blackcog", t.player.goto_tile, 2613, 9639, 0) -- blackcog's *.spawn row
         local blackcog_find_result, blackcog_target = t.world.obj_near("blackcog", 5)
         t.exec("pickup.blackcog", t.player.use_on, "bucket_water", blackcog_target) -- opobju,blackcog -> ~cog_pour_and_take
-        local black_await_result = t.inv.await("blackcog", 1, 10) -- use_on's own settle is the click, not the inv_add
+        -- cogs.rs2 [label,cog_pour_and_take] sets %cog_bits' cooled bit, then
+        -- ~mesbox("You pour water over the cog.|It quickly cools down enough
+        -- to take.") BEFORE its own trailing @pickup_obj line -- the mesbox
+        -- suspends that script, so obj_takeitem never runs until the box is
+        -- dismissed. Dismiss it, then press the cog again: [opobj3,blackcog]
+        -- re-enters ~cog_try_cool_and_take, reads the bit already set, and
+        -- takes it (@pickup_obj) on this second press.
+        t.exec("pickup.blackcog.dismiss", t.chat.continue_, true)
+        local blackcog_second_result, blackcog_second_detail = t.player.click_obj("blackcog") -- opobj3,blackcog; hollow
+        local black_await_result = t.inv.await("blackcog", 1, 10)
         local black_have_result, black_have_count = t.inv.count("blackcog")
-        t.check("pickup.blackcog.confirm", blackcog_find_result == "ok" and black_await_result == "ok" and black_have_count >= 1,
-            string.format("obj_near(blackcog) -> %s; inv.await(blackcog,1) -> %s; inv blackcog=%s",
-                tostring(blackcog_find_result), tostring(black_await_result), tostring(black_have_count)))
+        t.check("pickup.blackcog.confirm", blackcog_find_result == "ok" and black_await_result == "ok"
+            and black_have_result == "ok" and black_have_count >= 1,
+            string.format("obj_near(blackcog) -> %s; continue_ dismissed mesbox; click_obj(blackcog) -> %s (%s); inv.await(blackcog,1) -> %s; inv blackcog=%s",
+                tostring(blackcog_find_result), tostring(blackcog_second_result), tostring(blackcog_second_detail),
+                tostring(black_await_result), tostring(black_have_count)))
 
-        t.exec("goto-black-spindle", t.player.goto_tile, 2570, 9639, 0) -- 3 tiles off brokeclockpole_black (2570,9642,0)
+        t.exec("goto-black-spindle", t.player.goto_tile, 2570, 9642, 0) -- brokeclockpole_black's own tile
         t.ticks(2)
+        local tile_b_result, tile_b = t.world.tile()
+        local locnear_b_result, locnear_b = t.world.loc_near("brokeclockpole_black", 10)
+        t.check("diag.blackpole", true, string.format(
+            "player tile=%s (%s); loc_near(brokeclockpole_black,10)=%s tile=%s,%s,%s match=%s id=%s",
+            tile_b_result == "ok" and string.format("%s,%s,%s", tile_b.x, tile_b.z, tile_b.level) or "?", tostring(tile_b_result),
+            tostring(locnear_b_result),
+            tostring(locnear_b and locnear_b.tile_x), tostring(locnear_b and locnear_b.tile_z), tostring(locnear_b and locnear_b.level),
+            tostring(locnear_b and locnear_b.match), tostring(locnear_b and locnear_b.id)))
         local black_pole = t.player.by_symbol("loc", "brokeclockpole_black")
         local black_place_result, black_place_detail = t.player.use_on("blackcog", black_pole)
         local black_place_ok = false
@@ -184,9 +199,16 @@ return {
             black_place_ok = t.var.await_server("cogquest", 4, 15) == "ok"
         end
         if not black_place_ok then
-            t.blocked("test/quests/cog.lua:place.blackcog -- brokeclockpole_black, the same click_minimenu seam as "
-                .. "place.redcog above (quest_cog_spindles.rs2:9-10 sibling, brokeclockpole_black never reached; "
-                .. "this run: use_on -> " .. tostring(black_place_result) .. " (" .. tostring(black_place_detail) .. ")).")
+            t.blocked("test/quests/cog.lua:place.blackcog -- brokeclockpole_black (all.loc:287, model 1793 'Clock "
+                .. "spindle', diag.blackpole confirms resolve `exact` id=30 at 2570,9642,0 -- the symbol and tile are "
+                .. "not the seam). use_on's click_minimenu answers `covered` from EVERY cardinal side tried: the "
+                .. "driver's own step-off/far-side sequence from the pole's own tile presses from north, south and "
+                .. "east (all covered), and a west approach (tried by hand, this file's authoring runs) answers "
+                .. "covered too, with the walk back to the opposite (east) side then refused outright -- the pole "
+                .. "sits inside a walled octagonal frame (screenshot: build/quest_gate/cog/shots/27-goto-black-"
+                .. "spindle.png) that blocks a clear pixel from any adjacent tile, on every side, not just the "
+                .. "player's own model. [oplocu,brokeclockpole_black] (quest_cog_spindles.rs2:9-10) is never "
+                .. "reached: this run: use_on -> " .. tostring(black_place_result) .. " (" .. tostring(black_place_detail) .. ").")
             return
         end
         t.check("place.blackcog", true, string.format(
