@@ -486,6 +486,19 @@ def minimum_shape_findings(name, rows, shots_dir):
             findings.append("uses quest.bind but has no passing quest.varp_complete row, "
                              "and the last row is not BLOCKED (a tier-4 stub must end on "
                              "a BLOCKED row)")
+        # The completion modal must be in every green run's evidence (owner's
+        # rule, 2026-09-20): quest.expect_complete photographs the reward
+        # scroll into its quest.scroll_title row, so a green run whose
+        # quest.scroll_title row passed without a shot means the picture was
+        # lost, and a green run without that row never completed on screen.
+        if not trailing_blocked:
+            scroll_rows = [row for row in rows if row["step"] == "quest.scroll_title"]
+            if not scroll_rows:
+                findings.append("green run has no quest.scroll_title row -- the quest "
+                                 "completion scroll was never read (quest.expect_complete)")
+            elif not any(row["verdict"] == "PASS" and row["shots"] for row in scroll_rows):
+                findings.append("quest.scroll_title row carries no screenshot -- the "
+                                 "completion scroll must be photographed in every green run")
 
     png_count = 0
     if os.path.isdir(shots_dir):

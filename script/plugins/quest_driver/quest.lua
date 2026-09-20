@@ -336,6 +336,13 @@ function QD.quest.expect_complete()
     -- sentence is what only the right scroll can carry, and that is what is
     -- asserted; a plain find, never a pattern, because a display name carries
     -- apostrophes and brackets that a Lua pattern would read as syntax.
+    -- The completion modal is photographed in EVERY run, before it is read
+    -- and before quest.journal dismisses it (owner's rule, 2026-09-20): the
+    -- scroll on screen is the one picture a green quest cannot be without.
+    -- `keep` is true so the unchanged-frame dedupe never suppresses it even
+    -- when the hand-in's own last shot already showed the scroll. The shot
+    -- folds into the quest.scroll_title row below, which gate.py checks.
+    QD.shot("quest.scroll", true)
     local title_result, title_detail = QD.scroll.title()
     local title_name = type(title_detail) == "table" and title_detail.name or nil
     local title_pass = title_result == "ok"
