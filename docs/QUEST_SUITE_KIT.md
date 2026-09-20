@@ -224,3 +224,12 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   engine's own frame, and no plugin hook sits between the driver and the
   client. A quest test that needs another plugin's behaviour is testing that
   plugin, and belongs in its own harness.
+- **Every batch ends with the seam pass.** After the sampler pushes, run
+  `tools/quest_gate/seam_fixer.workflow.js` (content inline, no args): an Opus
+  triage groups the blocked and content_bug rows by seam, one Opus agent fixes
+  each DRIVER seam with a live reproduction and proof, and its closer adds the
+  conformance rows, runs the gates, commits, pushes, and reopens the freed rows
+  with `RETRY after <sha>`. The next author batch then resumes those files.
+  Content, engine and design seams are listed in its report for the content
+  queue; they are not fixed by the loop. This is how quests become unblocked --
+  never by hand between batches.
