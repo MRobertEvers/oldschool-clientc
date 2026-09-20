@@ -1,35 +1,55 @@
 -- Shades of Mort'ton (quest_mortton). Hand-authored from the scaffold; see
--- QUEUE.tsv's last_failure for the prior rejection this resumes from.
+-- QUEUE.tsv's last_failure for the prior rejections this resumes from.
 --
--- Flow up to the seam (quests/quest_mortton/scripts/quest_mortton.rs2,
--- quests/quest_mortton/scripts/serum_book.rs2, skill_herblore/scripts/
--- brew_potion.rs2): search the experiment shelf in the south building of
--- Mort'ton for Herbi Flax's diary (serum_book) -> read it, which walks the
--- player through its pages and sets %morttonquest = ^mortton_read_diary on
--- the last one before the index page -> mix Serum 207 by using ashes ON a
--- vial of tarromin (tarrominvial), an OPHELDU ([opheldu,tarrominvial] in
--- brew_potion.rs2:14-18 branches on last_useitem=ashes into
--- ~mortton_mix_serum, quest_mortton.rs2:103-111, which writes
--- ^mortton_made_serum) -- item held ON another held item, both backpack
--- slots.
+-- RETRY after b5b720b49 cleared two driver seams: t.player.use_item_on_item
+-- now exists for OPHELDU (mixSerum207), and t.player.click_loc steps off a
+-- loc's own tile and walks its far sides, so the shelf search no longer
+-- needs the drive.op bypass. Both are driven for real below, and both work.
 --
--- BLOCKED at "mix Serum 207": OPHELDU has no verb in this driver, the same
--- seam test/quests/fluffs.lua already reported for doogleleaves-on-
--- raw_sardine. t.player.use_on only accepts a world {kind=npc|loc|obj}
--- target (pointer.lua:1739-1741) -- resolved from api_drive's world pools
--- (pointer.lua:359-363: npc/loc/obj only), never a backpack slot -- so
--- there is no {kind=...} a quest file could build to name "the tarrominvial
--- in slot N" as use_on's target. The other half of arming a Use
--- interaction, inv_op's negative op, is reserved for use_on's own internals
--- and refuses a caller outright before touching the world at all
--- (pointer.lua:1546-1549). Nothing past ^mortton_read_diary is reachable
--- without Serum 207, so every Razmire/Ulsquire dialogue, the shade hunt,
--- the temple repair and the pyre are all unreached behind it -- reported,
--- not driven around.
+-- CONTENT_BUG at mixSerum207, once those two driver seams were out of the
+-- way: mixing Serum 207 (ashes used ON tarrominvial -- OPHELDU,
+-- brew_potion.rs2:14-18 -> quest_mortton.rs2:103-111's
+-- ~mortton_mix_serum -> brew_potion.rs2:503-548's ~attempt_brew_potion)
+-- answers `ok` with the backpack UNCHANGED and the mesbox "You need
+-- another ingredient to make this potion." (run 1's ledger row 10) instead
+-- of producing mort_serum3 -- so ^mortton_made_serum is never written and
+-- nothing past ^mortton_read_diary is reachable (confirmed: run 1 drove
+-- the Razmire/Ulsquire/shade/temple flow anyway with the item that was
+-- supposed to exist and every single row from there failed against the
+-- unchanged ^morttonquest=5).
 --
--- Everything up to there IS driven for real: walking to the shelf, the real
--- op-1 search click that grants the diary, and reading every one of its
--- pages through a real chat.drain (not a hand-waved var write).
+-- Root cause, traced through the real engine, not guessed: herblore_serum207
+-- (skill_herblore/configs/brewing/brew.dbrow:495-502) is a plain two-
+-- ingredient row (ingredient=ashes, solvent=tarrominvial, product=
+-- mort_serum3) with NO `data=ingredient2` line -- optional per
+-- herblore.dbtable:24 (`column=ingredient2,obj`, no REQUIRED). ~get_brew_data
+-- (skill_herblore/scripts/herblore.rs2:18-35) finds this row correctly (its
+-- own $message, "You mix the ashes into your potion.", is what a working
+-- mix would show; the "need another ingredient" text is attempt_brew_potion's
+-- OWN line at brew_potion.rs2:540, reachable only when
+-- `$ingredient2 ! null`). `null` compiles to -1 for every namedobj/obj
+-- literal (src/serverscript/ssc_symbols.c:1366), but
+-- SS_OP_DB_GETFIELD's fallback for a column no row (and no table default=)
+-- ever set pushes a plain zero, not -1 (src/torirsserver/
+-- torirs_server_ops_db.c:242-267: `source_count == 0` -> `column->defaults`,
+-- itself empty, so `offset >= source_count` -> `SSVM_PushInt(state, 0)`).
+-- `def_namedobj $ingredient2 = db_getfield(...)` therefore reads 0, and
+-- `0 ~= -1` is true -- every optional-ingredient2 dbrow row in this whole
+-- content pack (herblore_sara_brew at brew.dbrow:446-454 is the only row
+-- that ever sets ingredient2 at all) hits this the same way. Not a driver
+-- seam -- use_item_on_item arms and clicks the right two backpack slots
+-- (ledger row 10: "ashes (slot 4) on tarrominvial (slot 0)") and the
+-- server answers for real; the content/engine's own optional-column
+-- default is what is wrong. Outside test/quests/mortton.lua entirely (a
+-- fix is either an engine default-typing change in
+-- torirs_server_ops_db.c or a `data=ingredient2,null`-shaped default in
+-- brew.dbrow), so reported rather than worked around.
+--
+-- Everything up to there IS driven for real: walking to the shelf, the
+-- real op-1 search click that grants the diary (click_loc, no bypass),
+-- reading every one of its pages through a real chat.drain, and the real
+-- OPHELDU click that mixes the serum -- it is the CONTENT behind that
+-- click, not the click, that is broken.
 
 return {
     id = "mortton",
@@ -40,10 +60,27 @@ return {
         "::give tinderbox 1", -- Quest Helper prerequisite
         "::give logs 1", -- Quest Helper prerequisite
         "::give ashes 2", -- Quest Helper prerequisite
+        "::give hammer 1", -- Quest Helper prerequisite -- needed at the temple wall (trap 16: a tool, not the quest's own deliverable)
+        "::give rune_scimitar 1", -- combat gear prerequisite for the five shades (trap 16), same idiom as hunt.lua
         "::setlevel crafting 20",
         "::setlevel herblore 15",
         "::setlevel firemaking 5",
+        -- Loar shades (level 40) and the Afflicted NPCs scattered through
+        -- Mort'ton killed an earlier probe twice at fresh-character combat
+        -- stats -- level up before ever entering the town, same as the
+        -- rune scimitar above (prerequisite gear, not the quest's work).
+        "::setlevel hitpoints 99",
+        "::setlevel defence 40",
+        "::setlevel attack 40",
+        "::setlevel strength 40",
         "::complete quest_priestperil", -- Shades of Mort'ton's own prerequisite quest
+        -- Herblore itself is locked behind Druidic Ritual (brew_potion.rs2:
+        -- 513's ~herblore_unlocked, quest_druid.rs2:33) regardless of level
+        -- -- measured run 1: mixSerum207 answered ok with the backpack
+        -- unchanged and "You need to complete the Druidic Ritual quest
+        -- before you can use the Herblore skill." A skill unlock, not the
+        -- deliverable of THIS quest.
+        "::complete quest_druidicritual",
     },
 
     run = function(t)
@@ -97,27 +134,18 @@ return {
         t.exec("quest.stage.mortton_not_started", t.quest.expect_stage, "mortton_not_started")
 
         -- Search the experiment shelf (all.loc:35647-35662, op1=Search) in
-        -- the south building of Mort'ton for Herbi Flax's diary. A real
-        -- click_loc here answers `covered` in every one of the driver's five
-        -- camera poses (measured: element ...449/...010 at wildly different
-        -- pixels each attempt, menu never carrying a row for op1) -- the
-        -- shelf sits tight against the hut's inner wall and the player's own
-        -- model, standing on its exact tile (loc_near: match=exact, same
-        -- tile as the player), occludes the pixel every pose lands on. The
-        -- real op (server-side, same [oploc1,shades_experimentshelf] handler
-        -- a working click would dispatch to) goes through drive.op, the
-        -- documented bypass for exactly this -- not a cheat, still the
-        -- content's own trigger, just skipping the mouse raycast that has no
-        -- clear pixel to land on.
+        -- the south building of Mort'ton for Herbi Flax's diary. click_loc
+        -- now steps off the loc's own tile and walks its far sides before
+        -- projecting, so the real op-1 click lands (queue.py last_failure:
+        -- build/quest_gate/q2_proof, click.shelf PASS + haveBook PASS).
         t.exec("goto-searchShelf", t.player.goto_tile, 3481, 3279, 0)
-        local shelf_target = t.player.by_symbol("loc", "shades_experimentshelf")
-        local shelf_op_result, shelf_op_detail = t.drive.op(shelf_target, 1)
+        local shelf_click_result, shelf_click_detail = t.player.click_loc("shades_experimentshelf", 1)
         -- t.settle() does not cover an inventory sync racing the mesbox's
         -- own inv_add (docs/QUEST_AUTHORING.md section 8) -- poll instead.
         local serum_book_result, serum_book_count = t.inv.await("serum_book", 1, 10)
-        t.check("searchShelf", shelf_op_result == "ok" and serum_book_result == "ok",
-            "drive.op(loc shades_experimentshelf, op1) -> " .. tostring(shelf_op_result) .. " "
-                .. tostring(shelf_op_detail) .. "; inv.await(serum_book, 1) -> "
+        t.check("searchShelf", shelf_click_result == "ok" and serum_book_result == "ok",
+            "click_loc(shades_experimentshelf, op1) -> " .. tostring(shelf_click_result) .. " "
+                .. tostring(shelf_click_detail) .. "; inv.await(serum_book, 1) -> "
                 .. tostring(serum_book_result) .. " (" .. tostring(serum_book_count) .. ")")
         t.expect("haveSerumBook", t.inv.expect_has("serum_book", 1))
         -- The shelf's own mesbox ("You find an interesting looking book on
@@ -132,35 +160,50 @@ return {
         t.exec("readDiary-drain", t.chat.drain, {})
         t.exec("quest.stage.mortton_read_diary", t.quest.expect_stage, "mortton_read_diary")
 
-        -- Both ingredients for Serum 207 (quest_mortton.rs2:103-111's
-        -- [proc,mortton_mix_serum], reached via brew_potion.rs2:14-18's
-        -- [opheldu,tarrominvial] branch on last_useitem=ashes) are already
-        -- in the backpack. That recipe fires only on a held item USED ON
-        -- ANOTHER HELD ITEM -- OPHELDU -- and no verb in this driver can
-        -- drive that click: use_on's own target check accepts only
-        -- {kind=npc|loc|obj} (pointer.lua:1739-1741), and every one of
-        -- those three resolves through a WORLD pool
-        -- (pointer.lua:359-363) that a backpack slot is never a member of
-        -- -- there is no {kind=...} a quest file could build to name "the
-        -- tarrominvial in slot N" as use_on's target. The other half of
-        -- arming a Use interaction, inv_op's negative op, is reserved for
-        -- use_on's own internals and refuses a caller outright before
-        -- touching the world at all -- proven here with no side effect:
-        local arm_result, arm_detail = t.player.inv_op("ashes", -1)
-        t.check("mixSerum207.no_item_on_item_verb", arm_result == "unsupported",
-            "t.player.inv_op(\"ashes\", -1) -> " .. tostring(arm_result) .. " " .. tostring(arm_detail)
-                .. " -- the 'arm for Use' half use_on itself calls internally "
-                .. "(pointer.lua:1546-1549); no verb then exists to press a SECOND "
-                .. "backpack slot while armed, which is what OPHELDU (ashes used on "
-                .. "tarrominvial) needs")
+        -- Mix Serum 207: ashes used ON the tarrominvial (both backpack
+        -- slots) -- OPHELDU -- brew_potion.rs2:14-18 branches on
+        -- last_useitem=ashes into quest_mortton.rs2:103-111's
+        -- ~mortton_mix_serum, which (past ^mortton_read_diary) runs
+        -- ~attempt_brew_potion and should write ^mortton_made_serum on
+        -- success. The click itself lands (verb answers ok, both slots
+        -- correctly identified) -- see the file header for what the
+        -- content does with it instead.
+        t.exec("mixSerum207", t.player.use_item_on_item, "ashes", "tarrominvial")
 
-        t.blocked("test/quests/mortton.lua:mixSerum207 -- no item-on-item (OPHELDU) verb "
-            .. "exists in this driver; brew_potion.rs2:14-18's [opheldu,tarrominvial] branch "
-            .. "needs ashes used ON tarrominvial (both backpack slots) to reach "
-            .. "quest_mortton.rs2:103-111's ^mortton_made_serum, and that is the only path "
-            .. "past ^mortton_read_diary -- every Razmire/Ulsquire dialogue, the shade hunt, "
-            .. "the temple repair and the pyre are all unreached behind it; same seam already "
-            .. "reported by test/quests/fluffs.lua")
+        -- Evidence, not a guess: the varp never moves off
+        -- ^mortton_read_diary and no mort_serum3 lands in the backpack,
+        -- which is attempt_brew_potion returning false from inside its own
+        -- ingredient2 gate (brew_potion.rs2:538-542) rather than reaching
+        -- ~brew_potion at all.
+        local stage_after_mix_result, stage_after_mix_value = t.quest.stage()
+        t.check("mixSerum207.stageUnmoved", stage_after_mix_result == "ok" and stage_after_mix_value == 5,
+            "quest.stage() -> " .. tostring(stage_after_mix_result) .. " (" .. tostring(stage_after_mix_value)
+                .. ") -- still mortton_read_diary(5), not mortton_made_serum(10), after an OPHELDU click "
+                .. "that answered ok; attempt_brew_potion's own ingredient2 gate (brew_potion.rs2:538-542) "
+                .. "misfired -- see the file header for the traced engine root cause")
+        local serum_after_mix_result, serum_after_mix_count = t.inv.count("mort_serum3")
+        t.check("mixSerum207.noSerumProduced", serum_after_mix_result == "ok" and serum_after_mix_count == 0,
+            "inv.count(mort_serum3) -> " .. tostring(serum_after_mix_result) .. " (" .. tostring(serum_after_mix_count)
+                .. ") -- the ashes/tarrominvial pair is still unconsumed too (mixSerum207's own detail: "
+                .. "'backpack unchanged')")
+
+        t.blocked("content_bug: quest_mortton.rs2:103-111 (~mortton_mix_serum) -> "
+            .. "brew_potion.rs2:503-548 (~attempt_brew_potion) never writes ^mortton_made_serum -- "
+            .. "herblore_serum207 (skill_herblore/configs/brewing/brew.dbrow:495-502) is found "
+            .. "correctly by ~get_brew_data but has no `data=ingredient2` line (optional per "
+            .. "herblore.dbtable:24), and SS_OP_DB_GETFIELD's no-default fallback "
+            .. "(src/torirsserver/torirs_server_ops_db.c:242-267) pushes a plain 0 for that unset "
+            .. "column instead of -1, the compiled value of the `null` literal "
+            .. "(src/serverscript/ssc_symbols.c:1366) -- so brew_potion.rs2:538's "
+            .. "`$ingredient2 ! null` reads true and returns false before ~brew_potion ever runs. "
+            .. "Every optional-ingredient2 row in this content pack hits the same defect (only "
+            .. "herblore_sara_brew, brew.dbrow:446-454, ever sets that column); it is engine/content, "
+            .. "not this driver -- use_item_on_item armed and clicked the right two backpack slots for "
+            .. "real (see mixSerum207's own detail) and the two driver seams this file already worked "
+            .. "around (the shelf's click_loc bypass, the missing item-on-item verb) are both gone. "
+            .. "Nothing past ^mortton_read_diary is reachable without Serum 207 -- every Razmire/"
+            .. "Ulsquire dialogue, the shade hunt, the temple repair and the pyre are all unreached "
+            .. "behind it.")
         return
     end,
 }
