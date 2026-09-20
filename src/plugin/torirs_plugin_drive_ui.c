@@ -205,6 +205,63 @@ drive_ui_distance2(int ax, int az, int bx, int bz)
     return dx * dx + dz * dz;
 }
 
+/*
+ * The combat half of a row: the overhead health bar and the newest live
+ * hitsplat.  See struct DriveNpcRow for why a RATIO is the only hitpoints
+ * reading a client has, and why `end_fill` is the one that reads 0 on death.
+ *
+ * Mirrors app_plugin_fill_npc_for_world's health pair (the plugin ABI's own
+ * answer to the same question) rather than inventing a second scale, and
+ * app_overlay_entities.c's two liveness tests -- `healthbar_end_cycle >
+ * cycle` for the bar, `start <= cycle < end` for a splat -- rather than
+ * guessing how long either lives.  A driver that read an expired splat slot
+ * would see the same "fresh hit" forever, and a combat verb built on it would
+ * never re-engage a fight that had stopped.
+ */
+static void
+drive_ui_fill_npc_combat(
+    struct App* app, struct WorldEntity_NPC const* npc, struct DriveNpcRow* out)
+{
+    struct WorldEntityFacet_Combat const* combat;
+    int cycle;
+    int i;
+
+    assert(app);
+    assert(app->world);
+    assert(npc);
+    assert(out);
+
+    combat = &npc->combat;
+    cycle = app->world->cycle;
+
+    if( combat->healthbar_type >= 0 )
+    {
+        struct RS_HealthbarType const* type =
+            RS_Healthbars_TypeFor(&app->healthbars, combat->healthbar_type);
+        out->health_ratio = combat->healthbar_end_fill;
+        out->health_scale = type->width > 0 ? type->width : RS_HEALTHBAR_DEFAULT_WIDTH;
+        out->health_active = combat->healthbar_end_cycle > cycle;
+    }
+    else
+    {
+        out->health_ratio = -1;
+        out->health_scale = -1;
+        out->health_active = 0;
+    }
+
+    out->hit_damage = -1;
+    out->hit_cycle = 0;
+    for( i = 0; i < WORLD_ENTITY_DAMAGE_SLOTS; i++ )
+    {
+        if( combat->damage_start_cycles[i] > cycle || combat->damage_cycles[i] <= cycle )
+            continue;
+        if( combat->damage_start_cycles[i] < out->hit_cycle )
+            continue;
+        out->hit_cycle = combat->damage_start_cycles[i];
+        out->hit_damage = (int)combat->damage_values[i];
+    }
+}
+
 enum DriveResult
 DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int* out_count)
 {
@@ -293,6 +350,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
         out[j].tile_z = tile_z;
         out[j].level = npc->grid_position.level;
         out[j].element_id = npc->element_id;
+        drive_ui_fill_npc_combat(app, npc, &out[j]);
         drive_ui_strip_tags(npc->name, out[j].name, sizeof(out[j].name));
         if( count < cap )
             count++;
@@ -1041,6 +1099,19 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "level");
     lua_pushinteger(L, row->element_id);
     lua_setfield(L, -2, "element_id");
+    /* The combat half (struct DriveNpcRow): a RATIO out of the healthbar
+     * type's own denominator, never hitpoints -- the client is never told an
+     * npc's hitpoints.  -1/-1 is "no bar has ever been sent for this npc". */
+    lua_pushinteger(L, row->health_ratio);
+    lua_setfield(L, -2, "health_ratio");
+    lua_pushinteger(L, row->health_scale);
+    lua_setfield(L, -2, "health_scale");
+    lua_pushboolean(L, row->health_active);
+    lua_setfield(L, -2, "health_active");
+    lua_pushinteger(L, row->hit_damage);
+    lua_setfield(L, -2, "hit_damage");
+    lua_pushinteger(L, row->hit_cycle);
+    lua_setfield(L, -2, "hit_cycle");
     lua_pushstring(L, row->name);
     lua_setfield(L, -2, "name");
 }

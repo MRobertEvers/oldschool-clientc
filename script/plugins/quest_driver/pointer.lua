@@ -414,6 +414,18 @@ end
 -- the "wait for it to land" the family was missing.
 function QD.drive._ensure_visible(target, deadline)
     deadline = deadline or 3
+    -- STEP OFF IT BEFORE PROJECTING IT.  A loc under the player's own feet
+    -- projects perfectly well -- the pixel is simply covered by him, and by
+    -- anything else standing on that square -- so this cannot wait for the
+    -- projection to fail: it has to happen before the pixel is taken.  See
+    -- the banner over QD.player._step_off_tile for the measurement.
+    --
+    -- Only the loc half, and only from ON the tile: an npc that shares the
+    -- player's square is walking and will leave it, and a ground stack is
+    -- taken from on top of it.  A caller that has already stepped off (every
+    -- click_loc and every use_on does, through walk_near's `minimum`) pays
+    -- one pool read here and moves nothing.
+    QD.player._step_off_for_click(target)
     local result, pos = api_drive.screen_position(target.kind, target.id)
     -- `not_found` on an npc is re-asked once against the LIVE id, for a target
     -- a quest file built by hand rather than through QD.player.by_symbol (see
@@ -485,9 +497,13 @@ function QD.drive._ensure_visible(target, deadline)
     end
     local yaw = QD.drive._yaw_towards(tile_x - player.x, tile_z - player.z)
     if yaw == nil then
-        -- The target is on the player's own tile; no yaw frames that, and the
-        -- projection already refused it, so say so rather than spin.
-        return "not_visible", "target shares the player's tile"
+        -- Still on the player's own tile: no yaw frames that, and the
+        -- projection already refused it.  Reaching here now means the step
+        -- off the tile above did not land (every neighbour refused the walk),
+        -- which is a different fact from "the camera is pointed elsewhere"
+        -- and the row has to carry it.
+        return "not_visible",
+            "target shares the player's tile and the step off it did not land"
     end
 
     for i = 1, #QD.drive._frame_poses do
@@ -498,6 +514,34 @@ function QD.drive._ensure_visible(target, deadline)
     end
     return "not_visible", "yaw " .. tostring(yaw) .. " framed nothing in "
         .. tostring(#QD.drive._frame_poses) .. " poses"
+end
+
+-- The gate in front of QD.player._step_off_tile: read the two tiles, and
+-- walk only when the player is genuinely standing on a LOC he is about to
+-- point at.  Separated from _ensure_visible so the cost of the check is one
+-- pool read and the walking rule itself lives with the other walking rules.
+--
+-- The answer is advisory.  A target whose tile cannot be read (it left the
+-- pool) and a step that every neighbour refused both leave the projection to
+-- say what went wrong in its own words, rather than replacing its answer
+-- with this one.
+function QD.player._step_off_for_click(target)
+    if target.kind ~= "loc" then
+        return "ok", nil
+    end
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
+    if tile_result ~= "ok" then
+        return tile_result, nil
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" then
+        return player_result, nil
+    end
+    if QD.player._tile_distance(player.x, player.z, tile_x, tile_z)
+        >= QD.player._loc_standoff then
+        return "ok", nil
+    end
+    return QD.player.walk_near(target, nil, QD.player._loc_standoff)
 end
 
 -- Apply pose `index` aimed at `target` and answer where the target then
@@ -594,8 +638,18 @@ function QD.drive.click_minimenu(target, option, deadline)
     -- the player's own body, or behind a nearer and larger model (a Lumbridge
     -- tree behind the castle fountain), and the menu the press opens is the
     -- only authority on which of those it is.  The loop stops at the first
-    -- camera whose menu has the row, and answers `covered` when none does --
-    -- which then means what it says.
+    -- camera whose menu has the row.
+    --
+    -- BUT A DIFFERENT CAMERA IS NOT A DIFFERENT LINE OF SIGHT when what
+    -- covers the target is standing on it or beside it: the eye orbits the
+    -- PLAYER, so a model on the player's own tile is between him and the
+    -- target from every yaw this loop can reach (measured:
+    -- build/quest_gate/q2_before, five poses, five `covered` answers, the
+    -- player on the loc's own tile).  So `covered` out of here is not the end
+    -- of the story any more -- QD.player.click_loc and QD.player.use_on take
+    -- it as "try another side" and walk, and QD.player._step_off_tile's
+    -- banner has the measurement.  It is still what this function answers,
+    -- because WHERE TO STAND is not a camera's decision to make.
     local detail = nil
     local attempt = 0
     while true do
@@ -795,6 +849,166 @@ function QD.player._step_toward(from, to)
     return from
 end
 
+-- SELF-OCCLUSION: A LOC THE PLAYER IS STANDING ON HAS NO CLEAR PIXEL.
+--
+-- Measured 2026-09-19/20.  Mort'ton's `shades_experimentshelf` (all.loc:35647,
+-- op1 Search) sits on 3481,3279,0; `goto_tile` puts the player on that same
+-- tile, `world.loc_near` answers `match=exact` on it, and click_loc then
+-- answers `covered` from all five camera poses -- element 536885449 at
+-- 382,283, "pickset held=false, menu has no row for it", with the menu that
+-- opens offering Chop down Dead tree / Take Vial / Walk here / Attack
+-- Afflicted and no Search (build/quest_gate/q2_before, row click.shelf, shot
+-- 04-click.shelf-FAIL.png).  test/quests/mortton.lua:99-113 hit exactly this
+-- and had to reach the op through the drive.op bypass instead; cog.lua:99-103
+-- wrote the same workaround by hand ("stand 3 tiles off the pole's own tile,
+-- not on it").
+--
+-- The camera is not the variable.  Everything drawn on a tile is drawn at the
+-- same place, and the player's own avatar -- plus whatever npc shares the
+-- square -- is nearer the eye than the scenery behind it from EVERY yaw,
+-- because the eye orbits the player.  Rotating is what _frame_poses does and
+-- it cannot help: there is no pose from which a model is not in front of a
+-- model standing in the same spot.  Moving one tile is the whole fix, and it
+-- is one the verb can take itself rather than one every quest file has to
+-- remember (both files above remembered it in a comment and one of them still
+-- lost the op).
+--
+-- So: `minimum` on walk_near below, and this, the step that serves it.
+QD.player._step_off_offsets = {
+    -- Cardinals first: a diagonal step is refused outright when either of the
+    -- two tiles it cuts between is blocked, so it is the least likely of the
+    -- eight to land, and the shelf/pole cases are all against a wall.
+    { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 },
+    { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 },
+}
+
+-- Four ticks per candidate, not walk_to's own distance+10: the destination is
+-- one tile away, and the budget here is the server ACCEPTING the request (a
+-- move issued while it is still running the previous verb's interaction is
+-- refused, and walk_to re-issues on the next idle tick), not the walk.  A
+-- blocked candidate is meant to be abandoned quickly -- there are seven more.
+QD.player._step_off_ticks = 4
+
+-- Move the player at least `minimum` tiles off `tile_x,tile_z`, and SAY SO:
+-- the detail is what puts "stepped off the target tile" in the ledger row, so
+-- a reader who sees a loc click that used to answer `covered` pass can tell
+-- why it passed.
+--
+-- Each candidate is judged on the tile the player ENDS on, never on walk_to's
+-- own answer: a blocked destination is routed to the nearest reachable tile
+-- by the server, which is usually off the target's tile and therefore already
+-- the win, while walk_to (which awaits the exact tile) calls that a timeout.
+function QD.player._step_off_tile(target, tile_x, tile_z, minimum)
+    local start_result, start = api_drive.player_tile()
+    if start_result ~= "ok" then
+        return start_result, "player_tile"
+    end
+    for i = 1, #QD.player._step_off_offsets do
+        local offset = QD.player._step_off_offsets[i]
+        QD.player.walk_to(tile_x + offset[1] * minimum, tile_z + offset[2] * minimum,
+            QD.player._step_off_ticks)
+        local here_result, here = api_drive.player_tile()
+        if here_result == "ok"
+            and QD.player._tile_distance(here.x, here.z, tile_x, tile_z) >= minimum then
+            return "ok", string.format(
+                "stepped off the target tile %d,%d (%d,%d -> %d,%d)",
+                tile_x, tile_z, start.x, start.z, here.x, here.z)
+        end
+    end
+    return "timeout", string.format(
+        "could not step off the target tile %d,%d: all %d neighbours refused the walk",
+        tile_x, tile_z, #QD.player._step_off_offsets)
+end
+
+-- How far off a LOC's own tile a click needs the player to be.  One: the
+-- occlusion this fixes is the player's own model, and one tile removes it.
+-- It is deliberately not larger -- walking further to click something is the
+-- caller's business (cog.lua asks for three), and a bigger number here would
+-- make every loc click walk.
+QD.player._loc_standoff = 1
+
+-- Within how many tiles a `covered` answer is read as "something is standing
+-- in front of it" rather than "this loc has no such row", and so retried from
+-- another side.  One: the press that is worth taking again is the one made
+-- from inside the target's own square of neighbours.
+QD.player._far_side_range = 1
+
+-- How many times a covered press walks to another side before it gives up.
+-- Three, which is the opposite side and the two perpendicular ones -- every
+-- side the target has that the player is not already standing on.
+QD.player._far_side_attempts = 3
+
+-- WHICH SIDE, measured (build/quest_gate/q2_ring, 2026-09-20).  The shelf's
+-- own ring was swept a tile at a time: standing EAST of it at one tile the
+-- press lands (`ring.e1 ok`, and the server walks the player onto the loc to
+-- serve it), standing SOUTH of it at one tile the same press answers
+-- `covered` (`ring.s2`), and standing NORTH of it it takes a second press
+-- from somewhere else to land (`ring.n1`).  Distance is not the variable and
+-- neither is the camera: it is which side of the target the player is on,
+-- because what covers it -- his own model, an npc sharing the square, the hut
+-- wall the shelf is set into -- is between the eye and the target from some
+-- sides and not from others, and the eye orbits the PLAYER.
+--
+-- `index` picks one of those sides relative to where the player is now: 1 is
+-- the opposite side (the spec's own retry, and the one that removes whatever
+-- the player is standing behind), 2 and 3 are the two perpendicular ones (the
+-- offset turned 90 degrees each way).  The caller walks them in order until a
+-- press lands.
+--
+-- Only from inside `_far_side_range`, and only `_far_side_attempts` times: a
+-- verb that walked a lap around every target that answered `covered` would
+-- turn a genuine "there is no such row" -- the honest answer for a wrong op
+-- number -- into a minute of walking on every quest that has one.
+function QD.player._far_side_step(target, index)
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
+    if tile_result ~= "ok" then
+        return tile_result, "far side: no tile for " .. target.kind
+            .. " " .. tostring(target.id)
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" then
+        return player_result, "player_tile"
+    end
+    local distance = QD.player._tile_distance(player.x, player.z, tile_x, tile_z)
+    if distance > QD.player._far_side_range then
+        return "unsupported", string.format(
+            "far side: %d tiles from %d,%d, not the crowded case", distance, tile_x, tile_z)
+    end
+    local offset_x = player.x - tile_x
+    local offset_z = player.z - tile_z
+    if offset_x == 0 and offset_z == 0 then
+        -- Still ON it (the step off did not land): any side is another side.
+        offset_z = -1
+    end
+    local want_x, want_z
+    if index == 1 then
+        want_x, want_z = tile_x - offset_x, tile_z - offset_z
+    elseif index == 2 then
+        want_x, want_z = tile_x + offset_z, tile_z - offset_x
+    elseif index == 3 then
+        want_x, want_z = tile_x - offset_z, tile_z + offset_x
+    else
+        return "unsupported", "far side: no side " .. tostring(index)
+    end
+    QD.player.walk_to(want_x, want_z, QD.player._step_off_ticks)
+    local here_result, here = api_drive.player_tile()
+    if here_result ~= "ok" then
+        return here_result, "player_tile"
+    end
+    if here.x == player.x and here.z == player.z then
+        return "timeout", string.format(
+            "side %d of %d,%d: asked for %d,%d and the player never left %d,%d",
+            index, tile_x, tile_z, want_x, want_z, player.x, player.z)
+    end
+    -- WHERE HE ENDED, not where he was sent.  A tile the router cannot reach
+    -- (the far side of a hut wall) is served by walking to the nearest tile it
+    -- can, which is a different place and sometimes a better one -- the row
+    -- has to name the tile the press was actually made from.
+    return "ok", string.format(
+        "pressed again from side %d of %d,%d (%d,%d -> %d,%d, asked %d,%d)",
+        index, tile_x, tile_z, player.x, player.z, here.x, here.z, want_x, want_z)
+end
+
 -- Walk until the player is actually NEXT TO the target.
 --
 -- TWO bugs are fixed here, and the second was hidden behind the first.
@@ -825,7 +1039,8 @@ end
 -- The deadline is the distance plus slack rather than a flat 20: one tile per
 -- tick is the walking rate, so a flat 20 is a bet that no quest ever names
 -- anything more than 20 tiles away, and the Lumbridge tree is 23.
-function QD.player.walk_near(target, ticks)
+function QD.player.walk_near(target, ticks, minimum)
+    minimum = minimum or 0
     if target.kind ~= "npc" and target.kind ~= "loc" then
         return "unsupported", "walk_near: kind must be npc or loc"
     end
@@ -838,8 +1053,32 @@ function QD.player.walk_near(target, ticks)
         return player_result, "player_tile"
     end
     local distance = QD.player._tile_distance(player.x, player.z, tile_x, tile_z)
+    -- TOO CLOSE IS A DISTANCE TOO (the banner above _step_off_tile): a click
+    -- aimed at the tile the player is standing on has no clear pixel from any
+    -- camera, so `minimum` is checked BEFORE the "already near enough" return
+    -- that would otherwise call standing on top of the target an arrival.
+    local stepped = nil
+    if distance < minimum then
+        local step_result, step_detail = QD.player._step_off_tile(target, tile_x, tile_z, minimum)
+        if step_result ~= "ok" then
+            return step_result, "walk_near " .. target.kind .. " "
+                .. tostring(target.id) .. ": " .. tostring(step_detail)
+        end
+        stepped = step_detail
+        -- Folded into whichever row is written next, exactly as the multiloc
+        -- note is: the ledger has to say that the verb moved the player, or
+        -- the row is a pass whose reason is invisible.
+        QD.note("walk_near: " .. stepped)
+        local here_result, here = api_drive.player_tile()
+        if here_result ~= "ok" then
+            return here_result, "player_tile"
+        end
+        player = here
+        distance = QD.player._tile_distance(player.x, player.z, tile_x, tile_z)
+    end
     if distance <= QD.player._walk_near_range then
-        return "ok", "already within " .. tostring(distance)
+        return "ok", (stepped and (stepped .. "; ") or "")
+            .. "already within " .. tostring(distance)
     end
     local approach_x = QD.player._step_toward(tile_x, player.x)
     local approach_z = QD.player._step_toward(tile_z, player.z)
@@ -1344,7 +1583,13 @@ function QD.player.click_loc(loc, op)
     if note then
         QD.note("click_loc " .. note)
     end
-    QD.player.walk_near(target)
+    -- `minimum` is the standoff, not the reach: a loc the player is standing
+    -- ON is a click with no clear pixel (QD.player._step_off_tile's banner),
+    -- and walk_near is where this verb's approach already lives, so the step
+    -- off happens HERE -- above the before-reads below -- rather than inside
+    -- the projection, where it would move the player between the two loc
+    -- readings the door evidence compares.
+    QD.player.walk_near(target, nil, QD.player._loc_standoff)
     -- A DOOR SAYS NOTHING, and the settle has no arm for silence.
     --
     -- Measured 2026-09-19 (build/quest_gate/door_fence): the closed door
@@ -1381,6 +1626,26 @@ function QD.player.click_loc(loc, op)
     -- press.
     local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.drive.click_minimenu(target, op)
+    local side = 1
+    while click_result == "covered" and side <= QD.player._far_side_attempts do
+        -- Five camera poses found no row for it and the player is within a
+        -- tile: walk to another side of it and press again (see
+        -- QD.player._far_side_step).  Every BEFORE reading is retaken after
+        -- the walk -- the door evidence at the bottom of this function
+        -- compares the nearest copy of the symbol from the player's tile, and
+        -- a walk between the two readings is exactly what makes them
+        -- incomparable.
+        local far_result, far_detail = QD.player._far_side_step(target, side)
+        if far_result ~= "ok" then
+            break
+        end
+        QD.note("click_loc: " .. far_detail)
+        before_result, before_row = QD.world.loc_near(loc, 3)
+        before_tile_result, before_tile = QD.world.tile()
+        before_kind, before_text = QD.player._chat_page()
+        click_result, click = QD.drive.click_minimenu(target, op)
+        side = side + 1
+    end
     if click_result ~= "ok" then
         return click_result, click
     end
@@ -1727,6 +1992,56 @@ function QD.player.drop(item)
         .. ", ground " .. tostring(ground_before) .. " -- '" .. QD.player._last_line() .. "'"
 end
 
+-- Did the `select` press actually land the HELD-ITEM row?
+--
+-- The wildcard DrivePointer_MenuRowFind uses for "select" (action < 0, its own
+-- header contract) matches the first row carrying this ELEMENT whatever its
+-- action, because the contract assumes a precondition: with a selection armed,
+-- add_world_select_row collapses that element's menu to ONE row whose action
+-- is USEHELD_ON*.  When the arming is gone the precondition is false and the
+-- wildcard matches the element's ORDINARY first row instead -- and the verb
+-- then reports `ok` for a press that only examined something.
+--
+-- Measured 2026-09-20, build/quest_gate/fishingcompo row
+-- `garlicpipe.stash_covered`: a re-press answered `ok` while the chat log read
+-- "It's a Crate. / It's a Crate. / It's a Wall Pipe." and %fishingcompo never
+-- moved -- three examines where the quest wanted [oplocu,garlicpipe].  The
+-- quest file's own check (`stash_result ~= "ok"`) is what caught it.
+--
+-- The press is graded against the CLOSED SET of ordinary actions this pick
+-- kind can carry -- op1..op5 and examine, straight out of
+-- DrivePointer_ActionForSlot -- and never against the row's TEXT, which is the
+-- rule MenuRowFind itself keeps.  A USEHELD_ON* action is in none of them, so
+-- a genuine select press passes and every ordinary row is named and refused.
+function QD.player._select_row_is_held(target, click)
+    if type(click) ~= "table" or click.row_action == nil then
+        return false, "the press answered no row to check"
+    end
+    for slot = -1, 4 do
+        local result, action = api_drive.action_for_slot(target.kind, slot)
+        if result == "ok" and action == click.row_action then
+            return false, "pressed '" .. tostring(click.row_text)
+                .. "', an ordinary op row and not the held-item row"
+                .. " -- the arming was gone by the time the menu opened"
+        end
+    end
+    return true, nil
+end
+
+-- NO RE-ARM BEFORE A RETRY PRESS, and the reason is a measurement.
+--
+-- Taking the "Use <item>" row a second time while a selection is still LIVE
+-- does not re-arm anything: app_minimenu_inv_action's objsel branch runs
+-- BEFORE the switch on the action, so the second arming press is encoded as
+-- an OPHELDU of the item ON ITSELF and clears the selection -- after which
+-- DrivePointer_InvOp's own check (`option < 0 && !objsel.active`) answers
+-- refused.  Measured 2026-09-20: a use_on that re-armed between far-side
+-- presses turned cog's `place.redcog`, which had just started landing, into
+-- `refused -- use_on redcog: re-arming redcog`, while the same run without
+-- the re-arm placed the red AND blue cogs and moved %cogquest 1 -> 2 -> 3.
+-- The arming DOES survive a covered press and the walk after it; what does
+-- not survive is left to QD.player._select_row_is_held to catch.
+
 -- Two phases, and the first one is checked before the second is attempted.
 --
 -- Phase 1 arms app->objsel from the item's own cell (OPHELDT_START, the "Use"
@@ -1755,7 +2070,14 @@ function QD.player.use_on(item, target)
     -- nothing.  Phase 2 is an ordinary click and wants the same proximity
     -- every other world click wants.
     if target.kind == "npc" or target.kind == "loc" then
-        QD.player.walk_near(target)
+        -- The loc half takes the same standoff click_loc does: an armed item
+        -- pressed at a pixel the player's own model covers spends the arming
+        -- on whatever the menu DOES have a row for, or on nothing at all.
+        local standoff = 0
+        if target.kind == "loc" then
+            standoff = QD.player._loc_standoff
+        end
+        QD.player.walk_near(target, nil, standoff)
     end
     QD.player._show_backpack()
     local cell_result, cell = QD.player._inv_cell(item)
@@ -1771,9 +2093,337 @@ function QD.player.use_on(item, target)
     -- for the use's answer either (talk_to's rule, applied to phase 2).
     local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.drive.click_minimenu(target, "select")
+    local side = 1
+    while click_result == "covered" and side <= QD.player._far_side_attempts do
+        -- The same walk around the target click_loc takes, for the same
+        -- reason.
+        local far_result, far_detail = QD.player._far_side_step(target, side)
+        if far_result ~= "ok" then
+            break
+        end
+        QD.note("use_on: " .. far_detail)
+        -- The arming is NOT re-taken here: see the banner above this
+        -- function.  Whether it survived is answered after the loop, by the
+        -- row that actually got pressed.
+        before_kind, before_text = QD.player._chat_page()
+        click_result, click = QD.drive.click_minimenu(target, "select")
+        side = side + 1
+    end
     if click_result ~= "ok" then
         return click_result, click
+    end
+    -- THE ROW THAT WAS PRESSED, checked rather than assumed: the wildcard can
+    -- match an ordinary row once the arming is gone, and an `ok` for a press
+    -- that only examined the target is the one answer this verb must never
+    -- give (build/quest_gate/fishingcompo, 2026-09-20).
+    local held_ok, held_why = QD.player._select_row_is_held(target, click)
+    if not held_ok then
+        return "refused", "use_on " .. item .. " on " .. target.kind .. " "
+            .. tostring(target.symbol or target.id) .. ": " .. held_why
     end
     return QD.player._settle_after_click(20, before_kind, before_text)
 end
 
+
+-- ===========================================================================
+-- Q1 APPEND-ONLY BLOCK -- item-on-item (OPHELDU).  Everything above this line
+-- belongs to another author in this same tree; this block adds functions and
+-- edits nothing.
+-- ===========================================================================
+--
+-- THE GAP THIS CLOSES.  Three batches of quest tests stopped at the same
+-- sentence -- "no item-on-item (OPHELDU) verb exists in this driver" -- with
+-- four quests queued behind it (fluffs, mortton, makinghistory, fishingcompo).
+-- player.use_on covers "carried item -> WORLD target"; content's other half,
+-- `[opheldu,<obj>]` with `last_useitem` naming the other carried item
+-- (quest_fluffs.rs2:156-168, brew_potion.rs2:14-18), had no verb at all.
+--
+-- HOW IT IS DONE, and the one thing it must never become.  Both halves are
+-- the client's own dispatch and no packet is built here:
+--
+--   phase 1, the SELECT half -- api_drive.inv_op(cell_a..., -1), exactly the
+--   arming use_on does: app_plugin_inv_op fabricates the one-row menu the
+--   real right-click would have carried (OPHELDT_START, "Use <item>"),
+--   app_minimenu_inv_action puts the cell into app->objsel, and
+--   DrivePointer_InvOp REFUSES unless objsel came back holding this obj, so a
+--   cell that offered no Use row cannot look armed;
+--
+--   phase 2, the CLICK on the other cell -- api_drive.inv_use_on(cell_b...),
+--   the seam added for this verb (torirs_plugin_drive_pointer.c,
+--   drive_pointer_inv_use_on).  Same dispatcher, same INV_SLOT pick, and the
+--   client encodes OPHELDU itself: net_out_opheldu(clicked obj/slot/com,
+--   armed obj/slot/com).  That seam is the one that can tell "the client sent
+--   it" from "the row never ran" -- the objsel branch is the only thing that
+--   CLEARS the selection, so a selection that is gone afterwards IS the
+--   OPHELDU, and one still standing means the cell was not live and nothing
+--   at all was sent.  It also refuses a cell being used on itself, which is
+--   the row the real menu builder omits (rs_minimenu_build.c,
+--   add_inv_slot_select_row: "can't use an item on itself").
+--
+-- THE TRAP, and why phase 2 is not just another inv_op call.  With a
+-- selection armed, app_minimenu_inv_action's objsel branch runs BEFORE the
+-- switch on the action, so ANY op value produces the same OPHELDU -- and the
+-- op value only starts to matter once the arming is gone, which is exactly
+-- when a verb is already wrong.  On rev-239's backpack op 1 is the
+-- shift-click-drop chain, so "arm, lose the arming, click the target cell
+-- with op 1" would put the target item on the FLOOR and settle on the drop.
+-- The seam passes Examine (0) for that reason and then proves it was never
+-- read.  Never reach for inv_op(..., 1) here.
+--
+-- WHAT COUNTS AS SETTLED (deadline 10 server ticks), any one of:
+--   * a dialogue page that is UP and differs from the page before the click
+--     -- the mesbox/objbox almost every recipe answers with (fluffs:
+--     "You rub the doogle leaves over the sardine.");
+--   * a new chat line, by serial, newer than the pre-click one;
+--   * either item's backpack total changing -- the silent recipes, the ones
+--     that just swap two items for a third with nothing said.
+-- A recipe whose mesbox blocks the script (~mesbox waits for the player's
+-- continue) lands its inv_add only AFTER the page is dismissed, so the page
+-- is the settle and the produced item is the NEXT row's assertion -- the
+-- detail says which of the three arms answered and prints the backpack diff
+-- it could see, rather than pretending the swap had landed.
+--
+-- THE REFUSAL FENCE is this file's own (CLICK_REFUSAL_LINES at the top): a
+-- new chat line that IS one of the engine's refusal sentences answers
+-- `refused` carrying that sentence, never `ok`.  "Nothing interesting
+-- happens." is how content declines an item-on-item no script claims
+-- (torirs_server_scripts.c's opheldu dispatch falls through all four rungs),
+-- and a verb that graded that PASS would be the whole reason this fence
+-- exists.
+--
+-- Answers: `ok` (settled, detail names the arm), `not_found` (either item is
+-- not in the backpack), `refused` (the arming did not take, the client did
+-- not encode the use, or the server's own refusal line), `no_row` (the two
+-- names are the same cell), `timeout` (detail says what WAS observed),
+-- `unsupported` (an argument that is not a content symbol).
+
+-- Every backpack cell as { symbol -> total }, plus the symbols in slot order
+-- so a diff prints deterministically (this chunk has table.concat but no
+-- sorted iteration to lean on, and pairs() order is not stable).
+function QD.player._inv_contents()
+    local container_result, container_id = QD._inv_container()
+    if container_result ~= "ok" then
+        return container_result, "inv"
+    end
+    local capacity_result, capacity = api_drive.inv_capacity(container_id)
+    if capacity_result ~= "ok" then
+        return capacity_result, "inv_capacity"
+    end
+    local totals = {}
+    local order = {}
+    for index = 0, capacity - 1 do
+        local slot_result, slot = api_drive.inv_slot(container_id, index)
+        if slot_result == "ok" and slot.obj_id > 0 then
+            local name_result, name = api_drive.symbol_name("obj", slot.obj_id)
+            if name_result ~= "ok" then
+                name = "obj#" .. tostring(slot.obj_id)
+            end
+            if totals[name] == nil then
+                totals[name] = 0
+                order[#order + 1] = name
+            end
+            totals[name] = totals[name] + (slot.count or 1)
+        end
+    end
+    return "ok", { totals = totals, order = order }
+end
+
+-- "gained seasoned_sardine 0->1; lost doogleleaves 1->0, raw_sardine 1->0",
+-- or "" when nothing moved.  The evidence half of this verb's detail: a
+-- recipe's whole observable effect is which items left and which arrived.
+function QD.player._inv_contents_diff(before, after)
+    local gained = {}
+    local lost = {}
+    local text = ""
+    for i = 1, #after.order do
+        local name = after.order[i]
+        local was = before.totals[name] or 0
+        if after.totals[name] > was then
+            gained[#gained + 1] = name .. " " .. tostring(was) .. "->" .. tostring(after.totals[name])
+        end
+    end
+    for i = 1, #before.order do
+        local name = before.order[i]
+        local now = after.totals[name] or 0
+        if now < before.totals[name] then
+            lost[#lost + 1] = name .. " " .. tostring(before.totals[name]) .. "->" .. tostring(now)
+        end
+    end
+    if #gained > 0 then
+        text = "gained " .. table.concat(gained, ", ")
+    end
+    if #lost > 0 then
+        text = (text ~= "" and (text .. "; ") or "") .. "lost " .. table.concat(lost, ", ")
+    end
+    return text
+end
+
+-- The page, trimmed and capped, for a detail that has to fit a ledger cell.
+function QD.player._page_summary(kind, text)
+    local trimmed = string.match(tostring(text), "^%s*(.-)%s*$") or ""
+    if #trimmed > 96 then
+        trimmed = string.sub(trimmed, 1, 93) .. "..."
+    end
+    if trimmed == "" then
+        return tostring(kind)
+    end
+    return tostring(kind) .. " '" .. trimmed .. "'"
+end
+
+QD.player.USE_ITEM_ON_ITEM_TICKS = 10
+
+function QD.player.use_item_on_item(item_a, item_b)
+    if type(item_a) ~= "string" or type(item_b) ~= "string" then
+        return "unsupported", "use_item_on_item: both arguments are obj content symbols"
+    end
+    QD.player._show_backpack()
+    local cell_a_result, cell_a = QD.player._inv_cell(item_a)
+    if cell_a_result ~= "ok" then
+        return cell_a_result, cell_a
+    end
+    local cell_b_result, cell_b = QD.player._inv_cell(item_b)
+    if cell_b_result ~= "ok" then
+        return cell_b_result, cell_b
+    end
+    local where = item_a .. " (slot " .. tostring(cell_a.slot) .. ") on "
+        .. item_b .. " (slot " .. tostring(cell_b.slot) .. ")"
+    if cell_a.component_id == cell_b.component_id and cell_a.slot == cell_b.slot then
+        return "no_row", where .. ": one cell cannot be used on itself"
+    end
+
+    -- Everything the settle compares against, taken BEFORE the arming: the
+    -- page (the arming is a backpack press of its own and must not be
+    -- mistaken for the use's answer -- talk_to's rule), the message serial,
+    -- and the whole backpack.
+    local before_kind, before_text = QD.player._chat_page()
+    local serial_result, since = api_drive.message_serial()
+    local snapshot_result, before = QD.player._inv_contents()
+    if snapshot_result ~= "ok" then
+        return snapshot_result, before
+    end
+    -- READ THROUGH QD.inv.count, not out of the snapshot above.  The
+    -- snapshot's keys are api_drive.symbol_name's spelling of each obj id and
+    -- the caller's argument is whatever spelling resolved to it; a key that
+    -- missed would read as 0, the level predicate below would see "the count
+    -- changed" at REGISTRATION, and the verb would answer `ok` for a click
+    -- that had not happened yet.  Same read, same resolver, both sides.
+    local before_a_result, before_a = QD.inv.count(item_a)
+    local before_b_result, before_b = QD.inv.count(item_b)
+    if before_a_result ~= "ok" then
+        return before_a_result, where .. ": " .. tostring(before_a)
+    end
+    if before_b_result ~= "ok" then
+        return before_b_result, where .. ": " .. tostring(before_b)
+    end
+
+    local arm_result =
+        api_drive.inv_op(cell_a.component_id, cell_a.slot, cell_a.obj_id, cell_a.count, -1)
+    if arm_result ~= "ok" then
+        return arm_result, where .. ": the Use row did not arm " .. item_a
+    end
+    local click_result =
+        api_drive.inv_use_on(cell_b.component_id, cell_b.slot, cell_b.obj_id, cell_b.count)
+    if click_result ~= "ok" then
+        return click_result, where .. ": the client did not encode the use (" .. click_result .. ")"
+    end
+
+    local resolved_by = nil
+    local settle_line = ""
+    local refusal = nil
+    local settle_result = QD.await({
+        match = function(ev)
+            if ev.kind == "chat_message" and serial_result == "ok" and ev.b > since then
+                settle_line = QD.player._line_by_serial(ev.b)
+                refusal = QD.player._refusal_line(settle_line)
+                resolved_by = "chat_message"
+                return true
+            end
+            return false
+        end,
+        level = function()
+            local a_result, a_now = QD.inv.count(item_a)
+            if a_result == "ok" and a_now ~= (before_a or 0) then
+                resolved_by = "inv " .. item_a .. " " .. tostring(before_a or 0)
+                    .. "->" .. tostring(a_now)
+                return true
+            end
+            local b_result, b_now = QD.inv.count(item_b)
+            if b_result == "ok" and b_now ~= (before_b or 0) then
+                resolved_by = "inv " .. item_b .. " " .. tostring(before_b or 0)
+                    .. "->" .. tostring(b_now)
+                return true
+            end
+            local kind, text = QD.player._chat_page()
+            -- A page that went AWAY is not a page this click put up -- the
+            -- same rule _settle_after_click's fourth arm keeps, for the same
+            -- reason: a mesbox an earlier row left open is torn down by the
+            -- next press whatever it hit.
+            if kind == "none" then
+                return false
+            end
+            if kind ~= before_kind or text ~= before_text then
+                resolved_by = "page " .. tostring(before_kind) .. "->"
+                    .. QD.player._page_summary(kind, text)
+                return true
+            end
+            return false
+        end,
+        note = "use_item_on_item " .. where,
+    }, QD.player.USE_ITEM_ON_ITEM_TICKS)
+
+    if not refusal and serial_result == "ok" then
+        refusal = QD.player._refusal_since(since)
+    end
+
+    -- THE SWAP LANDS AFTER THE SENTENCE THAT ANNOUNCES IT.  Measured
+    -- (build/quest_gate/q1_useitem2, row 20): Desert Treasure's
+    -- [opheldu,garlic] says "You crush the garlic to a fine powder." and the
+    -- backpack update arrives on a LATER tick, so a detail read at the moment
+    -- the chat arm resolved said `backpack unchanged` for a recipe that had
+    -- just produced the powder -- the row named the sentence and not the
+    -- thing made.  So the settle above is what ANSWERS the verb and this
+    -- short, bounded wait is only about the EVIDENCE: hold until anything in
+    -- the backpack differs from the pre-click snapshot, at most 4 ticks.
+    --
+    -- Skipped in the two cases where waiting can only burn budget: a refusal
+    -- moves nothing, and a page that is still up is `~mesbox` PAUSING the
+    -- content script -- its inv_add cannot land until somebody dismisses the
+    -- page, which is the NEXT row's job and not this verb's.
+    QD.settle()
+    if not refusal and QD.chat.kind() == "none" then
+        QD.await({
+            event = "server_tick",
+            match = function()
+                local now_result, now = QD.player._inv_contents()
+                return now_result ~= "ok"
+                    or QD.player._inv_contents_diff(before, now) ~= ""
+            end,
+            note = "use_item_on_item: the swap " .. where,
+        }, 4)
+    end
+    local after_result, after = QD.player._inv_contents()
+    local moved = ""
+    if after_result == "ok" then
+        moved = QD.player._inv_contents_diff(before, after)
+    end
+    local detail = where .. ": " .. tostring(resolved_by or settle_result)
+    if settle_line ~= "" then
+        detail = detail .. " '" .. settle_line .. "'"
+    end
+    if moved ~= "" then
+        detail = detail .. " -- " .. moved
+    else
+        detail = detail .. " -- backpack unchanged"
+    end
+
+    if refusal then
+        return "refused", detail
+    end
+    if settle_result ~= "ok" then
+        return settle_result, where .. ": nothing in "
+            .. tostring(QD.player.USE_ITEM_ON_ITEM_TICKS) .. " ticks -- page "
+            .. QD.player._page_summary(QD.player._chat_page()) .. ", "
+            .. (moved ~= "" and moved or "backpack unchanged")
+    end
+    return "ok", detail
+end

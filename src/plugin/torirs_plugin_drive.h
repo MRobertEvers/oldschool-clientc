@@ -749,6 +749,46 @@ struct DriveNpcRow
     int base_npc_id;
     int tile_x, tile_z, level;
     int element_id;
+    /**
+     * The overhead health bar, the ONLY hitpoints reading a client has.
+     *
+     * The client is never told an npc's hitpoints: the server sends a HEADBAR
+     * block carrying a fill that is a FRACTION OF THE TYPE'S `width`, never a
+     * hp count (src/game/rs_healthbar.h -- conflating the two is what once
+     * made boss bars screen-wide).  So a combat verb reads a RATIO, and a
+     * seven-hitpoint gardener at four hitpoints reads 17/30, not 4/7.
+     *
+     * `health_ratio` is `healthbar_end_fill` and not `start_fill`, for the
+     * same reason app_plugin_fill_npc_for_world's own health pair is: the two
+     * describe a fill ANIMATING from one value to the other, and the END is
+     * where the server said it is going -- the value that reads 0 on the tick
+     * something dies.  `health_scale` is the type's `width` denominator.
+     * Both are -1 when the server has never sent this npc a bar, which is
+     * every npc nobody has hit.
+     */
+    int health_ratio;
+    int health_scale;
+    /** The bar is inside its display window NOW (`healthbar_end_cycle >
+     *  world->cycle`), the same test app_overlay_entities.c makes before it
+     *  draws one.  A fight that has stopped leaves the last ratio behind with
+     *  this 0, so a reader can tell "at 17/30 and being hit" from "was last
+     *  seen at 17/30 some time ago". */
+    int health_active;
+    /**
+     * The newest hitsplat on this npc: its damage value, and the cycle it
+     * started on.  `hit_cycle` is the EDGE a combat verb waits for -- it is
+     * strictly increasing per splat, so "a new hit landed" is
+     * `hit_cycle > <the one I read before the click>` and needs no guess
+     * about how long a splat lives.  0/-1 means this npc has no splat in its
+     * slots at all.
+     *
+     * Only slots whose window covers the current cycle count
+     * (`damage_start_cycles[i] <= cycle < damage_cycles[i]`, the live test
+     * app_overlay_entities.c draws by): an expired slot keeps its values and
+     * would otherwise read as a fresh hit forever.
+     */
+    int hit_damage;
+    int hit_cycle;
     /** Normalised: WorldEntity_NPC.name is sized 64 because it stores the
      *  <col=...> tagged form, so the tags come off here. */
     char name[64];

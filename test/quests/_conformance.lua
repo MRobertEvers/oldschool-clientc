@@ -63,16 +63,16 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 98 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 101 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 98
+-- @verb-count 101
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 98
+local VERB_COUNT = 101
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -149,6 +149,35 @@ local OBJECTBOX_INTERFACE = "objectbox"
 local INVENTORY_ITEMS_COMPONENT = "inventory:items"
 local OBJBOX_TEXT_FRAGMENT = "You get some"   -- interface_chat/scripts/chat.rs2:408
 local DROP_MESSAGE_FRAGMENT = "Dropped"       -- ::dropobj's reply (cheat_obj.rs2:20)
+
+-- player.use_item_on_item's pair, and what it makes.  Desert Treasure's
+-- `[opheldu,garlic]` (quests/quest_deserttreasure/scripts/deserttreasure.rs2:505)
+-- is `if (last_useitem = pestle_and_mortar)` with no quest gate on it at all:
+-- it deletes the garlic, adds the powder and says one line.  Chosen over the
+-- other recipes this pack has for three reasons -- it is reachable from a
+-- fresh character, its whole effect is a BACKPACK SWAP the row can read back
+-- (so a verb that answered `ok` having sent nothing cannot pass), and it
+-- answers with a chat line rather than a `~mesbox`, so it leaves no dialogue
+-- page standing for the rows after it to inherit.
+local USE_ITEM_HELD = "pestle_and_mortar"   -- armed: phase 1, the "Use" row
+local USE_ITEM_TARGET = "garlic"            -- clicked: phase 2, the OPHELDU
+local USE_ITEM_MADE = "fd_crushed_garlic"   -- what the recipe leaves behind
+
+-- The combat pair's subject: the SAME Man the pointer rows above point at
+-- (`op1=Talk-to`, `op2=Attack`, `stat4=7` -- seven hitpoints and negative
+-- defences, configs/all.npc), so Attack is op 2 here exactly as it is on the
+-- npc player.attack's banner names.  Last in the run, because these two rows
+-- kill him and `npc.await_present`/`player.talk_to`/`drive.*` above all need
+-- him alive.
+local COMBAT_ATTACK_OP = 2
+-- Gear and levels are a PREREQUISITE, not the thing under test: the fight
+-- itself is still driven by a real Attack click through click_minimenu.  A
+-- level-3 fresh character with no weapon lands about one hit in thirty
+-- (measured, build/quest_gate/q3probe2: thirty swings from one click, one
+-- hit of 1), which would make this row a coin toss on the deadline rather
+-- than a test of the verb.
+local COMBAT_WEAPON = "rune_scimitar"
+local COMBAT_LEVEL = 40
 
 -- A detail column is a string or the ledger's luaL_optstring raises.  Tables
 -- (a verb that answers with a row, a tile, an options list) are summarised
@@ -914,6 +943,65 @@ return {
             return result, describe(detail)
         end)
 
+        -- ----------- phase 7b: the three verbs the phase 6 seams landed
+        --
+        -- Last of the acting rows, and after player.goto_tile, because the
+        -- two combat rows KILL the Man every pointer and npc row above
+        -- points at.  Nothing below this block reads the world.
+
+        -- setup: the recipe's two items.  A `::give` pair, exactly as a quest
+        -- test's own `setup` would state a prerequisite -- the thing under
+        -- test is the OPHELDU click, not how the items were got.
+        stage(function()
+            local close = verb("chat", "close")
+            if close then
+                close()
+            end
+            setup_cheat("::give " .. USE_ITEM_HELD .. " 1")
+            setup_cheat("::give " .. USE_ITEM_TARGET .. " 1")
+            settle(4)
+        end)
+
+        step("player.use_item_on_item", function()
+            local fn = verb("player", "use_item_on_item")
+            if not fn then return missing("player", "use_item_on_item") end
+            local count = verb("inv", "count")
+            if not count then
+                return "no_subject", "t.inv.count is not a function, so nothing can grade the swap"
+            end
+            local have_state, have = count(USE_ITEM_TARGET)
+            if have_state ~= "ok" or not is_number(have) or have < 1 then
+                return "no_subject", "::give " .. USE_ITEM_TARGET .. " left "
+                    .. describe(have) .. " in the backpack (" .. tostring(have_state) .. ")"
+            end
+            local result, detail = fn(USE_ITEM_HELD, USE_ITEM_TARGET)
+            local text = USE_ITEM_HELD .. " on " .. USE_ITEM_TARGET .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- THE SWAP IS THE EVIDENCE, not the verb's own word.  A verb that
+            -- armed nothing, sent nothing and answered ok off a chat line
+            -- that was already on screen still leaves the garlic in the
+            -- backpack and no powder in it, and that is what this reads.
+            local wait = verb("inv", "await")
+            if wait then
+                wait(USE_ITEM_MADE, 1, 5)
+            end
+            local made_state, made = count(USE_ITEM_MADE)
+            local left_state, left = count(USE_ITEM_TARGET)
+            if made_state ~= "ok" or not is_number(made) or made < 1 then
+                return "hollow", "answered ok but " .. USE_ITEM_MADE .. " reads "
+                    .. describe(made) .. " (" .. tostring(made_state) .. ") -- " .. text
+            end
+            if left_state == "ok" and is_number(left) and left >= have then
+                return "hollow", "answered ok but " .. USE_ITEM_TARGET
+                    .. " is still " .. describe(left) .. " in the backpack -- " .. text
+            end
+            return "ok", text .. " [" .. USE_ITEM_TARGET .. " " .. describe(have)
+                .. "->" .. describe(left) .. ", " .. USE_ITEM_MADE .. " ->"
+                .. describe(made) .. "]"
+        end)
+
         -- ------------------------------------------------- phase 4: ui
 
         step("ui.widget", function()
@@ -1564,6 +1652,118 @@ return {
                     .. describe(tile.level) .. " -- " .. wanted .. " -> " .. describe(detail)
             end
             return "ok", wanted .. " -> " .. describe(detail)
+        end)
+
+
+        -- --------------- phase 7b: the fight the phase 6 seams landed
+        --
+        -- Last of the acting rows, and after player.goto_tile, because these
+        -- two KILL the Man every pointer and npc row above points at.
+        -- Nothing below this block reads the world.
+        --
+        -- setup: back to the Man, and armed for a fight that ends inside a
+        -- deadline.  The teleport is the same one the world phase opened
+        -- with; player.goto_tile left the player upstairs in the castle,
+        -- where there is no npc to attack at all.
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(6)
+            setup_cheat("::setlevel attack " .. COMBAT_LEVEL)
+            setup_cheat("::setlevel strength " .. COMBAT_LEVEL)
+            setup_cheat("::setlevel hitpoints " .. COMBAT_LEVEL)
+            setup_cheat("::give " .. COMBAT_WEAPON .. " 1")
+            settle(4)
+            local equip = verb("player", "equip")
+            if equip then
+                equip(COMBAT_WEAPON)
+            end
+            settle(4)
+        end)
+
+        -- The slot of the npc these two rows fight, read once before the
+        -- attack: a SYMBOL is not a target (falador_gardener has three spawn
+        -- rows, and Lumbridge has a courtyard full of Men), so "the one we
+        -- fought is gone" can only be asked of the slot, never of the name.
+        local combat_slot = nil
+
+        step("player.attack", function()
+            local fn = verb("player", "attack")
+            if not fn then return missing("player", "attack") end
+            local nearest = verb("npc", "nearest")
+            if not nearest then
+                return "no_subject", "t.npc.nearest is not a function, so no slot can be read"
+            end
+            local before_state, before = nearest(NPC_SYMBOL, 5)
+            if before_state ~= "ok" or not is_table(before) then
+                return "no_subject", NPC_SYMBOL .. " is not within five tiles ("
+                    .. tostring(before_state) .. ")"
+            end
+            combat_slot = before.slot
+            -- Twenty ticks, not the verb's ten: the click is issued straight
+            -- after the equip above, and an Attack click made while another
+            -- action is still in flight buys nothing for its first few ticks
+            -- (player.attack's own banner, measured in build/quest_gate/
+            -- q3proof).
+            local result, detail = fn(NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
+            local text = NPC_SYMBOL .. " op" .. COMBAT_ATTACK_OP .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- THE BAR IS THE EVIDENCE.  A client is never told an npc's
+            -- hitpoints -- the server sends a HEADBAR fill out of the
+            -- healthbar type's own width, and it sends the first one only
+            -- once something has hit the npc.  So `health_ratio` rising off
+            -- -1 ("no bar has ever been sent for this npc") is the world
+            -- saying the swing landed, and is a fact this row can read that
+            -- the verb's own answer cannot fabricate.
+            local after_state, after = nearest(NPC_SYMBOL, 5)
+            if after_state ~= "ok" or not is_table(after) then
+                -- Gone inside the attack's own settle is a one-shot kill,
+                -- which is the strongest answer there is.
+                return "ok", text .. " [the npc left the pool inside the settle]"
+            end
+            if not is_number(after.health_ratio) or after.health_ratio < 0 then
+                return "hollow", "answered ok but the npc still carries no health bar, "
+                    .. "so nothing has hit it -- " .. text
+            end
+            return "ok", text .. " [health bar " .. describe(after.health_ratio)
+                .. "/" .. describe(after.health_scale) .. "]"
+        end)
+
+        step("npc.await_dead", function()
+            local fn = verb("npc", "await_dead")
+            if not fn then return missing("npc", "await_dead") end
+            if combat_slot == nil then
+                return "no_subject", "player.attack read no npc slot to finish off"
+            end
+            local result, detail = fn(NPC_SYMBOL, 60)
+            local text = NPC_SYMBOL .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- The npc we FOUGHT, by slot.  `nearest` answering ok again is
+            -- not a failure: Lumbridge has several Men and the next one is
+            -- only ever a few tiles away -- it is the same slot coming back
+            -- that would mean the verb called a living npc dead.
+            local nearest = verb("npc", "nearest")
+            local state, row = "missing", nil
+            if nearest then state, row = nearest(NPC_SYMBOL, 5) end
+            if state == "ok" and is_table(row) and row.slot == combat_slot
+                and is_number(row.health_ratio) and row.health_ratio > 0 then
+                return "hollow", "answered ok but slot " .. describe(combat_slot)
+                    .. " is still in the pool at " .. describe(row.health_ratio)
+                    .. "/" .. describe(row.health_scale) .. " -- " .. text
+            end
+            -- Not "the slot is gone": a corpse stays in the pool for a few
+            -- ticks with its bar at 0, which is exactly what await_dead
+            -- resolves on, so the row names the READING rather than claiming
+            -- a disappearance it did not check for.
+            return "ok", text .. " [slot " .. describe(combat_slot)
+                .. " no longer reads as alive; nearest " .. NPC_SYMBOL .. " now "
+                .. (state == "ok" and is_table(row)
+                    and ("slot " .. describe(row.slot) .. " at "
+                        .. describe(row.health_ratio) .. "/" .. describe(row.health_scale))
+                    or tostring(state)) .. "]"
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

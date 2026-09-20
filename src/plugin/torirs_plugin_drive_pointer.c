@@ -81,6 +81,15 @@ extern int app_plugin_world_walk_near(struct App* app, enum DrivePickKind kind, 
 extern int app_plugin_inv_op(
     struct App* app, int component_id, int slot, int obj_id, int count, int option);
 
+/* app_minimenu.c's "clicked off" convergence point (its own banner: every
+ * site that ends a selection funnels through here, so a mode added later
+ * cannot be forgotten at one of them).  Non-static there, but app_minimenu.c
+ * is #included into app.c and app_internal.h is layer-private, so it is
+ * declared here for the same reason the four above are.  Used by
+ * drive_pointer_inv_use_on to make sure a FAILED item-on-item leaves no armed
+ * selection behind for the next verb's click to spend. */
+extern int app_selection_clear(struct App* app);
+
 /* See the file banner: core-scheduler's seam, not landed yet. */
 extern struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
 
@@ -930,6 +939,67 @@ DrivePointer_InvOp(
     return DRIVE_OK;
 }
 
+/*
+ * THE SECOND HALF OF AN ITEM-ON-ITEM (player.use_item_on_item's phase 2): the
+ * click that lands on the OTHER backpack cell while a "Use" selection is
+ * armed, so the CLIENT encodes OPHELDU -- app_minimenu_inv_action's first
+ * branch, net_out_opheldu(clicked obj/slot/component, armed obj/slot/
+ * component) -- and no packet is ever synthesised here.
+ *
+ * Why this is not just another DrivePointer_InvOp call.
+ *
+ * app_plugin_inv_op's `option` chooses an ACTION, and the objsel branch in
+ * app_minimenu_inv_action runs BEFORE the switch that reads it, so with a
+ * selection armed every option value produces the same OPHELDU.  That makes
+ * the option irrelevant when the arming held and load-bearing when it did
+ * not: option 1 is rev-239's backpack op 1, the shift-click-drop chain, so a
+ * Lua verb that armed, lost the arming, and then "clicked" the target cell
+ * with op 1 would put the target item on the FLOOR and report it as a use.
+ * This passes 0 (Examine) for that reason and then proves the value was never
+ * read: the objsel branch is the only thing in that function that CLEARS the
+ * selection, so `objsel.active` false on the far side is the client saying it
+ * encoded the OPHELDU, and `objsel.active` still true means the row never ran
+ * at all (app_minimenu_ui_pick_live rejected the cell -- the backpack tab is
+ * not the shown one, or the cell holds something else now) and NOTHING was
+ * sent, Examine included.
+ *
+ * `component_id`/`slot` name the cell that is CLICKED; the armed cell is
+ * whatever the caller's arming half (DrivePointer_InvOp with option < 0) put
+ * in app->objsel.  Refusing when the two are the same cell mirrors the real
+ * menu builder, which omits the "Use A with B" row for the very cell that
+ * armed the selection (rs_minimenu_build.c add_inv_slot_select_row, "can't
+ * use an item on itself") -- a row the player cannot see is a row this must
+ * not click.
+ *
+ * Every failure path clears the selection before returning.  An arming that
+ * stays live is consumed by the NEXT world click whatever it hits, which
+ * would turn an unrelated later verb into a use-on; a verb that failed must
+ * not leave that behind it.
+ */
+static enum DriveResult
+drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id, int count)
+{
+    assert(app);
+    if( !app->objsel.active )
+        return DRIVE_REFUSED;
+    if( app->objsel.component_id == component_id && app->objsel.slot == slot )
+    {
+        app_selection_clear(app);
+        return DRIVE_NO_ROW;
+    }
+    if( !app_plugin_inv_op(app, component_id, slot, obj_id, count, 0) )
+    {
+        app_selection_clear(app);
+        return DRIVE_NOT_FOUND;
+    }
+    if( app->objsel.active )
+    {
+        app_selection_clear(app);
+        return DRIVE_REFUSED;
+    }
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z)
 {
@@ -1231,6 +1301,25 @@ lua_drive_inv_op(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api_drive.inv_use_on(component_id, slot, obj_id, count) -> (result, nil).
+ * The clicked cell only: the armed one is already in app->objsel, put there
+ * by the caller's own api_drive.inv_op(..., -1).  See
+ * drive_pointer_inv_use_on. */
+static int
+lua_drive_inv_use_on(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int slot = PluginDrive_ArgInt(L, 2);
+    int obj_id = PluginDrive_ArgInt(L, 3);
+    int count = PluginDrive_ArgInt(L, 4);
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_inv_use_on(app, component_id, slot, obj_id, count);
+    return PluginDrive_PushResult(L, result, NULL);
+}
+
 static int
 lua_drive_op_available(struct lua_State* L)
 {
@@ -1321,6 +1410,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"world_op", lua_drive_world_op},
     {"op_available", lua_drive_op_available},
     {"inv_op", lua_drive_inv_op},
+    {"inv_use_on", lua_drive_inv_use_on},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},

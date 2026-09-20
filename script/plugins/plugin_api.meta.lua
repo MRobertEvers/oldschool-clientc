@@ -992,6 +992,7 @@ except the plain readers marked as returning a value.
 ---@field world_op fun(kind: string, id: integer, option: integer): string, string The LOGGED bypass. Never the default; every call is a ledger note.
 ---@field op_available fun(kind: string, id: integer, option: integer): string, boolean Does this world target actually OFFER that op? app_minimenu_ui_pick_live validates only UI and INV_SLOT picks, so the bypass owes its own answer.
 ---@field inv_op fun(component_id: integer, slot: integer, obj_id: integer, count: integer, option: integer): string, string A backpack/worn CELL's numbered held op. 1..5 = OPHELD1..5, 0 = Examine, negative arms the held-item selection (Use) and is refused unless objsel came back holding it.
+---@field inv_use_on fun(component_id: integer, slot: integer, obj_id: integer, count: integer): string, string The CLICKED cell of an item-on-item (OPHELDU); the armed one is already in app->objsel, put there by inv_op(..., -1). The client encodes the use itself. no_row for a cell used on itself, refused when nothing was armed or the client did not encode it.
 ---@field move_to fun(tile_x: integer, tile_z: integer): string, string
 ---@field move_near fun(kind: string, id: integer): string, string Re-issued every tick while pending: the target can walk.
 ---@field camera fun(yaw: integer, pitch: integer, zoom: integer): string, string
