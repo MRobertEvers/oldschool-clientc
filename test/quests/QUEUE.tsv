@@ -117,7 +117,7 @@ quest_pandemonium	pandemonium	pandemonium		4	todo
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
 quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo		
-quest_priest	priest	therestlessghost		1	todo		search-altar: screen_position -- ::tele 0_48_149_48_30 does not place the player where restless_ghost_altar_skull (Wizards' Tower basement) is clickable; gate RED (8 FAIL rows cascading from the altar miss: obtained-skull, use-skull-on-coffin, varp_complete, scroll_title, points, journal, reward.prayer; no BLOCKED row on a tier-4 quest.bind stub); needs a real path/coords to reach the altar (tower ladder at 3104,3162,0 also returns screen_position)
+quest_priest	priest	therestlessghost		1	todo		RETRY after the multinpc id fix: the altar/skull screen_position in the Wizards' Tower basement was very likely the same defect as runemysteries (head_wizard is a multinpc).
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	todo		rejected: entire quest ladder (steps 1-7) driven via ::setvar princequest cheats instead of real Hassan/Osman/Lady Keli/Joe interactions; step7 cheat sets princequest=110 (complete) before ever reaching Hassan, so the reported goto_hassan blocker is fictional theater on an already-cheated-complete quest; shots 02/03/05/06/08 are mislabeled (osman/prep/drunk/tied/saved) showing no such event, just a chat-log varp line in Lumbridge/Draynor
 quest_pryingtimes	pryingtimes	pryingtimes		1	todo		
@@ -143,7 +143,7 @@ quest_routequest	routequest	insearchofthemyreque		3	todo
 quest_rovingelves	rovingelves	rovingelves		1	todo		author claimed outcome=blocked but test/quests/rovingelves.lua has NO t.blocked() row and runs straight through to t.quest.expect_complete() + reward checks after real FAILs (gate.py RED, 12 findings): returnSeedToEluned-enchant-dialog FAIL (NPC says 'I haven't found the seed yet' -- killGuardian op 2 never grants the seed/obtained_old_seed varp), plantSeed FAIL (seed not in backpack), quest.varp_complete FAIL (complete=60 never reached), reward.* all FAIL. gate.py: 'uses quest.bind but has no passing quest.varp_complete row, and the last row is not BLOCKED'. File rejected and removed.
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
-quest_runemysteries	runemysteries	runemysteries		1	blocked	haiku-pilot2	"test/quests/runemysteries.lua:53 - Sedridor (head_wizard) NPC interaction fails with screen_position after click_loc on wizards_tower_laddertop. The multi-level location (Wizard Tower main floor to basement) does not properly load the NPC pool when navigated through click_loc(), causing all talk_to attempts to fail with ""screen_position"" (NPC not visible from player's location). The test successfully progresses through Duke Horacio quest initialization but cannot proceed to Sedridor dialogue without resolving the NPC reachability issue in multi-level locations."
+quest_runemysteries	runemysteries	runemysteries		1	todo	haiku-pilot2	RETRY: the BLOCKED reason (Sedridor unreachable after the basement descent) was the multinpc id bug fixed in 455dd4398; probe_sedridor talks to him 5/5. Resume the committed file and drive on.
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo		
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	todo		
