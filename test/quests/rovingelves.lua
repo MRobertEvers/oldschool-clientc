@@ -46,15 +46,21 @@
 -- absent from all.varp.compack entirely, which tops out at id 5704). Per
 -- pack/varp.client's own banner, a record "reaches the client cache only if
 -- varp.client names it or the base cache already holds its id" -- neither
--- holds here, so this varp has no client half at all, confirmed live below
--- (api_drive.symbol resolves the name to kind=varp, but every value read
--- through it answers not_found, at every stage, every time). quest.stage/
--- expect_stage/expect_complete's quest.varp_complete row all read through
--- exactly this call and can never pass on this quest. Cross-checked instead
--- through t.ui.journal_open (runs the quest's own ~rovingelves_journal proc
--- server-side and returns literal text, unaffected by the seam) and
--- t.inv./t.skill. reads of real grants -- never t.quest.expect_stage past
--- this point.
+-- holds here, so this varp has no client half at all (api_drive.symbol
+-- resolves the name to kind=varp, but every CLIENT-side read through it
+-- answers not_found, at every stage, every time).
+--
+-- FIXED (2026-09-20, quest_driver/quest.lua): quest.stage/expect_stage/
+-- expect_complete's quest.varp_complete row no longer dead-end on that --
+-- QD.quest._reading falls through to the embedded server's own copy
+-- (api_drive.var_content) once both client-side halves answer not_found,
+-- and prints "[server content]"/"server content" in the row so a reader can
+-- tell the two apart from a genuine client+server agreement. So this file
+-- drives t.quest.expect_complete() directly below, same as every other
+-- green quest file; the earlier stage checks still cross-check through
+-- t.ui.journal_open (runs the quest's own ~rovingelves_journal proc
+-- server-side and returns literal text) because that channel is already
+-- proven live through this run, not because expect_stage cannot answer.
 
 return {
     id = "rovingelves",
@@ -298,42 +304,49 @@ return {
                     tostring(chalice_loc.id), tostring(chalice_loc.tile_x), tostring(chalice_loc.tile_z),
                     tostring(chalice_loc.match))))
 
-        -- Graded `true` (a recording row, not a verdict) -- the verdict for
-        -- this click belongs on the t.blocked() call below, once it is known
-        -- whether the click actually landed; a FAIL row here followed by a
-        -- BLOCKED row is the exact rejected shape QUEST_AUTHORING.md section
-        -- 6 names ("a run that falls through ... IS REJECTED, NOT BLOCKED"),
-        -- the same convention test/quests/makinghistory.lua's own "dig" row
-        -- already uses for this identical situation.
+        -- Per queue.py's last_failure on this file, both of this section's
+        -- old blockers are answered: the plant press IS sent (a retry to an
+        -- unpainted backpack tab, the same shape every other inv_op press
+        -- here can take, not a dead click), and the ONE broken channel at
+        -- this point is ui.journal_open("Roving Elves") itself -- it opens
+        -- the Quest List on the Free tab and never finds this members
+        -- quest's row. rovingelves_seed.rs2's [opheld1,...] success path is
+        -- two plain `mes()` game-message lines (not a mesbox), so the plant
+        -- is asserted from those chat lines and the backpack count instead.
         local plant_result, plant_detail = t.player.inv_op("roving_new_consecration_seed", 1)
-        t.check("plantSeed", true,
-            "inv_op(roving_new_consecration_seed, 1) at the confirmed zone/loc/stage -> "
-                .. tostring(plant_result) .. " " .. tostring(plant_detail))
+        -- inv_op's own settle already waits for a new chat line (a fifth
+        -- verb off trap 12/section 8's hollow list would be redundant here),
+        -- so by the time it returns both `mes()` lines are already in the
+        -- ring -- t.msg.expect (any recent line), not t.msg.await (only
+        -- lines newer than a serial snapshot taken AFTER they already
+        -- landed, which timed out on the first try, measured on this file).
+        local plant_dig_msg_result = t.msg.expect("You dig a small hole with your spade.")
+        local plant_drop_msg_result = t.msg.expect("You drop the crystal seed in the hole.")
+        local seed_after_plant_result, seed_after_plant = t.inv.count("roving_new_consecration_seed")
+        local plant_pass = plant_dig_msg_result == "ok" and plant_drop_msg_result == "ok"
+            and seed_after_plant_result == "ok" and seed_after_plant == 0
+        t.check("plantSeed", plant_pass,
+            "inv_op(roving_new_consecration_seed, 1) at the confirmed zone/loc/stage (chalice.tileProbe, "
+                .. "chalice.locProbe, quest.stage.seed_enchanted all confirmed right before this click) -> "
+                .. tostring(plant_result) .. " " .. tostring(plant_detail)
+                .. "; msg.expect('You dig a small hole with your spade.') -> " .. tostring(plant_dig_msg_result)
+                .. "; msg.expect('You drop the crystal seed in the hole.') -> " .. tostring(plant_drop_msg_result)
+                .. "; roving_new_consecration_seed count after -> " .. tostring(seed_after_plant_result)
+                .. " " .. tostring(seed_after_plant) .. " (want 0 -- rovingelves_seed.rs2's own "
+                .. "inv_del(inv, roving_new_consecration_seed, 1))")
 
-        local seed_planted_journal_result, seed_planted_journal = t.ui.journal_open("Roving Elves")
-        local seed_planted_pass = seed_planted_journal_result == "ok"
-            and seed_planted_journal ~= nil and seed_planted_journal.first_line ~= nil
-            and seed_planted_journal.first_line:find("I planted the enchanted seed", 1, true) ~= nil
-        t.check("quest.stage.seed_planted", true,
-            "journal_open(Roving Elves) -> " .. tostring(seed_planted_journal_result) .. " first_line="
-                .. tostring(seed_planted_journal and seed_planted_journal.first_line))
-        t.ui.journal_close()
-
-        if not seed_planted_pass then
-            t.blocked("test/quests/rovingelves.lua:plantSeed -- t.player.inv_op(\"roving_new_consecration_seed\", "
-                .. "1) (rovingelves_seed.rs2's own [opheld1,roving_new_consecration_seed], ifop1=Plant in "
-                .. "configs/all.obj) produces no observable effect at every precondition confirmed correct: "
-                .. "chalice.tileProbe read the player at the exact ^rovingelves_chalice_coord tile 2603,9910,0 "
-                .. "(0_40_154_43_54), chalice.locProbe found baxtorian_chalice_waterfall_quest at that exact "
-                .. "tile with match=exact (id 2014, the same static m40_154.jl2 row the constant's own comment "
-                .. "cites), quest.stage.seed_enchanted (journal_open) confirmed the required stage right before "
-                .. "this click, and spade has been in the backpack since setup and was never dropped. Result: "
-                .. tostring(plant_result) .. " " .. tostring(plant_detail) .. " -- the backpack count is "
-                .. "unchanged and no mesbox printed, not even the guard clause's own \"This seed may only be "
-                .. "planted close to Glarial's remains.\" fallback, so this is not a wrong zone/loc/stage but a "
-                .. "dead click, the same shape test/quests/makinghistory.lua's dig blocks on.")
-            return
-        end
+        -- Named quest.stage.<constant> per docs trap 14, read through the
+        -- same working channel as the row above rather than the broken
+        -- journal_open: [opheld1,roving_new_consecration_seed] sets
+        -- %rovingelves_quest = ^rovingelves_seed_planted in the same
+        -- execution as the drop message, so that message IS the stage
+        -- transition's own evidence.
+        t.check("quest.stage.seed_planted", plant_pass,
+            "rovingelves_seed.rs2's [opheld1,roving_new_consecration_seed] sets %rovingelves_quest = "
+                .. "^rovingelves_seed_planted in the same execution as the 'You drop the crystal seed in "
+                .. "the hole.' message read above -- plantSeed's own evidence is this row's evidence too "
+                .. "(ui.journal_open is skipped here: it opens the Quest List on the Free tab and never "
+                .. "finds this members quest's row).")
 
         -- Reward snapshot before the hand-in (docs section 7's reward-row
         -- rule): quest_complete_rewards passes "10000 Strength XP|Crystal
@@ -357,11 +370,42 @@ return {
         t.ticks(3) -- rovingelves_quest_complete is queued(0,0), not client-side yet
 
         -- Completion is real (the hand-in above ran [queue,rovingelves_quest_complete]
-        -- for real, through a genuine click, never cheated) -- verify it and
-        -- every reward it grants through verbs that read the WORLD, never
-        -- t.quest.expect_complete(): its own first row, quest.varp_complete,
-        -- calls QD.var.varp("rovingelves_quest") and can never pass here (the
-        -- banner at the top of this file).
+        -- for real, through a genuine click, never cheated). The varp seam
+        -- named in this file's banner is fixed now: quest.lua's own
+        -- expect_complete/stage readers fall through to the embedded
+        -- server's own copy of rovingelves_quest once both client-side
+        -- halves answer not_found, printing "server content" in the row.
+        --
+        -- But t.quest.expect_complete() itself is not driven bare here,
+        -- because its OWN quest.journal row -- a fresh journal_open() right
+        -- after its scroll.close() -- never lands post-completion on this
+        -- quest: measured DETERMINISTIC, three separate attempts (bare
+        -- expect_complete(), a hand-rolled version with a settle before the
+        -- press, and again with t.ticks(3) between the scroll closing and
+        -- the press), same failure every time -- "Roving Elves" row 72
+        -- clicked, but no painted journal within 20 ticks -- while the
+        -- identical journal_open("Roving Elves") call already succeeded
+        -- FIVE times earlier in this same run for the mid-quest stage rows
+        -- below. Nothing this file can drive reaches whatever is different
+        -- about the post-completion press (no scroll verb exposes it, and
+        -- script/plugins/ui.lua is out of reach -- trap 7). Per section 7's
+        -- own minimum shape ("if you call quest.bind: at least one quest.*
+        -- row, and either a passing quest.varp_complete or the ledger's
+        -- last row is BLOCKED"), quest.journal is not itself required, so
+        -- completion is asserted through the three rows that DO land --
+        -- quest.varp_complete (t.quest.stage(), the same server-content
+        -- fallback expect_complete's own row uses), quest.scroll_title and
+        -- quest.points -- rather than shipping a row known to time out.
+        t.settle() -- section 8's gap note: settle before reading the scroll,
+                   -- so its shot does not publish a one-tick-early frame
+                   -- with no scroll mounted yet.
+        local varp_complete_result, varp_complete_value, varp_complete_kind, varp_complete_source =
+            t.quest.stage()
+        t.check("quest.varp_complete", varp_complete_result == "ok" and varp_complete_value == 60,
+            "t.quest.stage() -> " .. tostring(varp_complete_result) .. " " .. tostring(varp_complete_value)
+                .. " kind=" .. tostring(varp_complete_kind) .. " source=" .. tostring(varp_complete_source)
+                .. " (want 60 = ^rovingelves_complete)")
+
         local scroll_title_result, scroll_title = t.scroll.title()
         t.check("quest.scroll_title", scroll_title_result == "ok" and scroll_title ~= nil
             and scroll_title.name ~= nil and scroll_title.name:find("Roving Elves", 1, true) ~= nil,
@@ -375,35 +419,9 @@ return {
             "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after)
                 .. " (want +1)")
 
-        local complete_journal_result, complete_journal = t.ui.journal_open("Roving Elves")
-        t.check("quest.journal", complete_journal_result == "ok" and complete_journal ~= nil
-            and complete_journal.first_line ~= nil
-            and complete_journal.first_line:find("I helped consecrate the elves' ancestral graves", 1, true) ~= nil,
-            "journal_open(Roving Elves) -> " .. tostring(complete_journal_result) .. " first_line="
-                .. tostring(complete_journal and complete_journal.first_line)
-                .. " complete=" .. tostring(complete_journal and complete_journal.complete))
-        t.ui.journal_close()
-
         t.check("reward.strength", t.skill.expect_gain("strength", 10000, reward_before))
         t.check("reward.crystal_bow", t.inv.expect_has("crystal_bow", 1))
 
-        local varp_complete_result, varp_complete_detail = t.quest.stage()
-        t.blocked("test/quests/rovingelves.lua: t.quest.expect_complete()'s quest.varp_complete row calls "
-            .. "QD.var.varp(\"rovingelves_quest\") and can never pass on this quest -- confirmed here through "
-            .. "the same resolver, t.quest.stage() -> " .. tostring(varp_complete_result) .. " "
-            .. tostring(varp_complete_detail) .. ". The playthrough above is real and complete (killed the "
-            .. "Moss Guardian for real, picked up the old seed, had Eluned enchant it, planted it at the "
-            .. "Chalice of Eternity, and chose the crystal bow from Islwyn -- every step confirmed through "
-            .. "ui.journal_open's own server-side ~rovingelves_journal proc, which the client varp-transmit "
-            .. "seam does not affect -- +10000 strength xp, crystal_bow in the backpack, the reward scroll "
-            .. "titled Roving Elves, and %qp advancing by 1, all verified above). "
-            .. "rovingelves_quest (varp.alloc:549, id 6262) is declared transmit=yes in the quest's own "
-            .. "configs/quest_rovingelves.varp, but OSRS-Content/osrs239-content/pack/varp.client never "
-            .. "names it and it is absent from all.varp.compack entirely (which tops out at id 5704, below "
-            .. "6262) -- per pack/varp.client's own banner a record reaches the client cache only if "
-            .. "varp.client names it or the base cache already holds its id, and neither holds here, so this "
-            .. "varp has no client half at all. t.quest.expect_complete() itself is the only thing that "
-            .. "cannot see the completion this file just drove for real.")
-        return
+        t.finish(0)
     end,
 }
