@@ -52,6 +52,19 @@ Usage:
       conformance.py's separate attempt loop.)
 """
 
+# This directory holds queue.py (the QUEUE.tsv tool). Python puts a script's
+# own directory FIRST on sys.path, so from here `import queue` -- which the
+# standard library's concurrent.futures does -- found ours, and run.py
+# --jobs N died on ThreadPoolExecutor ("module 'queue' has no attribute
+# 'SimpleQueue'", 2026-09-20; the full-suite re-run never ran a quest). The
+# scrub below must run before ANY other import; the directory goes back on
+# the END of the path so quest_list/build_support/ledger still resolve.
+import os as _os
+import sys as _sys
+_HERE = _os.path.dirname(_os.path.abspath(__file__))
+_sys.path[:] = [_p for _p in _sys.path if _os.path.abspath(_p or ".") != _HERE]
+_sys.path.append(_HERE)
+
 import argparse
 import os
 import re
@@ -63,12 +76,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
-# append, never insert at 0: this directory holds queue.py (the QUEUE.tsv
-# tool), and at the front of sys.path it shadows the standard library's
-# `queue`, which concurrent.futures imports -- run.py --jobs N crashed on
-# ThreadPoolExecutor with "module 'queue' has no attribute 'SimpleQueue'"
-# (2026-09-20) and the full-suite re-run never ran a quest.
-sys.path.append(HERE)
 
 import build_support  # noqa: E402
 import ledger  # noqa: E402
