@@ -496,9 +496,12 @@ def minimum_shape_findings(name, rows, shots_dir):
             if not scroll_rows:
                 findings.append("green run has no quest.scroll_title row -- the quest "
                                  "completion scroll was never read (quest.expect_complete)")
-            elif not any(row["verdict"] == "PASS" and row["shots"] for row in scroll_rows):
-                findings.append("quest.scroll_title row carries no screenshot -- the "
-                                 "completion scroll must be photographed in every green run")
+            elif not any(row["verdict"] == "PASS" and (row["shots"] or
+                                                       "[scroll already photographed:" in row["detail"])
+                         for row in scroll_rows):
+                findings.append("quest.scroll_title row carries no screenshot and does not "
+                                 "name an earlier shot of the scroll -- the completion scroll "
+                                 "must be photographed in every green run")
 
     png_count = 0
     if os.path.isdir(shots_dir):

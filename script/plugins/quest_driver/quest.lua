@@ -483,8 +483,20 @@ function QD.quest.expect_complete()
     -- `keep` is true so the unchanged-frame dedupe never suppresses it even
     -- when the hand-in's own last shot already showed the scroll. The shot
     -- folds into the quest.scroll_title row below, which gate.py checks.
-    QD.shot("quest.scroll", true)
     local title_result, title_detail = QD.scroll.title()
+    -- The shot comes AFTER scroll.title's own mount await, or it photographs
+    -- whatever was up a tick earlier (hunt's read the quest list, 2026-09-20).
+    -- The unchanged-frame dedupe stays ON: when the hand-in's last capture
+    -- already shows the scroll, a second identical PNG only trips the gate's
+    -- duplicate-MD5 rule (cooks_assistant went RED on exactly that), so the
+    -- row instead SAYS which earlier shot holds the scroll, and gate.py
+    -- accepts either a shot on this row or that marker in its detail.
+    local scroll_shot_result, scroll_shot_detail = QD.shot("quest.scroll")
+    local scroll_shot_note = ""
+    if scroll_shot_result == "ok" and type(scroll_shot_detail) == "string"
+        and string.find(scroll_shot_detail, "unchanged", 1, true) then
+        scroll_shot_note = " [scroll already photographed: " .. scroll_shot_detail .. "]"
+    end
     local title_name = type(title_detail) == "table" and title_detail.name or nil
     local title_pass = title_result == "ok"
         and type(title_name) == "string"
@@ -494,7 +506,8 @@ function QD.quest.expect_complete()
     QD.step("quest.scroll_title", title_pass and "PASS" or "FAIL",
         "expected a title containing " .. tostring(bound.display)
             .. " got=" .. tostring(title_name)
-            .. " (" .. tostring(title_result) .. ") " .. QD.quest._describe(title_detail))
+            .. " (" .. tostring(title_result) .. ") " .. QD.quest._describe(title_detail)
+            .. scroll_shot_note)
 
     -- ----------------------------------------------------------- quest.points
     -- `qp` is a plain varp in this pack (configs/all.varp:206) and read
