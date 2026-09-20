@@ -260,32 +260,136 @@ return {
             t.exec("walk-statuette", t.player.walk_near, statuette_target, 15, 1)
             t.ticks(1)
         end
-        -- Three positioning strategies were driven against this exact loc
-        -- across separate attempts -- an exact-tile teleport, a 2-tile
-        -- teleport offset, and (this attempt) an explicit standoff-1
-        -- walk_near completed and confirmed BEFORE arming -- and all three
-        -- land the same seam: use_on arms golem_statuette, but the press
-        -- that follows lands on "Examine @cya@Statuette in alcove", an
-        -- ordinary op row, not the held-item row, because the arming is
-        -- gone by the time the menu opens. The identical call shape
-        -- (walk_near standoff 1, then use_on) worked cleanly one loc over
-        -- for golem_demon_throne (prizeGems, below the removed code),
-        -- which rules out a general use_on/walk_near defect and narrows
-        -- this to golem_statuettea itself (a loc-identity or geometry seam
-        -- this driver has no further verb to work around). Called directly
-        -- (not through t.exec) so the seam is reported once, as BLOCKED,
-        -- rather than as a ledger FAIL.
-        local place_result, place_detail = t.player.use_on("golem_statuette", statuette_target)
-        t.blocked("use_on(golem_statuette, " .. tostring(statuette_found) .. " @ "
-            .. tostring(statuette_target and statuette_target.tile_x) .. ","
-            .. tostring(statuette_target and statuette_target.tile_z) .. ","
-            .. tostring(statuette_target and statuette_target.level)
-            .. ") loses its arming before the press lands, every time, across an exact-tile "
-            .. "teleport, a 2-tile teleport offset, and a confirmed standoff-1 walk_near done "
-            .. "before arming -- last attempt: " .. tostring(place_result) .. " " .. tostring(place_detail)
-            .. " -- golem_a stays tasked(3), never reaching portal_open(6), so nothing past this "
-            .. "point (portal, throne, the demon-dead exchange, the golemkey/program hand-in, "
-            .. "expect_complete) can be driven.")
+        -- RETRY after 73a4251d0: the walk_near-standoff-1-before-arming shape
+        -- above now lands cleanly -- the server looks a multiloc's loc
+        -- trigger up on the varbit-resolved child and then on the BASE, so
+        -- [oplocu,golem_statuettea] is reached and %golem_a advances to
+        -- ^golem_portal_open(6) (proved by a real run: build/quests_proof/
+        -- golem.lua, ledger rows statuette.place/statuette.portal_open/
+        -- statuette.consumed all PASS). Driven through t.exec now that it
+        -- is a real step, not a seam to report.
+        t.exec("placeStatuette", t.player.use_on, "golem_statuette", statuette_target)
+        t.check("quest.stage.portal_open", t.quest.expect_stage("portal_open"))
+        local statuette_left_result, statuette_left = t.inv.count("golem_statuette")
+        t.check("placeStatuette-consumed", statuette_left_result == "ok" and statuette_left == 0,
+            "golem_statuette carried = " .. tostring(statuette_left))
+
+        -- Step through the door the statuette just opened.
+        -- [oploc1,golem_demon_door_always_open]/[oploc1,golem_demon_portal]
+        -- (the multiloc's open child) and [oploc1,golem_portal] (a second,
+        -- state-gated alias shared with Shadow of the Storm) all run the
+        -- same body once %golem_a>=portal_open: "You step into the
+        -- portal.", the first-time skeleton line, %golem_seen_underground=1,
+        -- p_teleport(^golem_demon_lair). Which symbol the scene actually
+        -- placed is discovered with world.loc_near across all four
+        -- (all.loc.compack:6301-6365), not guessed.
+        local door_names = { "golem_demon_door_always_open", "golem_demon_portal", "golem_portal", "golem_demon_door" }
+        local door_target, door_found = nil, nil
+        for i = 1, #door_names do
+            local r, near = t.world.loc_near(door_names[i], 30)
+            if r == "ok" and door_target == nil then
+                door_target = near
+                door_found = door_names[i]
+            end
+        end
+        t.check("world.demon-door", door_target ~= nil,
+            "world.loc_near tried " .. table.concat(door_names, ",") .. " -> found " .. tostring(door_found)
+            .. " at " .. tostring(door_target and door_target.tile_x) .. "," .. tostring(door_target and door_target.tile_z) .. "," .. tostring(door_target and door_target.level))
+        t.exec("enterPortal", t.player.click_loc, door_found or "golem_demon_door_always_open", 1)
+        -- p_teleport(^golem_demon_lair) is a multi-region jump (per section 2's
+        -- Abyss note): poll the player's own tile rather than a fixed tick
+        -- count, since a fixed wait either races the load or wastes ticks.
+        local arrived_result = t.await({
+            level = function()
+                local r, tile = t.world.tile()
+                return r == "ok" and tile ~= nil and (tile.x > 3200 or tile.z > 4000)
+            end,
+            note = "arrival in the demon lair (golem_demon_lair)",
+        }, 20)
+        local tile_result, tile_now = t.world.tile()
+        t.check("enterPortal-arrived", arrived_result == "ok",
+            "await arrival -> " .. tostring(arrived_result) .. "; t.world.tile() -> " .. tostring(tile_result)
+            .. " " .. tostring(tile_now and tile_now.x) .. "," .. tostring(tile_now and tile_now.z) .. "," .. tostring(tile_now and tile_now.level))
+        local seen_result, seen_value = t.var.server("golem_seen_underground")
+        t.check("enterPortal-seen", seen_result == "ok" and seen_value == 1,
+            "var.server golem_seen_underground -> " .. tostring(seen_result) .. " " .. tostring(seen_value))
+
+        -- Prize the gems from the demon's throne with the hammer --
+        -- [oplocu,golem_demon_throne]/[oplocu,golem_throne_withgems] grant
+        -- ruby + golem_golemkey, needed to open the golem's skull below.
+        -- Same walk_near-standoff-1-before-arming shape that now lands the
+        -- statuette (the comment above this block, before the retry, noted
+        -- this exact shape already worked cleanly for this same loc). A
+        -- generous radius (a scene-pool check, not a screen one) because the
+        -- lair's own layout relative to the teleport's landing tile is
+        -- unknown going in.
+        local throne_names = { "golem_demon_throne", "golem_throne_withgems" }
+        local throne_target, throne_found = nil, nil
+        for i = 1, #throne_names do
+            local r, near = t.world.loc_near(throne_names[i], 80)
+            if r == "ok" and throne_target == nil then
+                throne_target = near
+                throne_found = throne_names[i]
+            end
+        end
+        t.check("world.demon-throne", throne_target ~= nil,
+            "world.loc_near tried " .. table.concat(throne_names, ",") .. " -> found " .. tostring(throne_found)
+            .. " at " .. tostring(throne_target and throne_target.tile_x) .. "," .. tostring(throne_target and throne_target.tile_z) .. "," .. tostring(throne_target and throne_target.level))
+        if throne_target ~= nil then
+            t.exec("goto-throne", t.player.goto_tile, throne_target.tile_x, throne_target.tile_z, throne_target.level)
+            t.ticks(1)
+            t.exec("walk-throne", t.player.walk_near, throne_target, 15, 1)
+            t.ticks(1)
+        end
+        t.exec("prizeGems", t.player.use_on, "hammer", throne_target)
+        local golemkey_await_result = t.inv.await("golem_golemkey", 1, 10)
+        t.check("prizeGems-sync", golemkey_await_result == "ok", "inv.await golem_golemkey 1 -> " .. tostring(golemkey_await_result))
+
+        -- Back to the golem on the surface to report the demon dead --
+        -- %golem_a=portal_open & %golem_seen_underground=1's branch is a
+        -- straight npc/player/npc/player/npc chain, no choice (golem.rs2
+        -- lines 87-94).
+        t.exec("goto-golem-2", t.player.goto_tile, 3488, 3090, 0)
+        t.exec("talkToGolem-demondead", t.player.talk_to, "golem_golem", 1)
+        t.exec("talkToGolem-demondead-dialog", t.chat.play, {
+            "npc:My task is incomplete. You must open the portal so I can defeat the great demon.",
+            "player:It's ok, the demon is dead!",
+            "npc:The demon must be defeated...",
+            "player:No, you don't understand. I saw the demon's skeleton. It must have died of its wounds.",
+            "npc:Demon must be defeated! Task incomplete.",
+        })
+        t.check("quest.stage.need_program", t.quest.expect_stage("need_program"))
+
+        -- Insert the golemkey -- [opnpcu,golem_golem] last_useitem=
+        -- golem_golemkey. A plain mes(), no page to continue through.
+        local golem_target_key, golem_target_key_result = t.player.by_symbol("npc", "golem_golem")
+        t.step("golem.by_symbol-key", golem_target_key_result == "ok" and "PASS" or "FAIL", "by_symbol npc golem_golem -> " .. tostring(golem_target_key_result))
+        t.exec("insertKey", t.player.use_on, "golem_golemkey", golem_target_key)
+        t.check("quest.stage.head_open", t.quest.expect_stage("head_open"))
+
+        -- Reward snapshot BEFORE the hand-in (section 6's rule).
+        local skill_snapshot_result, skill_snapshot = t.skill.snapshot()
+        t.step("skill.snapshot", skill_snapshot_result == "ok" and "PASS" or "FAIL", "skill.snapshot -> " .. tostring(skill_snapshot_result))
+
+        -- Hand in the program -- [opnpcu,golem_golem] last_useitem=
+        -- golem_program completes the quest: three chained npc lines, then
+        -- %golem_a=complete, stat_advance(crafting/thieving), and
+        -- ~quest_complete_rewards(quest_golem, "1000 Thieving XP|1000
+        -- Crafting XP|Carpet ride from Shantay Pass to Uzer", golem_program).
+        local golem_target_program, golem_target_program_result = t.player.by_symbol("npc", "golem_golem")
+        t.step("golem.by_symbol-program", golem_target_program_result == "ok" and "PASS" or "FAIL", "by_symbol npc golem_golem -> " .. tostring(golem_target_program_result))
+        t.exec("handInProgram", t.player.use_on, "golem_program", golem_target_program)
+        t.exec("handInProgram-dialog", t.chat.play, {
+            "npc:New instructions... Updating program...",
+            "npc:Task complete!",
+            "npc:Thank you. Now my mind is at rest.",
+        })
+        t.ticks(3) -- completion is asynchronous behind the chained dialogue -- see section 8
+
+        t.quest.expect_complete()
+        t.check("reward.crafting", t.skill.expect_gain("crafting", 1000, skill_snapshot))
+        t.check("reward.thieving", t.skill.expect_gain("thieving", 1000, skill_snapshot))
+        t.finish(0)
         return
     end,
 }
