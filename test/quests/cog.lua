@@ -34,9 +34,14 @@
 -- presses from its far side internally (pointer.lua QD.player.use_on's
 -- _far_side_step, QD.player._loc_standoff), so the goto beforehand only
 -- needs to land the player on the right FLOOR near the pole -- no
--- hand-computed standoff tile required (dropped below). The guard still
--- exists so a seam here ends the file in a clean t.blocked, not a stray
--- FAIL.
+-- hand-computed standoff tile required (dropped below).
+--
+-- RETRY after 73a4251d0: click_minimenu's pixel hunt now ranks camera
+-- poses by how many candidates land inside the world viewport, sharing
+-- one probe budget, so all four spindles land -- the four t.blocked
+-- seams this file used to end at (all.loc:280/283/287/291, quest_cog_
+-- spindles.rs2) are gone; each placement is graded as an ordinary
+-- t.check row now.
 
 return {
     id = "cog",
@@ -110,29 +115,10 @@ return {
 
         local red_pole = t.player.by_symbol("loc", "brokeclockpole_red")
         local red_place_result, red_place_detail = t.player.use_on("redcog", red_pole) -- oplocu,brokeclockpole_red -> ~cog_place
-        local red_place_ok = false
-        if red_place_result == "ok" then
-            red_place_ok = t.var.await_server("cogquest", 2, 15) == "ok"
-        end
-        -- A graded row is only written on success: a `t.check` FAIL here
-        -- would leave a stray FAIL ahead of the `t.blocked` below, which
-        -- section 6 rejects as not-blocked -- the failed attempt's own
-        -- detail is folded into the blocked reason instead.
-        if not red_place_ok then
-            t.blocked("test/quests/cog.lua:place.redcog -- brokeclockpole_red (all.loc:280, model 1793 'Clock spindle') "
-                .. "resolves server-side `exact` at 2568,3243,0 (t.world.loc_near), but t.player.use_on's click_minimenu "
-                .. "finds no menu row for it from any of the 5 camera poses, standing 0, 1 or 3 tiles off -- 4 of 5 "
-                .. "authoring-run attempts answered `covered` (element 536888062: pickset held=false, menu has no row "
-                .. "for it); the one `ok` was the server-authoritative approach walk starting (a `map_flag` settle, "
-                .. "pointer.lua QD.player.walk_near's own banner), not the interaction landing -- %cogquest still read "
-                .. "1 after a 15-tick server await (this run: use_on -> " .. tostring(red_place_result) .. " ("
-                .. tostring(red_place_detail) .. ")). [oplocu,brokeclockpole_red] (quest_cog_spindles.rs2:9-10) is "
-                .. "never reached: the click primitive cannot land a `select` press on this loc.")
-            return
-        end
-        t.check("place.redcog", true, string.format(
-            "use_on(redcog,brokeclockpole_red) -> %s (%s); cogquest await(quest_cog_three_remaining_cogs=2) -> ok",
-            tostring(red_place_result), tostring(red_place_detail)))
+        local red_await_result = red_place_result == "ok" and t.var.await_server("cogquest", 2, 15) or "skipped"
+        t.check("place.redcog", red_place_result == "ok" and red_await_result == "ok", string.format(
+            "use_on(redcog,brokeclockpole_red) -> %s (%s); cogquest await(quest_cog_three_remaining_cogs=2) -> %s",
+            tostring(red_place_result), tostring(red_place_detail), tostring(red_await_result)))
         t.expect("quest.stage.three_remaining_cogs", t.quest.expect_stage("quest_cog_three_remaining_cogs"))
 
         -- ==== Blue cog: pick up in the basement, place on the first floor ====
@@ -146,19 +132,10 @@ return {
         t.ticks(2)
         local blue_pole = t.player.by_symbol("loc", "brokeclockpole_blue")
         local blue_place_result, blue_place_detail = t.player.use_on("bluecog", blue_pole)
-        local blue_place_ok = false
-        if blue_place_result == "ok" then
-            blue_place_ok = t.var.await_server("cogquest", 3, 15) == "ok"
-        end
-        if not blue_place_ok then
-            t.blocked("test/quests/cog.lua:place.bluecog -- brokeclockpole_blue, the same click_minimenu seam as "
-                .. "place.redcog above (quest_cog_spindles.rs2:18-19 never reached; this run: use_on -> "
-                .. tostring(blue_place_result) .. " (" .. tostring(blue_place_detail) .. ")).")
-            return
-        end
-        t.check("place.bluecog", true, string.format(
-            "use_on(bluecog,brokeclockpole_blue) -> %s (%s); cogquest await(quest_cog_two_remaining_cogs=3) -> ok",
-            tostring(blue_place_result), tostring(blue_place_detail)))
+        local blue_await_result = blue_place_result == "ok" and t.var.await_server("cogquest", 3, 15) or "skipped"
+        t.check("place.bluecog", blue_place_result == "ok" and blue_await_result == "ok", string.format(
+            "use_on(bluecog,brokeclockpole_blue) -> %s (%s); cogquest await(quest_cog_two_remaining_cogs=3) -> %s",
+            tostring(blue_place_result), tostring(blue_place_detail), tostring(blue_await_result)))
         t.expect("quest.stage.two_remaining_cogs", t.quest.expect_stage("quest_cog_two_remaining_cogs"))
 
         -- ==== Black cog: cool it with the bucket of water and take it, place it in the basement ====
@@ -194,26 +171,10 @@ return {
             tostring(locnear_b and locnear_b.match), tostring(locnear_b and locnear_b.id)))
         local black_pole = t.player.by_symbol("loc", "brokeclockpole_black")
         local black_place_result, black_place_detail = t.player.use_on("blackcog", black_pole)
-        local black_place_ok = false
-        if black_place_result == "ok" then
-            black_place_ok = t.var.await_server("cogquest", 4, 15) == "ok"
-        end
-        if not black_place_ok then
-            t.blocked("test/quests/cog.lua:place.blackcog -- brokeclockpole_black (all.loc:287, model 1793 'Clock "
-                .. "spindle', diag.blackpole confirms resolve `exact` id=30 at 2570,9642,0 -- the symbol and tile are "
-                .. "not the seam). use_on's click_minimenu answers `covered` from EVERY cardinal side tried: the "
-                .. "driver's own step-off/far-side sequence from the pole's own tile presses from north, south and "
-                .. "east (all covered), and a west approach (tried by hand, this file's authoring runs) answers "
-                .. "covered too, with the walk back to the opposite (east) side then refused outright -- the pole "
-                .. "sits inside a walled octagonal frame (screenshot: build/quest_gate/cog/shots/27-goto-black-"
-                .. "spindle.png) that blocks a clear pixel from any adjacent tile, on every side, not just the "
-                .. "player's own model. [oplocu,brokeclockpole_black] (quest_cog_spindles.rs2:9-10) is never "
-                .. "reached: this run: use_on -> " .. tostring(black_place_result) .. " (" .. tostring(black_place_detail) .. ").")
-            return
-        end
-        t.check("place.blackcog", true, string.format(
-            "use_on(blackcog,brokeclockpole_black) -> %s (%s); cogquest await(quest_cog_one_remaining_cog=4) -> ok",
-            tostring(black_place_result), tostring(black_place_detail)))
+        local black_await_result = black_place_result == "ok" and t.var.await_server("cogquest", 4, 15) or "skipped"
+        t.check("place.blackcog", black_place_result == "ok" and black_await_result == "ok", string.format(
+            "use_on(blackcog,brokeclockpole_black) -> %s (%s); cogquest await(quest_cog_one_remaining_cog=4) -> %s",
+            tostring(black_place_result), tostring(black_place_detail), tostring(black_await_result)))
         t.expect("quest.stage.one_remaining_cog", t.quest.expect_stage("quest_cog_one_remaining_cog"))
 
         -- ==== White cog: pick up in the basement (rat-cage side puzzle is
@@ -229,19 +190,10 @@ return {
         t.ticks(2)
         local white_pole = t.player.by_symbol("loc", "brokeclockpole_white")
         local white_place_result, white_place_detail = t.player.use_on("whitecog", white_pole)
-        local white_place_ok = false
-        if white_place_result == "ok" then
-            white_place_ok = t.var.await_server("cogquest", 5, 15) == "ok"
-        end
-        if not white_place_ok then
-            t.blocked("test/quests/cog.lua:place.whitecog -- brokeclockpole_white, the same click_minimenu seam as "
-                .. "place.redcog above (quest_cog_spindles.rs2:15-16 sibling, brokeclockpole_white never reached; "
-                .. "this run: use_on -> " .. tostring(white_place_result) .. " (" .. tostring(white_place_detail) .. ")).")
-            return
-        end
-        t.check("place.whitecog", true, string.format(
-            "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=5) -> ok",
-            tostring(white_place_result), tostring(white_place_detail)))
+        local white_await_result = white_place_result == "ok" and t.var.await_server("cogquest", 5, 15) or "skipped"
+        t.check("place.whitecog", white_place_result == "ok" and white_await_result == "ok", string.format(
+            "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=5) -> %s",
+            tostring(white_place_result), tostring(white_place_detail), tostring(white_await_result)))
         t.expect("quest.stage.no_remaining_cogs", t.quest.expect_stage("quest_cog_no_remaining_cogs"))
 
         -- ==== Hand in: all four colours placed, Kojo hands over the reward ====
