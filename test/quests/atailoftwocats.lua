@@ -57,6 +57,9 @@ return {
                 hild_done = 10,
                 bob_found = 20,
                 gertrude_done = 25, -- twocats.rs2:120, [proc,twocats_gertrude_after_bob]
+                reldo_done = 30, -- twocats.rs2:147, [label,twocats_talk_to_reldo]
+                bob_found_again = 35, -- twocats.rs2:155, [label,twocats_find_bob_2]
+                chores_ready = 40, -- twocats.rs2:169, [label,twocats_talk_to_sphinx]
                 complete = 70, -- twocats.rs2:392, set by [label,twocats_done]
             },
             row = "quest_tailoftwocats", -- all.dbrow.compack:143
@@ -131,57 +134,98 @@ return {
         })
         t.expect("quest.stage.gertrude_done", t.quest.expect_stage("gertrude_done"))
 
-        -- Step 25: Reldo, Varrock castle library (spawned 3209,3495,0,
-        -- areas/world/configs/m50_54.spawn:13, base symbol "reldo").
-        -- twocats.rs2:129 wires this quest's Reldo step to
-        -- [opnpc1,reldo_normal], but reldo_normal (npc.compack "4243=
-        -- reldo_normal", a multinpc1 child of [reldo]'s multivarbit=
-        -- twocats_reldo -- all.npc:170573-170585) has ZERO *.spawn rows
-        -- anywhere in this pack (confirmed: grep -rln reldo_normal turns up
-        -- only .rs2/.constant sources, never a *.spawn file) -- exactly
-        -- section 8's "a symbol that resolves in the compack but has zero
-        -- live placements anywhere in the loaded world is content_bug".
-        -- The npc that is actually placed and clickable is the BASE symbol
-        -- "reldo", whose own trigger (areas/varrock/scripts/reldo.rs2:8-96)
-        -- has no %twocats_quest branch at all -- unlike gertrude.rs2, which
-        -- was given an explicit else to stand in for its own dead
-        -- gertrude_post trigger (that file's own comment, lines 20-23),
-        -- nothing in reldo.rs2 stands in for [opnpc1,reldo_normal] (docs/
-        -- QUEST_AUTHORING.md trap 19: "the npc side has no child-then-base
-        -- fallback yet"). Driven anyway to record the live evidence.
+        -- Step 25->30: Reldo, Varrock castle library (spawned 3209,3495,0,
+        -- areas/world/configs/m50_54.spawn:13, base symbol "reldo"). RETRY
+        -- after b44ce7a2d: the dead [opnpc1,reldo_normal] trigger is gone --
+        -- reldo.rs2's own [opnpc1,reldo] (the symbol m50_54.spawn:13 actually
+        -- places) now owns the %twocats_quest 25..30 window and hands off to
+        -- [proc,twocats_reldo_talk] -> [label,twocats_talk_to_reldo]
+        -- (twocats.rs2:137-147), which opens with the PLAYER's line (trap
+        -- 18) and, holding the amulet, sets %twocats_reldo=1 and
+        -- %twocats_quest=30 with no further page.
         t.exec("goto-reldo", t.player.goto_tile, 3209, 3495, 0)
         t.exec("talkToReldo", t.player.talk_to, "reldo", 1)
-        local reldo_kind = t.chat.kind()
-        local reldo_text_result, reldo_text = t.chat.text()
-        t.check(
-            "reldo.dead_trigger",
-            true,
-            string.format(
-                "talk_to reldo opened kind=%s text=%q (reldo.rs2:24's " ..
-                "generic \"Hello stranger.\" / trade-and-library small " ..
-                "talk) -- wanted twocats.rs2:141's player line \"I have a " ..
-                "cat related question.\"; reldo.rs2:8-96 never reads " ..
-                "%%twocats_quest, so [opnpc1,reldo_normal] (twocats.rs2:" ..
-                "129-138) is unreachable through the npc that actually " ..
-                "spawns",
-                tostring(reldo_kind), tostring(reldo_text_result == "ok" and reldo_text or reldo_text_result)
-            )
-        )
-        t.expect("quest.stage.reldo_unmoved", t.quest.expect_stage("gertrude_done"))
+        t.exec("talkToReldo-dialog", t.chat.play, {
+            "player:I have a cat related question.",
+        })
+        t.expect("quest.stage.reldo_done", t.quest.expect_stage("reldo_done"))
 
-        t.blocked("CONTENT BUG: OSRS-Content/osrs239-content/server/scripts/" ..
-            "areas/varrock/scripts/reldo.rs2:8-96 [opnpc1,reldo] has no " ..
-            "%twocats_quest branch, and quest_atailoftwocats/scripts/" ..
-            "twocats.rs2:129-138's own [opnpc1,reldo_normal] trigger is " ..
-            "registered against a child npc symbol (reldo_normal, a " ..
-            "multinpc1 child of [reldo]'s multivarbit=twocats_reldo, all." ..
-            "npc:170573-170585) that has zero *.spawn placements anywhere " ..
-            "in this pack -- only the base symbol \"reldo\" is ever spawned " ..
-            "(areas/world/configs/m50_54.spawn:13), and the npc op lookup " ..
-            "has no child-then-base fallback (docs/QUEST_AUTHORING.md trap " ..
-            "19), so this quest's Reldo step can never be reached by a real " ..
-            "click. %twocats_quest is confirmed unmoved at gertrude_done " ..
-            "(25) by the row above.")
+        -- Step 30: find Bob again via the Catspeak amulet (e)'s Open op
+        -- ([opheld3,twocats_amuletofcatspeak], twocats.rs2:78-87 ->
+        -- [label,twocats_find_bob_2], twocats.rs2:153-155). The mesbox it
+        -- opens SUSPENDS the calling script (trap 22) -- %twocats_quest=35
+        -- is written only once the page is dismissed, so dismiss it before
+        -- reading the stage: a bare read right after the click is the exact
+        -- seam the earlier probe hit (build/quest_gate/atail_mn_unblocked2
+        -- row 33 read back 30, not 35, because nothing there dismissed the
+        -- page).
+        t.exec("amulet.open2", t.player.inv_op, "twocats_amuletofcatspeak", 3)
+        t.exec("amulet.open2-dialog", t.chat.play, {
+            "mesbox:You use the Catspeak amulet (e) again",
+        })
+        t.expect("quest.stage.bob_found_again", t.quest.expect_stage("bob_found_again"))
+
+        -- Step 35: the Sphinx in Sophanem (3302,2784,0,
+        -- areas/world/configs/m51_43.spawn:46, symbol ics_little_sphinx).
+        -- [opnpc1,ics_little_sphinx]'s owner is quest_dragonslayer2/scripts/
+        -- dragonslayer2.rs2:1481-1499 (shared with Icthlarin's Little Helper
+        -- and Dragon Slayer II on this same npc, trap 19's delegation
+        -- idiom); at %twocats_quest 35..40 it hands off to twocats.rs2's own
+        -- [label,twocats_talk_to_sphinx] (twocats.rs2:167-169), a player
+        -- line with no npc reply.
+        t.exec("goto-sphinx", t.player.goto_tile, 3302, 2784, 0)
+        t.exec("talkToSphinx", t.player.talk_to, "ics_little_sphinx", 1)
+        t.exec("talkToSphinx-dialog", t.chat.play, {
+            "player:Ask the Sphinx for help for Bob.",
+        })
+        t.expect("quest.stage.chores_ready", t.quest.expect_stage("chores_ready"))
+
+        -- Step 40: chores at Unferth's house. First chore is raking
+        -- ObjectID.TWOCATS_PATCH (2919,3562,0, symbol twocats_patch) through
+        -- [oploc2,twocats_patch] (twocats.rs2:188-199, op slot 2). configs/
+        -- all.loc's own [twocats_patch] block (all.loc:103847-103858) and
+        -- every one of its ten multiloc weed/potato children declare no
+        -- op1/op2/... string at all -- there is no menu row for a real click
+        -- to press, exactly the shape trap 20 names for brokeclockpole_red.
+        -- Driven anyway to record the live evidence.
+        t.exec("goto-patch", t.player.goto_tile, 2919, 3562, 0)
+        local patch = t.player.by_symbol("loc", "twocats_patch")
+        local rake_result, rake_detail = t.drive.click_minimenu(patch, 2)
+        t.check("chore.rake_no_op", true, string.format(
+            "click_minimenu(twocats_patch, 2) -> %s %q -- configs/all.loc's " ..
+            "[twocats_patch] block (all.loc:103847-103858) and its ten " ..
+            "multiloc weed/potato children declare no op string at all, so " ..
+            "[oploc2,twocats_patch] (twocats.rs2:188-199), the quest's own " ..
+            "first chore (raking Unferth's garden patch), has no menu row a " ..
+            "real click can ever press. The same is true of " ..
+            "[oploc2,twocats_bed] (make the bed, twocats.rs2:225-236 -- " ..
+            "configs/all.loc's [twocats_bed] block has no op string either) " ..
+            "and [opnpc2,twocats_unferth]/[opnpc2,twocats_unferth_longhair] " ..
+            "(shear Unferth, twocats.rs2:308-324 -- every twocats_unferth* " ..
+            "npc def in configs/all.npc declares only op1=Talk-to, no op2). " ..
+            "Three of the chores' five triggered actions have zero live " ..
+            "menu option between them.",
+            tostring(rake_result), tostring(rake_detail)))
+
+        t.blocked("CONTENT BUG: configs/all.loc's [twocats_patch] block " ..
+            "(all.loc:103847-103858), [twocats_bed] block, and every " ..
+            "twocats_unferth* def in configs/all.npc declare no numbered " ..
+            "op string at all, so three of the five chores twocats.rs2's " ..
+            "own [label,twocats_do_chores] window (twocats.rs2:180-324) " ..
+            "wires through a numbered op -- [oploc2,twocats_patch] (rake, " ..
+            "twocats.rs2:188-199), [oploc2,twocats_bed] (make bed, " ..
+            "twocats.rs2:225-236), [opnpc2,twocats_unferth] (shear, " ..
+            "twocats.rs2:308-324) -- have no menu row a real click can ever " ..
+            "press; confirmed live on the rake row above. Even were all " ..
+            "three reachable, nothing in this pack ever advances " ..
+            "%twocats_chores_tidygarden past 4 (planted, twocats.rs2:218): " ..
+            "twocats_patch is not one of skill_farming's registered " ..
+            "patches.dbtable rows and no [queue,...] growth timer anywhere " ..
+            "under server/scripts references it, so " ..
+            "[label,twocats_wait_for_potatoes]'s own tidygarden<8 guard " ..
+            "(twocats.rs2:330-337) can never pass. The quest cannot be " ..
+            "completed by any sequence of real clicks in this content pack, " ..
+            "from either seam alone, let alone both.")
         return
     end,
 }
