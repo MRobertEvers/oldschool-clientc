@@ -12,6 +12,13 @@ C_SOURCE = ROOT / "src/plugin/torirs_plugin_lua.c"
 API_SOURCE = ROOT / "src/plugin/torirs_plugin_api.h"
 META_SOURCE = ROOT / "script/plugins/plugin_api.meta.lua"
 SCRIPT_DIR = ROOT / "script/plugins"
+# The quest driver: a TEST-ONLY module (src/plugin/torirs_plugin_drive.h),
+# registered through PluginLua_SetTestModules and only when the content-test
+# harness is live. Its one flat `api.drive` table is assembled from six files,
+# one per owner, so the surface is the UNION of their arrays -- and a name in
+# two of them would silently let the later registration win, which is why the
+# duplicate check below exists at all.
+DRIVE_SOURCES = sorted(ROOT.glob("src/plugin/torirs_plugin_drive*.c"))
 
 
 def lua_fn_arrays(source: str) -> dict[str, set[str]]:
@@ -79,6 +86,30 @@ def strip_line_comments(source: str) -> str:
     return "\n".join(line.split("--", 1)[0] for line in source.splitlines())
 
 
+def testonly_modules(api_fields: dict[str, str]) -> set[str]:
+    return {name for name, annotation in api_fields.items() if "@testonly" in annotation}
+
+
+def drive_arrays() -> tuple[dict[str, set[str]], list[str]]:
+    """Every LUA_DRIVE_*_FNS array, and every name declared in more than one."""
+    arrays: dict[str, set[str]] = {}
+    seen: dict[str, str] = {}
+    duplicates: list[str] = []
+    for path in DRIVE_SOURCES:
+        source = path.read_text(encoding="utf-8")
+        for name, body in re.findall(
+            r"static\s+struct\s+LuaFn\s+const\s+(LUA_DRIVE_[A-Z_]+_FNS)\[\]\s*=\s*\{(.*?)\n\};",
+            source,
+            re.S,
+        ):
+            arrays[name] = set(re.findall(r'\{\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,', body))
+            for fn in sorted(arrays[name]):
+                if fn in seen:
+                    duplicates.append(f"{fn} in both {seen[fn]} and {name}")
+                seen[fn] = name
+    return arrays, duplicates
+
+
 def main() -> int:
     c_source = C_SOURCE.read_text(encoding="utf-8")
     api_source = API_SOURCE.read_text(encoding="utf-8") + (ROOT / "src/plugin/torirs_plugin_contract.h").read_text(encoding="utf-8")
@@ -126,7 +157,30 @@ def main() -> int:
         )
 
     api_fields = classes.get("torirs.Api", {})
-    errors += difference("api modules", set(modules), set(api_fields))
+    test_only = testonly_modules(api_fields)
+    errors += difference("api modules", set(modules), set(api_fields) - test_only)
+
+    # Test-only modules are inventoried the same way, against the arrays their
+    # own files declare rather than against a C API struct: they are Lua-only
+    # by construction and have no native plugin counterpart.
+    drive_fns, drive_duplicates = drive_arrays()
+    for duplicate in drive_duplicates:
+        errors.append(f"api.drive: duplicate verb {duplicate}")
+    for module in sorted(test_only):
+        annotation = api_fields.get(module, "")
+        class_match = re.match(r"(torirs\.[A-Za-z0-9_]+)", annotation)
+        if not class_match:
+            errors.append(f"api.{module}: missing module class in meta")
+            continue
+        registered: set[str] = set()
+        for names in drive_fns.values():
+            registered |= names
+        if not registered:
+            errors.append(f"api.{module}: no LUA_DRIVE_*_FNS array found in {len(DRIVE_SOURCES)} source(s)")
+        errors += difference(
+            f"api.{module} (test-only)", registered,
+            callable_fields(classes.get(class_match.group(1), {})),
+        )
     for module, array in sorted(modules.items()):
         annotation = api_fields.get(module, "")
         class_match = re.match(r"(torirs\.[A-Za-z0-9_]+)", annotation)
@@ -203,14 +257,14 @@ def main() -> int:
     )
     errors += difference("removed sandbox globals", removed_globals, documented_nil)
 
-    canonical_modules = set(modules)
+    canonical_modules = set(modules) | test_only
     legacy_callbacks = {
         "on_frame", "on_obj_spawn", "on_obj_count", "on_obj_despawn",
         "on_layout_changed", "on_screen_change", "on_panel_build",
         "on_panel_action", "on_panel_layout", "on_panel_draw",
         "on_canvas_click", "on_ui",
     }
-    for path in sorted(SCRIPT_DIR.glob("*.lua")):
+    for path in sorted(SCRIPT_DIR.glob("*.lua")) + sorted(SCRIPT_DIR.glob("quest_driver/*.lua")):
         if path == META_SOURCE:
             continue
         source = strip_line_comments(path.read_text(encoding="utf-8"))

@@ -255,6 +255,16 @@ net_out_move_minimapclick(
 
 /* -- held-item / inventory-component ops -------------------------------- */
 /* op is 1..5 (OPHELD1..OPHELD5 etc). */
+/* The COMPONENT op number rev-239's backpack carries for OPHELD<n> (n 1..5),
+ * 0 for anything else.  The mapping is not consecutive (2, 3, 4, 6, 7): op 1
+ * is the generic Use row and op 5 a plain component action.  Anything that
+ * speaks to the backpack in its own op space -- notably app_minimenu.c's cell
+ * flash, which re-enters the cell's cc_setonop handler -- must translate
+ * through this and not pass the OPHELD index, because op 1 there is the
+ * shift-click-drop chain and running it drops the item. */
+int
+net_out_opheld_component_op(int op_num);
+
 int
 net_out_opheld(
     struct GameProtoRevTable const* rev,

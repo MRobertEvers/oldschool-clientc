@@ -63,6 +63,19 @@ matcher_cc(int parent_uid, int sub_id)
     return m;
 }
 
+static struct UITreeRoleMatcher
+matcher_cc_typed(int parent_uid, int sub_id, int cc_type)
+{
+    struct UITreeRoleMatcher m;
+    memset(&m, 0, sizeof(m));
+    m.kind = UITREE_ROLE_MATCH_CC;
+    m.uid = parent_uid;
+    m.value = sub_id;
+    m.member = -1;
+    m.cc_type = cc_type;
+    return m;
+}
+
 static uint16_t
 declare(struct UITreeRoleTable* table, char const* name, struct UITreeRoleMatcher m)
 {
@@ -297,6 +310,143 @@ test_role_dynamic_rebuild(void)
 }
 
 static void
+test_role_cc_type_filter(void)
+{
+    struct UITreeRoleTable table;
+    struct UITree* tree = UITree_New(4);
+    int const parent_uid = (162 << 16) | 5;
+    int32_t parent, wrong_type, right_type;
+    uint16_t role, role_unfiltered;
+
+    memset(&table, 0, sizeof(table));
+    TEST_ASSERT(tree != NULL, "UITree_New");
+
+    TEST_ASSERT(
+        UITree_RoleCcTypeFromName("text") == UIELEM_RS_TEXT, "cc type name 'text' resolves");
+    TEST_ASSERT(
+        UITree_RoleCcTypeFromName("model") == UIELEM_RS_MODEL, "cc type name 'model' resolves");
+    TEST_ASSERT(UITree_RoleCcTypeFromName("wibble") < 0, "an unknown cc type name is refused");
+
+    parent = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, parent_uid, 0, 0, 100, 100);
+    TEST_ASSERT(parent >= 0, "pushed the cc anchor");
+
+    role = declare(&table, "typed_row", matcher_cc_typed(parent_uid, 4, UIELEM_RS_TEXT));
+    role_unfiltered = declare(&table, "any_row", matcher_cc(parent_uid, 4));
+
+    /* Sub id 4 built as the WRONG type (a decoy at the same sub id a rebuild
+     * could reuse for something else): the type-filtered role must decline,
+     * even though the sub id alone would have matched. The unfiltered role
+     * -- the existing two-argument cc() grammar, and every matcher any C
+     * caller built before this field existed -- still finds it.
+     *
+     * UITree_CcCreate's `widget_type` is the CS2 iftype number (3 = rect,
+     * 4 = text -- @see the switch in UITree_CcCreate, uitree.c), not the
+     * UITreeComponentType a rung's cc_type filter names; the two happen to
+     * agree for neither value here, which is the point. */
+    wrong_type = UITree_CcCreate(tree, parent, parent_uid, 3 /* TORIRS_COMPONENT_RECT */, 4);
+    TEST_ASSERT(wrong_type >= 0, "cc_create sub 4 as a rect");
+    TEST_ASSERT(tree->components[wrong_type].type == UIELEM_RS_RECT, "cc_create built a rect");
+    TEST_ASSERT(
+        UITree_RoleNode(tree, &table, role) < 0,
+        "a type filter refuses a sub id built as the wrong type");
+    TEST_ASSERT(
+        UITree_RoleNode(tree, &table, role_unfiltered) == wrong_type,
+        "the plain two-argument cc() form is unaffected by the type field's default");
+
+    /* Rebuild sub id 4 as the right type: the filtered role now resolves. */
+    UITree_CcDeleteAll(tree, parent);
+    right_type = UITree_CcCreate(tree, parent, parent_uid, 4 /* TORIRS_COMPONENT_TEXT */, 4);
+    TEST_ASSERT(right_type >= 0, "cc_create sub 4 as text");
+    TEST_ASSERT(tree->components[right_type].type == UIELEM_RS_TEXT, "cc_create built text");
+    TEST_ASSERT(
+        UITree_RoleNode(tree, &table, role) == right_type,
+        "the type filter accepts a sub id rebuilt as the stated type");
+
+    UITree_RoleTableFree(&table);
+    UITree_Free(tree);
+}
+
+/* derive=<fact> roles: answered by UITreeRoleTable.fallback, never by the
+ * (empty) matcher chain, and only for a role UITree_RoleSetDerive named. */
+static int32_t
+test_derive_fallback(
+    struct UITree const* tree,
+    struct UITreeRoleTable const* table,
+    uint16_t role_id,
+    void* user)
+{
+    char const* fact;
+    int argument;
+    int32_t* answer = (int32_t*)user;
+
+    (void)tree;
+    fact = UITree_RoleDeriveFact(table, role_id, &argument);
+    if( !fact )
+        return -2; /* not a derive= role: run the matcher chain */
+    if( strcmp(fact, "known_fact") == 0 )
+        return *answer;
+    return -2; /* an unknown fact: also declines, same as no fallback at all */
+}
+
+static void
+test_role_derive_fallback(void)
+{
+    struct UITreeRoleTable table;
+    struct UITree* tree = UITree_New(4);
+    int32_t decoy, answer;
+    uint16_t r_derive, r_plain;
+    char const* fact;
+    int argument;
+
+    memset(&table, 0, sizeof(table));
+    TEST_ASSERT(tree != NULL, "UITree_New");
+
+    decoy = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, (900 << 16) | 1, 0, 0, 10, 10);
+    TEST_ASSERT(decoy >= 0, "pushed a decoy node");
+
+    r_derive = UITree_RoleIntern(&table, "dialog_continue_like");
+    UITree_RoleSetDerive(&table, r_derive, "known_fact", -1);
+    /* A chain rung that WOULD match the decoy, to prove the fallback is
+     * consulted first and the chain never runs for a derive= role. */
+    {
+        struct UITreeRoleMatcher m = matcher_id((900 << 16) | 1);
+        UITree_RoleAddMatcher(&table, r_derive, &m);
+    }
+
+    r_plain = declare(&table, "ordinary_role", matcher_id((900 << 16) | 1));
+
+    table.fallback = test_derive_fallback;
+    table.fallback_user = &answer;
+
+    fact = UITree_RoleDeriveFact(&table, r_derive, &argument);
+    TEST_ASSERT(fact && strcmp(fact, "known_fact") == 0, "the fact round-trips");
+    TEST_ASSERT(argument == -1, "no argument was stated");
+    TEST_ASSERT(UITree_RoleDeriveFact(&table, r_plain, &argument) == NULL,
+        "a role nobody called UITree_RoleSetDerive on has no fact");
+
+    answer = decoy;
+    TEST_ASSERT(
+        UITree_RoleNode(tree, &table, r_derive) == decoy,
+        "a derive= role resolves through the fallback");
+
+    answer = -1;
+    TEST_ASSERT(
+        UITree_RoleNode(tree, &table, r_derive) < 0,
+        "the fallback's own -1 (\"not right now\") is not a fault, and the chain still does not "
+        "run -- if it had, this would resolve to the decoy instead");
+
+    /* The ordinary role has no derive= fact, so the SAME installed fallback
+     * declines it (-2) and its own matcher chain runs as if there were no
+     * fallback at all. */
+    TEST_ASSERT(
+        UITree_RoleNode(tree, &table, r_plain) == decoy,
+        "a role with no derive= fact falls through the fallback to its own chain");
+
+    UITree_RoleTableFree(&table);
+    UITree_Free(tree);
+}
+
+static void
 test_role_slot_delegation(void)
 {
     struct UITreeRoleTable table;
@@ -380,6 +530,8 @@ test_roles(void)
     test_role_table();
     test_role_resolution();
     test_role_dynamic_rebuild();
+    test_role_cc_type_filter();
+    test_role_derive_fallback();
     test_role_slot_delegation();
     test_role_drawn_bounds_follow_scroll_and_drag();
 }

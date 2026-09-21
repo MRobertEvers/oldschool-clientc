@@ -547,6 +547,13 @@ main(int argc, char** argv)
     else
     {
         printf("compiled %d scripts to %s/script.dat\n", SSC_ScriptCount(compiler), out);
+        /* Names nothing in the source could type, each already printed above.
+         * On the summary line so the number is visible when the warnings have
+         * scrolled past, and so a new collision reads as a number that went up
+         * rather than as one more line in a long build. */
+        if( SSC_AmbiguousNameCount(compiler) )
+            printf("  %d bare name(s) resolved by namespace sort order alone\n",
+                   SSC_AmbiguousNameCount(compiler));
     }
 
     if( !status && serve )

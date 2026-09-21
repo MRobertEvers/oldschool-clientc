@@ -173,6 +173,12 @@ shared_var_kinds(unsigned char* out)
 static const char*
 kind_label(enum SSC_SymbolKind kind)
 {
+    return SSC_SymbolKindLabel(kind);
+}
+
+const char*
+SSC_SymbolKindLabel(enum SSC_SymbolKind kind)
+{
     static struct ContentRegister registry;
     static int loaded;
 
@@ -288,15 +294,14 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
 }
 
 /*
- * The shared lookup. `allow_constant` is what separates the two entry points
- * below; everything else is one binary search over the name-sorted order.
+ * Position in `order` of the FIRST entry named `name`, or -1.
+ *
+ * Both lookups below walk from here: the name-sorted order groups every kind
+ * that carries a name together, so finding one of them is a binary search and
+ * enumerating all of them is the walk that follows.
  */
-static const struct SSC_Symbol*
-find_symbol(
-    struct SSC_Symbols* symbols,
-    const char* name,
-    enum SSC_SymbolKind kind,
-    int allow_constant)
+static int
+first_ordered_index(struct SSC_Symbols* symbols, const char* name)
 {
     int lo;
     int hi;
@@ -305,7 +310,7 @@ find_symbol(
     assert(name);
     ensure_sorted(symbols);
     if( !symbols->order )
-        return NULL;
+        return -1;
 
     lo = 0;
     hi = symbols->count - 1;
@@ -327,25 +332,82 @@ find_symbol(
         {
             int i = mid;
 
-            /* Walk to the first entry with this name, then take the first that
-             * matches the requested kind (or any, when none was requested). */
             while( i > 0 && strcmp(symbols->entries[symbols->order[i - 1]].name, name) == 0 )
                 i--;
-            for( ; i < symbols->count; i++ )
-            {
-                const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
-
-                if( strcmp(candidate->name, name) != 0 )
-                    break;
-                if( !allow_constant && candidate->kind == SSC_SYM_CONSTANT )
-                    continue;
-                if( kind == SSC_SYM_UNKNOWN || candidate->kind == kind )
-                    return candidate;
-            }
-            return NULL;
+            return i;
         }
     }
+    return -1;
+}
+
+/*
+ * The shared lookup. `allow_constant` is what separates the two entry points
+ * below; everything else is the walk from the first entry with this name,
+ * taking the first that matches the requested kind (or any, when none was
+ * requested).
+ */
+static const struct SSC_Symbol*
+find_symbol(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    enum SSC_SymbolKind kind,
+    int allow_constant)
+{
+    int i = first_ordered_index(symbols, name);
+
+    if( i < 0 )
+        return NULL;
+    for( ; i < symbols->count; i++ )
+    {
+        const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
+
+        if( strcmp(candidate->name, name) != 0 )
+            break;
+        if( !allow_constant && candidate->kind == SSC_SYM_CONSTANT )
+            continue;
+        if( kind == SSC_SYM_UNKNOWN || candidate->kind == kind )
+            return candidate;
+    }
     return NULL;
+}
+
+int
+SSC_SymbolsValueKinds(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const struct SSC_Symbol** out,
+    int max)
+{
+    enum SSC_SymbolKind previous = SSC_SYM_UNKNOWN;
+    int found = 0;
+    int i;
+
+    assert(symbols);
+    assert(name);
+    assert(out);
+    assert(max > 0);
+
+    i = first_ordered_index(symbols, name);
+    if( i < 0 )
+        return 0;
+    for( ; i < symbols->count; i++ )
+    {
+        const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
+
+        if( strcmp(candidate->name, name) != 0 )
+            break;
+        if( candidate->kind == SSC_SYM_CONSTANT )
+            continue;
+        /* The order is (name, kind), so equal kinds are adjacent: an alias pack
+         * listing the same name twice in one namespace is one kind, not two. */
+        if( found && candidate->kind == previous )
+            continue;
+        previous = candidate->kind;
+        if( found < max )
+            out[found] = candidate;
+        found++;
+    }
+    return found;
 }
 
 const struct SSC_Symbol*

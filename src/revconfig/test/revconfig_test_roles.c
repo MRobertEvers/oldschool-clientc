@@ -112,6 +112,184 @@ test_role_matcher_rejects(void)
     TEST_ASSERT(!revconfig_parse_role_matcher("cc(iface(x))", &m), "cc() needs its sub id");
 }
 
+/* D10: any(v1,…) inside one rung's numeric argument, and cc()'s optional
+ * third-argument type filter. */
+static void
+test_role_matcher_any_and_cc_type(void)
+{
+    struct RevConfigRoleMatcher m;
+
+    /* id(any(...)): two alternates. */
+    TEST_ASSERT(revconfig_parse_role_matcher("id(any(553, 554))", &m), "id(any()) parses");
+    TEST_ASSERT(m.kind == REVCONFIG_ROLE_MATCH_ID, "id(any()) kind");
+    TEST_ASSERT(m.ref.value == 553, "id(any()) first value");
+    TEST_ASSERT(m.ref.any_count == 1, "id(any()) one extra value");
+    TEST_ASSERT(m.ref.any_value[0] == 554, "id(any()) second value");
+
+    /* A plain id() states no alternates -- any_count stays 0 for every
+     * existing caller that never looks at it. */
+    TEST_ASSERT(revconfig_parse_role_matcher("id(2449)", &m), "id() still parses");
+    TEST_ASSERT(m.ref.any_count == 0, "id() plain form has no alternates");
+
+    /* clientcode(any(...)). */
+    TEST_ASSERT(
+        revconfig_parse_role_matcher("clientcode(any(10, 11))", &m), "clientcode(any()) parses");
+    TEST_ASSERT(m.value == 10, "clientcode(any()) first value");
+    TEST_ASSERT(m.any_count == 1, "clientcode(any()) one extra value");
+    TEST_ASSERT(m.any_value[0] == 11, "clientcode(any()) second value");
+
+    /* iface(name, any(...)): the child position. */
+    TEST_ASSERT(
+        revconfig_parse_role_matcher("iface(xpdrop, any(4, 5, 6))", &m),
+        "iface(any()) parses");
+    TEST_ASSERT(strcmp(m.ref.name, "xpdrop") == 0, "iface(any()) name");
+    TEST_ASSERT(m.ref.value == 4, "iface(any()) first child");
+    TEST_ASSERT(m.ref.any_count == 2, "iface(any()) two extra children");
+    TEST_ASSERT(m.ref.any_value[0] == 5 && m.ref.any_value[1] == 6, "iface(any()) rest");
+
+    /* any() with the maximum four values. */
+    TEST_ASSERT(
+        revconfig_parse_role_matcher("clientcode(any(1, 2, 3, 4))", &m),
+        "any() with 4 values parses");
+    TEST_ASSERT(m.any_count == 3, "any() with 4 values has 3 extras");
+
+    /* Rejected: 0 args, and more than REVCONFIG_ROLE_MAX_ANY_VALUES. */
+    TEST_ASSERT(!revconfig_parse_role_matcher("clientcode(any())", &m), "any() needs >=1 value");
+    TEST_ASSERT(
+        !revconfig_parse_role_matcher("clientcode(any(1, 2, 3, 4, 5))", &m),
+        "any() with 5 values is refused");
+
+    /* cc(<anchor>, <sub_id>, <type>): the two-argument form is unaffected,
+     * and the type name is kept verbatim (translated to a tree enum only by
+     * uitree_role_load.c, which does not build in this test). */
+    TEST_ASSERT(revconfig_parse_role_matcher("cc(iface(xpdrop), 4)", &m), "cc() two-arg form");
+    TEST_ASSERT(m.cc_type[0] == '\0', "cc() two-arg form states no type filter");
+
+    TEST_ASSERT(
+        revconfig_parse_role_matcher("cc(iface(chatmenu, 1), 3, text)", &m),
+        "cc() three-arg form parses");
+    TEST_ASSERT(m.value == 3, "cc() three-arg form keeps the sub id");
+    TEST_ASSERT(strcmp(m.cc_type, "text") == 0, "cc() three-arg form keeps the type name");
+
+    TEST_ASSERT(
+        revconfig_parse_role_matcher("cc(iface(chatmenu, 1), any(1, 2), text)", &m),
+        "cc() combines any() with a type filter");
+    TEST_ASSERT(m.value == 1 && m.any_count == 1 && m.any_value[0] == 2,
+        "cc() any() sub ids survive the trailing type argument");
+    TEST_ASSERT(strcmp(m.cc_type, "text") == 0, "cc() type filter survives an any() sub id");
+
+    TEST_ASSERT(
+        !revconfig_parse_role_matcher("cc(iface(xpdrop), 4, )", &m),
+        "cc() with an empty type argument is refused");
+}
+
+/* derive=<fact>[(<argument>)] -- rides UITreeRoleTable.fallback instead of a
+ * match= chain. */
+static void
+test_role_derive(void)
+{
+    char fact[32];
+    int argument;
+
+    TEST_ASSERT(
+        revconfig_parse_role_derive("dialog_continue", fact, sizeof(fact), &argument),
+        "a bare fact name parses");
+    TEST_ASSERT(strcmp(fact, "dialog_continue") == 0, "bare fact name kept verbatim");
+    TEST_ASSERT(argument == -1, "a bare fact name states no argument");
+
+    TEST_ASSERT(
+        revconfig_parse_role_derive("button_type(6)", fact, sizeof(fact), &argument),
+        "fact(<expr>) parses");
+    TEST_ASSERT(strcmp(fact, "button_type") == 0, "fact(<expr>) name");
+    TEST_ASSERT(argument == 6, "fact(<expr>) argument");
+
+    /* 0 must stay distinguishable from "no argument stated". */
+    TEST_ASSERT(
+        revconfig_parse_role_derive("button_type(0)", fact, sizeof(fact), &argument),
+        "fact(0) parses");
+    TEST_ASSERT(argument == 0, "fact(0) argument is 0, not -1");
+
+    TEST_ASSERT(
+        !revconfig_parse_role_derive("", fact, sizeof(fact), &argument),
+        "an empty derive= line is refused");
+    TEST_ASSERT(
+        !revconfig_parse_role_derive("button_type(", fact, sizeof(fact), &argument),
+        "an unclosed call is refused");
+    TEST_ASSERT(
+        !revconfig_parse_role_derive("button_type(abc)", fact, sizeof(fact), &argument),
+        "a non-numeric argument is refused");
+
+    /* Sections: derive= alongside match=, the way [role:dialog_continue] and
+     * [role:pause_pending] are written in the generated ini. */
+    {
+        static char const ini[] =
+            "[role:dialog_continue]\n"
+            "derive=dialog_continue\n"
+            "\n"
+            "[role:dialog_npc_continue]\n"
+            "match=iface(chat_left, 5)\n";
+
+        struct RevConfigBuffer* fields = revconfig_buffer_new(32);
+        struct RevConfigItemBuffer* items = revconfig_item_buffer_new(8);
+        struct RevConfigRoleItem const* role;
+
+        revconfig_load_fields_from_ini_bytes((uint8_t const*)ini, (uint32_t)strlen(ini), fields);
+        revconfig_items_build(fields, items);
+
+        role = find_role(items, "dialog_continue");
+        TEST_ASSERT(role != NULL, "[role:dialog_continue] built an item");
+        if( role )
+        {
+            TEST_ASSERT(strcmp(role->derive_fact, "dialog_continue") == 0,
+                "derive= fact carried onto the item");
+            TEST_ASSERT(role->matcher_count == 0, "a derive= role states no match= rungs");
+        }
+
+        role = find_role(items, "dialog_npc_continue");
+        TEST_ASSERT(role != NULL, "[role:dialog_npc_continue] built an item");
+        if( role )
+            TEST_ASSERT(
+                role->derive_fact[0] == '\0', "a match= role carries no derive= fact");
+
+        revconfig_item_buffer_free(items);
+        revconfig_buffer_free(fields);
+    }
+}
+
+/* revconfig_derive_sibling_path: the suffix swap that chains a lane's
+ * generated role file beside its hand-edited cache ini. */
+static void
+test_derive_sibling_path(void)
+{
+    char out[256];
+
+    TEST_ASSERT(
+        revconfig_derive_sibling_path(
+            "revconfig/osrs239/osrs239_dat2_cache.ini",
+            "_dat2_cache.ini",
+            "_dat2_roles.gen.ini",
+            out,
+            sizeof(out)) != NULL,
+        "a matching suffix derives a sibling path");
+    TEST_ASSERT(
+        strcmp(out, "revconfig/osrs239/osrs239_dat2_roles.gen.ini") == 0,
+        "the derived path swaps only the suffix");
+
+    TEST_ASSERT(
+        revconfig_derive_sibling_path(
+            "revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini",
+            "_dat2_cache.ini",
+            "_dat2_roles.gen.ini",
+            out,
+            sizeof(out)) == NULL,
+        "a dat1 cache ini derives nothing");
+
+    TEST_ASSERT(
+        revconfig_derive_sibling_path(
+            "x_dat2_cache.ini", "_dat2_cache.ini", "_dat2_roles.gen.ini", out, 4) == NULL,
+        "an output buffer too small derives nothing");
+}
+
 static void
 test_role_sections(void)
 {
@@ -199,5 +377,8 @@ test_roles(void)
 
     test_role_matcher_forms();
     test_role_matcher_rejects();
+    test_role_matcher_any_and_cc_type();
+    test_role_derive();
+    test_derive_sibling_path();
     test_role_sections();
 }

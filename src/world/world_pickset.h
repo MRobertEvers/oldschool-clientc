@@ -35,10 +35,31 @@ struct World_PickSet
 {
     struct World_Picked items[WORLD_PICKSET_MAX];
     int count;
+    /**
+     * WHERE this set was hittested, in canvas coordinates, and whether that
+     * point is still current (World_PickSetReset clears it, which is what a
+     * pointer leaving the viewport does).
+     *
+     * A reader that has just MOVED the pointer cannot otherwise tell "the set
+     * stamped at my point does not hold my element" from "the set is still
+     * stamped at the point I moved away from", and those are different facts:
+     * the first says the model is not drawn there, the second says nothing at
+     * all. The quest driver read the second as the first for a whole batch of
+     * quests -- every `covered` it reported carried "pickset held=false"
+     * whether or not a frame had yet rendered at the pixel.
+     */
+    int mouse_valid;
+    int mouse_x;
+    int mouse_y;
 };
 
 void
 World_PickSetReset(struct World_PickSet* pickset);
+
+/** Record the canvas point the frame that just filled this set hittested at;
+ *  called once per rendered frame, after the raw hits classify. */
+void
+World_PickSetStamp(struct World_PickSet* pickset, int mouse_x, int mouse_y);
 
 void
 World_PickSetAdd(

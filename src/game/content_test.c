@@ -32,6 +32,7 @@ int ContentTest_Enabled(void)
 #include <toridraw_scene.h>
 #include "varp/varp_manager.h"
 #include "varc/varc_manager.h"
+#include "plugin/torirs_plugin_drive.h"
 
 /* One warm process, one virtual clock. IO/picking/UI continue at frozen time.
  * A step never waits out the 600 ms server tick in wall-clock time. */
@@ -101,7 +102,46 @@ int ContentTest_DrawRequested(struct App* app)
     if( !ContentTest_Enabled() || !App_FrameSettled(app) || App_IsBooting(app, NULL) || app->world_load_inflight ) return 0;
     if( active && observe_requested && !remaining && !observe_drawn )
     { observe_drawn = 1; return 1; }
-    return (active && (capture_path[0] || click_phase >= 0 || hover_requested)) || running;
+    {
+        int forced = (active && (capture_path[0] || click_phase >= 0 || hover_requested)) || running;
+        /* Quest mode (docs/QUEST_DRIVER_REMAINING.md B0): PluginDrive_
+         * QuestScriptPath() runs entirely below the `if( !active )` mailbox
+         * block above (ContentTest_Begin returns before it), so `active` and
+         * `running` are unconditionally 0 for the whole run and `forced`
+         * above is always 0 -- this file's own forced-draw branch does
+         * nothing in quest mode.
+         *
+         * Measured (B0 spike, a throwaway click_minimenu run traced frame by
+         * frame): a quest-mode world renders exactly ONCE, early after
+         * login, and then never again once nothing else marks need_redraw
+         * (no animation, no camera drift) -- app->world_pickset and the
+         * per-entity screen-position caches freeze at that one frame's
+         * contents for the rest of the run. A click verb that lands after
+         * that point waits out its whole deadline against a pickset that
+         * will never update, and answers `covered` on a target that is
+         * plainly on screen.
+         *
+         * The fix mirrors `hover_requested` above rather than inventing a
+         * new mechanism: while the quest coroutine has a LEVEL await armed
+         * (PluginDriveCore_LevelAwaitPending -- pick_holds, menu_visible,
+         * player_idle, ... every one of them reads live rendered/engine
+         * state on each poll, per QUEST_DRIVER_DESIGN.md's EDGE+LEVEL rule),
+         * force a draw so that poll has a current frame to read. An
+         * edge-only await (event= with no level=) is left alone: it
+         * resolves off a discrete event, not off rendered state, and
+         * forcing a draw for it would only cost frames for nothing. */
+        if( PluginDrive_QuestScriptPath() && PluginDriveCore_LevelAwaitPending() )
+            forced = 1;
+        /* TEMPORARY, env-gated like the existing TORIRS_DRIVE_DEBUG
+         * precedent (torirs_plugin_drive_ui.c): confirms the fix above by
+         * showing the pickset actually staying current instead of freezing.
+         * Remove once B1-B3 are green and this stops earning its keep. */
+        if( getenv("TORIRS_QD_PICKSET_TRACE") )
+            fprintf(stderr,
+                "pickset_trace: now=%llu forced=%d active=%d running=%d pickset_count=%d\n",
+                (unsigned long long)test_now, forced, active, running, app->world_pickset.count);
+        return forced;
+    }
 }
 
 /* Hash the posed mesh actually handed to the renderer, not just its frame
@@ -430,6 +470,38 @@ uint64_t ContentTest_Begin(struct App* app, struct NetTransport* transport,
     assert(app);
     assert(bus);
     struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, test_now);
+    /* t.cheat needs the embedded struct ToriRSServer* to call a debugproc
+     * in-process, with no packet; this is the one place a NetTransport is
+     * already turned into one. Handed over every frame, quest mode or not,
+     * since a driver-loaded-but-idle run (no TORIRS_QUEST_SCRIPT) is still a
+     * legitimate way to drive ::commands from the ordinary mailbox below. */
+    PluginDriveCore_SetEmbed(embed);
+    /* verbs-pointer's DrivePointer_MouseMove/MouseButton push onto this bus
+     * (torirs_plugin_drive_pointer.c's own banner reports the seam); handed
+     * over every frame, same as g_embed above, for the same reason. */
+    PluginDriveCore_SetCmdBus(bus);
+    if( PluginDrive_QuestScriptPath() )
+    {
+        /*
+         * Quest-script mode (docs/QUEST_DRIVER_PLAN.md 5.1 / ARCHITECT.md A1):
+         * no mailbox. TORIRS_QUEST_SCRIPT drives itself through api.drive's
+         * scheduler (torirs_plugin_drive.c), polled from the driver plugin's
+         * own on_frame_start -- there is no `request` file to read and no
+         * `command`/`active` state machine to run below.
+         *
+         * The one thing this file still owns is the virtual clock.
+         * PluginDrive_ClockWantsStep answers whether the coroutine still has
+         * a quest to run; capture_path is THIS file's own state (a
+         * screenshot request in flight, `t.shot`'s job, verbs-ui) and is the
+         * hold a step must not race -- checked here rather than threaded
+         * through the driver because nothing outside this file has any
+         * business knowing that variable's name.
+         */
+        if( !capture_path[0] && !App_AsyncPending(app) && PluginDrive_ClockWantsStep(app) )
+            test_now += 20;
+        NetTransport_TestClock(transport, test_now);
+        return test_now;
+    }
     uint64_t elapsed = last_real ? real_now - last_real : 0;
     last_real = real_now;
     if( !active )

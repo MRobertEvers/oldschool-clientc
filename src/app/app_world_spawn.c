@@ -801,12 +801,20 @@ app_world_spawn_npc_now(
                 (unsigned long long)bd_tex);
     }
     app->need_redraw = 1;
-    /* After the entity is in the pool and carries its name and facts, so a
-     * handler's snapshot is the finished npc rather than a half-built one. */
-    if( app->plugins && idx != WORLD_ENTITY_NIL )
+    if( idx != WORLD_ENTITY_NIL )
     {
         struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
         if( spawned )
+        {
+            /* DRIVE_STAMP: npc_spawn -- a=npc slot b=npc_id. Unconditional --
+             * the ring is present in every build, unlike the plugin-host
+             * snapshot below, which stays gated on app->plugins. */
+            App_DriveEvent(app, DRIVE_EVENT_NPC_SPAWN, idx, spawned->npc_id, 0, 0);
+        }
+        /* After the entity is in the pool and carries its name and facts, so
+         * a handler's snapshot is the finished npc rather than a half-built
+         * one. */
+        if( app->plugins && spawned )
         {
             struct ToriRS_NpcSnapshot snap;
             app_plugin_fill_npc(app, spawned, &snap);

@@ -21,6 +21,7 @@
 #include <assert.h>
 
 #include "ss_meta.h"
+#include "ssc_command_kinds.gen.h"
 #include "ssc_lex.h"
 #include "ssvm_provider.h"
 
@@ -160,6 +161,26 @@ struct SSC_Compiler
      *  Set by parse_command around a command whose arguments are a language
      *  enumeration the packs also use as data names — see parse_expression. */
     enum SSC_SymbolKind arg_kind_hint;
+
+    /**
+     * The namespace the expression just compiled is a value OF, or
+     * SSC_SYM_UNKNOWN: a command's declared single return type, or the kind a
+     * bare name resolved as. Cleared at the head of every parse_expression, so
+     * it describes the last value and not some argument inside it.
+     *
+     * What reads it is `parse_comparison`: `if (last_useitem = <name>)` states
+     * the namespace of BOTH sides on the left, and that is the only thing that
+     * can type the right — a bare name in a comparison has no declaring
+     * signature of its own. Without it, `eadgar_troll_thistle` (npc 4767 and
+     * obj 3262) compiled to the npc, the equality could never hold, and the
+     * troll thistle answered "You can't cook that." with the OPLOCU packet
+     * carrying the right obj all along.
+     */
+    enum SSC_SymbolKind last_value_kind;
+
+    /** Bare names that resolved with nothing to say which namespace was meant,
+     *  reported one by one and counted for the summary line. */
+    int ambiguous_names;
 
     /** Set for the one argument position that names a *server script* rather
      *  than a value — `settimer(<here>, 30)`. The script namespace is not in the
@@ -619,10 +640,16 @@ script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name, int* ou
  *
  * A ScriptVarType and the pack namespace it names are the same word for
  * everything that has a pack, so the content register's own mapping answers
- * almost all of it. Three spellings it cannot: `locshape` and `npc_mode` are
+ * almost all of it. Five spellings it cannot: `locshape` and `npc_mode` are
  * enumerations with no pack (SSC_SymbolsSeedBuiltins puts them in the table),
- * and `namedobj` is an obj whose name the client shows — the OBJ namespace
- * under a second type name.
+ * `namedobj` is an obj whose name the client shows, `npc_stat` is the STAT
+ * enumeration read off an npc rather than a player, and `intparam` is a param
+ * whose value is an int — each of them a namespace already mapped, under a
+ * second type name.
+ *
+ * `npc_stat` and `intparam` arrived with the engine.rs2 signature table
+ * (ssc_command_kinds.gen.h): before it, the only reader was a proc header, and
+ * no proc in this tree declares either word.
  *
  * Deliberately not covered: the script-typed parameters (`queue`, `timer`).
  * Those want `arg_is_script_name` rather than a symbol kind, and no header in
@@ -639,7 +666,82 @@ param_type_kind(const char* type)
         return SSC_SYM_LOCSHAPE;
     if( strcmp(type, "npc_mode") == 0 )
         return SSC_SYM_NPC_MODE;
+    if( strcmp(type, "npc_stat") == 0 )
+        return SSC_SYM_STAT;
+    if( strcmp(type, "intparam") == 0 )
+        return SSC_SYM_PARAM;
     return SSC_SymbolKindForNamespace(type);
+}
+
+/*
+ * The types a command DECLARES, from the reference's engine.rs2.
+ *
+ * ss_meta.gen.h carries how many values a command pops and pushes and throws
+ * away what each of them was declared as — and that discarded half is exactly
+ * what a bare name needs. Every hint table below this line was a hand-copy of
+ * one line of engine.rs2, added the day a collision was noticed: `shark` is obj
+ * 385 and npc 1830, `hitpoints` is param 2100 and a stat, `farming_tools` is
+ * loc 7516, varp 615 and interface 125. The list was never the fix; the
+ * signature is.
+ *
+ * Sorted by opcode id, so a lookup is a binary search over 362 rows.
+ */
+static const struct SSC_CommandTypes*
+command_types(int opcode)
+{
+    int lo = 0;
+    int hi = (int)(sizeof(g_ssc_command_types) / sizeof(g_ssc_command_types[0])) - 1;
+
+    while( lo <= hi )
+    {
+        int mid = lo + ((hi - lo) / 2);
+
+        if( g_ssc_command_types[mid].opcode < opcode )
+            lo = mid + 1;
+        else if( g_ssc_command_types[mid].opcode > opcode )
+            hi = mid - 1;
+        else
+            return &g_ssc_command_types[mid];
+    }
+    return NULL;
+}
+
+/**
+ * The kind the `index`th declared argument asks a bare name to resolve as, or
+ * SSC_SYM_UNKNOWN — past the end of the list, or a type that names no namespace.
+ *
+ * Whether the command HAS a declaration is the caller's question — an opcode
+ * this tree added itself (IF_OPENSUB, OBJ_ADD_PRIVATE, STAT_XP, … everything in
+ * the 11000 range) has none, and those keep the hand-written hints in
+ * parse_command. The caller asks that once, where it already has to choose
+ * between the two; passing NULL here is a bug.
+ */
+static enum SSC_SymbolKind
+command_arg_kind(const struct SSC_CommandTypes* types, int index)
+{
+    const char* cursor;
+    int position = 0;
+
+    assert(types);
+    assert(index >= 0);
+    for( cursor = types->args; *cursor; position++ )
+    {
+        char word[32];
+        size_t length = 0;
+
+        while( *cursor && *cursor != ' ' )
+        {
+            if( length + 1 < sizeof(word) )
+                word[length++] = *cursor;
+            cursor++;
+        }
+        word[length] = '\0';
+        while( *cursor == ' ' )
+            cursor++;
+        if( position == index )
+            return param_type_kind(word);
+    }
+    return SSC_SYM_UNKNOWN;
 }
 
 /** Emit a call to `[proc,name]` or `[label,name]`. */
@@ -912,6 +1014,13 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         /* Set when an argument was itself a call whose pushed count this pass
          * cannot know exactly — `arg_index` is then a LOWER bound. */
         int arg_lower_bound = 0;
+        /* What engine.rs2 declares this command's arguments and return to be,
+         * or NULL for an opcode this tree added itself. */
+        const struct SSC_CommandTypes* types = command_types(opcode);
+        /* The declared parameter the next argument fills, and whether that
+         * position is still exact. See the advance at the foot of the loop. */
+        int hint_index = 0;
+        int hint_index_known = 1;
         int saved_saw_command = compiler->saw_command_call;
         /*
          * Leading arguments that name a *server script* rather than a value.
@@ -1078,19 +1187,47 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                      * field pushes two and says nothing), so any call argument
                      * marks the count as a lower bound rather than exact. */
                     int arg_is_proc = compiler->lexer.current.kind == SSC_TOK_PROC;
+                    /* The declared type of THIS position, when the position is
+                     * still exact — see hint_index below. */
+                    int arg_is_command =
+                        compiler->lexer.current.kind == SSC_TOK_IDENT &&
+                        SSVM_OpcodeFromName(compiler->lexer.current.text) >= 0;
+                    enum SSC_SymbolKind declared =
+                        (types && hint_index_known)
+                            ? command_arg_kind(types, hint_index)
+                            : SSC_SYM_UNKNOWN;
 
                     compiler->last_call_int_returns = -1;
                     compiler->last_call_str_returns = -1;
+                    compiler->last_command_int_returns = -1;
+                    compiler->last_command_str_returns = -1;
                     compiler->saw_command_call = 0;
                     compiler->last_dbcolumn_types = NULL;
+                    /*
+                     * engine.rs2's declared type for this argument wins over
+                     * the whole-command hints above, because it is positional
+                     * and they are not: `split_init(string, int, int,
+                     * fontmetrics)` wants the fontmetrics namespace for its
+                     * FOURTH argument only, and a base_hint applies it to every
+                     * one of them. Where the table says nothing — a type that
+                     * names no namespace, or one of this tree's own opcodes,
+                     * which the reference never declared — the hand-written
+                     * hint is still what answers.
+                     */
                     compiler->arg_kind_hint =
-                        arg_index < type_args ? SSC_SYM_TYPE : base_hint;
+                        arg_index < type_args
+                            ? SSC_SYM_TYPE
+                            : (declared != SSC_SYM_UNKNOWN ? declared : base_hint);
                     /* These commands declare their second argument as an obj
                      * (`namedobj` for the add forms). A bare name still needs
                      * that declared namespace here: `shark` is both obj 385
                      * and npc 1830 in rev 239, and the generic resolver picks
                      * the npc. That made every `obj_add(..., shark, ...)`
-                     * quietly put a waterskin-shaped id on the floor. */
+                     * quietly put a waterskin-shaped id on the floor.
+                     *
+                     * Kept for OBJ_ADD_PRIVATE alone now: every other member is
+                     * declared in engine.rs2 and answered by the table above,
+                     * which says the same thing. */
                     if( arg_index == 1 && op_name &&
                         (strcmp(op_name, "OBJ_ADD") == 0 ||
                          strcmp(op_name, "OBJ_ADDALL") == 0 ||
@@ -1128,6 +1265,33 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                     if( arg_is_proc || compiler->last_call_int_returns >= 0 ||
                         compiler->saw_command_call )
                         arg_lower_bound = 1;
+                    /*
+                     * Which DECLARED parameter the next argument fills, tracked
+                     * apart from `arg_index` because the two answer different
+                     * questions: the arity check above is allowed to be a lower
+                     * bound, and a hint is not. A wrong hint resolves a name
+                     * silently, where a wrong count is at worst reported, so
+                     * the moment a call leaves a count this pass cannot know,
+                     * hinting stops rather than guesses — the same rule
+                     * parse_call applies to a `~proc`'s parameters.
+                     *
+                     * `obj_add(coord, shark, 1, 200)` is why the command branch
+                     * is here at all: `coord` is itself a command, and treating
+                     * every command argument as unknowable would give up on the
+                     * position of the obj one slot later.
+                     */
+                    if( arg_is_proc && compiler->last_call_int_returns >= 0 )
+                        hint_index += compiler->last_call_int_returns +
+                                      compiler->last_call_str_returns;
+                    else if( arg_is_command && compiler->last_command_int_returns >= 0 )
+                        hint_index += compiler->last_command_int_returns +
+                                      compiler->last_command_str_returns;
+                    else
+                        hint_index++;
+                    if( (arg_is_proc && compiler->last_call_int_returns < 0) ||
+                        (arg_is_command && compiler->last_command_int_returns < 0) ||
+                        (!arg_is_command && compiler->saw_command_call) )
+                        hint_index_known = 0;
                     if( SSC_LexIsPunct(&compiler->lexer, ",") )
                     {
                         SSC_LexNext(&compiler->lexer);
@@ -1261,6 +1425,25 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     compiler->saw_command_call = 1;
     compiler->last_command_int_returns = meta->runtime_typed ? -1 : meta->int_out;
     compiler->last_command_str_returns = meta->runtime_typed ? -1 : meta->str_out;
+    /*
+     * And what namespace the value it just pushed belongs to, for a comparison
+     * against a bare name — `if (last_useitem = eadgar_troll_thistle)`.
+     *
+     * Only a single declared return can say this: a command that pushes two
+     * leaves the reader of `last_value_kind` no way to know which one the
+     * comparison takes, and the generator writes "" for those. A runtime-typed
+     * command (db_getfield, the param family, enum) is data-decided and gets
+     * nothing either, which is what `result` being a declared word rather than
+     * an inferred one already gives.
+     */
+    {
+        const struct SSC_CommandTypes* declared = command_types(opcode);
+
+        compiler->last_value_kind =
+            (declared && !meta->runtime_typed && declared->result[0])
+                ? param_type_kind(declared->result)
+                : SSC_SYM_UNKNOWN;
+    }
 
     if( is_string )
         *is_string = column_types ? dbcolumn_first_type_is_string(column_types)
@@ -1508,6 +1691,93 @@ parse_calc_term(struct SSC_Compiler* compiler)
 }
 
 /**
+ * A bare name that exists in more than one namespace, resolved where nothing
+ * declared which one was meant.
+ *
+ * The resolver answers such a name with the lowest-numbered kind that carries
+ * it (ssc_symbols.c `cmp_order`), and that answer is a coin toss dressed as a
+ * decision: `eadgar_troll_thistle` is npc 4767 and obj 3262, NPC sorts first,
+ * and `if (last_useitem = eadgar_troll_thistle)` compiled to `= 4767` — a
+ * comparison against a player's held item that no held item can ever equal. The
+ * thistle fell through to the generic cooking handler and answered "You can't
+ * cook that.", with the OPLOCU packet carrying obj 3262 the whole time. Nothing
+ * in the build said a word.
+ *
+ * 69 names in this tree live in two namespaces, so the typed positions
+ * (engine.rs2's signatures, a proc's declared parameters, the other side of a
+ * comparison, a `switch_obj`'s case labels) are what keep this quiet; what is
+ * left over is a position with genuinely nothing to go on, and it is printed
+ * rather than guessed at in silence. It is a warning and not a fatal: the
+ * spelling that would settle it is a content edit, and a compiler that refuses
+ * the tree it is given cannot be the thing that reports the list.
+ */
+/** How many ambiguous names a build prints before it stops repeating itself. */
+enum
+{
+    SSC_AMBIGUOUS_SHOWN = 20,
+};
+
+static void
+report_ambiguous_name(
+    struct SSC_Compiler* compiler,
+    const char* name,
+    const struct SSC_Symbol* taken)
+{
+    const struct SSC_Symbol* kinds[4];
+    int count;
+    int shown;
+    int i;
+
+    assert(compiler);
+    assert(name);
+    assert(taken);
+
+    count = SSC_SymbolsValueKinds(compiler->symbols, name,
+                                  kinds, (int)(sizeof(kinds) / sizeof(kinds[0])));
+    if( count < 2 )
+        return;
+    compiler->ambiguous_names++;
+    /*
+     * 1,283 of these compile in this tree today, which is a list to work
+     * through and not something to print in full on every content build: a
+     * build whose warnings nobody can read has no warnings. The count on the
+     * summary line is what always shows, and `SSCOMPILE_AMBIGUOUS=all` is how
+     * the whole list is taken when somebody is working through it.
+     */
+    {
+        static int show_all = -1;
+
+        if( show_all < 0 )
+        {
+            const char* setting = getenv("SSCOMPILE_AMBIGUOUS");
+
+            show_all = setting && strcmp(setting, "all") == 0;
+        }
+        if( !show_all && compiler->ambiguous_names == SSC_AMBIGUOUS_SHOWN )
+        {
+            fprintf(stderr,
+                    "sscompile: further ambiguous names not shown; "
+                    "SSCOMPILE_AMBIGUOUS=all lists every one\n");
+            return;
+        }
+        if( !show_all && compiler->ambiguous_names > SSC_AMBIGUOUS_SHOWN )
+            return;
+    }
+    shown = count < (int)(sizeof(kinds) / sizeof(kinds[0]))
+                ? count
+                : (int)(sizeof(kinds) / sizeof(kinds[0]));
+    fprintf(stderr, "sscompile: %s:%d: warning: '%s' names ", compiler->lexer.file,
+            compiler->lexer.current.line, name);
+    for( i = 0; i < shown; i++ )
+        fprintf(stderr, "%s%s %d", i ? " and " : "", SSC_SymbolKindLabel(kinds[i]->kind),
+                kinds[i]->value);
+    if( count > shown )
+        fprintf(stderr, " and %d more", count - shown);
+    fprintf(stderr, "; nothing here says which, so %s %d is what compiled\n",
+            SSC_SymbolKindLabel(taken->kind), taken->value);
+}
+
+/**
  * One value onto the stack.
  *
  * Reports through `is_string` which stack it landed on, because the caller
@@ -1523,6 +1793,9 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
     int32_t secondary = 0;
 
     *is_string = 0;
+    /* Whatever the previous value was of, this one is not it until something
+     * below says so. See `last_value_kind`. */
+    compiler->last_value_kind = SSC_SYM_UNKNOWN;
 
     /* `.%inferno_glyph_dir` reads the variable off the SECONDARY pointer. The
      * lexer leaves the dot as punctuation here (it only glues a dot onto a
@@ -1699,6 +1972,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
             symbol = SSC_SymbolsFind(compiler->symbols, text, compiler->arg_kind_hint);
             if( symbol )
             {
+                compiler->last_value_kind = symbol->kind;
                 emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
                 SSC_LexNext(lexer);
                 return 1;
@@ -1782,6 +2056,10 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
              * caller that needs them — see `last_dbcolumn_types`. */
             if( symbol->kind == SSC_SYM_DBCOLUMN )
                 compiler->last_dbcolumn_types = symbol->text;
+            /* Nothing typed this position and the name may live in more than
+             * one namespace, in which case sort order alone chose. */
+            report_ambiguous_name(compiler, text, symbol);
+            compiler->last_value_kind = symbol->kind;
             emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
             SSC_LexNext(lexer);
             return 1;
@@ -1866,9 +2144,12 @@ parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
     int right_is_string = 0;
     char op[4];
     int opcode;
+    enum SSC_SymbolKind left_kind;
+    enum SSC_SymbolKind saved_hint;
 
     if( !parse_expression(compiler, &left_is_string) )
         return 0;
+    left_kind = compiler->last_value_kind;
 
     if( lexer->current.kind != SSC_TOK_PUNCT )
         return fail(compiler, "expected a comparison operator in the condition");
@@ -1876,8 +2157,29 @@ parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
     snprintf(op, sizeof(op), "%.3s", lexer->current.text);
     SSC_LexNext(lexer);
 
+    /*
+     * Both sides of a comparison are values of the SAME kind, and that is the
+     * only thing in the language that can type a bare name here.
+     *
+     * `if (last_useitem = eadgar_troll_thistle)`: the left is declared to
+     * return an obj, so the right is an obj — without saying so the resolver
+     * took npc 4767 over obj 3262 and the branch was dead code that read as
+     * correct content. Six comparisons in this tree were compiled that way
+     * (eadgar_troll_thistle, eadgar_fake_man, red_crab twice, cavewitchcat,
+     * bloated_toad), and the class is open-ended: a new collision is one
+     * `.npc` file away.
+     *
+     * The hint is a preference, never a requirement — a name with no entry in
+     * the left's namespace falls through to the ordinary lookup, so a
+     * comparison against something that is not an id of that kind compiles
+     * exactly as it did.
+     */
+    saved_hint = compiler->arg_kind_hint;
+    if( left_kind != SSC_SYM_UNKNOWN )
+        compiler->arg_kind_hint = left_kind;
     if( !parse_expression(compiler, &right_is_string) )
         return 0;
+    compiler->arg_kind_hint = saved_hint;
 
     /* The emitted branch is the INVERSE of the source comparison, because it
      * jumps over the block when the condition does not hold. */
@@ -2104,9 +2406,18 @@ parse_while(struct SSC_Compiler* compiler)
     return 1;
 }
 
-/** Fold a case label to a constant. Case keys live in the table, not in code. */
+/**
+ * Fold a case label to a constant. Case keys live in the table, not in code.
+ *
+ * `kind` is the namespace the switch itself declares — `switch_obj` switches on
+ * an obj, so `case eadgar_troll_thistle:` is obj 3262 and not npc 4767. The
+ * type is right there in the keyword and was being thrown away: 382 of this
+ * tree's switches are `switch_obj`, every one of them resolving its labels by
+ * sort order. SSC_SYM_UNKNOWN for the switches whose suffix names no namespace
+ * (`switch_int`, `switch_coord`, `switch_protection`), which resolve as before.
+ */
 static int
-parse_case_value(struct SSC_Compiler* compiler, int32_t* out)
+parse_case_value(struct SSC_Compiler* compiler, enum SSC_SymbolKind kind, int32_t* out)
 {
     struct SSC_Lexer* lexer = &compiler->lexer;
     const struct SSC_Symbol* symbol;
@@ -2135,7 +2446,15 @@ parse_case_value(struct SSC_Compiler* compiler, int32_t* out)
             SSC_LexNext(lexer);
             return 1;
         }
-        symbol = SSC_SymbolsFind(compiler->symbols, lexer->current.text, SSC_SYM_UNKNOWN);
+        symbol = kind != SSC_SYM_UNKNOWN
+                     ? SSC_SymbolsFind(compiler->symbols, lexer->current.text, kind)
+                     : NULL;
+        if( !symbol )
+        {
+            symbol = SSC_SymbolsFind(compiler->symbols, lexer->current.text, SSC_SYM_UNKNOWN);
+            if( symbol && symbol->kind != SSC_SYM_CONSTANT )
+                report_ambiguous_name(compiler, lexer->current.text, symbol);
+        }
         if( !symbol )
             return fail(compiler, "case value '%s' is not a known symbol", lexer->current.text);
         *out = symbol->value;
@@ -2157,6 +2476,14 @@ parse_switch(struct SSC_Compiler* compiler)
     int exits[SSC_MAX_SWITCH_CASES];
     int exit_count = 0;
     int case_count = 0;
+    /* `switch_obj` states the namespace of every case label in the keyword
+     * itself — the one place in the language where the type is spelled out and
+     * the labels were still resolved blind. See parse_case_value. */
+    enum SSC_SymbolKind case_kind;
+
+    /* The only caller reaches here on an identifier beginning `switch_`. */
+    assert(strncmp(lexer->current.text, "switch_", 7) == 0);
+    case_kind = param_type_kind(lexer->current.text + 7);
 
     if( build->table_count >= SSC_MAX_SWITCH_TABLES )
         return fail(compiler, "more than %d switch tables in one script",
@@ -2208,7 +2535,7 @@ parse_switch(struct SSC_Compiler* compiler)
 
                 if( key_count >= SSC_MAX_SWITCH_CASES )
                     return fail(compiler, "too many case values");
-                if( !parse_case_value(compiler, &key) )
+                if( !parse_case_value(compiler, case_kind, &key) )
                     return 0;
                 keys[key_count++] = key;
                 if( SSC_LexIsPunct(lexer, "," ) )
@@ -2913,6 +3240,13 @@ int
 SSC_ScriptCount(const struct SSC_Compiler* compiler)
 {
     return compiler ? compiler->script_count : 0;
+}
+
+int
+SSC_AmbiguousNameCount(const struct SSC_Compiler* compiler)
+{
+    assert(compiler);
+    return compiler->ambiguous_names;
 }
 
 const struct SSVM_Script*

@@ -35,8 +35,13 @@ home	^respawn_coord	Lumbridge respawn
 respawn	^respawn_coord	alias of home
 
 # --- TzHaar -----------------------------------------------------------------
-fight_caves	^fightcave_centre	middle of the cave floor
-fight_caves_entry	^fightcave_entry	just inside the entrance
+# The cave interior is INSTANCED: fightcave.constant says every tile inside is
+# a local offset into a private reservation and "a coord that reaches the world
+# without passing through ~fightcave_coord is a coord in the wrong cave". There
+# is therefore no ^fightcave_centre or ^fightcave_entry to name, and there should
+# not be. ^fightcave_exit is the one absolute coord the file declares -- the tile
+# outside, where the reservation drops you -- so that is what this lands on.
+fight_caves	^fightcave_exit	outside the cave; the interior is instanced
 inferno	^inferno_entrance_walk	the surface tile outside
 inferno_template	^inferno_template	the static map the instance is built from
 
@@ -56,8 +61,11 @@ sire_nexus	^sire_nexus	the abyssal nexus above
 alchemical_hydra_lair	^hydra_spawn	Karuulm lair
 skotizo	^skotizo_spawn	Catacombs of Kourend altar
 sarachnis	^sarachnis_spawn	Forthos ruin
-zulrah	^zulrah_spawn	the shrine island
-zulrah_shrine	^zulrah_shrine	the boat landing
+# Zulrah is instanced and its configs declare no coord constant at all (only
+# phase/step numbers), so there is nothing here to name yet. Per this file's own
+# rule, no entry beats a guessed one.
+# zulrah	^zulrah_spawn	the shrine island
+# zulrah_shrine	^zulrah_shrine	the boat landing
 
 # --- Wilderness -------------------------------------------------------------
 callisto	^callisto_den_spawn	the den
@@ -76,9 +84,12 @@ saradomin_chamber	^gwd_boss_saradomin	Commander Zilyana's encampment
 zamorak_chamber	^gwd_boss_zamorak	K'ril Tsutsaroth's fortress
 
 # --- Raids ------------------------------------------------------------------
-cox	^cox_staging	Chambers of Xeric, outside the entrance
-chambers_of_xeric	^cox_staging	alias of cox
-tekton	^cox_tekton_spawn	the Tekton room
+# Chambers of Xeric is instanced: cox.constant declares only template-relative
+# offsets (^cox_tekton_src_plane/_cx/_cz), never an absolute staging or room
+# coord. Same rule as Zulrah and the Fight Cave.
+# cox	^cox_staging	Chambers of Xeric, outside the entrance
+# chambers_of_xeric	^cox_staging	alias of cox
+# tekton	^cox_tekton_spawn	the Tekton room
 
 # --- Low-level bosses -------------------------------------------------------
 obor	^obor_spawn	Hill Giant cave
@@ -98,3 +109,12 @@ kalphite_lair	^kalphite_chamber_entrance_coord	the chamber entrance
 
 # --- Minigames --------------------------------------------------------------
 puro_puro	^puro_maze	the wheat maze
+
+# --- Respawn ----------------------------------------------------------------
+#
+# `lumbridge` is where a player WAKES UP, not where the world map prints the
+# word. The map label sits at 3239,3234 outside the castle; `::die` puts you on
+# `^respawn_coord`, and a test or a person typing `::tele lumbridge` means the
+# place the game itself calls home. Naming the constant keeps the two in step:
+# move the respawn and this follows it.
+lumbridge	^respawn_coord	the respawn tile, the same one ::die uses

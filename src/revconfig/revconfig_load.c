@@ -368,6 +368,10 @@ push_field_from_ini_kv(
      * silently land here. */
     else if( strcmp(key, "match") == 0 && strcmp(s_ini_item_type, "role") == 0 )
         kind = RCFIELD_ROLE_MATCH;
+    /* `derive=` is the OTHER thing a [role:…] section may state instead of
+     * match= -- a fact the engine answers live, never a chain to resolve. */
+    else if( strcmp(key, "derive") == 0 && strcmp(s_ini_item_type, "role") == 0 )
+        kind = RCFIELD_ROLE_DERIVE;
     else if( strcmp(key, "componentno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COMPONENTNO;
     else if( strcmp(key, "inv") == 0 && strcmp(s_ini_item_type, "component") == 0 )

@@ -6476,6 +6476,49 @@ ToriRSServer_ScriptsRunDebugproc(
     struct ToriRSServer* srv,
     const char* line);
 
+/*
+ * quest-driver: t.cheat, in-process. Owner: core-scheduler.
+ *
+ * The same call handle_cheat already makes, with the verdict RETURNED instead
+ * of being reported to stderr and thrown away. No packet, no socket: the
+ * caller already holds the embedded struct ToriRSServer*, exactly as a real
+ * cheat packet's handler does.
+ */
+int
+ToriRSServer_RunDebugprocForTest(
+    struct ToriRSServer* srv,
+    const char* line);
+
+/*
+ * The C diagnostic ladder `handle_cheat` falls through to once content has
+ * declined a line, with a verdict instead of `void`.
+ *
+ * RAN when a branch was taken, FAILED when a branch understood the command and
+ * refused it (`::setvar` naming nothing, `::kill` finding nothing), NONE when
+ * nothing matched -- and NONE is the caller's cue to say "Unknown command",
+ * because a packet says that to a player and a test records it as `no_row`.
+ * `text` has already had the client's "::" and the server's "~" removed.
+ */
+enum ToriRSServerTriggerResult
+ToriRSServer_RunCheatLadder(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    const char* text);
+
+/*
+ * quest-driver: what `t.cheat` actually dispatches. Owner: core-scheduler.
+ *
+ * `handle_cheat`'s WHOLE job minus the packet: content's `[debugproc]` first,
+ * then the ladder above. `ToriRSServer_RunDebugprocForTest` is only the first
+ * half, and a test wired to it alone got `no_row` from `::give`, `::setlevel`,
+ * `::spawn` and every other engine cheat -- a setup line that silently did
+ * nothing (docs/QUEST_SERVER_CHEATS.md B). Same verdict vocabulary as above.
+ */
+enum ToriRSServerTriggerResult
+ToriRSServer_RunCheatForTest(
+    struct ToriRSServer* srv,
+    const char* line);
+
 /** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
 void
 ToriRSServer_ScriptsResumeWorld(struct ToriRSServer* srv);

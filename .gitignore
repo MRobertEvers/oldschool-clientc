@@ -91,6 +91,12 @@ poser-gl.settings
 preferences.ini
 preferences.ini.tmp
 
+# The manifest a gate rewrites for its own run: manifests/manifest_*.ini with
+# dir= pointed at this checkout's cache and transport=embed. Every quest-gate
+# run writes one (tools/quest_gate/conformance.py), and it must never be
+# committed -- the committed manifests point at the shipped cache.
+manifests/.*.ini
+
 # Python bytecode from tools/ (tools are run as scripts, never imported).
 __pycache__/
 *.pyc

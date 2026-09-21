@@ -726,6 +726,11 @@ app_world_pick_finish(
         player_level,
         &app->world_pickset,
         &result);
+    /* The point this frame hittested at, recorded with the set it produced.
+     * ToriRS_Soft3D_SetPick (app_render.c) armed the pick at exactly these two
+     * fields, so a reader holding the set knows which pixel it answers for --
+     * see the stamp's banner in world_pickset.h. */
+    World_PickSetStamp(&app->world_pickset, app->world_mouse_x, app->world_mouse_y);
     if( result.hover_tile_valid )
     {
         app->world_hover_tile_x = result.hover_tile_x;

@@ -47,6 +47,7 @@
 #include "ss_opcode.h"
 #include "ssvm.h"
 
+#include <assert.h>
 #include <stdio.h>
 
 /** table id, column index and tuple index out of a packed column reference. */
@@ -99,6 +100,53 @@ resolve_column(
     *out_table = table;
     *out_index = column_index;
     return &table->columns[column_index];
+}
+
+/*
+ * What one tuple position answers when the row states no value for it.
+ *
+ * A dbrow states one to three of its table's columns and simply omits every
+ * other one, yet `db_getfield` still has to push one value per declared type —
+ * the stack *shape* is what the script declared, and getting it wrong corrupts
+ * everything read afterwards. The only question is which value, and RuneScript
+ * already spells the answer: `null`.
+ *
+ * `null` compiles to -1 (ssc_compile.c) and -1 is exactly what `row_value` in
+ * torirs_server_db.c stores when a `data=` line writes `null` into a symbol
+ * position. So an omitted symbol position and a written `null` now read alike,
+ * which is the whole point of this: `if ($ingredient2 ! null)` in
+ * brew_potion.rs2 asks "does this row name a third ingredient?", and a pushed 0
+ * answered yes for all 103 brew rows that name none — Mort'ton's serum 207 among
+ * them, which is how a herb-mixing quest step became unreachable.
+ *
+ * Only a position that NAMES something gets null, and the test for that is
+ * `kind[position] != TORIRSSERVER_PACK_COUNT`, the same one `row_value` uses to
+ * decide a written value is a symbol to resolve. A literal `int` or `coord`
+ * keeps its zero, because in this pack zero IS the absent reading content
+ * relies on: `magic_spell_table:experience` is omitted by four spell rows and
+ * flows straight into `stat_advance(magic, ...)`, `mining_table:rock_exp` by two
+ * rock rows, `hunter_box_trap:success_low` by three trap rows — -1 there would
+ * grant negative experience and skew a chance roll rather than repair a guard.
+ * A string position keeps "", which is what `string_length(...) < 1` already
+ * reads as absent all over skill_cooking.
+ */
+static void
+push_absent(
+    struct SSVM_State* state,
+    const struct ToriRSServerDbColumn* column,
+    int position)
+{
+    assert(state);
+    assert(column);
+    assert(position >= 0);
+    assert(position < column->type_count);
+
+    if( column->is_string[position] )
+        SSVM_PushStr(state, "");
+    else if( column->kind[position] != TORIRSSERVER_PACK_COUNT )
+        SSVM_PushInt(state, -1);
+    else
+        SSVM_PushInt(state, 0);
 }
 
 /** Does this row's `column` hold `value` at any tuple position? */
@@ -192,10 +240,11 @@ ToriRSServer_OpsDb(
      * tuple, which is what lets `$a, $b = db_getfield(...)` receive two values.
      *
      * A row belonging to a *different* table than the reference names is not an
-     * error in the reference: it yields the column's defaults. Here it yields
-     * zeros with a diagnostic under verbose, because this tree has no `default=`
-     * on a dbtable column yet and silently substituting one would be inventing
-     * the value rather than reading it.
+     * error in the reference: it yields the column's defaults. This tree has no
+     * `default=` on a dbtable column yet, so substituting one would be inventing
+     * the value rather than reading it — that case, an omitted column and a read
+     * past the end all answer `push_absent` below, which is `null` for a
+     * position that names something and zero for a literal.
      */
     case SS_OP_DB_GETFIELD:
     {
@@ -254,14 +303,17 @@ ToriRSServer_OpsDb(
 
             if( row->table_id != table->table_id || offset < 0 || offset >= source_count )
             {
-                /* Past the end, or a row from another table. Push the type's zero
-                 * so the stack shape still matches what the script declared —
-                 * getting the *shape* wrong is far worse than getting the value
-                 * wrong, because it corrupts everything read afterwards. */
-                if( column->is_string[i] )
-                    SSVM_PushStr(state, "");
-                else
-                    SSVM_PushInt(state, 0);
+                /*
+                 * Nothing is stated here: the row omits the column, the read is
+                 * past the end of the tuples it does state, or the row belongs to
+                 * another table. One branch for all three deliberately — no
+                 * caller can tell them apart, and a `db_getfield` that answered
+                 * `null` for an omitted column but 0 for a read one tuple past
+                 * the end would make `magic_spell_search_convertobj`'s own
+                 * off-by-one loop (`while ($i <= db_getfieldcount(...))`) read a
+                 * different absence from the one every other site reads.
+                 */
+                push_absent(state, column, i);
                 continue;
             }
             if( column->is_string[i] )

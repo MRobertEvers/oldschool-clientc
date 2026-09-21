@@ -437,6 +437,34 @@ SSC_SymbolsFind(
 const struct SSC_Symbol*
 SSC_SymbolsFindValue(struct SSC_Symbols* symbols, const char* name);
 
+/**
+ * How many *distinct kinds* carry this name in a value position, writing the
+ * first `max` of them to `out` in the order a bare lookup takes them.
+ *
+ * `SSC_SymbolsFindValue` answers the first of these and says nothing about the
+ * rest, which is how `eadgar_troll_thistle` — npc 4767 and obj 3262 — compiled
+ * to the npc inside `if (last_useitem = eadgar_troll_thistle)`, so the branch
+ * could never be taken and the thistle fell through to "You can't cook that."
+ * 69 names in this tree live in two namespaces. A position that cannot be typed
+ * asks this and reports, because a name the compiler could not decide must not
+ * be answered with a silent wrong id.
+ *
+ * Constants are excluded for the reason SSC_SymbolsFindValue excludes them, and
+ * a second entry of a kind already counted (an alias pack's row) is not a second
+ * kind.
+ */
+int
+SSC_SymbolsValueKinds(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const struct SSC_Symbol** out,
+    int max);
+
+/** The namespace a kind is spelled with — "obj", "npc". Never NULL; "?" when no
+ *  register row names that kind. */
+const char*
+SSC_SymbolKindLabel(enum SSC_SymbolKind kind);
+
 /* ------------------------------------------------------------------ */
 /* Compiler                                                            */
 /* ------------------------------------------------------------------ */
@@ -526,6 +554,12 @@ SSC_Write(
 
 int
 SSC_ScriptCount(const struct SSC_Compiler* compiler);
+
+/** Bare names compiled where nothing said which namespace was meant, each one
+ *  already printed by `report_ambiguous_name`. A count on the summary line is
+ *  what makes the number a thing that can go up. */
+int
+SSC_AmbiguousNameCount(const struct SSC_Compiler* compiler);
 
 /** Borrowed; valid until SSC_Free. */
 const struct SSVM_Script*

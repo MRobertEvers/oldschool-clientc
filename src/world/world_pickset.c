@@ -7,6 +7,21 @@ World_PickSetReset(struct World_PickSet* pickset)
 {
     assert(pickset);
     pickset->count = 0;
+    /* The point goes with the hits: a set with nothing in it was hittested
+     * nowhere, and a reader asking "was this stamped at my pixel?" must get
+     * no for an emptied one. */
+    pickset->mouse_valid = 0;
+    pickset->mouse_x = 0;
+    pickset->mouse_y = 0;
+}
+
+void
+World_PickSetStamp(struct World_PickSet* pickset, int mouse_x, int mouse_y)
+{
+    assert(pickset);
+    pickset->mouse_valid = 1;
+    pickset->mouse_x = mouse_x;
+    pickset->mouse_y = mouse_y;
 }
 
 void

@@ -7,6 +7,7 @@
 
 #include "engine/cache_provider.h"
 #include "engine/torirs_types.h"
+#include "plugin/torirs_plugin_drive.h"
 #include "ui/uitree.h"
 
 #include <assert.h>
@@ -20,6 +21,7 @@ struct Task_SlotMount
     struct ToriRS_Task task;
     struct pt pt;
 
+    struct App* app;
     struct UITreeBuilder* builder;
     int32_t owner_index;
     int iface_id;
@@ -67,6 +69,12 @@ Task_SlotMount_Run(
         }
     }
 
+    /* DRIVE_STAMP: slot_mounted -- a=owner_index b=iface_id. The dat1 lane's
+     * mount fence; ui.await_open/close ride it there the way they ride
+     * sub_mounted on the cache lane. Unconditional (unlike sub_mounted on the
+     * cache lane): a non-positive iface_id here means the slot was cleared,
+     * not that nothing to report -- close rides this same event. */
+    App_DriveEvent(self->app, DRIVE_EVENT_SLOT_MOUNTED, self->owner_index, self->iface_id, 0, 0);
     PT_END(&self->pt);
 }
 
@@ -83,10 +91,12 @@ static struct ToriRS_TaskVTable Task_SlotMount_VTable = {
 
 struct ToriRS_Task*
 CreateTask_SlotMount(
+    struct App* app,
     struct UITreeBuilder* builder,
     int32_t owner_index,
     int iface_id)
 {
+    assert(app);
     assert(builder);
     if( owner_index < 0 )
         return NULL;
@@ -95,6 +105,7 @@ CreateTask_SlotMount(
     assert(task);
     task->task.vtable = &Task_SlotMount_VTable;
     strncpy(task->task.name, "SlotMount", sizeof(task->task.name) - 1);
+    task->app = app;
     task->builder = builder;
     task->owner_index = owner_index;
     task->iface_id = iface_id;

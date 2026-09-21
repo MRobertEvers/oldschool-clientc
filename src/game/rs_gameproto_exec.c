@@ -124,8 +124,14 @@ exec_update_inv_full(
     /* Containers arrive long after the interface that paints them was built,
      * so the CS2 paint script has to be told to run again. */
     if( ctx->app )
+    {
+        /* DRIVE_STAMP: inv_packet -- a=container_id. The dat1 lane's
+         * container update; ctx->app is NULL in the headless packet harness
+         * and the unit tests this file's own comment above already notes. */
+        App_DriveEvent(ctx->app, DRIVE_EVENT_INV_PACKET, container, 0, 0, 0);
         RS_CS2Host_NotifyInvChanged(&ctx->app->host,
                                    p->inv_id > 0 ? container & 0x7fff : container);
+    }
     if( getenv("TORIRS_INV_DEBUG") )
     {
         TORIRS_LOG("inv-full: container=%d (com 0x%08x) size=%d\n",
@@ -150,6 +156,10 @@ exec_update_inv_partial(
     src = InvManager_ContainerForSource(ctx->invs, container);
     if( src < 0 )
         return;
+    /* DRIVE_STAMP: inv_packet -- a=container_id. See exec_update_inv_full;
+     * ctx->app is NULL in the headless packet harness and unit tests. */
+    if( ctx->app )
+        App_DriveEvent(ctx->app, DRIVE_EVENT_INV_PACKET, container, 0, 0, 0);
     if( getenv("TORIRS_INV_DEBUG") )
         TORIRS_LOG("inv-partial: container=%d (com 0x%08x) slots=%d\n",
             container,
@@ -456,9 +466,12 @@ exec_zone_sub_packet_at(
     {
     case PKT_NAME_OBJ_ADD:
     {
+        /* DRIVE_STAMP: obj_added -- a=obj_id b=count c=tile_x d=tile_z.
+         * drop's corroboration: the item appearing at the player's tile. */
         struct PktObjAdd const* pkt = payload;
         int idx;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        App_DriveEvent(app, DRIVE_EVENT_OBJ_ADDED, pkt->obj_id, pkt->count, tile_x, tile_z);
         idx = App_WorldObjStackAdd(app, tile_x, tile_z, level, pkt->obj_id, pkt->count);
         /* A refused add (-1: no objtype, no model, no scene element) has no
          * stack to hang the ownership on. */
@@ -474,8 +487,11 @@ exec_zone_sub_packet_at(
     }
     case PKT_NAME_OBJ_DEL:
     {
+        /* DRIVE_STAMP: obj_removed -- a=obj_id c=tile_x d=tile_z. click_obj
+         * learns the stack vanished from this; no polling. */
         struct PktObjDel const* pkt = payload;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        App_DriveEvent(app, DRIVE_EVENT_OBJ_REMOVED, pkt->obj_id, 0, tile_x, tile_z);
         App_WorldObjStackDel(app, tile_x, tile_z, level, pkt->obj_id);
         break;
     }
@@ -1100,6 +1116,9 @@ RS_GameProto_Exec(
         break;
 
     /* ---- inventories ---- */
+    /* inv_packet stamped inside exec_update_inv_full/_partial (DRIVE_STAMP
+     * there), not here: the cache lane's inv.await rides inv_changed instead
+     * and both callees already branch on ctx->app. */
     case PKT_NAME_UPDATE_INV_FULL:
         exec_update_inv_full(ctx, &packet->_update_inv_full);
         break;
@@ -2096,6 +2115,9 @@ RS_GameProto_Exec(
             RS_UISlots_SetSideTab(ctx->app, packet->_if_settab_active.tab_id);
         break;
     case PKT_NAME_UNSET_MAP_FLAG:
+        /* DRIVE_STAMP: map_flag -- a=-1 when cleared, else a=tile_x b=tile_z.
+         * BOTH branches: walk_to, talk_to and click_loc all read the clear as
+         * "the route finished or was abandoned". */
         /* Wire tiles are classic-scene local; with a (zone-6)*8 base that is
          * our-scene too. */
         if( ctx->app )
@@ -2119,6 +2141,17 @@ RS_GameProto_Exec(
                 ctx->app->minimap.flag_tile_x = packet->_set_map_flag.x;
                 ctx->app->minimap.flag_tile_z = packet->_set_map_flag.z;
             }
+            /* Both branches land here: a clear leaves flag_tile_{x,z} at the
+             * -1 the first branch set, so one stamp of the settled value
+             * covers "a=-1 when cleared, else a=tile_x b=tile_z" without
+             * repeating the call per branch. */
+            App_DriveEvent(
+                ctx->app,
+                DRIVE_EVENT_MAP_FLAG,
+                ctx->app->minimap.flag_tile_x,
+                ctx->app->minimap.flag_tile_z,
+                0,
+                0);
             ctx->app->need_redraw = 1;
         }
         break;
@@ -2196,6 +2229,16 @@ RS_GameProto_Exec(
              * server tick is now in world state, so a snapshot read here
              * agrees with what the server believes. Anything sampled mid-tick
              * is reading a half-applied world. */
+            /* DRIVE_STAMP: server_tick -- a=world cycle. Every await's
+             * deadline is counted in these, and every level predicate is
+             * re-checked on one. */
+            App_DriveEvent(
+                ctx->app,
+                DRIVE_EVENT_SERVER_TICK,
+                ctx->app->world ? ctx->app->world->cycle : 0,
+                0,
+                0,
+                0);
             PluginHost_ServerTick(
                 ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
         }

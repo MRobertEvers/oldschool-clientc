@@ -51,6 +51,7 @@
 #include "render/torirs_damage_region.h"
 #include "render/torirs_frame.h"
 #include "plugin/torirs_plugin_host.h"
+#include "plugin/torirs_plugin_drive.h"
 #include "plugin/torirs_plugin_mesh.h"
 #include "ui/uitree_frame.h"
 #include "ui/uitree_if_events.h"
@@ -1887,6 +1888,17 @@ struct App
      * anything -- an absent host has to be as cheap as a disabled one.
      */
     struct ToriRS_PluginHost* plugins;
+    /**
+     * quest-driver event ring (src/plugin/torirs_plugin_drive.h).
+     *
+     * Present in every build, stamped unconditionally from the sites marked
+     * `DRIVE_STAMP:` across the tree, and read by cursor by the test-only
+     * driver. Declared here rather than allocated on demand for the reason
+     * every stamp site depends on: a stamp must be a struct store with no
+     * branch on whether a test happens to be running, or it is a stamp that
+     * rots the first time nobody is looking.
+     */
+    struct App_DriveRing drive_events;
     /**
      * The plugin window: a chrome instance of its own, not a panel in dbg_ui.
      *
@@ -4299,6 +4311,30 @@ App_SimulateNpcOp(
     int npc_id);
 
 /**
+ * The quest driver's two RAW dispatcher seams, past the gated api_* wrappers.
+ *
+ * A quest test is a coroutine resumed on a bare frame tick, which is not a
+ * kind the plugin host's dispatch_event allow-list names, so the gated path
+ * refuses it. The driver still must press buttons and flip tabs through the
+ * ONE dispatcher every real click uses, not a divergent copy -- so these two
+ * expose it directly. Test-only by convention and by caller: the driver
+ * module they serve is itself registered only when TORIRS_CONTENT_TEST is set.
+ *
+ * Implemented in plugin/torirs_plugin_bridge.u.c beside the statics they
+ * forward to. Both return non-zero when the press was dispatched.
+ */
+int
+App_PluginDriveIfClick(
+    struct App* app,
+    int component_id,
+    int op);
+
+int
+App_PluginDriveTabSelect(
+    struct App* app,
+    int tabno);
+
+/**
  * Where the first live npc of the given cache type is drawn, in canvas pixels,
  * for a headless click on it. Returns the npc's server slot, or -1 when no
  * synced npc of that type is in the scene or its body projects off screen.
@@ -4330,6 +4366,17 @@ App_LocalPlayerTiles(
     int* flag_z,
     int* draw_x,
     int* draw_z);
+
+/** Movement idleness: route_length == 0 AND no minimap flag set. False
+ *  before the local player has spawned. */
+bool
+App_LocalPlayerIdle(struct App* app, bool* out_idle);
+
+/** Set the orbit camera's yaw/pitch/zoom, the way content_test.c's "camera"
+ *  cheat and the quest driver's drive.camera both need to. False (no state
+ *  change) when pitch is outside [128,383] or zoom is outside [-1000,10000]. */
+bool
+App_SetCameraPose(struct App* app, int yaw, int pitch, int zoom);
 
 /**
  * The centre of the open right-click menu's first row whose text starts with

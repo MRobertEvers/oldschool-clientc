@@ -1197,6 +1197,18 @@ app_inv_drag_tick(
 void
 app_minimenu_close_if_stale(struct App* app);
 
+/* NULL when this pick would run, otherwise the sentence naming the condition
+ * that would make app_minimenu_run_option drop it in silence.  For a caller
+ * that SYNTHESISES a pick (the plugin bridge's inv/world op bypass) rather
+ * than replaying one the user right-clicked: the silence is indistinguishable
+ * from a server that ignored the packet, and that ambiguity is what sends a
+ * driver hunting content for a press the client never sent.  The string is
+ * static storage owned by app_minimenu.c. */
+char const*
+app_minimenu_pick_refusal(
+    struct App const* app,
+    struct UIMinimenuPick const* pick);
+
 int
 app_minimenu_run_option(
     struct App* app,

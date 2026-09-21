@@ -924,6 +924,99 @@ warn = nil
 ---@field client torirs.ClientApi
 ---@field game torirs.GameApi
 ---@field porcelain torirs.PorcelainApi
+---@field drive torirs.DriveApi @testonly Present only when ContentTest_Enabled(): the quest driver's engine seam.
+
+--[[ The quest driver's test-only module (src/plugin/torirs_plugin_drive.h).
+
+It is registered by src/plugin/torirs_plugin_drive.c through
+PluginLua_SetTestModules and exists only in a process started with
+TORIRS_CONTENT_TEST, which is why the field above carries @testonly: the
+inventory test pins its surface like any other module, but does not require it
+to be in the canonical module set a shipped plugin may use.
+
+The table is FLAT and is assembled from six files, one per owner
+(docs/ARCHITECT.md).  Names must not collide across those files; the ordering
+of the groups below is the order they are registered in.
+
+Every verb answers (result, detail) with result in
+ok|timeout|not_found|refused|covered|no_row|not_visible|closed|unsupported,
+except the plain readers marked as returning a value.
+]]
+---@class torirs.DriveApi
+--- core-scheduler
+---@field await fun(descriptor: table, deadline_ticks: integer): string, any Yield until the descriptor is satisfied; deadline in SERVER TICKS.
+---@field pump fun() Resume the coroutine while its await is satisfied. Called once per frame from on_frame_start.
+---@field events fun(after_serial: integer): string, table Drive event ring, by cursor. `refused` when the cursor fell off the end.
+---@field tick fun(): integer The world cycle: the unit every deadline is counted in.
+---@field settled fun(): boolean No async pending, frame settled, no world load in flight.
+---@field symbol fun(kind: string, name: string): string, integer Content symbol to id. Never a literal id in a test.
+---@field symbol_name fun(kind: string, id: integer): string, string Id back to the content symbol, so a test compares names.
+---@field cheat fun(text: string): string, string Run a debugproc in-process and return its verdict: ran|failed|none.
+---@field ledger fun(row: table): string, string Append one ledger row and mirror it to stderr.
+---@field report fun(text: string) The stderr mirror on its own, for a note that is not a step.
+---@field finish fun(code: integer): string, string End the process with this code at the next frame boundary.
+---@field session fun(): table { dir, script }: where artefacts land and which quest is running.
+--- core-state
+---@field varp fun(varp_id: integer): string, integer
+---@field varbit fun(varbit_id: integer): string, integer
+---@field varbit_base fun(varbit_id: integer): string, integer The base varp, because var events carry a varp id.
+---@field var_server fun(varp_id: integer): string, integer The client's record of the SERVER's value; not the same read as varp.
+---@field varbit_server fun(varbit_id: integer): string, integer The varbit-width var_server: the bits varbit would read, out of the server record instead of var[].
+---@field var_content fun(varp_id: integer): string, integer The EMBEDDED SERVER's own copy, not the client's arrays at all. For an id the client's varp table cannot address -- never transmitted, so varp and var_server both answer not_found forever. unsupported on a socket-server run. It cannot see a desync; a row that reads it says so.
+---@field inv_count fun(container_id: integer, obj_id: integer): string, integer
+---@field inv_slot fun(container_id: integer, slot: integer): string, table
+---@field inv_capacity fun(container_id: integer): string, integer
+---@field skill fun(stat_index: integer): string, table { level, base_level, experience, stated }.
+---@field messages fun(count: integer): string, table Chat lines newest first, including clan chat and the logout line.
+---@field message_serial fun(): string, integer The serial an await must be scoped above.
+--- verbs-chat
+---@field modal_group fun(): string, integer The interface mounted under chat_modal_host.
+---@field resume fun(component_id: integer): string, string Arm the resume-pausebutton seam: the only way a dialogue row is clicked.
+---@field pause_pending fun(): string, integer The component a resume is outstanding on, or -1. Compared by id, never by presence.
+---@field close_modal fun(): string, string Idempotent.
+---@field meslayer_mode fun(): string, integer Which prompt the chat input is, if any. Typing blind would send a public message.
+---@field click_armed fun(component_id: integer): string, boolean Does this component's effective IF_SETEVENTS carry CLICK.
+---@field options fun(): string, table { title, rows }: chatmenu's cc_create'd title and rows, no content symbol exists for either.
+---@field option_row fun(row: integer): string, integer A live chatmenu row's component id, for arming resume; row is 1..5.
+--- verbs-read
+---@field widget_model fun(component_id: integer): string, table { kind, id }: the raw identity the server sent, not the composite.
+---@field widget_text fun(component_id: integer): string, string A text component's string, "" if it has none or is not a text node.
+---@field widget_presented fun(component_id: integer): string, boolean Visible right now: not display-hidden and natively visible.
+---@field widget_own_hidden fun(component_id: integer): string, boolean What the cache or a script said, independent of native hiding. not_found reads as hidden.
+--- verbs-pointer
+---@field screen_position fun(kind: string, id: integer): string, table { x, y, element_id }.
+---@field pick_holds fun(element_id: integer): string, boolean Does this frame's pickset hold it. Meaningless before a frame rendered at the moved-to point.
+---@field pick_point fun(): string, table { valid, x, y, view_x, view_y, view_w, view_h }: WHICH pixel the pickset above was hittested at, so a held=false is a reading of a rendered frame rather than a guess about timing. view_w 0 means there is no world rectangle to test a candidate pixel against.
+---@field mouse_move fun(x: integer, y: integer): string, string
+---@field mouse_button fun(button: integer, down: boolean, x: integer, y: integer): string, string
+---@field menu_visible fun(): string, boolean
+---@field menu_rows fun(): string, table
+---@field menu_row_find fun(action: integer, kind: string, target_id: integer): string, table Action < 0 is the wildcard the collapsed use-item row needs.
+---@field action_for_slot fun(kind: string, slot: integer): string, integer The action id the client's own builder would use for that op.
+---@field world_op fun(kind: string, id: integer, option: integer): string, string The LOGGED bypass. Never the default; every call is a ledger note.
+---@field op_available fun(kind: string, id: integer, option: integer): string, boolean Does this world target actually OFFER that op? app_minimenu_ui_pick_live validates only UI and INV_SLOT picks, so the bypass owes its own answer.
+---@field inv_op fun(component_id: integer, slot: integer, obj_id: integer, count: integer, option: integer): string, string A backpack/worn CELL's numbered held op. 1..5 = OPHELD1..5, 0 = Examine, negative arms the held-item selection (Use) and is refused unless objsel came back holding it. refused ALSO when the client itself declined the pick, and the detail is then the sentence naming which condition -- nothing was dispatched, so a retry cannot double-send.
+---@field inv_arm fun(component_id: integer, slot: integer, obj_id: integer, count: integer): string, string The same cell's Use arming, taken WHATEVER is armed now -- which inv_op(..., -1) cannot do: with a selection live it is encoded as an OPHELDU of the item on itself and leaves nothing armed. An arming already live for this cell sends nothing and says so.
+---@field inv_use_on fun(component_id: integer, slot: integer, obj_id: integer, count: integer): string, string The CLICKED cell of an item-on-item (OPHELDU); the armed one is already in app->objsel, put there by inv_op(..., -1). The client encodes the use itself. no_row for a cell used on itself, refused when nothing was armed or the client did not encode it.
+---@field move_to fun(tile_x: integer, tile_z: integer): string, string
+---@field move_near fun(kind: string, id: integer): string, string Re-issued every tick while pending: the target can walk.
+---@field camera fun(yaw: integer, pitch: integer, zoom: integer): string, string
+---@field player_idle fun(): string, boolean route_length 0 AND the map flag cleared; they settle a tick apart.
+--- verbs-ui
+---@field group_present fun(interface_id: integer): string, boolean Mount liveness, both lanes.
+---@field component fun(symbol: string, sub: integer): string, integer Qualified "<iface>:<child>" symbol to a component id.
+---@field if_click fun(component_id: integer, op: integer): string, string One path for IF1 button types and IF3 numbered ops.
+---@field tab fun(tab_number: integer): string, string
+---@field tab_by_name fun(name: string): string, integer|nil Tab NAME through app->revconfig_refs' "tab" kind (the [tabs] map, else a panel_<name> role); no_row for a name neither source declares.
+---@field modal_live fun(): string, boolean Re-verified; modal_host_uid is never cleared on close.
+---@field npcs fun(radius: integer): string, table Nearest first; names normalised of <col=..>.
+---@field locs fun(radius: integer): string, table Each row carries loc_id (the id the MAP or a zone packet placed) AND resolved_loc_id (the multiloc child it currently draws as).
+---@field loc_variants fun(loc_id: integer): string, table|nil { resolved, slots } -- the multiloc child this def draws as now, and its flattened family. `timeout` while the def is being fetched: poll again next frame.
+---@field objs fun(radius: integer): string, table
+---@field player_tile fun(): string, table { x, z, level }.
+---@field key fun(name: string, down: boolean): string, string
+---@field text fun(text: string): string, string 1..63 printable ASCII.
+---@field shot fun(name: string, keep: boolean|nil): string, string, boolean Request a capture and await the file. A third return, true when the picture was byte-identical to the last one written and was deleted again -- the detail is then "unchanged since <name>", not a path. `keep` writes it regardless (t.exec's -FAIL shot).
 
 ---@class torirs.Plugin
 ---@field id string Stable plugin id.

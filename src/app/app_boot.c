@@ -1201,6 +1201,10 @@ Task_OpenSubRefresh_Run(
                 UITreeIfaceStats_NoteClose(old_group);
                 TORIRS_PERF_COUNT(
                     TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
+                /* DRIVE_STAMP: sub_closed -- a=target_uid b=old_group.
+                 * Stamp while old_group is still in scope; App_CloseSubInterface
+                 * itself has no interface_id or type to carry. */
+                App_DriveEvent(app, DRIVE_EVENT_SUB_CLOSED, self->target_uid, old_group, 0, 0);
                 UITree_ReclaimInterfaceGroup(app->tree, old_group);
                 RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
             }
@@ -1222,6 +1226,16 @@ Task_OpenSubRefresh_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_CS2SubChangeDispatch(&app->host));
     }
     App_RefreshAfterTreeMutation(app);
+    /* DRIVE_STAMP: sub_mounted -- a=target_uid b=interface_id c=type.
+     * HERE, at the end of the mount task and after the refresh, not at the
+     * enqueue: an await that fires at the enqueue hands a test a target_uid
+     * it cannot yet query. A same-group remount is the normal dialogue
+     * paging case and is a real edge (D5) -- do not suppress it. Gated on
+     * interface_id > 0: this join point is shared with the close branch
+     * above, which reaches here with no mount to report. */
+    if( self->interface_id > 0 )
+        App_DriveEvent(
+            app, DRIVE_EVENT_SUB_MOUNTED, self->target_uid, self->interface_id, self->type, 0);
     PT_END(&self->pt);
 }
 
@@ -1279,6 +1293,10 @@ App_OpenSubInterface(
     int type)
 {
     assert(app);
+    /* DRIVE_STAMP: sub_opened -- a=target_uid b=interface_id c=type.
+     * The QUEUED edge, not the mounted one: ui.await_open uses it to know a
+     * mount is coming, and nothing may query the tree off it. */
+    App_DriveEvent(app, DRIVE_EVENT_SUB_OPENED, target_uid, interface_id, type, 0);
     if( torirs_env_net_debug() )
         TORIRS_LOG(
             "if-opensub: mount iface=%d under uid=0x%08x (%d<<16|%d) type=%d\n",

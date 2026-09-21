@@ -217,6 +217,31 @@ struct ToriRS_WidgetState
     uint64_t incarnation;
 };
 
+/** What kind of identity ToriRS_WidgetModel::id names, or that the
+ *  component carries none. A player portrait (IF_SETPLAYERHEAD) is always
+ *  the local player and has no id to check, so it reads NONE too -- the
+ *  same answer as a component nothing has bound a head/model to yet. */
+enum ToriRS_WidgetModelKind
+{
+    TORIRS_WIDGET_MODEL_NONE = 0,
+    TORIRS_WIDGET_MODEL_NPC,
+    TORIRS_WIDGET_MODEL_OBJ,
+    TORIRS_WIDGET_MODEL_MODEL,
+};
+
+/**
+ * What identity a component was told to show -- the RAW id the cache
+ * protocol sent on IF_SETNPCHEAD / IF_SETOBJECT / IF_SETMODEL, before any
+ * composite scene model is built from it. A follower asking "which npc is
+ * this chathead" wants this, never a scene/model id decoded back out of a
+ * graphic token or a rendered mesh.
+ */
+struct ToriRS_WidgetModel
+{
+    enum ToriRS_WidgetModelKind kind;
+    int32_t id;
+};
+
 /* Event payload strings and argument views are borrowed for the callback.
  * Widget references can be retained, but must still be live when next used. */
 enum ToriRS_WidgetEventType
