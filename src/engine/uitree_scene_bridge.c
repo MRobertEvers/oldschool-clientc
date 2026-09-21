@@ -1169,20 +1169,39 @@ UITreeSceneBridge_EnsureNpcHead(
     if( !npc || npc->heads_count <= 0 || !npc->heads )
         return -1;
 
+    /*
+     * EVERY declared part, or none of it. Reference NpcType.getHead runs the
+     * same two passes: requestDownload over the whole head list first, return
+     * null if one of them is still coming, and only then load and combine.
+     *
+     * Composing whatever happened to be resident is worse than waiting, because
+     * the result is cached in npc_head_map for the rest of the session: Luthas
+     * (heads 14337 head / 11188 beard / 15000) lost whichever parts had not
+     * landed on the one frame the composite beat its own loads, and no later
+     * dialogue could ever get them back. app_if_head_poll calls this on every
+     * redraw from the frame the head request is stored, so that frame is the
+     * common case, not a rare one. -1 is the retry the poll already honours.
+     */
+    for( int i = 0; i < npc->heads_count; i++ )
+    {
+        if( npc->heads[i] < 0 )
+            continue; /* reference getHead ignores a -1 slot */
+        if( !CacheProvider_ModelHas(bridge->provider, npc->heads[i]) )
+            return -1;
+    }
+
     /* Merge the head models (reference NpcType.getHead / v0 npc_head_model). */
     for( int i = 0; i < npc->heads_count; i++ )
     {
         struct ToriRS_Model* rs;
         struct ToriDraw_Model* model;
         int mid = npc->heads[i];
-        if( mid < 0 || !CacheProvider_ModelHas(bridge->provider, mid) )
+        if( mid < 0 )
             continue;
         rs = CacheProvider_ModelGet(bridge->provider, mid);
-        if( !rs )
-            continue;
+        assert(rs); /* the residency pass above already said yes */
         model = ToriDraw_ModelFromToriRS(rs);
-        if( !model )
-            continue;
+        assert(model);
         if( part_count < BRIDGE_NPC_HEAD_PARTS_MAX )
             parts[part_count++] = model;
         else
