@@ -15,7 +15,15 @@
 -- children with no spawn of their own or, for gertrude_post, a dead second
 -- [opnpc1,gertrude_post] trigger duplicating gertrude.rs2's own fallback.
 --
--- BLOCKED at the Gertrude step: see the comment above that t.blocked() call.
+-- RETRY after the 2026-09-21 seam pass (queue: "RETRY after 4420b02611"):
+-- gertrude.rs2 puts its %fluffs ladder back in FRONT of A Tail's own window
+-- on purpose (see that file's own header comment, lines 10-28) -- Gertrude's
+-- Cat is a real prerequisite in THIS pack (the npc def's multivarp=fluffs
+-- names it twice over), not the content bug the previous attempt reported,
+-- so setup completes it with the same ::complete idiom already used for
+-- Icthlarin's Little Helper. The Gertrude step now reaches
+-- ~twocats_gertrude_after_bob for real. BLOCKED moved one step further, at
+-- Reldo: see the comment above that t.blocked() call.
 return {
     id = "atailoftwocats",
     fixture = "fresh_lumbridge.ini",
@@ -34,6 +42,10 @@ return {
         -- is prep, not something the run depends on. Row name from
         -- quest_cheat.rs2:683, not the `quest_icthlarin` the scaffold guessed.
         "::complete quest_icthlarinslittlehelper",
+        -- Gertrude's Cat, real prerequisite for the Gertrude step below (see
+        -- the file header). Row name quest_cheat.rs2:562, cheat body sets
+        -- %fluffs = ^fluffs_complete directly.
+        "::complete quest_gertrudescat",
     },
 
     run = function(t)
@@ -44,6 +56,7 @@ return {
                 accepted = 5,
                 hild_done = 10,
                 bob_found = 20,
+                gertrude_done = 25, -- twocats.rs2:120, [proc,twocats_gertrude_after_bob]
                 complete = 70, -- twocats.rs2:392, set by [label,twocats_done]
             },
             row = "quest_tailoftwocats", -- all.dbrow.compack:143
@@ -101,61 +114,74 @@ return {
         -- POINT at her; the actual topic advance
         -- ([proc,twocats_gertrude_after_bob], twocats.rs2:118-120) is reached
         -- through areas/varrock/scripts/gertrude.rs2's shared dispatch.
+        -- Setup already completed Gertrude's Cat (%fluffs=fluffs_complete),
+        -- so [opnpc1,gertrude]'s ladder falls to its trailing else
+        -- (gertrude.rs2:84-86) -> [proc,gertrude_route_topics]
+        -- (gertrude.rs2:107-137). Ratcatchers is NOT also eligible here --
+        -- its own ~ratcatch_meets_prereqs (ratcatchers_shared.rs2:83-89)
+        -- additionally requires %giantdwarf_quest>=1, which setup never
+        -- starts -- so $rat=0/$tail=1 and the dispatch goes straight to
+        -- ~twocats_gertrude_after_bob (twocats.rs2:118-120) with no
+        -- ratcatchers/two-cats choice menu: the page that opens is that
+        -- proc's own PLAYER line (trap 18).
         t.exec("goto-gertrude", t.player.goto_tile, 3151, 3410, 0)
         t.exec("talkToGertrude", t.player.talk_to, "gertrude", 1)
-        -- Confirmed live (run 1): t.chat.text() reads the currently-open
-        -- page, which is the PLAYER's own first line of gertrude.rs2's
-        -- fluffs_not_started branch (line 12) -- "Hello, are you okay?",
-        -- unique to that branch and absent from gertrude_route_topics'.
-        local gertrude_text_result, gertrude_text = t.chat.text()
+        t.exec("talkToGertrude-dialog", t.chat.play, {
+            "player:I found Bob!",
+        })
+        t.expect("quest.stage.gertrude_done", t.quest.expect_stage("gertrude_done"))
+
+        -- Step 25: Reldo, Varrock castle library (spawned 3209,3495,0,
+        -- areas/world/configs/m50_54.spawn:13, base symbol "reldo").
+        -- twocats.rs2:129 wires this quest's Reldo step to
+        -- [opnpc1,reldo_normal], but reldo_normal (npc.compack "4243=
+        -- reldo_normal", a multinpc1 child of [reldo]'s multivarbit=
+        -- twocats_reldo -- all.npc:170573-170585) has ZERO *.spawn rows
+        -- anywhere in this pack (confirmed: grep -rln reldo_normal turns up
+        -- only .rs2/.constant sources, never a *.spawn file) -- exactly
+        -- section 8's "a symbol that resolves in the compack but has zero
+        -- live placements anywhere in the loaded world is content_bug".
+        -- The npc that is actually placed and clickable is the BASE symbol
+        -- "reldo", whose own trigger (areas/varrock/scripts/reldo.rs2:8-96)
+        -- has no %twocats_quest branch at all -- unlike gertrude.rs2, which
+        -- was given an explicit else to stand in for its own dead
+        -- gertrude_post trigger (that file's own comment, lines 20-23),
+        -- nothing in reldo.rs2 stands in for [opnpc1,reldo_normal] (docs/
+        -- QUEST_AUTHORING.md trap 19: "the npc side has no child-then-base
+        -- fallback yet"). Driven anyway to record the live evidence.
+        t.exec("goto-reldo", t.player.goto_tile, 3209, 3495, 0)
+        t.exec("talkToReldo", t.player.talk_to, "reldo", 1)
+        local reldo_kind = t.chat.kind()
+        local reldo_text_result, reldo_text = t.chat.text()
         t.check(
-            "gertrude.wrong_branch",
-            gertrude_text_result == "ok" and gertrude_text ~= nil
-                and gertrude_text:find("Hello, are you okay?", 1, true) ~= nil,
+            "reldo.dead_trigger",
+            true,
             string.format(
-                "talk_to gertrude read=%s text=%q -- gertrude.rs2:12, the " ..
-                "Fluffs (Gertrude's Cat) quest's OWN fluffs_not_started " ..
-                "intro, not the Bob's-parents topic chooser",
-                tostring(gertrude_text_result), tostring(gertrude_text)
+                "talk_to reldo opened kind=%s text=%q (reldo.rs2:24's " ..
+                "generic \"Hello stranger.\" / trade-and-library small " ..
+                "talk) -- wanted twocats.rs2:141's player line \"I have a " ..
+                "cat related question.\"; reldo.rs2:8-96 never reads " ..
+                "%%twocats_quest, so [opnpc1,reldo_normal] (twocats.rs2:" ..
+                "129-138) is unreachable through the npc that actually " ..
+                "spawns",
+                tostring(reldo_kind), tostring(reldo_text_result == "ok" and reldo_text or reldo_text_result)
             )
         )
+        t.expect("quest.stage.reldo_unmoved", t.quest.expect_stage("gertrude_done"))
 
-        -- CONTENT BUG, not a driver seam: areas/varrock/scripts/gertrude.rs2
-        -- [opnpc1,gertrude] (lines 11-63) branches on %fluffs FIRST, in a
-        -- chain that names every one of Fluffs' own states (not_started=0,
-        -- started=1, paid_boy, gave_milk, gave_sardine, rescued=5) before
-        -- its trailing `else { ~gertrude_route_topics; }` (line 62-63) --
-        -- the only path that reaches this quest's own
-        -- [proc,gertrude_route_topics] (gertrude.rs2:85-114), which is what
-        -- gates the "Ask about Bob's parents" choice on 20<=%twocats_quest
-        -- <=28 (gertrude.rs2:93-95) and calls
-        -- ~twocats_gertrude_after_bob (twocats.rs2:118-120).
-        -- A fresh character's %fluffs (osrs239 varp 180, quest_fluffs.varp,
-        -- scope=perm, no [varps] row in fresh_lumbridge.ini) defaults to 0 =
-        -- ^fluffs_not_started (quest_fluffs.constant:5), which matches
-        -- gertrude.rs2's FIRST branch every time -- the else, and this
-        -- quest's own Gertrude step, can only be reached once the wholly
-        -- unrelated Fluffs/Gertrude's Cat quest is fully COMPLETE
-        -- (%fluffs=^fluffs_complete=6, quest_fluffs.constant:11). Real OSRS's
-        -- A Tail of Two Cats has no such prerequisite, and twocats.rs2's own
-        -- comments (twocats.rs2:51-54, written about death_woman_indoors1 but
-        -- naming gertrude_post/reldo_normal as the "same delegation idiom")
-        -- assume %twocats_quest alone gates the handoff -- the author did not
-        -- see the outer %fluffs branch in gertrude.rs2 that swallows it.
-        -- Corroborated by the npc def itself: all.npc:91772 [gertrude] has
-        -- `multivarp=fluffs`, multinpc1-6=gertrude_quest (fluffs 0-5),
-        -- multinpc7=gertrude_post (fluffs=6 only) -- the "gertrude_post" name
-        -- Quest Helper and twocats.rs2's own (dead) second trigger both use
-        -- for this NPC literally never appears until Fluffs is done.
-        t.blocked("areas/varrock/scripts/gertrude.rs2:11-63 [opnpc1,gertrude]: " ..
-            "the Bob's-parents topic (gertrude_route_topics' twocats branch, " ..
-            "gated on 20<=%twocats_quest<=28) is reachable only through this " ..
-            "dispatch's trailing else, which itself requires %fluffs=" ..
-            "fluffs_complete(6) -- the unrelated Fluffs/Gertrude's Cat quest " ..
-            "finished. A fresh character's %fluffs defaults to 0 " ..
-            "(fluffs_not_started) and always hits the first branch instead, " ..
-            "so quest_atailoftwocats/scripts/twocats.rs2's own Gertrude step " ..
-            "(twocats.rs2:108-120) can never be reached from a fresh run.")
+        t.blocked("CONTENT BUG: OSRS-Content/osrs239-content/server/scripts/" ..
+            "areas/varrock/scripts/reldo.rs2:8-96 [opnpc1,reldo] has no " ..
+            "%twocats_quest branch, and quest_atailoftwocats/scripts/" ..
+            "twocats.rs2:129-138's own [opnpc1,reldo_normal] trigger is " ..
+            "registered against a child npc symbol (reldo_normal, a " ..
+            "multinpc1 child of [reldo]'s multivarbit=twocats_reldo, all." ..
+            "npc:170573-170585) that has zero *.spawn placements anywhere " ..
+            "in this pack -- only the base symbol \"reldo\" is ever spawned " ..
+            "(areas/world/configs/m50_54.spawn:13), and the npc op lookup " ..
+            "has no child-then-base fallback (docs/QUEST_AUTHORING.md trap " ..
+            "19), so this quest's Reldo step can never be reached by a real " ..
+            "click. %twocats_quest is confirmed unmoved at gertrude_done " ..
+            "(25) by the row above.")
         return
     end,
 }
