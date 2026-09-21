@@ -1,24 +1,24 @@
--- Mourning's End Part I, driven through to a CONTENT BUG, not a driver seam.
+-- Mourning's End Part I, driven through to a DRIVER SEAM (not the original
+-- content bug -- that one is fixed).
 --
--- OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/
--- scripts/mend1_disguise.rs2's own [opnpc1,mourner_hideout_head_mourner]
--- handler (mend1_essyllt_talk, ~line 164-176) advances %mourning_quest from
--- ^mend1_gathering(3) to ^mend1_assignment(4) once Essyllt hands over the
--- gnome key and the broken device -- and NEVER advances it any further. No
--- other live (non-debug) trigger in this quest's own scripts writes
--- %mourning_quest = ^mend1_gnome_task(5) anywhere
--- (`grep -rn "%mourning_quest =" quests/quest_mourningsendparti/scripts/*.rs2`
--- shows the only such write at mend1_debug.rs2:69, inside the `mend1run`
--- debugproc's own soft-skip walk -- a test-only cheat, not something a real
--- click can reach). mend1_gnome.rs2:33's [oploc1,mourning_gnome_rack] ->
--- mend1_gnome_rack_shared gate reads `if (%mourning_quest <
--- ^mend1_gnome_task) { mes("Nothing interesting happens."); return; }`, so
--- the caged gnome -- and with it the dye/toad/sheep branch the rest of the
--- quest depends on -- is unreachable from a fresh, non-cheated playthrough.
--- This file plays every beat up to the point Essyllt hands over the key and
--- the device, proves the gnome cage answers "Nothing interesting happens."
--- with the quest genuinely stuck at ^mend1_assignment, and t.blocked()s
--- right there.
+-- RETRY after OSRS-Content 4420b02611: this file's earlier revision t.blocked
+-- here because mend1_gnome.rs2:33's [oploc1,mourning_gnome_rack] ->
+-- mend1_gnome_rack_shared gate read `if (%mourning_quest <
+-- ^mend1_gnome_task) { mes("Nothing interesting happens."); return; }`, and
+-- no live (non-debug) trigger in this quest's own scripts ever wrote
+-- %mourning_quest = ^mend1_gnome_task(5) -- Essyllt's own hand-over
+-- (mend1_disguise.rs2:164-176, mend1_essyllt_talk) only reaches
+-- ^mend1_assignment(4). 4420b02611 fixed this from the content side: the
+-- gate now reads `%mourning_quest < ^mend1_assignment`, and
+-- [label,mend1_gnome_first_talk] itself writes ^mend1_gnome_task once the
+-- player has a feather and toad crunchies in hand. This file now plays the
+-- whole gnome-cage ladder (talk/tickle/talk_again/release/give_items/
+-- ask_toads), confirms the quest genuinely advances past ^mend1_assignment,
+-- dyes two toads and fires the first one at a sheep -- then hits a real
+-- DRIVER seam: mend1_sheep.rs2 requires the fixed device to be WORN to fire
+-- but back in the BACKPACK to load the next colour, and no verb in the
+-- table can use an item on a worn item or take a worn item back off. See
+-- the t.blocked() at the end of run() for the exact seam.
 
 return {
     id = "mourningsendparti",
@@ -28,6 +28,26 @@ return {
         "::give fur 1",
         "::give silk 2",
         "::give bucket_water 1",
+        -- mend1_gnome.rs2's own gnome-cage ladder (talk/tickle/talk_again/
+        -- give_items): feather (tickled away), toad_crunchies (checked
+        -- twice, consumed once at give_items), magic_logs + leather
+        -- (checked at talk_again, consumed at give_items) -- every one of
+        -- these is on quest-helper's own getItemRequirements() list for
+        -- this quest (bearFur/silk2/waterBucket/feather/toadCrunchies/
+        -- magicLogs/leather/ogreBellows/redDye/.../coal20OrNaphtha), none
+        -- flagged canBeObtainedDuringQuest(), so every one is a legitimate
+        -- setup grant, same as fur/silk/bucket_water above.
+        "::give feather 1",
+        "::give toad_crunchies 1",
+        "::give magic_logs 1",
+        "::give leather 1",
+        -- mend1_sheep.rs2's dye-the-bellows step: only red and green are
+        -- driven (the seam below stops the run before a third colour would
+        -- matter), the bellows itself is reused (isNotConsumed() per
+        -- quest-helper).
+        "::give reddye 1",
+        "::give greendye 1",
+        "::give empty_ogre_bellows 1",
         "::setlevel ranged 60",
         "::setlevel thieving 50",
         -- rovingelves_islwyn.rs2's shared [opnpc1,roving_bowyer/roving_islwyn_2ops]
@@ -308,18 +328,18 @@ return {
                 .. journal_assignment_note)
         t.ui.journal_close()
 
-        -- ---- CONTENT BUG: the caged gnome (mourning_gnome_rack) is gated
-        -- on %mourning_quest >= ^mend1_gnome_task(5)
-        -- (mend1_gnome.rs2:33-37, mend1_gnome_rack_shared), but nothing in
-        -- this quest's own live scripts ever advances %mourning_quest past
-        -- ^mend1_assignment(4) -- see the file banner. The stage is proven
-        -- stuck immediately above (quest.stage.assignment PASSed with the
-        -- key and the broken device already in hand, which is exactly the
-        -- state mend1_essyllt_talk leaves the player in permanently). This
-        -- click is the recording row: it reads the cage's own refusal text
-        -- live, with the quest genuinely at ^mend1_assignment, not a guess.
-        -- world.loc_near first, to goto the cage's real tile rather than
-        -- guessing a second one. ----
+        -- ---- FIXED (RETRY after OSRS-Content 4420b02611): the caged gnome
+        -- (mourning_gnome_rack) used to gate entry on %mourning_quest >=
+        -- ^mend1_gnome_task(5), which nothing in this quest's own live
+        -- scripts ever wrote -- a genuine content bug, blocked here in this
+        -- file's earlier revision. mend1_gnome.rs2's entry gate now reads
+        -- %mourning_quest < ^mend1_assignment(4) instead (the stage
+        -- mend1_essyllt_talk actually leaves the player in), and
+        -- [label,mend1_gnome_first_talk] itself writes
+        -- %mourning_quest = ^mend1_gnome_task once the player has a feather
+        -- and toad crunchies in hand -- so the cage is reachable from a real
+        -- playthrough now. Driven onward from the exact point the old
+        -- t.blocked() stood. ----
         local rack_near_result, rack_near = t.world.loc_near("mourning_gnome_rack", 15)
         t.step("mourningGnomeRack.locate",
             rack_near_result == "ok" and "PASS" or "FAIL",
@@ -330,39 +350,189 @@ return {
         if rack_near_result == "ok" then
             t.exec("goto-mourningGnomeRack", t.player.goto_tile, rack_near.tile_x, rack_near.tile_z, rack_near.level)
         end
-        -- Not t.exec: pointer.lua's own QD.player.CLICK_REFUSAL_LINES
-        -- classifies the exact live reply ("Nothing interesting happens.")
-        -- as `refused` -- content REACHED mourning_gnome_rack and no branch
-        -- claimed it, the precise signature of the content bug this row
-        -- exists to record, not a driver failure -- so grading it through
-        -- t.exec (which FAILs any non-"ok") would leave a FAIL row right
-        -- before t.blocked(), which QUEST_AUTHORING.md section 8's own
-        -- "grade this row true" convention (makinghistory.lua/pryingtimes.lua)
-        -- rejects. Called directly and recorded with t.check instead.
-        t.ticks(2)
-        local rack_click_result, rack_click_detail = t.player.click_loc("mourning_gnome_rack", 1)
-        local journal_after_r, journal_after = t.ui.journal_open("Mourning's End Part I")
-        local journal_after_line = journal_after and journal_after.first_line
-        t.check("mourningGnomeRack.blocked_by_stage",
-            rack_click_result == "refused" and rack_click_detail == "Nothing interesting happens."
-                and journal_after_r == "ok" and journal_after_line ~= nil
-                and journal_after_line:find(
-                    "I infiltrated the Mourners' Headquarters in my disguise", 1, true) ~= nil,
-            "click_loc(mourning_gnome_rack) -> " .. tostring(rack_click_result) .. " " .. tostring(rack_click_detail)
-                .. " -- journal_open(Mourning's End Part I) still reads first_line=" .. tostring(journal_after_line)
-                .. " (still the assignment-stage line, gnome untouched) -- channel: ui.journal_open, server-side")
+
+        -- ---- Click 1: mend1_gnome_first_talk (mend1_gnome.rs2:78-88) --
+        -- feather + toad crunchies already in hand (setup), so this opens
+        -- the "weaknesses" mesbox and, on dismiss, writes
+        -- %mourning_gnome = ^mend1_gnome_weakness and
+        -- %mourning_quest = ^mend1_gnome_task. THIS is the row that proves
+        -- the RETRY fix: the cage no longer answers "Nothing interesting
+        -- happens." at ^mend1_assignment, and the quest genuinely advances
+        -- past the point the old blocked row asserted it never could. ----
+        t.exec("gnomeCage.firstTalk", t.player.click_loc, "mourning_gnome_rack", 1)
+        t.exec("gnomeCage.firstTalk-dialog", t.chat.play, {
+            "mesbox:You talk with the caged gnome about toad crunchies and being tickled.",
+        })
+        t.chat.close()
+        t.ticks(3)
+        local journal_task_r, journal_task = t.ui.journal_open("Mourning's End Part I")
+        local journal_task_line = journal_task and journal_task.first_line
+        t.check("quest.stage.gnome_task",
+            journal_task_r == "ok" and journal_task_line ~= nil
+                and journal_task_line:find("I'm working on the caged gnome", 1, true) ~= nil,
+            "journal_open(Mourning's End Part I) -> " .. tostring(journal_task_r) .. " first_line="
+                .. tostring(journal_task_line)
+                .. " -- the cage advanced the quest past ^mend1_assignment (OSRS-Content 4420b02611's fix confirmed live)")
         t.ui.journal_close()
 
-        t.blocked("OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_disguise.rs2:164-176 " ..
-            "(mend1_essyllt_talk) sets %mourning_quest = ^mend1_assignment after handing over the gnome key and the broken " ..
-            "device, and no other live trigger in quests/quest_mourningsendparti/scripts/*.rs2 ever writes " ..
-            "%mourning_quest = ^mend1_gnome_task -- the only such write is mend1_debug.rs2:69, inside the mend1run " ..
-            "debugproc's own soft-skip walk. mend1_gnome.rs2:33-37's [oploc1,mourning_gnome_rack] -> mend1_gnome_rack_shared " ..
-            "gate reads 'if (%mourning_quest < ^mend1_gnome_task) { mes(\"Nothing interesting happens.\"); return; }', so the " ..
-            "caged gnome -- and the dye/toad/sheep branch and the poison-task branch that depend on torturing it -- is " ..
-            "unreachable from a real playthrough. Confirmed live above: quest.stage.assignment PASSed right after Essyllt " ..
-            "handed over the key and the device, and the very next click on mourning_gnome_rack answers 'Nothing " ..
-            "interesting happens.' with the stage still at assignment(4).")
+        -- ---- Click 2: mend1_gnome_tickle (mend1_gnome.rs2:90-96) --
+        -- consumes the feather -> gnome = tortured. ----
+        t.exec("gnomeCage.tickle", t.player.click_loc, "mourning_gnome_rack", 1)
+        t.exec("gnomeCage.tickle-dialog", t.chat.play, {
+            "mesbox:You reach through the bars and tickle the gnome mercilessly with the feather.",
+        })
+        t.chat.close()
+        t.ticks(2)
+        local feather_r, feather_n = t.inv.count("feather")
+        t.check("gnomeCage.tickle.result", feather_r == "ok" and feather_n == 0,
+            "feather=" .. tostring(feather_n) .. " (" .. tostring(feather_r) .. ")")
+
+        -- ---- Click 3: mend1_gnome_talk_again (mend1_gnome.rs2:98-104) --
+        -- toad crunchies/magic logs/leather CHECKED, not consumed yet ->
+        -- gnome = talked_item. ----
+        t.exec("gnomeCage.talkAgain", t.player.click_loc, "mourning_gnome_rack", 1)
+        t.exec("gnomeCage.talkAgain-dialog", t.chat.play, {
+            "mesbox:Bring me those things and let me out of here",
+        })
+        t.chat.close()
+
+        -- ---- Click 4: mend1_gnome_release (mend1_gnome.rs2:106-112) --
+        -- consumes the key; a plain mes(), not a page. ----
+        t.exec("gnomeCage.release", t.player.click_loc, "mourning_gnome_rack", 1)
+        t.ticks(2)
+        t.expect("gnomeCage.release.message", t.msg.expect("You unlock the cage and release the gnome."))
+        local key_after_r, key_after_n = t.inv.count("mourning_gnome_key")
+        t.check("gnomeCage.release.result", key_after_r == "ok" and key_after_n == 0,
+            "mourning_gnome_key=" .. tostring(key_after_n) .. " (" .. tostring(key_after_r) .. ")")
+
+        -- ---- Click 5: mend1_gnome_give_items (mend1_gnome.rs2:114-123) --
+        -- consumes toad crunchies, magic logs, leather and the broken
+        -- device; produces the fixed device -> gnome = repaired. The
+        -- inv_del/inv_add calls run BEFORE the trailing mesbox (immediate),
+        -- so the counts are safe to read right after dismiss. Measured live:
+        -- mend1_gnome_release's own mes() transforms the rack loc's own
+        -- form the moment the gnome is released (its menu now reads only
+        -- "Examine Empty rack" / "Walk here", no Talk-to row at all) -- the
+        -- header comment's "player who clicks the now-walking gnome instead
+        -- of the rack still gets a response" is describing exactly this:
+        -- from here on the shared label is reached through the NPC
+        -- (m31_72.spawn:33's mourner_hideout_gnome, standing on the same
+        -- tile, [opnpc1,mourner_hideout_gnome] -> the identical
+        -- mend1_gnome_rack_shared), not the loc. ----
+        t.exec("gnomeCage.giveItems", t.player.talk_to, "mourner_hideout_gnome", 1)
+        t.exec("gnomeCage.giveItems-dialog", t.chat.play, {
+            "mesbox:The gnome sets to work with practised hands",
+        })
+        t.chat.close()
+        t.ticks(2)
+        local gun_r, gun_n = t.inv.count("mourning_paint_gun")
+        local logs_r, logs_n = t.inv.count("magic_logs")
+        local leather_r, leather_n = t.inv.count("leather")
+        local crunchies_r, crunchies_n = t.inv.count("toad_crunchies")
+        t.check("gnomeCage.giveItems.result",
+            gun_r == "ok" and gun_n == 1 and logs_r == "ok" and logs_n == 0
+                and leather_r == "ok" and leather_n == 0 and crunchies_r == "ok" and crunchies_n == 0,
+            string.format("mourning_paint_gun=%s magic_logs=%s leather=%s toad_crunchies=%s",
+                tostring(gun_n), tostring(logs_n), tostring(leather_n), tostring(crunchies_n)))
+
+        -- ---- Click 6: mend1_gnome_ask_toads (mend1_gnome.rs2:125-128) --
+        -- a chatplayer opener plus two mesbox pages -> %mourning_dye_chat
+        -- = 1, no item change. The rack is still the empty form from click
+        -- 5 onward, so this is the NPC too. ----
+        t.exec("gnomeCage.askToads", t.player.talk_to, "mourner_hideout_gnome", 1)
+        t.exec("gnomeCage.askToads-dialog", t.chat.play, {
+            "player:What does this thing actually do?",
+            "mesbox:'It fires toads,' the gnome explains",
+            "mesbox:Find a mourner ogre-bellows seller somewhere near Feldip Hills",
+        })
+        t.chat.close()
+        t.ticks(3)
+        local journal_dye_r, journal_dye = t.ui.journal_open("Mourning's End Part I")
+        local journal_dye_line = journal_dye and journal_dye.first_line
+        t.check("quest.stage.gnome_dye_learned",
+            journal_dye_r == "ok" and journal_dye_line ~= nil
+                and journal_dye_line:find("The gnome explained that the device fires dyed, inflated toads", 1, true) ~= nil,
+            "journal_open(Mourning's End Part I) -> " .. tostring(journal_dye_r) .. " first_line=" .. tostring(journal_dye_line))
+        t.ui.journal_close()
+
+        -- ---- Dye the bellows and inflate two toads (mend1_sheep.rs2:9-24
+        -- -- the bellows must be armed first: only [opheldu,
+        -- empty_ogre_bellows] is declared, not the reverse, so item_a is
+        -- the bellows. No location gate on this interaction at all; the
+        -- bellows is not consumed and is reused for both colours. Only two
+        -- colours are driven -- see the seam recorded below, which stops
+        -- the run before a third colour would matter. One retry on a bare
+        -- arming miss, same shape as the cleanTop retry above (use_on
+        -- re-arms before every retry press per docs/QUEST_AUTHORING.md
+        -- section 6) -- measured live: the backpack tab was not yet
+        -- repainted from the journal_close() immediately before this. ----
+        local dye_red_result, dye_red_detail = t.player.use_item_on_item("empty_ogre_bellows", "reddye")
+        if dye_red_result ~= "ok" then
+            t.ticks(3)
+            dye_red_result, dye_red_detail = t.player.use_item_on_item("empty_ogre_bellows", "reddye")
+        end
+        t.step("dyeBellows.red", dye_red_result == "ok" and "PASS" or "FAIL",
+            "use_item_on_item(empty_ogre_bellows, reddye) -> " .. tostring(dye_red_result) .. " " .. tostring(dye_red_detail))
+        t.exec("dyeBellows.green", t.player.use_item_on_item, "empty_ogre_bellows", "greendye")
+        local redtoad_r, redtoad_n = t.inv.count("mourning_bloated_toad_red")
+        local greentoad_r, greentoad_n = t.inv.count("mourning_bloated_toad_green")
+        t.check("dyeBellows.result", redtoad_r == "ok" and redtoad_n == 1 and greentoad_r == "ok" and greentoad_n == 1,
+            "mourning_bloated_toad_red=" .. tostring(redtoad_n) .. " mourning_bloated_toad_green=" .. tostring(greentoad_n))
+
+        -- ---- Load the red toad (device unworn, still a backpack cell),
+        -- equip the device, and fire it at the sheep herd mend1_sheep.rs2's
+        -- own mend1_try_fire_sheep maps to herder_plaguesheep_1. The LIVE
+        -- entity is the map's own base symbol, plaguesheep_1
+        -- (areas/world/configs/m40_52.spawn), which diseased_sheep.rs2's
+        -- [opnpc1,plaguesheep_1] -> prod_sheep(herder_plaguesheep_1) routes
+        -- into the same shared label (trap 19/20's base-symbol shape). ----
+        t.exec("loadToad.red", t.player.use_item_on_item, "mourning_bloated_toad_red", "mourning_paint_gun")
+        t.exec("equip.paintgun", t.player.equip, "mourning_paint_gun")
+        -- by_symbol/walk_near need the npc loaded into the CLIENT's nearby
+        -- region first -- we are still in the HQ basement, two whole
+        -- regions away, so goto_tile to the sheep field before either
+        -- (m40_52.spawn's plaguesheep_1 cluster: 2609-2610,3343-3345).
+        t.exec("goto-sheepField", t.player.goto_tile, 2610, 3344, 0)
+        local sheep1, sheep1_r = t.player.by_symbol("npc", "plaguesheep_1")
+        t.step("sheep1.locate", sheep1_r == "ok" and "PASS" or "FAIL", "by_symbol(npc, plaguesheep_1) -> " .. tostring(sheep1_r))
+        if sheep1_r == "ok" then
+            t.exec("walk-sheep1", t.player.walk_near, sheep1, 15)
+        end
+        t.exec("fireSheep.red", t.player.talk_to, "plaguesheep_1", 1)
+        t.ticks(2)
+        t.expect("fireSheep.red.message", t.msg.expect("the red toad splats across the sheep"))
+
+        -- ---- SEAM: reload the device for the second colour. mend1_sheep.rs2's
+        -- mend1_try_fire_sheep requires mourning_paint_gun to be WORN to
+        -- fire (`inv_total(worn, mourning_paint_gun) < 1` refuses), but
+        -- loading a new toad is an [opheldu,...] item-on-item interaction,
+        -- and t.player.use_item_on_item resolves BOTH cells through
+        -- QD.player._inv_cell (script/plugins/quest_driver/pointer.lua),
+        -- which walks QD._inv_container() -- the BACKPACK -- only. No verb
+        -- in docs/QUEST_AUTHORING.md section 3 can use a backpack item on a
+        -- worn/equipped item, or take a worn item back off into the
+        -- backpack for a fresh load (t.player.equip only WEARS, via the
+        -- same backpack-only cell lookup, so it cannot re-select an item
+        -- that is already worn either). Recorded live below: the identical
+        -- load call that worked for red before it was equipped now fails
+        -- once the device is worn for the shot above. ----
+        local reload_result, reload_detail = t.player.use_item_on_item("mourning_bloated_toad_green", "mourning_paint_gun")
+        t.check("loadToad.green.seam", reload_result ~= "ok",
+            "use_item_on_item(mourning_bloated_toad_green, mourning_paint_gun) -> " .. tostring(reload_result) .. " " .. tostring(reload_detail)
+                .. " -- mourning_paint_gun is worn (equipped for the red shot above) and use_item_on_item only resolves cells in the backpack container")
+
+        t.blocked("script/plugins/quest_driver/pointer.lua's QD.player._inv_cell (used by both halves of " ..
+            "use_item_on_item, and by equip's own dispatch) resolves only QD._inv_container() -- the backpack. " ..
+            "OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_sheep.rs2's own " ..
+            "load/fire cycle requires mourning_paint_gun to be WORN to fire " ..
+            "(mend1_try_fire_sheep: 'if (inv_total(worn, mourning_paint_gun) < 1) { return(0); }') but back in the " ..
+            "BACKPACK to load the next colour's toad ([opheldu,mourning_bloated_toad_green]/[opheldu,mourning_paint_gun], " ..
+            "both backpack-only cell lookups). No verb in the table removes a worn item back into the backpack, and " ..
+            "t.player.equip cannot re-select an item that is already worn (same backpack-only lookup). Confirmed live " ..
+            "above: loading and firing the red toad worked with the device unworn-then-worn exactly once, and the " ..
+            "identical load call for the green toad then failed because mourning_paint_gun is no longer a backpack " ..
+            "cell -- the four-colour sheep-marking step this quest's own gnome_task stage requires cannot be completed " ..
+            "by any combination of the verbs in docs/QUEST_AUTHORING.md section 3.")
         return
     end,
 }
