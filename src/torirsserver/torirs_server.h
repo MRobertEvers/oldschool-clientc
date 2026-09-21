@@ -1366,7 +1366,46 @@ struct ToriRSServerNpcInfo
     int bonus[12];
     int attackrate;
     int has_params;
+    /**
+     * NpcType.multiNpc (config opcode 106) — the npc twin of a loc's transform
+     * table, decoded into `RSCache_Dat2ConfigNpc.{varbit_id,varp_index,configs}`
+     * and thrown away on this side until 2026-09-21.
+     *
+     * A shell record with `transform_count > 0` is `[reldo]` or
+     * `[contact_osman_multi]`: no model, no name and no menu ops of its own,
+     * just the switch and the list of variants. `transforms[N]` is the live
+     * variant for switch value N and the last entry is the fallback; -1 in a
+     * slot means the npc is hidden at that value.
+     *
+     * Stored above the `name` gate for the same reason `category` is: every
+     * record that carries one is nameless, so `ToriRSServer_NpcInfo` hides it.
+     * Read it through `ToriRSServer_NpcResolveTransform`.
+     */
+    int transform_varbit;
+    int transform_varp;
+    int* transforms;
+    int transform_count;
 };
+
+/**
+ * Multinpc resolve for a player's current varp/varbit state — the npc twin of
+ * `ToriRSServer_LocResolveTransform`, and the same walk the CLIENT makes in
+ * `App_NpctypeResolveMultiId` (`VarPManager_ResolveTransform`, capped at four
+ * rungs).
+ *
+ * Returns the live child id, `base_npc_id` when the record names no shell, and
+ * -1 when the selected slot hides the npc. The npc entity in the world keeps
+ * the SPAWNED id: this answers only "which record did the CLIENT build its menu
+ * from", which is what `p_opnpc` needs to read an op string off a nameless
+ * shell (`npc_menu_verb`, torirs_server_scripts.c). It does NOT pick the script
+ * a trigger dispatches to — the npc trigger lookup is still keyed on the
+ * spawned id, and the child-then-base ladder the loc side has was measured and
+ * reverted on 2026-09-21 (see `npc_menu_verb`'s banner for what it cost).
+ */
+int
+ToriRSServer_NpcResolveTransform(
+    const struct ToriRSServerPlayer* player,
+    int base_npc_id);
 
 /*
  * The category rung for an npc type, or -1 when there is none.

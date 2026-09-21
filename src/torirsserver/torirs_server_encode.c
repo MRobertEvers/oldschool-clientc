@@ -281,6 +281,52 @@ ToriRSServer_Send(
     check_frame_length(wire, pkt_name, opcode, len, var);
 
     /*
+     * The length has to FIT THE LENGTH FIELD, and until now nothing asked.
+     *
+     * `rsab_p1(&buf, len)` further down writes `len & 0xff` and says nothing
+     * about the bits it threw away. Measured 2026-09-21 on this checkout:
+     * `mes()` at mend2_shared.rs2:97 is a 300-byte string, which
+     * ToriRSServer_SendMessage builds into a 303-byte MESSAGE_GAME and flushes
+     * with var=1 -- so the frame announced itself as 47 bytes long and the 256
+     * bytes of narration behind it were read by the client as opcodes.
+     * Everything after that packet is garbage: the varp write the same script
+     * performed two lines later never landed, the next click answered
+     * `settle_after_click`, and the session logged out. Nothing in that wreckage
+     * points back here, because the packet that caused it was perfectly formed
+     * -- only its declared length was a lie. It is the same failure mode
+     * check_frame_length's own banner describes for the length CLASS, reached
+     * by the other road.
+     *
+     * A caller that hands this more bytes than its own length field can carry
+     * has a bug, so this aborts (CLAUDE.md). It also PRINTS and DROPS, in that
+     * order and unconditionally: the shipping lane compiles assert() out
+     * (-DNDEBUG, src/Makefile's OPT_RELEASE_CFLAGS), and a release build that
+     * fell through here would be straight back to writing the truncated length.
+     * Dropping costs one message and leaves the stream on a boundary; writing
+     * that length costs the connection and every packet after it.
+     */
+    if( var == 1 && len > 0xff )
+    {
+        fprintf(stderr,
+                "torirsserver: dropped %s op %d (%s) — %d bytes cannot be declared in a "
+                "var-u8 length (max 255)\n",
+                wire->name, opcode, ToriRSServer_WirePktName(pkt_name), len);
+        fflush(stderr);
+        assert(len <= 0xff);
+        return;
+    }
+    if( var == 2 && len > 0xffff )
+    {
+        fprintf(stderr,
+                "torirsserver: dropped %s op %d (%s) — %d bytes cannot be declared in a "
+                "var-u16 length (max 65535)\n",
+                wire->name, opcode, ToriRSServer_WirePktName(pkt_name), len);
+        fflush(stderr);
+        assert(len <= 0xffff);
+        return;
+    }
+
+    /*
      * TORIRSSERVER_TRACE_OUT=1 -- one line per packet, opcode and the revision's own
      * name for it.
      *

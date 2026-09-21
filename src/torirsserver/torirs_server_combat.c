@@ -2282,6 +2282,33 @@ ToriRSServer_CombatPlayerTick(struct ToriRSServer* srv)
     struct ToriRSServerPlayer* player = srv->active_player;
     struct ToriRSServerNpc* npc;
 
+    /*
+     * TORIRSSERVER_COMBAT_TRACE=1: the player's fight, one line per tick, read
+     * at the bottom of phase_player — after the interaction has had both of its
+     * chances to dispatch and after content has had its chance to re-arm one.
+     *
+     * The same argument the hitpoints trace below makes, for the other half of
+     * a fight: a swing is content's (`[opnpc2,_]` re-arming itself with
+     * `p_opnpc(2)`), so when a fight stops there is nothing in C to put a print
+     * in — the engine simply never hears from it again. What distinguishes "the
+     * script decided to wait" from "the re-arm was refused" is whether the
+     * latch is still there on the next tick, and that is a reading of state
+     * rather than of an event. It cost two quests and a full seam pass to work
+     * out by elimination (blackarmgang, mortton, 2026-09-21).
+     */
+    static int combat_trace = -1;
+    if( combat_trace < 0 )
+        combat_trace = getenv("TORIRSSERVER_COMBAT_TRACE") != NULL;
+    if( combat_trace )
+        fprintf(stderr,
+                "combat_trace: tick=%d target=%d interact=kind%d/op%d/slot%d/id%d "
+                "ap_tried=%d ap_range=%d wp=%d claim=%d/%d\n",
+                srv->tick, player->combat_target, (int)player->interaction.kind,
+                player->interaction.op, player->interaction.npc_slot,
+                player->interaction.target_id, player->interaction.ap_tried,
+                player->interaction.ap_range, player->waypoint_index,
+                player->combat_claim_npc, player->combat_claim_tick);
+
     /* TORIRSSERVER_HP_TRACE=1: every hitpoints change, once per tick. Under `::god`
      * a change is by definition a gate that was missed, and hitpoints are
      * written from half a dozen places (the damage funnel, three stat opcodes,

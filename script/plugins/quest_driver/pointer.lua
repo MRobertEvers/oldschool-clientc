@@ -2122,7 +2122,17 @@ function QD.player._inv_cell(item)
     end
     -- Named plainly: this is the answer a caller gets after an earlier verb
     -- consumed the stack (rev-239's backpack op 1 drops it), and "not_found"
-    -- alone reads like a bad symbol.
+    -- alone reads like a bad symbol.  And "not in the backpack" was the
+    -- sentence four verbs printed for an item the player is WEARING -- the
+    -- state a load/fire mechanic alternates with, and the one a test author
+    -- cannot see from a ledger row (SEAM use_on_worn_and_unequip at the end
+    -- of this file).  The worn read is done only on the miss, so nothing
+    -- that resolves pays for it.
+    local worn_result, worn_cell = QD.player._worn_cell(item)
+    if worn_result == "ok" then
+        return "not_found", item .. ": not in the backpack -- it is WORN ("
+            .. worn_cell.symbol .. "); take it off first with player.unequip"
+    end
     return "not_found", item .. ": not in the backpack"
 end
 
@@ -2880,7 +2890,10 @@ function QD.player.use_item_on_item(item_a, item_b)
     if type(item_a) ~= "string" or type(item_b) ~= "string" then
         return "unsupported", "use_item_on_item: both arguments are obj content symbols"
     end
-    QD.player._show_backpack()
+    -- Shown AND painted: the tab press lands a frame before its cells do,
+    -- and the arm below is a one-shot with no retry behind it (SEAM
+    -- use_on_worn_and_unequip at the end of this file).
+    QD.player._show_backpack_painted()
     local cell_a_result, cell_a = QD.player._inv_cell(item_a)
     if cell_a_result ~= "ok" then
         return cell_a_result, cell_a
@@ -4327,4 +4340,290 @@ function QD.player._standoff_for_kind(kind)
         return QD.player._npc_standoff
     end
     return nil
+end
+
+-- ==========================================================================
+-- SEAM use_on_worn_and_unequip -- Opus seam pass, 2026-09-21. APPENDED BLOCK.
+--
+-- Nothing above this banner is touched except ONE line, named here:
+-- QD.player._inv_cell's `not_found` detail now says when the item is WORN
+-- rather than absent, because that resolver is where the knowledge is and
+-- "not in the backpack" was the sentence four verbs printed for a thing the
+-- player is wearing.
+--
+-- WHAT WAS MISSING. The driver could put an item ON and never take it off.
+-- QD.player.equip watches the worn container but presses a BACKPACK cell
+-- (_inv_dispatch -> _inv_press -> _inv_cell -> QD._inv_container), and every
+-- other item verb -- inv_op, drop, both halves of use_item_on_item --
+-- resolves that same one container. So a mechanic that alternates worn and
+-- carried state had no second half at all: Mourning's End Part I's paint
+-- device must be WORN to fire ([proc,mend1_try_fire_sheep],
+-- quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:168-170,
+-- `if (inv_total(worn, mourning_paint_gun) < 1) { return(0); }`) and must be
+-- a BACKPACK cell to be reloaded ([opheldu,mourning_bloated_toad_*] /
+-- [opheldu,mourning_paint_gun], mend1_sheep.rs2:84-110, an item-on-item over
+-- two carried cells). The quest's own ledger says it exactly:
+-- "loading+equipping+firing the red toad worked exactly once, and the
+-- identical load call for the green toad then failed not_found because
+-- mourning_paint_gun was no longer a backpack cell" (QUEUE.tsv row
+-- mourningsendparti, author batch sonnet-b9).
+--
+-- HOW A WORN CELL IS PRESSED, AND WHY IT IS NOT inv_op.
+-- The worn tab is eleven components, `wornitems:slot0..slot13` with 6, 8 and
+-- 11 missing, and the component NAMES the wear slot -- content states that
+-- mapping itself in player/configs/worn.enum ([worn_slots], "wornitems:slot7
+-- IS wear slot 7"). Remove is the COMPONENT's own op 1, put there by
+-- `~wear_updateslot_546` (`if_setop(1, "Remove", $component0)`) and armed by
+-- `~worn_tab_login` (player/containers.rs2:53-67) -- the worn tab is the one
+-- container whose rows are component ops rather than ObjType actions, and
+-- containers.rs2's own banner says why ("the ObjType rows on something
+-- already worn are nonsense"). The server agrees from the other end:
+-- torirs_server_world.c's handle_opheld and its IF_BUTTONX route both check
+-- `ToriRSServer_EquipmentWornSlot(component) >= 0` first and hand the press
+-- to handle_worn_inv_button, whose op 1 runs content's
+-- [inv_button1,wornitems:slotN] -- `~unequip(N)`, player/scripts/equip.rs2:
+-- 135-145 -- or, when that lookup misses, the engine's own unequip_slot,
+-- which runs the same [proc,unequip]. Both were exercised here: the live
+-- press logs `<- IF_BUTTONX 387:18 sub=-1 obj=65535 op=1` followed by
+-- `no trigger for [inv_button1,wornitems:slot3]`, and the device still came
+-- off (worn 1->0, backpack 0->1). That miss is content's/the engine's to
+-- explain and is NOT this seam's: the fallback is declared, the move is the
+-- proc's either way, and the verb below asserts the move, not the route.
+--
+-- So the press is an IF_BUTTON on the slot component (api_drive.if_click),
+-- NOT api_drive.inv_op. MEASURED, and this is the whole reason the first
+-- attempt at this verb did nothing (build/quest_gate/seam_worn_p3, 2026-09-21):
+-- inv_op's option 1 becomes OPHELD1, and on rev 239 there IS no OPHELD
+-- opcode -- net_out_opheld collapses the five held ops onto the BACKPACK's
+-- own component numbering, `OPHELD_IF_BUTTONX_OP = { 2, 3, 4, 6, 7 }`
+-- (src/net/net_out.c:958). A worn cell pressed that way therefore arrives as
+-- `<- IF_BUTTONX 387:18 sub=1 obj=6082 op=2`, which the server reads as the
+-- worn slot's op 2 -- "Bank"/the param_451 verb -- and answers
+-- `no trigger for [inv_button2,wornitems:slot3]`, then re-dispatches it as
+-- `[opheld2,mourning_paint_gun] -> [opheld2,_]`, the WEAR proc. The device
+-- stayed on (worn 1->1, backpack 0->0) and not one word of that was visible
+-- from the ledger. if_click carries the op number in the component's own
+-- space, so op 1 is op 1.
+--
+-- WHY THERE IS NO CELL SEARCH. The item cell under a worn slot is a
+-- cc_create'd dynamic child whose sub id no Lua read can state, and the
+-- first version of this verb searched for it. It does not need to: the op is
+-- the SLOT component's, and `net_out_if_button_op(op, target, sub)` takes
+-- the component and the op alone. What does need a retry is the tab: a press
+-- issued in the same frame as the tab switch finds no displayed node
+-- carrying the component id at all (`no DISPLAYED node carries that
+-- component id`, four candidates in a row, seam_worn_p2/p3) because the
+-- sidebar's CS2 paints on a later frame -- the backpack's own seam, one
+-- interface over. So what this verb waits on is the SLOT being displayed,
+-- not a cell being found (_worn_press's own banner).
+--
+-- WHAT THIS SEAM DELIBERATELY DOES NOT ADD: use_item_on_item over a worn
+-- cell. That press would go out as OPHELDU (app_minimenu_inv_action's objsel
+-- branch does not care which container the clicked cell belongs to), and
+-- torirs_server_world.c's handle_opheldu validates BOTH halves against the
+-- backpack and nothing else -- `player->inv[slot].obj_id != obj_id` for the
+-- clicked half, useon_tail's `player->inv[use_slot].obj_id != use_obj` for
+-- the armed one -- and returns silently when either misses. A verb built on
+-- that would answer for a packet the server drops without a word, which is
+-- the failure this file's refusal fence exists against. It is an ENGINE gap
+-- (read, not run: handle_opheldu, torirs_server_world.c:6821-6870), reported
+-- as its own seam. Mourning's End Part I does not need it: the reload is two
+-- carried cells once the device comes off.
+-- ==========================================================================
+
+-- The worn tab, opened the way a player would -- the cell must be DISPLAYED
+-- for its row to be live (app_minimenu_ui_pick_live), exactly as
+-- _show_backpack's banner says of the backpack.
+function QD.player._show_equipment()
+    return QD.ui.tab("equipment")
+end
+
+-- Which WORN cell holds `item`?  The component that stands for that wear
+-- slot, the obj in it and its count -- plus `worn_slot`, so a detail can
+-- name the tab cell it pressed.  The component is the ROLE symbol the
+-- content enum names, never a number (ARCHITECT.md S2).
+function QD.player._worn_cell(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return obj_result, item
+    end
+    local worn_result, worn_id = api_drive.symbol("inv", "worn")
+    if worn_result ~= "ok" then
+        return worn_result, "worn"
+    end
+    local capacity_result, capacity = api_drive.inv_capacity(worn_id)
+    if capacity_result ~= "ok" then
+        return capacity_result, "inv_capacity worn"
+    end
+    for index = 0, capacity - 1 do
+        local slot_result, slot = api_drive.inv_slot(worn_id, index)
+        if slot_result == "ok" and slot.obj_id == obj_id then
+            local symbol = "wornitems:slot" .. tostring(index)
+            local component_result, component_id = api_drive.component(symbol, -1)
+            if component_result ~= "ok" then
+                -- Named, because the two reasons are different bugs: the tab
+                -- is not painted (open it), or this pack numbers its worn
+                -- components some other way (worn.enum is the answer).
+                return component_result, item .. " is worn in slot "
+                    .. tostring(index) .. " but " .. symbol .. " is not in the tree"
+            end
+            return "ok", {
+                component_id = component_id,
+                obj_id = obj_id,
+                count = slot.count,
+                worn_slot = index,
+                symbol = symbol,
+            }
+        end
+    end
+    return "not_found", item .. ": not worn"
+end
+
+-- The worn tab's ops are the COMPONENT's own, numbered 1..10, and op 1 is
+-- Remove -- `~wear_updateslot_546` (scripts/wear_updateslot_546.cs2) puts it
+-- there with `if_setop(1, "Remove", $component0)` and
+-- `~worn_tab_login` (player/containers.rs2:57-67) arms it.  So the press is
+-- an IF_BUTTON on the slot component, which is what api_drive.if_click
+-- builds, and NOT api_drive.inv_op's OPHELD ladder.
+QD.player.WORN_REMOVE_OP = 1
+
+-- How long a tab is given to PAINT after its press before a verb that needs
+-- one of its cells gives up.  The committed backpack seam waits two server
+-- ticks per attempt over six attempts; this is that budget in one wait.
+QD.player.TAB_PAINT_TICKS = 12
+
+-- The backpack, shown AND PAINTED.
+--
+-- `ui.tab` is a button press: it returns as soon as the click is taken and
+-- the sidebar's own CS2 paints the cells on a later frame, which is the
+-- whole of the committed backpack seam (_inv_press's banner). _inv_press
+-- absorbs that by re-pressing the tab around a refusal; the arming half of
+-- use_item_on_item has no such loop -- one api_drive.inv_op with option -1
+-- and an immediate `the Use row did not arm <item>` if the cell was not live
+-- -- and nothing ever switched tabs mid-quest until unequip did, so nothing
+-- ever found it. Measured (build/quest_gate/seam_worn_p6): with unequip
+-- working, both reloads in the load/fire cycle answered `refused ... the Use
+-- row did not arm` from the equipment tab the unequip had left showing.
+function QD.player._show_backpack_painted(ticks)
+    local tab_result, tab_detail = QD.player._show_backpack()
+    local component_result, component_id = api_drive.component("inventory:items", -1)
+    if component_result ~= "ok" then
+        return component_result, "inventory:items"
+    end
+    local shown = QD.await({
+        level = function()
+            local result, presented = api_drive.widget_presented(component_id)
+            return result == "ok" and presented == true
+        end,
+        note = "show_backpack: waiting for inventory:items to be displayed",
+    }, ticks or QD.player.TAB_PAINT_TICKS)
+    return shown, "backpack tab " .. tostring(tab_result) .. " " .. tostring(tab_detail)
+end
+
+-- Press one worn slot's own component op.
+--
+-- Returns (result, cell, where, refusal) -- _inv_press's shape, over the worn
+-- tab: `ok` (the press was dispatched into a LIVE row), `not_visible` (the
+-- worn tab never painted the slot), or the _worn_cell result with a nil cell
+-- (the item is not worn at all).
+--
+-- THE WAIT IS THE WHOLE VERB, and api_drive.if_click cannot be trusted to
+-- report its absence: app_plugin_click_node builds the row and answers 1 as
+-- soon as the NODE exists, while app_minimenu_run_option's first act is
+-- `if( !app_minimenu_ui_pick_live(app, &opt.pick) ) return 0;` -- a pick
+-- whose node or ancestor is display-hidden is dropped with no packet, no
+-- message and no word to the caller. `ui.tab` is a button press that paints
+-- on a LATER frame, so a press issued beside it lands in exactly that hole:
+-- measured as `ok` from if_click with not one packet in the server's log
+-- (build/quest_gate/seam_worn_p4 and _p5, TORIRSSERVER_VERBOSE=1, worn 1->1).
+-- So this asks the same question pick_live asks -- is the node displayed --
+-- through api_drive.widget_presented, and only then presses.
+function QD.player._worn_press(item, op)
+    local tab_result, tab_detail = QD.player._show_equipment()
+    local cell_result, cell = QD.player._worn_cell(item)
+    if cell_result ~= "ok" then
+        return cell_result, nil, cell, nil
+    end
+    local where = item .. " " .. cell.symbol .. " (wear slot "
+        .. tostring(cell.worn_slot) .. ") op " .. tostring(op)
+        .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
+    local shown = QD.await({
+        level = function()
+            local result, presented = api_drive.widget_presented(cell.component_id)
+            return result == "ok" and presented == true
+        end,
+        note = "worn_press: waiting for " .. cell.symbol .. " to be displayed",
+    }, QD.player.TAB_PAINT_TICKS)
+    if shown ~= "ok" then
+        return "not_visible", cell,
+            where .. " -- the equipment tab never displayed that slot", nil
+    end
+    local result, why = api_drive.if_click(cell.component_id, op)
+    return result, cell, where, why
+end
+
+-- UNEQUIPPED means the worn container lost it AND the backpack gained it.
+-- Both halves, for equip's own reason in reverse: a worn count that only
+-- FELL is equally true of an item destroyed, dropped or swapped out by
+-- something the previous verb sent, and the whole point of this verb is that
+-- the item is carried again afterwards.
+function QD.player.unequip(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return obj_result, item
+    end
+    local worn_result, worn_id = api_drive.symbol("inv", "worn")
+    if worn_result ~= "ok" then
+        return worn_result, "worn"
+    end
+    local inv_result, container_id = QD._inv_container()
+    if inv_result ~= "ok" then
+        return inv_result, "inv"
+    end
+    local worn_before_result, worn_before = api_drive.inv_count(worn_id, obj_id)
+    if worn_before_result ~= "ok" then
+        return worn_before_result, "worn count"
+    end
+    if worn_before <= 0 then
+        -- Not a contract violation and not a silent success: a test that
+        -- unequips something it never wore has a bug one row earlier, and
+        -- the row has to say which.
+        return "not_found", "unequip " .. item .. ": nothing of it is worn"
+    end
+    local inv_before_result, inv_before = api_drive.inv_count(container_id, obj_id)
+    if inv_before_result ~= "ok" then
+        return inv_before_result, "inv count"
+    end
+    local press_result, cell, where, refusal =
+        QD.player._worn_press(item, QD.player.WORN_REMOVE_OP)
+    if cell == nil then
+        return press_result, where
+    end
+    if press_result ~= "ok" then
+        return press_result, "unequip " .. where .. " -- " .. tostring(refusal)
+    end
+    local landed = QD.await({
+        level = function()
+            local worn_result2, worn_now = api_drive.inv_count(worn_id, obj_id)
+            if worn_result2 ~= "ok" or worn_now >= worn_before then
+                return false
+            end
+            local inv_result2, inv_now = api_drive.inv_count(container_id, obj_id)
+            return inv_result2 == "ok" and inv_now > inv_before
+        end,
+        note = "unequip " .. item,
+    }, 10)
+    local worn_after_result, worn_after = api_drive.inv_count(worn_id, obj_id)
+    local inv_after_result, inv_after = api_drive.inv_count(container_id, obj_id)
+    local moved = "worn " .. tostring(worn_before) .. "->"
+        .. tostring(worn_after_result == "ok" and worn_after or worn_after_result)
+        .. ", backpack " .. tostring(inv_before) .. "->"
+        .. tostring(inv_after_result == "ok" and inv_after or inv_after_result)
+    if landed == "ok" then
+        return "ok", "unequip " .. where .. ": " .. moved
+    end
+    -- The server's own sentence ("You can't remove that.") rather than a
+    -- bare timeout, exactly as equip's refusal carries it.
+    return landed, "unequip " .. where .. ": " .. moved
+        .. " -- '" .. QD.player._last_line() .. "'"
 end

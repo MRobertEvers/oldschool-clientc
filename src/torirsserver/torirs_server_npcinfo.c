@@ -258,6 +258,8 @@ ToriRSServer_NpcInfoLoad(const char* cache_dir)
         g_npcs[i].size = 1;
         g_npcs[i].turnspeed = 32; /* NpcType default; 0 is "never turns" */
         g_npcs[i].attackrate = 4;
+        g_npcs[i].transform_varbit = -1;
+        g_npcs[i].transform_varp = -1;
     }
 
     for( int i = 0; i < archive->file_count; i++ )
@@ -285,6 +287,22 @@ ToriRSServer_NpcInfoLoad(const char* cache_dir)
          * "no category stated" and is deliberately not a name in
          * pack/category.pack — binding a trigger to 0 would match everything. */
         g_npcs[id].category = npc->category;
+        /* Config opcode 106, decoded into `varbit_id`/`varp_index`/`configs`
+         * and discarded here until 2026-09-21. Copied rather than borrowed:
+         * `RSCache_Dat2ConfigNpcFree` below owns `npc->configs`. Stored above
+         * the name gate with `category`, for the same reason — every record
+         * that carries a transform table is nameless. */
+        g_npcs[id].transform_varbit = npc->varbit_id;
+        g_npcs[id].transform_varp = npc->varp_index;
+        if( npc->configs && npc->configs_count > 0 )
+        {
+            g_npcs[id].transforms =
+                (int*)malloc((size_t)npc->configs_count * sizeof(int));
+            assert(g_npcs[id].transforms);
+            memcpy(g_npcs[id].transforms, npc->configs,
+                   (size_t)npc->configs_count * sizeof(int));
+            g_npcs[id].transform_count = npc->configs_count;
+        }
         for( int op = 0; op < 5; op++ )
             g_npcs[id].ops[op] = npc->actions[op] ? strdup(npc->actions[op]) : NULL;
         read_combat_params(&npc->params, &g_npcs[id]);
@@ -323,6 +341,7 @@ ToriRSServer_NpcInfoFree(void)
         for( int i = 0; i < g_npc_count; i++ )
         {
             free((void*)g_npcs[i].name);
+            free(g_npcs[i].transforms);
             for( int op = 0; op < 5; op++ )
                 free((void*)g_npcs[i].ops[op]);
         }
@@ -350,6 +369,73 @@ int
 ToriRSServer_NpcInfoCount(void)
 {
     return g_npcs ? g_npc_count : 0;
+}
+
+/**
+ * The live child of a multinpc shell for this player's varps.
+ *
+ * The npc twin of `ToriRSServer_LocResolveTransform`, and deliberately written
+ * to the CLIENT's rule rather than to the loc one: `App_NpctypeResolveMultiId`
+ * walks the chain up to `TORIRS_NPC_MULTI_MAX_DEPTH` rungs and takes
+ * `VarPManager_ResolveTransform`'s answer verbatim, INCLUDING a -1 in a
+ * positional slot — a -1 there means "this npc is hidden at that value", not
+ * "use the fallback", and the client already shipped that distinction
+ * (`varp_manager.c`: "Falling through to the fallback here made internal
+ * `multinpcN=-1` slots show the fallback form instead"). The two ends have to
+ * agree about which record the player was offered, so this end copies the end
+ * that built the menu.
+ *
+ * Reads the decoded row directly, not `ToriRSServer_NpcInfo`: that accessor
+ * gates on a name and every shell record in this cache is nameless, so going
+ * through it would answer "no transform table" for all 2,458 of them.
+ *
+ * The switch is a PLAYER's varp, so there is no such thing as resolving one
+ * without a player: a caller that has none is asking the wrong question and
+ * stops here rather than being handed the base id and carrying on with an
+ * answer that only looks right on an account whose carrier is still zero.
+ */
+int
+ToriRSServer_NpcResolveTransform(
+    const struct ToriRSServerPlayer* player,
+    int base_npc_id)
+{
+    int npc_id = base_npc_id;
+
+    assert(player);
+
+    /* Four rungs, the client's own `TORIRS_NPC_MULTI_MAX_DEPTH`
+     * (`src/engine/torirs_types.h`), restated rather than included: a chained
+     * shell resolves identically on both ends or the menu and the dispatch
+     * disagree, and the engine header is not this layer's to pull in. */
+    for( int guard = 0; guard < 4 && npc_id >= 0; guard++ )
+    {
+        const struct ToriRSServerNpcInfo* row;
+        int index = -1;
+        int resolved;
+
+        if( !g_npcs || npc_id < 0 || npc_id >= g_npc_count )
+            return npc_id;
+        row = &g_npcs[npc_id];
+        if( row->transform_count <= 0 || !row->transforms )
+            return npc_id;
+
+        if( row->transform_varbit != -1 )
+            index = ToriRSServer_VarbitGet(player, row->transform_varbit);
+        else if( row->transform_varp >= 0 && row->transform_varp < TORIRSSERVER_VARP_COUNT )
+            index = (int)player->varps[row->transform_varp];
+
+        if( index >= 0 && index < row->transform_count - 1 )
+            resolved = row->transforms[index];
+        else
+            resolved = row->transforms[row->transform_count - 1];
+
+        if( resolved < 0 )
+            return -1;
+        if( resolved == npc_id )
+            return npc_id;
+        npc_id = resolved;
+    }
+    return npc_id;
 }
 
 int

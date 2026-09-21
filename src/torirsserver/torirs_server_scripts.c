@@ -4139,6 +4139,75 @@ active_npc(struct SSVM_State* state)
 }
 
 /*
+ * The menu verb this player was OFFERED for `op_num` on an npc of `npc_type`,
+ * or NULL when that slot is empty.
+ *
+ * Two things this is not, and both of them were bugs.
+ *
+ * It is not `ToriRSServer_NpcInfo(npc_type)->ops[op_num - 1]`. That accessor
+ * gates the WHOLE row on the record having a name (see its header), so every
+ * nameless record answers with a placeholder whose five op slots are NULL.
+ * The nameless records are the multinpc shells — 2,458 of them in this cache —
+ * and the shell is what a spawn row names and what `npc->type` therefore is.
+ * `[weaponsmaster]` (all.npc 5211) states `op1=Talk-to`, `op2=Attack`,
+ * `multivarbit=soa_weaponmaster_dead` and no `name=`: reading his ops through
+ * the gated accessor answers "this npc offers nothing".
+ *
+ * It is not the base row alone either. A true shell — `[reldo]`,
+ * `[contact_osman_multi]` — carries no ops of its own at all; the verb the
+ * client built its menu from came off the CHILD the player's varps select
+ * (`App_NpctypeResolveMultiId`, mirrored here by
+ * `ToriRSServer_NpcResolveTransform`). So: child first, base second, which is
+ * the same child-then-base ladder the loc trigger lookup already uses.
+ *
+ * What this cost, before the ladder was here: `p_opnpc` below returns silently
+ * when the slot reads NULL, and `p_opnpc(2)` at the end of
+ * `[label,player_melee_attack]` (skill_combat/combat.rs2) is how EVERY player
+ * swing arms the next one — the engine has no attack clock of its own. So a
+ * fight with any multinpc landed exactly one blow, on the click that started
+ * it, and then stood there for as long as anyone cared to watch: no refusal,
+ * no message, no verbose line, the npc still swinging back. Measured
+ * 2026-09-21 against `[weaponsmaster]` (one press, 150 ticks, no
+ * re-engagement: 19/30 for the whole run) beside `[goblin]`, a named record
+ * one tile away that died on the same single press in six ticks.
+ *
+ * SCOPE, and it is deliberately narrow. This resolves the VERB — which string
+ * `p_opnpc` reads to decide "is this Attack" — and nothing else. The matching
+ * child-then-base ladder for the TRIGGER LOOKUP was written in the same pass
+ * and REVERTED before it landed: over this pack 39 spawned shells resolve to a
+ * child bound to a different script body, so the ladder hands those npcs to
+ * another quest's script, and Mourning's End Part I fell from 72 passing rows
+ * to 16 on one of them (`mourning_arianwyn` -> Song of the Elves) with a second
+ * defect still unexplained underneath. Reading a verb is safe where running a
+ * stranger's script is not: the verb the shell's child declares is the verb the
+ * CLIENT put in the menu, so this is the two ends agreeing, not a new owner.
+ *
+ * Only the child rung needs `ToriRSServer_NpcResolveTransform`
+ * (torirs_server_npcinfo.c); deleting the `if( child >= 0 ... )` block leaves
+ * the base rung, which is `ToriRSServer_NpcInfoRecord` and is on its own enough
+ * for every shell that states its own ops — the Weaponsmaster among them.
+ */
+static const char*
+npc_menu_verb(const struct ToriRSServerPlayer* player, int npc_type, int op_num)
+{
+    const struct ToriRSServerNpcInfo* row;
+    int child;
+
+    assert(player);
+    assert(op_num >= 1);
+    assert(op_num <= 5);
+    child = ToriRSServer_NpcResolveTransform(player, npc_type);
+    if( child >= 0 && child != npc_type )
+    {
+        row = ToriRSServer_NpcInfoRecord(child);
+        if( row && row->ops[op_num - 1] )
+            return row->ops[op_num - 1];
+    }
+    row = ToriRSServer_NpcInfoRecord(npc_type);
+    return row ? row->ops[op_num - 1] : NULL;
+}
+
+/*
  * Resolve the script-visible player uid.  Revision-230 player uids are the
  * stable pool pid plus one (zero is the null sentinel); unlike npc uids there
  * is no generation word in the script value.  The active bit is therefore the
@@ -8613,6 +8682,7 @@ ToriRSServer_ScriptCommand(
         int slot = (int)state->host_tag - 1;
         struct ToriRSServerNpc* npc;
         const struct ToriRSServerNpcInfo* info;
+        const char* verb;
         struct ToriRSServerPlayer* player = srv->active_player;
 
         if( !SSVM_PopInt(state, &op_num) )
@@ -8629,13 +8699,18 @@ ToriRSServer_ScriptCommand(
         }
         npc = &srv->npcs[slot];
         info = ToriRSServer_NpcInfo(npc->type);
+        /* Child-then-base, ungated: see `npc_menu_verb`. Going through
+         * `info->ops` here is what made every multinpc fight stop after one
+         * swing, because the shell record a spawn row names has no name and the
+         * gated accessor answers for it with an opless placeholder. */
+        verb = npc_menu_verb(player, npc->type, (int)op_num);
         /*
          * LostCity PlayerOps.P_OPNPC: stopAction (clear interaction + walk) then
          * setInteraction — not clearPendingAction's combat_stop. Clearing
          * combat_target here aborted every melee loop the moment content called
          * p_opnpc(2) after a swing.
          */
-        if( !info->ops[op_num - 1] )
+        if( !verb )
             return 1;
         /*
          * The 20-minute anti-AFK rule (TORIRSSERVER_AFK_COMBAT_TICKS).
@@ -8649,8 +8724,7 @@ ToriRSServer_ScriptCommand(
          * Attack only: a player who has stopped fighting has not stopped
          * talking, and `p_opnpc(1)` on a shopkeeper is not combat.
          */
-        if( strcmp(info->ops[op_num - 1], "Attack") == 0 &&
-            ToriRSServer_CombatPlayerAfk(player) )
+        if( strcmp(verb, "Attack") == 0 && ToriRSServer_CombatPlayerAfk(player) )
         {
             ToriRSServer_CombatStopPlayer(srv);
             return 1;
@@ -8671,7 +8745,7 @@ ToriRSServer_ScriptCommand(
          * shopkeeper is not combat, and refusing to talk to someone because a
          * goblin is chasing you is not the rule.
          */
-        if( strcmp(info->ops[op_num - 1], "Attack") == 0 &&
+        if( strcmp(verb, "Attack") == 0 &&
             ToriRSServer_CombatSinglewayRefuses(srv, player, slot) )
             return 1;
         ToriRSServer_WorldInteractionClear(srv);
@@ -8685,7 +8759,7 @@ ToriRSServer_ScriptCommand(
             ToriRSServer_WorldWalkToApproach(srv, npc->x, npc->z, &approach);
         }
         /* Attack keeps the engine face/approach latch; other ops do not. */
-        if( strcmp(info->ops[op_num - 1], "Attack") == 0 )
+        if( strcmp(verb, "Attack") == 0 )
         {
             player->combat_target = slot;
             /* The player's half of the single-way claim. Every swing comes

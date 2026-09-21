@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 103
+-- @verb-count 104
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 10
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 103
+local VERB_COUNT = 104
 local SEAM_COUNT = 10
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -1123,6 +1123,36 @@ return {
             local fn = verb("player", "equip")
             if not fn then return missing("player", "equip") end
             local result, detail = fn(WEARABLE_OBJ_SYMBOL)
+            return result, describe(detail)
+        end)
+
+        -- Straight after player.equip, on the same item, because that is
+        -- the only state this verb has anything to say in: the worn tab's
+        -- own "Remove" (op 1 on wornitems:slot<N>), asserted as BOTH halves
+        -- -- worn fell and the backpack rose. An `ok` whose detail does not
+        -- name the pair is the hollow this row exists to catch.
+        step("player.unequip", function()
+            local fn = verb("player", "unequip")
+            if not fn then return missing("player", "unequip") end
+            local result, detail = fn(WEARABLE_OBJ_SYMBOL)
+            -- PUT IT BACK ON, and this is not tidiness: this harness's
+            -- backpack is FULL (its own setup gives 25 of every rune and the
+            -- message log carries "Your inventory is full."), so the slot
+            -- this row hands back is a slot the rows below it are counting
+            -- on.  Measured 2026-09-21: without this, the two `::give`s that
+            -- stage player.use_item_on_item had one free slot between them,
+            -- the second landed nothing, and that row failed `no_subject`
+            -- for a verb it never called.  The reading above is already
+            -- taken; this only restores the world.
+            local back = verb("player", "equip")
+            if back then
+                back(WEARABLE_OBJ_SYMBOL)
+            end
+            if result == "ok" and (type(detail) ~= "string"
+                or string.find(detail, "backpack", 1, true) == nil) then
+                return "hollow", "answered ok without naming the worn/backpack move -- "
+                    .. describe(detail)
+            end
             return result, describe(detail)
         end)
 
