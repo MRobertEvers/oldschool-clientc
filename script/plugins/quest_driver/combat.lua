@@ -91,6 +91,32 @@ end
 -- Only `no_row` counts, never "the read did not answer ok": a pool read that
 -- failed for its own reasons says nothing about whether anything died, and
 -- claiming a kill on it is how a combat verb reports a win it never had.
+--
+-- ---------------------------------------------------------------------------
+-- AND `no_row` IS NOT A KILL ON ITS OWN -- SEAM combat-no-row-is-not-a-kill
+-- (2026-09-21).  THE NPC POOL IS THE CLIENT'S, so a slot leaves it for two
+-- reasons and only one of them is a death: the npc died, or THE PLAYER LEFT
+-- THE SCENE.  The commonest way a player leaves a scene mid-fight is by dying
+-- -- `[queue,player_death]` teleports him to Lumbridge -- and on that tick
+-- this function answered "the thing you were fighting is dead" about an npc
+-- standing untouched ninety tiles away.
+--
+-- Measured on Roving Elves, build/quest_gate/rovingelves (three runs, all
+-- identical).  `TORIRSSERVER_COMBAT_TRACE=1` holds the interaction latch
+-- `kind1/op2/slot1645/id891` on every tick from 19 to 145 and drops it at 146;
+-- `TORIRSSERVER_HP_TRACE=1` reads `tick=146 hp=0 dying=1`.  The Moss Guardian
+-- was alive at 2/30 the whole time and the CHARACTER died.  What the ledger
+-- said was `killGuardian.await_dead PASS ... dead after 131 tick(s)`, followed
+-- by three FAIL rows blaming a seed that was never dropped because nothing was
+-- ever killed.  A `::kill` probe with the player healthy (build/quest_gate/
+-- seamc_roving_probe) drops that seed and the big bones on the same tile, so
+-- the drop path was never the defect.
+--
+-- The corroboration is the fence at the head of every one of this file's
+-- loops: `no_row` is read as a kill only while the character is still alive.
+-- It is applied at the four places that turn a reading into an answer rather
+-- than inside this function, because this function is handed a reading and a
+-- row and has nothing to ask the world with.
 function QD._combat_is_dead(result, row)
     if result == "no_row" then
         return true
@@ -143,6 +169,88 @@ function QD._combat_prior_text(npc_symbol)
     return text
 end
 
+-- ---------------------------------------------------------------------------
+-- THE SENTENCES THAT MEAN THE SERVER REFUSED THE SWING -- SEAM
+-- combat-singleway-refusal-is-invisible (2026-09-21)
+-- ---------------------------------------------------------------------------
+--
+-- pointer.lua's CLICK_REFUSAL_LINES is the same idea for a click that never
+-- landed; this is its twin for a click that landed and was then refused AT THE
+-- ATTACK RUNG.  Both sentences below are printed by the ENGINE's own
+-- single-way arbitration (`ToriRSServer_CombatSinglewayRefuses`,
+-- torirs_server_combat.c, which calls `[proc,combat_singles_self_busy]` and
+-- `[proc,combat_singles_target_taken]` in skill_combat/combat.rs2:423-427),
+-- and `p_opnpc` then takes its silent `return 1`.  The engine has no attack
+-- clock of its own, so that silent return IS the fight not happening.
+--
+-- What it cost, measured 2026-09-21 on Shades of Mort'ton
+-- (build/quest_gate/seamc_mortton_probe2, TORIRSSERVER_VERBOSE=1):
+--
+--   [ai_opplayer2,mort_afflicted_woman] rung 2/2 -> [ai_opplayer2,_] handled it
+--   combat_trace: tick=7 target=1375 interact=kind1/op2/slot1375/id1294 claim=1375/15
+--   <- OPNPC2 slot=1376 type=1276
+--   single-way refuses slot=1376: still claimed by slot 1375
+--
+-- An afflicted villager (npc 1294) swings at the player on the shade street,
+-- the player auto-retaliates and is CLAIMED by her, and from that tick every
+-- Attack on a Loar Shadow is refused.  `t.player.attack` answered `ok` for the
+-- press (the menu row really was pressed) and then `timeout` -- "no hit landed
+-- inside 20 ticks", which its own banner says is the ordinary opening of a
+-- fight -- so the hunt loop believed it was fighting.  Twenty rounds, 1,643
+-- ticks, 2 of 5 remains, every re-engagement reading `ok Attack @yel@Loar
+-- Shadow@gre@`, and the shadow never once rose into a shade because nothing
+-- ever hit it (build/quest_gate/mortton/ledger.tsv row 23).
+--
+-- EXACT equality after trimming, never a substring, for pointer.lua's reason:
+-- an npc quoting one of these inside a longer line is an npc talking.
+-- Deliberately NOT here: roving_mossgiant's "A peaceful force prevents you
+-- attacking while carrying weapons or armour." and its family.  Those are a
+-- quest's own `mes` from inside `[opnpc2,<npc>]` -- the click landed and
+-- CONTENT refused it on its merits, which is an outcome a quest test may be
+-- asserting.  These two are the engine refusing on the player's behalf with
+-- nothing content could have said about it.
+QD.ATTACK_REFUSAL_LINES = {
+    "I'm already under attack.",
+    "Someone else is fighting that.",
+}
+
+function QD._combat_refusal_line(text)
+    if type(text) ~= "string" then
+        return nil
+    end
+    local trimmed = string.match(text, "^%s*(.-)%s*$") or text
+    for i = 1, #QD.ATTACK_REFUSAL_LINES do
+        if trimmed == QD.ATTACK_REFUSAL_LINES[i] then
+            return QD.ATTACK_REFUSAL_LINES[i]
+        end
+    end
+    return nil
+end
+
+-- The OLDEST attack refusal newer than `since`, or nil -- the one the press
+-- itself provoked rather than a later consequence of it.  `api_drive.messages`
+-- answers newest-first (QD.player._refusal_since's banner), so taking the last
+-- match walking forward is taking the oldest.
+function QD._combat_refusal_since(since)
+    if type(since) ~= "number" then
+        return nil
+    end
+    local result, rows = api_drive.messages()
+    local found = nil
+    if result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    for i = 1, #rows do
+        if rows[i].serial > since then
+            local line = QD._combat_refusal_line(rows[i].text)
+            if line then
+                found = line
+            end
+        end
+    end
+    return found
+end
+
 -- ---------------------------------------------------------------------- attack
 
 -- t.player.attack(npc_symbol, op, ticks) -> `ok` / click_minimenu's own
@@ -176,6 +284,18 @@ end
 -- row reads `hp no bar -> 17/30, hitsplat 3`.  So pass a bigger `ticks`
 -- after another click, and read npc.await_dead's row rather than this one
 -- for whether the fight was won.
+--
+-- `refused` now has a SECOND meaning beside "the row that got pressed was not
+-- an Attack row", and it is the one to read first when a fight does nothing:
+-- THE SERVER REFUSED THE SWING.  The detail carries the engine's own sentence
+-- -- "I'm already under attack." or "Someone else is fighting that." -- out of
+-- the chat ring (QD.ATTACK_REFUSAL_LINES, above).  That is single-way combat:
+-- the press landed, `p_opnpc` took its silent `return 1`, and the engine has
+-- no attack clock of its own, so NO SWING WAS EVER MADE.  It is not a
+-- `timeout` and it is not an opening -- waiting longer cannot help while
+-- whatever holds the claim keeps swinging.  No stamp is written for a refused
+-- attack, so `npc.await_dead_engaged` after one answers `no_row` rather than
+-- watching a slot nobody is fighting.
 function QD.player.attack(npc_symbol, op, ticks)
     op = op or 2
     ticks = ticks or 10
@@ -203,6 +323,13 @@ function QD.player.attack(npc_symbol, op, ticks)
     local slot = before.slot
     local before_health = QD._combat_health_text(before)
     local before_hit = before.hit_cycle
+    -- The chat-ring watermark the refusal fence below reads from.  Taken
+    -- BEFORE the press, so a sentence already in the ring from an earlier row
+    -- is never read as this press's answer.
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" or type(since) ~= "number" then
+        since = nil
+    end
 
     -- THREE presses, a tick apart, and the reason is what this verb is for.
     --
@@ -234,8 +361,16 @@ function QD.player.attack(npc_symbol, op, ticks)
         return press_result, press_detail
     end
 
+    local refusal = nil
     local settle_result = QD.await({
         level = function()
+            -- The refusal ends the settle at once: there is no swing coming,
+            -- and spending the caller's whole deadline waiting for one is how
+            -- a hunt loop spends 82 ticks a round on a fight it never had.
+            refusal = QD._combat_refusal_since(since)
+            if refusal then
+                return true
+            end
             local result, row = QD._combat_row_by_slot(slot)
             if result ~= "ok" or not row then
                 -- `no_row` is a one-shot kill; any other non-ok is a failed
@@ -254,6 +389,21 @@ function QD.player.attack(npc_symbol, op, ticks)
         .. ": hp " .. before_health .. " -> " .. QD._combat_health_text(after)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
         detail = detail .. ", hitsplat " .. tostring(after.hit_damage)
+    end
+
+    -- THE SERVER REFUSED THE SWING, and nothing here is a fight.
+    --
+    -- Before the stamp, deliberately: `QD._combat_last` is what
+    -- npc.await_dead_engaged holds, and a stamp written for a refused attack
+    -- hands that verb a slot nobody is fighting -- which it then watches for
+    -- its whole deadline and re-engages into the same refusal.  No stamp means
+    -- `no_row`, "nothing is engaged", which is the truth and is a row a quest
+    -- file's hunt loop can act on.
+    refusal = refusal or QD._combat_refusal_since(since)
+    if refusal then
+        return "refused", detail .. " -- the SERVER refused the swing: '" .. refusal
+            .. "' (single-way combat; the Attack row was pressed and p_opnpc took"
+            .. " its silent return, so no swing was ever made)"
     end
 
     -- Stamped on the timeout path too: "an Attack row was pressed on this
@@ -353,6 +503,14 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
         -- outside the radius the caller named, reads `no_row` here exactly as
         -- a dead one does -- which is why the detail carries the pool read's
         -- own count and the radius it searched.
+        --
+        -- The same corroboration the loop below makes, and for the same
+        -- reason: an empty pool is also what a character who has just been
+        -- teleported to the respawn point sees.
+        if QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)
+            .. ", with no live row at call time") then
+            return "refused", QD.player._death_text(QD._death)
+        end
         return "ok", "await_dead " .. tostring(npc_symbol)
             .. ": already gone before the wait (no live row at call time"
             .. (type(start_row) == "string" and (", " .. start_row) or "") .. ")"
@@ -394,6 +552,16 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
 
         local result, row = QD._combat_row_by_slot(slot)
         if QD._combat_is_dead(result, row) then
+            -- The slot left the POOL rather than reading 0: ask whether the
+            -- character is still alive before calling that a kill (the
+            -- no-row-is-not-a-kill banner on QD._combat_is_dead).  The fence
+            -- ends the run itself when it answers yes.
+            if result == "no_row"
+                and QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)
+                    .. ", when slot " .. tostring(slot) .. " left the npc pool "
+                    .. tostring(elapsed) .. " tick(s) in") then
+                return "refused", QD.player._death_text(QD._death)
+            end
             return "ok", "await_dead " .. tostring(npc_symbol) .. ": dead after "
                 .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
                 .. " re-engagement(s), last hp " .. last
@@ -532,8 +700,79 @@ end
 -- already keeps.
 QD._death_reported = false
 
-function QD.player._death_fence(context)
+-- ---------------------------------------------------------------------------
+-- THE RULE READS WHAT THE READING READS -- SEAM combat-no-row-is-not-a-kill
+-- (2026-09-21).
+--
+-- `QD.player.alive` (state.lua) has always answered `refused` for two things:
+-- the death line in the chat ring, and a STATED hitpoints reading of 0 with no
+-- line yet -- "a character at zero is not alive whatever the chatbox has caught
+-- up with", its own banner.  The RULE under it read only the first of those,
+-- and the gap between them is exactly the window a lost fight lives in:
+-- `[queue,player_death]` plays an animation, waits, THEN prints the sentence,
+-- so on Roving Elves the character's hitpoints read 0 at tick 146
+-- (`TORIRSSERVER_HP_TRACE=1`) and the line reached the ring at 166 -- twenty
+-- ticks in which `npc.await_dead` saw the guardian's slot leave the pool,
+-- called it a kill, and handed three more rows a world the character had left.
+--
+-- So the fence takes the same reading the verb does.  The latch is the same one
+-- (`QD._death`), so `player.alive`, `_death_record` and every later fence agree
+-- from here on, and the record carries its own sentence because the shared one
+-- (state.lua's `_death_text`) opens by counting chat lines and there are none
+-- yet.  The sentence is wrapped rather than edited for the reason the
+-- `_settle_after_click` wrap below gives: combat.lua is the LAST part in
+-- DRIVE_SCRIPT_PARTS, and state.lua belongs to another seam.
+function QD.player._death_seen()
     local record = QD.player._death_record()
+    if record then
+        return record
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" then
+        -- A reading that did not answer says nothing about whether the
+        -- character is alive, and ending a run on a transient is worse than
+        -- the bug this closes.
+        return nil
+    end
+    -- `stated` is the guard the pre-login table needs: an unstated stat table
+    -- is a fresh account's zeros, not a corpse (state.lua's own rule).
+    if not hp.stated or hp.level > 0 then
+        return nil
+    end
+    local tile_result, tile = api_drive.player_tile()
+    local where = (tile_result == "ok" and type(tile) == "table")
+        and (tostring(tile.x) .. "," .. tostring(tile.z) .. " L" .. tostring(tile.level))
+        or tostring(tile_result)
+    QD._death = {
+        deaths = 0,
+        wake = "",
+        tick = api_drive.tick(),
+        where = where,
+        hitpoints = "0/" .. tostring(hp.base_level),
+        text = "the character DIED during this run: hitpoints read 0/"
+            .. tostring(hp.base_level) .. " at " .. where .. ", read by the driver at tick "
+            .. tostring(api_drive.tick()) .. " -- this is the killing blow itself, before"
+            .. " [queue,player_death] has printed '" .. QD.player.DEATH_LINE .. "'"
+            .. " -- every click after a death is driven from the respawn point, not"
+            .. " from wherever the quest left off",
+    }
+    return QD._death
+end
+
+-- The sentence for a record this file latched, and the shared one for every
+-- other.  A table lookup made when a death surfaces, so `player.alive`,
+-- `t.expect("...", t.player.alive())` and the terminal row all get it.
+QD.player._death_text_from_ring = QD.player._death_text
+
+function QD.player._death_text(record)
+    if type(record) == "table" and type(record.text) == "string" then
+        return record.text
+    end
+    return QD.player._death_text_from_ring(record)
+end
+
+function QD.player._death_fence(context)
+    local record = QD.player._death_seen()
     if not record then
         return false
     end
@@ -665,6 +904,36 @@ function QD.npc.await_dead_engaged(ticks, attempts)
 
     local entry_result, entry_row = QD._combat_row_by_slot(slot)
     if QD._combat_is_dead(entry_result, entry_row) then
+        -- A SLOT THAT IS SIMPLY NOT IN THE POOL IS NOT A CORPSE, and this is
+        -- the arm a hunt loop is wrecked by.  `no_row` here means the pool
+        -- read succeeded and held no row for this slot, which is true of a
+        -- kill, of a character who has just died and been teleported away,
+        -- and of an npc that merely ranked past DRIVE_UI_POOL_CAP's 64th
+        -- nearest -- and Mort'ton's shade street holds more than 64.
+        --
+        -- The stamp already carries the one fact that separates them:
+        -- `bar_seen` is "the server sent this npc a health bar while we were
+        -- engaged with it", and a bar is only ever sent once something has
+        -- HIT it.  Gone-after-a-bar is a kill (Pirate's Treasure's
+        -- `gardener-dead`, and the conformance harness's own
+        -- `npc.await_dead_engaged` row, which waits on a Man `npc.await_dead`
+        -- killed one row earlier).  Gone with no bar ever sent is a target
+        -- nothing ever fought, so this answers `no_row` and does NOT consume
+        -- the stamp -- the caller's loop presses Attack again instead of
+        -- crediting a kill it never made (build/quest_gate/mortton
+        -- ledger.tsv row 23: twenty rounds, 1,643 ticks, 2 of 5 remains).
+        if entry_result == "no_row" and not engaged.bar_seen then
+            return "no_row", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
+                .. ") is not in the npc pool and no health bar was ever sent for it while"
+                .. " t.player.attack was engaged with it, so nothing ever hit it -- this is"
+                .. " a target that left the readable pool, not a kill; press Attack again"
+                .. QD._combat_prior_text(engaged.symbol)
+        end
+        if entry_result == "no_row"
+            and QD.player._death_fence("t.npc.await_dead_engaged, with slot "
+                .. tostring(slot) .. " absent from the npc pool at the head of the wait") then
+            return "refused", QD.player._death_text(QD._death)
+        end
         engaged.consumed = true
         return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
             .. ") was already dead when the wait started -- "
@@ -695,6 +964,12 @@ function QD.npc.await_dead_engaged(ticks, attempts)
 
         local result, row = QD._combat_row_by_slot(slot)
         if QD._combat_is_dead(result, row) then
+            if result == "no_row"
+                and QD.player._death_fence("t.npc.await_dead_engaged, when slot "
+                    .. tostring(slot) .. " left the npc pool " .. tostring(elapsed)
+                    .. " tick(s) in") then
+                return "refused", QD.player._death_text(QD._death)
+            end
             engaged.consumed = true
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " dead after "
                 .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)

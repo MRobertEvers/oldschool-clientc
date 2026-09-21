@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 10
+-- @seam-count 11
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 104
-local SEAM_COUNT = 10
+local SEAM_COUNT = 11
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -2022,6 +2022,29 @@ return {
         -- deadline.  The teleport is the same one the world phase opened
         -- with; player.goto_tile left the player upstairs in the castle,
         -- where there is no npc to attack at all.
+        --
+        -- AND THEN WALK TO HIM, which is this block's stability and not a
+        -- tidy-up.  `::tele lumbridge` lands the player at 3222,3218 every
+        -- run, and the nearest `man` spawn row in this pack is
+        -- server/scripts/areas/world/configs/m50_50.spawn:36 at 3216,3219 --
+        -- SIX tiles away, permanently outside the five player.attack's row
+        -- reads at.  Whether these three rows had a subject at all was
+        -- therefore decided by which way a wandering npc had drifted on the
+        -- tick this harness happened to reach, and nothing in the file said
+        -- so: green 113/113 at 64ef6e9b2, red 111/114 at 68c5e8d9d with the
+        -- whole combat block byte-identical between the two (`git diff
+        -- 64ef6e9b2 HEAD -- test/quests/_conformance.lua` is the
+        -- player.unequip row and the verb count, nothing else), the failure
+        -- reading `[no_subject] man is not within five tiles (no_row)`
+        -- (build/quest_gate/_conformance/attempt-01/ledger.tsv row 97).  One
+        -- row added above moved every tick below it, which is all it took.
+        --
+        -- player.walk_near, not a second `::tele` or a goto_tile at the
+        -- spawn coordinates: the Man is the thing that moves, so the walk has
+        -- to track HIM (walk_near re-aims at the target's current tile every
+        -- server tick) rather than at a tile he was once on.  It writes no
+        -- row -- it is setup, exactly like the cheats above it -- and its own
+        -- conformance row is a hundred rows higher up, already graded.
         stage(function()
             setup_cheat("::tele lumbridge")
             settle(6)
@@ -2035,6 +2058,15 @@ return {
                 equip(COMBAT_WEAPON)
             end
             settle(4)
+            local by_symbol = verb("player", "by_symbol")
+            local walk_near = verb("player", "walk_near")
+            if by_symbol and walk_near then
+                local target, target_result = by_symbol("npc", NPC_SYMBOL)
+                if target_result == "ok" and is_table(target) then
+                    walk_near(target, 20, 1)
+                end
+            end
+            settle(2)
         end)
 
         -- The slot of the npc these two rows fight, read once before the
@@ -2917,6 +2949,203 @@ return {
             return "ok", "'" .. line .. "' is read coloured, padded and plain, is NOT read out "
                 .. "of a line that quotes it, survives a non-string row, and nothing is latched "
                 .. "on a living character"
+        end)
+
+        -- A KILL IS NEVER PROVED BY AN EMPTY POOL, AND A REFUSED SWING IS NOT
+        -- AN OPENING -- the two arbitrations the 2026-09-21 combat seam pass
+        -- landed, graded here because the verbs above them answer the same
+        -- word whether either one works or not.
+        --
+        -- (1) `no_row` from the npc pool is the CLIENT's reading, and a slot
+        -- leaves that pool for three reasons, only one of which is a death:
+        -- the npc died, the npc ranked past DRIVE_UI_POOL_CAP's 64th nearest
+        -- (Mort'ton's shade street holds more than 64), or THE PLAYER LEFT
+        -- THE SCENE -- and the commonest way a player leaves a scene
+        -- mid-fight is by dying.  Roving Elves spent its whole tail on the
+        -- first of those being assumed: `killGuardian.await_dead PASS ...
+        -- dead after 131 tick(s)` for a Moss Guardian that was alive at 2/30
+        -- while the CHARACTER was the one who fell, then three FAIL rows
+        -- blaming a seed nothing had dropped (build/quest_gate/rovingelves,
+        -- three byte-identical runs; TORIRSSERVER_COMBAT_TRACE holds the
+        -- interaction latch to tick 145 and TORIRSSERVER_HP_TRACE reads
+        -- `tick=146 hp=0 dying=1`).  Two halves, and both are graded:
+        -- `await_dead_engaged` separates the readings with the stamp's own
+        -- `bar_seen` -- a health bar is only ever sent once something has HIT
+        -- an npc, so gone-after-a-bar is a kill and gone with no bar ever
+        -- sent is a target nothing ever fought -- and the death fence reads a
+        -- STATED hitpoints of 0 as well as the chat line, because
+        -- `[queue,player_death]` prints its sentence about twenty ticks after
+        -- the killing blow and that gap is exactly where a lost fight lives.
+        --
+        -- (2) The engine's own single-way refusal has no packet and no log
+        -- line: `ToriRSServer_CombatSinglewayRefuses` prints one sentence
+        -- through content and `p_opnpc` takes its silent `return 1`, so
+        -- `t.player.attack` answered `ok` for the press and `timeout` for the
+        -- wait -- which its own banner calls the ordinary opening of a fight.
+        -- Shades of Mort'ton believed it was fighting for twenty rounds and
+        -- 1,643 ticks on that (build/quest_gate/mortton row 23).  The
+        -- sentence is matched EXACTLY, never as a substring, because an npc
+        -- quoting it is an npc talking.
+        --
+        -- All five statements are made without a fight in them: the pure
+        -- matcher on its own sentences, the two death-text paths on
+        -- synthetic records, the fence on the living character this harness
+        -- has been driving for a hundred rows, and the bar arbitration on a
+        -- SLOT NUMBER THE POOL DOES NOT HOLD -- which is the reading the
+        -- whole seam turns on, reproduced without killing anything.
+        seam("seam.no_row_is_not_a_kill", function()
+            local refusal_line = verb("_combat_refusal_line")
+            local row_by_slot = verb("_combat_row_by_slot")
+            local death_seen = verb("player", "_death_seen")
+            local death_text = verb("player", "_death_text")
+            local ring_text = verb("player", "_death_text_from_ring")
+            local await_engaged = verb("npc", "await_dead_engaged")
+            if not refusal_line then return missing("_combat_refusal_line") end
+            if not row_by_slot then return missing("_combat_row_by_slot") end
+            if not death_seen then return missing("player", "_death_seen") end
+            if not death_text then return missing("player", "_death_text") end
+            if not ring_text then return missing("player", "_death_text_from_ring") end
+            if not await_engaged then return missing("npc", "await_dead_engaged") end
+
+            local death_line = is_table(t.player) and t.player.DEATH_LINE or nil
+            if not is_text(death_line) then
+                return "hollow", "QD.player.DEATH_LINE is not a sentence: " .. describe(death_line)
+            end
+
+            -- (a) THE ENGINE'S TWO REFUSAL SENTENCES, EXACTLY.
+            local lines = t.ATTACK_REFUSAL_LINES
+            if not is_table(lines) or #lines < 2 then
+                return "hollow", "t.ATTACK_REFUSAL_LINES is not a list of the engine's own "
+                    .. "refusal sentences: " .. describe(lines)
+            end
+            for i = 1, #lines do
+                local sentence = lines[i]
+                if not is_text(sentence) then
+                    return "hollow", "t.ATTACK_REFUSAL_LINES[" .. tostring(i)
+                        .. "] is not a sentence: " .. describe(sentence)
+                end
+                if refusal_line(sentence) ~= sentence then
+                    return "refused", "the engine's own refusal '" .. sentence
+                        .. "' does not read as one (" .. describe(refusal_line(sentence))
+                        .. ") -- t.player.attack would answer `timeout` for a swing that was "
+                        .. "never made, and the caller would wait longer for it"
+                end
+                if refusal_line("   " .. sentence .. "  ") ~= sentence then
+                    return "refused", "a padded '" .. sentence .. "' does not read as a refusal: "
+                        .. describe(refusal_line("   " .. sentence .. "  "))
+                end
+                if refusal_line("The guard says: " .. sentence .. " Move along.") ~= nil then
+                    return "refused", "an npc QUOTING '" .. sentence .. "' reads as the ENGINE "
+                        .. "refusing -- a line of dialogue would end fights the server never refused"
+                end
+            end
+            if refusal_line(nil) ~= nil or refusal_line(42) ~= nil then
+                return "refused", "a non-string chat row answers something other than nil, and a "
+                    .. "raise in this sandbox ends the run"
+            end
+
+            -- (b) THE TWO DEATH RECORDS KEEP THEIR OWN SENTENCES.  combat.lua
+            -- wraps state.lua's `_death_text` rather than editing it (it is
+            -- the last part in DRIVE_SCRIPT_PARTS and state.lua belongs to
+            -- another seam), so both paths have to be stated here or the wrap
+            -- can swallow the ring's sentence with nothing going red.
+            local mine = death_text({ text = "SENTINEL-DEATH-TEXT" })
+            if mine ~= "SENTINEL-DEATH-TEXT" then
+                return "refused", "a record latched by the HITPOINTS fence does not carry its own "
+                    .. "sentence through t.player._death_text: " .. describe(mine)
+            end
+            local ring = death_text({ deaths = 1, wake = "", tick = 0,
+                where = "nowhere", hitpoints = "0/10" })
+            if not is_text(ring) or not string.find(ring, death_line, 1, true) then
+                return "refused", "a record latched from the CHAT RING no longer gets state.lua's "
+                    .. "own sentence back: " .. describe(ring)
+            end
+
+            -- (c) THE HITPOINTS ARM DOES NOT FIRE ON A LIVING CHARACTER.  The
+            -- other side of (b): a fence that latches on a healthy read would
+            -- end every quest in the suite at its first combat verb.
+            local seen = death_seen()
+            if seen ~= nil then
+                return "refused", "the hitpoints fence latched a death on the character this "
+                    .. "harness has been driving for a hundred rows: " .. describe(seen)
+            end
+            if t._death ~= nil then
+                return "refused", "QD._death is latched with nothing dead: " .. describe(t._death)
+            end
+
+            -- (d) AN ABSENT SLOT IS A KILL ONLY AFTER A HEALTH BAR.
+            --
+            -- The stamp is synthetic and the slot is one the pool does not
+            -- hold -- which is the whole reading this seam is about, and the
+            -- only way to state it without a death or a 64-npc street.  The
+            -- harness's own `npc.await_dead_engaged` row a hundred rows above
+            -- has already consumed the real stamp; this saves and restores it
+            -- anyway, because a seam row must leave the driver as it found it.
+            local held = t._combat_last
+            local slot = nil
+            local absent = { 65535, 65534, 65533, 65532 }
+            for i = 1, #absent do
+                local result = row_by_slot(absent[i])
+                if result == "no_row" then
+                    slot = absent[i]
+                    break
+                end
+            end
+            if slot == nil then
+                t._combat_last = held
+                return "hollow", "no slot number could be found that the npc pool does not hold, "
+                    .. "so the absent-slot arbitration cannot be stated"
+            end
+
+            local stamp = {
+                symbol = "conformance_absent_slot",
+                slot = slot,
+                op = 2,
+                npc_id = -1,
+                name = "a slot the npc pool does not hold",
+                health_before = "no bar",
+                health = "no bar",
+                bar_seen = false,
+                tick = 0,
+                consumed = false,
+            }
+            t._combat_last = stamp
+            local no_bar_result, no_bar_detail = await_engaged(1)
+            local consumed_without_a_bar = stamp.consumed
+
+            stamp.bar_seen = true
+            stamp.consumed = false
+            t._combat_last = stamp
+            local bar_result, bar_detail = await_engaged(1)
+            local consumed_after_a_bar = stamp.consumed
+            t._combat_last = held
+
+            if no_bar_result ~= "no_row" then
+                return "refused", "an absent slot that NOTHING EVER HIT -- no health bar was ever "
+                    .. "sent for it -- is read as a kill: await_dead_engaged answered "
+                    .. describe(no_bar_result) .. " / " .. describe(no_bar_detail)
+                    .. " -- a hunt loop credits a corpse it never made"
+            end
+            if consumed_without_a_bar then
+                return "refused", "the stamp was CONSUMED for a slot nothing ever hit, so the "
+                    .. "caller's loop cannot press Attack again on the same engagement"
+            end
+            if bar_result ~= "ok" then
+                return "refused", "an absent slot the server HAD sent a health bar for is no longer "
+                    .. "read as a kill: await_dead_engaged answered " .. describe(bar_result)
+                    .. " / " .. describe(bar_detail) .. " -- every real kill in the suite goes red"
+            end
+            if not consumed_after_a_bar then
+                return "refused", "a resolved fight did not consume its stamp, so a second wait with "
+                    .. "no new Attack in between would read the same kill again"
+            end
+
+            return "ok", "both engine refusals read exactly and never out of a line that quotes "
+                .. "one; a fence-latched record carries its own sentence and a ring-latched one "
+                .. "still carries state.lua's; nothing is latched on a living character; and slot "
+                .. tostring(slot) .. ", absent from the npc pool, is a kill ONLY after a health bar "
+                .. "(" .. describe(bar_result) .. ") and `no_row` without one ("
+                .. describe(no_bar_result) .. ", stamp not consumed)"
         end)
 
         -- AN NPC'S OWN SQUARE IS STEPPED OFF BEFORE THE PRESS.
