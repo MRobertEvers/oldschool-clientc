@@ -79,22 +79,20 @@ return {
         t.expect("quest.stage.orb", t.quest.expect_stage("orb"))
 
         -- ---- 3. Charge the orb: teleport to the Rune Essence from three
-        -- distinct sources while carrying it (~eta_charge_orb). Every visit
-        -- below is a plain click at a confirmed-correct, confirmed-live npc
-        -- tile (each matches its own *.spawn row, and head_wizard's is also
-        -- re-checked against t.npc.by_symbol's live tile, which agrees) --
-        -- but across this file's authoring runs, t.drive.click_minimenu's
-        -- own camera-retry framing (_ensure_visible's _frame_poses loop)
-        -- intermittently landed on an UNRELATED scenery pick instead of the
-        -- npc's Talk-to row ("element ... menu has no row for it", the
-        -- game's own menu offering "Walk here / Examine <something
-        -- unrelated> / Cancel" at the exact pixel the projector separately
-        -- reports as the npc's screen position) -- observed at
-        -- ardounge_wizard, head_wizard and guild_wizard (an alternate fifth
-        -- source tried in head_wizard's place) each at least once, never
-        -- reliably at all three in the same run. Each visit is therefore a
-        -- direct call, not t.exec, so a flake on any one writes the shared
-        -- t.blocked below instead of a stray FAIL row ahead of it.
+        -- distinct sources while carrying it (~eta_charge_orb). Each source's
+        -- ~teleport_to_essence_mine closes its own dialogue with if_close,
+        -- THEN runs a curse animation (p_delay(4)) before ~eta_charge_orb and
+        -- the actual p_telejump to a mine tile (essence_mine.rs2) -- so the
+        -- teleport lands several ticks AFTER the chat.play list returns
+        -- (docs sec 2's Abyss note: this is the exact case it names). Firing
+        -- the next goto_tile before that teleport resolves let the delayed
+        -- jump land ON TOP of it, so the click after landed on whatever
+        -- terrain the race left on screen -- read as an unrelated-scenery
+        -- mis-click in earlier runs of this file, never a real click_minimenu
+        -- bug. Fix: await the player's tile actually leaving the npc's tile
+        -- (arrival in the essence mine, region 45,75 -- far from all three
+        -- npcs, so the predicate is false at the moment of the click and can
+        -- genuinely fail) before touching the next goto_tile.
         local charged_spots = {}
 
         t.exec("goto-talkToAubury", t.player.goto_tile, 3253, 3402, 0)
@@ -105,6 +103,19 @@ return {
                 "choose:Can you teleport me to the Rune Essence?",
                 "player:Can you teleport me to the Rune Essence?",
             })
+            local aubury_arrive_result = t.await({
+                level = function()
+                    local r, tile = t.world.tile()
+                    return r == "ok" and tile ~= nil
+                        and (math.abs(tile.x - 3253) > 200 or math.abs(tile.z - 3402) > 200)
+                end,
+                note = "arrival in the essence mine after Aubury's teleport",
+            }, 10)
+            local aubury_tile_result, aubury_tile_now = t.world.tile()
+            t.check("await-essence-aubury", aubury_arrive_result == "ok",
+                "await arrival -> " .. tostring(aubury_arrive_result) .. "; t.world.tile() -> "
+                .. tostring(aubury_tile_result) .. " " .. tostring(aubury_tile_now and aubury_tile_now.x)
+                .. "," .. tostring(aubury_tile_now and aubury_tile_now.z))
             charged_spots[#charged_spots + 1] = "aubury"
         end
 
@@ -118,6 +129,19 @@ return {
                 "choose:Can you teleport me to the Rune Essence?",
                 "player:Can you teleport me to the Rune Essence?",
             })
+            local cromperty_arrive_result = t.await({
+                level = function()
+                    local r, tile = t.world.tile()
+                    return r == "ok" and tile ~= nil
+                        and (math.abs(tile.x - 2683) > 200 or math.abs(tile.z - 3326) > 200)
+                end,
+                note = "arrival in the essence mine after Cromperty's teleport",
+            }, 10)
+            local cromperty_tile_result, cromperty_tile_now = t.world.tile()
+            t.check("await-essence-ardounge_wizard", cromperty_arrive_result == "ok",
+                "await arrival -> " .. tostring(cromperty_arrive_result) .. "; t.world.tile() -> "
+                .. tostring(cromperty_tile_result) .. " " .. tostring(cromperty_tile_now and cromperty_tile_now.x)
+                .. "," .. tostring(cromperty_tile_now and cromperty_tile_now.z))
             charged_spots[#charged_spots + 1] = "ardounge_wizard"
         end
 
@@ -134,32 +158,47 @@ return {
                 "choose:Can you teleport me to the Rune Essence?",
                 "player:Can you teleport me to the Rune Essence?",
             })
+            local sedridor_arrive_result = t.await({
+                level = function()
+                    local r, tile = t.world.tile()
+                    return r == "ok" and tile ~= nil
+                        and (math.abs(tile.x - 3103) > 200 or math.abs(tile.z - 9571) > 200)
+                end,
+                note = "arrival in the essence mine after Sedridor's teleport",
+            }, 10)
+            local sedridor_tile_result, sedridor_tile_now = t.world.tile()
+            t.check("await-essence-head_wizard", sedridor_arrive_result == "ok",
+                "await arrival -> " .. tostring(sedridor_arrive_result) .. "; t.world.tile() -> "
+                .. tostring(sedridor_tile_result) .. " " .. tostring(sedridor_tile_now and sedridor_tile_now.x)
+                .. "," .. tostring(sedridor_tile_now and sedridor_tile_now.z))
             charged_spots[#charged_spots + 1] = "head_wizard"
         end
 
-        if #charged_spots < 3 then
-            t.blocked(string.format(
-                "entertheabyss.rs2 ~eta_charge_orb needs 3 distinct essence-teleport NPCs "
-                .. "carrying the scrying orb; only %d of 3 clicks landed this run (%s). "
-                .. "aubury -> %s: %s | ardounge_wizard -> %s: %s | head_wizard -> %s: %s. "
-                .. "Every target's tile is confirmed correct (matches its *.spawn row; "
-                .. "head_wizard's also re-checked live via t.npc.by_symbol), so a miss here "
-                .. "is click_minimenu's own camera-retry framing landing on an unrelated "
-                .. "scenery pick instead of the npc's Talk-to row -- reproduced at each of "
-                .. "ardounge_wizard, head_wizard and guild_wizard (an alternate fifth source "
-                .. "tried in head_wizard's place) at least once across this file's authoring "
-                .. "runs, never the same one twice in a row and never all three landing "
-                .. "together.",
+        t.check("charge.spots", #charged_spots == 3,
+            string.format("%d of 3 essence-teleport clicks landed (%s). "
+                .. "aubury -> %s: %s | ardounge_wizard -> %s: %s | head_wizard -> %s: %s.",
                 #charged_spots, table.concat(charged_spots, ","),
                 tostring(aubury_talk_result), tostring(aubury_talk_detail),
                 tostring(cromperty_talk_result), tostring(cromperty_talk_detail),
                 tostring(sedridor_talk_result), tostring(sedridor_talk_detail)))
+        if #charged_spots < 3 then
+            t.blocked(string.format(
+                "entertheabyss.rs2 ~eta_charge_orb needs 3 distinct essence-teleport NPCs "
+                .. "carrying the scrying orb; only %d of 3 clicks landed this run (%s), even "
+                .. "with the essence-mine-arrival await ahead of each goto_tile.",
+                #charged_spots, table.concat(charged_spots, ",")))
             return
         end
 
         -- eta_charge_orb converts the orb on the third distinct spot and
-        -- prints this system line (mes(), not a dialogue page).
-        t.expect("gather.orb_charged", t.msg.await("absorbed enough teleport information", 10))
+        -- prints this system line (mes(), not a dialogue page) DURING
+        -- ~teleport_to_essence_mine's own p_delay(4), before the p_telejump
+        -- that the await-essence-head_wizard row above already waited out --
+        -- so the line is already in the ring by here, not one still to
+        -- arrive: t.msg.expect (any line still in the ring), never
+        -- t.msg.await, which only matches a line newer than the call and so
+        -- can never see one that landed during an earlier await (docs sec 8).
+        t.expect("gather.orb_charged", t.msg.expect("absorbed enough teleport information"))
         local orb_full_result, orb_full_count = t.inv.count("scrying_orb_full")
         t.check("gather.orb_full", orb_full_result == "ok" and orb_full_count == 1,
             string.format("scrying_orb_full count=%s (read %s)", tostring(orb_full_count), tostring(orb_full_result)))

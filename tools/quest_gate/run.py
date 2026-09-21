@@ -66,12 +66,14 @@ _sys.path[:] = [_p for _p in _sys.path if _os.path.abspath(_p or ".") != _HERE]
 _sys.path.append(_HERE)
 
 import argparse
+import atexit
 import os
 import re
 import shutil
 import signal
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -214,6 +216,15 @@ def write_wrapper_script(quest_file, out_path):
     it (build/quest_gate/closer_setup2, row 1, 2026-09-19). That is a setup
     that reported ok and did nothing, which is exactly what this wrapper
     exists to make impossible.
+
+    And the loop does not believe `ok` about a `::give` either: it counts the
+    item client-side before the cheat, waits for that count to rise, and ends
+    on the next tick boundary. A cheat's reply outruns its effect by one
+    server tick (the ladder `say()`s from inside the branch; the backpack
+    reaches the client in the container listener's end-of-tick UPDATE_INV), so
+    run()'s first row used to read a backpack the setup had not reached --
+    trap 23, "::give from setup lands nothing". The generated Lua's own banner
+    carries the measurement.
     """
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
@@ -256,18 +267,149 @@ def write_wrapper_script(quest_file, out_path):
         "        return false\n"
         "    end, note = \"setup: the login grant\" }, 10)\n"
         "    t.settle()\n"
-        "    if type(quest_setup) == \"table\" then\n"
-        "        for _, cheat in ipairs(quest_setup) do\n"
-        "            local setup_result, setup_detail = t.cheat(cheat)\n"
-        "            if setup_result ~= \"ok\" then\n"
-        "                t.step(\"setup.\" .. cheat, \"FAIL\",\n"
-        "                    \"setup cheat answered \" .. tostring(setup_result)\n"
-        "                        .. \" (\" .. tostring(setup_detail) .. \")\"\n"
-        "                        .. \" -- the world this quest assumes was never stated\")\n"
-        "                t.finish(1)\n"
-        "                return\n"
+        "    -- A CHEAT'S REPLY OUTRUNS ITS EFFECT by exactly one server tick.\n"
+        "    --\n"
+        "    -- t.cheat waits for the reply line (core.lua: QD.cheat ->\n"
+        "    -- msg.await), and the server SAYS `Gave 3 x Egg (1944).` from\n"
+        "    -- inside the ladder branch itself, while the backpack the same\n"
+        "    -- branch just wrote reaches the client in the container\n"
+        "    -- listener's UPDATE_INV at the END of that tick\n"
+        "    -- (torirs_server_world.c, the ::give branch: `the backpack's\n"
+        "    -- listener sends an UPDATE_INV without this branch knowing a\n"
+        "    -- packet exists`).  So the setup loop used to hand run() a client\n"
+        "    -- that had heard about the items and not yet received them, and\n"
+        "    -- every quest whose first rows read t.inv.count saw an empty\n"
+        "    -- backpack from a setup that had answered `ok` three times.\n"
+        "    -- Measured 2026-09-21 (build/quest_gate/lag_probe): row `lag.t0`\n"
+        "    -- FAIL `egg: absent`, row `lag.t1` -- one t.ticks(1) later --\n"
+        "    -- PASS `3`.  Two seam fixers reported it as `::give from setup\n"
+        "    -- lands nothing` (docs/QUEST_AUTHORING.md trap 23).\n"
+        "    --\n"
+        "    -- A ::give is therefore not done when it answers: it is done when\n"
+        "    -- the CLIENT can count the items, which is also the only check\n"
+        "    -- that catches the ladder's own silent misses -- `::give\n"
+        "    -- nosuchitemname` and an ambiguous name both `say()` their\n"
+        "    -- complaint and return RAN, i.e. `ok`, having given nothing\n"
+        "    -- (same file, `No item named '%s'.` / `Which %s? %s`).  Each one\n"
+        "    -- is now a FAIL row named after the cheat, exactly like a cheat\n"
+        "    -- that answered no_row.\n"
+        "    local function setup_give(text)\n"
+        "        local name, count = string.match(text, \"^%s*:*give%s+([%w_]+)%s*(%d*)\")\n"
+        "        if not name then\n"
+        "            return nil\n"
+        "        end\n"
+        "        local wanted = tonumber(count)\n"
+        "        if not wanted or wanted < 1 then\n"
+        "            wanted = 1\n"
+        "        end\n"
+        "        return name, wanted\n"
+        "    end\n"
+        "    -- Name-free fingerprint of the backpack: every slot's count, plus\n"
+        "    -- one per occupied slot so an item ARRIVING in an empty slot\n"
+        "    -- moves it too.  What the fallback below watches when a ::give\n"
+        "    -- names something this client cannot count.\n"
+        "    local function setup_backpack_mark()\n"
+        "        local mark = 0\n"
+        "        for slot = 0, 27 do\n"
+        "            local slot_result, cell = t.inv.slot(slot)\n"
+        "            if slot_result == \"ok\" and cell.name ~= \"\" and cell.count ~= 0 then\n"
+        "                mark = mark + cell.count + 1\n"
         "            end\n"
         "        end\n"
+        "        return mark\n"
+        "    end\n"
+        "    local function setup_backpack_empty()\n"
+        "        for slot = 0, 27 do\n"
+        "            local slot_result, cell = t.inv.slot(slot)\n"
+        "            if slot_result == \"ok\" and cell.name ~= \"\" and cell.count ~= 0 then\n"
+        "                return false\n"
+        "            end\n"
+        "        end\n"
+        "        return true\n"
+        "    end\n"
+        "    local function setup_failed(cheat, why)\n"
+        "        t.step(\"setup.\" .. cheat, \"FAIL\",\n"
+        "            why .. \" -- the world this quest assumes was never stated\")\n"
+        "        t.finish(1)\n"
+        "    end\n"
+        "    if type(quest_setup) == \"table\" then\n"
+        "        for _, cheat in ipairs(quest_setup) do\n"
+        "            -- Counted BEFORE the cheat: a setup list that gives the\n"
+        "            -- same item twice, or gives one the login grant already\n"
+        "            -- put there, is waiting for an INCREASE, not for a total.\n"
+        "            local give_name, give_count = setup_give(cheat)\n"
+        "            local before = nil\n"
+        "            local before_mark = nil\n"
+        "            if give_name then\n"
+        "                local count_result, count_total = t.inv.count(give_name)\n"
+        "                if count_result == \"ok\" then\n"
+        "                    before = count_total\n"
+        "                else\n"
+        "                    -- A name this client cannot resolve to an obj: the\n"
+        "                    -- server's own cheat_obj_from_name is fuzzy and may\n"
+        "                    -- still have matched one -- but `::give\n"
+        "                    -- nosuchitemname` reaches the SAME `ok` (it say()s\n"
+        "                    -- `No item named` and returns RAN), so the whole\n"
+        "                    -- backpack is watched for any movement instead of\n"
+        "                    -- taking the cheat at its word.\n"
+        "                    before_mark = setup_backpack_mark()\n"
+        "                end\n"
+        "            end\n"
+        "            local setup_result, setup_detail = t.cheat(cheat)\n"
+        "            if setup_result ~= \"ok\" then\n"
+        "                setup_failed(cheat, \"setup cheat answered \"\n"
+        "                    .. tostring(setup_result)\n"
+        "                    .. \" (\" .. tostring(setup_detail) .. \")\")\n"
+        "                return\n"
+        "            end\n"
+        "            if before ~= nil then\n"
+        "                local landed = t.inv.await(give_name, before + give_count, 10)\n"
+        "                if landed ~= \"ok\" then\n"
+        "                    local after_result, after_total = t.inv.count(give_name)\n"
+        "                    -- Short of the count asked for is the BACKPACK's\n"
+        "                    -- limit speaking (`Gave 21 x Egg (1944), 7 did not\n"
+        "                    -- fit.`), not a setup that did not happen; nothing\n"
+        "                    -- arriving at all is.\n"
+        "                    if after_result ~= \"ok\" or after_total <= before then\n"
+        "                        setup_failed(cheat, \"the cheat answered ok and no \"\n"
+        "                            .. give_name\n"
+        "                            .. \" reached the backpack within 10 ticks (held \"\n"
+        "                            .. tostring(before) .. \" before, \"\n"
+        "                            .. tostring(after_total) .. \" after)\")\n"
+        "                        return\n"
+        "                    end\n"
+        "                end\n"
+        "            elseif before_mark ~= nil then\n"
+        "                local moved = t.await({ level = function()\n"
+        "                    return setup_backpack_mark() ~= before_mark\n"
+        "                end, note = \"setup: ::give reaching the backpack\" }, 10)\n"
+        "                if moved ~= \"ok\" then\n"
+        "                    setup_failed(cheat, \"the cheat answered ok and the backpack\"\n"
+        "                        .. \" did not change within 10 ticks (\" .. give_name\n"
+        "                        .. \" is not an obj this client can count, so every\"\n"
+        "                        .. \" slot was watched instead)\")\n"
+        "                    return\n"
+        "                end\n"
+        "            elseif string.match(cheat, \"^%s*:*clearinv\") then\n"
+        "                -- The same race, and the one cheat every generated\n"
+        "                -- setup list opens with: an unfinished ::clearinv also\n"
+        "                -- makes the NEXT give's before-count wrong.\n"
+        "                local cleared = t.await({ level = setup_backpack_empty,\n"
+        "                    note = \"setup: ::clearinv reaching the client\" }, 10)\n"
+        "                if cleared ~= \"ok\" then\n"
+        "                    setup_failed(cheat, \"the cheat answered ok and the\"\n"
+        "                        .. \" backpack still holds items 10 ticks later\")\n"
+        "                    return\n"
+        "                end\n"
+        "            end\n"
+        "        end\n"
+        "        -- Every OTHER cheat (::setvar, ::setlevel, a quest's own reset\n"
+        "        -- debugproc) has the same one-tick reply/effect gap with no\n"
+        "        -- single reading to wait on, so the loop ends on the tick\n"
+        "        -- boundary its last reply outran.  run()'s first row reads a\n"
+        "        -- client that has seen the setup, which is what `setup` means.\n"
+        "        t.ticks(1)\n"
+        "        t.settle()\n"
         "    end\n"
         "    return quest_run(t)\n"
         "end\n"
@@ -338,6 +480,155 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
             return None, True
 
 
+# ---------------------------------------------------------------- session lock
+#
+# build/quest_gate/<quest>/ is not one run's output directory, it is THE
+# directory for that quest id: TORIRS_CONTENT_TEST itself, where the driver
+# writes ledger.tsv, shots/NN-name.png and client.log, and which
+# prepare_session deletes whole before every run. Two `run.py <same id>`
+# processes therefore do not race a little -- the second one rm -rf's the
+# first one's session out from under a live client and then writes its own
+# rows into the same file, and what is left afterwards belongs to neither
+# run. That read as a quest REGRESSION on 2026-09-20 (a seam worker's "druid
+# regression" was two sessions writing one directory), which is the worst way
+# for a harness bug to present: wearing a content bug's clothes.
+#
+# One run per id at a time, then. Refusing is the whole fix -- a second
+# directory would leave gate.py, publish() and the batch contact sheets
+# guessing which one is the quest's evidence, and they all resolve
+# build/quest_gate/<id> by name.
+#
+# The lock file lives OUTSIDE the session directory (prepare_session would
+# delete one inside it) and carries the pid, so the refusal can name the live
+# run and so a lock whose process is gone -- a killed run, a crashed one --
+# is recognised as stale and taken over rather than blocking the id forever.
+# --jobs N is untouched: it runs DISTINCT ids, one lock each.
+LOCK_DIR = os.path.join(REPO_ROOT, "build", "quest_gate", ".locks")
+
+_held_locks = set()
+
+
+def session_lock_path(name):
+    assert name
+    return os.path.join(LOCK_DIR, "%s.lock" % name)
+
+
+def read_session_lock(path):
+    """(pid, started, command) from a lock file, or None when it does not
+    exist or cannot be read as one -- a lock nobody can read says nothing
+    about a live run, so it is treated as stale."""
+    assert path
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            fields = handle.read().strip().split("\t")
+    except OSError:
+        return None
+    if len(fields) < 2 or not fields[0].isdigit():
+        return None
+    return int(fields[0]), fields[1], fields[2] if len(fields) > 2 else ""
+
+
+def pid_is_live(pid):
+    """Signal 0 to `pid`: EPERM is somebody else's process, which is still a
+    process, and ESRCH is the only answer that means the run is gone."""
+    assert pid > 0
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def release_session_lock(name):
+    """Drop the lock, if this process is the one holding it. Idempotent: the
+    run path calls it in a finally, and atexit calls it again for the runs
+    that a Ctrl-C or a kill never returned from."""
+    assert name
+    path = session_lock_path(name)
+    if path not in _held_locks:
+        return
+    _held_locks.discard(path)
+    entry = read_session_lock(path)
+    # Somebody else's lock in our slot (ours was cleared as stale while this
+    # process was stopped): removing it would hand a third run the session a
+    # live one is using.
+    if entry and entry[0] != os.getpid():
+        return
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def release_all_session_locks():
+    for path in sorted(_held_locks):
+        release_session_lock(os.path.splitext(os.path.basename(path))[0])
+
+
+atexit.register(release_all_session_locks)
+
+
+def acquire_session_lock(name):
+    """Take quest id `name`'s one-run-at-a-time lock. Returns None when it is
+    ours, or the refusal message (naming the live run) when it is not."""
+    assert name
+    os.makedirs(LOCK_DIR, exist_ok=True)
+    path = session_lock_path(name)
+    payload = "%d\t%s\t%s\n" % (os.getpid(), time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                " ".join(sys.argv[1:]))
+    for _attempt in (1, 2):
+        try:
+            handle = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            entry = read_session_lock(path)
+            if entry and entry[0] != os.getpid() and pid_is_live(entry[0]):
+                return (
+                    "run.py: REFUSING to run %s -- another run of the same quest id is "
+                    "live:\n"
+                    "    pid %d, started %s%s\n"
+                    "    It owns %s, which is that quest's ONE session directory: this "
+                    "run would delete its ledger.tsv, shots/ and client.log mid-flight "
+                    "and leave a mixture of the two behind (the 2026-09-20 \"druid "
+                    "regression\").\n"
+                    "    Wait for pid %d to finish, or drive a private copy under "
+                    "another name: run.py --script <file> --name %s_2.\n"
+                    "    lock: %s (remove it by hand only once you know pid %d is gone)"
+                    % (name, entry[0], entry[1],
+                       (" (%s)" % entry[2]) if entry[2] else "",
+                       os.path.join("build", "quest_gate", name),
+                       entry[0], name, path, entry[0]))
+            print("run.py: clearing a stale session lock for %s (%s) -- %s"
+                  % (name, path,
+                     "pid %d is gone" % entry[0] if entry else "unreadable"), flush=True)
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+            continue
+        with os.fdopen(handle, "w") as out:
+            out.write(payload)
+        _held_locks.add(path)
+        return None
+    return ("run.py: REFUSING to run %s -- its session lock (%s) was re-taken by "
+            "another run while this one was clearing it as stale" % (name, path))
+
+
+def locked_result(name, message):
+    """The result row a refused run contributes: no process, no ledger, not
+    ok -- so --all keeps going for every other id and main() still exits
+    non-zero."""
+    assert name
+    assert message
+    print(message, file=sys.stderr, flush=True)
+    return {
+        "name": name, "exit_code": None, "timed_out": False, "has_ledger": False,
+        "directory": os.path.join(REPO_ROOT, "build", "quest_gate", name),
+        "ok": False, "locked": message,
+    }
+
+
 def prepare_session(name, fixture_name):
     """A fresh, private build/quest_gate/<name>/ directory -- never reused;
     the server writes into it on exit."""
@@ -391,10 +682,17 @@ def run_quest(name, binary, manifest_path, timeout):
     quest_file = quest_list.quest_path(REPO_ROOT, name)
     assert os.path.isfile(quest_file), quest_file
     fixture_name = read_fixture_name(quest_file)
-    directory, saves = prepare_session(name, fixture_name)
-    script = os.path.join(directory, "%s.lua" % name)
-    write_wrapper_script(quest_file, script)
-    return launch_and_report(name, binary, manifest_path, directory, saves, script, timeout)
+    refusal = acquire_session_lock(name)
+    if refusal:
+        return locked_result(name, refusal)
+    try:
+        directory, saves = prepare_session(name, fixture_name)
+        script = os.path.join(directory, "%s.lua" % name)
+        write_wrapper_script(quest_file, script)
+        return launch_and_report(name, binary, manifest_path, directory, saves, script,
+                                 timeout)
+    finally:
+        release_session_lock(name)
 
 
 def run_script_direct(name, script_path, fixture_name, binary, manifest_path, timeout):
@@ -408,8 +706,15 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
     cross-check against `make test-quest-conformance`'s own answer, rather
     than only ever through conformance.py's separate attempt loop."""
     assert os.path.isfile(script_path), script_path
-    directory, saves = prepare_session(name, fixture_name)
-    return launch_and_report(name, binary, manifest_path, directory, saves, script_path, timeout)
+    refusal = acquire_session_lock(name)
+    if refusal:
+        return locked_result(name, refusal)
+    try:
+        directory, saves = prepare_session(name, fixture_name)
+        return launch_and_report(name, binary, manifest_path, directory, saves, script_path,
+                                 timeout)
+    finally:
+        release_session_lock(name)
 
 
 def ledger_verdict(ledger_path):
@@ -433,6 +738,8 @@ def publish(result):
     erase the evidence rather than add to it. A FAIL leaves the previous
     published set untouched and says so. Returns (path, shot_count) or
     None when nothing was published and why in the second slot."""
+    if result.get("locked"):
+        return None, "refused: another run of this id holds the session lock"
     if not result["has_ledger"]:
         return None, "no ledger"
     ledger_path = os.path.join(result["directory"], "ledger.tsv")
@@ -463,7 +770,8 @@ def print_report(results):
     for r in results:
         print("%-*s  %-10s  %-9s  %-6s  %s" % (
             width, r["name"],
-            "none" if r["exit_code"] is None else str(r["exit_code"]),
+            "locked" if r.get("locked") else
+            ("none" if r["exit_code"] is None else str(r["exit_code"])),
             "yes" if r["timed_out"] else "no",
             "yes" if r["has_ledger"] else "no",
             r["directory"]))
@@ -549,6 +857,14 @@ def print_failure_block(results):
     print("---- failures ----")
     for r in non_green:
         print("%s:" % r["name"])
+        if r.get("locked"):
+            # Deliberately reads NOTHING under the directory: it belongs to
+            # the live run, and quoting its half-written ledger here is how a
+            # refusal would get mistaken for this run's result.
+            for line in r["locked"].splitlines():
+                print("    %s" % line.strip())
+            print("")
+            continue
         row = None
         if r["has_ledger"]:
             ledger_path = os.path.join(r["directory"], "ledger.tsv")

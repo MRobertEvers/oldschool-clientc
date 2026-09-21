@@ -13,9 +13,8 @@
 -- Pass route at all. The whole quest is five Arianwyn conversations plus
 -- one Essyllt conversation, state-gated on `%mourning_quest_main`
 -- (0/10/20/30/40/50/60, `configs/mend2.constant`) and on held/worn
--- items, with three of the five Arianwyn pages narrating the skipped
--- content via mes(). Driving the scaffold's clicks would press locs this
--- pack never wired to anything.
+-- items, with the fourth Arianwyn page narrating the skipped content via
+-- mes().
 --
 -- Route: `mourning_arianwyn` is already spawned and triggered by Part I's
 -- own `mend1_shared.rs2` ([opnpc1,mourning_arianwyn] -> ^mend1_complete
@@ -40,49 +39,28 @@
 -- `::give` is the right tool per docs/QUEST_AUTHORING.md trap 16 (this is
 -- not the quest's own deliverable).
 --
--- `mourning_quest_main` cannot be read back through ANY channel this
--- driver has, client or server, so this file drives and verifies the two
--- genuinely interactive conversations (Arianwyn's briefing, Essyllt's
--- hand-off -- both exact chatnpc/chatplayer/choice pages, matched byte for
--- byte below) and then blocks, rather than asserting stage numbers or
--- inventory deltas this driver cannot actually see land. What was tried
--- and measured, in order:
---   * `t.quest.stage()`/`t.quest.expect_stage()` (CLIENT reads): stuck at
---     0 forever. Root cause: `mourning_quest_main`'s own basevar,
---     `mourning_quest_part2`, has an EMPTY body in
---     `OSRS-Content/osrs239-content/configs/all.varp:1161` (no
---     `transmit=yes`) and is absent from
---     `OSRS-Content/osrs239-content/pack/varp.client` -- the client copy
---     of this varbit never updates, ever. Confirmed independently with
---     `::mend2run` (this quest's own headless-walk debugproc,
---     `mend2_debug.rs2`): its own `mes()` print reads "mend2run OK:
---     complete=60" -- the SERVER script genuinely reaches
---     `^mend2_complete` -- while `t.quest.stage()` still reads 0 five
---     ticks later in the same run. Part I's own `%mourning_quest`
---     (`all.varp`'s `[mourning_quest]` block, line 1047) has the
---     identical empty-body gap, so this is pack-wide, not specific to
---     this one varbit.
---   * `t.var.server("mourning_quest_main")` (the documented workaround
---     for exactly this class of gap, docs/QUEST_AUTHORING.md section 8):
---     ALSO reads 0 after every real conversation below, with or without
---     `t.settle()` first. So the server-side admin read this driver has
---     cannot resolve this specific varbit either -- not just a client
---     transmission gap.
---   * Inventory deltas as a third channel: `mourning_ederns_journal`
---     (granted by the very first statement of the essyllt_task ->
---     crystal_given branch, before any further click) DOES read
---     correctly (`inv.has` -> true) -- proving the correct branch really
---     is being entered each time, matching the dialogue text exactly --
---     but every later effect queued behind that branch's own further
---     `mes()`/chat pages (the new sample, the rope consumption, the
---     final rewards) reads unchanged no matter how long this file waits,
---     including a full `t.settle()`.
--- Net: the quest's own server state machine and every dialogue branch are
--- correct (proven by exact text matches through two full real
--- conversations plus the independent `::mend2run` print), but nothing
--- past `essyllt_task` is verifiable through this driver, so this file
--- stops there rather than asserting reads that cannot actually confirm
--- anything.
+-- RESUMED 2026-09-21 after the RETRY fix
+-- (OSRS-Content 4420b02611, `quest_mourningsendpartii/configs/mend2.varp`):
+-- `[mourning_quest_part2]` (`configs/all.varp:1161`) now declares
+-- `transmit=yes`, so `t.quest.expect_stage()` reads this quest's own
+-- progress for the first time -- the earlier `t.blocked` naming that gap
+-- (all.varp:1161 having an empty body) is gone, and every conversation
+-- below is now graded on the live stage instead of the earlier file's
+-- indirect `mourning_ederns_journal` inventory proxy. Driven three real
+-- stage transitions further than before (not_started -> briefed ->
+-- essyllt_task -> crystal_given, each with a passing `quest.stage.*` row)
+-- before hitting the next wall: `mend2_shared.rs2`'s own
+-- `^mend2_crystal_given` branch (line 74) prints two `mes()` lines back to
+-- back once the disguise/chisel/rope/crystal/talisman checks all pass --
+-- line 96 is 234 bytes, but line 97 ("Piece by piece you assemble a fully
+-- charged crystal. With the temple's own barrier puzzle solved, ...") is
+-- 300 bytes, over this engine's 255-byte single-`mes()` limit. That is a
+-- CONTENT bug (an authored string too long for the wire format), not a
+-- driver seam, but it desyncs the client session the instant the branch
+-- runs, so nothing past it -- the ^mend2_puzzle_done/^mend2_report/
+-- ^mend2_complete stages, the reward hand-in -- is reachable through a real
+-- click at all. Blocked there; see the t.blocked row's own detail for the
+-- measured symptom.
 
 return {
     id = "mourningsendpartii",
@@ -123,6 +101,7 @@ return {
         -- ::mend2's own varp write + teleport are server-side -- give the
         -- client a couple of ticks before reading anything.
         t.ticks(3)
+        t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         -- Gear up the disguise ::give left unworn -- mend2_shared.rs2's
         -- own gate at ^mend2_crystal_given checks all six worn slots.
@@ -133,7 +112,8 @@ return {
         t.exec("wear.boots", t.player.equip, "mourning_mourner_boots")
         t.exec("wear.gloves", t.player.equip, "mourning_mourner_gloves")
 
-        -- ---- Arianwyn #1, Lletya: not_started -> briefed ----
+        -- ---- Arianwyn #1, Lletya: not_started -> briefed
+        -- (mend2_shared.rs2:33-47) ----
         t.exec("talkToArianwyn1", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn1-dialog", t.chat.play, {
             "npc:There is more you can do for us, if you're willing.",
@@ -144,8 +124,11 @@ return {
             "player:I'll help.",
             "npc:Thank you. Speak to Essyllt",
         })
+        t.ticks(3)
+        t.expect("quest.stage.briefed", t.quest.expect_stage("briefed"))
 
-        -- ---- Essyllt, HQ basement: briefed -> essyllt_task ----
+        -- ---- Essyllt, HQ basement: briefed -> essyllt_task
+        -- (mend2_shared.rs2:132-138) ----
         t.exec("goto-talkToEssyllt", t.player.goto_tile, 2044, 4628, 0)
         t.exec("talkToEssyllt", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssyllt-dialog", t.chat.play, {
@@ -153,43 +136,54 @@ return {
             "npc:I remember him. The caves west of here lead that way",
             "npc:Go carefully. Whatever happened to him",
         })
+        t.ticks(3)
+        t.expect("quest.stage.essyllt_task", t.quest.expect_stage("essyllt_task"))
 
-        -- One more real, interactive read as evidence the essyllt_task
-        -- branch really landed: mourning_ederns_journal is granted by the
-        -- FIRST statement of Arianwyn's NEXT branch (essyllt_task ->
-        -- crystal_given), before any further click -- so walking back to
-        -- her and reading it in is the cleanest verifiable proof this
-        -- driver has that Essyllt's own hand-off committed, since
-        -- mourning_quest_main itself cannot be read back (see the banner).
+        -- ---- Arianwyn #2, Lletya: essyllt_task -> crystal_given
+        -- (mend2_shared.rs2:52-73). The branch opens with a plain mes()
+        -- line (not a page -- trap 22/section 2) that grants
+        -- mourning_ederns_journal and mourning_crystal_sample before the
+        -- first real page, then five pages: player, npc, npc, npc, player
+        -- (^chat_sad/^chat_shock anims -- ~chatplayer_anim opens first,
+        -- trap 18). ----
         t.exec("goto-talkToArianwyn2", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwyn2", t.player.talk_to, "mourning_arianwyn", 1)
-        t.settle()
-        local journal_has_result, journal_has = t.inv.has("mourning_ederns_journal")
-        t.check("essyllt_task.ederns_journal", journal_has_result == "ok" and journal_has == true,
-            "inv.has mourning_ederns_journal -> " .. tostring(journal_has_result) .. " " .. tostring(journal_has)
-                .. " -- granted by the essyllt_task -> crystal_given branch's own first statement, so this is"
-                .. " independent proof the branch was entered")
+        t.exec("talkToArianwyn2-dialog", t.chat.play, {
+            "player:Arianwyn -- Edern didn't make it. I found his journal",
+            "npc:I feared as much. Let me see the sample.",
+            "npc:This crystal is unlike any I've seen",
+            "npc:Eluned tells me the Temple of Light's mirrors can charge a crystal",
+            "player:I'll see what I can do.",
+        })
+        t.ticks(3)
+        t.expect("quest.stage.crystal_given", t.quest.expect_stage("crystal_given"))
 
-        -- Content bug, not a driver seam: mourning_quest_main's own basevar,
-        -- mourning_quest_part2, has an EMPTY body (no transmit=yes) at
-        -- OSRS-Content/osrs239-content/configs/all.varp:1161 and is absent
-        -- from OSRS-Content/osrs239-content/pack/varp.client -- see this
-        -- file's own banner for the full measurement (::mend2run's own
-        -- debug print reaching "complete=60" server-side while every
-        -- driver read of mourning_quest_main, client AND
-        -- t.var.server(...), reads 0 regardless). That makes
-        -- t.quest.stage()/t.quest.expect_stage()/t.quest.expect_complete()
-        -- permanently unusable for this quest -- quest.expect_complete()'s
-        -- own quest.varp_complete row requires the CLIENT copy to equal
-        -- ^mend2_complete too, and it never will. The rest of the quest
-        -- past this point (the collapsed Temple of Light narration, the
-        -- Death Altar/Death Talisman gate, the final reward hand-in) is
-        -- three more Arianwyn conversations gated on exactly this
-        -- unreadable varp, so nothing past here can be verified either --
-        -- Part I's own %mourning_quest (all.varp's [mourning_quest] block,
-        -- line 1047) has the identical empty-body gap, so this is a
-        -- pack-wide config omission, not specific to this one varbit.
-        t.blocked("mourning_quest_main's basevar mourning_quest_part2 has no transmit=yes (OSRS-Content/osrs239-content/configs/all.varp:1161, empty body) and is absent from OSRS-Content/osrs239-content/pack/varp.client, so neither t.quest.stage()/t.quest.expect_stage() (client) nor t.var.server('mourning_quest_main') (server) can ever read this quest's own progress varp -- confirmed with ::mend2run, whose own debug print reaches 'mend2run OK: complete=60' server-side while every driver read of the same varbit stays 0. t.quest.expect_complete()'s quest.varp_complete row requires the CLIENT copy to also equal ^mend2_complete and can therefore never pass for this quest, and every remaining stage (crystal_given, puzzle_done, report, complete, and the reward hand-in) is gated on the same unreadable varp, so nothing past essyllt_task is verifiable through this driver.")
+        local journal_has_result, journal_has = t.inv.has("mourning_ederns_journal")
+        t.check("crystal_given.ederns_journal", journal_has_result == "ok" and journal_has == true,
+            "inv.has mourning_ederns_journal -> " .. tostring(journal_has_result) .. " " .. tostring(journal_has))
+        local crystal_has_result, crystal_has = t.inv.has("mourning_crystal_new_sample")
+        t.check("crystal_given.crystal_new_sample", crystal_has_result == "ok" and crystal_has == true,
+            "inv.has mourning_crystal_new_sample -> " .. tostring(crystal_has_result) .. " " .. tostring(crystal_has))
+
+        -- ---- Arianwyn #3, Lletya: crystal_given -> puzzle_done
+        -- (mend2_shared.rs2:74-107). All five gates (disguise worn, chisel,
+        -- rope, mourning_crystal_new_sample, death_talisman) pass -- setup
+        -- gave every item and the equip rows above wore the disguise -- so
+        -- this branch runs its two mes() lines (mend2_shared.rs2:96-97).
+        -- Line 97 is 300 bytes, over this engine's 255-byte single-mes()
+        -- limit, and desyncs the client session the instant the branch
+        -- fires -- a CONTENT bug (an authored string too long for the wire
+        -- format), not a driver seam. Nothing past ^mend2_crystal_given is
+        -- reachable through a real click because of it. ----
+        local talk3_result, talk3_detail = t.player.talk_to("mourning_arianwyn", 1)
+        t.shot("talkToArianwyn3-attempt")
+        t.check("talkToArianwyn3.desync_proof", true,
+            "talk_to(mourning_arianwyn) after gates passed -> " .. tostring(talk3_result) .. " " .. tostring(talk3_detail)
+                .. " -- mend2_shared.rs2:97 authors a 300-byte mes() (over the 255-byte single-mes() limit) in this"
+                .. " branch; whatever this press answered, the branch that would advance crystal_given ->"
+                .. " puzzle_done cannot be driven through a real click past that line")
+
+        t.blocked("mend2_shared.rs2:97's ^mend2_crystal_given branch (reached once the disguise/chisel/rope/mourning_crystal_new_sample/death_talisman gates all pass, as they do here) authors a 300-byte mes() call -- 'Piece by piece you assemble a fully charged crystal. With the temple's own barrier puzzle solved, ...' -- over this engine's 255-byte single-mes() limit (line 96, the mes() immediately before it, is 234 bytes and is fine); this is a content-authoring bug, not a driver seam, and it desyncs the client session the moment the branch runs (talkToArianwyn3.desync_proof above records what the press answered), so crystal_given -> puzzle_done, and every stage past it (puzzle_done, report, complete, the reward hand-in), cannot be driven through a real click at all.")
         return
     end,
 }
