@@ -1,4 +1,5 @@
--- Tears of Guthix: talk to Juna to accept the quest.
+-- Tears of Guthix: talk to Juna to accept, mine/craft a stone bowl, hand it
+-- in, collect the Crafting XP reward.
 --
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0
 -- (Lumbridge, beside Hans), but `setup`'s `::tearsofguthix` debugproc
@@ -13,40 +14,21 @@
 -- `setup` still sets Firemaking/Crafting/Mining itself --
 -- `~tog_has_requirements` checks those three stats plus %qp.
 --
--- RETRY after 73a4251d0 (queue last_failure): tog_juna IS a multiloc
--- (all.loc [tog_juna], children tog_juna_1op/tog_juna_2ops,
--- multivarbit=tog_juna_bowl), and the previously committed file asserted
--- `chat.no_dialogue` (kind=="none" right after the click) as the recorded
--- CONTENT BUG -- measured against a world where the child-then-base
--- multiloc trigger fallback had not landed, so [oploc1,tog_juna] was never
--- reached at all. That fallback is fixed now (QUEST_AUTHORING.md trap 20,
--- 2026-09-20): re-measured below, the click DOES now reach
--- [label,tog_juna_talk] and a real npc dialogue DOES open ("Tell me... a
--- story...", `02-tog.greet-p1.png`). But the SAME underlying defect the
--- old row's comment named survives one step later: the dialogue's first
--- `p_pausebutton` (inside `~chatnpc_specific` -> `chatnpc_specific_anim`,
--- interface_chat/scripts/chat.rs2:108-118) never resolves. `chat.continue_`
--- clicks the resume button, gets an "ok" ack, and the page then never
--- advances -- ticked out to 45+ server ticks, `chat.continue_` on every
--- later attempt answers "a resume is already outstanding" (chat.lua:150),
--- because no new page ever mounts to clear that pending flag.
+-- RETRY after the queue's "Juna is bound before ~chatnpc_specific so the
+-- resume resolves" fix: `tearsofguthix.rs2` now carries
+-- `[proc,tog_bind_speaker]`, which `npc_find`s (or `npc_add`s, the same
+-- fallback `dttd_bmp.rs2`'s `[proc,dttdbmp_bind]` uses for this exact
+-- `tog_juna_dummy` symbol) a live speaker BEFORE every `~chatnpc_specific`
+-- call `[proc,tog_juna]` makes -- so the `~chatnpc_specific` page's first
+-- `p_pausebutton` now has an active npc to run `facesquare`/`npc_facesquare`
+-- against and resolves normally. The previously committed file's
+-- `tog.dummy_npc_probe` / `tog.accept_stuck_after_15_ticks` /
+-- `tog.accept_continue_stuck` rows and its trailing `t.blocked(...)` all
+-- asserted that now-fixed hang; they are gone, replaced by driving the
+-- dialogue, the craft and the hand-in through to a real completion.
 --
--- Root cause, confirmed live: `t.npc.by_symbol("tog_juna_dummy")` (the
--- exact npc `[proc,tog_juna]` passes to `~chatnpc_specific` at
--- tearsofguthix.rs2:22) answers `no_row` -- there is no live
--- `tog_juna_dummy` entity anywhere in the loaded world at all, despite
--- `areas/world/configs/m50_148.spawn`'s static row for it. Compare
--- `quest_deathtothedorgeshuun/scripts/dttd_bmp.rs2:72-76`
--- (`[proc,dttdbmp_bind]`), which calls `~chatnpc_specific("Juna",
--- tog_juna_dummy, ...)` for this SAME npc symbol but only after
--- `npc_find(coord, tog_juna_dummy, 12, 0)` and, on a miss, `npc_add(...)`
--- to spawn one right there first (dttd_bmp.rs2:411/427 call
--- `~dttdbmp_bind(tog_juna_dummy)` before every `~chatnpc_specific` on it).
--- `tearsofguthix.rs2`'s own `[proc,tog_juna]` has no equivalent bind/spawn
--- step, so `~chatnpc_specific` opens its first page display-only (no live
--- entity needed to paint static head/text) and then hangs forever on the
--- first resume, which needs the active npc `chatnpc_specific_anim`'s
--- `facesquare(npc_coord)`/`npc_facesquare(coord)` calls depend on.
+-- WHICH ROWS SHOOT. t.exec and t.check shoot the row they write; plain
+-- t.expect/t.step rows do not.
 
 return {
     id = "tearsofguthix",
@@ -61,7 +43,9 @@ return {
 
     run = function(t)
         -- quest.bind records the varp and constants for later checks; no
-        -- world read yet.
+        -- world read yet. tog_juna_bowl is a VARBIT (all.varbit.compack
+        -- id 451, no all.varp row of its own) -- quest.stage/expect_stage
+        -- resolve that transparently.
         t.quest.bind({
             varp = "tog_juna_bowl",
             constants = {
@@ -74,7 +58,9 @@ return {
         })
 
         -- Wait for the debugproc's teleport/varp/inventory grant and the
-        -- setlevel cheats to be visible client-side before reading anything.
+        -- setlevel cheats to be visible client-side before reading anything
+        -- (trap 23's own settle -- the ladder's reply outruns the container
+        -- update by a tick).
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -82,63 +68,87 @@ return {
         t.expect("setup.have_chisel", t.inv.expect_has("chisel", 1))
 
         -- ------------------------------------------------- greet Juna
-        -- [oploc1,tog_juna] -> @tog_juna_talk (not_started branch): the
-        -- trigger IS reached now (re-measuring the queue's last_failure) --
-        -- a real npc dialogue opens.
+        -- [oploc1,tog_juna] -> @tog_juna_talk (not_started branch, requirements
+        -- already met via the debugproc's %qp + this file's setlevel cheats).
         t.exec("tog.greet", t.player.click_loc, "tog_juna", 1)
 
-        local greet_kind = t.chat.kind()
-        local greet_text_result, greet_text = t.chat.text()
-        t.check("tog.dialogue_opened", greet_kind == "npc" and greet_text_result == "ok",
-            "kind=" .. tostring(greet_kind) .. " text=" .. tostring(greet_text))
+        -- The whole first conversation, page by page, copied byte-for-byte
+        -- from tearsofguthix.rs2's @tog_juna_talk not-started branch. The
+        -- "Okay..." choice (p_choice3, option 1) falls through into the
+        -- accept text; %tog_juna_bowl is set to need_bowl silently at the
+        -- very end (no further page), so the list closes on "end".
+        t.exec("tog.accept_dialog", t.chat.play, {
+            "npc:Tell me... a story...",
+            "player:A story?",
+            "npc:I have been waiting here three thousand years, guarding the Tears of Guthix.",
+            "npc:An adventurer such as yourself must have many tales to tell.",
+            "npc:Then you can drink of the power of balance, which will make you stronger",
+            "choose:Okay...",
+            "player:Okay...",
+            "mesbox:You tell Juna some stories of your adventures.",
+            "npc:Your stories have entertained me. I will let you into the cave for a short time.",
+            "npc:But first you will need to make a bowl in which to collect the tears.",
+            "npc:There is a cave on the south side of the chasm that is similarly infused",
+            "npc:Mine some stone from that cave, make it into a bowl, and bring it to me",
+            "end",
+        })
 
-        -- Root cause probe: the exact npc `[proc,tog_juna]` passes to
-        -- `~chatnpc_specific` at tearsofguthix.rs2:22.
-        local dummy_result, dummy_row = t.npc.by_symbol("tog_juna_dummy")
-        local dummy_detail = "no row read"
-        if dummy_result == "ok" and type(dummy_row) == "table" then
-            dummy_detail = "tile_x=" .. tostring(dummy_row.tile_x) .. " tile_z=" .. tostring(dummy_row.tile_z)
-                .. " level=" .. tostring(dummy_row.level)
-        end
-        t.check("tog.dummy_npc_probe", true,
-            "npc.by_symbol(tog_juna_dummy) -> " .. tostring(dummy_result) .. " " .. dummy_detail
-                .. " -- no live entity for ~chatnpc_specific to bind to (compare dttd_bmp.rs2's ~dttdbmp_bind)")
+        t.expect("quest.stage.need_bowl", t.quest.expect_stage("need_bowl"))
 
-        -- Click the resume button on page 1 ("Tell me... a story...").
-        -- The click itself is acked (an "ok" from continue_ here is only
-        -- the CLIENT's ack of the press, chat.lua:118-124's own banner --
-        -- not proof the server ever remounts a next page).
-        local continue_result, continue_detail = t.chat.continue_()
-        t.check("tog.accept_continue_click", true,
-            "chat.continue_() -> " .. tostring(continue_result) .. " " .. tostring(continue_detail))
+        -- ------------------------------------------------- craft the bowl
+        -- [opheldu,tog_stone] checks last_useitem = chisel: arm the chisel
+        -- (item_a, the "Use" cell) and click tog_stone (item_b). mes("You
+        -- make a stone bowl.") is a chat-log line and the backpack swap
+        -- (tog_stone -1, tog_bowl +1) lands in the same tick, so
+        -- use_item_on_item's own settle (new chat line OR backpack total
+        -- change) catches it either way.
+        t.exec("tog.make_bowl", t.player.use_item_on_item, "chisel", "tog_stone")
 
-        -- Give the reply generous real time -- 15 server ticks, well past
-        -- chat.drain's own 6-tick settle and past every real
-        -- click_loc-triggered dialogue transition measured elsewhere in
-        -- this suite (betweenarock/eadgar/haunted/murder/squire all
-        -- resume click_loc dialogues in well under that).
-        t.ticks(15)
-        local stuck_kind = t.chat.kind()
-        local stuck_text_result, stuck_text = t.chat.text()
-        t.check("tog.accept_stuck_after_15_ticks", true,
-            "kind=" .. tostring(stuck_kind) .. " text=" .. tostring(stuck_text)
-                .. " -- still page 1 ('Tell me... a story...'), never advanced to the player's 'A story?' echo")
+        local bowl_wait_result, bowl_wait_detail = t.inv.await("tog_bowl", 1, 10)
+        local bowl_read, bowl_count = t.inv.count("tog_bowl")
+        local stone_read, stone_count = t.inv.count("tog_stone")
+        t.check("tog.bowl_crafted",
+            bowl_wait_result == "ok" and bowl_count == 1 and stone_count == 0,
+            "inv.await(tog_bowl,1) -> " .. tostring(bowl_wait_result) .. " " .. tostring(bowl_wait_detail)
+                .. " tog_bowl=" .. tostring(bowl_count) .. "(" .. tostring(bowl_read) .. ")"
+                .. " tog_stone=" .. tostring(stone_count) .. "(" .. tostring(stone_read) .. ")")
 
-        -- A second resume click now answers "a resume is already
-        -- outstanding" (chat.lua:150) -- the FIRST click's pending flag
-        -- was never cleared because no new page ever mounted.
-        local retry_result, retry_detail = t.chat.continue_()
-        t.check("tog.accept_continue_stuck", true,
-            "chat.continue_() retried -> " .. tostring(retry_result) .. " " .. tostring(retry_detail))
+        -- ------------------------------------------------- hand in the bowl
+        -- Read the skill snapshot before the hand-in click that awards it
+        -- (state.lua's skill.expect_gain banner: a "before" reading taken
+        -- one call ahead of the commit).
+        local craft_snap_result, craft_snap = t.skill.snapshot()
+        t.step("reward.snapshot", craft_snap_result == "ok" and "PASS" or "FAIL",
+            "skill.snapshot() -> " .. tostring(craft_snap_result))
 
-        t.blocked("content_bug: quest_tearsofguthix/scripts/tearsofguthix.rs2:22 -- "
-            .. "[proc,tog_juna]'s ~chatnpc_specific(\"Juna\", tog_juna_dummy, $text) has no live "
-            .. "tog_juna_dummy entity to bind to (t.npc.by_symbol: no_row) and no bind/spawn step "
-            .. "the way dttd_bmp.rs2:72-76's [proc,dttdbmp_bind] (npc_find + npc_add fallback) gives "
-            .. "the same npc symbol before its own ~chatnpc_specific calls. Page 1 opens (static "
-            .. "head/text needs no live entity) but the first p_pausebutton resume never resolves -- "
-            .. "chat.continue_ acks the click, the page never advances past 15 ticks, and a retried "
-            .. "continue_ then answers 'a resume is already outstanding' forever.")
-        return
+        -- Second click_loc on the same loc: %tog_juna_bowl is still
+        -- need_bowl, but inv_total(inv, tog_bowl) > 0 now, so @tog_juna_talk
+        -- takes the "I have a bowl" branch and commits completion.
+        t.exec("tog.handin", t.player.click_loc, "tog_juna", 1)
+
+        t.exec("tog.handin_dialog", t.chat.play, {
+            "npc:Before you can collect the Tears of Guthix you must make a bowl",
+            "player:I have a bowl.",
+            "npc:I will keep your bowl for you, so that you may collect the tears many times",
+            "npc:Now... tell me another story, and I will let you collect the tears for the first time.",
+            "end",
+        })
+
+        -- Completion (inv_del the bowl, %tog_juna_bowl=complete,
+        -- stat_advance, ~quest_complete_rewards) commits silently behind
+        -- that last page and the reward scroll mounts asynchronously
+        -- (section 8) -- give it real time before reading anything.
+        t.ticks(3)
+
+        t.quest.expect_complete()
+
+        -- Reward: stat_advance(crafting, 10000) is 1000 Crafting XP
+        -- (tenths) -- ~quest_complete_rewards(quest_tearsofguthix, "1000
+        -- Crafting XP|Access to the Tears of Guthix minigame", coins), the
+        -- literal amount the quest documents. No item/coin reward -- the
+        -- minigame access is an unlock, not a testable delta.
+        t.exec("reward.crafting_xp", t.skill.expect_gain, "crafting", 1000, craft_snap)
+
+        t.finish(0)
     end,
 }
