@@ -116,139 +116,193 @@ return {
         -- --------------------------------------------------- thread evidence
         t.exec("goto.mansion", t.player.goto_tile, 2745, 3575, 0)
         t.exec("goto.window.area", t.player.goto_tile, 2748, 3575, 0)
-        -- QUEST_AUTHORING.md section 8: a `covered` right after a goto_tile
-        -- teleport on a target that otherwise works is the scene/camera not
-        -- having settled yet -- t.ticks(2) before the first press. Made no
-        -- difference here (run 6): still `covered`, same element, same pixel.
+        -- A `covered` right after a goto_tile teleport is the scene/camera
+        -- not having settled yet (QUEST_AUTHORING.md section 8), so the
+        -- press gets two ticks of world before it.
         t.ticks(2)
 
-        local win_target, win_target_result = t.player.by_symbol("loc", "kr_mansion_window_multi_01")
-        t.check("window.target", win_target_result == "ok",
-            "by_symbol(loc,kr_mansion_window_multi_01) -> " .. tostring(win_target_result)
-                .. (type(win_target) == "table" and (" id=" .. tostring(win_target.id)
-                    .. " match=" .. tostring(win_target.match)) or ""))
+        -- The press. sonnet-b5's run recorded this as "never fires for this
+        -- fresh character", and the diagnosis was wrong about WHY: the
+        -- window is placed as the multiloc [murderwindow], and
+        -- interaction_try used to resolve the varbit transform and then look
+        -- the trigger up on the resolved CHILD only -- so
+        -- [oploc2,kr_mansion_window_multi_01] was dead code that answered
+        -- with content's own ^dm_default sentence. 73a4251d0's
+        -- run_loc_trigger_with_base tries the child, then the BASE, and the
+        -- op now reaches murder_inspect_window; the ledger row carries
+        -- click_loc's own "-> murderwindow (base)" as the proof of which arm
+        -- found it.
+        t.exec("window.inspect_click", t.player.click_loc, "kr_mansion_window_multi_01", 2)
 
-        -- t.world.loc_near (an earlier run) already confirmed the symbol
-        -- resolves correctly -- "murderwindow" exact and
-        -- "kr_mansion_window_multi_01" base both answer the same id=26123 at
-        -- the same tile 2748,3577,0, so this is not a resolve or tile miss.
-        local pos_result, pos = t.drive.screen_position(win_target)
-        t.check("window.screen_position", true,
-            "drive.screen_position(target) -> " .. tostring(pos_result) .. " "
-                .. (type(pos) == "table" and (tostring(pos.x) .. "," .. tostring(pos.y))
-                    or tostring(pos)))
+        -- The thread is NOT handed over with the mesbox. murder_inspect_window
+        -- (quest_murder_window.rs2:63-81) opens
+        -- `~mesbox("Some thread seems to have been caught on a loose nail on
+        -- the window.")`, which SUSPENDS, and only the resume runs
+        -- `mes("You take the thread.")` + `inv_add(inv, ~get_murder_thread,
+        -- 1)`. So the chain is walked to its end -- a close here skips the
+        -- grant, which is what the first post-seam run actually did.
+        t.exec("window.mesbox", t.chat.drain, { stop_at = "none" })
 
-        -- Recorded as a plain read (verdict PASS whenever the verb answered
-        -- at all), not an assertion that the click landed -- gate.py grades
-        -- every non-BLOCKED row as a real pass/fail, and this row's whole
-        -- job is to carry whatever click_loc actually answered into the
-        -- ledger for the row right after (or the blocked reason) to use.
-        local click_result, click_detail = t.player.click_loc("kr_mansion_window_multi_01", 2)
-        t.step("window.inspect_click", click_result ~= nil and "PASS" or "FAIL",
-            "click_loc(kr_mansion_window_multi_01, op2) -> " .. tostring(click_result)
-                .. " " .. tostring(click_detail))
-        t.shot("window.inspect_click" .. (click_result ~= "ok" and "-FAIL" or ""))
-
-        -- drive.op is the documented "logged bypass": it presses through
-        -- the SAME dispatcher a real click uses, skipping only the
-        -- on-screen menu build. Tried as a second, independent attempt
-        -- before concluding anything -- but its own `ok` means "dispatched",
-        -- never "succeeded" (app_plugin_world_op's own banner,
-        -- torirs_plugin_bridge.u.c:4086), so it is graded here as evidence
-        -- only; the real verdict is the inventory read after both attempts.
-        local bypass_result, bypass_detail = nil, nil
-        if click_result ~= "ok" and win_target_result == "ok" then
-            bypass_result, bypass_detail = t.drive.op(win_target, 2)
-            t.step("window.inspect_bypass", bypass_result ~= nil and "PASS" or "FAIL",
-                "drive.op(loc kr_mansion_window_multi_01, op2) [logged bypass, " ..
-                    "dispatched != succeeded] -> " .. tostring(bypass_result)
-                    .. " " .. tostring(bypass_detail))
-            t.shot("window.inspect_bypass")
-        end
-        if click_result == "ok" or bypass_result == "ok" then
-            t.exec("window.close", t.chat.drain, { stop_at = "none" })
-        end
-
+        -- ...and the grant is AWAITED, not read on the tick the drain
+        -- returns. Measured 2026-09-20 (build/quest_gate/murder_probe, a
+        -- scratch probe that read all three colours once per tick after the
+        -- same drain): `t+0: murderthreadg=ok/0 murderthreadr=ok/0
+        -- murderthreadb=ok/0 | t+1: murderthreadr=ok/1`. One tick.
+        -- There is no inv.await over an ALTERNATIVE set -- which colour
+        -- lands is %murdersus's random roll and is the whole reading this
+        -- step exists to take -- so this is a bounded poll over the three,
+        -- and the tick it landed on goes in the detail.
         local matched_thread = nil
         local candidates = nil
         local thread_reads_ok = true
-        for _, thread_sym in ipairs({ "murderthreadg", "murderthreadr", "murderthreadb" }) do
-            local r, c = t.inv.count(thread_sym)
-            if r ~= "ok" then
-                thread_reads_ok = false
+        local thread_tick = nil
+        for tick = 0, 8 do
+            for _, thread_sym in ipairs({ "murderthreadg", "murderthreadr", "murderthreadb" }) do
+                local r, c = t.inv.count(thread_sym)
+                if r ~= "ok" then
+                    thread_reads_ok = false
+                elseif c >= 1 and matched_thread == nil then
+                    matched_thread = thread_sym
+                    candidates = THREAD_CANDIDATES[thread_sym]
+                    thread_tick = tick
+                end
             end
-            if r == "ok" and c >= 1 then
-                matched_thread = thread_sym
-                candidates = THREAD_CANDIDATES[thread_sym]
+            if matched_thread ~= nil then
+                break
             end
+            t.ticks(1)
         end
-        -- Graded on whether the three inv.count reads themselves answered
-        -- ok (a real, computed condition), not on whether a thread turned
-        -- up -- the blocked call right after is what actually grades
-        -- "found none".
-        t.step("evidence.thread", thread_reads_ok and "PASS" or "FAIL",
-            "thread colour -> " .. tostring(matched_thread) .. ", candidates -> "
+        t.step("evidence.thread", (thread_reads_ok and candidates ~= nil) and "PASS" or "FAIL",
+            "thread colour -> " .. tostring(matched_thread) .. " after "
+                .. tostring(thread_tick) .. " tick(s), candidates -> "
                 .. (candidates and (SUS[candidates[1]].name .. "/" .. SUS[candidates[2]].name)
                     or "none"))
+        t.shot("evidence.thread" .. (candidates and "" or "-FAIL"))
         if not candidates then
             t.blocked(
-                "quest_murder_window.rs2:60-61's [oploc2,kr_mansion_window_multi_01]/" ..
-                "[oploc2,kr_mansion_window_multi_02] never fires for this fresh " ..
-                "character, through two independently-driven real attempts (ledger rows " ..
-                "+ screenshots window.inspect_click-FAIL.png, window.inspect_bypass.png): " ..
-                "(1) click_loc(kr_mansion_window_multi_01, op2) answers `covered` from " ..
-                "every one of its own camera-pose and side-step retries -- the actual " ..
-                "on-screen 'Choose Option' popup it presses against shows only Walk " ..
-                "here/Cancel, never Investigate, even though t.drive.screen_position " ..
-                "separately reports the target visible on screen at 401,228, a " ..
-                "DIFFERENT pixel than the 382,71 the real press lands on (click_loc's " ..
-                "own camera-pose search settles on a pose that frames the target but " ..
-                "presses a pixel landing on something else -- the same element " ..
-                "536888205 every run, never the window). (2) t.drive.op -- the " ..
-                "documented logged bypass, which presses through the SAME dispatcher a " ..
-                "real click uses -- answers `ok`, but that is 'dispatched', not " ..
-                "'succeeded' (torirs_plugin_bridge.u.c:4086's own banner): no dialogue " ..
-                "opened and no thread item was granted, confirmed by reading the " ..
-                "inventory for murderthreadg/r/b immediately after and finding none. " ..
-                "Either the [murderwindow] multiloc wrapper this loc is placed behind " ..
-                "never received the op table its own transform-resolved children " ..
-                "declare (all.loc:288069-288075 carries no op fields at all; " ..
-                "op2=Investigate/op3=Break exist only on the CHILD defs at " ..
-                "all.loc:287915-287964), or this is a driver pick/pose targeting defect " ..
-                "specific to this wall's shape -- either way, the murderer's colour-pair " ..
-                "cannot be narrowed from real state and nothing past this point can be " ..
-                "honestly driven.")
+                "murder_inspect_window (quest_murder_window.rs2:63-81) ran its " ..
+                "mesbox but granted no thread within 8 ticks of the chain ending: " ..
+                "none of murderthreadg/r/b turned up in the backpack. Without a " ..
+                "colour, %murdersus -- which quest_murder.varp declares with no " ..
+                "transmit body, so var.server reads 0 for it forever -- cannot be " ..
+                "narrowed to a pair from real state, and every evidence step below " ..
+                "would be guessing at the murderer instead of letting content " ..
+                "answer.")
             return
         end
 
+        -- ---------------------------------------------- reaching the evidence
+        -- Every loc and ground obj from here on is FOUND IN THE LIVE SCENE
+        -- and teleported to, never pressed from wherever the step before
+        -- happened to leave the player. That is what the first post-seam run
+        -- of this file (2026-09-20, 43 PASS / 35 FAIL) was actually failing
+        -- on: with the window seam fixed the quest ran forty rows further and
+        -- every one of those failures reads the same way -- `I can't reach
+        -- that! -- and no other approach tile of murdersacks (8 known) could
+        -- be walked to`, or `menu has no row for it -- menu rows: <Cancel>
+        -- <Walk here>` -- a loc rooms away from the player, not a loc that
+        -- refused. `::goto` teleports without a walkability test
+        -- (torirs_server_world.c:9520, straight to ToriRSServer_WorldTeleport),
+        -- so landing ON the loc's own south-west tile is legal and is the
+        -- best place to press from: click_loc's own _step_off_for_click and
+        -- 73a4251d0's _reach_retry both work outward from the target's
+        -- square, and from on top of it every approach tile is one step away.
+        local function goto_loc(label, sym, fx, fz, fl)
+            local find_result, row = t.world.loc_near(sym, 40)
+            if find_result == "ok" and type(row) == "table" then
+                t.exec("goto." .. label, t.player.goto_tile, row.tile_x, row.tile_z, row.level)
+                t.ticks(2)
+                return true
+            end
+            -- The fallback is a tile this quest already knows from content
+            -- (a suspect's own spawn row), used only when the loc is not in
+            -- the loaded scene yet -- which is itself the diagnosis, so it
+            -- goes in the row's detail rather than being swallowed.
+            if fx then
+                t.note("world.loc_near(" .. sym .. ", 40) -> " .. tostring(find_result)
+                    .. "; falling back to the spawn tile " .. tostring(fx) .. ","
+                    .. tostring(fz) .. "," .. tostring(fl))
+                t.exec("goto." .. label, t.player.goto_tile, fx, fz, fl)
+                t.ticks(2)
+                return true
+            end
+            t.step("locate." .. label, "FAIL",
+                "world.loc_near(" .. sym .. ", 40) -> " .. tostring(find_result)
+                    .. " " .. tostring(row))
+            t.shot("locate." .. label .. "-FAIL")
+            return false
+        end
+
         -- --------------------------------------------------- the murder weapon
-        -- Already spawned coated in flour (m42_55.spawn's own OBJ row, not
-        -- a fixture cheat) -- only the flypaper step is still needed on it.
-        t.exec("weapon.pickup", t.player.click_obj, "murderweapondust")
-        local wdust_read, wdust_count = t.inv.count("murderweapondust")
-        t.check("weapon.have_dust", wdust_read == "ok" and wdust_count >= 1,
-            "inv.count(murderweapondust) -> " .. tostring(wdust_read) .. " " .. tostring(wdust_count))
+        -- Already spawned coated in flour (m42_55.spawn:46's own OBJ row at
+        -- 2746,3578,0, not a fixture cheat) -- only the flypaper step is
+        -- still needed on it. It has no [opobj*] trigger of its own, so the
+        -- press is the engine's plain Take.
+        local weapon_result, weapon_row = t.world.obj_near("murderweapondust", 40)
+        t.step("weapon.locate", weapon_result == "ok" and "PASS" or "FAIL",
+            "world.obj_near(murderweapondust, 40) -> " .. tostring(weapon_result)
+                .. (type(weapon_row) == "table" and (" @" .. tostring(weapon_row.tile_x)
+                    .. "," .. tostring(weapon_row.tile_z) .. "," .. tostring(weapon_row.level)) or ""))
+        t.shot("weapon.locate" .. (weapon_result == "ok" and "" or "-FAIL"))
+
+        -- The dagger lies inside the study and the study is behind a door:
+        -- the first post-seam run pressed it from 2748,3575, outside the
+        -- east wall, and the engine answered "I can't reach that!" across
+        -- the whole shot (21-weapon.pickup-FAIL.png). A teleport onto its
+        -- own square puts the player in the room, and Take routes onto the
+        -- stack's square by itself -- but a stack at the player's FEET
+        -- projects off the bottom of the viewport at a flat pitch
+        -- (click_obj's own banner), so two viewing tiles are held in
+        -- reserve behind the square itself and the vantage that answered
+        -- goes in the row. The press is one row whatever it took: a retry
+        -- that is EXPECTED to be needed sometimes is not a failure to
+        -- record, only a detail to name.
+        local weapon_press, weapon_press_detail = "not_found", "murderweapondust is not in the scene"
+        if weapon_result == "ok" and type(weapon_row) == "table" then
+            local vantages = { { 0, 0 }, { 0, -2 }, { 2, 0 } }
+            local tried = {}
+            for i = 1, #vantages do
+                t.exec("goto.weapon." .. i, t.player.goto_tile,
+                    weapon_row.tile_x + vantages[i][1],
+                    weapon_row.tile_z + vantages[i][2], weapon_row.level)
+                t.ticks(2)
+                weapon_press, weapon_press_detail = t.player.click_obj("murderweapondust")
+                tried[#tried + 1] = "+" .. tostring(vantages[i][1]) .. ","
+                    .. tostring(vantages[i][2]) .. " -> " .. tostring(weapon_press)
+                if weapon_press == "ok" then
+                    break
+                end
+            end
+            weapon_press_detail = "click_obj(murderweapondust): "
+                .. table.concat(tried, " | ") .. " -- " .. tostring(weapon_press_detail)
+        end
+        t.step("weapon.pickup", weapon_press == "ok" and "PASS" or "FAIL", weapon_press_detail)
+        t.shot("weapon.pickup" .. (weapon_press == "ok" and "" or "-FAIL"))
+        -- inv.await, never inv.count: an inv_add lands on the tick AFTER the
+        -- press the client drained (measured 2026-09-20,
+        -- build/quest_gate/murder_probe: the thread reads 0 on the drain's
+        -- own tick and 1 on the next). Every inventory assertion below is an
+        -- await for the same reason -- the committed file read all of them
+        -- bare and two of its FAIL rows were nothing but that one tick.
+        t.expect("weapon.have_dust", t.inv.await("murderweapondust", 1, 6))
 
         -- Three sheets of flypaper: one for the murder weapon, one for
         -- each of the two narrowed candidates' own personal items below.
         -- murdersacks has no "already have" guard (unlike the
         -- murderbarrels), so it can be searched repeatedly.
+        goto_loc("sacks", "murdersacks")
         for i = 1, 3 do
             t.exec("sack.search." .. i, t.player.click_loc, "murdersacks", 2)
             t.exec("sack.drain_to_options." .. i, t.chat.drain, { stop_at = "options" })
             t.exec("sack.choose." .. i, t.chat.choose, "Yes, it might be useful.")
             t.exec("sack.close." .. i, t.chat.drain, { stop_at = "none" })
         end
-        local paper_read, paper_count = t.inv.count("murderpaper")
-        t.check("evidence.paper_count", paper_read == "ok" and paper_count >= 3,
-            "inv.count(murderpaper) -> " .. tostring(paper_read) .. " " .. tostring(paper_count))
+        t.expect("evidence.paper_count", t.inv.await("murderpaper", 3, 8))
 
         -- flypaper on the floury dagger -> murderweapon + murderfingerprint1
         -- (quest_murder_prints.rs2 [opheldu,murderweapondust]).
         t.exec("weapon.fingerprint", t.player.use_item_on_item, "murderpaper", "murderweapondust")
-        local fp1_read, fp1_count = t.inv.count("murderfingerprint1")
-        t.check("evidence.fingerprint1", fp1_read == "ok" and fp1_count >= 1,
-            "inv.count(murderfingerprint1) -> " .. tostring(fp1_read) .. " " .. tostring(fp1_count))
+        t.expect("evidence.fingerprint1", t.inv.await("murderfingerprint1", 1, 6))
 
         -- --------------------------------------------------- poison proof
         t.exec("goto.salesman", t.player.goto_tile, 2695, 3495, 0)
@@ -265,9 +319,12 @@ return {
         -- item and the fingerprint match).
 
         -- Ask BOTH candidates the poison question first (harmless for
-        -- whichever one is not %murdersus -- each sibling script checks
-        -- `%murdersus = ^murderer_<name>` itself before touching the
-        -- progress var), then search BOTH candidates' poison-proof locs.
+        -- whichever one is not %murdersus -- each sibling script's own
+        -- option-4 arm ends `if (%murdersus = ^murderer_<name> &
+        -- %murder_poisonproof_progress = ^poisonproof_spoken_salesman)`
+        -- before it writes anything), then search BOTH candidates'
+        -- poison-proof locs -- again only the murderer's own arm writes
+        -- ^poisonproof_searched_loc, which is what murderguard_who reads.
         for _, sid in ipairs(candidates) do
             local s = SUS[sid]
             t.exec("goto.suspect." .. s.name, t.player.goto_tile, s.tx, s.tz, s.tl)
@@ -279,35 +336,43 @@ return {
         end
         for _, sid in ipairs(candidates) do
             local s = SUS[sid]
-            t.exec("poisonloc.search." .. s.name, t.player.click_loc, s.poison_loc, 2)
-            t.exec("poisonloc.close." .. s.name, t.chat.drain, { stop_at = "none" })
+            if goto_loc("poisonloc." .. s.name, s.poison_loc) then
+                t.exec("poisonloc.search." .. s.name, t.player.click_loc, s.poison_loc, 2)
+                t.exec("poisonloc.close." .. s.name, t.chat.drain, { stop_at = "none" })
+            end
         end
 
         -- --------------------------------------------------- fingerprint match
-        -- Each candidate's own barrel, flour, flypaper and comparison --
-        -- one of the two comparisons matches and creates murderfingerprint;
-        -- the other destroys the checked print (check_murderer_print's own
-        -- "doesn't seem to be the same" branch), which is content answering
-        -- honestly, not a failure of this row.
+        -- Each candidate's own barrel, flour, flypaper and comparison.
+        -- check_murderer_print consumes murderfingerprint1 on a MATCH
+        -- (`inv_del(inv, murderfingerprint1, 1)` then
+        -- `inv_add(inv, murderfingerprint, 1)`) and destroys the CHECKED
+        -- print on a miss, so the loop stops the moment the match lands --
+        -- a second comparison after it would have no murderfingerprint1 to
+        -- use and would fail on this test's own arithmetic, not on content.
+        local matched_suspect = nil
         for _, sid in ipairs(candidates) do
             local s = SUS[sid]
+            -- The suspect's own spawn tile first: it puts the player in
+            -- that suspect's room and on that suspect's PLANE (Carol's and
+            -- Elizabeth's barrels are upstairs), which is what puts the
+            -- barrel in the scene for loc_near to find at all.
+            t.exec("goto.suspect.room." .. s.name, t.player.goto_tile, s.tx, s.tz, s.tl)
+            goto_loc("barrel." .. s.name, s.barrel, s.tx, s.tz, s.tl)
             t.exec("barrel.search." .. s.name, t.player.click_loc, s.barrel, 2)
             t.exec("barrel.close." .. s.name, t.chat.drain, { stop_at = "none" })
-            local item_read, item_count = t.inv.count(s.item)
-            t.check("evidence.have_item." .. s.name, item_read == "ok" and item_count >= 1,
-                "inv.count(" .. s.item .. ") -> " .. tostring(item_read) .. " " .. tostring(item_count))
+            t.expect("evidence.have_item." .. s.name, t.inv.await(s.item, 1, 6))
 
+            goto_loc("flourbarrel." .. s.name, "flourbarrel")
             t.exec("flour.get." .. s.name, t.player.click_loc, "flourbarrel", 2)
+            t.exec("flour.close." .. s.name, t.chat.drain, { stop_at = "none" })
+            t.expect("evidence.have_flour." .. s.name, t.inv.await("pot_flour", 1, 6))
+
             t.exec("item.flour." .. s.name, t.player.use_item_on_item, "pot_flour", s.item)
-            local idust_read, idust_count = t.inv.count(s.itemdust)
-            t.check("evidence.have_itemdust." .. s.name, idust_read == "ok" and idust_count >= 1,
-                "inv.count(" .. s.itemdust .. ") -> " .. tostring(idust_read)
-                    .. " " .. tostring(idust_count))
+            t.expect("evidence.have_itemdust." .. s.name, t.inv.await(s.itemdust, 1, 6))
 
             t.exec("item.paper." .. s.name, t.player.use_item_on_item, "murderpaper", s.itemdust)
-            local print_read, print_count = t.inv.count(s.print)
-            t.check("evidence.have_print." .. s.name, print_read == "ok" and print_count >= 1,
-                "inv.count(" .. s.print .. ") -> " .. tostring(print_read) .. " " .. tostring(print_count))
+            t.expect("evidence.have_print." .. s.name, t.inv.await(s.print, 1, 6))
 
             -- check_murderer_print's trigger is [opheldu,murderfingerprint1],
             -- so the candidate's own print is the used item and
@@ -315,12 +380,18 @@ return {
             -- other use_item_on_item above.
             t.exec("fingerprint.compare." .. s.name, t.player.use_item_on_item,
                 s.print, "murderfingerprint1")
+            t.exec("fingerprint.close." .. s.name, t.chat.drain, { stop_at = "none" })
+            local match_result = t.inv.await("murderfingerprint", 1, 5)
+            if match_result == "ok" then
+                matched_suspect = s.name
+                break
+            end
         end
-        local fpmatch_read, fpmatch_count = t.inv.count("murderfingerprint")
-        t.check("evidence.fingerprint_match", fpmatch_read == "ok" and fpmatch_count >= 1,
-            "inv.count(murderfingerprint) -> " .. tostring(fpmatch_read)
-                .. " " .. tostring(fpmatch_count) .. " (one of "
-                .. SUS[candidates[1]].name .. "/" .. SUS[candidates[2]].name .. " matched)")
+        t.step("evidence.fingerprint_match", matched_suspect and "PASS" or "FAIL",
+            "murderfingerprint -> " .. tostring(matched_suspect) .. " (of "
+                .. SUS[candidates[1]].name .. "/" .. SUS[candidates[2]].name
+                .. "; content's own match/mismatch decided it, not this test)")
+        t.shot("evidence.fingerprint_match" .. (matched_suspect and "" or "-FAIL"))
 
         -- --------------------------------------------------- hand in
         local xp_snapshot_result, xp_snapshot = t.skill.snapshot()

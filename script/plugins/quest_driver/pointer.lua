@@ -420,11 +420,17 @@ function QD.drive._ensure_visible(target, deadline)
     -- projection to fail: it has to happen before the pixel is taken.  See
     -- the banner over QD.player._step_off_tile for the measurement.
     --
-    -- Only the loc half, and only from ON the tile: an npc that shares the
-    -- player's square is walking and will leave it, and a ground stack is
-    -- taken from on top of it.  A caller that has already stepped off (every
-    -- click_loc and every use_on does, through walk_near's `minimum`) pays
-    -- one pool read here and moves nothing.
+    -- The loc half AND the npc half, and only from ON the tile; a ground
+    -- stack is still taken from on top of it.  A caller that has already
+    -- stepped off (every click_loc and every use_on does, through walk_near's
+    -- `minimum`) pays one pool read here and moves nothing.
+    --
+    -- The npc half was excluded until SEAM npc_shared_tile at the end of this
+    -- file, and the line that excluded it said why: "an npc that shares the
+    -- player's square is walking and will leave it".  That is true of a
+    -- wanderer and false of the stationary npc a `goto_tile` to its own
+    -- *.spawn row teleports the player on top of -- which is the scaffold's
+    -- normal output.  The measurement is in that banner.
     QD.player._step_off_for_click(target)
     local result, pos = api_drive.screen_position(target.kind, target.id)
     -- `not_found` on an npc is re-asked once against the LIVE id, for a target
@@ -517,16 +523,23 @@ function QD.drive._ensure_visible(target, deadline)
 end
 
 -- The gate in front of QD.player._step_off_tile: read the two tiles, and
--- walk only when the player is genuinely standing on a LOC he is about to
--- point at.  Separated from _ensure_visible so the cost of the check is one
--- pool read and the walking rule itself lives with the other walking rules.
+-- walk only when the player is genuinely standing on the LOC or the NPC he is
+-- about to point at.  Separated from _ensure_visible so the cost of the check
+-- is one pool read and the walking rule itself lives with the other walking
+-- rules.
 --
 -- The answer is advisory.  A target whose tile cannot be read (it left the
 -- pool) and a step that every neighbour refused both leave the projection to
 -- say what went wrong in its own words, rather than replacing its answer
 -- with this one.
+--
+-- The standoff is per KIND (QD.player._standoff_for_kind, SEAM
+-- npc_shared_tile at the end of this file).  Both numbers are 1 today and
+-- they are separate because they answer different questions: how far off a
+-- LOC a click has to stand, against "is the player standing INSIDE this npc".
 function QD.player._step_off_for_click(target)
-    if target.kind ~= "loc" then
+    local standoff = QD.player._standoff_for_kind(target.kind)
+    if standoff == nil then
         return "ok", nil
     end
     -- SEAM loc_approach_reach: the ONE caller that wants the player left on
@@ -549,10 +562,10 @@ function QD.player._step_off_for_click(target)
         return player_result, nil
     end
     if QD.player._tile_distance(player.x, player.z, tile_x, tile_z)
-        >= QD.player._loc_standoff then
+        >= standoff then
         return "ok", nil
     end
-    return QD.player.walk_near(target, nil, QD.player._loc_standoff)
+    return QD.player.walk_near(target, nil, standoff)
 end
 
 -- Apply pose `index` aimed at `target` and answer where the target then
@@ -649,6 +662,12 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
     if pos_result ~= "ok" then
         return pos_result, "screen_position: " .. tostring(pos)
     end
+    -- SEAM use_on_own_square: when the CALLER has named the copy this press
+    -- must land on, the projection's own pick is not the answer -- it is a tie
+    -- the scenery pool's order breaks.  Nothing happens here for the targets
+    -- that name nothing, which is every target but QD.player._reach_retry's
+    -- own-square candidate.
+    pos = QD.drive._aim_at_named_copy(target, pos, deadline)
 
     -- Then press -- and if the menu that opens carries no row for this target,
     -- press again from a DIFFERENT camera.  A projection landing inside the
@@ -788,7 +807,7 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                         local frame_result, framed = QD.drive._frame(target, order[i].index, deadline)
                         framed_ok = frame_result == "ok"
                         if framed_ok then
-                            hunt_pos = framed
+                            hunt_pos = QD.drive._named_copy_pos(target, framed)
                             at_pose = order[i].index
                         end
                     end
@@ -844,12 +863,14 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
         end
         local frame_result, framed = QD.drive._frame(target, attempt, deadline)
         if frame_result == "ok" then
-            pos = framed
+            -- The rewrite alone at a new pose: the hunt below sweeps every
+            -- pose it framed and would pay for a second search here.
+            pos = QD.drive._named_copy_pos(target, framed)
             framed_pose = attempt
             -- Remembered for the pose ranking in the last resort above; the
             -- press that follows is this pose's, so index and projection go in
             -- together and neither is re-read later.
-            seen[#seen + 1] = { index = attempt, pos = framed }
+            seen[#seen + 1] = { index = attempt, pos = pos }
         end
     end
 end
@@ -3540,6 +3561,48 @@ QD.player._reach_walks = 12
 -- the server takes his route at all.
 QD.player._reach_walk_ticks = 10
 
+-- SEAM use_on_own_square (2026-09-20) -- HOW MANY OF THE LOC'S OWN SQUARES THE
+-- RETRY IS ALLOWED TO STAND ON, and why standing on one is not walking to it.
+--
+-- WHAT WAS WRONG.  _reach_candidates already ends its list with the loc's own
+-- squares, and _step_off_for_click already suppresses the standoff for them,
+-- because a STRAIGHT WALL DECORATION (all.loc `shape1=4`, placed as loc shape
+-- 4 or 5) is served from its own square and from nowhere else: the engine's
+-- reach test for that shape family is the exact-tile shortcut alone
+-- (collision_test_wdecor in src/engine/world_builder/collision_map.c has arms
+-- for the DIAGONAL decors, 6/7/8, and none for 4/5 -- the reference's own
+-- shape, CollisionMap.testWDecor).  But the retry reached every candidate with
+-- QD.player.walk_to, and a loc's own square is the one tile a route can never
+-- end on: it is blocked, by the loc or by the map.  So the three squares that
+-- were the whole point of the list cost a walk each and never a press.
+--
+-- MEASURED on fishingcompo's `garlicpipe`, three copies at 2636/2637/2638,3446
+-- (maps/m41_53.jl2 `0 12 54: 41 5 1`), every one of them BLOCKWALK in
+-- maps/m41_53.jm2 (`0 12 54: h1 f1 u50`, and 13 54 and 14 54):
+--   build/quest_gate/seam_reach_p1 row 12 -- ::goto to 2637,3446, press, and
+--   the server answers `You stash the garlic in the pipe.`, garlic 5 -> 4.
+--   The same press from 2638,3445, 2638,3447, 2639,3446 and even from the
+--   NEIGHBOURING copy's square 2638,3446 answers `I can't reach that!` (rows
+--   4, 6, 8, 10 of that same run).  One tile in the world serves this loc.
+--
+-- SO THE SQUARE IS STOOD ON, WITH ::goto -- the same teleport every quest
+-- file's `goto_tile` already uses to put the player where a step starts, and
+-- the same move content's own `[debugproc,fishbmp_garlic]` makes
+-- (`p_teleport(0_41_53_14_54)`).  The press that follows is an ordinary click
+-- the server serves through its ordinary reach rule; what the harness supplies
+-- is the standing place, and the ROW SAYS SO, every time, so that nobody reads
+-- such a PASS as "a player could have walked there".  It is reached only after
+-- every walkable neighbour has answered the reach refusal, so a loc that can
+-- be pressed from a side is still pressed from that side.
+--
+-- Four: the widest multi-square loc this retry has met is the watchtower's
+-- three placements, and a wall decoration in this pack is drawn as at most
+-- three copies in a row (the pipes).  A teleport costs about two ticks where a
+-- walk costs up to ten, so this budget is deliberately separate from
+-- _reach_walks rather than sharing it -- a loc whose every side is walled must
+-- still be able to reach its own squares with the walk budget spent.
+QD.player._reach_stands = 4
+
 -- Every tile from which this loc could be pressed: the orthogonal neighbours
 -- of EVERY copy of it in the client's loc pool, minus the squares the copies
 -- themselves stand on (a press from one of those is walked off by
@@ -3617,8 +3680,16 @@ function QD.player._reach_candidates(target)
             if player_result == "ok" then
                 distance = QD.player._tile_distance(player.x, player.z, copies[i].x, copies[i].z)
             end
+            -- The COPY'S OWN element id travels with the tile.  A press
+            -- made from an own square has to name the copy that square
+            -- serves (SEAM use_on_own_square, below QD.player._reach_stands),
+            -- and this is the only place that pairing is known: the pool row
+            -- this candidate came out of.  `element_id` is nil for the
+            -- _target_tile fallback above, which carries no pool row -- and
+            -- nil means "let the projection choose", the old behaviour.
             own[#own + 1] = { x = copies[i].x, z = copies[i].z,
-                              distance = distance, own = true }
+                              distance = distance, own = true,
+                              element_id = copies[i].element_id }
         end
     end
     -- Insertion sort, because the lists are four to twelve entries long and
@@ -3643,6 +3714,123 @@ function QD.player._reach_sort(list)
         list[j + 1] = entry
     end
     return list
+end
+
+-- THE PRESS MUST NAME THE COPY THE SQUARE SERVES, AND THE PROJECTION PICKS
+-- THAT COPY BY A COIN TOSS.
+--
+-- api_drive.screen_position takes a KIND AND AN ID and answers with ONE
+-- element; QD.drive._press_row finds the menu row by that element id
+-- (api_drive.menu_row_find), so the element the projection chose IS the copy
+-- the server serves the interaction at.  For a loc whose reach set is its own
+-- square, standing on copy A and pressing copy B is refused for a reach the
+-- player has -- to A.
+--
+-- AND THE CHOICE IS A TIE.  drive_pointer_screen_position_loc
+-- (src/plugin/torirs_plugin_drive_pointer.c) ranks the copies that project
+-- inside the viewport by squared fine distance from the player's tile ORIGIN
+-- (`centre_x = player.x * 128`) to the copy's footprint CENTROID
+-- (`fine_x = loc.x * 128 + 64`).  Those two are half a tile apart by
+-- construction, so the copy underfoot measures 64,64 -> 8192 and each copy one
+-- square along the wall measures -64,64 or +64,64 -> 8192 as well.  Equal; and
+-- `if( best_element >= 0 && distance >= best_distance ) continue;` keeps
+-- whichever the scenery pool happened to list first.
+--
+-- MEASURED, the three garlicpipe copies at 2636/2637/2638,3446, each square
+-- stood on in turn (build/quest_gate/element_tile_probe, 2026-09-20):
+--   standing 2638,3446 -- nearest copy el=...996 at 2638,3446, PROJECTED
+--                         el=...997 (the copy one square west)
+--   standing 2637,3446 -- nearest el=...997 at 2637,3446, projected el=...998
+--   standing 2636,3446 -- nearest el=...998 at 2636,3446, projected el=...998
+-- and the same square answers differently between runs: from 2637,3446 the
+-- press landed `Use Garlic with @cya@Wall Pipe` and `You stash the garlic in
+-- the pipe.` (build/quest_gate/seam_reach_p1 row 12, garlic 5 -> 4) and from
+-- that same square on a later run it answered `I can't reach that!`
+-- (build/quest_gate/useon_after row 29).  Nothing about the world changed
+-- between them; the pool order did.
+--
+-- SO THE CANDIDATE CARRIES ITS COPY'S ELEMENT ID (_reach_candidates) and the
+-- press is aimed at it (QD.drive._aim_at_named_copy, called from
+-- click_minimenu).  The earlier form of this seam chased the projection
+-- instead -- hop to whichever copy the projection frames until the two agree
+-- -- and it walked the player to the END of the wall (2636,3446), a square
+-- whose pixel no pose can hittest, where 28 probes found nothing and the row
+-- read `covered ... menu rows: <Cancel>` (build/quest_gate/useon_after2 row
+-- 29).  Chasing the projection answers the wrong question: WHICH SQUARE to
+-- stand on is the candidate list's decision, and the projection's only job is
+-- to hand back a pixel.
+
+-- Stand on `x,z` with ::goto -- the same teleport every quest file's
+-- `goto_tile` already uses, and the same move content's own
+-- `[debugproc,fishbmp_garlic]` makes (`p_teleport(0_41_53_14_54)`).
+--
+-- A loc's own square is the one tile a route can never end on: it is blocked,
+-- by the loc or by the map (maps/m41_53.jm2 `0 12 54: h1 f1 u50`, and 13 54
+-- and 14 54 -- every garlicpipe square is BLOCKWALK).  So the retry cannot
+-- reach it with QD.player.walk_to, and the ROW SAYS `stood on with ::goto`
+-- every time it uses one, so that nobody reads such a PASS as "a player could
+-- have walked there".
+--
+-- goto_tile answers on Chebyshev 1 (its `_goto_range`: a teleport lands on the
+-- nearest tile the world accepts, and a WorldPoint off by one is a success).
+-- This retry needs the EXACT square -- one tile out is a neighbour that has
+-- already refused -- so the reading is awaited rather than taken on the tick
+-- the cheat answered.  The caller re-reads the tile afterwards and declines
+-- the press when it did not land.
+function QD.player._stand_on_square(x, z, level)
+    QD.player.goto_tile(x, z, level)
+    return QD.await({
+        level = function()
+            local tile_result, tile = api_drive.player_tile()
+            return tile_result == "ok" and tile and tile.x == x and tile.z == z
+        end,
+        note = "reach retry: standing on the loc's own square",
+    }, 2)
+end
+
+-- `pos` with the element id the caller NAMED, or `pos` untouched when it named
+-- nothing.  No frame, no probe, no packet -- this is the rewrite alone, so the
+-- pose loop and the pixel hunt can both use it without spending anything.
+function QD.drive._named_copy_pos(target, pos)
+    if target.reach_element == nil or type(pos) ~= "table" then
+        return pos
+    end
+    if pos.element_id == target.reach_element then
+        return pos
+    end
+    return { x = pos.x, y = pos.y, element_id = target.reach_element }
+end
+
+-- The same rewrite, plus ONE pixel hunt for the named copy.
+--
+-- The hunt is normally the last resort and that rule is not weakened here:
+-- what it forbids is moving a press that might already be right (the
+-- measurements in click_minimenu's own banner -- Elemental Workshop I 57/57 ->
+-- 48/57, Gertrude's Cat, Sea Slug, Heroes' Quest).  A press whose projected
+-- element is NOT the copy the caller named is not a press that might be right:
+-- the projection is pointing at a copy the player provably cannot reach, so
+-- pressing its pixel can only answer `covered` or `I can't reach that!`.
+--
+-- When the hunt finds nothing the aimed pixel is pressed anyway, and it
+-- answers `covered` naming the element it was looking for -- which is the
+-- reading the next candidate needs.  `target.reach_element` is set by
+-- QD.player._reach_retry alone and cleared the moment its press is taken.
+function QD.drive._aim_at_named_copy(target, pos, deadline)
+    local aimed = QD.drive._named_copy_pos(target, pos)
+    if aimed == pos then
+        return pos
+    end
+    local hovered, why = QD.drive._hover_onto(target, aimed, deadline)
+    if hovered then
+        QD.note("click_minimenu: aimed at the named copy (element "
+            .. tostring(target.reach_element) .. ") -- " .. tostring(why))
+        return hovered
+    end
+    QD.note("click_minimenu: the projection framed element "
+        .. tostring(type(pos) == "table" and pos.element_id)
+        .. " and this press must name " .. tostring(target.reach_element)
+        .. " -- " .. tostring(why))
+    return aimed
 end
 
 -- Walk the loc's other approach tiles and press again, while the engine keeps
@@ -3676,9 +3864,24 @@ function QD.player._reach_retry(target, result, detail, press)
     if here_result == "ok" then
         skip = tostring(here.x) .. "," .. tostring(here.z)
     end
+    -- The plane the press is being made on: a retry never changes floor, and
+    -- the loc's own square is reached with ::goto, which takes one.
+    local level = 0
+    if here_result == "ok" and here then
+        level = here.level or 0
+    end
     local account = {}
+    -- Every tile a press has already been made from, the caller's own press
+    -- included: the own-square arm below chooses its tile from the PROJECTION
+    -- rather than from the list, so two candidates can name the same square
+    -- and the second one has nothing to learn.
+    local pressed = {}
+    if skip then
+        pressed[skip] = true
+    end
     local tried = 0
     local walked = 0
+    local stood = 0
     for i = 1, #candidates do
         if tried >= QD.player._reach_attempts or walked >= QD.player._reach_walks then
             break
@@ -3692,8 +3895,23 @@ function QD.player._reach_retry(target, result, detail, press)
             -- press, and pressing the same tile twice is one press too.
             QD.note("reach retry: " .. key .. " is where the refused press was made -- skipped")
         else
-            walked = walked + 1
-            QD.player.walk_to(want.x, want.z, QD.player._reach_walk_ticks)
+            -- SEAM use_on_own_square: the loc's OWN square is stood on with
+            -- ::goto and every other candidate is walked to.  See the banner
+            -- over QD.player._stand_on_square for why the router can never end
+            -- a route on the first kind of tile, and for what the row then owes
+            -- its reader.
+            local how = "walked to"
+            if want.own then
+                if stood >= QD.player._reach_stands then
+                    break
+                end
+                stood = stood + 1
+                how = "stood on with ::goto"
+                QD.player._stand_on_square(want.x, want.z, level)
+            else
+                walked = walked + 1
+                QD.player.walk_to(want.x, want.z, QD.player._reach_walk_ticks)
+            end
             -- AND THEN STAND STILL.  walk_to answers the tick the tile reads
             -- right, and a route the previous candidate's walk left running
             -- carries the player straight through it: the press is then made
@@ -3707,38 +3925,86 @@ function QD.player._reach_retry(target, result, detail, press)
             if now_result ~= "ok" then
                 break
             end
+            -- THE PRESS IS MADE FROM WHERE THE MOVE ENDED.
+            --
+            -- Asking the router for a tile and pressing only if it landed
+            -- there discards the attempt whenever the route runs out early,
+            -- and against a loc set into a building that is EVERY attempt:
+            -- eleven approach tiles of garlicpipe were asked for and one was
+            -- ever pressed from, the other ten reading `asked X,Y and the walk
+            -- ended A,B -- not pressed` (build/quest_gate/fishingcompo, 17:52,
+            -- 2026-09-20).  Where the walk ended is a tile the router chose
+            -- for this target and a tile the player is actually standing on,
+            -- which is everything a press needs; the candidate's own
+            -- coordinates were only ever a request.
+            --
+            -- What replaces the guard is the `pressed` set: a tile that has
+            -- already answered this press costs nothing to arrive at a second
+            -- time, so a walled loc whose every route ends on the same square
+            -- still costs one press and not twelve.
+            local aim_x, aim_z = now.x, now.z
             if now.x ~= want.x or now.z ~= want.z then
-                -- The router would not put him there (a wall, a fence, the
-                -- loc's own blocked square).  That is an answer about the
-                -- tile and not about the click, so it costs no press.
+                how = how .. string.format(" (asked %d,%d, ended %d,%d)",
+                                           want.x, want.z, now.x, now.z)
+            end
+            if want.own and (now.x ~= want.x or now.z ~= want.z) then
+                -- An own square is not interchangeable with where the move
+                -- ended: the press about to be made names THIS copy (below),
+                -- and the tile that serves it is the one the candidate asked
+                -- for.  ::goto refusing it is an answer about the square.
                 QD.note(string.format(
-                    "reach retry: asked %d,%d and the walk ended %d,%d -- not pressed",
-                    want.x, want.z, now.x, now.z))
+                    "reach retry: ::goto to the loc's own square %d,%d ended %d,%d"
+                        .. " -- not pressed", want.x, want.z, now.x, now.z))
+            elseif pressed[tostring(aim_x) .. "," .. tostring(aim_z)] then
+                QD.note(string.format(
+                    "reach retry: %s and %d,%d has already answered this press"
+                        .. " -- not pressed again", how, aim_x, aim_z))
             else
                 tried = tried + 1
+                pressed[tostring(aim_x) .. "," .. tostring(aim_z)] = true
                 local serial_result, since = api_drive.message_serial()
                 -- On the loc's own square the standoff is suppressed for this
                 -- press and restored the moment it is taken: every other
                 -- caller of _step_off_for_click, and this verb's own next
                 -- candidate, must keep the behaviour they were written to.
                 target.reach_no_standoff = want.own or nil
+                -- AND THE PRESS NAMES THE COPY THIS SQUARE SERVES.  The
+                -- projection picks among the copies by a tie the pool order
+                -- breaks -- see the banner over QD.drive._aim_at_named_copy --
+                -- so an own-square press that let it choose is refused about
+                -- half the time for a reach the player has to the copy he is
+                -- standing on.  nil for every other candidate: a neighbour
+                -- tile has no copy to name and the projection's own answer is
+                -- the right one there.
+                target.reach_element = want.own and want.element_id or nil
                 result, detail = press()
                 target.reach_no_standoff = nil
+                target.reach_element = nil
                 if serial_result == "ok" then
                     result, detail = QD.player._reach_verify(result, detail, since)
                 end
-                account[#account + 1] = string.format("%d,%d%s -> %s %s",
-                    want.x, want.z, want.own and " (the loc's own square)" or "",
+                account[#account + 1] = string.format("%d,%d (%s%s) -> %s %s",
+                    aim_x, aim_z,
+                    want.own and "the loc's own square, " or "", how,
                     tostring(result), tostring(detail))
-                QD.note(string.format("reach retry %d: pressed from %d,%d%s -> %s",
-                    tried, want.x, want.z,
-                    want.own and " (the loc's own square, standoff suppressed)" or "",
-                    tostring(result)))
+                QD.note(string.format("reach retry %d: pressed from %d,%d (%s%s) -> %s",
+                    tried, aim_x, aim_z,
+                    want.own and "the loc's own square, standoff suppressed, " or "",
+                    how, tostring(result)))
                 if result == "ok" then
+                    -- A press taken from the loc's own square says so in the
+                    -- row, and says how the player got there: the square is
+                    -- one no route can end on (SEAM use_on_own_square), so a
+                    -- reader who is not told would take this PASS for a tile a
+                    -- player could have walked to.
+                    local reached = want.own
+                        and string.format("its own square %d,%d, which no route can end on"
+                            .. " and the harness %s", aim_x, aim_z, how)
+                        or string.format("%d,%d (%s)", aim_x, aim_z, how)
                     return "ok", tostring(detail) .. string.format(
-                        " [%s reached from %d,%d, approach tile %d of %d tried:"
+                        " [%s reached from %s, approach tile %d of %d tried:"
                         .. " the press from the standoff tile answered '%s']",
-                        tostring(target.symbol or target.id), want.x, want.z,
+                        tostring(target.symbol or target.id), reached,
                         tried, #candidates, tostring(first)), tried
                 end
                 if result ~= "covered" and not QD.player._reach_refusal(detail) then
@@ -3750,9 +4016,99 @@ function QD.player._reach_retry(target, result, detail, press)
     if tried == 0 then
         return result, tostring(detail) .. " -- and no other approach tile of "
             .. tostring(target.symbol or target.id) .. " (" .. tostring(#candidates)
-            .. " known) could be walked to", tried
+            .. " known, " .. tostring(stood)
+            .. " of them the loc's own squares) could be reached", tried
     end
     return result, tostring(detail) .. " -- and from " .. tostring(tried)
         .. " of its " .. tostring(#candidates) .. " approach tiles: "
         .. table.concat(account, "; "), tried
+end
+
+-- ==========================================================================
+-- SEAM npc_shared_tile (2026-09-20) -- APPEND-ONLY BLOCK.  Everything above
+-- this line belongs to other seams being fixed in this same tree; this block
+-- adds ONE function and ONE number, and the only edits it makes above are the
+-- two lines in QD.player._step_off_for_click that reach them (and the two
+-- banners that stated the old rule).
+--
+-- WHAT WAS WRONG.  _step_off_for_click ran for the LOC half only, and its
+-- banner said why: "an npc that shares the player's square is walking and
+-- will leave it".  That is true of a wanderer and false of everything the
+-- scaffold aims at.  A generated quest file walks to the npc's own
+-- `configs/*.spawn` row (QUEST_AUTHORING section 2) and `goto_tile` is
+-- `::goto`, a TELEPORT, so it puts the player INSIDE a stationary npc rather
+-- than beside it.  `walk_near(target, 30)` with no `minimum` then answers
+-- `already within 0` and moves nobody, because walk_near's own "too close is
+-- a distance too" arm is gated on a `minimum` the caller did not pass.  The
+-- press that follows is taken with the player's own model standing in exactly
+-- the target's spot, and _step_off_tile's banner already has the measurement
+-- for that shape: the eye orbits the PLAYER, so a model on the player's own
+-- tile is between him and the target from every yaw the pose loop can reach.
+--
+-- MEASURED on Cromperty (`ardounge_wizard`, 2683,3326,0), the npc
+-- entertheabyss.lua is blocked at, this checkout, 2026-09-20:
+--
+--   build/quest_gate/eta_before1 -- the committed quest file with its
+--   `t.blocked` removed, run on the Lua as it stood.  Row 14
+--   `walk-cromperty PASS 1 already within 0`; row 18 `ardounge_wizard ->
+--   covered: element 1073749437 at 382,250: pickset held=false, menu has no
+--   row for it -- menu rows: <Cancel> <Examine @cya@Rockslide> <Walk here>
+--   -- pose 0 (reach 99): no frame hittested any of 3 pixels around the
+--   projected 382,250 -- the world is not picking`.  382,250 is the middle of
+--   a 765x503 viewport, which is where the PLAYER is drawn: the projection
+--   was right and the pixel belonged to the world under his feet.  Aubury and
+--   the head wizard answered `ok` on the same run, 2 of 3 orbs charged, and
+--   the quest died thirteen rows later with no reward.
+--
+--   build/quest_gate/seam_npc_p1 / _p2 (the same seam, an earlier probe of
+--   it): from ON his square the press answers `talk_to -> ok: map_flag` with
+--   the page arriving five ticks after the settle gave up; from 2682,3326 the
+--   identical press answers `talk_to -> ok: page none->npc (text)` with the
+--   page already up, in zero ticks.  Same npc, same camera, same run.
+--
+-- SO THE WORD `covered` IS NOT THE TELL, and this is not fixed by retrying
+-- the press from another side the way QD.player._reach_retry does for a loc.
+-- The on-tile press answers `covered` on one run and a five-tick `map_flag`
+-- on the next, because which model wins a depth-less per-triangle hittest at
+-- one shared world position is not a thing the driver decides.  Moving one
+-- tile removes the question, and it is the same tile QUEST_AUTHORING section
+-- 8 already tells authors to walk by hand ("an npc's own spawn tile is not
+-- uniformly safe to stand on ... call walk_near(target, 10, 1)").  Putting it
+-- in the verb is what makes that advice unnecessary, which is the whole point
+-- of a driver seam.
+--
+-- WHY IT IS NOT A STANDOFF.  `_npc_standoff` is 1 and it fires only at
+-- distance 0 -- the player and the npc on one square.  It is deliberately not
+-- `_walk_near_range`: an npc a tile away is the normal, working case and a
+-- verb that walked for it would spend a tick of WORLD on every talk in the
+-- suite, which is the cost the loc reach seam measured as green-to-red on The
+-- Knight's Sword (QD.player._reach_verify's banner).  A press at distance 0
+-- is not a case that pays that tick, it is a case that has nothing to lose.
+--
+-- WHAT IT CANNOT DO.  Distance 0 with an npc that really is walking still
+-- costs the step, and that npc may walk onto the new tile behind the player.
+-- Nothing here retries that: the step is advisory (the caller's projection
+-- keeps the last word) and the next press answers in its own words.  In
+-- practice the only thing that puts a player inside an npc is a teleport, and
+-- a fight never teleports -- QD.player.attack's own click_minimenu reaches
+-- this gate too, and an attack is served from distance 1 anyway.
+-- ==========================================================================
+
+-- How far off an NPC's own tile a click needs the player to be.  One, and see
+-- the banner: this is "not standing inside it", not a standoff.
+QD.player._npc_standoff = 1
+
+-- The standoff for a target kind, or nil for a kind that is pressed from
+-- wherever the player happens to be.  `obj` is nil on purpose: a ground stack
+-- is picked up from ON TOP of it, and QD.player.click_obj has its own
+-- `_click_obj_standoff` for the approach.  `player` is nil because nothing in
+-- this file walks away from another player to click him.
+function QD.player._standoff_for_kind(kind)
+    if kind == "loc" then
+        return QD.player._loc_standoff
+    end
+    if kind == "npc" then
+        return QD.player._npc_standoff
+    end
+    return nil
 end

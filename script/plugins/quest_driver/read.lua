@@ -172,13 +172,44 @@ function QD.read._strip_tags(text)
     return text
 end
 
+-- READINESS IS TWO CONDITIONS, and the second one was missing until
+-- 2026-09-20.  "Some dialogue text is presented" is satisfied by the page
+-- the LAST click was made on: that page stays mounted, with its own
+-- sentence, for every tick the server spends on the reply (a mes/p_delay
+-- chain, an npc_add, a whole label of script), and the client says so by
+-- drawing "Please wait..." over its continue prompt.  So a chat.text()
+-- called right after a continue_ read back the sentence the caller had just
+-- clicked past, and called it `ok`.
+--
+-- QD.chat._resume_outstanding (chat.lua) is that latch -- the client's own
+-- record that it clicked and nothing has answered.  While it is set, the
+-- page that is up is not the current page, and waiting is the only honest
+-- answer.
+--
+-- When the wait runs out the stuck sentence is QUOTED rather than dropped:
+-- the result is `timeout` -- nothing here may report a stale page as `ok` --
+-- but the row still needs to name which sentence never advanced, which is
+-- the one fact that diagnoses it (it is what diagnosed Ernest the Chicken).
 function QD.chat.text()
     local result, detail = await({
         event = "sub_mounted",
-        level = function() return QD.read._presented_text(QD.read._text_symbols) ~= nil end,
+        level = function()
+            if QD.read._presented_text(QD.read._text_symbols) == nil then
+                return false
+            end
+            return not QD.chat._resume_outstanding()
+        end,
         note = "chat.text",
     }, 10)
     if result ~= "ok" then
+        -- Only claim the latch when it is STILL the thing holding this
+        -- read: a text that appeared between the deadline and this re-read
+        -- would otherwise be described as stale when it is merely late.
+        local stuck = QD.read._presented_text(QD.read._text_symbols)
+        if stuck ~= nil and QD.chat._resume_outstanding() then
+            return "timeout", "chat.text: a resume is still outstanding on the page that is up"
+                .. " -- it still reads '" .. tostring(stuck) .. "'"
+        end
         return result, detail
     end
     local text = QD.read._presented_text(QD.read._text_symbols)

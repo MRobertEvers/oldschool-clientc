@@ -69,7 +69,7 @@
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 101
+-- @verb-count 103
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -104,6 +104,37 @@
 --     loc's other approach tiles -- and that refusal, which lands a tick
 --     behind the map_flag the settle resolves on, is no longer graded a PASS
 --     (build/quest_gate/seam_reach_p2, biohazard's watchtower).
+--   * a chat page that has been CLICKED and not yet answered is still
+--     mounted, with its own sentence, drawing "Please wait..." over its
+--     continue prompt -- and chat.play graded it as the answer to that
+--     click.  Two consecutive pages of the same kind (an npc page after an
+--     npc page) made chat.kind() useless as a guard, so Ernest the Chicken
+--     failed entry 1 on the PREVIOUS page's text and took five rows with it
+--     (build/quest_gate/haunted row 55; fixed, 60/60 in
+--     build/quest_gate/haunted_seamproof).
+--   * a loc drawn as SEVERAL COPIES is pressed at the copy the standing
+--     square serves, not at whichever one the projection's tie-break
+--     happened to hand back: the ranking compares the player's tile ORIGIN
+--     against a copy's footprint CENTROID, so a copy underfoot ties with
+--     both of its neighbours and the scenery pool's order decides.  The
+--     same square answered `You stash the garlic in the pipe.` on one run
+--     and `I can't reach that!` on the next (build/quest_gate/seam_reach_p1
+--     row 12 against build/quest_gate/useon_after row 29).
+--   * a DEATH is an outcome.  Mort'ton's shade hunt was killed at four
+--     kills, respawned in Lumbridge and went on clicking from ninety tiles
+--     away for another thirty-six attempts, and the row it finally wrote
+--     blamed the shade population (build/quest_gate/mortton row 19, whose
+--     own screenshot is the Lumbridge castle courtyard).  The reading is a
+--     chat line, not the hitpoints -- those are refilled within a tick or
+--     two of the killing blow, which a verb blocked inside a twenty-tick
+--     settle never sees.
+--   * an NPC'S OWN SQUARE is stepped off before the press.  The step-off
+--     ran for the loc half alone, and the scaffold puts the player inside a
+--     stationary npc every time it walks a quest to that npc's own *.spawn
+--     row -- `goto_tile` is a teleport.  Enter the Abyss read `covered ...
+--     no frame hittested any of 3 pixels around the projected 382,250`,
+--     the middle of the viewport, which is where the player's own model is
+--     drawn (build/quest_gate/eta_before1 row 18).
 --
 -- The 2026-09-20 seam pass also fixed three ENGINE seams, and those are NOT
 -- rows here because nothing the driver calls can reach them from Lumbridge:
@@ -127,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 5
+-- @seam-count 9
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 101
-local SEAM_COUNT = 5
+local VERB_COUNT = 103
+local SEAM_COUNT = 9
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -229,6 +260,13 @@ local STAT_SYMBOL = "cooking"
 -- player on the nearest tile it accepts) and the plane is not: 3212,3220 on
 -- level 0 is the castle's ground floor, a different room and a different
 -- quest.
+-- The same room's occupant, and the subject of seam.npc_shared_tile: an npc
+-- whose *.spawn row IS the tile above, and who does not wander off it.  That
+-- is the shape the seam is about -- the scaffold walks a quest to an npc's own
+-- spawn coordinate and `goto_tile` is a teleport, so the player lands INSIDE
+-- him -- and a wanderer could not prove it, because a step-off it did not
+-- make would read the same as one it did.
+local STATIONARY_NPC_SYMBOL = "duke_of_lumbridge"
 local GOTO_TILE_X = 3212
 local GOTO_TILE_Z = 3220
 local GOTO_TILE_LEVEL = 1
@@ -1244,6 +1282,83 @@ return {
             return result, "'" .. OBJBOX_TEXT_FRAGMENT .. "' -> " .. describe(detail)
         end)
 
+        -- ------------------------------- seam: a page nothing has answered
+        --
+        -- chat.play graded whatever was mounted with no readiness test at
+        -- all.  chat.continue_ and chat.choose have always read the
+        -- pause_pending latch (to refuse a double submit); chat.play never
+        -- did, so a page the PREVIOUS entry had already clicked -- still
+        -- mounted, still carrying its own sentence, drawing "Please wait..."
+        -- while the server's remount was in flight -- was read as the answer
+        -- to that click.  Ernest the Chicken, 2026-09-20: Oddenstein's
+        -- "Let's get this fixed then." page and Ernest's thank-you page are
+        -- BOTH kind `npc`, so chat.kind() could not tell them apart and the
+        -- quest died on entry 1 with the previous page's text
+        -- (build/quest_gate/haunted ledger row 55).
+        --
+        -- The verb above this cannot show it: chat.play answers "mismatch"
+        -- with a quoted sentence whether the page was stale or genuinely
+        -- wrong, which is exactly why five downstream rows were blamed on
+        -- content.  So the row is taken on the helper: QD.chat._await_page_ready
+        -- must HOLD on the page that is up and RELEASE on any other, and
+        -- QD.chat._resume_outstanding must read the latch.  Nothing is
+        -- clicked here -- the objectbox above is left exactly as
+        -- chat.continue_ below expects to find it.
+        seam("seam.chat_page_ready", function()
+            local ready = t.chat and t.chat._await_page_ready
+            local outstanding = t.chat and t.chat._resume_outstanding
+            local identity = t.chat and t.chat._page_identity
+            local kind_fn = verb("chat", "kind")
+            if not ready or not outstanding or not identity or not kind_fn then
+                return "unsupported", "chat._await_page_ready/_resume_outstanding/_page_identity "
+                    .. "are not on this driver"
+            end
+
+            local kind = kind_fn()
+            if kind ~= "objbox" then
+                return "no_subject", "the objectbox the rows above opened is no longer up (kind="
+                    .. describe(kind) .. ")"
+            end
+            local page = identity(kind)
+            if type(page) ~= "string" then
+                return "no_subject", "the objectbox presents no text to identify it by ("
+                    .. describe(page) .. ")"
+            end
+
+            -- Nothing has been clicked, so the latch is clear and a caller
+            -- with no page of its own to compare against is free to read.
+            if outstanding() ~= false then
+                return "refused", "a resume reads as outstanding on a page nothing has clicked"
+            end
+            local fresh = ready(nil, nil, 4)
+            if fresh ~= "ok" then
+                return "refused", "_await_page_ready(nil) on a quiet page answered " .. describe(fresh)
+                    .. " -- the ordinary entry would pay ticks it does not owe"
+            end
+
+            -- THE ARM THIS SEAM IS.  Told that the page on screen is the one
+            -- the last click was made ON, the wait must run out its own clock
+            -- rather than let the caller grade it: a same-kind remount that
+            -- has not landed yet reads as the page before it, and that is the
+            -- whole defect.
+            local held = ready(kind, page, 3)
+            if held == "ok" then
+                return "refused", "_await_page_ready(" .. kind .. ", <the page that IS up>) answered ok"
+                    .. " -- the identity arm is not holding, so a same-kind remount is graded early"
+            end
+
+            -- And it is a comparison, not a constant `false`: an identity
+            -- nothing on screen carries releases at once.
+            local moved = ready(kind, page .. " <no page reads this>", 4)
+            if moved ~= "ok" then
+                return "refused", "_await_page_ready(" .. kind .. ", <an identity nothing shows>) answered "
+                    .. describe(moved) .. " -- the arm never releases, which would stall every entry"
+            end
+
+            return "ok", "latch clear -> ready(nil)=ok; held on its own identity ("
+                .. describe(held) .. ") and released on a different one"
+        end)
+
         step("chat.continue_", function()
             local fn = verb("chat", "continue_")
             if not fn then return missing("chat", "continue_") end
@@ -1942,6 +2057,88 @@ return {
                     or tostring(state)) .. "]"
         end)
 
+        -- ----------------- the two verbs the death/engagement seam landed
+        --
+        -- Both come out of SEAM combat-hunt-kills-the-character (2026-09-20):
+        -- Mort'ton's shade hunt ran 1,006 ticks and forty attack attempts,
+        -- reported `holding 4/5 shade_bones1 ... no target to engage` and
+        -- photographed the Lumbridge castle courtyard.  The character had been
+        -- killed at four kills and every attempt after that was clicked from
+        -- the respawn tile, because nothing in this driver could see a death
+        -- and nothing could hold the npc an Attack had actually engaged.
+        --
+        -- Their position is the same measurement npc.await_dead's is: LAST of
+        -- the world rows, because the fight above is their only subject.
+
+        step("player.alive", function()
+            local fn = verb("player", "alive")
+            if not fn then return missing("player", "alive") end
+            local result, detail = fn()
+            local text = "-> " .. describe(detail)
+            if result ~= "ok" then
+                -- Not a soft answer: QD.player._death_fence ends a run the
+                -- first time this reading goes the other way, so a verb that
+                -- read `refused` on a living character would end every quest
+                -- in the suite at its first click.
+                return result, "the character this harness has been driving for "
+                    .. "eighty rows reads as NOT ALIVE: " .. text
+            end
+            -- HOLLOW IS THE RISK HERE, not a wrong word.  An `ok` with nothing
+            -- behind it is indistinguishable from a verb that never read the
+            -- chat ring at all -- and the ring is the only place a death is
+            -- written (the hitpoints are refilled by [proc,player_death_restore]
+            -- within a tick or two of the killing blow, which is why they are
+            -- not the reading).  So the row requires the reading itself.
+            if not string.find(tostring(detail), "hitpoints", 1, true)
+                or not string.find(tostring(detail), "no death line", 1, true) then
+                return "hollow", "answered ok without naming the hitpoints it read or the "
+                    .. "chat ring it read them beside, so nothing here was actually read: "
+                    .. text
+            end
+            return "ok", text
+        end)
+
+        step("npc.await_dead_engaged", function()
+            local fn = verb("npc", "await_dead_engaged")
+            if not fn then return missing("npc", "await_dead_engaged") end
+            if combat_slot == nil then
+                return "no_subject", "player.attack read no npc slot, so nothing was engaged"
+            end
+            -- The fight is over -- npc.await_dead resolved it one row ago --
+            -- and the SLOT is what this verb holds, so "the slot I was given is
+            -- already dead" is the answer it owes.  That is not a weaker
+            -- subject than a live fight: it is the one assertion a live fight
+            -- cannot make, because it proves the stamp survived a verb that
+            -- does not write one.
+            local result, detail = fn(10)
+            local text = "-> " .. describe(detail)
+            if result == "no_row" and string.find(tostring(detail), "nothing is engaged", 1, true)
+            then
+                return "no_subject", "t.player.attack landed no Attack row, so no slot was "
+                    .. "stamped for this verb to hold: " .. text
+            end
+            if result ~= "ok" then
+                return result, "the slot player.attack engaged (" .. describe(combat_slot)
+                    .. ") is dead and this verb did not read it as finished: " .. text
+            end
+            if not string.find(tostring(detail), "slot " .. tostring(combat_slot), 1, true) then
+                return "hollow", "answered ok without naming the slot it held, which is the one "
+                    .. "thing it has that npc.await_dead(symbol) has not: " .. text
+            end
+            -- AND THE STAMP IS SPENT.  A second wait with no new Attack press
+            -- between them must not read the kill that already happened as its
+            -- own: that is how a hunt loop counts one corpse twice and reports
+            -- five kills it never made.
+            local again, again_detail = fn(2)
+            if again ~= "no_row" then
+                return "hollow", "a second wait with no Attack press in between answered "
+                    .. describe(again) .. " (" .. describe(again_detail) .. ") -- the engagement "
+                    .. "is not consumed, so one kill can be waited out twice"
+            end
+            return "ok", text .. " [and a second wait with no new Attack answered no_row: "
+                .. describe(again_detail) .. "]"
+        end)
+
         -- ------------------ the seam rows the 2026-09-20 seam pass landed
         --
         -- LAST OF EVERYTHING THAT READS THE WORLD, after the fight, and the
@@ -2357,6 +2554,332 @@ return {
             end
             return "ok", "the first press was declined BY NAME and the second reached the "
                 .. "server -- " .. text
+        end)
+
+        -- THE PRESS NAMES THE COPY THE SQUARE SERVES.
+        --
+        -- A loc is not one tile and it is not one COPY either: fishingcompo's
+        -- `garlicpipe` is three wall decorations in a row, every one of them
+        -- served by the server from its own square and from no neighbour at
+        -- all (collision_test_wdecor has arms for the diagonal decors 6/7/8
+        -- and none for 4/5, so the exact-tile shortcut is the whole reach
+        -- set).  The retry already ended its candidate list with those
+        -- squares -- and then let the PROJECTION choose which copy to press.
+        -- drive_pointer_screen_position_loc ranks copies by the distance from
+        -- the player's tile ORIGIN to a copy's footprint CENTROID, half a tile
+        -- apart by construction, so the copy underfoot ties with both of its
+        -- neighbours at 8192 and the scenery pool's order breaks the tie: the
+        -- same square answered `You stash the garlic in the pipe.` on one run
+        -- and `I can't reach that!` on the next with nothing about the world
+        -- changed.
+        --
+        -- So the candidate carries its copy's element id and the press is
+        -- aimed at it.  The verb above cannot show this -- use_on answers
+        -- `refused I can't reach that!` whether it pressed the wrong copy or
+        -- the right one from the wrong tile -- so the row is taken on the
+        -- pairing and the rewrite, which are the two halves that were missing.
+        -- Nothing is pressed and nothing moves: both are free reads.
+        seam("seam.reach_names_the_copy", function()
+            local candidates_of = verb("player", "_reach_candidates")
+            local named_pos = verb("drive", "_named_copy_pos")
+            local loc_near = verb("world", "loc_near")
+            if not candidates_of then return missing("player", "_reach_candidates") end
+            if not named_pos then return missing("drive", "_named_copy_pos") end
+            if not loc_near then return missing("world", "loc_near") end
+            local seam_target = seam_loc_target()
+            if not seam_target then
+                return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
+            end
+
+            -- The pool half.  An own-square candidate is only worth anything
+            -- if the copy it came out of travelled with it, and the ONE place
+            -- that pairing exists is the pool row _reach_candidates read.
+            local pool_result, pool_row = loc_near(LOC_SYMBOL, 12)
+            local candidates = candidates_of(seam_target)
+            if not is_table(candidates) or #candidates == 0 then
+                return "not_found", "no approach tile for " .. LOC_SYMBOL
+                    .. ": " .. describe(candidates)
+            end
+            local named = nil
+            local own = 0
+            for index = 1, #candidates do
+                local entry = candidates[index]
+                if entry.own then
+                    own = own + 1
+                    if is_number(entry.element_id) then
+                        named = named or entry
+                    elseif pool_result == "ok" then
+                        -- nil is legitimate for ONE candidate only: the
+                        -- _target_tile fallback, which carries no pool row.
+                        -- With the loc in the pool there is no such fallback.
+                        return "refused", "the loc's own square " .. describe(entry.x) .. ","
+                            .. describe(entry.z) .. " carries no element id while "
+                            .. LOC_SYMBOL .. " IS in the pool (" .. describe(pool_row)
+                            .. ") -- the press from it would let the projection choose"
+                    end
+                end
+            end
+            if own == 0 then
+                return "no_subject", LOC_SYMBOL .. " contributed no own-square candidate ("
+                    .. describe(#candidates) .. " approach tile(s))"
+            end
+            if not named then
+                return "no_subject", "no copy of " .. LOC_SYMBOL .. " is in the loc pool, so "
+                    .. "every own square came from the _target_tile fallback (" .. describe(pool_result) .. ")"
+            end
+
+            -- The rewrite, and it is a STRICT NO-OP for every target that
+            -- names nothing -- which is every press in the suite but this
+            -- retry's own.  Same table back, not an equal one: an ordinary
+            -- press must not even be re-boxed.
+            local pos = { x = 137, y = 241, element_id = -7 }
+            seam_target.reach_element = nil
+            if named_pos(seam_target, pos) ~= pos then
+                seam_target.reach_element = nil
+                return "refused", "_named_copy_pos rewrote a press that named no copy -- every "
+                    .. "ordinary click in the suite would be aimed at something"
+            end
+
+            -- And it names the copy when one is named, keeping the pixel it
+            -- was handed: WHICH square to stand on is the candidate list's
+            -- decision and the projection's only job is to hand back a pixel.
+            seam_target.reach_element = named.element_id
+            local aimed = named_pos(seam_target, pos)
+            seam_target.reach_element = nil
+            if not is_table(aimed) or aimed == pos then
+                return "refused", "_named_copy_pos did not name the copy the square serves: "
+                    .. describe(aimed)
+            end
+            if aimed.element_id ~= named.element_id or aimed.x ~= pos.x or aimed.y ~= pos.y then
+                return "refused", "the aimed press is not the same pixel carrying the named "
+                    .. "element: asked " .. describe(named.element_id) .. " at "
+                    .. describe(pos.x) .. "," .. describe(pos.y) .. ", got " .. describe(aimed)
+            end
+            return "ok", describe(own) .. " own square(s) of " .. LOC_SYMBOL
+                .. ", each carrying its copy's element id (" .. describe(named.element_id)
+                .. " at " .. describe(named.x) .. "," .. describe(named.z)
+                .. "); the rewrite is a strict no-op when nothing is named and keeps the pixel "
+                .. "when one is"
+        end)
+
+        -- A DEATH IS A SENTENCE, AND THE SENTENCE IS MATCHED EXACTLY.
+        --
+        -- QD.player._death_fence ENDS THE RUN, so the fence itself cannot be
+        -- fired in here -- this harness would stop at the row that fired it.
+        -- What can be proved, and is the fragile half, is the READING under
+        -- it: the line is recognised with its colour codes on and its
+        -- whitespace trimmed (rs_game_events.c:482's own rule, whose test pins
+        -- "@red@Oh dear, you are dead!"), a line that merely QUOTES it is not
+        -- a death, and a run nothing has killed latches nothing.
+        --
+        -- That last one is not a formality.  A `_death_record` that answered
+        -- truthy on a living character would end EVERY quest in the suite at
+        -- its first click settle, since combat.lua wraps _settle_after_click.
+        seam("seam.death_line_is_read", function()
+            local plain = verb("player", "_plain_line")
+            local record = verb("player", "_death_record")
+            if not plain then return missing("player", "_plain_line") end
+            if not record then return missing("player", "_death_record") end
+            local line = is_table(t.player) and t.player.DEATH_LINE or nil
+            if not is_text(line) then
+                return "hollow", "QD.player.DEATH_LINE is not a sentence: " .. describe(line)
+            end
+
+            if plain(line) ~= line then
+                return "refused", "the plain sentence does not survive the strip: "
+                    .. describe(plain(line))
+            end
+            if plain("@red@" .. line) ~= line then
+                return "refused", "a COLOURED death line does not read as the death line ("
+                    .. describe(plain("@red@" .. line)) .. ") -- the one sentence this driver "
+                    .. "must never miss would be missed"
+            end
+            if plain("  " .. line .. "  ") ~= line then
+                return "refused", "the strip does not trim, so a padded line reads as a "
+                    .. "different sentence: " .. describe(plain("  " .. line .. "  "))
+            end
+            if plain("The mourner says: " .. line .. " Go away.") == line then
+                return "refused", "a line that merely QUOTES the death sentence reads as a "
+                    .. "death -- every run would end on content's own dialogue"
+            end
+            if plain(nil) ~= "" or plain(42) ~= "" then
+                return "refused", "a non-string ring row raises or answers something other than "
+                    .. "the empty string, and a raise in this sandbox ends the run"
+            end
+
+            -- The latch, on a character this harness has been driving for
+            -- eighty rows and has not killed.
+            local live = record()
+            if live ~= nil then
+                return "refused", "a death is recorded on a run that has killed nobody: "
+                    .. describe(live) .. " -- the fence would end every quest in the suite at "
+                    .. "its first click"
+            end
+            return "ok", "'" .. line .. "' is read coloured, padded and plain, is NOT read out "
+                .. "of a line that quotes it, survives a non-string row, and nothing is latched "
+                .. "on a living character"
+        end)
+
+        -- AN NPC'S OWN SQUARE IS STEPPED OFF BEFORE THE PRESS.
+        --
+        -- _step_off_for_click ran for the LOC half only, and the line that
+        -- excluded the npc half said why: "an npc that shares the player's
+        -- square is walking and will leave it".  True of a wanderer, false of
+        -- everything the scaffold aims at -- a generated quest file walks to
+        -- the npc's own `configs/*.spawn` row and `goto_tile` is `::goto`, a
+        -- TELEPORT, so it puts the player INSIDE a stationary npc.  The press
+        -- that follows is taken with the player's own model standing in the
+        -- target's spot, and the eye orbits the PLAYER, so that model is
+        -- between him and the target from every yaw the pose loop can reach.
+        -- Enter the Abyss read `covered ... no frame hittested any of 3 pixels
+        -- around the projected 382,250` -- the middle of the viewport, which
+        -- is where the player is drawn.
+        --
+        -- The subject is the Duke: `duke_of_lumbridge 3212 3220 1` is his
+        -- WHOLE *.spawn row (areas/world/configs/m50_50.spawn:168) -- no
+        -- wander radius after the tile, so he is still standing on it -- and
+        -- it is the tile player.goto_tile's own row teleports to.
+        --
+        -- THIS ROW MAKES THAT TELEPORT ITSELF rather than inheriting it.  The
+        -- first cut read it off the goto_tile row forty rows up and answered
+        -- `no_subject duke_of_lumbridge is not in the pool (no_row)`, because
+        -- everything between them -- player.attack, npc.await_dead, and the
+        -- reach/press seams that walk to a tree -- leaves the player on the
+        -- ground floor of the courtyard, a plane and ninety tiles from the
+        -- Duke's room (build/conformance_alone.log, 2026-09-20).
+        --
+        -- BOTH HALVES ARE TAKEN, because either one alone is believable for
+        -- the wrong reason: the GATE (_step_off_for_click, handed an npc
+        -- target on the player's own square, moves him off it) and then the
+        -- PRESS (an ordinary t.player.talk_to, taken from inside him, answers
+        -- `ok`) -- which is the sentence the seam's own reproduction could not
+        -- get.  LAST of the world rows: it leaves the player upstairs in the
+        -- castle, and it closes the Duke's dialogue behind it.
+        seam("seam.npc_shared_tile", function()
+            local standoff_for = verb("player", "_standoff_for_kind")
+            local step_off = verb("player", "_step_off_for_click")
+            local stand_on = verb("player", "_stand_on_square")
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local talk_to = verb("player", "talk_to")
+            local nearest = verb("npc", "nearest")
+            local tile_of = verb("world", "tile")
+            local close_chat = verb("chat", "close")
+            if not standoff_for then return missing("player", "_standoff_for_kind") end
+            if not step_off then return missing("player", "_step_off_for_click") end
+            if not stand_on then return missing("player", "_stand_on_square") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not talk_to then return missing("player", "talk_to") end
+            if not nearest then return missing("npc", "nearest") end
+            if not tile_of then return missing("world", "tile") end
+
+            -- The rule, per kind, before the behaviour: `obj` is nil on
+            -- purpose (a ground stack is taken from ON TOP of it) and so is
+            -- `player`, and a kind that answers a standoff it should not would
+            -- walk the suite a tile per click.
+            if standoff_for("npc") ~= 1 then
+                return "refused", "an npc's standoff is " .. describe(standoff_for("npc"))
+                    .. ", not 1 -- this gate fires at distance 0 and nowhere else"
+            end
+            if not is_number(standoff_for("loc")) then
+                return "refused", "the loc half lost its standoff: " .. describe(standoff_for("loc"))
+            end
+            if standoff_for("obj") ~= nil or standoff_for("player") ~= nil then
+                return "refused", "a ground stack or another player answers a standoff (obj="
+                    .. describe(standoff_for("obj")) .. " player=" .. describe(standoff_for("player"))
+                    .. ") -- an obj is picked up from on top of it"
+            end
+
+            -- The subject, fetched where he lives.
+            local goto_result, goto_detail = goto_tile(GOTO_TILE_X, GOTO_TILE_Z, GOTO_TILE_LEVEL)
+            if goto_result ~= "ok" then
+                return goto_result, "player.goto_tile(" .. describe(GOTO_TILE_X) .. ","
+                    .. describe(GOTO_TILE_Z) .. "," .. describe(GOTO_TILE_LEVEL) .. ") did not "
+                    .. "reach " .. STATIONARY_NPC_SYMBOL .. "'s room: " .. describe(goto_detail)
+            end
+            local duke_state, duke = nearest(STATIONARY_NPC_SYMBOL, 4)
+            if duke_state ~= "ok" or not is_table(duke) then
+                return "no_subject", STATIONARY_NPC_SYMBOL .. " is not in the pool within 4 of "
+                    .. describe(GOTO_TILE_X) .. "," .. describe(GOTO_TILE_Z) .. " L"
+                    .. describe(GOTO_TILE_LEVEL) .. " (" .. describe(duke_state) .. " "
+                    .. describe(duke) .. ") -- his *.spawn row is not where this row thinks"
+            end
+
+            -- ON HIS SQUARE, exactly: goto_tile answers on Chebyshev 1 and one
+            -- tile out is the case that already works.
+            local function stand_inside()
+                stand_on(duke.x, duke.z, duke.level)
+                local tile_result, tile = tile_of()
+                if tile_result ~= "ok" or not is_table(tile) then
+                    return nil, describe(tile_result) .. " " .. describe(tile)
+                end
+                if tile.x ~= duke.x or tile.z ~= duke.z or tile.level ~= duke.level then
+                    return nil, "stands at " .. describe(tile.x) .. "," .. describe(tile.z)
+                        .. " L" .. describe(tile.level)
+                end
+                return tile, nil
+            end
+
+            local on_tile, not_inside = stand_inside()
+            if not on_tile then
+                return "no_subject", "::goto would not put the player on " .. STATIONARY_NPC_SYMBOL
+                    .. "'s square (asked " .. describe(duke.x) .. "," .. describe(duke.z)
+                    .. " L" .. describe(duke.level) .. ", " .. describe(not_inside) .. ")"
+            end
+
+            local target, target_result = by_symbol("npc", STATIONARY_NPC_SYMBOL)
+            if target_result ~= "ok" or not is_table(target) then
+                return target_result, "player.by_symbol(npc, " .. STATIONARY_NPC_SYMBOL
+                    .. ") built no target"
+            end
+            local stepped, step_detail = step_off(target)
+            local after_result, after = tile_of()
+            if after_result ~= "ok" or not is_table(after) then
+                return after_result, "no tile reading after the step-off"
+            end
+            if after.x == on_tile.x and after.z == on_tile.z then
+                return "refused", "the player is STILL standing inside " .. STATIONARY_NPC_SYMBOL
+                    .. " at " .. describe(after.x) .. "," .. describe(after.z)
+                    .. " (_step_off_for_click -> " .. describe(stepped) .. " "
+                    .. describe(step_detail) .. ") -- the press would hittest his own model"
+            end
+
+            -- AND THE PRESS LANDS FROM IN THERE.  Back onto his square, and
+            -- nothing private is called this time: talk_to reaches the same
+            -- gate on its own way to the pixel, so `ok` here is the whole
+            -- behaviour the seam is for, not a helper answering about itself.
+            local second, not_inside_again = stand_inside()
+            if not second then
+                return "no_subject", "the second ::goto did not land back inside "
+                    .. STATIONARY_NPC_SYMBOL .. " (" .. describe(not_inside_again) .. ")"
+            end
+            local talk_result, talk_detail = talk_to(STATIONARY_NPC_SYMBOL)
+            local talked_result, talked = tile_of()
+            if close_chat then
+                close_chat()
+            end
+            if talk_result ~= "ok" then
+                return talk_result, "a talk_to taken from INSIDE " .. STATIONARY_NPC_SYMBOL
+                    .. " at " .. describe(second.x) .. "," .. describe(second.z) .. " answered "
+                    .. describe(talk_result) .. " -- " .. describe(talk_detail)
+            end
+            if talked_result ~= "ok" or not is_table(talked) then
+                return talked_result, "no tile reading after the talk"
+            end
+            if talked.x == second.x and talked.z == second.z then
+                return "refused", "the talk answered ok with the player never having left "
+                    .. STATIONARY_NPC_SYMBOL .. "'s square " .. describe(talked.x) .. ","
+                    .. describe(talked.z) .. " -- the press did not go through this gate, so "
+                    .. "the row proves nothing about it"
+            end
+            return "ok", "stood on " .. STATIONARY_NPC_SYMBOL .. "'s own spawn square "
+                .. describe(on_tile.x) .. "," .. describe(on_tile.z) .. " L"
+                .. describe(on_tile.level) .. ": the gate moved the player to "
+                .. describe(after.x) .. "," .. describe(after.z) .. " ("
+                .. describe(stepped) .. "), and a talk_to taken from that square again answered "
+                .. "ok from " .. describe(talked.x) .. "," .. describe(talked.z) .. " ("
+                .. describe(talk_detail) .. "); npc standoff 1, obj and player none"
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

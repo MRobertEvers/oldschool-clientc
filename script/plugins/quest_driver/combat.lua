@@ -180,6 +180,16 @@ function QD.player.attack(npc_symbol, op, ticks)
     op = op or 2
     ticks = ticks or 10
 
+    -- SEAM combat-hunt-kills-the-character (2026-09-20): a dead player keeps
+    -- clicking.  Forty of these were issued from the Lumbridge respawn tile,
+    -- ninety tiles from Mort'ton's hunt, and every one answered `no_row` and
+    -- was read as "the shades stopped spawning"
+    -- (build/quest_gate/mortton/ledger.tsv row 19).  The fence ENDS THE RUN
+    -- with its own named row -- QD.player._death_fence, end of this file.
+    if QD.player._death_fence("t.player.attack " .. tostring(npc_symbol)) then
+        return "refused", QD.player._death_text(QD._death)
+    end
+
     local target, target_result = QD.player.by_symbol("npc", npc_symbol)
     if not target then
         return target_result, "attack " .. tostring(npc_symbol) .. ": " .. tostring(target_result)
@@ -212,30 +222,16 @@ function QD.player.attack(npc_symbol, op, ticks)
     -- the npc now IS, not the same failed pixel again.  (The q3proof run on
     -- disk now reads `in 1 press(es)` -- the retry is for the case that run
     -- hit once and no longer reproduces every time, not for every click.)
-    local click_result, click
-    local presses = 0
-    while true do
-        presses = presses + 1
-        click_result, click = QD.drive.click_minimenu(target, op)
-        if click_result == "ok" or presses >= 3 then
-            break
-        end
-        local next_tick = api_drive.tick() + 1
-        QD.await({
-            level = function() return api_drive.tick() >= next_tick end,
-            note = "player.attack re-press",
-        }, 3)
-    end
-    if click_result ~= "ok" then
-        return click_result, "attack " .. tostring(npc_symbol) .. " op" .. tostring(op)
-            .. ": " .. tostring(click) .. " (" .. tostring(presses) .. " press(es))"
-    end
-
-    -- The row that was pressed, checked rather than assumed.
-    local row_text = type(click) == "table" and click.row_text or ""
-    if string.find(row_text, "Attack", 1, true) ~= 1 then
-        return "refused", "attack " .. tostring(npc_symbol) .. " op" .. tostring(op)
-            .. ": pressed '" .. tostring(row_text) .. "', which is not an Attack row"
+    --
+    -- The loop itself is QD._combat_press_attack, at the end of this file:
+    -- npc.await_dead_engaged re-engages by pressing an Attack row on a SLOT's
+    -- CURRENT form, which is the same press with a target this verb's symbol
+    -- lookup cannot build, and one press loop answering for both keeps the
+    -- retry count, the row check and their two sentences in one place.
+    local press_result, press_detail, row_text, presses =
+        QD._combat_press_attack(target, tostring(npc_symbol), op)
+    if press_result ~= "ok" then
+        return press_result, press_detail
     end
 
     local settle_result = QD.await({
@@ -268,12 +264,30 @@ function QD.player.attack(npc_symbol, op, ticks)
     QD._combat_last = {
         symbol = tostring(npc_symbol),
         slot = slot,
+        -- The op the Attack row was found under, so a re-engagement on this
+        -- same slot presses the row this press already proved exists rather
+        -- than re-guessing op 2 (npc.await_dead_engaged).
+        op = op,
+        -- The form the slot wore when this press landed.  A shade rises from
+        -- shadeshadow_level1 into shade_level1 on its first hit
+        -- (mortton_shades.rs2's ai_queue2 -> npc_changetype), so the id named
+        -- here is the id BEFORE any transform and the SLOT is the only half of
+        -- this stamp that survives one.
+        npc_id = before.npc_id,
+        name = before.name,
         health_before = before_health,
         health = QD._combat_health_text(after),
         bar_seen = (before_health ~= "no bar" and before_health ~= "gone")
             or (after_result == "ok" and after ~= nil and after.health_ratio >= 0),
         tick = api_drive.tick(),
     }
+
+    -- The other end of the fence at the head of this verb: a player killed BY
+    -- the swing he just started is a death this verb watched happen.
+    if QD.player._death_fence("t.player.attack " .. tostring(npc_symbol)
+        .. ", after the settle") then
+        return "refused", QD.player._death_text(QD._death)
+    end
 
     if settle_result ~= "ok" then
         return "timeout", detail
@@ -309,6 +323,10 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
     ticks = ticks or 60
     radius = radius or 10
     attempts = attempts or 6
+
+    if QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)) then
+        return "refused", QD.player._death_text(QD._death)
+    end
 
     local start_result, start_row = QD.npc.nearest(npc_symbol, radius)
     if start_result == "no_row" then
@@ -364,6 +382,16 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
         }, 3)
         elapsed = api_drive.tick() - started
 
+        -- A dead player's fight is over, and not the way this verb is waiting
+        -- for it to be: the npc it is watching is ninety tiles away and
+        -- healthy.  Ending here is the difference between a row that names the
+        -- death and sixty more ticks of watching a slot that has left the
+        -- loaded scene (SEAM combat-hunt-kills-the-character).
+        if QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)
+            .. ", " .. tostring(elapsed) .. " tick(s) into the wait") then
+            return "refused", QD.player._death_text(QD._death)
+        end
+
         local result, row = QD._combat_row_by_slot(slot)
         if QD._combat_is_dead(result, row) then
             return "ok", "await_dead " .. tostring(npc_symbol) .. ": dead after "
@@ -413,4 +441,306 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
     return "timeout", "await_dead " .. tostring(npc_symbol) .. ": still alive after "
         .. tostring(ticks) .. " tick(s), " .. tostring(reengaged)
         .. " re-engagement(s), hp " .. last
+end
+
+-- ===========================================================================
+-- SEAM combat-hunt-kills-the-character (2026-09-20)
+-- ===========================================================================
+--
+-- Two things were missing from this file and Mort'ton's shade hunt found both
+-- at once.  The run's own evidence is quoted in state.lua's death banner: 40
+-- attempts, 1,006 ticks, `holding 4/5 shade_bones1`, and a screenshot of the
+-- Lumbridge castle courtyard.
+--
+-- ONE: A DEATH WAS NOT AN OUTCOME.  state.lua now reads it
+-- (QD.player.alive); QD.player._death_fence below is the RULE, and the rule
+-- is that a death ends the run with a row named `player.died`.  Every one of
+-- those forty `no_row` answers was individually truthful, and the quest file
+-- ground through all of them and then blamed the world -- which is what a
+-- driver does when the thing that actually happened has no name.
+--
+-- TWO: A HUNT COULD NOT HOLD THE THING IT ENGAGED.  npc.await_dead resolves
+-- its SYMBOL and tracks the slot from there, which is right for one fight and
+-- wrong for a hunt: mortton_shades.rs2's ai_queue2 fires npc_changetype on the
+-- first hit, so shadeshadow_level1 (Loar Shadow) BECOMES shade_level1 (Loar
+-- Shade) and the symbol the file attacked with no longer names the npc it is
+-- fighting.  `nearest("shadeshadow_level1")` then finds a different, untouched
+-- shadow, while the half-killed one -- put into permanent retaliation by its
+-- own ai_queue -- keeps hitting from behind.  Stack several of those and the
+-- character dies, which is exactly what the screenshot shows.
+-- npc.await_dead_engaged holds the SLOT t.player.attack pressed its Attack row
+-- on, reads that slot's CURRENT form every tick, and re-engages whatever id it
+-- is wearing now.
+
+-- --------------------------------------------------------------- the press
+--
+-- Lifted verbatim out of QD.player.attack (its own three-press banner above is
+-- the reason the loop exists at all) so a re-engagement can press an Attack
+-- row on a target built from a POOL ROW -- `{kind="npc", id=<the id the slot
+-- wears now>}` -- which no symbol lookup can produce once a transform has
+-- moved the npc off the symbol the quest file named.
+--
+-- Returns (result, fail_detail, row_text, presses): on `ok`, fail_detail is
+-- nil and row_text is the menu row that was pressed; otherwise fail_detail is
+-- the sentence the caller returns unchanged.
+function QD._combat_press_attack(target, label, op)
+    local click_result, click
+    local presses = 0
+    while true do
+        presses = presses + 1
+        click_result, click = QD.drive.click_minimenu(target, op)
+        if click_result == "ok" or presses >= 3 then
+            break
+        end
+        local next_tick = api_drive.tick() + 1
+        QD.await({
+            level = function() return api_drive.tick() >= next_tick end,
+            note = "player.attack re-press",
+        }, 3)
+    end
+    if click_result ~= "ok" then
+        return click_result, "attack " .. label .. " op" .. tostring(op)
+            .. ": " .. tostring(click) .. " (" .. tostring(presses) .. " press(es))", nil, presses
+    end
+
+    -- The row that was pressed, checked rather than assumed.
+    local row_text = type(click) == "table" and click.row_text or ""
+    if string.find(row_text, "Attack", 1, true) ~= 1 then
+        return "refused", "attack " .. label .. " op" .. tostring(op)
+            .. ": pressed '" .. tostring(row_text) .. "', which is not an Attack row",
+            row_text, presses
+    end
+    return "ok", nil, row_text, presses
+end
+
+-- ----------------------------------------------------------- the death rule
+--
+-- Returns true when this run has died -- and the FIRST time it does, writes
+-- row `player.died` (FAIL, with its own kept screenshot) and finishes the run,
+-- which parks the script at its next row, shot or await (core.lua's
+-- terminal-finish banner).
+--
+-- TERMINAL, not a bare `refused`, and that is the whole seam: a death
+-- invalidates every row after it, because every click from then on is issued
+-- from the respawn point with an empty backpack.  A run that keeps going past
+-- one is not producing weaker evidence, it is producing evidence of a
+-- different world.
+--
+-- t.finish(0), not 1: run.py's exit code answers "did the client run to
+-- completion", and it did.  The FAIL row is what makes the ledger's SUMMARY
+-- verdict FAIL and the quest red -- the same division of labour t.blocked
+-- already keeps.
+QD._death_reported = false
+
+function QD.player._death_fence(context)
+    local record = QD.player._death_record()
+    if not record then
+        return false
+    end
+    if QD._death_reported then
+        return true
+    end
+    QD._death_reported = true
+    -- `true` is QD.shot's `keep`: a death is very often a frame identical to
+    -- the one before it (the player standing still in Lumbridge), and the
+    -- picture of where he actually is IS the evidence.
+    QD.shot("player.died", true)
+    QD.step("player.died", "FAIL",
+        QD.player._death_text(record) .. " -- read by " .. tostring(context))
+    QD.finish(0)
+    return true
+end
+
+-- EVERY CLICK VERB'S SETTLE, without editing the file that owns it.
+--
+-- pointer.lua's _settle_after_click is the one seam every world click passes
+-- through, and its refusal fence already proves the shape: the server's own
+-- sentence, read out of the chat ring, turning a green-looking row into the
+-- truth.  "Oh dear, you are dead!" is that sentence for this seam, and a
+-- talk_to or a click_obj issued from Lumbridge is no more meaningful than an
+-- attack issued from there.
+--
+-- The wrap lives HERE rather than as a sixth arm in that function because
+-- combat.lua is the LAST part in DRIVE_SCRIPT_PARTS (src/plugin/
+-- torirs_plugin_drive.c) -- so pointer.lua's definition exists by the time
+-- this line runs -- and because pointer.lua is being edited by two other seam
+-- workers in this same pass.  Every call site spells
+-- `QD.player._settle_after_click(...)`, a table lookup made when the click
+-- happens, so the wrap takes effect for all of them.  It belongs inline in
+-- that function's arm list once this pass has landed.
+--
+-- It costs one message-ring read per click settle -- the same read
+-- `_refusal_since` already makes -- and once the latch is set it costs
+-- nothing.  Arguments are forwarded whole; the four returns are the four that
+-- function has today (result, detail, arm, line).
+QD.player._settle_after_click_unfenced = QD.player._settle_after_click
+
+function QD.player._settle_after_click(...)
+    local result, detail, arm, line = QD.player._settle_after_click_unfenced(...)
+    if QD.player._death_fence("a click settle") then
+        return "refused", QD.player._death_text(QD._death), "death", line or ""
+    end
+    return result, detail, arm, line
+end
+
+-- ------------------------------------------------------- await_dead_engaged
+--
+-- The slot's current form, spelled one way everywhere: "Loar Shadow (npc
+-- 1282)".  The NAME is what makes a transform legible in a ledger row -- a
+-- reader should not have to look an id up to see that a shadow rose.
+function QD._combat_form_text(row)
+    if not row then
+        return "gone"
+    end
+    return tostring(row.name) .. " (npc " .. tostring(row.npc_id) .. ")"
+end
+
+-- t.npc.await_dead_engaged(ticks, attempts) -> `ok` `timeout` `no_row`
+-- `refused`.
+--
+-- Takes no target at all, and that is the point: it holds the SLOT the last
+-- t.player.attack pressed an Attack row on (QD._combat_last, stamped there),
+-- and a slot survives npc_changetype where a symbol does not.  Use it for any
+-- fight whose npc transforms, and for every hunt -- a loop that re-resolves
+-- its symbol each attempt abandons the half-killed npc it already engaged, and
+-- an abandoned npc in retaliation keeps hitting.
+--
+-- `attempts` (default 6) caps the re-engagements, which are issued on the same
+-- three-signal rule npc.await_dead uses -- the health reading unmoved for five
+-- server ticks AND no new hitsplat AND the player idle -- and pressed on the
+-- id the slot is wearing NOW, at the op the original press proved.
+--
+-- WHAT THE RE-ENGAGEMENT PRESS CAN AND CANNOT AIM AT, stated rather than
+-- implied: api_drive.screen_position takes an npc ID, not a slot, and answers
+-- the candidate nearest the viewport centre, so the pixel it projects is the
+-- NEAREST npc wearing that id.  In a melee fight that is the engaged one -- it
+-- closed on the player to swing -- but it is a projection, not a guarantee,
+-- and the row's detail names every form it pressed so a reader can see which.
+-- What IS held exactly, every tick and with no ambiguity, is the DEATH: the
+-- slot either leaves the pool or its bar reaches 0, and neither is a thing a
+-- second npc can answer for.
+--
+-- The stamp is CONSUMED on a resolved fight, so a second call with no new
+-- Attack in between answers `no_row` and names why rather than reading a kill
+-- that already happened as this wait's own.
+--
+-- Through t.exec, SPELL `ticks`: `t.exec("shade.dead", t.npc.await_dead_engaged,
+-- 40)`.  t.exec grades a nil first argument FAIL `bad verb/target` (core.lua's
+-- QD.exec), and this verb's first argument is a deadline rather than a target,
+-- so the default below only exists for a direct call recorded with
+-- t.check/t.expect.
+function QD.npc.await_dead_engaged(ticks, attempts)
+    ticks = ticks or 60
+    attempts = attempts or 6
+
+    if QD.player._death_fence("t.npc.await_dead_engaged") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+
+    local engaged = QD._combat_last
+    if not engaged then
+        return "no_row", "await_dead_engaged: nothing is engaged -- no t.player.attack in"
+            .. " this run has pressed an Attack row, so there is no slot to hold"
+    end
+    if engaged.consumed then
+        return "no_row", "await_dead_engaged: the fight t.player.attack engaged (slot "
+            .. tostring(engaged.slot) .. ", " .. tostring(engaged.symbol)
+            .. ", tick " .. tostring(engaged.tick) .. ") has already been waited out once"
+            .. " -- press Attack again before waiting again"
+    end
+
+    local slot = engaged.slot
+    local op = engaged.op or 2
+    local opened = tostring(engaged.name or engaged.symbol)
+        .. " (npc " .. tostring(engaged.npc_id) .. ")"
+    local forms = opened
+    local form_now = opened
+    local health = nil
+    local hit = -1
+    local still = 0
+    local reengaged = 0
+    local last = "no reading"
+    local started = api_drive.tick()
+    local elapsed = 0
+
+    local entry_result, entry_row = QD._combat_row_by_slot(slot)
+    if QD._combat_is_dead(entry_result, entry_row) then
+        engaged.consumed = true
+        return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
+            .. ") was already dead when the wait started -- "
+            .. QD._combat_health_text(entry_row) .. QD._combat_prior_text(engaged.symbol)
+    end
+    if entry_result == "ok" and entry_row then
+        health = QD._combat_health_text(entry_row)
+        last = health
+        hit = entry_row.hit_cycle
+        form_now = QD._combat_form_text(entry_row)
+        if form_now ~= opened then
+            forms = opened .. " -> " .. form_now
+        end
+    end
+
+    while elapsed < ticks do
+        local next_tick = api_drive.tick() + 1
+        QD.await({
+            level = function() return api_drive.tick() >= next_tick end,
+            note = "await_dead_engaged tick",
+        }, 3)
+        elapsed = api_drive.tick() - started
+
+        if QD.player._death_fence("t.npc.await_dead_engaged, " .. tostring(elapsed)
+            .. " tick(s) into the wait on slot " .. tostring(slot)) then
+            return "refused", QD.player._death_text(QD._death)
+        end
+
+        local result, row = QD._combat_row_by_slot(slot)
+        if QD._combat_is_dead(result, row) then
+            engaged.consumed = true
+            return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " dead after "
+                .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
+                .. " re-engagement(s), last hp " .. last .. "; held " .. forms
+        end
+
+        if result ~= "ok" or not row then
+            -- The same rule npc.await_dead keeps: a read that answered neither
+            -- `ok` nor `no_row` learned nothing, so nothing is judged on it,
+            -- and `row` is never indexed below (indexing nil RAISES, and a
+            -- raise in this sandbox ends the whole run -- trap 5).
+            QD.note("await_dead_engaged: npc pool read answered " .. tostring(result))
+        else
+            local form = QD._combat_form_text(row)
+            if form ~= form_now then
+                -- THE TRANSFORM, and the reason this verb exists.  The slot
+                -- did not change; the id it wears did.
+                forms = forms .. " -> " .. form
+                form_now = form
+                still = 0
+            end
+            last = QD._combat_health_text(row)
+            if last ~= health or row.hit_cycle > hit then
+                health = last
+                hit = row.hit_cycle
+                still = 0
+            else
+                still = still + 1
+            end
+
+            if still >= 5 then
+                still = 0
+                local idle_result, idle = api_drive.player_idle()
+                if idle_result == "ok" and idle and reengaged < attempts then
+                    reengaged = reengaged + 1
+                    local press_result, press_detail, press_row = QD._combat_press_attack(
+                        { kind = "npc", id = row.npc_id, symbol = row.name }, form, op)
+                    QD.note("await_dead_engaged re-engage " .. tostring(reengaged) .. " on "
+                        .. form .. ": " .. tostring(press_result) .. " "
+                        .. tostring(press_detail or press_row))
+                end
+            end
+        end
+    end
+
+    return "timeout", "await_dead_engaged: slot " .. tostring(slot) .. " still alive after "
+        .. tostring(ticks) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
+        .. last .. "; held " .. forms
 end

@@ -416,3 +416,174 @@ function QD.skill.expect_gain(name, xp, snapshot)
     return "refused", name .. ": before=" .. before.experience .. " after=" .. after.experience
         .. " delta=" .. delta .. " expected=" .. xp .. " or " .. (xp * 10)
 end
+
+-- death -------------------------------------------------------------------
+--
+-- SEAM combat-hunt-kills-the-character (2026-09-20).  Mort'ton's shade hunt
+-- ran for 1,006 server ticks and forty attack attempts and reported `holding
+-- 4/5 shade_bones1 after 40 attempt(s) ... no target to engage, waited for a
+-- respawn` (build/quest_gate/mortton/ledger.tsv row 19).  Its own screenshot,
+-- shots/38-shadeHunt.png, is the Lumbridge castle courtyard: the chat log
+-- reads "That's one Shade!" ... "That's four Shades!", then "Oh dear, you are
+-- dead!" TWICE, "You wake up in Lumbridge.", "I can't reach that!".  The
+-- character was killed at four kills and every attempt after that was clicked
+-- from the respawn tile, ninety tiles away -- and the row blamed the shade
+-- population, because NOTHING IN THIS DRIVER COULD SEE A DEATH: there was no
+-- reading of whether the player was alive and no arm on any settle for the
+-- sentence the server prints when he is not.
+--
+-- This file holds the READING only.  The rule built on it -- a death ENDS THE
+-- RUN with a row named `player.died` -- is QD.player._death_fence, in
+-- combat.lua, because ending a run is a policy and this file only answers
+-- questions.  (The reading is in core-state's file and not verbs-pointer's
+-- because it is a message-ring read like every other one here; the `player.`
+-- namespace is where a quest file will look for it.  pointer.lua is owned by
+-- two other seams in this same pass, so nothing here may live there yet.)
+--
+-- WHY THE CHAT LINE AND NOT THE HITPOINTS.  A client is told its own
+-- hitpoints, so `skill.read("hitpoints").level == 0` looks like the reading to
+-- take -- but it is true only for the ticks between the killing blow and
+-- [proc,player_death_restore]'s refill (OSRS-Content/osrs239-content/server/
+-- scripts/player/death.rs2), and a driver that polls once a tick while a click
+-- verb is blocked inside a twenty-tick settle sees none of it.  What survives
+-- is the sentence: death.rs2:280/284 and skill_combat/combat.rs2:398 print
+-- "Oh dear, you are dead!", followed by "You wake up in Lumbridge." (or the
+-- Gauntlet hub's line), and both stay in the client's 100-line ring.
+-- src/game/rs_game_events.c:482 already reads that same line for the same
+-- reason, which is where the exact spelling below comes from.
+--
+-- Read WHOLE-RING and LATCHED, not scoped to a serial window the way
+-- QD.msg.await is: a death is not an event one verb owns, it is a fact about
+-- every row after it, and the ring rolls, so the first reading that sees it is
+-- the one that has to remember it.  There is no cross-run pollution to guard
+-- against -- run.py gives every quest its own client process and its own
+-- fixture.
+QD.player.DEATH_LINE = "Oh dear, you are dead!"
+
+-- The respawn sentence is not what is matched on -- it is what the detail
+-- QUOTES, so a row says where the character woke up as well as that he fell.
+QD.player.RESPAWN_LINES = {
+    "You wake up in Lumbridge.",
+    "You wake up in the Gauntlet hub.",
+}
+
+-- A chat line with its colour codes taken off and trimmed at both ends --
+-- rs_game_events.c's own rule ("@" + three characters + "@", stripped before
+-- any match; its own test pins "@red@Oh dear, you are dead!").  Content's
+-- mes() writes these plain, but a line that reached the ring coloured would
+-- otherwise read as a different sentence, and this is the one sentence the
+-- driver must never miss.
+function QD.player._plain_line(text)
+    if type(text) ~= "string" then
+        return ""
+    end
+    local stripped = string.gsub(text, "@%w%w%w@", "")
+    return string.match(stripped, "^%s*(.-)%s*$") or stripped
+end
+
+-- The latch: nil until a death line has been seen, and from then on the
+-- record, never re-read -- the ring that proved it may have rolled the line
+-- off by the time anything asks again.
+QD._death = nil
+
+-- The record, or nil while this run has not died.  Cheap once latched.
+function QD.player._death_record()
+    if QD._death then
+        return QD._death
+    end
+    local result, rows = api_drive.messages()
+    if result ~= "ok" or type(rows) ~= "table" then
+        -- A message read that did not answer says nothing about whether the
+        -- player is alive, and claiming a death on it would end runs for a
+        -- transient. Nothing is latched.
+        return nil
+    end
+    local deaths = 0
+    local newest = nil
+    local wake = ""
+    for i = 1, #rows do
+        local line = QD.player._plain_line(rows[i].text)
+        if line == QD.player.DEATH_LINE then
+            deaths = deaths + 1
+            if newest == nil or rows[i].serial > newest then
+                newest = rows[i].serial
+            end
+        end
+        for j = 1, #QD.player.RESPAWN_LINES do
+            if line == QD.player.RESPAWN_LINES[j] then
+                wake = line
+            end
+        end
+    end
+    if deaths == 0 then
+        return nil
+    end
+    local tile_result, tile = api_drive.player_tile()
+    local hp_result, hp = QD.skill.read("hitpoints")
+    QD._death = {
+        deaths = deaths,
+        serial = newest,
+        wake = wake,
+        tick = api_drive.tick(),
+        where = (tile_result == "ok" and type(tile) == "table")
+            and (tostring(tile.x) .. "," .. tostring(tile.z) .. " L" .. tostring(tile.level))
+            or tostring(tile_result),
+        hitpoints = (hp_result == "ok" and type(hp) == "table")
+            and (tostring(hp.level) .. "/" .. tostring(hp.base_level))
+            or tostring(hp_result),
+    }
+    return QD._death
+end
+
+-- One sentence, so a reader meets the same facts wherever a death surfaces --
+-- in a verb's `refused`, in the terminal row, in a note.
+function QD.player._death_text(record)
+    if not record then
+        return "no death recorded"
+    end
+    return "the character DIED during this run: '" .. QD.player.DEATH_LINE
+        .. "' is in the chat ring " .. tostring(record.deaths) .. " time(s)"
+        .. ((record.wake ~= "") and (", followed by '" .. record.wake .. "'") or "")
+        .. "; first read by the driver at tick " .. tostring(record.tick)
+        .. ", standing at " .. tostring(record.where)
+        .. ", hitpoints " .. tostring(record.hitpoints)
+        .. " -- every click after a death is driven from the respawn point, not"
+        .. " from wherever the quest left off"
+end
+
+-- t.player.alive() -> `ok` / `refused`.
+--
+-- The reading, never the rule: this writes no row and ends nothing, so a quest
+-- file may assert it or branch on it.  `refused` for a death seen this run,
+-- and also for a STATED hitpoints reading of 0 with no death line yet -- the
+-- ticks of dying before the respawn -- because a character at zero is not
+-- alive whatever the chatbox has caught up with.  `stated` is the guard the
+-- pre-login table needs: an unstated stat table is a fresh account's zeros,
+-- not a corpse.
+--
+-- It takes NO ARGUMENT, so it cannot go through t.exec, which grades a nil
+-- first argument FAIL `bad verb/target` (core.lua's QD.exec).  Record it the
+-- way every other argument-free read is recorded --
+-- `t.expect("player.alive", t.player.alive())` -- which is also the right
+-- shape: t.expect takes no screenshot, and photographing a state nothing
+-- clicked is trap 4.
+function QD.player.alive()
+    local record = QD.player._death_record()
+    if record then
+        return "refused", QD.player._death_text(record)
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" then
+        return hp_result, "player.alive: the hitpoints reading answered " .. tostring(hp_result)
+    end
+    local tile_result, tile = api_drive.player_tile()
+    local where = (tile_result == "ok" and type(tile) == "table")
+        and (tostring(tile.x) .. "," .. tostring(tile.z) .. " L" .. tostring(tile.level))
+        or tostring(tile_result)
+    if hp.stated and hp.level <= 0 then
+        return "refused", "player.alive: hitpoints 0/" .. tostring(hp.base_level)
+            .. " at " .. where .. " -- dying, and no death line has been printed yet"
+    end
+    return "ok", "hitpoints " .. tostring(hp.level) .. "/" .. tostring(hp.base_level)
+        .. " at " .. where .. ", no death line in the chat ring"
+end

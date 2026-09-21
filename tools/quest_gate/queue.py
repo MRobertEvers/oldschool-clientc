@@ -125,6 +125,13 @@ def cmd_set(args: argparse.Namespace) -> int:
     if row is None:
         print(f"unknown test_id {args.test_id!r} in {args.file}", file=sys.stderr)
         return 1
+    if args.status == "green":
+        # 2026-09-20: six rows sat at green while their files ended on a
+        # t.blocked row; green means the gate's green bucket, nothing less.
+        lua = os.path.join(os.path.dirname(os.path.abspath(args.file)), args.test_id + ".lua")
+        if os.path.exists(lua) and "t.blocked(" in open(lua, encoding="utf-8").read():
+            print(f"refusing green: {lua} still calls t.blocked( -- set blocked or content_bug instead", file=sys.stderr)
+            return 1
     row["status"] = args.status
     if args.owner is not None:
         row["owner"] = args.owner

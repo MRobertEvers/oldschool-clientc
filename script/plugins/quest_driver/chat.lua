@@ -145,8 +145,7 @@ function QD.chat.continue_()
         return "unsupported", "chat.continue_: " .. tostring(sym) .. " has no continue seam"
     end
 
-    local pending_res, pending_id = api_drive.pause_pending()
-    if pending_res == "ok" and pending_id >= 0 then
+    if QD.chat._resume_outstanding() then
         return "refused", "chat.continue_: a resume is already outstanding"
     end
 
@@ -230,6 +229,72 @@ function QD.chat._settle_change(before_kind, before_identity, ticks)
         end,
         note = "chat._settle_change",
     }, ticks or 6)
+end
+
+-- "This page has been clicked and nothing has answered it yet."
+--
+-- UITree's pause_pending latch (uitree.h:1610-1615, "the component whose
+-- pausebutton has been clicked and whose answer the server still owes"),
+-- read through api.drive.pause_pending (DriveChat_PausePending,
+-- torirs_plugin_drive_chat.c:91-103).  While it is set, the page that is
+-- mounted is the page the LAST click was made ON, not the answer to it, and
+-- the client says so in pixels: that component draws "Please wait..." where
+-- its own continue prompt belongs (uitree_emit.c:441).  The latch is set by
+-- the click and cleared by any interface open or close, so the server's
+-- reply -- a remount, or the dialogue closing -- is exactly what clears it.
+--
+-- chat.continue_ and chat.choose already read it, to refuse a double
+-- submit.  This wraps the read once so a THIRD reading of it -- "is what is
+-- on screen safe to grade yet" -- says it the same way.
+--
+-- A read that does not resolve answers `false`: this gates waits, and a
+-- driver that cannot ask the question must not wedge every one of them.
+function QD.chat._resume_outstanding()
+    local pending_res, pending_id = api_drive.pause_pending()
+    if pending_res ~= "ok" then
+        return false
+    end
+    return pending_id >= 0
+end
+
+-- Waits until the mounted page is READABLE AS THE NEXT PAGE.  Two arms,
+-- because either one alone leaves a hole:
+--
+--   * no resume is outstanding (_resume_outstanding above).  This is the
+--     arm that catches a SAME-KIND remount, and it is not a guess about
+--     timing: the latch is the client's own record that it clicked and
+--     nothing has answered.
+--   * and, when the caller names the page its last action was taken on, the
+--     mounted page differs from it -- kind, or identity for a same-kind
+--     remount, _settle_change's own test.  The latch is dropped by ANY
+--     interface open or close, so an unrelated mount landing between the
+--     click and its reply can clear it while the clicked page is still the
+--     one on screen; the identity arm is what notices that.
+--
+-- before_kind nil means "this caller has clicked nothing yet" -- entry 1 of
+-- a chat.play, whose dialogue was opened by some other verb's click -- and
+-- only the latch arm applies.  EDGE + LEVEL (api.drive.await): a page that
+-- is already readable resolves with no yield, which is the ordinary case
+-- and costs no tick at all.  A page that never becomes readable runs out
+-- `ticks` and the caller grades whatever is there with the detail it would
+-- have written anyway -- this is a settle, not a new failure mode.
+function QD.chat._await_page_ready(before_kind, before_identity, ticks)
+    return await({
+        level = function()
+            if QD.chat._resume_outstanding() then
+                return false
+            end
+            if before_kind == nil then
+                return true
+            end
+            local kind = QD.chat.kind()
+            if kind ~= before_kind then
+                return true
+            end
+            return QD.chat._page_identity(kind) ~= before_identity
+        end,
+        note = "chat._await_page_ready",
+    }, ticks or 8)
 end
 
 -- Pure Lua loop over chat.kind + the continue seam (plan 5.4). Stops BEFORE
@@ -530,8 +595,7 @@ function QD.chat.choose(selector)
         return "no_row", "chat.choose: " .. tostring(selector)
     end
 
-    local pending_res, pending_id = api_drive.pause_pending()
-    if pending_res == "ok" and pending_id >= 0 then
+    if QD.chat._resume_outstanding() then
         return "refused", "chat.choose: a resume is already outstanding"
     end
 
@@ -734,8 +798,14 @@ end
 -- else.
 function QD.chat._play_describe(kind)
     if kind == "npc" or kind == "player" or kind == "mesbox" then
-        local text_res, text = QD.chat.text()
-        return kind .. " text=" .. (text_res == "ok" and ("'" .. tostring(text) .. "'") or tostring(text))
+        -- The raw presented read, NOT QD.chat.text(): this runs only on a
+        -- path that is already failing, and the one thing it owes that row
+        -- is the sentence on screen RIGHT NOW.  chat.text() would spend up
+        -- to ten more ticks waiting for a readiness this page has just been
+        -- found not to have, then answer `timeout` -- replacing the quoted
+        -- sentence a reader needs with the name of the wait that hid it.
+        local text = QD.read._presented_text(QD.read._text_symbols)
+        return kind .. " text=" .. (text ~= nil and ("'" .. tostring(text) .. "'") or "<nothing presented>")
     end
     if kind == "options" then
         local opt_res, rows = QD.chat.options()
@@ -746,12 +816,39 @@ end
 
 function QD.chat.play(list)
     local summary = {}
+    -- The page THIS call's last SUBMITTING entry acted on (continue_/
+    -- choose/count/name_entry), for _await_page_ready's identity arm.  nil
+    -- through entry 1: whatever opened the dialogue was another verb's
+    -- click, and this call has no page of its own to compare against yet --
+    -- there the latch arm is the whole readiness test, and it is enough
+    -- (QD.chat._await_page_ready's banner).
+    local acted_kind = nil
+    local acted_identity = nil
 
     for index, entry in ipairs(list) do
         local parsed, parse_detail = QD.chat._play_parse(entry)
         if not parsed then
             return "unsupported", parse_detail
         end
+
+        -- THE PAGE MUST BE READY BEFORE IT IS GRADED.  chat.play read
+        -- whatever was mounted with no readiness test at all, so a page the
+        -- PREVIOUS entry has already clicked -- still up, drawing "Please
+        -- wait...", the server's remount in flight -- was graded as the
+        -- answer to that click.  chat.continue_ and chat.choose have always
+        -- read the same latch (to refuse a double submit); chat.play never
+        -- did, and the t.ticks(N) a quest file writes in front of it is a
+        -- guess that cannot be right for every machine.
+        --
+        -- Ernest the Chicken, 2026-09-20 (build/quest_gate/haunted
+        -- ledger.tsv row 55, shot 68-ernest-thanks-FAIL.png): Oddenstein's
+        -- "Let's get this fixed then." page resumes into mes/p_delay(2)/
+        -- mes/p_delay(2)/~change_ernest before Ernest's own page opens
+        -- (professor_oddenstein.rs2:86-92), and BOTH pages are kind `npc`,
+        -- so neither chat.kind() nor the t.ticks(5) in haunted.lua could
+        -- tell them apart.  The next chat.play read the old page's sentence
+        -- and failed on it, and five rows behind it failed too.
+        QD.chat._await_page_ready(acted_kind, acted_identity, 8)
 
         -- Same race chat.drain's own banner documents (measured 2026-09-19:
         -- the cook's Talk-to page lands its reply during exactly this
@@ -809,6 +906,9 @@ function QD.chat.play(list)
                         .. "' -- text='" .. tostring(text) .. "'"
                 end
                 fragment = stripped:sub(1, 30)
+                -- Read BEFORE the click: this is the page the NEXT entry's
+                -- readiness wait must see the back of.
+                acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
                 local r, d = QD.chat.continue_()
                 if r ~= "ok" then
                     return r, "chat.play: entry " .. index .. " continue_ -- " .. tostring(d)
@@ -820,6 +920,7 @@ function QD.chat.play(list)
                 return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
                     .. "') expected options, got " .. QD.chat._play_describe(actual_kind)
             end
+            acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
             local r, d = QD.chat.choose(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') choose -- " .. tostring(d)
@@ -830,6 +931,7 @@ function QD.chat.play(list)
                 return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
                     .. "') expected count, got " .. QD.chat._play_describe(actual_kind)
             end
+            acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
             local r, d = QD.chat.count(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') count -- " .. tostring(d)
@@ -840,6 +942,7 @@ function QD.chat.play(list)
                 return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
                     .. "') expected name, got " .. QD.chat._play_describe(actual_kind)
             end
+            acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
             local r, d = QD.chat.name_entry(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') name_entry -- " .. tostring(d)
@@ -857,6 +960,7 @@ function QD.chat.play(list)
                 return "mismatch", "chat.play: entry " .. index
                     .. " ('*') cannot blindly continue past " .. QD.chat._play_describe(actual_kind)
             end
+            acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
             local r, d = QD.chat.continue_()
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('*') continue_ -- " .. tostring(d)
