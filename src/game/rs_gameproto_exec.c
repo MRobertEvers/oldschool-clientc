@@ -228,6 +228,7 @@ exec_trigger_on_dialog_abort(struct RS_GameProtoCtx const* ctx)
     if( !ctx->app || !ctx->tree )
         return;
     app = ctx->app;
+    UITREE_SCAN_METER(ctx->tree);
     for( uint32_t i = 0; i < ctx->tree->component_count; i++ )
     {
         struct UITreeComponent const* node = &ctx->tree->components[i];

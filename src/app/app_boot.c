@@ -785,6 +785,7 @@ Task_AppBoot_Run(
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
+        /* tree-walk-exempt: boot, before the frame loop */
         for( uint32_t i = 0; i < app->tree->component_count; i++ )
         {
             struct UITreeComponent const* node = &app->tree->components[i];

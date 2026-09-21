@@ -108,6 +108,7 @@ UITreeIfaceStats_SampleGauges(struct UITree const* tree)
     uint32_t i;
 
     assert(tree);
+    UITREE_SCAN_METER(tree);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
@@ -170,6 +171,7 @@ UITreeIfaceStats_Tick(
         g_stats[g].hook_bytes = 0;
     }
 
+    UITREE_SCAN_METER(tree);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];

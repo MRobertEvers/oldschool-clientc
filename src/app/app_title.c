@@ -68,6 +68,7 @@ app_title_caret_blink(struct App const* app)
     assert(app);
     if( !app->tree )
         return 0;
+    UITREE_SCAN_METER(app->tree);
     for( uint32_t i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent const* comp = &app->tree->components[i];

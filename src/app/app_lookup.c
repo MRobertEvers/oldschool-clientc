@@ -108,6 +108,7 @@ app_minimenu_font_scene_id(struct App* app)
     }
     if( scene_id <= 0 )
     {
+        UITREE_SCAN_METER(app->tree);
         for( uint32_t i = 0; i < app->tree->component_count; i++ )
         {
             struct UITreeComponent const* node = &app->tree->components[i];

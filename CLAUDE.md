@@ -198,3 +198,36 @@ one with no suspension point inside it, even one that compiles. Dispatch with
 an `if`/`else` chain, or call a plain (non-PT) helper that contains the
 `switch` and returns a plan, then do the awaits linearly. `make -C src
 check-pt-switch` (tools/pt_switch_audit.py) must print `total 0`.
+
+## A lookup must not re-walk the UI tree on a frame where nothing changed
+
+A loop over every node (`for( i = 0; i < tree->component_count; i++ )`,
+~7,000 on an OSRS239 frame) is fine once when something changed. Asked again
+per widget per frame, it is the failure that ran the Stone Drawer at 68 ms a
+frame on the phone and 1 ms on the desktop, where nobody saw it
+(`UITree_FrameSlotMemberNode`, 2026-09-21): a lookup whose MISS was never
+remembered, asked fourteen times per tab stone per frame.
+
+- **Remember misses, not just hits.** "Not found" is an answer. Key it on
+  what can change it (`generation`, `id_generation`, `frame_stamp_serial`),
+  and give "cannot say yet" its own value instead of refusing to cache: a
+  role fallback returns `-3` while its pack or enum is not resident, and `-1`
+  is remembered.
+- **Scan a candidate list, not the tree**, when only a few node kinds can
+  answer (`frame_slot_candidates`, the canvas-query candidates).
+- **Every whole-tree loop is marked** on one of the three lines above it:
+  `UITREE_SCAN_METER(tree);` (walks of a subtree, pack or enum:
+  `UITREE_SCAN_METER_NODES(n)`), or `/* tree-walk-exempt: <reason> */` for
+  code the frame loop never runs (boot, teardown, a debug dump).
+  `make -C src check-tree-walks` must pass.
+- **Slot stamps go through `UITree_FrameStamp`**, never a direct write to
+  `slot_tag` / `frame_member_plus1`: the candidate list trusts the serial.
+
+The meter judges it at run time: if steady frames (topology, ids and stamps
+unchanged) average more than `UITREE_SCAN_METER_STEADY_WALKS` whole-tree walks
+over the last `UITREE_SCAN_METER_WINDOW`, the client prints a `uitree:` line
+naming the site, a debug build asserts, and `TORIRS_SCAN_METER_STRICT=1`
+aborts. `make -C src check-scan-meter` runs the real client under every frame
+provider and the phone's mobile identity and must pass after any change to a
+plugin, the bridge or a tree lookup. `TORIRS_SCAN_METER_TRACE=1|2` prints the
+per-frame reading and sites.

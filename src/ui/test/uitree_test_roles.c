@@ -446,6 +446,67 @@ test_role_derive_fallback(void)
     UITree_Free(tree);
 }
 
+/* A fallback's -1 is REMEMBERED: a plugin asks for a tab the frame does not
+ * have every frame, and re-deriving "no" read a cache pack and an enum per
+ * question (@see UITreeRoleTable.fallback). -3 ("not loaded yet") is not. */
+struct FallbackCalls
+{
+    int32_t answer;
+    int calls;
+};
+
+static int32_t
+test_counting_fallback(
+    struct UITree const* tree,
+    struct UITreeRoleTable const* table,
+    uint16_t role_id,
+    void* user)
+{
+    struct FallbackCalls* calls = (struct FallbackCalls*)user;
+
+    (void)tree;
+    (void)table;
+    (void)role_id;
+    calls->calls++;
+    return calls->answer;
+}
+
+static void
+test_role_fallback_miss_is_remembered(void)
+{
+    struct UITreeRoleTable table;
+    struct UITree* tree = UITree_New(4);
+    struct FallbackCalls calls;
+    uint16_t role;
+
+    memset(&table, 0, sizeof(table));
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    (void)UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, (900 << 16) | 1, 0, 0, 10, 10);
+    role = declare(&table, "frame_absent_tab", matcher_id((900 << 16) | 7));
+    table.fallback = test_counting_fallback;
+    table.fallback_user = &calls;
+
+    calls.answer = -1;
+    calls.calls = 0;
+    for( int i = 0; i < 50; i++ )
+        TEST_ASSERT(UITree_RoleNode(tree, &table, role) < 0, "absent is absent");
+    TEST_ASSERT(calls.calls == 1, "the fallback's -1 is asked once and then remembered");
+
+    (void)UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, (900 << 16) | 2, 0, 0, 10, 10);
+    TEST_ASSERT(UITree_RoleNode(tree, &table, role) < 0, "still absent");
+    TEST_ASSERT(calls.calls == 2, "a new id in the tree asks the fallback again");
+
+    role = declare(&table, "frame_unloaded_tab", matcher_id((900 << 16) | 8));
+    calls.answer = -3;
+    calls.calls = 0;
+    for( int i = 0; i < 5; i++ )
+        TEST_ASSERT(UITree_RoleNode(tree, &table, role) < 0, "not loaded reads as absent");
+    TEST_ASSERT(calls.calls == 5, "-3 is not remembered: the data may land any frame");
+
+    UITree_RoleTableFree(&table);
+    UITree_Free(tree);
+}
+
 static void
 test_role_slot_delegation(void)
 {
@@ -532,6 +593,7 @@ test_roles(void)
     test_role_dynamic_rebuild();
     test_role_cc_type_filter();
     test_role_derive_fallback();
+    test_role_fallback_miss_is_remembered();
     test_role_slot_delegation();
     test_role_drawn_bounds_follow_scroll_and_drag();
 }

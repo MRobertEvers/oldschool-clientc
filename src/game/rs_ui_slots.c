@@ -53,6 +53,7 @@ RS_UISlots_InitFromTree(
 
     RS_UISlots_Init(slots);
 
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];

@@ -73,6 +73,7 @@ UITree_MeasureRightChromeStripWidth(struct UITree const* tree)
      * one of those fill-width roots as chrome makes the canvas feed back into
      * its own next width and grow every frame. The strip itself is fixed-width,
      * parent-height, and right-anchored. */
+    UITREE_SCAN_METER(tree);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
@@ -186,6 +187,7 @@ UITree_MeasureLaneFrameCoreWidth(struct UITree const* tree)
     strip = UITree_MeasureRightChromeStripWidth(tree);
     best = 0;
 
+    UITREE_SCAN_METER(tree);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];

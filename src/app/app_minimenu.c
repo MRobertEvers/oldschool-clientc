@@ -994,6 +994,7 @@ app_minimenu_open(
             if( resolved > 0 )
             {
                 menu->font_id = resolved;
+                UITREE_SCAN_METER(app->tree);
                 for( uint32_t i = 0; i < app->tree->component_count; i++ )
                     if( !app->tree->components[i].freed &&
                         app->tree->components[i].type == UIELEM_BUILTIN_MINIMENU )

@@ -1448,6 +1448,11 @@ struct UITree
     int32_t last_root_index;
     uint32_t generation;
     uint64_t instance_id;
+    /** Bumped by UITree_FrameStamp whenever a node's `slot_tag` or
+     *  `frame_member_plus1` actually changes. The frame binder re-stamps
+     *  without a topology change, so `generation` cannot say whether the set
+     *  of slot candidates moved; this does. */
+    uint32_t frame_stamp_serial;
     /* Structural candidates for canvas queries. Geometry and visibility are
      * read live; topology or alignment-mode changes invalidate membership. */
     uint32_t* canvas_candidate_ids;
@@ -3252,6 +3257,86 @@ int
 UITree_GroupPresent(
     struct UITree const* tree,
     int group_id);
+
+/*
+ * Whole-tree scan meter.
+ *
+ * A LOOKUP that walks every node is affordable once; it is not affordable
+ * asked again every frame for an answer that did not change. That shape --
+ * an uncached miss behind a per-widget question -- ran the Stone Drawer at
+ * 68 ms a frame on the Moto X (UITree_FrameSlotMemberNode, 2026-09-21), and
+ * nothing measured it: the desktop paid 1 ms and looked fine.
+ *
+ * So every whole-tree lookup loop reports itself here (UITREE_SCAN_METER at
+ * the loop, and tools/tree_walk_audit.py refuses an unreported one), and the
+ * frame loop asks at the end of each frame whether STEADY frames -- ones on
+ * which the tree's topology, ids and slot stamps did not move -- are walking the
+ * tree more than UITREE_SCAN_METER_STEADY_WALKS times each, averaged over the
+ * last UITREE_SCAN_METER_WINDOW of them. A steady frame has nothing new to
+ * find; a lookup that walks on it is re-deriving an answer it already had,
+ * and the cost of that grows with the tree and the number of callers. The
+ * average is what separates that from a one-off: the frame after a rebuild
+ * re-derives legitimately once, a per-widget miss does it every frame. 128
+ * frames is ~2.5 s at the 50 fps pacer; a burst of honest one-off walks
+ * (an image release walks twice) averages out, a per-frame repeat cannot.
+ */
+#define UITREE_SCAN_METER_STEADY_WALKS 2
+#define UITREE_SCAN_METER_WINDOW 128
+#define UITREE_SCAN_METER_SITES_MAX 32
+
+#define UITREE_SCAN_METER(tree) UITree_ScanMeterCount((tree), __func__)
+
+struct UITreeScanMeterSite
+{
+    char const* site;
+    uint32_t scans;
+    uint64_t nodes;
+};
+
+struct UITreeScanMeterReport
+{
+    /** Nodes walked by metered scans this frame, and how many scans. */
+    uint64_t nodes;
+    uint32_t scans;
+    uint32_t component_count;
+    /** 1 when the tree's topology and stamps did not move since last frame. */
+    int steady;
+    /** Mean whole-tree walks per steady frame over the window, once it has
+     *  filled; 0 before. */
+    double window_walks;
+    /** The heaviest site over the current window (by nodes), or NULL. */
+    struct UITreeScanMeterSite top;
+};
+
+/** Record one whole-tree walk of `tree` by `site` (a string literal). */
+void
+UITree_ScanMeterCount(
+    struct UITree const* tree,
+    char const* site);
+
+/** Record a walk of `nodes` nodes that is not the whole tree -- a subtree, an
+ *  interface pack, an enum -- by `site`. Same verdict, same units. */
+void
+UITree_ScanMeterCountNodes(
+    char const* site,
+    uint64_t nodes);
+
+#define UITREE_SCAN_METER_NODES(nodes) UITree_ScanMeterCountNodes(__func__, (uint64_t)(nodes))
+
+/**
+ * Close the frame: fill `out`, reset the per-frame counts, and answer 1 when
+ * the last UITREE_SCAN_METER_WINDOW steady frames averaged more than
+ * UITREE_SCAN_METER_STEADY_WALKS whole-tree walks each -- the failure this
+ * meter exists for.
+ */
+/** This frame's per-site rows so far (valid until UITree_ScanMeterEndFrame). */
+struct UITreeScanMeterSite const*
+UITree_ScanMeterFrameSites(int* out_count);
+
+int
+UITree_ScanMeterEndFrame(
+    struct UITree const* tree,
+    struct UITreeScanMeterReport* out);
 
 #ifdef UITREE_NODE_SET_VERIFY
 /** Brute-force check that every live set matches a full-array scan. */

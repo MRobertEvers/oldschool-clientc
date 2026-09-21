@@ -354,6 +354,7 @@ dump_hooks(struct App* app)
      * the slot type (ui/uitree_hook.h) rather than to a table kept here — the
      * copy that used to live in this function drifted out of step with the
      * struct and silently relabelled every hook past on_mouse_repeat. */
+    /* tree-walk-exempt: TORIRS_DUMP_HOOKS debug dump */
     for( i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent* c = &app->tree->components[i];
@@ -2168,6 +2169,88 @@ main_dynamic_chrome_scale(
     if( steps < 1 )
         steps = 1;
     return steps * density;
+}
+
+/*
+ * Close the frame's whole-tree scan meter (@see UITREE_SCAN_METER).
+ *
+ * A steady frame that walked the tree more than the budget is the failure
+ * that cost the Stone Drawer 55 ms a frame on the phone and 1 ms on the
+ * desktop, where nobody saw it. It is reported the first time each site
+ * does it, in every build; a debug build asserts, and
+ * TORIRS_SCAN_METER_STRICT=1 aborts an optimised one (the gate's lever).
+ * TORIRS_SCAN_METER_TRACE=1 prints every frame's reading; =2 adds every
+ * site that scanned in it.
+ */
+static void
+frame_loop_scan_meter_check(void)
+{
+    static int env_read;
+    static int strict;
+    static int trace;
+    static char const* reported[UITREE_SCAN_METER_SITES_MAX];
+    static int reported_count;
+    struct UITreeScanMeterReport report;
+    int over;
+    int known = 0;
+
+    if( !app.tree )
+        return;
+    if( !env_read )
+    {
+        char const* value = getenv("TORIRS_SCAN_METER_STRICT");
+        strict = value && value[0] == '1';
+        value = getenv("TORIRS_SCAN_METER_TRACE");
+        trace = value ? atoi(value) : 0;
+        env_read = 1;
+    }
+    if( trace == 2 )
+    {
+        int site_count;
+        struct UITreeScanMeterSite const* sites = UITree_ScanMeterFrameSites(&site_count);
+        for( int i = 0; i < site_count; i++ )
+            TORIRS_ERR(
+                "scan_meter_site: %s scans=%u nodes=%llu\n",
+                sites[i].site,
+                sites[i].scans,
+                (unsigned long long)sites[i].nodes);
+    }
+    over = UITree_ScanMeterEndFrame(app.tree, &report);
+    if( trace && report.scans )
+        TORIRS_ERR(
+            "scan_meter: steady=%d walks=%.2f window=%.2f scans=%u nodes=%llu tree=%u top=%s x%u\n",
+            report.steady,
+            report.component_count ? (double)report.nodes / report.component_count : 0.0,
+            report.window_walks,
+            report.scans,
+            (unsigned long long)report.nodes,
+            report.component_count,
+            report.top.site ? report.top.site : "-",
+            report.top.scans);
+    if( !over )
+        return;
+    for( int i = 0; i < reported_count; i++ )
+        known |= reported[i] == report.top.site;
+    if( !known || strict )
+    {
+        TORIRS_ERR(
+            "uitree: steady frames are walking the whole tree %.1f times each (last %d; "
+            "this one: %u scans, %llu of %u nodes each walk); heaviest site over them %s, %u scans. "
+            "A lookup is re-deriving an answer that did not change -- cache it, misses "
+            "included.\n",
+            report.window_walks,
+            UITREE_SCAN_METER_WINDOW,
+            report.scans,
+            (unsigned long long)report.nodes,
+            report.component_count,
+            report.top.site ? report.top.site : "(none this frame)",
+            report.top.scans);
+        if( !known && reported_count < UITREE_SCAN_METER_SITES_MAX )
+            reported[reported_count++] = report.top.site;
+    }
+    if( strict )
+        abort();
+    assert(!over && "steady frame re-walked the UI tree; see the uitree: line above");
 }
 
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
@@ -4599,6 +4682,7 @@ frame_loop_step(void)
         }
     }
 #endif
+    frame_loop_scan_meter_check();
     return 1;
 }
 
@@ -4745,6 +4829,7 @@ frame_loop_teardown(void)
                 TORIRS_REPORT("NATIVE_ROOT id=%d\n", app.boot_interface_id);
             char const* filter = getenv("TORIRS_DUMP_BOUNDS");
             int want = strcmp(filter, "all") == 0 ? -1 : (int)strtol(filter, NULL, 0);
+            /* tree-walk-exempt: teardown */
             for( uint32_t i = 0; i < app.tree->component_count; i++ )
             {
                 struct UITreeComponent const* c = &app.tree->components[i];
@@ -5073,6 +5158,7 @@ frame_loop_teardown(void)
                     t,
                     app.slots.side_overlay_id[t],
                     app.slots.side_owner_index[t]);
+            /* tree-walk-exempt: teardown */
             for( uint32_t i = 0; i < app.tree->component_count; i++ )
             {
                 struct UITreeComponent const* c = &app.tree->components[i];
@@ -5111,6 +5197,7 @@ frame_loop_teardown(void)
             if( getenv("TORIRS_DUMP_COM") )
             {
                 int want = atoi(getenv("TORIRS_DUMP_COM"));
+                /* tree-walk-exempt: teardown */
                 for( uint32_t i = 0; i < app.tree->component_count; i++ )
                 {
                     struct UITreeComponent const* c = &app.tree->components[i];
@@ -6993,6 +7080,7 @@ main(
      * binding or a missing match. */
     if( getenv("TORIRS_DUMP_OPKEYS") && app.tree )
     {
+        /* tree-walk-exempt: startup option, before the frame loop */
         for( uint32_t ki = 0; ki < app.tree->component_count; ki++ )
         {
             struct UITreeComponent const* c = &app.tree->components[ki];
@@ -7023,6 +7111,7 @@ main(
      * verifies cache-config option threading onto the tree. */
     if( getenv("TORIRS_DUMP_OPS") && app.tree )
     {
+        /* tree-walk-exempt: startup option, before the frame loop */
         for( uint32_t oi = 0; oi < app.tree->component_count; oi++ )
         {
             struct UITreeComponent const* c = &app.tree->components[oi];
@@ -7077,6 +7166,7 @@ main(
         {
             int groups[64];
             int group_count = 0;
+            /* tree-walk-exempt: startup option, before the frame loop */
             for( uint32_t gi = 0; gi < app.tree->component_count; gi++ )
             {
                 int id = app.tree->components[gi].component_id;
@@ -7257,6 +7347,7 @@ main(
      * separate format so dump_tree stays byte-comparable with the reference. */
     if( getenv("TORIRS_DUMP_LAYOUT") && app.tree )
     {
+        /* tree-walk-exempt: startup option, before the frame loop */
         for( uint32_t li = 0; li < app.tree->component_count; li++ )
         {
             struct UITreeComponent const* c = &app.tree->components[li];
@@ -7310,6 +7401,7 @@ main(
      * those are the places creation order and OSRS childIndex order disagree. */
     if( getenv("TORIRS_DUMP_ORDER") && app.tree )
     {
+        /* tree-walk-exempt: startup option, before the frame loop */
         for( uint32_t p = 0; p < app.tree->component_count; p++ )
         {
             struct UITreeComponent const* parent = &app.tree->components[p];

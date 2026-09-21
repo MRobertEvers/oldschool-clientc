@@ -472,7 +472,7 @@ test_cs1_under_frame_ownership(void)
     ui_host.request = cs1_test_host_request;
     int script[] = { CS1_OP_PUSH_VARP, 42, CS1_OP_RETURN };
     int32_t text = push_scripted_text(tree, 100, "Off %1", "On %1", script, 3, CS1VM_COMPARATOR_EQUAL, 7);
-    tree->components[text].slot_tag = UITREE_SLOT_CHAT;
+    UITree_FrameStamp(tree, text, UITREE_SLOT_CHAT, tree->components[text].frame_member_plus1);
     struct UITreeNodeSpec world = { .type = UIELEM_BUILTIN_WORLD, .component_id = 101,
                                     .width = 200, .height = 120 };
     int32_t world_node = UITree_Push(tree, -1, &world);

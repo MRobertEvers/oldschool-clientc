@@ -843,6 +843,7 @@ app_logic_tick(struct App* app)
             uint32_t live = 0;
             int timers = app->tree->timer_hooks.count;
             int timers_hidden = 0;
+            UITREE_SCAN_METER(app->tree);
             for( uint32_t i = 0; i < app->tree->component_count; i++ )
             {
                 struct UITreeComponent const* c = &app->tree->components[i];
@@ -889,6 +890,7 @@ app_logic_tick(struct App* app)
             anim_dbg = getenv("TORIRS_ANIM_DEBUG") != NULL;
         if( anim_dbg && ++anim_dbg_tick % 25 == 0 )
         {
+            UITREE_SCAN_METER(app->tree);
             for( uint32_t i = 0; i < app->tree->component_count; i++ )
             {
                 struct UITreeComponent const* node = &app->tree->components[i];

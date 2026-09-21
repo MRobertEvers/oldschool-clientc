@@ -40,6 +40,7 @@ app_bind_configured_overlays(struct App* app)
 {
     app->interact.minimenu.font_id = -1;
     app->hover_text.font_id = -1;
+    UITREE_SCAN_METER(app->tree);
     for( uint32_t i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent const* node = &app->tree->components[i];

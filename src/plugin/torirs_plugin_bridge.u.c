@@ -5559,8 +5559,7 @@ app_plugin_frame_stamp_role(
     c = &tree->components[node];
     if( c->freed )
         return;
-    c->slot_tag = tag;
-    c->frame_member_plus1 = (uint8_t)(member + 1);
+    UITree_FrameStamp(tree, node, tag, (uint8_t)(member + 1));
     next[(*next_count)++] = node;
 }
 
@@ -5577,6 +5576,9 @@ app_plugin_frame_role_enum_id(struct App* app, int root_group, int* control)
     int const init = RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init");
     struct ToriRS_ComponentPack const* pack =
         CacheProvider_ComponentPackGet(app->provider, root_group);
+    /* A linear read of the whole pack (@see UITREE_SCAN_METER). */
+    if( pack )
+        UITREE_SCAN_METER_NODES(pack->component_count);
     if( init <= 0 || !ToriRS_ComponentPackLoadInt(pack, init, 2, control, &value) )
         return -1;
     return value;
@@ -5588,6 +5590,7 @@ app_plugin_frame_enum_value(struct App* app, int enum_id, int key, int* value)
 {
     struct ToriRS_Enum const* e = CacheProvider_EnumGet(app->provider, enum_id);
     if( !e || e->output_is_string || !e->keys || !e->int_values ) return 0;
+    UITREE_SCAN_METER_NODES(e->count);
     for( int i = 0; i < e->count; i++ )
         if( e->keys[i] == key )
         {
@@ -5608,6 +5611,8 @@ app_plugin_chat_plate_expected(struct App* app, int filter)
     struct ToriRS_ComponentPack const* pack = CacheProvider_ComponentPackGet(app->provider, chat);
     int container = -1, graphic = -1;
     if( !filters || !pack ) return -1;
+    /* Up to two linear reads of the chat pack (@see UITREE_SCAN_METER). */
+    UITREE_SCAN_METER_NODES(pack->component_count);
     if( !app_plugin_frame_enum_value(app, enum_id, filter, &container) )
     {
         /* Report is not in the filter enum. It is the sole other actionable
@@ -5680,21 +5685,34 @@ app_plugin_frame_role_fallback(struct UITree const* tree, struct UITreeRoleTable
     struct App* app = user;
     if( role == 0 || role > table->count ) return -2;
     char const* name = table->entries[role - 1].name;
+    /* -3, not -1, while the pack or enum that decides the answer is not
+     * resident: UITree_RoleNode remembers a -1, and a "no" read off data that
+     * had not loaded yet would stay "no" until the tree next changed. */
     if( strncmp(name, "chat_plate_", 11) == 0 &&
         RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters") >= 0 )
     {
         char* end;
         long filter = strtol(name + 11, &end, 10);
         if( end == name + 11 || *end || filter < 0 || filter > 255 ) return -1;
+        if( !CacheProvider_EnumGet(
+                app->provider, RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters")) ||
+            !CacheProvider_ComponentPackGet(
+                app->provider, RevConfigRefs_Get(&app->revconfig_refs, "iface", "chat")) )
+            return -3;
         int uid = app_plugin_chat_plate_expected(app, (int)filter);
         return uid < 0 ? -1 : UITree_FindByComponentId(tree, uid);
     }
     if( strncmp(name, "frame_", 6) && strncmp(name, "sidetab_", 8) ) return -2;
+    /* The declines first: they read nothing, and the enum lookup below reads
+     * the toplevel's pack. */
     int key = app_plugin_frame_role_key_161(table, role), uid = -1, control = -1;
-    int root = app_plugin_frame_root(app);
-    int element_map = app_plugin_frame_role_enum_id(app, root, &control);
     if( key < 0 || RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init") < 0 ) return -2;
+    int root = app_plugin_frame_root(app);
+    if( root >= 0 && app->provider && !CacheProvider_ComponentPackGet(app->provider, root) )
+        return -3;
+    int element_map = app_plugin_frame_role_enum_id(app, root, &control);
     if( element_map < 0 ) return -1;
+    if( !CacheProvider_EnumGet(app->provider, element_map) ) return -3;
     if( !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 ) return -1;
     int32_t node = UITree_FindByComponentId(tree, uid);
     if( node >= 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
@@ -5905,8 +5923,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             again = next[n] == idx;
         if( again )
             continue;
-        c->slot_tag = UITREE_SLOT_NONE;
-        c->frame_member_plus1 = 0;
+        UITree_FrameStamp(tree, idx, UITREE_SLOT_NONE, 0);
     }
     for( int n = 0; n < next_count; n++ )
     {

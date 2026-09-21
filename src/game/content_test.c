@@ -222,6 +222,7 @@ static void state_json(struct App* app, struct ToriRSServerEmbed* embed, char* o
          * under these keys; an orb counts when its control exists and no
          * ancestor hides it. */
         const char* orb_keys[] = { "orb_hitpoints", "orb_prayer", "orb_run", "orb_special" };
+        /* tree-walk-exempt: content-test harness, not the client */
         for( uint32_t i = 0; app->tree && i < app->tree->component_count; ++i )
         {
             struct UITreeComponent const* c = &app->tree->components[i];

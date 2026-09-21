@@ -3875,7 +3875,8 @@ uitree_node_subtree_paints_art(
     int32_t node_index,
     int hovered_component_id,
     struct UITreeEmitDesc* scratch,
-    int depth)
+    int depth,
+    uint32_t* visited)
 {
     struct UITreeComponent const* component;
     struct UITreeNativeGate gate;
@@ -3883,6 +3884,8 @@ uitree_node_subtree_paints_art(
     assert(tree);
     assert(host);
     assert(scratch);
+    assert(visited);
+    (*visited)++;
 
     if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
         return false;
@@ -3910,7 +3913,7 @@ uitree_node_subtree_paints_art(
     for( int32_t vi = 0; vi < tree->components[node_index].visible_child_count; vi++ )
         if( uitree_node_subtree_paints_art(
                 tree, host, tree->components[node_index].visible_children[vi],
-                hovered_component_id, scratch, depth + 1) )
+                hovered_component_id, scratch, depth + 1, visited) )
             return true;
     return false;
 }
@@ -3923,12 +3926,19 @@ UITree_NodeSubtreePaintsArt(
     int hovered_component_id)
 {
     struct UITreeEmitDesc scratch;
+    uint32_t visited = 0;
+    bool paints;
 
     assert(tree);
     assert(host);
 
-    return uitree_node_subtree_paints_art(
-        tree, host, node_index, hovered_component_id, &scratch, 0);
+    paints = uitree_node_subtree_paints_art(
+        tree, host, node_index, hovered_component_id, &scratch, 0, &visited);
+    /* Asked per watched widget per frame and not remembered: a container that
+     * paints nothing is walked whole every time. Metered so a large one
+     * cannot hide (@see UITREE_SCAN_METER). */
+    UITREE_SCAN_METER_NODES(visited);
+    return paints;
 }
 
 #include "uitree_emit_overlay.u.h"

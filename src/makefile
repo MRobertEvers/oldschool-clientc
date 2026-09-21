@@ -3992,6 +3992,26 @@ check-pt-switch:
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
 		|| (python3 $(REPO_ROOT)/tools/pt_switch_audit.py . && echo "check-pt-switch: FAIL" && exit 1)
 
+# Every loop over a whole UI tree says what it is: metered (the frame loop's
+# scan meter fails a steady frame that keeps walking -- @see UITREE_SCAN_METER)
+# or exempt with a reason (boot, teardown, a debug dump). An unmarked one is how
+# an uncached per-frame lookup got in unseen: the Stone Drawer at 68 ms a frame
+# on the phone, 2026-09-21.
+.PHONY: check-tree-walks
+check-tree-walks:
+	@python3 $(REPO_ROOT)/tools/tree_walk_audit.py . | tail -1 | grep -q "^total 0$$" \
+		&& echo "check-tree-walks: PASS (every whole-tree walk is metered or exempt)" \
+		|| (python3 $(REPO_ROOT)/tools/tree_walk_audit.py . && echo "check-tree-walks: FAIL" && exit 1)
+
+# The runtime half of check-tree-walks: the real client, headless, under every
+# frame provider (and the phone's mobile identity), with the scan meter set to
+# abort. Its own objects and binary, so it never races another session's build.
+.PHONY: check-scan-meter
+check-scan-meter:
+	$(MAKE) EMBED_SERVER=1 OPT=1 PLATFORM_OBJ_BASE=build_scanmeter \
+		PLATFORM_TARGET=torirs_scanmeter torirs_scanmeter
+	$(REPO_ROOT)/tools/scan_meter_gate.sh $(SRC_DIR)/torirs_scanmeter
+
 # Generated revconfig roles must match the cache packs they were generated
 # from, and every derive= fact must be one App_RoleDeriveFallback knows. Shaped
 # like check-pt-switch: the tool is the gate, the makefile only names it.

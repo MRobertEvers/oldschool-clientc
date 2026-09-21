@@ -63,6 +63,7 @@ emit_overlay_range_capture(struct UITree const* tree, struct UITreeEmitBuffer* o
     /* Hoisting only examines descriptors after WORLD. Require that this root
      * is traversed after the last world, including the all-empty range case. */
     int32_t world_root = out->cmds[world].node_index;
+    /* tree-walk-exempt: ancestor chain, bounded by the count */
     for( unsigned guard = 0; world_root >= 0 && guard < tree->component_count; ++guard )
     {
         if( (uint32_t)world_root >= tree->component_count ) return;

@@ -577,7 +577,88 @@ UITree_FrameSlotIndex(
  * new match has not appeared. Topology changes (add, free, re-parent) bump
  * `generation` and reset the table outright, so a reclaimed index cannot
  * be believed. One entry per tree pointer. -2 marks "not remembered".
+ *
+ * The misses are what made this expensive: a caller that asks for members a
+ * frame does not name (app_plugin_tab_active asks for all fourteen sidebar
+ * tabs, once per tab-stone widget, every frame) scanned all ~7,000 nodes of
+ * an OSRS239 tree per miss -- 67% of the Moto X's CPU under the Stone Drawer,
+ * 12.8 -> 68 ms a frame. So the scans below do not walk the tree: they walk
+ * the CANDIDATES, the few dozen nodes frame_node_may_be_slot admits, in index
+ * order. Candidacy is a node's type (fixed at creation) or its slot_tag,
+ * which only UITree_FrameStamp writes after creation and which bumps
+ * `frame_stamp_serial`; so the list is rebuilt on topology or a stamp and
+ * the live tests -- componentno included -- still run on every lookup.
  */
+static struct
+{
+    struct UITree const* tree;
+    uint64_t instance;
+    uint32_t generation;
+    uint32_t count;
+    uint32_t stamp_serial;
+    int valid;
+    int32_t* ids;
+    uint32_t ids_count;
+    uint32_t ids_capacity;
+} frame_slot_candidates;
+
+static void
+frame_slot_candidates_refresh(struct UITree const* tree)
+{
+    assert(tree);
+    if( frame_slot_candidates.valid && frame_slot_candidates.tree == tree &&
+        frame_slot_candidates.instance == tree->instance_id &&
+        frame_slot_candidates.generation == tree->generation &&
+        frame_slot_candidates.count == tree->component_count &&
+        frame_slot_candidates.stamp_serial == tree->frame_stamp_serial )
+        return;
+
+    frame_slot_candidates.ids_count = 0;
+    UITREE_SCAN_METER(tree);
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed || !frame_node_may_be_slot(c) )
+            continue;
+        if( frame_slot_candidates.ids_count == frame_slot_candidates.ids_capacity )
+        {
+            uint32_t const capacity =
+                frame_slot_candidates.ids_capacity ? frame_slot_candidates.ids_capacity * 2 : 64;
+            frame_slot_candidates.ids =
+                realloc(frame_slot_candidates.ids, capacity * sizeof(*frame_slot_candidates.ids));
+            assert(frame_slot_candidates.ids);
+            frame_slot_candidates.ids_capacity = capacity;
+        }
+        frame_slot_candidates.ids[frame_slot_candidates.ids_count++] = (int32_t)i;
+    }
+    frame_slot_candidates.tree = tree;
+    frame_slot_candidates.instance = tree->instance_id;
+    frame_slot_candidates.generation = tree->generation;
+    frame_slot_candidates.count = tree->component_count;
+    frame_slot_candidates.stamp_serial = tree->frame_stamp_serial;
+    frame_slot_candidates.valid = 1;
+}
+
+void
+UITree_FrameStamp(
+    struct UITree* tree,
+    int32_t idx,
+    uint8_t slot_tag,
+    uint8_t frame_member_plus1)
+{
+    struct UITreeComponent* c;
+
+    assert(tree);
+    assert(idx >= 0);
+    assert((uint32_t)idx < tree->component_count);
+    c = &tree->components[idx];
+    if( c->slot_tag == slot_tag && c->frame_member_plus1 == frame_member_plus1 )
+        return;
+    c->slot_tag = slot_tag;
+    c->frame_member_plus1 = frame_member_plus1;
+    tree->frame_stamp_serial++;
+}
+
 static struct
 {
     struct UITree const* tree;
@@ -640,13 +721,15 @@ UITree_FrameSlotNode(
      * runs. The first is the one the frame was baked with, and it does not
      * move.
      */
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    frame_slot_candidates_refresh(tree);
+    for( uint32_t k = 0; k < frame_slot_candidates.ids_count; k++ )
     {
+        int32_t const i = frame_slot_candidates.ids[k];
         struct UITreeComponent const* c = &tree->components[i];
         if( c->freed )
             continue;
         if( frame_node_is_slot(c, slot) && !frame_node_is_own_member(c, slot) )
-            return *cached = (int32_t)i;
+            return *cached = i;
     }
     return -1;
 }
@@ -658,9 +741,10 @@ UITree_FrameSlotGroupNode(struct UITree const* tree, int slot)
     (void)frame_slot_cache_entry(tree,slot,-1);
     if( frame_slot_cache.group[slot] >= 0 ) return frame_slot_cache.group[slot];
     int32_t parent=-1;
-    for( uint32_t i=0; i<tree->component_count; ++i )
+    frame_slot_candidates_refresh(tree);
+    for( uint32_t k=0; k<frame_slot_candidates.ids_count; ++k )
     {
-        struct UITreeComponent const* c=&tree->components[i];
+        struct UITreeComponent const* c=&tree->components[frame_slot_candidates.ids[k]];
         if( c->freed || !c->frame_member_plus1 || !frame_node_is_slot(c,slot) ) continue;
         if( c->parent < 0 || (parent >= 0 && parent != c->parent) )
             return frame_slot_cache.group[slot]=-1;
@@ -692,15 +776,17 @@ UITree_FrameSlotMemberNode(
         *cached = -2;
     }
 
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    frame_slot_candidates_refresh(tree);
+    for( uint32_t k = 0; k < frame_slot_candidates.ids_count; k++ )
     {
+        int32_t const i = frame_slot_candidates.ids[k];
         struct UITreeComponent const* c = &tree->components[i];
         if( c->freed )
             continue;
         if( !frame_node_is_slot(c, slot) )
             continue;
         if( UITree_FrameSlotIndex(c, slot) == member )
-            return *cached = (int32_t)i;
+            return *cached = i;
     }
     return -1;
 }
@@ -710,16 +796,17 @@ UITree_FrameCompassClickNode(struct UITree const* tree)
 {
     assert(tree);
     /*
-     * A linear walk, and affordable for the same reason UITree_FrameSlotNode's
-     * is: this is asked once per provision -- a committed selection, a resize,
-     * a rebuild -- and never per frame. The per-frame path reads the pairing
-     * off the node (`frame_follows_plus1`), which is what the provision wrote.
+     * Over the slot candidates: a stamped node is one by construction. This
+     * is asked by every provision, and a provision runs on every topology
+     * change -- once per logic tick on an OSRS lane -- so it is not rare.
      */
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    frame_slot_candidates_refresh(tree);
+    for( uint32_t k = 0; k < frame_slot_candidates.ids_count; k++ )
     {
+        int32_t const i = frame_slot_candidates.ids[k];
         struct UITreeComponent const* c = &tree->components[i];
         if( !c->freed && c->slot_tag == UITREE_SLOT_COMPASS_CLICK )
-            return (int32_t)i;
+            return i;
     }
     return -1;
 }
@@ -883,8 +970,12 @@ frame_collect_slots(
     assert(fl);
 
     PA_INC(collect_slots_calls);
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+    /* The candidates are exactly the nodes the test below admits, in index
+     * order, so this is the same collection without the other ~7,000. */
+    frame_slot_candidates_refresh(tree);
+    for( uint32_t k = 0; k < frame_slot_candidates.ids_count; k++ )
     {
+        int32_t const i = frame_slot_candidates.ids[k];
         struct UITreeComponent const* c = &tree->components[i];
 
         PA_INC(collect_slots_iters);
@@ -1026,6 +1117,7 @@ frame_stretch_moved_ancestors(
     assert(fl->provider_owner);
     PA_INC(stretch_calls);
     PA_ADD(stretch_iters, tree->component_count);
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         int inside_moved = 0;
@@ -1150,6 +1242,7 @@ frame_collect_chrome(
         }
     }
 
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
@@ -1866,6 +1959,7 @@ anchor_plan_unit_of(struct UITreeAnchorPlan* plan, struct UITree const* tree, in
         (*iterations)++;
     }
     guard = 0;
+    /* tree-walk-exempt: ancestor chain, bounded by the count */
     for( int32_t p = node; p >= 0 && p != walk && guard++ <= tree->component_count;
          p = tree->components[p].parent )
     {
