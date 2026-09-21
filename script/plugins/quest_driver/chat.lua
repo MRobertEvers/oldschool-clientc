@@ -970,6 +970,48 @@ function QD.chat.play(list)
         summary[#summary + 1] = parsed.kind .. ":" .. fragment
     end
 
+    -- THE LAST CLICK IS OWED AN ANSWER TOO, and nothing inside the loop ever
+    -- waits for it.
+    --
+    -- The readiness wait above runs BEFORE an entry, so entries 2..N each
+    -- make the PREVIOUS entry's click safe to grade.  Entry N's click has no
+    -- entry behind it, so chat.play handed back inside the very tick it had
+    -- just clicked in -- and what a quest file does next is read exactly what
+    -- the conversation was for: the item that was handed over, the varp that
+    -- moved, the xp that was paid.  The server writes those DURING a tick and
+    -- transmits them at the END of it, so a read taken in the same tick is a
+    -- read of the world from before the conversation.
+    --
+    -- Sheep Herder, 2026-09-21 (build/quest_gate/sh_feed_probe/ledger.tsv).
+    -- Councillor Halgrive's accept ends ~mesbox(...) / inv_add(inv,
+    -- poisoned_feed, 1) / %sheepherderquest = ^..._dr_orbon
+    -- (councillor_halgrive.rs2:54-58), and the whole nineteen-page
+    -- conversation costs THREE server ticks -- several pages are clicked
+    -- inside one tick -- so the add and chat.play's return fall in the same
+    -- one.  Five readings of that backpack, taken one after another with
+    -- nothing else between them, answered: immediately 0, again 0, after the
+    -- resume latch cleared 0, after t.settle() 0, after ONE SERVER TICK 1.
+    -- Neither the latch nor a settle is the boundary; the tick is.
+    --
+    -- That is also why halgrive.feed_granted passed before the readiness wait
+    -- landed and failed after it.  The wait moved the loop a few frames
+    -- earlier inside the tick and the quest file's read crossed back over the
+    -- transmit boundary -- the boundary was always there, and every green row
+    -- that read a dialogue's effect was on the lucky side of it.
+    --
+    -- Two conditions, in order, and only when this call actually submitted
+    -- something (a list of pure `expect`/`end` entries clicked nothing, so
+    -- there is no answer outstanding and nothing to wait for):
+    --   * the last click has been ANSWERED -- _await_page_ready's own two
+    --     arms, so `ok` from chat.play also means the page it left behind is
+    --     the one the server sent, not the one it clicked;
+    --   * and that answer's tick has ENDED, so everything else the server
+    --     wrote in it has been transmitted.
+    if acted_kind ~= nil then
+        QD.chat._await_page_ready(acted_kind, acted_identity, 8)
+        QD.ticks(1)
+    end
+
     local joined = table.concat(summary, ", ")
     if #joined > 200 then
         joined = joined:sub(1, 200)

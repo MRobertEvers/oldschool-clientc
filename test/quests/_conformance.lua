@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 9
+-- @seam-count 10
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 103
-local SEAM_COUNT = 9
+local SEAM_COUNT = 10
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1031,11 +1031,47 @@ return {
             return result, describe(detail)
         end)
 
+        -- SEAM talk_owes_a_page (2026-09-21) is graded HERE rather than as a
+        -- seam row of its own, because it is a statement about this verb's
+        -- own answer and this row already makes the only real talk in the
+        -- file.  talk_to's `ok` must say what the DIALOGUE did -- "dialogue
+        -- npc is up", or "no dialogue in N tick(s)" -- and not merely which
+        -- arm of the settle resolved.  The three quests that went red the day
+        -- the npc step-off landed all did it the same way: the settle
+        -- answered on the route or on the content script's opening `mes`
+        -- line, the page arrived a tick or four later, and the quest file's
+        -- next line read a chat frame that was still empty (blackknight rows
+        -- 28-30, murder rows 86-88, fluffs' crate hunt; build/quest_gate,
+        -- 2026-09-21).  Delete the wait at the tail of QD.player.talk_to and
+        -- this row goes red on the word, not on the timing.
         step("player.talk_to", function()
             local fn = verb("player", "talk_to")
+            local kind_of = verb("chat", "kind")
             if not fn then return missing("player", "talk_to") end
+            if not kind_of then return missing("chat", "kind") end
             local result, detail = fn(NPC_SYMBOL)
-            return result, NPC_SYMBOL .. " -> " .. describe(detail)
+            local text = NPC_SYMBOL .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            local said_page = string.find(tostring(detail), "dialogue ", 1, true) ~= nil
+                or string.find(tostring(detail), "no dialogue in ", 1, true) ~= nil
+            if not said_page then
+                return "hollow", "an `ok` that does not say whether a dialogue is up -- "
+                    .. "a quest file's next line is always the conversation, and this "
+                    .. "answer cannot tell it whether there is one: " .. text
+            end
+            local page_kind = kind_of()
+            if page_kind == "none" then
+                return "hollow", "the talk answered ok and left no page, and the detail "
+                    .. "has to be the one that says so: " .. text
+            end
+            if not string.find(tostring(detail), "dialogue " .. tostring(page_kind), 1, true) then
+                return "hollow", "the page is `" .. describe(page_kind) .. "` and the detail "
+                    .. "does not name it -- the wait at the tail of talk_to is what puts it "
+                    .. "there: " .. text
+            end
+            return "ok", text
         end)
 
         step("player.click_loc", function()
@@ -2240,6 +2276,66 @@ return {
             if not seam_target then
                 return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
             end
+            -- STAND NEXT TO IT FIRST -- the precondition every real caller of
+            -- the hunt already has, and the one this row was reading off the
+            -- rows above it.
+            --
+            -- `_hover_onto` is reached from QD.drive.click_minimenu, and every
+            -- verb that reaches click_minimenu has walked to its target first
+            -- (click_loc and use_on through walk_near's standoff, talk_to
+            -- through the same gate).  This row called it with whatever tile
+            -- the previous rows left the player on -- and the combat rows
+            -- added above it leave him where the fight ended: measured
+            -- 2026-09-20 and again 2026-09-21, `player.alive` reports
+            -- 3222,3218 L0 and the nearest `tree` is 3217,3241
+            -- (seam.reach_names_the_copy's own detail, same run), twenty-three
+            -- tiles north.  At that range the loc projects at 400,84 -- the
+            -- top edge of a 765x503 viewport, where the ladder's upward climb
+            -- has almost no legal candidate left -- and the row failed
+            -- `covered ... 45 pixels ... 54 off-viewport` on the DISTANCE, not
+            -- on the seam (build/quest_gate/_conf_seam1/attempt-01 row 100).
+            --
+            -- So the tile is taken here instead of inherited: ::goto to the
+            -- tree's own square (a teleport lands on the nearest tile the
+            -- world accepts, so the player ends on it or beside it), then the
+            -- loc standoff that click_loc itself takes, which steps off the
+            -- square when the teleport landed on it.  Nothing about the hunt
+            -- is relaxed; it is given the frame a press would have.
+            local goto_tile = verb("player", "goto_tile")
+            local walk_near = verb("player", "walk_near")
+            local tile_of_target = verb("drive", "_target_tile")
+            local tile_of = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not walk_near then return missing("player", "walk_near") end
+            if not tile_of_target then return missing("drive", "_target_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local standoff = is_table(t.player) and t.player._loc_standoff or nil
+            if type(standoff) ~= "number" then
+                return "missing", "t.player._loc_standoff is not a number -- the hunt has to be "
+                    .. "given the tile a press would be made from"
+            end
+            local here_result, here = tile_of()
+            if here_result ~= "ok" or not is_table(here) then
+                return here_result, "no tile reading before the approach"
+            end
+            local tree_result, tree_x, tree_z = tile_of_target(seam_target)
+            if tree_result ~= "ok" then
+                return "no_subject", "no tile for " .. LOC_SYMBOL .. " in the loc pool: "
+                    .. describe(tree_result)
+            end
+            local approach_result, approach_detail = goto_tile(tree_x, tree_z, here.level)
+            if approach_result ~= "ok" then
+                return approach_result, "player.goto_tile(" .. describe(tree_x) .. ","
+                    .. describe(tree_z) .. "," .. describe(here.level) .. ") did not reach "
+                    .. LOC_SYMBOL .. "'s square: " .. describe(approach_detail)
+            end
+            local stepped_result, stepped_detail = walk_near(seam_target, nil, standoff)
+            if stepped_result ~= "ok" then
+                return stepped_result, "walk_near(" .. LOC_SYMBOL .. ", standoff "
+                    .. describe(standoff) .. ") left the player on the target's own square: "
+                    .. describe(stepped_detail)
+            end
+            local approached = select(2, tile_of())
             -- And the live half, the one the pre-seam row already proved: a
             -- pixel the target is DRAWN at, found by probing.  `_hover_onto`
             -- walks a ladder of candidates around the projected point and
@@ -2298,7 +2394,10 @@ return {
                     .. "argument is not threaded through _hover_onto and a five-pose sweep "
                     .. "would cost five ladders -- " .. table.concat(tried, "; ")
             end
-            return "ok", "pressing " .. describe(hovered.x) .. "," .. describe(hovered.y)
+            return "ok", "from " .. describe(is_table(approached) and approached.x)
+                .. "," .. describe(is_table(approached) and approached.z) .. ", beside "
+                .. LOC_SYMBOL .. " at " .. describe(tree_x) .. "," .. describe(tree_z)
+                .. ": pressing " .. describe(hovered.x) .. "," .. describe(hovered.y)
                 .. " instead of the projected " .. describe(pos.x) .. "," .. describe(pos.y)
                 .. "; ranked a reach-" .. describe(middle_reach) .. " pose ahead of a reach-"
                 .. describe(edge_reach) .. " one and spent " .. describe(cap - budget.left)
@@ -2511,6 +2610,76 @@ return {
             end
             return "ok", "armed, re-armed without sending ("
                 .. describe(second_detail) .. "), and the wildcard press took the held-item row"
+        end)
+
+        -- A USE WHOSE ONLY EFFECT IS IN THE BACKPACK IS STILL A USE THAT
+        -- LANDED.
+        --
+        -- _settle_after_click's five arms are all edges the SCREEN shows -- a
+        -- mounted chat sub, a chat line, a route, a changed page -- and a
+        -- whole family of `[opnpcu]`/`[oplocu]` branches produce none of them.
+        -- `[opnpcu,gertrudescat]`'s milk branch (quest_fluffs.rs2:222-231)
+        -- animates, says "Mew!" OVERHEAD, swaps the bucket and writes the
+        -- varp; the overhead say is not a chat line, the swap is not a page,
+        -- and once the player stands BESIDE the cat rather than inside her
+        -- there is no route either.  So the press that demonstrably landed
+        -- answered `timeout` at the full deadline and Gertrude's Cat went
+        -- 53/53 -> 41/16 (build/quest_gate/fluffs, 2026-09-21, rows 12 and
+        -- 24, with `quest.stage.gave_milk PASS 3` one row below saying the
+        -- milk HAD been drunk).
+        --
+        -- The rule is graded here rather than by pressing something, because
+        -- the thing that can break is the DECISION and not the press: the
+        -- first draft of this fix made the backpack a sixth settle ARM and
+        -- Elemental Workshop lost its completion varbit to it (row 50
+        -- `smithShield PASS 1 inv_changed` against the published `PASS 4
+        -- chat_message`, row 51 `quest.varp_complete FAIL client=0 server=0`)
+        -- -- a container delta is the EARLIEST thing a press produces and the
+        -- weakest evidence that it finished.  So: read AFTER the timeout,
+        -- never instead of an arm, and only ever turning a timeout into an ok.
+        -- Both halves are checked, and nothing is pressed and nothing moves --
+        -- the live reading is compared against a fabricated one.
+        seam("seam.use_on_silent_effect", function()
+            local decide = verb("player", "_use_on_silent_effect")
+            local contents = verb("player", "_inv_contents")
+            if not decide then return missing("player", "_use_on_silent_effect") end
+            if not contents then return missing("player", "_inv_contents") end
+            local now_result, now = contents()
+            if now_result ~= "ok" or not is_table(now) then
+                return "no_subject", "player._inv_contents() answered "
+                    .. describe(now_result) .. " -- there is no backpack reading to compare"
+            end
+            -- A reading the world cannot match: one item this player does not
+            -- carry.  The diff against the live backpack is therefore "lost
+            -- <it>", exactly the shape a consumed item makes.
+            local invented = "conformance_item_no_player_carries"
+            local moved = { order = { invented }, totals = {} }
+            moved.totals[invented] = 1
+            local changed_result, changed_detail = decide(moved, "settle_after_click")
+            if changed_result ~= "ok" then
+                return changed_result, "a backpack that MOVED left the press graded "
+                    .. describe(changed_result) .. " -- a use whose only effect is in a "
+                    .. "container has no other evidence: " .. describe(changed_detail)
+            end
+            if not string.find(tostring(changed_detail), "backpack:", 1, true) then
+                return "hollow", "the timeout was turned into an ok with no diff in the row, "
+                    .. "so the ledger cannot say what the press moved: "
+                    .. describe(changed_detail)
+            end
+            -- And the half that must NOT fire: nothing moved, so the caller's
+            -- own timeout is handed straight back, word for word.
+            local same_result, same_detail = decide(now, "settle_after_click")
+            if same_result ~= "timeout" then
+                return "hollow", "a backpack that did NOT move still graded "
+                    .. describe(same_result) .. " -- this rule may only ever turn a timeout "
+                    .. "into an ok, never invent one: " .. describe(same_detail)
+            end
+            if same_detail ~= "settle_after_click" then
+                return "hollow", "the untouched timeout lost its own detail: "
+                    .. describe(same_detail)
+            end
+            return "ok", "a moved backpack turns the timeout into `" .. describe(changed_detail)
+                .. "`, an unmoved one is handed back as `" .. describe(same_detail) .. "`"
         end)
 
         -- A BACKPACK PRESS THE CLIENT DECLINES NAMES ITSELF, and is pressed
@@ -2763,6 +2932,7 @@ return {
             local by_symbol = verb("player", "by_symbol")
             local talk_to = verb("player", "talk_to")
             local nearest = verb("npc", "nearest")
+            local await_present = verb("npc", "await_present")
             local tile_of = verb("world", "tile")
             local close_chat = verb("chat", "close")
             if not standoff_for then return missing("player", "_standoff_for_kind") end
@@ -2798,12 +2968,49 @@ return {
                     .. describe(GOTO_TILE_Z) .. "," .. describe(GOTO_TILE_LEVEL) .. ") did not "
                     .. "reach " .. STATIONARY_NPC_SYMBOL .. "'s room: " .. describe(goto_detail)
             end
+            -- THE PLANE FIRST, then the pool, and the pool is WAITED FOR.
+            --
+            -- This row failed `no_subject -- duke_of_lumbridge is not in the
+            -- pool (no_row)` on one suite run and passed on the next two with
+            -- nothing changed (2026-09-20/21), which is the signature of a
+            -- read taken a tick early rather than of a wrong tile.  An
+            -- absolute-tile teleport ACROSS A PLANE re-mounts the scene, and
+            -- goto_tile's own arrival await is "the tile and the npc pool
+            -- around it are visible" -- around the tile it asked for, not
+            -- around the npc, and the rows above this one leave the player
+            -- twenty tiles away on level 0, which is the longest jump any row
+            -- in this file makes.  npc.await_present is the verb for "the pool
+            -- has caught up" and it has its own conformance row above; a
+            -- single `nearest` here was a poll of one.
+            --
+            -- The plane is read back first so the two failures cannot be
+            -- confused: a teleport that landed on the ground floor is a fact
+            -- about ::goto, and an empty pool on the RIGHT floor is a fact
+            -- about the scene mount.
+            local landed_result, landed = tile_of()
+            if landed_result ~= "ok" or not is_table(landed) then
+                return landed_result, "no tile reading after player.goto_tile"
+            end
+            if landed.level ~= GOTO_TILE_LEVEL then
+                return "no_subject", "player.goto_tile(" .. describe(GOTO_TILE_X) .. ","
+                    .. describe(GOTO_TILE_Z) .. "," .. describe(GOTO_TILE_LEVEL)
+                    .. ") landed on level " .. describe(landed.level) .. " at "
+                    .. describe(landed.x) .. "," .. describe(landed.z)
+                    .. " -- the plane is the half of an absolute-tile teleport that is "
+                    .. "never allowed to be one out"
+            end
+            if await_present then
+                await_present(STATIONARY_NPC_SYMBOL, 4, 10)
+            end
             local duke_state, duke = nearest(STATIONARY_NPC_SYMBOL, 4)
             if duke_state ~= "ok" or not is_table(duke) then
                 return "no_subject", STATIONARY_NPC_SYMBOL .. " is not in the pool within 4 of "
                     .. describe(GOTO_TILE_X) .. "," .. describe(GOTO_TILE_Z) .. " L"
-                    .. describe(GOTO_TILE_LEVEL) .. " (" .. describe(duke_state) .. " "
-                    .. describe(duke) .. ") -- his *.spawn row is not where this row thinks"
+                    .. describe(GOTO_TILE_LEVEL) .. " after 10 tick(s) of npc.await_present, "
+                    .. "with the player standing at " .. describe(landed.x) .. ","
+                    .. describe(landed.z) .. " L" .. describe(landed.level) .. " ("
+                    .. describe(duke_state) .. " " .. describe(duke)
+                    .. ") -- his *.spawn row is not where this row thinks"
             end
 
             -- ON HIS SQUARE, exactly: goto_tile answers on Chebyshev 1 and one

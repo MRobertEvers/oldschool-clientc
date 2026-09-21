@@ -1798,15 +1798,72 @@ function QD.player.talk_to(npc, op)
     -- dialogue kind that is up, or the content line that came instead.
     local result, detail, arm, line = QD.player._settle_after_click(
         20, before_kind, before_text)
-    if result == "ok" and arm == "chat_message" then
-        local kind = QD.chat.kind()
-        if kind ~= "none" then
-            return "ok", detail .. ": dialogue " .. kind .. " is up"
-        end
-        return "ok", detail .. ": no dialogue, content line '" .. tostring(line) .. "'"
+    if result ~= "ok" then
+        return result, detail
     end
-    return result, detail
+    -- SEAM talk_owes_a_page (2026-09-21) -- A TALK THAT SETTLED IS NOT A TALK
+    -- THAT HAS BEEN ANSWERED.
+    --
+    -- The five arms above resolve on the first edge the click produced, and
+    -- for a talk that edge is routinely something that happens BEFORE the npc
+    -- speaks: the route running out (`map_flag`), or the content script's own
+    -- opening `mes` line (`chat_message`).  The page follows a tick or four
+    -- later, and every one of those ticks is one the quest file spends on its
+    -- next line -- which for a talk is always the conversation.
+    --
+    -- MEASURED, this checkout, 2026-09-21, on three committed green quests
+    -- that went red the day the npc step-off landed (it removed the extra
+    -- ticks the server used to spend routing the player off the npc's own
+    -- square, and those ticks were what the pages had been arriving in):
+    --   * blackknight row 28 `amik.return_talk PASS 2 map_flag`, row 29
+    --     `amik.return_drain PASS 0 none` with NO page shots -- against the
+    --     published ledger's row 29 `PASS 1` and four of them.  Sir Amik's
+    --     whole hand-in monologue arrived after the drain had already given
+    --     up, and the quest lost its coins, its varp and its scroll (7 FAILs).
+    --   * murder row 86 `guard.talk PASS 7 map_flag`, row 87
+    --     `guard.drain_to_options PASS 1 none`, row 88 `guard.accuse FAIL
+    --     chat.choose: no dialogue is open -- did the talk_to before this
+    --     succeed?`.  It had: the page was one tick behind the answer.
+    --   * fluffs' crate hunt, where `[opnpc1,kittens_mew]`
+    --     (quest_fluffs.rs2:277-289) opens `mes("You search the crate.")`,
+    --     then `p_delay(4)`, then the "You find a kitten!" mesbox.  The
+    --     chat_message arm resolves on that first line in two ticks and the
+    --     file's next line reads a page that is still four ticks away.  The
+    --     published green run passed the SAME six rows by luck: its winning
+    --     crate answered `covered` and spent thirty-three ticks in the pixel
+    --     hunt, which is where the p_delay went.
+    --
+    -- So: if no page is up when the settle answers, wait a little for one.
+    -- This cannot resolve anything EARLIER than the code without it did, so no
+    -- talk that already had its page changes in any way (the common case pays
+    -- one page read); and the cost is bounded and paid only by a talk that
+    -- ends with no dialogue at all -- which is a real shape (a bare `mes`
+    -- npc), and which now SAYS so in its detail with the deadline named.
+    local kind = QD.chat.kind()
+    if kind == "none" then
+        QD.await({
+            level = function() return QD.chat.kind() ~= "none" end,
+            note = "talk_to: the page the npc still owes",
+        }, QD.player._talk_page_ticks)
+        kind = QD.chat.kind()
+    end
+    if kind ~= "none" then
+        return "ok", detail .. ": dialogue " .. kind .. " is up"
+    end
+    if arm == "chat_message" then
+        return "ok", detail .. ": no dialogue in " .. tostring(QD.player._talk_page_ticks)
+            .. " tick(s), content line '" .. tostring(line) .. "'"
+    end
+    return "ok", detail .. ": no dialogue in " .. tostring(QD.player._talk_page_ticks) .. " tick(s)"
 end
+
+-- How long a settled talk waits for the page the npc has not sent yet.  Five:
+-- `p_delay(4)` is the longest pause a content `[opnpc1]` in this pack puts
+-- between its opening line and its dialogue (quest_fluffs.rs2:278), and one
+-- tick more than that is the smallest number that covers it.  It is
+-- deliberately not the settle's own twenty: this wait is paid in full by
+-- every npc that genuinely answers with nothing, and those are common.
+QD.player._talk_page_ticks = 5
 
 -- Walks into range BEFORE the click, which a world click on scenery needs and
 -- a click on an npc does not: a loc type is planted dozens of times across a
@@ -2411,16 +2468,36 @@ function QD.player.use_on(item, target)
         -- The loc half takes the same standoff click_loc does: an armed item
         -- pressed at a pixel the player's own model covers spends the arming
         -- on whatever the menu DOES have a row for, or on nothing at all.
-        local standoff = 0
-        if target.kind == "loc" then
-            standoff = QD.player._loc_standoff
-        end
+        --
+        -- AND THE NPC HALF TAKES ITS OWN, HERE, RATHER THAN INSIDE THE PRESS.
+        -- QD.player._step_off_for_click (SEAM npc_shared_tile) answers a
+        -- standoff for `npc` now, and it runs from inside click_minimenu --
+        -- which for this verb is AFTER the arming.  Walking with a selection
+        -- live is the one thing this banner's own first paragraph says not to
+        -- do: it survives today only because api_drive.move_to reaches
+        -- app_try_move directly and never runs a menu row (the three
+        -- app_selection_clear sites in app_frame.c are all mouse paths), which
+        -- is a fact about the bridge and not a rule the verb should lean on.
+        -- Taking the SAME number here moves the step to before the arming and
+        -- leaves _step_off_for_click nothing to do -- it reads the two tiles,
+        -- sees distance >= 1 and returns.
+        local standoff = QD.player._standoff_for_kind(target.kind) or 0
         QD.player.walk_near(target, nil, standoff)
     end
     QD.player._show_backpack()
     local cell_result, cell = QD.player._inv_cell(item)
     if cell_result ~= "ok" then
         return cell_result, cell
+    end
+    -- The backpack BEFORE any of this verb's presses (SEAM use_on_effect_lands
+    -- at the tail of this function).  Taken here rather than beside the click:
+    -- the far-side loop and the reach retry both press again, and the question
+    -- the wait at the end asks is "did the world change the backpack because
+    -- of this verb", not "because of its last attempt".  Arming moves nothing,
+    -- so the reading is the same either side of it.
+    local inv_before_result, inv_before = QD.player._inv_contents()
+    if inv_before_result ~= "ok" then
+        inv_before = nil
     end
     local arm_result, arm_detail = QD.player._arm_held(item, cell)
     if arm_result ~= "ok" then
@@ -2509,7 +2586,146 @@ function QD.player.use_on(item, target)
             end
             return QD.player._settle_after_click(20, retry_kind, retry_text)
         end)
+    -- SEAM use_on_effect_lands: an `ok` that the caller's very next line can
+    -- read back.  The banner is over QD.player._await_use_on_effect.
+    if settle_result == "ok" then
+        local landed = QD.player._await_use_on_effect(inv_before)
+        if landed then
+            settle_detail = tostring(settle_detail) .. " [backpack: " .. landed .. "]"
+        end
+    elseif settle_result == "timeout" then
+        settle_result, settle_detail =
+            QD.player._use_on_silent_effect(inv_before, settle_detail)
+    end
     return settle_result, settle_detail
+end
+
+-- SEAM use_on_silent_effect (2026-09-21) -- A PRESS WHOSE ONLY EFFECT IS IN
+-- THE BACKPACK.
+--
+-- _settle_after_click's five arms are all edges the SCREEN shows: a mounted
+-- chat sub, a chat line, a route, a changed page.  There is a whole family of
+-- `[opnpcu]`/`[oplocu]` branches that produce none of them.
+-- `[opnpcu,gertrudescat]`'s milk branch (quest_fluffs.rs2:222-231) animates,
+-- says "Mew!" OVERHEAD, swaps the bucket and writes the varp -- and the
+-- overhead say is not a chat line, the swap is not a page, and once the
+-- player is standing BESIDE the cat rather than inside her there is no route
+-- either.  Nothing for the settle to see, so a press that demonstrably landed
+-- answered `timeout` at the full deadline: build/quest_gate/fluffs,
+-- 2026-09-21, rows 12 and 24 `settle_after_click -- walk_near: stepped off
+-- the target tile 3306,3512`, with row 13 `quest.stage.gave_milk PASS 3` one
+-- line below saying the milk had been drunk.  53/53 -> 41/16.
+--
+-- SO THE BACKPACK IS READ AFTER THE TIMEOUT, NEVER INSTEAD OF THE ARMS.  This
+-- is click_loc's door evidence, applied to the verb whose whole purpose is to
+-- change what is carried, and it is the same shape for the same reason: it
+-- cannot resolve anything EARLIER than the code without it did, so no verb's
+-- timing changes and no green row moves.  The first draft of this fix DID
+-- make it a sixth settle arm, and the measurement is why it is not one:
+-- Elemental Workshop's `smithShield` resolved in ONE tick on the bar leaving
+-- the backpack instead of four on the server's own sentence, and the quest
+-- completion varbit -- written later in the same script -- had not been
+-- transmitted when the next row read it (build/quest_gate/elemental_workshop,
+-- 2026-09-21: row 50 `smithShield PASS 1 inv_changed`, row 51
+-- `quest.varp_complete FAIL client=0 server=0 complete=1`, against the
+-- published `PASS 4 chat_message` / `PASS`).  A container delta is the
+-- EARLIEST thing a press produces and the weakest evidence that it finished.
+--
+-- Answers (ok, detail) when the backpack moved, and the caller's own
+-- (timeout, detail) untouched when it did not.
+function QD.player._use_on_silent_effect(before, timeout_detail)
+    if type(before) ~= "table" then
+        return "timeout", timeout_detail
+    end
+    local now_result, now = QD.player._inv_contents()
+    if now_result ~= "ok" or type(now) ~= "table" then
+        return "timeout", timeout_detail
+    end
+    local diff = QD.player._inv_contents_diff(before, now)
+    if diff == "" then
+        return "timeout", timeout_detail
+    end
+    return "ok", "no page, line or route: the backpack is the evidence [backpack: "
+        .. diff .. "] (" .. tostring(timeout_detail) .. ")"
+end
+
+-- SEAM use_on_effect_lands (2026-09-21) -- `ok` FROM A PRESS WHOSE EFFECT THE
+-- CLIENT HAS NOT BEEN SHOWN YET.
+--
+-- WHAT WAS WRONG.  QD.player._settle_after_click answers on the first edge the
+-- click produced, and for a use_on that edge is almost always the server's own
+-- sentence (the `chat_message` arm).  The CONTAINER the same script changed on
+-- the same server tick is not in that edge: the server writes the backpack
+-- delta into the NEXT tick's player update, so the client is told what the
+-- press did one server tick after it is told what the press said.  A quest
+-- file that reads the backpack on the line after the verb reads the backpack
+-- from before the press.
+--
+-- MEASURED on Scorpion Catcher's questscorpiona, this checkout, 2026-09-21
+-- (build/quest_gate/scorp_probe2, rows 7-9 -- use_on(scorpioncageempty,
+-- questscorpiona), then the same two reads every tick):
+--     catch      PASS 2 ticks   chat_message
+--     probe.t0   cagea=0 empty=1      <- the instant use_on answered ok
+--     probe.t1   cagea=1 empty=0      <- one server tick later
+-- and build/quest_gate/scorp_probe3 rows 6-8 say which wait closes it:
+--     a.raw            cagea=0
+--     a.after_settle   ok cagea=0     <- t.settle() is NOT it (no tick passes)
+--     a.after_tick     cagea=1
+-- The same run's `t.await{ event = "inv_changed" }` raised `drive.await:
+-- descriptor needs a level or a match predicate`, which is why this is a
+-- LEVEL predicate over the reading itself rather than an event wait.
+--
+-- WHY IT SURFACED NOW, and why the answer is not to undo what surfaced it.
+-- The published 34/34 ledger pressed from ON the scorpion's own square
+-- (goto_tile lands the player there -- the scaffold walks to the npc's own
+-- *.spawn row), so the SERVER routed the player one tile before running
+-- [opnpcu,...] and the row cost five ticks; the backpack delta had landed by
+-- the time the next line read it, by luck of the route.  SEAM npc_shared_tile
+-- steps off that square first, the press is served immediately, the row costs
+-- two ticks -- and the same three `t.check` rows that were green went red with
+-- the quest still COMPLETING at the end (build/quest_gate/scorpcatcher,
+-- 2026-09-21: pass=31 fail=3, rows 13/22/26, and rows 31-34 all PASS).  A
+-- green row that depended on the server making the client wait is not a green
+-- row this driver should keep.
+--
+-- WHAT IT COSTS.  The deadline, and only when the press changed no item:
+-- `_inv_contents` differs on the first poll after the delta lands, so a use_on
+-- that swaps, consumes or produces anything pays one tick and stops.  It is
+-- deliberately NOT in _settle_after_click: that function is every click verb's
+-- settle, talk_to included, and the measurement in its own banner (The
+-- Knight's Sword green -> red at one extra tick) is why a wait there is not
+-- allowed.  use_on is the verb whose whole purpose is to change what is
+-- carried.
+--
+-- WHAT IT IS NOT.  It never changes the result -- a press that answered
+-- `refused` or `covered` is not re-graded by what the backpack did, and a
+-- use_on with no backpack effect at all (a door, a lever, a dialogue) times
+-- out here silently and keeps its own `ok`.  All it adds is the diff, in the
+-- row, so the ledger says what the press actually moved.
+QD.player._use_on_effect_ticks = 2
+
+-- The backpack diff this verb's presses produced, or nil: either nothing
+-- moved within the deadline, or there was no reading to compare against.
+function QD.player._await_use_on_effect(before)
+    if type(before) ~= "table" then
+        return nil
+    end
+    local diff = ""
+    local result = QD.await({
+        level = function()
+            local after_result, after = QD.player._inv_contents()
+            if after_result ~= "ok" or type(after) ~= "table" then
+                return false
+            end
+            diff = QD.player._inv_contents_diff(before, after)
+            return diff ~= ""
+        end,
+        note = "use_on: the backpack the press changed",
+    }, QD.player._use_on_effect_ticks)
+    if result == "ok" and diff ~= "" then
+        return diff
+    end
+    return nil
 end
 
 
