@@ -205,6 +205,11 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
 
 - Authors are Sonnet by default (`author_model` in the loop's args); four Haiku
   batches landed 4 of 24, the first Sonnet batch 5 of 8 on the same quests.
+- **Model roles (owner, 2026-09-21):** Haiku or Sonnet authors run the tests,
+  Sonnet reviews, Opus does every integration fix (the seam pass's fixers and
+  closer, the sampler). The orchestrating session never does the work itself
+  and is never used as an agent model: every Agent/agent() call passes an
+  explicit model, because an omitted model inherits the orchestrator.
 - **If a Haiku author's context compacts during the authoring step, that
   quest switches to Sonnet 5 at medium effort.** The author card tells Haiku to
   stop and report `compacted=true` the moment it sees a summary in place of its
