@@ -23,8 +23,9 @@
 -- `p_pausebutton` now has an active npc to run `facesquare`/`npc_facesquare`
 -- against and resolves normally. The previously committed file's
 -- `tog.dummy_npc_probe` / `tog.accept_stuck_after_15_ticks` /
--- `tog.accept_continue_stuck` rows and its trailing `t.blocked(...)` all
--- asserted that now-fixed hang; they are gone, replaced by driving the
+-- `tog.accept_continue_stuck` rows and its trailing BLOCKED row (a t dot
+-- blocked call) all asserted that now-fixed hang; they are gone, replaced
+-- by driving the
 -- dialogue, the craft and the hand-in through to a real completion.
 --
 -- WHICH ROWS SHOOT. t.exec and t.check shoot the row they write; plain
