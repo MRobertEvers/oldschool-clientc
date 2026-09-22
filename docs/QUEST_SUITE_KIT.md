@@ -213,7 +213,7 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
 - **If a Haiku author's context compacts during the authoring step, that
   quest switches to Sonnet 5 at medium effort.** The author card tells Haiku to
   stop and report `compacted=true` the moment it sees a summary in place of its
-  earlier messages; the loop (`tools/quest_gate/haiku_loop.workflow.js`,
+  earlier messages; the loop (`tools/quest_gate/author_batch.workflow.js`,
   `ESCALATE_MODEL`/`ESCALATE_EFFORT`) then re-runs the same card with Sonnet,
   which resumes the file Haiku left. An author that returns no report at all is
   treated as compacted.
@@ -239,8 +239,26 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   engine's own frame, and no plugin hook sits between the driver and the
   client. A quest test that needs another plugin's behaviour is testing that
   plugin, and belongs in its own harness.
+- **Every step is resilient to pausing (owner, 2026-09-22).** Both loops are
+  now `tools/quest_gate/author_batch.workflow.js` and
+  `tools/quest_gate/seam_pass.workflow.js` (`haiku_loop`/`seam_fixer` are
+  retired). Every worker persists its result under
+  `build/author_state/<batch>/` or `build/seam_state/<pass>/` (a JSON per
+  author, reviewer, fixer, queue write, sample, sheet, triage, close) and keeps a
+  progress notebook it appends to after every step; a State phase reads them
+  back at launch. A batch or pass that is paused, killed, starved by API
+  errors, or loses one lane is relaunched with the SAME args and continues
+  from disk: reviewed quests are not re-authored, fixed seams are not
+  re-fixed, a landed close is not re-landed. Every agent call is wrapped so a
+  stall or API death returns null and is retried, never thrown; one dead lane
+  never stops the others or the closer. Never `resumeFromRunId`: the cache is
+  keyed on the script and a script edit re-runs everything. Reviewers no
+  longer write `QUEUE.tsv` (concurrent read-modify-writes clobbered rows);
+  the batch's Queue phase writes every row once from the review files, before
+  the sampler pushes. The Sheet phase builds the contact sheet under the
+  artifact limit; the orchestrator publishes it and adds the BATCHES.tsv row.
 - **Every batch ends with the seam pass.** After the sampler pushes, run
-  `tools/quest_gate/seam_fixer.workflow.js` (content inline, no args): an Opus
+  `tools/quest_gate/seam_pass.workflow.js` (content inline, args {pass, context}): an Opus
   triage groups the blocked and content_bug rows by seam, one Opus agent fixes
   each DRIVER seam with a live reproduction and proof, and its closer adds the
   conformance rows, runs the gates, commits, pushes, and reopens the freed rows
