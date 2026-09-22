@@ -203,22 +203,20 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
 
 ## Phase 5 run book rules (owner, 2026-09-20)
 
-- Authors are Sonnet by default (`author_model` in the loop's args); four Haiku
-  batches landed 4 of 24, the first Sonnet batch 5 of 8 on the same quests.
-- **Model roles (owner, 2026-09-21):** Haiku or Sonnet authors run the tests,
-  Sonnet reviews, Opus does every integration fix (the seam pass's fixers and
-  closer, the sampler). The orchestrating session never does the work itself
-  and is never used as an agent model: every Agent/agent() call passes an
-  explicit model, because an omitted model inherits the orchestrator.
-- **If a Haiku author's context compacts during the authoring step, that
-  quest switches to Sonnet 5 at medium effort.** The author card tells Haiku to
-  stop and report `compacted=true` the moment it sees a summary in place of its
-  earlier messages; the loop (`tools/quest_gate/author_batch.workflow.js`,
-  `ESCALATE_MODEL`/`ESCALATE_EFFORT`) then re-runs the same card with Sonnet,
-  which resumes the file Haiku left. An author that returns no report at all is
-  treated as compacted.
-- The reviewer is always Sonnet; the sampler is always Opus; neither changes
-  with the author model.
+- **Authors are Sonnet 5, always (owner, 2026-09-22): Haiku is not used
+  anywhere in the loop.** `author_batch.workflow.js` no longer takes an
+  `author_model` argument. History: four Haiku batches landed 4 of 24 and the
+  first Sonnet batch 5 of 8 on the same quests.
+- **Model roles (owner, 2026-09-21):** Sonnet authors run the tests, Sonnet
+  reviews, Opus does every integration fix (the seam pass's fixers and closer,
+  the sampler). The orchestrating session never does the work itself and is
+  never used as an agent model: every Agent/agent() call passes an explicit
+  model, because an omitted model inherits the orchestrator.
+- **An author whose context compacts (or that returns no report) is re-run
+  once, still Sonnet, at medium effort, from its own progress notebook.** The
+  author card tells it to stop and report `compacted=true` the moment it sees a
+  summary in place of its earlier messages.
+- The reviewer is always Sonnet; the sampler is always Opus.
 - **Every batch publishes a contact-sheet artifact.** After the sampler
   pushes, the orchestrator runs
   `.venv/bin/python tools/quest_gate/batch_sheet/build_sheet.py . build/batch_sheet/<batch> <the batch's test ids>`

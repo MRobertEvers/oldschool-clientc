@@ -3,7 +3,7 @@ export const meta = {
   description: 'Resumable author batch: one author per quest, a reviewer per quest, one queue write, an Opus sample, a contact sheet -- every step persists under build/author_state/<batch>/ and relaunching with the same args continues from disk',
   phases: [
     { title: 'State', detail: 'Sonnet: which quests of this batch are already reviewed' },
-    { title: 'Author', detail: 'Haiku/Sonnet authors; each writes <id>.author.json and a progress notebook' },
+    { title: 'Author', detail: 'Sonnet authors; each writes <id>.author.json and a progress notebook' },
     { title: 'Review', detail: 'Sonnet reviewers; each commits and writes <id>.review.json; nobody touches QUEUE.tsv here' },
     { title: 'Queue', detail: 'Sonnet: ONE write of every row from the review files (no clobber race)' },
     { title: 'Sample', detail: 'Opus: adversarial sample, reverts, pushes; idempotent' },
@@ -12,7 +12,7 @@ export const meta = {
 }
 // The resumable author batch (2026-09-22). Paste this file's content inline
 // with args:
-//   { batch: "sonnet-b11", tests: ["misc", ...], author_model: "sonnet",
+//   { batch: "sonnet-b11", tests: ["misc", ...],
 //     sheet_dir: "<scratchpad>/batch_sheet/sonnet-b11" }
 // Every step writes under build/author_state/<batch>/ (<id>.author.json,
 // <id>.author.progress.md, <id>.review.json, queue.json, sample.json,
@@ -22,13 +22,14 @@ export const meta = {
 //
 // Change from the 2026-09-19 loop: reviewers no longer write QUEUE.tsv (twelve
 // concurrent read-modify-writes clobbered rows); the Queue phase writes every
-// row once from the review files. A Haiku author whose context compacts is
-// replaced by Sonnet at medium effort (owner rule, 2026-09-20).
+// row once from the review files. Every author is Sonnet (owner rule,
+// 2026-09-22: Haiku is no longer used anywhere in the loop); an author that
+// compacts or returns no report is re-run once, still Sonnet, at medium effort.
 
 const WT = '/Users/matthewevers/Documents/git_repos/3draster-quest-driver'
 const batch = args && args.batch
 const tests = (args && args.tests) || []
-const authorModel = (args && args.author_model) || 'sonnet'
+const authorModel = 'sonnet'
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
 if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
@@ -105,17 +106,17 @@ const authoredById = Object.fromEntries(state.authored.map(a => [a.test_id, a]))
 const pending = tests.filter(id => !reviewedIds.has(id))
 log(`state: ${state.reviewed.length} reviewed, ${state.authored.length} authored, ${pending.length} pending: ${pending.join(', ') || 'none'}`)
 
-const ESCALATE_MODEL = 'sonnet', ESCALATE_EFFORT = 'medium'
+const RETRY_EFFORT = 'medium'
 const results = await pipeline(
   pending,
   async (id) => {
     if (authoredById[id]) return authoredById[id]
     const first = await attempt(`author:${id}`, 2, () => agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: authorModel, schema: AUTHOR_SCHEMA }))
     const compacted = !first || first.compacted === true
-    if (!compacted || authorModel === ESCALATE_MODEL) return first
-    log(`${id}: the ${authorModel} author compacted (or returned no report); re-running with ${ESCALATE_MODEL} at ${ESCALATE_EFFORT} effort`)
-    const second = await attempt(`author:${id} (escalated)`, 2, () => agent(authorCard(id), { label: `author:${id} (escalated)`, phase: 'Author', model: ESCALATE_MODEL, effort: ESCALATE_EFFORT, schema: AUTHOR_SCHEMA }))
-    return second ? { ...second, escalated_from: authorModel } : second
+    if (!compacted) return first
+    log(`${id}: the author compacted (or returned no report); re-running once at ${RETRY_EFFORT} effort from its notebook`)
+    const second = await attempt(`author:${id} (retry)`, 2, () => agent(authorCard(id), { label: `author:${id} (retry)`, phase: 'Author', model: authorModel, effort: RETRY_EFFORT, schema: AUTHOR_SCHEMA }))
+    return second ? { ...second, retried: true } : second
   },
   async (a, id) => {
     const report = a || { test_id: id, outcome: 'gave_up', runs: 0, checks_resolved: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [], compacted: true }
