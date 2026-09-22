@@ -43,15 +43,20 @@
 --
 -- Reward: quest_misc's own ~quest_complete_rewards call lists "10000
 -- coins|Management of Miscellania|Ring of wealth teleport to Miscellania"
--- as SCROLL TEXT only -- misc_king_vargas.rs2:136's inv/coin-shaped line is
--- `%misc_coffers = add(%misc_coffers, 10000)`, the KINGDOM's coffer varp,
--- never inv_add(inv, coins, ...) or any skill xp grant, and nothing else in
--- the quest_misc tree adds a ring to the player's own backpack either. The
--- scaffold's own Quest Helper banner agrees (0 experience, 0 item, quest
--- points 1) -- so the only real player-facing reward is the 1 quest point
--- quest.expect_complete()'s own quest.points row already grades; the scroll
--- text is read and checked against those literal lines below for evidence,
--- not asserted as an inventory/skill gain that never happens.
+-- as scroll text, and the FIRST of those three is a real grant this pack
+-- makes: misc_king_vargas.rs2's [label,vargas_finish_quest] runs
+-- `%misc_coffers = add(%misc_coffers, 10000)` on the line directly above
+-- `queue(misc_quest_complete, 0, 0)`. That is the kingdom's coffer, not the
+-- player's backpack -- but it is a DECLARED varbit (configs/all.varbit's
+-- [misc_coffers], basevar misc_varbit_2, startbit 0 endbit 26;
+-- all.varbit.compack 74=misc_coffers), so t.var.server reads it like any
+-- other and the grant is asserted below (reward.coffers: the reading taken
+-- immediately before the crowning click, plus exactly 10000). The other two
+-- scroll lines really are text only -- nothing in the quest_misc tree
+-- inv_adds a ring or grants skill xp, and the scaffold's Quest Helper banner
+-- agrees (0 experience, 0 item, quest points 1) -- so those two are graded by
+-- the scroll's own literal lines (scroll.rewardLines) and the 1 quest point
+-- quest.expect_complete()'s quest.points row already checks.
 
 return {
     id = "misc",
@@ -287,59 +292,93 @@ return {
         })
         t.expect("quest.stage.king_signed_treaty", t.quest.expect_stage("king_signed_treaty"))
 
-        -- ---------------------------------------------------- 75% support: CONTENT BUG
-        -- Both remaining NPCs this quest needs (Vargas for the support
-        -- check + final crowning, Ghrim for the reputation-item support
-        -- boost) open with the SAME top-of-handler gate:
-        --   [opnpc1,misc_king_vargas]   (misc_king_vargas.rs2:39-43)
-        --   [opnpc1,misc_advisor_ghrim] (misc_advisor_ghrim.rs2:30-34)
-        --     if (~royaltrouble_relevant = true) { @royal_..._dialogue; return; }
-        -- ~royaltrouble_relevant (quest_royaltrouble/scripts/royal_shared.rs2:5-12)
-        -- returns true once `%misc_quest >= ^misc_king_signed_treaty` (90)
-        -- AND Royal Trouble is not complete -- but %misc_quest only REACHES
-        -- 90 as THIS quest's own second-to-last stage (misc_king_vargas.rs2's
-        -- vargas_sign_treaty label, just reached above). A fresh character's
-        -- %royal_quest defaults to 0 (well under ^royal_complete), so the
-        -- moment the treaty is signed, both Vargas's [label,vargas_check_support]
-        -- and Ghrim's [label,ghrim_offer_help_support] -- the quest's own
-        -- last two steps -- become permanently unreachable: every click on
-        -- either npc redirects to Royal Trouble's dialogue instead (measured
-        -- below, run 2: "Please, find out what's really going on down
-        -- there." is Royal Trouble's own opener, not anything in
-        -- quest_misc). The gate's own threshold should almost certainly be
-        -- `%misc_quest >= ^misc_complete` (100, once ToM is actually done),
-        -- matching real OSRS's quest ordering (Royal Trouble requires ToM
-        -- COMPLETE, not merely treaty-signed) -- not a driver seam, and
-        -- nothing this file can work around: the quest's OWN deliverable
-        -- (vargas_finish_quest, ghrim's approval boost) is what is gated,
-        -- so cheating past it (::setvar/::complete quest_royaltrouble) would
-        -- be exactly the deliverable-cheat QUEST_AUTHORING.md trap 16 rules
-        -- out, not a legitimate prerequisite.
-        t.exec("checkSupport1", t.player.talk_to, "misc_king_vargas", 1)
-        local hijack_result, hijack_text = t.chat.text()
-        t.check("checkSupport1.hijacked",
-            hijack_result == "ok" and hijack_text ~= nil
-                and hijack_text:find("support", 1, true) == nil,
-            "talk_to misc_king_vargas at %misc_quest=king_signed_treaty(90) read="
-                .. tostring(hijack_result) .. " text=" .. tostring(hijack_text)
-                .. " -- Royal Trouble's own opener, not misc_king_vargas.rs2's own "
-                .. "[label,vargas_check_support] ('The treaty is signed, but a ruler "
-                .. "needs the support of the people first...')")
+        -- ---------------------------------------------------- Advisor Ghrim: 75% support
+        -- royal_shared.rs2's ~royaltrouble_relevant now gates on
+        -- %misc_quest >= ^misc_complete(100), not the old
+        -- ^misc_king_signed_treaty(90) -- so quest_misc's own last two steps
+        -- (ghrim_offer_help_support here, vargas_check_support +
+        -- vargas_finish_quest next) are reachable again from
+        -- king_signed_treaty(90). bronze_axe (given in setup, Ghrim's
+        -- reputation item, misc_advisor_ghrim.rs2's ~ghrim_has_reputation_item)
+        -- makes this single visit set %misc_approval to the 75% threshold in
+        -- one narrated interaction (that file's own soft-skip, its header).
+        t.exec("goto-ghrim2", t.player.goto_tile, 2499, 3857, 1)
+        t.exec("askGhrimForWork", t.player.talk_to, "misc_advisor_ghrim", 1)
+        t.exec("askGhrimForWork-dialog", t.chat.play, {
+            "player:Put me to work -- I want to earn the people's trust.",
+            "npc:Splendid! Off you go, then.",
+        })
 
-        t.blocked("content_bug: quest_royaltrouble/scripts/royal_shared.rs2:5-12 "
-            .. "(~royaltrouble_relevant) returns true at %misc_quest >= "
-            .. "^misc_king_signed_treaty(90) with a fresh %royal_quest(0), so "
-            .. "misc_king_vargas.rs2:39-43's [opnpc1,misc_king_vargas] and "
-            .. "misc_advisor_ghrim.rs2:30-34's [opnpc1,misc_advisor_ghrim] both "
-            .. "redirect to Royal Trouble's dialogue on every click from this "
-            .. "point on, before quest_misc's own last two steps "
-            .. "([label,vargas_check_support]/[label,vargas_finish_quest] and "
-            .. "[label,ghrim_offer_help_support]) can ever be reached -- "
-            .. "misc_king_vargas.rs2's own %misc_quest never advances past "
-            .. "^misc_king_signed_treaty(90) for a fresh, non-Royal-Trouble "
-            .. "character. Not a driver seam: the click landed (talk_to -> ok) "
-            .. "and the dialogue that opened is real Royal Trouble content, just "
-            .. "not this quest's.")
-        return
+        -- ---------------------------------------------------- back to Vargas: the crowning
+        -- vargas_check_support reads %misc_approval >= 75% (just set above)
+        -- and falls straight through to vargas_finish_quest in the same
+        -- click (no return between the labels) -- one dialogue, one row.
+        t.exec("goto-vargas6", t.player.goto_tile, 2501, 3859, 1)
+
+        -- The coffer reading taken on the tick BEFORE the crowning click, so
+        -- the assertion below is a delta this run measured and not a guess at
+        -- a starting balance (a fresh character's %misc_coffers is 0, but the
+        -- delta is what vargas_finish_quest's own `add(%misc_coffers, 10000)`
+        -- is worth). Read server-side: the coffer varbit is the kingdom's
+        -- bookkeeping and nothing transmits it to this client's varp cache.
+        local coffers_before_result, coffers_before = t.var.server("misc_coffers")
+
+        t.exec("talkVargasFinish", t.player.talk_to, "misc_king_vargas", 1)
+        t.exec("talkVargasFinish-dialog", t.chat.play, {
+            "npc:The people trust you, the treaty is signed, and my own children speak well of you. I hereby name you regent of Miscellania!",
+        })
+
+        -- vargas_finish_quest writes %misc_quest = ^misc_complete then
+        -- queue(misc_quest_complete, 0, 0) -- the varp write and the scroll
+        -- paint it queues are not client-visible in the click's own tick
+        -- (section 8's completion-is-asynchronous rule).
+        t.ticks(3)
+        t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
+
+        -- The 10000gp the scroll's first reward line promises. Same label,
+        -- one line above the `%misc_quest = ^misc_complete` the row above
+        -- just proved, so a stage of complete and an unmoved coffer would
+        -- mean the grant line was skipped.
+        local coffers_after_result, coffers_after = t.var.server("misc_coffers")
+        t.check("reward.coffers",
+            coffers_before_result == "ok" and coffers_after_result == "ok"
+                and type(coffers_before) == "number" and type(coffers_after) == "number"
+                and coffers_after == coffers_before + 10000,
+            "misc_coffers before the crowning click = " .. tostring(coffers_before)
+                .. " (" .. tostring(coffers_before_result) .. "), after = "
+                .. tostring(coffers_after) .. " (" .. tostring(coffers_after_result)
+                .. "), delta = "
+                .. tostring((type(coffers_after) == "number" and type(coffers_before) == "number")
+                    and (coffers_after - coffers_before) or "n/a")
+                .. ", expected 10000 from misc_king_vargas.rs2's "
+                .. "[label,vargas_finish_quest] `%misc_coffers = add(%misc_coffers, 10000)`")
+
+        -- The quest's own ~quest_complete_rewards call lists "10000
+        -- coins|Management of Miscellania|Ring of wealth teleport to
+        -- Miscellania" as SCROLL TEXT only -- misc_king_vargas.rs2's
+        -- vargas_finish_quest adds to %misc_coffers (the KINGDOM's, not the
+        -- player's) and nothing else in the tree inv_adds or grants xp, so
+        -- the scroll's own reward lines are the only real evidence of this
+        -- quest's documented reward (file header above). t.scroll.rewards()
+        -- awaits the scroll's own mount itself, so quest.expect_complete()'s
+        -- quest.scroll shot below photographs a scroll already on screen
+        -- (section 8's "settle before expect_complete" rule).
+        local rewards_result, rewards_detail = t.scroll.rewards()
+        local rewards_text = "nil"
+        local rewards_ok = false
+        if rewards_result == "ok" and type(rewards_detail) == "table" and type(rewards_detail.lines) == "table" then
+            rewards_text = table.concat(rewards_detail.lines, " | ")
+            -- The scroll wraps the third reward across two lines ("Ring of
+            -- wealth teleport to" / "Miscellania"), so match the two whole
+            -- lines the wrap leaves intact rather than the joined phrase.
+            rewards_ok = rewards_text:find("10000 coins", 1, true) ~= nil
+                and rewards_text:find("Management of Miscellania", 1, true) ~= nil
+                and rewards_text:find("Ring of wealth teleport to", 1, true) ~= nil
+        end
+        t.check("scroll.rewardLines", rewards_ok,
+            "scroll.rewards() -> " .. tostring(rewards_result) .. " lines=" .. rewards_text)
+
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }
