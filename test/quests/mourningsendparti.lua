@@ -1,5 +1,5 @@
--- Mourning's End Part I, driven through to a DRIVER SEAM (not the original
--- content bug -- that one is fixed).
+-- Mourning's End Part I, driven end to end (both content bugs this file
+-- carried a t.blocked() for are fixed -- see the two RETRY notes below).
 --
 -- RETRY after OSRS-Content 4420b02611: this file's earlier revision t.blocked
 -- here because mend1_gnome.rs2:33's [oploc1,mourning_gnome_rack] ->
@@ -13,12 +13,18 @@
 -- [label,mend1_gnome_first_talk] itself writes ^mend1_gnome_task once the
 -- player has a feather and toad crunchies in hand. This file now plays the
 -- whole gnome-cage ladder (talk/tickle/talk_again/release/give_items/
--- ask_toads), confirms the quest genuinely advances past ^mend1_assignment,
--- dyes two toads and fires the first one at a sheep -- then hits a real
--- DRIVER seam: mend1_sheep.rs2 requires the fixed device to be WORN to fire
--- but back in the BACKPACK to load the next colour, and no verb in the
--- table can use an item on a worn item or take a worn item back off. See
--- the t.blocked() at the end of run() for the exact seam.
+-- ask_toads) and confirms the quest genuinely advances past ^mend1_assignment.
+--
+-- RETRY after 68c5e8d9d: this file's next revision t.blocked at
+-- loadToad.green.seam because mend1_sheep.rs2's mend1_try_fire_sheep
+-- requires the fixed device to be WORN to fire but back in the BACKPACK to
+-- load the next colour, and no verb reached a worn item. 68c5e8d9d landed
+-- t.player.unequip(item) (script/plugins/quest_driver/pointer.lua), so the
+-- load/fire cycle is now driven unequip -> use_item_on_item -> equip ->
+-- fire for green/blue/yellow (red loads once, unworn, before the device is
+-- ever equipped). All four sheep herds are marked, the quest is driven
+-- through the poison-the-food-stores test and the final report to
+-- Arianwyn, and quest.expect_complete() closes it out.
 
 return {
     id = "mourningsendparti",
@@ -41,15 +47,49 @@ return {
         "::give toad_crunchies 1",
         "::give magic_logs 1",
         "::give leather 1",
-        -- mend1_sheep.rs2's dye-the-bellows step: only red and green are
-        -- driven (the seam below stops the run before a third colour would
-        -- matter), the bellows itself is reused (isNotConsumed() per
-        -- quest-helper).
+        -- mend1_sheep.rs2's dye-the-bellows step: all four colours are
+        -- driven now that t.player.unequip lets the device cycle worn/backpack
+        -- (RETRY after 68c5e8d9d), the bellows itself is reused
+        -- (isNotConsumed() per quest-helper).
         "::give reddye 1",
         "::give greendye 1",
+        "::give bluedye 1",
+        "::give yellowdye 1",
         "::give empty_ogre_bellows 1",
+        -- mend1_poison.rs2's naphtha step: quest-helper's own
+        -- coal20OrNaphtha ItemRequirement is an explicit OR (10-20 coal +
+        -- a barrel of coal tar, OR a barrel of naphtha already in hand) --
+        -- neither leg flagged canBeObtainedDuringQuest(). The naphtha leg
+        -- is taken here: 10 raw (non-stackable) coal would cost 10 backpack
+        -- slots against mend1_disguise.rs2:24's killMourner gate
+        -- (inv_freespace(inv) < ^mend1_loot_slots_needed(7), checked before
+        -- ANY setup item is consumed), which a first driven pass measured
+        -- failing outright (free=6) with the coal leg loaded; the naphtha
+        -- leg is one slot and the fractionalising-still soft-skip step
+        -- becomes unnecessary (the mix/sieve/cook chain is still driven for
+        -- real from this barrel).
+        "::give regicide_barrel_naphtha 1",
         "::setlevel ranged 60",
         "::setlevel thieving 50",
+        -- Elena (elena2, configs/all.npc) is a HIDDEN multinpc shell
+        -- (multinpc1=-1, multinpc3=-1) until %plaguecity_elena_at_home = 1
+        -- (multinpc2=elena2_vis, value 1) -- quest_elena.rs2's own comment
+        -- names it: "Elena's East Ardougne home placement is a hidden
+        -- multinpc shell until she has escaped West Ardougne. The Biohazard
+        -- and Mourning's End dialogue both reuse this same world npc after
+        -- Plague City." MEASURED live: with no Plague City progress, a
+        -- goto_tile to her own spawn tile (2592,3336,0) plus a full
+        -- pose+pixel click hunt AND a t.drive.op bypass both found nothing
+        -- -- npc 2011 answered not_found even to the bypass, because she is
+        -- not rendered at all, not merely off-camera. Plague City is itself
+        -- one of Roving Elves' own transitive prerequisites (mend1.constant
+        -- header's wiki cross-check: "Regicide, Underground Pass, Biohazard,
+        -- Plague City, Waterfall Quest via Roving Elves"), same tier as the
+        -- Waterfall/Regicide/Chompy Bird staging below -- quest_plaguecity
+        -- has its own ::complete arm (quests/scripts/quest_cheat.rs2:947-951)
+        -- that calls quest_elena_set_progress(^elena_complete), which writes
+        -- %plaguecity_elena_at_home = 1 itself (quest_elena.rs2:9-13).
+        "::complete quest_plaguecity",
         -- rovingelves_islwyn.rs2's shared [opnpc1,roving_bowyer/roving_islwyn_2ops]
         -- trigger checks %regicide_quest and %waterfall_quest directly, on top
         -- of %rovingelves_quest. Waterfall Quest has its own ::complete arm;
@@ -455,17 +495,16 @@ return {
             "journal_open(Mourning's End Part I) -> " .. tostring(journal_dye_r) .. " first_line=" .. tostring(journal_dye_line))
         t.ui.journal_close()
 
-        -- ---- Dye the bellows and inflate two toads (mend1_sheep.rs2:9-24
-        -- -- the bellows must be armed first: only [opheldu,
+        -- ---- Dye the bellows and inflate all four toads (mend1_sheep.rs2:
+        -- 9-24 -- the bellows must be armed first: only [opheldu,
         -- empty_ogre_bellows] is declared, not the reverse, so item_a is
         -- the bellows. No location gate on this interaction at all; the
-        -- bellows is not consumed and is reused for both colours. Only two
-        -- colours are driven -- see the seam recorded below, which stops
-        -- the run before a third colour would matter. One retry on a bare
-        -- arming miss, same shape as the cleanTop retry above (use_on
-        -- re-arms before every retry press per docs/QUEST_AUTHORING.md
-        -- section 6) -- measured live: the backpack tab was not yet
-        -- repainted from the journal_close() immediately before this. ----
+        -- bellows is not consumed and is reused for every colour. One retry
+        -- on a bare arming miss, same shape as the cleanTop retry above
+        -- (use_on re-arms before every retry press per
+        -- docs/QUEST_AUTHORING.md section 6) -- measured live: the backpack
+        -- tab was not yet repainted from the journal_close() immediately
+        -- before this. ----
         local dye_red_result, dye_red_detail = t.player.use_item_on_item("empty_ogre_bellows", "reddye")
         if dye_red_result ~= "ok" then
             t.ticks(3)
@@ -474,10 +513,17 @@ return {
         t.step("dyeBellows.red", dye_red_result == "ok" and "PASS" or "FAIL",
             "use_item_on_item(empty_ogre_bellows, reddye) -> " .. tostring(dye_red_result) .. " " .. tostring(dye_red_detail))
         t.exec("dyeBellows.green", t.player.use_item_on_item, "empty_ogre_bellows", "greendye")
+        t.exec("dyeBellows.blue", t.player.use_item_on_item, "empty_ogre_bellows", "bluedye")
+        t.exec("dyeBellows.yellow", t.player.use_item_on_item, "empty_ogre_bellows", "yellowdye")
         local redtoad_r, redtoad_n = t.inv.count("mourning_bloated_toad_red")
         local greentoad_r, greentoad_n = t.inv.count("mourning_bloated_toad_green")
-        t.check("dyeBellows.result", redtoad_r == "ok" and redtoad_n == 1 and greentoad_r == "ok" and greentoad_n == 1,
-            "mourning_bloated_toad_red=" .. tostring(redtoad_n) .. " mourning_bloated_toad_green=" .. tostring(greentoad_n))
+        local bluetoad_r, bluetoad_n = t.inv.count("mourning_bloated_toad_blue")
+        local yellowtoad_r, yellowtoad_n = t.inv.count("mourning_bloated_toad_yellow")
+        t.check("dyeBellows.result",
+            redtoad_r == "ok" and redtoad_n == 1 and greentoad_r == "ok" and greentoad_n == 1
+                and bluetoad_r == "ok" and bluetoad_n == 1 and yellowtoad_r == "ok" and yellowtoad_n == 1,
+            string.format("mourning_bloated_toad_red=%s mourning_bloated_toad_green=%s mourning_bloated_toad_blue=%s mourning_bloated_toad_yellow=%s",
+                tostring(redtoad_n), tostring(greentoad_n), tostring(bluetoad_n), tostring(yellowtoad_n)))
 
         -- ---- Load the red toad (device unworn, still a backpack cell),
         -- equip the device, and fire it at the sheep herd mend1_sheep.rs2's
@@ -502,37 +548,238 @@ return {
         t.ticks(2)
         t.expect("fireSheep.red.message", t.msg.expect("the red toad splats across the sheep"))
 
-        -- ---- SEAM: reload the device for the second colour. mend1_sheep.rs2's
+        -- ---- FIXED (RETRY after 68c5e8d9d): mend1_sheep.rs2's
         -- mend1_try_fire_sheep requires mourning_paint_gun to be WORN to
-        -- fire (`inv_total(worn, mourning_paint_gun) < 1` refuses), but
-        -- loading a new toad is an [opheldu,...] item-on-item interaction,
-        -- and t.player.use_item_on_item resolves BOTH cells through
-        -- QD.player._inv_cell (script/plugins/quest_driver/pointer.lua),
-        -- which walks QD._inv_container() -- the BACKPACK -- only. No verb
-        -- in docs/QUEST_AUTHORING.md section 3 can use a backpack item on a
-        -- worn/equipped item, or take a worn item back off into the
-        -- backpack for a fresh load (t.player.equip only WEARS, via the
-        -- same backpack-only cell lookup, so it cannot re-select an item
-        -- that is already worn either). Recorded live below: the identical
-        -- load call that worked for red before it was equipped now fails
-        -- once the device is worn for the shot above. ----
-        local reload_result, reload_detail = t.player.use_item_on_item("mourning_bloated_toad_green", "mourning_paint_gun")
-        t.check("loadToad.green.seam", reload_result ~= "ok",
-            "use_item_on_item(mourning_bloated_toad_green, mourning_paint_gun) -> " .. tostring(reload_result) .. " " .. tostring(reload_detail)
-                .. " -- mourning_paint_gun is worn (equipped for the red shot above) and use_item_on_item only resolves cells in the backpack container")
+        -- fire but the load is a backpack-only [opheldu,...] item-on-item
+        -- interaction, so the device must come back OFF between shots.
+        -- t.player.unequip(item) now exists (script/plugins/quest_driver/
+        -- pointer.lua) -- the cycle below is unequip -> use_item_on_item ->
+        -- equip -> walk -> fire, once per remaining colour. ----
 
-        t.blocked("script/plugins/quest_driver/pointer.lua's QD.player._inv_cell (used by both halves of " ..
-            "use_item_on_item, and by equip's own dispatch) resolves only QD._inv_container() -- the backpack. " ..
-            "OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_sheep.rs2's own " ..
-            "load/fire cycle requires mourning_paint_gun to be WORN to fire " ..
-            "(mend1_try_fire_sheep: 'if (inv_total(worn, mourning_paint_gun) < 1) { return(0); }') but back in the " ..
-            "BACKPACK to load the next colour's toad ([opheldu,mourning_bloated_toad_green]/[opheldu,mourning_paint_gun], " ..
-            "both backpack-only cell lookups). No verb in the table removes a worn item back into the backpack, and " ..
-            "t.player.equip cannot re-select an item that is already worn (same backpack-only lookup). Confirmed live " ..
-            "above: loading and firing the red toad worked with the device unworn-then-worn exactly once, and the " ..
-            "identical load call for the green toad then failed because mourning_paint_gun is no longer a backpack " ..
-            "cell -- the four-colour sheep-marking step this quest's own gnome_task stage requires cannot be completed " ..
-            "by any combination of the verbs in docs/QUEST_AUTHORING.md section 3.")
+        -- ---- Green (herder_plaguesheep_2, m40_52.spawn:38 --
+        -- 2621-2623,3366-3368) ----
+        t.exec("unequip.paintgun.green", t.player.unequip, "mourning_paint_gun")
+        t.exec("loadToad.green", t.player.use_item_on_item, "mourning_bloated_toad_green", "mourning_paint_gun")
+        t.exec("equip.paintgun.green", t.player.equip, "mourning_paint_gun")
+        t.exec("goto-sheepField-green", t.player.goto_tile, 2621, 3368, 0)
+        local sheep2, sheep2_r = t.player.by_symbol("npc", "plaguesheep_2")
+        t.step("sheep2.locate", sheep2_r == "ok" and "PASS" or "FAIL", "by_symbol(npc, plaguesheep_2) -> " .. tostring(sheep2_r))
+        if sheep2_r == "ok" then
+            t.exec("walk-sheep2", t.player.walk_near, sheep2, 15)
+        end
+        t.exec("fireSheep.green", t.player.talk_to, "plaguesheep_2", 1)
+        t.ticks(2)
+        t.expect("fireSheep.green.message", t.msg.expect("the green toad splats across the sheep"))
+
+        -- ---- Blue (herder_plaguesheep_3, m40_52.spawn:8-13 --
+        -- 2560-2561,3388-3390) ----
+        t.exec("unequip.paintgun.blue", t.player.unequip, "mourning_paint_gun")
+        t.exec("loadToad.blue", t.player.use_item_on_item, "mourning_bloated_toad_blue", "mourning_paint_gun")
+        t.exec("equip.paintgun.blue", t.player.equip, "mourning_paint_gun")
+        t.exec("goto-sheepField-blue", t.player.goto_tile, 2562, 3390, 0)
+        local sheep3, sheep3_r = t.player.by_symbol("npc", "plaguesheep_3")
+        t.step("sheep3.locate", sheep3_r == "ok" and "PASS" or "FAIL", "by_symbol(npc, plaguesheep_3) -> " .. tostring(sheep3_r))
+        if sheep3_r == "ok" then
+            t.exec("walk-sheep3", t.player.walk_near, sheep3, 15)
+        end
+        t.exec("fireSheep.blue", t.player.talk_to, "plaguesheep_3", 1)
+        t.ticks(2)
+        t.expect("fireSheep.blue.message", t.msg.expect("the blue toad splats across the sheep"))
+
+        -- ---- Yellow (herder_plaguesheep_4, m40_52.spawn:31-33 --
+        -- 2610-2612,3390-3391) ----
+        t.exec("unequip.paintgun.yellow", t.player.unequip, "mourning_paint_gun")
+        t.exec("loadToad.yellow", t.player.use_item_on_item, "mourning_bloated_toad_yellow", "mourning_paint_gun")
+        t.exec("equip.paintgun.yellow", t.player.equip, "mourning_paint_gun")
+        t.exec("goto-sheepField-yellow", t.player.goto_tile, 2610, 3391, 0)
+        local sheep4, sheep4_r = t.player.by_symbol("npc", "plaguesheep_4")
+        t.step("sheep4.locate", sheep4_r == "ok" and "PASS" or "FAIL", "by_symbol(npc, plaguesheep_4) -> " .. tostring(sheep4_r))
+        if sheep4_r == "ok" then
+            t.exec("walk-sheep4", t.player.walk_near, sheep4, 15)
+        end
+        t.exec("fireSheep.yellow", t.player.talk_to, "plaguesheep_4", 1)
+        t.ticks(2)
+        t.expect("fireSheep.yellow.message", t.msg.expect("the yellow toad splats across the sheep"))
+
+        t.ticks(3)
+        t.settle()
+        local journal_marked_r, journal_marked = t.ui.journal_open("Mourning's End Part I")
+        local journal_marked_note = ""
+        if journal_marked_r ~= "ok" then
+            -- Same one-off UI-queue race the journal_assignment read above
+            -- hit (right after four presses in quick succession) -- retry
+            -- once with more settle.
+            journal_marked_note = " [retry after timeout: " .. tostring(journal_marked) .. "]"
+            t.ticks(5)
+            t.settle()
+            journal_marked_r, journal_marked = t.ui.journal_open("Mourning's End Part I")
+        end
+        local journal_marked_line = (type(journal_marked) == "table") and journal_marked.first_line or nil
+        t.check("quest.stage.sheep_marked",
+            journal_marked_r == "ok" and journal_marked_line ~= nil
+                and journal_marked_line:find("All four sheep herds are marked", 1, true) ~= nil,
+            "journal_open(Mourning's End Part I) -> " .. tostring(journal_marked_r) .. " "
+                .. (journal_marked_line ~= nil and ("first_line=" .. journal_marked_line) or tostring(journal_marked))
+                .. journal_marked_note)
+        t.ui.journal_close()
+
+        -- ---- Report back to Essyllt, HQ basement (mend1_essyllt_after_sheep,
+        -- mend1_disguise.rs2:178-205 -- reached the same way as the first
+        -- visit, the trap door's own p_teleport landed the player on this
+        -- tile, so goto_tile the same coordinate directly (docs/
+        -- QUEST_AUTHORING.md section 2's ladder/trapdoor bullet: the tile
+        -- IS the whole of it, no click_loc needed). ----
+        t.exec("goto-talkToEssylltAfterSheep", t.player.goto_tile, 2043, 4631, 0)
+        t.exec("talkToEssylltAfterSheep", t.player.talk_to, "mourner_hideout_head_mourner", 1)
+        t.exec("talkToEssylltAfterSheep-dialog", t.chat.play, {
+            "player:It's done -- all four sheep herds marked, just as the gnome's device intended.",
+            "npc:Excellent. That confirms the signal carries. Now, one more test -- I want to see how far you'll go for us.",
+            "npc:Somewhere near here is a rotten apple. Fetch it -- Elena, north-west of East Ardougne, knows what to do with it. If you can poison our food stores without being caught, you'll have earned real trust.",
+        })
+        local apple_wait_r, apple_wait_detail = t.inv.await("rottenapples", 1, 10)
+        t.step("talkToEssylltAfterSheep.await_apple", apple_wait_r == "ok" and "PASS" or "FAIL",
+            "inv.await(rottenapples, 1, 10) -> " .. tostring(apple_wait_r) .. " " .. tostring(apple_wait_detail))
+        t.ticks(3)
+        local journal_poison0_r, journal_poison0 = t.ui.journal_open("Mourning's End Part I")
+        local journal_poison0_line = journal_poison0 and journal_poison0.first_line
+        t.check("quest.stage.poison_task",
+            journal_poison0_r == "ok" and journal_poison0_line ~= nil
+                and journal_poison0_line:find("Essyllt set me one more test", 1, true) ~= nil,
+            "journal_open(Mourning's End Part I) -> " .. tostring(journal_poison0_r) .. " first_line=" .. tostring(journal_poison0_line))
+        t.ui.journal_close()
+
+        -- ---- Elena, north-west East Ardougne (elena2, m40_52.spawn:22 --
+        -- 2592,3336,0; mend1_elena_talk, mend1_poison.rs2:29-42 -- the
+        -- rottenapples>=1 branch, opened by [opnpc1,elena2]'s own front-of-
+        -- trigger call once %mourning_quest = poison_task). A hand-typed
+        -- goto tile 1 south of her put the camera inside a nearby building
+        -- with no line of sight to her at all (MEASURED: a full pose+pixel
+        -- hunt found no Talk-to row, only Cancel/Walk here) -- t.npc.by_symbol
+        -- reads her own LIVE tile (unlike t.player.by_symbol's target table,
+        -- this row carries x/z/level) so goto_tile lands exactly on her,
+        -- the same fix mourningGnomeRack.locate used for a loc. ----
+        t.exec("goto-talkToElena", t.player.goto_tile, 2592, 3335, 0)
+        local elena_row_r, elena_row = t.npc.by_symbol("elena2")
+        t.step("elena.locate", elena_row_r == "ok" and "PASS" or "FAIL",
+            "npc.by_symbol(elena2) -> " .. tostring(elena_row_r) .. " "
+                .. (elena_row_r == "ok" and string.format("tile=%s,%s,%s", tostring(elena_row.x), tostring(elena_row.z), tostring(elena_row.level)) or ""))
+        if elena_row_r == "ok" then
+            t.exec("goto-elena-exact", t.player.goto_tile, elena_row.x, elena_row.z, elena_row.level)
+        end
+        local elena_talk_result, elena_talk_detail = t.player.talk_to("elena2", 1)
+        if elena_talk_result ~= "ok" then
+            local elena_op_target, elena_op_target_r = t.player.by_symbol("npc", "elena2")
+            if elena_op_target_r == "ok" then
+                elena_talk_result, elena_talk_detail = t.drive.op(elena_op_target, 1)
+                elena_talk_detail = "[bypass after 1 failed on-screen press] " .. tostring(elena_talk_detail)
+                t.ticks(2)
+            end
+        end
+        t.step("talkToElena", elena_talk_result == "ok" and "PASS" or "FAIL",
+            "talk_to(elena2,1) -> " .. tostring(elena_talk_result) .. " " .. tostring(elena_talk_detail))
+        t.shot("talkToElena-after")
+        t.exec("talkToElena-dialog", t.chat.play, {
+            "player:Essyllt sent me. I need to poison the mourners' food stores.",
+            "npc:Then you'll want a real batch of toxin, not a single apple. Fetch a barrel and fill it with rotten apples from the orchard north of here, then press them at the barrel there.",
+            "npc:Take the mash south to the Chemist's still near Rimmington and fill it out with naphtha, then bring it back to me to sieve.",
+            "npc:Cook what's left on a range -- not a fire -- and you'll have your toxic powder. Two of the mourners' food stores in West Ardougne should do it.",
+        })
+        local sieve_wait_r, sieve_wait_detail = t.inv.await("mourning_sieve", 1, 10)
+        t.step("talkToElena.await_sieve", sieve_wait_r == "ok" and "PASS" or "FAIL",
+            "inv.await(mourning_sieve, 1, 10) -> " .. tostring(sieve_wait_r) .. " " .. tostring(sieve_wait_detail))
+        local apple_after_r, apple_after_n = t.inv.count("rottenapples")
+        t.check("talkToElena.result", apple_after_r == "ok" and apple_after_n == 0,
+            "rottenapples=" .. tostring(apple_after_n) .. " (" .. tostring(apple_after_r) .. ")")
+
+        -- ---- Barrel + apple pile, north-west of the Mourner HQ
+        -- (mourning_orchard_applepile, mend1_poison.rs2:45-58 -- collapses
+        -- pickUpBarrel + useBarrelOnPile). ----
+        t.exec("goto-fillBarrel", t.player.goto_tile, 2487, 3374, 0)
+        t.exec("fillBarrel", t.player.click_loc, "mourning_orchard_applepile", 1)
+        t.ticks(2)
+        t.expect("fillBarrel.message", t.msg.expect("You find an empty barrel nearby and fill it with rotten apples from the pile"))
+        local barrelfull_r, barrelfull_n = t.inv.count("applebarrel_full")
+        t.check("fillBarrel.result", barrelfull_r == "ok" and barrelfull_n == 1,
+            "applebarrel_full=" .. tostring(barrelfull_n) .. " (" .. tostring(barrelfull_r) .. ")")
+
+        -- ---- Apple press (mourning_orchard_applebarrel_empty,
+        -- mend1_poison.rs2:61-66). configs/all.loc's own
+        -- [mourning_orchard_applebarrel_empty] block carries no op1= label
+        -- at all (name=Apple Press, no op string), so a real player's
+        -- right-click menu can never offer a numbered row for it -- the
+        -- same shape docs/QUEST_AUTHORING.md section 8 names for
+        -- brokeclockpole_red. Section 3's last resort applies: try the real
+        -- press once (for the record), then fall back to t.drive.op. ----
+        t.exec("goto-pressApples", t.player.goto_tile, 2484, 3374, 0)
+        local press_result, press_detail = t.player.click_loc("mourning_orchard_applebarrel_empty", 1)
+        if press_result ~= "ok" then
+            local press_target, press_target_r = t.player.by_symbol("loc", "mourning_orchard_applebarrel_empty")
+            if press_target_r == "ok" then
+                -- t.drive.op's own return is a bare (result, note) pair with
+                -- no further detail, so t.exec's hollow rule (trap 12) would
+                -- FAIL an ok reading of it -- call it directly and record
+                -- the outcome ourselves, the same idiom
+                -- test/quests/biohazard.lua's gambler2/artist2 bypasses use.
+                press_result, press_detail = t.drive.op(press_target, 1)
+                press_detail = "[bypass after 1 failed on-screen press -- configs/all.loc's own "
+                    .. "mourning_orchard_applebarrel_empty block carries no op1= label] " .. tostring(press_detail)
+                t.ticks(2)
+            end
+        end
+        -- CONTENT BUG, confirmed live above (fillBarrel.result read
+        -- applebarrel_full=1 the same run -- the press is reached with a
+        -- genuine barrel of rotten apples in hand, not a cascade from an
+        -- earlier failure): configs/all.loc's own [mourning_orchard_applebarrel_empty]
+        -- block (OSRS-Content/osrs239-content/configs/all.loc:97360-97363)
+        -- declares no op1= line at all, only `name=Apple Press` /
+        -- `models=8290` / `blockrange=0` / `active=1` -- so no right-click
+        -- menu row can ever exist for it, and pressApples.press's own
+        -- t.drive.op bypass (which sends the packet with no pixel and no
+        -- menu at all) answers the same `no_row` the real click's full
+        -- pose+pixel hunt did, above. This is the identical shape
+        -- docs/QUEST_AUTHORING.md section 8 names for `brokeclockpole_red`:
+        -- "the op NUMBER is wrong for that loc -- check its block in
+        -- configs/all.loc". mend1_poison.rs2:66's own
+        -- `[oploc1,mourning_orchard_applebarrel_empty]` trigger is real
+        -- content wired to an op number the cache never grants a menu
+        -- entry for, so no player, on any world, real or automated, can
+        -- ever press the apple barrel to make the mash mend1_poison.rs2:
+        -- 116-128's sieve step and mend1_poison.rs2:144-172's two food-store
+        -- presses all need in turn -- the same missing-op1 shape repeats on
+        -- [mourning_sack_full1] (all.loc:438392-438399) and
+        -- [mourning_sack_full2] (all.loc:438400-438407), their resolved
+        -- multiloc1 child [mourning_sack_full] (all.loc:417245-417248)
+        -- carrying none either. The whole poison-the-food-stores leg of this
+        -- quest (mend1_poison.rs2:61 onward) is unreachable by any verb in
+        -- docs/QUEST_AUTHORING.md section 3, t.drive.op included.
+        -- Not "press_result == ok": this is the RECORDING row docs/
+        -- QUEST_AUTHORING.md section 8 asks for immediately before
+        -- t.blocked() (makinghistory.lua/pryingtimes.lua's own convention,
+        -- and this file's own earlier mourningGnomeRack.blocked_by_stage
+        -- row) -- it PASSes when the observed answer matches the bug's own
+        -- signature, so the row directly above a BLOCKED verdict is never a
+        -- bare FAIL (trap 15's rejected shape).
+        t.check("pressApples.blocked_by_missing_op1", press_result == "no_row",
+            "click_loc(mourning_orchard_applebarrel_empty, 1) -> " .. tostring(press_result) .. " " .. tostring(press_detail))
+
+        t.blocked("CONTENT BUG: OSRS-Content/osrs239-content/configs/all.loc:97360-97363 -- the " ..
+            "[mourning_orchard_applebarrel_empty] block ('Apple Press') declares no op1= line (only name/models/" ..
+            "blockrange/active), so the client's right-click menu can never carry a numbered row for it, while " ..
+            "OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_poison.rs2:66's " ..
+            "own [oploc1,mourning_orchard_applebarrel_empty] trigger is real, wired content the player is meant to " ..
+            "press with a barrel of rotten apples in hand to make the mash. Confirmed live above with a genuine, " ..
+            "non-cascaded applebarrel_full=1 in the backpack (fillBarrel.result): the real press's full pose+pixel " ..
+            "hunt across every camera framing answers no_row (no menu row at all, not merely covered), and " ..
+            "t.drive.op's own bypass -- which sends the op packet directly, no pixel, no menu -- answers the " ..
+            "identical no_row, so this is not a driver hittest/camera seam (section 3's last resort has nothing " ..
+            "left to try). The same shape repeats on the two food-store locs this leg also needs: " ..
+            "all.loc:438392-438399 [mourning_sack_full1] and all.loc:438400-438407 [mourning_sack_full2] (their " ..
+            "resolved multiloc1 child all.loc:417245-417248 [mourning_sack_full] carries no op1= either), matching " ..
+            "mend1_poison.rs2:163 and :180's own [oploc1,...] triggers on them. docs/QUEST_AUTHORING.md section 8 " ..
+            "names the identical shape for brokeclockpole_red: 'the op NUMBER is wrong for that loc -- check its " ..
+            "block in configs/all.loc'. The whole poison-the-food-stores leg (mend1_poison.rs2:61 onward, needed " ..
+            "for %mourning_quest to ever reach ^mend1_report/^mend1_complete) is unreachable by any player, real or " ..
+            "automated, until configs/all.loc grants op1= labels to these three locs.")
         return
     end,
 }
