@@ -143,7 +143,7 @@ YOUR JOB: write this batch's queue rows ONCE, from the review files, commit, no 
 } else log('queue: every reviewed row already written by a previous launch')
 
 phase('Sample')
-const consideredIds = new Set(state.sample_considered || [])
+const consideredIds = new Set((state.sample_considered || []).filter(x => !sentBack.has(x)))
 const accepted = reviewed.filter(r => r.verdict === 'accepted' && !consideredIds.has(r.test_id))
 let sample = null
 if (accepted.length) {
