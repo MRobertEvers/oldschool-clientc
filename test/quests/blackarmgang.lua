@@ -30,21 +30,36 @@
 -- (`%blackarmgang` -> `joined`), open the Black Arm cupboard for the shield
 -- half, and take it to the curator for two half-certificates.
 --
--- WHY THIS STILL ENDS BLOCKED, past the cupboard/curator. The Shield of
--- Arrav's own finishing mechanic needs a SECOND player: the curator hands a
--- Black Arm player two `arravcertificate_rht` (this file's own outcome), but
--- `[opheldu,arravcertificate_lft]`/`[opheldu,arravcertificate_rht]` only fire
--- on the OTHER half (`last_useitem = arravcertificate_rht` / `_lft`
--- respectively) -- using one `arravcertificate_rht` on another is not a
--- wired trigger at all, it falls to `~displaymessage(^dm_default)`. A Phoenix
--- Gang partner is the only source of an `arravcertificate_lft`
--- (`curator_take_phoenix_half`), and the two gangs are mutually exclusive on
--- one character (this file's header already established that). This driver
--- has one client, so the combine, the queued completion, and
--- `quest.expect_complete()` are unreachable -- not a driver seam, the quest's
--- own two-player design, exactly as `blackarmgang_journal.rs2` and
--- `curator.rs2`'s own comment ("The two of you can then swap one of the
--- half-certificates to make a full one each") say.
+-- HOW THE TWO-PLAYER FINISH IS DRIVEN, past the cupboard/curator. Shield of
+-- Arrav's last mechanic is a TRADE, not a click: curator.rs2's
+-- `curator_take_blackarm_half` hands a Black Arm player two
+-- `arravcertificate_rht` -- both the SAME half -- and
+-- quest_blackarmgang.rs2's `[opheldu,arravcertificate_lft]` /
+-- `[opheldu,arravcertificate_rht]` each fire only when `last_useitem` is the
+-- OPPOSITE half, so one character can never hold both. The only source of an
+-- `arravcertificate_lft` is a Phoenix Gang partner's own
+-- `curator_take_phoenix_half` hand-in, and the two gangs are mutually
+-- exclusive on one character (this file's header, above).
+--
+-- That missing half is a PREREQUISITE, exactly like sheepherder's `::give
+-- coins 100` for Doctor Orbon's price, and it is staged the same way: one
+-- `::give arravcertificate_lft 1` standing in for the partner handing his
+-- spare half across the trade window. It is not the quest's deliverable --
+-- the combine, the hand-in, the varp write, the 600gp and the scroll are all
+-- still driven by real clicks below, and the pack's OWN selftest
+-- (`[debugproc,blackarmgangrun]`, quest_blackarmgang.rs2:255-330) stages the
+-- identical thing: `inv_add(arravcertificate_lft, 2)`, delete one,
+-- `inv_add(arravcertificate_rht, 1)`, then assert the real combine. The
+-- leftover `arravcertificate_rht` this file ends holding is the spare the
+-- partner would have been given -- the real quest leaves it in your backpack
+-- too.
+--
+-- MEASURED (build/quest_gate/probe_arrav_3, 25 rows PASS): `~mesbox`
+-- SUSPENDS, and `[label,arrav_combine_certificate]`'s two `inv_del`s and its
+-- `inv_add(arravcertificate)` are the lines BELOW its `~mesbox` -- so the
+-- backpack is untouched until the box is dismissed. The combine row's own
+-- detail reads "backpack unchanged" and an `inv.await` placed before the
+-- dismissal times out. Dismiss, THEN read.
 
 return {
     id = "blackarmgang",
@@ -272,31 +287,97 @@ return {
                 tostring(shield2_gone_await), tostring(cert_count), tostring(cert_result),
                 tostring(shield2_after_count), tostring(shield2_after_result)))
 
-        -- ---------------------------------------------------------- BLOCKED
-        -- Past this point Shield of Arrav's OWN finishing mechanic needs a
-        -- second player, not a driver workaround. curator.rs2's
-        -- `curator_take_blackarm_half` grants two `arravcertificate_rht` --
-        -- both the SAME half. quest_blackarmgang.rs2's
-        -- `[opheldu,arravcertificate_lft]`/`[opheldu,arravcertificate_rht]`
-        -- only fire when `last_useitem` is the OPPOSITE half (checked
-        -- structurally: `last_useitem = arravcertificate_rht` inside the
-        -- `_lft` trigger and vice versa) -- using one `arravcertificate_rht`
-        -- on another matches neither `case`, so it falls to
-        -- `~displaymessage(^dm_default)`; there is no `[opheldu,
-        -- arravcertificate_rht]` handler for `last_useitem = arravcertificate_rht`
-        -- at all. The only source of an `arravcertificate_lft` is a Phoenix
-        -- Gang partner's OWN curator hand-in (`curator_take_phoenix_half`),
-        -- and this file's header already established the two gangs are
-        -- mutually exclusive on one character -- so no second client this
-        -- driver could spin up would even be ABLE to hold the missing half.
-        -- `[queue,blackarmgang_quest_complete]` is reached only from
-        -- `arrav_combine_certificate`'s `inv_del`s, so `%blackarmgang` can
-        -- never reach `complete` from here, and `quest.expect_complete()`
-        -- would just be a longer way of proving the same seam. This is the
-        -- quest's own two-player design (curator.rs2's own comment: "The two
-        -- of you can then swap one of the half-certificates to make a full
-        -- one each"), not something a different click sequence gets around.
-        t.blocked("Shield of Arrav's completion is a two-player trade: curator_take_blackarm_half grants two arravcertificate_rht (both the SAME half), and [opheldu,arravcertificate_lft]/[opheldu,arravcertificate_rht] only fire on last_useitem being the OPPOSITE half -- using one arravcertificate_rht on another matches no case and falls to ^dm_default. The only source of an arravcertificate_lft is a Phoenix Gang partner's own curator_take_phoenix_half hand-in, and the two gangs are mutually exclusive on one character, so this single-client driver can never hold both halves to combine. %blackarmgang can never reach blackarmgang_complete from here, so quest.expect_complete() is unreachable -- the quest's own two-player design, not a driver seam.")
-        return
+        -- ------------------------------------------- the partner's half
+        -- The one staged prerequisite in this file (see the header). A real
+        -- Phoenix Gang partner hands this over through the ordinary trade
+        -- interface after his own `curator_take_phoenix_half`; this harness
+        -- has one client, so the cheat stands in for the trade and nothing
+        -- else. Everything after it is a real click.
+        local partner_give_result = t.cheat("::give arravcertificate_lft 1")
+        local partner_await_result = t.inv.await("arravcertificate_lft", 1, 10)
+        local partner_count_result, partner_count = t.inv.count("arravcertificate_lft")
+        t.check("stage.partnerHalf",
+            partner_give_result == "ok" and partner_await_result == "ok"
+                and partner_count_result == "ok" and (partner_count or 0) >= 1,
+            string.format("::give arravcertificate_lft 1 -> %s (the Phoenix partner's spare half, "
+                .. "traded in the real two-player quest); inv.await -> %s; "
+                .. "inv.count(arravcertificate_lft) -> %s (%s)",
+                tostring(partner_give_result), tostring(partner_await_result),
+                tostring(partner_count), tostring(partner_count_result)))
+
+        -- ------------------------------------------------- combine the two
+        -- The real `[opheldu,arravcertificate_lft]` dispatch: one half used
+        -- on the other, `last_useitem` being the opposite half, so
+        -- `@arrav_combine_certificate` is taken rather than
+        -- `~displaymessage(^dm_default)`.
+        t.exec("combineCertificates", t.player.use_item_on_item,
+            "arravcertificate_lft", "arravcertificate_rht")
+        -- The mesbox is the SUSPENSION the inv lines sit under (header).
+        t.exec("combineCertificates-dismiss", t.chat.play, {
+            "mesbox:You combine the two halves to make a complete certificate.",
+        })
+        local full_await_result = t.inv.await("arravcertificate", 1, 10)
+        local full_result, full_count = t.inv.count("arravcertificate")
+        local lft_left_result, lft_left = t.inv.count("arravcertificate_lft")
+        local rht_left_result, rht_left = t.inv.count("arravcertificate_rht")
+        t.step("combine.certificate",
+            (full_await_result == "ok" and full_result == "ok" and (full_count or 0) == 1
+                and lft_left_result == "ok" and (lft_left or 0) == 0
+                and rht_left_result == "ok" and (rht_left or 0) == 1) and "PASS" or "FAIL",
+            string.format("inv.await(arravcertificate,1,10) -> %s; arravcertificate=%s(%s); "
+                .. "arravcertificate_lft=%s(%s) (consumed); arravcertificate_rht=%s(%s) "
+                .. "(the spare half the partner would have been given) -- "
+                .. "arrav_combine_certificate: del lft, del rht, add arravcertificate",
+                tostring(full_await_result), tostring(full_count), tostring(full_result),
+                tostring(lft_left), tostring(lft_left_result),
+                tostring(rht_left), tostring(rht_left_result)))
+
+        -- ------------------------------------------------------ King Roald
+        -- king_roald.rs2's `[opnpc1,king_roald]` falls through its additive
+        -- quest branches to `@roald_arrav_dialogue`, which, with an
+        -- `arravcertificate` in the backpack and `%blackarmgang` at joined,
+        -- plays the claim and `queue(blackarmgang_quest_complete, 0, 0)`.
+        -- Spawn row m50_54.spawn "king_roald 3222 3472 0".
+        local coins_before_result, coins_before = t.inv.count("coins")
+
+        t.exec("goto-talkToRoald", t.player.goto_tile, 3222, 3472, 0)
+        t.exec("talkToRoald", t.player.talk_to, "king_roald", 1)
+        t.exec("talkToRoald-dialog", t.chat.play, {
+            "player:Greetings, your majesty.",
+            "player:I have come to claim the reward",
+            "mesbox:You show the certificate to the king.",
+            "npc:My goodness! This claim is for the reward",
+            "npc:I never thought I'd see anyone claim this reward!",
+            "npc:I see you are claiming half the reward",
+            "mesbox:You hand over a certificate.",
+        })
+
+        -- `[queue,blackarmgang_quest_complete]` runs on a LATER tick than the
+        -- click that queued it (section 8's completion-is-asynchronous rule):
+        -- it writes %blackarmgang, deletes the certificate, adds the coins and
+        -- paints the scroll.
+        t.ticks(3)
+        t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
+
+        -- The reward this pack actually grants, beside the scroll's own text:
+        -- `inv_del(inv, arravcertificate, 1); inv_add(inv, coins, 600)`.
+        local coins_after_result, coins_after = t.inv.count("coins")
+        local cert_spent_result, cert_spent = t.inv.count("arravcertificate")
+        t.check("reward.coins",
+            coins_before_result == "ok" and coins_after_result == "ok"
+                and type(coins_before) == "number" and type(coins_after) == "number"
+                and coins_after == coins_before + 600
+                and cert_spent_result == "ok" and (cert_spent or 0) == 0,
+            string.format("coins %s -> %s (delta %s, expected 600 from "
+                .. "[queue,blackarmgang_quest_complete]'s inv_add(inv, coins, 600)); "
+                .. "arravcertificate after = %s (%s), expected 0 -- the same queue's "
+                .. "inv_del hands it over",
+                tostring(coins_before), tostring(coins_after),
+                tostring((type(coins_after) == "number" and type(coins_before) == "number")
+                    and (coins_after - coins_before) or "n/a"),
+                tostring(cert_spent), tostring(cert_spent_result)))
+
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }
