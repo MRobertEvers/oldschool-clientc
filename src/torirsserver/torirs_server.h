@@ -982,6 +982,19 @@ enum
 #define TORIRSSERVER_SINGLEWAY_COMBAT_TICKS 8
 
 /*
+ * How many npc TYPES one session may hold passive at once — the
+ * `::passive <npc_symbol>` test affordance (docs/QUEST_SERVER_CHEATS.md §F).
+ *
+ * Sixteen, because a quest test names the handful of types standing between
+ * its driver and the thing it is actually testing — Shades of Mort'ton names
+ * the four Afflicted spawn types on the shade street — and a cap that fills
+ * up says so to the caller instead of growing a session-scope table without
+ * bound. Nothing in the game reaches this: the cheat ladder is operator and
+ * test only, the same way `::god` beside it is.
+ */
+#define TORIRSSERVER_PASSIVE_NPC_TYPES_MAX 16
+
+/*
  * TORIRSSERVER_FAMILIAR_DEBUG=1 — one stderr line per tick per owned npc (mode,
  * waypoint, both combat targets, tile, face) plus every `npc_setmode` on one.
  *
@@ -4288,6 +4301,33 @@ struct ToriRSServer
 
     int verbose;
 
+    /*
+     * Npc TYPES this session has been told never to START a fight with a
+     * player — `::passive <npc_symbol>`, `::passive off <npc_symbol>`.
+     *
+     * A TEST AFFORDANCE, and the reason it is a set of TYPES rather than a
+     * flag on an npc is the npc pool: static spawns are stood up around a
+     * player's zone window and retired when it moves, so a setup line run at
+     * the fixture's Lumbridge spawn would find no Mort'ton npc in the pool to
+     * flag at all, and the four Afflicted types would walk back in aggressive
+     * the moment the test arrived. That is a setup cheat that silently does
+     * nothing, which is the one bug docs/QUEST_SUITE_KIT.md's phase 1 exists
+     * to kill. A type is a fact the window cannot retire.
+     *
+     * Read at the two decision points where an npc takes a player as a target
+     * and nowhere else — aggression (`maybe_aggress`) and retaliation
+     * (`ToriRSServer_CombatHitNpc`), both torirs_server_combat.c. A passive
+     * npc is still attackable, still answers every op, still talks, still
+     * takes damage and still dies: what it does not do is claim the player
+     * under single-way combat and refuse him every other target for eight
+     * ticks after each swing.
+     *
+     * Zero-init is "nothing is passive" — the count is 0 and nothing reads
+     * the array past it, which matters because npc type 0 is a real type.
+     */
+    int passive_npc_types[TORIRSSERVER_PASSIVE_NPC_TYPES_MAX];
+    int passive_npc_type_count;
+
     /**
      * May a player's summoned helper swing in a SINGLE-way combat area?
      *
@@ -6557,6 +6597,21 @@ enum ToriRSServerTriggerResult
 ToriRSServer_RunCheatForTest(
     struct ToriRSServer* srv,
     const char* line);
+
+/*
+ * Has `::passive` been used on this npc TYPE? — the whole of what the two
+ * combat decision points ask (`srv->passive_npc_types`, above).
+ *
+ * A predicate over a type number, so an unknown or negative type answers 0
+ * rather than asserting: `npc->type` is what every caller has in hand and the
+ * question "is type -1 passive" has an answer. The common case costs one
+ * compare — a session that never ran the cheat has `passive_npc_type_count`
+ * 0 — which is what lets this sit in the per-tick aggression sweep.
+ */
+int
+ToriRSServer_WorldNpcTypeIsPassive(
+    const struct ToriRSServer* srv,
+    int npc_type);
 
 /** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
 void

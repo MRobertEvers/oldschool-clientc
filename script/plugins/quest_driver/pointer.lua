@@ -940,7 +940,18 @@ function QD.drive._press_row(target, pos, action, deadline)
     end
     api_drive.mouse_button("left", 0, row.centre_x, row.centre_y)
 
-    return "ok", { row_text = row.text, row_action = row.action }
+    -- element_id is the press's own answer to WHICH COPY.  `menu_row_find`
+    -- above matched the row on this element and nothing else, so the op the
+    -- client is about to send names this entity -- not "the nearest npc of
+    -- that id", which is a different animal after every step either of you
+    -- takes where a symbol has three spawn rows two tiles apart
+    -- (plaguesheep_1, m40_52.spawn:28-30).  QD.player.press needs it to tell
+    -- the npc it pressed from the two beside it that are wandering; it is
+    -- added rather than re-derived because re-projecting after the press
+    -- answers whatever the pool ranks first NOW, which is the guess this
+    -- field exists to retire.  (SEAM silent_press_npc_step, 2026-09-21.)
+    return "ok", { row_text = row.text, row_action = row.action,
+        element_id = pos.element_id }
 end
 
 -- The LOGGED bypass, never the default -- every call is a ledger note.
@@ -1452,88 +1463,217 @@ end
 -- The plane is exact -- being one floor out is never the same room.
 QD.player._goto_range = 1
 
-function QD.player.goto_tile(x, z, level)
+-- SEAM goto_tile_fixed_budget (2026-09-21) -- ONE ::goto AND TEN TICKS WAS A
+-- BET THAT NOTHING ELSE WOULD MOVE THE PLAYER.
+--
+-- A teleport is instantaneous, so the ten ticks were never a walking budget:
+-- they were the budget for the CLIENT's reading of the tile to catch up.
+-- What that budget cannot survive is another move landing behind it.  A
+-- content teleport is queued -- `p_delay(n)` then `p_telejump` is the shape
+-- every boat, trapdoor and cutscene in this pack uses -- and nothing the
+-- driver can read says one is in flight, so a `goto_tile` issued inside that
+-- window is simply overwritten and the verb then reports a hard timeout on a
+-- tile it can reach perfectly well.
+--
+-- Measured, Sea Slug, ONE RUN (build/quest_gate/seaslug/ledger.tsv +
+-- client.log, 2026-09-21):
+--
+--   row 27  kennith1.goto_ladder  FAIL  player.goto_tile 2784,3286,1: still
+--           at 2782,3273,0 ten ticks after ::goto -- server said
+--           '<col=ff0000>You have unlocked a new music track: Fruits de Mer'
+--   row 61  kennith2.goto_ladder  PASS  at 2784,3286,1
+--
+-- Same tile, same verb, same run, thirty-four rows apart.  The music track is
+-- the diagnosis: "Fruits de Mer" is the Fishing Platform's, and 2782,3273,0
+-- is `^seaslug_platform_coord` (quest_seaslug.constant:23 = 0_43_51_30_9), so
+-- what put the player there was
+-- areas/area_fishing_platform/scripts/holgart.rs2:186
+-- `[proc,board_ardougne_to_fishing_platform]` -- `if_close; mes(...);
+-- p_delay(2); p_telejump(^seaslug_platform_coord)` -- landing AFTER the
+-- ::goto.  The client.log shows the server building the destination scene for
+-- that ::goto (`scene built at zone 348,410`) and the player never reading
+-- anything but the boat's tile afterwards.  A second ::goto carries it, which
+-- is all row 61 is.  `gate.py` counts any FAIL as red whatever follows, so one
+-- such flake reds a quest whose very next row reached the npc anyway (row 28
+-- did, one tick later).
+--
+-- Reproduced on this tree three ways (build/quest_gate/goto_budget_before_*,
+-- build/seam_goto_budget/repro_boat_goto.lua), which is also the map of the
+-- window: a goto fired before the boarding dialogue is clicked through PASSes
+-- (~board has not begun, nothing is in flight); a goto fired after the
+-- arrival mesbox has been drained PASSes (the mesbox IS the telejump, already
+-- landed); a goto fired in between loses.  That is why row 27 was red and row
+-- 61 green in one run and why the quest looked intermittent.
+--
+-- So the budget is a PARAMETER and the teleport is RE-ISSUED.  `ticks` is the
+-- per-attempt wait, `attempts` is how many times the cheat may be fired, and
+-- the defaults are the old ten ticks and three attempts.  A run that needed
+-- more than one attempt SAYS SO in its detail, with the tile it was standing
+-- on and the server's own last line at the end of each attempt that missed --
+-- "it took two goes" is a fact about the world the next author needs, and the
+-- old single-shot detail had nowhere to put it.
+--
+-- Waiting longer instead of re-issuing does not work and was not a candidate:
+-- the overwriting teleport has already landed by the time the first attempt
+-- is half spent, and nothing walks a player back to a tile he was teleported
+-- off.  Only another teleport does that.
+--
+-- AND THE ARRIVAL IS RE-READ AFTER THE SCENE SETTLE.  The two settle awaits
+-- below can span several ticks, which is exactly the width of the window
+-- above, so the old code could reach `return "ok", "at " .. where` with
+-- `where` naming a tile that is NOT the one asked for -- an `ok` whose own
+-- detail contradicts it.  Measured (build/quest_gate/goto_budget_before_c):
+-- both goto rows answered `ok`, and the row after them found the player at
+-- 2780,3278 with the telejump having landed in between.  That reading now
+-- costs the attempt instead of being reported as a success.
+QD.player._goto_ticks = 10
+QD.player._goto_attempts = 3
+
+-- Is the player on the tile that was asked for?  (bool, "x,z,level"), and the
+-- string is answered even when the read fails, because it is what goes in the
+-- detail.
+function QD.player._goto_here(x, z, level)
+    local result, tile = QD.world.tile()
+    if result ~= "ok" or not tile then
+        return false, "?"
+    end
+    return tile.level == level
+        and QD.player._tile_distance(tile.x, tile.z, x, z) <= QD.player._goto_range,
+        string.format("%d,%d,%d", tile.x, tile.z, tile.level)
+end
+
+-- Fire the teleport once: (how, result, detail).
+--
+-- `how` is handed back and handed in again because THE FALLBACK IS CHOSEN
+-- ONCE.  A binary with no `::goto` ladder branch answers `no_row`, and on
+-- that binary every later attempt must spell the tile the way
+-- [debugproc,tele] reads one; re-probing `::goto` per attempt would put a
+-- dead cheat and its reply wait in front of each of them.
+function QD.player._goto_dispatch(x, z, level, how)
+    if how ~= "::tele coord" then
+        local result, detail = QD.cheat(
+            "::goto " .. tostring(x) .. " " .. tostring(z) .. " " .. tostring(level))
+        if result ~= "no_row" then
+            return "::goto", result, detail
+        end
+    end
+    -- No ladder branch on this binary: spell the tile the way
+    -- [debugproc,tele] reads one.
+    local result, detail = QD.cheat(string.format(
+        "::tele %d_%d_%d_%d_%d",
+        level, math.floor(x / 64), math.floor(z / 64), x % 64, z % 64))
+    return "::tele coord", result, detail
+end
+
+function QD.player.goto_tile(x, z, level, ticks, attempts)
     level = level or 0
-
-    local cheat_result, cheat_detail = QD.cheat(
-        "::goto " .. tostring(x) .. " " .. tostring(z) .. " " .. tostring(level))
-    local how = "::goto"
-    if cheat_result == "no_row" then
-        -- No ladder branch on this binary: spell the tile the way
-        -- [debugproc,tele] reads one.
-        how = "::tele coord"
-        cheat_result, cheat_detail = QD.cheat(string.format(
-            "::tele %d_%d_%d_%d_%d",
-            level, math.floor(x / 64), math.floor(z / 64), x % 64, z % 64))
-    end
-    if cheat_result ~= "ok" then
-        return cheat_result, string.format(
-            "player.goto_tile %d,%d,%d: %s answered %s%s",
-            x, z, level, how, tostring(cheat_result),
-            cheat_detail and (" -- " .. tostring(cheat_detail)) or "")
+    ticks = ticks or QD.player._goto_ticks
+    attempts = attempts or QD.player._goto_attempts
+    if attempts < 1 then
+        attempts = 1
     end
 
-    local arrived = QD.await({
-        level = function()
-            local result, tile = QD.world.tile()
-            if result ~= "ok" or not tile then
-                return false
-            end
-            return tile.level == level
-                and QD.player._tile_distance(tile.x, tile.z, x, z) <= QD.player._goto_range
-        end,
-        note = "goto_tile",
-    }, 10)
+    local how = nil
+    local landed = false
+    local tried = 0
+    local where = "?"
+    -- One line per attempt that did not hold: where the player was when it
+    -- gave up and what the server had just said.  The last line is read PER
+    -- ATTEMPT, not once at the end -- Sea Slug's music track belongs to
+    -- attempt 1 and would be long out of the chat ring by the end of
+    -- attempt 3.
+    local account = {}
 
-    -- THE SCENE IS ONE TICK BEHIND THE TILE, and a verb that returns on the
-    -- tile alone hands its caller a world the client cannot see yet.
-    -- Measured 2026-09-19 (build/quest_gate/g1settle): after a teleport to
-    -- Doric's hut the player's own tile reads 2951,3450 on tick t+1 with the
-    -- npc pool still EMPTY, and Doric appears on t+2. A `goto_tile` that
-    -- stopped at t+1 would answer `ok` and leave the very next
-    -- `npc.by_symbol` at `no_row` and the `talk_to` after it at
-    -- `not_visible` -- the pilot's own failure, moved one row down.
-    --
-    -- Bounded, and its verdict deliberately ignored: a destination with no
-    -- npc near it is a legitimate place to stand, so three ticks with an
-    -- empty pool is a fact about that tile, not a failure of the teleport.
-    if arrived == "ok" then
-        QD.await({
+    while tried < attempts do
+        tried = tried + 1
+        local cheat_result, cheat_detail
+        how, cheat_result, cheat_detail = QD.player._goto_dispatch(x, z, level, how)
+        if cheat_result ~= "ok" then
+            -- A cheat the server will not take is not a flake: firing it
+            -- twice more says the same thing twice more.
+            return cheat_result, string.format(
+                "player.goto_tile %d,%d,%d: %s answered %s%s on attempt %d of %d",
+                x, z, level, how, tostring(cheat_result),
+                cheat_detail and (" -- " .. tostring(cheat_detail)) or "",
+                tried, attempts)
+        end
+
+        local arrived = QD.await({
             level = function()
-                local pool_result, rows = api_drive.npcs(0)
-                return pool_result == "ok" and #rows > 0
+                return (QD.player._goto_here(x, z, level))
             end,
-            note = "goto_tile scene settle",
-        }, 3)
-        -- SEAM-PRESS-PIXEL (2026-09-20): and the loaded scene must be the one
-        -- the player is now STANDING IN.  An npc pool that is not empty is
-        -- not that -- after a teleport the pool can still be the PREVIOUS
-        -- region's -- and a press into a scene from somewhere else hittests
-        -- nothing, which is the `covered` this seam's other half fixes but
-        -- cannot cure.  See "THE SCENE THE PRESS LANDS IN" at the end of this
-        -- file.  Already true = no wait, and the verdict is advisory.
-        QD.await({
-            level = function()
-                local loc_result, rows = api_drive.locs(QD.player._goto_scene_radius)
-                return loc_result == "ok" and #rows > 0
-                    and api_drive.settled()
-            end,
-            note = "goto_tile scene rebuild",
-        }, QD.player._goto_scene_ticks)
+            note = "goto_tile attempt " .. tostring(tried),
+        }, ticks)
+
+        if arrived == "ok" then
+            -- THE SCENE IS ONE TICK BEHIND THE TILE, and a verb that returns
+            -- on the tile alone hands its caller a world the client cannot
+            -- see yet.  Measured 2026-09-19 (build/quest_gate/g1settle):
+            -- after a teleport to Doric's hut the player's own tile reads
+            -- 2951,3450 on tick t+1 with the npc pool still EMPTY, and Doric
+            -- appears on t+2.  A `goto_tile` that stopped at t+1 would answer
+            -- `ok` and leave the very next `npc.by_symbol` at `no_row` and
+            -- the `talk_to` after it at `not_visible` -- the pilot's own
+            -- failure, moved one row down.
+            --
+            -- Bounded, and its verdict deliberately ignored: a destination
+            -- with no npc near it is a legitimate place to stand, so three
+            -- ticks with an empty pool is a fact about that tile, not a
+            -- failure of the teleport.
+            QD.await({
+                level = function()
+                    local pool_result, rows = api_drive.npcs(0)
+                    return pool_result == "ok" and #rows > 0
+                end,
+                note = "goto_tile scene settle",
+            }, 3)
+            -- SEAM-PRESS-PIXEL (2026-09-20): and the loaded scene must be the
+            -- one the player is now STANDING IN.  An npc pool that is not
+            -- empty is not that -- after a teleport the pool can still be the
+            -- PREVIOUS region's -- and a press into a scene from somewhere
+            -- else hittests nothing, which is the `covered` this seam's other
+            -- half fixes but cannot cure.  See "THE SCENE THE PRESS LANDS IN"
+            -- at the end of this file.  Already true = no wait, and the
+            -- verdict is advisory.
+            QD.await({
+                level = function()
+                    local loc_result, rows = api_drive.locs(QD.player._goto_scene_radius)
+                    return loc_result == "ok" and #rows > 0
+                        and api_drive.settled()
+                end,
+                note = "goto_tile scene rebuild",
+            }, QD.player._goto_scene_ticks)
+        end
+
+        landed, where = QD.player._goto_here(x, z, level)
+        if landed then
+            break
+        end
+        account[#account + 1] = string.format(
+            "attempt %d: %s at %s after %d tick(s) -- server said '%s'",
+            tried,
+            arrived == "ok" and "arrived and was moved off, now" or "never arrived, still",
+            where, ticks, QD.player._last_line())
     end
 
-    local after_result, after = QD.world.tile()
-    local where = (after_result == "ok" and after)
-        and string.format("%d,%d,%d", after.x, after.z, after.level)
-        or "?"
-    if arrived ~= "ok" then
-        -- The server's own last line comes with it: a plane outside 0-3 is a
-        -- typo the ladder answers with a message rather than a move ("::goto
-        -- - level must be 0-3, not 4."), and a timeout that does not carry
-        -- that sentence sends the author looking for a walking bug instead.
-        return arrived, string.format(
-            "player.goto_tile %d,%d,%d: still at %s ten ticks after %s -- server said '%s'",
-            x, z, level, where, how, QD.player._last_line())
+    if not landed then
+        -- The server's own last line comes with it, ONE PER ATTEMPT: a plane
+        -- outside 0-3 is a typo the ladder answers with a message rather than
+        -- a move ("::goto - level must be 0-3, not 4."), and a timeout that
+        -- does not carry that sentence sends the author looking for a walking
+        -- bug instead.  Three identical lines here mean the tile is wrong;
+        -- three different ones mean something else is moving the player.
+        return "timeout", string.format(
+            "player.goto_tile %d,%d,%d: still at %s after %d attempt(s) of %d tick(s) via %s -- %s",
+            x, z, level, where, tried, ticks, tostring(how), table.concat(account, "; "))
+    end
+    -- A first-attempt landing reads exactly as it always did.  A retry SAYS
+    -- SO, and says what the attempts before it saw: a row that needed two
+    -- goes is a row standing next to something that teleports, and the next
+    -- author to read it needs that more than the green word.
+    if tried > 1 then
+        return "ok", string.format("at %s on attempt %d of %d via %s -- %s",
+            where, tried, attempts, how, table.concat(account, "; "))
     end
     return "ok", "at " .. where
 end
@@ -4626,4 +4766,339 @@ function QD.player.unequip(item)
     -- bare timeout, exactly as equip's refusal carries it.
     return landed, "unequip " .. where .. ": " .. moved
         .. " -- '" .. QD.player._last_line() .. "'"
+end
+
+-- ==========================================================================
+-- SEAM silent_press_npc_step (2026-09-21) -- THE PRESS WHOSE ONLY OBSERVABLE
+-- IS THE TARGET MOVING.
+--
+-- Every click verb above this line settles on something the CHAT ring or the
+-- dialogue interface shows: a sub mounting, a page changing, a chat line, a
+-- route running out.  _settle_after_click's five arms are that list, and
+-- talk_to then waits a further five ticks for the page the npc still owes.
+-- An `[opnpc<n>]` whose whole body moves the NPC and says nothing to the
+-- chatbox cannot be settled by any of them, and the verb that pressed it can
+-- only time out -- ON SUCCESS.
+--
+-- MEASURED, Sheep Herder, build/quest_gate/sheepherder (blocked row 20, 405
+-- ticks) and reproduced here in build/quest_gate/seampress_a row 12:
+--
+--   repro.talk_to PASS  talk_to -> timeout (settle_after_click); the sheep
+--   meanwhile: slot 63 2609,3344 -> 2609,3345
+--
+-- diseased_sheep.rs2's [label,prod_sheep] answers a GOOD prod with exactly
+-- four lines (:117-121):
+--
+--     anim(cattleprod, 0);          -- the PLAYER's animation; the pool row
+--                                   -- carries no anim field and no api_drive
+--                                   -- reader exposes one
+--     npc_say("BAAAAA!");           -- OVERHEAD text.  Not a chat-ring line,
+--                                   -- so api_drive.messages never sees it,
+--                                   -- and not a dialogue page either
+--     npc_setmode(none);
+--     npc_walk(~movecoord_indirection(npc_coord,
+--              ~coord_direction(coord, npc_coord), 1));
+--
+-- and nothing else.  The only `mes` in the whole label is :133, inside the
+-- `sheepherder_pen_gate` branch, which fires once, at the end of the puzzle.
+-- Every OTHER path out of that label -- not started, complete, no suit, no
+-- cattleprod, wrong weapon, already in the pen, bones already held, lane
+-- already 6 -- prints a `mes`, a `~mesbox` or a `~chatplayer_anim`.  So on
+-- that content the driver's silence is inverted: a REFUSED prod settles and a
+-- SUCCESSFUL one times out, and talk_to reported `timeout` for fifteen prods
+-- that all landed and all moved a sheep.
+--
+-- What this verb adds is one more observable, and it is the target's own: the
+-- npc's TILE, which the pool already carries (drive_ui_push_npc_row's
+-- `x`/`z`/`level`, torirs_plugin_drive_ui.c).
+--
+-- THE COPY THAT WAS PRESSED, NOT "A COPY OF THAT SYMBOL".  The first draft of
+-- this verb resolved on any pool row of the target's id moving, and the same
+-- probe run showed why that is worthless: `plaguesheep_1` has THREE spawn
+-- rows two tiles apart (m40_52.spawn:28-30), all three WANDER, and in a
+-- four-tick window one of them moves whatever the press did.  Row 17 of that
+-- run pressed a sheep with the cattleprod taken OFF -- content answers
+-- `~chatplayer_anim("I'm not prodding a sickly-looking sheep with my
+-- hands!")` and walks nobody -- and the verb credited a neighbour's wander
+-- step and never mentioned the dialogue.  That is the same false green the
+-- refusal fence at the top of this file exists against, rebuilt one function
+-- lower down.
+--
+-- So the press names its own subject: QD.drive._press_row matches the menu
+-- row on `pos.element_id` and nothing else, so the op the client sends names
+-- THAT entity, and it now returns the field.  This verb snapshots the pool
+-- keyed by element id, presses, and watches the one element the press used.
+--
+-- AND THE WORLD'S OWN ANSWER WINS.  A chat line or a dialogue page is checked
+-- before the tile every poll, and a step that does not take the npc FURTHER
+-- from the player does not end the wait at all -- it is remembered and
+-- reported only if nothing better arrives.  An away-step is what
+-- `npc_walk(~movecoord_indirection(npc_coord, ~coord_direction(coord,
+-- npc_coord), 1))` makes and it is the one movement a wander cannot be
+-- mistaken for in the direction that matters; everything else is reported in
+-- the detail with the word "may be the npc's own wander" in it, so a reader
+-- is never told more than was measured.
+--
+-- The refusal fence is the same one every other click verb is behind: a
+-- CLICK_REFUSAL_LINES sentence in the window answers `refused` with the
+-- server's own words, whatever the tiles did.
+
+-- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID
+-- the press identifies a copy by.  Returns (rows, count), or (nil, result)
+-- when the pool did not answer.
+--
+-- npc_id OR base_npc_id, the pair QD.npc.by_symbol and QD.drive._target_tile
+-- both match on: on a multinpc the wire id and the drawn id differ and a
+-- target built by hand can carry either (QD.player._live_npc_id's banner).
+function QD.player._npc_rows(target)
+    local rows_result, rows = api_drive.npcs(0)
+    local found = {}
+    local count = 0
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil, rows_result
+    end
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.npc_id == target.id or row.base_npc_id == target.id then
+            found[row.element_id] = {
+                slot = row.slot, x = row.x, z = row.z, level = row.level,
+            }
+            count = count + 1
+        end
+    end
+    return found, count
+end
+
+-- An element-keyed snapshot as a row detail reads it -- what the timeout
+-- branch prints, so "it did not move" says WHAT did not move and from where.
+function QD.player._npc_rows_text(rows)
+    local parts = {}
+    for element, tile in pairs(rows) do
+        parts[#parts + 1] = "slot " .. tostring(tile.slot)
+            .. " (element " .. tostring(element) .. ") at "
+            .. tostring(tile.x) .. "," .. tostring(tile.z)
+    end
+    if #parts == 0 then
+        return "no copy in the pool"
+    end
+    return table.concat(parts, "; ")
+end
+
+-- Chebyshev tiles between two points -- the range a step is judged by below,
+-- and the same metric standing-distance is measured in everywhere else here.
+function QD.player._range(ax, az, bx, bz)
+    return math.max(math.abs(ax - bx), math.abs(az - bz))
+end
+
+-- How a step reads in the row: the slot, both tiles, how far it went, and
+-- whether it went AWAY from the player.
+--
+-- Away, not a direction vector.  `[proc,coord_direction]`
+-- (general/scripts/misc/coord_procs.rs2:78) answers one of four compass
+-- points -- the DOMINANT axis of (npc - player) -- so a prod delivered from a
+-- diagonal tile pushes the sheep one tile due west while the vector away from
+-- the player is west-and-south, and a check for the exact away vector would
+-- call the content's own push "not the away step".  Range is the honest
+-- reading of the same claim and it holds for an eight-way push too
+-- (`[proc,coord_direction2]`, the same file).
+function QD.player._step_text(step)
+    if step.gone then
+        return "npc slot " .. tostring(step.slot) .. " left the pool from "
+            .. tostring(step.from_x) .. "," .. tostring(step.from_z)
+            .. " (an absence is not a step: it may have been replaced,"
+            .. " ranked out of the 64-npc pool, or the scene changed)"
+    end
+    local dx = step.x - step.from_x
+    local dz = step.z - step.from_z
+    local text = "npc slot " .. tostring(step.slot) .. " "
+        .. tostring(step.from_x) .. "," .. tostring(step.from_z) .. " -> "
+        .. tostring(step.x) .. "," .. tostring(step.z)
+        .. " (" .. tostring(math.max(math.abs(dx), math.abs(dz))) .. " tile(s)"
+    if step.player_x == nil then
+        return text .. ")"
+    end
+    text = text .. ", you at " .. tostring(step.player_x) .. ","
+        .. tostring(step.player_z) .. ", range " .. tostring(step.was_range)
+        .. "->" .. tostring(step.range) .. "; "
+    if step.away then
+        return text .. "away from you)"
+    end
+    if step.range < step.was_range then
+        return text .. "toward you -- may be the npc's own wander)"
+    end
+    return text .. "neither toward nor away -- may be the npc's own wander)"
+end
+
+-- The move an element made since `was`, or nil.  `away` is the flag the wait
+-- resolves on; everything else is reported but does not end it.
+function QD.player._step_for(element, was, now)
+    local is = now[element]
+    if is == nil then
+        return { slot = was.slot, from_x = was.x, from_z = was.z, gone = true }
+    end
+    if is.x == was.x and is.z == was.z and is.level == was.level then
+        return nil
+    end
+    local step = {
+        slot = is.slot,
+        from_x = was.x, from_z = was.z,
+        x = is.x, z = is.z, level = is.level,
+    }
+    local player_result, player = api_drive.player_tile()
+    if player_result == "ok" and player ~= nil then
+        step.player_x = player.x
+        step.player_z = player.z
+        step.was_range = QD.player._range(was.x, was.z, player.x, player.z)
+        step.range = QD.player._range(is.x, is.z, player.x, player.z)
+        step.away = step.range > step.was_range
+    end
+    return step
+end
+
+-- The OLDEST chat line newer than `since`, or "".  Newest-first is what
+-- api_drive.messages answers in, so the last match on the walk is the oldest
+-- one in the window -- the line this press provoked rather than a later
+-- consequence of it, the same rule QD.player._refusal_since keeps.
+function QD.player._line_since(since)
+    local result, rows = api_drive.messages()
+    local found = ""
+    if result ~= "ok" or type(rows) ~= "table" then
+        return ""
+    end
+    for i = 1, #rows do
+        if rows[i].serial > since then
+            found = rows[i].text
+        end
+    end
+    return found
+end
+
+-- Eight ticks.  A prod's npc_walk is queued in the tick the script runs and
+-- the step is on the wire the next one; `p_arrivedelay` at the top of
+-- [label,prod_sheep] costs one more, and the click itself may still be
+-- walking the player into range when the wait starts.  Eight is the smallest
+-- round number above the measured worst case and it is paid IN FULL only by a
+-- press that moved nothing and said nothing -- which is the failure this verb
+-- reports.
+QD.player._press_step_ticks = 8
+
+-- press(npc, op, ticks) -> `ok` `timeout` `refused` `no_row` / by_symbol's
+-- and click_minimenu's own results.
+--
+-- One numbered op on an npc, settled on THE NPC ITSELF MOVING -- for an
+-- `[opnpc<n>]` whose success is silent.  Everything the ordinary verbs read
+-- is still read here and still named in the detail: the dialogue page that
+-- came up, the content line that came instead, the engine's own refusal
+-- sentence.  Use talk_to for anything that answers with a conversation; this
+-- verb is for the press that answers with a footstep.
+function QD.player.press(npc, op, ticks)
+    op = op or 1
+    ticks = ticks or QD.player._press_step_ticks
+    local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
+    if not target then
+        return sym_result, sym_name
+    end
+    local label = "press " .. tostring(npc) .. " op " .. tostring(op) .. ": "
+    local before, before_count = QD.player._npc_rows(target)
+    if before == nil then
+        return before_count, label .. "the npc pool did not answer"
+    end
+    if before_count == 0 then
+        return "no_row", label .. "no copy of it is in the npc pool"
+    end
+    local before_kind, before_text = QD.player._chat_page()
+    local serial_result, since = api_drive.message_serial()
+    local click_result, click = QD.drive.click_minimenu(target, op)
+    if click_result ~= "ok" then
+        return click_result, click
+    end
+    -- WHICH COPY the press named.  Without it this verb cannot tell the
+    -- pressed npc from the two wandering beside it, so it says so and grades
+    -- nothing on a tile -- a guess here is the false green this seam is.
+    local element = nil
+    if type(click) == "table" then
+        element = click.element_id
+    end
+    local was = nil
+    if element ~= nil then
+        was = before[element]
+    end
+    local pressed = "element " .. tostring(element)
+    if was ~= nil then
+        pressed = "slot " .. tostring(was.slot) .. " (element " .. tostring(element)
+            .. ") at " .. tostring(was.x) .. "," .. tostring(was.z)
+    end
+    local step = nil
+    local page = nil
+    local line = ""
+    QD.await({
+        level = function()
+            -- The world's own answer first, every poll: a press that was
+            -- refused in words must never be reported as a footstep some
+            -- other copy took in the same window.
+            if serial_result == "ok" then
+                local seen = QD.player._line_since(since)
+                if seen ~= "" then
+                    line = seen
+                    return true
+                end
+            end
+            local kind, text = QD.player._chat_page()
+            -- A page that went away is not a page this press put up --
+            -- _settle_after_click's fourth arm, for its reason.
+            if kind ~= "none" and (kind ~= before_kind or text ~= before_text) then
+                page = kind
+                return true
+            end
+            if was == nil then
+                return false
+            end
+            local now = QD.player._npc_rows(target)
+            if now == nil then
+                return false
+            end
+            local moved = QD.player._step_for(element, was, now)
+            if moved == nil then
+                return false
+            end
+            step = moved
+            -- Only a step that took the npc further off resolves; anything
+            -- else is kept and printed, and the wait goes on looking for the
+            -- answer that outranks it.
+            return moved.away == true
+        end,
+        note = "press " .. tostring(npc) .. " op " .. tostring(op),
+    }, ticks)
+    if serial_result == "ok" then
+        local refusal = QD.player._refusal_since(since)
+        if refusal then
+            return "refused", label .. refusal
+        end
+    end
+    if line ~= "" then
+        return "ok", label .. "pressed " .. pressed .. "; content line '"
+            .. line .. "'"
+    end
+    if page ~= nil then
+        local _, page_text = QD.player._chat_page()
+        return "ok", label .. "pressed " .. pressed .. "; dialogue " .. page
+            .. " is up: '" .. tostring(page_text) .. "'"
+    end
+    if step ~= nil then
+        return "ok", label .. QD.player._step_text(step)
+    end
+    if was == nil then
+        return "no_row", label .. "the press named " .. pressed
+            .. ", which was not in the pre-press pool snapshot ("
+            .. QD.player._npc_rows_text(before)
+            .. ") -- nothing to watch, so nothing is claimed"
+    end
+    local player_result, player = api_drive.player_tile()
+    local where = "unknown"
+    if player_result == "ok" and player ~= nil then
+        where = tostring(player.x) .. "," .. tostring(player.z)
+    end
+    return "timeout", label .. pressed .. " did not move in " .. tostring(ticks)
+        .. " tick(s) (you at " .. where
+        .. "), and nothing was said and no dialogue opened"
 end

@@ -7604,6 +7604,89 @@ cheat_npc_from_name(
 }
 
 /*
+ * Has `::passive` been used on this npc TYPE?
+ *
+ * The whole of what torirs_server_combat.c asks at its two "take this player
+ * as a target" decision points -- `maybe_aggress` (who STARTS a fight) and
+ * the retaliation latch in `ToriRSServer_CombatHitNpc` (who fights BACK).
+ * Everything else about the npc is untouched: it is still attackable, still
+ * answers Talk-to and every other op, still takes damage and still dies.
+ *
+ * A predicate over a type number, so a negative or unknown type answers "no"
+ * rather than asserting -- `npc->type` is what both callers hold and "is type
+ * -1 passive" has an answer. The table is walked to `passive_npc_type_count`,
+ * which is 0 in every session that never typed the cheat, so the per-tick
+ * aggression sweep pays one compare for a facility it is not using.
+ */
+int
+ToriRSServer_WorldNpcTypeIsPassive(
+    const struct ToriRSServer* srv,
+    int npc_type)
+{
+    assert(srv);
+    for( int i = 0; i < srv->passive_npc_type_count; i++ )
+    {
+        if( srv->passive_npc_types[i] == npc_type )
+            return 1;
+    }
+    return 0;
+}
+
+/*
+ * Break off every fight the npcs of a newly-passive type are currently in,
+ * and drop both halves of the single-way claim behind it.
+ *
+ * Without this the cheat would only take effect on the NEXT fight: the claim
+ * is a timer that outlives the swing that stamped it
+ * (TORIRSSERVER_SINGLEWAY_COMBAT_TICKS), and it is stamped on the player as
+ * well as on the npc, which is the half that refuses the player his next
+ * target ("I'm already under attack."). The player's own interaction goes too
+ * -- `p_opnpc(2)` is what re-arms his swing every attackrate, so leaving it
+ * armed would let him keep hitting her, and every hit re-stamps the claim the
+ * line above just dropped.
+ *
+ * Returns how many npcs were actually in a fight, so the cheat can say what it
+ * did rather than claiming an effect it may not have had.
+ */
+static int
+cheat_passive_break_off(
+    struct ToriRSServer* srv,
+    int npc_type)
+{
+    int broken = 0;
+
+    assert(srv);
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+        if( !npc->active || npc->type != npc_type )
+            continue;
+        if( npc->combat_target >= 0 )
+            broken++;
+        ToriRSServer_CombatStopNpc(srv, slot);
+        npc->combat_claim_pid = -1;
+        npc->combat_claim_tick = 0;
+        for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+        {
+            struct ToriRSServerPlayer* player = &srv->players[pid];
+
+            if( !player->active )
+                continue;
+            if( player->combat_claim_npc == slot &&
+                player->combat_claim_npc_gen == npc->generation )
+            {
+                player->combat_claim_npc = -1;
+                player->combat_claim_tick = 0;
+            }
+            if( player->combat_target == slot )
+                ToriRSServer_CombatStopPlayerAt(player);
+        }
+    }
+    return broken;
+}
+
+/*
  * The varp / varbit a `::setvar` argument means, or -1.
  *
  * Two rungs of `cheat_id_from_name`'s four, and that is the whole difference
@@ -8121,6 +8204,149 @@ ToriRSServer_RunCheatLadder(
         say(srv, "Killed %s (slot %d, %d tiles).",
             ToriRSServer_NpcInfoKnown(type) ? ToriRSServer_NpcInfo(type)->name : arg,
             slot, best);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
+    /* The word exactly, not a prefix of it: this branch has a BARE form
+     * (`::passive` lists what is held), so it cannot use the trailing
+     * space `kill ` and `setvar ` are guarded with, and without the test
+     * below `::passivexyz goblin` would read as `::passive xyz`. */
+    if( strncmp(text, "passive", 7) == 0 && (text[7] == '\0' || text[7] == ' ') )
+    {
+        /*
+         * `::passive <npc_symbol>` -- this npc TYPE stops starting fights, for
+         * the rest of the session. `::passive off <npc_symbol>` puts it back,
+         * `::passive off` puts every one of them back, and bare `::passive`
+         * says which types are held.
+         *
+         * Why the engine needs it, in the words of the run it came from: the
+         * shade hunt in Shades of Mort'ton is five kills on a street the four
+         * Afflicted types (`mort_afflicted_man`, `_man2`, `_woman`, `_woman2`,
+         * huntmode=aggressive, huntrange 5, level 34) wander. Mort'ton is
+         * SINGLE-WAY, so one Afflicted that aggresses claims the player for
+         * eight ticks past her last swing, and every Attack on a Loar Shadow
+         * in that window is refused by the engine's own rule with "I'm already
+         * under attack." Twenty rounds of the hunt loop landed two kills of
+         * five and the chat pane was eight copies of that line.
+         *
+         * A real player has two answers and the driver has neither. He walks
+         * around her -- the driver's pathing aims at a tile, not at a street --
+         * or he is over combat level 68, where `maybe_aggress`'s `level * 2`
+         * rule makes every Afflicted in town ignore him; the fixture's
+         * character is not, and levelling him past the quest's own difficulty
+         * to dodge a wandering npc would be a test that no longer tests the
+         * fight it is driving.
+         *
+         * So: a TEST AFFORDANCE, named after what it does to the npc and not
+         * after the quest that wanted it, and scoped to a TYPE because the npc
+         * pool is a window that retires the Mort'ton spawns while the setup
+         * line runs in Lumbridge (see `passive_npc_types` in torirs_server.h).
+         * It is NOT a content change: `maps/multiway.csv` says Mort'ton is
+         * single-way and OldSchool agrees, so the zone set is right and the
+         * driver is what needs the help.
+         *
+         * Deliberately NOT `huntmode`: `npc_sethuntmode` is content's opcode
+         * and an npc it has touched would be overwritten by this, or this by
+         * it, with no way to tell which. A set of types beside the world is a
+         * fact only the cheat writes.
+         */
+        char arg[64] = { 0 };
+        char arg2[64] = { 0 };
+        char suggest[256] = { 0 };
+        int args = sscanf(text, "passive %63s %63s", arg, arg2);
+        int off = args >= 1 && strcmp(arg, "off") == 0;
+        const char* name = off ? arg2 : arg;
+        int type;
+        int broken;
+
+        if( args < 1 )
+        {
+            if( srv->passive_npc_type_count == 0 )
+            {
+                say(srv, "::passive - nothing is passive. Usage: ::passive <npc_name>");
+                return TORIRSSERVER_TRIGGER_RAN;
+            }
+            for( int i = 0; i < srv->passive_npc_type_count; i++ )
+            {
+                int held = srv->passive_npc_types[i];
+
+                say(srv, "Passive: %s (%d).",
+                    ToriRSServer_NpcInfoKnown(held) ? ToriRSServer_NpcInfo(held)->name : "?",
+                    held);
+            }
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+
+        /* `::passive off` with no name: the whole table, which is what a test
+         * ending its own setup wants rather than one line per type it named. */
+        if( off && args < 2 )
+        {
+            int held = srv->passive_npc_type_count;
+
+            for( int i = 0; i < held; i++ )
+                cheat_passive_break_off(srv, srv->passive_npc_types[i]);
+            srv->passive_npc_type_count = 0;
+            say(srv, "Passive: cleared %d type(s).", held);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+
+        type = cheat_npc_from_name(name, suggest, sizeof(suggest));
+        if( type < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", name, suggest);
+            else
+                say(srv, "No npc named '%s'.", name);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        if( off )
+        {
+            int found = -1;
+
+            for( int i = 0; i < srv->passive_npc_type_count; i++ )
+            {
+                if( srv->passive_npc_types[i] == type )
+                    found = i;
+            }
+            if( found < 0 )
+            {
+                say(srv, "::passive: %s (%d) was not passive.", name, type);
+                return TORIRSSERVER_TRIGGER_FAILED;
+            }
+            srv->passive_npc_types[found] =
+                srv->passive_npc_types[srv->passive_npc_type_count - 1];
+            srv->passive_npc_type_count--;
+            say(srv, "%s (%d) is aggressive again.",
+                ToriRSServer_NpcInfoKnown(type) ? ToriRSServer_NpcInfo(type)->name : name,
+                type);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+
+        if( ToriRSServer_WorldNpcTypeIsPassive(srv, type) )
+        {
+            /* Already held. RAN and not FAILED: a setup line that names the
+             * same type twice has got what it asked for, and a test whose
+             * cheats are generated should not have to know whether an earlier
+             * one covered this. */
+            say(srv, "%s (%d) is already passive.",
+                ToriRSServer_NpcInfoKnown(type) ? ToriRSServer_NpcInfo(type)->name : name,
+                type);
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        if( srv->passive_npc_type_count >= TORIRSSERVER_PASSIVE_NPC_TYPES_MAX )
+        {
+            say(srv, "::passive: already holding %d types; ::passive off first.",
+                TORIRSSERVER_PASSIVE_NPC_TYPES_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+
+        srv->passive_npc_types[srv->passive_npc_type_count] = type;
+        srv->passive_npc_type_count++;
+        broken = cheat_passive_break_off(srv, type);
+        say(srv, "%s (%d) is passive (%d fight(s) broken off).",
+            ToriRSServer_NpcInfoKnown(type) ? ToriRSServer_NpcInfo(type)->name : name,
+            type, broken);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 

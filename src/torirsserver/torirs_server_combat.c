@@ -1301,7 +1301,17 @@ ToriRSServer_CombatHitNpc(
      * the Inferno's Ancestral Glyph, which walks a fixed row while the adds
      * chew on it for the whole Zuk phase — needs the hit, the splat and the
      * flinch below, and none of this. */
-    if( !immutable_target && npc->combat_target < 0 && npc_def(npc)->retaliate )
+    if( !immutable_target && npc->combat_target < 0 && npc_def(npc)->retaliate &&
+        /* `::passive` opts a type out of the retaliation latch too, for the
+         * same reason it opts out of aggression: the latch is the OTHER way an
+         * npc comes to hold a player as a target, and a type held passive that
+         * fought back would still claim him under single-way the first time a
+         * stray hit landed on it. The damage, the hitmarks and the death path
+         * are untouched — a passive npc is hit, hurt and killed normally. The
+         * flinch is not: it is the delay on the swing this npc is no longer
+         * going to make, and it belongs to taking the target rather than to
+         * being hit. See `passive_npc_types` (torirs_server.h). */
+        !ToriRSServer_WorldNpcTypeIsPassive(srv, npc->type) )
     {
         /*
          * Switching a fight from an npc to a person is not a new fight, and the
@@ -2531,6 +2541,18 @@ maybe_aggress(
      * `npc_sethuntmode` overrides it per npc. Reading the def here would make
      * that opcode a no-op for the one thing content uses it for. */
     if( !npc->def || npc->huntmode != TORIRSSERVER_HUNT_AGGRESSIVE )
+        return;
+    /*
+     * `::passive <npc_symbol>` — this TYPE does not start fights in this
+     * session. A test affordance and nothing a player can reach; see
+     * `passive_npc_types` in torirs_server.h for why it is a type rather than
+     * a flag on the npc, and the cheat's own banner in
+     * torirs_server_world.c for the run that asked for it. Checked here
+     * because aggression is where an npc DECIDES to take a player, which is
+     * the decision the cheat is about — not `huntmode`, which is content's to
+     * write through `npc_sethuntmode`.
+     */
+    if( ToriRSServer_WorldNpcTypeIsPassive(srv, npc->type) )
         return;
     if( npc->def->huntrange <= 0 || npc->combat_target >= 0 )
         return;

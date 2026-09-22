@@ -59,6 +59,7 @@ every line below shifted with it.
 |---|---|---|
 | `setvar ` | 7878 | `::setvar <varp\|varbit> <int\|^constant>` writes one named var through the same setter the `%var =` opcode uses (transmit + listeners). Resolves the name via the varp pack then the varbit pack (`cheat_varp_from_name` :7526, `cheat_varbit_from_name` :7546, `^constant` :7557); a varp that carries varbits is refused by name (:7929), an unknown name is FAILED (:7953). **First in the ladder on purpose** (:7871-7876): the three bare `sscanf` fallbacks at the bottom match on SHAPE, not on a name, so a branch added after them can be swallowed by a mistyped argument |
 | `kill ` | 7957 | `::kill <npc_symbol> [radius]` -- lethal damage to the nearest matching npc through the normal death path, so `npc_death_step` reaches CORPSE and the npc's `[ai_queue3,...]` fires. A radius, not the whole world (:7973). No match -> FAILED |
+| `passive` | 8214 | `::passive <npc_symbol>` -- that npc TYPE stops STARTING fights for the rest of the session, and the single-way claim its live npcs hold is dropped on both sides; `::passive off <npc_symbol>` restores one, `::passive off` restores all, bare `::passive` lists what is held. A TEST AFFORDANCE for the quest suite: see §F. No match / no such type held -> FAILED |
 | `talk` | 8045 | `::talk <slot\|name> [op]` fires `[opnpc<op>]` on an npc without a right-click |
 | `setting ` | 8112 | `::setting <varbit> <value>` mirrors an All Settings row write |
 | `minimap ` | 8152 | `::minimap <0..5>` forces a native minimap state |
@@ -143,6 +144,7 @@ ladder". It can now, and the split is what §A above describes.
   `::tele <x> <z>` -- answered `no_row` and did nothing at all to a test that
   asked for it".
 - So from `t.cheat`: `::give`, `::setlevel`, `::spawn`, `::setvar`, `::kill`,
+  `::passive`,
   `::wield`, `::god`, `::fight`, `::useon`, `::run`, `::style`, `::bank`,
   `::layout`, `::minimap`, `::ifhide`, `::equipstats`, `::talk`, `::item`,
   `::npc <id>`, `::goto <x> <z> [level]`, every `::vessel*` -- all
@@ -156,8 +158,9 @@ ladder". It can now, and the split is what §A above describes.
   A setup line that silently does nothing is the bug the split exists to kill.
 - Evidence: `test/quests/_cheats.lua` + `make -C src test-quest-cheats` --
   one row per ladder command reached through `t.cheat` (`::give`,
-  `::setlevel`, `::setvar <varp> ^constant`, `::kill <npc>`, `::tele`), plus
-  a bogus `::nosuchcheat` that must answer `no_row`. Green 2026-09-19.
+  `::setlevel`, `::setvar <varp> ^constant`, `::kill <npc>`, `::passive <npc>`, `::tele`), plus
+  a bogus `::nosuchcheat` that must answer `no_row`. Green 2026-09-19; 19/19 again 2026-09-22 with the six
+  `::passive` rows (build/quest_gate/cheats_passive/ledger.tsv).
 
 ## C. Server-side quest selftest harness
 
@@ -417,7 +420,76 @@ consumed by `[debugproc,tele]`'s `~tele_resolve`, cheat_tele.rs2):
   gap is purely "no generic per-quest-boss skip cheat", not an engine
   limitation.
 
-## F. Completed-quest stderr line, and `t.var.server`
+## F. `::passive` -- taking a wandering aggressive npc out of a test's way
+
+`::passive <npc_symbol>` holds an npc TYPE passive for the rest of the
+session: no npc of that type will START a fight with a player again, by
+aggression or by retaliation. `::passive off <npc_symbol>` restores one type,
+`::passive off` restores every held type, and bare `::passive` lists what is
+held. Unknown name, or `off` on a type that was not held -> FAILED
+(`refused`), the same way a misspelled `::setvar` is refused: a cheat that
+silently held nothing would be a setup line that did nothing.
+
+**What it does not touch.** A passive npc is still attackable, still answers
+Talk-to and every other op, still takes damage, still dies and still drops.
+The only thing it stops doing is turning on the player.
+A script that puts one on a player deliberately -- `npc_setmode(opplayer2)`
+out of a quest's own `[ai_*]` or `[opnpc*]` -- is NOT blocked, and must not be:
+that is content staging a fight the quest is about, not an npc wandering into
+one. Only the engine's two unprompted paths are gated.
+
+**Why it exists.** Shades of Mort'ton's shade hunt is five kills on a street
+that four aggressive Afflicted types wander (`mort_afflicted_man`, `_man2`,
+`_woman`, `_woman2` -- `huntmode=aggressive`, `param=huntrange,5`, level 34,
+31 spawn rows in `maps`/`m54_51.spawn`). Mort'ton is SINGLE-WAY -- OldSchool
+agrees, and `maps/multiway.csv` is right to have no zone row for it -- so one
+Afflicted that aggresses claims the player for eight ticks past each of her
+swings (`TORIRSSERVER_SINGLEWAY_COMBAT_TICKS`) and every Attack on a Loar
+Shadow inside that window is refused by the engine's own rule with "I'm
+already under attack.". The hunt landed 2 kills of 5 in twenty rounds and the
+chat pane was eight copies of that line
+(`build/quest_gate/mortton/ledger.tsv` row 23).
+
+A real player has two answers to her and the driver has neither: he walks
+round her (the driver's pathing aims at a tile, not at a street), or he is
+over combat level 68, where `maybe_aggress`'s `level * 2` rule makes every
+Afflicted in town ignore him -- and levelling a fixture character past the
+quest's own difficulty to dodge a wandering npc would be a test that no
+longer tests the fight it is driving.
+
+**Where it is read.** `ToriRSServer_WorldNpcTypeIsPassive`
+(torirs_server_world.c) over `srv->passive_npc_types`, at the only two places
+in torirs_server_combat.c where an npc takes a player as a target:
+`maybe_aggress` (who STARTS a fight) and the retaliation latch inside
+`ToriRSServer_CombatHitNpc` (who fights BACK). A session that never typed the
+cheat pays one compare against a zero count.
+
+**A TYPE, not an npc**, because the npc pool is a window: static spawns are
+stood up around a player's zone window and retired when it moves, so a setup
+line run at the fixture's Lumbridge spawn would find no Mort'ton npc to flag,
+and the Afflicted would walk back in aggressive when the test arrived. And
+deliberately not `huntmode`: `npc_sethuntmode` is content's opcode, and an npc
+it had touched would be overwritten by this or this by it, with no way to tell
+which.
+
+**Enabling it breaks off what is already happening**, on both sides: the live
+npcs of that type drop their target, and the single-way claim they hold is
+dropped on the npc AND on the player (the half that refuses him his next
+target), along with the player's own interaction -- otherwise his next swing
+would re-stamp the claim the cheat just dropped. The reply says how many
+fights it ended: `Afflicted (1294) is passive (1 fight(s) broken off).`
+
+**Proved by** `test/quests/_cheats.lua`'s six `cheats.passive*` rows -- an
+Afflicted spawned beside the player in Lumbridge (single-way too) engages
+her, an Attack on a second npc is `refused` with the engine's own sentence,
+`::passive` frees it, and hitpoints do not move for twenty ticks with her
+standing there -- and by the seam's A/B on Shades of Mort'ton, the same file
+and the same binary with only the four `::passive` setup lines differing:
+`shade.hunt FAIL 625 ... 20 round(s) ... shade_bones1 in backpack: 2` ->
+`shade.hunt PASS 320 ... 7 round(s) ... shade_bones1 in backpack: 5`, and
+`%morttonquest` 25 -> 40.
+
+## G. Completed-quest stderr line, and `t.var.server`
 
 - No single universal "QUEST ... PASS" line. Instead each quest selftest
   emits its OWN per-checkpoint stderr lines, all sharing the convention

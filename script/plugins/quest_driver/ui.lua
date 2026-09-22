@@ -710,3 +710,436 @@ function QD.ui.journal_close()
     end
     return "ok", "questjournal closed"
 end
+
+-- SEAM silent_press_npc_step (2026-09-21) -- WHERE THE COPIES OF AN NPC ARE
+-- STANDING.
+--
+-- QD.npc.nearest answers ONE row and the pool it reads already carries that
+-- row's tile (`x`, `z`, `level`, and the server `slot` behind them --
+-- drive_ui_push_npc_row, torirs_plugin_drive_ui.c).  That is enough for a
+-- quest file that only has to reach an npc.  It is not enough for one that
+-- has to POSITION ITSELF RELATIVE TO ONE, which is what Sheep Herder is: the
+-- prod pushes a sheep one tile directly away from the player
+-- (diseased_sheep.rs2:121), so the tile to stand on is computed from the
+-- sheep's tile and the pen's, and which of the three copies of
+-- `plaguesheep_1` (m40_52.spawn:28-30) you are talking about changes with
+-- every step either of you takes.  `nearest` cannot express that question and
+-- a quest file has no other way to reach the pool.
+--
+-- So: every copy, nearest first, each row exactly as the pool holds it.
+--
+-- THREE RETURNS, not the usual two: `(result, summary, rows)`.  The summary
+-- is a string because a row detail is a string -- a list of tables renders as
+-- `1=<table> 2=<table>` through core.lua's detail_text and tells a reader
+-- nothing -- and the rows are the third value so a quest file can do
+-- arithmetic on them.  t.expect/t.exec take the first two and ignore the
+-- third, which is the shape they already have with every other verb.
+function QD.npc.tiles(sym, radius)
+    local sym_result, npc_id = api_drive.symbol("npc", sym)
+    if sym_result ~= "ok" then
+        return "not_found", sym, nil
+    end
+    local result, rows = api_drive.npcs(radius or 0)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return result, sym, nil
+    end
+    local found = {}
+    local parts = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.npc_id == npc_id or row.base_npc_id == npc_id then
+            found[#found + 1] = row
+            parts[#parts + 1] = "slot " .. tostring(row.slot)
+                .. " (element " .. tostring(row.element_id) .. ") at "
+                .. tostring(row.x) .. "," .. tostring(row.z)
+                .. " L" .. tostring(row.level)
+        end
+    end
+    if #found == 0 then
+        return "no_row", string.format(
+            "%s (id %d, searched %d npc(s) within %d)",
+            sym, npc_id, #rows, radius or 0), nil
+    end
+    return "ok", string.format("%s: %d copy(s) -- %s", sym, #found,
+        table.concat(parts, "; ")), found
+end
+
+-- shop ---------------------------------------------------------------------
+--
+-- SEAM shop_purchase_verb (2026-09-21) -- A SHOP IS A SCREEN LIKE ANY OTHER,
+-- AND NOTHING IN THE DRIVER COULD REACH IT.
+--
+-- Shades of Mort'ton's temple leg cannot be played without one.
+-- `flamtaer_temple.rs2`'s `[oploc1,_temple_wall]` raises `%temple_resources`
+-- only while the backpack holds timber, five swamp paste and a limestone
+-- brick (`~add_temple_resources`), timber (`timberbeam`) exists in exactly
+-- one place in this content pack -- `razmire_builders_merchants.inv`, the
+-- store Razmire OPENS AS THE QUEST'S OWN REWARD for killing five shades --
+-- and trap 16 forbids `::give`ing a quest's own deliverable.  So the verb
+-- table had no way to play the quest, and no way to press a shop at all: 104
+-- verbs and not one of them opened, read or bought from one.
+--
+-- WHAT A PRESS ON A SHOP CELL ACTUALLY IS, measured rather than assumed
+-- (build/quest_gate/shop_probe/ledger.tsv, the Lumbridge general store
+-- through `::shop`):
+--
+--   * `shopmain:items` (interface 300 component 16) is a GRID, and each cell
+--     is a dynamic child with its own component id -- `api_drive.component
+--     ("shopmain:items", sub)` resolves it and `api_drive.if_click` on THAT
+--     id sends IF_BUTTON<op> with (target = the grid, sub = the cell),
+--     because `UIIfEventTable_ButtonTarget` maps a dynamic child back to its
+--     parent and slot (src/ui/uitree_if_events.c:122).  The probe read subs
+--     0..6 as seven distinct ids and op 3 on sub 1 moved the world:
+--     `pot_empty 0 -> 5; coins 20000 -> 19995`.
+--   * so this needs NO new C.  `ui.widget` + `ui.invoke` are the whole press
+--     path, which is also the path a player's click takes
+--     (app_minimenu_run_option's UI_MINIMENU_PICK_UI arm).
+--   * the ladder is fixed and is NOT the quantity bar: `shop.rs2` binds
+--     `[if_button2..5,shopmain:items]` to `~shop_buy_slot(1/5/10/50)`.  Op 1
+--     means whatever the bar last said and op 6 is a Value check, so neither
+--     is ever pressed here -- a buy verb that depended on a mode the client
+--     also writes would buy a different number on its second call.
+--   * the CELL'S SUB IS THE STOCK SLOT PLUS ONE.  `script_1074` builds the
+--     grid on top of a cell 0 that is the selection highlight, and
+--     `~shop_main_slot` subtracts the one back off `last_slot`
+--     (shop.rs2's own header).  Off by one here buys the next item along.
+--
+-- WHY `open` IS TOLD THE SHOP'S INV SYMBOL.  The stock the player sees is a
+-- server container transmitted into the grid (`inv_transmit(%shop,
+-- shopmain:items)`), and the client keeps it in `InvManager` under its inv
+-- id with NO record of which component it was pushed to (struct InvContainer,
+-- src/inv/inv_manager.h:53 -- inv_id, slot_count, slots, and nothing else).
+-- So "which container is this screen showing" is a question the client cannot
+-- answer today, and the alternative to asking the caller is a number in a
+-- quest file (trap 2).  The inv symbol is the same one the shop's own `.rs2`
+-- hands `~openshop` (`razmirebuildingstore`, `generalshop1`), it is in
+-- `all.inv.compack`, and with it the verb can name the slot, the stock and
+-- the sub in its own detail instead of taking them on faith.
+--
+-- Recipe for a conformance row, since this seam's author does not write one:
+-- the fixture stands in Lumbridge, so
+-- `t.shop.open("generalshopkeeper1", 3, "generalshop1")` then
+-- `t.shop.buy("pot_empty", 5)` then `t.shop.close()` is the whole verb set
+-- against a shop that needs no quest state at all (`::give coins 5000`
+-- first).  `::shop` opens the same screen with no npc, for a row that wants
+-- to test `buy` without `open`.
+
+QD.shop = {}
+
+QD.shop._interface = "shopmain"
+QD.shop._grid = "shopmain:items"
+-- Buy rungs, biggest first: { how many this press buys, its op number }.
+QD.shop._rungs = { { 50, 5 }, { 10, 4 }, { 5, 3 }, { 1, 2 } }
+-- The inv the OPEN shop is showing, remembered by shop.open for shop.buy.
+QD.shop._inv_symbol = nil
+QD.shop._inv_id = nil
+
+function QD.shop._present()
+    local sym_result, interface_id = api_drive.symbol("interface", QD.shop._interface)
+    if sym_result ~= "ok" then
+        return false
+    end
+    local present_result, present = api_drive.group_present(interface_id)
+    return present_result == "ok" and present == true
+end
+
+-- How many of the open shop's slots hold something, as a sentence: the
+-- reading that separates "the frame mounted" from "the stock arrived", which
+-- are two server messages and not always the same tick.
+function QD.shop._stocked(inv_id)
+    local capacity_result, capacity = api_drive.inv_capacity(inv_id)
+    if capacity_result ~= "ok" then
+        return -1, 0
+    end
+    local stocked = 0
+    for slot = 0, capacity - 1 do
+        local slot_result, cell = api_drive.inv_slot(inv_id, slot)
+        if slot_result == "ok" and cell.obj_id > 0 then
+            stocked = stocked + 1
+        end
+    end
+    return stocked, capacity
+end
+
+-- Every chat line newer than `since`, oldest first, as one string -- or nil.
+--
+-- A shop refuses in prose and never in a result word: `[label,buy_item]`
+-- answers "You don't have enough coins.", "The shop has run out of stock."
+-- and "You don't have enough inventory space." with a plain `mes` and then
+-- simply returns, so a press that bought nothing and a press that was never
+-- armed look identical from here unless the sentence travels with the row.
+-- Not graded against a list, because the list would be shop.rs2's today and
+-- content's tomorrow: whatever the server said is what the ledger carries.
+-- (api_drive.messages answers newest-first -- torirs_plugin_drive_state.c.)
+function QD.shop._lines_since(since)
+    local result, rows = api_drive.messages()
+    if result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    local said = {}
+    for i = #rows, 1, -1 do
+        if rows[i].serial > since and type(rows[i].text) == "string" then
+            said[#said + 1] = rows[i].text
+        end
+    end
+    if #said == 0 then
+        return nil
+    end
+    return table.concat(said, " / ")
+end
+
+-- Where `item` sits in the OPEN shop: (ok, {slot, sub, stock}) or
+-- (result, detail).  `sub` is the grid cell to press -- slot + 1.
+function QD.shop._row(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return "no_row", "shop: " .. tostring(item) .. " is not an obj symbol"
+    end
+    local capacity_result, capacity = api_drive.inv_capacity(QD.shop._inv_id)
+    if capacity_result ~= "ok" then
+        return capacity_result, "shop: the stock of " .. tostring(QD.shop._inv_symbol)
+            .. " is not in this client's inv manager"
+    end
+    local offered = {}
+    for slot = 0, capacity - 1 do
+        local slot_result, cell = api_drive.inv_slot(QD.shop._inv_id, slot)
+        if slot_result == "ok" and cell.obj_id == obj_id then
+            return "ok", { slot = slot, sub = slot + 1, stock = cell.count }
+        end
+        if slot_result == "ok" and cell.obj_id > 0 and #offered < 6 then
+            offered[#offered + 1] = tostring(cell.obj_id) .. "x" .. tostring(cell.count)
+        end
+    end
+    return "not_found", string.format(
+        "shop: %s is not stocked by %s (%d slot(s), first few obj ids: %s)",
+        tostring(item), tostring(QD.shop._inv_symbol), capacity,
+        table.concat(offered, " "))
+end
+
+-- Open a shop by pressing the npc's own shop op, and wait for the STOCK.
+--
+-- `op` is the npc's numbered op -- 3 is "Trade" on this pack's shopkeepers
+-- ([opnpc3,generalshopkeeper1]) and Razmire's builders store is 4
+-- ("Trade-Builders-Store", all.npc) -- and `shop_inv` is the inv symbol that
+-- npc's script hands `~openshop`.  (ok, a sentence naming the stock) or
+-- (result, detail).
+function QD.shop.open(npc, op, shop_inv)
+    op = op or 3
+    if type(shop_inv) ~= "string" then
+        return "no_row", "shop.open: name the shop's own inv symbol (the one its "
+            .. ".rs2 hands ~openshop, e.g. razmirebuildingstore) -- the client "
+            .. "cannot tell which container a grid is showing"
+    end
+    local inv_result, inv_id = api_drive.symbol("inv", shop_inv)
+    if inv_result ~= "ok" then
+        return "no_row", "shop.open: unknown inv symbol " .. tostring(shop_inv)
+    end
+
+    -- A shop already on screen is not this press's evidence: interface 300 is
+    -- one page reused by every store, so "shopmain is mounted" after the
+    -- click would be satisfied by the shop that was already up.  Same
+    -- reasoning as ui.journal_open's opening close.
+    if QD.shop._present() then
+        local closed_result, closed_detail = QD.shop.close()
+        if closed_result ~= "ok" then
+            return closed_result, "shop.open: a shop was already open and would not "
+                .. "close -- " .. tostring(closed_detail)
+        end
+    end
+
+    -- The press is click_minimenu's, not talk_to's, and the difference is
+    -- twenty ticks per shop.  talk_to settles on a dialogue page or a chat
+    -- line, and `~openshop` produces NEITHER -- it opens a screen -- so every
+    -- open spent talk_to's whole settle budget timing out before the wait
+    -- below could even start (measured: `shop.open ... ticks=22`).  The
+    -- screen is this verb's own evidence and the wait for it is right here.
+    local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
+    if not target then
+        return sym_result, "shop.open: " .. tostring(sym_name)
+    end
+    local since = 0
+    local serial_result, serial = api_drive.message_serial()
+    if serial_result == "ok" then
+        since = serial
+    end
+    local click_result, click = QD.drive.click_minimenu(target, op)
+    if click_result ~= "ok" then
+        return click_result, string.format(
+            "shop.open: op %d on %s -- %s", op, tostring(npc), tostring(click))
+    end
+
+    local open_result = QD.ui.await_open(QD.shop._interface, 20)
+    if open_result ~= "ok" then
+        local said = QD.shop._lines_since(since)
+        return "not_visible", string.format(
+            "shop.open: op %d on %s pressed %q but no shopmain within 20 tick(s)%s",
+            op, tostring(npc),
+            type(click) == "table" and tostring(click.row_text) or tostring(click),
+            said and (" -- the server said: " .. said) or "")
+    end
+
+    -- The frame and the stock are two messages.  Wait for the container, or
+    -- every buy below reads an empty shop and calls the item unstocked.
+    local stocked = 0
+    local capacity = 0
+    local landed = await({
+        level = function()
+            stocked, capacity = QD.shop._stocked(inv_id)
+            return stocked > 0
+        end,
+        note = "shop.open stock " .. shop_inv,
+    }, 10)
+    if landed ~= "ok" then
+        return "timeout", string.format(
+            "shop.open: shopmain is up but %s carried no stock within 10 tick(s)",
+            shop_inv)
+    end
+
+    QD.shop._inv_symbol = shop_inv
+    QD.shop._inv_id = inv_id
+    return "ok", string.format(
+        "shop.open: op %d on %s opened shopmain -- %s holds %d stocked slot(s) of %d",
+        op, tostring(npc), shop_inv, stocked, capacity)
+end
+
+-- One rung press: op `op` on the cell, then wait for the backpack to reach
+-- `want`.  (ok) or (result, detail).
+function QD.shop._press(item, sub, op, want)
+    local cell_result, cell_id = api_drive.component(QD.shop._grid, sub)
+    if cell_result ~= "ok" then
+        return "not_visible", string.format(
+            "shop.buy: cell %d of %s is not mounted", sub, QD.shop._grid)
+    end
+    local click_result, click_detail = api_drive.if_click(cell_id, op)
+    if click_result ~= "ok" then
+        return click_result, string.format(
+            "shop.buy: op %d on cell %d was refused -- %s",
+            op, sub, tostring(click_detail))
+    end
+    return await({
+        event = "server_tick",
+        match = function()
+            local count_result, total = QD.inv.count(item)
+            return count_result == "ok" and total >= want
+        end,
+        note = "shop.buy " .. tostring(item),
+    }, 6)
+end
+
+-- Buy exactly `count` of `item` from the shop `shop.open` opened.
+--
+-- The ladder is composed greedily out of the four fixed rungs -- 25 swamp
+-- paste is Buy-10, Buy-10, Buy-5 -- because a rung is the whole of what one
+-- press means and there is no "buy N" the client can send.  `ok` is the
+-- backpack holding `count` more than it did; anything short is `refused`,
+-- carrying the server's own sentence when it printed one ("You don't have
+-- enough coins.", "The shop has run out of stock.") and the presses that did
+-- land when it did not.  (ok, "<item> A -> B for N coins [presses]").
+function QD.shop.buy(item, count)
+    count = count or 1
+    if count < 1 then
+        return "no_row", "shop.buy: " .. tostring(count) .. " is not a quantity"
+    end
+    if not QD.shop._present() then
+        return "no_row", "shop.buy: no shop is on screen -- open one with shop.open"
+    end
+    if QD.shop._inv_id == nil then
+        return "no_row", "shop.buy: this shop was not opened through shop.open, so "
+            .. "its stock container is unknown -- call shop.open(npc, op, inv)"
+    end
+
+    local row_result, row = QD.shop._row(item)
+    if row_result ~= "ok" then
+        return row_result, row
+    end
+    if row.stock < count then
+        return "refused", string.format(
+            "shop.buy: %s stocks %d %s, %d asked for",
+            tostring(QD.shop._inv_symbol), row.stock, tostring(item), count)
+    end
+
+    local before_result, before = QD.inv.count(item)
+    if before_result ~= "ok" then
+        return before_result, "shop.buy: cannot read the backpack's " .. tostring(item)
+    end
+    local coins_before_result, coins_before = QD.inv.count("coins")
+    local since = 0
+    local serial_result, serial = api_drive.message_serial()
+    if serial_result == "ok" then
+        since = serial
+    end
+
+    local bought = 0
+    local presses = {}
+    local stalled = nil
+    for i = 1, #QD.shop._rungs do
+        local rung = QD.shop._rungs[i][1]
+        local op = QD.shop._rungs[i][2]
+        while count - bought >= rung and stalled == nil do
+            local press_result, press_detail = QD.shop._press(
+                item, row.sub, op, before + bought + rung)
+            if press_result ~= "ok" then
+                stalled = "Buy-" .. rung .. " answered " .. tostring(press_result)
+                    .. (press_detail and (" -- " .. tostring(press_detail)) or "")
+            else
+                bought = bought + rung
+                presses[#presses + 1] = "Buy-" .. rung
+            end
+        end
+    end
+
+    local after_result, after = QD.inv.count(item)
+    local coins_after_result, coins_after = QD.inv.count("coins")
+    local gained = (after_result == "ok" and before_result == "ok")
+        and (after - before) or -1
+    local paid = (coins_after_result == "ok" and coins_before_result == "ok")
+        and (coins_before - coins_after) or -1
+    local said = QD.shop._lines_since(since)
+    local ladder = #presses > 0 and table.concat(presses, ", ") or "no press landed"
+    local detail = string.format(
+        "shop.buy: %s %s -> %s (%+d of %d asked), coins %s -> %s (%d paid) [%s]",
+        tostring(item), tostring(before),
+        after_result == "ok" and tostring(after) or tostring(after_result),
+        gained, count,
+        tostring(coins_before), tostring(coins_after), paid, ladder)
+    if stalled ~= nil then
+        detail = detail .. " -- " .. stalled
+    end
+    if said ~= nil then
+        detail = detail .. " -- the server said: " .. said
+    end
+    if gained ~= count then
+        return "refused", detail
+    end
+    return "ok", detail
+end
+
+-- Shut the shop.  There is no close button on interface 300 (its nineteen
+-- components are the frame, the quantity bar, the grid and the scrollbar --
+-- shopmain.compack), so this is the ESC path every other modal takes:
+-- api_drive.close_modal, which app_cs2_flush drains into the server's own
+-- ToriRSServer_WorldCloseModalEx and so runs `[if_close,shopmain]`.
+function QD.shop.close()
+    if not QD.shop._present() then
+        QD.shop._inv_symbol = nil
+        QD.shop._inv_id = nil
+        return "ok", "shop.close: no shop was open"
+    end
+    local was = QD.shop._inv_symbol
+    local close_result, close_detail = api_drive.close_modal()
+    if close_result ~= "ok" then
+        return close_result, "shop.close: close_modal -- " .. tostring(close_detail)
+    end
+    local gone = await({
+        level = function()
+            return not QD.shop._present()
+        end,
+        note = "shop.close",
+    }, 10)
+    if gone ~= "ok" then
+        return "timeout", "shop.close: shopmain stayed on screen for 10 tick(s)"
+    end
+    QD.shop._inv_symbol = nil
+    QD.shop._inv_id = nil
+    return "ok", "shop.close: closed " .. tostring(was or "shopmain")
+end
