@@ -99,7 +99,7 @@ Do NOT edit QUEUE.tsv (the Queue phase writes every row once from the review fil
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
-YOUR JOB: read this batch's persisted state, no edits. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses; authored = every ${STATE}/<id>.author.json; queue_written = ${STATE}/queue.json exists; sampled = ${STATE}/sample.json exists and says pushed; sheet_built = ${STATE}/sheet.json exists. Return exactly the schema.`, { label: 'state', model: 'sonnet', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false }
+YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; sampled = ${STATE}/sample.json exists and says pushed; sheet_built = ${STATE}/sheet.json exists. Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'sonnet', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false }
 const reviewedIds = new Set(state.reviewed.map(r => r.test_id))
 const authoredById = Object.fromEntries(state.authored.map(a => [a.test_id, a]))
 const pending = tests.filter(id => !reviewedIds.has(id))
