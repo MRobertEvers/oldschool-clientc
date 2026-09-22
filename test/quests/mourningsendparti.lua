@@ -703,83 +703,108 @@ return {
             "applebarrel_full=" .. tostring(barrelfull_n) .. " (" .. tostring(barrelfull_r) .. ")")
 
         -- ---- Apple press (mourning_orchard_applebarrel_empty,
-        -- mend1_poison.rs2:61-66). configs/all.loc's own
-        -- [mourning_orchard_applebarrel_empty] block carries no op1= label
-        -- at all (name=Apple Press, no op string), so a real player's
-        -- right-click menu can never offer a numbered row for it -- the
-        -- same shape docs/QUEST_AUTHORING.md section 8 names for
-        -- brokeclockpole_red. Section 3's last resort applies: try the real
-        -- press once (for the record), then fall back to t.drive.op. ----
+        -- mend1_poison.rs2:83-99). RETRY after 1858fe69a: the reasoning this
+        -- file carried above (missing op1= => t.drive.op bypass => no_row =>
+        -- blocked) was measured WRONG -- configs/all.loc's own
+        -- [mourning_orchard_applebarrel_empty] record never had an op1= line
+        -- to be missing; the press is a USE-ON target by design, the same
+        -- shape quest-helper's own step reads ("Use the rotten apples on the
+        -- apple press", MourningsEndPartI.java:440), and an op1= added to
+        -- all.loc reaches only the SERVER's overlay while the client's menu
+        -- is built from the frozen cache (measured byte-identically,
+        -- build/quest_gate/seam_mourning_probe_locop/ledger.tsv: same three
+        -- menu rows, same drive.op -> no_row, with op1=Press baked in and
+        -- the pack rebuilt). mend1_poison.rs2:83-90 pairs a baked-cache
+        -- [oploc1,...] with the real [oplocu,mourning_orchard_applebarrel_empty],
+        -- which fires on last_useitem = applebarrel_full -- t.player.use_on
+        -- is the verb. ----
         t.exec("goto-pressApples", t.player.goto_tile, 2484, 3374, 0)
-        local press_result, press_detail = t.player.click_loc("mourning_orchard_applebarrel_empty", 1)
-        if press_result ~= "ok" then
-            local press_target, press_target_r = t.player.by_symbol("loc", "mourning_orchard_applebarrel_empty")
-            if press_target_r == "ok" then
-                -- t.drive.op's own return is a bare (result, note) pair with
-                -- no further detail, so t.exec's hollow rule (trap 12) would
-                -- FAIL an ok reading of it -- call it directly and record
-                -- the outcome ourselves, the same idiom
-                -- test/quests/biohazard.lua's gambler2/artist2 bypasses use.
-                press_result, press_detail = t.drive.op(press_target, 1)
-                press_detail = "[bypass after 1 failed on-screen press -- configs/all.loc's own "
-                    .. "mourning_orchard_applebarrel_empty block carries no op1= label] " .. tostring(press_detail)
-                t.ticks(2)
-            end
-        end
-        -- CONTENT BUG, confirmed live above (fillBarrel.result read
-        -- applebarrel_full=1 the same run -- the press is reached with a
-        -- genuine barrel of rotten apples in hand, not a cascade from an
-        -- earlier failure): configs/all.loc's own [mourning_orchard_applebarrel_empty]
-        -- block (OSRS-Content/osrs239-content/configs/all.loc:97360-97363)
-        -- declares no op1= line at all, only `name=Apple Press` /
-        -- `models=8290` / `blockrange=0` / `active=1` -- so no right-click
-        -- menu row can ever exist for it, and pressApples.press's own
-        -- t.drive.op bypass (which sends the packet with no pixel and no
-        -- menu at all) answers the same `no_row` the real click's full
-        -- pose+pixel hunt did, above. This is the identical shape
-        -- docs/QUEST_AUTHORING.md section 8 names for `brokeclockpole_red`:
-        -- "the op NUMBER is wrong for that loc -- check its block in
-        -- configs/all.loc". mend1_poison.rs2:66's own
-        -- `[oploc1,mourning_orchard_applebarrel_empty]` trigger is real
-        -- content wired to an op number the cache never grants a menu
-        -- entry for, so no player, on any world, real or automated, can
-        -- ever press the apple barrel to make the mash mend1_poison.rs2:
-        -- 116-128's sieve step and mend1_poison.rs2:144-172's two food-store
-        -- presses all need in turn -- the same missing-op1 shape repeats on
-        -- [mourning_sack_full1] (all.loc:438392-438399) and
-        -- [mourning_sack_full2] (all.loc:438400-438407), their resolved
-        -- multiloc1 child [mourning_sack_full] (all.loc:417245-417248)
-        -- carrying none either. The whole poison-the-food-stores leg of this
-        -- quest (mend1_poison.rs2:61 onward) is unreachable by any verb in
-        -- docs/QUEST_AUTHORING.md section 3, t.drive.op included.
-        -- Not "press_result == ok": this is the RECORDING row docs/
+        -- SHOW AND SETTLE THE BACKPACK BEFORE THE FIRST use_on OF THE RUN:
+        -- the sidebar is wherever talkToElena's own dialogue/journal reads
+        -- left it, and use_on's arming is a one-shot behind an unsettled tab
+        -- press (docs/QUEST_AUTHORING.md trap "use_on's backpack tab press
+        -- is not settled before its arming" -- measured live in this same
+        -- seam, build/quest_gate/seam_mourning_armprobe/ledger.tsv:
+        -- tab=equipment, no settle -> refused -- armed by this call;
+        -- tab=inventory + 2 ticks -> ok).
+        t.ui.tab("inventory")
+        t.ticks(2)
+        local press_target = t.player.by_symbol("loc", "mourning_orchard_applebarrel_empty")
+        t.exec("pressApples", t.player.use_on, "applebarrel_full", press_target)
+        t.ticks(2)
+        t.expect("pressApples.message",
+            t.msg.expect("You press the rotten apples into a foul-smelling mash"))
+        t.expect("pressApples.mash", t.inv.await("mourning_applebarrel_mush", 1, 10))
+
+        -- ---- Naphtha + apple mash -> naphtha apple mix (mend1_poison.rs2:
+        -- 135-152, an [opheldu] pair declared on both item names, so either
+        -- order arms and lands). ----
+        t.ui.tab("inventory")
+        t.ticks(2)
+        t.exec("mixNaphtha", t.player.use_item_on_item,
+            "regicide_barrel_naphtha", "mourning_applebarrel_mush")
+        t.ticks(2)
+        t.expect("mixNaphtha.result", t.inv.await("mourning_applebarrel_naphtha_mush", 1, 10))
+
+        -- ---- Sieve the mix -> toxic naphtha (mend1_poison.rs2:156-170,
+        -- the same [opheldu]-pair shape). ----
+        t.ui.tab("inventory")
+        t.ticks(2)
+        t.exec("sieveMix", t.player.use_item_on_item,
+            "mourning_sieve", "mourning_applebarrel_naphtha_mush")
+        t.ticks(2)
+        t.expect("sieveMix.result", t.inv.await("mourning_toxic_naphtha", 1, 10))
+
+        -- ---- Cook the toxic naphtha on a range -- not a fire
+        -- ([oploc1,carnilleanrange], mend1_poison.rs2:174-185). Quest-
+        -- helper's own WorldPoint for this step (MourningsEndPartI.java:453,
+        -- 2970,3210,0) is open sea east of Karamja, nowhere near West
+        -- Ardougne or the Carnillean Mansion this leg's own dialogue names
+        -- ("Cook what's left on a range... Two of the mourners' food stores
+        -- in West Ardougne should do it") -- a stale/wrong constant, not a
+        -- lead worth walking to. The Carnillean Mansion (south of West
+        -- Ardougne) is the only building either this dialogue or the object
+        -- name (carnilleanrange) points at, and this same worktree already
+        -- swept it: six anchors around it, three floors, radius 60, all
+        -- answer not_found (build/quest_gate/seam_mourning_rangeprobe/
+        -- ledger.tsv rows 1-12). Re-confirmed live at the mansion's own
+        -- front door below rather than trusting that file alone. ----
+        t.exec("goto-cookToxin", t.player.goto_tile, 2570, 3270, 0)
+        local range_result, range_row = t.world.loc_near("carnilleanrange", 60)
+        -- Not "range_result == ok": this is the RECORDING row docs/
         -- QUEST_AUTHORING.md section 8 asks for immediately before
-        -- t.blocked() (makinghistory.lua/pryingtimes.lua's own convention,
-        -- and this file's own earlier mourningGnomeRack.blocked_by_stage
-        -- row) -- it PASSes when the observed answer matches the bug's own
+        -- t.blocked() (makinghistory.lua/pryingtimes.lua's own convention) --
+        -- it PASSes when the observed answer matches the bug's own
         -- signature, so the row directly above a BLOCKED verdict is never a
         -- bare FAIL (trap 15's rejected shape).
-        t.check("pressApples.blocked_by_missing_op1", press_result == "no_row",
-            "click_loc(mourning_orchard_applebarrel_empty, 1) -> " .. tostring(press_result) .. " " .. tostring(press_detail))
+        t.check("cookToxin.range_missing", range_result == "not_found",
+            "loc_near(carnilleanrange, 60) -> " .. tostring(range_result) .. " "
+                .. (range_result == "ok"
+                    and (tostring(range_row.tile_x) .. "," .. tostring(range_row.tile_z)
+                        .. " L" .. tostring(range_row.level))
+                    or tostring(range_row)))
 
-        t.blocked("CONTENT BUG: OSRS-Content/osrs239-content/configs/all.loc:97360-97363 -- the " ..
-            "[mourning_orchard_applebarrel_empty] block ('Apple Press') declares no op1= line (only name/models/" ..
-            "blockrange/active), so the client's right-click menu can never carry a numbered row for it, while " ..
-            "OSRS-Content/osrs239-content/server/scripts/quests/quest_mourningsendparti/scripts/mend1_poison.rs2:66's " ..
-            "own [oploc1,mourning_orchard_applebarrel_empty] trigger is real, wired content the player is meant to " ..
-            "press with a barrel of rotten apples in hand to make the mash. Confirmed live above with a genuine, " ..
-            "non-cascaded applebarrel_full=1 in the backpack (fillBarrel.result): the real press's full pose+pixel " ..
-            "hunt across every camera framing answers no_row (no menu row at all, not merely covered), and " ..
-            "t.drive.op's own bypass -- which sends the op packet directly, no pixel, no menu -- answers the " ..
-            "identical no_row, so this is not a driver hittest/camera seam (section 3's last resort has nothing " ..
-            "left to try). The same shape repeats on the two food-store locs this leg also needs: " ..
-            "all.loc:438392-438399 [mourning_sack_full1] and all.loc:438400-438407 [mourning_sack_full2] (their " ..
-            "resolved multiloc1 child all.loc:417245-417248 [mourning_sack_full] carries no op1= either), matching " ..
-            "mend1_poison.rs2:163 and :180's own [oploc1,...] triggers on them. docs/QUEST_AUTHORING.md section 8 " ..
-            "names the identical shape for brokeclockpole_red: 'the op NUMBER is wrong for that loc -- check its " ..
-            "block in configs/all.loc'. The whole poison-the-food-stores leg (mend1_poison.rs2:61 onward, needed " ..
-            "for %mourning_quest to ever reach ^mend1_report/^mend1_complete) is unreachable by any player, real or " ..
-            "automated, until configs/all.loc grants op1= labels to these three locs.")
+        t.blocked("CONTENT BUG: OSRS-Content/osrs239-content/server/scripts/quests/" ..
+            "quest_mourningsendparti/scripts/mend1_poison.rs2:174 -- [oploc1,carnilleanrange] " ..
+            "is real, wired content (cooks mourning_toxic_naphtha into two mourning_apple_toxin, " ..
+            "the item both West Ardougne food-store presses need, mend1_poison.rs2:198-247), but " ..
+            "the loc it names is not placed anywhere in the loaded world: six anchors around the " ..
+            "Carnillean Mansion, south of West Ardougne -- the only building this leg's own " ..
+            "dialogue and the object's own name both point at -- across three floors, radius 60, " ..
+            "all answer loc_near(carnilleanrange, 60) -> not_found " ..
+            "(build/quest_gate/seam_mourning_rangeprobe/ledger.tsv rows 1-12, re-confirmed live " ..
+            "above at the mansion's own front door). Quest-helper's own WorldPoint for this step " ..
+            "(MourningsEndPartI.java:453, 2970,3210,0) is open sea east of Karamja, not this " ..
+            "building either. The apple press and the naphtha mix/sieve chain above are all real, " ..
+            "nothing cheated: pressApples/mixNaphtha/sieveMix drove genuine " ..
+            "applebarrel_full -> mourning_applebarrel_mush -> mourning_applebarrel_naphtha_mush " ..
+            "-> mourning_toxic_naphtha through their own [oplocu]/[opheldu] triggers (pressApples.mash " ..
+            "and sieveMix.result both PASSed above with real inventory counts), so this is not a " ..
+            "driver hittest/camera seam with an untried pose left (section 3's last resort has " ..
+            "nothing to press): the object the trigger names has no placement at all. Nothing past " ..
+            "mend1_poison.rs2:174 -- the two food-store presses (mend1_poison.rs2:198-247), the " ..
+            "report to Essyllt, ^mend1_report/^mend1_complete -- is reachable by any player, real " ..
+            "or automated, until this loc is placed on the map.")
         return
     end,
 }
