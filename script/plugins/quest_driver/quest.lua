@@ -278,7 +278,23 @@ function QD.quest.bind(spec)
         qp_before = (qp_result == "ok") and qp_before or nil,
         qp_before_result = qp_result,
     }
-    return "ok", nil
+    -- A real detail (trap 12): what was bound, so the quest.bind row says
+    -- which varp the later stage rows read and what the %qp delta is from.
+    local bound = QD.quest._bound
+    local names = {}
+    for constant_name, _ in pairs(constants) do
+        names[#names + 1] = constant_name
+    end
+    table.sort(names, function(a, b) return tostring(a) < tostring(b) end)
+    local pairs_text = {}
+    for i = 1, #names do
+        pairs_text[#pairs_text + 1] = tostring(names[i]) .. "=" .. tostring(constants[names[i]])
+    end
+    return "ok", "bound " .. bound.varp .. " (" .. tostring(bound.varp_kind) .. ")"
+        .. " {" .. table.concat(pairs_text, ", ") .. "}"
+        .. (bound.display and (" display=\"" .. tostring(bound.display) .. "\"") or "")
+        .. (bound.points and (" points=" .. tostring(bound.points)) or "")
+        .. " qp_before=" .. ((qp_result == "ok") and tostring(qp_before) or tostring(qp_result))
 end
 
 -- name_or_value -> a numeric stage value, or nil when neither a number nor a

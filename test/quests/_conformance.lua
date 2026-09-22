@@ -406,6 +406,31 @@ local function answered(result, detail, prefix, holds, wanted)
     return result, text
 end
 
+-- A state verb's `ok` must NAME WHAT IT READ (seam7, 2026-09-22).  var.await,
+-- var.await_server, var.expect, inv.await, inv.await_all, inv.expect_absent,
+-- msg.expect, msg.await and quest.bind all used to answer a bare ok, so a
+-- quest row routed through t.expect landed PASS with an empty detail column
+-- -- mourningsendparti shipped 21 of them and was reverted by the sampler for
+-- it.  Each now answers the value and side, the count reached or the matched
+-- line, and this is where that is held: an ok whose detail is not text, or
+-- does not carry every fragment the world here makes knowable, is hollow.
+local function names_reading(result, detail, prefix, fragments, wanted)
+    local text = prefix .. describe(detail)
+    if result ~= "ok" then
+        return result, text
+    end
+    if not is_text(detail) then
+        return "hollow", "answered ok with no detail -- " .. wanted .. " -- " .. text
+    end
+    for i = 1, #fragments do
+        if not string.find(detail, fragments[i], 1, true) then
+            return "hollow", "answered ok but the detail does not carry '" .. fragments[i]
+                .. "' -- " .. wanted .. " -- " .. text
+        end
+    end
+    return result, text
+end
+
 -- The DELIBERATE NO-OP PROBE, and the one answer that proves it.
 --
 -- Two rows below (player.use_on, player.inv_op) name an interaction no
@@ -860,14 +885,18 @@ return {
             local fn = verb("var", "expect")
             if not fn then return missing("var", "expect") end
             local result, detail = fn(VARP_SYMBOL, VARP_VALUE)
-            return result, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> " .. describe(detail)
+            return names_reading(result, detail, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> ",
+                { VARP_SYMBOL .. " = " .. VARP_VALUE, "client == server" },
+                "the verb names the value both sides agreed on")
         end)
 
         step("var.await", function()
             local fn = verb("var", "await")
             if not fn then return missing("var", "await") end
             local result, detail = fn(VARP_SYMBOL, VARP_VALUE, 3)
-            return result, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> " .. describe(detail)
+            return names_reading(result, detail, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> ",
+                { VARP_SYMBOL .. " = " .. VARP_VALUE .. " (client" },
+                "the await names the value it read and which side it read it on")
         end)
 
         step("skill.read", function()
@@ -953,14 +982,18 @@ return {
             local fn = verb("inv", "expect_absent")
             if not fn then return missing("inv", "expect_absent") end
             local result, detail = fn(ABSENT_OBJ_SYMBOL)
-            return result, ABSENT_OBJ_SYMBOL .. " -> " .. describe(detail)
+            return names_reading(result, detail, ABSENT_OBJ_SYMBOL .. " -> ",
+                { ABSENT_OBJ_SYMBOL .. ": absent (count 0)" },
+                "the assertion names the count it read")
         end)
 
         step("inv.await", function()
             local fn = verb("inv", "await")
             if not fn then return missing("inv", "await") end
             local result, detail = fn(OBJ_SYMBOL, 1, 3)
-            return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
+            return names_reading(result, detail, OBJ_SYMBOL .. " >= 1 -> ",
+                { OBJ_SYMBOL .. " ", " (>= 1) after " },
+                "the await names the count before and the count it reached")
         end)
 
         -- One await over a whole requirement table.  ::runes put 25 air runes
@@ -974,6 +1007,12 @@ return {
             if result ~= "ok" then
                 return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
             end
+            local named, named_text = names_reading(result, detail, OBJ_SYMBOL .. " >= 1 -> ",
+                { "all held: " .. OBJ_SYMBOL .. "=" },
+                "the await names every count it held")
+            if named ~= "ok" then
+                return named, named_text
+            end
             local count = verb("inv", "count")
             local state, total = "missing", nil
             if count then state, total = count(OBJ_SYMBOL) end
@@ -981,7 +1020,7 @@ return {
                 return "hollow", "await_all answered ok but inv.count(" .. OBJ_SYMBOL
                     .. ") reads " .. describe(total) .. " (" .. state .. ")"
             end
-            return "ok", OBJ_SYMBOL .. " >= 1 satisfied, inv.count agrees: " .. describe(total)
+            return "ok", named_text .. "; inv.count agrees: " .. describe(total)
         end)
 
         step("msg.last", function()
@@ -999,7 +1038,9 @@ return {
             local fn = verb("msg", "expect")
             if not fn then return missing("msg", "expect") end
             local result, detail = fn(DROP_MESSAGE_FRAGMENT)
-            return result, "contains '" .. DROP_MESSAGE_FRAGMENT .. "' -> " .. describe(detail)
+            return names_reading(result, detail, "contains '" .. DROP_MESSAGE_FRAGMENT .. "' -> ",
+                { "matched: ", DROP_MESSAGE_FRAGMENT },
+                "the verb names the line it matched")
         end)
 
         -- setup: msg.await is scoped to lines that arrive AFTER it registers,
@@ -1023,7 +1064,10 @@ return {
             local fn = verb("msg", "await")
             if not fn then return missing("msg", "await") end
             local result, detail = fn(DROP_MESSAGE_FRAGMENT, 6)
-            return result, "new line containing '" .. DROP_MESSAGE_FRAGMENT .. "' -> " .. describe(detail)
+            return names_reading(result, detail,
+                "new line containing '" .. DROP_MESSAGE_FRAGMENT .. "' -> ",
+                { "matched: ", DROP_MESSAGE_FRAGMENT },
+                "the await names the line that arrived")
         end)
 
         -- -------------------------------- phase 3: pointing and acting
@@ -2070,12 +2114,17 @@ return {
             local fn = verb("var", "await_server")
             if not fn then return missing("var", "await_server") end
             local result, detail = fn(QUEST_VARP, QUEST_STARTED, 10)
-            if result ~= "ok" then
-                return result, QUEST_VARP .. " == " .. QUEST_STARTED .. " -> " .. describe(detail)
+            local named, named_text = names_reading(result, detail,
+                QUEST_VARP .. " == " .. QUEST_STARTED .. " -> ",
+                { QUEST_VARP .. " = " .. QUEST_STARTED .. " (server" },
+                "the await names the server value it read")
+            if named ~= "ok" then
+                return named, named_text
             end
-            -- The await answers a bare ok, so the row reads the server's own
-            -- copy back: an await that resolved without the value ever
-            -- landing is exactly the hollow ok this harness is pointed at.
+            -- The await names its reading since seam7; the row still reads
+            -- the server's own copy back, independently: an await that
+            -- resolved without the value ever landing is exactly the hollow
+            -- ok this harness is pointed at.
             local read = verb("var", "server")
             local state, value = "missing", nil
             if read then state, value = read(QUEST_VARP) end
@@ -2083,8 +2132,7 @@ return {
                 return "hollow", "await_server answered ok but var.server(" .. QUEST_VARP
                     .. ") reads " .. describe(value) .. " (" .. tostring(state) .. ")"
             end
-            return "ok", QUEST_VARP .. " reached " .. QUEST_STARTED
-                .. " on the server within 10 ticks of ::setvar"
+            return "ok", named_text .. "; var.server agrees"
         end)
 
         step("quest.bind", function()
@@ -2103,10 +2151,11 @@ return {
             if result ~= "ok" then
                 return result, describe(detail)
             end
-            -- bind touches no world and answers a bare ok, so the row reads
-            -- what it left behind: the binding itself, and the %qp reading it
-            -- must have taken NOW for quest.points to have a baseline to
-            -- measure the award against later.
+            -- bind touches no world, so beyond its own detail (seam7: it
+            -- names the varp, the constants and the %qp baseline) the row
+            -- reads what it left behind: the binding itself, and the %qp
+            -- reading it must have taken NOW for quest.points to have a
+            -- baseline to measure the award against later.
             local bound = is_table(t.quest) and t.quest._bound or nil
             if not is_table(bound) or bound.varp ~= QUEST_VARP then
                 return "hollow", "bind answered ok but nothing was bound -- " .. describe(bound)
@@ -2116,7 +2165,9 @@ return {
                     .. "award against -- " .. describe(bound.qp_before)
                     .. " (" .. tostring(bound.qp_before_result) .. ")"
             end
-            return "ok", QUEST_VARP .. " bound; %qp at bind time = " .. describe(bound.qp_before)
+            return names_reading(result, detail, "",
+                { "bound " .. QUEST_VARP .. " (", "qp_before=" .. tostring(bound.qp_before) },
+                "bind names what it bound and the %qp baseline it took")
         end)
 
         step("quest.stage", function()
