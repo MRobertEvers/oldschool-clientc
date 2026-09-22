@@ -51,7 +51,8 @@ const STATE_SCHEMA = { type: 'object', properties: {
   reviewed: { type: 'array', items: REVIEW_SCHEMA },
   authored: { type: 'array', items: AUTHOR_SCHEMA },
   queue_written: { type: 'boolean' }, sampled: { type: 'boolean' }, sheet_built: { type: 'boolean' },
-}, required: ['reviewed', 'authored', 'queue_written', 'sampled', 'sheet_built'] }
+  queue_written_ids: { type: 'array', items: { type: 'string' } }, sample_considered: { type: 'array', items: { type: 'string' } }, sample_sent_back: { type: 'array', items: { type: 'string' } },
+}, required: ['reviewed', 'authored', 'queue_written', 'sampled', 'sheet_built', 'queue_written_ids', 'sample_considered', 'sample_sent_back'] }
 const SHEET_SCHEMA = { type: 'object', properties: { index_html: { type: 'string' }, files: { type: 'array', items: { type: 'string' } }, bytes: { type: 'integer' }, quality: { type: 'integer' }, quests: { type: 'array', items: { type: 'string' } } }, required: ['index_html', 'files', 'bytes', 'quality', 'quests'] }
 
 const attempt = async (label, tries, make) => {
@@ -64,7 +65,8 @@ const attempt = async (label, tries, make) => {
 }
 
 const authorCard = (id) => `${COMMON}
-
+${sentBack.has(id) ? `
+THIS QUEST WAS SENT BACK by the batch's Opus sampler after a previous launch (its finding is the queue row's last_failure, prefixed REVERTED by sampler): first remove ${STATE}/${id}.author.json, ${STATE}/${id}.review.json and ${STATE}/${id}.review.progress.md (keep your notebook), then author it again from the committed file and the sampler's finding.\n` : ''}
 You are writing ONE client-driven quest test: test_id "${id}". Read ${WT}/docs/QUEST_AUTHORING.md once, in full. It is the only page you need; it names every verb, the result words, the traps, the run command, and the definition of done.
 RESUME DISCIPLINE: ${STATE}/${id}.author.progress.md is your notebook. If it exists, a previous attempt at this quest was killed: read it first, count its runs toward your eight, and continue from its last step -- test/quests/${id}.lua on disk is that attempt's file. Append to it after every run (run number, the failing row, what you changed).
 
@@ -100,11 +102,14 @@ Do NOT edit QUEUE.tsv (the Queue phase writes every row once from the review fil
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
-YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; sampled = ${STATE}/sample.json exists and says pushed; sheet_built = ${STATE}/sheet.json exists. Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'sonnet', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false }
-const reviewedIds = new Set(state.reviewed.map(r => r.test_id))
-const authoredById = Object.fromEntries(state.authored.map(a => [a.test_id, a]))
+YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; queue_written_ids = its "written" list (or []); sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or its "checked" list, or []); sample_sent_back = its "sent_back" list (or []); sheet_built = ${STATE}/sheet.json exists. Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'sonnet', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false, queue_written_ids: [], sample_considered: [], sample_sent_back: [] }
+// A quest the sampler sent back is authored again: its old author/review files are ignored (the author removes them).
+const sentBack = new Set(state.sample_sent_back || [])
+const keptReviews = state.reviewed.filter(r => !sentBack.has(r.test_id))
+const reviewedIds = new Set(keptReviews.map(r => r.test_id))
+const authoredById = Object.fromEntries(state.authored.filter(a => !sentBack.has(a.test_id)).map(a => [a.test_id, a]))
 const pending = tests.filter(id => !reviewedIds.has(id))
-log(`state: ${state.reviewed.length} reviewed, ${state.authored.length} authored, ${pending.length} pending: ${pending.join(', ') || 'none'}`)
+log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} authored, ${sentBack.size} sent back, ${pending.length} pending: ${pending.join(', ') || 'none'}`)
 
 const RETRY_EFFORT = 'medium'
 const results = await pipeline(
@@ -123,33 +128,37 @@ const results = await pipeline(
     return attempt(`review:${id}`, 2, () => agent(reviewCard(id, report), { label: `review:${id}`, phase: 'Review', model: 'sonnet', schema: REVIEW_SCHEMA }))
   },
 )
-const reviewed = [...state.reviewed, ...results.filter(Boolean)]
+const reviewed = [...keptReviews, ...results.filter(Boolean)]
+const freshReviews = results.filter(Boolean)
 const missing = tests.filter(id => !reviewed.some(r => r.test_id === id))
 log(`${reviewed.filter(r => r.verdict === 'accepted').length} accepted, ${reviewed.filter(r => r.verdict === 'blocked').length} blocked, ${reviewed.filter(r => r.verdict === 'content_bug').length} content bugs, ${reviewed.filter(r => r.verdict === 'rejected').length} rejected; ${missing.length ? 'NO REVIEW for ' + missing.join(', ') + ' (relaunch with the same args)' : 'every quest reviewed'}`)
 
 phase('Queue')
-if (!state.queue_written) {
+const writtenIds = new Set(state.queue_written_ids || [])
+const toWrite = reviewed.filter(r => !writtenIds.has(r.test_id))
+if (toWrite.length) {
   await attempt('queue', 3, () => agent(`${COMMON}
 
-YOUR JOB: write this batch's queue rows ONCE, from the review files, commit, no push. Read every ${STATE}/<id>.review.json (${reviewed.length} expected: ${reviewed.map(r => r.test_id).join(', ')}). For each: python3 tools/quest_gate/queue.py set <id> --status <queue_status> --owner ${batch} --failure "<queue_failure>" (green rows get --failure ""). If queue.py refuses green because the file carries a t.blocked( that a guard makes unreachable (the ledger has no BLOCKED row), write that row through queue.py's own loader/writer and say so. Quests with no review file (${missing.join(', ') || 'none'}) are left untouched. Then git add test/quests/QUEUE.tsv; git commit -m "quests: queue after batch ${batch}" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>". FINISH: write {"written": [ids]} to ${STATE}/queue.json. Return a one-line summary per row.`, { label: 'queue', model: 'sonnet' }))
-} else log('queue: already written by a previous launch')
+YOUR JOB: write this batch's queue rows ONCE, from the review files, commit, no push. Rows to write now: ${toWrite.map(r => r.test_id).join(', ')} (read each ${STATE}/<id>.review.json); rows already written by an earlier launch and left alone: ${[...writtenIds].join(', ') || 'none'}. For each: python3 tools/quest_gate/queue.py set <id> --status <queue_status> --owner ${batch} --failure "<queue_failure>" (green rows get --failure ""). If queue.py refuses green because the file carries a t.blocked( that a guard makes unreachable (the ledger has no BLOCKED row), write that row through queue.py's own loader/writer and say so. Quests with no review file (${missing.join(', ') || 'none'}) are left untouched. Then git add test/quests/QUEUE.tsv; git commit -m "quests: queue after batch ${batch}" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>". FINISH: write {"written": [every id written by any launch: ${[...writtenIds].map(x => '"' + x + '"').join(', ')}${writtenIds.size ? ', ' : ''}plus the ids you wrote now]} to ${STATE}/queue.json. Return a one-line summary per row.`, { label: 'queue', model: 'sonnet' }))
+} else log('queue: every reviewed row already written by a previous launch')
 
 phase('Sample')
-const accepted = reviewed.filter(r => r.verdict === 'accepted')
-let sample = state.sampled ? 'sampled and pushed by a previous launch' : null
-if (!sample && accepted.length) {
+const consideredIds = new Set(state.sample_considered || [])
+const accepted = reviewed.filter(r => r.verdict === 'accepted' && !consideredIds.has(r.test_id))
+let sample = null
+if (accepted.length) {
   sample = await attempt('sample', 2, () => agent(`${COMMON}
 
 You are the Opus sampler for batch ${batch}. Accepted: ${JSON.stringify(accepted.map(r => r.test_id))}. Pick these three (or all if fewer): ${JSON.stringify(accepted.filter((_, i) => i % Math.max(1, Math.ceil(accepted.length / 3)) === 0).slice(0, 3).map(r => r.test_id))}.
-RESUME DISCIPLINE: ${STATE}/sample.progress.md is your notebook; if it exists continue from its last step (check git log for a revert before reverting again; check git status -sb for "ahead" before pushing again). Append after every step.
-For each: read the quest file and the quest's own .rs2 scripts; confirm the test drove the real accept and hand-in branches (no cheat did the quest's work), tick counts plausible, no ok row with an empty detail, reward rows assert literal documented amounts, and open every published PNG under OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/<id>/ to confirm each shows what its name claims. A quest that fails: git revert --no-edit <its parent sha> (never reset), then python3 tools/quest_gate/queue.py set <id> --status todo --failure "REVERTED by sampler (${batch}): <finding>". Then commit QUEUE.tsv if changed ("quests: queue after sample ${batch}", trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>") and push both repos: git -C OSRS-Content push origin HEAD:lane-quest-driver ; git push origin lane-quest-driver. Fold the reviewers' doc_gaps -- ${JSON.stringify(reviewed.flatMap(r => r.doc_gaps || []))} -- deduplicated and real, into docs/QUEST_AUTHORING.md (<= 300 lines; trim the gaps list, not the rules), commit, push. FINISH: write {"pushed": true, "checked": [...], "sent_back": [...]} to ${STATE}/sample.json. Report which quests you checked, which you sent back and why, and the doc lines you added.`, { label: 'sample', model: 'opus' }))
-} else if (!sample) {
-  sample = 'nothing accepted; nothing pushed'
+RESUME DISCIPLINE: ${STATE}/sample.progress.md is your notebook; if it exists continue from its last step (check git log for a revert before reverting again; check git status -sb for "ahead" before pushing again). Append after every step. Quests an earlier launch of this batch already sampled are not yours: ${[...consideredIds].join(', ') || 'none'}.
+For each: read the quest file and the quest's own .rs2 scripts; confirm the test drove the real accept and hand-in branches (no cheat did the quest's work), tick counts plausible, no ok row with an empty detail, reward rows assert literal documented amounts, and open every published PNG under OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/<id>/ to confirm each shows what its name claims. A quest that fails: git revert --no-edit <its parent sha> (never reset), then python3 tools/quest_gate/queue.py set <id> --status todo --failure "REVERTED by sampler (${batch}): <finding>". Then commit QUEUE.tsv if changed ("quests: queue after sample ${batch}", trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>") and push both repos: git -C OSRS-Content push origin HEAD:lane-quest-driver ; git push origin lane-quest-driver. Fold the reviewers' doc_gaps -- ${JSON.stringify(reviewed.flatMap(r => r.doc_gaps || []))} -- deduplicated and real, into docs/QUEST_AUTHORING.md (<= 300 lines; trim the gaps list, not the rules), commit, push. FINISH: write {"pushed": true, "considered": [every accepted id ever handed to a sampler of this batch: ${[...consideredIds].map(x => '"' + x + '"').join(', ')}${consideredIds.size ? ', ' : ''}plus ${accepted.map(r => '"' + r.test_id + '"').join(', ')}], "checked": [...], "sent_back": [ids you sent back now]} to ${STATE}/sample.json (merge, never drop an earlier launch's ids). Report which quests you checked, which you sent back and why, and the doc lines you added.`, { label: 'sample', model: 'opus' }))
+} else {
+  sample = state.sampled ? 'nothing newly accepted; an earlier launch sampled and pushed' : 'nothing accepted; nothing pushed'
 }
 
 phase('Sheet')
 let sheet = null
-if (!state.sheet_built) {
+if (!state.sheet_built || freshReviews.length) {
   sheet = await attempt('sheet', 2, () => agent(`${COMMON}
 
 YOUR JOB: build the contact-sheet page for batch ${batch} (quests: ${tests.join(' ')}) with /usr/bin/python3 tools/quest_gate/batch_sheet/build_sheet.py . ${sheetDir} ${tests.join(' ')} [--quality N] then /usr/bin/python3 tools/quest_gate/batch_sheet/render_page.py ${sheetDir} ${batch} "Quest Batch ${batch}". The published total (all .webp + index.html) must be under 58 MB: build at the default quality first; if over, rebuild with --quality lowered until under. Do not publish; do not edit BATCHES.tsv; never commit. FINISH: write the schema JSON to ${STATE}/sheet.json, then return it (index_html = the absolute path, files = the .webp names, bytes = total published bytes, quality used, quests included).`, { label: 'sheet', model: 'sonnet', schema: SHEET_SCHEMA }))
