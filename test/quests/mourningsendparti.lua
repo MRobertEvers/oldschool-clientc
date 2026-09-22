@@ -1,5 +1,6 @@
--- Mourning's End Part I, driven end to end (both content bugs this file
--- carried a t.blocked() for are fixed -- see the two RETRY notes below).
+-- Mourning's End Part I, driven end to end (all three content/driver bugs
+-- this file carried a t.blocked() for are fixed -- see the three RETRY
+-- notes below).
 --
 -- RETRY after OSRS-Content 4420b02611: this file's earlier revision t.blocked
 -- here because mend1_gnome.rs2:33's [oploc1,mourning_gnome_rack] ->
@@ -25,6 +26,28 @@
 -- ever equipped). All four sheep herds are marked, the quest is driven
 -- through the poison-the-food-stores test and the final report to
 -- Arianwyn, and quest.expect_complete() closes it out.
+--
+-- RETRY after 486398e09: this file's next revision t.blocked at
+-- cookToxin.range_missing, reading carnilleanrange (2859) as unplaced
+-- anywhere in the loaded world from six SURFACE anchors around the
+-- Carnillean Mansion (2570,3270,0 +/- 60, three floors, radius 60, all
+-- not_found -- build/quest_gate/seam_mourning_rangeprobe/ledger.tsv). That
+-- premise was false and no content was changed: carnilleanrange has exactly
+-- ONE placement, maps/m39_151.jl2:537 `0 42 35: 2859 10 1` = ABS
+-- (2538,9699,0), in the UNDERGROUND band (z+6400) -- the Carnillean
+-- kitchen room, live and reachable, and mend1_poison.rs2:174 fires and
+-- cooks exactly as written (build/quest_gate/seam6_range_probe/ledger.tsv,
+-- 13/13 PASS: loc_near(carnilleanrange,10) -> ok 2538,9699 L0 match=exact,
+-- then click_loc + inv.await(mourning_apple_toxin,2) -> ok). The six
+-- surface anchors were 6,400 tiles away in z from the real room, so their
+-- not_found was guaranteed and proved nothing (docs/QUEST_AUTHORING.md
+-- trap 29). This file now drives the whole tail past that point for real:
+-- both West Ardougne food-store presses, the report to Essyllt, the
+-- Arianwyn hand-in, completion (hand-rolled the makinghistory.lua/
+-- rovingelves.lua way -- [mourning_quest]'s own configs/*.varp body carries
+-- no transmit=yes, so quest.expect_complete()'s client-side stage read
+-- would never converge) and the reward rows for every reward
+-- mend1_shared.rs2:31's own ~quest_complete_rewards call lists.
 
 return {
     id = "mourningsendparti",
@@ -756,55 +779,197 @@ return {
         t.expect("sieveMix.result", t.inv.await("mourning_toxic_naphtha", 1, 10))
 
         -- ---- Cook the toxic naphtha on a range -- not a fire
-        -- ([oploc1,carnilleanrange], mend1_poison.rs2:174-185). Quest-
-        -- helper's own WorldPoint for this step (MourningsEndPartI.java:453,
-        -- 2970,3210,0) is open sea east of Karamja, nowhere near West
-        -- Ardougne or the Carnillean Mansion this leg's own dialogue names
-        -- ("Cook what's left on a range... Two of the mourners' food stores
-        -- in West Ardougne should do it") -- a stale/wrong constant, not a
-        -- lead worth walking to. The Carnillean Mansion (south of West
-        -- Ardougne) is the only building either this dialogue or the object
-        -- name (carnilleanrange) points at, and this same worktree already
-        -- swept it: six anchors around it, three floors, radius 60, all
-        -- answer not_found (build/quest_gate/seam_mourning_rangeprobe/
-        -- ledger.tsv rows 1-12). Re-confirmed live at the mansion's own
-        -- front door below rather than trusting that file alone. ----
-        t.exec("goto-cookToxin", t.player.goto_tile, 2570, 3270, 0)
-        local range_result, range_row = t.world.loc_near("carnilleanrange", 60)
-        -- Not "range_result == ok": this is the RECORDING row docs/
-        -- QUEST_AUTHORING.md section 8 asks for immediately before
-        -- t.blocked() (makinghistory.lua/pryingtimes.lua's own convention) --
-        -- it PASSes when the observed answer matches the bug's own
-        -- signature, so the row directly above a BLOCKED verdict is never a
-        -- bare FAIL (trap 15's rejected shape).
-        t.check("cookToxin.range_missing", range_result == "not_found",
-            "loc_near(carnilleanrange, 60) -> " .. tostring(range_result) .. " "
+        -- ([oploc1,carnilleanrange], mend1_poison.rs2:174-185).
+        --
+        -- RETRY after 486398e09: this row used to t.blocked here, reading
+        -- carnilleanrange as unplaced from six SURFACE anchors around the
+        -- Carnillean Mansion (2570,3270,0 +/- 60). That premise was false:
+        -- carnilleanrange has exactly ONE placement in the whole loaded
+        -- world, maps/m39_151.jl2:537 `0 42 35: 2859 10 1`, which decodes to
+        -- ABS (2538,9699,0) -- the Carnillean kitchen room in the
+        -- UNDERGROUND band (z+6400), alongside carnilleancrate (2545,9696),
+        -- cookingshelves_search (2541,9699) and carnillean_ladder_up
+        -- (2544,9694). The old anchor was 6,400 tiles away in z from the
+        -- real room, so every one of the six surface sweeps was guaranteed
+        -- not_found and proved nothing about the loc's placement. Proved
+        -- live: build/quest_gate/seam6_range_probe/ledger.tsv, 13/13 PASS --
+        -- loc_near(carnilleanrange,10) -> ok 2538,9699 L0 match=exact, then
+        -- click_loc + inv.await(mourning_apple_toxin,2) -> ok. ----
+        t.exec("goto-cookToxin", t.player.goto_tile, 2538, 9699, 0)
+        local range_result, range_row = t.world.loc_near("carnilleanrange", 10)
+        t.check("cookToxin.range_present", range_result == "ok",
+            "loc_near(carnilleanrange, 10) -> " .. tostring(range_result) .. " "
                 .. (range_result == "ok"
                     and (tostring(range_row.tile_x) .. "," .. tostring(range_row.tile_z)
-                        .. " L" .. tostring(range_row.level))
+                        .. " L" .. tostring(range_row.level) .. " match=" .. tostring(range_row.match))
                     or tostring(range_row)))
+        t.exec("cookToxin", t.player.click_loc, "carnilleanrange", 1)
+        t.expect("cookToxin.result", t.inv.await("mourning_apple_toxin", 2, 10))
+        t.expect("cookToxin.message",
+            t.msg.expect("You carefully cook the toxic naphtha over the range"))
 
-        t.blocked("CONTENT BUG: OSRS-Content/osrs239-content/server/scripts/quests/" ..
-            "quest_mourningsendparti/scripts/mend1_poison.rs2:174 -- [oploc1,carnilleanrange] " ..
-            "is real, wired content (cooks mourning_toxic_naphtha into two mourning_apple_toxin, " ..
-            "the item both West Ardougne food-store presses need, mend1_poison.rs2:198-247), but " ..
-            "the loc it names is not placed anywhere in the loaded world: six anchors around the " ..
-            "Carnillean Mansion, south of West Ardougne -- the only building this leg's own " ..
-            "dialogue and the object's own name both point at -- across three floors, radius 60, " ..
-            "all answer loc_near(carnilleanrange, 60) -> not_found " ..
-            "(build/quest_gate/seam_mourning_rangeprobe/ledger.tsv rows 1-12, re-confirmed live " ..
-            "above at the mansion's own front door). Quest-helper's own WorldPoint for this step " ..
-            "(MourningsEndPartI.java:453, 2970,3210,0) is open sea east of Karamja, not this " ..
-            "building either. The apple press and the naphtha mix/sieve chain above are all real, " ..
-            "nothing cheated: pressApples/mixNaphtha/sieveMix drove genuine " ..
-            "applebarrel_full -> mourning_applebarrel_mush -> mourning_applebarrel_naphtha_mush " ..
-            "-> mourning_toxic_naphtha through their own [oplocu]/[opheldu] triggers (pressApples.mash " ..
-            "and sieveMix.result both PASSed above with real inventory counts), so this is not a " ..
-            "driver hittest/camera seam with an untried pose left (section 3's last resort has " ..
-            "nothing to press): the object the trigger names has no placement at all. Nothing past " ..
-            "mend1_poison.rs2:174 -- the two food-store presses (mend1_poison.rs2:198-247), the " ..
-            "report to Essyllt, ^mend1_report/^mend1_complete -- is reachable by any player, real " ..
-            "or automated, until this loc is placed on the map.")
+        -- ---- Poison food store 1, West Ardougne (mourning_sack_full1,
+        -- maps/m39_51.jl2:4218-4221 -> abs 2517,3312 / 2517,3315 / 2521,3316;
+        -- mend1_poison.rs2:197-221, an [oploc1] and an [oplocu] on the same
+        -- base). ----
+        t.exec("goto-poisonStore1", t.player.goto_tile, 2517, 3313, 0)
+        local store1_result, store1_row = t.world.loc_near("mourning_sack_full1", 20)
+        t.check("poisonStore1.present", store1_result == "ok",
+            "loc_near(mourning_sack_full1, 20) -> " .. tostring(store1_result) .. " "
+                .. (store1_result == "ok"
+                    and (tostring(store1_row.tile_x) .. "," .. tostring(store1_row.tile_z)
+                        .. " L" .. tostring(store1_row.level)) or tostring(store1_row)))
+        local store1_target, store1_target_r = t.player.by_symbol("loc", "mourning_sack_full1")
+        t.step("poisonStore1.target", store1_target_r == "ok" and "PASS" or "FAIL",
+            "by_symbol(loc, mourning_sack_full1) -> " .. tostring(store1_target_r) .. " id="
+                .. tostring(store1_target and store1_target.id) .. " match="
+                .. tostring(store1_target and store1_target.match))
+        t.exec("poisonStore1", t.player.use_on, "mourning_apple_toxin", store1_target)
+        t.ticks(2)
+        t.expect("poisonStore1.message",
+            t.msg.expect("You dust the grain sacks with toxic powder"))
+        t.expect("poisonStore1.var", t.var.await_server("mourning_food_poison1", 1, 6))
+
+        -- ---- Poison food store 2, the church stores (mourning_sack_full2,
+        -- maps/m39_51.jl2:4222-4224 -> abs 2524,3285 / 2524,3288 / 2525,3288;
+        -- mend1_poison.rs2:223-247). ----
+        t.exec("goto-poisonStore2", t.player.goto_tile, 2524, 3286, 0)
+        local store2_result, store2_row = t.world.loc_near("mourning_sack_full2", 20)
+        t.check("poisonStore2.present", store2_result == "ok",
+            "loc_near(mourning_sack_full2, 20) -> " .. tostring(store2_result) .. " "
+                .. (store2_result == "ok"
+                    and (tostring(store2_row.tile_x) .. "," .. tostring(store2_row.tile_z)
+                        .. " L" .. tostring(store2_row.level)) or tostring(store2_row)))
+        local store2_target, store2_target_r = t.player.by_symbol("loc", "mourning_sack_full2")
+        t.step("poisonStore2.target", store2_target_r == "ok" and "PASS" or "FAIL",
+            "by_symbol(loc, mourning_sack_full2) -> " .. tostring(store2_target_r) .. " id="
+                .. tostring(store2_target and store2_target.id) .. " match="
+                .. tostring(store2_target and store2_target.match))
+        t.exec("poisonStore2", t.player.use_on, "mourning_apple_toxin", store2_target)
+        t.ticks(2)
+        t.expect("poisonStore2.message",
+            t.msg.expect("You dust the sacks in the church stores with toxic powder"))
+        t.expect("poisonStore2.var", t.var.await_server("mourning_food_poison2", 1, 6))
+
+        -- ---- Report to Essyllt (mend1_essyllt_after_poison,
+        -- mend1_disguise.rs2:207-211 -> %mourning_quest = ^mend1_report). ----
+        t.exec("goto-talkToEssylltAfterPoison", t.player.goto_tile, 2043, 4631, 0)
+        t.exec("talkToEssylltAfterPoison", t.player.talk_to, "mourner_hideout_head_mourner", 1)
+        t.exec("talkToEssylltAfterPoison-dialog", t.chat.play, {
+            "player:It's done. Both food stores are poisoned -- nobody suspects a thing.",
+            "npc:Then you truly are one of us now. Listen closely, recruit -- the mourners you see in this city are not what they seem. We are elves, servants of Lord Iorwerth, and this quarantine is a lie.",
+            "npc:There is more happening beneath West Ardougne than even I fully understand. You've proven yourself -- take word of what you've learned back to whoever sent you.",
+        })
+        t.ticks(2)
+        -- configs/all.varp's [mourning_quest] body is empty (no transmit=yes,
+        -- see the bind banner at the top of this file), so every stage read
+        -- below goes through the SERVER copy (t.var.server) or the journal,
+        -- never t.quest.expect_stage, which would read a stale client 0.
+        local report_r, report_v = t.var.server("mourning_quest")
+        t.check("talkToEssylltAfterPoison.stage", report_r == "ok" and report_v == 8,
+            "var.server(mourning_quest) -> " .. tostring(report_r) .. " " .. tostring(report_v)
+                .. " expected 8 (^mend1_report)")
+        -- Same retry ladder every other journal read in this file uses: the
+        -- FIRST journal_open right after a dialogue closes is a UI-mount race,
+        -- not a content answer.
+        local journal_report_r, journal_report
+        for _ = 1, 3 do
+            journal_report_r, journal_report = t.ui.journal_open("Mourning's End Part I")
+            if journal_report_r == "ok" then
+                break
+            end
+            t.ui.journal_close()
+            t.ticks(5)
+        end
+        local journal_report_line = journal_report and journal_report.first_line
+        t.check("talkToEssylltAfterPoison.journal",
+            journal_report_r == "ok" and journal_report_line ~= nil
+                and journal_report_line:find("Essyllt revealed the truth", 1, true) ~= nil,
+            "journal_open(Mourning's End Part I) -> " .. tostring(journal_report_r)
+                .. " first_line=" .. tostring(journal_report_line))
+        t.ui.journal_close()
+
+        -- ---- Arianwyn, Lletya -- the hand-in (mend1_shared.rs2:101-108,
+        -- ~mend1_quest_complete). skill.snapshot() before the hand-in for
+        -- the two documented xp rewards (mend1_shared.rs2:31:
+        -- "40000 Thieving XP|25000 Hitpoints XP|Elf teleport crystal|Access
+        -- to the Mourner HQ basement and Lletya"). ----
+        local qp_before_r, qp_before = t.var.varp("qp")
+        local skill_snapshot_r, skill_snapshot = t.skill.snapshot()
+        t.step("reward.snapshot", skill_snapshot_r == "ok" and "PASS" or "FAIL",
+            "skill.snapshot() -> " .. tostring(skill_snapshot_r))
+        t.exec("goto-talkToArianwynFinal", t.player.goto_tile, 2353, 3172, 0)
+        t.exec("talkToArianwynFinal", t.player.talk_to, "mourning_arianwyn", 1)
+        t.exec("talkToArianwynFinal-dialog", t.chat.play, {
+            "player:Arianwyn -- the mourners really are Iorwerth elves. I tortured their gnome for the truth about a signalling device, dyed sheep to test it, and poisoned their food stores to prove myself to Essyllt.",
+            "npc:You have done more than I asked. This confirms everything we feared -- and gives us a foothold inside their operation.",
+            "npc:Thank you. Take this teleport crystal -- it will bring you straight back to Lletya whenever you need it.",
+        })
+        t.ticks(3)
+
+        -- Completion is graded the same way makinghistory.lua/rovingelves.lua
+        -- grade theirs when the quest's own varp is not transmitted: the
+        -- server varp, the reward scroll, the quest-point delta and the
+        -- journal, each written by hand instead of t.quest.expect_complete().
+        local complete_r, complete_v = t.var.server("mourning_quest")
+        t.check("quest.varp_complete", complete_r == "ok" and complete_v == 9,
+            "var.server(mourning_quest) -> " .. tostring(complete_r) .. " " .. tostring(complete_v)
+                .. " expected 9 (^mend1_complete)")
+
+        local scroll_title_result, scroll_title = t.scroll.title()
+        local scroll_shot_result, scroll_shot_detail = t.shot("quest.scroll")
+        local scroll_shot_note = ""
+        if scroll_shot_result == "ok" and type(scroll_shot_detail) == "string"
+            and string.find(scroll_shot_detail, "unchanged", 1, true) then
+            scroll_shot_note = " [scroll already photographed: " .. scroll_shot_detail .. "]"
+        end
+        local title_name = scroll_title ~= nil and scroll_title.name or nil
+        t.step("quest.scroll_title",
+            (scroll_title_result == "ok" and type(title_name) == "string"
+                and title_name:find("Mourning's End Part I", 1, true) ~= nil) and "PASS" or "FAIL",
+            "scroll.title() after the hand-in -> " .. tostring(scroll_title_result) .. " name="
+                .. tostring(title_name) .. " points="
+                .. tostring(scroll_title and scroll_title.points) .. scroll_shot_note)
+        t.scroll.close()
+
+        local qp_after_r, qp_after = t.var.varp("qp")
+        t.check("quest.points", qp_after_r == "ok" and qp_before_r == "ok"
+            and qp_after == qp_before + 2,
+            "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after)
+                .. " expected delta 2")
+
+        local final_journal_r, final_journal
+        for _ = 1, 3 do
+            final_journal_r, final_journal = t.ui.journal_open("Mourning's End Part I")
+            if final_journal_r == "ok" then
+                break
+            end
+            t.ui.journal_close()
+            t.ticks(5)
+        end
+        t.check("quest.journal", final_journal_r == "ok" and final_journal ~= nil
+            and final_journal.complete == true,
+            "journal_open(Mourning's End Part I) -> " .. tostring(final_journal_r)
+                .. " complete=" .. tostring(final_journal and final_journal.complete)
+                .. " lines=" .. tostring(final_journal and final_journal.line_count))
+        t.ui.journal_close()
+
+        -- ---- Reward rows -- every reward mend1_shared.rs2:31's own
+        -- ~quest_complete_rewards call lists, each asserted literally:
+        -- "40000 Thieving XP|25000 Hitpoints XP|Elf teleport crystal|
+        -- Access to the Mourner HQ basement and Lletya" (mend1_shared.rs2:
+        -- 25-31, stat_advance(thieving, ^mend1_reward_thieving_xp=400000)
+        -- + stat_advance(hitpoints, ^mend1_reward_hitpoints_xp=250000),
+        -- the *10 tenths unit skill.expect_gain resolves against the
+        -- documented 40000/25000 whole-xp figures itself). The fourth
+        -- listed reward, HQ basement + Lletya access, is a gate this file
+        -- already walked through repeatedly above (talkToEssyllt*,
+        -- talkToArianwyn*), not a grantable state to assert here. ----
+        t.exec("reward.thieving_xp", t.skill.expect_gain, "thieving", 40000, skill_snapshot)
+        t.exec("reward.hitpoints_xp", t.skill.expect_gain, "hitpoints", 25000, skill_snapshot)
+        t.exec("reward.teleport_crystal", t.inv.expect_has, "mourning_teleport_crystal_4", 1)
+
+        t.finish(0)
         return
     end,
 }
