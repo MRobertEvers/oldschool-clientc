@@ -4862,6 +4862,12 @@ function QD.player._npc_rows(target)
         if row.npc_id == target.id or row.base_npc_id == target.id then
             found[row.element_id] = {
                 slot = row.slot, x = row.x, z = row.z, level = row.level,
+                -- The overhead SAY and its countdown, carried so a press can
+                -- tell "it answered me" from "nothing happened".  `nil` here
+                -- is a binary built before DriveNpcRow.overhead (the shared
+                -- torirs_questtest until it is rebuilt), and every reader
+                -- below treats that as "no reading", never as silence.
+                say = row.overhead, say_timer = row.overhead_timer,
             }
             count = count + 1
         end
@@ -4955,6 +4961,39 @@ function QD.player._step_for(element, was, now)
     return step
 end
 
+-- The overhead SAY `is` is showing that `was` was not -- the words, or nil.
+--
+-- `npc_say` is a SAY mask on NPC_INFO and nothing else: the engine
+-- deliberately does NOT route it to the chatbox (torirs_server_scripts.c,
+-- SS_OP_NPC_SAY -- "[ai_timer] flavour scripts call npc_say with no player
+-- set"), so api_drive.messages never sees a word of it.  For an `[opnpc<n>]`
+-- whose whole answer is a word over the npc's head it is the only proof the
+-- press reached the server at all.
+--
+-- Two ways to be new, and the second is the one that matters to a loop
+-- pressing the same npc over and over: different words, OR the SAME words
+-- with a timer that went UP.  The facet's timer is set to 150 by
+-- world_entity_set_chat on every message and only ever counts down between
+-- them (src/world/world_cycle.c), so a rise is a second say and nothing else
+-- is.
+--
+-- nil in, nil out, by design: a binary without DriveNpcRow.overhead answers
+-- `say = nil`, and "this client cannot read overhead text" must never be
+-- reported as "it said nothing".
+function QD.player._say_since(was, is)
+    if is == nil or is.say == nil or is.say == "" then
+        return nil
+    end
+    if was == nil or was.say ~= is.say then
+        return is.say
+    end
+    if is.say_timer ~= nil and was.say_timer ~= nil
+        and is.say_timer > was.say_timer then
+        return is.say
+    end
+    return nil
+end
+
 -- The OLDEST chat line newer than `since`, or "".  Newest-first is what
 -- api_drive.messages answers in, so the last match on the walk is the oldest
 -- one in the window -- the line this press provoked rather than a later
@@ -4991,6 +5030,26 @@ QD.player._press_step_ticks = 8
 -- came up, the content line that came instead, the engine's own refusal
 -- sentence.  Use talk_to for anything that answers with a conversation; this
 -- verb is for the press that answers with a footstep.
+--
+-- AND with the word over its head, which is the fourth observable.  The
+-- success path of a prod is four opcodes -- `anim(cattleprod,0);
+-- npc_say("BAAAAA!"); npc_setmode(none); npc_walk(...)`
+-- (quest_sheepherder's diseased_sheep.rs2) -- and the LAST of them is silent
+-- when the map refuses the destination.  Before this, such a press read
+-- `timeout ... nothing was said and no dialogue opened`, which is false: the
+-- click landed, the script ran, and the only thing that did not happen was
+-- the step.  36 of the 55 presses in sheepherder's 2026-09-22 ledger row are
+-- that sentence.
+--
+-- The say does NOT end the wait, on purpose.  `npc_say` and `npc_walk` run
+-- in the same content tick and arrive in the same NPC_INFO update, so
+-- resolving on the say would return before the step could be read and every
+-- SUCCESSFUL prod would lose the "slot 101 2610,3345 -> 2609,3345 ... away
+-- from you" that a herding loop steers by.  It is recorded on every poll and
+-- ranked in the ANSWER instead: a step reports the step (and the say with
+-- it), and only a press with a say and no step reports the say alone -- `ok`,
+-- because it is, with "did not move" in the same sentence so the caller can
+-- read the direction as walled rather than the click as lost.
 function QD.player.press(npc, op, ticks)
     op = op or 1
     ticks = ticks or QD.player._press_step_ticks
@@ -5031,6 +5090,7 @@ function QD.player.press(npc, op, ticks)
     local step = nil
     local page = nil
     local line = ""
+    local said = nil
     QD.await({
         level = function()
             -- The world's own answer first, every poll: a press that was
@@ -5056,6 +5116,13 @@ function QD.player.press(npc, op, ticks)
             local now = QD.player._npc_rows(target)
             if now == nil then
                 return false
+            end
+            -- Kept, not resolved on (the banner's reason), and kept BEFORE
+            -- the unchanged-tile return below -- the press this exists for
+            -- is exactly the one whose tile never changes.
+            local fresh = QD.player._say_since(was, now[element])
+            if fresh ~= nil then
+                said = fresh
             end
             local moved = QD.player._step_for(element, was, now)
             if moved == nil then
@@ -5084,8 +5151,26 @@ function QD.player.press(npc, op, ticks)
         return "ok", label .. "pressed " .. pressed .. "; dialogue " .. page
             .. " is up: '" .. tostring(page_text) .. "'"
     end
+    local overhead = ""
+    if said ~= nil then
+        overhead = "; it said '" .. said .. "'"
+    end
     if step ~= nil then
-        return "ok", label .. QD.player._step_text(step)
+        return "ok", label .. QD.player._step_text(step) .. overhead
+    end
+    local player_result, player = api_drive.player_tile()
+    local where = "unknown"
+    if player_result == "ok" and player ~= nil then
+        where = tostring(player.x) .. "," .. tostring(player.z)
+    end
+    -- The press landed and the step is the only thing that did not happen.
+    -- `ok` because the op ran: what the caller does with a push its own map
+    -- refused is the caller's decision, and it can only make it if this row
+    -- says both halves out loud.
+    if said ~= nil then
+        return "ok", label .. "pressed " .. pressed .. ", it said '" .. said
+            .. "' and did not move in " .. tostring(ticks) .. " tick(s) (you at "
+            .. where .. ") -- the press landed; the step is what did not happen"
     end
     if was == nil then
         return "no_row", label .. "the press named " .. pressed
@@ -5093,12 +5178,16 @@ function QD.player.press(npc, op, ticks)
             .. QD.player._npc_rows_text(before)
             .. ") -- nothing to watch, so nothing is claimed"
     end
-    local player_result, player = api_drive.player_tile()
-    local where = "unknown"
-    if player_result == "ok" and player ~= nil then
-        where = tostring(player.x) .. "," .. tostring(player.z)
+    -- Nothing at all: no step, no line, no page, and no word over its head.
+    -- Naming the overhead reading here is the point -- a client that cannot
+    -- read it (a binary older than DriveNpcRow.overhead) must not let this
+    -- sentence be read as "the npc was silent".
+    local silence = "and nothing was said overhead or in the chatbox"
+    if was.say == nil then
+        silence = "and nothing was said in the chatbox (this binary cannot"
+            .. " read overhead text -- rebuild for DriveNpcRow.overhead)"
     end
     return "timeout", label .. pressed .. " did not move in " .. tostring(ticks)
-        .. " tick(s) (you at " .. where
-        .. "), and nothing was said and no dialogue opened"
+        .. " tick(s) (you at " .. where .. "), " .. silence
+        .. " and no dialogue opened"
 end

@@ -823,6 +823,12 @@ end
 -- against a shop that needs no quest state at all (`::give coins 5000`
 -- first).  `::shop` opens the same screen with no npc, for a row that wants
 -- to test `buy` without `open`.
+--
+-- (2026-09-22) `::shop` is also the whole recipe for `shop.attach`, which
+-- landed below: `t.cheat("::shop")` then `t.shop.attach("generalshop1")`
+-- then `t.shop.buy("pot_empty", 1)` is a shop nothing pressed open, bought
+-- from -- and the same three rows with the `attach` line removed are the
+-- `no_row` this seam was.
 
 QD.shop = {}
 
@@ -1002,6 +1008,137 @@ function QD.shop.open(npc, op, shop_inv)
         op, tostring(npc), shop_inv, stocked, capacity)
 end
 
+-- How many cells of the OPEN grid are mounted, counting from sub 0 up, and
+-- whether the count ran out of `limit` before the grid ran out of cells:
+-- (cells, capped).
+--
+-- `shopmain:items` is rebuilt per open by `clientscript_shop_main_init` out
+-- of the container the server transmitted (shop.rs2:108), so the cell count
+-- is a reading OF THE SCREEN and not of the caller's claim -- the one number
+-- that can contradict an `attach` argument.  The loop's own stopping
+-- condition is the grid's end: api_drive.component answers not_visible for a
+-- sub with no dynamic child (src/plugin/torirs_plugin_drive_ui.c:79-82,
+-- UITree_FindChildBySubid), and `limit` only bounds the walk so a caller
+-- that wants "is it exactly N" pays N calls and not a whole bank's worth.
+--
+-- MEASURED (build/quest_gate/seam6_shop_attach/ledger.tsv row 6): the
+-- Lumbridge general store, `generalshop1` size=40, mounts 41 cells -- the
+-- forty stock slots plus `script_1074`'s cell 0, the selection highlight
+-- that `~shop_main_slot` subtracts back off (open's banner above).
+function QD.shop._grid_cells(limit)
+    local cells = 0
+    while cells < limit do
+        local cell_result = api_drive.component(QD.shop._grid, cells)
+        if cell_result ~= "ok" then
+            return cells, false
+        end
+        cells = cells + 1
+    end
+    return cells, true
+end
+
+-- SEAM shop_opened_by_dialogue_has_no_stock_binding (2026-09-22) -- A SHOP
+-- THE PLAYER DID NOT PRESS OPEN IS STILL A SHOP.
+--
+-- `shop.open` is the only writer of `_inv_symbol`/`_inv_id`, and it gets
+-- there by pressing the npc's numbered shop op itself.  `shop.buy` refuses
+-- outright when that pair is nil.  So a shop reached ANY OTHER WAY -- a
+-- dialogue row ("Can I see the building store please?"), a `::shop` cheat, a
+-- loc's own op -- is unbuyable while sitting open and stocked on screen:
+-- Shades of Mort'ton's second Razmire trip lost three rows to it
+-- (build/quest_gate/mortton/ledger.tsv 54/55/56, all FAIL with "this shop
+-- was not opened through shop.open", against
+-- shots/99-razmire.recure-2-dialogue-FAIL.png, which shows Razmire Builders
+-- Merchants open with its three stocked cells).
+--
+-- `attach` is the missing half: it binds the shop that is ALREADY up.  It is
+-- `open` minus the press -- same inv-symbol argument, same stock wait, same
+-- two fields, same detail shape -- and it deliberately does NOT inherit
+-- open's close-what-is-already-open rule: that rule exists because a shop
+-- left over from before is not evidence that open's press worked, and here
+-- the shop left over from before is the entire subject.
+--
+-- WHY IT STILL ASKS THE CALLER FOR THE INV SYMBOL, and what that costs.  The
+-- client has no component -> inv mapping any more than it has the inv ->
+-- component one open's banner describes (struct InvContainer,
+-- src/inv/inv_manager.h:53), so "which container is this screen showing" is
+-- still a question only the caller can answer.  attach carries one hazard
+-- open does not: every container this client has ever been sent stays
+-- resident in its InvManager -- the backpack always, and a shop after
+-- `[if_close,shopmain]`'s `inv_stoptransmit` (shop.rs2:157-159 stops the
+-- updates, it does not drop the container) -- so "the named inv is resident
+-- and stocked", which is all open's wait ever proves, is satisfied by a
+-- container that is not on screen at all.  Measured, not feared:
+-- `attach("inv")` with the Lumbridge general store up bound the PLAYER'S
+-- BACKPACK as the shop, and every later `buy` would then have pressed grid
+-- cells off backpack slot numbers.
+--
+-- So attach does one thing open does not have to: it reads the grid.  A
+-- shop's grid is rebuilt per open from the container that was transmitted
+-- into it, and it carries exactly `slot_count + 1` cells (the stock plus
+-- script_1074's selection cell).  `_grid_cells` above is that reading, the
+-- check below is the contradiction, and it REFUSES rather than warns --
+-- a bound-to-the-wrong-container attach does not fail here, it fails as a
+-- wrong item three buys later, which is the whole failure mode this driver
+-- exists to make impossible.
+--
+-- (ok, a sentence naming the stock) or (result, detail).
+function QD.shop.attach(shop_inv)
+    if type(shop_inv) ~= "string" then
+        return "no_row", "shop.attach: name the shop's own inv symbol (the one "
+            .. "its .rs2 hands ~openshop, e.g. razmirebuildingstore) -- the "
+            .. "client cannot tell which container a grid is showing"
+    end
+    local inv_result, inv_id = api_drive.symbol("inv", shop_inv)
+    if inv_result ~= "ok" then
+        return "no_row", "shop.attach: unknown inv symbol " .. tostring(shop_inv)
+    end
+    if not QD.shop._present() then
+        return "not_visible", "shop.attach: no shopmain is on screen -- attach "
+            .. "binds a shop something ELSE already opened (a dialogue row, "
+            .. "::shop, a loc op); to open one, call shop.open(npc, op, inv)"
+    end
+
+    -- Same two-message wait as open: the frame and the stock are not the same
+    -- tick, and a dialogue-opened shop is read the tick its page closes.
+    local stocked = 0
+    local capacity = 0
+    local landed = await({
+        level = function()
+            stocked, capacity = QD.shop._stocked(inv_id)
+            return stocked > 0
+        end,
+        note = "shop.attach stock " .. shop_inv,
+    }, 10)
+    if landed ~= "ok" then
+        return "timeout", string.format(
+            "shop.attach: shopmain is up but %s carried no stock within 10 "
+                .. "tick(s) -- is %s the shop on screen?",
+            shop_inv, shop_inv)
+    end
+
+    -- The grid on screen against the container the caller named.  Walked
+    -- only as far as it takes to answer "is it exactly capacity + 1".
+    local cells, capped = QD.shop._grid_cells(capacity + 2)
+    if capped or cells ~= capacity + 1 then
+        return "refused", string.format(
+            "shop.attach: %s is resident with %d stocked slot(s) of %d, so the "
+                .. "stock wait alone would have bound it -- but the grid on "
+                .. "screen carries %s cell(s), not the %d a %d-slot container "
+                .. "builds, so %s is not the shop being displayed",
+            shop_inv, stocked, capacity,
+            capped and ("more than " .. tostring(cells - 1)) or tostring(cells),
+            capacity + 1, capacity, shop_inv)
+    end
+
+    QD.shop._inv_symbol = shop_inv
+    QD.shop._inv_id = inv_id
+    return "ok", string.format(
+        "shop.attach: bound the open shopmain to %s -- %s holds %d stocked "
+            .. "slot(s) of %d, and the grid on screen carries its %d cell(s)",
+        shop_inv, shop_inv, stocked, capacity, cells)
+end
+
 -- One rung press: op `op` on the cell, then wait for the backpack to reach
 -- `want`.  (ok) or (result, detail).
 function QD.shop._press(item, sub, op, want)
@@ -1045,7 +1182,9 @@ function QD.shop.buy(item, count)
     end
     if QD.shop._inv_id == nil then
         return "no_row", "shop.buy: this shop was not opened through shop.open, so "
-            .. "its stock container is unknown -- call shop.open(npc, op, inv)"
+            .. "its stock container is unknown -- call shop.open(npc, op, inv), "
+            .. "or shop.attach(inv) if something else (a dialogue row, ::shop, "
+            .. "a loc op) already put it on screen"
     end
 
     local row_result, row = QD.shop._row(item)

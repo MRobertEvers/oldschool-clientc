@@ -117,6 +117,18 @@ the caller owns "Unknown command".
   prayer book uses, auto-granting the required level.
 - `[debugproc,die]` -- .../player/death.rs2:419 -- `::die` runs the *whole*
   death sequence via `~player_death_trigger` -> `queue(player_death,...)`.
+- `[debugproc,twocats_growpotatoes]`, `[debugproc,mortton_repairtemple]` --
+  .../quest_atailoftwocats/scripts/twocats.rs2:439 and
+  .../game_mortton/scripts/flamtaer_temple.rs2:498 -- the two GRIND
+  fast-forwards, and the shape every future one copies: each walks the
+  quest's own advance body in a guarded loop and skips only the WAITING,
+  never the logic. `::mortton_repairtemple` needs `^mortton_ulsquire_temple`,
+  Crafting 20 and a hammer; it spends the player's real swamp paste,
+  limestone bricks and timber beams through the real `~add_temple_resources`,
+  is resumable, and prints either `The temple is repaired after N repair(s).`
+  or `Temple repair stopped at N% after M repair(s) - bring more limestone
+  bricks, wooden planks and swamp paste.` -- 150 repair actions a driven run
+  has no budget for (QUEST_AUTHORING.md trap: ~2,000 server ticks per run).
 - `setvar`/`varp`/`varbit` and `kill` used to be listed here as absent
   everywhere. They are C ladder branches now (:7878, :7957) -- that was the
   point of §B's fix. Still absent as debugprocs, which does not matter any

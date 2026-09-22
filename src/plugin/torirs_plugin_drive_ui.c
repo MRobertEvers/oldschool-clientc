@@ -352,6 +352,21 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
         out[j].element_id = npc->element_id;
         drive_ui_fill_npc_combat(app, npc, &out[j]);
         drive_ui_strip_tags(npc->name, out[j].name, sizeof(out[j].name));
+        /* Overhead SAY (DriveNpcRow.overhead's banner for why a test needs
+         * it).  The facet clears `message` itself the cycle the timer hits 0
+         * (world_cycle.c), so the two agree already; reading the timer first
+         * keeps them agreeing even if a future decode leaves a stale string
+         * behind, and costs nothing. */
+        if( npc->chat.timer > 0 )
+        {
+            drive_ui_strip_tags(npc->chat.message, out[j].overhead, sizeof(out[j].overhead));
+            out[j].overhead_timer = npc->chat.timer;
+        }
+        else
+        {
+            out[j].overhead[0] = '\0';
+            out[j].overhead_timer = 0;
+        }
         if( count < cap )
             count++;
     }
@@ -1114,6 +1129,16 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "hit_cycle");
     lua_pushstring(L, row->name);
     lua_setfield(L, -2, "name");
+    /* The overhead half: `npc_say`'s SAY mask, which never reaches the
+     * chatbox (SS_OP_NPC_SAY) and so is invisible to api_drive.messages.
+     * Always a string here: "" is "nothing overhead".  A `nil` therefore
+     * means one thing only -- a binary built before this field -- which is
+     * what pointer.lua's reader tests for, so a quest run on the shared
+     * torirs_questtest degrades to the old behaviour instead of lying. */
+    lua_pushstring(L, row->overhead);
+    lua_setfield(L, -2, "overhead");
+    lua_pushinteger(L, row->overhead_timer);
+    lua_setfield(L, -2, "overhead_timer");
 }
 
 static int

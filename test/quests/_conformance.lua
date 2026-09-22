@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 109 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 110 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 109
+-- @verb-count 110
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 13
+-- @seam-count 15
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 109
-local SEAM_COUNT = 13
+local VERB_COUNT = 110
+local SEAM_COUNT = 15
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1217,6 +1217,91 @@ return {
             return "ok", text .. "; " .. ABSENT_NPC_SYMBOL .. " -> " .. describe(absent)
         end)
 
+        -- SEAM press_cannot_see_a_landed_prod (2026-09-22).  The other half of
+        -- the silent press, and the half no verb's answer can show here.
+        -- `npc_say` is a SAY mask on NPC_INFO and is deliberately NOT routed to
+        -- the chatbox (SS_OP_NPC_SAY), so `api_drive.messages` never sees a
+        -- word of it; for an `[opnpc<n>]` whose success path is `anim` +
+        -- `npc_say` + `npc_walk`, and whose `npc_walk` is SILENT when the map
+        -- refuses the destination, the word over the npc's head is the ONLY
+        -- reading a client has that the press landed at all.  Before
+        -- DriveNpcRow.overhead, 36 of the 55 presses in sheepherder's ledger
+        -- answered `timeout ... nothing was said and no dialogue opened`, and
+        -- every one of them had run.
+        --
+        -- Lumbridge still has no silent press in it (the row above says so),
+        -- so what is graded here is the READER, in the two places it can
+        -- rot silently:
+        --   1. the C field itself.  A binary built without it answers `nil`,
+        --      which every reader treats as "no reading" -- correct, and
+        --      invisible: the quest rows would simply go back to timing out on
+        --      success.  So the pool row must carry a STRING and a NUMBER.
+        --   2. `QD.player._say_since`'s rise rule.  A herding loop presses the
+        --      same npc over and over and the npc says the same word every
+        --      time, so "it said it AGAIN" is not a text comparison:
+        --      world_entity_set_chat resets the countdown to 150 on every
+        --      message and world_cycle only ever decrements it, which makes a
+        --      RISEN timer the one and only tell.  Grade it as a truth table,
+        --      because a world in which a `man` says something twice on cue is
+        --      not one this fixture has.
+        seam("seam.press_reads_overhead", function()
+            local say_since = t.player and t.player._say_since
+            local tiles = verb("npc", "tiles")
+            if not say_since or not tiles then
+                return "unsupported", "player._say_since / npc.tiles are not on this driver"
+            end
+
+            local pool_result, pool_detail, rows = tiles(NPC_SYMBOL, 8)
+            if pool_result ~= "ok" or type(rows) ~= "table" or type(rows[1]) ~= "table" then
+                return "no_subject", "no " .. NPC_SYMBOL .. " in the pool to read a row from ("
+                    .. describe(pool_result) .. " " .. describe(pool_detail) .. ")"
+            end
+            if type(rows[1].overhead) ~= "string" then
+                return "refused", "the npc pool row carries overhead=" .. describe(rows[1].overhead)
+                    .. " -- this client cannot read overhead text at all, so every press whose "
+                    .. "only answer is a word over an npc's head goes back to reporting `timeout "
+                    .. "... nothing was said` on a press that landed (rebuild for "
+                    .. "DriveNpcRow.overhead)"
+            end
+            if type(rows[1].overhead_timer) ~= "number" then
+                return "refused", "the npc pool row carries overhead_timer="
+                    .. describe(rows[1].overhead_timer) .. " -- without the countdown, the same "
+                    .. "words said a second time are unreadable"
+            end
+
+            -- The truth table.  Each line is a real shape from the sheep run:
+            -- the first say, the same say decaying, the SECOND say, and a
+            -- client that has no reading to give.
+            local first = say_since({ say = "", say_timer = 0 }, { say = "BAAAAA!", say_timer = 150 })
+            if first ~= "BAAAAA!" then
+                return "refused", "a first say answered " .. describe(first)
+            end
+            local decaying = say_since({ say = "BAAAAA!", say_timer = 150 },
+                { say = "BAAAAA!", say_timer = 60 })
+            if decaying ~= nil then
+                return "refused", "the SAME say still counting down answered " .. describe(decaying)
+                    .. " -- a stale word read as a fresh answer credits the press before it with "
+                    .. "the press after it"
+            end
+            local again = say_since({ say = "BAAAAA!", say_timer = 60 },
+                { say = "BAAAAA!", say_timer = 150 })
+            if again ~= "BAAAAA!" then
+                return "refused", "the same words with a RISEN timer answered " .. describe(again)
+                    .. " -- that is a second say and nothing else is, and without it every prod "
+                    .. "after the first reads as silence"
+            end
+            local unread = say_since({ say = nil }, { say = nil })
+            if unread ~= nil then
+                return "refused", "a row with no overhead reading answered " .. describe(unread)
+                    .. " -- `this client cannot read it` must never be reported as `it was silent`"
+            end
+
+            return "ok", "the pool row carries overhead=" .. describe(rows[1].overhead)
+                .. " timer=" .. describe(rows[1].overhead_timer)
+                .. "; _say_since reads a first say, ignores the same say decaying, reads it "
+                .. "again on a risen timer, and answers nothing for a client with no reading"
+        end)
+
         step("player.click_loc", function()
             local fn = verb("player", "click_loc")
             if not fn then return missing("player", "click_loc") end
@@ -1648,6 +1733,89 @@ return {
             if not fn then return missing("chat", "options_title") end
             local result, detail = fn()
             return answered(result, detail, "", is_text, "the title came back empty")
+        end)
+
+        -- SEAM choose_calls_a_new_screen_a_stale_reopen (2026-09-22).  A
+        -- chatmenu that comes back byte-identical after a click decides
+        -- NOTHING by itself, and grading it alone cost Shades of Mort'ton its
+        -- whole shop leg (build/quest_gate/mortton ledger row 53, whose own
+        -- screenshot shows Razmire's store open and stocked behind the menu
+        -- the verb had just called `refused -- stale reopen`).
+        --
+        -- Two different things wear that face.  One is the server's own
+        -- replay: `~p_choice2..5`'s `while (last_slot < 1 | last_slot > N)`
+        -- loop re-calls `[proc,p_choice_open]` (chat.rs2:251-263), which
+        -- re-sends the same header and the same rows, prints nothing and
+        -- opens nothing -- a real refusal every caller must see.  The other
+        -- is a row whose handler ends in a screen of its own: nothing in this
+        -- pack closes the chatmenu on that path, so the menu still sitting
+        -- under `~openshop`'s shopmain IS the menu that was clicked --
+        -- unchanged, and already answered.
+        --
+        -- So the verdict asks what ELSE changed before it calls an unchanged
+        -- menu a replay, and this row grades the three arms of that question
+        -- against the LIVE cook menu without clicking it -- the same
+        -- discipline seam.chat_page_ready uses, so `step("chat.choose")`
+        -- below still finds the four rows it expects.  The first arm is the
+        -- load-bearing one: it is the refusal that a future author, staring
+        -- at a shop row going red, would be tempted to delete.
+        seam("seam.choose_screen_outranks_replay", function()
+            local verdict = t.chat and t.chat._choose_verdict
+            local options = verb("chat", "options")
+            local title_of = verb("chat", "options_title")
+            if not verdict or not options or not title_of then
+                return "unsupported", "chat._choose_verdict / chat.options / "
+                    .. "chat.options_title are not on this driver"
+            end
+            local rows_result, rows = options()
+            local title_result, title = title_of()
+            if rows_result ~= "ok" or type(rows) ~= "table" or rows[1] == nil
+                or title_result ~= "ok" then
+                return "no_subject", "the options menu the rows above opened is no longer up ("
+                    .. describe(rows_result) .. " / " .. describe(title_result) .. ")"
+            end
+
+            -- 1. The replay, and it must still be terminal: the same title,
+            --    the same rows, no other screen and not a word printed.
+            local replay, replay_detail = verdict(title, rows, nil, nil)
+            if replay ~= "refused" or replay_detail ~= "stale reopen" then
+                return "refused", "an unchanged menu with nothing else changed answered "
+                    .. describe(replay) .. " " .. describe(replay_detail)
+                    .. " -- the server's own replay is a real refusal and this is the only "
+                    .. "thing that reads it"
+            end
+
+            -- 2. THE SEAM.  The identical menu, plus an interface that opened
+            --    outside the chat modal while the click was served.
+            local screened, screened_detail = verdict(title, rows, "shopmain (300) opened", nil)
+            if screened ~= "ok" then
+                return "refused", "an unchanged menu whose click OPENED A SCREEN answered "
+                    .. describe(screened) .. " " .. describe(screened_detail)
+                    .. " -- that is the landed click this seam is, and calling it refused takes "
+                    .. "every shop, bank and cutscene row with it"
+            end
+            if not string.find(tostring(screened_detail), "shopmain (300)", 1, true) then
+                return "hollow", "the ok does not name the interface that outranked the replay: "
+                    .. describe(screened_detail)
+            end
+
+            -- 3. And a chat line the server printed does the same job, for a
+            --    row whose handler answers in prose rather than a screen.
+            local spoke = verdict(title, rows, nil, "You can't afford that.")
+            if spoke ~= "ok" then
+                return "refused", "an unchanged menu whose click made the server SPEAK answered "
+                    .. describe(spoke)
+            end
+
+            -- 4. A menu that did change is `ok` on its own, screen or no.
+            local moved = verdict(title .. " <no menu shows this>", rows, nil, nil)
+            if moved ~= "ok" then
+                return "refused", "a menu whose title differs answered " .. describe(moved)
+            end
+
+            return "ok", "on the live " .. describe(title) .. " menu (" .. tostring(#rows)
+                .. " rows): unchanged + nothing else = refused 'stale reopen'; unchanged + a "
+                .. "screen = ok naming it; unchanged + a server line = ok; changed = ok"
         end)
 
         step("chat.choose", function()
@@ -3747,6 +3915,99 @@ return {
                     .. ", not ok -- " .. text
             end
             return "ok", text .. "; a second close -> ok"
+        end)
+
+        -- SEAM shop_opened_by_dialogue_has_no_stock_binding (2026-09-22).
+        -- `shop.open` was the ONLY writer of the shop's inv binding and it
+        -- gets there by pressing the npc's numbered shop op itself, so a shop
+        -- reached any other way -- a dialogue row ("Can I see the building
+        -- store please?"), the `::shop` cheat, a loc's own op -- sat open and
+        -- stocked on screen and could not be bought from: Shades of Mort'ton
+        -- lost three rows to `no_row -- this shop was not opened through
+        -- shop.open`.
+        --
+        -- The recipe IS the seam, which is why it runs last: `::shop` opens
+        -- the Lumbridge general store with nothing pressed
+        -- (shop.rs2:167's `[debugproc,shop]`), so the driver holds no binding
+        -- at all -- `shop.close` above cleared the one `shop.open` made.  The
+        -- row reproduces the refusal, binds, and then buys, because a bind
+        -- nothing spends is not evidence.
+        stage(function()
+            settle(2)
+            setup_cheat("::shop")
+            settle(3)
+        end)
+
+        step("shop.attach", function()
+            local fn = verb("shop", "attach")
+            local buy = verb("shop", "buy")
+            local close = verb("shop", "close")
+            local count_of = verb("inv", "count")
+            if not fn then return missing("shop", "attach") end
+            if not buy or not count_of then
+                return "no_subject", "shop.attach is proved by a buy, and shop.buy/inv.count "
+                    .. "are not on this driver"
+            end
+
+            -- 1. THE SEAM.  A shop is on screen and nothing can buy from it.
+            local unbound = buy(SHOP_OBJ_SYMBOL, 1)
+            if unbound ~= "no_row" then
+                return "no_subject", "a buy against the ::shop screen answered "
+                    .. describe(unbound) .. ", not the no_row this seam is -- either nothing "
+                    .. "opened or a binding survived shop.close, and the row below would "
+                    .. "prove nothing"
+            end
+
+            -- 2. The hazard attach carries that open does not: EVERY container
+            --    this client was ever sent stays resident in its InvManager,
+            --    so "the named inv is stocked" -- all open's wait ever proves
+            --    -- is satisfied by the player's own backpack.  Measured: it
+            --    reaches the binding step on stock alone.  What stops it is
+            --    the grid on screen, which carries slot_count + 1 cells.
+            local wrong, wrong_detail = fn("inv")
+            if wrong == "ok" then
+                return "refused", "attach(\"inv\") bound the player's BACKPACK as the shop -- "
+                    .. "every later buy would then press grid cells off backpack slot numbers, "
+                    .. "which is a wrong item three buys later rather than a failure here: "
+                    .. describe(wrong_detail)
+            end
+
+            -- 3. The bind itself, and it has to say what it read of the
+            --    SCREEN, not of the caller's claim.
+            local result, detail = fn(SHOP_INV_SYMBOL)
+            local text = SHOP_INV_SYMBOL .. " -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text .. " (a buy first answered " .. describe(unbound)
+                    .. ", attach(\"inv\") " .. describe(wrong) .. ")"
+            end
+            if not string.find(tostring(detail), "stocked slot", 1, true)
+                or not string.find(tostring(detail), "cell", 1, true) then
+                return "hollow", "an `ok` that does not say both what stock landed and what "
+                    .. "the grid on screen carries -- those two numbers are the whole "
+                    .. "difference between binding this shop and binding a container that "
+                    .. "merely still exists: " .. text
+            end
+
+            -- 4. And the world, because the binding is only worth what it can
+            --    spend.
+            local held_before_result, held_before = count_of(SHOP_OBJ_SYMBOL)
+            local bought, bought_detail = buy(SHOP_OBJ_SYMBOL, 1)
+            local held_after_result, held_after = count_of(SHOP_OBJ_SYMBOL)
+            if bought ~= "ok" then
+                return "refused", "attach answered ok and the buy behind it answered "
+                    .. describe(bought) .. " " .. describe(bought_detail) .. " -- " .. text
+            end
+            if held_before_result ~= "ok" or held_after_result ~= "ok"
+                or held_after - held_before ~= 1 then
+                return "hollow", "the buy answered ok and the backpack went "
+                    .. describe(held_before) .. " -> " .. describe(held_after) .. " -- " .. text
+            end
+            if close then
+                close()
+            end
+            return "ok", text .. "; before it, a buy -> no_row and attach(\"inv\") -> "
+                .. describe(wrong) .. "; after it, " .. SHOP_OBJ_SYMBOL .. " "
+                .. tostring(held_before) .. " -> " .. tostring(held_after)
         end)
 
         -- --------- seam: a mistyped ledger argument must not end the run

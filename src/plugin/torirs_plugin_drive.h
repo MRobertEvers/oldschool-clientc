@@ -885,6 +885,32 @@ struct DriveNpcRow
     /** Normalised: WorldEntity_NPC.name is sized 64 because it stores the
      *  <col=...> tagged form, so the tags come off here. */
     char name[64];
+    /**
+     * The overhead SAY this npc is showing RIGHT NOW, and the client cycles
+     * left before it goes.
+     *
+     * `npc_say` (torirs_server_scripts.c's SS_OP_NPC_SAY) is deliberately
+     * NOT routed through the chatbox -- it is a fire-and-forget SAY mask on
+     * NPC_INFO, landing in `npc->chat` (World_NpcSetChat, from
+     * PKT_NPC_INFO_OP_SAY).  So for every `[opnpc<n>]` whose whole visible
+     * answer is a word over the npc's head, this field is the ONLY reading a
+     * client has that the press landed at all: there is no message row, no
+     * dialogue and -- when the map refuses the npc's step -- no movement
+     * either (quest_sheepherder's `prod_sheep`).
+     *
+     * 100 is WORLD_ENTITY_CHAT_MAXLEN (src/world/entity_facets.h); a longer
+     * message truncates here rather than reaching for that header, which
+     * this standalone one does not include.  Tags are stripped like `name`.
+     *
+     * `overhead_timer` is the facet's own countdown: set to 150 by
+     * world_entity_set_chat on EVERY new message and decremented one per
+     * client cycle (world_cycle.c), the message cleared at 0.  That reset is
+     * what makes "it said it AGAIN" readable: the same words with a timer
+     * that jumped back up is a second say, not the first one still hanging
+     * about.  0 with an empty message is "nothing overhead".
+     */
+    char overhead[100];
+    int overhead_timer;
 };
 
 struct DriveLocRow
