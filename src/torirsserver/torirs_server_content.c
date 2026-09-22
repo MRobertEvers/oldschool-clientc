@@ -22,6 +22,7 @@
 #include "content/content_fields.h"
 #include "content/content_register.h"
 #include "torirs_server.h"
+#include "torirs_server_paramtable.h"
 /* A `.loc` block's `opN=` is pushed straight to the scene as it is parsed —
  * see the note beside `struct ToriRSServerLocDef`. */
 #include "torirs_server_scene.h"
@@ -3257,6 +3258,128 @@ load_varp_config(const char* path)
 }
 
 /* ------------------------------------------------------------------ */
+/* .struct configs                                                     */
+/* ------------------------------------------------------------------ */
+
+/*
+ * A struct record is a param map and nothing else, so a `.struct` block is
+ * `[name]` plus `param=<name>,<value>` rows and nothing else either.
+ *
+ * Most struct ids are the cache's, and `ToriRSServer_StructInfoLoad` decodes
+ * them. Content also ALLOCATES its own (`pack/struct.alloc`, 8000 and up --
+ * Mort'ton's `pyre_logs` .. `pyre_teak_logs` and `*_shades`, the gnome
+ * cooking trays), and those records exist nowhere but in these text files.
+ * Until 2026-09-22 nothing here read them: `struct_param(pyre_logs,
+ * pyre_log_output)` answered the declared default `null`, so sacred oil on
+ * logs consumed the logs and gave an obj named `item`. A block for a cache id
+ * is the same overlay a `.loc` block is -- its rows replace the cache's.
+ *
+ * Values resolve through the param's DECLARED namespace (`type=namedobj`,
+ * `type=loc`, ... in the server `.param` files, walked before this), exactly
+ * as `.obj` params do, so `param=pyre_logs_loc,temple_pyre_logs` is a loc id
+ * and a misspelling is a load error rather than a zero.
+ *
+ * The rows live HERE rather than in torirs_server_structinfo.c's cache table:
+ * the pack validator links this file without that one, and a separate table
+ * does not care whether the cache decode ran before or after this load.
+ * `ToriRSServer_StructParam` asks `ToriRSServer_ContentStructParam` first.
+ */
+static struct ToriRSServerParamTable g_struct_overlay;
+
+const struct ToriRSServerParamRow*
+ToriRSServer_ContentStructParam(
+    int struct_id,
+    int param_id)
+{
+    return ToriRSServer_ParamTableFind(&g_struct_overlay, struct_id, param_id);
+}
+
+static void
+load_struct_config(const char* path)
+{
+    FILE* file = fopen(path, "rb");
+    char raw[1024];
+    char where[1100];
+    int struct_id = -1;
+    int in_block = 0;
+    int line_number = 0;
+
+    if( !file )
+        return;
+    while( fgets(raw, sizeof(raw), file) )
+    {
+        char* line = ToriRSServer_ContentCleanLine(raw);
+        char* header;
+        char* value;
+        char* comma;
+        int param_id;
+        int resolved;
+
+        line_number++;
+        if( !*line )
+            continue;
+
+        header = ToriRSServer_ContentSectionHeader(line);
+        if( header )
+        {
+            in_block = 1;
+            if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_STRUCT, header, &struct_id) )
+            {
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.struct.compack or "
+                              "pack/struct.alloc -- run tools/ss_allocate.py\n",
+                              path, line_number, header);
+                struct_id = -1;
+            }
+            continue;
+        }
+
+        value = ToriRSServer_ContentSplitKeyValue(line);
+        if( !value || !in_block )
+        {
+            CONTENT_ERROR("%s:%d: expected `key=value` inside a [section]\n", path,
+                          line_number);
+            continue;
+        }
+        if( struct_id < 0 )
+            continue; /* the header's own error already counted this block */
+        if( strcmp(line, "param") != 0 )
+        {
+            CONTENT_ERROR("%s:%d: struct key `%s` -- a struct carries only `param=`\n", path,
+                          line_number, line);
+            continue;
+        }
+        comma = strchr(value, ',');
+        if( !comma )
+        {
+            CONTENT_ERROR("%s:%d: param needs `name,value`, got `%s`\n", path, line_number,
+                          value);
+            continue;
+        }
+        *comma = '\0';
+        if( !ToriRSServer_ContentSymbolChecked(TORIRSSERVER_PACK_PARAM, value, &param_id) )
+        {
+            CONTENT_ERROR("%s:%d: struct param `%s` is not in configs/all.param.compack\n",
+                          path, line_number, value);
+            continue;
+        }
+        if( ToriRSServer_ContentParamType(param_id) == 's' )
+        {
+            /* The param table's overlay entry point is int-only; a string row
+             * would need a strdup'd `sval`. None is authored yet -- say so
+             * loudly rather than file the text as 0. */
+            CONTENT_ERROR("%s:%d: string struct param `%s` is not overlaid yet\n", path,
+                          line_number, value);
+            continue;
+        }
+        snprintf(where, sizeof(where), "%s:%d", path, line_number);
+        if( !obj_resolve_param_value(param_id, comma + 1, &resolved, where) )
+            continue;
+        ToriRSServer_ParamTableSetInt(&g_struct_overlay, struct_id, param_id, resolved);
+    }
+    fclose(file);
+}
+
+/* ------------------------------------------------------------------ */
 /* .loc configs                                                        */
 /* ------------------------------------------------------------------ */
 
@@ -4642,10 +4765,18 @@ ToriRSServer_ContentLoad(const char* dir)
      * goes, and an unexpanded caret is a load error rather than a zero. */
     walk_configs(path, ".constant", load_constant_config);
     walk_configs(path, ".enum", load_enum_config);
+    /* After `.param`: a value resolves through its param's declared type. The
+     * authored struct records, and any overlay rows on the cache's own --
+     * ToriRSServer_StructParam reads this table before the cache's. */
+    ToriRSServer_ParamTableFree(&g_struct_overlay);
+    walk_configs(path, ".struct", load_struct_config);
+    /* Once, after the last row: `_find` refuses an unsorted table. */
+    ToriRSServer_ParamTableSort(&g_struct_overlay);
+    if( g_struct_overlay.count )
+        fprintf(stderr, "torirsserver: %d struct param rows from server/scripts/**/*.struct\n",
+                g_struct_overlay.count);
     /* Rank-0 enums after the server walk so an authored `.enum` of the same
-     * name keeps winning (ToriRSServer_ContentEnum returns the first match).
-     * Structs need no text loader: ToriRSServer_StructInfoLoad already feeds
-     * SS_OP_STRUCT_PARAM from the binary cache. */
+     * name keeps winning (ToriRSServer_ContentEnum returns the first match). */
     {
         int enums = load_rank0_enums(dir);
 
@@ -5121,6 +5252,7 @@ ToriRSServer_ContentLoadServerBand(
 void
 ToriRSServer_ContentFree(void)
 {
+    ToriRSServer_ParamTableFree(&g_struct_overlay);
     for( int kind = 0; kind < TORIRSSERVER_PACK_COUNT; kind++ )
     {
         pack_names_free(&g_packs[kind]);

@@ -1630,9 +1630,19 @@ ToriRSServer_LocCategoryMembers(int category);
 int
 ToriRSServer_LocKnown(int loc_id);
 
-/** The param, or NULL when this struct does not carry it. */
+/** The param, or NULL when this struct does not carry it. An authored
+ *  `.struct` row (ToriRSServer_ContentStructParam) wins over the cache's. */
 const struct ToriRSServerParamRow*
 ToriRSServer_StructParam(int struct_id, int param_id);
+
+/**
+ * The param a `server/scripts` `.struct` block states for this struct, or NULL.
+ * Owned by torirs_server_content.c (filled by ToriRSServer_ContentLoad, freed by
+ * ToriRSServer_ContentFree). Content-allocated struct ids (`pack/struct.alloc`,
+ * 8000 and up) have no cache record, so this is the ONLY place they exist.
+ */
+const struct ToriRSServerParamRow*
+ToriRSServer_ContentStructParam(int struct_id, int param_id);
 
 /** Decode the loc / struct config groups once. Returns 0 when the cache is
  *  absent, in which case every lookup reports "not carried" and the server

@@ -228,10 +228,54 @@ end
 --
 -- `keep` is passed straight through: t.exec's `<name>-FAIL` capture sets it
 -- so a FAIL row always keeps a picture (core.lua's record_with_shot).
+--
+-- THE PHOTOGRAPH'S CAMERA, AT ZERO COST (pointer.lua's banner of that name).
+-- When the press pose is occluded -- a wall, a cave rock, a tree between the
+-- player and the eye -- QD.drive._shot_plan names a clear pose, and the
+-- capture is taken from it without spending a frame:
+--
+--   pump N    aim, queue the capture, first poll -- the drive pump runs at
+--             on_frame_start, BEFORE frame N's follow step (App_RunOnce), so
+--             the eye frame N is drawn and captured from is the aimed one;
+--   pump N+k  the first poll that answers `captured` (api_drive.shot's 4th
+--             value: the renderer has taken the pixels -- k is 1 unless the
+--             frame pacer skipped a draw) puts the press pose back, before
+--             frame N+k's follow step rebuilds the eye from it;
+--   later     the file lands and the shot answers on exactly the poll it
+--             would have without the aim: the write is queued the frame the
+--             slot clears and runs after the next pump
+--             (torirs_plugin_drive_ui.c's QD-11 banner), so the answer is
+--             always at least one frame after the put-back.
+--
+-- The eye is a pure function of (anchor, pitch, yaw, distance), so nothing
+-- of the aim survives the put-back; QD.drive._shot_last records the polls
+-- (`restored_poll` < `answered_poll` on every aimed shot measured) for a
+-- probe or a conformance row.  An unoccluded pose is never touched, so its
+-- picture is the one the run always took.  A shot that answers without
+-- queueing (refused) puts the pose back in the same pump: no frame was drawn
+-- from the aim.
+QD.drive._shot_last = nil
+
 function QD.shot(name, keep)
     local numbered = QD.core_next_shot(name)
-    local last_result, last_detail, last_unchanged = api_drive.shot(numbered, keep)
+    local keep_pose, aim, why = QD.drive._shot_plan()
+    local last = { name = numbered, why = why, aimed = false, restored_poll = nil,
+        answered_poll = nil }
+    QD.drive._shot_last = last
+    if aim ~= nil then
+        last.aimed = api_drive.camera(aim.yaw, aim.pitch, aim.zoom) == "ok"
+    end
+    local polls = 0
+    local function put_back()
+        if last.aimed and last.restored_poll == nil then
+            last.restored_poll = polls
+            api_drive.camera(keep_pose.yaw, keep_pose.pitch, keep_pose.zoom)
+        end
+    end
+    local last_result, last_detail, last_unchanged, captured = api_drive.shot(numbered, keep)
     if last_result ~= "timeout" then
+        put_back()
+        last.answered_poll = polls
         if last_unchanged then
             QD.core_shot_unchanged(numbered)
         end
@@ -239,11 +283,24 @@ function QD.shot(name, keep)
     end
     local awaited, note = await({
         level = function()
-            last_result, last_detail, last_unchanged = api_drive.shot(numbered, keep)
+            polls = polls + 1
+            last_result, last_detail, last_unchanged, captured = api_drive.shot(numbered, keep)
+            if captured then
+                put_back()
+            end
             return last_result ~= "timeout"
         end,
         note = "t.shot " .. numbered,
     }, 3)
+    put_back()
+    last.answered_poll = polls
+    if last.aimed then
+        -- One stderr line (client.log) per aimed shot, so a top-down picture
+        -- in a run's shots/ says why it is not the press's own view, and the
+        -- polls say the aim cost nothing (put back before the answer).
+        api_drive.report(string.format("shot-aim %s: %s [put back at poll %d, answered at poll %d]",
+            numbered, tostring(why), last.restored_poll, polls))
+    end
     if awaited == "ok" then
         if last_unchanged then
             QD.core_shot_unchanged(numbered)

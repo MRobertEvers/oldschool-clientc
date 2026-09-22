@@ -25,6 +25,20 @@
  * 1.26 MB, which this project already accepted. The transient
  * `Dat2DiskNewFromDirectory` is the same cost class boot already pays four
  * times over for objinfo / npcinfo / seqinfo / varbit.
+ *
+ * ── And the records the cache does not have ──────────────────────────
+ *
+ * Content allocates struct ids of its own (`pack/struct.alloc`, 8000 and up)
+ * for the `.struct` blocks under `server/scripts/` -- Mort'ton's pyres and
+ * shades, the gnome cooking trays. Those are not in any dat2 group, so the
+ * decode above never sees them and `struct_param(pyre_logs, pyre_log_output)`
+ * answered the declared default (`null`): the logs were consumed and the
+ * product was named `item`. `torirs_server_content.c`'s `.struct` loader
+ * now keeps those rows in a table of its own, and `ToriRSServer_StructParam`
+ * asks it FIRST: an authored row wins over the cache's, as every other
+ * overlay does. The table lives in content.c, not here, because the pack
+ * validator (`ToriRSServer_Pack`) links the content loader without this
+ * file; and being separate it survives a `_StructInfoLoad` in either order.
  */
 
 #include "torirs_server.h"
@@ -46,6 +60,10 @@ ToriRSServer_StructParam(
     int struct_id,
     int param_id)
 {
+    const struct ToriRSServerParamRow* authored = ToriRSServer_ContentStructParam(struct_id, param_id);
+
+    if( authored )
+        return authored;
     return ToriRSServer_ParamTableFind(&g_struct_params, struct_id, param_id);
 }
 

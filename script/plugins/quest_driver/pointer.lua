@@ -970,6 +970,236 @@ function QD.drive.camera(yaw, pitch, zoom)
     return api_drive.camera(yaw, pitch, zoom)
 end
 
+-- The live follow-camera pose: ("ok", {yaw, pitch, zoom, owned}), or
+-- `unsupported` from a binary built before the C verb (see the banner
+-- below).  Private: QD.shot and the shot-camera seam row are its readers, and
+-- no quest has a reason to steer by it.
+function QD.drive._camera_pose()
+    if api_drive.camera_pose == nil then
+        return "unsupported", "no api_drive.camera_pose in this binary"
+    end
+    return api_drive.camera_pose()
+end
+
+-- THE PHOTOGRAPH'S CAMERA (SEAM driver-shot-camera-occluded-zero-cost,
+-- seam8).  QD.shot (ui.lua) photographs the camera a row's press left
+-- behind, and that pose was chosen to PROJECT a target, not to show one: in
+-- the Mourner HQ basement the boot pose is an all-black viewport (the eye is
+-- inside the cave rock), at the gnome cage four press poses of five are a
+-- rock face, beside an oak a flat pose is its canopy (mourningsendparti
+-- shots 47-90; build/seam7_shot/before_*.png).
+--
+-- Seam 7 re-aimed EVERY shot and waited two frames each way for the eye to
+-- rebuild.  The pictures were right and three green quests went red: one
+-- run frame is one 20 ms logic cycle (run.py's TORIRS_EMBED_CLOCK_MS=20),
+-- so four extra frames a shot moved every later press against the server's
+-- tick phase (elemental_workshop, hero), and a fixed shot pose made two
+-- non-consecutive pictures byte-identical (fluffs).  So this costs NOTHING:
+--
+--   * it aims only when the pose it finds is OCCLUDED -- a wall or a
+--     centrepiece (a tree, a rock, a cage) stands between the player and the
+--     eye, low enough to cut the line of sight -- and every other shot is the
+--     press pose's own picture, byte for byte;
+--   * the aim is written in the SAME pump that queues the capture, before
+--     that frame's follow step, so the frame the capture is taken from is
+--     the aimed one; the press pose is written back on the first of the
+--     shot's own polls that answers `captured` (the renderer has taken the
+--     pixels -- the pump of the frame after, or later when the frame pacer
+--     skipped a draw), before that frame's follow step rebuilds the eye.  The eye is a pure function of (anchor, pitch, yaw,
+--     distance) (app_world_camera_follow; the terrain clamp eases from the
+--     ground, never from the angles), so no trace of the aim survives, and
+--     the shot answers on exactly the poll it always did.  No await, no
+--     tick, no frame is added.
+--
+-- Both halves need the C: api_drive.camera_pose (the live pose, so what is
+-- put back is what WAS there, not what the driver last wrote -- login, a
+-- settings row or a CAM_* script can move it) and the loc row's `shape` (a
+-- wall and a grass tuft on the same tile are both locs; a shape-blind count
+-- -- seam 7's -- cannot tell them apart).  A binary without them answers
+-- `nil` here and the shot is exactly what it was before this seam.
+
+-- RSCACHE_LOC_SHAPE_*: 0-3 walls, 9 the diagonal wall, 10-11 centrepiece
+-- scenery (trees, rocks, cages, furniture).  Wall decoration (4-8) hangs on a
+-- wall already counted, a roof (12-21) is hidden over an indoor player, and
+-- floor decoration (22) lies flat.
+QD.drive._shot_occluder_shapes = {
+    [0] = true, [1] = true, [2] = true, [3] = true, [9] = true,
+    [10] = true, [11] = true,
+}
+-- The follow camera's geometry (app_world_camera_follow, osrs239's
+-- `[camera] pitch_distance=3`): the eye sits pitch*3 + zoom back from the
+-- look-at point along the pitch, and the look-at point is 58 units over the
+-- ground (-8 -50).  The viewport-height scale the C applies on top is left
+-- out: it only moves the eye along the same line.
+QD.drive._shot_pitch_distance = 3
+QD.drive._shot_look_height = 58
+-- How high an occluder is assumed to stand, in world units (128 to a tile).
+-- A loc row carries no model height, so this is one number for every shape:
+-- a storey is 240, a ground-floor wall reaches it, a tree or a cave wall
+-- stands well over it.
+QD.drive._shot_occluder_height = 300
+-- An eye lower than this over the ground, with an occluder standing where
+-- it is, is taken to be INSIDE that occluder (a flat pose's eye is ~430 up,
+-- a steep one's 1600): the Mourner HQ basement's cave rock is that.
+QD.drive._shot_buried_height = 800
+-- The pitch the photograph is taken from when the press pose is occluded:
+-- the steepest the camera has, so the line of sight clears anything but a
+-- loc right beside the player.
+QD.drive._shot_pitch = 383
+QD.drive._shot_zooms = { 600, 200, -200 }
+
+-- The eye of `pose` relative to the player: (ex, ez, back, rise) -- the
+-- unit direction from the player to the eye in tiles, how many tiles back
+-- the eye sits, and how high over the look-at point.
+function QD.drive._shot_eye(pose)
+    local units = QD.drive._yaw_units
+    local angle = pose.yaw * 2 * math.pi / units
+    local pitch_angle = pose.pitch * 2 * math.pi / units
+    local distance = pose.pitch * QD.drive._shot_pitch_distance + pose.zoom
+    return math.sin(angle), -math.cos(angle),
+        distance * math.cos(pitch_angle) / 128, distance * math.sin(pitch_angle)
+end
+
+-- The locs that CAN occlude, from one api_drive.locs read: occluder shapes
+-- on the player's level within `reach` tiles, as offsets from the player.
+-- Read once per shot; every pose below is judged against this short list,
+-- because the whole pool is thousands of rows in a city and the chunk runs
+-- under an instruction budget (core.lua).
+function QD.drive._shot_candidates(player, rows, reach)
+    local shapes = QD.drive._shot_occluder_shapes
+    local list = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.level == player.level and shapes[row.shape] then
+            local dx, dz = row.x - player.x, row.z - player.z
+            if dx * dx + dz * dz <= reach * reach then
+                list[#list + 1] = { dx = dx, dz = dz, shape = row.shape, loc_id = row.loc_id }
+            end
+        end
+    end
+    return list
+end
+
+-- The occluders in the corridor between the player and the eye of `pose`,
+-- at most `limit` of them (nil: all): { {loc_id, shape, along, line, cuts}...
+-- } where `along` is tiles back from the player towards the eye, `line` the
+-- height of the line of sight over the ground there, and `cuts` whether it
+-- blocks it -- the line passes under QD.drive._shot_occluder_height there, or
+-- the loc stands where a LOW eye is (within 1.5 tiles of it, the eye under
+-- QD.drive._shot_buried_height): a cave rock ringing a room swallows a flat
+-- camera's eye whole, which is the all-black frame.
+function QD.drive._shot_occluders(pose, candidates, limit)
+    local ex, ez, back, rise = QD.drive._shot_eye(pose)
+    local look = QD.drive._shot_look_height
+    local height = QD.drive._shot_occluder_height
+    local found = {}
+    for i = 1, #candidates do
+        local c = candidates[i]
+        local along = c.dx * ex + c.dz * ez
+        if along >= 0.5 and along <= back + 1.5 then
+            local across = c.dx * ez - c.dz * ex
+            if across <= 1.0 and across >= -1.0 then
+                local line = look + rise * math.min(along, back) / back
+                found[#found + 1] = {
+                    loc_id = c.loc_id, shape = c.shape, along = along, line = line,
+                    cuts = line < height
+                        or (math.abs(along - back) <= 1.5 and look + rise < QD.drive._shot_buried_height),
+                }
+                if limit and #found >= limit then
+                    return found
+                end
+            end
+        end
+    end
+    return found
+end
+
+-- "yaw/pitch/zoom" plus, when given, the nearest occluder that cuts -- the
+-- words the shot-aim line and a probe print.
+function QD.drive._shot_pose_text(pose, occluders)
+    local text = pose.yaw .. "/" .. pose.pitch .. "/" .. pose.zoom
+    local near = nil
+    for i = 1, #(occluders or {}) do
+        if occluders[i].cuts and (near == nil or occluders[i].along < near.along) then
+            near = occluders[i]
+        end
+    end
+    if near then
+        text = text .. string.format(" behind loc %d (shape %d) %.1f tiles back, sight line %d",
+            near.loc_id, near.shape, near.along, math.floor(near.line))
+    end
+    return text
+end
+
+-- The photograph's pose, read-only: (keep, aim, why).  `keep` is the live
+-- pose to put back, `aim` the pose to photograph from, or nil when the live
+-- pose is clear (or cannot be judged) and the shot must be the press pose's
+-- own picture.  `why` says which.  Two pool reads, no frame.
+function QD.drive._shot_plan()
+    if api_drive.camera_pose == nil then
+        return nil, nil, "no camera_pose verb in this binary"
+    end
+    local pose_result, live = api_drive.camera_pose()
+    if pose_result ~= "ok" then
+        return nil, nil, "camera_pose " .. tostring(pose_result)
+    end
+    if not live.owned then
+        return nil, nil, "the follow step does not own the camera"
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" then
+        return nil, nil, "player_tile " .. tostring(player_result)
+    end
+    local _, _, live_back = QD.drive._shot_eye(live)
+    local reach = math.max(live_back, 6) + 2.5
+    local rows_result, rows = api_drive.locs(math.ceil(reach))
+    if rows_result ~= "ok" then
+        return nil, nil, "locs " .. tostring(rows_result)
+    end
+    if #rows > 0 and rows[1].shape == nil then
+        return nil, nil, "loc rows carry no shape in this binary"
+    end
+    local candidates = QD.drive._shot_candidates(player, rows, reach)
+    local occluders = QD.drive._shot_occluders(live, candidates)
+    local cutting = false
+    for i = 1, #occluders do
+        cutting = cutting or occluders[i].cuts
+    end
+    if not cutting then
+        return nil, nil, "clear " .. QD.drive._shot_pose_text(live)
+    end
+    -- A candidate is judged stricter than the live pose: EVERY occluder in
+    -- its corridor counts, cutting or not, because the steep pose it is
+    -- tried at looks down across all of them.  Nearest turn first, so a
+    -- target the press faced stays in the frame whenever its own side is
+    -- clear; the zoom only shortens when no yaw is clear at the longer one.
+    local units = QD.drive._yaw_units
+    local yaws = { live.yaw }
+    for step = 1, 4 do
+        yaws[#yaws + 1] = (live.yaw + step * 256) % units
+        if step < 4 then
+            yaws[#yaws + 1] = (live.yaw - step * 256) % units
+        end
+    end
+    local fewest, fewest_count = nil, nil
+    for _, zoom in ipairs(QD.drive._shot_zooms) do
+        for _, yaw in ipairs(yaws) do
+            local pose = { yaw = yaw, pitch = QD.drive._shot_pitch, zoom = zoom }
+            local blocking = #QD.drive._shot_occluders(pose, candidates, fewest_count)
+            if blocking == 0 then
+                return live, pose, "occluded " .. QD.drive._shot_pose_text(live, occluders)
+                    .. " -> clear " .. QD.drive._shot_pose_text(pose)
+            end
+            if fewest_count == nil or blocking < fewest_count then
+                fewest, fewest_count = pose, blocking
+            end
+        end
+    end
+    return live, fewest, "occluded " .. QD.drive._shot_pose_text(live, occluders)
+        .. " -> least occluded " .. QD.drive._shot_pose_text(fewest)
+        .. " (" .. fewest_count .. " in its corridor)"
+end
+
 -- player.* --------------------------------------------------------------
 
 -- app_try_move on an absolute tile; route_length reaching 0 is necessary but

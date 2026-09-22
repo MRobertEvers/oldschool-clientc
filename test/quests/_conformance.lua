@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 15
+-- @seam-count 16
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 110
-local SEAM_COUNT = 15
+local SEAM_COUNT = 16
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -4101,6 +4101,103 @@ return {
             record(4242, "PASS", "a non-string step name must be coerced and named")
             return "ok", "three mistyped ledger arguments written (boolean verdict, result "
                 .. "word, numeric step name); this row exists, so none of them ended the run"
+        end)
+
+        -- --------- seam: the photograph's camera, aimed at zero cost
+        --
+        -- SEAM driver-shot-camera-occluded-zero-cost (seam8, 2026-09-22).
+        -- QD.shot photographed whatever pose the last press left, and in a
+        -- basement or a walled room that pose is a wall face or the inside of
+        -- a cave rock (mourningsendparti shots 47-90 were black void).  Seam
+        -- 7 re-aimed every shot and waited two frames each way; the pictures
+        -- came right and three green quests went red, because one run frame
+        -- is one 20 ms logic cycle and the added frames moved every later
+        -- press against the server tick.  The fix aims ONLY an occluded pose,
+        -- inside the shot's own frames: aim in the pump that queues the
+        -- capture, put the press pose back on the first poll that says the
+        -- pixels were taken (pointer.lua's banner "THE PHOTOGRAPH'S CAMERA").
+        --
+        -- What is graded is the COST, not the picture (the picture is Read
+        -- off the shot this row leaves): in the Lumbridge castle cellar, the
+        -- press pose 0/128/600 is behind a wall, so the shot must aim; the
+        -- pose must be put back BEFORE the shot answers; the live pose after
+        -- must be the press pose exactly; and the shot must answer on the
+        -- SAME poll as an unaimed control shot (1024/300/1200, clear in that
+        -- cellar) -- the frame count a shot costs is unchanged by the aim.
+        -- The player is left in the cellar: every row after this one is a
+        -- scheduler control that reads no world.
+        seam("seam.shot_camera_zero_cost", function()
+            local goto_tile = verb("player", "goto_tile")
+            local camera = verb("drive", "camera")
+            local camera_pose = verb("drive", "_camera_pose")
+            local plan = verb("drive", "_shot_plan")
+            local shot = verb("shot")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not camera then return missing("drive", "camera") end
+            if not camera_pose then return missing("drive", "_camera_pose") end
+            if not plan then return missing("drive", "_shot_plan") end
+            if not shot then return missing("shot") end
+            local arrived, where = goto_tile(3210, 9620, 0)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(3210,9620,0) (Lumbridge castle cellar) -> "
+                    .. tostring(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+
+            local function take(label, yaw, pitch, zoom)
+                camera(yaw, pitch, zoom)
+                settle(1)
+                local pose_result, before = camera_pose()
+                if pose_result ~= "ok" then
+                    return nil, "_camera_pose -> " .. tostring(pose_result) .. " " .. describe(before)
+                end
+                local _, aim, why = plan()
+                local shot_result, shot_detail = shot("seam.shot_camera." .. label)
+                local last = t.drive._shot_last
+                local _, after = camera_pose()
+                return {
+                    before = before, after = after, aim = aim, why = why,
+                    result = shot_result, detail = shot_detail, last = last,
+                }
+            end
+            local function pose_text(pose)
+                if type(pose) ~= "table" then return describe(pose) end
+                return pose.yaw .. "/" .. pose.pitch .. "/" .. pose.zoom
+            end
+
+            local aimed, aimed_error = take("occluded", 0, 128, 600)
+            if not aimed then return "unsupported", aimed_error end
+            local control, control_error = take("clear", 1024, 300, 1200)
+            if not control then return "unsupported", control_error end
+            local said = "occluded shot: plan '" .. tostring(aimed.why) .. "', "
+                .. tostring(aimed.result) .. ", aimed=" .. tostring(aimed.last and aimed.last.aimed)
+                .. " put back at poll " .. tostring(aimed.last and aimed.last.restored_poll)
+                .. ", answered at poll " .. tostring(aimed.last and aimed.last.answered_poll)
+                .. ", pose " .. pose_text(aimed.before) .. " -> " .. pose_text(aimed.after)
+                .. "; clear control: plan '" .. tostring(control.why) .. "', "
+                .. tostring(control.result) .. ", aimed=" .. tostring(control.last and control.last.aimed)
+                .. ", answered at poll " .. tostring(control.last and control.last.answered_poll)
+
+            if aimed.result ~= "ok" or control.result ~= "ok" then
+                return "refused", "a shot did not land -- " .. said
+            end
+            if aimed.aim == nil or not (aimed.last and aimed.last.aimed) then
+                return "hollow", "the press pose behind the cellar wall was not aimed -- " .. said
+            end
+            if control.aim ~= nil or (control.last and control.last.aimed) then
+                return "hollow", "a clear pose was re-aimed: its picture is no longer the press's own -- " .. said
+            end
+            if aimed.last.restored_poll == nil or aimed.last.restored_poll >= aimed.last.answered_poll then
+                return "refused", "the press pose was not put back before the shot answered -- " .. said
+            end
+            if aimed.last.answered_poll ~= control.last.answered_poll then
+                return "refused", "the aimed shot answered on a different poll than the unaimed one "
+                    .. "(the aim cost frames) -- " .. said
+            end
+            if pose_text(aimed.after) ~= pose_text(aimed.before) then
+                return "refused", "the live pose after the shot is not the press pose -- " .. said
+            end
+            return "ok", said
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls
