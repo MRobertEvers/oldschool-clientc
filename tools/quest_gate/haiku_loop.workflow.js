@@ -90,7 +90,7 @@ Five things earlier batches got rejected for -- one line each:
 (d) Never cheat the quest's own work with ::give/::kill/::setvar -- ::give is only for prerequisites Quest Helper lists as brought-along items; ::setvar on the quest's own stage varp mid-run is the same cheat.
 (e) Resolve every "-- CHECK" marker before your FIRST run.
 
-Do NOT commit, push, or edit QUEUE.tsv; the reviewer does both. Report exactly the schema; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput with the schema even if you gave up.
+Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification (two authors stalled forever that way). Do NOT commit, push, or edit QUEUE.tsv; the reviewer does both. Report exactly the schema; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput with the schema even if you gave up.
 COMPACTION: if your conversation is ever compacted or summarized while you work on this quest, STOP at once, do not edit the file further, and report outcome gave_up with compacted=true and blocker "context compacted"; a larger model resumes the file from where you left it.`
 
 const reviewCard = (id, a) => `${COMMON}
