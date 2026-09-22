@@ -94,6 +94,8 @@ const fixed = fresh.filter(Boolean)
 const failed = todo.filter((s, i) => !fresh[i]).map(s => s.key)
 log(`fix: ${fixed.length} of ${todo.length} reported this launch; ${failed.length ? 'NO REPORT from ' + failed.join(', ') + ' (relaunch with the same args to retry them)' : 'none missing'}`)
 
+if (args && args.stop_after_fix) { log('stop_after_fix: relaunch without it to close'); return { pass, triage, fixed, failed, land: null } }
+
 phase('Close')
 let land = state.closed ? { commit: state.close_commit, pushed: true, gates: 'landed by a previous launch of this pass', reverted: [], reopened: [], open_issues: [], notes: 'close.json already present' } : null
 if (!land) {
