@@ -44,15 +44,15 @@ quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	todo	haiku-pilot3	GUIDE GAP (test): enterCauldronRoom is CHEAT -- goto_tile 2899,3429,1 at line 73 lands past the door the guide names (cauldrondoor_l,cauldrondoor) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py druid)
 quest_druidspirit	druidspirit	naturespirit		3	todo		
-quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b1	
-quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	GUIDE GAP (test): climbOverStile is UNMATCHED -- no row, cheat or content evidence found (6 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py eadgar)
+quest_drunkmonk	drunkmonk	monksfriend		1	todo	sonnet-b1	RE-AUTHOR after fc44e385e0: content now has Omad's full party (balloon drops, three-round monk dance, ~32 ticks before the completion queue); drive it per the guide -- first failing row 37 quest.varp_complete client=70 server=70 (t.ticks(3) after finishQuest-dialog); goUpLadder still goto_tiles past ladder_from_cellar
+quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	PARITY partial after fc44e385e0 -- legs left: goutweed storeroom guard is a random(3) roll, not a patrolling guard; Parroty Pete clue questions unwired (recheck the wiki). GUIDE GAP (test): climbOverStile is UNMATCHED -- no row, cheat or content evidence found (6 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py eadgar)
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	todo	sonnet-b5	GUIDE GAP (test): goDownStairs is CHEAT -- goto_tile 2716,3482,0 at line 77 lands past the stair the guide names (elemental_workshop_spiralstairstop) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py elemental_workshop)
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
 quest_elena	elena	plaguecity		3	todo		
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo		
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
-quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b9	VERIFIED green by the reviewer (batch sonnet-b9): 38/38 rows PASS, 53/53 shots opened, the accept (choose 'Alright, I'll go.'), the three real essence teleports and both hand-in branches driven through clicks; rewards assert the dbrow's literal 1000 Runecraft XP + rcu_instruction_book + rcu_pouch_small. queue.py refuses --status green for this file because it still contains a t.blocked( call, but that call sits behind 'if #charged_spots < 3' and the run never reached it (no BLOCKED row in the ledger) -- the row was set by hand for that reason, same shape as murder.
+quest_entertheabyss	entertheabyss	entertheabyss		1	todo	sonnet-b9	RE-AUTHOR after fc44e385e0: content now has the real Chaos Temple offer tree (top menu, care-to-share 4-way, mercenary/loyal branches, Deal/No deal/think) and the orb handover + lore topics ending on I'd better be off.; drive it per the guide -- first failing row 8 talkToMageInVarrock-dialog (old invented line 'Ah, you again. What was it you wanted?')
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
@@ -72,7 +72,7 @@ quest_grail	grail	holygrail		2	todo
 quest_grandtree	grandtree	thegrandtree		3	todo		
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
-quest_haunted	haunted	ernestthechicken		1	todo	sonnet-b9	GUIDE GAP (test): searchBookcase is CHEAT -- goto_tile 3110,3330,0 at line 80 lands past the bookcase the guide names (hauntedbookcasel) (13 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py haunted)
+quest_haunted	haunted	ernestthechicken		1	todo	sonnet-b9	PARITY partial after fc44e385e0 -- leg left: the other manor door leaf does not swing. GUIDE GAP (test): searchBookcase is CHEAT -- goto_tile 3110,3330,0 at line 80 lands past the bookcase the guide names (hauntedbookcasel) (13 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py haunted)
 quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
 quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
@@ -97,7 +97,7 @@ quest_legends	legends	legendsquest		3	todo
 quest_losttribe	losttribe	thelosttribe		3	todo		
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
-quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
+quest_makinghistory	makinghistory	makinghistory		1	todo	sonnet-b10	PARITY partial after fc44e385e0 -- legs left: museum Bookcase (The Mysterious Adventurer) and Catapult Study unsourced/unhandled; pin docs/quests/making_history.md; test is 61/61 green
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
 quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	RE-AUTHOR after 0ee0ee5e9d: content now has Brand/Astrid talk1, real Clap/Dance/Blow Kiss emotes, and earned 75% support (rake/coal); drive it per the guide. First red row: 8 talkBrandNeedFlowers-dialog. Needs a driver emote path (ui.tab emote). Legs left in PARITY.tsv
@@ -138,13 +138,13 @@ quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
-quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	REJECTED (review 6): outcome reported as blocked, and everything through the first Apothecary visit (23 rows, romeo.rs2/juliet.rs2/father_lawrence.rs2/apothecary.rs2's own [opnpc1,apothecary]) is real and matches the .rs2 exactly -- confirmed, both dry runs agree row-for-row with the author's checks_resolved. But the file itself never reaches its own t.blocked() row under the standard reviewer command: 'python3 tools/quest_gate/run.py romeojuliet --no-build' (no --timeout override, exactly as the review protocol specifies) times out at run.py's DEFAULT_TIMEOUT=180s wall-clock cap while still inside the fight-imp retry loop, both independent runs today (2026-09-19/20) stopping at the identical last row (goto-fight-imp, row 23/54 shots) with build/quest_gate/romeojuliet/TIMEOUT.png captured and no FAIL/BLOCKED row ever written -- gate.py romeojuliet --allow-blocked is RED (not blocked): 'ledger.tsv has no trailing SUMMARY row' + 'uses quest.bind but has no passing quest.varp_complete row, and the last row is not BLOCKED'. client.log shows ~43 loop iterations (49 goto_tile debugproc calls total minus 6 pre-loop) completed in the 180s window, short of the ~52 attempts (47 kills + 5 misses) the author's own last_failure describes needing to reach the stopping condition at tick 1744 -- the loop's own real-combat cost-per-attempt (goto_tile + await_present + click_minimenu's multi-pose camera search + await_gone, each with its own tick budget) is real and correctly driven, just too slow wall-clock to land inside run.py's default window, so the declared BLOCKED stub is never actually reached by the command any other reviewer or CI would run. lint_quest.py is clean; the defect is purely the loop's wall-clock cost under the DEFAULT_TIMEOUT, reproduced identically twice. Next attempt: shrink IMP_KILL_ATTEMPTS's realistic budget so the 5-consecutive-miss stop (or the loop's own bail-out) lands comfortably inside 180s -- e.g. lower the per-attempt npc.await_present/await_gone tick budgets (30 each is generous), or accept fewer real kills before declaring the seam and blocking, rather than relying on a run invoked with a longer --timeout than the documented reviewer command uses.
+quest_romeojuliet	romeojuliet	romeoandjuliet		1	todo	sonnet-b2	PARITY partial after fc44e385e0 -- leg left: OSRS wild cadava bushes SE of Varrock not placed (needs a grounded loc/tile); test is 35/35 green on the imp-drop route
 quest_routequest	routequest	insearchofthemyreque		3	todo		
 quest_rovingelves	rovingelves	rovingelves		1	todo	sonnet-b10	GUIDE GAP (test): enterGlarialsTombstone is CHEAT -- goto_tile 2528,9843,0 at line 200 lands past the tombstone the guide names (glarials_tombstone_waterfall_quest) (7 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py rovingelves)
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
-quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo	sonnet-b2	GUIDE GAP (test): enterOutpost is CHEAT -- goto_tile 2552,3570,0 at line 123 lands past the gate the guide names (barbariangatel) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py scorpcatcher)
+quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo	sonnet-b2	RE-AUTHOR after fc44e385e0: content now has Thormac's p_choice3 offer (how to catch / what's in it for me / not interested) and the lost-cage recovery; drive it per the guide -- first failing row 4 talk.thormac1-dialog entry 7 got options. Also: GUIDE GAP (test): enterOutpost is CHEAT -- goto_tile 2552,3570,0 at line 123 lands past the gate the guide names (barbariangatel) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py scorpcatcher)
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
