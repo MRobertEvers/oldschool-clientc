@@ -4,15 +4,15 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b11	GUIDE GAP (test): findBobToFinish is UNMATCHED -- no row, cheat or content evidence found (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py atailoftwocats); content legs: talkToBob +2 more: no [op*]/[ap*] trigger on death_growncat_black_vis serves this quest (only quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:681, another quest's)
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b11	RE-AUTHOR after 0ee0ee5e9d: content now has Bob's own talk (death_growncat_black at 2924,3565) as the writer of 20/35/65 and the medical-disguise cure (hat, desert shirt+robe, vial, no weapon/shield); drive it per the guide. First red row: 13 talkToUnferthFindBob-dialog. Content legs left: Hild exchange, locator panel, cutscenes (tools/quest_gate/PARITY.tsv)
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	content_bug	sonnet-b12	GUIDE GAP: useGoldBarOnDondakan: narrated at quests/quest_betweenarock/scripts/betweenarock_dondakan.rs2:107 (a dialogue-only branch writes the stage: 'Any luck with those schematics? Bring them all together and try assemb')
+quest_betweenarock	betweenarock	betweenarock		1	todo	sonnet-b12	RE-AUTHOR after 0ee0ee5e9d: content now has the book-report talk writing 60 and use gold bar/ore on Dondakan setting the cannonball bit; drive it per the guide. First red row: 40 talkToDondakanWithBook-dialog. Content legs left in PARITY.tsv
 quest_biohazard	biohazard	biohazard		1	todo	sonnet-b9	GUIDE GAP (test): enterMournerHeadquarters is CHEAT -- goto_tile 2592,3336,0 at line 126 lands past the door the guide names (mournerstewdoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py biohazard)
-quest_blackarmgang	blackarmgang	shieldofarrav		1	todo	sonnet-b11	GUIDE GAP (test): searchBookcase is CHEAT -- goto_tile 3257,3447,0 at line 258 lands past the bookcase the guide names (questbookcase) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py blackarmgang); content legs: startQuest +1 more: [opnpc1,reldo_normal] (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang -- talking to them cannot advance this quest / getWeaponStoreKey: a two-player step (Get the weapon storeroom key from another player. If you ca); a single-player port has no such leg
+quest_blackarmgang	blackarmgang	shieldofarrav		1	todo	sonnet-b11	PARITY after 0ee0ee5e9d: content matches LostCity; legs left are two-player only (weapon-store key hand-off, certificate-half trade); test still goto_tiles past the bookcase (searchBookcase)
 quest_blackknight	blackknight	blackknightfortress		1	todo	sonnet-b5	GUIDE GAP (test): pushWall is CHEAT -- goto_tile 3026,3509,0 at line 98 lands past the door the guide names (bksecretdoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py blackknight)
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
@@ -25,7 +25,7 @@ quest_contact	contact	contact		4	todo
 quest_cook	cooks_assistant	cooksassistant		1	todo	hand	GUIDE GAP (test): getBucket is CHEAT -- ::cookbmp_test_give_ingredients (debugproc quests/quest_cook/scripts/quest_cook_test_ingredients.rs2:11) at line 111 -- shares bucket (8 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py cooks_assistant)
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	content_bug	sonnet-b9	GUIDE GAP: releaseDuck: soft-skipped at quests/quest_currentaffairs/scripts/currentaffairs.rs2:95 (shares duck,releas) / followThatDuck: soft-skipped at quests/quest_currentaffairs/scripts/currentaffairs.rs2:619 (shares duck,follow)
+quest_currentaffairs	currentaffairs	currentaffairs		1	todo	sonnet-b9	RE-AUTHOR after 0ee0ee5e9d: content now has Catherine's 8-question audit and the ripple release/swim/collect duck route; drive it per the guide (a ready draft: build/parity_state/parity1/currentaffairs_updated_copy.lua). First red row: 38 talkToCouncillorAudit-dialog. Legs left: form fill one-click, boat boarding (PARITY.tsv)
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -67,7 +67,7 @@ quest_gettingahead	gettingahead	gettingahead		4	todo
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
-quest_golem	golem	thegolem		1	content_bug	sonnet-b8	GUIDE GAP: talkToElissa: no [op*]/[ap*] trigger on golem_elissa serves this quest (only quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:320, another quest's) / openCabinet: no [op*]/[ap*] trigger on vm_timeline_terracotta_statue serves this quest anywhere in the pack
+quest_golem	golem	thegolem		1	todo	sonnet-b8	RE-AUTHOR after 0ee0ee5e9d: content now has Elissa gating the bookcase, Curator Haig dialogue, display case Open with the key, and four statuettes to turn (A=1 B=1 C=0 D=2); drive it per the guide. First red row: 44 useKeyOnCase
 quest_grail	grail	holygrail		2	todo		
 quest_grandtree	grandtree	thegrandtree		3	todo		
 quest_grimtales	grimtales	grimtales		4	todo		
@@ -76,7 +76,7 @@ quest_haunted	haunted	ernestthechicken		1	todo	sonnet-b9	GUIDE GAP (test): searc
 quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
 quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
-quest_hero	hero	heroesquest		1	todo	sonnet-b11	GUIDE GAP (test): useKeyOnDoor is CHEAT -- goto_tile 2793,3188,0 at line 164 lands past the door the guide names (pete_sidedoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hero); content legs: getKeyFromPartner: a two-player step (You'll need your partner to give you a miscellaneous key.); a single-player port has no such leg
+quest_hero	hero	heroesquest		1	todo	sonnet-b11	PARITY after 0ee0ee5e9d: no content change (worker's narrated misc_key grant reverted); legs left: misc_key partner hand-off is two-player and the solo Phoenix pete_sidedoor bypass stays pending an owner decision; test still goto_tiles past pete_sidedoor, deeper Taverley and the White Wolf rockslide (content exists for the last two)
 quest_hetty	hetty	witchspotion		1	todo	haiku-b1	GUIDE GAP (test): killRat is CHEAT -- ::give rats_tail 1 at line 13 -- shares rat,tail (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hetty)
 quest_horror	horror	horrorfromthedeep		3	todo		
 quest_hunt	hunt	piratestreasure		1	todo	sonnet-b8	GUIDE GAP (test): goToKaramja is CHEAT -- the journey (seaman_lorris, areas/port_sarim/scripts/sailors.rs2:14) is replaced by goto_tile at line 85 (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hunt)
@@ -100,15 +100,15 @@ quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	to
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
-quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	GUIDE GAP (test): get75Support is UNMATCHED -- no row, cheat or content evidence found (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py misc); content legs: talkAstrid1 +7 more: narrated at quests/quest_misc/scripts/misc_courting_emotes.rs2:53 (a mes() branch writes the stage: 'You dance together as Princess Astrid hums along.') / clapForBrand +1 more: narrated at quests/quest_misc/scripts/misc_advisor_ghrim.rs2:56 (a mes() branch writes the stage: 'Advisor Ghrim makes a series of corrections, humming softly to himself')
+quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	RE-AUTHOR after 0ee0ee5e9d: content now has Brand/Astrid talk1, real Clap/Dance/Blow Kiss emotes, and earned 75% support (rake/coal); drive it per the guide. First red row: 8 talkBrandNeedFlowers-dialog. Needs a driver emote path (ui.tab emote). Legs left in PARITY.tsv
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	todo	sonnet-b14	GUIDE GAP (test): repairTemple is CHEAT -- ::mortton_repairtemple at line 510 (debugproc minigames/game_mortton/scripts/flamtaer_temple.rs2:498) is named after the step (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py mortton)
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	sonnet-b13	GUIDE GAP (test): enterBaseAfterSheep is UNMATCHED -- no row, cheat or content evidence found (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py mourningsendparti); content legs: talkToIslwyn +4 more: the content's soft-skip comment at quests/quest_mourningsendparti/configs/mend1.constant:60 says talkToIslwyn is collapsed / pickUpBarrel +1 more: the content's soft-skip comment at quests/quest_mourningsendparti/scripts/mend1_poison.rs2:47 says pickUpBarrel is collapsed
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	content_bug	sonnet-b10	GUIDE GAP: enterCave +94 more: narrated at quests/quest_mourningsendpartii/scripts/mend2_shared.rs2:111 (a mes() branch writes the stage: 'You make your way back into the Temple of Light and spend a long while') / enterNorthWestRoomPuzzle3: no [op*]/[ap*] trigger on mourning_door_1_1_east serves this quest anywhere in the pack
-quest_murder	murder	murdermystery		1	todo	sonnet-b9	GUIDE GAP (test): goUpstairs is CHEAT -- goto_tile 2741,3562,0 at line 92 lands past the stair the guide names (murder_qip_spiralstairs) (7 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py murder)
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	sonnet-b13	RE-AUTHOR after 0ee0ee5e9d: content now has real combat with the overpass mourner and seven ground drops to pick up; drive it per the guide (t.player.attack, await death, click_obj each). First red row: 12 killMourner. Legs left: toads/bellows, naphtha still (PARITY.tsv)
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b10	RE-AUTHOR after 0ee0ee5e9d: content now has the caves leg: search the guard corpse (1925,4642,0) for Edern's journal, chisel the dark crystal (1909,4639,2), bring the sample to Arianwyn; drive it per the guide. First red row: 18 talkToArianwyn2-dialog. CONTENT LEFT: Temple of Light stage 30->40 still narrated at mend2_shared.rs2 (PARITY.tsv)
+quest_murder	murder	murdermystery		1	todo	sonnet-b9	RE-AUTHOR after 0ee0ee5e9d: content now spawns the plain murderweapon; pick it up, use pot of flour on it, then flypaper; drive it per the guide. First red row: 11 weapon.locate
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
@@ -120,7 +120,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	todo	sonnet-b10	GUIDE GAP (test): useKeyOnDoor is CHEAT -- goto_tile 3100,3258,0 at line 142 lands past the door the guide names (alidoor) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py prince)
-quest_pryingtimes	pryingtimes	pryingtimes		1	content_bug	sonnet-b9	GUIDE GAP: deliverCargo +1 more: narrated at quests/quest_pryingtimes/scripts/pryingtimes.rs2:86 (a mes() branch writes the stage: '(The crate is sitting on the ledger down at the Port Sarim docks -- go')
+quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b9	RE-AUTHOR after 0ee0ee5e9d: content now has the looty crate as a ground item at Port Sarim (3047,3221,0) to carry to Steve; drive it per the guide. First red row: 8 letSteveKnow-dialog. Legs left: sailing travel (PARITY.tsv)
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
@@ -162,7 +162,7 @@ quest_swansong	swansong	swansong		4	todo
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo		
 quest_tbwt	tbwt	taibwowannaitrio		3	todo		
-quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo	sonnet-b9	GUIDE GAP (test): mineRock is CHEAT -- ::tearsofguthix (debugproc quests/quest_tearsofguthix/scripts/tearsofguthix.rs2:183) at line 39 -- shares ston,tog (3 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py tearsofguthix); content legs: enterJunaRoom: no [op*]/[ap*] trigger on tog_cave_down serves this quest (only quests/quest_deathtothedorgeshuun/scripts/dttd_savezanik.rs2:37, another quest's)
+quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo	sonnet-b9	PARITY after 0ee0ee5e9d: content now ties the rope at the swamp hole and tog_cave_down enters Juna's cave; test should drive both. Legs left: light-creature chasm spawn, wall beasts/agility route; mineRock via ::tearsofguthix debugproc (PARITY.tsv)
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
 quest_thefeud	thefeud	thefeud		2	todo		
