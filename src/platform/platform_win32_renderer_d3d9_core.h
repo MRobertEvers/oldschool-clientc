@@ -17,7 +17,7 @@
  *                                            material pre-pass and a sorted
  *                                            blended pass
  *
- * ToriRS_D3D9_Init picks one from its z_buffer_enabled argument by creating (or
+ * ToriPlatformWin32_Renderer_D3D9_Init picks one from its z_buffer_enabled argument by creating (or
  * not creating) the depth implementation's state; ::zbuffer is that state and
  * doubles as the selector.  The core calls d3d9_painter_* or d3d9_zbuffer_*
  * directly.
@@ -248,7 +248,7 @@ struct D3D9ModelGroup
 
 struct D3D9ZBufferWorld;
 
-struct ToriRS_D3D9
+struct ToriPlatformWin32_Renderer_D3D9
 {
     struct ToriDraw_Scene* scene;
     /* Projection + face sort; a NULL raster slot is how the table says it
@@ -263,7 +263,7 @@ struct ToriRS_D3D9
     bool scene_active;
 
     /* The depth renderer's private state, and the mode selector: non-NULL means
-     * ToriRS_D3D9_Init was asked for hardware depth and the d3d9_zbuffer_*
+     * ToriPlatformWin32_Renderer_D3D9_Init was asked for hardware depth and the d3d9_zbuffer_*
      * implementation owns the world path.  NULL means the painter one does, and
      * it needs no state of its own.  The type is opaque outside
      * platform_win32_renderer_d3d9_zbuffer.c. */
@@ -443,18 +443,18 @@ struct D3D9ModelPlacement
 /* Fix up the projection trspk_compute_pass_matrices just produced.  The two
  * modes agree on X/Y scale and disagree only about clip Z. */
 void
-d3d9_painter_setup_projection(struct ToriRS_D3D9* renderer);
+d3d9_painter_setup_projection(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 void
 d3d9_zbuffer_setup_projection(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command);
 
 /* The depth-related render states, applied at the point in
  * d3d9_set_world_states where they used to be spelled inline. */
 void
-d3d9_painter_apply_world_states(struct ToriRS_D3D9* renderer);
+d3d9_painter_apply_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 void
-d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_apply_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /* Order one model's faces up front.  *out_sorted_face_count reports how many
  * entries the call left in ToriDraw_FaceOrder.  Return <= 0 to skip the model.
@@ -462,18 +462,18 @@ d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer);
  * per face inside d3d9_zbuffer_emit_model instead. */
 int
 d3d9_painter_sort_faces(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int* out_sorted_face_count);
 
 /* Append one model's indices to the frame's chains. */
 void
 d3d9_painter_emit_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct D3D9ModelPlacement* placement);
 void
 d3d9_zbuffer_emit_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct D3D9ModelPlacement* placement);
 
@@ -485,38 +485,38 @@ d3d9_zbuffer_emit_model(
 
 /** Allocate ::zbuffer, or release it and reset it to NULL. */
 bool
-d3d9_zbuffer_create(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_create(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 void
-d3d9_zbuffer_destroy(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Clear the depth buffer, once the pass viewport is set so the clear is
  *  scissored to it. */
 void
-d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_begin_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Per-chain depth/blend state for a single d3d9_draw_retained call. */
 void
-d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass);
+d3d9_zbuffer_apply_pass_states(struct ToriPlatformWin32_Renderer_D3D9* renderer, bool blended_pass);
 
 /** Push the frame's gathered per-page opaque indices onto the core's IBO
  *  chain, one node per (binding, page) instead of one per model.  Must run
  *  before the core draws that chain. */
 void
-d3d9_zbuffer_flush_opaque(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_flush_opaque(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Draw the deferred blended pass, after the core has drawn the opaque chain. */
 void
-d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_end_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Print the depth path's retained CPU allocations to stdout, one
  *  "d3d9_mem:" line per pool.  No-op in painter mode.  Part of the shutdown
- *  memory report the core assembles in ToriRS_D3D9_Free. */
+ *  memory report the core assembles in ToriPlatformWin32_Renderer_D3D9_Free. */
 void
-d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_report_memory(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Drop pass-scoped queues.  Runs on every end-of-3D, including early exits. */
 void
-d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_reset_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /*
  * Retained-geometry notifications.  The depth path caches a per-pose material
@@ -525,28 +525,28 @@ d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer);
  */
 void
 d3d9_zbuffer_pose_baked(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle);
 void
-d3d9_zbuffer_element_dropped(struct ToriRS_D3D9* renderer, int element_id);
+d3d9_zbuffer_element_dropped(struct ToriPlatformWin32_Renderer_D3D9* renderer, int element_id);
 void
 d3d9_zbuffer_track_dropped(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index);
 void
 d3d9_zbuffer_batch_pose_baked(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle);
 void
 d3d9_zbuffer_batch_dropped(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_Batch16* cpu);
 
 /*
@@ -557,12 +557,12 @@ d3d9_zbuffer_batch_dropped(
 
 /** Grow renderer->model_indices to hold at least `needed` U16 indices. */
 bool
-d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed);
+d3d9_reserve_model_indices(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed);
 
 /** Upload and draw one index chain through the retained world pipeline. */
 void
 d3d9_draw_retained(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_IBOChain* chain,
     bool blended_pass);
 

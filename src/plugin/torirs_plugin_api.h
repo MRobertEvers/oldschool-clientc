@@ -538,6 +538,11 @@ struct ToriRS_CoreApi
      *   (SDL_HasScreenKeyboardSupport, yes on Android, no on win32gdi) and
      *   constant for the life of the window, so it may be read once at
      *   on_start;
+     * - `client.plugin_window`: there is a plugin WINDOW to open -- the shared
+     *   shell that hosts Manage Plugins and every plugin page. True in a
+     *   client and false in a harness that builds no window, so a gameframe
+     *   carrying a launcher for it can stand the launcher down rather than
+     *   offer a dead button. @see client.plugin_window_show;
      * - `web`: this is the Emscripten web lane;
      * - `browser`: this build supports the embedded BROWSER chrome transport;
      * - `widgets.geometry`: the widget API reports live geometry;
@@ -1179,7 +1184,36 @@ struct ToriRS_ClientApi
     void (*disable_self)(
         struct ToriRS_Api* api,
         char const* reason);
-    TORIRS_API_V2_MODULE_RESERVED;
+    /**
+     * Is the client's plugin WINDOW open -- the shared shell that hosts
+     * Manage Plugins and every plugin page?
+     *
+     * Not this plugin's own panel (`panel.request`) and not a page: the one
+     * window, whichever presentation it is bound to. Asked so a launcher can
+     * label itself, the way the Stone Drawer's chat switch reads "Show chat"
+     * or "Hide chat" off the state it is about to invert.
+     */
+    bool (*plugin_window_open)(struct ToriRS_Api* api);
+    /**
+     * Open or close it.
+     *
+     * For a plugin that has taken over the LAUNCHER duty, which in practice
+     * means a gameframe: a frame that replaces the lane's chrome inherits the
+     * ways into the client's own windows along with the stones, exactly as it
+     * inherits the tab strip (`widgets.tab_select`) and the tutorial's blink.
+     *
+     * A lane can otherwise be left with no way in at all. The engine has three
+     * launchers -- the rail's destinations, the pop-out nav column, and a
+     * profile-authored `option_action=PLUGIN_PANEL` -- and a phone has none of
+     * them: the rail needs a presenter the Android lane does not build, the
+     * nav column is mounted hidden on a mobile toplevel, and the dat2 profile
+     * authors no button because on a desk it does not need one.
+     * @see ANDROID-CHROME-001 in docs/platform_quirks.md.
+     */
+    void (*plugin_window_show)(
+        struct ToriRS_Api* api,
+        bool open);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
 };
 
 /** Player/game data that is neither raw cache state nor scene ownership. */

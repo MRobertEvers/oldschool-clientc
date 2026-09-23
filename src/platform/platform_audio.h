@@ -64,7 +64,27 @@ struct PlatformAudioStats
     /** False when no device was opened — the null backend, or a failed open. */
     bool device_open;
 
-    /** Real-time path diagnostics (SDL2 backend only, zero elsewhere). */
+    /*
+     * Real-time path diagnostics.
+     *
+     * One struct, three clock shapes -- so these four mean whatever the lane
+     * can actually observe, and the differences are the point rather than an
+     * inconsistency to paper over:
+     *
+     *              SDL2 / Android         Web                    null
+     *   updates    device callbacks       frame-loop Updates     Updates
+     *   underruns  a callback that came   a schedule that ran    always 0
+     *              late enough to have    dry before the next    (no device
+     *              missed a block         Update refilled it     to starve)
+     *   queue_*    the music stream ring  WebAudio schedule      unused
+     *                                     depth, in frames
+     *
+     * `underruns` is the one to read in all three: it is "a block the device
+     * needed and did not get", measured however that lane can. The rest are
+     * shape-specific and are zero where they have no meaning -- the two
+     * callback timings on the frame-fed lanes, and `queue_*` on null, whose
+     * first Update always finds an empty schedule anyway.
+     */
     int updates;
     int underruns;
     int queue_min_frames;
@@ -74,6 +94,8 @@ struct PlatformAudioStats
     double update_interval_min_ms;
     double update_interval_max_ms;
     double update_interval_mean_ms;
+    /** Callback lanes only: the device's own period, and the worst deviation
+     *  from it. Zero where the schedule is fed from the frame loop. */
     double callback_period_ms;
     double callback_jitter_max_ms;
     double render_max_ms;
@@ -115,10 +137,38 @@ PlatformAudio_SubmitAll(
  * Mix and hand the device whatever it needs to stay ahead.
  *
  * Called once per frame. A backend that is behind renders more; one that is
- * comfortably buffered renders nothing.
+ * comfortably buffered renders nothing. "More" is not optional for a backend
+ * whose device is fed from the frame loop rather than from a device callback:
+ * a fixed one block per call caps playback at one block per frame, so the
+ * schedule starves for as long as the frame rate sits below the rate that
+ * block represents. See platform_audio_wasm.c.
  */
 void
 PlatformAudio_Update(struct PlatformAudio* audio);
+
+/**
+ * The largest block, in frames, this backend asks the mixer to render at once.
+ *
+ * What a pull source should size its own scratch for -- the game cannot know
+ * the device's block otherwise, and on a callback backend it is a device thread
+ * that would grow it. Zero on a NULL or unopened backend.
+ */
+int
+PlatformAudio_BlockFrames(struct PlatformAudio* audio);
+
+/**
+ * The exclusion this backend's render runs under.
+ *
+ * Zeroed on a backend that renders from the frame loop. On one with a device
+ * thread it is that thread's lock, and the game must hold it while mutating
+ * anything the render can reach -- which is more than the mixer: see
+ * `struct ToriRS_AudioExclusion` in audio/torirs_audio.h.
+ *
+ * Valid from Init until Free. Safe on a NULL or unopened backend, which hands
+ * back a zeroed handle.
+ */
+struct ToriRS_AudioExclusion
+PlatformAudio_Exclusion(struct PlatformAudio* audio);
 
 /** What the game needs to know before it decides how much music to render. */
 void

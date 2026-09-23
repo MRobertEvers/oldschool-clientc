@@ -142,6 +142,11 @@ struct UITreeRoleEntry
     uint32_t memo_generation;
     uint32_t memo_id_generation;
     uint8_t memo_valid;
+    /** The fallback answered (a node or -1), so the answer names ids and is
+     *  re-asked when `id_generation` moves, whatever `id_sensitive` says. */
+    uint8_t memo_by_fallback;
+    /** 0 when the memo is a fallback's -3: nothing to trust, ask again. */
+    uint8_t memo_final;
 
     /** `derive=<fact>[(<argument>)]` -- answered by UITreeRoleTable.fallback
      *  instead of the chain above. Empty for an ordinary role. `derive_argument`
@@ -162,8 +167,16 @@ struct UITreeRoleTable
     struct UITreeRoleEntry* entries;
     int count;
     int capacity;
-    /** Optional authoritative lane adapter after authored tags. -2 declines
-     * the role (use matchers); -1 means the native role is currently absent. */
+    /** Optional authoritative lane adapter after authored tags. Answers:
+     *   >= 0  the node;
+     *   -1    absent, for as long as the tree's `generation` and
+     *         `id_generation` hold -- REMEMBERED, like any other miss;
+     *   -2    declines the role (use the matcher chain);
+     *   -3    cannot say yet: the data that decides it (a cache pack, an
+     *         enum) is not resident. Not remembered, so it is asked again.
+     *  A miss the resolver may not remember is what made every per-frame
+     *  role question on a CS2 lane re-read a pack and an enum -- so -3 is
+     *  only for "not loaded", never for "absent". */
     int32_t (*fallback)(struct UITree const*, struct UITreeRoleTable const*, uint16_t, void*);
     void* fallback_user;
     /** Open-addressed name index: slot -> role id (0 = empty), kept at most

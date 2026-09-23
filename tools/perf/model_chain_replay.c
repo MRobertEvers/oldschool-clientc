@@ -3,8 +3,8 @@
  * Calls the production stage and production U16 index packer. */
 #define _GNU_SOURCE
 #include "model_chain_format.h"
-#include "platform/platform_renderer_gles2_dualcore_stage.h"
-#include "platform/platform_renderer_gles2_indices.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_indices.h"
 #include "toridraw.h"
 #include "toridraw_model.h"
 #include "toridraw_raster_kernel.h"

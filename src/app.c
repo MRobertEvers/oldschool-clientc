@@ -370,8 +370,8 @@ App_Init(
     assert(app->scene);
     /* Once each, not once a frame: the outline/shadow LRU inside a renderer is
      * only worth having if it survives the frame that filled it. */
-    app->soft = ToriRS_Soft3D_New();
-    app->soft_chrome = ToriRS_Soft3D_New();
+    app->soft = ToriPlatform_Renderer_Soft3D_New();
+    app->soft_chrome = ToriPlatform_Renderer_Soft3D_New();
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
     /* The seq the design/local-player previews are posed at. Stated here, once,
      * for both the boot bake and the runtime interface mount — they share the
@@ -572,6 +572,7 @@ App_Init(
     app->host.npc_by_uid = app_cs2_npc_by_uid;
     app->host.widget_model_lazy = app_cs2_widget_model_lazy;
     app->host.widget_npc_head_lazy = app_cs2_widget_npc_head_lazy;
+    app->host.widget_obj_icon_lazy = app_cs2_widget_obj_icon_lazy;
     app->host.player_slot_by_name = app_cs2_player_slot_by_name;
     app->host.worldentity_config_name = app_cs2_worldentity_config_name;
     app->host.objs_on_coord = app_cs2_objs_on_coord;
@@ -1278,11 +1279,11 @@ App_Shutdown(struct App* app)
         UITreeBuilder_Free(&app->builder);
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
-    ToriRS_Soft3D_Free(app->soft_chrome);
+    ToriPlatform_Renderer_Soft3D_Free(app->soft_chrome);
     free(app->panel_custom_pixels);
     app->panel_custom_pixels = NULL;
     app->panel_custom_pixel_capacity = 0;
-    ToriRS_Soft3D_Free(app->soft);
+    ToriPlatform_Renderer_Soft3D_Free(app->soft);
     ToriDraw_SceneFree(app->scene);
     /* Only the pair matching cfg.cache_kind was ever created; both frees assert
      * on NULL, so the unused side must not be handed to them. */
@@ -1306,6 +1307,7 @@ App_Shutdown(struct App* app)
      * _Free freeing a pointer this call already returned to the allocator. */
     Task_EntityInfoScratchFree(app);
     free(app->if_heads);
+    app_placeholder_park_free(app);
     free(app->if_player_models);
     /* All three of these were leaked. Only the hide array was freed, and its
      * two siblings -- plus every string the text store strdup'd -- were not.

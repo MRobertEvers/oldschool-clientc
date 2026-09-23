@@ -1922,6 +1922,34 @@ api_display_setting_set(
     return ctx->host->engine.display_setting_set(ctx->host->engine.user, setting, value);
 }
 
+/*
+ * The client's shared plugin window, asked and set.
+ *
+ * Both hooks are optional, and an absent one answers "closed" / does nothing
+ * rather than asserting: a harness that builds no window is not a broken
+ * contract, and a frame drawing a launcher for a window that cannot exist
+ * wants a dead switch, not an abort.
+ */
+static int
+api_plugin_window_open(struct PluginContext* ctx)
+{
+    assert(ctx);
+    if( !ctx->host->engine.plugin_window_open )
+        return 0;
+    return ctx->host->engine.plugin_window_open(ctx->host->engine.user) != 0;
+}
+
+static void
+api_plugin_window_show(
+    struct PluginContext* ctx,
+    int open)
+{
+    assert(ctx);
+    if( !ctx->host->engine.plugin_window_show )
+        return;
+    ctx->host->engine.plugin_window_show(ctx->host->engine.user, open ? 1 : 0);
+}
+
 static int
 api_varp(
     struct PluginContext* ctx,

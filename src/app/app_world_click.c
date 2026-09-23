@@ -703,7 +703,7 @@ app_try_move_obj(
 }
 
 /* Classify the raw hits the render pass collected into the app pickset +
- * hover tile. Runs after ToriRS_Soft3D_RenderFrame when the pick was armed. */
+ * hover tile. Runs after ToriPlatform_Renderer_Soft3D_RenderFrame when the pick was armed. */
 void
 app_world_pick_finish(
     struct App* app,

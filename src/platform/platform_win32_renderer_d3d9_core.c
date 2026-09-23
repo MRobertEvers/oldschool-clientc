@@ -9,7 +9,7 @@
  *   platform_win32_renderer_d3d9_painter.c   painter's algorithm
  *   platform_win32_renderer_d3d9_zbuffer.c   hardware depth test
  *
- * ToriRS_D3D9_Init picks one by creating (or not creating) the depth
+ * ToriPlatformWin32_Renderer_D3D9_Init picks one by creating (or not creating) the depth
  * implementation's state.  ::zbuffer is that state and doubles as the selector,
  * so the handful of places below that care read as a plain test and a direct
  * call.  See platform_win32_renderer_d3d9_core.h for the contract.
@@ -43,11 +43,11 @@
 static void d3d9_set_no_texture(IDirect3DDevice9* device);
 static void d3d9_disable_texture_transform(IDirect3DDevice9* device);
 static void d3d9_bind_modulated_texture(IDirect3DDevice9* device, IDirect3DTexture9* texture);
-static void d3d9_set_full_viewport(struct ToriRS_D3D9* renderer);
-static bool d3d9_upload_atlas(struct ToriRS_D3D9* renderer);
-static int d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id);
-static int d3d9_ensure_static_texture(struct ToriRS_D3D9* renderer, int tex_id);
-static bool d3d9_ensure_animated_texture(struct ToriRS_D3D9* renderer, int tex_id);
+static void d3d9_set_full_viewport(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+static bool d3d9_upload_atlas(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+static int d3d9_texture_slot(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id);
+static int d3d9_ensure_static_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id);
+static bool d3d9_ensure_animated_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id);
 static void d3d9_map_atlas_uv(
     int slot, float local_u, float local_v, float* out_u, float* out_v);
 static void d3d9_map_animated_uv(float* u, float* v);
@@ -78,7 +78,7 @@ d3d9_clampi(int value, int lo, int hi)
 }
 
 static float
-d3d9_ui_x(const struct ToriRS_D3D9* renderer, float logical_x)
+d3d9_ui_x(const struct ToriPlatformWin32_Renderer_D3D9* renderer, float logical_x)
 {
     return (float)renderer->lb_x + logical_x * (float)renderer->lb_w /
             (float)renderer->width -
@@ -86,7 +86,7 @@ d3d9_ui_x(const struct ToriRS_D3D9* renderer, float logical_x)
 }
 
 static float
-d3d9_ui_y(const struct ToriRS_D3D9* renderer, float logical_y)
+d3d9_ui_y(const struct ToriPlatformWin32_Renderer_D3D9* renderer, float logical_y)
 {
     return (float)renderer->lb_y + logical_y * (float)renderer->lb_h /
             (float)renderer->height -
@@ -95,7 +95,7 @@ d3d9_ui_y(const struct ToriRS_D3D9* renderer, float logical_y)
 
 static bool
 d3d9_ui_scissor_rect(
-    const struct ToriRS_D3D9* renderer,
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int x,
     int y,
     int width,
@@ -130,7 +130,7 @@ d3d9_ui_scissor_rect(
 
 static bool
 d3d9_ui_intersect_scissor_rect(
-    const struct ToriRS_D3D9* renderer,
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int scissor_x,
     int scissor_y,
     int scissor_w,
@@ -175,7 +175,7 @@ d3d9_ui_rect_equal(const RECT* a, const RECT* b)
  * a Nearest one is point either way.
  */
 static void
-d3d9_set_ui_sampler(struct ToriRS_D3D9* renderer, DWORD sampler)
+d3d9_set_ui_sampler(struct ToriPlatformWin32_Renderer_D3D9* renderer, DWORD sampler)
 {
     IDirect3DDevice9_SetSamplerState(
         renderer->device, sampler, D3DSAMP_MINFILTER, D3DTEXF_POINT);
@@ -194,7 +194,7 @@ d3d9_set_ui_sampler(struct ToriRS_D3D9* renderer, DWORD sampler)
  * never opens the layer (::ui_layer_supported), so nothing reads its alpha.
  */
 static void
-d3d9_blend_ui(struct ToriRS_D3D9* renderer)
+d3d9_blend_ui(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9* device = renderer->device;
     IDirect3DDevice9_SetRenderState(device, D3DRS_ALPHABLENDENABLE, TRUE);
@@ -211,10 +211,10 @@ d3d9_blend_ui(struct ToriRS_D3D9* renderer)
 }
 
 static bool
-d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer);
+d3d9_upload_ui_atlas(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 static void
-d3d9_ui_set_states(struct ToriRS_D3D9* renderer)
+d3d9_ui_set_states(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9* device = renderer->device;
     IDirect3DDevice9_SetVertexShader(device, NULL);
@@ -240,7 +240,7 @@ d3d9_ui_set_states(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_ui_batch_reset(struct ToriRS_D3D9* renderer)
+d3d9_ui_batch_reset(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     renderer->ui_batch.vertex_count = 0u;
     renderer->ui_batch.texture = NULL;
@@ -250,7 +250,7 @@ d3d9_ui_batch_reset(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_ui_flush(struct ToriRS_D3D9* renderer)
+d3d9_ui_flush(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9UIBatch* batch;
     assert(renderer);
@@ -292,7 +292,7 @@ d3d9_ui_flush(struct ToriRS_D3D9* renderer)
 
 static bool
 d3d9_ui_prepare_batch(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     IDirect3DTexture9* texture,
     bool uses_sprite_atlas,
     const RECT* scissor,
@@ -317,7 +317,7 @@ d3d9_ui_prepare_batch(
 
 static void
 d3d9_ui_append_quad_vertices(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     IDirect3DTexture9* texture,
     bool uses_sprite_atlas,
     const RECT* scissor,
@@ -347,7 +347,7 @@ d3d9_ui_append_quad_vertices(
 
 static void
 d3d9_ui_append_quad(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     IDirect3DTexture9* texture,
     bool uses_sprite_atlas,
     const RECT* scissor,
@@ -409,7 +409,7 @@ d3d9_disable_texture_transform(IDirect3DDevice9* device)
 }
 
 static void
-d3d9_set_world_states(struct ToriRS_D3D9* renderer)
+d3d9_set_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9* device = renderer->device;
     if( !device )
@@ -506,7 +506,7 @@ d3d9_apply_texture_scroll(
 }
 
 static void
-d3d9_bind_atlas(struct ToriRS_D3D9* renderer)
+d3d9_bind_atlas(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     d3d9_disable_texture_transform(renderer->device);
     if( renderer->atlas_texture )
@@ -520,7 +520,7 @@ d3d9_bind_atlas(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_bind_animated(struct ToriRS_D3D9* renderer, int tex_id)
+d3d9_bind_animated(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
 {
     struct ToriDraw_Texture* texture = NULL;
     float amount_u = 0.0f;
@@ -551,7 +551,7 @@ d3d9_bind_animated(struct ToriRS_D3D9* renderer, int tex_id)
 }
 
 static bool
-d3d9_read_client_size(struct ToriRS_D3D9* renderer, int* out_w, int* out_h)
+d3d9_read_client_size(struct ToriPlatformWin32_Renderer_D3D9* renderer, int* out_w, int* out_h)
 {
     RECT client;
     int reserved = 0;
@@ -574,12 +574,12 @@ d3d9_read_client_size(struct ToriRS_D3D9* renderer, int* out_w, int* out_h)
 }
 
 static void
-d3d9_release_offscreen(struct ToriRS_D3D9* renderer);
+d3d9_release_offscreen(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /* Not called inside a scene (d3d9_device_ready returns first), so the box
  * never moves under a bound target. */
 static void
-d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
+d3d9_update_letterbox(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct ClientScalePresent present;
     renderer->target_w = renderer->client_w;
@@ -626,7 +626,7 @@ d3d9_update_letterbox(struct ToriRS_D3D9* renderer)
 /* The back buffer, referenced; the caller releases it. GetBackBuffer can
  * only fail on a bad call, device loss or not. */
 static IDirect3DSurface9*
-d3d9_back_buffer(struct ToriRS_D3D9* renderer)
+d3d9_back_buffer(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DSurface9* back = NULL;
     HRESULT hr = IDirect3DDevice9_GetBackBuffer(
@@ -640,7 +640,7 @@ d3d9_back_buffer(struct ToriRS_D3D9* renderer)
 /* Put the back buffer back as render target 0. The device holds a reference
  * to whatever is bound, and Reset refuses while it is a DEFAULT-pool one. */
 static void
-d3d9_unbind_offscreen(struct ToriRS_D3D9* renderer)
+d3d9_unbind_offscreen(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DSurface9* back;
     HRESULT hr;
@@ -655,7 +655,7 @@ d3d9_unbind_offscreen(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_release_offscreen(struct ToriRS_D3D9* renderer)
+d3d9_release_offscreen(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     d3d9_unbind_offscreen(renderer);
     if( renderer->offscreen )
@@ -677,7 +677,7 @@ d3d9_release_offscreen(struct ToriRS_D3D9* renderer)
  * leaves the failure to the caller's assert.
  */
 static bool
-d3d9_offscreen_device_lost(struct ToriRS_D3D9* renderer)
+d3d9_offscreen_device_lost(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     HRESULT const state = IDirect3DDevice9_TestCooperativeLevel(renderer->device);
     if( state == D3D_OK )
@@ -694,7 +694,7 @@ d3d9_offscreen_device_lost(struct ToriRS_D3D9* renderer)
  * as the target. Format follows the back buffer so StretchRect can copy it.
  */
 static bool
-d3d9_bind_offscreen(struct ToriRS_D3D9* renderer)
+d3d9_bind_offscreen(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     HRESULT hr;
     assert(renderer->offscreen_wanted);
@@ -740,7 +740,7 @@ d3d9_bind_offscreen(struct ToriRS_D3D9* renderer)
 /* After EndScene: back to the back buffer, black bars, and the offscreen
  * frame stretched onto the output rectangle. */
 static void
-d3d9_resolve_offscreen(struct ToriRS_D3D9* renderer)
+d3d9_resolve_offscreen(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DSurface9* back;
     RECT source;
@@ -782,13 +782,13 @@ d3d9_resolve_offscreen(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer);
+d3d9_mark_active_static_batches_dirty(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 static void
-d3d9_ui_layer_release(struct ToriRS_D3D9* renderer);
+d3d9_ui_layer_release(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 static void
-d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
+d3d9_release_default_pool(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     d3d9_release_offscreen(renderer);
     d3d9_ui_layer_release(renderer);
@@ -828,7 +828,7 @@ d3d9_release_default_pool(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_restore_after_reset(struct ToriRS_D3D9* renderer)
+d3d9_restore_after_reset(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     D3DMATRIX identity;
     d3d9_identity(&identity);
@@ -839,7 +839,7 @@ d3d9_restore_after_reset(struct ToriRS_D3D9* renderer)
 }
 
 static bool
-d3d9_reset_device(struct ToriRS_D3D9* renderer, int width, int height)
+d3d9_reset_device(struct ToriPlatformWin32_Renderer_D3D9* renderer, int width, int height)
 {
     HRESULT hr;
     if( !renderer->device || width <= 0 || height <= 0 )
@@ -872,7 +872,7 @@ d3d9_reset_device(struct ToriRS_D3D9* renderer, int width, int height)
 }
 
 static bool
-d3d9_device_ready(struct ToriRS_D3D9* renderer)
+d3d9_device_ready(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     int width;
     int height;
@@ -905,7 +905,7 @@ d3d9_device_ready(struct ToriRS_D3D9* renderer)
 }
 
 static bool
-d3d9_begin_frame_scene(struct ToriRS_D3D9* renderer)
+d3d9_begin_frame_scene(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     HRESULT hr;
     D3DRECT logical_rect;
@@ -944,7 +944,7 @@ d3d9_begin_frame_scene(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_end_frame_scene(struct ToriRS_D3D9* renderer)
+d3d9_end_frame_scene(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     HRESULT hr;
     assert(renderer);
@@ -981,7 +981,7 @@ d3d9_ui_rotmask_release_slot(struct D3D9UIRotmaskSlot* slot)
 }
 
 static void
-d3d9_ui_rotmask_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
+d3d9_ui_rotmask_invalidate(struct ToriPlatformWin32_Renderer_D3D9* renderer, int scene_id)
 {
     uint32_t i;
     if( scene_id <= 0 )
@@ -997,7 +997,7 @@ d3d9_ui_rotmask_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
 }
 
 static int
-d3d9_ui_sprite_slot_index(struct ToriRS_D3D9* renderer, int scene_id, bool create)
+d3d9_ui_sprite_slot_index(struct ToriPlatformWin32_Renderer_D3D9* renderer, int scene_id, bool create)
 {
     int free_index = -1;
     int i;
@@ -1025,7 +1025,7 @@ d3d9_ui_sprite_slot_index(struct ToriRS_D3D9* renderer, int scene_id, bool creat
 }
 
 static void
-d3d9_ui_sprite_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
+d3d9_ui_sprite_invalidate(struct ToriPlatformWin32_Renderer_D3D9* renderer, int scene_id)
 {
     int slot_index;
     uint32_t i;
@@ -1054,7 +1054,7 @@ d3d9_ui_sprite_invalidate(struct ToriRS_D3D9* renderer, int scene_id)
 
 static bool
 d3d9_ui_upload_sprite_pixels(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const uint32_t* source,
     int width,
     int height,
@@ -1150,7 +1150,7 @@ d3d9_ui_upload_sprite_pixels(
 
 static bool
 d3d9_ui_sprite_ensure_base(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int scene_id,
     int atlas_index,
     struct ToriDraw_Sprite** out_sprite,
@@ -1211,7 +1211,7 @@ d3d9_ui_sprite_ensure_base(
 
 static struct D3D9UISpriteVariant*
 d3d9_ui_sprite_variant(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     bool create)
 {
@@ -1284,7 +1284,7 @@ d3d9_ui_clamp_sprite(
 
 static bool
 d3d9_ui_sprite_ensure_variant(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     struct ToriDraw_Sprite** out_sprite,
     float out_uv[4],
@@ -1436,7 +1436,7 @@ d3d9_ui_sprite_ensure_variant(
 
 static struct D3D9UIRotmaskSlot*
 d3d9_ui_rotmask_slot(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int scene_id,
     int atlas_index,
     int mask_scene_id,
@@ -1496,7 +1496,7 @@ d3d9_ui_rotmask_slot(
 
 static bool
 d3d9_ui_rotmask_create_texture(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int width,
     int height,
     IDirect3DTexture9** out_texture,
@@ -1544,7 +1544,7 @@ d3d9_ui_rotmask_create_texture(
 
 static void
 d3d9_ui_record_rotmask_upload(
-    struct ToriRS_D3D9* renderer, int width, int height)
+    struct ToriPlatformWin32_Renderer_D3D9* renderer, int width, int height)
 {
     uint64_t bytes = (uint64_t)width * (uint64_t)height * 4u;
     renderer->ui_texture_upload_bytes += bytes;
@@ -1578,7 +1578,7 @@ d3d9_ui_rotmask_content_hash(const struct ToriDraw_Sprite* sprite)
 
 static bool
 d3d9_ui_rotmask_upload_source(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* sprite)
 {
@@ -1657,7 +1657,7 @@ d3d9_ui_rotmask_upload_source(
 
 static bool
 d3d9_ui_rotmask_upload_mask(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIRotmaskSlot* slot,
     const struct ToriDraw_Sprite* mask)
 {
@@ -1744,7 +1744,7 @@ static void d3d9_ui_rotated_sprite_quad(
 
 static void
 d3d9_ui_draw_rotmask_native(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Sprite* command,
     const struct D3D9UIRotmaskSlot* slot,
     const RECT* scissor,
@@ -1916,7 +1916,7 @@ d3d9_ui_rotated_sprite_quad(
 
 static void
 d3d9_ui_draw_sprite(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Sprite* command)
 {
     struct ToriDraw_Sprite* sprite = NULL;
@@ -2161,7 +2161,7 @@ d3d9_ui_draw_sprite(
 
 static void
 d3d9_ui_draw_clear_rect(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_ClearRect* command)
 {
     RECT scissor;
@@ -2187,7 +2187,7 @@ d3d9_ui_draw_clear_rect(
 
 static void
 d3d9_ui_draw_fill_rect(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_FillRect* command)
 {
     RECT scissor;
@@ -2245,7 +2245,7 @@ d3d9_ui_draw_fill_rect(
 
 static void
 d3d9_ui_draw_line(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Line* command)
 {
     RECT scissor;
@@ -2307,7 +2307,7 @@ d3d9_ui_draw_line(
 }
 
 static int
-d3d9_ui_font_slot_index(struct ToriRS_D3D9* renderer, int font_id, bool create)
+d3d9_ui_font_slot_index(struct ToriPlatformWin32_Renderer_D3D9* renderer, int font_id, bool create)
 {
     int free_index = -1;
     int i;
@@ -2344,7 +2344,7 @@ d3d9_ui_font_release_slot(struct D3D9UIFontSlot* slot)
 
 static bool
 d3d9_ui_bake_font(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIFontSlot* slot)
 {
     struct ToriDraw_Font* font;
@@ -2467,7 +2467,7 @@ d3d9_ui_bake_font(
 }
 
 static struct D3D9UIFontSlot*
-d3d9_ui_ensure_font(struct ToriRS_D3D9* renderer, int font_id)
+d3d9_ui_ensure_font(struct ToriPlatformWin32_Renderer_D3D9* renderer, int font_id)
 {
     int slot_index = d3d9_ui_font_slot_index(renderer, font_id, true);
     struct D3D9UIFontSlot* slot;
@@ -2483,7 +2483,7 @@ d3d9_ui_ensure_font(struct ToriRS_D3D9* renderer, int font_id)
 
 struct D3D9UIFontGlyphContext
 {
-    struct ToriRS_D3D9* renderer;
+    struct ToriPlatformWin32_Renderer_D3D9* renderer;
     struct D3D9UIFontSlot* slot;
     RECT scissor;
     bool shadow;
@@ -2532,7 +2532,7 @@ d3d9_ui_font_glyph(
 
 static void
 d3d9_ui_draw_font_rules(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
     const char* text,
@@ -2542,7 +2542,7 @@ d3d9_ui_draw_font_rules(
 
 static void
 d3d9_ui_draw_font_text(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIFontSlot* slot,
     const RECT* scissor,
     const char* text,
@@ -2678,7 +2678,7 @@ d3d9_ui_font_char_advance(const struct ToriDraw_Font* font, unsigned char ch)
 
 static void
 d3d9_ui_append_rule_quad(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const RECT* scissor,
     int x,
     int y,
@@ -2705,7 +2705,7 @@ d3d9_ui_append_rule_quad(
  * get their own walk over the same tokens. */
 static void
 d3d9_ui_draw_font_rule_range(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
     const char* text,
@@ -2771,7 +2771,7 @@ d3d9_ui_draw_font_rule_range(
 
 static void
 d3d9_ui_draw_font_rules(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriDraw_Font* font,
     const RECT* scissor,
     const char* text,
@@ -2801,7 +2801,7 @@ d3d9_ui_draw_font_rules(
 
 static void
 d3d9_ui_draw_font_range(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIFontSlot* slot,
     const RECT* scissor,
     const char* text,
@@ -2824,7 +2824,7 @@ d3d9_ui_draw_font_range(
 
 static void
 d3d9_ui_draw_font(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Font* command)
 {
     struct D3D9UIFontSlot* slot;
@@ -2925,7 +2925,7 @@ d3d9_widget_model_transform_vertex(
  * the native path share the scene's existing bounded face-sort workspace. */
 static bool
 d3d9_widget_model_project(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_ModelWidget* command,
     const struct ToriDraw_WidgetModelTransform* transform,
     float* out_origin_x,
@@ -3035,7 +3035,7 @@ d3d9_widget_model_project(
 
 static bool
 d3d9_widget_model_prepare_textures(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriDraw_Model* model,
     const int* face_order,
     int face_count)
@@ -3112,7 +3112,7 @@ d3d9_widget_model_clip_near(
 
 static void
 d3d9_widget_model_overlay_vertex(
-    const struct ToriRS_D3D9* renderer,
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriDraw_WidgetModelTransform* transform,
     float origin_x,
     float origin_y,
@@ -3145,7 +3145,7 @@ d3d9_widget_model_overlay_vertex(
 
 static void
 d3d9_widget_model_flush_vertices(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int texture_config,
     uint32_t vertex_count)
 {
@@ -3168,7 +3168,7 @@ d3d9_widget_model_flush_vertices(
 
 static int
 d3d9_widget_model_face_texture(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct TRSPK_ToriDrawBakeFaceVerts* face,
     float uv[3][2])
 {
@@ -3206,7 +3206,7 @@ d3d9_widget_model_face_texture(
  * plane before D3D receives them, and RHW retains perspective-correct UVs. */
 static void
 d3d9_ui_draw_model_widget(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_ModelWidget* command)
 {
     struct ToriDraw_WidgetModelTransform transform;
@@ -3384,7 +3384,7 @@ d3d9_decode_texture_rgba(
 
 static bool
 d3d9_upload_rgba_texture(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     IDirect3DTexture9** destination,
     const uint8_t* rgba,
     UINT width,
@@ -3445,7 +3445,7 @@ d3d9_upload_rgba_texture(
 }
 
 static bool
-d3d9_upload_atlas(struct ToriRS_D3D9* renderer)
+d3d9_upload_atlas(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     D3DLOCKED_RECT locked;
     struct TRSPK_AtlasDirtyRect dirty;
@@ -3519,7 +3519,7 @@ d3d9_upload_atlas(struct ToriRS_D3D9* renderer)
  * texture is retained: only the rectangle touched by a newly-seen sprite or
  * transformed variant is locked and copied. */
 static bool
-d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer)
+d3d9_upload_ui_atlas(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct TRSPK_AtlasDirtyRect dirty;
     D3DLOCKED_RECT locked;
@@ -3592,7 +3592,7 @@ d3d9_upload_ui_atlas(struct ToriRS_D3D9* renderer)
 }
 
 static int
-d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id)
+d3d9_texture_slot(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
 {
     int slot;
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY )
@@ -3617,13 +3617,13 @@ d3d9_texture_slot(struct ToriRS_D3D9* renderer, int tex_id)
 
 static void
 d3d9_reclassify_texture_faces(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int tex_id,
     bool animated);
 
 static bool
 d3d9_load_texture_object(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int tex_id,
     const struct ToriDraw_Texture* texture)
 {
@@ -3666,7 +3666,7 @@ d3d9_load_texture_object(
 }
 
 static int
-d3d9_ensure_static_texture(struct ToriRS_D3D9* renderer, int tex_id)
+d3d9_ensure_static_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
 {
     struct ToriDraw_Texture* texture;
     int slot;
@@ -3686,7 +3686,7 @@ d3d9_ensure_static_texture(struct ToriRS_D3D9* renderer, int tex_id)
 }
 
 static bool
-d3d9_ensure_animated_texture(struct ToriRS_D3D9* renderer, int tex_id)
+d3d9_ensure_animated_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
 {
     struct ToriDraw_Texture* texture;
     if( tex_id < 0 || tex_id >= TORIDRAW_TEXTURE_ID_CAPACITY || !renderer->scene )
@@ -3700,7 +3700,7 @@ d3d9_ensure_animated_texture(struct ToriRS_D3D9* renderer, int tex_id)
 }
 
 static void
-d3d9_unload_texture(struct ToriRS_D3D9* renderer, int tex_id)
+d3d9_unload_texture(struct ToriPlatformWin32_Renderer_D3D9* renderer, int tex_id)
 {
     int slot;
     bool was_animated = false;
@@ -3901,7 +3901,7 @@ d3d9_reclassify_face_range(
  * changes from animated to static. */
 static void
 d3d9_reclassify_texture_faces(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int tex_id,
     bool animated)
 {
@@ -3992,7 +3992,7 @@ d3d9_reclassify_texture_faces(
 }
 
 static bool
-d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
+d3d9_upload_group(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct D3D9ModelGroup* group)
 {
     uint32_t vertex_count;
     UINT byte_count;
@@ -4100,7 +4100,7 @@ d3d9_upload_group(struct ToriRS_D3D9* renderer, struct D3D9ModelGroup* group)
 }
 
 static bool
-d3d9_grow_static_batches(struct ToriRS_D3D9* renderer, uint32_t needed)
+d3d9_grow_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed)
 {
     struct D3D9StaticBatch* grown;
     uint32_t capacity;
@@ -4128,7 +4128,7 @@ d3d9_grow_static_batches(struct ToriRS_D3D9* renderer, uint32_t needed)
 
 static int
 d3d9_static_batch_slot(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int batch_id,
     bool create)
 {
@@ -4168,7 +4168,7 @@ d3d9_static_batch_slot(
 }
 
 static void
-d3d9_rebuild_batch_pose_table(struct ToriRS_D3D9* renderer)
+d3d9_rebuild_batch_pose_table(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
@@ -4209,7 +4209,7 @@ d3d9_rebuild_batch_pose_table(struct ToriRS_D3D9* renderer)
 }
 
 static bool
-d3d9_grow_static_pages(struct ToriRS_D3D9* renderer, uint32_t needed)
+d3d9_grow_static_pages(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed)
 {
     struct D3D9StaticPageRef* grown;
     uint32_t capacity;
@@ -4242,7 +4242,7 @@ d3d9_grow_static_pages(struct ToriRS_D3D9* renderer, uint32_t needed)
 
 static bool
 d3d9_static_batch_ensure_chunk_storage(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     uint32_t batch_slot,
     uint32_t chunk_count)
 {
@@ -4282,7 +4282,7 @@ d3d9_static_batch_ensure_chunk_storage(
 
 static bool
 d3d9_static_batch_assign_page(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     uint32_t batch_slot,
     uint32_t chunk_index)
 {
@@ -4311,7 +4311,7 @@ d3d9_static_batch_assign_page(
 
 static bool
 d3d9_ensure_static_batch_vbo(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     uint32_t required_pages,
     bool* out_recreated)
 {
@@ -4378,7 +4378,7 @@ d3d9_ensure_static_batch_vbo(
 
 static bool
 d3d9_upload_static_batch_chunk(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9StaticBatch* batch,
     uint32_t chunk_index)
 {
@@ -4441,10 +4441,10 @@ d3d9_upload_static_batch_chunk(
 }
 
 static bool
-d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer);
+d3d9_upload_dirty_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 static void
-d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer)
+d3d9_mark_active_static_batches_dirty(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t batch_slot;
     assert(renderer);
@@ -4468,7 +4468,7 @@ d3d9_mark_active_static_batches_dirty(struct ToriRS_D3D9* renderer)
 }
 
 static bool
-d3d9_static_batch_commit(struct ToriRS_D3D9* renderer, uint32_t batch_slot)
+d3d9_static_batch_commit(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t batch_slot)
 {
     struct D3D9StaticBatch* batch;
     uint32_t chunk_count;
@@ -4523,7 +4523,7 @@ fail:
 }
 
 static bool
-d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer)
+d3d9_upload_dirty_static_batches(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t batch_slot;
     bool recreated = false;
@@ -4555,7 +4555,7 @@ d3d9_upload_dirty_static_batches(struct ToriRS_D3D9* renderer)
 
 static bool
 d3d9_resolve_static_page(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     uint32_t page_id,
     struct D3D9StaticBatch** out_batch,
     struct TRSPK_Batch16Chunk** out_chunk,
@@ -4587,7 +4587,7 @@ d3d9_resolve_static_page(
 }
 
 static bool
-d3d9_ensure_ibo(struct ToriRS_D3D9* renderer, uint32_t index_count)
+d3d9_ensure_ibo(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t index_count)
 {
     uint32_t capacity;
     HRESULT hr;
@@ -4625,7 +4625,7 @@ d3d9_reset_group(struct D3D9ModelGroup* group)
 }
 
 static void
-d3d9_rebuild_static_pose_table(struct ToriRS_D3D9* renderer)
+d3d9_rebuild_static_pose_table(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct TRSPK_ModelArena* arena;
     uint32_t slot_index;
@@ -4656,7 +4656,7 @@ d3d9_rebuild_static_pose_table(struct ToriRS_D3D9* renderer)
 }
 
 static void
-d3d9_compact_static_group(struct ToriRS_D3D9* renderer)
+d3d9_compact_static_group(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct TRSPK_ModelArena* arena;
     struct TRSPK_ModelArenaGCResult result;
@@ -4671,7 +4671,7 @@ d3d9_compact_static_group(struct ToriRS_D3D9* renderer)
 
 static bool
 d3d9_pose_element_is_retained(
-    const struct ToriRS_D3D9* renderer,
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id)
 {
     uint32_t element_index;
@@ -4690,7 +4690,7 @@ d3d9_pose_element_is_retained(
 
 static bool
 d3d9_pose_track_is_retained(
-    const struct ToriRS_D3D9* renderer,
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index)
 {
@@ -4705,7 +4705,7 @@ d3d9_pose_track_is_retained(
 
 static bool
 d3d9_bake_pose_vertices(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_VBO* vbo,
     struct TRSPK_Triangles* triangles,
     uint32_t vertex_base,
@@ -4828,7 +4828,7 @@ d3d9_bake_pose_vertices(
 }
 static uint32_t
 d3d9_bake_into_arena(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9ModelGroup* group,
     int element_id,
     int anim_index,
@@ -4905,7 +4905,7 @@ d3d9_bake_into_arena(
 }
 
 static void
-d3d9_model_unload(struct ToriRS_D3D9* renderer, int element_id)
+d3d9_model_unload(struct ToriPlatformWin32_Renderer_D3D9* renderer, int element_id)
 {
     /* Individual unloads own only the legacy arena. Batch geometry and its
      * pose map remain immutable until the matching batch rebuild/clear. */
@@ -4922,7 +4922,7 @@ d3d9_model_unload(struct ToriRS_D3D9* renderer, int element_id)
 
 static void
 d3d9_animation_track_unload(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index)
 {
@@ -4951,7 +4951,7 @@ d3d9_animation_track_unload(
 
 static void
 d3d9_model_load(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_ModelLoad* command)
 {
     assert(command);
@@ -4973,7 +4973,7 @@ d3d9_model_load(
 
 static void
 d3d9_animation_load(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_AnimLoad* command)
 {
     struct ToriDraw_Animation* animation;
@@ -5066,7 +5066,7 @@ d3d9_animation_load(
 }
 
 bool
-d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed)
+d3d9_reserve_model_indices(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed)
 {
     uint16_t* grown;
     uint32_t capacity;
@@ -5098,7 +5098,7 @@ d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed)
 
 static void
 d3d9_begin_3d(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command)
 {
     const struct ToriDraw_ViewPort* viewport;
@@ -5193,7 +5193,7 @@ d3d9_begin_3d(
 
 static void
 d3d9_draw_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command)
 {
     struct ToriDraw_Position projected_position;
@@ -5373,7 +5373,7 @@ d3d9_draw_model(
 }
 
 static void
-d3d9_set_full_viewport(struct ToriRS_D3D9* renderer)
+d3d9_set_full_viewport(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     D3DVIEWPORT9 viewport;
     if( renderer->target_w <= 0 || renderer->target_h <= 0 )
@@ -5387,7 +5387,7 @@ d3d9_set_full_viewport(struct ToriRS_D3D9* renderer)
 }
 
 static bool
-d3d9_grow_draw_ranges(struct ToriRS_D3D9* renderer, uint32_t needed)
+d3d9_grow_draw_ranges(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed)
 {
     struct TRSPK_DrawRange* grown;
     uint32_t capacity;
@@ -5445,7 +5445,7 @@ d3d9_measure_ibo_chain(
 
 static bool
 d3d9_binding_cpu_source(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     uint32_t binding,
     uint32_t base_offset,
     const struct TRSPK_VBO** out_vbo,
@@ -5482,7 +5482,7 @@ d3d9_binding_cpu_source(
 
 static uint32_t
 d3d9_build_draw_ranges16(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct TRSPK_IBOChain* chain,
     uint16_t* dst)
 {
@@ -5576,7 +5576,7 @@ d3d9_build_draw_ranges16(
 }
 
 static void
-d3d9_bind_world_config(struct ToriRS_D3D9* renderer, uint32_t config_idx)
+d3d9_bind_world_config(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t config_idx)
 {
     if( config_idx == 0u )
         d3d9_bind_atlas(renderer);
@@ -5596,7 +5596,7 @@ d3d9_bind_world_config(struct ToriRS_D3D9* renderer, uint32_t config_idx)
 
 void
 d3d9_draw_retained(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_IBOChain* chain,
     bool blended_pass)
 {
@@ -5720,7 +5720,7 @@ d3d9_draw_retained(
 }
 
 static void
-d3d9_end_3d(struct ToriRS_D3D9* renderer)
+d3d9_end_3d(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t active_pages = 0u;
     uint32_t page;
@@ -5764,7 +5764,7 @@ done:
  * sampled, and says so in the log.
  */
 static void
-d3d9_ui_layer_probe(struct ToriRS_D3D9* renderer)
+d3d9_ui_layer_probe(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     D3DDISPLAYMODE mode;
     DWORD const texture_caps = renderer->caps.TextureCaps;
@@ -5799,7 +5799,7 @@ d3d9_ui_layer_probe(struct ToriRS_D3D9* renderer)
 /* A layer only where it changes the picture: an interface filter that is not
  * Nearest, on an interface drawn at a size other than its own. */
 static bool
-d3d9_ui_layer_wanted(struct ToriRS_D3D9 const* renderer)
+d3d9_ui_layer_wanted(struct ToriPlatformWin32_Renderer_D3D9 const* renderer)
 {
     return renderer->interface_scale_mode != 0 && renderer->ui_layer_supported &&
         renderer->lb_w > 0 && renderer->lb_h > 0 &&
@@ -5809,7 +5809,7 @@ d3d9_ui_layer_wanted(struct ToriRS_D3D9 const* renderer)
 }
 
 static void
-d3d9_ui_layer_release(struct ToriRS_D3D9* renderer)
+d3d9_ui_layer_release(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     assert(!renderer->ui_layer_open);
     if( renderer->ui_layer_surface )
@@ -5829,7 +5829,7 @@ d3d9_ui_layer_release(struct ToriRS_D3D9* renderer)
 /* The layout-sized target. False only when the device is being lost, which
  * schedules the Reset; the segment then draws directly this frame. */
 static bool
-d3d9_ui_layer_ensure(struct ToriRS_D3D9* renderer)
+d3d9_ui_layer_ensure(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     int const w = renderer->width;
     int const h = renderer->height;
@@ -5876,7 +5876,7 @@ d3d9_ui_layer_ensure(struct ToriRS_D3D9* renderer)
  * output, and nothing in a 2D segment depth tests.
  */
 static void
-d3d9_ui_layer_begin(struct ToriRS_D3D9* renderer)
+d3d9_ui_layer_begin(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9* device = renderer->device;
     IDirect3DSurface9* target = NULL;
@@ -5932,7 +5932,7 @@ d3d9_ui_layer_begin(struct ToriRS_D3D9* renderer)
 /* The Bicubic program, created on first use. False when the device has no
  * ps_2_0 or cannot create it now; Bicubic then composites linear. */
 static bool
-d3d9_ui_composite_bicubic_ready(struct ToriRS_D3D9* renderer)
+d3d9_ui_composite_bicubic_ready(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     HRESULT hr;
 
@@ -5971,7 +5971,7 @@ d3d9_ui_composite_bicubic_ready(struct ToriRS_D3D9* renderer)
  * then samples u = (i + 0.5) / lb_w, exactly the GL composite's v_uv.
  */
 static void
-d3d9_ui_layer_composite(struct ToriRS_D3D9* renderer)
+d3d9_ui_layer_composite(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9* device = renderer->device;
     struct D3D9OverlayVertex quad[4];
@@ -6073,7 +6073,7 @@ d3d9_ui_layer_composite(struct ToriRS_D3D9* renderer)
 
 static void
 d3d9_begin_2d(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -6093,7 +6093,7 @@ d3d9_begin_2d(
 
 static void
 d3d9_end_2d(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
 {
     (void)command;
@@ -6108,7 +6108,7 @@ d3d9_end_2d(
 
 static void
 d3d9_batch_begin(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Batch* command)
 {
     struct D3D9StaticBatch* batch;
@@ -6138,7 +6138,7 @@ d3d9_batch_begin(
 
 static void
 d3d9_batch_add(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Batch* command,
     bool animated)
 {
@@ -6186,7 +6186,7 @@ d3d9_batch_add(
 
 static void
 d3d9_batch_end(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Batch* command)
 {
     struct D3D9StaticBatch* batch;
@@ -6207,7 +6207,7 @@ d3d9_batch_end(
 
 static void
 d3d9_batch_clear(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int batch_id,
     bool clear_all)
 {
@@ -6238,7 +6238,7 @@ d3d9_batch_clear(
 
 static void
 d3d9_dispatch(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand* command)
 {
     assert(renderer);
@@ -6385,7 +6385,7 @@ d3d9_dispatch(
 
 static void
 d3d9_draw_solid_rect(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int x,
     int y,
     int width,
@@ -6419,16 +6419,16 @@ d3d9_draw_solid_rect(
         renderer->device, D3DPT_TRIANGLESTRIP, 2u, quad, (UINT)sizeof(quad[0]));
 }
 
-struct ToriRS_D3D9*
-ToriRS_D3D9_New(int width, int height)
+struct ToriPlatformWin32_Renderer_D3D9*
+ToriPlatformWin32_Renderer_D3D9_New(int width, int height)
 {
-    struct ToriRS_D3D9* renderer;
+    struct ToriPlatformWin32_Renderer_D3D9* renderer;
     static uint8_t white_tile[TRSPK_ATLAS_TILE * TRSPK_ATLAS_TILE * 4u];
     uint32_t group;
     int texture;
     if( width <= 0 || height <= 0 )
         return NULL;
-    renderer = (struct ToriRS_D3D9*)calloc(1u, sizeof(*renderer));
+    renderer = (struct ToriPlatformWin32_Renderer_D3D9*)calloc(1u, sizeof(*renderer));
     assert(renderer);
     renderer->width = width;
     renderer->height = height;
@@ -6461,7 +6461,7 @@ ToriRS_D3D9_New(int width, int height)
         !trspk_atlas_init_binpack(
             &renderer->ui_sprite_atlas, D3D9_UI_ATLAS_DIM, D3D9_UI_ATLAS_DIM, 4u) )
     {
-        ToriRS_D3D9_Free(renderer);
+        ToriPlatformWin32_Renderer_D3D9_Free(renderer);
         return NULL;
     }
     memset(white_tile, 0xff, sizeof(white_tile));
@@ -6474,7 +6474,7 @@ ToriRS_D3D9_New(int width, int height)
             TRSPK_ATLAS_TILE,
             NULL) )
     {
-        ToriRS_D3D9_Free(renderer);
+        ToriPlatformWin32_Renderer_D3D9_Free(renderer);
         return NULL;
     }
     renderer->tex_resident[0] = 1u;
@@ -6485,14 +6485,14 @@ ToriRS_D3D9_New(int width, int height)
         model_group->vbo_cpu = trspk_vbo_create(0u, TRSPK_VERTEX_FORMAT_D3D9);
         if( !model_group->vbo_cpu )
         {
-            ToriRS_D3D9_Free(renderer);
+            ToriPlatformWin32_Renderer_D3D9_Free(renderer);
             return NULL;
         }
         model_group->arena = trspk_modelarena_create(
             model_group->vbo_cpu, &model_group->triangles, D3D9_VBO_PAGE, 64u);
         if( !model_group->arena )
         {
-            ToriRS_D3D9_Free(renderer);
+            ToriPlatformWin32_Renderer_D3D9_Free(renderer);
             return NULL;
         }
         model_group->reset_each_frame = group == TRSPK_VBO_GROUP_DYNAMIC;
@@ -6507,8 +6507,8 @@ _Static_assert(
     "retained test stats must cover every D3D9 model group");
 
 bool
-ToriRS_D3D9_AttachSceneHeadlessForTest(
-    struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_AttachSceneHeadlessForTest(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriDraw_Scene* scene)
 {
     assert(renderer);
@@ -6521,9 +6521,9 @@ ToriRS_D3D9_AttachSceneHeadlessForTest(
 }
 
 bool
-ToriRS_D3D9_GetRetainedStats(
-    const struct ToriRS_D3D9* renderer,
-    struct ToriRS_D3D9RetainedStats* out_stats)
+ToriPlatformWin32_Renderer_D3D9_GetRetainedStats(
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9_RetainedStats* out_stats)
 {
     uint32_t group_index;
     assert(renderer);
@@ -6532,7 +6532,7 @@ ToriRS_D3D9_GetRetainedStats(
     for( group_index = 0u; group_index < TRSPK_VBO_GROUP_COUNT; group_index++ )
     {
         const struct D3D9ModelGroup* group = &renderer->groups[group_index];
-        struct ToriRS_D3D9RetainedGroupStats* out =
+        struct ToriPlatformWin32_Renderer_D3D9_RetainedGroupStats* out =
             &out_stats->groups[group_index];
         uint32_t slot_index;
         if( group->arena )
@@ -6556,8 +6556,8 @@ ToriRS_D3D9_GetRetainedStats(
 }
 
 bool
-ToriRS_D3D9_GetPoseBase(
-    const struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_GetPoseBase(
+    const struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -6631,7 +6631,7 @@ d3d9_core_ibochain_bytes(const struct TRSPK_IBOChain* chain, uint32_t* out_nodes
  * working set even before the driver's own copy.
  */
 static void
-d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
+d3d9_report_retained_memory(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint64_t batch_vbo_cpu = 0u;
     uint64_t batch_tri_cpu = 0u;
@@ -6726,7 +6726,7 @@ d3d9_report_retained_memory(struct ToriRS_D3D9* renderer)
 }
 
 void
-ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
+ToriPlatformWin32_Renderer_D3D9_Free(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     uint32_t batch;
     uint32_t group;
@@ -6798,8 +6798,8 @@ ToriRS_D3D9_Free(struct ToriRS_D3D9* renderer)
 }
 
 bool
-ToriRS_D3D9_Init(
-    struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_Init(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     void* native_window,
     struct ToriDraw_Scene* scene,
     bool z_buffer_enabled)
@@ -6914,7 +6914,7 @@ ToriRS_D3D9_Init(
 }
 
 void
-ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
+ToriPlatformWin32_Renderer_D3D9_SetViewport(struct ToriPlatformWin32_Renderer_D3D9* renderer, int width, int height)
 {
     if( !renderer || width <= 0 || height <= 0 ||
         (renderer->width == width && renderer->height == height) )
@@ -6927,7 +6927,7 @@ ToriRS_D3D9_SetViewport(struct ToriRS_D3D9* renderer, int width, int height)
 }
 
 void
-ToriRS_D3D9_SetInterfaceScaleMode(struct ToriRS_D3D9* renderer, int mode)
+ToriPlatformWin32_Renderer_D3D9_SetInterfaceScaleMode(struct ToriPlatformWin32_Renderer_D3D9* renderer, int mode)
 {
     assert(renderer);
     if( mode < 0 )
@@ -6939,8 +6939,8 @@ ToriRS_D3D9_SetInterfaceScaleMode(struct ToriRS_D3D9* renderer, int mode)
 }
 
 void
-ToriRS_D3D9_SetClientScaling(
-    struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_SetClientScaling(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ClientScaleSettings const* settings)
 {
     assert(renderer);
@@ -6949,7 +6949,7 @@ ToriRS_D3D9_SetClientScaling(
 }
 
 void
-ToriRS_D3D9_SetPick(struct ToriRS_D3D9* renderer, int mouse_x, int mouse_y)
+ToriPlatformWin32_Renderer_D3D9_SetPick(struct ToriPlatformWin32_Renderer_D3D9* renderer, int mouse_x, int mouse_y)
 {
     assert(renderer);
     renderer->pick_enabled = true;
@@ -6959,14 +6959,14 @@ ToriRS_D3D9_SetPick(struct ToriRS_D3D9* renderer, int mouse_x, int mouse_y)
 }
 
 struct ToriRS_PickHits const*
-ToriRS_D3D9_PickHits(struct ToriRS_D3D9 const* renderer)
+ToriPlatformWin32_Renderer_D3D9_PickHits(struct ToriPlatformWin32_Renderer_D3D9 const* renderer)
 {
     return renderer ? &renderer->pick_hits : NULL;
 }
 
 void
-ToriRS_D3D9_Execute(
-    struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_Execute(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriRS_RenderCommand const* command)
 {
     d3d9_dispatch(renderer, command);
@@ -6986,7 +6986,7 @@ ToriRS_D3D9_Execute(
  */
 static void
 d3d9_draw_boot_caption(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int caption_font_id,
     char const* caption)
 {
@@ -7013,8 +7013,8 @@ d3d9_draw_boot_caption(
 }
 
 void
-ToriRS_D3D9_DrawBootBar(
-    struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_DrawBootBar(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int progress,
     int caption_font_id,
     char const* caption)
@@ -7065,7 +7065,7 @@ ToriRS_D3D9_DrawBootBar(
 }
 
 void
-ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame)
+ToriPlatformWin32_Renderer_D3D9_RenderFrame(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct ToriRS_Frame* frame)
 {
     struct ToriRS_RenderCommand command;
     assert(renderer);
@@ -7095,7 +7095,7 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame
 /*
  * The finished frame, sampled back onto the canvas grid.
  *
- * The GL twin's shape (ToriRS_GL3_ReadPixels), sharing its "read the finished
+ * The GL twin's shape (ToriPlatformSDL2_Renderer_GL3_ReadPixels), sharing its "read the finished
  * frame before presenting it" rule, with one difference that is the API's and
  * not a choice: no row flip. D3D9 surfaces are already top-down, where GL
  * reports bottom-up. Flipping here "for symmetry" would invert every capture.
@@ -7105,8 +7105,8 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame
  * parameters are created with D3DMULTISAMPLE_NONE.
  */
 bool
-ToriRS_D3D9_ReadPixels(
-    struct ToriRS_D3D9* renderer,
+ToriPlatformWin32_Renderer_D3D9_ReadPixels(
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int* pixels,
     int width,
     int height)
@@ -7212,7 +7212,7 @@ ToriRS_D3D9_ReadPixels(
 }
 
 void
-ToriRS_D3D9_Present(struct ToriRS_D3D9* renderer)
+ToriPlatformWin32_Renderer_D3D9_Present(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     HRESULT hr;
     RECT destination;

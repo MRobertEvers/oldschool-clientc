@@ -34,14 +34,14 @@ $(MC_OUT)/config: FORCE
 	@cmp -s $@ $@.new && rm $@.new || mv $@.new $@
 $(MC_OUT)/replay.o: $(MC_ROOT)/tools/perf/model_chain_replay.c $(MC_OUT)/config
 	$(MC_CC) $(MC_CFLAGS) -c $< -o $@
-$(MC_OUT)/stage.o: $(MC_ROOT)/src/platform/platform_renderer_gles2_dualcore_stage.c $(MC_OUT)/config
+$(MC_OUT)/stage.o: $(MC_ROOT)/src/platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c $(MC_OUT)/config
 	$(MC_CC) $(MC_CFLAGS) -c $< -o $@
 $(MC_OUT)/toridraw.o: $(MC_ROOT)/3rd/toridraw/toridraw_unity.c $(MC_OUT)/config
 	$(MC_CC) $(MC_CFLAGS) $(MC_MODEL_CPU_FLAGS) -c $< -o $@
 .PHONY: model-chain-tests
 model-chain-tests: $(MC_OUT)/indices_test $(MC_OUT)/face_sort_test
 $(MC_OUT)/indices_test: $(MC_ROOT)/tools/perf/model_chain_indices_test.c \
-    $(MC_ROOT)/src/platform/platform_renderer_gles2_indices.h $(MC_OUT)/config
+    $(MC_ROOT)/src/platform/platform_androidarmv7_renderer_opengles2_indices.h $(MC_OUT)/config
 	$(MC_CC) $(MC_CFLAGS) $< $(MC_LDFLAGS) -o $@
 $(MC_OUT)/face_sort_test: $(MC_ROOT)/3rd/toridraw/toridraw_face_sort_bitonic_radix_test.c $(MC_OUT)/toridraw.o
 	$(MC_CC) $(MC_CFLAGS) $^ $(MC_LDFLAGS) -o $@
@@ -62,7 +62,7 @@ $(MC_OUT)/libmodel_chain.so: $(MC_LIB_OBJS)
 $(MC_OUT)/library/replay.o: $(MC_ROOT)/tools/perf/model_chain_replay.c $(MC_OUT)/config
 	@mkdir -p $(@D)
 	$(MC_CC) $(MC_CFLAGS) $(MC_LIBRARY_CPU_FLAGS) -fPIC -DMODEL_CHAIN_LIBRARY=1 -c $< -o $@
-$(MC_OUT)/library/stage.o: $(MC_ROOT)/src/platform/platform_renderer_gles2_dualcore_stage.c $(MC_OUT)/config
+$(MC_OUT)/library/stage.o: $(MC_ROOT)/src/platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c $(MC_OUT)/config
 	@mkdir -p $(@D)
 	$(MC_CC) $(MC_CFLAGS) $(MC_LIBRARY_CPU_FLAGS) -fPIC -c $< -o $@
 $(MC_OUT)/library/toridraw.o: $(MC_ROOT)/3rd/toridraw/toridraw_unity.c $(MC_OUT)/config

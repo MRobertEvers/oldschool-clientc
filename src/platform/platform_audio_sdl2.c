@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,6 +35,8 @@ struct PlatformAudio
     SDL_AudioDeviceID device;
     struct PlatformAudioCapture* capture;
     int sample_rate;
+    /** The device's callback block, in frames. */
+    int block_frames;
     bool owns_sdl_audio;
     bool device_open;
     struct ToriRS_Mixer mixer;
@@ -203,16 +206,17 @@ PlatformAudio_Init(
     fprintf(stderr, "audio: callback mode, %d-sample buffer @ %dHz\n",
             have.samples, have.freq);
     audio->callback_period_ms = (double)have.samples * 1000.0 / (double)have.freq;
+    audio->block_frames = have.samples;
 
     audio->capture =
         PlatformAudioCapture_Open(audio->sample_rate, AUDIO_CAPTURE_RING_SECONDS);
-    /* Grow the mixer's accumulator before the real-time thread starts. */
-    {
-        int16_t* warmup = calloc((size_t)have.samples * TORIRS_AUDIO_CHANNELS, sizeof(int16_t));
-        assert(warmup);
-        ToriRS_Mixer_Render(&audio->mixer, warmup, have.samples);
-        free(warmup);
-    }
+    /*
+     * Size the render scratch before the real-time thread starts. The old
+     * warmup render grew the accumulator but not the source scratch -- nothing
+     * was loaded to pull -- so the first song to play malloc'd inside the audio
+     * callback.
+     */
+    ToriRS_Mixer_Reserve(&audio->mixer, have.samples);
     SDL_PauseAudioDevice(audio->device, 0);
     audio->device_open = true;
     return true;
@@ -257,14 +261,26 @@ PlatformAudio_SubmitAll(
     const struct ToriRS_AudioCommand* commands,
     int count)
 {
+    struct ToriRS_MixerStaged staged[TORIRS_AUDIO_QUEUE_MAX];
+
     assert(audio);
     assert(commands);
+    assert(count <= TORIRS_AUDIO_QUEUE_MAX);
+
+    /* Copy every borrowed buffer before the device lock. A scene rebuild's
+     * worth of ASSET_LOADs is megabytes of memcpy, and doing it inside the
+     * locked region below holds the audio callback out for all of it. */
+    for( int i = 0; i < count; i++ )
+        ToriRS_Mixer_Stage(&commands[i], &staged[i]);
+
+    /* One lock for the whole batch, not one per command: each unlock is a
+     * chance for the callback to render half an update. */
     if( audio->device )
         SDL_LockAudioDevice(audio->device);
     for( int i = 0; i < count; i++ )
     {
         audio->commands++;
-        ToriRS_Mixer_Apply(&audio->mixer, &commands[i]);
+        ToriRS_Mixer_ApplyStaged(&audio->mixer, &commands[i], staged[i].pcm);
     }
     if( audio->device )
         SDL_UnlockAudioDevice(audio->device);
@@ -276,6 +292,40 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     assert(audio);
     if( audio->capture )
         PlatformAudioCapture_Drain(audio->capture);
+}
+
+static void
+sdl2_exclusion_acquire(void* ctx)
+{
+    SDL_LockAudioDevice((SDL_AudioDeviceID)(uintptr_t)ctx);
+}
+
+static void
+sdl2_exclusion_release(void* ctx)
+{
+    SDL_UnlockAudioDevice((SDL_AudioDeviceID)(uintptr_t)ctx);
+}
+
+int
+PlatformAudio_BlockFrames(struct PlatformAudio* audio)
+{
+    return audio ? audio->block_frames : 0;
+}
+
+struct ToriRS_AudioExclusion
+PlatformAudio_Exclusion(struct PlatformAudio* audio)
+{
+    struct ToriRS_AudioExclusion exclusion;
+
+    memset(&exclusion, 0, sizeof(exclusion));
+    /* No device means no audio thread, so nothing to exclude -- the zeroed
+     * handle is a pair of no-ops and the caller does not have to test. */
+    if( !audio || !audio->device )
+        return exclusion;
+    exclusion.acquire = sdl2_exclusion_acquire;
+    exclusion.release = sdl2_exclusion_release;
+    exclusion.ctx = (void*)(uintptr_t)audio->device;
+    return exclusion;
 }
 
 void

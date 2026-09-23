@@ -6,7 +6,7 @@
  *
  * ## Why this exists
  *
- * platform/platform_renderer_gles2_*.c is ~8k lines of plain GLES2, and
+ * platform/platform_androidarmv7_renderer_opengles2_*.c is ~8k lines of plain GLES2, and
  * platform_sdl2_renderer_gl3.c the same for desktop GL 3.2. Neither has any
  * real dependency on a windowing library: every GL call comes from the GL
  * header, and the ONLY thing either needed SDL for was the handful of calls
@@ -39,7 +39,7 @@
  * dereference a compile error instead of a cast that happens to work.
  */
 
-typedef struct ToriRS_GLWindow ToriRS_GLWindow;
+typedef struct ToriPlatform_GLWindow ToriPlatform_GLWindow;
 
 /**
  * Which GL the renderer needs the context to speak.
@@ -50,19 +50,19 @@ typedef struct ToriRS_GLWindow ToriRS_GLWindow;
  * context -- the two GPU renderers on that lane differ by exactly this, and
  * nothing else about the window changes between them.
  */
-enum ToriRS_GLClient
+enum ToriPlatform_GLClient
 {
     /** Whatever the lane already asked for. The desktop GL 3.2 renderer,
      *  whose profile is a core profile and not an ES one. */
-    TORIRS_GL_CLIENT_DEFAULT = 0,
+    TORIPLATFORM_GL_CLIENT_DEFAULT = 0,
     /** OpenGL ES 2.0 -- WebGL1 in a browser. */
-    TORIRS_GL_CLIENT_ES2,
+    TORIPLATFORM_GL_CLIENT_ES2,
     /** OpenGL ES 3.0 -- WebGL2 in a browser. */
-    TORIRS_GL_CLIENT_ES3,
+    TORIPLATFORM_GL_CLIENT_ES3,
 };
 
 /** A host GL context. NULL means "none"/"failed". */
-typedef void* ToriRS_GLContext;
+typedef void* ToriPlatform_GLContext;
 
 /**
  * Create a GL context for `window` and make it current.
@@ -73,12 +73,12 @@ typedef void* ToriRS_GLContext;
  * the context, and EGL wants it in the config -- and a two-call form invites
  * setting it after the context exists, where it silently does nothing.
  * Pass 0 for "no depth buffer needed". `client` names the GL the renderer was
- * written against; see enum ToriRS_GLClient.
+ * written against; see enum ToriPlatform_GLClient.
  *
- * @return NULL on failure, with ToriRS_GLContext_LastError() naming the cause.
+ * @return NULL on failure, with ToriPlatform_GLContext_LastError() naming the cause.
  */
-ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client);
+ToriPlatform_GLContext
+ToriPlatform_GLContext_Create(ToriPlatform_GLWindow* window, int depth_bits, enum ToriPlatform_GLClient client);
 
 /**
  * Make `context` current on `window`.
@@ -89,11 +89,11 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
  * @return 0 on success, non-zero on failure.
  */
 int
-ToriRS_GLContext_MakeCurrent(ToriRS_GLWindow* window, ToriRS_GLContext context);
+ToriPlatform_GLContext_MakeCurrent(ToriPlatform_GLWindow* window, ToriPlatform_GLContext context);
 
 /** Destroy it. Accepts NULL, like every other deallocator in this tree. */
 void
-ToriRS_GLContext_Delete(ToriRS_GLContext context);
+ToriPlatform_GLContext_Delete(ToriPlatform_GLContext context);
 
 /**
  * The drawable's size in REAL DEVICE PIXELS.
@@ -103,15 +103,15 @@ ToriRS_GLContext_Delete(ToriRS_GLContext context);
  * Android has no points layer at all, so there the two are the same number.
  */
 void
-ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_height);
+ToriPlatform_GLContext_DrawableSize(ToriPlatform_GLWindow* window, int* out_width, int* out_height);
 
 /** Swap interval; 0 disables vsync-blocking. Failures are not reported --
  *  a backend that refuses just leaves the display's own pacing in place. */
 void
-ToriRS_GLContext_SetSwapInterval(int interval);
+ToriPlatform_GLContext_SetSwapInterval(int interval);
 
 /** The last failure from this module, as text. Never NULL. */
 char const*
-ToriRS_GLContext_LastError(void);
+ToriPlatform_GLContext_LastError(void);
 
 #endif

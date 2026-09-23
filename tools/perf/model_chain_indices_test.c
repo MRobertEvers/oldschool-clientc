@@ -1,4 +1,4 @@
-#include "platform/platform_renderer_gles2_indices.h"
+#include "platform/platform_androidarmv7_renderer_opengles2_indices.h"
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>

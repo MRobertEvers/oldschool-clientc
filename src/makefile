@@ -665,7 +665,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_app_icon.c \
 	platform/platform_memory.c \
-	platform/platform_sdl2_renderer_soft3d.c \
+	platform/platform_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
 	$(PLATFORM_EXTRA_SRCS) \
@@ -801,6 +801,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/torirs_chrome_panel_draw.c \
 	ui/torirs_chrome_rail.c \
 	ui/torirs_chrome_popout_nav.c \
+	ui/torirs_chrome_lane_launcher.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -1247,7 +1248,7 @@ endif
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
-.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index
+.PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index test-es3-index-pack
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: check-design-colours check-design-panel
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes torirsserver-scripts-rs2012
@@ -3609,7 +3610,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_visible_children.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -3720,6 +3721,16 @@ test-chrome-popout-nav: $(OBJ_DIR)
 		ui/torirs_chrome_popout_nav.c ui/torirs_chrome_exec_kind.c
 	./$(OBJ_DIR)/chrome_popout_nav_test
 
+# The launcher the engine hangs off a lane's own stone: where it lands under a
+# column whose last stone moved, and the picture it composes out of that
+# stone.
+.PHONY: test-chrome-lane-launcher
+test-chrome-lane-launcher: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chrome_lane_launcher_test \
+		ui/test/torirs_chrome_lane_launcher_test.c \
+		ui/torirs_chrome_lane_launcher.c
+	./$(OBJ_DIR)/chrome_lane_launcher_test
+
 # The web panel channel: the wire codec, and a two-tab handshake driven through
 # the real torirs_channel.js with two fake windows. Node only -- no browser, no
 # wasm, no build step, because the channel deliberately has none of those.
@@ -3749,7 +3760,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		engine/torirs_chrome_skin_baked.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c \
-		platform/platform_sdl2_renderer_soft3d.c \
+		platform/platform_renderer_soft3d.c \
 		perf/torirs_perf.c \
 		$(BMP_DIR)/bmp.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) \
@@ -3791,7 +3802,7 @@ test-soft3d-interface-filter: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o $(ASAN_DYLD_SHIM)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -o $(OBJ_DIR)/soft3d_interface_filter_test \
 		platform/test/soft3d_interface_filter_test.c \
-		platform/platform_sdl2_renderer_soft3d.c \
+		platform/platform_renderer_soft3d.c \
 		render/torirs_frame.c render/torirs_pick.c \
 		render/torirs_polygon.c render/torirs_arc.c perf/torirs_perf.c \
 		$(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_model_sprite.o -lm
@@ -3980,6 +3991,26 @@ check-pt-switch:
 	@python3 $(REPO_ROOT)/tools/pt_switch_audit.py . | tail -1 | grep -q "^total 0$$" \
 		&& echo "check-pt-switch: PASS (no switch inside a protothread)" \
 		|| (python3 $(REPO_ROOT)/tools/pt_switch_audit.py . && echo "check-pt-switch: FAIL" && exit 1)
+
+# Every loop over a whole UI tree says what it is: metered (the frame loop's
+# scan meter fails a steady frame that keeps walking -- @see UITREE_SCAN_METER)
+# or exempt with a reason (boot, teardown, a debug dump). An unmarked one is how
+# an uncached per-frame lookup got in unseen: the Stone Drawer at 68 ms a frame
+# on the phone, 2026-09-21.
+.PHONY: check-tree-walks
+check-tree-walks:
+	@python3 $(REPO_ROOT)/tools/tree_walk_audit.py . | tail -1 | grep -q "^total 0$$" \
+		&& echo "check-tree-walks: PASS (every whole-tree walk is metered or exempt)" \
+		|| (python3 $(REPO_ROOT)/tools/tree_walk_audit.py . && echo "check-tree-walks: FAIL" && exit 1)
+
+# The runtime half of check-tree-walks: the real client, headless, under every
+# frame provider (and the phone's mobile identity), with the scan meter set to
+# abort. Its own objects and binary, so it never races another session's build.
+.PHONY: check-scan-meter
+check-scan-meter:
+	$(MAKE) EMBED_SERVER=1 OPT=1 PLATFORM_OBJ_BASE=build_scanmeter \
+		PLATFORM_TARGET=torirs_scanmeter torirs_scanmeter
+	$(REPO_ROOT)/tools/scan_meter_gate.sh $(SRC_DIR)/torirs_scanmeter
 
 # Generated revconfig roles must match the cache packs they were generated
 # from, and every derive= fact must be one App_RoleDeriveFallback knows. Shaped
@@ -4343,6 +4374,13 @@ test-trspk-modelarena-index: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/trspk_modelarena_index_test \
 		render/test/trspk_modelarena_index_test.c $(TRSPK_UNITY_SRC)
 	./$(OBJ_DIR)/trspk_modelarena_index_test
+
+# The ES 3.0 painter's index packer. Header-only and GL-free, so it builds and
+# runs natively whatever lane the core it belongs to is linked into.
+test-es3-index-pack: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/es3_index_pack_test \
+		platform/test/es3_index_pack_test.c
+	./$(OBJ_DIR)/es3_index_pack_test
 
 # The SSE2 sprite swizzle must reproduce the per-pixel rule bit for bit.
 test-trspk-swizzle-simd: $(OBJ_DIR)
@@ -6171,7 +6209,7 @@ test-scene-anim-skip: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # the depth path's sort gate, arena exhaustion, view sync. GL-free.
 test-gles2-dualcore-stage: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/gles2_dualcore_stage_test \
-		platform/platform_renderer_gles2_dualcore_stage.c \
+		platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c \
 		platform/test/gles2_dualcore_stage_test.c $(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/gles2_dualcore_stage_test
 	# Again with every model past the bitonic limit: the radix sort path, which

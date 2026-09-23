@@ -291,7 +291,20 @@ PlatformAudio_New(void)
     struct PlatformAudio* audio = calloc(1, sizeof(*audio));
 
     assert(audio);
-    pthread_mutex_init(&audio->lock, NULL);
+    /*
+     * Recursive, because this lock is handed to the game as the exclusion a
+     * pull source's state is mutated under (PlatformAudio_Exclusion). A locked
+     * region there may reach code that locks again, and a default mutex would
+     * deadlock instead of nesting. SDL_LockAudioDevice is recursive already, so
+     * this also makes the two callback lanes behave the same way.
+     */
+    {
+        pthread_mutexattr_t attr;
+        pthread_mutexattr_init(&attr);
+        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&audio->lock, &attr);
+        pthread_mutexattr_destroy(&attr);
+    }
     audio->sample_rate = TORIRS_AUDIO_SAMPLE_RATE;
     ToriRS_Mixer_Init(&audio->mixer, audio->sample_rate);
     return audio;
@@ -321,6 +334,9 @@ PlatformAudio_Init(
     audio->block_frames = audio->sample_rate / OPENSLES_BLOCK_DIVISOR;
     audio->callback_period_ms =
         (double)audio->block_frames * 1000.0 / (double)audio->sample_rate;
+    /* Size the render scratch before the callback thread starts, so no song's
+     * first block reaches a realloc on it. */
+    ToriRS_Mixer_Reserve(&audio->mixer, audio->block_frames);
 
     result = slCreateEngine(&audio->engine_object, 0, NULL, 0, NULL, NULL);
     if( result != SL_RESULT_SUCCESS )
@@ -551,8 +567,18 @@ PlatformAudio_SubmitAll(
     const struct ToriRS_AudioCommand* commands,
     int count)
 {
+    struct ToriRS_MixerStaged staged[TORIRS_AUDIO_QUEUE_MAX];
+
     assert(audio);
     assert(commands);
+    assert(count <= TORIRS_AUDIO_QUEUE_MAX);
+
+    /* Copy every borrowed buffer before the lock. This is the lane where a
+     * world rebuild's ASSET_LOADs are megabytes and the CPU is a 2013 phone's,
+     * so a memcpy inside the locked region below is an audible gap. */
+    for( int i = 0; i < count; i++ )
+        ToriRS_Mixer_Stage(&commands[i], &staged[i]);
+
     /* One lock for the whole batch, not one per command: a scene rebuild
      * submits dozens at once and each unlock is a chance for the audio thread
      * to render half of them. */
@@ -560,7 +586,7 @@ PlatformAudio_SubmitAll(
     for( int i = 0; i < count; i++ )
     {
         audio->commands++;
-        ToriRS_Mixer_Apply(&audio->mixer, &commands[i]);
+        ToriRS_Mixer_ApplyStaged(&audio->mixer, &commands[i], staged[i].pcm);
     }
     pthread_mutex_unlock(&audio->lock);
 }
@@ -596,6 +622,39 @@ PlatformAudio_Update(struct PlatformAudio* audio)
      * nobody heard, and leaving it in would report the whole background spell
      * as an underrun. */
     audio->last_callback_ns = 0;
+}
+
+static void
+opensles_exclusion_acquire(void* ctx)
+{
+    pthread_mutex_lock(&((struct PlatformAudio*)ctx)->lock);
+}
+
+static void
+opensles_exclusion_release(void* ctx)
+{
+    pthread_mutex_unlock(&((struct PlatformAudio*)ctx)->lock);
+}
+
+int
+PlatformAudio_BlockFrames(struct PlatformAudio* audio)
+{
+    return audio ? audio->block_frames : 0;
+}
+
+struct ToriRS_AudioExclusion
+PlatformAudio_Exclusion(struct PlatformAudio* audio)
+{
+    struct ToriRS_AudioExclusion exclusion;
+
+    memset(&exclusion, 0, sizeof(exclusion));
+    /* No device means no callback thread, so nothing to exclude. */
+    if( !audio || !audio->device_open )
+        return exclusion;
+    exclusion.acquire = opensles_exclusion_acquire;
+    exclusion.release = opensles_exclusion_release;
+    exclusion.ctx = audio;
+    return exclusion;
 }
 
 void

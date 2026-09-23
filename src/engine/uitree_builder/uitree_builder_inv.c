@@ -69,6 +69,7 @@ uitree_builder_inv_bind_tree(
         int source_id = InvManager_ResolveSource(invs, op->inv_name);
         assert(source_id != INV_MANAGER_SOURCE_INVALID);
 
+        UITREE_SCAN_METER(tree);
         for( uint32_t ni = 0; ni < tree->component_count; ni++ )
         {
             struct UITreeComponent* c = &tree->components[ni];

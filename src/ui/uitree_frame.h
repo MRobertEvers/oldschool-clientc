@@ -129,6 +129,21 @@ int32_t UITree_FrameCompassClickNode(struct UITree const* tree);
 int32_t UITree_FrameSlotGroupNode(struct UITree const* tree, int slot);
 
 /**
+ * Stamp (or, with UITREE_SLOT_NONE / 0, clear) a binder's slot role on a node.
+ *
+ * The only way to write `slot_tag` / `frame_member_plus1` after a node is
+ * created: the slot lookups keep a list of candidate nodes and trust it until
+ * the tree's topology or `frame_stamp_serial` moves, so a direct write would
+ * leave a newly tagged node out of every answer.
+ */
+void
+UITree_FrameStamp(
+    struct UITree* tree,
+    int32_t idx,
+    uint8_t slot_tag,
+    uint8_t frame_member_plus1);
+
+/**
  * The node carrying `slot`'s role and answering to `member`, or -1.
  *
  * `member` -1 means "any member", which is UITree_FrameSlotNode. A number is

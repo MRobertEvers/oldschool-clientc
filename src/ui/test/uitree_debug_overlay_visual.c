@@ -29,7 +29,7 @@
 
 #include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_debug_font_baked.h"
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 
 #include "toridraw_hsl16.h"
@@ -258,7 +258,7 @@ render(char const* name)
 {
     struct UITreeEmitDesc desc;
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D* soft;
+    struct ToriPlatform_Renderer_Soft3D* soft;
     char path[128];
     int count = 0;
 
@@ -286,10 +286,10 @@ render(char const* name)
     ToriRS_FrameSetCanvas(&frame, CANVAS_W, CANVAS_H);
     ToriRS_FrameSetEmit(&frame, &desc, 1);
 
-    soft = ToriRS_Soft3D_New();
-    ToriRS_Soft3D_Init(soft, g_scene, g_pixels, CANVAS_W, CANVAS_H);
-    ToriRS_Soft3D_RenderFrame(soft, &frame);
-    ToriRS_Soft3D_Free(soft);
+    soft = ToriPlatform_Renderer_Soft3D_New();
+    ToriPlatform_Renderer_Soft3D_Init(soft, g_scene, g_pixels, CANVAS_W, CANVAS_H);
+    ToriPlatform_Renderer_Soft3D_RenderFrame(soft, &frame);
+    ToriPlatform_Renderer_Soft3D_Free(soft);
 
     snprintf(path, sizeof(path), "build/debug_overlay_%s.bmp", name);
     bmp_write_file(path, g_pixels, CANVAS_W, CANVAS_H);

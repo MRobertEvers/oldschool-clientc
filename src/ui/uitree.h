@@ -723,6 +723,20 @@ struct UITreeComponent
     int32_t* child_key_index;
     int32_t child_key_index_cap;
     uint8_t child_key_index_bad;
+    /** The children a paint or input walk can reach, in sibling order: every
+     *  child except those that every walk rejects unconditionally (see
+     *  UITree_ChildHiddenForWalks). The walks used to discover that set by
+     *  entering each child and reading its flags -- on the rev-239 gameframe
+     *  the chatbox keeps ~2,650 hidden line slots, and the emit, hover and
+     *  collect walks each entered all of them, every frame, to draw 113 things.
+     *  Built lazily by UITree_VisibleChildren, kept by the flag and topology
+     *  seams (uitree.c: uitree_visible_children_*), dropped with the node.
+     *  `valid` clear means "rebuild before reading"; the storage is kept so a
+     *  walk already iterating it never reads freed memory. */
+    int32_t* visible_children;
+    int32_t visible_child_count;
+    int32_t visible_child_capacity;
+    uint8_t visible_children_valid;
     uint8_t dynamic;
     int dynamic_child_index;
 
@@ -1434,6 +1448,11 @@ struct UITree
     int32_t last_root_index;
     uint32_t generation;
     uint64_t instance_id;
+    /** Bumped by UITree_FrameStamp whenever a node's `slot_tag` or
+     *  `frame_member_plus1` actually changes. The frame binder re-stamps
+     *  without a topology change, so `generation` cannot say whether the set
+     *  of slot candidates moved; this does. */
+    uint32_t frame_stamp_serial;
     /* Structural candidates for canvas queries. Geometry and visibility are
      * read live; topology or alignment-mode changes invalidate membership. */
     uint32_t* canvas_candidate_ids;
@@ -2944,6 +2963,31 @@ UITree_ComponentVisibleById(
     struct UITreeComponent const* component,
     int hovered_component_id);
 
+/**
+ * True when NO paint or input walk can reach this child, whatever the frame's
+ * hovered id or host state: freed; screen, projection, widget, frame or mount
+ * hidden; a native hide; or an IF3 script hide (an IF1 script hide is
+ * hover-gated -- UITree_ComponentVisibleById -- and stays reachable). This is
+ * the intersection of the walks' own rejections, so a child it excludes is one
+ * every walk would have entered and rejected on these same flags.
+ */
+static inline bool
+UITree_ChildHiddenForWalks(struct UITreeComponent const* c)
+{
+    return c->freed || c->screen_hidden || c->projection_hidden || c->widget_hidden ||
+           c->frame_hidden || c->mount_hidden || c->native_hide ||
+           (c->behavior.hide && c->if3);
+}
+
+/**
+ * The reachable children of `parent`, in sibling order (UITreeComponent::
+ * visible_children), built on first use after a change. Iterate by re-reading
+ * the parent's array and count each step rather than holding the pointer: a
+ * host callback made from inside a walk may append to the container.
+ */
+int32_t const*
+UITree_VisibleChildren(struct UITree const* tree, int32_t parent, int32_t* out_count);
+
 bool
 UITree_ComponentHoveredByIds(
     int component_id,
@@ -3213,6 +3257,86 @@ int
 UITree_GroupPresent(
     struct UITree const* tree,
     int group_id);
+
+/*
+ * Whole-tree scan meter.
+ *
+ * A LOOKUP that walks every node is affordable once; it is not affordable
+ * asked again every frame for an answer that did not change. That shape --
+ * an uncached miss behind a per-widget question -- ran the Stone Drawer at
+ * 68 ms a frame on the Moto X (UITree_FrameSlotMemberNode, 2026-09-21), and
+ * nothing measured it: the desktop paid 1 ms and looked fine.
+ *
+ * So every whole-tree lookup loop reports itself here (UITREE_SCAN_METER at
+ * the loop, and tools/tree_walk_audit.py refuses an unreported one), and the
+ * frame loop asks at the end of each frame whether STEADY frames -- ones on
+ * which the tree's topology, ids and slot stamps did not move -- are walking the
+ * tree more than UITREE_SCAN_METER_STEADY_WALKS times each, averaged over the
+ * last UITREE_SCAN_METER_WINDOW of them. A steady frame has nothing new to
+ * find; a lookup that walks on it is re-deriving an answer it already had,
+ * and the cost of that grows with the tree and the number of callers. The
+ * average is what separates that from a one-off: the frame after a rebuild
+ * re-derives legitimately once, a per-widget miss does it every frame. 128
+ * frames is ~2.5 s at the 50 fps pacer; a burst of honest one-off walks
+ * (an image release walks twice) averages out, a per-frame repeat cannot.
+ */
+#define UITREE_SCAN_METER_STEADY_WALKS 2
+#define UITREE_SCAN_METER_WINDOW 128
+#define UITREE_SCAN_METER_SITES_MAX 32
+
+#define UITREE_SCAN_METER(tree) UITree_ScanMeterCount((tree), __func__)
+
+struct UITreeScanMeterSite
+{
+    char const* site;
+    uint32_t scans;
+    uint64_t nodes;
+};
+
+struct UITreeScanMeterReport
+{
+    /** Nodes walked by metered scans this frame, and how many scans. */
+    uint64_t nodes;
+    uint32_t scans;
+    uint32_t component_count;
+    /** 1 when the tree's topology and stamps did not move since last frame. */
+    int steady;
+    /** Mean whole-tree walks per steady frame over the window, once it has
+     *  filled; 0 before. */
+    double window_walks;
+    /** The heaviest site over the current window (by nodes), or NULL. */
+    struct UITreeScanMeterSite top;
+};
+
+/** Record one whole-tree walk of `tree` by `site` (a string literal). */
+void
+UITree_ScanMeterCount(
+    struct UITree const* tree,
+    char const* site);
+
+/** Record a walk of `nodes` nodes that is not the whole tree -- a subtree, an
+ *  interface pack, an enum -- by `site`. Same verdict, same units. */
+void
+UITree_ScanMeterCountNodes(
+    char const* site,
+    uint64_t nodes);
+
+#define UITREE_SCAN_METER_NODES(nodes) UITree_ScanMeterCountNodes(__func__, (uint64_t)(nodes))
+
+/**
+ * Close the frame: fill `out`, reset the per-frame counts, and answer 1 when
+ * the last UITREE_SCAN_METER_WINDOW steady frames averaged more than
+ * UITREE_SCAN_METER_STEADY_WALKS whole-tree walks each -- the failure this
+ * meter exists for.
+ */
+/** This frame's per-site rows so far (valid until UITree_ScanMeterEndFrame). */
+struct UITreeScanMeterSite const*
+UITree_ScanMeterFrameSites(int* out_count);
+
+int
+UITree_ScanMeterEndFrame(
+    struct UITree const* tree,
+    struct UITreeScanMeterReport* out);
 
 #ifdef UITREE_NODE_SET_VERIFY
 /** Brute-force check that every live set matches a full-array scan. */

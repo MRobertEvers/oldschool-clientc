@@ -2,12 +2,12 @@
  * Pixel parity and hardware SP counters; no CPU/GL timer queries. */
 #include "kgsl_counters.h"
 #include <inttypes.h>
-static void shader_probe_clear(struct ToriRS_GLES2* r,bool scissor,const struct GLES2Rect* rect)
+static void shader_probe_clear(struct ToriPlatformAndroid_Renderer_GLES2* r,bool scissor,const struct GLES2Rect* rect)
 {
     gles2_set_scissor(r,NULL);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);
     if(scissor)gles2_set_scissor(r,rect);
 }
-static void gles2_shader_probe(struct ToriRS_GLES2* r,uint32_t index_base)
+static void gles2_shader_probe(struct ToriPlatformAndroid_Renderer_GLES2* r,uint32_t index_base)
 {
     static bool done=false,probed=false,enabled=false,aa=false,parity_only=false;
     static unsigned checked=0;

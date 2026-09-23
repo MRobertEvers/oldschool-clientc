@@ -49,22 +49,24 @@ static inline struct UITreeCanvasWidths
 UITree_CanvasMeasureReference(struct UITree const* tree, int width, int height)
 {
     struct UITreeCanvasWidths result={0,0};
+    UITREE_SCAN_METER(tree);
     for( uint32_t i=0;i<tree->component_count;i++ ) result.strip=uitree_canvas_strip(tree,i,width,height,result.strip);
+    UITREE_SCAN_METER(tree);
     for( uint32_t i=0;i<tree->component_count;i++ ) result.core=uitree_canvas_core(tree,i,width,height,result.strip,result.core);
     return result;
 }
-static inline int
+static inline void
 uitree_canvas_candidate_add(struct UITree* tree,uint32_t id)
 {
     if( tree->canvas_candidate_count==tree->canvas_candidate_capacity ) {
         uint32_t cap=tree->canvas_candidate_capacity ? tree->canvas_candidate_capacity*2u : 16u;
-        if( cap<tree->canvas_candidate_capacity || cap>UINT32_MAX/sizeof(uint32_t) ) return 0;
+        assert(cap>tree->canvas_candidate_capacity);
+        assert(cap<=UINT32_MAX/sizeof(uint32_t));
         uint32_t* p=realloc(tree->canvas_candidate_ids,(size_t)cap*sizeof(uint32_t));
-        if( !p ) return 0;
+        assert(p);
         tree->canvas_candidate_ids=p;tree->canvas_candidate_capacity=cap;
     }
     tree->canvas_candidate_ids[tree->canvas_candidate_count++]=id;
-    return 1;
 }
 static inline struct UITreeCanvasWidths
 UITree_CanvasMeasureCompact(struct UITree const* source, int width, int height)
@@ -73,18 +75,18 @@ UITree_CanvasMeasureCompact(struct UITree const* source, int width, int height)
     if( !tree->canvas_candidates_valid || tree->canvas_candidate_generation!=tree->generation ||
         tree->canvas_candidate_nodes!=tree->component_count ) {
         tree->canvas_candidates_valid=0;tree->canvas_candidate_count=0;
-        if( tree->component_count>=0x80000000u ) return UITree_CanvasMeasureReference(tree,width,height);
+        /* The top bit tags a strip candidate, so an index must not reach it. */
+        assert(tree->component_count<0x80000000u);
+        UITREE_SCAN_METER(tree);
         for( uint32_t i=0;i<tree->component_count;i++ ) {
             struct UITreeComponent const* c=&tree->components[i];
             if( c->freed || c->position.width_mode!=0 ) continue;
-            if( c->position.height_mode==1 && c->position.x_mode==2 &&
-                !uitree_canvas_candidate_add(tree,i|0x80000000u) )
-                return UITree_CanvasMeasureReference(tree,width,height);
+            if( c->position.height_mode==1 && c->position.x_mode==2 )
+                uitree_canvas_candidate_add(tree,i|0x80000000u);
             if( c->parent>=0 && (uint32_t)c->parent<tree->component_count ) {
                 struct UITreeComponent const* p=&tree->components[c->parent];
-                if( p->position.width_mode==1 && p->position.height_mode==1 &&
-                    !uitree_canvas_candidate_add(tree,i) )
-                    return UITree_CanvasMeasureReference(tree,width,height);
+                if( p->position.width_mode==1 && p->position.height_mode==1 )
+                    uitree_canvas_candidate_add(tree,i);
             }
         }
         tree->canvas_candidate_generation=tree->generation;

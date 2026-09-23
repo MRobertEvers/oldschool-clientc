@@ -40,8 +40,6 @@ Task_Dat2ClientScriptLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    dat2_buildcache_clientscript_add(task->bc, task->script_id, rscache_script);
-
     vm_script = calloc(1, sizeof(*vm_script));
     assert(vm_script);
     if( !CS2VM2_ScriptCopyFromRSCache(
@@ -51,8 +49,23 @@ Task_Dat2ClientScriptLoad_Run(
     {
         TORIRS_ERR("Failed to convert dat2 clientscript %d\n", task->script_id);
         free(vm_script);
+        RSCache_ClientScriptFree(rscache_script);
         PT_EXIT(&task->pt);
     }
+
+    /*
+     * The decode is consumed here and nothing else reads it — the same shape
+     * the raw model store had (task_dat2_model_load.c). It used to be stashed
+     * in dat2_buildcache_clientscript_add, whose only reader
+     * (dat2_buildcache_clientscript_get) has no caller in src: that kept a
+     * second, wire-format copy of every script the session ever loaded until
+     * shutdown, and a script re-loaded after the derived cache dropped it
+     * overwrote the entry and leaked the previous copy on top. The conversion
+     * above COPIES (CS2VM2_ScriptCopyFromRSCache, not the Move sibling), so the
+     * VM script is independent and this releases the whole decode.
+     */
+    RSCache_ClientScriptFree(rscache_script);
+    rscache_script = NULL;
 
     CacheProvider_ClientScriptAdd(&task->bc->base, task->script_id, vm_script);
 

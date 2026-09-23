@@ -82,6 +82,21 @@ sock_perror(char const* msg)
 #endif
 }
 
+/*
+ * Everything a stop signal is allowed to do.
+ *
+ * A handler may only touch async-signal-safe things, and writing a save is
+ * about as far from that as this program gets — it allocates, opens files and
+ * walks the bank. So this sets the flag and returns, and the loop does the
+ * work. See ToriRSServer_HostRequestShutdown.
+ */
+static void
+on_stop_signal(int sig)
+{
+    (void)sig;
+    ToriRSServer_HostRequestShutdown();
+}
+
 int
 main(
     int argc,
@@ -140,6 +155,23 @@ main(
 #ifndef _WIN32
     signal(SIGPIPE, SIG_IGN);
 #endif
+
+    /*
+     * A stop must save the people who are online.
+     *
+     * The only path that writes a player save is a logout, so until this was
+     * here every SIGTERM threw away whatever every logged-in player had done
+     * since they arrived — a container restart, a `docker stop`, a supervisor
+     * swap, Ctrl-C. The handler does nothing but set a flag;
+     * `ToriRSServer_HostRun` sees it at the top of its next pass and runs the
+     * real logout for every connection, which is what saves them.
+     *
+     * SIGINT is in for Ctrl-C at a terminal. SIGHUP is not: it arrives when a
+     * terminal goes away, which for a server started from an ssh session is
+     * routine and is not a request to stop.
+     */
+    signal(SIGTERM, on_stop_signal);
+    signal(SIGINT, on_stop_signal);
 
 #ifdef _WIN32
     {

@@ -452,6 +452,24 @@ struct ToriRS_PluginEngine
         int value);
 
     /**
+     * The client's shared plugin WINDOW: is it open, and open or close it.
+     *
+     * For a plugin that has taken the launcher duty over from the engine --
+     * a gameframe on a lane where none of the engine's own three launchers
+     * can appear. @see plugin_window_open / plugin_window_show in
+     * torirs_plugin_api.h.
+     *
+     * Optional, like frame_preference: a focused harness that never opens the
+     * window leaves both NULL, the api verbs answer "closed" and do nothing,
+     * and a frame that asks gets a switch that is honest about having no
+     * window behind it rather than a crash.
+     */
+    int (*plugin_window_open)(void* user);
+    void (*plugin_window_show)(
+        void* user,
+        int open);
+
+    /**
      * The device-local requested gameframe. Returns 1 when the preference was
      * explicitly present and 0 for a fresh file. The format version is owned
      * by the preferences store; the host currently needs only the selected id.

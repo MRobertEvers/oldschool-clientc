@@ -1321,22 +1321,20 @@ stamping_binder(struct UITree* tree, void* user)
 {
     (void)user;
     g_binder_calls++;
-    tree->components[g_binder_chat].slot_tag = UITREE_SLOT_CHAT;
-    tree->components[g_binder_side3].slot_tag = UITREE_SLOT_SIDE_MODAL;
-    tree->components[g_binder_side3].frame_member_plus1 = 3 + 1;
-    tree->components[g_binder_orbs].slot_tag = UITREE_SLOT_ORBS;
+    UITree_FrameStamp(tree, g_binder_chat, UITREE_SLOT_CHAT,
+                      tree->components[g_binder_chat].frame_member_plus1);
+    UITree_FrameStamp(tree, g_binder_side3, UITREE_SLOT_SIDE_MODAL, 3 + 1);
+    UITree_FrameStamp(tree, g_binder_orbs, UITREE_SLOT_ORBS,
+                      tree->components[g_binder_orbs].frame_member_plus1);
     /* A button INSIDE the orb block the profile names on its own, as the
      * activity adviser is: orbs member 0. */
-    tree->components[g_binder_adviser].slot_tag = UITREE_SLOT_ORBS;
-    tree->components[g_binder_adviser].frame_member_plus1 = 0 + 1;
+    UITree_FrameStamp(tree, g_binder_adviser, UITREE_SLOT_ORBS, 0 + 1);
     /* And one the profile names as furniture the block CARRIES, as the
      * world-map globe is: orbs member 1. */
-    tree->components[g_binder_globe].slot_tag = UITREE_SLOT_ORBS;
-    tree->components[g_binder_globe].frame_member_plus1 = 1 + 1;
+    UITree_FrameStamp(tree, g_binder_globe, UITREE_SLOT_ORBS, 1 + 1);
     /* And one nested a level deeper than the pack root, as the wiki banner is
      * on a toplevel that groups it: orbs member 2. */
-    tree->components[g_binder_banner].slot_tag = UITREE_SLOT_ORBS;
-    tree->components[g_binder_banner].frame_member_plus1 = 2 + 1;
+    UITree_FrameStamp(tree, g_binder_banner, UITREE_SLOT_ORBS, 2 + 1);
 }
 
 static int32_t g_binder_compass_click = -1;
@@ -1348,7 +1346,8 @@ compass_click_binder(struct UITree* tree, void* user)
 {
     (void)user;
     if( g_binder_compass_click >= 0 )
-        tree->components[g_binder_compass_click].slot_tag = UITREE_SLOT_COMPASS_CLICK;
+        UITree_FrameStamp(tree, g_binder_compass_click, UITREE_SLOT_COMPASS_CLICK,
+                          tree->components[g_binder_compass_click].frame_member_plus1);
 }
 
 static void
@@ -2019,11 +2018,114 @@ test_centred_content_rides_the_middle_of_a_grown_surface(void)
     UITree_Free(tree);
 }
 
+/*
+ * A member lookup that MISSES builds the candidate list; a binder stamp made
+ * afterwards, with no topology change, must still be found. The list is what
+ * keeps fourteen sidebar misses a frame from walking the whole tree, and a
+ * stamp that did not invalidate it would leave the newly named tab unbound.
+ */
+static void
+test_member_lookup_sees_a_stamp_after_a_miss(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeNodeSpec spec;
+    int32_t root;
+    int32_t side5;
+    uint32_t generation;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.width = 100;
+    spec.height = 100;
+    root = UITree_Push(tree, -1, &spec);
+    for( int i = 0; i < 40; i++ )
+        (void)UITree_Push(tree, root, &spec);
+    side5 = UITree_Push(tree, root, &spec);
+
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 5) < 0,
+        "no tab is named yet");
+    generation = tree->generation;
+    UITree_FrameStamp(tree, side5, UITREE_SLOT_SIDE_MODAL, 5 + 1);
+    TEST_ASSERT(tree->generation == generation, "a stamp is not a topology change");
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 5) == side5,
+        "the stamp made after the miss is found");
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 4) < 0,
+        "and it answers only to its own number");
+
+    UITree_FrameStamp(tree, side5, UITREE_SLOT_NONE, 0);
+    TEST_ASSERT(
+        UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, 5) < 0,
+        "a cleared stamp is gone");
+    UITree_Free(tree);
+}
+
+/*
+ * The scan meter's verdict (@see UITREE_SCAN_METER): steady frames that keep
+ * walking the tree are the failure; a burst that does not repeat is not.
+ */
+static void
+test_scan_meter_flags_a_repeated_walk(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeNodeSpec spec;
+    struct UITreeScanMeterReport report;
+    int32_t root;
+    int over;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.width = 10;
+    spec.height = 10;
+    root = UITree_Push(tree, -1, &spec);
+    for( int i = 0; i < 500; i++ )
+        (void)UITree_Push(tree, root, &spec);
+
+    /* The fixed lookups: fourteen misses a frame cost no walk at all. */
+    (void)UITree_ScanMeterEndFrame(tree, &report);
+    over = 0;
+    for( int frame = 0; frame < 3 * UITREE_SCAN_METER_WINDOW; frame++ )
+    {
+        for( int tab = 0; tab < 14; tab++ )
+            (void)UITree_FrameSlotMemberNode(tree, UITREE_FRAME_SLOT_SIDEBAR, tab);
+        over |= UITree_ScanMeterEndFrame(tree, &report);
+    }
+    TEST_ASSERT(!over, "fourteen tab misses a frame do not walk the tree");
+    TEST_ASSERT(report.steady, "and the frames were steady");
+
+    /* One burst -- the frame after a rebuild -- averages out. */
+    for( int i = 0; i < UITREE_SCAN_METER_WINDOW / 2; i++ )
+        UITREE_SCAN_METER(tree);
+    over = 0;
+    for( int frame = 0; frame < 2 * UITREE_SCAN_METER_WINDOW; frame++ )
+        over |= UITree_ScanMeterEndFrame(tree, &report);
+    TEST_ASSERT(!over, "a one-off burst is not the failure");
+
+    /* The failure: a lookup that walks on every steady frame. */
+    over = 0;
+    for( int frame = 0; frame < UITREE_SCAN_METER_WINDOW && !over; frame++ )
+    {
+        for( int walk = 0; walk <= UITREE_SCAN_METER_STEADY_WALKS; walk++ )
+            UITREE_SCAN_METER(tree);
+        over = UITree_ScanMeterEndFrame(tree, &report);
+    }
+    TEST_ASSERT(over, "one walk over the budget on every steady frame trips the meter");
+    TEST_ASSERT(report.top.site && strcmp(report.top.site, __func__) == 0,
+        "and it names the site that walked");
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
     printf("TEST: plugin frame replacement ownership / rebuild stability\n");
     test_binder_stamps_cache_regions_and_layer_chrome();
+    test_member_lookup_sees_a_stamp_after_a_miss();
+    test_scan_meter_flags_a_repeated_walk();
 
     test_frame_keeps_native_state_beneath_effective_layout();
     test_centred_content_rides_the_middle_of_a_grown_surface();

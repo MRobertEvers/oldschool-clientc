@@ -12,7 +12,7 @@
  * This file and its two .c files may use anything GL 3.2 core offers: VAOs,
  * 32-bit element indices, sized internal formats, BGRA readback. The browser
  * does not build this renderer at all -- it links the GLES2 one
- * (platform_renderer_gles2_*.c) against WebGL1 -- so there is no ES2 switch
+ * (platform_androidarmv7_renderer_opengles2_*.c) against WebGL1 -- so there is no ES2 switch
  * here and no fallback to keep in step.
  */
 
@@ -60,7 +60,7 @@
  * Two GPU backends, one renderer.
  *
  * This is desktop GL 3.2 core. The browser no longer builds a variant of it:
- * the web lane links the GLES2 renderer (platform_renderer_gles2_*.c) against
+ * the web lane links the GLES2 renderer (platform_androidarmv7_renderer_opengles2_*.c) against
  * WebGL1, so the definitions below have exactly one value each and are kept as
  * names only because the code reads better through them.
  */
@@ -338,7 +338,7 @@ struct GL3ModelGroup
     bool reset_each_frame;
 };
 
-struct ToriRS_GL3
+struct ToriPlatformSDL2_Renderer_GL3
 {
     /* Polygon run state: points accumulate between POLYGON_BEGIN and
      * POLYGON_END and the fill happens on END. Held on the renderer because a
@@ -354,8 +354,8 @@ struct ToriRS_GL3
     /* Projection + face sort; a NULL raster slot is how the table says it
      * has no software raster stage (ToriDraw_KernelGetGpu). */
     const struct ToriDraw_Kernel* kernel;
-    ToriRS_GLWindow* window;
-    ToriRS_GLContext gl_context;
+    ToriPlatform_GLWindow* window;
+    ToriPlatform_GLContext gl_context;
     int width;
     int height;
     /* Where the canvas is drawn in the bound framebuffer, GL bottom-left y:
@@ -540,14 +540,14 @@ struct ToriRS_GL3
  *  glDrawElementsBaseVertex); on desktop GL it binds the group's VAO. */
 void
 gl3_bind_group_attribs(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3ModelGroup* group,
     uint32_t base_vertex);
 
 /** Grow the GPU element buffer to hold `index_count` indices. */
 bool
 gl3_ensure_gpu_ibo(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t index_count);
 
 

@@ -8,6 +8,8 @@
  */
 
 #include "app/app_internal.h"
+
+#include "cs2vm2.h"
 #include "boot_telemetry.h"
 
 /* IF_OPENSUB wrapper: mount a cache interface pack under a component slot of an
@@ -485,6 +487,30 @@ Task_AppBoot_Run(
     if( !app->boot_config_ready )
         RS_Prefs_ApplyToHost(&app->prefs, &app->host);
     /*
+     * And a phone's default frame cap, seeded only when nothing has chosen.
+     *
+     * AFTER the restore, so a player's saved choice wins: option 5 is zero
+     * only when no dropdown row has ever been picked and no preferences file
+     * carried one. Written INTO the option rather than applied beside it, so
+     * App_FrameCapFps, the Display panel's read-back and the next
+     * RS_Prefs_CaptureFromHost all see one value.
+     * @see RS_CS2_MOBILE_DEFAULT_FPS_CAP.
+     */
+    if( !app->boot_config_ready && CS2VM2_OnMobile() &&
+        RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_FPS_CAP) <= 0 )
+    {
+        RS_CS2Host_SetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_FPS_CAP,
+            RS_CS2_MOBILE_DEFAULT_FPS_CAP);
+        RS_CS2Host_SetOption(
+            &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND,
+            RS_CS2_MOBILE_DEFAULT_FPS_CAP);
+        TORIRS_REPORT(
+            "frame: mobile default cap %d fps (device option %d)\n",
+            RS_CS2_MOBILE_DEFAULT_FPS_CAP,
+            RS_CS2_DEVICEOPTION_FPS_CAP);
+    }
+    /*
      * A window mode the manifest or command line stated wins over the saved
      * one. App_SetBootWindowMode has already run (it must, before the root's
      * scripts call getwindowmode), so the line above just overwrote it;
@@ -759,6 +785,7 @@ Task_AppBoot_Run(
 
     if( getenv("TORIRS_ANIM_DEBUG") )
     {
+        /* tree-walk-exempt: boot, before the frame loop */
         for( uint32_t i = 0; i < app->tree->component_count; i++ )
         {
             struct UITreeComponent const* node = &app->tree->components[i];

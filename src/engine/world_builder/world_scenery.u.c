@@ -1262,7 +1262,10 @@ scenery_load_model(
                  * build-time static registration below, which
                  * painter_reset_to_static truncates. */
                 if( builder->scenery_runtime_spawn )
+                {
                     sc->runtime_spawn = 1;
+                    world->runtime_spawn_count++;
+                }
                 scenery_debug_record(
                     builder, sc, map_tile, config_loc, ToriDraw_ModelRead(hnd), element_id,
                     pool_idx, size_x, size_z);

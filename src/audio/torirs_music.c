@@ -52,10 +52,49 @@ ToriRS_Music_Init(struct ToriRS_MusicPlayer* player)
     player->state = TORIRS_MUSIC_IDLE;
 }
 
-/** Drop the song currently installed and everything it held. */
+/** `ToriRS_MidiSynth_Finished` under the backend's exclusion. */
+static bool
+music_synth_finished(struct ToriRS_MusicPlayer* player)
+{
+    bool finished;
+
+    ToriRS_AudioExclusion_Acquire(&player->exclusion);
+    finished = ToriRS_MidiSynth_Finished(&player->synth);
+    ToriRS_AudioExclusion_Release(&player->exclusion);
+    return finished;
+}
+
+void
+ToriRS_Music_SetExclusion(
+    struct ToriRS_MusicPlayer* player,
+    struct ToriRS_AudioExclusion exclusion)
+{
+    assert(player);
+    player->exclusion = exclusion;
+}
+
+void
+ToriRS_Music_Reserve(
+    struct ToriRS_MusicPlayer* player,
+    int frames)
+{
+    assert(player);
+    ToriRS_MidiSynth_Reserve(&player->synth, frames);
+}
+
+/**
+ * Drop the song currently installed and everything it held.
+ *
+ * Under the backend's exclusion: the mixer holds this player as a generator's
+ * ctx, so on a callback backend the device thread can be inside `synth` right
+ * now. The ASSET_UNLOAD that retires the generator is only *queued* by the
+ * caller and is not applied until the frame's SubmitAll, so the window between
+ * the two is real -- this is what closes it.
+ */
 static void
 release_current(struct ToriRS_MusicPlayer* player)
 {
+    ToriRS_AudioExclusion_Acquire(&player->exclusion);
     ToriRS_MidiSynth_Stop(&player->synth);
     for( int i = 0; i < player->retained_count; i++ )
         ToriRS_SoundBank_ReleasePatch(&player->bank, player->retained_patches[i]);
@@ -63,6 +102,7 @@ release_current(struct ToriRS_MusicPlayer* player)
     RSCache_MusicSongFree(player->song);
     player->song = NULL;
     player->current_song = -1;
+    ToriRS_AudioExclusion_Release(&player->exclusion);
 }
 
 void
@@ -71,8 +111,10 @@ ToriRS_Music_Free(struct ToriRS_MusicPlayer* player)
     if( !player )
         return;
     release_current(player);
+    ToriRS_AudioExclusion_Acquire(&player->exclusion);
     ToriRS_MidiSynth_Free(&player->synth);
     ToriRS_SoundBank_Free(&player->bank);
+    ToriRS_AudioExclusion_Release(&player->exclusion);
     RSCache_VorbisSetupFree(player->vorbis_setup);
     player->vorbis_setup = NULL;
     RSCache_VorbisSetupFree(player->rs2012_vorbis_setup);
@@ -182,7 +224,9 @@ ToriRS_Music_Swap(
      * the one loaded in the synth -- this is the whole difference between a
      * swap and a song change.
      */
+    ToriRS_AudioExclusion_Acquire(&player->exclusion);
     resume_tick = player->synth.current_tick;
+    ToriRS_AudioExclusion_Release(&player->exclusion);
     ToriRS_Music_Request(
         player, incoming, TORIRS_MUSIC_SOURCE_TRACK, player->current_loop, fade_out_ms, fade_in_ms);
 
@@ -417,6 +461,10 @@ ToriRS_Music_Installed(
     for( int i = 0; i < patch_count && i < TORIRS_MUSIC_MAX_PATCHES; i++ )
         player->retained_patches[player->retained_count++] = patch_ids[i];
 
+    /* Rewiring the synth is the other half of release_current's window: the
+     * generator may still be resident, so the device thread can be inside
+     * MidiSynth_Render while MidiFile_Open rebuilds the track table. */
+    ToriRS_AudioExclusion_Acquire(&player->exclusion);
     if( !ToriRS_MidiSynth_PlayFrom(
             &player->synth,
             song->midi,
@@ -424,6 +472,7 @@ ToriRS_Music_Installed(
             player->current_loop,
             player->request_resume_tick) )
     {
+        ToriRS_AudioExclusion_Release(&player->exclusion);
         MUSIC_TRACE("music: song %d is not a MIDI file after unpack\n", song_id);
         release_current(player);
         player->state = TORIRS_MUSIC_IDLE;
@@ -432,6 +481,8 @@ ToriRS_Music_Installed(
         player->songs_failed++;
         return;
     }
+
+    ToriRS_AudioExclusion_Release(&player->exclusion);
 
     /* Consumed: an ordinary song change after this must start from the top. */
     player->request_resume_tick = 0;
@@ -546,8 +597,12 @@ ToriRS_Music_Tick(
         }
     }
 
-    /* A non-looping song that has run out: hand back to whatever it interrupted. */
-    if( player->state == TORIRS_MUSIC_PLAYING && ToriRS_MidiSynth_Finished(&player->synth) )
+    /* A non-looping song that has run out: hand back to whatever it interrupted.
+     * `playing` and the node count this reads are written by the device thread
+     * on a callback backend, so the read is taken under the exclusion -- a
+     * stale answer here either retires a song mid-note or leaves a finished one
+     * installed for a tick. */
+    if( player->state == TORIRS_MUSIC_PLAYING && music_synth_finished(player) )
     {
         int resume = player->resume_song;
         bool resume_loop = player->resume_loop;
@@ -559,6 +614,36 @@ ToriRS_Music_Tick(
         player->resume_song = -1;
         if( resume >= 0 )
             ToriRS_Music_Request(player, resume, TORIRS_MUSIC_SOURCE_TRACK, resume_loop, 0, 0);
+    }
+
+    /*
+     * Retire the outgoing song before any loader can start.
+     *
+     * The loader grows the soundbank, and growing it moves `bank->patches` and
+     * `bank->samples` -- while a live `ToriRS_MidiNode` holds raw pointers into
+     * both (torirs_midi_synth.h: `node->patch`, `node->sound`). So a song that
+     * is still sounding when the next one's loader runs has its notes reading
+     * a freed array.
+     *
+     * The fade path already avoids this: TakeLoadRequest refuses while
+     * `fade_ticks > 0`, and fade-end releases above. A fade-out of *zero* has
+     * no such tick -- and that is every jingle (RS_Audio_Jingle requests with
+     * 0/0) -- so the release has to happen here instead. It belongs on the tick
+     * rather than in Request because closing the stream means queueing
+     * ASSET_UNLOAD, and Request has no queue to put it on.
+     *
+     * app_tick.c calls this before TakeLoadRequest, so the loader still starts
+     * on this tick; it just starts with nothing sounding.
+     */
+    if( player->has_request && player->request_song >= 0 && !player->request_loading &&
+        player->fade_ticks == 0 && player->current_song >= 0 )
+    {
+        MUSIC_TRACE(
+            "music: retiring song %d before loading %d (no fade-out)\n",
+            player->current_song,
+            player->request_song);
+        release_current(player);
+        close_stream(player, out);
     }
 
     if( player->state != TORIRS_MUSIC_PLAYING && player->state != TORIRS_MUSIC_FADING )

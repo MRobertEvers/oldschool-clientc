@@ -14,22 +14,22 @@
 #include <SDL.h>
 
 /*
- * SDL_Window and ToriRS_GLWindow are the same object under two names, and this
+ * SDL_Window and ToriPlatform_GLWindow are the same object under two names, and this
  * file is the only place that says so. The cast is one-way plumbing: the
  * renderers never see either type's definition.
  */
 static SDL_Window*
-as_sdl_window(ToriRS_GLWindow* window)
+as_sdl_window(ToriPlatform_GLWindow* window)
 {
     return (SDL_Window*)window;
 }
 
-ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client)
+ToriPlatform_GLContext
+ToriPlatform_GLContext_Create(ToriPlatform_GLWindow* window, int depth_bits, enum ToriPlatform_GLClient client)
 {
     SDL_GLContext context;
 
-    if( client != TORIRS_GL_CLIENT_DEFAULT )
+    if( client != TORIPLATFORM_GL_CLIENT_DEFAULT )
     {
         /*
          * Asked for BEFORE the context, like the depth request below, and for
@@ -48,7 +48,7 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
          */
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
         SDL_GL_SetAttribute(
-            SDL_GL_CONTEXT_MAJOR_VERSION, client == TORIRS_GL_CLIENT_ES3 ? 3 : 2);
+            SDL_GL_CONTEXT_MAJOR_VERSION, client == TORIPLATFORM_GL_CLIENT_ES3 ? 3 : 2);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
     }
 
@@ -77,17 +77,17 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         SDL_GL_DeleteContext(context);
         return NULL;
     }
-    return (ToriRS_GLContext)context;
+    return (ToriPlatform_GLContext)context;
 }
 
 int
-ToriRS_GLContext_MakeCurrent(ToriRS_GLWindow* window, ToriRS_GLContext context)
+ToriPlatform_GLContext_MakeCurrent(ToriPlatform_GLWindow* window, ToriPlatform_GLContext context)
 {
     return SDL_GL_MakeCurrent(as_sdl_window(window), (SDL_GLContext)context);
 }
 
 void
-ToriRS_GLContext_Delete(ToriRS_GLContext context)
+ToriPlatform_GLContext_Delete(ToriPlatform_GLContext context)
 {
     if( !context )
         return;
@@ -95,13 +95,13 @@ ToriRS_GLContext_Delete(ToriRS_GLContext context)
 }
 
 void
-ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_height)
+ToriPlatform_GLContext_DrawableSize(ToriPlatform_GLWindow* window, int* out_width, int* out_height)
 {
     SDL_GL_GetDrawableSize(as_sdl_window(window), out_width, out_height);
 }
 
 void
-ToriRS_GLContext_SetSwapInterval(int interval)
+ToriPlatform_GLContext_SetSwapInterval(int interval)
 {
 #if defined(__EMSCRIPTEN__)
     /*
@@ -120,7 +120,7 @@ ToriRS_GLContext_SetSwapInterval(int interval)
 }
 
 char const*
-ToriRS_GLContext_LastError(void)
+ToriPlatform_GLContext_LastError(void)
 {
     char const* err = SDL_GetError();
     return err ? err : "";

@@ -660,6 +660,7 @@ World_ResetSceneAlloc(
      * elements' reused ids. Movers/objstacks stay: the rebuild shift
      * relocates them (Client-TS keeps entity slots across a rebuild). */
     World_EntityPoolReset(&world->entities.scenery);
+    world->runtime_spawn_count = 0;
     world->scenery_pick_count = 0;
     /* "What changed" is "all of it"; no list can say that usefully. */
     world->scenery_changed_count = 0;
@@ -3293,6 +3294,11 @@ World_SceneryRemove(
     scenery = World_EntityPoolGet(pool, idx);
     World_SceneryNoteChanged(world, scenery->element_id);
     World_EmitEntityRemoved(world, scenery->element_id);
+    if( scenery->runtime_spawn )
+    {
+        assert(world->runtime_spawn_count > 0);
+        world->runtime_spawn_count--;
+    }
     World_EntityPoolRelease(pool, idx);
 }
 

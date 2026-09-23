@@ -163,7 +163,22 @@ cp res/osm_keyboard_icon_sprite4794.png "$OUT/icon_keyboard.png"
   osrs_sideicon_0=168 osrs_sideicon_1=898 osrs_sideicon_2=899 osrs_sideicon_3=900 \
   osrs_sideicon_4=901 osrs_sideicon_5=902 osrs_sideicon_6=903 osrs_sideicon_7=904 \
   osrs_sideicon_8=1709 osrs_sideicon_9=905 osrs_sideicon_10=3560 osrs_sideicon_11=908 \
-  osrs_sideicon_12=909 osrs_sideicon_13=910
+  osrs_sideicon_12=909 osrs_sideicon_13=910 \
+  icon_plugins=785
+
+# The PLUGINS switch glyph: sprite 785, the OSRS wrench, which is already what
+# this client's plugin launcher wears everywhere else
+# (TORIRS_CHROME_SKIN_PLUGIN_ICON bakes the same picture so the engine's
+# launcher cannot depend on a cache archive id). Cut here rather than read out
+# of the booted cache for the reason every other piece is: 785 is the wrench in
+# cache.osrs239 and some unrelated image in any other, so resolving it at
+# runtime gives the WRONG picture rather than no picture.
+#
+# Its 33x36 transparent canvas is the same box `osm_keyboard` uses and is kept
+# whole for the same reason -- the ink is centred in it and the switch centres
+# the canvas. @see MOBILE_PLUGIN_ICON_NUM in mobile_gameframe.c for the
+# fraction, which is measured off THIS file's ink and has to be re-checked if
+# the sprite is ever recut.
 
 # The 2004 compass rose, for the OldSchool lane: there the cache's own rose is
 # OldSchool's, and a Stone Drawer wants the one its map plate was cut with.

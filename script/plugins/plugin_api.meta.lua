@@ -380,6 +380,8 @@ warn = nil
 ---@field setting_color fun(varp_id: integer, fallback?: integer): integer
 ---@field memory_bytes fun(): integer
 ---@field disable_self fun(reason: string)
+---@field plugin_window_open fun(): boolean Is the client's shared plugin window on screen?
+---@field plugin_window_show fun(open: boolean) Open or close it. For a plugin that has taken over the launcher, which in practice means a gameframe.
 
 ---@class torirs.Feature
 ---@field key string

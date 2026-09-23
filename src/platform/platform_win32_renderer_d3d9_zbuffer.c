@@ -153,7 +153,7 @@ struct D3D9ZBufferWorld
 };
 
 static struct D3D9ZBufferWorld*
-d3d9_zbuffer_state(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_state(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     return renderer->zbuffer;
 }
@@ -183,7 +183,7 @@ d3d9_set_projection_zbuffer(
 
 static enum D3D9WorldFacePass
 d3d9_world_face_pass(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriDraw_ModelHandle handle,
     uint32_t face)
 {
@@ -245,7 +245,7 @@ d3d9_material_pose_clear(struct D3D9MaterialPose* pose)
 static bool
 d3d9_material_pose_set(
     struct D3D9MaterialPose* pose,
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct ToriDraw_ModelHandle handle)
 {
     int face_count;
@@ -282,7 +282,7 @@ d3d9_material_pose_set(
 static bool
 d3d9_material_table_set(
     struct D3D9MaterialTable* table,
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -634,7 +634,7 @@ d3d9_build_alpha_chain(struct D3D9ZBufferWorld* world)
 }
 
 bool
-d3d9_zbuffer_create(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_create(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world =
         (struct D3D9ZBufferWorld*)calloc(1u, sizeof(struct D3D9ZBufferWorld));
@@ -651,7 +651,7 @@ d3d9_zbuffer_create(struct ToriRS_D3D9* renderer)
 }
 
 void
-d3d9_zbuffer_destroy(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
@@ -720,7 +720,7 @@ d3d9_ibochain_bytes(const struct TRSPK_IBOChain* chain, uint32_t* out_nodes)
 }
 
 void
-d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_report_memory(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     uint64_t bucket_bytes = 0u;
@@ -757,7 +757,7 @@ d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer)
 }
 
 void
-d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_reset_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     uint32_t i;
@@ -787,7 +787,7 @@ d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer)
  */
 static void
 d3d9_push_opaque_segment(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9ZBufferWorld* world,
     const struct D3D9OpaqueBucket* bucket,
     const struct D3D9OpaqueSegment* segment,
@@ -821,7 +821,7 @@ d3d9_push_opaque_segment(
 }
 
 void
-d3d9_zbuffer_flush_opaque(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_flush_opaque(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     uint32_t i;
@@ -872,7 +872,7 @@ d3d9_zbuffer_flush_opaque(struct ToriRS_D3D9* renderer)
 }
 
 void
-d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_begin_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     d3d9_zbuffer_reset_pass(renderer);
     IDirect3DDevice9_Clear(
@@ -887,7 +887,7 @@ d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer)
 
 void
 d3d9_zbuffer_setup_projection(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command)
 {
     d3d9_set_projection_zbuffer(
@@ -897,7 +897,7 @@ d3d9_zbuffer_setup_projection(
 }
 
 void
-d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_end_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
@@ -938,7 +938,7 @@ d3d9_zbuffer_cull_mode(void)
 }
 
 void
-d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer)
+d3d9_zbuffer_apply_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer)
 {
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZENABLE, D3DZB_TRUE);
     IDirect3DDevice9_SetRenderState(renderer->device, D3DRS_ZWRITEENABLE, TRUE);
@@ -953,7 +953,7 @@ d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer)
 }
 
 void
-d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass)
+d3d9_zbuffer_apply_pass_states(struct ToriPlatformWin32_Renderer_D3D9* renderer, bool blended_pass)
 {
     /* The blended chain is already sorted back-to-front, so it blends against
      * the opaque result without contributing depth of its own. */
@@ -969,7 +969,7 @@ d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass)
 
 void
 d3d9_zbuffer_emit_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct D3D9ModelPlacement* placement)
 {
@@ -1078,7 +1078,7 @@ d3d9_zbuffer_emit_model(
 
 void
 d3d9_zbuffer_pose_baked(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -1092,7 +1092,7 @@ d3d9_zbuffer_pose_baked(
 }
 
 void
-d3d9_zbuffer_element_dropped(struct ToriRS_D3D9* renderer, int element_id)
+d3d9_zbuffer_element_dropped(struct ToriPlatformWin32_Renderer_D3D9* renderer, int element_id)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     if( !world )
@@ -1102,7 +1102,7 @@ d3d9_zbuffer_element_dropped(struct ToriRS_D3D9* renderer, int element_id)
 
 void
 d3d9_zbuffer_track_dropped(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index)
 {
@@ -1114,7 +1114,7 @@ d3d9_zbuffer_track_dropped(
 
 void
 d3d9_zbuffer_batch_pose_baked(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -1133,7 +1133,7 @@ d3d9_zbuffer_batch_pose_baked(
 }
 
 void
-d3d9_zbuffer_batch_dropped(struct ToriRS_D3D9* renderer, struct TRSPK_Batch16* cpu)
+d3d9_zbuffer_batch_dropped(struct ToriPlatformWin32_Renderer_D3D9* renderer, struct TRSPK_Batch16* cpu)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
     uint32_t entry_count;

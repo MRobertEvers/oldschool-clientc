@@ -63,6 +63,7 @@ emit_overlay_range_capture(struct UITree const* tree, struct UITreeEmitBuffer* o
     /* Hoisting only examines descriptors after WORLD. Require that this root
      * is traversed after the last world, including the all-empty range case. */
     int32_t world_root = out->cmds[world].node_index;
+    /* tree-walk-exempt: ancestor chain, bounded by the count */
     for( unsigned guard = 0; world_root >= 0 && guard < tree->component_count; ++guard )
     {
         if( (uint32_t)world_root >= tree->component_count ) return;
@@ -171,9 +172,10 @@ UITree_EmitOverlayMotionRefresh(struct UITree const* tree, struct UITreeHost con
         struct UITreeEmitClip canvas = clip;
         clip_intersect(&clip, &canvas, x, y, w, h);
     }
-    for( int32_t child = c->first_child; child >= 0; child = tree->components[child].next_sibling )
-        emit_walk_node(tree, host, &scratch, child, &clip, &clip, 0, 0, *hovered,
-            0, 0, 0, 0, 0);
+    { int32_t vis_count; (void)UITree_VisibleChildren(tree, root, &vis_count); }
+    for( int32_t vi = 0; vi < tree->components[root].visible_child_count; vi++ )
+        emit_walk_node(tree, host, &scratch, tree->components[root].visible_children[vi],
+            &clip, &clip, 0, 0, *hovered, 0, 0, 0, 0, 0);
     out->overlay_scratch = scratch.cmds;
     out->overlay_scratch_cap = scratch.cap;
     /* Use the original host identity, not the observing shallow copy. */

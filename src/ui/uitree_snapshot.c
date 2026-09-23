@@ -327,6 +327,7 @@ UITreeSnapshot_WriteJson(
                 draw->first = *desc;
         }
     }
+    /* tree-walk-exempt: debug snapshot dump */
     for( uint32_t i = 0; i < tree->component_count; i++ )
         if( !tree->components[i].freed )
             live_count++;

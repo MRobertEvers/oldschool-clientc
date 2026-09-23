@@ -40,6 +40,7 @@ app_bind_configured_overlays(struct App* app)
 {
     app->interact.minimenu.font_id = -1;
     app->hover_text.font_id = -1;
+    UITREE_SCAN_METER(app->tree);
     for( uint32_t i = 0; i < app->tree->component_count; i++ )
     {
         struct UITreeComponent const* node = &app->tree->components[i];
@@ -190,8 +191,8 @@ app_rebuild_world_map(
          * rotated-masked minimap and has no event that says they changed --
          * this is the one place they do. Declared here rather than through
          * its header because this is the one call site in this file. */
-        void ToriRS_GLES2_RotmaskSourceChanged(void);
-        ToriRS_GLES2_RotmaskSourceChanged();
+        void ToriPlatformAndroid_Renderer_GLES2_RotmaskSourceChanged(void);
+        ToriPlatformAndroid_Renderer_GLES2_RotmaskSourceChanged();
     }
 #endif
 }

@@ -994,6 +994,7 @@ app_minimenu_open(
             if( resolved > 0 )
             {
                 menu->font_id = resolved;
+                UITREE_SCAN_METER(app->tree);
                 for( uint32_t i = 0; i < app->tree->component_count; i++ )
                     if( !app->tree->components[i].freed &&
                         app->tree->components[i].type == UIELEM_BUILTIN_MINIMENU )
@@ -2328,6 +2329,12 @@ app_minimenu_run_option(
             if( c->plugin_owner == APP_PLUGIN_NAV_OWNER )
             {
                 (void)app_plugin_popout_nav_click(app, node);
+                return 0;
+            }
+            /* And its launcher on a lane's stone column, by its own token. */
+            if( c->plugin_owner == APP_PLUGIN_LAUNCHER_OWNER )
+            {
+                (void)app_plugin_lane_launcher_click(app, node);
                 return 0;
             }
             PluginHost_WidgetOperation(

@@ -706,7 +706,7 @@ sdl_gl_surface_attributes(void)
      * buffer, so asking for one would only allocate a full-screen attachment
      * the browser then has to clear and carry every frame. Depth stays at 24:
      * the depth-buffered world pass needs it, and the request in
-     * ToriRS_GLContext_Create arrives too late to add it on this host. */
+     * ToriPlatform_GLContext_Create arrives too late to add it on this host. */
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 0);
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 0);
@@ -964,13 +964,13 @@ PlatformWindow_InitForOpenGL3(
     return true;
 }
 
-ToriRS_GLWindow*
+ToriPlatform_GLWindow*
 PlatformWindow_GLWindow(struct PlatformWindow* platform)
 {
     assert(platform);
-    /* SDL_Window and ToriRS_GLWindow are the same object under two names; this
+    /* SDL_Window and ToriPlatform_GLWindow are the same object under two names; this
      * and platform_gl_context_sdl.c are the only places that say so. */
-    return (ToriRS_GLWindow*)platform->window;
+    return (ToriPlatform_GLWindow*)platform->window;
 }
 
 void*

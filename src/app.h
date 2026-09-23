@@ -83,7 +83,7 @@
 #include "world/world_pickset.h"
 #include "world/worldview.h"
 
-struct ToriRS_Soft3D;
+struct ToriPlatform_Renderer_Soft3D;
 struct ToriRS_Frame;
 struct ToriRS_PickHits;
 struct PktRunClientScript;
@@ -102,6 +102,8 @@ struct ToriRS_Network;
 struct PktNpcInfoOp;
 struct PktPlayerInfoOp;
 struct Editor;
+/** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
+struct AppPlaceholderPark;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -863,6 +865,48 @@ struct AppPluginPopoutNav
 };
 
 /**
+ * The engine's plugin launcher on a lane's own stone column.
+ *
+ * One button, so one struct and no table -- @see
+ * ui/torirs_chrome_lane_launcher.h for why a lane gets one and what it is for.
+ * Every value here is "what the node was last given": the node outlives the
+ * tick and the setters are retained, so restating what is already in force
+ * moves nothing, and a changed incarnation (the toplevel was remounted) resets
+ * the lot so every property is stated again.
+ */
+struct AppPluginLaneLauncher
+{
+    struct UITreeNodeRef ref;
+    /** The button is up this tick. */
+    int placed;
+    /** What the published picture was composed from: the anchor's backing
+     *  frame and the boxes it was fitted to. A stone that changed picture --
+     *  the chat toggle swaps 5773/5774 -- or a column that moved recomposes. */
+    int backing_scene_id;
+    int backing_frame;
+    int composed_w;
+    int composed_h;
+    int icon_x;
+    int icon_y;
+    int icon_w;
+    int icon_h;
+    /** Set once the node carries the composed picture. */
+    int graphic_set;
+    /** Last stated geometry, mount-local. -1 until stated. */
+    int x;
+    int y;
+    int w;
+    int h;
+    char label[UITREE_MENU_OPTION_LEN];
+    /** The click registration stamped on the button; never 0. */
+    uint64_t op_serial;
+    /** What the last trace line said, so the trace reports changes only. */
+    int reported_placed;
+    int reported_x;
+    int reported_y;
+};
+
+/**
  * Client scaling, as the App knows it. @see platform/client_scale.h for how
  * interface scaling, stretch mode and the pixel limit combine.
  */
@@ -1001,8 +1045,8 @@ struct App
      * canvas from App_Render, while `soft_chrome` rasterises retained CUSTOM
      * widget bitmaps for WEB/BROWSER without disturbing the game renderer.
      */
-    struct ToriRS_Soft3D* soft;
-    struct ToriRS_Soft3D* soft_chrome;
+    struct ToriPlatform_Renderer_Soft3D* soft;
+    struct ToriPlatform_Renderer_Soft3D* soft_chrome;
 
     /* Phase 4b: world sim + builder (needs provider + scene + varps; the
      * World references assets and scene elements by integer id only). */
@@ -1544,6 +1588,14 @@ struct App
     int if_head_count;
     int if_head_cap;
 
+    /* Placeholder requests a CLIENTSCRIPT asked for, parked until a logic
+     * tick releases them. A script runs inside the settle, and the settle
+     * drains the asset runner, so a placeholder queued from one would be
+     * picked up by the very frame it was meant to leave -- app_placeholder.c
+     * has the measurement. One pointer: the park, its key and its burst bound
+     * all belong to that unit. NULL until the first request. */
+    struct AppPlaceholderPark* placeholder_park;
+
     /* Revision-239 server-driven player-composition widgets. Each component
      * owns a clone of the local PlayerComposition: slots is the effective
      * kit/equipment layer, identkit is the body underneath worn objects, and
@@ -1887,6 +1939,13 @@ struct App
      * @see plugin/torirs_plugin_popout_nav.u.c.
      */
     struct AppPluginPopoutNav plugin_nav;
+    /**
+     * The plugin launcher on the lane's own stone column, when the profile
+     * names an anchor (`[role:plugin_launcher_anchor]`) and that column is on
+     * screen. One engine-owned button, wearing the anchor's stone, a pitch
+     * below it. @see plugin/torirs_plugin_lane_launcher.u.c.
+     */
+    struct AppPluginLaneLauncher plugin_launcher;
     /**
      * The vtable the shell handed over, not yet started.
      *

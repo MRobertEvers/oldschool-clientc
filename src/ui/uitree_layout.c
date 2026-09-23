@@ -154,6 +154,7 @@ UITree_LayoutInvalidate(struct UITree* tree)
     assert(tree);
 
     UITREE_LAYOUT_BLAME_HERE(tree);
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].position.layout_resolved = 0;
     /* Every box is now unresolved, so there is no useful seed set. */

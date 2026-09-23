@@ -157,6 +157,7 @@ Task_CS1Eval_Run(
     if( !UITree_HasCS1Scripts(self->host->tree) )
         PT_EXIT(&self->pt);
 
+    /* tree-walk-exempt: resumable task cursor, one node per step */
     for( self->cursor = 0; self->cursor < (int32_t)self->host->tree->component_count;
          self->cursor++ )
     {

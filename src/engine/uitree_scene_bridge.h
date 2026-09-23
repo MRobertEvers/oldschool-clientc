@@ -183,6 +183,19 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 #define UITREE_SCENE_INKWELL_ID 0x4000000D
 
 /**
+ * The engine's plugin launcher on a lane's own stone column: ONE composed
+ * picture, the anchor's backing wearing the client's wrench.
+ *
+ * One entry and not a range, unlike the nav buttons below: there is one
+ * launcher, on one column, and it is recomposed only when the stone it copies
+ * changes. 0x0E because it is the next free one -- @see the INKWELL note
+ * above for what happens when that is not checked.
+ *
+ * @see ui/torirs_chrome_lane_launcher.h
+ */
+#define UITREE_SCENE_PLUGIN_LAUNCHER_ID 0x4000000E
+
+/**
  * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
  * shipped as its own asset file and decoded at runtime (scene id = base +
  * slot, one slot per resident image).
@@ -345,6 +358,45 @@ UITreeSceneBridge_ReadPluginImage(
 /** Drop a published plugin image, freeing its scene entry. */
 void
 UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot);
+
+/**
+ * Copy one FRAME of any scene sprite back into `out`, which holds `max`
+ * pixels, and report the frame's size.
+ *
+ * The frame, not just the entry, because a cache sprite is an atlas: a widget
+ * showing `options_icons,5` names entry and index together, and reading index
+ * 0 there would hand back a different picture that is the right size. The
+ * caller passes what the widget carries (`rs_graphic.scene_id` and
+ * `atlas_index`) and gets what the widget draws.
+ *
+ * Written for the lane launcher, which copies the stone a cache button wears.
+ * Nothing else may read a CACHE sprite's pixels back out of the scene, so this
+ * is deliberately read-only and copies: the scene owns those pixels and frees
+ * them, and a pointer into them outlives nothing.
+ *
+ * @return how many pixels were copied, or 0 when the entry, the frame or the
+ * room is missing. Never a partial copy, for ReadPluginImage's reason.
+ */
+int
+UITreeSceneBridge_ReadSpriteFrame(
+    struct UITreeSceneBridge* bridge,
+    int scene_id,
+    int frame,
+    uint32_t* out,
+    int max,
+    int* out_w,
+    int* out_h);
+
+/**
+ * Publish the composed lane-launcher button (`width` x `height`, 0xAARRGGBB,
+ * copied) and return its scene id. Replaces whatever it held.
+ */
+int
+UITreeSceneBridge_PublishLauncherButton(
+    struct UITreeSceneBridge* bridge,
+    int width,
+    int height,
+    uint32_t const* argb);
 
 /**
  * Publish one composed plugin-navigation button (TORIRS_POPOUT_NAV_BUTTON

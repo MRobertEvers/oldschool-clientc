@@ -13,7 +13,7 @@
  *   - The per-segment cache: an identical second frame composites the same
  *     picture, and a changed colour is re-filtered.
  */
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_render.h"
 #include "toridraw.h"
 #include "toridraw_scene.h"
@@ -49,24 +49,24 @@ fill_world(int* pixels, int same)
 }
 
 static void
-execute(struct ToriRS_Soft3D* soft, enum ToriRS_RenderCommandKind kind)
+execute(struct ToriPlatform_Renderer_Soft3D* soft, enum ToriRS_RenderCommandKind kind)
 {
     struct ToriRS_RenderCommand cmd;
     memset(&cmd, 0, sizeof(cmd));
     cmd.kind = kind;
-    ToriRS_Soft3D_Execute(soft, &cmd);
+    ToriPlatform_Renderer_Soft3D_Execute(soft, &cmd);
 }
 
 /* One frame: the world, then a segment filling layout [3,7) x [3,7). */
 static void
-frame(struct ToriRS_Soft3D* soft, struct ToriDraw_Scene* scene, int* pixels, int mode, int colour, int world_same)
+frame(struct ToriPlatform_Renderer_Soft3D* soft, struct ToriDraw_Scene* scene, int* pixels, int mode, int colour, int world_same)
 {
     struct ToriRS_RenderCommand cmd;
 
     fill_world(pixels, world_same);
-    ToriRS_Soft3D_Init(soft, scene, pixels, BUF, BUF);
-    ToriRS_Soft3D_SetLayout(soft, LAYOUT, LAYOUT);
-    ToriRS_Soft3D_SetInterfaceScaleMode(soft, mode);
+    ToriPlatform_Renderer_Soft3D_Init(soft, scene, pixels, BUF, BUF);
+    ToriPlatform_Renderer_Soft3D_SetLayout(soft, LAYOUT, LAYOUT);
+    ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(soft, mode);
     execute(soft, TORIRSRC_BEGIN_2D);
     memset(&cmd, 0, sizeof(cmd));
     cmd.kind = TORIRSRC_FILL_RECT;
@@ -78,7 +78,7 @@ frame(struct ToriRS_Soft3D* soft, struct ToriDraw_Scene* scene, int* pixels, int
     cmd.u.fill_rect.scissor_w = LAYOUT;
     cmd.u.fill_rect.scissor_h = LAYOUT;
     cmd.u.fill_rect.filled = 1;
-    ToriRS_Soft3D_Execute(soft, &cmd);
+    ToriPlatform_Renderer_Soft3D_Execute(soft, &cmd);
     execute(soft, TORIRSRC_END_2D);
 }
 
@@ -109,7 +109,7 @@ int
 main(void)
 {
     struct ToriDraw_Scene* scene;
-    struct ToriRS_Soft3D* soft;
+    struct ToriPlatform_Renderer_Soft3D* soft;
     static int pixels[BUF * BUF];
     int const panel = 0x00785A30;
     int const changed = 0x00206040;
@@ -121,7 +121,7 @@ main(void)
 
     for( int mode = 1; mode <= 2; mode++ )
     {
-        soft = ToriRS_Soft3D_New();
+        soft = ToriPlatform_Renderer_Soft3D_New();
         assert(soft);
         /* Half the world under the rect is the rect's own colour. */
         frame(soft, scene, pixels, mode, panel, panel);
@@ -132,12 +132,12 @@ main(void)
         /* A changed colour must be re-filtered, not served stale. */
         frame(soft, scene, pixels, mode, changed, panel);
         check_frame(pixels, mode, changed, panel, "changed colour");
-        ToriRS_Soft3D_Free(soft);
+        ToriPlatform_Renderer_Soft3D_Free(soft);
     }
 
     /* Nearest writes straight into the buffer: every pixel of the rect, and
      * nothing is filtered past its edge. */
-    soft = ToriRS_Soft3D_New();
+    soft = ToriPlatform_Renderer_Soft3D_New();
     assert(soft);
     frame(soft, scene, pixels, 0, panel, panel);
     {
@@ -151,7 +151,7 @@ main(void)
             }
         CHECK(ok, "mode 0: nearest fills exactly the scaled rect");
     }
-    ToriRS_Soft3D_Free(soft);
+    ToriPlatform_Renderer_Soft3D_Free(soft);
     ToriDraw_SceneFree(scene);
 
     if( failures )

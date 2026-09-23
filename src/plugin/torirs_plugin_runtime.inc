@@ -1819,6 +1819,22 @@ v2_client_disable_self(
         api_disable_self(runtime->context, reason);
 }
 
+static bool
+v2_client_plugin_window_open(struct ToriRS_Api* api)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    return api_plugin_window_open(runtime->context) != 0;
+}
+
+static void
+v2_client_plugin_window_show(
+    struct ToriRS_Api* api,
+    bool open)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+    api_plugin_window_show(runtime->context, open ? 1 : 0);
+}
+
 /*
  * One skill, and whether the server has STATED it.
  *
@@ -3305,6 +3321,8 @@ v2_runtime_init(
         .setting_color = v2_client_setting_color,
         .memory_bytes = v2_client_memory_bytes,
         .disable_self = v2_client_disable_self,
+        .plugin_window_open = v2_client_plugin_window_open,
+        .plugin_window_show = v2_client_plugin_window_show,
     };
     runtime->game_api = (struct ToriRS_GameApi){
         .struct_size = sizeof(runtime->game_api),

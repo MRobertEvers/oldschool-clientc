@@ -129,12 +129,12 @@ int UITree_CanvasQueryCompactEnabled(void)
 {
     if( canvas_query_compact<0 ) {
         const char* value=getenv("TORIRS_UI_CANVAS_COMPACT");
-        /* Match the existing Krait renderer defaults on ARM32 NEON. */
-#if defined(__arm__) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+        /* On everywhere. The scan it replaces walked every node on every frame
+         * whose layout moved -- two whole-tree walks per frame on the desktop,
+         * found by the scan meter (@see UITREE_SCAN_METER) -- and the two
+         * answer the same numbers (uitree_test_canvas_floor runs every case
+         * both ways). TORIRS_UI_CANVAS_COMPACT=0 keeps the scan reachable. */
         canvas_query_compact=value ? atoi(value)!=0 : 1;
-#else
-        canvas_query_compact=value ? atoi(value)!=0 : 0;
-#endif
     }
     return canvas_query_compact;
 }
@@ -221,6 +221,7 @@ UITree_GeometryAuditEnable(struct UITree* tree)
     if( tree->geometry_audit ) return;
     tree->geometry_audit = calloc(1, sizeof(*tree->geometry_audit));
     if( !tree->geometry_audit ) abort();
+    /* tree-walk-exempt: debug geometry audit, opt-in */
     for( uint32_t i = 0; i < tree->component_count; ++i )
         if( !tree->components[i].freed ) uitree_geometry_audit_stamp(tree, (int32_t)i);
 }
@@ -229,6 +230,7 @@ bool
 UITree_GeometryAuditCheck(struct UITree const* tree, char const* where)
 {
     if( !tree || !tree->geometry_audit ) return true;
+    /* tree-walk-exempt: debug geometry audit, opt-in */
     for( uint32_t i = 0; i < tree->component_count; ++i )
         if( !uitree_geometry_audit_node(tree, (int32_t)i, where) ) return false;
     return true;
@@ -718,6 +720,7 @@ UITree_VerifyLiveSets(struct UITree const* tree)
 {
     uint32_t i;
     assert(tree);
+    /* tree-walk-exempt: UITREE_NODE_SET_VERIFY oracle */
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
@@ -989,6 +992,123 @@ uitree_child_index_drop(struct UITreeComponent* parent)
     parent->child_key_index_cap = 0;
 }
 
+/* ---- the reachable-children sidecar (UITreeComponent::visible_children) --- */
+
+static void
+uitree_visible_children_invalidate(struct UITree* tree, int32_t parent)
+{
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+    tree->components[parent].visible_children_valid = 0;
+}
+
+static void
+uitree_visible_children_push(struct UITree* tree, struct UITreeComponent* p, int32_t child)
+{
+    (void)tree;
+    if( p->visible_child_count == p->visible_child_capacity )
+    {
+        int32_t cap = p->visible_child_capacity ? p->visible_child_capacity * 2 : 8;
+        int32_t* grown = realloc(p->visible_children, (size_t)cap * sizeof(int32_t));
+        assert(grown);
+        p->visible_children = grown;
+        p->visible_child_capacity = cap;
+    }
+    p->visible_children[p->visible_child_count++] = child;
+}
+
+static void
+uitree_visible_children_rebuild(struct UITree* tree, int32_t parent)
+{
+    struct UITreeComponent* p = &tree->components[parent];
+    p->visible_child_count = 0;
+    for( int32_t child = p->first_child; child >= 0; child = tree->components[child].next_sibling )
+        if( !UITree_ChildHiddenForWalks(&tree->components[child]) )
+            uitree_visible_children_push(tree, p, child);
+    p->visible_children_valid = 1;
+}
+
+/* A child appended at the tail of `parent`'s sibling list (uitree_append_child):
+ * the same position at the tail of the sidecar. */
+static void
+uitree_visible_children_appended(struct UITree* tree, int32_t parent, int32_t child)
+{
+    struct UITreeComponent* p = &tree->components[parent];
+    if( !p->visible_children_valid )
+        return;
+    if( !UITree_ChildHiddenForWalks(&tree->components[child]) )
+        uitree_visible_children_push(tree, p, child);
+}
+
+static int32_t
+uitree_visible_children_find(struct UITreeComponent const* p, int32_t child)
+{
+    for( int32_t i = 0; i < p->visible_child_count; i++ )
+        if( p->visible_children[i] == child )
+            return i;
+    return -1;
+}
+
+/* A child leaving `parent`'s sibling list, or becoming unreachable in place. */
+static void
+uitree_visible_children_removed(struct UITree* tree, int32_t parent, int32_t child)
+{
+    struct UITreeComponent* p;
+    int32_t at;
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+    p = &tree->components[parent];
+    if( !p->visible_children_valid )
+        return;
+    at = uitree_visible_children_find(p, child);
+    if( at < 0 )
+        return;
+    memmove(&p->visible_children[at], &p->visible_children[at + 1],
+            (size_t)(p->visible_child_count - at - 1) * sizeof(int32_t));
+    p->visible_child_count--;
+}
+
+/* A reachability flag on `idx` changed (uitree_note_mutation). Becoming
+ * unreachable is a removal in place; becoming reachable needs its sibling
+ * position, which only the chain knows, so that direction rebuilds -- it is
+ * the rare direction (a hidden chat line is hidden for good). */
+static void
+uitree_visible_children_reconcile(struct UITree* tree, int32_t idx)
+{
+    struct UITreeComponent const* c = &tree->components[idx];
+    int32_t const parent = c->parent;
+    struct UITreeComponent* p;
+    bool hidden;
+    bool present;
+    if( parent < 0 || (uint32_t)parent >= tree->component_count )
+        return;
+    p = &tree->components[parent];
+    if( !p->visible_children_valid )
+        return;
+    hidden = UITree_ChildHiddenForWalks(c);
+    present = uitree_visible_children_find(p, idx) >= 0;
+    if( hidden && present )
+        uitree_visible_children_removed(tree, parent, idx);
+    else if( !hidden && !present )
+        p->visible_children_valid = 0;
+}
+
+int32_t const*
+UITree_VisibleChildren(struct UITree const* tree, int32_t parent, int32_t* out_count)
+{
+    /* Scratch, not tree state -- the same argument as UITree::emit_visited. */
+    struct UITree* mut = (struct UITree*)tree;
+    struct UITreeComponent* p;
+    assert(tree);
+    assert(out_count);
+    assert(parent >= 0 && (uint32_t)parent < tree->component_count);
+    p = &mut->components[parent];
+    if( !p->visible_children_valid )
+        uitree_visible_children_rebuild(mut, parent);
+    *out_count = p->visible_child_count;
+    return p->visible_children;
+}
+
 /* Fold a newly appended child into its parent's key ceiling. Leaves an unknown
  * ceiling unknown — the next lookup recomputes it once. */
 static void
@@ -1161,6 +1281,7 @@ uitree_append_child(
     {
         parent->first_child = child_index;
         parent->last_child_hint = child_index;
+        uitree_visible_children_appended(tree, parent_index, child_index);
         return;
     }
 
@@ -1177,6 +1298,7 @@ uitree_append_child(
         return; /* already the tail */
     tree->components[walk].next_sibling = child_index;
     parent->last_child_hint = child_index;
+    uitree_visible_children_appended(tree, parent_index, child_index);
 }
 
 static int32_t
@@ -1404,6 +1526,7 @@ UITree_UnlinkChild(
             else
                 tree->components[prev].next_sibling = next;
             uitree_child_key_removed(tree, parent_index, walk);
+            uitree_visible_children_removed(tree, parent_index, walk);
             tree->components[walk].parent = -1;
             tree->components[walk].next_sibling = -1;
             parent->is_dirty = 1;
@@ -1832,6 +1955,11 @@ uitree_component_free_owned(struct UITree* tree, struct UITreeComponent* c)
     }
     free(c->plugin_key);
     c->plugin_key = NULL;
+    free(c->visible_children);
+    c->visible_children = NULL;
+    c->visible_child_count = 0;
+    c->visible_child_capacity = 0;
+    c->visible_children_valid = 0;
     uitree_widget_geometry_free_list(tree, c->widget_geometry);
     c->widget_geometry = NULL;
     if( c->model_render_cache )
@@ -1930,6 +2058,7 @@ uitree_reclaim_subtree(
     /* Callers unlink before reclaiming, but a reclaim of a still-linked node must
      * not leave its parent claiming a key that just went away. */
     uitree_child_key_removed(tree, c->parent, idx);
+    uitree_visible_children_removed(tree, c->parent, idx);
 
     int32_t child = c->first_child;
     while( child >= 0 )
@@ -2030,6 +2159,7 @@ UITree_Free(struct UITree* tree)
 {
     assert(tree);
 
+    /* tree-walk-exempt: teardown */
     for( uint32_t i = 0; i < tree->component_count; i++ )
         uitree_component_free_owned(tree, &tree->components[i]);
     UITree_ParkedEditsDrop(tree);
@@ -2093,6 +2223,7 @@ UITree_MarkAllDirty(struct UITree* tree)
 {
     assert(tree);
 
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].is_dirty = 1;
     /* Outside the loop deliberately: dirty_gen is a tree-level generation, so a
@@ -2196,7 +2327,10 @@ uitree_note_mutation(
     if( impacts & UITREE_IMPACT_EMIT_SELF )
         UITree_MarkNodeDirty(tree, idx);
     if( impacts & UITREE_IMPACT_REACHABILITY )
+    {
         uitree_topo_bump(tree, __LINE__);
+        uitree_visible_children_reconcile(tree, idx);
+    }
     if( impacts & (UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_LAYOUT_TREE | UITREE_IMPACT_GEOMETRY_STATE) )
         uitree_geometry_audit_stamp(tree, idx);
 }
@@ -2263,6 +2397,7 @@ UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree)
 {
     assert(tree);
 
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent* c = &tree->components[i];
@@ -2283,8 +2418,185 @@ UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree)
     }
 }
 
-/* Original O(n) semantics, kept as the allocation-failure fallback and (when
- * UITREE_ID_INDEX_VERIFY is defined) as the correctness oracle for the index. */
+/*
+ * @see UITREE_SCAN_METER in uitree.h. One meter for the process: the UI is
+ * single-threaded and one tree is live at a time; a scan of another tree, a
+ * pack or a subtree is still work the frame paid for, and it is priced in
+ * nodes and judged in walks of the live tree.
+ */
+struct UITreeScanMeterSites
+{
+    struct UITreeScanMeterSite rows[UITREE_SCAN_METER_SITES_MAX];
+    int count;
+};
+
+static struct
+{
+    uint64_t nodes;
+    uint32_t scans;
+    struct UITreeScanMeterSites frame;  /* this frame, reset every frame */
+    struct UITreeScanMeterSites window_sites; /* steady frames since the window turned */
+    struct UITree const* last_tree;
+    uint64_t last_instance;
+    uint32_t last_generation;
+    uint32_t last_count;
+    uint32_t last_stamp_serial;
+    uint32_t last_id_generation;
+    /* Walks per steady frame, in units of 1/1024 walk, as a ring. */
+    uint32_t window[UITREE_SCAN_METER_WINDOW];
+    int window_next;
+    int window_filled;
+    uint64_t window_sum;
+} uitree_scan_meter;
+
+static void
+uitree_scan_meter_add(
+    struct UITreeScanMeterSites* sites,
+    char const* site,
+    uint32_t scans,
+    uint64_t nodes)
+{
+    struct UITreeScanMeterSite* row = NULL;
+
+    for( int i = 0; i < sites->count; i++ )
+    {
+        if( sites->rows[i].site == site )
+        {
+            row = &sites->rows[i];
+            break;
+        }
+    }
+    if( !row )
+    {
+        /* A full table folds the rest into its last row rather than losing
+         * the count: the total is what the verdict reads. */
+        if( sites->count < UITREE_SCAN_METER_SITES_MAX )
+        {
+            row = &sites->rows[sites->count++];
+            row->site = site;
+            row->scans = 0;
+            row->nodes = 0;
+        }
+        else
+            row = &sites->rows[UITREE_SCAN_METER_SITES_MAX - 1];
+    }
+    row->scans += scans;
+    row->nodes += nodes;
+}
+
+void
+UITree_ScanMeterCountNodes(
+    char const* site,
+    uint64_t nodes)
+{
+    assert(site);
+    uitree_scan_meter.nodes += nodes;
+    uitree_scan_meter.scans++;
+    uitree_scan_meter_add(&uitree_scan_meter.frame, site, 1, nodes);
+}
+
+void
+UITree_ScanMeterCount(
+    struct UITree const* tree,
+    char const* site)
+{
+    assert(tree);
+    UITree_ScanMeterCountNodes(site, tree->component_count);
+}
+
+struct UITreeScanMeterSite const*
+UITree_ScanMeterFrameSites(int* out_count)
+{
+    assert(out_count);
+    *out_count = uitree_scan_meter.frame.count;
+    return uitree_scan_meter.frame.rows;
+}
+
+int
+UITree_ScanMeterEndFrame(
+    struct UITree const* tree,
+    struct UITreeScanMeterReport* out)
+{
+    int steady;
+    int over = 0;
+
+    assert(tree);
+    assert(out);
+    steady = uitree_scan_meter.last_tree == tree &&
+             uitree_scan_meter.last_instance == tree->instance_id &&
+             uitree_scan_meter.last_generation == tree->generation &&
+             uitree_scan_meter.last_count == tree->component_count &&
+             uitree_scan_meter.last_stamp_serial == tree->frame_stamp_serial &&
+             uitree_scan_meter.last_id_generation == tree->id_generation;
+
+    /* Another tree -- a new boot, a test's fresh fixture -- starts a fresh
+     * window: its walks are measured against its own size. */
+    if( uitree_scan_meter.last_tree != tree ||
+        uitree_scan_meter.last_instance != tree->instance_id )
+    {
+        memset(uitree_scan_meter.window, 0, sizeof(uitree_scan_meter.window));
+        uitree_scan_meter.window_next = 0;
+        uitree_scan_meter.window_filled = 0;
+        uitree_scan_meter.window_sum = 0;
+        uitree_scan_meter.window_sites.count = 0;
+    }
+
+    memset(out, 0, sizeof(*out));
+    out->nodes = uitree_scan_meter.nodes;
+    out->scans = uitree_scan_meter.scans;
+    out->component_count = tree->component_count;
+    out->steady = steady;
+
+    /* Measured in walks of THIS tree, so the budget does not move with its
+     * size: two walks of 7,000 nodes and two of 700 are the same verdict. */
+    if( steady && tree->component_count > 0 )
+    {
+        uint64_t walks = (uitree_scan_meter.nodes * 1024u) / tree->component_count;
+        if( walks > UINT32_MAX )
+            walks = UINT32_MAX;
+        if( uitree_scan_meter.window_next == 0 )
+            uitree_scan_meter.window_sites.count = 0;
+        for( int i = 0; i < uitree_scan_meter.frame.count; i++ )
+            uitree_scan_meter_add(
+                &uitree_scan_meter.window_sites,
+                uitree_scan_meter.frame.rows[i].site,
+                uitree_scan_meter.frame.rows[i].scans,
+                uitree_scan_meter.frame.rows[i].nodes);
+        uitree_scan_meter.window_sum -= uitree_scan_meter.window[uitree_scan_meter.window_next];
+        uitree_scan_meter.window[uitree_scan_meter.window_next] = (uint32_t)walks;
+        uitree_scan_meter.window_sum += walks;
+        uitree_scan_meter.window_next =
+            (uitree_scan_meter.window_next + 1) % UITREE_SCAN_METER_WINDOW;
+        if( uitree_scan_meter.window_next == 0 )
+            uitree_scan_meter.window_filled = 1;
+        if( uitree_scan_meter.window_filled )
+        {
+            out->window_walks =
+                (double)uitree_scan_meter.window_sum / (1024.0 * UITREE_SCAN_METER_WINDOW);
+            over = uitree_scan_meter.window_sum >
+                   (uint64_t)UITREE_SCAN_METER_STEADY_WALKS * 1024u * UITREE_SCAN_METER_WINDOW;
+        }
+    }
+    /* Name the site that ran up the WINDOW, not this frame's: the verdict is
+     * an average, and the frame that tips it may have scanned nothing. */
+    for( int i = 0; i < uitree_scan_meter.window_sites.count; i++ )
+        if( uitree_scan_meter.window_sites.rows[i].nodes > out->top.nodes )
+            out->top = uitree_scan_meter.window_sites.rows[i];
+
+    uitree_scan_meter.nodes = 0;
+    uitree_scan_meter.scans = 0;
+    uitree_scan_meter.frame.count = 0;
+    uitree_scan_meter.last_tree = tree;
+    uitree_scan_meter.last_instance = tree->instance_id;
+    uitree_scan_meter.last_generation = tree->generation;
+    uitree_scan_meter.last_count = tree->component_count;
+    uitree_scan_meter.last_stamp_serial = tree->frame_stamp_serial;
+    uitree_scan_meter.last_id_generation = tree->id_generation;
+    return over;
+}
+
+#ifdef UITREE_ID_INDEX_VERIFY
+/* Original O(n) semantics, the correctness oracle for the index. */
 static int32_t
 UITree_FindByComponentId_Linear(
     struct UITree const* tree,
@@ -2292,6 +2604,7 @@ UITree_FindByComponentId_Linear(
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_FIND_ID_LINEAR, 1);
     int32_t fallback = -1;
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         if( tree->components[i].component_id != component_id )
@@ -2303,6 +2616,7 @@ UITree_FindByComponentId_Linear(
     }
     return fallback;
 }
+#endif
 
 static inline uint32_t
 uitree_id_hash(int component_id)
@@ -2372,10 +2686,8 @@ uitree_id_index_put(struct UITree* tree, int component_id, int32_t idx)
     }
 }
 
-/* Rebuild the id->index map from the current component array. Returns false if
- * the backing storage could not be (re)allocated, in which case callers fall
- * back to the linear scan. */
-static bool
+/* Rebuild the id->index map from the current component array. */
+static void
 UITree_RebuildIdIndex(struct UITree* tree)
 {
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_ID_REBUILD, 1);
@@ -2388,17 +2700,16 @@ UITree_RebuildIdIndex(struct UITree* tree)
         int32_t* keys = realloc(tree->id_index_keys, cap * sizeof(int32_t));
         int32_t* vals = realloc(tree->id_index_vals, cap * sizeof(int32_t));
         assert(keys);
+        assert(vals);
         tree->id_index_keys = keys;
-        if( vals )
-            tree->id_index_vals = vals;
-        if( !keys || !vals )
-            return false;
+        tree->id_index_vals = vals;
         tree->id_index_cap = cap;
     }
 
     for( uint32_t i = 0; i < tree->id_index_cap; i++ )
         tree->id_index_keys[i] = -1;
 
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         int const id = tree->components[i].component_id;
@@ -2409,7 +2720,6 @@ UITree_RebuildIdIndex(struct UITree* tree)
     tree->id_index_gen = tree->id_generation;
     tree->id_index_tombs = 0;
     tree->id_index_valid = 1;
-    return true;
 }
 
 /* Record that `idx` is about to lose its component_id (reclaim). Must be called
@@ -2520,10 +2830,7 @@ UITree_FindByComponentId(
      * and reclaims only) — topology churn does not invalidate id lookups. */
     struct UITree* t = (struct UITree*)tree;
     if( !t->id_index_valid || t->id_index_gen != t->id_generation )
-    {
-        if( !UITree_RebuildIdIndex(t) )
-            return UITree_FindByComponentId_Linear(tree, component_id);
-    }
+        UITree_RebuildIdIndex(t);
 
     int32_t result = -1;
     uint32_t const mask = t->id_index_cap - 1;
@@ -2539,14 +2846,15 @@ UITree_FindByComponentId(
             result = t->id_index_vals[h];
             if( result == -1 )
             {
-                /* The winner was reclaimed and the replacement — a duplicate id
-                 * that lost the original tie-break — can only be found by a
-                 * scan. Do it once and cache the answer (including "none", as
-                 * -2) so repeated lookups for a dead id stay O(1). */
-                result = UITree_FindByComponentId_Linear(tree, component_id);
-                t->id_index_vals[h] = result >= 0 ? result : -2;
-                if( result >= 0 && t->id_index_tombs )
-                    t->id_index_tombs--;
+                /* The winner was reclaimed and the replacement -- a duplicate
+                 * id that lost the original tie-break -- can only be found by
+                 * walking the tree. Walk it ONCE for every tombstone at a
+                 * time: a rebuild settles them all, where a scan per dead id
+                 * paid a whole tree for each (113 walks in one frame when an
+                 * interface closed and its ids were asked for). After it the
+                 * map holds no tombstone, so the second probe answers. */
+                UITree_RebuildIdIndex(t);
+                return UITree_FindByComponentId(tree, component_id);
             }
             else if( result == -2 )
             {
@@ -3185,6 +3493,7 @@ UITree_ClearChildren(
     }
     c->child_key_max = UITREE_CHILD_KEY_NONE; /* nothing left to match by key */
     uitree_child_index_drop(c);               /* ... and none left to index */
+    c->visible_children_valid = 0;
     c->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     tree->canvas_candidates_valid = 0;
@@ -3635,6 +3944,9 @@ UITree_CcCopy(
     else
         UITreeNodeSet_Remove(&tree->opkeys, idx);
 
+    /* The copy above wrote reachability flags (native_hide, if3) straight into a
+     * node the link seam already recorded as reachable. */
+    uitree_visible_children_invalidate(tree, dst->parent);
     dst->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     tree->canvas_candidates_valid = 0;
@@ -4666,6 +4978,7 @@ UITree_WidgetSetAnchor(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
             if( p == t ) return UITREE_WIDGET_ANCHOR_INVALID;
         /* No cycle through the effective anchors the target already has. */
         int32_t at = t;
+        /* tree-walk-exempt: ancestor chain, bounded by the count */
         for( uint32_t guard = 0; guard < tree->component_count; ++guard )
         {
             int32_t next;
@@ -4764,6 +5077,7 @@ int UITree_WidgetClearSkin(struct UITree* tree, int scene_id)
     assert(tree);
     int cleared = 0;
     if( scene_id <= 0 ) return 0;
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; ++i )
     {
         struct UITreeComponent* c = &tree->components[i];
@@ -4860,6 +5174,7 @@ int32_t UITree_WidgetCreateText(struct UITree* tree, struct UITreeNodeRef parent
     {   /* The owner table is full: count the way this always did. */
         count=0;
         PA_ADD(create_cap_iters, tree->component_count);
+        UITREE_SCAN_METER(tree);
         for( uint32_t i=0; i<tree->component_count; ++i )
             if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
@@ -4897,6 +5212,7 @@ static int32_t uitree_widget_create_owned(struct UITree* tree, struct UITreeNode
     {   /* The owner table is full: count the way this always did. */
         count=0;
         PA_ADD(create_cap_iters, tree->component_count);
+        UITREE_SCAN_METER(tree);
         for( uint32_t i=0; i<tree->component_count; ++i )
             if( !tree->components[i].freed && tree->components[i].plugin_owner==owner ) ++count; }
     if( count>=128 ) return -1;
@@ -4934,6 +5250,7 @@ int UITree_WidgetClearGraphic(struct UITree* tree, int scene_id)
     assert(tree);
     int cleared=0;
     if( scene_id<=0 ) return 0;
+    UITREE_SCAN_METER(tree);
     for( uint32_t i=0; i<tree->component_count; ++i )
     {
         struct UITreeComponent* c=&tree->components[i];
@@ -5037,6 +5354,7 @@ UITree_WidgetMoveAfter(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
     tree->components[sibling].next_sibling = idx;
     /* The tail hint is validated on use; a moved tail simply costs one walk. */
     parent->last_child_hint = -1;
+    parent->visible_children_valid = 0;
     parent->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
     tree->canvas_candidates_valid = 0;
@@ -5048,6 +5366,7 @@ UITree_WidgetMoveAfter(struct UITree* tree, struct UITreeNodeRef ref, uint64_t o
 void UITree_WidgetResetOwner(struct UITree* tree, uint64_t owner)
 {
     if( !tree || !owner ) return;
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; ++i )
     {
         if( tree->components[i].freed ) continue;

@@ -85,7 +85,10 @@ PlayerModel_CollectAppearanceModelIds(
  * *head* models (idk->heads) plus the gendered worn-equipment head models
  * (obj->manhead/womanhead) of the head-bearing slots, design-recoloured like the
  * body (reference ClientPlayer.getHeadModel). Lights + captures the merged model
- * so the interface widget can animate it. Returns an owned model or NULL.
+ * so the interface widget can animate it. Returns an owned model, or NULL when
+ * the appearance is not resident or names no head model at all. Never a partial
+ * head — the caller caches what it gets and never rebuilds it, so a head short
+ * one part would be that player's face for the rest of the session.
  */
 struct ToriDraw_Model*
 PlayerHeadModel_BuildFromAppearance(

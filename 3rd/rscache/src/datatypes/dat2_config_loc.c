@@ -731,6 +731,35 @@ RSCache_Dat2ConfigLocEncode(
  * Returns false when the record would run past its end, so the caller can stop and leave
  * `_consumed` short rather than churn garbage into later fields.
  */
+/*
+ * Drop any shape/model table a previous opcode in THIS record already
+ * installed.
+ *
+ * Opcodes 1, 5, 6, 7 and the RS2 nested form each write loc->shapes,
+ * loc->models and loc->lengths outright. A record carrying two of them --
+ * which rev-237+ caches do, pairing a legacy table with its int-model-id
+ * sibling -- had the second overwrite the first's arrays in place, so every
+ * decode of that record leaked one whole table. Releasing first leaves the
+ * decoded result identical (the later opcode won before and still wins) and
+ * costs nothing on the single-opcode records, where all three are NULL.
+ */
+static void
+loc_release_model_table(struct RSCache_Dat2ConfigLoc* loc)
+{
+    if( loc->models )
+    {
+        for( int i = 0; i < loc->shapes_and_model_count; i++ )
+            free(loc->models[i]);
+        free(loc->models);
+        loc->models = NULL;
+    }
+    free(loc->shapes);
+    loc->shapes = NULL;
+    free(loc->lengths);
+    loc->lengths = NULL;
+    loc->shapes_and_model_count = 0;
+}
+
 static bool
 loc_read_models_rs2(
     struct RSCache_Dat2ConfigLoc* loc,
@@ -744,6 +773,7 @@ loc_read_models_rs2(
     if( count == 0 )
         return true;
 
+    loc_release_model_table(loc);
     loc->shapes_and_model_count = count;
     loc->shapes = (int*)malloc((size_t)count * sizeof(int));
     loc->models = (int**)malloc((size_t)count * sizeof(int*));
@@ -852,6 +882,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( count == 0 )
                 break;
 
+            loc_release_model_table(loc);
             loc->shapes = (int*)malloc(count * sizeof(int));
             loc->models = (int**)malloc(count * sizeof(int*));
             loc->lengths = (int*)malloc(count * sizeof(int));
@@ -895,6 +926,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( count == 0 )
                 break;
 
+            loc_release_model_table(loc);
             loc->shapes_and_model_count = 1;
 
             loc->shapes = NULL;
@@ -918,6 +950,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( count == 0 )
                 break;
 
+            loc_release_model_table(loc);
             loc->shapes = (int*)malloc(count * sizeof(int));
             loc->models = (int**)malloc(count * sizeof(int*));
             loc->lengths = (int*)malloc(count * sizeof(int));
@@ -941,6 +974,7 @@ RSCache_Dat2ConfigLocDecodeOp(
             if( count == 0 )
                 break;
 
+            loc_release_model_table(loc);
             loc->shapes_and_model_count = 1;
             loc->shapes = NULL;
             loc->models = (int**)malloc(1 * sizeof(int*));

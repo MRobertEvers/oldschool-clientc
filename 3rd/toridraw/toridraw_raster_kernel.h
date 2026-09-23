@@ -796,7 +796,7 @@ ToriDraw_KernelTake(struct ToriDraw_Scene* scene, const struct ToriDraw_Kernel* 
  * ToriDraw_KernelTake calls it the FIRST time it sees a given configuration
  * and not again, so a renderer gets this once for free and the DEGRADED line
  * that may follow reads as a note on the report above it. That test is there
- * because a take is not an initialization: ToriRS_Soft3D_Init resets the
+ * because a take is not an initialization: ToriPlatform_Renderer_Soft3D_Init resets the
  * renderer once per frame, so taking a table is a per-frame act and printing
  * at every one of them is sixty reports a second saying nothing new. A
  * configuration is the five pointers printed below, so a stage swapped behind

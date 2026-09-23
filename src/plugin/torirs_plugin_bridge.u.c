@@ -1647,6 +1647,18 @@ app_plugin_capability(void* user, char const* name)
      */
     if( strcmp(name, "input.screen_keyboard") == 0 )
         return app->has_screen_keyboard != 0;
+    /*
+     * There is a plugin WINDOW to open -- for a frame carrying a launcher.
+     *
+     * Constant true in the client, and that is the point: this is what tells a
+     * focused harness apart from a client, not one lane from another. A full
+     * App always has the window (the BUFFER fallback draws it in-canvas when
+     * no executor will start, so "no presentation" is not "no window"); a test
+     * that builds a host with no window answers 0 for every key it does not
+     * know and the launcher stands down instead of pressing into nothing.
+     */
+    if( strcmp(name, "client.plugin_window") == 0 )
+        return 1;
     if( strcmp(name, "web") == 0 )
     {
 #if defined(TORIRS_PLATFORM_WEB)
@@ -2782,19 +2794,31 @@ app_plugin_feature_set(void* user, char const* key, int value)
 #include "render/torirs_renderer_kind.h"
 /* The plugin contract restates the renderer list rather than including the
  * render header; these hold the two spellings, and the store's range, to one
- * list. */
-_Static_assert(TORIRS_RENDERER_SOFTWARE == TORIRS_RENDERER_KIND_SOFTWARE, "renderer ids");
-_Static_assert(TORIRS_RENDERER_OPENGL3 == TORIRS_RENDERER_KIND_OPENGL3, "renderer ids");
-_Static_assert(TORIRS_RENDERER_OPENGL3_DEPTH == TORIRS_RENDERER_KIND_OPENGL3_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_GLES2 == TORIRS_RENDERER_KIND_GLES2, "renderer ids");
-_Static_assert(TORIRS_RENDERER_GLES2_DEPTH == TORIRS_RENDERER_KIND_GLES2_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_D3D9 == TORIRS_RENDERER_KIND_D3D9, "renderer ids");
-_Static_assert(TORIRS_RENDERER_D3D9_DEPTH == TORIRS_RENDERER_KIND_D3D9_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_WEBGL2 == TORIRS_RENDERER_KIND_WEBGL2, "renderer ids");
+ * list.
+ *
+ * Both sides are cast to int because they are two DIFFERENT enum types, which
+ * is the whole point of the assertion and also what -Wenum-compare warns
+ * about. The cast silences the warning without weakening anything: these are
+ * integer constant expressions either way, and a divergence is still a build
+ * failure. */
+_Static_assert((int)TORIRS_RENDERER_SOFTWARE == (int)TORIRS_RENDERER_KIND_SOFTWARE, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_OPENGL3 == (int)TORIRS_RENDERER_KIND_OPENGL3, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_OPENGL3_DEPTH == (int)TORIRS_RENDERER_KIND_OPENGL3_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_GLES2 == (int)TORIRS_RENDERER_KIND_GLES2, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_GLES2_DEPTH == (int)TORIRS_RENDERER_KIND_GLES2_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_D3D9 == (int)TORIRS_RENDERER_KIND_D3D9, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_D3D9_DEPTH == (int)TORIRS_RENDERER_KIND_D3D9_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_WEBGL2 == (int)TORIRS_RENDERER_KIND_WEBGL2, "renderer ids");
 _Static_assert(
-    TORIRS_RENDERER_WEBGL2_DEPTH == TORIRS_RENDERER_KIND_WEBGL2_DEPTH, "renderer ids");
-_Static_assert(TORIRS_RENDERER_COUNT == TORIRS_RENDERER_KIND_COUNT, "renderer ids");
-_Static_assert(RS_CS2_RENDERER_MAX == TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
+    (int)TORIRS_RENDERER_WEBGL2_DEPTH == (int)TORIRS_RENDERER_KIND_WEBGL2_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_WEBGL1 == (int)TORIRS_RENDERER_KIND_WEBGL1, "renderer ids");
+_Static_assert(
+    (int)TORIRS_RENDERER_WEBGL1_DEPTH == (int)TORIRS_RENDERER_KIND_WEBGL1_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_GLES3 == (int)TORIRS_RENDERER_KIND_GLES3, "renderer ids");
+_Static_assert(
+    (int)TORIRS_RENDERER_GLES3_DEPTH == (int)TORIRS_RENDERER_KIND_GLES3_DEPTH, "renderer ids");
+_Static_assert((int)TORIRS_RENDERER_COUNT == (int)TORIRS_RENDERER_KIND_COUNT, "renderer ids");
+_Static_assert((int)RS_CS2_RENDERER_MAX == (int)TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
 
 static int
 app_plugin_display_setting(
@@ -2955,6 +2979,31 @@ app_plugin_display_setting(
     if( out_max )
         *out_max = max;
     return 1;
+}
+
+/*
+ * The client's plugin window, for a plugin that has taken over the LAUNCHER.
+ *
+ * `plugin_panel_visible` and not the executor's state: what a switch labels
+ * itself from is whether the window is on screen, which is the same thing the
+ * minimenu's "Manage Plugins" row inverts.
+ */
+static int
+app_plugin_window_open_query(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    return app->plugin_panel_visible ? 1 : 0;
+}
+
+static void
+app_plugin_window_show(void* user, int open)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    app_plugin_window_set_open(app, open ? 1 : 0);
 }
 
 static int
@@ -5510,8 +5559,7 @@ app_plugin_frame_stamp_role(
     c = &tree->components[node];
     if( c->freed )
         return;
-    c->slot_tag = tag;
-    c->frame_member_plus1 = (uint8_t)(member + 1);
+    UITree_FrameStamp(tree, node, tag, (uint8_t)(member + 1));
     next[(*next_count)++] = node;
 }
 
@@ -5528,6 +5576,9 @@ app_plugin_frame_role_enum_id(struct App* app, int root_group, int* control)
     int const init = RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init");
     struct ToriRS_ComponentPack const* pack =
         CacheProvider_ComponentPackGet(app->provider, root_group);
+    /* A linear read of the whole pack (@see UITREE_SCAN_METER). */
+    if( pack )
+        UITREE_SCAN_METER_NODES(pack->component_count);
     if( init <= 0 || !ToriRS_ComponentPackLoadInt(pack, init, 2, control, &value) )
         return -1;
     return value;
@@ -5539,6 +5590,7 @@ app_plugin_frame_enum_value(struct App* app, int enum_id, int key, int* value)
 {
     struct ToriRS_Enum const* e = CacheProvider_EnumGet(app->provider, enum_id);
     if( !e || e->output_is_string || !e->keys || !e->int_values ) return 0;
+    UITREE_SCAN_METER_NODES(e->count);
     for( int i = 0; i < e->count; i++ )
         if( e->keys[i] == key )
         {
@@ -5559,6 +5611,8 @@ app_plugin_chat_plate_expected(struct App* app, int filter)
     struct ToriRS_ComponentPack const* pack = CacheProvider_ComponentPackGet(app->provider, chat);
     int container = -1, graphic = -1;
     if( !filters || !pack ) return -1;
+    /* Up to two linear reads of the chat pack (@see UITREE_SCAN_METER). */
+    UITREE_SCAN_METER_NODES(pack->component_count);
     if( !app_plugin_frame_enum_value(app, enum_id, filter, &container) )
     {
         /* Report is not in the filter enum. It is the sole other actionable
@@ -5631,21 +5685,34 @@ app_plugin_frame_role_fallback(struct UITree const* tree, struct UITreeRoleTable
     struct App* app = user;
     if( role == 0 || role > table->count ) return -2;
     char const* name = table->entries[role - 1].name;
+    /* -3, not -1, while the pack or enum that decides the answer is not
+     * resident: UITree_RoleNode remembers a -1, and a "no" read off data that
+     * had not loaded yet would stay "no" until the tree next changed. */
     if( strncmp(name, "chat_plate_", 11) == 0 &&
         RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters") >= 0 )
     {
         char* end;
         long filter = strtol(name + 11, &end, 10);
         if( end == name + 11 || *end || filter < 0 || filter > 255 ) return -1;
+        if( !CacheProvider_EnumGet(
+                app->provider, RevConfigRefs_Get(&app->revconfig_refs, "enum", "chat_filters")) ||
+            !CacheProvider_ComponentPackGet(
+                app->provider, RevConfigRefs_Get(&app->revconfig_refs, "iface", "chat")) )
+            return -3;
         int uid = app_plugin_chat_plate_expected(app, (int)filter);
         return uid < 0 ? -1 : UITree_FindByComponentId(tree, uid);
     }
     if( strncmp(name, "frame_", 6) && strncmp(name, "sidetab_", 8) ) return -2;
+    /* The declines first: they read nothing, and the enum lookup below reads
+     * the toplevel's pack. */
     int key = app_plugin_frame_role_key_161(table, role), uid = -1, control = -1;
-    int root = app_plugin_frame_root(app);
-    int element_map = app_plugin_frame_role_enum_id(app, root, &control);
     if( key < 0 || RevConfigRefs_Get(&app->revconfig_refs, "script", "frame_init") < 0 ) return -2;
+    int root = app_plugin_frame_root(app);
+    if( root >= 0 && app->provider && !CacheProvider_ComponentPackGet(app->provider, root) )
+        return -3;
+    int element_map = app_plugin_frame_role_enum_id(app, root, &control);
     if( element_map < 0 ) return -1;
+    if( !CacheProvider_EnumGet(app->provider, element_map) ) return -3;
     if( !app_plugin_frame_enum_value(app, element_map, key, &uid) || uid < 0 ) return -1;
     int32_t node = UITree_FindByComponentId(tree, uid);
     if( node >= 0 && getenv("TORIRS_FRAME_ROLE_AUDIT") )
@@ -5856,8 +5923,7 @@ app_plugin_frame_bind(struct UITree* tree, void* user)
             again = next[n] == idx;
         if( again )
             continue;
-        c->slot_tag = UITREE_SLOT_NONE;
-        c->frame_member_plus1 = 0;
+        UITree_FrameStamp(tree, idx, UITREE_SLOT_NONE, 0);
     }
     for( int n = 0; n < next_count; n++ )
     {
@@ -6427,6 +6493,8 @@ app_plugin_engine(struct App* app)
     engine.feature_set = app_plugin_feature_set;
     engine.display_setting = app_plugin_display_setting;
     engine.display_setting_set = app_plugin_display_setting_set;
+    engine.plugin_window_open = app_plugin_window_open_query;
+    engine.plugin_window_show = app_plugin_window_show;
     engine.frame_preference = app_plugin_frame_preference;
     engine.frame_preference_set = app_plugin_frame_preference_set;
     engine.varbit = app_plugin_varbit;

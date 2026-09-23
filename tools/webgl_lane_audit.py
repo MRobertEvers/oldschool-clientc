@@ -1,25 +1,31 @@
 #!/usr/bin/env python3
-"""Audit the browser lane's two GPU renderers against their GL ceilings.
+"""Audit the two shared GPU cores against the GL ceilings they are written to.
 
 `make -C src lane-check PLATFORM=web` runs this. Two questions:
 
-  --es2 FILE...        does the WebGL1 / GLES2 renderer stay inside OpenGL
-                       ES 2.0 core? It used to be the link that answered
+  --es2 FILE...        does the ES2 core stay inside OpenGL ES 2.0 core? It
+                       is the code behind BOTH ES 2.0 renderers -- the
+                       browser's WebGL1 (platform_web_renderer_webgl1.c) and
+                       Android's GLES2 (platform_androidarmv7_renderer_opengles2.c) -- so a
+                       GLES3 call in it breaks a 2013 phone as surely as a
+                       browser. It used to be the link that answered
                        this -- the web lane pinned -sMAX_WEBGL_VERSION=1, so
                        a GLES3 entry point could not resolve to a working
                        context and a mistake failed on that build. The module
                        now carries a WebGL2 renderer as well, so the runtime
                        must be able to make either context and the pin is
-                       gone. The ES2 renderer still RUNS on a WebGL1 context
+                       gone. The WebGL1 lane still RUNS on a WebGL1 context
                        (platform_gl_context_sdl.c asks for one by name), but
-                       nothing at link time would catch a GLES3 call in it
-                       any more. This does.
+                       nothing at link time would catch a GLES3 call in the
+                       core any more. This does.
 
   --no-extensions FILE...
-                       does either renderer reach for a GL extension? Neither
-                       may: the lane links with
+                       does either core reach for a GL extension? Neither may:
+                       the web lane links with
                        GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0, so one that
-                       did would fail in a browser.
+                       did would fail in a browser, and the Android lane
+                       targets a driver generation where an extension is a
+                       per-device gamble.
 
 Comments are stripped before the search and string literals are not, because
 a shader's `#version 300 es` is source the GPU compiles, while a comment
@@ -126,21 +132,20 @@ def main(argv):
         found = scan(paths, ES3_ONLY, "OpenGL ES 3.0 only")
         if found:
             print(
-                "webgl_lane_audit: the WebGL1/GLES2 renderer must stay inside "
-                "OpenGL ES 2.0 core (WEB-GL1-001 in docs/platform_quirks.md)",
+                "webgl_lane_audit: the ES2 core must stay inside OpenGL ES 2.0 "
+                "(WEB-GL1-001 in docs/platform_quirks.md)",
                 file=sys.stderr)
             return 1
-        print("webgl_lane_audit: WebGL1 renderer is ES 2.0 core, total 0")
+        print("webgl_lane_audit: ES2 core is ES 2.0 only, total 0")
         return 0
     found = scan(paths, [EXTENSION_PATTERN], "GL extension")
     if found:
         print(
-            "webgl_lane_audit: neither web GPU renderer may require a GL "
-            "extension; the lane links with "
-            "GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0",
+            "webgl_lane_audit: neither GPU core may require a GL extension; "
+            "the web lane links with GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0",
             file=sys.stderr)
         return 1
-    print("webgl_lane_audit: no GL extensions in either web renderer, total 0")
+    print("webgl_lane_audit: no GL extensions in either core, total 0")
     return 0
 
 

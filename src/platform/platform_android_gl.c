@@ -6,7 +6,7 @@
  * program to it and never see EGL.
  *
  * The renderer on the other side of this seam here is the lane's own
- * platform_renderer_gles2_*.c: OpenGL ES 2.0 core with no extensions,
+ * platform_androidarmv7_renderer_opengles2_*.c: OpenGL ES 2.0 core with no extensions,
  * shaped after the Windows D3D9 renderer's retained model. This file's only
  * job is the context it draws into.
  *
@@ -118,17 +118,33 @@ android_gl_sync_surface(void)
     return 1;
 }
 
-ToriRS_GLContext
-ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLClient client)
+ToriPlatform_GLContext
+ToriPlatform_GLContext_Create(ToriPlatform_GLWindow* window, int depth_bits, enum ToriPlatform_GLClient client)
 {
     /*
-     * EGL_OPENGL_ES2_BIT, and a config whose depth size is what the caller
-     * asked for. Requested in the CONFIG rather than afterwards because that is
-     * the only place EGL will honour it -- there is no equivalent of setting an
-     * attribute on an existing context.
+     * The renderable type the caller's GL needs, and a config whose depth size
+     * is what it asked for. Both go in the CONFIG rather than afterwards
+     * because that is the only place EGL will honour them -- there is no
+     * equivalent of setting an attribute on an existing context.
+     *
+     * The renderable type must follow the client version, not just the
+     * context attribute below: EGL requires an ES3 context to come from a
+     * config advertising EGL_OPENGL_ES3_BIT_KHR. Drivers that are lenient
+     * about it hand back an ES3 context from an ES2 config anyway, which is
+     * exactly what makes getting this wrong a trap -- it works on the device
+     * in front of you and fails on the next one. 0x0040 is spelled out
+     * because EGL_OPENGL_ES3_BIT_KHR is an extension token that an older
+     * <EGL/egl.h> in an NDK sysroot may not declare, while every EGL 1.4
+     * implementation that can make an ES3 context understands the value.
+     *
+     * The Android lane asks for ES3 now: platform_androidarmv7_renderer_opengles3.c names the
+     * shared ES 3.0 core (platform_renderer_es3_*.c, which the browser binds
+     * as WebGL2) and --gles3 selects it. The XT1060's Adreno 320 reports
+     * ro.opengles.version 196608, which is ES 3.0 exactly.
      */
+    EGLint const renderable = client == TORIPLATFORM_GL_CLIENT_ES3 ? 0x0040 : EGL_OPENGL_ES2_BIT;
     EGLint const attribs[] = {
-        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+        EGL_RENDERABLE_TYPE, renderable,
         EGL_SURFACE_TYPE,    EGL_WINDOW_BIT,
         EGL_RED_SIZE,        8,
         EGL_GREEN_SIZE,      8,
@@ -136,17 +152,15 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         EGL_DEPTH_SIZE,      depth_bits > 0 ? depth_bits : 0,
         EGL_NONE
     };
-    /* ES2 is the only client this lane's renderer asks for; the parameter
-     * exists for the browser, where it picks WebGL1 or WebGL2. */
     EGLint const context_attribs[] = {
-        EGL_CONTEXT_CLIENT_VERSION, client == TORIRS_GL_CLIENT_ES3 ? 3 : 2, EGL_NONE
+        EGL_CONTEXT_CLIENT_VERSION, client == TORIPLATFORM_GL_CLIENT_ES3 ? 3 : 2, EGL_NONE
     };
     EGLint config_count = 0;
 
     (void)window; /* there is exactly one Surface; @see platform_gl_context.h */
 
     if( g_context != EGL_NO_CONTEXT )
-        return (ToriRS_GLContext)g_context; /* already up */
+        return (ToriPlatform_GLContext)g_context; /* already up */
 
     {
         /* The lever, read once: unset or anything but "0" is on. */
@@ -164,10 +178,58 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         g_error = "eglInitialize failed";
         return NULL;
     }
-    if( !eglChooseConfig(g_display, attribs, &g_config, 1, &config_count) || config_count < 1 )
+    /*
+     * Choose the config BY HAND, because eglChooseConfig cannot be told to
+     * refuse multisampling.
+     *
+     * EGL_SAMPLE_BUFFERS and EGL_SAMPLES are "AtLeast" attributes: leaving
+     * them out defaults both to 0, and a default of 0 still MATCHES a config
+     * with 4x MSAA. The sort is supposed to put fewer samples first, but the
+     * order is the driver's and only the first config was ever read -- so
+     * which config this lane got was the driver's choice, not ours. ES2 and
+     * ES3 ask for different EGL_RENDERABLE_TYPE bits and therefore choose from
+     * different lists, which is how the two lanes can end up on configs that
+     * differ in more than the client version.
+     *
+     * This lane never wants MSAA: the client renders at a fixed canvas and
+     * resolves nothing, so multisampling is pure cost -- and on the Adreno
+     * 320 an unwanted multisampled window is also a correctness risk. So the
+     * list is walked and a single-sample config is taken; config[0] is the
+     * fallback, and the chosen config's real attributes are reported so this
+     * is never again something to guess at.
+     */
     {
-        g_error = "no EGL config with GLES2 and the requested depth size";
-        return NULL;
+        EGLConfig configs[32];
+        EGLint chosen = -1;
+        EGLint i;
+
+        if( !eglChooseConfig(
+                g_display, attribs, configs,
+                (EGLint)(sizeof(configs) / sizeof(configs[0])), &config_count) ||
+            config_count < 1 )
+        {
+            g_error = "no EGL config with the requested client version and depth size";
+            return NULL;
+        }
+        for( i = 0; i < config_count; i++ )
+        {
+            EGLint sample_buffers = 0;
+            EGLint samples = 0;
+            eglGetConfigAttrib(g_display, configs[i], EGL_SAMPLE_BUFFERS, &sample_buffers);
+            eglGetConfigAttrib(g_display, configs[i], EGL_SAMPLES, &samples);
+            if( sample_buffers == 0 && samples == 0 )
+            {
+                chosen = i;
+                break;
+            }
+        }
+        g_config = configs[chosen >= 0 ? chosen : 0];
+        if( chosen < 0 )
+            __android_log_print(
+                ANDROID_LOG_WARN,
+                ANDROID_LOG_TAG,
+                "EGL: no single-sample config among %d; taking the driver's first",
+                config_count);
     }
 
     g_context = eglCreateContext(g_display, g_config, EGL_NO_CONTEXT, context_attribs);
@@ -191,16 +253,32 @@ ToriRS_GLContext_Create(ToriRS_GLWindow* window, int depth_bits, enum ToriRS_GLC
         return NULL;
     }
 
-    __android_log_print(
-        ANDROID_LOG_INFO,
-        ANDROID_LOG_TAG,
-        "EGL/GLES2 context up (depth %d)",
-        depth_bits);
-    return (ToriRS_GLContext)g_context;
+    {
+        /* What the driver actually gave us, not what was asked for. */
+        EGLint cfg_id = 0, r = 0, g = 0, b = 0, a = 0, d = 0, s = 0;
+        EGLint sample_buffers = 0, samples = 0;
+        eglGetConfigAttrib(g_display, g_config, EGL_CONFIG_ID, &cfg_id);
+        eglGetConfigAttrib(g_display, g_config, EGL_RED_SIZE, &r);
+        eglGetConfigAttrib(g_display, g_config, EGL_GREEN_SIZE, &g);
+        eglGetConfigAttrib(g_display, g_config, EGL_BLUE_SIZE, &b);
+        eglGetConfigAttrib(g_display, g_config, EGL_ALPHA_SIZE, &a);
+        eglGetConfigAttrib(g_display, g_config, EGL_DEPTH_SIZE, &d);
+        eglGetConfigAttrib(g_display, g_config, EGL_STENCIL_SIZE, &s);
+        eglGetConfigAttrib(g_display, g_config, EGL_SAMPLE_BUFFERS, &sample_buffers);
+        eglGetConfigAttrib(g_display, g_config, EGL_SAMPLES, &samples);
+        __android_log_print(
+            ANDROID_LOG_INFO,
+            ANDROID_LOG_TAG,
+            "EGL/ES%d context up: config %d rgba %d%d%d%d depth %d (asked %d) "
+            "stencil %d sample_buffers %d samples %d",
+            client == TORIPLATFORM_GL_CLIENT_ES3 ? 3 : 2,
+            cfg_id, r, g, b, a, d, depth_bits, s, sample_buffers, samples);
+    }
+    return (ToriPlatform_GLContext)g_context;
 }
 
 int
-ToriRS_GLContext_MakeCurrent(ToriRS_GLWindow* window, ToriRS_GLContext context)
+ToriPlatform_GLContext_MakeCurrent(ToriPlatform_GLWindow* window, ToriPlatform_GLContext context)
 {
     (void)window;
     (void)context;
@@ -229,7 +307,7 @@ ToriRS_GLContext_MakeCurrent(ToriRS_GLWindow* window, ToriRS_GLContext context)
 }
 
 void
-ToriRS_GLContext_Delete(ToriRS_GLContext context)
+ToriPlatform_GLContext_Delete(ToriPlatform_GLContext context)
 {
     (void)context;
 
@@ -250,7 +328,7 @@ ToriRS_GLContext_Delete(ToriRS_GLContext context)
 }
 
 void
-ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_height)
+ToriPlatform_GLContext_DrawableSize(ToriPlatform_GLWindow* window, int* out_width, int* out_height)
 {
     EGLint w = 0;
     EGLint h = 0;
@@ -299,14 +377,14 @@ ToriRS_GLContext_DrawableSize(ToriRS_GLWindow* window, int* out_width, int* out_
 }
 
 void
-ToriRS_GLContext_SetSwapInterval(int interval)
+ToriPlatform_GLContext_SetSwapInterval(int interval)
 {
     if( g_display != EGL_NO_DISPLAY )
         eglSwapInterval(g_display, interval);
 }
 
 char const*
-ToriRS_GLContext_LastError(void)
+ToriPlatform_GLContext_LastError(void)
 {
     return g_error;
 }

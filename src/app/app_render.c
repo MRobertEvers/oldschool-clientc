@@ -374,9 +374,9 @@ App_Render(
     /* Pointed at the buffer before anything draws: the boot bar and the
      * viewport notices below write through its layer when the buffer is
      * scaled. */
-    ToriRS_Soft3D_Init(app->soft, app->scene, pixels, width, height);
-    ToriRS_Soft3D_SetLayout(app->soft, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    ToriRS_Soft3D_SetInterfaceScaleMode(app->soft, RS_CS2Host_UiScaleMode(&app->host));
+    ToriPlatform_Renderer_Soft3D_Init(app->soft, app->scene, pixels, width, height);
+    ToriPlatform_Renderer_Soft3D_SetLayout(app->soft, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(app->soft, RS_CS2Host_UiScaleMode(&app->host));
 
     if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {
@@ -423,7 +423,7 @@ App_Render(
             for( int i = 0; i < width * height; i++ )
                 pixels[i] = 0;
         }
-        layer = ToriRS_Soft3D_LayerBegin(app->soft, 0, 0, layout_w, layout_h);
+        layer = ToriPlatform_Renderer_Soft3D_LayerBegin(app->soft, 0, 0, layout_w, layout_h);
         if( !App_BootTextOnly(app) )
             BootBar_Draw((uint32_t*)layer, layout_w, layout_h, percent);
 
@@ -446,7 +446,7 @@ App_Render(
                 BootBar_OriginY(layout_h) + BOOT_BAR_TEXT_BASELINE,
                 caption,
                 caption_font_scene_id);
-        ToriRS_Soft3D_LayerEnd(app->soft);
+        ToriPlatform_Renderer_Soft3D_LayerEnd(app->soft);
         return;
     }
 
@@ -459,21 +459,21 @@ App_Render(
      * scene scratch holds its projection), then the raw hits classify into
      * the pickset + hover tile the click/hotkey paths consume next frame. */
     if( app_world_drawable(app) && app->world_mouse_in_viewport )
-        ToriRS_Soft3D_SetPick(app->soft, app->world_mouse_x, app->world_mouse_y);
+        ToriPlatform_Renderer_Soft3D_SetPick(app->soft, app->world_mouse_x, app->world_mouse_y);
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_RENDER)
     {
-        ToriRS_Soft3D_RenderFrame(app->soft, &frame);
+        ToriPlatform_Renderer_Soft3D_RenderFrame(app->soft, &frame);
     }
 
     /* deob method5761 / Client-TS REBUILD_NORMAL: while the scene rebuilds,
      * the game area shows "Loading - please wait." instead of the world. */
     if( app->world_load_server_driven && app->world_load_inflight )
     {
-        int* const layer = ToriRS_Soft3D_LayerBegin(
+        int* const layer = ToriPlatform_Renderer_Soft3D_LayerBegin(
             app->soft, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app_draw_rebuild_loading_overlay(app, layer, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        ToriRS_Soft3D_LayerEnd(app->soft);
+        ToriPlatform_Renderer_Soft3D_LayerEnd(app->soft);
     }
 
     /* And over the top of either: the session is gone. Last, so it is not the
@@ -481,10 +481,10 @@ App_Render(
      * two would otherwise overlap with the wrong one winning. */
     if( NetLinkWatch_Lost(&app->net_link) )
     {
-        int* const layer = ToriRS_Soft3D_LayerBegin(
+        int* const layer = ToriPlatform_Renderer_Soft3D_LayerBegin(
             app->soft, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
         app_draw_connection_lost_overlay(app, layer, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        ToriRS_Soft3D_LayerEnd(app->soft);
+        ToriPlatform_Renderer_Soft3D_LayerEnd(app->soft);
     }
 
     if( torirs_env_frame_debug() )

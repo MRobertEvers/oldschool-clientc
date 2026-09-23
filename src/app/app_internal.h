@@ -119,7 +119,7 @@
 #include "painters/scene_occluders.h"
 #include "perf/torirs_perf.h"
 #include "platform/platform_memory.h"
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "plugin/task_plugin_io.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "plugin/torirs_plugin_mesh.h"
@@ -704,6 +704,10 @@ enum AppPlaceholderKind
     /* A ground item added before its model was resident: the stack entity
      * exists with element_id -1 and draws nothing until the model lands. */
     APP_PLACEHOLDER_OBJ_STACK = 0,
+    /* An obj a clientscript set on a GRAPHIC cell before its icon could be
+     * baked: the cell carries the obj (its ops, tooltip and stack number all
+     * read it) with item_scene_id -1, and draws no picture until this lands. */
+    APP_PLACEHOLDER_WIDGET_ICON,
 };
 
 void
@@ -722,6 +726,45 @@ void
 app_placeholder_obj_stacks_sweep(
     struct App* app,
     struct World* world);
+
+/* The world a task that deferred its load may land in, or NULL when the
+ * scene it was aimed at is gone. Shared by the placeholder kinds and the
+ * effect spawns -- both defer onto the asset runner, so both drop for the
+ * same three reasons. The unit comment has them. */
+struct World*
+app_deferred_land_world(
+    struct App* app,
+    int view,
+    unsigned world_load_seq,
+    char const* owner,
+    int kind);
+
+void
+app_placeholder_widget_icon(
+    struct App* app,
+    int component_id,
+    int obj_id,
+    int count);
+
+/* Release a burst of parked placeholder requests onto the asset runner.
+ * Called from the logic tick; see the unit comment for why a script's
+ * placeholder cannot simply be queued where it is asked for. */
+void
+app_placeholder_release_tick(struct App* app);
+
+/* Drop the park (App teardown). */
+void
+app_placeholder_park_free(struct App* app);
+
+/* The CS2 host's lazy obj-icon hook (RS_CS2Host.widget_obj_icon_lazy): a
+ * GRAPHIC cell whose obj is not resident takes a placeholder instead of
+ * holding the script. */
+void
+app_cs2_widget_obj_icon_lazy(
+    void* user,
+    int component_id,
+    int obj_id,
+    int count);
 
 /* app_world_rebuild.c: give a stack added as a placeholder its model and
  * scene element for the count it has now. 1 if it landed, 0 if the model is
@@ -1574,6 +1617,20 @@ app_plugin_window_set_open(struct App* app, int open);
  *  @return 1 when `node` is one of them and its destination was selected. */
 int
 app_plugin_popout_nav_click(struct App* app, int32_t node);
+
+/**
+ * The owner token on the engine's launcher button on a lane's stone column.
+ * Its own, and not the nav column's, so the minimenu can tell the two engine
+ * buttons apart by owner alone and neither can answer the other's click.
+ * @see APP_PLUGIN_NAV_OWNER for why it is far above any plugin's identity.
+ */
+#define APP_PLUGIN_LAUNCHER_OWNER UINT64_C(0x746F72694C41554E)
+
+/** A click on the engine's lane launcher (`plugin_owner ==
+ *  APP_PLUGIN_LAUNCHER_OWNER`). @return 1 when `node` is it and the plugin
+ *  window was toggled. */
+int
+app_plugin_lane_launcher_click(struct App* app, int32_t node);
 
 int
 app_plugin_panel_overlay_visible(

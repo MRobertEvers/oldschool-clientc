@@ -1871,6 +1871,8 @@ static int lua_client_world_cycle(lua_State* L) { struct ToriRS_Api* a=lua_curre
 static int lua_client_datestamp(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);char out[64];if(!lua_client(L)->datestamp(a,out,sizeof(out))){lua_pushnil(L);return 1;}lua_pushstring(L,out);return 1; }
 static int lua_client_setting_color(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,lua_client(L)->setting_color(a,(int)luaL_checkinteger(L,1),(uint32_t)luaL_optinteger(L,2,0)));return 1; }
 static int lua_client_memory_bytes(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushinteger(L,(lua_Integer)lua_client(L)->memory_bytes(a));return 1; }
+static int lua_client_plugin_window_open(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);lua_pushboolean(L,lua_client(L)->plugin_window_open(a));return 1; }
+static int lua_client_plugin_window_show(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L);luaL_checkany(L,1);lua_client(L)->plugin_window_show(a,lua_toboolean(L,1)!=0);return 0; }
 static int
 lua_client_disable_self(lua_State* L)
 {
@@ -3515,7 +3517,9 @@ static struct LuaFn const LUA_CLIENT_FNS[] = {
     {"feature_next",lua_client_feature_next},{"feature_get",lua_client_feature_get},
     {"feature_set",lua_client_feature_set},{"world_cycle",lua_client_world_cycle},
     {"datestamp",lua_client_datestamp},{"setting_color",lua_client_setting_color},
-    {"memory_bytes",lua_client_memory_bytes},{"disable_self",lua_client_disable_self},{NULL,NULL}
+    {"memory_bytes",lua_client_memory_bytes},{"disable_self",lua_client_disable_self},
+    {"plugin_window_open",lua_client_plugin_window_open},
+    {"plugin_window_show",lua_client_plugin_window_show},{NULL,NULL}
 };
 static struct LuaFn const LUA_GAME_FNS[] = {
     {"skill",lua_game_skill},{"run_energy",lua_game_run_energy},{"inventory_size",lua_game_inventory_size},

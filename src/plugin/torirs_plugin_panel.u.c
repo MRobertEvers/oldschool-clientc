@@ -129,6 +129,10 @@ app_plugin_rail_publish(struct App* app);
 static void
 app_plugin_popout_nav_tick(struct App* app);
 
+/* plugin/torirs_plugin_lane_launcher.u.c, included after this file. */
+static void
+app_plugin_lane_launcher_tick(struct App* app);
+
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
 static void
@@ -3043,14 +3047,14 @@ app_plugin_panel_raster_custom(
         ToriRS_FrameSetCanvas(
             &frame, row->custom_region.w, row->custom_region.h);
         ToriRS_FrameSetEmit(&frame, &desc, 1);
-        ToriRS_Soft3D_Init(
+        ToriPlatform_Renderer_Soft3D_Init(
             app->soft_chrome,
             app->scene,
             (int*)app->panel_custom_pixels,
             row->custom_region.w,
             row->custom_region.h);
         /*
-         * Drained by hand, never ToriRS_Soft3D_RenderFrame: that call clears
+         * Drained by hand, never ToriPlatform_Renderer_Soft3D_RenderFrame: that call clears
          * the canvas to TORIRS_SOFT3D_BG (an OPAQUE 0xFF202428) first, which
          * overwrote the transparent memset above. Every gap a plugin leaves
          * clear on purpose -- the loot tracker's spacing between its bands --
@@ -3061,7 +3065,7 @@ app_plugin_panel_raster_custom(
             struct ToriRS_RenderCommand cmd;
             ToriRS_FrameBegin(&frame);
             while( ToriRS_FrameNextCommand(&frame, &cmd) )
-                ToriRS_Soft3D_Execute(app->soft_chrome, &cmd);
+                ToriPlatform_Renderer_Soft3D_Execute(app->soft_chrome, &cmd);
             ToriRS_FrameEnd(&frame);
         }
     }
@@ -3259,6 +3263,11 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * column goes first, because whether it carries the destinations is what
      * the rail snapshot's `rail_hidden` reports. */
     app_plugin_popout_nav_tick(app);
+    /* And the launcher on the lane's own stone column, which is the way in on
+     * a root the column above is not on -- the mobile toplevel mounts the
+     * pop-out hidden. Neither stands the other down: only one root at a time
+     * names either of them. */
+    app_plugin_lane_launcher_tick(app);
     app_plugin_rail_publish(app);
     app_plugin_rail_drain(app);
     app_plugin_rail_publish(app);

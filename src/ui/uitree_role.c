@@ -376,6 +376,7 @@ role_find_authored(struct UITree const* tree, uint16_t role_id)
     assert(role_id);
 
     PA_ADD(role_authored_iters, tree->component_count);
+    UITREE_SCAN_METER(tree);
     for( uint32_t i = 0; i < tree->component_count; i++ )
     {
         if( tree->components[i].freed )
@@ -478,13 +479,17 @@ UITree_RoleNode(
      * O(a table lookup) or a short bounded walk, so re-asking it every call
      * costs nothing worth caching against.
      */
-    if( entry->derive_fact[0] == '\0' && entry->memo_valid &&
+    if( entry->derive_fact[0] == '\0' && entry->memo_valid && entry->memo_final &&
         entry->memo_generation == tree->generation &&
-        (!entry->id_sensitive || entry->memo_id_generation == tree->id_generation) )
+        ((!entry->id_sensitive && !entry->memo_by_fallback) ||
+         entry->memo_id_generation == tree->id_generation) )
     {
         /* A remembered node can still have been freed without either counter
-         * moving, so the answer is re-checked rather than trusted. */
-        if( (entry->memo_node < 0 && !table->fallback) ||
+         * moving, so the answer is re-checked rather than trusted. A miss is
+         * remembered too (@see UITreeRoleTable.fallback): a plugin asking
+         * every frame for a tab the frame does not have must not re-derive
+         * "no" every frame. */
+        if( entry->memo_node < 0 ||
             (entry->memo_node >= 0 && role_node_alive(tree, entry->memo_node)) )
         { PA_INC(role_memo_hits); PA_ADD(role_ns, PerfAudit_Now() - pa_t0); return entry->memo_node; }
     }
@@ -496,7 +501,8 @@ UITree_RoleNode(
     int adapted = -2;
     if( node < 0 && table->fallback )
         adapted = table->fallback(tree, table, role_id, table->fallback_user);
-    if( node < 0 && adapted != -2 ) node = adapted;
+    assert(adapted >= -3);
+    if( node < 0 && adapted != -2 ) node = adapted < 0 ? -1 : adapted;
     else
         for( int i = 0; node < 0 && i < entry->matcher_count; i++ )
         { PA_INC(role_matcher_calls); node = role_resolve_matcher(tree, &entry->matchers[i]); }
@@ -505,6 +511,8 @@ UITree_RoleNode(
         entry->memo_node = node;
         entry->memo_generation = tree->generation;
         entry->memo_id_generation = tree->id_generation;
+        entry->memo_by_fallback = adapted != -2;
+        entry->memo_final = adapted != -3;
         entry->memo_valid = 1;
     }
     PA_INC(role_memo_misses);
