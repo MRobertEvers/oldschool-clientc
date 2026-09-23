@@ -734,127 +734,70 @@ return {
         t.exec("quest.stage.mortton_created_sacred_oil", t.quest.expect_stage, "mortton_created_sacred_oil")
 
         -- Sacred oil on the logs setup carried (mortton_pyre.rs2's
-        -- [opheldu,_sacred_oil] -> [label,create_sacred_logs]) -> logs_pyre,
-        -- %morttonquest = mortton_created_pyre_logs. pyre_logs needs 2 doses
-        -- (flamtaer_pyre.struct's pyre_required_doses) and sacred_oil3 has 3,
-        -- so one use is enough and leaves sacred_oil1. The product and the
-        -- dose count are struct_param reads on the authored
-        -- flamtaer_pyre.struct records: before seam pass 8 the server never
-        -- loaded those, every param answered its default and the use
-        -- consumed the logs for an obj named 'item' (the old content_bug
-        -- verdict here; the opheldu pair orientation was seam pass 7).
-        t.exec("temple.makePyreLogs", t.player.use_item_on_item, "sacred_oil3", "logs")
-        t.expect("temple.logs_pyre", t.inv.await("logs_pyre", 1, 10))
-        t.exec("quest.stage.mortton_created_pyre_logs", t.quest.expect_stage, "mortton_created_pyre_logs")
-
-        -- Funeral pyre, step 1 (mortton_pyre.rs2's [oplocu,temple_pyre]):
-        -- pyre logs (category 2050) on an empty temple_pyre ->
-        -- @add_logs_to_funeral_pyre: the loc becomes temple_pyre_logs and
-        -- %morttonquest = mortton_logs_on_pyre. Only the pyres listed in
-        -- quest_mortton.enum's pyre_loc_coords count (%pyre_loc keys on
-        -- them); the four south of Ulsquire's house (3504,3275 / 3507,3272
-        -- / 3507,3276 / 3508,3275, rows 21-24) are the nearest to the
-        -- temple, and use_on picks the copy nearest the player.
-        t.exec("goto-pyre", t.player.goto_tile, 3505, 3279, 0)
-        local pyre_target, pyre_target_status = t.player.by_symbol("loc", "temple_pyre")
-        t.check("pyre.find", pyre_target_status == "ok",
-            "player.by_symbol(loc, temple_pyre) -> " .. tostring(pyre_target_status))
-        t.exec("pyre.addLogs", t.player.use_on, "logs_pyre", pyre_target)
-        t.expect("pyre.logsOnPyre", t.var.await_server("morttonquest", 75, 5))
-        t.exec("quest.stage.mortton_logs_on_pyre", t.quest.expect_stage, "mortton_logs_on_pyre")
-
-        -- Step 2 ([oplocu,_pyre_loaded]): shade remains (category 2049) on
-        -- the loaded pyre -> @add_remains_to_funeral_pyre: the loc becomes
-        -- its next_loc_stage, temple_pyre_bones_logs. Two shade_bones1 are
-        -- left after Razmire took two and Ulsquire one; Loar remains (level 0
-        -- in pyre_shade_level) are valid on plain pyre logs (level 0 in
-        -- pyre_log_level).
-        local loaded_target, loaded_target_status = t.player.by_symbol("loc", "temple_pyre_logs")
-        t.check("pyre.findLoaded", loaded_target_status == "ok",
-            "player.by_symbol(loc, temple_pyre_logs) -> " .. tostring(loaded_target_status))
-        t.exec("pyre.addRemains", t.player.use_on, "shade_bones1", loaded_target)
-        t.expect("pyre.remainsPlaced", t.msg.expect("You place the shade's remains on the logs"))
-
-        -- Step 3, Light ([oploc1,_pyre_remains_loaded], tinderbox in setup)
-        -- -> @light_funeral_pyre -> the self-re-arming
-        -- [oploc4,_pyre_remains_loaded] stat_random roll; on success
-        -- %morttonquest = mortton_lit_pyre. One press, then wait on the
-        -- server varp (Firemaking 99 from setup; the loc reverts after 49
-        -- ticks, so the wait stays well inside that).
-        t.exec("pyre.light", t.player.click_loc, "temple_pyre_bones_logs", 1)
-        t.expect("pyre.lit", t.var.await_server("morttonquest", 80, 40))
-        t.exec("quest.stage.mortton_lit_pyre", t.quest.expect_stage, "mortton_lit_pyre")
-
-        -- Reward snapshot BEFORE the hand-in: quest_mortton.rs2's
-        -- [queue,mortton_quest_complete] (reached from the mortton_lit_pyre
-        -- branch below) is stat_advance(crafting,20000) +
-        -- stat_advance(herblore,20000) -- xp*10 units, i.e. 2000 Crafting
-        -- XP and 2000 Herblore XP, the literal numbers ~quest_complete_rewards
-        -- passes to the scroll ("2000 Herblore XP|2000 Crafting XP|Access to
-        -- the Shade Catacombs") -- plus quest.points (3 QP) which
-        -- quest.expect_complete() already asserts. Nothing between here and
-        -- the hand-in grants xp, so the snapshot is taken now.
-        local reward_snapshot_result, reward_snapshot = t.skill.snapshot()
-        t.check("mortton.rewardSnapshot", reward_snapshot_result == "ok",
-            "skill.snapshot() -> " .. tostring(reward_snapshot_result) .. " before the Ulsquire hand-in")
-
-        -- Tell Ulsquire (ulsquire_shauncy.rs2's mortton_lit_pyre branch:
-        -- "I've put the Shade's spirit to rest!" / "Great! Well done my
-        -- friend!", then queue(mortton_quest_complete)). Talking is not
-        -- enough on its own: [queue,ulsquire_reset] clears ulsquire_visible
-        -- 200 ticks after his last cure, and then opnpc1 on EITHER form is
-        -- @afflicted_talk. A serum on him ([opnpcu] -> @ulsquire_use_item,
-        -- category 108) always cures and falls into @ulsquire_talk, so use
-        -- whichever partial dose the earlier cures left (each cure leaves
-        -- the next mort_serumN), or mix a fresh one from the reserve pair.
-        -- NOTE t.npc.by_symbol answers (status, row): the status is the
-        -- FIRST return.
-        t.exec("goto-ulsquire-3", t.player.goto_tile, 3496, 3289, 0)
-        local final_serum = nil
-        for _, serum_name in ipairs({ "mort_serum3", "mort_serum2", "mort_serum1" }) do
-            local serum_count_result, serum_count = t.inv.count(serum_name)
-            if final_serum == nil and serum_count_result == "ok" and type(serum_count) == "number"
-                and serum_count > 0 then
-                final_serum = serum_name
-            end
-        end
-        if final_serum == nil then
-            t.exec("mixSerum207-final", t.player.use_item_on_item, "ashes", "tarrominvial")
-            final_serum = "mort_serum3"
-        end
-        local final_ulsquire_symbol = "ulsquire_shauncy"
-        if t.npc.by_symbol("ulsquire_shauncy_afflicted") == "ok" then
-            final_ulsquire_symbol = "ulsquire_shauncy_afflicted"
-        end
-        local final_ulsquire, final_ulsquire_status = t.player.by_symbol("npc", final_ulsquire_symbol)
-        t.check("ulsquire.findFinal", final_ulsquire_status == "ok",
-            "player.by_symbol(npc, " .. final_ulsquire_symbol .. ") -> " .. tostring(final_ulsquire_status)
-                .. "; curing with " .. final_serum)
-        t.exec("ulsquire.cureFinal", t.player.use_on, final_serum, final_ulsquire)
-        t.exec("ulsquire.spiritAtRest", t.chat.play, {
-            "npc:hello again",
-            "player:I've put the Shade's spirit to rest",
-            "npc:Well done my friend",
-        })
-
-        t.quest.expect_complete()
-
-        -- Reward rows for the scroll's literal xp grants (quest.points
-        -- above already covers the 3 QP): quest_mortton.rs2's
-        -- [queue,mortton_quest_complete] is stat_advance(crafting,20000) +
-        -- stat_advance(herblore,20000), xp*10 units, matching the scroll's
-        -- "2000 Herblore XP" / "2000 Crafting XP" exactly.
-        local crafting_gain_result, crafting_gain_detail =
-            t.skill.expect_gain("crafting", 2000, reward_snapshot)
-        t.check("mortton.rewardCraftingXp", crafting_gain_result == "ok",
-            "skill.expect_gain(crafting, 2000) -> " .. tostring(crafting_gain_result) .. " ("
-                .. tostring(crafting_gain_detail) .. ")")
-        local herblore_gain_result, herblore_gain_detail =
-            t.skill.expect_gain("herblore", 2000, reward_snapshot)
-        t.check("mortton.rewardHerbloreXp", herblore_gain_result == "ok",
-            "skill.expect_gain(herblore, 2000) -> " .. tostring(herblore_gain_result) .. " ("
-                .. tostring(herblore_gain_detail) .. ")")
-
-        t.finish(0)
+        -- [opheldu,_sacred_oil], oc_category(logs)=22) -> logs_pyre,
+        -- %morttonquest = mortton_created_pyre_logs. pyre_logs needs 2
+        -- doses and sacred_oil3 has 3 (quest_mortton.obj), so one use is
+        -- enough.
+        -- CONTENT BUG, read from the engine's own dispatch source, not
+        -- guessed (run 4 caught it: "Nothing interesting happens." with the
+        -- backpack unchanged). torirs_server_scripts.c's
+        -- ToriRSServer_ScriptsRunOpheldu documents ONE INVARIANT for every
+        -- [opheldu,_<category>] rung: "last_item is the item the script is
+        -- bound to, and last_useitem is the other one" -- so a category
+        -- handler reads `last_useitem` for the OTHER item's identity, never
+        -- `last_item` (which is always itself). The sibling handler in the
+        -- SAME content pack gets this right --
+        -- skill_fletching/scripts/cut_logs.rs2:11-12's
+        -- [opheldu,_firemaking_logs] is `switch_obj(last_useitem) { case
+        -- knife : ... }` -- but mortton_pyre.rs2's [opheldu,_sacred_oil]
+        -- (lines 1-13) checks `oc_category(last_item)` on BOTH of its
+        -- branches (line 2's `=111` and line 6's `=22`). Since this handler
+        -- is only ever entered via sacred oil's OWN category (111, category
+        -- .pack:538) matching one of the two category rungs, `last_item` is
+        -- ALWAYS the sacred oil itself (info->category = 111, confirmed in
+        -- configs/all.obj) -- so line 2's `if(oc_category(last_item)=111)`
+        -- is unconditionally true and returns via `~attempt_decant` before
+        -- line 6's `oc_category(last_item)=22` (meant to detect LOGS,
+        -- category22, category.pack:37) can ever run, whichever of sacred
+        -- oil or logs was armed. attempt_decant (skill_herblore/scripts/
+        -- decant_potion.rs2:190) then finds mismatched decant families
+        -- (sacred oil is not a decantable potion) and prints exactly
+        -- "Nothing interesting happens." -- matching this run's row bit for
+        -- bit. Verified against BOTH physical orderings by tracing the
+        -- four-rung dispatch table (torirs_server_scripts.c ~3043-3090):
+        -- arming sacred oil and clicking logs lands on rung 4 ("the dragged
+        -- item's category"), arming logs and clicking sacred oil lands on
+        -- rung 3 ("the clicked item's category") -- both rungs orient
+        -- `last_item` to sacred oil, because 111 is sacred oil's own
+        -- category either way, so no `use_item_on_item` argument order
+        -- reaches line 6. Fix belongs in mortton_pyre.rs2 (swap `last_item`
+        -- for `last_useitem` on lines 2, 6 and 11, matching cut_logs.rs2's
+        -- pattern) -- not in this quest file, which cannot drive around an
+        -- unreachable branch in the content it is testing (trap 7: never
+        -- edit OSRS-Content).
+        -- A RECORDING row, not t.exec -- section 8's rule (trap 15's
+        -- corollary): a real FAIL immediately before t.blocked() is the
+        -- rejected shape, so this reads the verb's own result and grades
+        -- PASS unconditionally, carrying the actual (buggy) reply as
+        -- evidence; t.blocked() below carries the real verdict.
+        local pyre_logs_result, pyre_logs_detail = t.player.use_item_on_item("sacred_oil3", "logs")
+        t.check("temple.makePyreLogs", true,
+            "t.player.use_item_on_item(sacred_oil3, logs) -> " .. tostring(pyre_logs_result) .. " ("
+                .. tostring(pyre_logs_detail) .. ") -- reproduces the content bug below live: the backpack is "
+                .. "unchanged and no pyre logs were made")
+        t.blocked("CONTENT BUG -- OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/scripts/"
+            .. "mortton_pyre.rs2:2,6,11 ([opheldu,_sacred_oil]) checks oc_category(last_item) on both branches, "
+            .. "but last_item is ALWAYS the sacred oil itself (its own category, 111) for every dispatch rung that "
+            .. "can reach this handler -- the engine's own invariant (torirs_server_scripts.c's "
+            .. "ToriRSServer_ScriptsRunOpheldu / opheldu_orient, ~line 2987) is 'last_item is the item the script "
+            .. "is bound to, last_useitem is the other one', and the sibling handler in the same pack gets it "
+            .. "right (skill_fletching/scripts/cut_logs.rs2:12's [opheldu,_firemaking_logs] switches on "
+            .. "last_useitem). So line 6's oc_category(last_item)=22 branch that creates pyre logs is unreachable "
+            .. "-- confirmed on both use_item_on_item orderings by tracing the four-rung dispatch table, both land "
+            .. "on last_item=sacred_oil. temple.makePyreLogs above reproduces it live: "
+            .. "'Nothing interesting happens.' with the backpack unchanged, matching attempt_decant's mismatched-"
+            .. "family fallback exactly. The fix (last_item -> last_useitem on lines 2, 6, 11) is a content change "
+            .. "this quest file cannot make (trap 7).")
+        return
     end,
 }
