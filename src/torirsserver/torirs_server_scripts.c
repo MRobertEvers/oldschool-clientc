@@ -4139,6 +4139,51 @@ active_npc(struct SSVM_State* state)
 }
 
 /*
+ * The bound npc for a READ -- `npc_coord`, `npc_type`, `npc_name`,
+ * `npc_stat`/`npc_basestat`, `npc_var_get` -- which, unlike `active_npc`,
+ * still answers after `npc_del` for the rest of the tick.
+ *
+ * LostCity's NPC_DEL is `World.removeNpc(state.activeNpc, ...)` and leaves
+ * `state._activeNpc` alone (engine/script/handlers/NpcOps.ts NPC_DEL;
+ * ScriptState.ts `get activeNpc` throws only on a null pointer), and its
+ * NPC_COORD reads `state.activeNpc`'s x/z with no `isActive` test. So content
+ * writes the removal first and the read after it, and it is not wrong to:
+ * `[label,poison_sheep]` (quest_sheepherder diseased_sheep.rs2) is
+ * `npc_del; obj_add(npc_coord, $npc_bones, ...)`, LostCity_Content2's own copy
+ * has the same order, and Monkey Madness's guard is
+ * `npc_del; spotanim_map(smokepuff, npc_coord, ...)`. Here `npc_del` clears
+ * `active` at once (`ToriRSServer_WorldNpcFree`), so through `active_npc` the
+ * read aborted -- "npc_coord with no active npc" -- and the sheep's bones
+ * never dropped.
+ *
+ * Why `pending_free` is the right window and not a guess: a freed slot keeps
+ * every field of the removed npc (the free touches only `active`, the
+ * occupancy stamp and the queue), and `npc_spawn`'s scan refuses the slot
+ * until `ToriRSServer_WorldNpcReap` clears `pending_free` in phase cleanup,
+ * after every script of the tick has run. So inside that window the slot IS
+ * the deleted npc's last state and nothing else can be. After the reap the
+ * slot may hold a different npc, and a read then must still abort -- a
+ * script that suspends after `npc_del` and reads on a later tick is not
+ * covered, and fails loudly as before rather than reading a stranger.
+ *
+ * Reads only. A WRITE to a removed npc (`npc_anim`, `npc_tele`, `npc_say`,
+ * a second `npc_del`) still goes through `active_npc` and aborts: it would
+ * stamp collision or queue a mask on a slot no client holds any more.
+ */
+static struct ToriRSServerNpc*
+active_npc_readable(struct SSVM_State* state)
+{
+    struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
+    int slot = active_npc_slot(state);
+
+    if( slot < 0 || slot >= TORIRSSERVER_NPC_MAX )
+        return NULL;
+    if( !srv->npcs[slot].active && !srv->npcs[slot].pending_free )
+        return NULL;
+    return &srv->npcs[slot];
+}
+
+/*
  * The menu verb this player was OFFERED for `op_num` on an npc of `npc_type`,
  * or NULL when that slot is empty.
  *
@@ -4723,7 +4768,7 @@ ToriRSServer_ScriptCommand(
 
     case SS_OP_NPC_COORD:
     {
-        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc_readable(state);
 
         if( !npc )
         {
@@ -4761,7 +4806,7 @@ ToriRSServer_ScriptCommand(
 
     case SS_OP_NPC_NAME:
     {
-        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc_readable(state);
 
         SSVM_PushStr(state, npc ? ToriRSServer_NpcInfo(npc->type)->name : "");
         return 1;
@@ -4785,7 +4830,7 @@ ToriRSServer_ScriptCommand(
 
     case SS_OP_NPC_TYPE:
     {
-        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc_readable(state);
 
         SSVM_PushInt(state, npc ? npc->type : -1);
         return 1;
@@ -5875,7 +5920,7 @@ ToriRSServer_ScriptCommand(
     case SS_OP_NPC_VAR_GET:
     {
         int32_t slot;
-        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc_readable(state);
 
         if( !SSVM_PopInt(state, &slot) )
             return 1;
@@ -6733,7 +6778,9 @@ ToriRSServer_ScriptCommand(
         }
         /* The ordinary NPC_INFO remove path, exactly as a death does — see
          * docs/torirs_server_npc_slot_reap.md for why this is a queued free rather
-         * than a direct `active = 0`. */
+         * than a direct `active = 0`. The binding is left alone, as
+         * LostCity's NPC_DEL leaves `_activeNpc`: the reads after this
+         * (`npc_coord` for the drop) go through `active_npc_readable`. */
         ToriRSServer_WorldNpcFree(srv, active_npc_slot(state));
         return 1;
     }
@@ -6864,7 +6911,7 @@ ToriRSServer_ScriptCommand(
     case SS_OP_NPC_BASESTAT:
     {
         int32_t stat;
-        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerNpc* npc = active_npc_readable(state);
 
         if( !SSVM_PopInt(state, &stat) )
             return 1;

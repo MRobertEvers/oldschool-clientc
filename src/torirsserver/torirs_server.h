@@ -2232,7 +2232,10 @@ struct ToriRSServerNpc
      *  this tick has already reported it gone. `npc_spawn`'s free-slot scan
      *  treats this exactly like `active` — a slot cannot be handed to a new
      *  npc while a client might still resolve it as the old one. See
-     *  docs/torirs_server_npc_slot_reap.md. */
+     *  docs/torirs_server_npc_slot_reap.md. It is also why a script's READS
+     *  of its bound npc (`npc_coord` ...) still answer after `npc_del` for
+     *  the rest of the tick: the slot is still the removed npc's last state
+     *  (`active_npc_readable`, torirs_server_scripts.c). */
     uint8_t pending_free;
     /** Bumped whenever this pool slot becomes a different NPC. */
     uint16_t generation;
