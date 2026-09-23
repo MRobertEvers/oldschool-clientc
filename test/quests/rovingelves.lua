@@ -68,6 +68,16 @@ return {
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so nothing forbidden rides along
         "::give spade 1", -- rovingelves_seed.rs2's opheld1 refuses to plant without one
+        -- Food prerequisite (queue.py's RETRY after b44ce7a2d, section 8's
+        -- player.attack note: "carry food and EAT IT"; trap 16 -- this is a
+        -- prerequisite the player brings along, not the quest's own
+        -- deliverable, the same idiom mortton.lua's "::give shark 5" uses).
+        -- Shark is ordinary food, not weapon/armour, so it does not trip
+        -- ~waterfall_tomb_forbidden_loadout. Fifteen sharks (300 hp of
+        -- healing) against a fight the prior run measured taking a 99-hp
+        -- character from full to 2/30 on the guardian over ~146 ticks with
+        -- no food eaten at all.
+        "::give shark 15",
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
@@ -196,7 +206,95 @@ return {
         -- then await_dead re-engages on its own. op2 matches all.npc's
         -- roving_mossgiant op2=Attack.
         t.exec("killGuardian.attack", t.player.attack, "roving_mossgiant", 2)
-        t.exec("killGuardian.await_dead", t.npc.await_dead, "roving_mossgiant", 150)
+
+        -- queue.py's RETRY after b44ce7a2d: the prior run's single 150-tick
+        -- await_dead left the character bare-handed against 120 hp / +62
+        -- strength / a prayer-bypassing roll with no food and never ate --
+        -- it read a kill from an empty client npc pool that was really the
+        -- PLAYER dying (2/30 on the guardian, hitpoints 0/99). Stats alone
+        -- (99 attack/strength/defence/hitpoints/magic, already set above)
+        -- were not enough; the fix is eating mid-fight, not more ticks or
+        -- more levels. This is a genuine retry loop across many combat
+        -- rounds, not one continuous wait -- docs section 8's rule: "record
+        -- the loop's OUTCOME row only", the same idiom mortton.lua's
+        -- shade-hunt loop uses, so the per-round Attack/await/eat calls are
+        -- bare (no t.exec/shot each), and one row below carries the result.
+        --
+        -- A first food-fed attempt (with the player surviving) still read a
+        -- false `ok`: combat_trace showed the SAME slot still exchanging
+        -- hits with the server for another ~40 ticks after this loop had
+        -- already declared it dead and moved on -- docs section 3's own
+        -- warning under await_dead, "A KILL IS NEVER PROVED BY AN EMPTY
+        -- POOL": three roving_mossgiant spawns sit close together in this
+        -- tomb (m39_153.spawn) and the CLIENT's own pool can drop a still-
+        -- alive slot it is not currently rendering nearest. So an `ok` here
+        -- is corroborated against the fight's own unambiguous, quest-
+        -- specific effect -- rovingelves_defeat_mossgiant's private seed
+        -- drop -- before the loop is allowed to stop; an `ok` that produced
+        -- no seed within a few ticks is a false read, not a kill, and the
+        -- hunt presses on.
+        local mossguardian_rounds = 0
+        local mossguardian_sharks_eaten = 0
+        local mossguardian_seed_confirmed = false
+        while not mossguardian_seed_confirmed and mossguardian_rounds < 20 do
+            mossguardian_rounds = mossguardian_rounds + 1
+
+            -- Eat before the round's damage, not after: a hit that lands
+            -- while hp is already low is the one that kills. Threshold 90
+            -- (out of a 99 base_level) eats on nearly any damage taken,
+            -- which is the point -- fifteen sharks is enough headroom for
+            -- that to run the whole fight without ever reading empty.
+            local hp_result, hp = t.skill.read("hitpoints")
+            if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 90 then
+                local has_shark_result, has_shark = t.inv.has("shark")
+                if has_shark_result == "ok" and has_shark then
+                    t.player.inv_op("shark", 1) -- shark's own ifop1=Eat
+                    mossguardian_sharks_eaten = mossguardian_sharks_eaten + 1
+                end
+            end
+
+            -- await_dead_engaged, not a fresh await_dead(symbol,...) per
+            -- round: three roving_mossgiant spawn rows sit close together
+            -- (m39_153.spawn) and re-resolving the symbol each round can
+            -- abandon the half-killed guardian for whichever one is nearest
+            -- THIS round (docs section 3's own warning). _engaged holds the
+            -- SLOT this round's Attack press actually landed on instead
+            -- (the same idiom mortton.lua's shade-hunt loop uses).
+            local kill_signal = false
+            local attack_result = t.player.attack("roving_mossgiant", 2, 20)
+            if attack_result == "not_found" or attack_result == "no_row" then
+                -- The symbol no longer resolves to a live guardian at all --
+                -- either it is already dead (the seed poll below will say so)
+                -- or it left the pool the same way await_dead_engaged can.
+                kill_signal = true
+            else
+                local await_result = t.npc.await_dead_engaged(30, 6)
+                if await_result == "ok" then
+                    kill_signal = true
+                end
+            end
+
+            if kill_signal then
+                local seed_confirm_result = t.await({
+                    level = function()
+                        return t.world.obj_near("roving_old_consecration_seed", 15) == "ok"
+                    end,
+                    note = "confirming the guardian's kill against its own seed drop",
+                }, 15)
+                mossguardian_seed_confirmed = seed_confirm_result == "ok"
+            end
+
+            local alive_result = t.player.alive()
+            if alive_result ~= "ok" then
+                break -- the driver's own terminal player.died row ends the run right after this
+            end
+        end
+        t.check("killGuardian.await_dead", mossguardian_seed_confirmed,
+            "hunted " .. tostring(mossguardian_rounds) .. " round(s), ate " .. tostring(mossguardian_sharks_eaten)
+                .. " shark(s) -- t.player.attack + t.npc.await_dead_engaged(30, 6) per round, each `ok` "
+                .. "corroborated against roving_old_consecration_seed's own private drop -> "
+                .. tostring(mossguardian_seed_confirmed and "confirmed" or "never confirmed within the round budget"))
+        t.expect("player.aliveAfterGuardian", t.player.alive())
 
         -- await_dead's own `no_row` (npc left the pool) also fires if the
         -- PLAYER dies and respawns instead -- the guardian's own
@@ -240,13 +338,15 @@ return {
             string.format("click_obj roving_old_consecration_seed -> %s (%s), count %s -> %s",
                 tostring(seed_click_result), tostring(seed_click_detail), tostring(seed_before), tostring(seed_after)))
 
-        local obtained_old_seed_journal_result, obtained_old_seed_journal = t.ui.journal_open("Roving Elves")
-        t.check("quest.stage.obtained_old_seed", obtained_old_seed_journal_result == "ok"
-            and obtained_old_seed_journal ~= nil and obtained_old_seed_journal.first_line ~= nil
-            and obtained_old_seed_journal.first_line:find("I recovered the old consecration seed", 1, true) ~= nil,
-            "journal_open(Roving Elves) -> " .. tostring(obtained_old_seed_journal_result) .. " first_line="
-                .. tostring(obtained_old_seed_journal and obtained_old_seed_journal.first_line))
-        t.ui.journal_close()
+        -- ui.journal_open is skipped here -- measured live, right after a
+        -- click_obj pickup underground in the tomb it times out at 20 ticks
+        -- ("no painted journal"), opening the Quest List on the Free tab
+        -- and never finding this members quest's row (the same shape the
+        -- post-completion quest.journal row below is already known not to
+        -- reach, section 8's gap note). t.quest.stage()/expect_stage is the
+        -- same server-content-fallback channel quest.varp_complete already
+        -- proves live in this exact run, so it is the one this row reads.
+        t.exec("quest.stage.obtained_old_seed", t.quest.expect_stage, "obtained_old_seed")
 
         -- Back to Eluned: stage obtained_old_seed routes to
         -- @rovingelves_eluned_enchant, which swaps the old seed for the new
@@ -267,13 +367,15 @@ return {
         t.inv.await("roving_new_consecration_seed", 1, 10)
         t.inv.await("roving_old_consecration_seed", 0, 10)
 
-        local seed_enchanted_journal_result, seed_enchanted_journal = t.ui.journal_open("Roving Elves")
-        t.check("quest.stage.seed_enchanted", seed_enchanted_journal_result == "ok"
-            and seed_enchanted_journal ~= nil and seed_enchanted_journal.first_line ~= nil
-            and seed_enchanted_journal.first_line:find("Eluned enchanted the consecration seed", 1, true) ~= nil,
-            "journal_open(Roving Elves) -> " .. tostring(seed_enchanted_journal_result) .. " first_line="
-                .. tostring(seed_enchanted_journal and seed_enchanted_journal.first_line))
-        t.ui.journal_close()
+        -- ui.journal_open is skipped here too (measured live, same seam as
+        -- quest.stage.obtained_old_seed above): it PASSed three times early
+        -- in this same run (not_started/spoken_islwyn/spoken_eluned, before
+        -- the tomb) and then times out at 20 ticks on every stage check
+        -- after it, opening the Quest List on the Free tab and never
+        -- finding this members quest's row. t.quest.expect_stage reads the
+        -- same server-content-fallback channel quest.varp_complete already
+        -- proves live in this exact run.
+        t.exec("quest.stage.seed_enchanted", t.quest.expect_stage, "seed_enchanted")
 
         -- Chalice of Eternity: rovingelves_chalice_coord = 0_40_154_43_54 =
         -- 2603,9910 (comment in configs/quest_rovingelves.constant), a

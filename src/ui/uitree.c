@@ -4005,6 +4005,11 @@ UITree_CcDelete(
         parent->first_child = node->next_sibling;
     else
         tree->components[prev].next_sibling = node->next_sibling;
+    /* Out of the reachable-children sidecar HERE: `parent` is cleared below,
+     * so the reclaim's own hook cannot find it, and a stale entry is worse
+     * than a missed saving -- the slot is recycled by the next cc_create, which
+     * appends it again, and the walks then enter one node once per copy. */
+    uitree_visible_children_removed(tree, parent_index, index);
     node->parent = -1;
     node->next_sibling = -1;
     uitree_reclaim_subtree(tree, index);
@@ -4081,6 +4086,12 @@ UITree_CcDeleteAll(
      * the next by-sub-id lookup recomputes them over the static children that
      * survived. Both must go: the reclaim's per-child hook ran with an already
      * cleared `parent` and so could not retire either one. */
+    /* And the reachable-children sidecar, for the same reason: every removed
+     * row was reclaimed with `parent` already cleared, so none of them left it.
+     * Kept, the recycled slots were appended a second time by the rows the
+     * script created next -- the quest list re-emitted each row once per
+     * rebuild, 18,000 text descs by a quest's end. */
+    uitree_visible_children_invalidate(tree, parent_index);
     parent->last_child_hint = -1;
     parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
     uitree_child_index_drop(parent);

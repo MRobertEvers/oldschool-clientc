@@ -25,6 +25,8 @@
 --     ::setvar    a named varp takes a ^constant, seen by the CLIENT's mirror
 --     ::spawn     an npc appears in the client's own npc pool
 --     ::kill      it dies through the ordinary death path and leaves the pool
+--     ::passive   an aggressive npc TYPE stops starting fights, the claim it
+--                 held is dropped, and the player may attack something else
 --     ::tele      a content debugproc still works (the regression anchor: this
 --                 one was always reachable, so it failing means the split
 --                 broke dispatch rather than that a branch is missing)
@@ -301,6 +303,120 @@ return {
         record("cheats.kill_unknown_name", badkill_result == "refused",
             "::kill no_such_npc_here -> " .. tostring(badkill_result)
                 .. " (" .. tostring(badkill_detail) .. "), want refused")
+
+        -- --------------------------------------------------------- ::passive
+        -- `::passive <npc_symbol>` -- an npc TYPE stops STARTING fights for
+        -- the rest of the session. A test affordance, and the one the quest
+        -- suite asked for by name: Shades of Mort'ton's five-shade hunt is on
+        -- a street four aggressive Afflicted types wander, Mort'ton is
+        -- single-way, and one Afflicted that aggresses claims the player for
+        -- eight ticks past her last swing -- so every Attack on a Loar Shadow
+        -- in that window is refused by the engine's own rule and the hunt
+        -- landed two kills of five in twenty rounds
+        -- (build/quest_gate/mortton/ledger.tsv row 23).
+        --
+        -- The rows below are that, in miniature and in Lumbridge, which is
+        -- single-way too: an Afflicted spawned beside the player engages her,
+        -- an Attack on a SECOND npc is refused with the engine's own sentence,
+        -- `::passive` breaks her off, and the same press then lands.
+        --
+        -- A level-34 Afflicted takes a fixture character (10 hitpoints) down
+        -- in a few swings, and a dead player's every click answers `refused`
+        -- for reasons that have nothing to do with this cheat.
+        t.cheat("::setlevel hitpoints 50")
+        t.ticks(2)
+
+        -- The second target -- the stand-in for a Loar Shadow. What is read is
+        -- whether the press is ACCEPTED, never whether it kills anything.
+        t.cheat("::spawn man")
+        t.ticks(2)
+
+        local afflicted_spawn_result = t.cheat("::spawn mort_afflicted_woman")
+        local engaged_result, engaged_detail = t.await({
+            level = function()
+                local result, reading = t.skill.read("hitpoints")
+                return result == "ok" and reading.level < 50
+            end,
+            note = "cheats.passive_setup",
+        }, 40)
+        local engaged_hp_result, engaged_hp = t.skill.read("hitpoints")
+        record("cheats.passive_setup",
+            afflicted_spawn_result == "ok" and engaged_result == "ok",
+            "::spawn mort_afflicted_woman -> " .. tostring(afflicted_spawn_result)
+                .. "; she swung within 40 ticks: " .. tostring(engaged_result)
+                .. " (" .. tostring(engaged_detail) .. "); hitpoints 50 -> "
+                .. tostring(engaged_hp_result == "ok" and engaged_hp.level or engaged_hp_result)
+                .. " -- the CONTROL: without it the two rows below prove nothing")
+
+        -- The seam itself, live: claimed by her, refused on everything else.
+        local claimed_result, claimed_detail = t.player.attack("man", 2, 10)
+        record("cheats.passive_claimed_before", claimed_result == "refused",
+            "t.player.attack(man) while an aggressive Afflicted is on us -> "
+                .. tostring(claimed_result) .. " (" .. tostring(claimed_detail)
+                .. "), want refused")
+
+        local passive_result, passive_detail = t.cheat("::passive mort_afflicted_woman")
+        local passive_said = "?"
+        local passive_lines_result, passive_lines = t.msg.last(1)
+        if passive_lines_result == "ok" and type(passive_lines) == "table" and passive_lines[1] then
+            passive_said = tostring(passive_lines[1].text)
+        end
+        record("cheats.passive", passive_result == "ok",
+            "::passive mort_afflicted_woman -> " .. tostring(passive_result)
+                .. " (" .. tostring(passive_detail) .. "); server said '"
+                .. passive_said .. "'")
+
+        -- Read BEFORE the second Attack press, while the player is in no fight
+        -- at all -- `::passive` broke hers off and cleared his interaction with
+        -- it, and the `man` beside him is not aggressive. So every point of
+        -- damage in this window would be hers, and "hitpoints did not move" has
+        -- exactly one meaning. Twenty ticks is five of her four-tick swings.
+        local hold_result, hold = t.skill.read("hitpoints")
+        t.ticks(20)
+        local held_result, held = t.skill.read("hitpoints")
+        record("cheats.passive_stops_the_fight",
+            hold_result == "ok" and held_result == "ok" and held.level >= hold.level,
+            "hitpoints over 20 ticks beside a passive Afflicted, with no fight"
+                .. " of our own: "
+                .. tostring(hold_result == "ok" and hold.level or hold_result) .. " -> "
+                .. tostring(held_result == "ok" and held.level or held_result)
+                .. " (must not fall at all -- nothing else here can hit us)")
+
+        -- And the claim is gone with her, which is the half the quest needed:
+        -- the press the engine refused four rows up now lands.
+        local freed_result, freed_detail = t.player.attack("man", 2, 10)
+        record("cheats.passive_frees_the_player", freed_result == "ok",
+            "t.player.attack(man) after ::passive -> " .. tostring(freed_result)
+                .. " (" .. tostring(freed_detail) .. "), want ok")
+
+        -- The restore half. The player is now in a fight with the `man`, so an
+        -- Afflicted made aggressive again may legitimately decline to engage --
+        -- single-way, from her end this time -- and waiting for a second
+        -- engagement would be a row that fails for the right reason. What is
+        -- read instead is the STATE both combat guards consult, through the
+        -- cheat's own bare listing.
+        local off_result, off_detail = t.cheat("::passive off mort_afflicted_woman")
+        t.ticks(2)
+        local list_result = t.cheat("::passive")
+        local list_said = "?"
+        local list_lines_result, list_lines = t.msg.last(1)
+        if list_lines_result == "ok" and type(list_lines) == "table" and list_lines[1] then
+            list_said = tostring(list_lines[1].text)
+        end
+        record("cheats.passive_off",
+            off_result == "ok" and list_result == "ok"
+                and string.find(list_said, "nothing is passive", 1, true) ~= nil,
+            "::passive off mort_afflicted_woman -> " .. tostring(off_result)
+                .. " (" .. tostring(off_detail) .. "); ::passive -> "
+                .. tostring(list_result) .. ", server said '" .. list_said .. "'")
+
+        -- A name no npc carries must be refused rather than held as a type
+        -- nothing will ever match: a misspelled `::passive` in a quest's setup
+        -- has to be loud, exactly as a misspelled `::setvar` is.
+        local badpassive_result, badpassive_detail = t.cheat("::passive no_such_npc_here")
+        record("cheats.passive_unknown_name", badpassive_result == "refused",
+            "::passive no_such_npc_here -> " .. tostring(badpassive_result)
+                .. " (" .. tostring(badpassive_detail) .. "), want refused")
 
         -- ------------------------------------------------------------ ::tele
         -- LAST, because it moves the player out of the world every row above

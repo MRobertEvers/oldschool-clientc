@@ -798,6 +798,18 @@ enum DriveResult DrivePointer_MoveNear(struct App* app, enum DrivePickKind kind,
  *  with no state change. */
 enum DriveResult DrivePointer_Camera(struct App* app, int yaw, int pitch, int zoom);
 
+/** The follow camera's live pose, the three numbers DrivePointer_Camera
+ *  writes: orbit.yaw, orbit.pitch and world_cam_zoom, read back as they ARE
+ *  -- not as the driver last left them, because login, a settings row or a
+ *  content camera can move them without the driver.  `out_owned` is 1 when
+ *  the follow step owns the eye (app_world_camera_follow runs: no CAM_*
+ *  script is up and the debug unlock is off), 0 when something else does
+ *  and a pose written now would not be what the next frame draws.  QD.shot
+ *  (ui.lua) reads this to aim a photograph and put back exactly what was
+ *  there. */
+enum DriveResult DrivePointer_CameraPose(
+    struct App* app, int* out_yaw, int* out_pitch, int* out_zoom, int* out_owned);
+
 /** Movement idleness only: route_length == 0 AND minimap.flag_tile_x < 0.
  *  Both, because they can settle a tick apart. */
 enum DriveResult DrivePointer_PlayerIdle(struct App* app, int* out_idle);
@@ -885,6 +897,32 @@ struct DriveNpcRow
     /** Normalised: WorldEntity_NPC.name is sized 64 because it stores the
      *  <col=...> tagged form, so the tags come off here. */
     char name[64];
+    /**
+     * The overhead SAY this npc is showing RIGHT NOW, and the client cycles
+     * left before it goes.
+     *
+     * `npc_say` (torirs_server_scripts.c's SS_OP_NPC_SAY) is deliberately
+     * NOT routed through the chatbox -- it is a fire-and-forget SAY mask on
+     * NPC_INFO, landing in `npc->chat` (World_NpcSetChat, from
+     * PKT_NPC_INFO_OP_SAY).  So for every `[opnpc<n>]` whose whole visible
+     * answer is a word over the npc's head, this field is the ONLY reading a
+     * client has that the press landed at all: there is no message row, no
+     * dialogue and -- when the map refuses the npc's step -- no movement
+     * either (quest_sheepherder's `prod_sheep`).
+     *
+     * 100 is WORLD_ENTITY_CHAT_MAXLEN (src/world/entity_facets.h); a longer
+     * message truncates here rather than reaching for that header, which
+     * this standalone one does not include.  Tags are stripped like `name`.
+     *
+     * `overhead_timer` is the facet's own countdown: set to 150 by
+     * world_entity_set_chat on EVERY new message and decremented one per
+     * client cycle (world_cycle.c), the message cleared at 0.  That reset is
+     * what makes "it said it AGAIN" readable: the same words with a timer
+     * that jumped back up is a second say, not the first one still hanging
+     * about.  0 with an empty message is "nothing overhead".
+     */
+    char overhead[100];
+    int overhead_timer;
 };
 
 struct DriveLocRow
@@ -906,6 +944,14 @@ struct DriveLocRow
     int resolved_loc_id;
     int tile_x, tile_z, level;
     int element_id;
+    /** The shape the MAP placed this loc with (RSCACHE_LOC_SHAPE_*: 0-3 and 9
+     *  walls, 4-8 wall decoration, 10-11 centrepiece scenery, 12-21 roofs, 22
+     *  floor decoration), copied from WorldEntity_Scenery.shape.  QD.shot
+     *  (script/plugins/quest_driver/ui.lua) reads it to tell a wall or a tree
+     *  standing between the camera and the player from a grass tuft on the
+     *  same tile -- the row carried no shape before, and a shape-blind count
+     *  of locs cannot. */
+    int shape;
 };
 
 struct DriveObjRow

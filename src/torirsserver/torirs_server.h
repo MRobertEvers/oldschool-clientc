@@ -982,6 +982,19 @@ enum
 #define TORIRSSERVER_SINGLEWAY_COMBAT_TICKS 8
 
 /*
+ * How many npc TYPES one session may hold passive at once — the
+ * `::passive <npc_symbol>` test affordance (docs/QUEST_SERVER_CHEATS.md §F).
+ *
+ * Sixteen, because a quest test names the handful of types standing between
+ * its driver and the thing it is actually testing — Shades of Mort'ton names
+ * the four Afflicted spawn types on the shade street — and a cap that fills
+ * up says so to the caller instead of growing a session-scope table without
+ * bound. Nothing in the game reaches this: the cheat ladder is operator and
+ * test only, the same way `::god` beside it is.
+ */
+#define TORIRSSERVER_PASSIVE_NPC_TYPES_MAX 16
+
+/*
  * TORIRSSERVER_FAMILIAR_DEBUG=1 — one stderr line per tick per owned npc (mode,
  * waypoint, both combat targets, tile, face) plus every `npc_setmode` on one.
  *
@@ -1366,7 +1379,46 @@ struct ToriRSServerNpcInfo
     int bonus[12];
     int attackrate;
     int has_params;
+    /**
+     * NpcType.multiNpc (config opcode 106) — the npc twin of a loc's transform
+     * table, decoded into `RSCache_Dat2ConfigNpc.{varbit_id,varp_index,configs}`
+     * and thrown away on this side until 2026-09-21.
+     *
+     * A shell record with `transform_count > 0` is `[reldo]` or
+     * `[contact_osman_multi]`: no model, no name and no menu ops of its own,
+     * just the switch and the list of variants. `transforms[N]` is the live
+     * variant for switch value N and the last entry is the fallback; -1 in a
+     * slot means the npc is hidden at that value.
+     *
+     * Stored above the `name` gate for the same reason `category` is: every
+     * record that carries one is nameless, so `ToriRSServer_NpcInfo` hides it.
+     * Read it through `ToriRSServer_NpcResolveTransform`.
+     */
+    int transform_varbit;
+    int transform_varp;
+    int* transforms;
+    int transform_count;
 };
+
+/**
+ * Multinpc resolve for a player's current varp/varbit state — the npc twin of
+ * `ToriRSServer_LocResolveTransform`, and the same walk the CLIENT makes in
+ * `App_NpctypeResolveMultiId` (`VarPManager_ResolveTransform`, capped at four
+ * rungs).
+ *
+ * Returns the live child id, `base_npc_id` when the record names no shell, and
+ * -1 when the selected slot hides the npc. The npc entity in the world keeps
+ * the SPAWNED id: this answers only "which record did the CLIENT build its menu
+ * from", which is what `p_opnpc` needs to read an op string off a nameless
+ * shell (`npc_menu_verb`, torirs_server_scripts.c). It does NOT pick the script
+ * a trigger dispatches to — the npc trigger lookup is still keyed on the
+ * spawned id, and the child-then-base ladder the loc side has was measured and
+ * reverted on 2026-09-21 (see `npc_menu_verb`'s banner for what it cost).
+ */
+int
+ToriRSServer_NpcResolveTransform(
+    const struct ToriRSServerPlayer* player,
+    int base_npc_id);
 
 /*
  * The category rung for an npc type, or -1 when there is none.
@@ -1578,9 +1630,19 @@ ToriRSServer_LocCategoryMembers(int category);
 int
 ToriRSServer_LocKnown(int loc_id);
 
-/** The param, or NULL when this struct does not carry it. */
+/** The param, or NULL when this struct does not carry it. An authored
+ *  `.struct` row (ToriRSServer_ContentStructParam) wins over the cache's. */
 const struct ToriRSServerParamRow*
 ToriRSServer_StructParam(int struct_id, int param_id);
+
+/**
+ * The param a `server/scripts` `.struct` block states for this struct, or NULL.
+ * Owned by torirs_server_content.c (filled by ToriRSServer_ContentLoad, freed by
+ * ToriRSServer_ContentFree). Content-allocated struct ids (`pack/struct.alloc`,
+ * 8000 and up) have no cache record, so this is the ONLY place they exist.
+ */
+const struct ToriRSServerParamRow*
+ToriRSServer_ContentStructParam(int struct_id, int param_id);
 
 /** Decode the loc / struct config groups once. Returns 0 when the cache is
  *  absent, in which case every lookup reports "not carried" and the server
@@ -2170,7 +2232,10 @@ struct ToriRSServerNpc
      *  this tick has already reported it gone. `npc_spawn`'s free-slot scan
      *  treats this exactly like `active` — a slot cannot be handed to a new
      *  npc while a client might still resolve it as the old one. See
-     *  docs/torirs_server_npc_slot_reap.md. */
+     *  docs/torirs_server_npc_slot_reap.md. It is also why a script's READS
+     *  of its bound npc (`npc_coord` ...) still answer after `npc_del` for
+     *  the rest of the tick: the slot is still the removed npc's last state
+     *  (`active_npc_readable`, torirs_server_scripts.c). */
     uint8_t pending_free;
     /** Bumped whenever this pool slot becomes a different NPC. */
     uint16_t generation;
@@ -4248,6 +4313,33 @@ struct ToriRSServer
     int pending_last_int_valid;
 
     int verbose;
+
+    /*
+     * Npc TYPES this session has been told never to START a fight with a
+     * player — `::passive <npc_symbol>`, `::passive off <npc_symbol>`.
+     *
+     * A TEST AFFORDANCE, and the reason it is a set of TYPES rather than a
+     * flag on an npc is the npc pool: static spawns are stood up around a
+     * player's zone window and retired when it moves, so a setup line run at
+     * the fixture's Lumbridge spawn would find no Mort'ton npc in the pool to
+     * flag at all, and the four Afflicted types would walk back in aggressive
+     * the moment the test arrived. That is a setup cheat that silently does
+     * nothing, which is the one bug docs/QUEST_SUITE_KIT.md's phase 1 exists
+     * to kill. A type is a fact the window cannot retire.
+     *
+     * Read at the two decision points where an npc takes a player as a target
+     * and nowhere else — aggression (`maybe_aggress`) and retaliation
+     * (`ToriRSServer_CombatHitNpc`), both torirs_server_combat.c. A passive
+     * npc is still attackable, still answers every op, still talks, still
+     * takes damage and still dies: what it does not do is claim the player
+     * under single-way combat and refuse him every other target for eight
+     * ticks after each swing.
+     *
+     * Zero-init is "nothing is passive" — the count is 0 and nothing reads
+     * the array past it, which matters because npc type 0 is a real type.
+     */
+    int passive_npc_types[TORIRSSERVER_PASSIVE_NPC_TYPES_MAX];
+    int passive_npc_type_count;
 
     /**
      * May a player's summoned helper swing in a SINGLE-way combat area?
@@ -6518,6 +6610,21 @@ enum ToriRSServerTriggerResult
 ToriRSServer_RunCheatForTest(
     struct ToriRSServer* srv,
     const char* line);
+
+/*
+ * Has `::passive` been used on this npc TYPE? — the whole of what the two
+ * combat decision points ask (`srv->passive_npc_types`, above).
+ *
+ * A predicate over a type number, so an unknown or negative type answers 0
+ * rather than asserting: `npc->type` is what every caller has in hand and the
+ * question "is type -1 passive" has an answer. The common case costs one
+ * compare — a session that never ran the cheat has `passive_npc_type_count`
+ * 0 — which is what lets this sit in the per-tick aggression sweep.
+ */
+int
+ToriRSServer_WorldNpcTypeIsPassive(
+    const struct ToriRSServer* srv,
+    int npc_type);
 
 /** Resume anything parked whose wait is over. Called by tick phases 1, 4 and 5. */
 void

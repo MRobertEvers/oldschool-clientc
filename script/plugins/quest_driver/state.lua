@@ -51,10 +51,13 @@ function QD._inv_container()
     return api_drive.symbol("inv", "inv")
 end
 
+-- Returns the matching line's text (list[1] is the NEWEST line, so this is
+-- the most recent match), or false. The text is what msg.expect answers as
+-- its detail: the ledger then shows the line that proved the row.
 function QD._msg_contains(list, substring)
     for i = 1, #list do
         if string.find(list[i].text, substring, 1, true) then
-            return true
+            return list[i].text
         end
     end
     return false
@@ -89,22 +92,43 @@ function QD.var.server(name)
     return api_drive.var_server(id)
 end
 
--- var.await translates a varbit name to its base varp for event matching
--- (var events carry a varp id, plan 5.7); level is re-checked on every
--- server tick regardless, so a plain level predicate is sufficient here.
-function QD.var.await(name, value, ticks)
+-- The shared body of var.await and var.await_server. An `ok` names what was
+-- read and where (trap 12: an await that answers a bare ok lands a PASS row
+-- with an empty detail through t.expect), and a timeout names the last value
+-- the poll saw, so "never landed" and "landed as something else" differ.
+function QD._var_await(name, value, ticks, side, verb)
     local kind, id, fail_result, fail_name = QD._var_resolve(name)
     if not kind then
         return fail_result, fail_name
     end
-    local read = (kind == "varbit") and api_drive.varbit or api_drive.varp
-    return await({
+    local read
+    if side == "server" then
+        read = (kind == "varbit") and api_drive.varbit_server or api_drive.var_server
+    else
+        read = (kind == "varbit") and api_drive.varbit or api_drive.varp
+    end
+    local started = api_drive.tick()
+    local last_result, last_value = "unread", nil
+    local awaited, note = await({
         level = function()
-            local result, current = read(id)
-            return result == "ok" and current == value
+            last_result, last_value = read(id)
+            return last_result == "ok" and last_value == value
         end,
-        note = "var.await " .. name .. " == " .. tostring(value),
+        note = verb .. " " .. name .. " == " .. tostring(value),
     }, ticks or 10)
+    if awaited == "ok" then
+        return "ok", name .. " = " .. tostring(last_value) .. " (" .. side .. " " .. kind
+            .. ") after " .. tostring(api_drive.tick() - started) .. " tick(s)"
+    end
+    local last = (last_result == "ok") and tostring(last_value) or last_result
+    return awaited, tostring(note) .. " (last " .. side .. " read: " .. last .. ")"
+end
+
+-- var.await translates a varbit name to its base varp for event matching
+-- (var events carry a varp id, plan 5.7); level is re-checked on every
+-- server tick regardless, so a plain level predicate is sufficient here.
+function QD.var.await(name, value, ticks)
+    return QD._var_await(name, value, ticks, "client", "var.await")
 end
 
 -- Like var.await, but polls var.server/varbit_server instead of the CLIENT's
@@ -114,18 +138,7 @@ end
 -- hand-rolls exactly this wait with a raw t.await block; this gives every
 -- quest that same wait as one verb instead of a copy of that block each.
 function QD.var.await_server(name, value, ticks)
-    local kind, id, fail_result, fail_name = QD._var_resolve(name)
-    if not kind then
-        return fail_result, fail_name
-    end
-    local read = (kind == "varbit") and api_drive.varbit_server or api_drive.var_server
-    return await({
-        level = function()
-            local result, current = read(id)
-            return result == "ok" and current == value
-        end,
-        note = "var.await_server " .. name .. " == " .. tostring(value),
-    }, ticks or 10)
+    return QD._var_await(name, value, ticks, "server", "var.await_server")
 end
 
 -- Requires client == server == value.  A client that already shows the right
@@ -156,7 +169,7 @@ function QD.var.expect(name, value)
         return "refused", name .. ": server=" .. tostring(server_value) .. " expected=" .. tostring(value)
     end
 
-    return "ok", nil
+    return "ok", name .. " = " .. tostring(value) .. " (client == server, " .. kind .. ")"
 end
 
 -- inv ---------------------------------------------------------------------
@@ -222,7 +235,7 @@ function QD.inv.expect_absent(name)
     if total > 0 then
         return "refused", name .. ": present (" .. tostring(total) .. ")"
     end
-    return "ok", nil
+    return "ok", name .. ": absent (count 0)"
 end
 
 function QD.inv.await(name, count, ticks)
@@ -234,13 +247,27 @@ function QD.inv.await(name, count, ticks)
     if inv_result ~= "ok" then
         return inv_result, "inv"
     end
-    return await({
+    -- The count before the wait and the count the poll settled on both go in
+    -- the detail: "2 -> 3 (>= 3)" says the await watched it arrive, "3 -> 3"
+    -- that it was already there.
+    local before_result, before = api_drive.inv_count(container_id, obj_id)
+    local before_text = (before_result == "ok") and tostring(before) or before_result
+    local started = api_drive.tick()
+    local last_result, last_total = "unread", nil
+    local awaited, note = await({
         level = function()
-            local result, total = api_drive.inv_count(container_id, obj_id)
-            return result == "ok" and total >= count
+            last_result, last_total = api_drive.inv_count(container_id, obj_id)
+            return last_result == "ok" and last_total >= count
         end,
         note = "inv.await " .. name .. " >= " .. tostring(count),
     }, ticks or 10)
+    if awaited == "ok" then
+        return "ok", name .. " " .. before_text .. " -> " .. tostring(last_total)
+            .. " (>= " .. tostring(count) .. ") after "
+            .. tostring(api_drive.tick() - started) .. " tick(s)"
+    end
+    local last = (last_result == "ok") and tostring(last_total) or last_result
+    return awaited, tostring(note) .. " (" .. before_text .. " -> " .. last .. ")"
 end
 
 -- One await across a whole requirement table, rather than one inv.await per
@@ -263,15 +290,20 @@ function QD.inv.await_all(items, ticks)
         end
         wanted[#wanted + 1] = { name = name, obj_id = obj_id, count = count }
     end
+    -- pairs() order is not stable; the detail is read by people, sort it.
+    table.sort(wanted, function(a, b) return a.name < b.name end)
 
     -- Set by the level predicate on every poll; read back below once the
     -- await itself has settled, so a timeout's detail names what was still
     -- short at the LAST look rather than forcing a second, separate read
     -- (which could race the very thing that just timed out).
     local short_detail = ""
+    local held_detail = ""
+    local started = api_drive.tick()
     local awaited, note = await({
         level = function()
             local short = {}
+            local held = {}
             for i = 1, #wanted do
                 local entry = wanted[i]
                 local result, total = api_drive.inv_count(container_id, entry.obj_id)
@@ -279,16 +311,21 @@ function QD.inv.await_all(items, ticks)
                     short[#short + 1] = entry.name .. ": " .. result
                 elseif total < entry.count then
                     short[#short + 1] = entry.name .. ": " .. tostring(total) .. "<" .. tostring(entry.count)
+                else
+                    held[#held + 1] = entry.name .. "=" .. tostring(total)
+                        .. " (>= " .. tostring(entry.count) .. ")"
                 end
             end
             short_detail = table.concat(short, ", ")
+            held_detail = table.concat(held, ", ")
             return #short == 0
         end,
         note = "inv.await_all",
     }, ticks or 10)
 
     if awaited == "ok" then
-        return "ok", nil
+        return "ok", "all held: " .. held_detail .. " after "
+            .. tostring(api_drive.tick() - started) .. " tick(s)"
     end
     if short_detail ~= "" then
         return awaited, "short: " .. short_detail
@@ -307,10 +344,11 @@ function QD.msg.expect(substring)
     if result ~= "ok" then
         return result, list
     end
-    if not QD._msg_contains(list, substring) then
+    local line = QD._msg_contains(list, substring)
+    if not line then
         return "refused", "no message contains: " .. substring
     end
-    return "ok", nil
+    return "ok", "matched: " .. line
 end
 
 -- Scoped to messages inserted AFTER registration (plan 5.7's recorded
@@ -322,7 +360,8 @@ function QD.msg.await(substring, ticks)
     if serial_result ~= "ok" then
         return serial_result, since
     end
-    return await({
+    local matched = nil
+    local awaited, note = await({
         level = function()
             local result, list = api_drive.messages()
             if result ~= "ok" then
@@ -330,6 +369,7 @@ function QD.msg.await(substring, ticks)
             end
             for i = 1, #list do
                 if list[i].serial > since and string.find(list[i].text, substring, 1, true) then
+                    matched = list[i].text
                     return true
                 end
             end
@@ -337,6 +377,10 @@ function QD.msg.await(substring, ticks)
         end,
         note = "msg.await " .. substring,
     }, ticks or 10)
+    if awaited == "ok" then
+        return "ok", "matched: " .. tostring(matched)
+    end
+    return awaited, note
 end
 
 -- skill -------------------------------------------------------------------

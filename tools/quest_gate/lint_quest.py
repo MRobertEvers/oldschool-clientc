@@ -22,6 +22,15 @@ confusing failure three steps downstream of where the actual mistake is:
     opposed to the `cond and "PASS" or "FAIL"` idiom every real row in this
     project uses -- which is a verdict nothing computed, catching a pinned
     "PASS" masking a bug this exact syntax would exist to catch.
+  * a BOOLEAN (or any other non-verdict) where `t.step`'s verdict argument
+    belongs -- `t.step(name, result == "ok", detail)`, which is the natural
+    thing to write because `t.check`'s second argument really is a
+    condition. It used to end the entire run: api.drive.ledger reads that
+    column with luaL_checkstring and this sandbox has no pcall, so Between
+    a Rock threw away 93 PASS rows at its 94th on 2026-09-21. core.lua now
+    names the bad argument on the row and carries on, so the shape is
+    survivable -- but it is still a mistyped call, and this is where it is
+    refused before a run is ever spent on it.
   * a `-- CHECK` marker: new_quest.py's own guess-markers (op numbers, chat
     rows, routes an author has not confirmed against a live run yet). A
     generated file legitimately carries these until a human clears them, so
@@ -329,6 +338,148 @@ def check_step_pass_literal(text):
     return findings
 
 
+# The three words the ledger's verdict column takes (docs/QUEST_SUITE_KIT.md,
+# "Result vocabulary"). A verb's own result word -- "ok", "timeout",
+# "not_found", ... -- is NOT one of them: that belongs to t.expect, which
+# grades it into one of these.
+VERDICT_WORDS = ("PASS", "FAIL", "BLOCKED")
+
+# Top-level (unbracketed, unquoted) Lua tokens of one argument expression.
+# `and`/`or` matter because `cond and "PASS" or "FAIL"` -- the correct idiom --
+# contains a comparison too, and its VALUE is a string, not a boolean.
+_COMPARISON_RE = re.compile(r'==|~=|<=|>=|<|>')
+_ANDOR_RE = re.compile(r'(?<![\w.])(?:and|or)(?![\w])')
+_NOT_RE = re.compile(r'^not(?![\w])')
+
+
+def _blank_comments(expr):
+    """`expr` with every Lua comment (line and long-bracket) blanked to
+    spaces, string literals left alone. An argument written across several
+    lines can carry one, and a `-- PASS when stage == 40` sitting above the
+    argument is not a comparison the argument computes."""
+    out = []
+    in_string = None
+    i = 0
+    while i < len(expr):
+        ch = expr[i]
+        if not in_string and expr.startswith("--", i):
+            if expr.startswith("--[[", i):
+                end = expr.find("]]", i + 4)
+                end = len(expr) if end < 0 else end + 2
+            else:
+                end = expr.find("\n", i)
+                end = len(expr) if end < 0 else end
+            out.append(" " * (end - i))
+            i = end
+            continue
+        if in_string:
+            if ch == "\\" and i + 1 < len(expr):
+                out.append(ch)
+                i += 1
+                out.append(expr[i])
+                i += 1
+                continue
+            if ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _one_line(expr):
+    """The expression as a message quotes it: no comments, no newlines, no
+    runs of spaces, and short enough to read at the end of a finding."""
+    shown = " ".join(_blank_comments(expr).split())
+    return shown if len(shown) <= 60 else shown[:60] + "..."
+
+
+def _strip_top_level(expr):
+    """`expr` with every string literal and every bracketed group blanked to
+    spaces (comments already gone), so a regex over the result only ever
+    sees the expression's own top level."""
+    expr = _blank_comments(expr)
+    out = []
+    depth = 0
+    in_string = None
+    i = 0
+    while i < len(expr):
+        ch = expr[i]
+        if in_string:
+            out.append(" ")
+            if ch == "\\" and i + 1 < len(expr):
+                i += 1
+                out.append(" ")
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+            out.append(" ")
+        elif ch in _OPEN_CHARS:
+            depth += 1
+            out.append(" ")
+        elif ch in _CLOSE_CHARS:
+            depth -= 1
+            out.append(" ")
+        else:
+            out.append(ch if depth == 0 else " ")
+        i += 1
+    return "".join(out)
+
+
+def _boolean_valued(expr):
+    """True when this argument's VALUE is certainly a boolean: the literals
+    themselves, or a top-level comparison / `not` with no top-level
+    `and`/`or` turning it back into a string. Anything else -- a bare
+    variable, a call, the `cond and "PASS" or "FAIL"` idiom -- is not this
+    rule's business, because a static reader cannot know what it is."""
+    expr = expr.strip()
+    if expr in ("true", "false"):
+        return True
+    top = _strip_top_level(expr)
+    if _ANDOR_RE.search(top):
+        return False
+    return bool(_COMPARISON_RE.search(top)) or bool(_NOT_RE.match(top.strip()))
+
+
+def check_step_verdict_type(text):
+    """t.step's verdict argument must be one of the three verdict WORDS. The
+    two shapes a static reader can be sure about are a boolean-valued
+    expression and a string literal that is not a verdict; both used to be
+    (boolean) or still are (bad word) a row the author did not mean."""
+    findings = []
+    for match in T_STEP_OPEN_RE.finditer(text):
+        open_idx = match.end() - 1
+        inner, _ = _extract_balanced(text, open_idx)
+        args = _split_top_level(inner)
+        if len(args) < 2:
+            continue
+        line = _line_of(text, match.start())
+        kind, value = _literal_kind(args[1])
+        if kind == "string":
+            if value not in VERDICT_WORDS:
+                findings.append((line,
+                                  "t.step(..., \"%s\", ...): the verdict column takes "
+                                  "%s -- \"%s\" is not one of them (a verb's own result "
+                                  "word goes to t.expect, which grades it)"
+                                  % (value, "/".join(VERDICT_WORDS), value)))
+        elif _boolean_valued(args[1]):
+            shown = _one_line(args[1])
+            instead = ("\"PASS\"" if shown == "true" else
+                       "\"FAIL\"" if shown == "false" else
+                       "`%s and \"PASS\" or \"FAIL\"`" % shown)
+            findings.append((line,
+                              "t.step(..., %s, ...): a BOOLEAN where the verdict word "
+                              "belongs -- write %s, or use t.check, whose second "
+                              "argument IS the condition. This shape used to end the "
+                              "whole run at that row (Between a Rock, 93 PASS rows "
+                              "lost, 2026-09-21); core.lua now names it on the row "
+                              "instead, which is a floor, not a licence."
+                              % (shown, instead)))
+    return findings
+
+
 def check_marker(text):
     findings = []
     for match in CHECK_MARKER_RE.finditer(text):
@@ -364,10 +515,20 @@ def check_duplicate_exec_names(text):
 
 def lint_text(text, allow_check=False, packs=None):
     findings = []
-    findings.extend(check_numeric_ids_and_symbols(text, packs))
-    findings.extend(check_complete_own_row(text))
-    findings.extend(check_step_pass_literal(text))
-    findings.extend(check_duplicate_exec_names(text))
+    # Every rule below that looks for a CALL gets the file with its comments
+    # blanked to spaces -- `_blank_comments` preserves length, so line numbers
+    # are unchanged.  A rule reading the raw text finds its own shape written
+    # ABOUT, which is not the same as written: `_conformance.lua`'s ledger-
+    # verdict seam quotes `t.step(name, <expr> == "ok", detail)` in the banner
+    # explaining why nobody may write it, and the boolean rule flagged the
+    # sentence (2026-09-22).  `check_marker` is the one rule that must NOT be
+    # given the blanked text, because `-- CHECK` IS a comment.
+    code = _blank_comments(text)
+    findings.extend(check_numeric_ids_and_symbols(code, packs))
+    findings.extend(check_complete_own_row(code))
+    findings.extend(check_step_pass_literal(code))
+    findings.extend(check_step_verdict_type(code))
+    findings.extend(check_duplicate_exec_names(code))
     if not allow_check:
         findings.extend(check_marker(text))
     findings.sort(key=lambda item: item[0])

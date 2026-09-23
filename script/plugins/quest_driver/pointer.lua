@@ -940,7 +940,18 @@ function QD.drive._press_row(target, pos, action, deadline)
     end
     api_drive.mouse_button("left", 0, row.centre_x, row.centre_y)
 
-    return "ok", { row_text = row.text, row_action = row.action }
+    -- element_id is the press's own answer to WHICH COPY.  `menu_row_find`
+    -- above matched the row on this element and nothing else, so the op the
+    -- client is about to send names this entity -- not "the nearest npc of
+    -- that id", which is a different animal after every step either of you
+    -- takes where a symbol has three spawn rows two tiles apart
+    -- (plaguesheep_1, m40_52.spawn:28-30).  QD.player.press needs it to tell
+    -- the npc it pressed from the two beside it that are wandering; it is
+    -- added rather than re-derived because re-projecting after the press
+    -- answers whatever the pool ranks first NOW, which is the guess this
+    -- field exists to retire.  (SEAM silent_press_npc_step, 2026-09-21.)
+    return "ok", { row_text = row.text, row_action = row.action,
+        element_id = pos.element_id }
 end
 
 -- The LOGGED bypass, never the default -- every call is a ledger note.
@@ -957,6 +968,236 @@ end
 
 function QD.drive.camera(yaw, pitch, zoom)
     return api_drive.camera(yaw, pitch, zoom)
+end
+
+-- The live follow-camera pose: ("ok", {yaw, pitch, zoom, owned}), or
+-- `unsupported` from a binary built before the C verb (see the banner
+-- below).  Private: QD.shot and the shot-camera seam row are its readers, and
+-- no quest has a reason to steer by it.
+function QD.drive._camera_pose()
+    if api_drive.camera_pose == nil then
+        return "unsupported", "no api_drive.camera_pose in this binary"
+    end
+    return api_drive.camera_pose()
+end
+
+-- THE PHOTOGRAPH'S CAMERA (SEAM driver-shot-camera-occluded-zero-cost,
+-- seam8).  QD.shot (ui.lua) photographs the camera a row's press left
+-- behind, and that pose was chosen to PROJECT a target, not to show one: in
+-- the Mourner HQ basement the boot pose is an all-black viewport (the eye is
+-- inside the cave rock), at the gnome cage four press poses of five are a
+-- rock face, beside an oak a flat pose is its canopy (mourningsendparti
+-- shots 47-90; build/seam7_shot/before_*.png).
+--
+-- Seam 7 re-aimed EVERY shot and waited two frames each way for the eye to
+-- rebuild.  The pictures were right and three green quests went red: one
+-- run frame is one 20 ms logic cycle (run.py's TORIRS_EMBED_CLOCK_MS=20),
+-- so four extra frames a shot moved every later press against the server's
+-- tick phase (elemental_workshop, hero), and a fixed shot pose made two
+-- non-consecutive pictures byte-identical (fluffs).  So this costs NOTHING:
+--
+--   * it aims only when the pose it finds is OCCLUDED -- a wall or a
+--     centrepiece (a tree, a rock, a cage) stands between the player and the
+--     eye, low enough to cut the line of sight -- and every other shot is the
+--     press pose's own picture, byte for byte;
+--   * the aim is written in the SAME pump that queues the capture, before
+--     that frame's follow step, so the frame the capture is taken from is
+--     the aimed one; the press pose is written back on the first of the
+--     shot's own polls that answers `captured` (the renderer has taken the
+--     pixels -- the pump of the frame after, or later when the frame pacer
+--     skipped a draw), before that frame's follow step rebuilds the eye.  The eye is a pure function of (anchor, pitch, yaw,
+--     distance) (app_world_camera_follow; the terrain clamp eases from the
+--     ground, never from the angles), so no trace of the aim survives, and
+--     the shot answers on exactly the poll it always did.  No await, no
+--     tick, no frame is added.
+--
+-- Both halves need the C: api_drive.camera_pose (the live pose, so what is
+-- put back is what WAS there, not what the driver last wrote -- login, a
+-- settings row or a CAM_* script can move it) and the loc row's `shape` (a
+-- wall and a grass tuft on the same tile are both locs; a shape-blind count
+-- -- seam 7's -- cannot tell them apart).  A binary without them answers
+-- `nil` here and the shot is exactly what it was before this seam.
+
+-- RSCACHE_LOC_SHAPE_*: 0-3 walls, 9 the diagonal wall, 10-11 centrepiece
+-- scenery (trees, rocks, cages, furniture).  Wall decoration (4-8) hangs on a
+-- wall already counted, a roof (12-21) is hidden over an indoor player, and
+-- floor decoration (22) lies flat.
+QD.drive._shot_occluder_shapes = {
+    [0] = true, [1] = true, [2] = true, [3] = true, [9] = true,
+    [10] = true, [11] = true,
+}
+-- The follow camera's geometry (app_world_camera_follow, osrs239's
+-- `[camera] pitch_distance=3`): the eye sits pitch*3 + zoom back from the
+-- look-at point along the pitch, and the look-at point is 58 units over the
+-- ground (-8 -50).  The viewport-height scale the C applies on top is left
+-- out: it only moves the eye along the same line.
+QD.drive._shot_pitch_distance = 3
+QD.drive._shot_look_height = 58
+-- How high an occluder is assumed to stand, in world units (128 to a tile).
+-- A loc row carries no model height, so this is one number for every shape:
+-- a storey is 240, a ground-floor wall reaches it, a tree or a cave wall
+-- stands well over it.
+QD.drive._shot_occluder_height = 300
+-- An eye lower than this over the ground, with an occluder standing where
+-- it is, is taken to be INSIDE that occluder (a flat pose's eye is ~430 up,
+-- a steep one's 1600): the Mourner HQ basement's cave rock is that.
+QD.drive._shot_buried_height = 800
+-- The pitch the photograph is taken from when the press pose is occluded:
+-- the steepest the camera has, so the line of sight clears anything but a
+-- loc right beside the player.
+QD.drive._shot_pitch = 383
+QD.drive._shot_zooms = { 600, 200, -200 }
+
+-- The eye of `pose` relative to the player: (ex, ez, back, rise) -- the
+-- unit direction from the player to the eye in tiles, how many tiles back
+-- the eye sits, and how high over the look-at point.
+function QD.drive._shot_eye(pose)
+    local units = QD.drive._yaw_units
+    local angle = pose.yaw * 2 * math.pi / units
+    local pitch_angle = pose.pitch * 2 * math.pi / units
+    local distance = pose.pitch * QD.drive._shot_pitch_distance + pose.zoom
+    return math.sin(angle), -math.cos(angle),
+        distance * math.cos(pitch_angle) / 128, distance * math.sin(pitch_angle)
+end
+
+-- The locs that CAN occlude, from one api_drive.locs read: occluder shapes
+-- on the player's level within `reach` tiles, as offsets from the player.
+-- Read once per shot; every pose below is judged against this short list,
+-- because the whole pool is thousands of rows in a city and the chunk runs
+-- under an instruction budget (core.lua).
+function QD.drive._shot_candidates(player, rows, reach)
+    local shapes = QD.drive._shot_occluder_shapes
+    local list = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.level == player.level and shapes[row.shape] then
+            local dx, dz = row.x - player.x, row.z - player.z
+            if dx * dx + dz * dz <= reach * reach then
+                list[#list + 1] = { dx = dx, dz = dz, shape = row.shape, loc_id = row.loc_id }
+            end
+        end
+    end
+    return list
+end
+
+-- The occluders in the corridor between the player and the eye of `pose`,
+-- at most `limit` of them (nil: all): { {loc_id, shape, along, line, cuts}...
+-- } where `along` is tiles back from the player towards the eye, `line` the
+-- height of the line of sight over the ground there, and `cuts` whether it
+-- blocks it -- the line passes under QD.drive._shot_occluder_height there, or
+-- the loc stands where a LOW eye is (within 1.5 tiles of it, the eye under
+-- QD.drive._shot_buried_height): a cave rock ringing a room swallows a flat
+-- camera's eye whole, which is the all-black frame.
+function QD.drive._shot_occluders(pose, candidates, limit)
+    local ex, ez, back, rise = QD.drive._shot_eye(pose)
+    local look = QD.drive._shot_look_height
+    local height = QD.drive._shot_occluder_height
+    local found = {}
+    for i = 1, #candidates do
+        local c = candidates[i]
+        local along = c.dx * ex + c.dz * ez
+        if along >= 0.5 and along <= back + 1.5 then
+            local across = c.dx * ez - c.dz * ex
+            if across <= 1.0 and across >= -1.0 then
+                local line = look + rise * math.min(along, back) / back
+                found[#found + 1] = {
+                    loc_id = c.loc_id, shape = c.shape, along = along, line = line,
+                    cuts = line < height
+                        or (math.abs(along - back) <= 1.5 and look + rise < QD.drive._shot_buried_height),
+                }
+                if limit and #found >= limit then
+                    return found
+                end
+            end
+        end
+    end
+    return found
+end
+
+-- "yaw/pitch/zoom" plus, when given, the nearest occluder that cuts -- the
+-- words the shot-aim line and a probe print.
+function QD.drive._shot_pose_text(pose, occluders)
+    local text = pose.yaw .. "/" .. pose.pitch .. "/" .. pose.zoom
+    local near = nil
+    for i = 1, #(occluders or {}) do
+        if occluders[i].cuts and (near == nil or occluders[i].along < near.along) then
+            near = occluders[i]
+        end
+    end
+    if near then
+        text = text .. string.format(" behind loc %d (shape %d) %.1f tiles back, sight line %d",
+            near.loc_id, near.shape, near.along, math.floor(near.line))
+    end
+    return text
+end
+
+-- The photograph's pose, read-only: (keep, aim, why).  `keep` is the live
+-- pose to put back, `aim` the pose to photograph from, or nil when the live
+-- pose is clear (or cannot be judged) and the shot must be the press pose's
+-- own picture.  `why` says which.  Two pool reads, no frame.
+function QD.drive._shot_plan()
+    if api_drive.camera_pose == nil then
+        return nil, nil, "no camera_pose verb in this binary"
+    end
+    local pose_result, live = api_drive.camera_pose()
+    if pose_result ~= "ok" then
+        return nil, nil, "camera_pose " .. tostring(pose_result)
+    end
+    if not live.owned then
+        return nil, nil, "the follow step does not own the camera"
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" then
+        return nil, nil, "player_tile " .. tostring(player_result)
+    end
+    local _, _, live_back = QD.drive._shot_eye(live)
+    local reach = math.max(live_back, 6) + 2.5
+    local rows_result, rows = api_drive.locs(math.ceil(reach))
+    if rows_result ~= "ok" then
+        return nil, nil, "locs " .. tostring(rows_result)
+    end
+    if #rows > 0 and rows[1].shape == nil then
+        return nil, nil, "loc rows carry no shape in this binary"
+    end
+    local candidates = QD.drive._shot_candidates(player, rows, reach)
+    local occluders = QD.drive._shot_occluders(live, candidates)
+    local cutting = false
+    for i = 1, #occluders do
+        cutting = cutting or occluders[i].cuts
+    end
+    if not cutting then
+        return nil, nil, "clear " .. QD.drive._shot_pose_text(live)
+    end
+    -- A candidate is judged stricter than the live pose: EVERY occluder in
+    -- its corridor counts, cutting or not, because the steep pose it is
+    -- tried at looks down across all of them.  Nearest turn first, so a
+    -- target the press faced stays in the frame whenever its own side is
+    -- clear; the zoom only shortens when no yaw is clear at the longer one.
+    local units = QD.drive._yaw_units
+    local yaws = { live.yaw }
+    for step = 1, 4 do
+        yaws[#yaws + 1] = (live.yaw + step * 256) % units
+        if step < 4 then
+            yaws[#yaws + 1] = (live.yaw - step * 256) % units
+        end
+    end
+    local fewest, fewest_count = nil, nil
+    for _, zoom in ipairs(QD.drive._shot_zooms) do
+        for _, yaw in ipairs(yaws) do
+            local pose = { yaw = yaw, pitch = QD.drive._shot_pitch, zoom = zoom }
+            local blocking = #QD.drive._shot_occluders(pose, candidates, fewest_count)
+            if blocking == 0 then
+                return live, pose, "occluded " .. QD.drive._shot_pose_text(live, occluders)
+                    .. " -> clear " .. QD.drive._shot_pose_text(pose)
+            end
+            if fewest_count == nil or blocking < fewest_count then
+                fewest, fewest_count = pose, blocking
+            end
+        end
+    end
+    return live, fewest, "occluded " .. QD.drive._shot_pose_text(live, occluders)
+        .. " -> least occluded " .. QD.drive._shot_pose_text(fewest)
+        .. " (" .. fewest_count .. " in its corridor)"
 end
 
 -- player.* --------------------------------------------------------------
@@ -1452,88 +1693,217 @@ end
 -- The plane is exact -- being one floor out is never the same room.
 QD.player._goto_range = 1
 
-function QD.player.goto_tile(x, z, level)
+-- SEAM goto_tile_fixed_budget (2026-09-21) -- ONE ::goto AND TEN TICKS WAS A
+-- BET THAT NOTHING ELSE WOULD MOVE THE PLAYER.
+--
+-- A teleport is instantaneous, so the ten ticks were never a walking budget:
+-- they were the budget for the CLIENT's reading of the tile to catch up.
+-- What that budget cannot survive is another move landing behind it.  A
+-- content teleport is queued -- `p_delay(n)` then `p_telejump` is the shape
+-- every boat, trapdoor and cutscene in this pack uses -- and nothing the
+-- driver can read says one is in flight, so a `goto_tile` issued inside that
+-- window is simply overwritten and the verb then reports a hard timeout on a
+-- tile it can reach perfectly well.
+--
+-- Measured, Sea Slug, ONE RUN (build/quest_gate/seaslug/ledger.tsv +
+-- client.log, 2026-09-21):
+--
+--   row 27  kennith1.goto_ladder  FAIL  player.goto_tile 2784,3286,1: still
+--           at 2782,3273,0 ten ticks after ::goto -- server said
+--           '<col=ff0000>You have unlocked a new music track: Fruits de Mer'
+--   row 61  kennith2.goto_ladder  PASS  at 2784,3286,1
+--
+-- Same tile, same verb, same run, thirty-four rows apart.  The music track is
+-- the diagnosis: "Fruits de Mer" is the Fishing Platform's, and 2782,3273,0
+-- is `^seaslug_platform_coord` (quest_seaslug.constant:23 = 0_43_51_30_9), so
+-- what put the player there was
+-- areas/area_fishing_platform/scripts/holgart.rs2:186
+-- `[proc,board_ardougne_to_fishing_platform]` -- `if_close; mes(...);
+-- p_delay(2); p_telejump(^seaslug_platform_coord)` -- landing AFTER the
+-- ::goto.  The client.log shows the server building the destination scene for
+-- that ::goto (`scene built at zone 348,410`) and the player never reading
+-- anything but the boat's tile afterwards.  A second ::goto carries it, which
+-- is all row 61 is.  `gate.py` counts any FAIL as red whatever follows, so one
+-- such flake reds a quest whose very next row reached the npc anyway (row 28
+-- did, one tick later).
+--
+-- Reproduced on this tree three ways (build/quest_gate/goto_budget_before_*,
+-- build/seam_goto_budget/repro_boat_goto.lua), which is also the map of the
+-- window: a goto fired before the boarding dialogue is clicked through PASSes
+-- (~board has not begun, nothing is in flight); a goto fired after the
+-- arrival mesbox has been drained PASSes (the mesbox IS the telejump, already
+-- landed); a goto fired in between loses.  That is why row 27 was red and row
+-- 61 green in one run and why the quest looked intermittent.
+--
+-- So the budget is a PARAMETER and the teleport is RE-ISSUED.  `ticks` is the
+-- per-attempt wait, `attempts` is how many times the cheat may be fired, and
+-- the defaults are the old ten ticks and three attempts.  A run that needed
+-- more than one attempt SAYS SO in its detail, with the tile it was standing
+-- on and the server's own last line at the end of each attempt that missed --
+-- "it took two goes" is a fact about the world the next author needs, and the
+-- old single-shot detail had nowhere to put it.
+--
+-- Waiting longer instead of re-issuing does not work and was not a candidate:
+-- the overwriting teleport has already landed by the time the first attempt
+-- is half spent, and nothing walks a player back to a tile he was teleported
+-- off.  Only another teleport does that.
+--
+-- AND THE ARRIVAL IS RE-READ AFTER THE SCENE SETTLE.  The two settle awaits
+-- below can span several ticks, which is exactly the width of the window
+-- above, so the old code could reach `return "ok", "at " .. where` with
+-- `where` naming a tile that is NOT the one asked for -- an `ok` whose own
+-- detail contradicts it.  Measured (build/quest_gate/goto_budget_before_c):
+-- both goto rows answered `ok`, and the row after them found the player at
+-- 2780,3278 with the telejump having landed in between.  That reading now
+-- costs the attempt instead of being reported as a success.
+QD.player._goto_ticks = 10
+QD.player._goto_attempts = 3
+
+-- Is the player on the tile that was asked for?  (bool, "x,z,level"), and the
+-- string is answered even when the read fails, because it is what goes in the
+-- detail.
+function QD.player._goto_here(x, z, level)
+    local result, tile = QD.world.tile()
+    if result ~= "ok" or not tile then
+        return false, "?"
+    end
+    return tile.level == level
+        and QD.player._tile_distance(tile.x, tile.z, x, z) <= QD.player._goto_range,
+        string.format("%d,%d,%d", tile.x, tile.z, tile.level)
+end
+
+-- Fire the teleport once: (how, result, detail).
+--
+-- `how` is handed back and handed in again because THE FALLBACK IS CHOSEN
+-- ONCE.  A binary with no `::goto` ladder branch answers `no_row`, and on
+-- that binary every later attempt must spell the tile the way
+-- [debugproc,tele] reads one; re-probing `::goto` per attempt would put a
+-- dead cheat and its reply wait in front of each of them.
+function QD.player._goto_dispatch(x, z, level, how)
+    if how ~= "::tele coord" then
+        local result, detail = QD.cheat(
+            "::goto " .. tostring(x) .. " " .. tostring(z) .. " " .. tostring(level))
+        if result ~= "no_row" then
+            return "::goto", result, detail
+        end
+    end
+    -- No ladder branch on this binary: spell the tile the way
+    -- [debugproc,tele] reads one.
+    local result, detail = QD.cheat(string.format(
+        "::tele %d_%d_%d_%d_%d",
+        level, math.floor(x / 64), math.floor(z / 64), x % 64, z % 64))
+    return "::tele coord", result, detail
+end
+
+function QD.player.goto_tile(x, z, level, ticks, attempts)
     level = level or 0
-
-    local cheat_result, cheat_detail = QD.cheat(
-        "::goto " .. tostring(x) .. " " .. tostring(z) .. " " .. tostring(level))
-    local how = "::goto"
-    if cheat_result == "no_row" then
-        -- No ladder branch on this binary: spell the tile the way
-        -- [debugproc,tele] reads one.
-        how = "::tele coord"
-        cheat_result, cheat_detail = QD.cheat(string.format(
-            "::tele %d_%d_%d_%d_%d",
-            level, math.floor(x / 64), math.floor(z / 64), x % 64, z % 64))
-    end
-    if cheat_result ~= "ok" then
-        return cheat_result, string.format(
-            "player.goto_tile %d,%d,%d: %s answered %s%s",
-            x, z, level, how, tostring(cheat_result),
-            cheat_detail and (" -- " .. tostring(cheat_detail)) or "")
+    ticks = ticks or QD.player._goto_ticks
+    attempts = attempts or QD.player._goto_attempts
+    if attempts < 1 then
+        attempts = 1
     end
 
-    local arrived = QD.await({
-        level = function()
-            local result, tile = QD.world.tile()
-            if result ~= "ok" or not tile then
-                return false
-            end
-            return tile.level == level
-                and QD.player._tile_distance(tile.x, tile.z, x, z) <= QD.player._goto_range
-        end,
-        note = "goto_tile",
-    }, 10)
+    local how = nil
+    local landed = false
+    local tried = 0
+    local where = "?"
+    -- One line per attempt that did not hold: where the player was when it
+    -- gave up and what the server had just said.  The last line is read PER
+    -- ATTEMPT, not once at the end -- Sea Slug's music track belongs to
+    -- attempt 1 and would be long out of the chat ring by the end of
+    -- attempt 3.
+    local account = {}
 
-    -- THE SCENE IS ONE TICK BEHIND THE TILE, and a verb that returns on the
-    -- tile alone hands its caller a world the client cannot see yet.
-    -- Measured 2026-09-19 (build/quest_gate/g1settle): after a teleport to
-    -- Doric's hut the player's own tile reads 2951,3450 on tick t+1 with the
-    -- npc pool still EMPTY, and Doric appears on t+2. A `goto_tile` that
-    -- stopped at t+1 would answer `ok` and leave the very next
-    -- `npc.by_symbol` at `no_row` and the `talk_to` after it at
-    -- `not_visible` -- the pilot's own failure, moved one row down.
-    --
-    -- Bounded, and its verdict deliberately ignored: a destination with no
-    -- npc near it is a legitimate place to stand, so three ticks with an
-    -- empty pool is a fact about that tile, not a failure of the teleport.
-    if arrived == "ok" then
-        QD.await({
+    while tried < attempts do
+        tried = tried + 1
+        local cheat_result, cheat_detail
+        how, cheat_result, cheat_detail = QD.player._goto_dispatch(x, z, level, how)
+        if cheat_result ~= "ok" then
+            -- A cheat the server will not take is not a flake: firing it
+            -- twice more says the same thing twice more.
+            return cheat_result, string.format(
+                "player.goto_tile %d,%d,%d: %s answered %s%s on attempt %d of %d",
+                x, z, level, how, tostring(cheat_result),
+                cheat_detail and (" -- " .. tostring(cheat_detail)) or "",
+                tried, attempts)
+        end
+
+        local arrived = QD.await({
             level = function()
-                local pool_result, rows = api_drive.npcs(0)
-                return pool_result == "ok" and #rows > 0
+                return (QD.player._goto_here(x, z, level))
             end,
-            note = "goto_tile scene settle",
-        }, 3)
-        -- SEAM-PRESS-PIXEL (2026-09-20): and the loaded scene must be the one
-        -- the player is now STANDING IN.  An npc pool that is not empty is
-        -- not that -- after a teleport the pool can still be the PREVIOUS
-        -- region's -- and a press into a scene from somewhere else hittests
-        -- nothing, which is the `covered` this seam's other half fixes but
-        -- cannot cure.  See "THE SCENE THE PRESS LANDS IN" at the end of this
-        -- file.  Already true = no wait, and the verdict is advisory.
-        QD.await({
-            level = function()
-                local loc_result, rows = api_drive.locs(QD.player._goto_scene_radius)
-                return loc_result == "ok" and #rows > 0
-                    and api_drive.settled()
-            end,
-            note = "goto_tile scene rebuild",
-        }, QD.player._goto_scene_ticks)
+            note = "goto_tile attempt " .. tostring(tried),
+        }, ticks)
+
+        if arrived == "ok" then
+            -- THE SCENE IS ONE TICK BEHIND THE TILE, and a verb that returns
+            -- on the tile alone hands its caller a world the client cannot
+            -- see yet.  Measured 2026-09-19 (build/quest_gate/g1settle):
+            -- after a teleport to Doric's hut the player's own tile reads
+            -- 2951,3450 on tick t+1 with the npc pool still EMPTY, and Doric
+            -- appears on t+2.  A `goto_tile` that stopped at t+1 would answer
+            -- `ok` and leave the very next `npc.by_symbol` at `no_row` and
+            -- the `talk_to` after it at `not_visible` -- the pilot's own
+            -- failure, moved one row down.
+            --
+            -- Bounded, and its verdict deliberately ignored: a destination
+            -- with no npc near it is a legitimate place to stand, so three
+            -- ticks with an empty pool is a fact about that tile, not a
+            -- failure of the teleport.
+            QD.await({
+                level = function()
+                    local pool_result, rows = api_drive.npcs(0)
+                    return pool_result == "ok" and #rows > 0
+                end,
+                note = "goto_tile scene settle",
+            }, 3)
+            -- SEAM-PRESS-PIXEL (2026-09-20): and the loaded scene must be the
+            -- one the player is now STANDING IN.  An npc pool that is not
+            -- empty is not that -- after a teleport the pool can still be the
+            -- PREVIOUS region's -- and a press into a scene from somewhere
+            -- else hittests nothing, which is the `covered` this seam's other
+            -- half fixes but cannot cure.  See "THE SCENE THE PRESS LANDS IN"
+            -- at the end of this file.  Already true = no wait, and the
+            -- verdict is advisory.
+            QD.await({
+                level = function()
+                    local loc_result, rows = api_drive.locs(QD.player._goto_scene_radius)
+                    return loc_result == "ok" and #rows > 0
+                        and api_drive.settled()
+                end,
+                note = "goto_tile scene rebuild",
+            }, QD.player._goto_scene_ticks)
+        end
+
+        landed, where = QD.player._goto_here(x, z, level)
+        if landed then
+            break
+        end
+        account[#account + 1] = string.format(
+            "attempt %d: %s at %s after %d tick(s) -- server said '%s'",
+            tried,
+            arrived == "ok" and "arrived and was moved off, now" or "never arrived, still",
+            where, ticks, QD.player._last_line())
     end
 
-    local after_result, after = QD.world.tile()
-    local where = (after_result == "ok" and after)
-        and string.format("%d,%d,%d", after.x, after.z, after.level)
-        or "?"
-    if arrived ~= "ok" then
-        -- The server's own last line comes with it: a plane outside 0-3 is a
-        -- typo the ladder answers with a message rather than a move ("::goto
-        -- - level must be 0-3, not 4."), and a timeout that does not carry
-        -- that sentence sends the author looking for a walking bug instead.
-        return arrived, string.format(
-            "player.goto_tile %d,%d,%d: still at %s ten ticks after %s -- server said '%s'",
-            x, z, level, where, how, QD.player._last_line())
+    if not landed then
+        -- The server's own last line comes with it, ONE PER ATTEMPT: a plane
+        -- outside 0-3 is a typo the ladder answers with a message rather than
+        -- a move ("::goto - level must be 0-3, not 4."), and a timeout that
+        -- does not carry that sentence sends the author looking for a walking
+        -- bug instead.  Three identical lines here mean the tile is wrong;
+        -- three different ones mean something else is moving the player.
+        return "timeout", string.format(
+            "player.goto_tile %d,%d,%d: still at %s after %d attempt(s) of %d tick(s) via %s -- %s",
+            x, z, level, where, tried, ticks, tostring(how), table.concat(account, "; "))
+    end
+    -- A first-attempt landing reads exactly as it always did.  A retry SAYS
+    -- SO, and says what the attempts before it saw: a row that needed two
+    -- goes is a row standing next to something that teleports, and the next
+    -- author to read it needs that more than the green word.
+    if tried > 1 then
+        return "ok", string.format("at %s on attempt %d of %d via %s -- %s",
+            where, tried, attempts, how, table.concat(account, "; "))
     end
     return "ok", "at " .. where
 end
@@ -1798,15 +2168,72 @@ function QD.player.talk_to(npc, op)
     -- dialogue kind that is up, or the content line that came instead.
     local result, detail, arm, line = QD.player._settle_after_click(
         20, before_kind, before_text)
-    if result == "ok" and arm == "chat_message" then
-        local kind = QD.chat.kind()
-        if kind ~= "none" then
-            return "ok", detail .. ": dialogue " .. kind .. " is up"
-        end
-        return "ok", detail .. ": no dialogue, content line '" .. tostring(line) .. "'"
+    if result ~= "ok" then
+        return result, detail
     end
-    return result, detail
+    -- SEAM talk_owes_a_page (2026-09-21) -- A TALK THAT SETTLED IS NOT A TALK
+    -- THAT HAS BEEN ANSWERED.
+    --
+    -- The five arms above resolve on the first edge the click produced, and
+    -- for a talk that edge is routinely something that happens BEFORE the npc
+    -- speaks: the route running out (`map_flag`), or the content script's own
+    -- opening `mes` line (`chat_message`).  The page follows a tick or four
+    -- later, and every one of those ticks is one the quest file spends on its
+    -- next line -- which for a talk is always the conversation.
+    --
+    -- MEASURED, this checkout, 2026-09-21, on three committed green quests
+    -- that went red the day the npc step-off landed (it removed the extra
+    -- ticks the server used to spend routing the player off the npc's own
+    -- square, and those ticks were what the pages had been arriving in):
+    --   * blackknight row 28 `amik.return_talk PASS 2 map_flag`, row 29
+    --     `amik.return_drain PASS 0 none` with NO page shots -- against the
+    --     published ledger's row 29 `PASS 1` and four of them.  Sir Amik's
+    --     whole hand-in monologue arrived after the drain had already given
+    --     up, and the quest lost its coins, its varp and its scroll (7 FAILs).
+    --   * murder row 86 `guard.talk PASS 7 map_flag`, row 87
+    --     `guard.drain_to_options PASS 1 none`, row 88 `guard.accuse FAIL
+    --     chat.choose: no dialogue is open -- did the talk_to before this
+    --     succeed?`.  It had: the page was one tick behind the answer.
+    --   * fluffs' crate hunt, where `[opnpc1,kittens_mew]`
+    --     (quest_fluffs.rs2:277-289) opens `mes("You search the crate.")`,
+    --     then `p_delay(4)`, then the "You find a kitten!" mesbox.  The
+    --     chat_message arm resolves on that first line in two ticks and the
+    --     file's next line reads a page that is still four ticks away.  The
+    --     published green run passed the SAME six rows by luck: its winning
+    --     crate answered `covered` and spent thirty-three ticks in the pixel
+    --     hunt, which is where the p_delay went.
+    --
+    -- So: if no page is up when the settle answers, wait a little for one.
+    -- This cannot resolve anything EARLIER than the code without it did, so no
+    -- talk that already had its page changes in any way (the common case pays
+    -- one page read); and the cost is bounded and paid only by a talk that
+    -- ends with no dialogue at all -- which is a real shape (a bare `mes`
+    -- npc), and which now SAYS so in its detail with the deadline named.
+    local kind = QD.chat.kind()
+    if kind == "none" then
+        QD.await({
+            level = function() return QD.chat.kind() ~= "none" end,
+            note = "talk_to: the page the npc still owes",
+        }, QD.player._talk_page_ticks)
+        kind = QD.chat.kind()
+    end
+    if kind ~= "none" then
+        return "ok", detail .. ": dialogue " .. kind .. " is up"
+    end
+    if arm == "chat_message" then
+        return "ok", detail .. ": no dialogue in " .. tostring(QD.player._talk_page_ticks)
+            .. " tick(s), content line '" .. tostring(line) .. "'"
+    end
+    return "ok", detail .. ": no dialogue in " .. tostring(QD.player._talk_page_ticks) .. " tick(s)"
 end
+
+-- How long a settled talk waits for the page the npc has not sent yet.  Five:
+-- `p_delay(4)` is the longest pause a content `[opnpc1]` in this pack puts
+-- between its opening line and its dialogue (quest_fluffs.rs2:278), and one
+-- tick more than that is the smallest number that covers it.  It is
+-- deliberately not the settle's own twenty: this wait is paid in full by
+-- every npc that genuinely answers with nothing, and those are common.
+QD.player._talk_page_ticks = 5
 
 -- Walks into range BEFORE the click, which a world click on scenery needs and
 -- a click on an npc does not: a loc type is planted dozens of times across a
@@ -2065,7 +2492,17 @@ function QD.player._inv_cell(item)
     end
     -- Named plainly: this is the answer a caller gets after an earlier verb
     -- consumed the stack (rev-239's backpack op 1 drops it), and "not_found"
-    -- alone reads like a bad symbol.
+    -- alone reads like a bad symbol.  And "not in the backpack" was the
+    -- sentence four verbs printed for an item the player is WEARING -- the
+    -- state a load/fire mechanic alternates with, and the one a test author
+    -- cannot see from a ledger row (SEAM use_on_worn_and_unequip at the end
+    -- of this file).  The worn read is done only on the miss, so nothing
+    -- that resolves pays for it.
+    local worn_result, worn_cell = QD.player._worn_cell(item)
+    if worn_result == "ok" then
+        return "not_found", item .. ": not in the backpack -- it is WORN ("
+            .. worn_cell.symbol .. "); take it off first with player.unequip"
+    end
     return "not_found", item .. ": not in the backpack"
 end
 
@@ -2411,16 +2848,36 @@ function QD.player.use_on(item, target)
         -- The loc half takes the same standoff click_loc does: an armed item
         -- pressed at a pixel the player's own model covers spends the arming
         -- on whatever the menu DOES have a row for, or on nothing at all.
-        local standoff = 0
-        if target.kind == "loc" then
-            standoff = QD.player._loc_standoff
-        end
+        --
+        -- AND THE NPC HALF TAKES ITS OWN, HERE, RATHER THAN INSIDE THE PRESS.
+        -- QD.player._step_off_for_click (SEAM npc_shared_tile) answers a
+        -- standoff for `npc` now, and it runs from inside click_minimenu --
+        -- which for this verb is AFTER the arming.  Walking with a selection
+        -- live is the one thing this banner's own first paragraph says not to
+        -- do: it survives today only because api_drive.move_to reaches
+        -- app_try_move directly and never runs a menu row (the three
+        -- app_selection_clear sites in app_frame.c are all mouse paths), which
+        -- is a fact about the bridge and not a rule the verb should lean on.
+        -- Taking the SAME number here moves the step to before the arming and
+        -- leaves _step_off_for_click nothing to do -- it reads the two tiles,
+        -- sees distance >= 1 and returns.
+        local standoff = QD.player._standoff_for_kind(target.kind) or 0
         QD.player.walk_near(target, nil, standoff)
     end
     QD.player._show_backpack()
     local cell_result, cell = QD.player._inv_cell(item)
     if cell_result ~= "ok" then
         return cell_result, cell
+    end
+    -- The backpack BEFORE any of this verb's presses (SEAM use_on_effect_lands
+    -- at the tail of this function).  Taken here rather than beside the click:
+    -- the far-side loop and the reach retry both press again, and the question
+    -- the wait at the end asks is "did the world change the backpack because
+    -- of this verb", not "because of its last attempt".  Arming moves nothing,
+    -- so the reading is the same either side of it.
+    local inv_before_result, inv_before = QD.player._inv_contents()
+    if inv_before_result ~= "ok" then
+        inv_before = nil
     end
     local arm_result, arm_detail = QD.player._arm_held(item, cell)
     if arm_result ~= "ok" then
@@ -2509,7 +2966,146 @@ function QD.player.use_on(item, target)
             end
             return QD.player._settle_after_click(20, retry_kind, retry_text)
         end)
+    -- SEAM use_on_effect_lands: an `ok` that the caller's very next line can
+    -- read back.  The banner is over QD.player._await_use_on_effect.
+    if settle_result == "ok" then
+        local landed = QD.player._await_use_on_effect(inv_before)
+        if landed then
+            settle_detail = tostring(settle_detail) .. " [backpack: " .. landed .. "]"
+        end
+    elseif settle_result == "timeout" then
+        settle_result, settle_detail =
+            QD.player._use_on_silent_effect(inv_before, settle_detail)
+    end
     return settle_result, settle_detail
+end
+
+-- SEAM use_on_silent_effect (2026-09-21) -- A PRESS WHOSE ONLY EFFECT IS IN
+-- THE BACKPACK.
+--
+-- _settle_after_click's five arms are all edges the SCREEN shows: a mounted
+-- chat sub, a chat line, a route, a changed page.  There is a whole family of
+-- `[opnpcu]`/`[oplocu]` branches that produce none of them.
+-- `[opnpcu,gertrudescat]`'s milk branch (quest_fluffs.rs2:222-231) animates,
+-- says "Mew!" OVERHEAD, swaps the bucket and writes the varp -- and the
+-- overhead say is not a chat line, the swap is not a page, and once the
+-- player is standing BESIDE the cat rather than inside her there is no route
+-- either.  Nothing for the settle to see, so a press that demonstrably landed
+-- answered `timeout` at the full deadline: build/quest_gate/fluffs,
+-- 2026-09-21, rows 12 and 24 `settle_after_click -- walk_near: stepped off
+-- the target tile 3306,3512`, with row 13 `quest.stage.gave_milk PASS 3` one
+-- line below saying the milk had been drunk.  53/53 -> 41/16.
+--
+-- SO THE BACKPACK IS READ AFTER THE TIMEOUT, NEVER INSTEAD OF THE ARMS.  This
+-- is click_loc's door evidence, applied to the verb whose whole purpose is to
+-- change what is carried, and it is the same shape for the same reason: it
+-- cannot resolve anything EARLIER than the code without it did, so no verb's
+-- timing changes and no green row moves.  The first draft of this fix DID
+-- make it a sixth settle arm, and the measurement is why it is not one:
+-- Elemental Workshop's `smithShield` resolved in ONE tick on the bar leaving
+-- the backpack instead of four on the server's own sentence, and the quest
+-- completion varbit -- written later in the same script -- had not been
+-- transmitted when the next row read it (build/quest_gate/elemental_workshop,
+-- 2026-09-21: row 50 `smithShield PASS 1 inv_changed`, row 51
+-- `quest.varp_complete FAIL client=0 server=0 complete=1`, against the
+-- published `PASS 4 chat_message` / `PASS`).  A container delta is the
+-- EARLIEST thing a press produces and the weakest evidence that it finished.
+--
+-- Answers (ok, detail) when the backpack moved, and the caller's own
+-- (timeout, detail) untouched when it did not.
+function QD.player._use_on_silent_effect(before, timeout_detail)
+    if type(before) ~= "table" then
+        return "timeout", timeout_detail
+    end
+    local now_result, now = QD.player._inv_contents()
+    if now_result ~= "ok" or type(now) ~= "table" then
+        return "timeout", timeout_detail
+    end
+    local diff = QD.player._inv_contents_diff(before, now)
+    if diff == "" then
+        return "timeout", timeout_detail
+    end
+    return "ok", "no page, line or route: the backpack is the evidence [backpack: "
+        .. diff .. "] (" .. tostring(timeout_detail) .. ")"
+end
+
+-- SEAM use_on_effect_lands (2026-09-21) -- `ok` FROM A PRESS WHOSE EFFECT THE
+-- CLIENT HAS NOT BEEN SHOWN YET.
+--
+-- WHAT WAS WRONG.  QD.player._settle_after_click answers on the first edge the
+-- click produced, and for a use_on that edge is almost always the server's own
+-- sentence (the `chat_message` arm).  The CONTAINER the same script changed on
+-- the same server tick is not in that edge: the server writes the backpack
+-- delta into the NEXT tick's player update, so the client is told what the
+-- press did one server tick after it is told what the press said.  A quest
+-- file that reads the backpack on the line after the verb reads the backpack
+-- from before the press.
+--
+-- MEASURED on Scorpion Catcher's questscorpiona, this checkout, 2026-09-21
+-- (build/quest_gate/scorp_probe2, rows 7-9 -- use_on(scorpioncageempty,
+-- questscorpiona), then the same two reads every tick):
+--     catch      PASS 2 ticks   chat_message
+--     probe.t0   cagea=0 empty=1      <- the instant use_on answered ok
+--     probe.t1   cagea=1 empty=0      <- one server tick later
+-- and build/quest_gate/scorp_probe3 rows 6-8 say which wait closes it:
+--     a.raw            cagea=0
+--     a.after_settle   ok cagea=0     <- t.settle() is NOT it (no tick passes)
+--     a.after_tick     cagea=1
+-- The same run's `t.await{ event = "inv_changed" }` raised `drive.await:
+-- descriptor needs a level or a match predicate`, which is why this is a
+-- LEVEL predicate over the reading itself rather than an event wait.
+--
+-- WHY IT SURFACED NOW, and why the answer is not to undo what surfaced it.
+-- The published 34/34 ledger pressed from ON the scorpion's own square
+-- (goto_tile lands the player there -- the scaffold walks to the npc's own
+-- *.spawn row), so the SERVER routed the player one tile before running
+-- [opnpcu,...] and the row cost five ticks; the backpack delta had landed by
+-- the time the next line read it, by luck of the route.  SEAM npc_shared_tile
+-- steps off that square first, the press is served immediately, the row costs
+-- two ticks -- and the same three `t.check` rows that were green went red with
+-- the quest still COMPLETING at the end (build/quest_gate/scorpcatcher,
+-- 2026-09-21: pass=31 fail=3, rows 13/22/26, and rows 31-34 all PASS).  A
+-- green row that depended on the server making the client wait is not a green
+-- row this driver should keep.
+--
+-- WHAT IT COSTS.  The deadline, and only when the press changed no item:
+-- `_inv_contents` differs on the first poll after the delta lands, so a use_on
+-- that swaps, consumes or produces anything pays one tick and stops.  It is
+-- deliberately NOT in _settle_after_click: that function is every click verb's
+-- settle, talk_to included, and the measurement in its own banner (The
+-- Knight's Sword green -> red at one extra tick) is why a wait there is not
+-- allowed.  use_on is the verb whose whole purpose is to change what is
+-- carried.
+--
+-- WHAT IT IS NOT.  It never changes the result -- a press that answered
+-- `refused` or `covered` is not re-graded by what the backpack did, and a
+-- use_on with no backpack effect at all (a door, a lever, a dialogue) times
+-- out here silently and keeps its own `ok`.  All it adds is the diff, in the
+-- row, so the ledger says what the press actually moved.
+QD.player._use_on_effect_ticks = 2
+
+-- The backpack diff this verb's presses produced, or nil: either nothing
+-- moved within the deadline, or there was no reading to compare against.
+function QD.player._await_use_on_effect(before)
+    if type(before) ~= "table" then
+        return nil
+    end
+    local diff = ""
+    local result = QD.await({
+        level = function()
+            local after_result, after = QD.player._inv_contents()
+            if after_result ~= "ok" or type(after) ~= "table" then
+                return false
+            end
+            diff = QD.player._inv_contents_diff(before, after)
+            return diff ~= ""
+        end,
+        note = "use_on: the backpack the press changed",
+    }, QD.player._use_on_effect_ticks)
+    if result == "ok" and diff ~= "" then
+        return diff
+    end
+    return nil
 end
 
 
@@ -2664,7 +3260,10 @@ function QD.player.use_item_on_item(item_a, item_b)
     if type(item_a) ~= "string" or type(item_b) ~= "string" then
         return "unsupported", "use_item_on_item: both arguments are obj content symbols"
     end
-    QD.player._show_backpack()
+    -- Shown AND painted: the tab press lands a frame before its cells do,
+    -- and the arm below is a one-shot with no retry behind it (SEAM
+    -- use_on_worn_and_unequip at the end of this file).
+    QD.player._show_backpack_painted()
     local cell_a_result, cell_a = QD.player._inv_cell(item_a)
     if cell_a_result ~= "ok" then
         return cell_a_result, cell_a
@@ -4111,4 +4710,714 @@ function QD.player._standoff_for_kind(kind)
         return QD.player._npc_standoff
     end
     return nil
+end
+
+-- ==========================================================================
+-- SEAM use_on_worn_and_unequip -- Opus seam pass, 2026-09-21. APPENDED BLOCK.
+--
+-- Nothing above this banner is touched except ONE line, named here:
+-- QD.player._inv_cell's `not_found` detail now says when the item is WORN
+-- rather than absent, because that resolver is where the knowledge is and
+-- "not in the backpack" was the sentence four verbs printed for a thing the
+-- player is wearing.
+--
+-- WHAT WAS MISSING. The driver could put an item ON and never take it off.
+-- QD.player.equip watches the worn container but presses a BACKPACK cell
+-- (_inv_dispatch -> _inv_press -> _inv_cell -> QD._inv_container), and every
+-- other item verb -- inv_op, drop, both halves of use_item_on_item --
+-- resolves that same one container. So a mechanic that alternates worn and
+-- carried state had no second half at all: Mourning's End Part I's paint
+-- device must be WORN to fire ([proc,mend1_try_fire_sheep],
+-- quests/quest_mourningsendparti/scripts/mend1_sheep.rs2:168-170,
+-- `if (inv_total(worn, mourning_paint_gun) < 1) { return(0); }`) and must be
+-- a BACKPACK cell to be reloaded ([opheldu,mourning_bloated_toad_*] /
+-- [opheldu,mourning_paint_gun], mend1_sheep.rs2:84-110, an item-on-item over
+-- two carried cells). The quest's own ledger says it exactly:
+-- "loading+equipping+firing the red toad worked exactly once, and the
+-- identical load call for the green toad then failed not_found because
+-- mourning_paint_gun was no longer a backpack cell" (QUEUE.tsv row
+-- mourningsendparti, author batch sonnet-b9).
+--
+-- HOW A WORN CELL IS PRESSED, AND WHY IT IS NOT inv_op.
+-- The worn tab is eleven components, `wornitems:slot0..slot13` with 6, 8 and
+-- 11 missing, and the component NAMES the wear slot -- content states that
+-- mapping itself in player/configs/worn.enum ([worn_slots], "wornitems:slot7
+-- IS wear slot 7"). Remove is the COMPONENT's own op 1, put there by
+-- `~wear_updateslot_546` (`if_setop(1, "Remove", $component0)`) and armed by
+-- `~worn_tab_login` (player/containers.rs2:53-67) -- the worn tab is the one
+-- container whose rows are component ops rather than ObjType actions, and
+-- containers.rs2's own banner says why ("the ObjType rows on something
+-- already worn are nonsense"). The server agrees from the other end:
+-- torirs_server_world.c's handle_opheld and its IF_BUTTONX route both check
+-- `ToriRSServer_EquipmentWornSlot(component) >= 0` first and hand the press
+-- to handle_worn_inv_button, whose op 1 runs content's
+-- [inv_button1,wornitems:slotN] -- `~unequip(N)`, player/scripts/equip.rs2:
+-- 135-145 -- or, when that lookup misses, the engine's own unequip_slot,
+-- which runs the same [proc,unequip]. Both were exercised here: the live
+-- press logs `<- IF_BUTTONX 387:18 sub=-1 obj=65535 op=1` followed by
+-- `no trigger for [inv_button1,wornitems:slot3]`, and the device still came
+-- off (worn 1->0, backpack 0->1). That miss is content's/the engine's to
+-- explain and is NOT this seam's: the fallback is declared, the move is the
+-- proc's either way, and the verb below asserts the move, not the route.
+--
+-- So the press is an IF_BUTTON on the slot component (api_drive.if_click),
+-- NOT api_drive.inv_op. MEASURED, and this is the whole reason the first
+-- attempt at this verb did nothing (build/quest_gate/seam_worn_p3, 2026-09-21):
+-- inv_op's option 1 becomes OPHELD1, and on rev 239 there IS no OPHELD
+-- opcode -- net_out_opheld collapses the five held ops onto the BACKPACK's
+-- own component numbering, `OPHELD_IF_BUTTONX_OP = { 2, 3, 4, 6, 7 }`
+-- (src/net/net_out.c:958). A worn cell pressed that way therefore arrives as
+-- `<- IF_BUTTONX 387:18 sub=1 obj=6082 op=2`, which the server reads as the
+-- worn slot's op 2 -- "Bank"/the param_451 verb -- and answers
+-- `no trigger for [inv_button2,wornitems:slot3]`, then re-dispatches it as
+-- `[opheld2,mourning_paint_gun] -> [opheld2,_]`, the WEAR proc. The device
+-- stayed on (worn 1->1, backpack 0->0) and not one word of that was visible
+-- from the ledger. if_click carries the op number in the component's own
+-- space, so op 1 is op 1.
+--
+-- WHY THERE IS NO CELL SEARCH. The item cell under a worn slot is a
+-- cc_create'd dynamic child whose sub id no Lua read can state, and the
+-- first version of this verb searched for it. It does not need to: the op is
+-- the SLOT component's, and `net_out_if_button_op(op, target, sub)` takes
+-- the component and the op alone. What does need a retry is the tab: a press
+-- issued in the same frame as the tab switch finds no displayed node
+-- carrying the component id at all (`no DISPLAYED node carries that
+-- component id`, four candidates in a row, seam_worn_p2/p3) because the
+-- sidebar's CS2 paints on a later frame -- the backpack's own seam, one
+-- interface over. So what this verb waits on is the SLOT being displayed,
+-- not a cell being found (_worn_press's own banner).
+--
+-- WHAT THIS SEAM DELIBERATELY DOES NOT ADD: use_item_on_item over a worn
+-- cell. That press would go out as OPHELDU (app_minimenu_inv_action's objsel
+-- branch does not care which container the clicked cell belongs to), and
+-- torirs_server_world.c's handle_opheldu validates BOTH halves against the
+-- backpack and nothing else -- `player->inv[slot].obj_id != obj_id` for the
+-- clicked half, useon_tail's `player->inv[use_slot].obj_id != use_obj` for
+-- the armed one -- and returns silently when either misses. A verb built on
+-- that would answer for a packet the server drops without a word, which is
+-- the failure this file's refusal fence exists against. It is an ENGINE gap
+-- (read, not run: handle_opheldu, torirs_server_world.c:6821-6870), reported
+-- as its own seam. Mourning's End Part I does not need it: the reload is two
+-- carried cells once the device comes off.
+-- ==========================================================================
+
+-- The worn tab, opened the way a player would -- the cell must be DISPLAYED
+-- for its row to be live (app_minimenu_ui_pick_live), exactly as
+-- _show_backpack's banner says of the backpack.
+function QD.player._show_equipment()
+    return QD.ui.tab("equipment")
+end
+
+-- Which WORN cell holds `item`?  The component that stands for that wear
+-- slot, the obj in it and its count -- plus `worn_slot`, so a detail can
+-- name the tab cell it pressed.  The component is the ROLE symbol the
+-- content enum names, never a number (ARCHITECT.md S2).
+function QD.player._worn_cell(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return obj_result, item
+    end
+    local worn_result, worn_id = api_drive.symbol("inv", "worn")
+    if worn_result ~= "ok" then
+        return worn_result, "worn"
+    end
+    local capacity_result, capacity = api_drive.inv_capacity(worn_id)
+    if capacity_result ~= "ok" then
+        return capacity_result, "inv_capacity worn"
+    end
+    for index = 0, capacity - 1 do
+        local slot_result, slot = api_drive.inv_slot(worn_id, index)
+        if slot_result == "ok" and slot.obj_id == obj_id then
+            local symbol = "wornitems:slot" .. tostring(index)
+            local component_result, component_id = api_drive.component(symbol, -1)
+            if component_result ~= "ok" then
+                -- Named, because the two reasons are different bugs: the tab
+                -- is not painted (open it), or this pack numbers its worn
+                -- components some other way (worn.enum is the answer).
+                return component_result, item .. " is worn in slot "
+                    .. tostring(index) .. " but " .. symbol .. " is not in the tree"
+            end
+            return "ok", {
+                component_id = component_id,
+                obj_id = obj_id,
+                count = slot.count,
+                worn_slot = index,
+                symbol = symbol,
+            }
+        end
+    end
+    return "not_found", item .. ": not worn"
+end
+
+-- The worn tab's ops are the COMPONENT's own, numbered 1..10, and op 1 is
+-- Remove -- `~wear_updateslot_546` (scripts/wear_updateslot_546.cs2) puts it
+-- there with `if_setop(1, "Remove", $component0)` and
+-- `~worn_tab_login` (player/containers.rs2:57-67) arms it.  So the press is
+-- an IF_BUTTON on the slot component, which is what api_drive.if_click
+-- builds, and NOT api_drive.inv_op's OPHELD ladder.
+QD.player.WORN_REMOVE_OP = 1
+
+-- How long a tab is given to PAINT after its press before a verb that needs
+-- one of its cells gives up.  The committed backpack seam waits two server
+-- ticks per attempt over six attempts; this is that budget in one wait.
+QD.player.TAB_PAINT_TICKS = 12
+
+-- The backpack, shown AND PAINTED.
+--
+-- `ui.tab` is a button press: it returns as soon as the click is taken and
+-- the sidebar's own CS2 paints the cells on a later frame, which is the
+-- whole of the committed backpack seam (_inv_press's banner). _inv_press
+-- absorbs that by re-pressing the tab around a refusal; the arming half of
+-- use_item_on_item has no such loop -- one api_drive.inv_op with option -1
+-- and an immediate `the Use row did not arm <item>` if the cell was not live
+-- -- and nothing ever switched tabs mid-quest until unequip did, so nothing
+-- ever found it. Measured (build/quest_gate/seam_worn_p6): with unequip
+-- working, both reloads in the load/fire cycle answered `refused ... the Use
+-- row did not arm` from the equipment tab the unequip had left showing.
+function QD.player._show_backpack_painted(ticks)
+    local tab_result, tab_detail = QD.player._show_backpack()
+    local component_result, component_id = api_drive.component("inventory:items", -1)
+    if component_result ~= "ok" then
+        return component_result, "inventory:items"
+    end
+    local shown = QD.await({
+        level = function()
+            local result, presented = api_drive.widget_presented(component_id)
+            return result == "ok" and presented == true
+        end,
+        note = "show_backpack: waiting for inventory:items to be displayed",
+    }, ticks or QD.player.TAB_PAINT_TICKS)
+    return shown, "backpack tab " .. tostring(tab_result) .. " " .. tostring(tab_detail)
+end
+
+-- Press one worn slot's own component op.
+--
+-- Returns (result, cell, where, refusal) -- _inv_press's shape, over the worn
+-- tab: `ok` (the press was dispatched into a LIVE row), `not_visible` (the
+-- worn tab never painted the slot), or the _worn_cell result with a nil cell
+-- (the item is not worn at all).
+--
+-- THE WAIT IS THE WHOLE VERB, and api_drive.if_click cannot be trusted to
+-- report its absence: app_plugin_click_node builds the row and answers 1 as
+-- soon as the NODE exists, while app_minimenu_run_option's first act is
+-- `if( !app_minimenu_ui_pick_live(app, &opt.pick) ) return 0;` -- a pick
+-- whose node or ancestor is display-hidden is dropped with no packet, no
+-- message and no word to the caller. `ui.tab` is a button press that paints
+-- on a LATER frame, so a press issued beside it lands in exactly that hole:
+-- measured as `ok` from if_click with not one packet in the server's log
+-- (build/quest_gate/seam_worn_p4 and _p5, TORIRSSERVER_VERBOSE=1, worn 1->1).
+-- So this asks the same question pick_live asks -- is the node displayed --
+-- through api_drive.widget_presented, and only then presses.
+function QD.player._worn_press(item, op)
+    local tab_result, tab_detail = QD.player._show_equipment()
+    local cell_result, cell = QD.player._worn_cell(item)
+    if cell_result ~= "ok" then
+        return cell_result, nil, cell, nil
+    end
+    local where = item .. " " .. cell.symbol .. " (wear slot "
+        .. tostring(cell.worn_slot) .. ") op " .. tostring(op)
+        .. " (tab " .. tostring(tab_result) .. " " .. tostring(tab_detail) .. ")"
+    local shown = QD.await({
+        level = function()
+            local result, presented = api_drive.widget_presented(cell.component_id)
+            return result == "ok" and presented == true
+        end,
+        note = "worn_press: waiting for " .. cell.symbol .. " to be displayed",
+    }, QD.player.TAB_PAINT_TICKS)
+    if shown ~= "ok" then
+        return "not_visible", cell,
+            where .. " -- the equipment tab never displayed that slot", nil
+    end
+    local result, why = api_drive.if_click(cell.component_id, op)
+    return result, cell, where, why
+end
+
+-- UNEQUIPPED means the worn container lost it AND the backpack gained it.
+-- Both halves, for equip's own reason in reverse: a worn count that only
+-- FELL is equally true of an item destroyed, dropped or swapped out by
+-- something the previous verb sent, and the whole point of this verb is that
+-- the item is carried again afterwards.
+function QD.player.unequip(item)
+    local obj_result, obj_id = api_drive.symbol("obj", item)
+    if obj_result ~= "ok" then
+        return obj_result, item
+    end
+    local worn_result, worn_id = api_drive.symbol("inv", "worn")
+    if worn_result ~= "ok" then
+        return worn_result, "worn"
+    end
+    local inv_result, container_id = QD._inv_container()
+    if inv_result ~= "ok" then
+        return inv_result, "inv"
+    end
+    local worn_before_result, worn_before = api_drive.inv_count(worn_id, obj_id)
+    if worn_before_result ~= "ok" then
+        return worn_before_result, "worn count"
+    end
+    if worn_before <= 0 then
+        -- Not a contract violation and not a silent success: a test that
+        -- unequips something it never wore has a bug one row earlier, and
+        -- the row has to say which.
+        return "not_found", "unequip " .. item .. ": nothing of it is worn"
+    end
+    local inv_before_result, inv_before = api_drive.inv_count(container_id, obj_id)
+    if inv_before_result ~= "ok" then
+        return inv_before_result, "inv count"
+    end
+    local press_result, cell, where, refusal =
+        QD.player._worn_press(item, QD.player.WORN_REMOVE_OP)
+    if cell == nil then
+        return press_result, where
+    end
+    if press_result ~= "ok" then
+        return press_result, "unequip " .. where .. " -- " .. tostring(refusal)
+    end
+    local landed = QD.await({
+        level = function()
+            local worn_result2, worn_now = api_drive.inv_count(worn_id, obj_id)
+            if worn_result2 ~= "ok" or worn_now >= worn_before then
+                return false
+            end
+            local inv_result2, inv_now = api_drive.inv_count(container_id, obj_id)
+            return inv_result2 == "ok" and inv_now > inv_before
+        end,
+        note = "unequip " .. item,
+    }, 10)
+    local worn_after_result, worn_after = api_drive.inv_count(worn_id, obj_id)
+    local inv_after_result, inv_after = api_drive.inv_count(container_id, obj_id)
+    local moved = "worn " .. tostring(worn_before) .. "->"
+        .. tostring(worn_after_result == "ok" and worn_after or worn_after_result)
+        .. ", backpack " .. tostring(inv_before) .. "->"
+        .. tostring(inv_after_result == "ok" and inv_after or inv_after_result)
+    if landed == "ok" then
+        return "ok", "unequip " .. where .. ": " .. moved
+    end
+    -- The server's own sentence ("You can't remove that.") rather than a
+    -- bare timeout, exactly as equip's refusal carries it.
+    return landed, "unequip " .. where .. ": " .. moved
+        .. " -- '" .. QD.player._last_line() .. "'"
+end
+
+-- ==========================================================================
+-- SEAM silent_press_npc_step (2026-09-21) -- THE PRESS WHOSE ONLY OBSERVABLE
+-- IS THE TARGET MOVING.
+--
+-- Every click verb above this line settles on something the CHAT ring or the
+-- dialogue interface shows: a sub mounting, a page changing, a chat line, a
+-- route running out.  _settle_after_click's five arms are that list, and
+-- talk_to then waits a further five ticks for the page the npc still owes.
+-- An `[opnpc<n>]` whose whole body moves the NPC and says nothing to the
+-- chatbox cannot be settled by any of them, and the verb that pressed it can
+-- only time out -- ON SUCCESS.
+--
+-- MEASURED, Sheep Herder, build/quest_gate/sheepherder (blocked row 20, 405
+-- ticks) and reproduced here in build/quest_gate/seampress_a row 12:
+--
+--   repro.talk_to PASS  talk_to -> timeout (settle_after_click); the sheep
+--   meanwhile: slot 63 2609,3344 -> 2609,3345
+--
+-- diseased_sheep.rs2's [label,prod_sheep] answers a GOOD prod with exactly
+-- four lines (:117-121):
+--
+--     anim(cattleprod, 0);          -- the PLAYER's animation; the pool row
+--                                   -- carries no anim field and no api_drive
+--                                   -- reader exposes one
+--     npc_say("BAAAAA!");           -- OVERHEAD text.  Not a chat-ring line,
+--                                   -- so api_drive.messages never sees it,
+--                                   -- and not a dialogue page either
+--     npc_setmode(none);
+--     npc_walk(~movecoord_indirection(npc_coord,
+--              ~coord_direction(coord, npc_coord), 1));
+--
+-- and nothing else.  The only `mes` in the whole label is :133, inside the
+-- `sheepherder_pen_gate` branch, which fires once, at the end of the puzzle.
+-- Every OTHER path out of that label -- not started, complete, no suit, no
+-- cattleprod, wrong weapon, already in the pen, bones already held, lane
+-- already 6 -- prints a `mes`, a `~mesbox` or a `~chatplayer_anim`.  So on
+-- that content the driver's silence is inverted: a REFUSED prod settles and a
+-- SUCCESSFUL one times out, and talk_to reported `timeout` for fifteen prods
+-- that all landed and all moved a sheep.
+--
+-- What this verb adds is one more observable, and it is the target's own: the
+-- npc's TILE, which the pool already carries (drive_ui_push_npc_row's
+-- `x`/`z`/`level`, torirs_plugin_drive_ui.c).
+--
+-- THE COPY THAT WAS PRESSED, NOT "A COPY OF THAT SYMBOL".  The first draft of
+-- this verb resolved on any pool row of the target's id moving, and the same
+-- probe run showed why that is worthless: `plaguesheep_1` has THREE spawn
+-- rows two tiles apart (m40_52.spawn:28-30), all three WANDER, and in a
+-- four-tick window one of them moves whatever the press did.  Row 17 of that
+-- run pressed a sheep with the cattleprod taken OFF -- content answers
+-- `~chatplayer_anim("I'm not prodding a sickly-looking sheep with my
+-- hands!")` and walks nobody -- and the verb credited a neighbour's wander
+-- step and never mentioned the dialogue.  That is the same false green the
+-- refusal fence at the top of this file exists against, rebuilt one function
+-- lower down.
+--
+-- So the press names its own subject: QD.drive._press_row matches the menu
+-- row on `pos.element_id` and nothing else, so the op the client sends names
+-- THAT entity, and it now returns the field.  This verb snapshots the pool
+-- keyed by element id, presses, and watches the one element the press used.
+--
+-- AND THE WORLD'S OWN ANSWER WINS.  A chat line or a dialogue page is checked
+-- before the tile every poll, and a step that does not take the npc FURTHER
+-- from the player does not end the wait at all -- it is remembered and
+-- reported only if nothing better arrives.  An away-step is what
+-- `npc_walk(~movecoord_indirection(npc_coord, ~coord_direction(coord,
+-- npc_coord), 1))` makes and it is the one movement a wander cannot be
+-- mistaken for in the direction that matters; everything else is reported in
+-- the detail with the word "may be the npc's own wander" in it, so a reader
+-- is never told more than was measured.
+--
+-- The refusal fence is the same one every other click verb is behind: a
+-- CLICK_REFUSAL_LINES sentence in the window answers `refused` with the
+-- server's own words, whatever the tiles did.
+
+-- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID
+-- the press identifies a copy by.  Returns (rows, count), or (nil, result)
+-- when the pool did not answer.
+--
+-- npc_id OR base_npc_id, the pair QD.npc.by_symbol and QD.drive._target_tile
+-- both match on: on a multinpc the wire id and the drawn id differ and a
+-- target built by hand can carry either (QD.player._live_npc_id's banner).
+function QD.player._npc_rows(target)
+    local rows_result, rows = api_drive.npcs(0)
+    local found = {}
+    local count = 0
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil, rows_result
+    end
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.npc_id == target.id or row.base_npc_id == target.id then
+            found[row.element_id] = {
+                slot = row.slot, x = row.x, z = row.z, level = row.level,
+                -- The overhead SAY and its countdown, carried so a press can
+                -- tell "it answered me" from "nothing happened".  `nil` here
+                -- is a binary built before DriveNpcRow.overhead (the shared
+                -- torirs_questtest until it is rebuilt), and every reader
+                -- below treats that as "no reading", never as silence.
+                say = row.overhead, say_timer = row.overhead_timer,
+            }
+            count = count + 1
+        end
+    end
+    return found, count
+end
+
+-- An element-keyed snapshot as a row detail reads it -- what the timeout
+-- branch prints, so "it did not move" says WHAT did not move and from where.
+function QD.player._npc_rows_text(rows)
+    local parts = {}
+    for element, tile in pairs(rows) do
+        parts[#parts + 1] = "slot " .. tostring(tile.slot)
+            .. " (element " .. tostring(element) .. ") at "
+            .. tostring(tile.x) .. "," .. tostring(tile.z)
+    end
+    if #parts == 0 then
+        return "no copy in the pool"
+    end
+    return table.concat(parts, "; ")
+end
+
+-- Chebyshev tiles between two points -- the range a step is judged by below,
+-- and the same metric standing-distance is measured in everywhere else here.
+function QD.player._range(ax, az, bx, bz)
+    return math.max(math.abs(ax - bx), math.abs(az - bz))
+end
+
+-- How a step reads in the row: the slot, both tiles, how far it went, and
+-- whether it went AWAY from the player.
+--
+-- Away, not a direction vector.  `[proc,coord_direction]`
+-- (general/scripts/misc/coord_procs.rs2:78) answers one of four compass
+-- points -- the DOMINANT axis of (npc - player) -- so a prod delivered from a
+-- diagonal tile pushes the sheep one tile due west while the vector away from
+-- the player is west-and-south, and a check for the exact away vector would
+-- call the content's own push "not the away step".  Range is the honest
+-- reading of the same claim and it holds for an eight-way push too
+-- (`[proc,coord_direction2]`, the same file).
+function QD.player._step_text(step)
+    if step.gone then
+        return "npc slot " .. tostring(step.slot) .. " left the pool from "
+            .. tostring(step.from_x) .. "," .. tostring(step.from_z)
+            .. " (an absence is not a step: it may have been replaced,"
+            .. " ranked out of the 64-npc pool, or the scene changed)"
+    end
+    local dx = step.x - step.from_x
+    local dz = step.z - step.from_z
+    local text = "npc slot " .. tostring(step.slot) .. " "
+        .. tostring(step.from_x) .. "," .. tostring(step.from_z) .. " -> "
+        .. tostring(step.x) .. "," .. tostring(step.z)
+        .. " (" .. tostring(math.max(math.abs(dx), math.abs(dz))) .. " tile(s)"
+    if step.player_x == nil then
+        return text .. ")"
+    end
+    text = text .. ", you at " .. tostring(step.player_x) .. ","
+        .. tostring(step.player_z) .. ", range " .. tostring(step.was_range)
+        .. "->" .. tostring(step.range) .. "; "
+    if step.away then
+        return text .. "away from you)"
+    end
+    if step.range < step.was_range then
+        return text .. "toward you -- may be the npc's own wander)"
+    end
+    return text .. "neither toward nor away -- may be the npc's own wander)"
+end
+
+-- The move an element made since `was`, or nil.  `away` is the flag the wait
+-- resolves on; everything else is reported but does not end it.
+function QD.player._step_for(element, was, now)
+    local is = now[element]
+    if is == nil then
+        return { slot = was.slot, from_x = was.x, from_z = was.z, gone = true }
+    end
+    if is.x == was.x and is.z == was.z and is.level == was.level then
+        return nil
+    end
+    local step = {
+        slot = is.slot,
+        from_x = was.x, from_z = was.z,
+        x = is.x, z = is.z, level = is.level,
+    }
+    local player_result, player = api_drive.player_tile()
+    if player_result == "ok" and player ~= nil then
+        step.player_x = player.x
+        step.player_z = player.z
+        step.was_range = QD.player._range(was.x, was.z, player.x, player.z)
+        step.range = QD.player._range(is.x, is.z, player.x, player.z)
+        step.away = step.range > step.was_range
+    end
+    return step
+end
+
+-- The overhead SAY `is` is showing that `was` was not -- the words, or nil.
+--
+-- `npc_say` is a SAY mask on NPC_INFO and nothing else: the engine
+-- deliberately does NOT route it to the chatbox (torirs_server_scripts.c,
+-- SS_OP_NPC_SAY -- "[ai_timer] flavour scripts call npc_say with no player
+-- set"), so api_drive.messages never sees a word of it.  For an `[opnpc<n>]`
+-- whose whole answer is a word over the npc's head it is the only proof the
+-- press reached the server at all.
+--
+-- Two ways to be new, and the second is the one that matters to a loop
+-- pressing the same npc over and over: different words, OR the SAME words
+-- with a timer that went UP.  The facet's timer is set to 150 by
+-- world_entity_set_chat on every message and only ever counts down between
+-- them (src/world/world_cycle.c), so a rise is a second say and nothing else
+-- is.
+--
+-- nil in, nil out, by design: a binary without DriveNpcRow.overhead answers
+-- `say = nil`, and "this client cannot read overhead text" must never be
+-- reported as "it said nothing".
+function QD.player._say_since(was, is)
+    if is == nil or is.say == nil or is.say == "" then
+        return nil
+    end
+    if was == nil or was.say ~= is.say then
+        return is.say
+    end
+    if is.say_timer ~= nil and was.say_timer ~= nil
+        and is.say_timer > was.say_timer then
+        return is.say
+    end
+    return nil
+end
+
+-- The OLDEST chat line newer than `since`, or "".  Newest-first is what
+-- api_drive.messages answers in, so the last match on the walk is the oldest
+-- one in the window -- the line this press provoked rather than a later
+-- consequence of it, the same rule QD.player._refusal_since keeps.
+function QD.player._line_since(since)
+    local result, rows = api_drive.messages()
+    local found = ""
+    if result ~= "ok" or type(rows) ~= "table" then
+        return ""
+    end
+    for i = 1, #rows do
+        if rows[i].serial > since then
+            found = rows[i].text
+        end
+    end
+    return found
+end
+
+-- Eight ticks.  A prod's npc_walk is queued in the tick the script runs and
+-- the step is on the wire the next one; `p_arrivedelay` at the top of
+-- [label,prod_sheep] costs one more, and the click itself may still be
+-- walking the player into range when the wait starts.  Eight is the smallest
+-- round number above the measured worst case and it is paid IN FULL only by a
+-- press that moved nothing and said nothing -- which is the failure this verb
+-- reports.
+QD.player._press_step_ticks = 8
+
+-- press(npc, op, ticks) -> `ok` `timeout` `refused` `no_row` / by_symbol's
+-- and click_minimenu's own results.
+--
+-- One numbered op on an npc, settled on THE NPC ITSELF MOVING -- for an
+-- `[opnpc<n>]` whose success is silent.  Everything the ordinary verbs read
+-- is still read here and still named in the detail: the dialogue page that
+-- came up, the content line that came instead, the engine's own refusal
+-- sentence.  Use talk_to for anything that answers with a conversation; this
+-- verb is for the press that answers with a footstep.
+--
+-- AND with the word over its head, which is the fourth observable.  The
+-- success path of a prod is four opcodes -- `anim(cattleprod,0);
+-- npc_say("BAAAAA!"); npc_setmode(none); npc_walk(...)`
+-- (quest_sheepherder's diseased_sheep.rs2) -- and the LAST of them is silent
+-- when the map refuses the destination.  Before this, such a press read
+-- `timeout ... nothing was said and no dialogue opened`, which is false: the
+-- click landed, the script ran, and the only thing that did not happen was
+-- the step.  36 of the 55 presses in sheepherder's 2026-09-22 ledger row are
+-- that sentence.
+--
+-- The say does NOT end the wait, on purpose.  `npc_say` and `npc_walk` run
+-- in the same content tick and arrive in the same NPC_INFO update, so
+-- resolving on the say would return before the step could be read and every
+-- SUCCESSFUL prod would lose the "slot 101 2610,3345 -> 2609,3345 ... away
+-- from you" that a herding loop steers by.  It is recorded on every poll and
+-- ranked in the ANSWER instead: a step reports the step (and the say with
+-- it), and only a press with a say and no step reports the say alone -- `ok`,
+-- because it is, with "did not move" in the same sentence so the caller can
+-- read the direction as walled rather than the click as lost.
+function QD.player.press(npc, op, ticks)
+    op = op or 1
+    ticks = ticks or QD.player._press_step_ticks
+    local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
+    if not target then
+        return sym_result, sym_name
+    end
+    local label = "press " .. tostring(npc) .. " op " .. tostring(op) .. ": "
+    local before, before_count = QD.player._npc_rows(target)
+    if before == nil then
+        return before_count, label .. "the npc pool did not answer"
+    end
+    if before_count == 0 then
+        return "no_row", label .. "no copy of it is in the npc pool"
+    end
+    local before_kind, before_text = QD.player._chat_page()
+    local serial_result, since = api_drive.message_serial()
+    local click_result, click = QD.drive.click_minimenu(target, op)
+    if click_result ~= "ok" then
+        return click_result, click
+    end
+    -- WHICH COPY the press named.  Without it this verb cannot tell the
+    -- pressed npc from the two wandering beside it, so it says so and grades
+    -- nothing on a tile -- a guess here is the false green this seam is.
+    local element = nil
+    if type(click) == "table" then
+        element = click.element_id
+    end
+    local was = nil
+    if element ~= nil then
+        was = before[element]
+    end
+    local pressed = "element " .. tostring(element)
+    if was ~= nil then
+        pressed = "slot " .. tostring(was.slot) .. " (element " .. tostring(element)
+            .. ") at " .. tostring(was.x) .. "," .. tostring(was.z)
+    end
+    local step = nil
+    local page = nil
+    local line = ""
+    local said = nil
+    QD.await({
+        level = function()
+            -- The world's own answer first, every poll: a press that was
+            -- refused in words must never be reported as a footstep some
+            -- other copy took in the same window.
+            if serial_result == "ok" then
+                local seen = QD.player._line_since(since)
+                if seen ~= "" then
+                    line = seen
+                    return true
+                end
+            end
+            local kind, text = QD.player._chat_page()
+            -- A page that went away is not a page this press put up --
+            -- _settle_after_click's fourth arm, for its reason.
+            if kind ~= "none" and (kind ~= before_kind or text ~= before_text) then
+                page = kind
+                return true
+            end
+            if was == nil then
+                return false
+            end
+            local now = QD.player._npc_rows(target)
+            if now == nil then
+                return false
+            end
+            -- Kept, not resolved on (the banner's reason), and kept BEFORE
+            -- the unchanged-tile return below -- the press this exists for
+            -- is exactly the one whose tile never changes.
+            local fresh = QD.player._say_since(was, now[element])
+            if fresh ~= nil then
+                said = fresh
+            end
+            local moved = QD.player._step_for(element, was, now)
+            if moved == nil then
+                return false
+            end
+            step = moved
+            -- Only a step that took the npc further off resolves; anything
+            -- else is kept and printed, and the wait goes on looking for the
+            -- answer that outranks it.
+            return moved.away == true
+        end,
+        note = "press " .. tostring(npc) .. " op " .. tostring(op),
+    }, ticks)
+    if serial_result == "ok" then
+        local refusal = QD.player._refusal_since(since)
+        if refusal then
+            return "refused", label .. refusal
+        end
+    end
+    if line ~= "" then
+        return "ok", label .. "pressed " .. pressed .. "; content line '"
+            .. line .. "'"
+    end
+    if page ~= nil then
+        local _, page_text = QD.player._chat_page()
+        return "ok", label .. "pressed " .. pressed .. "; dialogue " .. page
+            .. " is up: '" .. tostring(page_text) .. "'"
+    end
+    local overhead = ""
+    if said ~= nil then
+        overhead = "; it said '" .. said .. "'"
+    end
+    if step ~= nil then
+        return "ok", label .. QD.player._step_text(step) .. overhead
+    end
+    local player_result, player = api_drive.player_tile()
+    local where = "unknown"
+    if player_result == "ok" and player ~= nil then
+        where = tostring(player.x) .. "," .. tostring(player.z)
+    end
+    -- The press landed and the step is the only thing that did not happen.
+    -- `ok` because the op ran: what the caller does with a push its own map
+    -- refused is the caller's decision, and it can only make it if this row
+    -- says both halves out loud.
+    if said ~= nil then
+        return "ok", label .. "pressed " .. pressed .. ", it said '" .. said
+            .. "' and did not move in " .. tostring(ticks) .. " tick(s) (you at "
+            .. where .. ") -- the press landed; the step is what did not happen"
+    end
+    if was == nil then
+        return "no_row", label .. "the press named " .. pressed
+            .. ", which was not in the pre-press pool snapshot ("
+            .. QD.player._npc_rows_text(before)
+            .. ") -- nothing to watch, so nothing is claimed"
+    end
+    -- Nothing at all: no step, no line, no page, and no word over its head.
+    -- Naming the overhead reading here is the point -- a client that cannot
+    -- read it (a binary older than DriveNpcRow.overhead) must not let this
+    -- sentence be read as "the npc was silent".
+    local silence = "and nothing was said overhead or in the chatbox"
+    if was.say == nil then
+        silence = "and nothing was said in the chatbox (this binary cannot"
+            .. " read overhead text -- rebuild for DriveNpcRow.overhead)"
+    end
+    return "timeout", label .. pressed .. " did not move in " .. tostring(ticks)
+        .. " tick(s) (you at " .. where .. "), " .. silence
+        .. " and no dialogue opened"
 end

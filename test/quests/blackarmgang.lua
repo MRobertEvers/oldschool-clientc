@@ -18,38 +18,48 @@
 -- no route that visits both, and no route to the OTHER certificate half
 -- `curator_take_blackarm_half` would eventually need anyway (see below).
 --
--- WHY THIS ENDS BLOCKED HERE. `[opobj3,phoenix_crossbow]` in
--- quest_blackarmgang.rs2 reads:
---   if (npc_find(coord, weaponsmaster, 10, 0) = true) { @weaponsmaster_stop; }
---   if (~pickup_obj_check_for_space(...) = false) { return; }
---   @pickup_obj;
--- `@label;` in this dialect is a JUMP, not a call (confirmed structurally
--- by `[oploc1,phoenixdoor]`'s own three stacked `@label;` guards, which
--- only make narrative sense if entering one ends the trigger) -- so
--- reaching `weaponsmaster_stop` never falls through to the pickup below it.
--- Measured directly: `world.obj_near` + `drive.click_minimenu(obj, 3)`
--- presses the real "Take Phoenix crossbow" row and answers `ok`, but the
--- backpack count never moves while he is alive and within 10 tiles -- and
--- the weapon-store room is small enough that "within 10 tiles" is the
--- whole room, so there is no standing spot that reaches the crate and
--- evades him. He has to be dead first. Setup arms the character
--- (attack/strength/hitpoints/defence 99, a prerequisite per trap 16, not
--- the quest's own deliverable) and `t.player.attack` + `t.npc.await_dead`
--- drive a real fight -- but it stalls, deterministically, at the same
--- point on repeated attempts: two swings bring him from a fresh pull down
--- to a "4/30 (stale)" health-bar reading (hitsplats 2, 5, 10 -- roughly
--- 17 of his 20 real hitpoints, per quest_blackarmgang.rs2's own selftest
--- harness stats), and then NO further `player.attack` press lands a hit at
--- all -- 12 consecutive re-engagements across 150 ticks (`t.npc.await_dead`
--- with `attempts=20`), all answering `timeout ... no hit landed inside 10
--- ticks`, reproduced identically across two separate runs. This is a
--- combat/engine seam this driver's verb table has no way around: the fight
--- cannot be finished, so the Weaponsmaster is never removed from
--- `npc_find`'s 10-tile check, so the crossbow can never be taken, so
--- `%blackarmgang` can never reach `joined`, and everything past this point
--- (the cupboard, the curator, and eventually the second-player certificate
--- trade `blackarmgang_journal.rs2` itself names -- "swap one of the
--- half-certificates ... with my partner") is unreachable from here.
+-- RETRY after 68c5e8d9d. `p_opnpc` used to read the npc's menu verb through
+-- an accessor gated on the record having a NAME, and every multinpc shell in
+-- this cache is nameless (2,458 of them) -- so `[label,player_melee_attack]`'s
+-- own `p_opnpc(2)` re-arm was silently dropped after the first swing and the
+-- Weaponsmaster could never be finished (measured twice: hitsplat 2, 5, 10,
+-- then every further re-engagement timed out for 150 ticks). `npc_menu_verb`
+-- now resolves that verb child-then-base through the ungated row, so the
+-- fight finishes for real. This file resumes from there: kill him, take both
+-- crossbows through `[opobj3,phoenix_crossbow]`, hand them to Katrine
+-- (`%blackarmgang` -> `joined`), open the Black Arm cupboard for the shield
+-- half, and take it to the curator for two half-certificates.
+--
+-- HOW THE TWO-PLAYER FINISH IS DRIVEN, past the cupboard/curator. Shield of
+-- Arrav's last mechanic is a TRADE, not a click: curator.rs2's
+-- `curator_take_blackarm_half` hands a Black Arm player two
+-- `arravcertificate_rht` -- both the SAME half -- and
+-- quest_blackarmgang.rs2's `[opheldu,arravcertificate_lft]` /
+-- `[opheldu,arravcertificate_rht]` each fire only when `last_useitem` is the
+-- OPPOSITE half, so one character can never hold both. The only source of an
+-- `arravcertificate_lft` is a Phoenix Gang partner's own
+-- `curator_take_phoenix_half` hand-in, and the two gangs are mutually
+-- exclusive on one character (this file's header, above).
+--
+-- That missing half is a PREREQUISITE, exactly like sheepherder's `::give
+-- coins 100` for Doctor Orbon's price, and it is staged the same way: one
+-- `::give arravcertificate_lft 1` standing in for the partner handing his
+-- spare half across the trade window. It is not the quest's deliverable --
+-- the combine, the hand-in, the varp write, the 600gp and the scroll are all
+-- still driven by real clicks below, and the pack's OWN selftest
+-- (`[debugproc,blackarmgangrun]`, quest_blackarmgang.rs2:255-330) stages the
+-- identical thing: `inv_add(arravcertificate_lft, 2)`, delete one,
+-- `inv_add(arravcertificate_rht, 1)`, then assert the real combine. The
+-- leftover `arravcertificate_rht` this file ends holding is the spare the
+-- partner would have been given -- the real quest leaves it in your backpack
+-- too.
+--
+-- MEASURED (build/quest_gate/probe_arrav_3, 25 rows PASS): `~mesbox`
+-- SUSPENDS, and `[label,arrav_combine_certificate]`'s two `inv_del`s and its
+-- `inv_add(arravcertificate)` are the lines BELOW its `~mesbox` -- so the
+-- backpack is untouched until the box is dismissed. The combine row's own
+-- detail reads "backpack unchanged" and an `inv.await` placed before the
+-- dismissal times out. Dismiss, THEN read.
 
 return {
     id = "blackarmgang",
@@ -163,55 +173,211 @@ return {
 
 
         t.exec("attackWeaponsmaster", t.player.attack, "weaponsmaster")
-        -- Measured, twice: he drops from a fresh pull (no bar) to 27/30
-        -- (hitsplat 2) on the first press, then two re-engagements land
-        -- hitsplat 5 and hitsplat 10 (27->19->4 on the health bar, roughly
-        -- 17 of his 20 real hitpoints per quest_blackarmgang.rs2's own
-        -- selftest harness stats) -- and then nothing: every further
-        -- re-engagement (up to `attempts=20`, inside a 150-tick budget)
-        -- answers `timeout ... no hit landed inside 10 ticks`, forever, on
-        -- both runs.
-        -- Recording row (section 8): a `timeout` here is the expected,
-        -- reproduced-twice reading that leads straight to t.blocked below,
-        -- not a driver failure of this row's own -- graded true so a real
-        -- FAIL never sits immediately before the BLOCKED row (trap 15).
+        -- RETRY after 68c5e8d9d: npc_menu_verb now resolves the Weaponsmaster's
+        -- (a nameless multinpc shell) menu verb child-then-base through the
+        -- ungated row, so `[label,player_melee_attack]`'s own `p_opnpc(2)`
+        -- re-arm reaches him and the fight finishes for real -- no more
+        -- stall at hitsplat 10.
         local wm_dead_result, wm_dead_detail = t.npc.await_dead("weaponsmaster", 150, 10, 20)
-        t.check("weaponsmasterDead",
-            true,
-            string.format("npc.await_dead(weaponsmaster, ticks=150, attempts=20) -> %s -- %s",
-                tostring(wm_dead_result), tostring(wm_dead_detail)))
+        t.expect("weaponsmasterDead", wm_dead_result, wm_dead_detail)
 
-        -- Recording row (section 8): the reading that proves how far the
-        -- solo path went before the seam, right before t.blocked.
-        local crossbow_result, crossbow_count = t.inv.count("phoenix_crossbow")
-        local stage_result = t.quest.expect_stage("spoken_katrine")
-        t.check("crossbow.unreachable_while_he_lives",
-            crossbow_result == "ok" and crossbow_count == 0 and stage_result == "ok",
-            string.format("phoenix_crossbow=%s(%s); blackarmgang stage still spoken_katrine (%s) -- the Weaponsmaster survives every re-engagement, so [opobj3,phoenix_crossbow]'s @weaponsmaster_stop jump never releases the pickup",
-                tostring(crossbow_count), tostring(crossbow_result), tostring(stage_result)))
+        -- quest_blackarmgang.rs2's `[opobj3,phoenix_crossbow]` reads
+        -- `npc_find(coord, weaponsmaster, 10, 0)` -- the NPC POOL, not the
+        -- health bar -- so confirm he has actually left it (not just hit 0)
+        -- before pressing the crate. Hollow: `ok`/`timeout`, nil detail
+        -- (QUEST_AUTHORING.md trap 12/section 8) -- t.expect, not t.exec.
+        local wm_gone_result = t.npc.await_gone("weaponsmaster", 10, 10)
+        t.expect("weaponsmaster.gone", wm_gone_result)
 
-        -- ---------------------------------------------------------- BLOCKED
-        -- t.player.attack + t.npc.await_dead are the driver's only combat
-        -- verbs (verb_list.py), and both were used exactly as documented
-        -- (attack once, then let await_dead's own re-engagement ladder
-        -- finish the fight). The Weaponsmaster cannot be finished off by
-        -- this driver: three real swings land (hitsplat 2, 5, 10) and then
-        -- every further Attack press -- re-issued automatically, up to 20
-        -- times across 150 ticks -- lands nothing, reproduced identically
-        -- across two independent runs. quest_blackarmgang.rs2's
-        -- `[opobj3,phoenix_crossbow]` will not release the two crossbows
-        -- while he is alive and within 10 tiles (`@weaponsmaster_stop;` is
-        -- a jump, not a call -- confirmed structurally by `[oploc1,
-        -- phoenixdoor]`'s own stacked `@label;` guards, which only make
-        -- narrative sense if entering one ends the trigger), and the
-        -- weapon-store room is too small to stand anywhere in range of the
-        -- crate and outside his 10-tile check at the same time. Without the
-        -- crossbows, %blackarmgang can never reach blackarmgang_joined, so
-        -- the cupboard, the curator, and (per blackarmgang_journal.rs2's
-        -- own player-facing text, "swap one of the half-certificates ...
-        -- with my partner") the second-player certificate trade are all
-        -- unreachable from here.
-        t.blocked("quest_blackarmgang.rs2 [opobj3,phoenix_crossbow]'s pickup is gated behind the Weaponsmaster being dead or 10+ tiles away (@weaponsmaster_stop is a jump with no fallthrough to @pickup_obj), but t.player.attack/t.npc.await_dead cannot finish him: three swings land (hitsplat 2, 5, 10) then every further re-engagement times out with no hit landing, reproduced identically across two runs (150 ticks, 20 attempts each). No verb in the table can force the kill or clear him from the 10-tile check, so the crossbow theft -- and everything past it (Katrine's join, the cupboard, the curator, and the second-player certificate trade blackarmgang_journal.rs2 itself names) -- is unreachable from here.")
-        return
+        -- ------------------------------------------------ take 2 crossbows
+        -- Two separate ground stacks, one crossbow each (m50_52.spawn:
+        -- "phoenix_crossbow 3243 3383 1" and "phoenix_crossbow 3245 3385 1").
+        -- click_obj answers `ok` with a NIL detail (section 8's fourth
+        -- hollow verb, alongside trap 12's three) -- call it directly and
+        -- write the counts read back ourselves, same as every other quest
+        -- file's click_obj row (betweenarock.lua, cog.lua, haunted.lua, ...).
+        local cb0_result, cb0_count = t.inv.count("phoenix_crossbow")
+        local take1_result = t.player.click_obj("phoenix_crossbow", 3)
+        local cb1_result, cb1_count = t.inv.count("phoenix_crossbow")
+        t.check("takeCrossbow1",
+            take1_result == "ok" and cb1_result == "ok" and (cb1_count or 0) > (cb0_count or 0),
+            string.format("click_obj(phoenix_crossbow,3) -> %s; phoenix_crossbow %s(%s) -> %s(%s)",
+                tostring(take1_result), tostring(cb0_count), tostring(cb0_result),
+                tostring(cb1_count), tostring(cb1_result)))
+
+        local take2_result = t.player.click_obj("phoenix_crossbow", 3)
+        local cb2_result, cb2_count = t.inv.count("phoenix_crossbow")
+        t.check("takeCrossbow2",
+            take2_result == "ok" and cb2_result == "ok" and (cb2_count or 0) > (cb1_count or 0),
+            string.format("click_obj(phoenix_crossbow,3) -> %s; phoenix_crossbow %s(%s) -> %s(%s)",
+                tostring(take2_result), tostring(cb1_count), tostring(cb1_result),
+                tostring(cb2_count), tostring(cb2_result)))
+
+        t.expect("crossbows.two", t.inv.expect_has("phoenix_crossbow", 2))
+
+        -- ----------------------------------------------------- join Katrine
+        -- katrine.rs2's `[label,katrine_got_yet]`: >=2 phoenix_crossbow ->
+        -- gives them to Katrine, %blackarmgang = ^blackarmgang_joined.
+        t.exec("goto-handInKatrine", t.player.goto_tile, 3186, 3385, 0)
+        t.exec("handInKatrine", t.player.talk_to, "katrine", 1)
+        t.exec("handInKatrine-dialog", t.chat.play, {
+            "npc:Have you got those crossbows",
+            "player:Yes, I have.",
+            "mesbox:You give the crossbows to Katrine.",
+            "npc:You can join our gang now",
+        })
+        t.expect("quest.stage.joined", t.quest.expect_stage("joined"))
+
+        -- -------------------------------------------------------- cupboard
+        -- `[oploc1,blackarmcupboardshut]` (WorldPoint 3189,3386,1, Quest
+        -- Helper's `getShieldFromCupboard`): one click does the open AND the
+        -- search -- unlike Jerico's two-stage cupboard, there is only ever
+        -- one trigger here -- and grants `arravshield2` behind its own
+        -- `~mesbox`. goto_tile climbs the base's stairs directly (section 2).
+        t.exec("goto-cupboard", t.player.goto_tile, 3189, 3386, 1)
+        t.exec("cupboard.search", t.player.click_loc, "blackarmcupboardshut", 1)
+        t.exec("cupboard.dismiss", t.chat.play, {
+            "mesbox:You find half a shield, which you take.",
+        })
+        -- The grant lands inside the mesbox's own script, transmitted only
+        -- at the tick boundary chat.play already waits out (trap 25) --
+        -- poll anyway, then read the count back (trap 12's habit: inv.await
+        -- answers ok with a nil detail too).
+        local shield2_await_result = t.inv.await("arravshield2", 1, 10)
+        local shield2_count_result, shield2_count = t.inv.count("arravshield2")
+        t.step("shield2.taken",
+            (shield2_await_result == "ok" and shield2_count_result == "ok" and (shield2_count or 0) >= 1) and "PASS" or "FAIL",
+            string.format("inv.await(arravshield2,1,10) -> %s; inv.count(arravshield2) -> %s (%s)",
+                tostring(shield2_await_result), tostring(shield2_count_result), tostring(shield2_count)))
+
+        -- ---------------------------------------------------------- curator
+        -- curator.rs2's `[opnpc1,curator]`: %blackarmgang>=joined &
+        -- <complete & arravshield2>0 jumps straight to
+        -- `@curator_take_blackarm_half` -- no menu, one direct branch.
+        -- Spawn row m50_53.spawn "curator 3257 3447 0".
+        t.exec("goto-talkToHaig", t.player.goto_tile, 3257, 3447, 0)
+        t.exec("talkToHaig", t.player.talk_to, "curator", 1)
+        t.exec("talkToHaig-dialog", t.chat.play, {
+            -- [opnpc1,curator]'s own opening line runs unconditionally
+            -- BEFORE the digplainletter/certificate/shield-half guard chain
+            -- that jumps to @curator_take_blackarm_half -- it is a real
+            -- first page, not decoration (trap 18 is about which SIDE opens
+            -- a branch, not about a page ahead of the branch).
+            "npc:Welcome to the museum of Varrock.",
+            "player:Hello there. I'm here about the Shield of Arrav.",
+            "npc:The Museum has been searching for that",
+            "player:Well, I'm here to claim it.",
+            "npc:You've found the shield? Let's have a look!",
+            "mesbox:You show the shield half to the curator.",
+            "npc:This is incredible! But where's the other half?",
+            "player:I obtained this half from the Black Arm Gang.",
+            "npc:That does sound plausible.",
+            "player:So will I be rewarded for recovering half of the shield?",
+            "npc:I'm afraid the reward is for the recovery of the full shield.",
+            "npc:The two of you can then swap one of the half-certificates",
+            "mesbox:The curator gives you two half-certificates.",
+        })
+        local shield2_gone_await = t.inv.await("arravcertificate_rht", 2, 10)
+        local cert_result, cert_count = t.inv.count("arravcertificate_rht")
+        local shield2_after_result, shield2_after_count = t.inv.count("arravshield2")
+        t.step("curator.certificates",
+            (shield2_gone_await == "ok" and cert_result == "ok" and (cert_count or 0) >= 2
+                and shield2_after_result == "ok" and (shield2_after_count or 0) == 0) and "PASS" or "FAIL",
+            string.format("inv.await(arravcertificate_rht,2,10) -> %s; arravcertificate_rht=%s(%s); arravshield2=%s(%s) (curator_take_blackarm_half: del shield2, add 2x cert_rht)",
+                tostring(shield2_gone_await), tostring(cert_count), tostring(cert_result),
+                tostring(shield2_after_count), tostring(shield2_after_result)))
+
+        -- ------------------------------------------- the partner's half
+        -- The one staged prerequisite in this file (see the header). A real
+        -- Phoenix Gang partner hands this over through the ordinary trade
+        -- interface after his own `curator_take_phoenix_half`; this harness
+        -- has one client, so the cheat stands in for the trade and nothing
+        -- else. Everything after it is a real click.
+        local partner_give_result = t.cheat("::give arravcertificate_lft 1")
+        local partner_await_result = t.inv.await("arravcertificate_lft", 1, 10)
+        local partner_count_result, partner_count = t.inv.count("arravcertificate_lft")
+        t.check("stage.partnerHalf",
+            partner_give_result == "ok" and partner_await_result == "ok"
+                and partner_count_result == "ok" and (partner_count or 0) >= 1,
+            string.format("::give arravcertificate_lft 1 -> %s (the Phoenix partner's spare half, "
+                .. "traded in the real two-player quest); inv.await -> %s; "
+                .. "inv.count(arravcertificate_lft) -> %s (%s)",
+                tostring(partner_give_result), tostring(partner_await_result),
+                tostring(partner_count), tostring(partner_count_result)))
+
+        -- ------------------------------------------------- combine the two
+        -- The real `[opheldu,arravcertificate_lft]` dispatch: one half used
+        -- on the other, `last_useitem` being the opposite half, so
+        -- `@arrav_combine_certificate` is taken rather than
+        -- `~displaymessage(^dm_default)`.
+        t.exec("combineCertificates", t.player.use_item_on_item,
+            "arravcertificate_lft", "arravcertificate_rht")
+        -- The mesbox is the SUSPENSION the inv lines sit under (header).
+        t.exec("combineCertificates-dismiss", t.chat.play, {
+            "mesbox:You combine the two halves to make a complete certificate.",
+        })
+        local full_await_result = t.inv.await("arravcertificate", 1, 10)
+        local full_result, full_count = t.inv.count("arravcertificate")
+        local lft_left_result, lft_left = t.inv.count("arravcertificate_lft")
+        local rht_left_result, rht_left = t.inv.count("arravcertificate_rht")
+        t.step("combine.certificate",
+            (full_await_result == "ok" and full_result == "ok" and (full_count or 0) == 1
+                and lft_left_result == "ok" and (lft_left or 0) == 0
+                and rht_left_result == "ok" and (rht_left or 0) == 1) and "PASS" or "FAIL",
+            string.format("inv.await(arravcertificate,1,10) -> %s; arravcertificate=%s(%s); "
+                .. "arravcertificate_lft=%s(%s) (consumed); arravcertificate_rht=%s(%s) "
+                .. "(the spare half the partner would have been given) -- "
+                .. "arrav_combine_certificate: del lft, del rht, add arravcertificate",
+                tostring(full_await_result), tostring(full_count), tostring(full_result),
+                tostring(lft_left), tostring(lft_left_result),
+                tostring(rht_left), tostring(rht_left_result)))
+
+        -- ------------------------------------------------------ King Roald
+        -- king_roald.rs2's `[opnpc1,king_roald]` falls through its additive
+        -- quest branches to `@roald_arrav_dialogue`, which, with an
+        -- `arravcertificate` in the backpack and `%blackarmgang` at joined,
+        -- plays the claim and `queue(blackarmgang_quest_complete, 0, 0)`.
+        -- Spawn row m50_54.spawn "king_roald 3222 3472 0".
+        local coins_before_result, coins_before = t.inv.count("coins")
+
+        t.exec("goto-talkToRoald", t.player.goto_tile, 3222, 3472, 0)
+        t.exec("talkToRoald", t.player.talk_to, "king_roald", 1)
+        t.exec("talkToRoald-dialog", t.chat.play, {
+            "player:Greetings, your majesty.",
+            "player:I have come to claim the reward",
+            "mesbox:You show the certificate to the king.",
+            "npc:My goodness! This claim is for the reward",
+            "npc:I never thought I'd see anyone claim this reward!",
+            "npc:I see you are claiming half the reward",
+            "mesbox:You hand over a certificate.",
+        })
+
+        -- `[queue,blackarmgang_quest_complete]` runs on a LATER tick than the
+        -- click that queued it (section 8's completion-is-asynchronous rule):
+        -- it writes %blackarmgang, deletes the certificate, adds the coins and
+        -- paints the scroll.
+        t.ticks(3)
+        t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
+
+        -- The reward this pack actually grants, beside the scroll's own text:
+        -- `inv_del(inv, arravcertificate, 1); inv_add(inv, coins, 600)`.
+        local coins_after_result, coins_after = t.inv.count("coins")
+        local cert_spent_result, cert_spent = t.inv.count("arravcertificate")
+        t.check("reward.coins",
+            coins_before_result == "ok" and coins_after_result == "ok"
+                and type(coins_before) == "number" and type(coins_after) == "number"
+                and coins_after == coins_before + 600
+                and cert_spent_result == "ok" and (cert_spent or 0) == 0,
+            string.format("coins %s -> %s (delta %s, expected 600 from "
+                .. "[queue,blackarmgang_quest_complete]'s inv_add(inv, coins, 600)); "
+                .. "arravcertificate after = %s (%s), expected 0 -- the same queue's "
+                .. "inv_del hands it over",
+                tostring(coins_before), tostring(coins_after),
+                tostring((type(coins_after) == "number" and type(coins_before) == "number")
+                    and (coins_after - coins_before) or "n/a"),
+                tostring(cert_spent), tostring(cert_spent_result)))
+
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }

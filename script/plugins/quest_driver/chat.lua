@@ -550,6 +550,107 @@ function QD.chat._why_no_options()
     return "rows not ready"
 end
 
+-- The interface that opened -- or, failing that, closed -- OUTSIDE the chat
+-- modal while a choose's click was being served, named: "shopmain (3824)
+-- opened" where the symbol pack knows the group, "interface 3824 opened"
+-- where it does not, nil where nothing did.  `watch` is the table
+-- QD.chat.choose fills from its own await (below).
+function QD.chat._choose_other_screen(watch)
+    local id = watch.screen
+    local verb = "opened"
+    if id == nil then
+        id = watch.closed
+        verb = "closed"
+    end
+    if id == nil then
+        return nil
+    end
+    local name_res, name = api_drive.symbol_name("interface", id)
+    if name_res == "ok" and name ~= nil and name ~= "" then
+        return name .. " (" .. tostring(id) .. ") " .. verb
+    end
+    return "interface " .. tostring(id) .. " " .. verb
+end
+
+-- The newest chat line the server printed since `serial`, or nil.  (api_drive
+-- .messages answers newest-first -- torirs_plugin_drive_state.c -- so the
+-- first row past the cursor IS the newest.)  A serial of -1 means the
+-- pre-click read itself failed and nothing may be concluded from the ring.
+function QD.chat._choose_new_line(serial)
+    if serial == nil or serial < 0 then
+        return nil
+    end
+    local result, rows = api_drive.messages()
+    if result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    for i = 1, #rows do
+        if rows[i].serial ~= nil and rows[i].serial > serial
+            and type(rows[i].text) == "string" and rows[i].text ~= "" then
+            return rows[i].text
+        end
+    end
+    return nil
+end
+
+-- Grade a choose whose click has already been served.  `title`/`rows` are the
+-- menu as it was CLICKED; `screen` names an interface that opened or closed
+-- outside the chat modal while it was served and `line` the newest chat line
+-- the server printed, either of them nil for "nothing did".
+--
+-- THE MENU COMING BACK BYTE-IDENTICAL DECIDES NOTHING BY ITSELF.  It is the
+-- shape of the server's own replay -- chat.rs2:251-263's `[proc,p_choice_open]`
+-- is re-called by `~p_choice2..5`'s `while (last_slot < 1 | last_slot > N)`
+-- loop, which re-sends the same header and the same options, prints no chat
+-- line and opens no other screen -- and that is a real refusal every caller
+-- must see.  But it is ALSO exactly what a choose that worked perfectly reads
+-- like when the row's handler ends in a screen of its own: NOTHING closes the
+-- chatmenu, so the menu still sitting under ~openshop's shopmain
+-- (razmire_keelgan.rs2:246 -> :289 -> shop.rs2:95's `if_openmain_side`) is the
+-- menu that was clicked -- unchanged, and already answered.  Graded on the
+-- menu alone, that landed click was called `refused, 'stale reopen'` and took
+-- Shades of Mort'ton's whole shop leg with it (build/quest_gate/mortton/
+-- ledger.tsv row 53, and its shot shows the open shop).
+--
+-- So: ask what else changed first.  Only an unchanged menu with nothing else
+-- changed is the replay.
+function QD.chat._choose_verdict(title, rows, screen, line)
+    local now_kind = QD.chat.kind()
+    if now_kind ~= "options" then
+        return "ok", "chat.choose: page changed"
+    end
+
+    local now_options_res, now_options = api_drive.options()
+    if now_options_res ~= "ok" then
+        return "ok", "chat.choose: page changed"
+    end
+    local now_rows = now_options.rows
+    local now_title = now_options.title
+
+    local identical = now_title == title and #now_rows == #rows
+    if identical then
+        for i, text in ipairs(rows) do
+            if now_rows[i] ~= text then
+                identical = false
+                break
+            end
+        end
+    end
+    if not identical then
+        return "ok", "chat.choose: options changed"
+    end
+    if screen ~= nil then
+        return "ok", "chat.choose: the options are unchanged -- nothing closes "
+            .. "a chatmenu whose row opened a screen -- but " .. tostring(screen)
+            .. " while the click was served"
+    end
+    if line ~= nil then
+        return "ok", "chat.choose: the options are unchanged, but the server "
+            .. "answered: " .. tostring(line)
+    end
+    return "refused", "stale reopen"
+end
+
 -- selector is a 1-based row index or an exact row text (plan 5.5). Rows are
 -- cc_create'd with no cache op and no button type: a real click builds
 -- RESUME_PAUSEBUTTON with action_index -1, through api.drive.option_row's
@@ -608,6 +709,27 @@ function QD.chat.choose(selector)
     -- the host component itself, not a child of it).
     local host_res, host_id = api_drive.component("chatbox:chatmodal", -1)
 
+    -- What the screen is BESIDE this menu, read before the click so the
+    -- verdict below can tell the server's replay from an answer that landed
+    -- somewhere else (see QD.chat._choose_verdict's banner).  `screen` is
+    -- filled by the await's own match(), which is handed EVERY drive event --
+    -- a descriptor that names no `event` leaves the kind filter at -1
+    -- (torirs_plugin_drive.c's drive_pump_once) -- and app_boot.c:1203/1273
+    -- stamp a=target_uid b=interface_id on the mounted and the queued edge
+    -- alike, so a mount outside chat_modal_host is one comparison away.
+    -- The watch is armed only when the host component RESOLVED: with no uid
+    -- to compare against, every mount would look foreign and the replay
+    -- detection -- which is load-bearing for every real refusal -- would be
+    -- the thing that broke.
+    local watch = { host = nil, screen = nil, closed = nil, serial = -1 }
+    if host_res == "ok" then
+        watch.host = host_id
+    end
+    local serial_res, serial = api_drive.message_serial()
+    if serial_res == "ok" then
+        watch.serial = serial
+    end
+
     local resume_res, resume_detail = api_drive.resume(com_id)
     if resume_res ~= "ok" then
         return resume_res, resume_detail
@@ -623,8 +745,19 @@ function QD.chat.choose(selector)
     -- under chat_modal_host -- or on the deadline, and only then classify.
     local await_result, await_detail = await({
         match = function(ev)
-            if host_res == "ok" and (ev.kind == "sub_mounted" or ev.kind == "sub_closed") then
-                return ev.a == host_id
+            if watch.host == nil then
+                return false
+            end
+            local mine = ev.a == watch.host
+            if not mine then
+                if ev.kind == "sub_mounted" or ev.kind == "sub_opened" then
+                    watch.screen = watch.screen or ev.b
+                elseif ev.kind == "sub_closed" then
+                    watch.closed = watch.closed or ev.b
+                end
+            end
+            if ev.kind == "sub_mounted" or ev.kind == "sub_closed" then
+                return mine
             end
             return false
         end,
@@ -634,37 +767,16 @@ function QD.chat.choose(selector)
         return await_result, await_detail
     end
 
-    -- Classify: gone or changed = ok; identical title+rows = a stale reopen
-    -- the server replayed (chat.rs2:240-263) = refused. This runs whether
-    -- the release above was the server's reply or the deadline -- a
-    -- deadline with the rows still exactly as sent IS the stale-reopen
-    -- shape (CC_DELETEALL rebuilds the same group in place, so no fresh
-    -- chat_modal_host mount fires to release the await early on that path).
-    local now_kind = QD.chat.kind()
-    if now_kind ~= "options" then
-        return "ok", "chat.choose: page changed"
-    end
-
-    local now_options_res, now_options = api_drive.options()
-    if now_options_res ~= "ok" then
-        return "ok", "chat.choose: page changed"
-    end
-    local now_rows = now_options.rows
-    local now_title = now_options.title
-
-    local identical = now_title == title and #now_rows == #rows
-    if identical then
-        for i, text in ipairs(rows) do
-            if now_rows[i] ~= text then
-                identical = false
-                break
-            end
-        end
-    end
-    if identical then
-        return "refused", "stale reopen"
-    end
-    return "ok", "chat.choose: options changed"
+    -- Classify.  This runs whether the release above was the server's reply
+    -- or the deadline -- a deadline with the rows still exactly as sent IS
+    -- the stale-reopen shape (CC_DELETEALL rebuilds the same group in place,
+    -- so no fresh chat_modal_host mount need fire to release the await early
+    -- on that path) -- and it is the deadline path a ~openshop row takes,
+    -- because a screen mounted outside the chat modal releases nothing here.
+    return QD.chat._choose_verdict(
+        title, rows,
+        QD.chat._choose_other_screen(watch),
+        QD.chat._choose_new_line(watch.serial))
 end
 
 -- ---------------------------------------------------------------- chat.play
@@ -968,6 +1080,48 @@ function QD.chat.play(list)
         end
 
         summary[#summary + 1] = parsed.kind .. ":" .. fragment
+    end
+
+    -- THE LAST CLICK IS OWED AN ANSWER TOO, and nothing inside the loop ever
+    -- waits for it.
+    --
+    -- The readiness wait above runs BEFORE an entry, so entries 2..N each
+    -- make the PREVIOUS entry's click safe to grade.  Entry N's click has no
+    -- entry behind it, so chat.play handed back inside the very tick it had
+    -- just clicked in -- and what a quest file does next is read exactly what
+    -- the conversation was for: the item that was handed over, the varp that
+    -- moved, the xp that was paid.  The server writes those DURING a tick and
+    -- transmits them at the END of it, so a read taken in the same tick is a
+    -- read of the world from before the conversation.
+    --
+    -- Sheep Herder, 2026-09-21 (build/quest_gate/sh_feed_probe/ledger.tsv).
+    -- Councillor Halgrive's accept ends ~mesbox(...) / inv_add(inv,
+    -- poisoned_feed, 1) / %sheepherderquest = ^..._dr_orbon
+    -- (councillor_halgrive.rs2:54-58), and the whole nineteen-page
+    -- conversation costs THREE server ticks -- several pages are clicked
+    -- inside one tick -- so the add and chat.play's return fall in the same
+    -- one.  Five readings of that backpack, taken one after another with
+    -- nothing else between them, answered: immediately 0, again 0, after the
+    -- resume latch cleared 0, after t.settle() 0, after ONE SERVER TICK 1.
+    -- Neither the latch nor a settle is the boundary; the tick is.
+    --
+    -- That is also why halgrive.feed_granted passed before the readiness wait
+    -- landed and failed after it.  The wait moved the loop a few frames
+    -- earlier inside the tick and the quest file's read crossed back over the
+    -- transmit boundary -- the boundary was always there, and every green row
+    -- that read a dialogue's effect was on the lucky side of it.
+    --
+    -- Two conditions, in order, and only when this call actually submitted
+    -- something (a list of pure `expect`/`end` entries clicked nothing, so
+    -- there is no answer outstanding and nothing to wait for):
+    --   * the last click has been ANSWERED -- _await_page_ready's own two
+    --     arms, so `ok` from chat.play also means the page it left behind is
+    --     the one the server sent, not the one it clicked;
+    --   * and that answer's tick has ENDED, so everything else the server
+    --     wrote in it has been transmitted.
+    if acted_kind ~= nil then
+        QD.chat._await_page_ready(acted_kind, acted_identity, 8)
+        QD.ticks(1)
     end
 
     local joined = table.concat(summary, ", ")

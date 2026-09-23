@@ -352,6 +352,21 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
         out[j].element_id = npc->element_id;
         drive_ui_fill_npc_combat(app, npc, &out[j]);
         drive_ui_strip_tags(npc->name, out[j].name, sizeof(out[j].name));
+        /* Overhead SAY (DriveNpcRow.overhead's banner for why a test needs
+         * it).  The facet clears `message` itself the cycle the timer hits 0
+         * (world_cycle.c), so the two agree already; reading the timer first
+         * keeps them agreeing even if a future decode leaves a stale string
+         * behind, and costs nothing. */
+        if( npc->chat.timer > 0 )
+        {
+            drive_ui_strip_tags(npc->chat.message, out[j].overhead, sizeof(out[j].overhead));
+            out[j].overhead_timer = npc->chat.timer;
+        }
+        else
+        {
+            out[j].overhead[0] = '\0';
+            out[j].overhead_timer = 0;
+        }
         if( count < cap )
             count++;
     }
@@ -468,6 +483,7 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
         out[j].tile_z = tile_z;
         out[j].level = sc->grid_position.level;
         out[j].element_id = sc->element_id;
+        out[j].shape = sc->shape;
         if( count < cap )
             count++;
     }
@@ -1114,6 +1130,16 @@ drive_ui_push_npc_row(struct lua_State* L, struct DriveNpcRow const* row)
     lua_setfield(L, -2, "hit_cycle");
     lua_pushstring(L, row->name);
     lua_setfield(L, -2, "name");
+    /* The overhead half: `npc_say`'s SAY mask, which never reaches the
+     * chatbox (SS_OP_NPC_SAY) and so is invisible to api_drive.messages.
+     * Always a string here: "" is "nothing overhead".  A `nil` therefore
+     * means one thing only -- a binary built before this field -- which is
+     * what pointer.lua's reader tests for, so a quest run on the shared
+     * torirs_questtest degrades to the old behaviour instead of lying. */
+    lua_pushstring(L, row->overhead);
+    lua_setfield(L, -2, "overhead");
+    lua_pushinteger(L, row->overhead_timer);
+    lua_setfield(L, -2, "overhead_timer");
 }
 
 static int
@@ -1189,6 +1215,8 @@ lua_drive_locs(struct lua_State* L)
         lua_setfield(L, -2, "level");
         lua_pushinteger(L, rows[i].element_id);
         lua_setfield(L, -2, "element_id");
+        lua_pushinteger(L, rows[i].shape);
+        lua_setfield(L, -2, "shape");
         lua_rawseti(L, -2, i + 1);
     }
     return 2;
@@ -1330,13 +1358,38 @@ lua_drive_text(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
-/* api.drive.shot(name, keep) -> (result, detail, unchanged).
+/* 1 while the in-flight capture is still registered under
+ * app->plugin_screenshots, i.e. the renderer has not taken its pixels yet. */
+static int
+drive_ui_shot_slot_busy(struct App const* app)
+{
+    int i;
+
+    assert(app);
+    if( !g_drive_ui_shot_path[0] )
+        return 0;
+    for( i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+        if( app->plugin_screenshots[i].in_use &&
+            strcmp(app->plugin_screenshots[i].path, g_drive_ui_shot_path) == 0 )
+            return 1;
+    return 0;
+}
+
+/* api.drive.shot(name, keep) -> (result, detail, unchanged, captured).
  *
  * A THIRD return value, and ui.lua's QD.shot is the only reader: on an
  * `unchanged` capture the detail is "unchanged since <name>" rather than a
  * path, and the two are told apart by this boolean instead of by parsing
  * that sentence. `keep` (t.exec's `-FAIL` shot) writes the picture whether
- * it changed or not. */
+ * it changed or not.
+ *
+ * The FOURTH, `captured`, is true once the renderer has taken this
+ * capture's pixels (its slot has left app->plugin_screenshots) -- including
+ * on a `timeout` answer, while the file is still being written.  QD.shot
+ * aims the camera for a photograph and must not put the press pose back
+ * before the frame it is taken from has been drawn: a draw the frame pacer
+ * skipped defers the capture by a frame or more, so "the next poll" is not
+ * that moment and this is. */
 static int
 lua_drive_shot(struct lua_State* L)
 {
@@ -1351,7 +1404,8 @@ lua_drive_shot(struct lua_State* L)
     result = drive_ui_shot(app, name, keep, path, (int)sizeof(path), &unchanged);
     PluginDrive_PushResult(L, result, result == DRIVE_OK ? path : NULL);
     lua_pushboolean(L, unchanged);
-    return 3;
+    lua_pushboolean(L, result != DRIVE_TIMEOUT || !drive_ui_shot_slot_busy(app));
+    return 4;
 }
 
 

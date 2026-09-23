@@ -233,7 +233,109 @@ local function detail_text(detail)
     return "{" .. table.concat(parts, " ") .. "}"
 end
 
+-- A ledger row's OWN TWO COLUMNS -- `step` and `verdict` -- are checked here,
+-- for the same reason detail_text exists directly above: api.drive.ledger
+-- reads BOTH of them with luaL_checkstring (torirs_plugin_drive.c's
+-- lua_drive_ledger), which RAISES on anything else, and this sandbox has no
+-- pcall, so such a raise does not fail one row -- it ends the WHOLE RUN at
+-- that row with every later verb unreached.
+--
+-- The shape that does it is the natural one, which is why documenting it was
+-- never going to be enough: t.check's second argument IS a condition, so an
+-- author writes `t.step(name, result == "ok", detail)` by analogy and gets
+-- `quest-driver:253: bad extra argument #-1 to 'ledger' (string expected,
+-- got boolean)`. Between a Rock wrote exactly that at its wall of flame and
+-- threw away the 93 PASS rows already on disk -- the rows that had just
+-- proved the Arzinian realm teleport and the gold-ore mining -- for one
+-- mistyped argument in row 94 (build/quest_gate/betweenarock/ledger.tsv,
+-- 2026-09-21).
+--
+-- So the bad argument is NAMED and the run carries on. That is this tree's
+-- rule for a contract violation (CLAUDE.md) as far as it can be carried
+-- across a boundary that has no `assert` and where the only louder answer
+-- available -- the raise -- destroys the evidence it would be reporting on:
+-- a boolean verdict is read as the PASS/FAIL it plainly meant, any other
+-- non-verdict is FAIL, a non-string step name is tostring()'d, and either
+-- way the row carries `[bad ledger argument]` in its detail saying which
+-- argument was wrong, what the file actually wrote, and how it was read.
+-- That detail reaches the ledger row AND drive_ledger_write's stderr mirror
+-- (`QUEST <quest> <verdict> <step> ... why=...`), so the diagnosis is in
+-- front of the author on a green run too, not only on a red one.
+--
+-- Naming it is NOT the same as allowing it. "Do not write this" is
+-- lint_quest.py's `t.step(..., <boolean>)` rule, which the reviewer runs
+-- (without --allow-check) before any file is believed; this is the floor
+-- under a file that got past the linter, and a floor is not a licence.
+local function describe_value(value)
+    local kind = type(value)
+    if kind == "string" then
+        if #value > 80 then
+            value = string.sub(value, 1, 80) .. "..."
+        end
+        return "the string \"" .. value .. "\""
+    end
+    if kind == "nil" then
+        return "nil"
+    end
+    if kind == "number" or kind == "boolean" then
+        return "the " .. kind .. " " .. tostring(value)
+    end
+    if kind == "table" then
+        return "the table " .. detail_text(value)
+    end
+    return "a " .. kind
+end
+
+-- Both normalisers report through `pending_notes` -- QD.note's own buffer,
+-- which the very next flush folds into that row's detail -- so the complaint
+-- lands ON the offending row whichever path reaches the ledger, including
+-- record_with_shot's, which has to resolve the step name before flush ever
+-- sees it. Re-running either on an already-good value is a no-op, so the
+-- two calls on that path cannot report twice.
+local function normalise_step_name(name)
+    if type(name) == "string" then
+        return name
+    end
+    local coerced = tostring(name)
+    pending_notes[#pending_notes + 1] = "[bad ledger argument] step name was "
+        .. describe_value(name) .. ", not a string -- recorded as \"" .. coerced .. "\""
+    return coerced
+end
+
+local function normalise_verdict(verdict)
+    if verdict == "PASS" or verdict == "FAIL" or verdict == "BLOCKED" then
+        return verdict
+    end
+    if type(verdict) == "boolean" then
+        -- Unambiguous: the row is graded the way the file meant it, and the
+        -- note is how the author learns the call was still wrong.
+        local read_as = verdict and "PASS" or "FAIL"
+        pending_notes[#pending_notes + 1] = "[bad ledger argument] verdict was "
+            .. describe_value(verdict) .. ", read as " .. read_as
+            .. " -- t.step's verdict is \"PASS\"/\"FAIL\"/\"BLOCKED\" (the "
+            .. "`cond and \"PASS\" or \"FAIL\"` idiom); t.check and t.expect "
+            .. "are the ones that take the condition itself"
+        return read_as
+    end
+    -- Not a verdict and not a condition: a verb's own result word
+    -- (t.expect's argument), a nil from a two-argument call, a detail that
+    -- slid into the wrong slot. Nothing here says the step passed, so it
+    -- did not -- and unlike the boolean above there is no reading of it
+    -- that the file plainly meant, which is the whole difference between
+    -- the two branches.
+    local note = "[bad ledger argument] verdict was " .. describe_value(verdict)
+        .. ", which is not \"PASS\"/\"FAIL\"/\"BLOCKED\" -- graded FAIL because "
+        .. "nothing in the call says otherwise"
+    if type(verdict) == "string" then
+        note = note .. " (a verb's own result word goes to t.expect, which grades it)"
+    end
+    pending_notes[#pending_notes + 1] = note
+    return "FAIL"
+end
+
 local function flush(name, verdict, detail)
+    name = normalise_step_name(name)
+    verdict = normalise_verdict(verdict)
     local now = api_drive.tick()
     local ticks = now - last_tick
     last_tick = now
@@ -311,7 +413,11 @@ end
 -- here is load-bearing: shoot first, flush second, or the shot lands on the
 -- QUEST's next row instead of this one.
 local function record_with_shot(name, verdict, detail)
-    local unique_name = unique_step_name(name)
+    -- The name is resolved HERE, before unique_step_name, and not left to
+    -- flush: a nil name would otherwise reach `step_name_uses[nil] = count`,
+    -- which raises "table index is nil" and ends the run one line short of
+    -- the ledger call this whole seam is about.
+    local unique_name = unique_step_name(normalise_step_name(name))
     QD.shot(unique_name)
     if verdict ~= "PASS" then
         -- `true` is QD.shot's `keep`: the -FAIL capture is NEVER suppressed

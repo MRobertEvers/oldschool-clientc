@@ -421,24 +421,73 @@ return {
                 .. tostring(key_after_result) .. " " .. tostring(key_after))
 
         -- ------------------------------------------------- the committed state
-        -- t.quest.expect_complete() cannot be used here -- see the t.blocked()
-        -- below for why its own quest.varp_complete row is an unconditional
-        -- FAIL for this quest -- so completion is verified through the SAME
-        -- two channels its other three rows already use (the reward scroll,
-        -- the journal proc, and the rewards themselves, all real above),
-        -- everything expect_complete checks except that one internal varp read.
+        -- The varp seam this file used to block on (see queue.py's
+        -- last_failure after 68c5e8d9d, and the RESUMED banner) is fixed:
+        -- OSRS-Content/osrs239-content/server/scripts/quests/quest_makinghistory/
+        -- configs/quest_makinghistory.varp now declares `[makinghistory]
+        -- transmit=yes`, so %makinghistory_prog (and every other varbit on
+        -- that basevar) reaches the client for real: t.quest.expect_stage
+        -- below reads client=4 server=4 instead of a stale client=0.
+        --
+        -- t.quest.expect_complete() itself is NOT called bare here. It was
+        -- tried first (build/quest_gate/makinghistory, the run right before
+        -- this one): quest.varp_complete/quest.scroll_title/quest.points all
+        -- PASSED for real (client=4 server=4, "You have completed Making
+        -- History!", qp 2->5), but its own quest.journal row -- a fresh
+        -- journal_open() right after its own scroll.close(), no settle
+        -- between the two -- FAILed: "row 97 clicked, but no painted
+        -- journal within 20 ticks". The SAME journal_open("Making History")
+        -- call, retried three times right after on that identical completed
+        -- state, answered ok complete=true lines=4 -- a UI-mount race in
+        -- quest.lua's own single unretried attempt (QUEST_AUTHORING.md
+        -- section 8's "gaps reported by authors" bullet on this exact
+        -- shape), not a content bug and not something this file can reach
+        -- (trap 7: script/plugins/ is off limits). Per section 7's own
+        -- minimum shape ("if you call quest.bind: at least one quest.* row,
+        -- and either a passing quest.varp_complete or the ledger's last row
+        -- is BLOCKED"), quest.journal is not itself required, so completion
+        -- is driven through the rows that DO land, each written by hand --
+        -- the same shape rovingelves.lua's own completion uses for the
+        -- identical driver seam -- with a retried journal check standing in
+        -- as the row that actually grades the journal.
+        t.exec("quest.varp_complete", t.quest.expect_stage, "complete")
+
+        -- Same shape as quest.expect_complete()'s own quest.scroll_title row
+        -- (quest.lua): the shot is taken EXPLICITLY (t.shot, not t.check's
+        -- own auto-shoot) so a byte-identical dedupe against the completion
+        -- frame quest.varp_complete's row already captured above folds into
+        -- THIS row's detail as "[scroll already photographed: ...]" instead
+        -- of silently losing the picture -- gate.py's own completion-scroll
+        -- rule (owner's rule, 2026-09-20) checks for exactly that phrase.
         local scroll_title_result, scroll_title = t.scroll.title()
-        t.check("completionScroll", scroll_title_result == "ok" and scroll_title ~= nil
-            and scroll_title.name ~= nil and scroll_title.name:find("Making History", 1, true) ~= nil,
+        local scroll_shot_result, scroll_shot_detail = t.shot("quest.scroll")
+        local scroll_shot_note = ""
+        if scroll_shot_result == "ok" and type(scroll_shot_detail) == "string"
+            and string.find(scroll_shot_detail, "unchanged", 1, true) then
+            scroll_shot_note = " [scroll already photographed: " .. scroll_shot_detail .. "]"
+        end
+        local title_name = scroll_title ~= nil and scroll_title.name or nil
+        local title_pass = scroll_title_result == "ok" and type(title_name) == "string"
+            and title_name:find("Making History", 1, true) ~= nil
+        t.step("quest.scroll_title", title_pass and "PASS" or "FAIL",
             "scroll.title() after the hand-in -> " .. tostring(scroll_title_result) .. " name="
-                .. tostring(scroll_title and scroll_title.name) .. " points="
-                .. tostring(scroll_title and scroll_title.points))
+                .. tostring(title_name) .. " points="
+                .. tostring(scroll_title and scroll_title.points) .. scroll_shot_note)
         t.scroll.close()
 
+        local qp_after_result, qp_after = t.var.varp("qp")
+        t.check("quest.points", qp_after_result == "ok" and qp_before_result == "ok"
+            and qp_after == qp_before + 3,
+            "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after)
+                .. " delta=" .. tostring(qp_after_result == "ok" and qp_before_result == "ok"
+                    and (qp_after - qp_before) or "?")
+                .. " expected=3")
+
         -- Same retry ladder as quest.stage.started above -- ui.journal_open's
-        -- mount timeout measured throughout this file is a UI-mount race,
-        -- not a content problem, and a short retry absorbs it without
-        -- weakening what the row grades.
+        -- mount timeout measured throughout this file (and above, on
+        -- expect_complete()'s own one-shot attempt) is a UI-mount race, not
+        -- a content problem, and a short retry absorbs it without weakening
+        -- what the row grades.
         local final_journal_result, final_journal
         for _ = 1, 3 do
             final_journal_result, final_journal = t.ui.journal_open("Making History")
@@ -448,7 +497,7 @@ return {
             t.ui.journal_close()
             t.ticks(5)
         end
-        t.check("questComplete.journal", final_journal_result == "ok" and final_journal ~= nil
+        t.check("quest.journal", final_journal_result == "ok" and final_journal ~= nil
             and final_journal.complete == true,
             "journal_open(Making History) -> " .. tostring(final_journal_result) .. " complete="
                 .. tostring(final_journal and final_journal.complete) .. " lines="
@@ -458,42 +507,7 @@ return {
                 .. "lathas_done, so this is not readable from an incomplete quest)")
         t.ui.journal_close()
 
-        t.check("questComplete.evidence", true,
-            "the quest genuinely completed -- scroll title 'You have completed Making History!' "
-                .. "(completionScroll), journal proc's own complete=true (questComplete.journal), qp "
-                .. "delta and all four documented rewards landing for real (reward.crafting/prayer/"
-                .. "coins/key above) -- everything t.quest.expect_complete() would check except the one "
-                .. "row named in the t.blocked() below")
-
-        t.blocked("test/quests/makinghistory.lua:questComplete -- t.quest.expect_complete()'s own "
-            .. "quest.varp_complete row is an unconditional FAIL for this quest, however complete it "
-            .. "truly is, and this is not a timing issue: quest.lua's own _reading() (script/plugins/"
-            .. "quest_driver/quest.lua:198-206) falls back to a server-content read ONLY when BOTH the "
-            .. "client and server channels answer not_found -- but %makinghistory_prog is a varbit whose "
-            .. "base varp `makinghistory` has no `configs/quest_makinghistory.varp` declaring "
-            .. "transmit=yes at all (OSRS-Content/osrs239-content/configs/all.varp:1221, `[makinghistory]` "
-            .. "with an empty body, unlike quest_runemysteries/configs/quest_runemysteries.varp's own "
-            .. "[runemysteries] transmit=yes), so VarPManager_GetVarbit answers 0/ok for it, never "
-            .. "not_found -- quest.lua's own comment names this exact shape a DIFFERENT seam from the "
-            .. "not_found/not_found one and cites test/quests/mourningsendpartii.lua's own blocked row as "
-            .. "the precedent. Measured here across the whole run: prog.serverProbeAfterOffer and "
-            .. "traderProg.serverProbeAfterKey both read 0 right where the journal proc independently "
-            .. "proved non-zero, and quest.varp_complete's own row reads 'client=0 server=0 complete=4 "
-            .. "[client+server]' at the very end, with BOTH channels agreeing on the wrong, stale value "
-            .. "rather than disagreeing or answering not_found -- so nothing this driver can read "
-            .. "distinguishes true completion from a quest untouched, and no quest file can work around "
-            .. "it the way the client varp-transmit seam elsewhere in this file is worked around (trap 7: "
-            .. "the missing .varp declaration is a content-config gap under OSRS-Content/, off limits to "
-            .. "this file). Every other stage and every documented reward was driven for real and verified "
-            .. "through reliable channels above -- Jorral's offer, the silver merchant's key, the Castle "
-            .. "Wars dig and chest (now fixed, see the file banner), the trader's journal, Blanin's "
-            .. "briefing, Dron's full twelve-question riddle, Droalak's errand, Melina's reconciliation, "
-            .. "the scroll, the hand-in, King Lathas's letter and back, and the completion itself -- "
-            .. "the reward scroll's own title, the journal's own complete=true, and all four documented "
-            .. "rewards (1000 Crafting XP, 1000 Prayer XP, 750 coins, a second enchanted key) landing "
-            .. "for real (questComplete.evidence). This file ends here because quest.varp_complete is a "
-            .. "row this driver's own quest.lua names as unreachable for this basevar's shape, not because "
-            .. "anything in makinghistory's own scripts is broken.")
+        t.finish(0)
         return
     end,
 }

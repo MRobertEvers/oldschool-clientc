@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 101 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 110 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 103
+-- @verb-count 110
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 9
+-- @seam-count 16
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 103
-local SEAM_COUNT = 9
+local VERB_COUNT = 110
+local SEAM_COUNT = 16
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -305,6 +305,32 @@ local COMBAT_ATTACK_OP = 2
 local COMBAT_WEAPON = "rune_scimitar"
 local COMBAT_LEVEL = 40
 
+-- The shop rows' subject.  The Lumbridge general store, because it is the one
+-- shop a fixture character can reach with no quest state at all: its keeper
+-- stands at 3211,3247 level 0 six tiles from where `::tele lumbridge` lands,
+-- op 3 on him is Trade, and `generalshop1` is the inv his own `~openshop`
+-- call names (OSRS-Content/.../shop/*/configs/*.inv).  The inv symbol is not
+-- optional and not a nicety: the client keeps a transmitted container under
+-- its inv id with no record of which grid it was pushed to (struct
+-- InvContainer, src/inv/inv_manager.h), so "which stock is this screen
+-- showing" is a question only the caller can answer -- QD.shop's own banner
+-- in ui.lua has the whole measurement.
+--
+-- Five empty pots, because the row has to see a REAL exchange in both
+-- directions: `generalshop1` stocks them in quantity, they are stackable (so
+-- one backpack slot, and phase 7b's `::give rune_scimitar` still has room),
+-- and Buy-5 is one rung of the fixed ladder rather than a composition -- the
+-- three-rung composition is proved on Mort'ton's swamp paste, where it is the
+-- quest's own step (build/quest_gate/shop_mortton_audit).
+local SHOP_NPC_SYMBOL = "generalshopkeeper1"
+local SHOP_NPC_OP = 3
+local SHOP_INV_SYMBOL = "generalshop1"
+local SHOP_TILE_X = 3211
+local SHOP_TILE_Z = 3247
+local SHOP_OBJ_SYMBOL = "pot_empty"
+local SHOP_OBJ_COUNT = 5
+local SHOP_COINS = 5000
+
 -- A detail column is a string or the ledger's luaL_optstring raises.  Tables
 -- (a verb that answers with a row, a tile, an options list) are summarised
 -- rather than dropped: what a verb ANSWERED WITH is half of what this harness
@@ -376,6 +402,31 @@ local function answered(result, detail, prefix, holds, wanted)
     local text = prefix .. describe(detail)
     if result == "ok" and not holds(detail) then
         return "hollow", "answered ok but " .. wanted .. " -- " .. text
+    end
+    return result, text
+end
+
+-- A state verb's `ok` must NAME WHAT IT READ (seam7, 2026-09-22).  var.await,
+-- var.await_server, var.expect, inv.await, inv.await_all, inv.expect_absent,
+-- msg.expect, msg.await and quest.bind all used to answer a bare ok, so a
+-- quest row routed through t.expect landed PASS with an empty detail column
+-- -- mourningsendparti shipped 21 of them and was reverted by the sampler for
+-- it.  Each now answers the value and side, the count reached or the matched
+-- line, and this is where that is held: an ok whose detail is not text, or
+-- does not carry every fragment the world here makes knowable, is hollow.
+local function names_reading(result, detail, prefix, fragments, wanted)
+    local text = prefix .. describe(detail)
+    if result ~= "ok" then
+        return result, text
+    end
+    if not is_text(detail) then
+        return "hollow", "answered ok with no detail -- " .. wanted .. " -- " .. text
+    end
+    for i = 1, #fragments do
+        if not string.find(detail, fragments[i], 1, true) then
+            return "hollow", "answered ok but the detail does not carry '" .. fragments[i]
+                .. "' -- " .. wanted .. " -- " .. text
+        end
     end
     return result, text
 end
@@ -674,6 +725,61 @@ return {
             return "ok", text
         end)
 
+        -- SEAM silent_press_npc_step (2026-09-21) landed this one beside
+        -- npc.nearest, and the difference between the two IS the row: nearest
+        -- answers ONE copy and cannot be asked which one, `tiles` answers
+        -- EVERY copy with the pool's own slot, tile and element id.  Sheep
+        -- Herder is why -- `plaguesheep_1` has three spawn rows two tiles
+        -- apart and the prod pushes whichever sheep the press named -- so a
+        -- quest file that has to POSITION ITSELF relative to an npc had no
+        -- reader at all before it.
+        --
+        -- Three returns, not two: (result, summary, rows).  A ledger detail
+        -- is a string, and a list of tables renders through detail_text as
+        -- `1=<table> 2=<table>`, so the summary is the string and the rows are
+        -- the third value.  Graded here: the summary really names as many
+        -- copies as the third value holds, every row carries the pool fields a
+        -- caller does arithmetic on, and a symbol nothing spawns answers
+        -- `no_row` rather than an empty ok.
+        step("npc.tiles", function()
+            local fn = verb("npc", "tiles")
+            if not fn then return missing("npc", "tiles") end
+            local result, summary, rows = fn(NPC_SYMBOL, NEAREST_RADIUS)
+            local text = NPC_SYMBOL .. " r=" .. NEAREST_RADIUS .. " -> "
+                .. describe(result) .. " " .. describe(summary)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not is_table(rows) or #rows == 0 then
+                return "hollow", "an `ok` with no rows behind it -- the third return is "
+                    .. "the whole reason this verb is not npc.nearest: " .. text
+            end
+            if type(summary) ~= "string" then
+                return "hollow", "the summary is " .. describe(summary)
+                    .. ", not a string -- a ledger detail cannot carry a table"
+            end
+            if not string.find(summary, tostring(#rows) .. " copy(s)", 1, true) then
+                return "hollow", "the summary does not agree with the rows it returned ("
+                    .. tostring(#rows) .. "): " .. text
+            end
+            for i = 1, #rows do
+                local row = rows[i]
+                if not is_table(row) or not is_number(row.x) or not is_number(row.z)
+                    or not is_number(row.slot) then
+                    return "hollow", "row " .. i .. " is " .. describe(row)
+                        .. " -- every row must carry the pool's slot and tile: " .. text
+                end
+            end
+            -- And a symbol nothing here spawns is `no_row`, not an empty ok:
+            -- the one answer a caller must be able to branch on.
+            local absent = fn(ABSENT_NPC_SYMBOL, 5)
+            if absent == "ok" then
+                return "hollow", "a " .. ABSENT_NPC_SYMBOL .. " nothing spawns answered ok -- "
+                    .. text
+            end
+            return "ok", text .. "; " .. ABSENT_NPC_SYMBOL .. " -> " .. describe(absent)
+        end)
+
         -- The two awaits over npc.nearest.  await_present has a real
         -- subject (a `man` walks the courtyard and npc.nearest just found
         -- one); await_gone's subject is the absence of a chicken, which is a
@@ -779,14 +885,18 @@ return {
             local fn = verb("var", "expect")
             if not fn then return missing("var", "expect") end
             local result, detail = fn(VARP_SYMBOL, VARP_VALUE)
-            return result, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> " .. describe(detail)
+            return names_reading(result, detail, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> ",
+                { VARP_SYMBOL .. " = " .. VARP_VALUE, "client == server" },
+                "the verb names the value both sides agreed on")
         end)
 
         step("var.await", function()
             local fn = verb("var", "await")
             if not fn then return missing("var", "await") end
             local result, detail = fn(VARP_SYMBOL, VARP_VALUE, 3)
-            return result, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> " .. describe(detail)
+            return names_reading(result, detail, VARP_SYMBOL .. " == " .. VARP_VALUE .. " -> ",
+                { VARP_SYMBOL .. " = " .. VARP_VALUE .. " (client" },
+                "the await names the value it read and which side it read it on")
         end)
 
         step("skill.read", function()
@@ -872,14 +982,18 @@ return {
             local fn = verb("inv", "expect_absent")
             if not fn then return missing("inv", "expect_absent") end
             local result, detail = fn(ABSENT_OBJ_SYMBOL)
-            return result, ABSENT_OBJ_SYMBOL .. " -> " .. describe(detail)
+            return names_reading(result, detail, ABSENT_OBJ_SYMBOL .. " -> ",
+                { ABSENT_OBJ_SYMBOL .. ": absent (count 0)" },
+                "the assertion names the count it read")
         end)
 
         step("inv.await", function()
             local fn = verb("inv", "await")
             if not fn then return missing("inv", "await") end
             local result, detail = fn(OBJ_SYMBOL, 1, 3)
-            return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
+            return names_reading(result, detail, OBJ_SYMBOL .. " >= 1 -> ",
+                { OBJ_SYMBOL .. " ", " (>= 1) after " },
+                "the await names the count before and the count it reached")
         end)
 
         -- One await over a whole requirement table.  ::runes put 25 air runes
@@ -893,6 +1007,12 @@ return {
             if result ~= "ok" then
                 return result, OBJ_SYMBOL .. " >= 1 -> " .. describe(detail)
             end
+            local named, named_text = names_reading(result, detail, OBJ_SYMBOL .. " >= 1 -> ",
+                { "all held: " .. OBJ_SYMBOL .. "=" },
+                "the await names every count it held")
+            if named ~= "ok" then
+                return named, named_text
+            end
             local count = verb("inv", "count")
             local state, total = "missing", nil
             if count then state, total = count(OBJ_SYMBOL) end
@@ -900,7 +1020,7 @@ return {
                 return "hollow", "await_all answered ok but inv.count(" .. OBJ_SYMBOL
                     .. ") reads " .. describe(total) .. " (" .. state .. ")"
             end
-            return "ok", OBJ_SYMBOL .. " >= 1 satisfied, inv.count agrees: " .. describe(total)
+            return "ok", named_text .. "; inv.count agrees: " .. describe(total)
         end)
 
         step("msg.last", function()
@@ -918,7 +1038,9 @@ return {
             local fn = verb("msg", "expect")
             if not fn then return missing("msg", "expect") end
             local result, detail = fn(DROP_MESSAGE_FRAGMENT)
-            return result, "contains '" .. DROP_MESSAGE_FRAGMENT .. "' -> " .. describe(detail)
+            return names_reading(result, detail, "contains '" .. DROP_MESSAGE_FRAGMENT .. "' -> ",
+                { "matched: ", DROP_MESSAGE_FRAGMENT },
+                "the verb names the line it matched")
         end)
 
         -- setup: msg.await is scoped to lines that arrive AFTER it registers,
@@ -942,7 +1064,10 @@ return {
             local fn = verb("msg", "await")
             if not fn then return missing("msg", "await") end
             local result, detail = fn(DROP_MESSAGE_FRAGMENT, 6)
-            return result, "new line containing '" .. DROP_MESSAGE_FRAGMENT .. "' -> " .. describe(detail)
+            return names_reading(result, detail,
+                "new line containing '" .. DROP_MESSAGE_FRAGMENT .. "' -> ",
+                { "matched: ", DROP_MESSAGE_FRAGMENT },
+                "the await names the line that arrived")
         end)
 
         -- -------------------------------- phase 3: pointing and acting
@@ -1031,11 +1156,194 @@ return {
             return result, describe(detail)
         end)
 
+        -- SEAM talk_owes_a_page (2026-09-21) is graded HERE rather than as a
+        -- seam row of its own, because it is a statement about this verb's
+        -- own answer and this row already makes the only real talk in the
+        -- file.  talk_to's `ok` must say what the DIALOGUE did -- "dialogue
+        -- npc is up", or "no dialogue in N tick(s)" -- and not merely which
+        -- arm of the settle resolved.  The three quests that went red the day
+        -- the npc step-off landed all did it the same way: the settle
+        -- answered on the route or on the content script's opening `mes`
+        -- line, the page arrived a tick or four later, and the quest file's
+        -- next line read a chat frame that was still empty (blackknight rows
+        -- 28-30, murder rows 86-88, fluffs' crate hunt; build/quest_gate,
+        -- 2026-09-21).  Delete the wait at the tail of QD.player.talk_to and
+        -- this row goes red on the word, not on the timing.
         step("player.talk_to", function()
             local fn = verb("player", "talk_to")
+            local kind_of = verb("chat", "kind")
             if not fn then return missing("player", "talk_to") end
+            if not kind_of then return missing("chat", "kind") end
             local result, detail = fn(NPC_SYMBOL)
-            return result, NPC_SYMBOL .. " -> " .. describe(detail)
+            local text = NPC_SYMBOL .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            local said_page = string.find(tostring(detail), "dialogue ", 1, true) ~= nil
+                or string.find(tostring(detail), "no dialogue in ", 1, true) ~= nil
+            if not said_page then
+                return "hollow", "an `ok` that does not say whether a dialogue is up -- "
+                    .. "a quest file's next line is always the conversation, and this "
+                    .. "answer cannot tell it whether there is one: " .. text
+            end
+            local page_kind = kind_of()
+            if page_kind == "none" then
+                return "hollow", "the talk answered ok and left no page, and the detail "
+                    .. "has to be the one that says so: " .. text
+            end
+            if not string.find(tostring(detail), "dialogue " .. tostring(page_kind), 1, true) then
+                return "hollow", "the page is `" .. describe(page_kind) .. "` and the detail "
+                    .. "does not name it -- the wait at the tail of talk_to is what puts it "
+                    .. "there: " .. text
+            end
+            return "ok", text
+        end)
+
+        -- SEAM silent_press_npc_step (2026-09-21).  talk_to settles on the
+        -- conversation; press settles on THE NPC MOVING, for an `[opnpc<n>]`
+        -- whose whole body is `anim` + `npc_say` (overhead, never in the chat
+        -- ring) + `npc_walk` and which therefore said nothing talk_to could
+        -- wait for -- Sheep Herder's prod, diseased_sheep.rs2:117-121, where
+        -- a SUCCESSFUL press timed out and every refusal settled.
+        --
+        -- Lumbridge has no silent press in it, so what this row grades is the
+        -- half that is testable anywhere and is where the first draft of the
+        -- verb went wrong: THE PRESS NAMES ITS OWN SUBJECT, and the world's
+        -- own answer outranks any tile.  Op 1 on a Man opens a dialogue, so
+        -- the detail must name the copy it pressed (the element id
+        -- QD.drive._press_row now returns, not "the nearest npc of that id")
+        -- AND say the page came up rather than crediting a neighbour's
+        -- wander step -- which is exactly what the discarded draft did
+        -- (build/quest_gate/seampress_a row 17: it credited a wander for a
+        -- press content had refused in words).
+        step("player.press", function()
+            local fn = verb("player", "press")
+            local close = verb("chat", "close")
+            if not fn then return missing("player", "press") end
+            -- CLOSE THE PAGE FIRST. player.talk_to's row above is graded on
+            -- LEAVING a dialogue up, and a press issued into an open dialogue
+            -- is swallowed: measured here, `timeout ... did not move in 8
+            -- tick(s), and nothing was said and no dialogue opened`. The verb
+            -- resolves on the page CHANGING, so it needs a known page to
+            -- change from -- and `none` is the only known one.
+            if close then
+                close()
+            end
+            local result, detail = fn(NPC_SYMBOL, 1)
+            local text = NPC_SYMBOL .. " op 1 -> " .. describe(result) .. " " .. describe(detail)
+            if close then
+                close()
+            end
+            if result ~= "ok" then
+                return result, text
+            end
+            local said = tostring(detail)
+            if not string.find(said, "pressed ", 1, true)
+                or not string.find(said, "element ", 1, true) then
+                return "hollow", "an `ok` that does not name the copy it pressed -- a press "
+                    .. "that cannot say WHICH npc it named cannot tell a push from the two "
+                    .. "sheep wandering beside it: " .. text
+            end
+            if not string.find(said, "dialogue ", 1, true)
+                and not string.find(said, "content line ", 1, true) then
+                return "hollow", "op 1 on a " .. NPC_SYMBOL .. " opens a conversation, and "
+                    .. "this detail reports something else -- the world's own answer has to "
+                    .. "outrank the tile every poll: " .. text
+            end
+            -- And a symbol nothing spawns never reaches a press at all: the
+            -- verb hands back by_symbol's own result rather than pressing
+            -- into the void.
+            local absent = fn(ABSENT_NPC_SYMBOL, 1)
+            if absent == "ok" then
+                return "hollow", "pressing a " .. ABSENT_NPC_SYMBOL
+                    .. " nothing spawns answered ok -- " .. text
+            end
+            return "ok", text .. "; " .. ABSENT_NPC_SYMBOL .. " -> " .. describe(absent)
+        end)
+
+        -- SEAM press_cannot_see_a_landed_prod (2026-09-22).  The other half of
+        -- the silent press, and the half no verb's answer can show here.
+        -- `npc_say` is a SAY mask on NPC_INFO and is deliberately NOT routed to
+        -- the chatbox (SS_OP_NPC_SAY), so `api_drive.messages` never sees a
+        -- word of it; for an `[opnpc<n>]` whose success path is `anim` +
+        -- `npc_say` + `npc_walk`, and whose `npc_walk` is SILENT when the map
+        -- refuses the destination, the word over the npc's head is the ONLY
+        -- reading a client has that the press landed at all.  Before
+        -- DriveNpcRow.overhead, 36 of the 55 presses in sheepherder's ledger
+        -- answered `timeout ... nothing was said and no dialogue opened`, and
+        -- every one of them had run.
+        --
+        -- Lumbridge still has no silent press in it (the row above says so),
+        -- so what is graded here is the READER, in the two places it can
+        -- rot silently:
+        --   1. the C field itself.  A binary built without it answers `nil`,
+        --      which every reader treats as "no reading" -- correct, and
+        --      invisible: the quest rows would simply go back to timing out on
+        --      success.  So the pool row must carry a STRING and a NUMBER.
+        --   2. `QD.player._say_since`'s rise rule.  A herding loop presses the
+        --      same npc over and over and the npc says the same word every
+        --      time, so "it said it AGAIN" is not a text comparison:
+        --      world_entity_set_chat resets the countdown to 150 on every
+        --      message and world_cycle only ever decrements it, which makes a
+        --      RISEN timer the one and only tell.  Grade it as a truth table,
+        --      because a world in which a `man` says something twice on cue is
+        --      not one this fixture has.
+        seam("seam.press_reads_overhead", function()
+            local say_since = t.player and t.player._say_since
+            local tiles = verb("npc", "tiles")
+            if not say_since or not tiles then
+                return "unsupported", "player._say_since / npc.tiles are not on this driver"
+            end
+
+            local pool_result, pool_detail, rows = tiles(NPC_SYMBOL, 8)
+            if pool_result ~= "ok" or type(rows) ~= "table" or type(rows[1]) ~= "table" then
+                return "no_subject", "no " .. NPC_SYMBOL .. " in the pool to read a row from ("
+                    .. describe(pool_result) .. " " .. describe(pool_detail) .. ")"
+            end
+            if type(rows[1].overhead) ~= "string" then
+                return "refused", "the npc pool row carries overhead=" .. describe(rows[1].overhead)
+                    .. " -- this client cannot read overhead text at all, so every press whose "
+                    .. "only answer is a word over an npc's head goes back to reporting `timeout "
+                    .. "... nothing was said` on a press that landed (rebuild for "
+                    .. "DriveNpcRow.overhead)"
+            end
+            if type(rows[1].overhead_timer) ~= "number" then
+                return "refused", "the npc pool row carries overhead_timer="
+                    .. describe(rows[1].overhead_timer) .. " -- without the countdown, the same "
+                    .. "words said a second time are unreadable"
+            end
+
+            -- The truth table.  Each line is a real shape from the sheep run:
+            -- the first say, the same say decaying, the SECOND say, and a
+            -- client that has no reading to give.
+            local first = say_since({ say = "", say_timer = 0 }, { say = "BAAAAA!", say_timer = 150 })
+            if first ~= "BAAAAA!" then
+                return "refused", "a first say answered " .. describe(first)
+            end
+            local decaying = say_since({ say = "BAAAAA!", say_timer = 150 },
+                { say = "BAAAAA!", say_timer = 60 })
+            if decaying ~= nil then
+                return "refused", "the SAME say still counting down answered " .. describe(decaying)
+                    .. " -- a stale word read as a fresh answer credits the press before it with "
+                    .. "the press after it"
+            end
+            local again = say_since({ say = "BAAAAA!", say_timer = 60 },
+                { say = "BAAAAA!", say_timer = 150 })
+            if again ~= "BAAAAA!" then
+                return "refused", "the same words with a RISEN timer answered " .. describe(again)
+                    .. " -- that is a second say and nothing else is, and without it every prod "
+                    .. "after the first reads as silence"
+            end
+            local unread = say_since({ say = nil }, { say = nil })
+            if unread ~= nil then
+                return "refused", "a row with no overhead reading answered " .. describe(unread)
+                    .. " -- `this client cannot read it` must never be reported as `it was silent`"
+            end
+
+            return "ok", "the pool row carries overhead=" .. describe(rows[1].overhead)
+                .. " timer=" .. describe(rows[1].overhead_timer)
+                .. "; _say_since reads a first say, ignores the same say decaying, reads it "
+                .. "again on a risen timer, and answers nothing for a client with no reading"
         end)
 
         step("player.click_loc", function()
@@ -1087,6 +1395,36 @@ return {
             local fn = verb("player", "equip")
             if not fn then return missing("player", "equip") end
             local result, detail = fn(WEARABLE_OBJ_SYMBOL)
+            return result, describe(detail)
+        end)
+
+        -- Straight after player.equip, on the same item, because that is
+        -- the only state this verb has anything to say in: the worn tab's
+        -- own "Remove" (op 1 on wornitems:slot<N>), asserted as BOTH halves
+        -- -- worn fell and the backpack rose. An `ok` whose detail does not
+        -- name the pair is the hollow this row exists to catch.
+        step("player.unequip", function()
+            local fn = verb("player", "unequip")
+            if not fn then return missing("player", "unequip") end
+            local result, detail = fn(WEARABLE_OBJ_SYMBOL)
+            -- PUT IT BACK ON, and this is not tidiness: this harness's
+            -- backpack is FULL (its own setup gives 25 of every rune and the
+            -- message log carries "Your inventory is full."), so the slot
+            -- this row hands back is a slot the rows below it are counting
+            -- on.  Measured 2026-09-21: without this, the two `::give`s that
+            -- stage player.use_item_on_item had one free slot between them,
+            -- the second landed nothing, and that row failed `no_subject`
+            -- for a verb it never called.  The reading above is already
+            -- taken; this only restores the world.
+            local back = verb("player", "equip")
+            if back then
+                back(WEARABLE_OBJ_SYMBOL)
+            end
+            if result == "ok" and (type(detail) ~= "string"
+                or string.find(detail, "backpack", 1, true) == nil) then
+                return "hollow", "answered ok without naming the worn/backpack move -- "
+                    .. describe(detail)
+            end
             return result, describe(detail)
         end)
 
@@ -1441,6 +1779,89 @@ return {
             return answered(result, detail, "", is_text, "the title came back empty")
         end)
 
+        -- SEAM choose_calls_a_new_screen_a_stale_reopen (2026-09-22).  A
+        -- chatmenu that comes back byte-identical after a click decides
+        -- NOTHING by itself, and grading it alone cost Shades of Mort'ton its
+        -- whole shop leg (build/quest_gate/mortton ledger row 53, whose own
+        -- screenshot shows Razmire's store open and stocked behind the menu
+        -- the verb had just called `refused -- stale reopen`).
+        --
+        -- Two different things wear that face.  One is the server's own
+        -- replay: `~p_choice2..5`'s `while (last_slot < 1 | last_slot > N)`
+        -- loop re-calls `[proc,p_choice_open]` (chat.rs2:251-263), which
+        -- re-sends the same header and the same rows, prints nothing and
+        -- opens nothing -- a real refusal every caller must see.  The other
+        -- is a row whose handler ends in a screen of its own: nothing in this
+        -- pack closes the chatmenu on that path, so the menu still sitting
+        -- under `~openshop`'s shopmain IS the menu that was clicked --
+        -- unchanged, and already answered.
+        --
+        -- So the verdict asks what ELSE changed before it calls an unchanged
+        -- menu a replay, and this row grades the three arms of that question
+        -- against the LIVE cook menu without clicking it -- the same
+        -- discipline seam.chat_page_ready uses, so `step("chat.choose")`
+        -- below still finds the four rows it expects.  The first arm is the
+        -- load-bearing one: it is the refusal that a future author, staring
+        -- at a shop row going red, would be tempted to delete.
+        seam("seam.choose_screen_outranks_replay", function()
+            local verdict = t.chat and t.chat._choose_verdict
+            local options = verb("chat", "options")
+            local title_of = verb("chat", "options_title")
+            if not verdict or not options or not title_of then
+                return "unsupported", "chat._choose_verdict / chat.options / "
+                    .. "chat.options_title are not on this driver"
+            end
+            local rows_result, rows = options()
+            local title_result, title = title_of()
+            if rows_result ~= "ok" or type(rows) ~= "table" or rows[1] == nil
+                or title_result ~= "ok" then
+                return "no_subject", "the options menu the rows above opened is no longer up ("
+                    .. describe(rows_result) .. " / " .. describe(title_result) .. ")"
+            end
+
+            -- 1. The replay, and it must still be terminal: the same title,
+            --    the same rows, no other screen and not a word printed.
+            local replay, replay_detail = verdict(title, rows, nil, nil)
+            if replay ~= "refused" or replay_detail ~= "stale reopen" then
+                return "refused", "an unchanged menu with nothing else changed answered "
+                    .. describe(replay) .. " " .. describe(replay_detail)
+                    .. " -- the server's own replay is a real refusal and this is the only "
+                    .. "thing that reads it"
+            end
+
+            -- 2. THE SEAM.  The identical menu, plus an interface that opened
+            --    outside the chat modal while the click was served.
+            local screened, screened_detail = verdict(title, rows, "shopmain (300) opened", nil)
+            if screened ~= "ok" then
+                return "refused", "an unchanged menu whose click OPENED A SCREEN answered "
+                    .. describe(screened) .. " " .. describe(screened_detail)
+                    .. " -- that is the landed click this seam is, and calling it refused takes "
+                    .. "every shop, bank and cutscene row with it"
+            end
+            if not string.find(tostring(screened_detail), "shopmain (300)", 1, true) then
+                return "hollow", "the ok does not name the interface that outranked the replay: "
+                    .. describe(screened_detail)
+            end
+
+            -- 3. And a chat line the server printed does the same job, for a
+            --    row whose handler answers in prose rather than a screen.
+            local spoke = verdict(title, rows, nil, "You can't afford that.")
+            if spoke ~= "ok" then
+                return "refused", "an unchanged menu whose click made the server SPEAK answered "
+                    .. describe(spoke)
+            end
+
+            -- 4. A menu that did change is `ok` on its own, screen or no.
+            local moved = verdict(title .. " <no menu shows this>", rows, nil, nil)
+            if moved ~= "ok" then
+                return "refused", "a menu whose title differs answered " .. describe(moved)
+            end
+
+            return "ok", "on the live " .. describe(title) .. " menu (" .. tostring(#rows)
+                .. " rows): unchanged + nothing else = refused 'stale reopen'; unchanged + a "
+                .. "screen = ok naming it; unchanged + a server line = ok; changed = ok"
+        end)
+
         step("chat.choose", function()
             local fn = verb("chat", "choose")
             if not fn then return missing("chat", "choose") end
@@ -1693,12 +2114,17 @@ return {
             local fn = verb("var", "await_server")
             if not fn then return missing("var", "await_server") end
             local result, detail = fn(QUEST_VARP, QUEST_STARTED, 10)
-            if result ~= "ok" then
-                return result, QUEST_VARP .. " == " .. QUEST_STARTED .. " -> " .. describe(detail)
+            local named, named_text = names_reading(result, detail,
+                QUEST_VARP .. " == " .. QUEST_STARTED .. " -> ",
+                { QUEST_VARP .. " = " .. QUEST_STARTED .. " (server" },
+                "the await names the server value it read")
+            if named ~= "ok" then
+                return named, named_text
             end
-            -- The await answers a bare ok, so the row reads the server's own
-            -- copy back: an await that resolved without the value ever
-            -- landing is exactly the hollow ok this harness is pointed at.
+            -- The await names its reading since seam7; the row still reads
+            -- the server's own copy back, independently: an await that
+            -- resolved without the value ever landing is exactly the hollow
+            -- ok this harness is pointed at.
             local read = verb("var", "server")
             local state, value = "missing", nil
             if read then state, value = read(QUEST_VARP) end
@@ -1706,8 +2132,7 @@ return {
                 return "hollow", "await_server answered ok but var.server(" .. QUEST_VARP
                     .. ") reads " .. describe(value) .. " (" .. tostring(state) .. ")"
             end
-            return "ok", QUEST_VARP .. " reached " .. QUEST_STARTED
-                .. " on the server within 10 ticks of ::setvar"
+            return "ok", named_text .. "; var.server agrees"
         end)
 
         step("quest.bind", function()
@@ -1726,10 +2151,11 @@ return {
             if result ~= "ok" then
                 return result, describe(detail)
             end
-            -- bind touches no world and answers a bare ok, so the row reads
-            -- what it left behind: the binding itself, and the %qp reading it
-            -- must have taken NOW for quest.points to have a baseline to
-            -- measure the award against later.
+            -- bind touches no world, so beyond its own detail (seam7: it
+            -- names the varp, the constants and the %qp baseline) the row
+            -- reads what it left behind: the binding itself, and the %qp
+            -- reading it must have taken NOW for quest.points to have a
+            -- baseline to measure the award against later.
             local bound = is_table(t.quest) and t.quest._bound or nil
             if not is_table(bound) or bound.varp ~= QUEST_VARP then
                 return "hollow", "bind answered ok but nothing was bound -- " .. describe(bound)
@@ -1739,7 +2165,9 @@ return {
                     .. "award against -- " .. describe(bound.qp_before)
                     .. " (" .. tostring(bound.qp_before_result) .. ")"
             end
-            return "ok", QUEST_VARP .. " bound; %qp at bind time = " .. describe(bound.qp_before)
+            return names_reading(result, detail, "",
+                { "bound " .. QUEST_VARP .. " (", "qp_before=" .. tostring(bound.qp_before) },
+                "bind names what it bound and the %qp baseline it took")
         end)
 
         step("quest.stage", function()
@@ -1945,6 +2373,120 @@ return {
             return "ok", wanted .. " -> " .. describe(detail)
         end)
 
+        -- SEAM goto_tile_fixed_budget (2026-09-21).  The public row above
+        -- proves ONE goto onto ONE tile with nothing else moving the player,
+        -- and that is exactly the case that always worked.  What was wrong
+        -- was the BUDGET: one `::goto` and a hardcoded ten ticks with no
+        -- retry arm, so a content teleport that landed behind the cheat --
+        -- `p_delay(n); p_telejump(...)`, every boat and trapdoor in this pack
+        -- -- took the player back and the verb reported a hard timeout on a
+        -- tile it reaches perfectly well.  Sea Slug proved it inside ONE run,
+        -- row 27 FAIL against row 61 PASS on the same tile with the same
+        -- verb; the banner over QD.player.goto_tile in pointer.lua carries
+        -- the measurement and build/seam_goto_budget/repro_boat_goto.lua
+        -- reproduces it on demand.
+        --
+        -- Three things are graded here, none of them visible from the public
+        -- row: the arrival predicate the loop turns on, that the loop really
+        -- RE-ISSUES (and says how many times, with the server's own line for
+        -- each attempt), and two gotos across a region change -- the shape
+        -- the seam was found in.
+        seam("seam.goto_tile_budget", function()
+            local fn = verb("player", "goto_tile")
+            local here = verb("player", "_goto_here")
+            local tile_of = verb("world", "tile")
+            if not fn then return missing("player", "goto_tile") end
+            if not here then return missing("player", "_goto_here") end
+            if not tile_of then return missing("world", "tile") end
+
+            -- 1. THE ARRIVAL PREDICATE.  Every attempt is decided by it, so a
+            -- predicate that answered true for anything would make the retry
+            -- arm invisible and a predicate that answered false for
+            -- everything would spend three teleports on every goto in the
+            -- suite.  Chebyshev 1 on x/z, the plane EXACT.
+            local read, tile = tile_of()
+            if read ~= "ok" or not is_table(tile) then
+                return read, "no tile to test the arrival predicate against: " .. describe(tile)
+            end
+            if not here(tile.x, tile.z, tile.level) then
+                return "hollow", "player._goto_here says the player is not on the tile "
+                    .. "world.tile just answered with (" .. describe(tile) .. ")"
+            end
+            if here(tile.x + 8, tile.z, tile.level) then
+                return "hollow", "player._goto_here accepts a tile eight squares away, "
+                    .. "so no attempt could ever miss"
+            end
+            if here(tile.x, tile.z, (tile.level + 1) % 4) then
+                return "hollow", "player._goto_here accepts the wrong plane -- "
+                    .. "one floor out is never the same room"
+            end
+
+            -- 2. THE RETRY ARM RUNS, AND SAYS SO.  A plane outside 0-3 is the
+            -- one miss this harness can stage from Lumbridge with no race in
+            -- it: torirs_server_world.c's ladder answers "::goto - level must
+            -- be 0-3, not 4." and RAN, so the cheat is `ok` and the arrival
+            -- can never be true.  Three attempts of one tick, and the detail
+            -- has to account for all three -- that accounting is the whole
+            -- fix, because without it a two-attempt landing is indistinguish-
+            -- able from a one-attempt one in the ledger.
+            local miss, miss_detail = fn(tile.x, tile.z, 4, 1, 3)
+            if miss ~= "timeout" then
+                return "hollow", "an unreachable plane answered " .. describe(miss)
+                    .. " rather than timeout -- " .. describe(miss_detail)
+            end
+            local text = tostring(miss_detail)
+            if not string.find(text, "3 attempt(s)", 1, true) then
+                return "hollow", "the timeout does not say how many attempts ran: " .. text
+            end
+            local ran = 0
+            for _ in string.gmatch(text, "attempt %d:") do
+                ran = ran + 1
+            end
+            if ran ~= 3 then
+                return "hollow", "the timeout accounts for " .. tostring(ran)
+                    .. " attempt(s), not 3: " .. text
+            end
+            if not string.find(text, "level must be 0-3", 1, true) then
+                return "hollow", "the timeout drops the server's own sentence, which is "
+                    .. "the only thing that tells a typo from a race: " .. text
+            end
+
+            -- 3. TWO GOTOS ACROSS A REGION CHANGE, back to back, which is the
+            -- shape row 27 died in: the second one is issued while the client
+            -- is still finishing the first one's scene.  Draynor then Varrock
+            -- -- two map squares apart each way from here and from each
+            -- other, so each is a real rebuild and not a walk.
+            local hops = {
+                { 3093, 3244, 0, "Draynor Village market" },
+                { 3213, 3428, 0, "Varrock square" },
+            }
+            local said = {}
+            for index = 1, #hops do
+                local hop = hops[index]
+                local result, detail = fn(hop[1], hop[2], hop[3])
+                said[#said + 1] = hop[4] .. " -> " .. describe(result)
+                    .. " " .. describe(detail)
+                if result ~= "ok" then
+                    return result, "hop " .. tostring(index) .. " (" .. hop[4]
+                        .. ") did not land: " .. table.concat(said, "; ")
+                end
+                local at_result, at = tile_of()
+                if at_result ~= "ok" or not is_table(at) then
+                    return at_result, "hop " .. tostring(index) .. " answered ok and "
+                        .. "world.tile answered " .. describe(at_result)
+                        .. " -- " .. table.concat(said, "; ")
+                end
+                if not here(hop[1], hop[2], hop[3]) then
+                    return "hollow", "hop " .. tostring(index) .. " (" .. hop[4]
+                        .. ") answered ok with the player at " .. describe(at.x) .. ","
+                        .. describe(at.z) .. "," .. describe(at.level)
+                        .. " -- " .. table.concat(said, "; ")
+                end
+            end
+            return "ok", "arrival predicate exact; an unreachable plane accounts for "
+                .. "3 attempt(s) with the server's line on each; " .. table.concat(said, "; ")
+        end)
+
 
         -- --------------- phase 7b: the fight the phase 6 seams landed
         --
@@ -1956,6 +2498,29 @@ return {
         -- deadline.  The teleport is the same one the world phase opened
         -- with; player.goto_tile left the player upstairs in the castle,
         -- where there is no npc to attack at all.
+        --
+        -- AND THEN WALK TO HIM, which is this block's stability and not a
+        -- tidy-up.  `::tele lumbridge` lands the player at 3222,3218 every
+        -- run, and the nearest `man` spawn row in this pack is
+        -- server/scripts/areas/world/configs/m50_50.spawn:36 at 3216,3219 --
+        -- SIX tiles away, permanently outside the five player.attack's row
+        -- reads at.  Whether these three rows had a subject at all was
+        -- therefore decided by which way a wandering npc had drifted on the
+        -- tick this harness happened to reach, and nothing in the file said
+        -- so: green 113/113 at 64ef6e9b2, red 111/114 at 68c5e8d9d with the
+        -- whole combat block byte-identical between the two (`git diff
+        -- 64ef6e9b2 HEAD -- test/quests/_conformance.lua` is the
+        -- player.unequip row and the verb count, nothing else), the failure
+        -- reading `[no_subject] man is not within five tiles (no_row)`
+        -- (build/quest_gate/_conformance/attempt-01/ledger.tsv row 97).  One
+        -- row added above moved every tick below it, which is all it took.
+        --
+        -- player.walk_near, not a second `::tele` or a goto_tile at the
+        -- spawn coordinates: the Man is the thing that moves, so the walk has
+        -- to track HIM (walk_near re-aims at the target's current tile every
+        -- server tick) rather than at a tile he was once on.  It writes no
+        -- row -- it is setup, exactly like the cheats above it -- and its own
+        -- conformance row is a hundred rows higher up, already graded.
         stage(function()
             setup_cheat("::tele lumbridge")
             settle(6)
@@ -1969,6 +2534,15 @@ return {
                 equip(COMBAT_WEAPON)
             end
             settle(4)
+            local by_symbol = verb("player", "by_symbol")
+            local walk_near = verb("player", "walk_near")
+            if by_symbol and walk_near then
+                local target, target_result = by_symbol("npc", NPC_SYMBOL)
+                if target_result == "ok" and is_table(target) then
+                    walk_near(target, 20, 1)
+                end
+            end
+            settle(2)
         end)
 
         -- The slot of the npc these two rows fight, read once before the
@@ -2160,12 +2734,27 @@ return {
         -- its own `::give garlic` needs (measured: `::give garlic left 0 in
         -- the backpack`).  A rune the drop did not touch is a subject that
         -- costs nothing to state.
+        -- AND THEY START FROM A FIXED TILE, not from wherever the fight left
+        -- the character.  `seam.press_pixel` picks the nearest `tree` and
+        -- presses it, so the tile it starts from decides which tree it gets
+        -- and at what angle -- and the fight above ends wherever the wandering
+        -- Man it chased happened to be.  That is a row grading the rows above
+        -- it, which this file's own section-8 note already names as the way
+        -- press_pixel went red once before: the tile was 3222,3213 on one run
+        -- and 3213,3224 on the next, eleven tiles apart, and the second one
+        -- projected its tree at 207,79 with 54 of the 99 candidate pixels off
+        -- the viewport entirely (`no candidate pixel holds tree from any
+        -- pose`, 2026-09-22).  `::tele lumbridge` is the same landing the
+        -- fight stage above opens with, so the seam block now starts from
+        -- 3222,3218 every run, and a red press_pixel means the press, not the
+        -- walk that happened to precede it.
         stage(function()
             local close = verb("chat", "close")
             if close then
                 close()
             end
-            settle(2)
+            setup_cheat("::tele lumbridge")
+            settle(6)
         end)
 
         -- THE PRESS PIXEL, AND WHICH CAMERA POSE THE SEARCH FOR IT RUNS AT.
@@ -2240,6 +2829,66 @@ return {
             if not seam_target then
                 return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
             end
+            -- STAND NEXT TO IT FIRST -- the precondition every real caller of
+            -- the hunt already has, and the one this row was reading off the
+            -- rows above it.
+            --
+            -- `_hover_onto` is reached from QD.drive.click_minimenu, and every
+            -- verb that reaches click_minimenu has walked to its target first
+            -- (click_loc and use_on through walk_near's standoff, talk_to
+            -- through the same gate).  This row called it with whatever tile
+            -- the previous rows left the player on -- and the combat rows
+            -- added above it leave him where the fight ended: measured
+            -- 2026-09-20 and again 2026-09-21, `player.alive` reports
+            -- 3222,3218 L0 and the nearest `tree` is 3217,3241
+            -- (seam.reach_names_the_copy's own detail, same run), twenty-three
+            -- tiles north.  At that range the loc projects at 400,84 -- the
+            -- top edge of a 765x503 viewport, where the ladder's upward climb
+            -- has almost no legal candidate left -- and the row failed
+            -- `covered ... 45 pixels ... 54 off-viewport` on the DISTANCE, not
+            -- on the seam (build/quest_gate/_conf_seam1/attempt-01 row 100).
+            --
+            -- So the tile is taken here instead of inherited: ::goto to the
+            -- tree's own square (a teleport lands on the nearest tile the
+            -- world accepts, so the player ends on it or beside it), then the
+            -- loc standoff that click_loc itself takes, which steps off the
+            -- square when the teleport landed on it.  Nothing about the hunt
+            -- is relaxed; it is given the frame a press would have.
+            local goto_tile = verb("player", "goto_tile")
+            local walk_near = verb("player", "walk_near")
+            local tile_of_target = verb("drive", "_target_tile")
+            local tile_of = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not walk_near then return missing("player", "walk_near") end
+            if not tile_of_target then return missing("drive", "_target_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local standoff = is_table(t.player) and t.player._loc_standoff or nil
+            if type(standoff) ~= "number" then
+                return "missing", "t.player._loc_standoff is not a number -- the hunt has to be "
+                    .. "given the tile a press would be made from"
+            end
+            local here_result, here = tile_of()
+            if here_result ~= "ok" or not is_table(here) then
+                return here_result, "no tile reading before the approach"
+            end
+            local tree_result, tree_x, tree_z = tile_of_target(seam_target)
+            if tree_result ~= "ok" then
+                return "no_subject", "no tile for " .. LOC_SYMBOL .. " in the loc pool: "
+                    .. describe(tree_result)
+            end
+            local approach_result, approach_detail = goto_tile(tree_x, tree_z, here.level)
+            if approach_result ~= "ok" then
+                return approach_result, "player.goto_tile(" .. describe(tree_x) .. ","
+                    .. describe(tree_z) .. "," .. describe(here.level) .. ") did not reach "
+                    .. LOC_SYMBOL .. "'s square: " .. describe(approach_detail)
+            end
+            local stepped_result, stepped_detail = walk_near(seam_target, nil, standoff)
+            if stepped_result ~= "ok" then
+                return stepped_result, "walk_near(" .. LOC_SYMBOL .. ", standoff "
+                    .. describe(standoff) .. ") left the player on the target's own square: "
+                    .. describe(stepped_detail)
+            end
+            local approached = select(2, tile_of())
             -- And the live half, the one the pre-seam row already proved: a
             -- pixel the target is DRAWN at, found by probing.  `_hover_onto`
             -- walks a ladder of candidates around the projected point and
@@ -2298,7 +2947,10 @@ return {
                     .. "argument is not threaded through _hover_onto and a five-pose sweep "
                     .. "would cost five ladders -- " .. table.concat(tried, "; ")
             end
-            return "ok", "pressing " .. describe(hovered.x) .. "," .. describe(hovered.y)
+            return "ok", "from " .. describe(is_table(approached) and approached.x)
+                .. "," .. describe(is_table(approached) and approached.z) .. ", beside "
+                .. LOC_SYMBOL .. " at " .. describe(tree_x) .. "," .. describe(tree_z)
+                .. ": pressing " .. describe(hovered.x) .. "," .. describe(hovered.y)
                 .. " instead of the projected " .. describe(pos.x) .. "," .. describe(pos.y)
                 .. "; ranked a reach-" .. describe(middle_reach) .. " pose ahead of a reach-"
                 .. describe(edge_reach) .. " one and spent " .. describe(cap - budget.left)
@@ -2513,6 +3165,76 @@ return {
                 .. describe(second_detail) .. "), and the wildcard press took the held-item row"
         end)
 
+        -- A USE WHOSE ONLY EFFECT IS IN THE BACKPACK IS STILL A USE THAT
+        -- LANDED.
+        --
+        -- _settle_after_click's five arms are all edges the SCREEN shows -- a
+        -- mounted chat sub, a chat line, a route, a changed page -- and a
+        -- whole family of `[opnpcu]`/`[oplocu]` branches produce none of them.
+        -- `[opnpcu,gertrudescat]`'s milk branch (quest_fluffs.rs2:222-231)
+        -- animates, says "Mew!" OVERHEAD, swaps the bucket and writes the
+        -- varp; the overhead say is not a chat line, the swap is not a page,
+        -- and once the player stands BESIDE the cat rather than inside her
+        -- there is no route either.  So the press that demonstrably landed
+        -- answered `timeout` at the full deadline and Gertrude's Cat went
+        -- 53/53 -> 41/16 (build/quest_gate/fluffs, 2026-09-21, rows 12 and
+        -- 24, with `quest.stage.gave_milk PASS 3` one row below saying the
+        -- milk HAD been drunk).
+        --
+        -- The rule is graded here rather than by pressing something, because
+        -- the thing that can break is the DECISION and not the press: the
+        -- first draft of this fix made the backpack a sixth settle ARM and
+        -- Elemental Workshop lost its completion varbit to it (row 50
+        -- `smithShield PASS 1 inv_changed` against the published `PASS 4
+        -- chat_message`, row 51 `quest.varp_complete FAIL client=0 server=0`)
+        -- -- a container delta is the EARLIEST thing a press produces and the
+        -- weakest evidence that it finished.  So: read AFTER the timeout,
+        -- never instead of an arm, and only ever turning a timeout into an ok.
+        -- Both halves are checked, and nothing is pressed and nothing moves --
+        -- the live reading is compared against a fabricated one.
+        seam("seam.use_on_silent_effect", function()
+            local decide = verb("player", "_use_on_silent_effect")
+            local contents = verb("player", "_inv_contents")
+            if not decide then return missing("player", "_use_on_silent_effect") end
+            if not contents then return missing("player", "_inv_contents") end
+            local now_result, now = contents()
+            if now_result ~= "ok" or not is_table(now) then
+                return "no_subject", "player._inv_contents() answered "
+                    .. describe(now_result) .. " -- there is no backpack reading to compare"
+            end
+            -- A reading the world cannot match: one item this player does not
+            -- carry.  The diff against the live backpack is therefore "lost
+            -- <it>", exactly the shape a consumed item makes.
+            local invented = "conformance_item_no_player_carries"
+            local moved = { order = { invented }, totals = {} }
+            moved.totals[invented] = 1
+            local changed_result, changed_detail = decide(moved, "settle_after_click")
+            if changed_result ~= "ok" then
+                return changed_result, "a backpack that MOVED left the press graded "
+                    .. describe(changed_result) .. " -- a use whose only effect is in a "
+                    .. "container has no other evidence: " .. describe(changed_detail)
+            end
+            if not string.find(tostring(changed_detail), "backpack:", 1, true) then
+                return "hollow", "the timeout was turned into an ok with no diff in the row, "
+                    .. "so the ledger cannot say what the press moved: "
+                    .. describe(changed_detail)
+            end
+            -- And the half that must NOT fire: nothing moved, so the caller's
+            -- own timeout is handed straight back, word for word.
+            local same_result, same_detail = decide(now, "settle_after_click")
+            if same_result ~= "timeout" then
+                return "hollow", "a backpack that did NOT move still graded "
+                    .. describe(same_result) .. " -- this rule may only ever turn a timeout "
+                    .. "into an ok, never invent one: " .. describe(same_detail)
+            end
+            if same_detail ~= "settle_after_click" then
+                return "hollow", "the untouched timeout lost its own detail: "
+                    .. describe(same_detail)
+            end
+            return "ok", "a moved backpack turns the timeout into `" .. describe(changed_detail)
+                .. "`, an unmoved one is handed back as `" .. describe(same_detail) .. "`"
+        end)
+
         -- A BACKPACK PRESS THE CLIENT DECLINES NAMES ITSELF, and is pressed
         -- again.  The tab is switched away first, because that is the state
         -- the seam was measured in and the one every quest meets: `ui.tab` is
@@ -2720,6 +3442,203 @@ return {
                 .. "on a living character"
         end)
 
+        -- A KILL IS NEVER PROVED BY AN EMPTY POOL, AND A REFUSED SWING IS NOT
+        -- AN OPENING -- the two arbitrations the 2026-09-21 combat seam pass
+        -- landed, graded here because the verbs above them answer the same
+        -- word whether either one works or not.
+        --
+        -- (1) `no_row` from the npc pool is the CLIENT's reading, and a slot
+        -- leaves that pool for three reasons, only one of which is a death:
+        -- the npc died, the npc ranked past DRIVE_UI_POOL_CAP's 64th nearest
+        -- (Mort'ton's shade street holds more than 64), or THE PLAYER LEFT
+        -- THE SCENE -- and the commonest way a player leaves a scene
+        -- mid-fight is by dying.  Roving Elves spent its whole tail on the
+        -- first of those being assumed: `killGuardian.await_dead PASS ...
+        -- dead after 131 tick(s)` for a Moss Guardian that was alive at 2/30
+        -- while the CHARACTER was the one who fell, then three FAIL rows
+        -- blaming a seed nothing had dropped (build/quest_gate/rovingelves,
+        -- three byte-identical runs; TORIRSSERVER_COMBAT_TRACE holds the
+        -- interaction latch to tick 145 and TORIRSSERVER_HP_TRACE reads
+        -- `tick=146 hp=0 dying=1`).  Two halves, and both are graded:
+        -- `await_dead_engaged` separates the readings with the stamp's own
+        -- `bar_seen` -- a health bar is only ever sent once something has HIT
+        -- an npc, so gone-after-a-bar is a kill and gone with no bar ever
+        -- sent is a target nothing ever fought -- and the death fence reads a
+        -- STATED hitpoints of 0 as well as the chat line, because
+        -- `[queue,player_death]` prints its sentence about twenty ticks after
+        -- the killing blow and that gap is exactly where a lost fight lives.
+        --
+        -- (2) The engine's own single-way refusal has no packet and no log
+        -- line: `ToriRSServer_CombatSinglewayRefuses` prints one sentence
+        -- through content and `p_opnpc` takes its silent `return 1`, so
+        -- `t.player.attack` answered `ok` for the press and `timeout` for the
+        -- wait -- which its own banner calls the ordinary opening of a fight.
+        -- Shades of Mort'ton believed it was fighting for twenty rounds and
+        -- 1,643 ticks on that (build/quest_gate/mortton row 23).  The
+        -- sentence is matched EXACTLY, never as a substring, because an npc
+        -- quoting it is an npc talking.
+        --
+        -- All five statements are made without a fight in them: the pure
+        -- matcher on its own sentences, the two death-text paths on
+        -- synthetic records, the fence on the living character this harness
+        -- has been driving for a hundred rows, and the bar arbitration on a
+        -- SLOT NUMBER THE POOL DOES NOT HOLD -- which is the reading the
+        -- whole seam turns on, reproduced without killing anything.
+        seam("seam.no_row_is_not_a_kill", function()
+            local refusal_line = verb("_combat_refusal_line")
+            local row_by_slot = verb("_combat_row_by_slot")
+            local death_seen = verb("player", "_death_seen")
+            local death_text = verb("player", "_death_text")
+            local ring_text = verb("player", "_death_text_from_ring")
+            local await_engaged = verb("npc", "await_dead_engaged")
+            if not refusal_line then return missing("_combat_refusal_line") end
+            if not row_by_slot then return missing("_combat_row_by_slot") end
+            if not death_seen then return missing("player", "_death_seen") end
+            if not death_text then return missing("player", "_death_text") end
+            if not ring_text then return missing("player", "_death_text_from_ring") end
+            if not await_engaged then return missing("npc", "await_dead_engaged") end
+
+            local death_line = is_table(t.player) and t.player.DEATH_LINE or nil
+            if not is_text(death_line) then
+                return "hollow", "QD.player.DEATH_LINE is not a sentence: " .. describe(death_line)
+            end
+
+            -- (a) THE ENGINE'S TWO REFUSAL SENTENCES, EXACTLY.
+            local lines = t.ATTACK_REFUSAL_LINES
+            if not is_table(lines) or #lines < 2 then
+                return "hollow", "t.ATTACK_REFUSAL_LINES is not a list of the engine's own "
+                    .. "refusal sentences: " .. describe(lines)
+            end
+            for i = 1, #lines do
+                local sentence = lines[i]
+                if not is_text(sentence) then
+                    return "hollow", "t.ATTACK_REFUSAL_LINES[" .. tostring(i)
+                        .. "] is not a sentence: " .. describe(sentence)
+                end
+                if refusal_line(sentence) ~= sentence then
+                    return "refused", "the engine's own refusal '" .. sentence
+                        .. "' does not read as one (" .. describe(refusal_line(sentence))
+                        .. ") -- t.player.attack would answer `timeout` for a swing that was "
+                        .. "never made, and the caller would wait longer for it"
+                end
+                if refusal_line("   " .. sentence .. "  ") ~= sentence then
+                    return "refused", "a padded '" .. sentence .. "' does not read as a refusal: "
+                        .. describe(refusal_line("   " .. sentence .. "  "))
+                end
+                if refusal_line("The guard says: " .. sentence .. " Move along.") ~= nil then
+                    return "refused", "an npc QUOTING '" .. sentence .. "' reads as the ENGINE "
+                        .. "refusing -- a line of dialogue would end fights the server never refused"
+                end
+            end
+            if refusal_line(nil) ~= nil or refusal_line(42) ~= nil then
+                return "refused", "a non-string chat row answers something other than nil, and a "
+                    .. "raise in this sandbox ends the run"
+            end
+
+            -- (b) THE TWO DEATH RECORDS KEEP THEIR OWN SENTENCES.  combat.lua
+            -- wraps state.lua's `_death_text` rather than editing it (it is
+            -- the last part in DRIVE_SCRIPT_PARTS and state.lua belongs to
+            -- another seam), so both paths have to be stated here or the wrap
+            -- can swallow the ring's sentence with nothing going red.
+            local mine = death_text({ text = "SENTINEL-DEATH-TEXT" })
+            if mine ~= "SENTINEL-DEATH-TEXT" then
+                return "refused", "a record latched by the HITPOINTS fence does not carry its own "
+                    .. "sentence through t.player._death_text: " .. describe(mine)
+            end
+            local ring = death_text({ deaths = 1, wake = "", tick = 0,
+                where = "nowhere", hitpoints = "0/10" })
+            if not is_text(ring) or not string.find(ring, death_line, 1, true) then
+                return "refused", "a record latched from the CHAT RING no longer gets state.lua's "
+                    .. "own sentence back: " .. describe(ring)
+            end
+
+            -- (c) THE HITPOINTS ARM DOES NOT FIRE ON A LIVING CHARACTER.  The
+            -- other side of (b): a fence that latches on a healthy read would
+            -- end every quest in the suite at its first combat verb.
+            local seen = death_seen()
+            if seen ~= nil then
+                return "refused", "the hitpoints fence latched a death on the character this "
+                    .. "harness has been driving for a hundred rows: " .. describe(seen)
+            end
+            if t._death ~= nil then
+                return "refused", "QD._death is latched with nothing dead: " .. describe(t._death)
+            end
+
+            -- (d) AN ABSENT SLOT IS A KILL ONLY AFTER A HEALTH BAR.
+            --
+            -- The stamp is synthetic and the slot is one the pool does not
+            -- hold -- which is the whole reading this seam is about, and the
+            -- only way to state it without a death or a 64-npc street.  The
+            -- harness's own `npc.await_dead_engaged` row a hundred rows above
+            -- has already consumed the real stamp; this saves and restores it
+            -- anyway, because a seam row must leave the driver as it found it.
+            local held = t._combat_last
+            local slot = nil
+            local absent = { 65535, 65534, 65533, 65532 }
+            for i = 1, #absent do
+                local result = row_by_slot(absent[i])
+                if result == "no_row" then
+                    slot = absent[i]
+                    break
+                end
+            end
+            if slot == nil then
+                t._combat_last = held
+                return "hollow", "no slot number could be found that the npc pool does not hold, "
+                    .. "so the absent-slot arbitration cannot be stated"
+            end
+
+            local stamp = {
+                symbol = "conformance_absent_slot",
+                slot = slot,
+                op = 2,
+                npc_id = -1,
+                name = "a slot the npc pool does not hold",
+                health_before = "no bar",
+                health = "no bar",
+                bar_seen = false,
+                tick = 0,
+                consumed = false,
+            }
+            t._combat_last = stamp
+            local no_bar_result, no_bar_detail = await_engaged(1)
+            local consumed_without_a_bar = stamp.consumed
+
+            stamp.bar_seen = true
+            stamp.consumed = false
+            t._combat_last = stamp
+            local bar_result, bar_detail = await_engaged(1)
+            local consumed_after_a_bar = stamp.consumed
+            t._combat_last = held
+
+            if no_bar_result ~= "no_row" then
+                return "refused", "an absent slot that NOTHING EVER HIT -- no health bar was ever "
+                    .. "sent for it -- is read as a kill: await_dead_engaged answered "
+                    .. describe(no_bar_result) .. " / " .. describe(no_bar_detail)
+                    .. " -- a hunt loop credits a corpse it never made"
+            end
+            if consumed_without_a_bar then
+                return "refused", "the stamp was CONSUMED for a slot nothing ever hit, so the "
+                    .. "caller's loop cannot press Attack again on the same engagement"
+            end
+            if bar_result ~= "ok" then
+                return "refused", "an absent slot the server HAD sent a health bar for is no longer "
+                    .. "read as a kill: await_dead_engaged answered " .. describe(bar_result)
+                    .. " / " .. describe(bar_detail) .. " -- every real kill in the suite goes red"
+            end
+            if not consumed_after_a_bar then
+                return "refused", "a resolved fight did not consume its stamp, so a second wait with "
+                    .. "no new Attack in between would read the same kill again"
+            end
+
+            return "ok", "both engine refusals read exactly and never out of a line that quotes "
+                .. "one; a fence-latched record carries its own sentence and a ring-latched one "
+                .. "still carries state.lua's; nothing is latched on a living character; and slot "
+                .. tostring(slot) .. ", absent from the npc pool, is a kill ONLY after a health bar "
+                .. "(" .. describe(bar_result) .. ") and `no_row` without one ("
+                .. describe(no_bar_result) .. ", stamp not consumed)"
+        end)
+
         -- AN NPC'S OWN SQUARE IS STEPPED OFF BEFORE THE PRESS.
         --
         -- _step_off_for_click ran for the LOC half only, and the line that
@@ -2763,6 +3682,7 @@ return {
             local by_symbol = verb("player", "by_symbol")
             local talk_to = verb("player", "talk_to")
             local nearest = verb("npc", "nearest")
+            local await_present = verb("npc", "await_present")
             local tile_of = verb("world", "tile")
             local close_chat = verb("chat", "close")
             if not standoff_for then return missing("player", "_standoff_for_kind") end
@@ -2798,12 +3718,49 @@ return {
                     .. describe(GOTO_TILE_Z) .. "," .. describe(GOTO_TILE_LEVEL) .. ") did not "
                     .. "reach " .. STATIONARY_NPC_SYMBOL .. "'s room: " .. describe(goto_detail)
             end
+            -- THE PLANE FIRST, then the pool, and the pool is WAITED FOR.
+            --
+            -- This row failed `no_subject -- duke_of_lumbridge is not in the
+            -- pool (no_row)` on one suite run and passed on the next two with
+            -- nothing changed (2026-09-20/21), which is the signature of a
+            -- read taken a tick early rather than of a wrong tile.  An
+            -- absolute-tile teleport ACROSS A PLANE re-mounts the scene, and
+            -- goto_tile's own arrival await is "the tile and the npc pool
+            -- around it are visible" -- around the tile it asked for, not
+            -- around the npc, and the rows above this one leave the player
+            -- twenty tiles away on level 0, which is the longest jump any row
+            -- in this file makes.  npc.await_present is the verb for "the pool
+            -- has caught up" and it has its own conformance row above; a
+            -- single `nearest` here was a poll of one.
+            --
+            -- The plane is read back first so the two failures cannot be
+            -- confused: a teleport that landed on the ground floor is a fact
+            -- about ::goto, and an empty pool on the RIGHT floor is a fact
+            -- about the scene mount.
+            local landed_result, landed = tile_of()
+            if landed_result ~= "ok" or not is_table(landed) then
+                return landed_result, "no tile reading after player.goto_tile"
+            end
+            if landed.level ~= GOTO_TILE_LEVEL then
+                return "no_subject", "player.goto_tile(" .. describe(GOTO_TILE_X) .. ","
+                    .. describe(GOTO_TILE_Z) .. "," .. describe(GOTO_TILE_LEVEL)
+                    .. ") landed on level " .. describe(landed.level) .. " at "
+                    .. describe(landed.x) .. "," .. describe(landed.z)
+                    .. " -- the plane is the half of an absolute-tile teleport that is "
+                    .. "never allowed to be one out"
+            end
+            if await_present then
+                await_present(STATIONARY_NPC_SYMBOL, 4, 10)
+            end
             local duke_state, duke = nearest(STATIONARY_NPC_SYMBOL, 4)
             if duke_state ~= "ok" or not is_table(duke) then
                 return "no_subject", STATIONARY_NPC_SYMBOL .. " is not in the pool within 4 of "
                     .. describe(GOTO_TILE_X) .. "," .. describe(GOTO_TILE_Z) .. " L"
-                    .. describe(GOTO_TILE_LEVEL) .. " (" .. describe(duke_state) .. " "
-                    .. describe(duke) .. ") -- his *.spawn row is not where this row thinks"
+                    .. describe(GOTO_TILE_LEVEL) .. " after 10 tick(s) of npc.await_present, "
+                    .. "with the player standing at " .. describe(landed.x) .. ","
+                    .. describe(landed.z) .. " L" .. describe(landed.level) .. " ("
+                    .. describe(duke_state) .. " " .. describe(duke)
+                    .. ") -- his *.spawn row is not where this row thinks"
             end
 
             -- ON HIS SQUARE, exactly: goto_tile answers on Chebyshev 1 and one
@@ -2880,6 +3837,367 @@ return {
                 .. describe(stepped) .. "), and a talk_to taken from that square again answered "
                 .. "ok from " .. describe(talked.x) .. "," .. describe(talked.z) .. " ("
                 .. describe(talk_detail) .. "); npc standoff 1, obj and player none"
+        end)
+
+        -- ------------------------------- phase 9b: the shop
+        --
+        -- SEAM shop_purchase_verb (2026-09-21).  The first three verbs in this
+        -- driver that open, read or press a shop screen, and before them a
+        -- quest whose own script makes the player BUY something could not be
+        -- written at all -- Shades of Mort'ton's temple leg needs timber,
+        -- limestone bricks and swamp paste, `timberbeam` exists in exactly one
+        -- place in this content pack (`razmire_builders_merchants.inv`, the
+        -- store Razmire opens as the quest`s own reward), and trap 16 forbids
+        -- `::give`ing a quest's own deliverable.
+        --
+        -- Here, against a shop that needs no quest state.  LAST of the rows
+        -- that touch the world, and it has to be: the stage below opens with
+        -- `::clearinv`, because a backpack with no free slot answers a buy
+        -- with content's own inventory-space refusal and would red these rows
+        -- for a reason that is not the verb -- and that `::clearinv` takes
+        -- SEAM_OBJ_SYMBOL away from the seam rows above (measured: put this
+        -- block before them and `seam.use_on_rearm` and
+        -- `seam.inv_press_names_its_refusal` both go red with `mindrune: not
+        -- in the backpack`).  Nothing below this block reads the world.
+        -- The journey is real either way: the fight leaves the player in
+        -- Lumbridge castle's courtyard and the store is inside it.
+        stage(function()
+            setup_cheat("::clearinv")
+            settle(2)
+            setup_cheat("::give coins " .. SHOP_COINS)
+            settle(2)
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(SHOP_TILE_X, SHOP_TILE_Z, 0)
+            end
+            settle(2)
+        end)
+
+        step("shop.open", function()
+            local fn = verb("shop", "open")
+            if not fn then return missing("shop", "open") end
+            local result, detail = fn(SHOP_NPC_SYMBOL, SHOP_NPC_OP, SHOP_INV_SYMBOL)
+            local text = SHOP_NPC_SYMBOL .. " op " .. SHOP_NPC_OP .. " / "
+                .. SHOP_INV_SYMBOL .. " -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- An `ok` here has to mean the STOCK has landed, not merely that
+            -- shopmain mounted: the container arrives in a second server
+            -- message and a buy issued against an empty grid presses a cell
+            -- that is not there yet.  The verb says how many stocked slots it
+            -- found, and that sentence is the evidence.
+            if not string.find(tostring(detail), "stocked slot", 1, true) then
+                return "hollow", "an `ok` that does not say what stock landed -- the grid "
+                    .. "arrives a message after the interface and a buy against an empty "
+                    .. "one presses nothing: " .. text
+            end
+            return "ok", text
+        end)
+
+        step("shop.buy", function()
+            local fn = verb("shop", "buy")
+            local count_of = verb("inv", "count")
+            if not fn then return missing("shop", "buy") end
+            if not count_of then return missing("inv", "count") end
+            local held_before_result, held_before = count_of(SHOP_OBJ_SYMBOL)
+            local coins_before_result, coins_before = count_of("coins")
+            local result, detail = fn(SHOP_OBJ_SYMBOL, SHOP_OBJ_COUNT)
+            local text = SHOP_OBJ_SYMBOL .. " x" .. SHOP_OBJ_COUNT .. " -> "
+                .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- The detail is the verb's own arithmetic; this is the world's.
+            -- A buy verb that answered ok without the backpack moving is the
+            -- exact false green the ladder makes easy -- four fixed rungs, and
+            -- a press on the wrong cell buys the next item along.
+            local held_after_result, held_after = count_of(SHOP_OBJ_SYMBOL)
+            local coins_after_result, coins_after = count_of("coins")
+            if held_before_result ~= "ok" or held_after_result ~= "ok" then
+                return "hollow", "inv.count could not read " .. SHOP_OBJ_SYMBOL
+                    .. " (" .. describe(held_before_result) .. " / "
+                    .. describe(held_after_result) .. ") -- " .. text
+            end
+            if held_after - held_before ~= SHOP_OBJ_COUNT then
+                return "hollow", "the backpack gained " .. tostring(held_after - held_before)
+                    .. " " .. SHOP_OBJ_SYMBOL .. ", not " .. SHOP_OBJ_COUNT .. " -- " .. text
+            end
+            if coins_before_result == "ok" and coins_after_result == "ok"
+                and coins_after >= coins_before then
+                return "hollow", "coins went " .. tostring(coins_before) .. " -> "
+                    .. tostring(coins_after) .. ": nothing was paid, so nothing was bought "
+                    .. "from a shop -- " .. text
+            end
+            return "ok", text .. "; backpack " .. tostring(held_before) .. " -> "
+                .. tostring(held_after) .. ", coins " .. tostring(coins_before) .. " -> "
+                .. tostring(coins_after)
+        end)
+
+        step("shop.close", function()
+            local fn = verb("shop", "close")
+            local buy = verb("shop", "buy")
+            if not fn then return missing("shop", "close") end
+            local result, detail = fn()
+            local text = "close -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            -- Interface 300 has no close button (its nineteen components are
+            -- the frame, the quantity bar, the grid and the scrollbar), so
+            -- this is the ESC path -- and the only honest proof that it took
+            -- is that the screen is really gone.  `shop.buy` with nothing
+            -- open answers `no_row`; anything else means close returned on a
+            -- shop that is still up and the next quest row would press into
+            -- it.
+            if buy then
+                local after = buy(SHOP_OBJ_SYMBOL, 1)
+                if after ~= "no_row" then
+                    return "hollow", "after close, shop.buy answers " .. describe(after)
+                        .. " rather than no_row -- the screen did not go: " .. text
+                end
+                text = text .. "; a buy after it -> no_row"
+            end
+            -- Idempotent, because a quest file closes a shop it may already
+            -- have closed and that is not an error.
+            local again = fn()
+            if again ~= "ok" then
+                return "hollow", "a second close answers " .. describe(again)
+                    .. ", not ok -- " .. text
+            end
+            return "ok", text .. "; a second close -> ok"
+        end)
+
+        -- SEAM shop_opened_by_dialogue_has_no_stock_binding (2026-09-22).
+        -- `shop.open` was the ONLY writer of the shop's inv binding and it
+        -- gets there by pressing the npc's numbered shop op itself, so a shop
+        -- reached any other way -- a dialogue row ("Can I see the building
+        -- store please?"), the `::shop` cheat, a loc's own op -- sat open and
+        -- stocked on screen and could not be bought from: Shades of Mort'ton
+        -- lost three rows to `no_row -- this shop was not opened through
+        -- shop.open`.
+        --
+        -- The recipe IS the seam, which is why it runs last: `::shop` opens
+        -- the Lumbridge general store with nothing pressed
+        -- (shop.rs2:167's `[debugproc,shop]`), so the driver holds no binding
+        -- at all -- `shop.close` above cleared the one `shop.open` made.  The
+        -- row reproduces the refusal, binds, and then buys, because a bind
+        -- nothing spends is not evidence.
+        stage(function()
+            settle(2)
+            setup_cheat("::shop")
+            settle(3)
+        end)
+
+        step("shop.attach", function()
+            local fn = verb("shop", "attach")
+            local buy = verb("shop", "buy")
+            local close = verb("shop", "close")
+            local count_of = verb("inv", "count")
+            if not fn then return missing("shop", "attach") end
+            if not buy or not count_of then
+                return "no_subject", "shop.attach is proved by a buy, and shop.buy/inv.count "
+                    .. "are not on this driver"
+            end
+
+            -- 1. THE SEAM.  A shop is on screen and nothing can buy from it.
+            local unbound = buy(SHOP_OBJ_SYMBOL, 1)
+            if unbound ~= "no_row" then
+                return "no_subject", "a buy against the ::shop screen answered "
+                    .. describe(unbound) .. ", not the no_row this seam is -- either nothing "
+                    .. "opened or a binding survived shop.close, and the row below would "
+                    .. "prove nothing"
+            end
+
+            -- 2. The hazard attach carries that open does not: EVERY container
+            --    this client was ever sent stays resident in its InvManager,
+            --    so "the named inv is stocked" -- all open's wait ever proves
+            --    -- is satisfied by the player's own backpack.  Measured: it
+            --    reaches the binding step on stock alone.  What stops it is
+            --    the grid on screen, which carries slot_count + 1 cells.
+            local wrong, wrong_detail = fn("inv")
+            if wrong == "ok" then
+                return "refused", "attach(\"inv\") bound the player's BACKPACK as the shop -- "
+                    .. "every later buy would then press grid cells off backpack slot numbers, "
+                    .. "which is a wrong item three buys later rather than a failure here: "
+                    .. describe(wrong_detail)
+            end
+
+            -- 3. The bind itself, and it has to say what it read of the
+            --    SCREEN, not of the caller's claim.
+            local result, detail = fn(SHOP_INV_SYMBOL)
+            local text = SHOP_INV_SYMBOL .. " -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text .. " (a buy first answered " .. describe(unbound)
+                    .. ", attach(\"inv\") " .. describe(wrong) .. ")"
+            end
+            if not string.find(tostring(detail), "stocked slot", 1, true)
+                or not string.find(tostring(detail), "cell", 1, true) then
+                return "hollow", "an `ok` that does not say both what stock landed and what "
+                    .. "the grid on screen carries -- those two numbers are the whole "
+                    .. "difference between binding this shop and binding a container that "
+                    .. "merely still exists: " .. text
+            end
+
+            -- 4. And the world, because the binding is only worth what it can
+            --    spend.
+            local held_before_result, held_before = count_of(SHOP_OBJ_SYMBOL)
+            local bought, bought_detail = buy(SHOP_OBJ_SYMBOL, 1)
+            local held_after_result, held_after = count_of(SHOP_OBJ_SYMBOL)
+            if bought ~= "ok" then
+                return "refused", "attach answered ok and the buy behind it answered "
+                    .. describe(bought) .. " " .. describe(bought_detail) .. " -- " .. text
+            end
+            if held_before_result ~= "ok" or held_after_result ~= "ok"
+                or held_after - held_before ~= 1 then
+                return "hollow", "the buy answered ok and the backpack went "
+                    .. describe(held_before) .. " -> " .. describe(held_after) .. " -- " .. text
+            end
+            if close then
+                close()
+            end
+            return "ok", text .. "; before it, a buy -> no_row and attach(\"inv\") -> "
+                .. describe(wrong) .. "; after it, " .. SHOP_OBJ_SYMBOL .. " "
+                .. tostring(held_before) .. " -> " .. tostring(held_after)
+        end)
+
+        -- --------- seam: a mistyped ledger argument must not end the run
+        --
+        -- SEAM ledger_verdict_type_kills_run (2026-09-21).  `api_drive.ledger`
+        -- reads `step` and `verdict` with luaL_checkstring and this sandbox
+        -- has no pcall, so a raise there does not fail one row -- it ends the
+        -- WHOLE RUN where it stands.  The shape that does it is the natural
+        -- one, because `t.check`'s second argument IS a condition: Between a
+        -- Rock wrote `t.step(name, <expr> == "ok", detail)` at its wall of
+        -- flame and threw away the 93 PASS rows already on disk
+        -- (build/quest_gate/betweenarock, 2026-09-21).
+        --
+        -- No verb's own answer can show this: what is graded is that the run
+        -- IS STILL HERE.  So this row writes the two bad calls itself and then
+        -- returns -- reaching the return at all is the evidence, and before
+        -- the fix neither the return nor any row below it existed.
+        --
+        -- The two extra rows it leaves in the ledger are named
+        -- `ledger_verdict.*` and are NOT plan rows (verb_list.py reads the
+        -- harness's own `step(`/`seam(` declarations, so conformance.py never
+        -- scores them).  One of them is a FAIL on purpose: a verdict that is
+        -- not PASS/FAIL/BLOCKED and is not a condition -- a verb's own result
+        -- word, which belongs to t.expect -- says nothing about the step
+        -- passing, so it is graded FAIL and named, and a FAIL row in a green
+        -- conformance ledger is what that half of the fix looks like.
+        seam("seam.ledger_verdict_named", function()
+            local record = verb("step")
+            if not record then return missing("step") end
+            -- A boolean: unambiguous, so the row is graded the way the file
+            -- plainly meant it and the note says the call was still wrong.
+            record("ledger_verdict.boolean_probe", true,
+                "a boolean verdict must be READ as PASS and named, never raised")
+            -- A result word: nothing here says the step passed.
+            record("ledger_verdict.word_probe", "ok",
+                "a verb's own result word is not a verdict -- graded FAIL and named")
+            -- And a non-string step name, which raises one line EARLIER than
+            -- the ledger call (record_with_shot's `step_name_uses[nil]`), so
+            -- it is a second crash site and not the same one.
+            record(4242, "PASS", "a non-string step name must be coerced and named")
+            return "ok", "three mistyped ledger arguments written (boolean verdict, result "
+                .. "word, numeric step name); this row exists, so none of them ended the run"
+        end)
+
+        -- --------- seam: the photograph's camera, aimed at zero cost
+        --
+        -- SEAM driver-shot-camera-occluded-zero-cost (seam8, 2026-09-22).
+        -- QD.shot photographed whatever pose the last press left, and in a
+        -- basement or a walled room that pose is a wall face or the inside of
+        -- a cave rock (mourningsendparti shots 47-90 were black void).  Seam
+        -- 7 re-aimed every shot and waited two frames each way; the pictures
+        -- came right and three green quests went red, because one run frame
+        -- is one 20 ms logic cycle and the added frames moved every later
+        -- press against the server tick.  The fix aims ONLY an occluded pose,
+        -- inside the shot's own frames: aim in the pump that queues the
+        -- capture, put the press pose back on the first poll that says the
+        -- pixels were taken (pointer.lua's banner "THE PHOTOGRAPH'S CAMERA").
+        --
+        -- What is graded is the COST, not the picture (the picture is Read
+        -- off the shot this row leaves): in the Lumbridge castle cellar, the
+        -- press pose 0/128/600 is behind a wall, so the shot must aim; the
+        -- pose must be put back BEFORE the shot answers; the live pose after
+        -- must be the press pose exactly; and the shot must answer on the
+        -- SAME poll as an unaimed control shot (1024/300/1200, clear in that
+        -- cellar) -- the frame count a shot costs is unchanged by the aim.
+        -- The player is left in the cellar: every row after this one is a
+        -- scheduler control that reads no world.
+        seam("seam.shot_camera_zero_cost", function()
+            local goto_tile = verb("player", "goto_tile")
+            local camera = verb("drive", "camera")
+            local camera_pose = verb("drive", "_camera_pose")
+            local plan = verb("drive", "_shot_plan")
+            local shot = verb("shot")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not camera then return missing("drive", "camera") end
+            if not camera_pose then return missing("drive", "_camera_pose") end
+            if not plan then return missing("drive", "_shot_plan") end
+            if not shot then return missing("shot") end
+            local arrived, where = goto_tile(3210, 9620, 0)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(3210,9620,0) (Lumbridge castle cellar) -> "
+                    .. tostring(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+
+            local function take(label, yaw, pitch, zoom)
+                camera(yaw, pitch, zoom)
+                settle(1)
+                local pose_result, before = camera_pose()
+                if pose_result ~= "ok" then
+                    return nil, "_camera_pose -> " .. tostring(pose_result) .. " " .. describe(before)
+                end
+                local _, aim, why = plan()
+                local shot_result, shot_detail = shot("seam.shot_camera." .. label)
+                local last = t.drive._shot_last
+                local _, after = camera_pose()
+                return {
+                    before = before, after = after, aim = aim, why = why,
+                    result = shot_result, detail = shot_detail, last = last,
+                }
+            end
+            local function pose_text(pose)
+                if type(pose) ~= "table" then return describe(pose) end
+                return pose.yaw .. "/" .. pose.pitch .. "/" .. pose.zoom
+            end
+
+            local aimed, aimed_error = take("occluded", 0, 128, 600)
+            if not aimed then return "unsupported", aimed_error end
+            local control, control_error = take("clear", 1024, 300, 1200)
+            if not control then return "unsupported", control_error end
+            local said = "occluded shot: plan '" .. tostring(aimed.why) .. "', "
+                .. tostring(aimed.result) .. ", aimed=" .. tostring(aimed.last and aimed.last.aimed)
+                .. " put back at poll " .. tostring(aimed.last and aimed.last.restored_poll)
+                .. ", answered at poll " .. tostring(aimed.last and aimed.last.answered_poll)
+                .. ", pose " .. pose_text(aimed.before) .. " -> " .. pose_text(aimed.after)
+                .. "; clear control: plan '" .. tostring(control.why) .. "', "
+                .. tostring(control.result) .. ", aimed=" .. tostring(control.last and control.last.aimed)
+                .. ", answered at poll " .. tostring(control.last and control.last.answered_poll)
+
+            if aimed.result ~= "ok" or control.result ~= "ok" then
+                return "refused", "a shot did not land -- " .. said
+            end
+            if aimed.aim == nil or not (aimed.last and aimed.last.aimed) then
+                return "hollow", "the press pose behind the cellar wall was not aimed -- " .. said
+            end
+            if control.aim ~= nil or (control.last and control.last.aimed) then
+                return "hollow", "a clear pose was re-aimed: its picture is no longer the press's own -- " .. said
+            end
+            if aimed.last.restored_poll == nil or aimed.last.restored_poll >= aimed.last.answered_poll then
+                return "refused", "the press pose was not put back before the shot answered -- " .. said
+            end
+            if aimed.last.answered_poll ~= control.last.answered_poll then
+                return "refused", "the aimed shot answered on a different poll than the unaimed one "
+                    .. "(the aim cost frames) -- " .. said
+            end
+            if pose_text(aimed.after) ~= pose_text(aimed.before) then
+                return "refused", "the live pose after the shot is not the press pose -- " .. said
+            end
+            return "ok", said
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

@@ -50042,7 +50042,19 @@ ToriRSServer_WorldSelftest(void)
                                "got seaslugquest=%d",
                                player->varps[varp_seaslug]);
 
-                ToriRSServer_WorldTeleport(srv, 1, 2770, 3292);
+                /* 2772,3286 level 1 -- A TILE A PLAYER CAN ACTUALLY STAND ON.
+                 * This was 2770,3292: open sea two tiles NORTH of the crane's
+                 * 2770-2773 x 3287-3290 footprint, which no route can reach and
+                 * which was written only because the gate this stanza drives
+                 * used to be `coordz(coord) < coordz(movecoord(loc_coord, 0, 0,
+                 * 3))` -- a SIDE test that refused every real deck tile. The
+                 * gate is now the proximity test the refusal sentence has always
+                 * claimed to be (`distance(coord, loc_coord) > 4`,
+                 * quest_seaslug.rs2), so the "close enough" case is checked from
+                 * where the quest is actually played: the walkable upper deck
+                 * south of the crane, distance 2. The far case above (2770,3270,
+                 * distance 17) is unchanged. */
+                ToriRSServer_WorldTeleport(srv, 1, 2772, 3286);
                 selftest_tick(srv);
                 ToriRSServer_ScriptsRunTriggerOnLoc(
                     srv, SS_TRIGGER_OPLOC1, loc_crane, -1,

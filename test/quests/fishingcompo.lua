@@ -125,9 +125,13 @@ return {
         t.shot("bonzo-spot-assigned")
 
         t.expect("quest.stage.in_comp", t.quest.expect_stage("in_comp"))
-        local coins_result, coins_left = t.inv.count("coins")
-        t.check("bonzo.fee_paid", coins_result == "ok" and coins_left == 5,
-            "coins after the 5gp fee = " .. tostring(coins_left) .. " (read " .. tostring(coins_result) .. ")")
+        -- Trap 24: a click verb's `ok` is the server's SENTENCE, not the
+        -- container update -- the coins delta lands a tick behind the
+        -- dialogue's own close, so poll for it rather than reading a bare
+        -- t.inv.count on the line below.
+        local coins_result, coins_left = t.inv.await("coins", 5, 10)
+        t.check("bonzo.fee_paid", coins_result == "ok",
+            "coins after the 5gp fee await 5 -> " .. tostring(coins_result) .. " " .. tostring(coins_left))
 
         -- ------------------------------------------------ scare off the stranger
         -- [oplocu,garlicpipe] switches on last_useitem = garlic -> @stash_garlic
@@ -139,64 +143,115 @@ return {
         -- player once the Sinister Stranger is smoked out of it -- the
         -- willow-tree spot (compofishspot) the player starts the competition
         -- at never yields anything better than a sardine, garlic or not.
+        --
+        -- RETRY after 8cd829faf: this used to be unreachable -- use_on's
+        -- far-side retry landed a real menu row on the garlicpipe wall but
+        -- did not re-arm the held item first, so the press spent its arming
+        -- on the wall's ordinary Examine row and use_on could only ever
+        -- answer `refused` (pointer.lua's old "NO RE-ARM BEFORE A RETRY
+        -- PRESS" banner). pointer.lua now re-arms through api_drive.inv_arm
+        -- before every retry press -- far-side loop included -- so the stash
+        -- lands. Assert that now, and drive the quest on to completion.
         local pipe_target, pipe_lookup = t.player.by_symbol("loc", "garlicpipe")
         t.step("garlicpipe.lookup", pipe_target ~= nil and "PASS" or "FAIL",
             "by_symbol(loc, garlicpipe) -> " .. tostring(pipe_lookup)
                 .. " id=" .. tostring(pipe_target and pipe_target.id)
                 .. " match=" .. tostring(pipe_target and pipe_target.match))
 
-        -- garlicpipe (configs/all.loc:354, shape1=4 "straight wall") sits at
-        -- 2638,3446 exactly, right against the two-hole wall south of the
-        -- Hemenster competition pond. Tried and recorded here, not guessed
-        -- once: player ON its own tile, 1 tile short and 2 tiles short,
-        -- approaching from x=2638 AND x=2639 -- covering both live element
-        -- ids the scene resolves this symbol to nearby (536875057 and
-        -- 536875058). This USED to answer `covered` from every pose
-        -- (pointer.lua's click_minimenu "pickset held=false, menu has no row
-        -- for it") -- that is fixed now: use_on walks up to
-        -- QD.player._far_side_attempts other sides of the target on a
-        -- `covered` answer and re-presses (pointer.lua:2095-2111). But the
-        -- fix exposed the real seam underneath: pointer.lua's own banner at
-        -- the fix ("NO RE-ARM BEFORE A RETRY PRESS", pointer.lua:2031-2043)
-        -- says a retry press does NOT re-arm the held item first -- re-arming
-        -- between far-side presses was measured to break a DIFFERENT quest's
-        -- working case (cog's redcog) -- and on garlicpipe the arming does
-        -- not survive to the re-press: QD.player._select_row_is_held
-        -- (pointer.lua:2016-2029) checks the row actually pressed against the
-        -- closed set of ordinary op/examine rows and catches it landing
-        -- "Examine" instead of the held-item row, so use_on now answers
-        -- `refused` naming exactly that, rather than a false `ok` for a press
-        -- that only examined the wall. There is no verb in this driver that
-        -- re-arms before a far-side retry, so there is no way to reach
-        -- [oplocu,garlicpipe] from here.
         t.exec("goto-garlicpipe", t.player.goto_tile, 2638, 3445, 0)
-        local stash_result, stash_detail = t.player.use_on("garlic", pipe_target)
-        t.shot("garlicpipe-refused")
-        t.check("garlicpipe.stash_refused", stash_result ~= "ok",
-            "use_on(garlic, garlicpipe) -> " .. tostring(stash_result) .. " " .. tostring(stash_detail)
-                .. " -- the far-side retry lands a real menu row now, but it is the wall's" ..
-                " ordinary Examine row, never the held-item row; confirmed across separate" ..
-                " runs and both live element ids")
+        t.exec("garlicpipe.stash", t.player.use_on, "garlic", pipe_target)
 
-        t.blocked("quests/quest_fishingcompo/scripts/quest_fishingcompo_gate.rs2:4-9 " ..
-            "[oplocu,garlicpipe] / script/plugins/quest_driver/pointer.lua:2031-2043,2095-2111 " ..
-            "use_on: using garlic on the garlicpipe wall (2638,3446,0) no longer answers " ..
-            "`covered` -- use_on's far-side retry (pointer.lua:2095-2111) lands a real menu " ..
-            "row -- but the retry press does not re-arm the held item first (the 'NO " ..
-            "RE-ARM BEFORE A RETRY PRESS' banner at pointer.lua:2031-2043: re-arming there " ..
-            "was measured to break cog's working redcog case), and on garlicpipe the " ..
-            "arming does not survive to the re-press, so the row that lands is the wall's " ..
-            "ordinary Examine row, not the held-item row -- caught by " ..
-            "QD.player._select_row_is_held (pointer.lua:2016-2029) and answered `refused " ..
-            "-- pressed 'Examine @cya@Wall Pipe', an ordinary op row and not the held-item " ..
-            "row -- the arming was gone by the time the menu opened`, confirmed at 0/1/2 " ..
-            "tiles and both live element ids (536875057, 536875058) across separate runs. " ..
-            "Stashing the garlic is the only way to move the Sinister Stranger off the " ..
-            "sinisterfishspot (quest_fishingcompo_gate.rs2 [label,stash_garlic]), and " ..
-            "hemenster_fishing.rs2's own [label,hemenster_catch] only ever grants " ..
-            "raw_giant_carp at THAT spot -- so this seam blocks the whole rest of the " ..
-            "quest, not just one step. There is no verb in this driver that re-arms a held " ..
-            "item before a far-side retry press.")
-        return
+        -- quest_fishingcompo_gate.rs2 [label,stash_garlic]: with
+        -- %fishingcompo_paid=1 already (Bonzo's fee, above), the stash also
+        -- fires the Sinister Stranger's and Bonzo's reaction lines in the
+        -- SAME tick, both npc-first pages, then Bonzo's own mesbox -- three
+        -- pages, no player choice in any of them.
+        t.exec("garlicpipe.stranger_reacts", t.chat.play, {
+            "npc:Arrgh! WHAT is that GHASTLY smell",
+            "npc:Hmm. You'd better go and take the area by the pipes then.",
+            "mesbox:Your fishing competition spot is now beside the pipes.",
+            "end",
+        })
+        t.expect("quest.stage.garlic_comp", t.quest.expect_stage("garlic_comp"))
+        t.shot("garlicpipe-stashed")
+
+        -- ------------------------------------------------ catch the giant carp
+        -- hemenster_fishing.rs2 [opnpc1,0_41_53_sinisterfishspot] ->
+        -- attempt_fish_hemenster -> both "my spot" guards miss
+        -- (%fishingcompo=garlic_comp, not in_comp; npc_type is the sinister
+        -- spot, not compofishspot) -> ~get_hemenster_bait picks the carried
+        -- red_vine_worm -> [label,hemenster_catch] grants raw_giant_carp
+        -- because npc_type=0_41_53_sinisterfishspot. Tile is the same one
+        -- fishbmp_carp's own debugproc teleports a tester to (0_41_53_13_52
+        -- decodes to 2637,3444).
+        t.exec("goto-fishspot", t.player.goto_tile, 2637, 3444, 0)
+        t.exec("fish.carp", t.player.talk_to, "0_41_53_sinisterfishspot")
+        local carp_result, carp_detail = t.inv.await("raw_giant_carp", 1, 10)
+        t.step("fish.carp_landed", carp_result == "ok" and "PASS" or "FAIL",
+            "raw_giant_carp await 1 -> " .. tostring(carp_result) .. " " .. tostring(carp_detail))
+        t.shot("carp-caught")
+
+        -- ------------------------------------------------ hand the carp to Bonzo
+        -- bonzo.rs2 [label,bonzo_talk] -> %fishingcompo=garlic_comp ->
+        -- @bonzo_howdoing -> raw_giant_carp carried -> the "enough to win"
+        -- choice -> @bonzo_handover_catch: mesbox, inv_del the carp,
+        -- %fishingcompo=won_comp, the trophy granted. Same tile as the
+        -- earlier bonzo.fee_paid step (fishbmp_handin's own 0_41_53_17_45).
+        t.exec("goto-bonzo-handin", t.player.goto_tile, 2641, 3437, 0)
+        t.exec("bonzo.howdoing", t.player.talk_to, "bonzo")
+        t.exec("bonzo.accept_carp", t.chat.play, {
+            "npc:So how are you doing so far?",
+            "options",
+            "choose:I have this big fish. Is it enough to win?",
+            "player:I have this big fish. Is it enough to win?",
+            "mesbox:You hand over your catch.",
+            "npc:We have a new winner!",
+            "mesbox:You are given the Hemenster fishing trophy!",
+            "end",
+        })
+        t.expect("quest.stage.won_comp", t.quest.expect_stage("won_comp"))
+        local trophy_result, trophy_detail = t.inv.await("hemenster_fishing_trophy", 1, 10)
+        t.step("bonzo.trophy_granted", trophy_result == "ok" and "PASS" or "FAIL",
+            "hemenster_fishing_trophy await 1 -> " .. tostring(trophy_result) .. " " .. tostring(trophy_detail))
+        t.shot("trophy-won")
+
+        -- ------------------------------------------------ hand the trophy to the
+        -- tunnel dwarf -- this is the quest's own completion trigger
+        -- mountain_dwarf.rs2 [label,tunnel_dwarf_won]: the trophy is handed
+        -- over and queue(fishingcompo_quest_complete, 0, 0) is queued --
+        -- quest_fishingcompo.rs2's [queue,...] flips %fishingcompo=complete
+        -- and runs stat_advance(fishing, 24370) (the scroll's "2,437 Fishing
+        -- XP"). Snapshot before the hand-in, the way cooks_assistant's shape
+        -- calls for.
+        local skill_snap_result, skill_snap = t.skill.snapshot()
+        t.step("quest.skill_snapshot", skill_snap_result == "ok" and "PASS" or "FAIL",
+            "snapshot before hand-in -> " .. tostring(skill_snap_result))
+
+        t.exec("goto-dwarf-handin", t.player.goto_tile, 2877, 3483, 0)
+        t.exec("dwarf.trophy_handin", t.player.talk_to, "tunnel_dwarf")
+        t.exec("dwarf.won_dialogue", t.chat.play, {
+            "npc:Have you won yet?",
+            "player:Yes I have!",
+            "npc:Well done! So where is the trophy?",
+            "player:I have it right here!",
+            "mesbox:You give the trophy to the dwarf.",
+            "npc:That's a mighty fine trophy!",
+            "npc:You can use the tunnel under White Wolf Mountain",
+            "player:Thanks!",
+            "end",
+        })
+        -- Completion is asynchronous (section 8): the queued proc above runs
+        -- behind this dialogue's own close, not inside it.
+        t.ticks(3)
+
+        t.quest.expect_complete()
+        -- Reviewer rejection (batch sonnet-b9): expect_gain was called bare,
+        -- with no t.check/t.expect around it, so its result was discarded
+        -- and the ledger ended at quest.journal with zero reward.* rows.
+        -- quest_fishingcompo_quest_complete grants stat_advance(fishing,
+        -- 24370) -- the "2,437 Fishing XP" the completion scroll advertises
+        -- -- so record it.
+        t.check("reward.fishing", t.skill.expect_gain("fishing", 2437, skill_snap))
+        t.finish(0)
     end,
 }

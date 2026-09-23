@@ -1172,6 +1172,26 @@ DrivePointer_Camera(struct App* app, int yaw, int pitch, int zoom)
 }
 
 enum DriveResult
+DrivePointer_CameraPose(
+    struct App* app, int* out_yaw, int* out_pitch, int* out_zoom, int* out_owned)
+{
+    assert(app);
+    assert(out_yaw);
+    assert(out_pitch);
+    assert(out_zoom);
+    assert(out_owned);
+    /* The same three fields DrivePointer_Camera writes, so a pose read here
+     * and written back through it is a no-op on the next follow step. */
+    *out_yaw = app->orbit.yaw & 2047;
+    *out_pitch = app->orbit.pitch;
+    *out_zoom = app->world_cam_zoom;
+    /* app_world_camera_follow's own early returns, in its own order: while
+     * either holds, the follow step never reads the orbit angles. */
+    *out_owned = !app->camera_unlocked && !app->cam_script.scripted && app->net;
+    return DRIVE_OK;
+}
+
+enum DriveResult
 DrivePointer_PlayerIdle(struct App* app, int* out_idle)
 {
     struct WorldEntity_Player const* player;
@@ -1559,6 +1579,29 @@ lua_drive_camera(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api.drive.camera_pose() -> ("ok", {yaw=, pitch=, zoom=, owned=}). */
+static int
+lua_drive_camera_pose(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int yaw = 0, pitch = 0, zoom = 0, owned = 0;
+    enum DriveResult result;
+
+    assert(app);
+    result = DrivePointer_CameraPose(app, &yaw, &pitch, &zoom, &owned);
+    lua_pushstring(L, DriveResultName(result));
+    lua_newtable(L);
+    lua_pushinteger(L, yaw);
+    lua_setfield(L, -2, "yaw");
+    lua_pushinteger(L, pitch);
+    lua_setfield(L, -2, "pitch");
+    lua_pushinteger(L, zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushboolean(L, owned);
+    lua_setfield(L, -2, "owned");
+    return 2;
+}
+
 static int
 lua_drive_player_idle(struct lua_State* L)
 {
@@ -1592,6 +1635,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},
+    {"camera_pose", lua_drive_camera_pose},
     {"player_idle", lua_drive_player_idle},
     {NULL, NULL},
 };

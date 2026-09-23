@@ -47,7 +47,10 @@ return {
         "::setlevel smithing 50", -- exactly the quest's req_smithing=50 gate
         "::complete quest_fishingcontest", -- quest_cheat.rs2's dispatch row is `quest_fishingcontest`, not the quest_fishingcompo folder name; the ONLY prereq dwarfrock_real_prereqs_met checks
         "::give rune_scimitar 1", -- combat prerequisite (Quest Helper: bring a weapon), not the quest's own deliverable
-        "::give bronze_pickaxe 1", -- prerequisite for real mining (page 3, realm gold ore)
+        "::give adamant_pickaxe 1", -- prerequisite for real mining (page 3, realm gold ore); rate 3 vs bronze's 7
+                                     -- (skill_mining/configs/pickaxes.obj) -- mining level 40 cannot wield rune (req 41),
+                                     -- adamant (req 31) is the fastest this character qualifies for -- RETRY: bronze
+                                     -- alone left the realm's 6-ore floor at 2/6 after 6 budgeted attempts
         "::give hammer 1", -- prerequisite for smithing the golden helmet
         "::give gold_bar 4", -- prerequisite: 1 smelted into the golden cannonball, 3 smithed into the golden helmet -- the quest's own use of them is driven for real below
         "::give ammo_mould 1", -- prerequisite for casting the golden cannonball
@@ -491,31 +494,79 @@ return {
 
         local ore_attempts = 0
         local ore_result, ore_count = t.inv.count("gold_ore")
-        while (ore_result ~= "ok" or ore_count < 6) and ore_attempts < 6 do
+        while (ore_result ~= "ok" or ore_count < 6) and ore_attempts < 30 do
             ore_attempts = ore_attempts + 1
+            -- await ONE MORE ore than we currently hold, not a flat 6 -- the realm's
+            -- 8-minute budget (^dwarfrock_realm_start_timeleft=16 * ^dwarfrock_realm_tick_period=50)
+            -- cannot absorb six attempts each burning the full 60-tick timeout waiting on a
+            -- target this single click can never reach in one swing.
+            local before_ore_result, before_ore_count = t.inv.count("gold_ore")
             t.exec("mineGoldOre-" .. ore_attempts, t.player.click_loc, goldrock_sym, 1)
-            t.inv.await("gold_ore", 6, 60)
+            t.inv.await("gold_ore", (before_ore_count or 0) + 1, 30)
             ore_result, ore_count = t.inv.count("gold_ore")
         end
         t.check("gotGoldOre", ore_result == "ok" and ore_count >= 6,
             "inv.count(gold_ore) after " .. tostring(ore_attempts) .. " mineGoldOre attempt(s) -> "
                 .. tostring(ore_result) .. " " .. tostring(ore_count))
 
-        local firewall_result, firewall = t.world.loc_near("dwarf_firewall_centre_straight", 60)
+        -- The "central wall of flame" is dozens of placements of both
+        -- dwarf_firewall_centre_straight AND dwarf_firewall_centre_diagonal
+        -- (all.loc.compack 5979/5980, m36_77.jl2) sharing the one oploc1
+        -- body (@dwarfrock_face_avatar). The nearest STRAIGHT copy the
+        -- resolve picks is a wall face this driver's pixel hunt never lands
+        -- a press on from inside the ring -- measured twice, ~438 ticks of
+        -- retried sides/poses before giving up, which alone blows most of
+        -- the realm's own 8-minute budget (^dwarfrock_realm_start_timeleft=16
+        -- * ^dwarfrock_realm_tick_period=50 = ~800 ticks) and got the
+        -- player ejected mid-fight on the run that tried it first. So try
+        -- the nearest DIAGONAL copy FIRST (it lands cleanly every time
+        -- measured), STRAIGHT only as a fallback, then t.drive.op
+        -- (section 3/8's documented last resort for a press that has
+        -- failed from every side/pose already tried) as the final one --
+        -- the op itself is real for every copy of either symbol.
+        local firewall_result, firewall = t.world.loc_near("dwarf_firewall_centre_diagonal", 60)
         t.check("locate.firewall", firewall_result == "ok",
-            string.format("world.loc_near(dwarf_firewall_centre_straight,60) -> %s %s", tostring(firewall_result), tostring(firewall)))
+            string.format("world.loc_near(dwarf_firewall_centre_diagonal,60) -> %s %s", tostring(firewall_result), tostring(firewall)))
         if firewall_result ~= "ok" then
-            t.blocked("test/quests/betweenarock.lua:approachFlame -- dwarf_firewall_centre_straight "
-                .. "(server/scripts/quests/quest_betweenarock/scripts/betweenarock_realm.rs2) cannot be located by "
+            firewall_result, firewall = t.world.loc_near("dwarf_firewall_centre_straight", 60)
+        end
+        if firewall_result ~= "ok" then
+            t.blocked("test/quests/betweenarock.lua:approachFlame -- neither dwarf_firewall_centre_diagonal nor "
+                .. "dwarf_firewall_centre_straight "
+                .. "(server/scripts/quests/quest_betweenarock/scripts/betweenarock_realm.rs2) can be located by "
                 .. "world.loc_near within 60 tiles of the realm's gold-ore area -- no *.loc placement file exists "
-                .. "to read a real tile from (trap 20), and the candidate answered not_found.")
+                .. "to read a real tile from (trap 20), and both candidates answered not_found.")
             return
         end
         t.exec("goto-firewall", t.player.goto_tile, firewall.tile_x, firewall.tile_z, firewall.level)
-        t.exec("approachFlame", t.player.click_loc, "dwarf_firewall_centre_straight", 1)
+
+        local approach_loc = firewall
+        local approach_result, approach_detail = t.exec("approachFlame", t.player.click_loc, "dwarf_firewall_centre_diagonal", 1)
+        if approach_result ~= "ok" then
+            local straight_result, straight = t.world.loc_near("dwarf_firewall_centre_straight", 60)
+            t.check("locate.firewall-straight", straight_result == "ok",
+                string.format("world.loc_near(dwarf_firewall_centre_straight,60) -> %s %s", tostring(straight_result), tostring(straight)))
+            if straight_result == "ok" then
+                approach_loc = straight
+                t.exec("goto-firewall-straight", t.player.goto_tile, straight.tile_x, straight.tile_z, straight.level)
+                approach_result, approach_detail = t.exec("approachFlame-straight", t.player.click_loc, "dwarf_firewall_centre_straight", 1)
+            end
+        end
+        if approach_result ~= "ok" then
+            approach_result, approach_detail = t.exec("approachFlame-bypass", t.drive.op, approach_loc, 1)
+        end
         t.exec("approachFlame-dialog", t.chat.play, {
             "mesbox:The flames roar and a guardian of the realm steps forth",
         })
+
+        -- dwarfrock_spawn_avatar's own npc_add always lands the Avatar at the
+        -- FIXED coord 0_37_77_7_25 (section 6's ^*_coord decode: level 0,
+        -- region 37,77, local 7,25 -> worldX 37*64+7=2375, worldZ 77*64+25=4953),
+        -- independent of which wall face (straight or diagonal, tiles apart
+        -- around the ring) actually triggered the spawn -- stand there before
+        -- polling for it rather than trusting whichever tile the successful
+        -- approachFlame press happened to leave us on.
+        t.exec("goto-avatarSpawn", t.player.goto_tile, 2375, 4953, 0)
 
         -- The avatar's colour is random(3) across three symbols in the
         -- melee-countered "mage" category (this character is built
@@ -543,9 +594,41 @@ return {
             return
         end
 
-        local attack2_result, attack2_detail = t.player.attack(avatar_sym, 2, 30)
-        t.check("attackAvatar", attack2_result == "ok" or attack2_result == "timeout", attack2_detail)
-        t.exec("killAvatar", t.npc.await_dead, avatar_sym, 120)
+        -- t.npc.await_dead credited a false kill twice on this build --
+        -- both runs it answered "dead" within 9 ticks while the Avatar was
+        -- still fully visible on screen at nonzero hp (killAvatar shots,
+        -- both runs; dwarfrock_quest stayed at 90 forever afterward). The
+        -- seam pass's own working proof (build/quest_gate/seam6_realm_fight2,
+        -- 13/13 PASS) polls the QUEST VARP directly instead of trusting
+        -- npc-pool presence for this hand-spawned, type-specific-op2-binding
+        -- boss, so do the same: keep pressing Attack (content's own
+        -- [label,player_melee_attack] re-arms the swing loop every
+        -- attackrate from one click) and poll dwarfrock_quest for
+        -- ^dwarfrock_avatar_defeated=100 after each, rather than asking the
+        -- npc pool whether it is still there.
+        local kill_attempts = 0
+        local kill_stage_result = "refused"
+        while kill_stage_result ~= "ok" and kill_attempts < 6 do
+            kill_attempts = kill_attempts + 1
+            local atk_result, atk_detail = t.player.attack(avatar_sym, 2, 30)
+            t.check("attackAvatar-" .. kill_attempts, atk_result == "ok" or atk_result == "timeout", atk_detail)
+            kill_stage_result = t.var.await_server("dwarfrock_quest", 100, 15)
+        end
+        t.check("killAvatar", kill_stage_result == "ok",
+            "dwarfrock_quest var.await_server(...,100,15) after " .. tostring(kill_attempts)
+                .. " attackAvatar attempt(s) -> " .. tostring(kill_stage_result))
+
+        if kill_stage_result ~= "ok" then
+            t.blocked("test/quests/betweenarock.lua:killAvatar -- dwarfrock_quest never reached "
+                .. "^dwarfrock_avatar_defeated=100 after " .. tostring(kill_attempts) .. " attackAvatar attempt(s) "
+                .. "polling var.await_server, though the seam pass proved this exact fight winnable "
+                .. "(build/quest_gate/seam6_realm_fight2, 13/13 PASS) and t.npc.await_dead credited a kill twice on "
+                .. "this quest file while the Avatar was still visibly standing at nonzero hp on screen -- a driver "
+                .. "seam in how await_dead tracks this hand-spawned, type-specific-op2-binding npc, not a content "
+                .. "bug.")
+            return
+        end
+
         t.expect("quest.stage.avatar_defeated", t.quest.expect_stage("avatar_defeated"))
         t.exec("avatarDefeated-dialog", t.chat.play, {
             "mesbox:The guardian collapses!",

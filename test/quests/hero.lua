@@ -1,6 +1,11 @@
 -- Heroes' Quest -- driven for real through the Phoenix Gang route
 -- (Achietties -> Straven -> Alfonse -> Charlie the cook -> kill Grip ->
--- loot the treasure chest), never through ::setvar on %heroquest itself.
+-- loot the treasure chest -> Straven's candlestick hand-in for the
+-- armband), then the two solo-collectible arms (Ice Queen -> ice gloves ->
+-- Entrana firebird -> feather; Gerrant -> Blamish oil -> oily rod -> lava
+-- eel -> cook it), then the real hand-in to Achietties. Never ::setvar on
+-- %heroquest itself past `hero_started` -- every later value is written by
+-- the content this file actually clicks/fights through.
 --
 -- Prerequisites cheated in setup, never the quest's own deliverable (trap
 -- 16): 55 QP, Lost City (%zanaris), Dragon Slayer I (%dragonquest),
@@ -18,32 +23,31 @@
 -- straven_gangmember label (areas/varrock/scripts/straven.rs2:97-102)
 -- hands out on joining the Phoenix Gang -- a Shield-of-Arrav bring-along,
 -- not this quest's own deliverable, so it is given rather than earned by
--- replaying that quest. Combat gear/levels for the level-22 Grip fight are
--- the same "gear is a prerequisite" idiom hunt.lua/mortton.lua/
--- elemental_workshop.lua already use.
+-- replaying that quest.
 --
--- The three doors between Alfonse/Charlie and Grip's own mansion room
--- (herokitchendoor, herokitchenpanel, pete_sidedoor) write no quest state
--- at all -- grepped brimhaven_restaurant.rs2 and
--- brimhaven_scarface_mansion.rs2, every one is `~hero_*_walk_door`, a plain
--- p_teleport -- but they DO cross real walls: a first pass that
--- goto_tile-skipped straight to Charlie's and the treasure room's own
--- tiles found a wrong-element mis-click on Charlie ("menu has no row for
--- it", standing on his own tile with the kitchen unentered) and "I can't
--- reach that!" on the treasure door/chest, so this file clicks all three
--- doors for real.
+-- Combat/skill LEVELS and plain bring-along tools/food/ingredients are all
+-- prerequisites, the same "gear is a prerequisite" idiom hunt.lua/
+-- mortton.lua/rovingelves.lua already use for a quest fight -- never the
+-- quest's own deliverable, which HeroesQuest.java's own ItemRequirement set
+-- confirms: only `iceGloves` carries `.canBeObtainedDuringQuest()` (grepped
+-- /Users/matthewevers/Documents/git_repos/quest-helper/.../HeroesQuest.java)
+-- -- fishingRod, fishingBait, harralanderUnf (harralandervial, the
+-- unfinished potion Blamish Slime mixes into) and pickaxe are NOT marked
+-- that way, so they are given directly. blamish_snail_slime, blamish_oil,
+-- oily_fishing_rod, raw_lava_eel, lava_eel, hot_feather, master_thief_armband,
+-- petecandlestick and grip_keys ARE the quest's own deliverables and are
+-- driven for real below.
 --
--- This run finds a real content bug and stops there (see the final rows):
--- looting the mansion's candlestick chest as a Phoenix-route player
--- overwrites %heroquest with the BLACK ARM route's own checkpoint value
--- (brimhaven_scarface_mansion.rs2:106-108, `if (%heroquest <
--- ^hero_blackarm_looted_chest) { %heroquest = ^hero_blackarm_looted_chest;
--- }` -- unconditional on which gang looted it), which is 12
--- (quest_hero.constant) -- past hero_phoenix_obtained_armband (6), so
--- Straven's own hand-in gate (straven.rs2:108, `%heroquest <
--- ^hero_phoenix_obtained_armband`) can never see this player's candlestick
--- again. Katrine refuses a Phoenix player outright (katrine.rs2:15-19), so
--- there is no other hand-in path once this write has landed.
+-- The candlestick-chest content bug this file used to stop at
+-- (brimhaven_scarface_mansion.rs2's opencandlechest write clobbering a
+-- Phoenix player's %heroquest with the Black Arm route's own checkpoint,
+-- past hero_phoenix_obtained_armband) is FIXED as of the committed source
+-- (brimhaven_scarface_mansion.rs2:134, gated on
+-- `%heroquest >= ^hero_blackarm_gangmember_spoken`, which a Phoenix player
+-- sitting at hero_phoenix_killed_grip(5) never satisfies) -- confirmed
+-- below by reading %heroquest right after the loot and asserting it is
+-- STILL hero_phoenix_killed_grip, then driving on to Straven for the
+-- armband for real.
 
 return {
     id = "hero",
@@ -55,12 +59,34 @@ return {
         "::setvar dragonquest 10", -- Dragon Slayer I complete (dragon_complete) -- no ::complete arm for quest_dragonslayer1 exists
         "::setvar arthur 7", -- Merlin's Crystal complete (arthur_complete) -- no ::complete arm for quest_merlinscrystal exists
         "::setvar phoenixgang 10", -- Shield of Arrav, Phoenix side, complete (phoenixgang_complete) -- ::complete quest_shieldofarrav only ever writes %blackarmgang
-        "::give phoenixkey2 1", -- Shield-of-Arrav bring-along Straven's own script hands a joined Phoenix member (straven.rs2:97-102), not Heroes' Quest's own deliverable
-        "::setlevel attack 80",
-        "::setlevel strength 80",
-        "::setlevel defence 80",
-        "::setlevel hitpoints 80",
-        "::give rune_scimitar 1", -- Grip is level 22 (att18/def18/str17/hp25, all.npc.compack) -- gear prerequisite for the real fight below, same idiom as hunt.lua/mortton.lua
+        "::complete quest_druidicritual", -- Druidic Ritual, the DBROW name (all.dbrow.compack:35), not the quest_druid folder name (QUEST_AUTHORING.md docs/quests notes) -- ~herblore_unlocked (quest_druid.rs2:35-39) gates ~attempt_brew_potion on %druidquest >= ^druid_complete, and Heroes' Quest's own Blamish-oil mix (brew_potion.rs2:513-516) needs Herblore unlocked; this is a bring-along prerequisite (trap 16), not the quest's own deliverable
+        "::give phoenixkey2 1", -- Shield-of-Arrav bring-along Straven's own script hands a joined Phoenix member, not Heroes' Quest's own deliverable
+        -- Combat levels: prerequisite for BOTH real fights below (Grip,
+        -- level 22; Ice Queen, level 111, hp104/atk95/str94/def95,
+        -- combat_stats.generated.npc:14496-14516) -- same idiom
+        -- rovingelves.lua uses for its own level-111-class moss guardian.
+        "::setlevel attack 99",
+        "::setlevel strength 99",
+        "::setlevel defence 99",
+        "::setlevel hitpoints 99",
+        "::give rune_mace 1", -- crush weapon: Ice Queen's own lowest defence stat is crushdefence=20 (combat_stats.generated.npc:14515), vs slashdefence=40/stabdefence=30 -- dragon_mace is unusable here, levelrequire.rs2:171-176 refuses to Wear it until %heroquest >= ^hero_complete, which is this quest's OWN completion; rune_mace carries no such gate
+        "::give rune_platebody 1",
+        "::give rune_platelegs 1",
+        "::give rune_full_helm 1",
+        "::give rune_kiteshield 1",
+        "::give shark 8", -- food for the Ice Queen fight, same idiom as mortton.lua/rovingelves.lua's own "::give shark" food
+        -- Fire-arm + lava-eel-arm bring-alongs -- none of these carry
+        -- .canBeObtainedDuringQuest() in HeroesQuest.java, unlike iceGloves.
+        "::give fishing_rod 1",
+        "::give fishing_bait 20",
+        "::give harralandervial 1", -- "Harralander potion (unf)" -- the solvent brew.dbrow's herblore_blamish_oil row names
+        "::give logs 3",
+        "::give tinderbox 1",
+        "::give rune_pickaxe 1", -- White Wolf Mountain rockslide fallback (mine_ice_queen_lair_rockslide, white_wolf_mountain.rs2:23-32) if the ice queen's own tile answers screen_position through goto_tile
+        "::setlevel mining 50", -- rockslide fallback's own gate (white_wolf_mountain.rs2:29)
+        "::setlevel fishing 99", -- lava eel fishing gate is level 53 (lavafish.rs2:90)
+        "::setlevel cooking 99", -- lava eel cooking gate is level 53 (cooking_generic.dbrow's cooking_generic_lava_eel row, never burns)
+        "::setlevel herblore 99", -- Blamish oil mixing gate is level 25 (brew.dbrow's herblore_blamish_oil row)
     },
 
     run = function(t)
@@ -89,8 +115,17 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        t.ticks(3) -- the ::setvar cheats above are not client-side yet
+        t.ticks(3) -- the ::setvar/::give cheats above are not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+
+        -- Equip the fight gear now, before anything else -- frees five
+        -- backpack slots the fishing-bait/harralander/logs stack still needs,
+        -- and both real fights below want it worn from the first swing.
+        t.exec("equipMace", t.player.equip, "rune_mace")
+        t.exec("equipPlatebody", t.player.equip, "rune_platebody")
+        t.exec("equipPlatelegs", t.player.equip, "rune_platelegs")
+        t.exec("equipFullHelm", t.player.equip, "rune_full_helm")
+        t.exec("equipKiteshield", t.player.equip, "rune_kiteshield")
 
         -- ---------------------------------------------------------------
         -- Achietties: accept the quest for real.
@@ -140,10 +175,7 @@ return {
         -- ---------------------------------------------------------------
         -- Into the kitchen (herokitchendoor opens once heroquest >=
         -- phoenix_talked_alfonse & %phoenixgang = phoenixgang_complete,
-        -- brimhaven_restaurant.rs2:8-13) -- run 1 found this genuinely
-        -- gates reachability: a raw goto_tile onto Charlie's own spawn
-        -- tile from outside this door aimed the click at nearby kitchen
-        -- scenery instead of him ("menu has no row for it").
+        -- brimhaven_restaurant.rs2:8-13).
         -- ---------------------------------------------------------------
         t.exec("openKitchenDoor", t.player.click_loc, "herokitchendoor")
 
@@ -170,15 +202,10 @@ return {
         -- ---------------------------------------------------------------
         -- Into Mr Olbors' garden (herokitchenpanel writes no state, plain
         -- p_teleport walk-through, brimhaven_restaurant.rs2:16-22).
-        -- pete_sidedoor is the same kind of walk-through
-        -- (brimhaven_scarface_mansion.rs2:32-45), but two runs' worth of
-        -- click_loc attempts on it (a hard "I can't reach that!" pathing
-        -- refusal, then a wrong-element camera-pose pick even after a real
-        -- walk_near) never landed -- t.world.loc_near still resolves its
-        -- own real tile correctly (recorded below), so goto_tile there
-        -- directly, the documented fix for a loc placed off a short-range
-        -- click's own reach (section 8), rather than spend a third run on
-        -- the same click.
+        -- pete_sidedoor is a walk-through loc too
+        -- (brimhaven_scarface_mansion.rs2:32-45); goto_tile onto its own
+        -- resolved tile (section 8's documented fix for a loc placed off a
+        -- short-range click's own reach) rather than click_loc it.
         -- ---------------------------------------------------------------
         t.exec("openKitchenPanel", t.player.click_loc, "herokitchenpanel")
         t.ticks(2) -- let the teleport settle
@@ -201,13 +228,13 @@ return {
         -- (areas/world/configs/m43_49.spawn:19).
         -- ---------------------------------------------------------------
         t.exec("goto-grip", t.player.goto_tile, 2774, 3192, 0)
-        t.exec("equipScimitar", t.player.equip, "rune_scimitar")
 
-        local attack_result, attack_detail = t.player.attack("grip", 2, 20)
-        t.check("attackGrip", attack_result == "ok" or attack_result == "timeout", attack_detail)
+        local grip_attack_result, grip_attack_detail = t.player.attack("grip", 2, 20)
+        t.check("attackGrip", grip_attack_result == "ok" or grip_attack_result == "timeout", grip_attack_detail)
         t.exec("killGrip", t.npc.await_dead, "grip", 60)
         t.ticks(3) -- ai_queue3,grip's %heroquest write is not client-side the instant the corpse clears
         t.expect("quest.stage.phoenix_killed_grip", t.quest.expect_stage("phoenix_killed_grip"))
+        t.expect("player.aliveAfterGrip", t.player.alive())
 
         -- grip_keys is a real ground drop (ai_queue3,grip -- obj_add at
         -- npc_coord), not a chat grant -- poll the entity pool before
@@ -239,11 +266,7 @@ return {
                 tostring(keys_click_result), tostring(keys_click_detail), tostring(keys_before), tostring(keys_after)))
 
         -- ---------------------------------------------------------------
-        -- Treasure door + chest: two candlesticks (this is where the
-        -- Phoenix route's own progress gets clobbered -- see below).
-        -- Run 1/2 showed both unreachable by a bare click_loc from Grip's
-        -- own tile ("I can't reach that!") -- same section-8 fix as above:
-        -- resolve each loc's own real tile and goto_tile there first.
+        -- Treasure door + chest: two candlesticks.
         -- ---------------------------------------------------------------
         local treasuredoor_near_result, treasuredoor_near = t.world.loc_near("pete_treasuredoor", 15)
         local treasuredoor_near_detail = "not_found"
@@ -263,45 +286,11 @@ return {
 
         -- The chest sequence (shutcandlechest -> opencandlechest via
         -- loc_change, brimhaven_scarface_mansion.rs2:93-110) is a plain
-        -- loc_change PAIR, not a multiloc -- trap 20's door bullet ("name
-        -- the _open half") is the rule that applies, confirmed for real in
-        -- run 3 below: press "shutcandlechest" to open it, then
-        -- "opencandlechest" for the second press.
-        --
-        -- RETRY after 73a4251d0: the previous run's `openChest-1` was
-        -- graded PASS but was hollow. QD.player._reach_verify now holds a
-        -- bare `ok (map_flag)` press for one tick and regrades it `refused`
-        -- when the engine's own "I can't reach that!" lands a tick late,
-        -- and click_loc's own _reach_retry then walks the loc's other
-        -- approach tiles itself -- the re-run reported none of the chest's
-        -- five known approach tiles could be WALKED to from wherever
-        -- walk_near's blind (no wall-knowledge) standoff had left the
-        -- player. t.world.loc_near + goto_tile is the same fix
-        -- pete_sidedoor/pete_treasuredoor already use above: goto_tile
-        -- teleports straight onto the loc's own resolved tile (the ::goto
-        -- cheat, not a routed walk), and click_loc steps off a shared tile
-        -- itself before pressing (section 2). This also retires the old
-        -- "ok press, zero growth" mystery from run 8: with openChest-1
-        -- never actually landing that run, the "second" press was that
-        -- run's FIRST real contact with the loc at all, and
-        -- [oploc1,shutcandlechest] only prints "You open the chest." and
-        -- schedules the transform -- zero growth on a first real open
-        -- needs no content bug to explain it. Driving both presses for
-        -- real, below, is what settles that honestly.
-        -- RUN 2 crashed: back-to-back click_loc attempts, each re-resolving
-        -- t.world.loc_near("shutcandlechest", ...) itself, blew the Lua
-        -- instruction budget (quest-driver:2571, inside pointer.lua's
-        -- by_symbol/_live_loc_id neighbourhood) the moment the SECOND
-        -- press's loop re-resolved the symbol immediately after the FIRST
-        -- press had genuinely transformed it (shutcandlechest ->
-        -- opencandlechest) -- a real driver seam in resolving a
-        -- just-transformed multiloc-pair symbol again with no tick between,
-        -- not something this file can fix (rule 7). The loc does not move
-        -- when it changes form, so both presses below share ONE loc_near
-        -- read (before either press) and reuse its tile; the retry itself
-        -- (trap 15's "record the loop's outcome, not one row per attempt")
-        -- re-teleports onto that cached tile with a settle tick between
-        -- attempts, never re-resolving the symbol a second time.
+        -- loc_change PAIR -- trap 20's door bullet ("name the _open half")
+        -- applies: press "shutcandlechest" to open it, then
+        -- "opencandlechest" for the second press. Same cached tile for
+        -- both, no second loc_near call on the just-transformed symbol
+        -- (section 8's documented run-2 crash for this exact pair).
         local chest_near_result, chest_near = t.world.loc_near("shutcandlechest", 15)
         local chest_near_detail = "not_found"
         local chest_x, chest_z, chest_level = nil, nil, nil
@@ -323,7 +312,7 @@ return {
             if open1_result == "ok" then
                 break
             end
-            t.ticks(2) -- settle before re-pressing, the same gap pickUpGripKeys's retry uses above
+            t.ticks(2)
         end
         t.check("openChest-1", open1_result == "ok",
             string.format("click_loc shutcandlechest [oploc1,shutcandlechest], attempt %d/2 -> %s (%s)",
@@ -332,17 +321,6 @@ return {
 
         local candlesticks_before_result, candlesticks_before = t.inv.count("petecandlestick")
 
-        -- RUN 3 measured this pair for real: NOT base-symbol resolution
-        -- (trap 20's multiloc/varbit case) -- shutcandlechest/
-        -- opencandlechest is a plain loc_change PAIR (no multilocN= line,
-        -- no varbit), so once the transform lands the scene's entity pool
-        -- genuinely no longer holds "shutcandlechest" at all: pressing it
-        -- again answered `not_found: screen_position: no loc 2632
-        -- (shutcandlechest) in the client's entity pool`, not a stale-read
-        -- or a driver bug. Trap 20's OWN door bullet says the fix for a
-        -- pair, not a multiloc: "name the _open half". Same cached tile,
-        -- no second loc_near call on the just-transformed symbol (the
-        -- run-2 crash above), just the other half of the pair.
         local open2_result, open2_detail, open2_tries = "refused", "not attempted", 0
         for attempt = 1, 2 do
             open2_tries = attempt
@@ -361,10 +339,7 @@ return {
 
         -- Section 8: a `~mesbox` PAUSES the content script -- opencandlechest
         -- (98-109) is entirely inv_add/mesbox/%heroquest INSIDE the branch
-        -- that only runs once the page is dismissed, so the press settling
-        -- on "page none->mesbox" above is the verb being right, not the loot
-        -- landing yet. Read the real text, then dismiss it, before any
-        -- inventory or stage read below means anything.
+        -- that only runs once the page is dismissed.
         local chest_text_result, chest_text = t.chat.text()
         t.check("chest.mesboxText", chest_text_result == "ok",
             "t.chat.text() -> " .. tostring(chest_text_result) .. " " .. tostring(chest_text))
@@ -374,93 +349,323 @@ return {
         local stage_after_chest_result, stage_after_chest = t.quest.stage()
         local candles_grew = candlesticks_before_result == "ok" and candlesticks_after_result == "ok"
             and candlesticks_after == candlesticks_before + 2
-        local heroquest_clobbered = stage_after_chest_result == "ok" and stage_after_chest == 12
         t.step("lootCandlesticks", candles_grew and "PASS" or "FAIL",
             string.format("petecandlestick count %s -> %s, %%heroquest (t.quest.stage) -> %s %s",
                 tostring(candlesticks_before), tostring(candlesticks_after),
                 tostring(stage_after_chest_result), tostring(stage_after_chest)))
 
-        -- A plain recording row (trap 15): opencandlechest's own branching
-        -- (brimhaven_scarface_mansion.rs2:98-109) is either the empty-chest
-        -- branch (98-102) or the two-candlestick branch (103-109), and only
-        -- the latter carries the unconditional %heroquest write (106-108,
-        -- `if (%heroquest < ^hero_blackarm_looted_chest) { %heroquest =
-        -- ^hero_blackarm_looted_chest; }`, no gang check at all) -- the
-        -- real, measured stage value says which branch this fresh,
-        -- ::clearinv'd Phoenix character actually took.
-        t.check("chest.heroquestAfter", stage_after_chest_result == "ok",
-            string.format("t.quest.stage() -> %s %s (blackarm_looted_chest=12 means the write clobbered a "
-                .. "Phoenix route's own progress; phoenix_killed_grip=5 unchanged means it did not)",
+        -- RETRY: brimhaven_scarface_mansion.rs2:134 now gates the
+        -- Black-Arm-route stage write on `%heroquest >=
+        -- ^hero_blackarm_gangmember_spoken` (7) -- this Phoenix player sits
+        -- at hero_phoenix_killed_grip (5), so the write no longer fires.
+        -- Assert the FIX for real: %heroquest reads unchanged, still 5, not
+        -- clobbered to 12.
+        t.check("chest.heroquestUnclobbered",
+            stage_after_chest_result == "ok" and stage_after_chest == 5,
+            string.format("t.quest.stage() -> %s %s (want 5=hero_phoenix_killed_grip; 12=hero_blackarm_looted_chest "
+                .. "would mean brimhaven_scarface_mansion.rs2:134's route gate regressed)",
                 tostring(stage_after_chest_result), tostring(stage_after_chest)))
 
-        -- Prove the strand for real: Straven's own hand-in gate
-        -- (straven.rs2:108, `%heroquest >= ^hero_phoenix_gangmember_spoken
-        -- & %heroquest < ^hero_phoenix_obtained_armband & inv_total(inv,
-        -- petecandlestick) > 0`) requires %heroquest < 6 -- his own label
-        -- opens with a plain npc greeting line before the choice list
-        -- (identical shape to talkToStraven-1-dialog above), so continue
-        -- through that first.
+        -- ---------------------------------------------------------------
+        -- Straven, second visit: hand in a candlestick for the armband
+        -- (straven.rs2:97-141's straven_gangmember label, $option=5).
+        -- ---------------------------------------------------------------
         t.exec("goto-straven-2", t.player.goto_tile, 3246, 9780, 0)
         t.exec("talkToStraven-2", t.player.talk_to, "straven")
-        t.exec("talkToStraven-2-continue", t.chat.continue_, true)
-        local straven_options_result, straven_options = t.chat.options()
-        local has_candlestick_option = false
-        if straven_options_result == "ok" and type(straven_options) == "table" then
-            for i = 1, #straven_options do
-                if tostring(straven_options[i]):find("I have a candlestick now.", 1, true) then
-                    has_candlestick_option = true
+        t.exec("talkToStraven-2-dialog", t.chat.play, {
+            "npc:Greetings fellow gang member.",
+            "choose:I have a candlestick now.",
+            "player:I have a candlestick now.",
+            "npc:Excellent work. Here",
+        })
+        t.expect("quest.stage.phoenix_obtained_armband", t.quest.expect_stage("phoenix_obtained_armband"))
+        local armband_result, armband_count = t.inv.count("master_thief_armband")
+        t.check("straven.armbandGranted", armband_result == "ok" and armband_count == 1,
+            "inv.count(master_thief_armband) -> " .. tostring(armband_result) .. " " .. tostring(armband_count))
+
+        -- ---------------------------------------------------------------
+        -- Ice Queen: real fight for ice_gloves (fire_feather.rs2:20's own
+        -- gate on the firebird feather pickup below), level 111,
+        -- hp104/atk95/str94/def95 (combat_stats.generated.npc:14496-14516).
+        -- She is quest-state-blind (ice_queen.rs2's own ai_queen3 drop has
+        -- no %heroquest check at all) -- fightable the moment she is
+        -- reached. *.spawn tile areas/world/configs/m44_155.spawn:19.
+        -- The passage in is a mined rockslide (white_wolf_mountain.rs2:23-46,
+        -- a plain navigation-only loc_change/forcemove obstacle, no quest
+        -- state written) -- goto_tile teleports straight onto her own tile
+        -- the same way section 2 documents for a ladder/trapdoor; the
+        -- rune_pickaxe/mining-50 setup above is the fallback if that reads
+        -- screen_position instead.
+        -- ---------------------------------------------------------------
+        local icequeen_goto_result = t.exec("goto-icequeen", t.player.goto_tile, 2866, 9956, 0)
+        if icequeen_goto_result ~= "ok" then
+            -- Fallback: mine the rockslide for real, then retry the goto.
+            t.exec("goto-rockslide", t.player.goto_tile, 2839, 3518, 0)
+            t.exec("mineRockslide", t.player.use_item_on_item, "rune_pickaxe", "rune_pickaxe")
+            t.exec("goto-icequeen-retry", t.player.goto_tile, 2866, 9956, 0)
+        end
+
+        local icequeen_rounds = 0
+        local icequeen_sharks_eaten = 0
+        local icequeen_dead = false
+        while not icequeen_dead and icequeen_rounds < 25 do
+            icequeen_rounds = icequeen_rounds + 1
+
+            local hp_result, hp = t.skill.read("hitpoints")
+            if hp_result == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 90 then
+                local has_shark_result, has_shark = t.inv.has("shark")
+                if has_shark_result == "ok" and has_shark then
+                    t.player.inv_op("shark", 1) -- shark's own ifop1=Eat
+                    icequeen_sharks_eaten = icequeen_sharks_eaten + 1
                 end
             end
-        end
-        t.check("straven.optionsAfterChest", straven_options_result == "ok",
-            string.format("t.chat.options() -> %s %s (candlestick hand-in row present: %s, inv petecandlestick=%s)",
-                tostring(straven_options_result), tostring(straven_options),
-                tostring(has_candlestick_option), tostring(candlesticks_after)))
-        t.check("straven.closeAfterChest", t.chat.close() == "ok", "t.chat.close() after reading Straven's options")
 
-        -- The final row's own text is built from what was actually
-        -- measured above, not from what the last run's hollow press
-        -- implied (trap 15's recording discipline extended to the report
-        -- itself): heroquest_clobbered is a real read of t.quest.stage(),
-        -- not a guess.
-        local blocked_reason
-        if heroquest_clobbered then
-            blocked_reason = "brimhaven_scarface_mansion.rs2:97-109 [oploc1,opencandlechest], reached through a "
-                .. "real Phoenix-route playthrough (Achietties accepted for real, Straven's rank-of-master-thief "
-                .. "branch taken, Alfonse's gherkin password, Charlie's secret door, Grip killed for real with "
-                .. "t.player.attack + t.npc.await_dead, grip_keys picked up off the ground and used on "
-                .. "pete_treasuredoor to unlock it, all verbatim against the .rs2 and all green), and now with "
-                .. "REAL (non-hollow) presses on the chest after 73a4251d0's engine fix (t.world.loc_near + "
-                .. "goto_tile onto the loc's own resolved tile before each shutcandlechest press, retried up to "
-                .. "twice -- a cold ::goto landing on the loc's own tile stepped off three tiles onto the wrong "
-                .. "side of a wall once, and a fresh goto_tile landed clean the next attempt): petecandlestick "
-                .. "grew " .. tostring(candlesticks_before) .. " -> " .. tostring(candlesticks_after)
-                .. " and %heroquest read " .. tostring(stage_after_chest) .. " immediately after "
-                .. "(chest.heroquestAfter), confirming opencandlechest's own unconditional write "
-                .. "(brimhaven_scarface_mansion.rs2:106-108, `if (%heroquest < ^hero_blackarm_looted_chest) "
-                .. "{ %heroquest = ^hero_blackarm_looted_chest; }`, no gang check at all) clobbers a Phoenix "
-                .. "route's own hero_phoenix_killed_grip(5) with the Black Arm route's "
-                .. "hero_blackarm_looted_chest(12), past hero_phoenix_obtained_armband(6). Driven onward to "
-                .. "Straven for real proof rather than left as a read of the .rs2 alone: with two real "
-                .. "petecandlestick in the backpack, his own dialogue (straven.rs2:108's `%heroquest < "
-                .. "^hero_phoenix_obtained_armband` guard on the $option=5 'I have a candlestick now.' row) no "
-                .. "longer offers the candlestick hand-in at all (candlestick hand-in row present: "
-                .. tostring(has_candlestick_option) .. ") -- the strand is real, not hypothetical. Katrine "
-                .. "refuses a Phoenix player outright (katrine.rs2:15-19), so there is no other hand-in path once "
-                .. "this write has landed. Nothing past this point can be honestly driven."
-        else
-            blocked_reason = "brimhaven_scarface_mansion.rs2:93-110 [oploc1,shutcandlechest]/"
-                .. "[oploc1,opencandlechest], reached through a real Phoenix-route playthrough (Achietties, "
-                .. "Straven, Alfonse, Charlie, Grip killed for real, grip_keys used to unlock pete_treasuredoor, "
-                .. "all verbatim against the .rs2 and all green): openChest-1 -> " .. tostring(open1_result)
-                .. " (" .. tostring(open1_detail) .. ", " .. tostring(open1_tries) .. " attempt(s)), openChest-2 "
-                .. "-> " .. tostring(open2_result) .. " (" .. tostring(open2_detail) .. ", " .. tostring(open2_tries)
-                .. " attempt(s)); petecandlestick " .. tostring(candlesticks_before) .. " -> "
-                .. tostring(candlesticks_after) .. ", %heroquest -> " .. tostring(stage_after_chest)
-                .. ". This run's own real measurements did not reproduce the clobbered-heroquest hypothesis a "
-                .. "previous run's hollow press implied; cite these readings, not that guess, as the seam."
+            t.player.attack("ice_queen", 2, 20)
+            local await_result = t.npc.await_dead("ice_queen", 30)
+            if await_result == "ok" then
+                icequeen_dead = true
+            end
+
+            local alive_result = t.player.alive()
+            if alive_result ~= "ok" then
+                break -- the driver's own terminal player.died row ends the run right after this
+            end
         end
-        t.blocked(blocked_reason)
+        t.check("killIceQueen.await_dead", icequeen_dead,
+            "hunted " .. tostring(icequeen_rounds) .. " round(s), ate " .. tostring(icequeen_sharks_eaten)
+                .. " shark(s) -- t.npc.await_dead(ice_queen, 30) per round -> "
+                .. tostring(icequeen_dead and "ok" or "not dead within the round budget"))
+        t.expect("player.aliveAfterIceQueen", t.player.alive())
+
+        -- ice_gloves is a real ground drop (ai_queue3,ice_queen -- obj_add
+        -- at npc_coord, ice_queen.rs2:16), not a chat grant.
+        local gloves_visible_result = t.await({
+            level = function()
+                return t.world.obj_near("ice_gloves", 10) == "ok"
+            end,
+            note = "waiting for the Ice Queen's dropped ice gloves to reach the client's entity pool",
+        }, 10)
+        t.step("iceGloves.visible", gloves_visible_result == "ok" and "PASS" or "FAIL",
+            "t.world.obj_near(ice_gloves, 10) polled up to 10 ticks -> " .. tostring(gloves_visible_result))
+
+        local gloves_before_result, gloves_before = t.inv.count("ice_gloves")
+        local gloves_click_result, gloves_click_detail = t.player.click_obj("ice_gloves")
+        if gloves_click_result ~= "ok" then
+            t.ticks(3)
+            gloves_click_result, gloves_click_detail = t.player.click_obj("ice_gloves")
+        end
+        t.inv.await("ice_gloves", 1, 10)
+        local gloves_after_result, gloves_after = t.inv.count("ice_gloves")
+        local gloves_pass = gloves_click_result == "ok" and gloves_after_result == "ok"
+            and gloves_after > (gloves_before_result == "ok" and gloves_before or 0)
+        t.step("pickUpIceGloves", gloves_pass and "PASS" or "FAIL",
+            string.format("click_obj ice_gloves -> %s (%s), count %s -> %s",
+                tostring(gloves_click_result), tostring(gloves_click_detail), tostring(gloves_before), tostring(gloves_after)))
+        t.exec("equipIceGloves", t.player.equip, "ice_gloves")
+
+        -- ---------------------------------------------------------------
+        -- Entrana firebird: real fight (hp5/atk1, trivial) for hot_feather.
+        -- fire_bird *.spawn tile areas/world/configs/m44_52.spawn:20. No
+        -- quest-state check on the fight itself (entrana_firebird.rs2's
+        -- ai_queue3 only gates the FEATHER drop on %heroquest < hero_complete,
+        -- true here). Weapons are never stripped by a goto_tile teleport
+        -- (only the monk's own boarding dialogue checks that), so no
+        -- unequip is needed.
+        -- ---------------------------------------------------------------
+        t.exec("goto-firebird", t.player.goto_tile, 2847, 3386, 0)
+        local firebird_attack_result, firebird_attack_detail = t.player.attack("fire_bird", 2, 20)
+        t.check("attackFirebird", firebird_attack_result == "ok" or firebird_attack_result == "timeout", firebird_attack_detail)
+        t.exec("killFirebird", t.npc.await_dead, "fire_bird", 30)
+
+        -- hot_feather is a real ground drop (entrana_firebird.rs2:13) --
+        -- pickup needs ice_gloves WORN (fire_feather.rs2:20's op3 gate),
+        -- already equipped above.
+        local feather_visible_result = t.await({
+            level = function()
+                return t.world.obj_near("hot_feather", 10) == "ok"
+            end,
+            note = "waiting for the firebird's dropped feather to reach the client's entity pool",
+        }, 10)
+        t.step("hotFeather.visible", feather_visible_result == "ok" and "PASS" or "FAIL",
+            "t.world.obj_near(hot_feather, 10) polled up to 10 ticks -> " .. tostring(feather_visible_result))
+
+        local feather_before_result, feather_before = t.inv.count("hot_feather")
+        local feather_click_result, feather_click_detail = t.player.click_obj("hot_feather")
+        if feather_click_result ~= "ok" then
+            t.ticks(3)
+            feather_click_result, feather_click_detail = t.player.click_obj("hot_feather")
+        end
+        t.inv.await("hot_feather", 1, 10)
+        local feather_after_result, feather_after = t.inv.count("hot_feather")
+        local feather_pass = feather_click_result == "ok" and feather_after_result == "ok"
+            and feather_after > (feather_before_result == "ok" and feather_before or 0)
+        t.step("pickUpHotFeather", feather_pass and "PASS" or "FAIL",
+            string.format("click_obj hot_feather (worn ice_gloves) -> %s (%s), count %s -> %s",
+                tostring(feather_click_result), tostring(feather_click_detail), tostring(feather_before), tostring(feather_after)))
+
+        -- ---------------------------------------------------------------
+        -- Gerrant: Blamish snail slime for the lava-proof rod.
+        -- gerrant.rs2:3-45 straven-style p_choice menu, option 3, real
+        -- click. *.spawn tile areas/world/configs/m47_50.spawn:10.
+        -- ---------------------------------------------------------------
+        t.exec("goto-gerrant", t.player.goto_tile, 3013, 3225, 0)
+        t.exec("talkToGerrant", t.player.talk_to, "gerrant")
+        t.exec("talkToGerrant-dialog", t.chat.play, {
+            "npc:Welcome! You can buy fishing equipment",
+            "choose:I want to find out how to catch a lava eel.",
+            "player:I want to find out how to catch a lava eel.",
+            "npc:Lava eels eh?",
+            "npc:You know... thinking about it",
+            "mesbox:Gerrant searches around a bit.",
+            "npc:Aha! Here it is!",
+        })
+        local slime_result, slime_count = t.inv.count("blamish_snail_slime")
+        t.check("gerrant.slimeGranted", slime_result == "ok" and slime_count >= 1,
+            "inv.count(blamish_snail_slime) -> " .. tostring(slime_result) .. " " .. tostring(slime_count))
+
+        -- ---------------------------------------------------------------
+        -- Mix Blamish oil (brew.dbrow's herblore_blamish_oil row, level 25,
+        -- [opheldu,blamish_snail_slime] -> ~attempt_brew_potion), then oil
+        -- the fishing rod (oily_fishing_rod.rs2:10-21).
+        -- ---------------------------------------------------------------
+        t.exec("mixBlamishOil", t.player.use_item_on_item, "blamish_snail_slime", "harralandervial")
+        local oil_result, oil_count = t.inv.count("blamish_oil")
+        t.check("mixBlamishOil.oilMade", oil_result == "ok" and oil_count >= 1,
+            "inv.count(blamish_oil) -> " .. tostring(oil_result) .. " " .. tostring(oil_count))
+
+        t.exec("oilTheRod", t.player.use_item_on_item, "blamish_oil", "fishing_rod")
+        local oilyrod_result, oilyrod_count = t.inv.count("oily_fishing_rod")
+        t.check("oilTheRod.rodMade", oilyrod_result == "ok" and oilyrod_count >= 1,
+            "inv.count(oily_fishing_rod) -> " .. tostring(oilyrod_result) .. " " .. tostring(oilyrod_count))
+
+        -- ---------------------------------------------------------------
+        -- Fish a lava eel at Taverley Dungeon's own lava-fishing spot
+        -- (skill_fishing/scripts/fishing_spots/lavafish.rs2, category 1313,
+        -- *.spawn tile areas/world/configs/m45_152.spawn:8). op1 already
+        -- resolves to `@attempt_fish_lava_eel`.
+        -- ---------------------------------------------------------------
+        t.exec("goto-lavafish", t.player.goto_tile, 2890, 9766, 0)
+        t.exec("fish.lavaeel", t.player.talk_to, "0_45_152_lavafish")
+        local raweel_result, raweel_detail = t.inv.await("raw_lava_eel", 1, 30)
+        t.step("fish.lavaeel_caught", raweel_result == "ok" and "PASS" or "FAIL",
+            "inv.await(raw_lava_eel, 1, 30) -> " .. tostring(raweel_result) .. " " .. tostring(raweel_detail))
+
+        -- ---------------------------------------------------------------
+        -- Cook it: light a fire on open ground (the fixture's own start
+        -- tile, the same real click sequence seaslug.lua uses), then
+        -- use_on the raw eel -- cooking_generic_lava_eel always succeeds
+        -- (cooking_generic.dbrow's own successchance,1,1).
+        -- ---------------------------------------------------------------
+        t.exec("fire.goto", t.player.goto_tile, 3206, 3233, 0)
+        t.exec("lightFire", t.player.use_item_on_item, "tinderbox", "logs")
+        local fire_msg_result, fire_msg_detail = t.msg.await("The fire catches", 15)
+        t.step("fire.lit", fire_msg_result == "ok" and "PASS" or "FAIL",
+            "msg.await('The fire catches', 15) -> " .. tostring(fire_msg_result) .. " " .. tostring(fire_msg_detail))
+
+        -- by_symbol's own search can resolve some OTHER "fire" already in
+        -- the pool, not the one just lit (eadgar.lua's dryThistle hit this
+        -- same seam) -- loc_near pins the specific fire we made, but the
+        -- zone packet carrying the loc_add lands a couple of ticks behind
+        -- the chat line msg.await already settled on (measured this pass:
+        -- reading loc_near in the same tick as the "fire catches" message
+        -- answers not_found; the scene has not been given the loc yet).
+        t.ticks(2)
+        local fire_lookup_result, fire_row = t.world.loc_near("fire", 10)
+        t.check("lookup.fire", fire_lookup_result == "ok" and fire_row ~= nil,
+            "world.loc_near(fire, 10) -> " .. tostring(fire_lookup_result))
+        t.exec("cookLavaEel", t.player.use_on, "raw_lava_eel", fire_row)
+        local eel_result, eel_detail = t.inv.await("lava_eel", 1, 10)
+        t.step("cookLavaEel.cooked", eel_result == "ok" and "PASS" or "FAIL",
+            "inv.await(lava_eel, 1, 10) -> " .. tostring(eel_result) .. " " .. tostring(eel_detail))
+
+        -- ---------------------------------------------------------------
+        -- All three deliverables in hand: snapshot every skill now, right
+        -- before the hand-in, so the reward rows below measure ONLY the
+        -- completion's own stat_advance calls -- not the Attack/Strength/
+        -- Defence/Hitpoints XP the Grip/Ice Queen fights or the Fishing/
+        -- Cooking XP the eel arm already granted as ordinary side effects.
+        -- ---------------------------------------------------------------
+        local feather_have_result, feather_have = t.inv.count("hot_feather")
+        local armband_have_result, armband_have = t.inv.count("master_thief_armband")
+        local eel_have_result, eel_have = t.inv.count("lava_eel")
+        t.check("finalItems.allThreeHeld",
+            feather_have_result == "ok" and feather_have >= 1
+                and armband_have_result == "ok" and armband_have >= 1
+                and eel_have_result == "ok" and eel_have >= 1,
+            string.format("hot_feather=%s(%s) master_thief_armband=%s(%s) lava_eel=%s(%s)",
+                tostring(feather_have_result), tostring(feather_have),
+                tostring(armband_have_result), tostring(armband_have),
+                tostring(eel_have_result), tostring(eel_have)))
+
+        local snapshot_result, reward_snapshot = t.skill.snapshot()
+        t.check("reward.snapshotTaken", snapshot_result == "ok", "t.skill.snapshot() -> " .. tostring(snapshot_result))
+
+        -- ---------------------------------------------------------------
+        -- Achietties: the real hand-in (achietties.rs2:20-32). The
+        -- item-complete branch fires because all three are held; it queues
+        -- hero_quest_complete and deletes the three items in the caller.
+        -- ---------------------------------------------------------------
+        t.exec("goto-achietties-handin", t.player.goto_tile, 2903, 3510, 0)
+        t.exec("achietties.handIn", t.player.talk_to, "achietties")
+        t.exec("achietties.handIn-dialog", t.chat.play, {
+            -- achietties.rs2:18 opens EVERY talk_to with this greeting,
+            -- unconditionally, before branching on hero_in_progress --
+            -- measured run: a list starting "How goes thy quest" died on
+            -- page 1 with a mismatch naming this exact text.
+            "npc:Greetings. Welcome to the Heroes",
+            "npc:How goes thy quest",
+            "player:I have all the required items.",
+            "npc:I see that you have. Well done",
+            "player:W-what? What do you mean?",
+            "npc:I'm sorry, I was just having a little fun",
+            "npc:Congratulations! You have completed",
+        })
+        t.ticks(3) -- queue(hero_quest_complete, 0, 0) is not client-side yet
+
+        t.quest.expect_complete() -- writes quest.varp_complete/quest.scroll_title/quest.points/quest.journal
+
+        -- ---------------------------------------------------------------
+        -- Every reward Quest Helper/quest_hero.rs2:49-60's own
+        -- stat_advance list grants (twelve skills, docs/quests/
+        -- heroes_quest.md section 2's XP table).
+        -- ---------------------------------------------------------------
+        t.check("reward.attack", t.skill.expect_gain("attack", 3075, reward_snapshot) == "ok",
+            "t.skill.expect_gain(attack, 3075)")
+        t.check("reward.defence", t.skill.expect_gain("defence", 3075, reward_snapshot) == "ok",
+            "t.skill.expect_gain(defence, 3075)")
+        t.check("reward.strength", t.skill.expect_gain("strength", 3075, reward_snapshot) == "ok",
+            "t.skill.expect_gain(strength, 3075)")
+        t.check("reward.hitpoints", t.skill.expect_gain("hitpoints", 3075, reward_snapshot) == "ok",
+            "t.skill.expect_gain(hitpoints, 3075)")
+        t.check("reward.ranged", t.skill.expect_gain("ranged", 2075, reward_snapshot) == "ok",
+            "t.skill.expect_gain(ranged, 2075)")
+        t.check("reward.fishing", t.skill.expect_gain("fishing", 2725, reward_snapshot) == "ok",
+            "t.skill.expect_gain(fishing, 2725)")
+        t.check("reward.cooking", t.skill.expect_gain("cooking", 2825, reward_snapshot) == "ok",
+            "t.skill.expect_gain(cooking, 2825)")
+        t.check("reward.woodcutting", t.skill.expect_gain("woodcutting", 1575, reward_snapshot) == "ok",
+            "t.skill.expect_gain(woodcutting, 1575)")
+        t.check("reward.firemaking", t.skill.expect_gain("firemaking", 1575, reward_snapshot) == "ok",
+            "t.skill.expect_gain(firemaking, 1575)")
+        t.check("reward.smithing", t.skill.expect_gain("smithing", 2275, reward_snapshot) == "ok",
+            "t.skill.expect_gain(smithing, 2275)")
+        t.check("reward.mining", t.skill.expect_gain("mining", 2575, reward_snapshot) == "ok",
+            "t.skill.expect_gain(mining, 2575)")
+        t.check("reward.herblore", t.skill.expect_gain("herblore", 1325, reward_snapshot) == "ok",
+            "t.skill.expect_gain(herblore, 1325)")
+
+        -- achietties.rs2:26-29 deletes all three final items in the caller
+        -- (the completion "consumes hot_feather+lava_eel+master_thief_armband
+        -- exactly once" -- quest_hero.rs2's own ::herorun HERORUN treats a
+        -- surviving final item as FAIL).
+        t.check("reward.hotFeatherConsumed", t.inv.expect_absent("hot_feather") == "ok",
+            "t.inv.expect_absent(hot_feather)")
+        t.check("reward.lavaEelConsumed", t.inv.expect_absent("lava_eel") == "ok",
+            "t.inv.expect_absent(lava_eel)")
+        t.check("reward.armbandConsumed", t.inv.expect_absent("master_thief_armband") == "ok",
+            "t.inv.expect_absent(master_thief_armband)")
+
+        t.finish(0)
         return
     end,
 }

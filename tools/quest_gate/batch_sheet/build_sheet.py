@@ -4,7 +4,12 @@ sheets (96 shots each) and full-size sheets (24 shots each) as WebP, plus a
 JSON index render_page.py turns into the page. WebP and chunking keep every
 file near 1 MB however long the quest (a 300-shot quest is 13 full sheets).
 
-Usage: build_sheet.py <repo> <out_dir> <test_id> [<test_id> ...]
+Usage: build_sheet.py <repo> <out_dir> <test_id> [<test_id> ...] [--quality N]
+
+--quality N sets the FULL-sheet WebP quality (default 70, same as before this
+flag existed). Thumb-sheet quality is unchanged. Lower it when a batch's
+sheets don't fit the artifact size limit (64 MB/version): each full sheet is
+already the bulk of a batch's bytes.
 
 Run book (docs/QUEST_SUITE_KIT.md, phase 5): after every batch,
   .venv/bin/python tools/quest_gate/batch_sheet/build_sheet.py . build/batch_sheet/<batch> <ids...>
@@ -15,7 +20,7 @@ supporting files, and record the link in test/quests/BATCHES.tsv.
 Reads build/quest_gate/<id>/ledger.tsv and shots/*.png (the reviewer's last
 run of each quest) and test/quests/QUEUE.tsv for the row's status/owner/note.
 """
-import csv, json, os, sys
+import argparse, csv, json, os, sys
 from PIL import Image
 
 THUMB_W, THUMB_H, COLS = 380, 250, 4
@@ -44,7 +49,14 @@ def read_ledger(path):
 
 
 def main():
-    repo, out_dir, ids = sys.argv[1], sys.argv[2], sys.argv[3:]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("repo")
+    parser.add_argument("out_dir")
+    parser.add_argument("ids", nargs="+")
+    parser.add_argument("--quality", type=int, default=Q_FULL,
+                         help="FULL-sheet WebP quality (default %d)" % Q_FULL)
+    args = parser.parse_args()
+    repo, out_dir, ids, quality_full = args.repo, args.out_dir, args.ids, args.quality
     os.makedirs(out_dir, exist_ok=True)
     queue = {}
     with open(os.path.join(repo, "test/quests/QUEUE.tsv"), encoding="utf-8") as fh:
@@ -79,7 +91,7 @@ def main():
                 sheet.save(os.path.join(out_dir, name), "WEBP", quality=quality, method=4)
                 out.append({"name": name, "rows": rows_n, "count": len(chunk)})
             return out
-        full_sheets = sheets(FULL_PER_SHEET, FULL_W, FULL_H, "full", Q_FULL)
+        full_sheets = sheets(FULL_PER_SHEET, FULL_W, FULL_H, "full", quality_full)
         thumb_sheets = sheets(THUMB_PER_SHEET, THUMB_W, THUMB_H, "thumb", Q_THUMB)
         shots = []
         for i, f in enumerate(shot_files):

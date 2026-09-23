@@ -258,6 +258,15 @@ canvas_floor_cases(char const* mode)
     snprintf(what, sizeof(what), "[%s] unhiding the root brings the wider strip back", mode);
     check_floor(tree, 60, 0, what);
 
+    /* Unmounted is hidden too: an interface the runtime baked but has not
+     * mounted is `mount_hidden` at its root, with every box below it live. */
+    UITree_SetMountHiddenAt(tree, short_parent, 1);
+    snprintf(what, sizeof(what), "[%s] a column under an unmounted root is not the strip", mode);
+    check_floor(tree, FIXTURE_STRIP_W, FIXTURE_CORE_W, what);
+    UITree_SetMountHiddenAt(tree, short_parent, 0);
+    snprintf(what, sizeof(what), "[%s] mounting the root brings the wider strip back", mode);
+    check_floor(tree, 60, 0, what);
+
     /* Done with the rival; back to the shipping shape. */
     UITree_SetHideAt(tree, short_parent, 1);
     snprintf(what, sizeof(what), "[%s] back to the shipping shape", mode);

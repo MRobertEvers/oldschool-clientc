@@ -37,16 +37,30 @@
 --
 -- Stage tracking: `%quest_pry` is a VARBIT (configs/all.varbit:84653,
 -- `basevar=pry_main startbit=0 endbit=6`), not a plain varp -- there is no
--- `quest_pry` entry in configs/all.varp at all. quest.lua's own
--- QD.quest.stage()/expect_stage() call `QD.var.varp(bound.varp)` directly
--- (quest.lua ~120-127), not the varp-or-varbit-transparent QD.var.server
--- its own quest.bind banner promises ("varp ... resolved through
--- QD.var.varp/QD.var.server, both varp-or-varbit-transparent already") --
--- so t.quest.expect_stage("...") answers `no_row`/refused for every stage
--- of THIS quest, confirmed live (run 1: `quest.stage.not_started FAIL 0
--- quest_pry`, the exact `return client_result, bound.varp` shape). Stage
--- checks below read `t.var.varbit("quest_pry")` directly instead -- the
--- verb the doc itself lists as the varbit counterpart of `t.var.varp`.
+-- `quest_pry` entry in configs/all.varp at all. Two seams this file used to
+-- work around are now fixed and confirmed live in this checkout:
+--
+--   1. `pry_main` (the varbit's basevar) used to be a bare `all.varp` NAME
+--      RESERVATION with no `transmit=yes` -- an untransmitted carrier reads
+--      a confident 0 forever (QUEST_AUTHORING.md section 8's "config group
+--      cache thrash" bullet). `server/scripts/quests/quest_pryingtimes/
+--      configs/pryingtimes.varp` now declares `[pry_main] protect=no
+--      transmit=yes scope=perm`, and `all.varp.compack` carries `pry_main`
+--      at id 4960 -- confirmed by grep, this run.
+--   2. Before 2026-09-20, quest.stage()/expect_stage()/expect_complete()'s
+--      quest.varp_complete row read `QD.var.varp(bound.varp)` directly, not
+--      the varp-or-varbit-transparent resolver -- so every one of those
+--      calls answered `no_row`/refused for a varbit-tracked quest, this one
+--      by name (quest.lua's own bind banner cites pryingtimes.lua as the
+--      motivating case). `QD.quest._bound_kind`/`QD.quest._reading` now
+--      resolve the bound name's kind ONCE at bind time and route every read
+--      through the matching pair (quest.lua:26-47, dated 2026-09-20).
+--
+-- Both fixes landed before this run, so `t.quest.expect_complete()` is
+-- called for real at the bottom of this file instead of being worked
+-- around. Stage checks in between still read `t.var.varbit("quest_pry")`
+-- directly (the verb the doc lists as `t.var.varp`'s varbit counterpart) --
+-- that is a style choice, not a workaround for a live bug.
 
 return {
     id = "pryingtimes",
@@ -171,17 +185,15 @@ return {
 
         -- The floating sea crate -- configs/all.loc [sailing_charting_drink_crate]
         -- (op1=Pry-open), pry_sea_crate_coord (0_47_46_5_54 -> 3013,2998,0).
-        -- A plain read here (not a t.check/t.exec) so a `not_found` does not
-        -- write a stray FAIL row ahead of the t.blocked it would demand.
+        -- [proc,pry_ensure_crates] (pryingtimes_locs.rs2) places it with
+        -- loc_add once %quest_pry >= ^pry_test_key -- giveKey above already
+        -- drove the stage write that calls it, so it stands here now
+        -- (fixed; this used to be a t.blocked -- QUEUE.tsv's reopen note).
         t.exec("goto-seaCrate", t.player.goto_tile, 3013, 2998, 0)
         local seacrate_locate_result, seacrate_locate_row = t.world.loc_near("sailing_charting_drink_crate", 40)
-        if seacrate_locate_result ~= "ok" then
-            t.blocked("sailing_charting_drink_crate: world.loc_near -> " .. tostring(seacrate_locate_result)
-                .. " " .. tostring(seacrate_locate_row) .. " at 3013,2998,0 -- this content pack never places"
-                .. " it (no loc_add anywhere under server/scripts/quests/quest_pryingtimes or"
-                .. " quest_pandemonium, and no *.loc placement mirror for it either)")
-            return
-        end
+        t.check("seaCrate.placed", seacrate_locate_result == "ok",
+            "world.loc_near(sailing_charting_drink_crate, 40) -> " .. tostring(seacrate_locate_result)
+                .. " " .. tostring(seacrate_locate_row))
 
         local stout_before_result, stout_before = t.inv.count("sailing_charting_drink_crate_prying_times")
         t.exec("testKey", t.player.click_loc, "sailing_charting_drink_crate", 1)
@@ -239,60 +251,52 @@ return {
 
         -- Steve's sealed crate behind the bar -- pry_crate_multi's
         -- multiloc21/26/31=pry_crate_sealed (multivarbit=quest_pry), pry_bar_crate_coord
-        -- (0_47_46_40_21 -> 3048,2965,0). Same plain-read shape as the sea
-        -- crate above.
+        -- (0_47_46_40_21 -> 3048,2965,0). [proc,pry_ensure_crates] places
+        -- pry_crate_multi with loc_add once %quest_pry >= ^pry_deliver,
+        -- confirmed already standing by now (fixed; this used to be a
+        -- t.blocked -- QUEUE.tsv's reopen note).
         local barcrate_locate_result, barcrate_locate_row = t.world.loc_near("pry_crate_sealed", 40)
-        if barcrate_locate_result ~= "ok" then
-            t.blocked("pry_crate_sealed: world.loc_near -> " .. tostring(barcrate_locate_result)
-                .. " " .. tostring(barcrate_locate_row) .. " near 3050,2966,0 -- pry_crate_multi (the multiloc"
-                .. " parent, configs/all.loc) is never placed anywhere under server/scripts")
-            return
-        end
+        t.check("barCrate.placed", barcrate_locate_result == "ok",
+            "world.loc_near(pry_crate_sealed, 40) -> " .. tostring(barcrate_locate_result)
+                .. " " .. tostring(barcrate_locate_row))
 
         t.exec("openCrate", t.player.click_loc, "pry_crate_sealed", 1)
 
-        -- Completion is real (openCrate above ran [proc,pry_quest_complete]
-        -- for real, through a genuine click, never cheated) -- verify it
-        -- and every reward the proc grants through verbs that read the
-        -- WORLD, not the broken quest_pry path: the varbit directly for
-        -- stage, skill.expect_gain for the smithing xp, inv.expect_has for
-        -- the coupons and the crowbar.
-        local complete_result, complete_value = t.var.varbit("quest_pry")
-        t.check("quest.stage.complete", complete_result == "ok" and complete_value == 35,
-            "quest_pry (varbit) = " .. tostring(complete_value) .. " (" .. tostring(complete_result)
-                .. "), want 35")
+        -- pry_open_bar_crate (pryingtimes_locs.rs2) runs ~pry_quest_complete
+        -- in the same script pass as the click, with no mesbox/page in
+        -- between -- but the stage/varp/reward writes still land one server
+        -- tick behind the click's own settle (QUEST_AUTHORING.md trap 24),
+        -- so settle a tick before reading any of it.
+        t.ticks(3)
 
-        -- Rewards documented in [proc,pry_quest_complete] (pryingtimes.rs2):
-        -- ^pry_smith_xp=10000 tenths = 1000 Smithing XP; ^pry_coupon_count=25
-        -- oak sawmill coupons; the crowbar is the item reward, but we
-        -- already hold ours from Thurgo (the proc's own `if (inv_total(...)
-        -- < 1)` guard skips re-granting one we already have).
+        -- t.quest.expect_complete() -- NOW CALLED FOR REAL. Both seams that
+        -- used to make it structurally unable to pass on this varbit-tracked
+        -- quest are fixed (see the file banner): pry_main is a transmitted
+        -- varp now, and quest.varp_complete reads it through the bound kind
+        -- instead of a bare QD.var.varp. Writes quest.varp_complete,
+        -- quest.scroll_title, quest.points, quest.journal and photographs the
+        -- completion scroll.
+        local expect_complete_result, expect_complete_detail = t.quest.expect_complete()
+        t.step("quest.expect_complete", expect_complete_result == "ok" and "PASS" or "FAIL",
+            tostring(expect_complete_result) .. " " .. tostring(expect_complete_detail))
+
+        -- Rewards documented in [proc,pry_quest_complete] (pryingtimes.rs2)
+        -- and in the quest's own `~quest_complete_rewards(quest_pryingtimes,
+        -- "1000 Smithing XP|25 oak sawmill coupons|Unlimited crowbars from
+        -- the crate", ...)` call -- the literal rewards this pack grants.
+        -- The dbrow's own second stat_xp_awarded row (stat 23, Sailing) is
+        -- NOT one of them: pryingtimes.rs2's header says "Sailing skill
+        -- XP/level (stat not in pack/stat.pack yet)" is deferred, and the
+        -- proc never grants it, so it is deliberately not asserted here.
+        -- The crowbar is the item reward, but we already hold ours from
+        -- Thurgo (the proc's own `if (inv_total(...) < 1)` guard skips
+        -- re-granting one we already have) -- expect_has still checks the
+        -- backpack actually holds it.
         t.check("reward.smithing", t.skill.expect_gain("smithing", 1000, reward_before))
         t.check("reward.coupons", t.inv.expect_has("sawmill_coupon_oak", 25))
         t.check("reward.crowbar", t.inv.expect_has("sailing_charting_crowbar", 1))
 
-        -- t.quest.expect_complete() is deliberately NOT called: its own
-        -- first row, quest.varp_complete, calls QD.var.varp("quest_pry")
-        -- (quest.lua's expect_complete, same call quest.stage()/
-        -- expect_stage() make -- ~120-127 and ~190-196), never the
-        -- varp-or-varbit-transparent QD.var.server its own quest.bind
-        -- banner promises ("resolved through QD.var.varp/QD.var.server,
-        -- both varp-or-varbit-transparent already"). %quest_pry is
-        -- registered ONLY as a varbit (configs/all.varbit:84653,
-        -- basevar=pry_main startbit=0 endbit=6); no quest_pry entry exists
-        -- in configs/all.varp at all, confirmed live below. Calling
-        -- expect_complete() would write a guaranteed stray FAIL row for
-        -- quest.varp_complete -- "ANYTHING ELSE ... IS REJECTED, NOT
-        -- BLOCKED" (QUEST_AUTHORING.md section 6) -- so this file proves
-        -- the same completion every other way a working verb can, then
-        -- blocks on the one call that structurally cannot pass here.
-        local varp_complete_result, varp_complete_detail = t.var.varp("quest_pry")
-        t.blocked("t.quest.expect_complete()'s quest.varp_complete row calls QD.var.varp(\"quest_pry\") "
-            .. "and can never pass on this quest -- confirmed here: t.var.varp(\"quest_pry\") -> "
-            .. tostring(varp_complete_result) .. " " .. tostring(varp_complete_detail) .. ". "
-            .. "The playthrough above is real and complete (quest_pry varbit=35, +1000 smithing xp, "
-            .. "+25 oak sawmill coupons, crowbar in the backpack, all verified above) -- "
-            .. "quest.expect_complete() itself is the only thing that cannot see it.")
+        t.finish(0)
         return
     end,
 }
