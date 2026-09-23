@@ -11,13 +11,30 @@
 --    equals the named ladder constant throughout -- no masking needed.
 --  * Every cog placement is [oplocu,brokeclockpole_<colour>] (quest_cog_
 --    spindles.rs2) -- t.player.use_on(cog, pole), never click_loc.
---  * Every ladder/stairs/gate crossing is a plain t.player.goto_tile to
---    the destination tile at its own level (QUEST_AUTHORING.md section 2);
---    the rat-poison/lever/gate side puzzle (quest_cog_food_trough.rs2,
---    quest_cog_gates_and_levers.rs2) only ever unlocks a WALKING path to
---    the white cog -- ~can_pickup_cog never reads the rat-door bit or the
---    lever state, so it is not part of the quest's own deliverable and is
---    reached directly by goto_tile instead of being driven.
+--  * Every ladder/stairs crossing is a plain t.player.goto_tile to the
+--    destination tile at its own level (QUEST_AUTHORING.md section 2).
+--  * The rat-poison/lever/gate side puzzle (quest_cog_food_trough.rs2,
+--    quest_cog_gates_and_levers.rs2) IS driven now, not goto_tile'd past:
+--    ~can_pickup_cog itself never reads the rat-door bit or the lever
+--    state, but ClockTower.java's own "Obtaining the white cog" panel
+--    names pickUpRatPoison/pullFirstLever/ratPoisonFood/westernGate as
+--    real steps, and QUEST_AUTHORING.md's rule (b) is "any loc the guide
+--    names as a step is a cheat [to goto_tile past]; click the thing" --
+--    helper_coverage.py graded all four CHEAT/UNMATCHED before this pass.
+--    Pouring the poison sets ^quest_cog_rat_door_bit (bit 4) on %cogquest
+--    ITSELF (quest_cog_food_trough.rs2's own setbit call) -- a DIFFERENT
+--    bit range than the progress ladder ~get_cog_progress reads
+--    (getbit_range(%cogquest,0,3)), and nothing ever clears it, so every
+--    RAW client-side read of cogquest from that point through completion
+--    carries +16 over the native quest_cog.constant ladder value. quest.
+--    bind's constants below are the actual raw values this playthrough
+--    produces (5+16=21, 8+16=24), not the unmasked native ones, because
+--    quest.expect_stage/expect_complete compare the raw reading directly
+--    (quest.lua has no bit-range helper) -- see the comment at each use.
+--    pullFirstLever (ctlevera) turns out to be mechanically unrelated to
+--    the west gate (it only opens ctratgatea/prisondooropen, a leftover
+--    Taverley-jail-door asset per quest_cog_gates_and_levers.rs2's own
+--    banner) -- clicked anyway because the guide names it.
 --  * Cog pickup is [opobj3,<colour>cog] -- click_obj (hollow: called
 --    directly, counted by hand), except the black cog, which is
 --    [opobju,blackcog] and needs bucket_water poured on it first
@@ -42,6 +59,15 @@
 -- seams this file used to end at (all.loc:280/283/287/291, quest_cog_
 -- spindles.rs2) are gone; each placement is graded as an ordinary
 -- t.check row now.
+--
+-- RETRY (2026-09-23): helper_coverage.py cog found pushWall (secretdoor2)
+-- CHEAT'd past by the goto_tile that used to jump straight to bluecog,
+-- plus pullFirstLever/westernGate CHEAT and pickUpRatPoison/ratPoisonFood
+-- UNMATCHED -- all four are real ClockTower.java panel steps this file
+-- was skipping. All five are driven now (see the banner above); syncStep
+-- (Getting Started panel) is declared via a marker below -- it is
+-- quest-helper's own plugin-state refresh, not a player action, and the
+-- quest's real sync already runs inside every talk to Kojo.
 
 return {
     id = "cog",
@@ -52,25 +78,33 @@ return {
     },
 
     run = function(t)
+        -- quest_cog_no_remaining_cogs/finish_resume_a/finish_resume_b/complete
+        -- are the RAW cogquest values THIS playthrough produces, native
+        -- ladder value + 16 (^quest_cog_rat_door_bit, set on %cogquest
+        -- itself once the food trough is poisoned below and never cleared
+        -- -- see the banner at the top of this file). not_started through
+        -- one_remaining_cog are read before that point and stay unmasked.
         local bind_result, bind_detail = t.quest.bind({
             varp = "cogquest",
             constants = {
-                complete = 8,
+                complete = 24, -- native 8 | 16
                 quest_cog_not_started = 0,
                 quest_cog_tasked_with_placing_cogs = 1,
                 quest_cog_three_remaining_cogs = 2,
                 quest_cog_two_remaining_cogs = 3,
                 quest_cog_one_remaining_cog = 4,
-                quest_cog_no_remaining_cogs = 5,
-                quest_cog_finish_resume_a = 6,
-                quest_cog_finish_resume_b = 7,
-                quest_cog_complete = 8,
+                quest_cog_no_remaining_cogs = 21, -- native 5 | 16
+                quest_cog_finish_resume_a = 22, -- native 6 | 16, unused by this file
+                quest_cog_finish_resume_b = 23, -- native 7 | 16, unused by this file
+                quest_cog_complete = 24, -- native 8 | 16
             },
             row = "quest_clocktower",
             display = "Clock Tower",
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
+
+        -- GUIDE-GAP: syncStep quest-helper's own plugin-state refresh, not a player action -- the real sync (~cog_sync_progress) runs automatically inside every opnpc1,brother_kojo click, already exercised by talkToKojo-finish below, brother_kojo.rs2:9
 
         -- ==== Talk to Brother Kojo, start the quest ====
         t.exec("goto-kojo-start", t.player.goto_tile, 2569, 3249, 0) -- brother_kojo's own *.spawn row
@@ -121,8 +155,11 @@ return {
             tostring(red_place_result), tostring(red_place_detail), tostring(red_await_result)))
         t.expect("quest.stage.three_remaining_cogs", t.quest.expect_stage("quest_cog_three_remaining_cogs"))
 
-        -- ==== Blue cog: pick up in the basement, place on the first floor ====
-        t.exec("goto-bluecog", t.player.goto_tile, 2574, 9633, 0) -- bluecog's *.spawn row
+        -- ==== Blue cog: push the secret wall (ClockTower.java's pushWall
+        -- step), pick up in the basement, place on the first floor ====
+        t.exec("goto-secretdoor2", t.player.goto_tile, 2577, 9630, 0) -- secretPath6 tunnel tile, the approach side of SECRETDOOR2
+        t.exec("push-secretdoor2", t.player.click_loc, "secretdoor2") -- oploc1,secretdoor2 -> door_walkthrough_try (op1=Push, all.loc:13507); named by the guide, so clicked, never goto_tile'd past
+        t.exec("goto-bluecog", t.player.goto_tile, 2574, 9633, 0) -- bluecog's *.spawn row, now on the correct side of the door
         local blue_pickup_result, blue_pickup_detail = t.player.click_obj("bluecog")
         local blue_have_result, blue_have_count = t.inv.count("bluecog")
         t.check("pickup.bluecog", blue_pickup_result == "ok" and blue_have_result == "ok" and blue_have_count >= 1,
@@ -177,9 +214,31 @@ return {
             tostring(black_place_result), tostring(black_place_detail), tostring(black_await_result)))
         t.expect("quest.stage.one_remaining_cog", t.quest.expect_stage("quest_cog_one_remaining_cog"))
 
-        -- ==== White cog: pick up in the basement (rat-cage side puzzle is
-        -- navigation-only -- ~can_pickup_cog never reads the door bit, so
-        -- goto_tile reaches it directly), place it on the second floor ====
+        -- ==== White cog: the rat-cage side puzzle -- pick up the rat
+        -- poison, pull the lever, poison the food trough, push through the
+        -- western gate (all named steps in ClockTower.java's "Obtaining
+        -- the white cog" panel -- driven, never goto_tile'd past), pick it
+        -- up in the basement, place it on the second floor ====
+        t.exec("goto-ratpoison", t.player.goto_tile, 2564, 9662, 0) -- rat_poison's *.spawn row / pickUpRatPoison's WorldPoint
+        local ratpoison_pickup_result, ratpoison_pickup_detail = t.player.click_obj("rat_poison") -- opobj3,rat_poison; hollow (trap 12)
+        local ratpoison_have_result, ratpoison_have_count = t.inv.count("rat_poison")
+        t.check("pickup.ratpoison", ratpoison_pickup_result == "ok" and ratpoison_have_result == "ok" and ratpoison_have_count >= 1,
+            string.format("click_obj(rat_poison) -> %s (%s); inv rat_poison=%s", tostring(ratpoison_pickup_result), tostring(ratpoison_pickup_detail), tostring(ratpoison_have_count)))
+
+        t.exec("goto-ctlevera", t.player.goto_tile, 2591, 9661, 0) -- ClockTower.java's pullFirstLever WorldPoint
+        t.exec("pull-ctlevera", t.player.click_loc, "ctlevera") -- oploc1,ctlevera (quest_cog_gates_and_levers.rs2); mechanically opens a different, unrelated jail door, but the guide names this loc as its own step
+
+        local foodtrough = t.player.by_symbol("loc", "ctfoodtrough")
+        t.exec("goto-ctfoodtrough", t.player.goto_tile, 2587, 9654, 0) -- ratPoisonFood's WorldPoint
+        t.exec("poison-ctfoodtrough", t.player.use_on, "rat_poison", foodtrough) -- oplocu,ctfoodtrough: consumes the poison, sets ^quest_cog_rat_door_bit (bit 4) on %cogquest
+        t.exec("ratpoison.dying_msg", t.msg.expect, "seem to be dying") -- quest_cog_food_trough.rs2's own narration, already in the ring after use_on's settle (section 8: right after a click verb, read with msg.expect not msg.await)
+        local ratpoison_gone_result, ratpoison_gone_count = t.inv.count("rat_poison")
+        t.check("poison.ratpoison_consumed", ratpoison_gone_result == "ok" and ratpoison_gone_count == 0,
+            string.format("inv rat_poison after pouring=%s (%s)", tostring(ratpoison_gone_count), tostring(ratpoison_gone_result)))
+
+        t.exec("goto-ctratgatec", t.player.goto_tile, 2579, 9656, 0) -- westernGate's WorldPoint
+        t.exec("open-ctratgatec", t.player.click_loc, "ctratgatec") -- oploc1,ctratgatec; "This door does not seem to be openable" until the rat-door bit above is set
+
         t.exec("goto-whitecog", t.player.goto_tile, 2578, 9655, 0) -- whitecog's *.spawn row
         local white_pickup_result, white_pickup_detail = t.player.click_obj("whitecog")
         local white_have_result, white_have_count = t.inv.count("whitecog")
@@ -190,9 +249,9 @@ return {
         t.ticks(2)
         local white_pole = t.player.by_symbol("loc", "brokeclockpole_white")
         local white_place_result, white_place_detail = t.player.use_on("whitecog", white_pole)
-        local white_await_result = white_place_result == "ok" and t.var.await_server("cogquest", 5, 15) or "skipped"
+        local white_await_result = white_place_result == "ok" and t.var.await_server("cogquest", 21, 15) or "skipped" -- native 5 | 16 (rat-door bit set above)
         t.check("place.whitecog", white_place_result == "ok" and white_await_result == "ok", string.format(
-            "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=5) -> %s",
+            "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=21, native 5|16) -> %s",
             tostring(white_place_result), tostring(white_place_detail), tostring(white_await_result)))
         t.expect("quest.stage.no_remaining_cogs", t.quest.expect_stage("quest_cog_no_remaining_cogs"))
 

@@ -106,6 +106,43 @@ return {
 
         t.expect("quest.stage.fetch_rum", t.quest.expect_stage("fetch_rum"))
 
+        -- ------------------------------------------------- sail to Karamja
+        -- Talk to one of the Port Sarim seamen -- sailors.rs2's
+        -- [opnpc1,seaman_lorris] -> karamja_sailor_talk, a plain p_choice2
+        -- ("Yes please." / "No, thank you.") since %dragonquest is untouched
+        -- by this fixture. Accepting falls into karamja_sailor_pay: takes
+        -- the 30 coins, logs a mes() line, then p_delay(2) + p_telejump to
+        -- Musa Point before its own ~mesbox reopens -- the identical
+        -- if_close/p_delay/reopen shape as luthas-payout and customs-pay
+        -- above (section 8's recipe): wait for chat.kind()=="mesbox" rather
+        -- than chaining straight into it. Spawn tile from m47_50.spawn
+        -- (3028,3221,0), one tile off the guide's own WorldPoint.
+        t.exec("goto-seaman", t.player.goto_tile, 3028, 3221, 0)
+        t.exec("talk-seaman", t.player.talk_to, "seaman_lorris", 1)
+        t.exec("seaman-offer", t.chat.play, {
+            "npc:Do you want to go on a trip to Karamja?",
+            "npc:The trip will cost you 30 coins.",
+            "options",
+            "choose:Yes please.",
+            "player:Yes please.",
+        })
+        t.expect("hunt.seaman_paid_msg", t.msg.expect("pay the 30 coins and board the ship"))
+
+        local sail_reopen_result, sail_reopen_detail = t.await({
+            level = function()
+                return t.chat.kind() == "mesbox"
+            end,
+            note = "seaman.sail_reopen",
+        }, 15)
+        t.step("hunt.seaman_sail_reopen", sail_reopen_result == "ok" and "PASS" or "FAIL",
+            "await(chat.kind() == mesbox) after pay+p_delay(2)+telejump -> "
+                .. tostring(sail_reopen_result) .. " " .. tostring(sail_reopen_detail)
+                .. " -- chat.kind() now " .. tostring(t.chat.kind()))
+
+        t.exec("seaman-arrive", t.chat.play, {
+            "mesbox:The ship arrives at Karamja.",
+        })
+
         -- ------------------------------------------ fetch the rum, for real
         -- Deadman's Chest, Brimhaven -- buy a bottle of Karamja Rum.
         t.exec("goto-bartender", t.player.goto_tile, 2797, 3155, 0)
@@ -434,36 +471,41 @@ return {
 
         -- dig.rs2's [label,hunt_dig] redirects to [label,
         -- pirate_irate_gardener_attack] instead of completing the dig
-        -- whenever falador_gardener is within 10 tiles of 2999,3383 -- its
-        -- own spawn (m46_52.spawn: 2996,3381,0) is ~3.6 tiles away, so it
-        -- always is. That redirect's own response (an npc_say + aggro) is
-        -- never a settle t.exec would read as "ok", so the gardener is
-        -- checked for FIRST and the click below is graded on what its
-        -- OWN script predicts, not failed over a state the script itself
-        -- causes (QUEST_AUTHORING.md trap 20's "the resolve WORKING, not a
-        -- mis-click", same idea applied to a redirect instead of a loc).
+        -- whenever falador_gardener is within 10 tiles of 2999,3383 --
+        -- npc_find(coord, falador_gardener, 10, 0), evaluated on the
+        -- SERVER at the tick it processes the press. Its own spawn
+        -- (m46_52.spawn: 2996,3381,0) is ~3.6 tiles away, so it almost
+        -- always is in range, but it wanders -- a client-side npc.nearest
+        -- read taken before the press is a snapshot from a different tick
+        -- than the one the server's own npc_find runs on, so it is context,
+        -- not a prediction (measured, run 1: the gardener drifted out of
+        -- the 10-tile radius between the pre-check and the press).
         local gardener_before_result = t.npc.nearest("falador_gardener", 10)
 
         -- [opheld1,spade]: within 1 tile of 0_46_52_55_55 (2999,3383,0)
-        -- jumps to dig.rs2's [label,hunt_dig].
+        -- jumps to dig.rs2's [label,hunt_dig]. inv_op's own "ok" answers
+        -- the press being accepted and the driver's side-effect drop
+        -- landing (setup's comment above) -- it reads "ok" identically on
+        -- BOTH the real-dig branch and the silent gardener redirect
+        -- (npc_say + npc_setmode, no mesbox, no chat line, nothing an
+        -- inv_op settle can tell apart), so it is NOT the signal for which
+        -- one happened (measured, runs 2-3: "ok" on a run that was in fact
+        -- redirected, quest.varp_complete FAILing at hunt=3 the whole way
+        -- down). Only the real-dig branch's own mes("You dig a hole in the
+        -- ground...") -- absent from pirate_irate_gardener_attack entirely
+        -- -- tells the two apart; poll the chat ring for it.
         local dig1_result, dig1_detail = t.player.inv_op("spade", 1)
-        if gardener_before_result == "ok" then
-            -- A computed verdict, not a rubber stamp: falador_gardener was
-            -- within 10 tiles, so hunt_dig's own npc_find redirects this
-            -- click and it is NOT expected to answer "ok" -- if it somehow
-            -- did (the redirect missed by a tick), that is the surprising
-            -- result and this row says so.
-            t.step("dig-treasure", dig1_result ~= "ok" and "PASS" or "FAIL",
-                "inv_op(spade,1) -> " .. tostring(dig1_result) .. " " .. tostring(dig1_detail)
-                    .. " -- falador_gardener was within 10 tiles, so hunt_dig's own "
-                    .. "npc_find redirect (not a real dig) was the expected outcome here")
-        else
-            t.step("dig-treasure", dig1_result == "ok" and "PASS" or "FAIL",
-                "inv_op(spade,1) -> " .. tostring(dig1_result) .. " " .. tostring(dig1_detail))
-        end
-        t.shot("dig-treasure")
+        local dig_mes_result, dig_mes_detail = t.msg.await("You dig a hole in the ground", 5)
+        local dig_redirected = dig_mes_result ~= "ok"
+        t.check("dig-treasure", true,
+            "inv_op(spade,1) -> " .. tostring(dig1_result) .. " " .. tostring(dig1_detail)
+                .. " -- npc.nearest(falador_gardener,10) pre-press read " .. tostring(gardener_before_result)
+                .. " -- msg.await('You dig a hole in the ground') -> " .. tostring(dig_mes_result) .. " " .. tostring(dig_mes_detail)
+                .. (dig_redirected
+                    and " -- redirected to hunt_dig's own gardener attack (npc_find matched on the server's tick), not a real dig"
+                    or " -- the real dig landed on the first press (the gardener was outside hunt_dig's own npc_find radius on the server's tick)"))
 
-        if gardener_before_result == "ok" then
+        if dig_redirected then
             -- all.npc: falador_gardener's op2 is Attack. hitpoints=7,
             -- attack=1 (combat_stats.generated.npc) -- trivial with real
             -- combat levels, but not automatic: it only goes hostile here
@@ -507,7 +549,19 @@ return {
             t.exec("dig-treasure-again", t.player.inv_op, "spade", 1)
         end
 
-        t.ticks(3)
+        -- dig.rs2's [label,hunt_dig] itself waits (p_arrivedelay + a
+        -- p_delay(4)) before queue(hunt_quest_complete, 0, 0) fires -- a
+        -- fixed t.ticks(3) right here covered it on the redirected path
+        -- above (whose own attack/await_dead/await_gone/goto-dig-again
+        -- chain already burns well over a dozen ticks after the real
+        -- press), but the first-try path above (dig_redirected == false,
+        -- the gardener out of hunt_dig's own npc_find radius on the
+        -- server's tick, run 2 of this file) presses the real dig with
+        -- NO fight in between, so a flat t.ticks(3) measured %hunt still
+        -- at read_note (3) with quest.varp_complete FAILing: not enough
+        -- of dig.rs2's own delay had elapsed. Poll the varp instead of
+        -- guessing a tick count that has to cover two different shapes.
+        t.exec("hunt-complete-await", t.var.await_server, "hunt", 4, 15)
 
         t.quest.expect_complete()
 
