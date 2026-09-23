@@ -184,3 +184,85 @@ What was actually missing/broken differs per hazard:
   that symbol has no base `all.loc` entry to lose the race against). Bigger
   and riskier than this pass's own directory-scoped budget; flagged for
   whoever owns `configs/all.loc` / the shared reach-check system next.
+
+### parity1d pass (2026-09-23) — the wall beast reveal; the agility obstacle's real blocker
+
+This pass's work items, per the owner brief: (1) fix the agility-obstacle
+reach conflict "at its source (the all.loc row or the quest's own
+override)"; (2) check whether the wall beast npc has a second name/op form
+and use it for the disguised-name reveal.
+
+- **Agility obstacle — investigated further, STILL NOT FIXABLE from
+  `configs/all.loc`, and the brief's own `blockrange=0` hunch is now
+  DISPROVEN, not just untried.** Read the exact collision code rather than
+  extrapolating from `brew_stepping_stone`'s sibling field:
+  `apply_loc_collision`'s `RSCACHE_LOC_SHAPE_FLOOR_DECORATION` branch (the
+  stepping stones' own shape, 22) never reads `blockrange`/`blocks_projectiles`
+  at all — that field only matters for the WALL-shaped branches (0-8). Reach
+  itself is `COLL_APPROACH_RECT_ADJACENT`
+  (`collision_test_rect_adjacent`, `src/engine/world_builder/collision_map.c:647`):
+  the west-adjacency test is hardcoded to `src_x == dst_x - 1` where `dst_x`
+  is the loc's OWN anchor tile (3206) — no `width=`/`length=` field can move
+  that check, because `all.loc` only sets which corner the rectangle GROWS
+  FROM (`loc->x`, always the cache-placed anchor), never which corner it
+  starts at; widening `width=` only ever extends the box eastward from 3206,
+  never brings 3204 into range. Proved this isn't a placement-vs-harvest
+  mismatch either: a live walk probe
+  (`build/parity_state/parity1d/scratch/tog_stone_walk_probe.lua`) shows the
+  west bank's own walkable ground genuinely ends at 3204,9572 — `walk_to
+  3205,9572` stalls there every time, and a detour attempt at the east side
+  stalls the same way — so 3204 (the wiki-harvested `maplink_agility` src
+  tile) is exactly right and the chasm is a real 2-tile gap with the stone
+  in the middle, not an authoring slip. The real fix is an ENGINE change
+  (a wider reach model for `Jump-across`-verbed obstacles, or a per-approach
+  override), outside a quest-directory pass's budget and affecting every
+  other `maplink_agility` shortcut sharing this approach model — left as
+  `legs_left`, but now documented with the code paths a future engine-owning
+  pass needs instead of the unverified `blockrange` guess.
+- **Wall beast disguised name — FIXED.** Checked exactly what the brief
+  asked: `configs/all.npc` already carries a second, already-named form,
+  `[swamp_wallbeast_combat]` ("Wall beast", `op2=Attack`, the SAME stat1-4
+  parity1c's overlay already used) — parity1c's own notebook said this
+  engine had "no npc_settype/runtime-retype opcode anywhere" and left the
+  disguise unfixed on that basis; that was a miss, found by grepping the
+  wrong name. `npc_changetype(type, duration)` is real and already
+  load-bearing in this exact pack —
+  `quest_viking/scripts/horror_rockcrab.rs2` reveals its own disguised
+  roster npc (`horror_rockcrab_inactive` -> `horror_rockcrab`) the identical
+  way. `quest_tearsofguthix.npc` now splits the stat block onto
+  `[swamp_wallbeast_combat]` (the disguised `[swamp_wallbeast]` carries no
+  combat fields at all, matching `horror_rockcrab_inactive`'s own shape —
+  it cannot be fought while disguised, it has no `op2=Attack` anywhere), and
+  a new `tog_wallbeast_reveal.rs2` detects proximity with this pack's own
+  `[ai_timer]`+`huntall` idiom (`quest_eadgar/scripts/eadgar_troll_sguard.rs2`,
+  same tier-1 batch, already proven live) rather than rockcrab's
+  retaliation rung, since a wall beast grabs you on approach rather than
+  waiting to be attacked first. Found and fixed a second, genuinely new gap
+  along the way: `npc_changetype` repoints the npc's def (hitpoints, size,
+  anims) but does **not** reseed `npc->huntmode` — that per-instance field
+  is seeded once at spawn from the SPAWN type's def
+  (`npc_changetype_rehydrate`, `torirs_server_scripts.c`) and never touched
+  by a later type change, so a revealed npc whose new type states
+  `huntmode=aggressive` still does not fight — caught live (hitpoints held
+  flat at 99 for 14 ticks standing adjacent to a freshly-revealed beast
+  before this was understood). The real per-instance opcode is
+  `npc_sethuntmode(hunt)` (`SS_OP_NPC_SETHUNTMODE`,
+  `torirs_server_scripts.c:7109`; "any hunt id starts it" per its own
+  comment — this tree keeps no `.hunt` profile table, so a literal `1`
+  is enough) — this appears to be the FIRST real content call site for that
+  opcode in this pack (grepped: `king_black_dragon.rs2`'s own comment calls
+  it "stubbed" and never actually calls it). `tog_wallbeast_reveal.rs2` now
+  calls both `npc_setmode(opplayer2)` (the immediate grab, rockcrab's own
+  idiom) and `npc_sethuntmode(1)` (the standing aggression that keeps it
+  fighting tick after tick). Proven live, all ten rows PASS
+  (`build/parity_state/parity1d/scratch/tog_wallbeast_reveal_probe.lua`):
+  disguised and inert at range, reveals to `swamp_wallbeast_combat` and
+  starts hitting within ~4 ticks of standing adjacent, keeps hitting for
+  the next 10 ticks (99 -> 90 hitpoints), stops taking further hitpoints
+  once retreated (90 steady over 8 more ticks) — and the disguised
+  `swamp_wallbeast` row is gone from that position once revealed (no
+  double-counted npc). The `npc_changetype` reveal auto-reverts to the
+  disguised spawn type after 1000 ticks (rockcrab's own duration, reused
+  rather than invented — `ToriRSServer_NpcChangeType`'s own revert-to-
+  `spawn_type` arm), so the hole re-arms itself for the next player with no
+  extra script needed.
