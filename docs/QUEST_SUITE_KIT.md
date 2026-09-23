@@ -255,6 +255,34 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
   the batch's Queue phase writes every row once from the review files, before
   the sampler pushes. The Sheet phase builds the contact sheet under the
   artifact limit; the orchestrator publishes it and adds the BATCHES.tsv row.
+- **Content parity comes first (owner, 2026-09-23).** Before a quest test is
+  authored, `tools/quest_gate/content_parity.workflow.js` (args {pass, quests,
+  context}; state under `build/parity_state/<pass>/`) runs one Sonnet agent per
+  quest that makes the port's content match its source: if LostCity
+  (`~/Documents/git_repos/LostCity_Content2`, `LostCity_Server`) has the quest,
+  the port matches LostCity leg by leg (stage writers, triggers, spawns,
+  dialogues, item flows, gates), with OSRS-era changes taken from the pinned
+  wiki brief; otherwise the quest is constructed from the OSRS wiki and the
+  Quest Helper guide's step ladder. A narrating `mes()` that advances a stage,
+  an auto-granted item the player gathers in the game, a puzzle collapsed to a
+  click, a debugproc as the only path -- each is a gap the pass closes with real
+  content. Its Opus closer audits every edit against its source, runs the C
+  selftests and the full suite, commits, records `tools/quest_gate/PARITY.tsv`
+  (quest_dir, test_id, source, status, sha, legs_left) and reopens any test
+  that drove a placeholder (`RE-AUTHOR after <sha>`). Never overlap it with a
+  batch, a seam pass or a content move.
+- **The guide is the spec (owner, 2026-09-23).** Mourning's End Part II was
+  marked green while the port narrated the whole Temple of Light in one `mes()`;
+  every gate had compared the test to the port's `.rs2`, none to the guide. Now
+  the author, reviewer and sampler cards walk the Quest Helper step ladder:
+  every step driven by a real row, or the file stops at `t.blocked` with a
+  `content_bug` naming the leg. Rejections: `goto_tile` past a gated door,
+  wall, fence, stair or puzzle the guide names (it is a `::goto` teleport, for
+  plain travel only); `::give` of an item the guide has you obtain in game; a
+  debugproc doing quest work; `::setvar` on a quest varp mid-run; a stage
+  advanced by a narrating `mes()`. `tools/quest_gate/helper_coverage.py`
+  (when present) is the machine check; `docs/QUEST_HELPER_COVERAGE_2026-09-23.md`
+  is the audit that found the hole across all 39 tier 1 tests.
 - **Every batch ends with the seam pass.** After the sampler pushes, run
   `tools/quest_gate/seam_pass.workflow.js` (content inline, args {pass, context}): an Opus
   triage groups the blocked and content_bug rows by seam, one Opus agent fixes
