@@ -144,7 +144,7 @@ quest_regicide	regicide	regicide		3	todo
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	
 quest_routequest	routequest	insearchofthemyreque		3	todo		
-quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b16	
+quest_rovingelves	rovingelves	rovingelves		1	todo	sonnet-b16	REVERTED by sampler (sonnet-b16): useRopeOnRock never crossed to the island -- the press settled 'timeout' and the row accepts tile 2512,3476, which is crossing_rock's forcewalk2 start (rock+8), not where the script's ~forcemove lands (rock+1, then east); no rope was laid (43-useRopeOnRock.png). useRopeOnTree then answered 'I can't reach that!' from the mound and the driver ::goto'd onto the tree's own square 2512,3465 across the river (ledger detail 'stood on with ::goto', chat 'Teleported to 2512,3465,0' in 44-useRopeOnTree.png) -- the rope crossing was teleported past. Grade useRopeOnRock on the island tile and find out why the script stops after forcewalk2 (content seam or settle), never press the tree from a ::goto'd square.
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
