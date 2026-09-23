@@ -241,7 +241,26 @@ return {
             "player:Thanks Brother Omad!",
             "npc:OK, let's party!",
         })
-        t.ticks(3) -- [queue,drunkmonk_complete] lands after p_delay(2) in drunkmonk_party
+        -- [label,omad_party] falls straight into @drunkmonk_party (no further
+        -- click): brother_omad.rs2's full-party scene is now ported
+        -- (quest_drunkmonk.rs2 header, 2026-09-23 content-parity pass) --
+        -- Omad's own ~monk_dance/~player_monkdance calls plus five
+        -- ~spawn_drunkmonk_balloons rounds, THEN nine p_delay(2)'s (three
+        -- monk_dance/player_monkdance rounds each ending p_delay(2)) before
+        -- queue(drunkmonk_complete,0,0) -- ~18-32 ticks of scripted dancing,
+        -- not a fixed "settle" wait, so poll the stage instead of a bare
+        -- t.ticks(3) (that undercounted it: RE-AUTHOR after fc44e385e0,
+        -- quest.varp_complete stuck client=70 server=70).
+        local party_wait_result, party_wait_detail = t.await({
+            level = function()
+                local r, v = t.quest.stage()
+                return r == "ok" and v == 80
+            end,
+            note = "drunkmonk_party (balloon drops + three-round monk dance) -> [queue,drunkmonk_complete]",
+        }, 60)
+        t.check("party.completes", party_wait_result == "ok",
+            "t.quest.stage() polled for complete(80) after finishQuest-dialog -> "
+                .. tostring(party_wait_result) .. " (" .. tostring(party_wait_detail) .. ")")
 
         t.quest.expect_complete()
 
