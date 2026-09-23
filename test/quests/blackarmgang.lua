@@ -30,29 +30,33 @@
 -- (`%blackarmgang` -> `joined`), open the Black Arm cupboard for the shield
 -- half, and take it to the curator for two half-certificates.
 --
--- HOW THE TWO-PLAYER FINISH IS DRIVEN, past the cupboard/curator. Shield of
--- Arrav's last mechanic is a TRADE, not a click: curator.rs2's
+-- HOW THE TWO-PLAYER FINISH IS DRIVEN, past the door/cupboard/curator. Shield
+-- of Arrav's last mechanic is a TRADE, not a click: curator.rs2's
 -- `curator_take_blackarm_half` hands a Black Arm player two
 -- `arravcertificate_rht` -- both the SAME half -- and
 -- quest_blackarmgang.rs2's `[opheldu,arravcertificate_lft]` /
 -- `[opheldu,arravcertificate_rht]` each fire only when `last_useitem` is the
 -- OPPOSITE half, so one character can never hold both. The only source of an
 -- `arravcertificate_lft` is a Phoenix Gang partner's own
--- `curator_take_phoenix_half` hand-in, and the two gangs are mutually
--- exclusive on one character (this file's header, above).
+-- `curator_take_phoenix_half` hand-in, and the weapon-store door
+-- (`phoenixdoor2`, `[oploc1,phoenixdoor2]`) likewise only opens for a Phoenix
+-- Gang member or someone holding `phoenixkey2`, the key Straven hands out on
+-- that same route -- and the two gangs are mutually exclusive on one
+-- character (this file's header, above).
 --
--- That missing half is a PREREQUISITE, exactly like sheepherder's `::give
--- coins 100` for Doctor Orbon's price, and it is staged the same way: one
--- `::give arravcertificate_lft 1` standing in for the partner handing his
--- spare half across the trade window. It is not the quest's deliverable --
--- the combine, the hand-in, the varp write, the 600gp and the scroll are all
--- still driven by real clicks below, and the pack's OWN selftest
--- (`[debugproc,blackarmgangrun]`, quest_blackarmgang.rs2:255-330) stages the
--- identical thing: `inv_add(arravcertificate_lft, 2)`, delete one,
--- `inv_add(arravcertificate_rht, 1)`, then assert the real combine. The
--- leftover `arravcertificate_rht` this file ends holding is the spare the
--- partner would have been given -- the real quest leaves it in your backpack
--- too.
+-- `[debugproc,blackarmgang_partner]` (quest_blackarmgang.rs2, content parity
+-- pass 3 -- docs/quests/shield_of_arrav.md, docs/QUEST_SERVER_CHEATS.md's
+-- two-player partner affordances table) performs exactly the two hand-offs a
+-- real Phoenix Gang partner would make -- `inv_add(phoenixkey2, 1)` and
+-- `inv_add(arravcertificate_lft, 1)`, each a no-op once already held, nothing
+-- else -- standing in for the trade window a second client would open.
+-- EVERYTHING after that debugproc is a real click: the actual
+-- `[oplocu,phoenixdoor2]` key-unlock (`use_on(phoenixkey2, phoenixdoor2)`,
+-- never a `::goto` past the lock), the crossbow theft, Katrine, the
+-- cupboard, the curator hand-in, and the actual
+-- `[opheldu,arravcertificate_lft]` combine. The leftover
+-- `arravcertificate_rht` this file ends holding is the spare the partner
+-- would have been given -- the real quest leaves it in your backpack too.
 --
 -- MEASURED (build/quest_gate/probe_arrav_3, 25 rows PASS): `~mesbox`
 -- SUSPENDS, and `[label,arrav_combine_certificate]`'s two `inv_del`s and its
@@ -60,6 +64,15 @@
 -- backpack is untouched until the box is dismissed. The combine row's own
 -- detail reads "backpack unchanged" and an `inv.await` placed before the
 -- dismissal times out. Dismiss, THEN read.
+--
+-- RETRY after parity1b (docs/quests/shield_of_arrav.md, 2026-09-23). The
+-- queue's last_failure named two raw-ladder stand-ins this file used to
+-- carry: a `::give arravcertificate_lft 1` before the curator visit, and a
+-- `goto_tile` straight into the weapon store that teleported past the
+-- locked `phoenixdoor2` instead of unlocking it. Both are replaced below by
+-- the real `::blackarmgang_partner` debugproc (grants both items the trade
+-- would, before the door is ever approached) and a genuine
+-- `use_on(phoenixkey2, phoenixdoor2)` press on the real loc.
 
 return {
     id = "blackarmgang",
@@ -102,6 +115,18 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3)
         t.expect("quest.stage.not_started_reset", t.quest.expect_stage("not_started"))
+
+        -- Quest Helper's stage-0 steps (startQuest/searchBookcase/
+        -- talkToReldoAgain) are the guide's shared fallback for "not
+        -- started at all", not a Black Arm gate: `[opnpc1,reldo]`
+        -- (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang,
+        -- and `[oploc1,questbookcase]` (quest_blackarmgang.rs2:6) requires
+        -- %phoenixgang = phoenixgang_started -- both are Phoenix Gang
+        -- content this route never reaches (docs/quests/shield_of_arrav.md
+        -- finding); tramp.rs2 starts the Black Arm route unconditionally.
+        -- GUIDE-GAP: startQuest [opnpc1,reldo] (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang -- Reldo cannot start or advance the Black Arm route, tramp.rs2 does that unconditionally
+        -- GUIDE-GAP: talkToReldoAgain same as startQuest -- [opnpc1,reldo] (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang
+        -- GUIDE-GAP: searchBookcase [oploc1,questbookcase] (quest_blackarmgang.rs2:6) requires %phoenixgang = phoenixgang_started -- the book is Phoenix Gang content; the Black Arm shield half comes from blackarmcupboardshut instead
 
         -- ------------------------------------------------ Charlie the tramp
         -- tramp.rs2's `[opnpc1,tramppg]` (south Varrock, by the alleyway):
@@ -157,6 +182,54 @@ return {
         })
         t.expect("quest.stage.spoken_katrine", t.quest.expect_stage("spoken_katrine"))
 
+        -- ------------------------------------------- the partner's hand-off
+        -- `::blackarmgang_partner` (docs/QUEST_SERVER_CHEATS.md's two-player
+        -- partner affordances table; quest_blackarmgang.rs2) performs
+        -- exactly the two hand-offs a real Phoenix Gang partner would make
+        -- -- `phoenixkey2` (the weapon-store key) and `arravcertificate_lft`
+        -- (the Phoenix half) -- nothing else, each a no-op if already held.
+        -- Called here, BEFORE the weapon store, because the key is needed to
+        -- unlock `phoenixdoor2` below; the certificate half rides along
+        -- unused until the combine near the curator. `getWeaponStoreKey` is
+        -- a genuinely two-player guide step ("Get the weapon storeroom key
+        -- from another player"): `phoenixkey2` is granted only on the
+        -- Phoenix route (areas/varrock/scripts/straven.rs2:88), no
+        -- single-client path reaches it, and `::blackarmgang_partner`
+        -- performs exactly that hand-off (docs/QUEST_SERVER_CHEATS.md's
+        -- two-player partner affordances table) -- same idiom as
+        -- tradeCertificateHalf below.
+        -- GUIDE-GAP: getWeaponStoreKey a two-player step (get the key from another player); phoenixkey2 is granted only on the Phoenix route (areas/varrock/scripts/straven.rs2:88) with no single-client path -- ::blackarmgang_partner performs exactly that hand-off
+        local partner_result, partner_detail = t.cheat("::blackarmgang_partner")
+        local partner_key_await = t.inv.await("phoenixkey2", 1, 10)
+        local partner_key_result, partner_key_count = t.inv.count("phoenixkey2")
+        local partner_cert_await = t.inv.await("arravcertificate_lft", 1, 10)
+        local partner_cert_result, partner_cert_count = t.inv.count("arravcertificate_lft")
+        t.check("stage.partnerHandoff",
+            partner_result == "ok"
+                and partner_key_await == "ok" and partner_key_result == "ok" and (partner_key_count or 0) >= 1
+                and partner_cert_await == "ok" and partner_cert_result == "ok" and (partner_cert_count or 0) >= 1,
+            string.format("::blackarmgang_partner -> %s (%s); phoenixkey2 await=%s count=%s(%s); "
+                .. "arravcertificate_lft await=%s count=%s(%s)",
+                tostring(partner_result), tostring(partner_detail),
+                tostring(partner_key_await), tostring(partner_key_count), tostring(partner_key_result),
+                tostring(partner_cert_await), tostring(partner_cert_count), tostring(partner_cert_result)))
+
+        -- ------------------------------------------------------ phoenixdoor2
+        -- `[oploc1,phoenixdoor2]` refuses "The door is securely locked."
+        -- with no key held; `[oplocu,phoenixdoor2]` unlocks it for real when
+        -- `last_useitem = phoenixkey2` (m50_52.jl2:570, "0 51 58: 2398 0 3"
+        -- decodes to 3251,3386,0 -- trap 29's map-text decode, since a `.loc`
+        -- config carries no coordinate). Stand on the street outside it and
+        -- press the real trigger -- no `::goto` past the lock.
+        t.exec("goto-phoenixdoor2", t.player.goto_tile, 3251, 3389, 0)
+        local phoenixdoor2_target = t.player.by_symbol("loc", "phoenixdoor2")
+        t.exec("unlockPhoenixDoor2", t.player.use_on, "phoenixkey2", phoenixdoor2_target)
+        -- The door's own confirmation is a bare `mes()` line (`[proc,
+        -- open_hideout_door]`'s `$message = "You unlock the door."`), a
+        -- chat-LOG line, never a page -- read it back with `msg.expect`
+        -- rather than trusting the settle's `map_flag` arm alone.
+        t.expect("unlockPhoenixDoor2.message", t.msg.expect("You unlock the door."))
+
         -- ------------------------------------------------ steal 2 crossbows
         -- quest_blackarmgang.rs2's `[opobj3,phoenix_crossbow]`:
         --   if (npc_find(coord, weaponsmaster, 10, 0) = true) { @weaponsmaster_stop; }
@@ -169,8 +242,14 @@ return {
         -- first; setup's attack/strength/hitpoints/defence boost is what
         -- makes that a short, one-sided fight (a prerequisite, trap 16),
         -- not a substitute for the real clicks that steal the crossbows.
+        --
+        -- Ordinary floor travel from the unlocked door's entry room, not a
+        -- second gate: `fai_varrock_ladder` (m50_52.jl2:3196, "0 52 56:
+        -- 11794 10" -> 3252,3384,0) climbs to the Weaponsmaster's own floor,
+        -- and `goto_tile`'s destination-level-climbs-stairs-for-you rule
+        -- (QUEST_AUTHORING.md section 2) is exactly this case -- the lock
+        -- above was the real gate and it is already open.
         t.exec("goto-weaponStore", t.player.goto_tile, 3252, 3384, 1)
-
 
         t.exec("attackWeaponsmaster", t.player.attack, "weaponsmaster")
         -- RETRY after 68c5e8d9d: npc_menu_verb now resolves the Weaponsmaster's
@@ -287,22 +366,17 @@ return {
                 tostring(shield2_gone_await), tostring(cert_count), tostring(cert_result),
                 tostring(shield2_after_count), tostring(shield2_after_result)))
 
-        -- ------------------------------------------- the partner's half
-        -- The one staged prerequisite in this file (see the header). A real
-        -- Phoenix Gang partner hands this over through the ordinary trade
-        -- interface after his own `curator_take_phoenix_half`; this harness
-        -- has one client, so the cheat stands in for the trade and nothing
-        -- else. Everything after it is a real click.
-        local partner_give_result = t.cheat("::give arravcertificate_lft 1")
-        local partner_await_result = t.inv.await("arravcertificate_lft", 1, 10)
+        -- ------------------------------------------- the partner's half, held
+        -- Already handed over by `::blackarmgang_partner` before the weapon
+        -- store (this file's header) -- confirm it is still carried, rather
+        -- than cheating it in a second time here.
+        -- GUIDE-GAP: tradeCertificateHalf a two-player step (trade one certificate half for the other with another player); arravcertificate_lft is granted only on the Phoenix route by curator_take_phoenix_half (areas/varrock/scripts/curator.rs2:183) with no single-client path -- ::blackarmgang_partner performs exactly that hand-off, driven above before the weapon store
         local partner_count_result, partner_count = t.inv.count("arravcertificate_lft")
-        t.check("stage.partnerHalf",
-            partner_give_result == "ok" and partner_await_result == "ok"
-                and partner_count_result == "ok" and (partner_count or 0) >= 1,
-            string.format("::give arravcertificate_lft 1 -> %s (the Phoenix partner's spare half, "
-                .. "traded in the real two-player quest); inv.await -> %s; "
-                .. "inv.count(arravcertificate_lft) -> %s (%s)",
-                tostring(partner_give_result), tostring(partner_await_result),
+        t.check("stage.partnerHalfHeld",
+            partner_count_result == "ok" and (partner_count or 0) >= 1,
+            string.format("inv.count(arravcertificate_lft) -> %s (%s) -- granted earlier by "
+                .. "::blackarmgang_partner, the Phoenix partner's spare half traded in the real "
+                .. "two-player quest",
                 tostring(partner_count), tostring(partner_count_result)))
 
         -- ------------------------------------------------- combine the two
