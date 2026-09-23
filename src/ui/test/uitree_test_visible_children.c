@@ -8,7 +8,8 @@
  * must be exactly the sibling chain with those children left out, in chain
  * order, after any sequence of the mutations that maintain it -- creates
  * (append), the six reachability setters (reconcile in place or rebuild),
- * reparenting (unlink + append), clearing a container, and the tree clear.
+ * reparenting (unlink + append), clearing a container, cc_delete and
+ * cc_deleteall (whose slots the next create recycles), and the tree clear.
  *
  * Two regimes matter and both are run: checking after EVERY step keeps every
  * list valid, so the incremental seams are what is being tested; checking
@@ -83,6 +84,10 @@ vc_run(uint32_t seed, int check_every, int steps)
              * hover-gated: the sidecar must tell them apart. Set at creation,
              * before any hide, the way CC_CREATE does. */
             t->components[idx].if3 = (uint8_t)vc_range(&rng, 0, 1);
+            /* Half of them script-created, so cc_delete / cc_deleteall have
+             * rows to remove and the slots they free are recycled by the
+             * creates that follow -- the path that left stale entries. */
+            t->components[idx].dynamic = (uint8_t)vc_range(&rng, 0, 1);
             live[live_count++] = idx;
         }
         else if( op < 60 )
@@ -99,8 +104,12 @@ vc_run(uint32_t seed, int check_every, int steps)
             if( target < 0 || !t->components[target].freed )
                 (void)UITree_Reparent(t, node, target);
         }
-        else if( op < 96 )
+        else if( op < 94 )
             UITree_ClearChildren(t, node);
+        else if( op < 96 )
+            UITree_CcDelete(t, node);
+        else if( op < 98 )
+            UITree_CcDeleteAll(t, node);
         else
             (void)UITree_VisibleChildren(t, node, &(int32_t){ 0 });
         if( (step % check_every) == 0 && !vc_parity(t) )

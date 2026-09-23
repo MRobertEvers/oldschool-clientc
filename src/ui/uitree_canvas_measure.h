@@ -13,14 +13,14 @@ struct UITreeCanvasWidths { int strip, core; };
 static inline int
 uitree_canvas_hidden(struct UITree const* tree, int32_t idx)
 {
-    /* Preserve the existing canvas-query visibility contract and guard. */
-    for( unsigned guard=0;idx>=0 && guard<256;guard++ ) {
-        assert((uint32_t)idx<tree->component_count);
-        struct UITreeComponent const* c=&tree->components[idx];
-        if( c->freed || c->behavior.hide || c->frame_hidden ) return 1;
-        idx=c->parent;
-    }
-    return 0;
+    /* The scans' own visibility test, not a copy of it. A copy here left out
+     * `mount_hidden`, so once this query became the desktop default the strip
+     * read an unmounted panel's right-docked column (264 wide) as chrome: the
+     * canvas floor rose from 807 to 1029, every 765x503 window was scaled to
+     * 99%, and the soft3d lane paid the scaled-layer composite on every frame.
+     * The reference below shares this helper, so parity alone cannot see a
+     * test missing from it. */
+    return UITree_ComponentHiddenOrOrphaned(tree, idx);
 }
 static inline int
 uitree_canvas_strip(struct UITree const* tree, uint32_t i, int width, int height, int best)
