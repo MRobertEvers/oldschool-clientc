@@ -37,7 +37,18 @@ alternatives: the branch the test drove most is the spec.
 
 CLASSES (first rule that fires wins, in this order).
   CHEAT        a quest debugproc named after the step (::mortton_repairtemple
-               for repairTemple) -- before anything else.
+               for repairTemple) -- before anything else. DRIVEN instead when
+               docs/QUEST_SERVER_CHEATS.md section A sanctions it as a GRIND
+               fast-forward (parsed from the doc's "GRIND fast-forward"
+               bullet) AND a t.check/t.expect/t.msg.expect/t.var/t.inv/
+               t.quest.stage read follows within 12 lines.
+  CHEAT        a PASS row the driver's reach retry got by standing on the
+               loc's own square with ::goto ("stood on with ::goto" in the
+               detail) whose loc is a target of the step or whose row is
+               named after it -- DRIVEN when a `-- GUIDE-GAP:` marker for
+               the step cites the .rs2 line or map square (m<x>_<z>.jm2)
+               that says no route ends elsewhere. A stand-on no step claims
+               is a gate finding of its own.
   CONTENT_GAP  the content's own soft-skip comment names the step as
                collapsed (mend1_sheep.rs2's `getToads`), even when the test
                drove the stand-in.
@@ -957,12 +968,34 @@ class Test:
 GUIDE_GAP_RE = re.compile(r"^\s*--\s*GUIDE-GAP:\s*(\S+)\s+(.*)$")
 
 
+MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
+
+
 def rs2_citation(reason):
     """The first `<file>.rs2:<line>` in `reason` that names a real line of a
     real script under server/scripts (by path, or by unique basename), as the
-    text cited it; None when there is none. A GUIDE-GAP marker is evidence
-    only when its citation resolves -- `foo.rs2:12` for a file that does not
-    exist is not evidence of anything."""
+    text cited it; else the first map fact -- `m<x>_<z>.jm2`/`.jl2` (a map
+    square's collision or loc file, optionally `:<line>`) that exists under
+    OSRS-Content/osrs239-content/maps/ -- which is how a "no route ends on
+    that square" marker cites its evidence; None when there is none. A
+    GUIDE-GAP marker is evidence only when its citation resolves --
+    `foo.rs2:12` for a file that does not exist is not evidence of anything."""
+    found = _rs2_line_citation(reason)
+    if found:
+        return found
+    for match in re.finditer(r"\b(m\d+_\d+\.j[ml]2)(?::(\d+))?", reason or ""):
+        path = os.path.join(MAPS_ROOT, match.group(1))
+        if not os.path.isfile(path):
+            continue
+        if match.group(2):
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                if not 1 <= int(match.group(2)) <= handle.read().count("\n") + 1:
+                    continue
+        return match.group(0)
+    return None
+
+
+def _rs2_line_citation(reason):
     for match in re.finditer(r"([\w/.-]+\.rs2):(\d+)", reason or ""):
         cited, line = match.group(1), int(match.group(2))
         candidates = []
@@ -980,6 +1013,86 @@ def rs2_citation(reason):
                 if 1 <= line <= handle.read().count("\n") + 1:
                     return match.group(0)
     return None
+
+
+CHEATS_DOC = os.path.join(REPO_ROOT, "docs", "QUEST_SERVER_CHEATS.md")
+_SANCTIONED = None
+
+
+def sanctioned_grind_cheats():
+    """{debugproc: doc line} -- the GRIND fast-forwards docs/QUEST_SERVER_CHEATS.md
+    section A sanctions (the bullet that says "GRIND fast-forward"): every
+    `[debugproc,<name>]` and `::<name>` in that bullet. Read from the doc, so
+    a future sanctioned cheat needs only its line there."""
+    global _SANCTIONED
+    if _SANCTIONED is not None:
+        return _SANCTIONED
+    _SANCTIONED = {}
+    if not os.path.isfile(CHEATS_DOC):
+        return _SANCTIONED
+    with open(CHEATS_DOC, "r", encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().split("\n")
+    in_a = False
+    bullets = []  # [(first line, text)]
+    for number, line in enumerate(lines, 1):
+        if line.startswith("## "):
+            in_a = line.startswith("## A.")
+            continue
+        if not in_a:
+            continue
+        if line.startswith("- "):
+            bullets.append([number, line])
+        elif bullets and line.startswith("  "):
+            bullets[-1][1] += " " + line.strip()
+        elif not line.strip() and bullets:
+            bullets.append([number, ""])
+    for number, text in bullets:
+        if not re.search(r"grind\s+fast-forward", text, re.I):
+            continue
+        for name in re.findall(r"\[debugproc,(\w+)\]|::(\w+)", text):
+            _SANCTIONED.setdefault(name[0] or name[1], number)
+    return _SANCTIONED
+
+
+# A read of a cheat's effect: a named check, an expect, a var/inv/stage read.
+READBACK = re.compile(r"\bt\.(check|expect\w*|msg\.expect\w*|var\.\w+|inv\.\w+|quest\.(stage|expect\w*)|"
+                      r"stat\.\w+)\s*\(|\binv\.count\s*\(|await_server")
+READBACK_SPAN = 12
+
+
+# The driver's reach retry, when every walkable neighbour of a loc refused the
+# press, stands on the loc's OWN square with ::goto (SEAM use_on_own_square,
+# script/plugins/quest_driver/pointer.lua QD.player._reach_retry) and a press
+# that then lands says so: `[<sym> reached from its own square X,Z, which no
+# route can end on and the harness stood on with ::goto, ...]`, or in the
+# retry's own note `pressed from X,Z (the loc's own square, standoff
+# suppressed, stood on with ::goto) -> ok`.
+STAND_ON_BRACKET = re.compile(r"\[(\S+) reached from its own square (\d+),(\d+), which no route can end on "
+                              r"and the harness stood on with ::goto")
+STAND_ON_NOTE = re.compile(r"pressed from (\d+),(\d+) \(the loc's own square, standoff suppressed, "
+                           r"stood on with ::goto[^)]*\) -> ok")
+
+
+def stand_ons(rows):
+    """[{row, step, symbol, tile}] -- every PASS row the reach retry satisfied
+    from a square it ::goto'd onto. A row whose stand-on press was refused
+    (a door that is SUPPOSED to refuse) is not one."""
+    out = []
+    for row in rows:
+        if row["verdict"] != "PASS" or "stood on with ::goto" not in row["detail"]:
+            continue
+        match = STAND_ON_BRACKET.search(row["detail"])
+        if match:
+            symbol, tile = match.group(1), "%s,%s" % (match.group(2), match.group(3))
+        else:
+            match = STAND_ON_NOTE.search(row["detail"])
+            if not match:
+                continue
+            tile = "%s,%s" % (match.group(1), match.group(2))
+            verb = re.search(r"\b\w+\(\s*([a-z0-9_]+)", row["detail"])
+            symbol = verb.group(1) if verb else ""
+        out.append({"row": row["index"], "step": row["step"], "symbol": symbol.rstrip("*"), "tile": tile})
+    return out
 
 
 def ledger_path(test_id, quest_dir):
@@ -1055,6 +1168,11 @@ def _near(point, goto):
     return False
 
 
+def _distance(point, goto):
+    _, x, y, _z = goto
+    return min(max(abs(point[0] - x), abs(point[1] + dy - y)) for dy in (0, 6400, -6400))
+
+
 class Grader:
     def __init__(self, test_id):
         self.test_id = test_id
@@ -1086,6 +1204,8 @@ class Grader:
         self.effects = self._cheat_effects()
         self.narration = narrating_writes(self.quest_dir)
         self.softs = soft_markers(self.quest_dir)
+        self.stand_ons = stand_ons(self.rows)
+        self.claimed_stand_ons = set()
 
     # -- the cheats
 
@@ -1155,6 +1275,8 @@ class Grader:
                 effect["vars"].append(self.bound_varp or target)
             elif command in ("goto", "tele", "teleport"):
                 continue  # graded as a goto against the steps it lands past
+            elif command in sanctioned_grind_cheats() and self.readback(number):
+                continue  # a sanctioned grind fast-forward, read back (named_cheat)
             elif command in debugprocs:
                 rel, line, body = debugprocs[command]
                 body_text = "\n".join(body)
@@ -1376,23 +1498,83 @@ class Grader:
                 return None
             near = [g for g in self.test.gotos if _near(step.point, g)]
             if near:
-                goto = near[0]
+                # The goto that lands CLOSEST to the step's tile is the one
+                # that skipped it, not the first nearby one in file order
+                # (Prince Ali's goto-ned, 30 tiles off, used to be cited for
+                # the jail door that goto-prince-cell walked past).
+                goto = min(near, key=lambda g: (_distance(step.point, g), -g[0]))
                 return "goto_tile %d,%d,%d at line %d lands past the %s the guide names (%s)" % (
                     goto[1], goto[2], goto[3], goto[0], gated[0], ",".join(locs) or step.text[:40])
         return None
 
+    def readback(self, line):
+        """The first code line within READBACK_SPAN lines after `line` that
+        reads a cheat's effect back (t.check/t.expect/t.msg.expect/t.var/
+        t.inv/t.quest.stage...), as (line, text); None when there is none. A
+        named check whose ledger row is not PASS is no readback."""
+        for number in range(line, min(line + READBACK_SPAN, len(self.test.code_lines)) + 1):
+            source = self.test.code_lines[number - 1]
+            if number == line:
+                # the cheat's own line reads nothing back after the call
+                source = source[source.find("::"):]
+                source = source[source.find(")") + 1:] if ")" in source else ""
+            match = READBACK.search(source)
+            if not match:
+                continue
+            named = re.search(r"t\.check\s*\(\s*\"([^\"]+)\"", source)
+            if named:
+                rows = [r for r in self.rows if r["step"].startswith(named.group(1))]
+                if rows and not all(r["verdict"] == "PASS" for r in rows):
+                    continue
+                return number, "t.check %r" % named.group(1)
+            return number, match.group(0).rstrip("( ")
+        return None
+
     def named_cheat(self, step):
         """A quest debugproc named after the step (::mortton_repairtemple for
-        repairTemple) did it, whatever else the test touched."""
+        repairTemple) did it, whatever else the test touched. One that
+        docs/QUEST_SERVER_CHEATS.md sanctions as a GRIND fast-forward, whose
+        effect the test reads back right after it, is the step DRIVEN: the
+        debugproc walks the quest's own advance body and skips only the
+        waiting. Returns (class, reason) or None."""
         name = norm(step.name)
         if len(name) < 6:
             return None
         _, _, debugprocs = content_index()
+        sanctioned = sanctioned_grind_cheats()
+        unread = None
         for line, text in self.test.cheats:
             parts = text[2:].split()
             if parts and parts[0] in debugprocs and name in norm(parts[0]):
                 rel, where, _ = debugprocs[parts[0]]
-                return "%s at line %d (debugproc %s:%d) is named after the step" % (text, line, rel, where)
+                if parts[0] in sanctioned:
+                    read = self.readback(line)
+                    if read:
+                        return "DRIVEN", ("%s at line %d is a sanctioned grind fast-forward "
+                                          "(docs/QUEST_SERVER_CHEATS.md:%d, debugproc %s:%d), read back "
+                                          "at line %d (%s)" % (text, line, sanctioned[parts[0]], rel, where,
+                                                              read[0], read[1]))
+                    unread = unread or ("%s at line %d (debugproc %s:%d) is sanctioned "
+                                        "(docs/QUEST_SERVER_CHEATS.md:%d) but nothing within %d lines "
+                                        "reads its effect back" % (text, line, rel, where,
+                                                                   sanctioned[parts[0]], READBACK_SPAN))
+                    continue
+                return "CHEAT", "%s at line %d (debugproc %s:%d) is named after the step" % (text, line, rel, where)
+        return ("CHEAT", unread) if unread else None
+
+    def stand_on(self, step):
+        """The ledger row (from stand_ons) whose PASS came from a square the
+        driver's reach retry ::goto'd onto, when that row did this step: its
+        loc is one of the step's targets, or its row is named after the
+        step."""
+        name = norm(step.name)
+        locs = [s for k, s in step.targets if k == "loc"]
+        for found in self.stand_ons:
+            row_name = norm(found["step"])
+            segments = [norm(part) for part in re.split(r"[.\-:/ ]", found["step"])]
+            if any(same_thing("loc", s, found["symbol"]) for s in locs) or \
+                    (len(name) >= 6 and (row_name.startswith(name) or any(seg == name for seg in segments))):
+                return found
         return None
 
     def is_travel(self, step):
@@ -1560,7 +1742,21 @@ class Grader:
     def classify(self, step, driven_reason, driven_symbols):
         strong = self.named_cheat(step)
         if strong:
-            return "CHEAT", strong
+            return strong
+        # The driver's reach retry ::goto'd the player onto the loc's own
+        # square and the press landed from there: a route the player never
+        # walked (Roving Elves' tree rope pressed from across the river). A
+        # CHEAT unless the file's GUIDE-GAP marker for the step says, citing
+        # the .rs2 or the map square, why no route ends anywhere else.
+        stood = self.stand_on(step)
+        if stood:
+            self.claimed_stand_ons.add(stood["row"])
+            why = "reach retry stood on %s with ::goto (ledger row %s %r, %s)" % (
+                stood["tile"], stood["row"], stood["step"], stood["symbol"])
+            declared = self.marker(step)
+            if declared and declared.startswith("GUIDE-GAP marker"):
+                return "DRIVEN", "%s -- declared by %s" % (why, declared)
+            return "CHEAT", why
         # A real driving row wins over anything the content says about the
         # step; then the file's own declaration (GUIDE-GAP / t.blocked), which
         # gate_findings accepts; only then the content's collapsed-by-name
@@ -1734,6 +1930,9 @@ class Grader:
             "first_test_gap": first_test, "first_content_gap": first_content,
             "content_sites": content_sites,
             "guide_gap_markers": [{"line": l, "step": s, "reason": r} for l, s, r in self.test.guide_gaps],
+            # A reach-retry ::goto stand-on no guide step claimed is still a
+            # leg nobody walked: gate_findings reports it.
+            "unclaimed_stand_ons": [f for f in self.stand_ons if f["row"] not in self.claimed_stand_ons],
         }
 
 
@@ -1766,6 +1965,10 @@ def gate_findings(test_id):
             findings.append("guide step %s (%s) is an undeclared CONTENT_GAP: %s -- add "
                             "`-- GUIDE-GAP: %s <reason citing the .rs2 line>`" % (
                                 result["step"], result["text"][:60], result["reason"], result["step"]))
+    for found in report["unclaimed_stand_ons"]:
+        findings.append("ledger row %s %r: reach retry stood on %s with ::goto (%s) and no guide step "
+                        "claims it -- walk a route to the loc or declare why none exists" % (
+                            found["row"], found["step"], found["tile"], found["symbol"]))
     if findings:
         findings.insert(0, "helper_coverage verdict %s (python3 tools/quest_gate/helper_coverage.py %s)"
                         % (report["verdict"], test_id))
@@ -1787,6 +1990,9 @@ def print_report(report):
     for key in ("first_test_gap", "first_content_gap"):
         if report[key]:
             print("  %s: %s -- %s" % (key, report[key]["step"], report[key]["reason"]))
+    for found in report["unclaimed_stand_ons"]:
+        print("  unclaimed stand-on: ledger row %s %r stood on %s with ::goto (%s)" % (
+            found["row"], found["step"], found["tile"], found["symbol"]))
     for site in report["content_sites"]:
         print("  content gap at %s (%d step%s, first %s): %s" % (
             site["site"], len(site["steps"]), "" if len(site["steps"]) == 1 else "s",
