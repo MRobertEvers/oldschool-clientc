@@ -8,23 +8,20 @@
 --
 -- From spoken_to_oddenstein on, the three missing parts he asks for
 -- (pressure_gauge, oil_can, rubber_tube) are each a REAL content
--- interaction (a poisoned-fountain trick, and two plain ground-item
--- pickups) gated behind a WALKING obstacle only -- the manor's compost/key/
--- closet_door detour for rubber_tube, and the basement's six-lever maze for
--- oil_can. Per docs/QUEST_AUTHORING.md S2/S6 ("click_loc it... or goto_tile
--- past it", "the same tile trick reaches an instanced area behind a
--- trapdoor too... with no click_loc on the trapdoor at all") and cog.lua's
--- own precedent ("the rat-cage side puzzle is navigation-only -- goto_tile
--- reaches it directly"), the walking obstacle is not the deliverable: this
--- file goto_tiles straight to rubber_tube (3111,3367,0,
--- areas/world/configs/m48_52.spawn) and oil_can (3092,9755,0,
--- areas/world/configs/m48_152.spawn -- the exact tile quest_haunted.rs2's
--- own [debugproc,hauntedbmp_oil] photographs) and drives the real
--- click_obj pickup at each, never touching closet_door or a single lever.
--- The six-lever bit math (quest_haunted.rs2 update_ernest_doors) was read
--- in full to confirm it gates nothing the hand-in itself checks --
--- professor_oddenstein.rs2's oddenstein_items/haunted_take_parts test only
--- inv_total(pressure_gauge/oil_can/rubber_tube), never a lever/door varp.
+-- interaction: a poisoned-fountain trick for the gauge, a spade/compost/
+-- key/closet_door leg for the tube, and a bookcase/ladder/six-lever maze
+-- for the can. Quest Helper's own getPanels() names pickupSpade,
+-- searchCompost, searchBookcase, goDownLadder and all nine of its solved
+-- lever presses as their own steps, so every one of them is driven here
+-- with a real click (docs/QUEST_AUTHORING.md's 2026-09-23 owner rule:
+-- goto_tile past a locked door, a secret wall or a puzzle the guide names
+-- as a step is a cheat). goto_tile is used only for the plain travel
+-- BETWEEN those clicks, the way it is everywhere else in this file. The
+-- hand-in itself (professor_oddenstein.rs2 oddenstein_items/
+-- haunted_take_parts) only tests inv_total(pressure_gauge/oil_can/
+-- rubber_tube), never a lever/door varp, so the maze's own state carries
+-- no further evidence past "the nine presses landed and the can was
+-- picked up" -- which the rows below each show.
 --
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0
 -- beside Hans -- nothing moves the player closer. Veronica spawns at
@@ -182,10 +179,44 @@ return {
                 tostring(gauge_await_result), tostring(gauge_await_detail)))
 
         -- ------------------------------------------------- the rubber tube
-        -- rubber_tube is a plain ground item (areas/world/configs/
-        -- m48_52.spawn) behind closet_door's key/lock walking obstacle, not
-        -- behind any scripted state closet_door itself sets -- goto_tile
-        -- reaches its tile directly (file header note above).
+        -- Quest Helper's getGaugeAndTubePanel names pickupSpade and
+        -- searchCompost as their own steps too (the key comes from digging
+        -- the compost heap with the spade, quest_haunted.rs2:59-74), and
+        -- closet_door (:77-93) only opens once closet_key is held -- a
+        -- goto_tile straight to rubber_tube's room would cheat past all
+        -- three, per the 2026-09-23 owner rule.
+        t.exec("goto-spade", t.player.goto_tile, 3120, 3359, 0)
+        local spade_result, spade_detail = t.player.click_obj("spade", 3)
+        local spade_have_result, spade_have_count = t.inv.count("spade")
+        t.check("pickup.spade", spade_result == "ok" and spade_have_result == "ok" and spade_have_count >= 1,
+            string.format("click_obj(spade) -> %s (%s); inv spade=%s",
+                tostring(spade_result), tostring(spade_detail), tostring(spade_have_count)))
+
+        t.exec("goto-compost", t.player.goto_tile, 3085, 3361, 0)
+        local compostheap = t.player.by_symbol("loc", "hauntedcompostheap")
+        t.exec("dig-compost", t.player.use_on, "spade", compostheap)
+        -- [oplocu,hauntedcompostheap] (quest_haunted.rs2:62-74) settles
+        -- use_on on the FIRST mes() ("You dig through the compost..."),
+        -- but closet_key is granted two ticks later, behind its own
+        -- p_delay(2) -- measured (run 1): a bare t.inv.count right after
+        -- read 0. Poll instead (trap 24/25).
+        local key_await_result, key_await_detail = t.inv.await("closet_key", 1, 5)
+        t.check("have.closet_key", key_await_result == "ok",
+            string.format("inv.await(closet_key,1,5) -> %s (%s) after the compost dig",
+                tostring(key_await_result), tostring(key_await_detail)))
+
+        -- Quest Helper's own enterManorWithKey (ObjectStep, HAUNTEDDOORL)
+        -- is a SEPARATE guide step from the manor's first entry --
+        -- open_manor_entrance's loc_change(<opened>, 3) is a TIMED swing
+        -- (duration 3), so it has closed again by the time the compost
+        -- detour is done, and the guide has the player click it a second
+        -- time on the way back in.
+        t.exec("goto-manor-reentry", t.player.goto_tile, 3108, 3349, 0)
+        t.exec("reenter-manor-door", t.player.click_loc, "haunteddoorl", 1)
+
+        t.exec("goto-closetdoor", t.player.goto_tile, 3107, 3367, 0)
+        t.exec("open-closetdoor", t.player.click_loc, "closet_door", 1)
+
         t.exec("goto-rubbertube", t.player.goto_tile, 3111, 3367, 0)
         local tube_result, tube_detail = t.player.click_obj("rubber_tube", 3)
         local tube_have_result, tube_have_count = t.inv.count("rubber_tube")
@@ -194,10 +225,60 @@ return {
                 tostring(tube_result), tostring(tube_detail), tostring(tube_have_count)))
 
         -- ----------------------------------------------------- the oil can
+        -- Quest Helper's "Get the oil can" panel names searchBookcase,
+        -- goDownLadder and nine lever presses as its own steps (helper's
+        -- getCanPanel) -- each is a real click here, per the 2026-09-23
+        -- owner rule (goto_tile past a loc the guide names is a cheat).
+        -- The bookcase (quest_haunted.rs2:172-177, oploc1 hauntedbookcasel)
+        -- only fires approached from the EAST (`coordx(coord) < loc_coord`
+        -- returns a no-op otherwise); Quest Helper's own WorldPoint
+        -- (3097,3358,0) already sits on the loc's own x, which satisfies
+        -- that guard. The bookcase's manor_bookcase_door proc teleports the
+        -- player into the secret room (0_48_52_24_30 = 3096,3358,0) itself.
+        t.exec("goto-bookcase", t.player.goto_tile, 3097, 3358, 0)
+        t.exec("search-bookcase", t.player.click_loc, "hauntedbookcasel", 1)
+
+        -- The ladder (puzzle_ladder_top, quest_haunted.rs2:211-214) resets
+        -- every lever/door bit (~reset_haunted_levers) and teleports to
+        -- 0_48_152_44_26 = 3116,9754,0 in the basement.
+        t.exec("goto-ladder", t.player.goto_tile, 3092, 3362, 0)
+        t.exec("go-down-ladder", t.player.click_loc, "puzzle_ladder_top", 1)
+
+        -- Nine lever presses, Quest Helper's own solved order (getCanPanel):
+        -- A down, B down, D down, B up, A up, F down, E down, C down, E up.
+        -- Each lever is a multiloc (levera/levera_up/levera_down all bind
+        -- the same ernest_pull_lever proc, quest_haunted.rs2:227-315) --
+        -- click_loc resolves whichever child the scene currently shows.
+        t.exec("goto-lever-a-1", t.player.goto_tile, 3108, 9745, 0)
+        t.exec("lever-a-down", t.player.click_loc, "levera", 1)
+
+        t.exec("goto-lever-b-1", t.player.goto_tile, 3118, 9752, 0)
+        t.exec("lever-b-down", t.player.click_loc, "leverb", 1)
+
+        t.exec("goto-lever-d-1", t.player.goto_tile, 3108, 9767, 0)
+        t.exec("lever-d-down", t.player.click_loc, "leverd", 1)
+
+        t.exec("goto-lever-b-2", t.player.goto_tile, 3118, 9752, 0)
+        t.exec("lever-b-up", t.player.click_loc, "leverb", 1)
+
+        t.exec("goto-lever-a-2", t.player.goto_tile, 3108, 9745, 0)
+        t.exec("lever-a-up", t.player.click_loc, "levera", 1)
+
+        t.exec("goto-lever-f-1", t.player.goto_tile, 3096, 9765, 0)
+        t.exec("lever-f-down", t.player.click_loc, "leverf", 1)
+
+        t.exec("goto-lever-e-1", t.player.goto_tile, 3097, 9767, 0)
+        t.exec("lever-e-down", t.player.click_loc, "levere", 1)
+
+        t.exec("goto-lever-c-1", t.player.goto_tile, 3112, 9760, 0)
+        t.exec("lever-c-down", t.player.click_loc, "leverc", 1)
+
+        t.exec("goto-lever-e-2", t.player.goto_tile, 3097, 9767, 0)
+        t.exec("lever-e-up", t.player.click_loc, "levere", 1)
+
         -- oil_can is a plain ground item in the basement maze (areas/world/
         -- configs/m48_152.spawn) -- the exact tile quest_haunted.rs2's own
-        -- [debugproc,hauntedbmp_oil] photographs, behind the six-lever
-        -- walking obstacle the file header explains bypassing.
+        -- [debugproc,hauntedbmp_oil] photographs.
         t.exec("goto-oilcan", t.player.goto_tile, 3092, 9755, 0)
         local oil_result, oil_detail = t.player.click_obj("oil_can", 3)
         local oil_have_result, oil_have_count = t.inv.count("oil_can")
