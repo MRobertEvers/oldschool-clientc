@@ -104,9 +104,9 @@ quest_misc	misc	throneofmiscellania		1	green	sonnet-b11
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
-quest_mortton	mortton	shadesofmortton		1	todo	sonnet-b12	RETRY after 72f57a54a: the server now loads authored .struct records, so sacred oil on logs makes Pyre logs (the opheldu content_bug verdict is stale). Rewrite temple.makePyreLogs and the t.blocked after it (~line 783-801) into use_item_on_item + inv.await logs_pyre + expect_stage mortton_created_pyre_logs, then author the pyre (75/80) and Ulsquire hand-in; seam8's author copy ran 124/124 to completion (build/seam_state/seam8/fix.author-mortton-reauthor-past-blocked.json)
+quest_mortton	mortton	shadesofmortton		1	green	sonnet-b13	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	sonnet-b12	RETRY after 72f57a54a: QD.shot now re-aims an occluded camera itself at zero tick cost, so shots 47-90 show the player without manual aims; resume from 3167c5f57's file (or seam8's author copy, 155/155 gate green: build/seam_state/seam8/fix.author-mourningsendparti-resume-3167c5f57.json), drop the obsolete carnilleanrange t.blocked and Read every shot
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b13	
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b10	RETRY after 68c5e8d9d: mend2_shared.rs2:97's 300-byte mes() is split (and two more that rendered cut), and ToriRSServer_Send now refuses an over-length var-u8 frame out loud instead of desyncing the session. Remove the t.blocked row and its return and append the talkToArianwyn4/talkToArianwyn5 rows plus t.quest.expect_complete(); a proved copy runs 31/32 with client=60 server=60, the completion scroll and 2 quest points. It then stops on quest.journal alone, which is a SEPARATE content gap needing its own row: there is no [proc,mend2_journal] anywhere and quest_journal.rs2 has no part-2 dispatch row, so the quest falls to the file's 'This world does not run this quest yet.' default.
 quest_murder	murder	murdermystery		1	green	sonnet-b9	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
@@ -151,7 +151,7 @@ quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
-quest_sheepherder	sheepherder	sheepherder		1	todo	sonnet-b12	"RETRY after 1e39261b8: npc_coord after npc_del now reads the removed sheep (bones drop, quest completes on the dirty copy); rewrite collectBones1-4 as t.check(name, r == ""ok"", <detail>) -- they FAIL hollow, ok with no detail -- and drop the engine-seam t.blocked"
+quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b13	
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
