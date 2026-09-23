@@ -931,6 +931,12 @@ class Test:
             for var, body in re.findall(r"\blocal\s+(\w+)\s*=\s*\{([^}]*)\}", line):
                 for text in re.findall(r"\"([^\"]*)\"", body):
                     local_literal.setdefault(var, []).append((number, text))
+            # A table field anywhere on the line binds too, not only one that
+            # starts its own line: `{ npc = "a", loc = "b" }` resolves
+            # SUS[n].npc as well as the one-field-per-line form does.
+            for var, text in re.findall(r"[{,;]\s*(\w+)\s*=\s*\"([^\"]*)\"", line):
+                if (number, text) not in local_literal.get(var, []):
+                    local_literal.setdefault(var, []).append((number, text))
         self.action_lines = []  # (line, {strings the action names})
         for number in action_lines:
             line = self.code_lines[number - 1]
@@ -1538,7 +1544,8 @@ class Grader:
     def collapsed_by_name(self, step):
         """The content's own soft-skip comment names this guide step
         (mend1_sheep.rs2: "quest-helper's own `getToads` step ... is
-        collapsed") -- a content gap even when the test drove the stand-in."""
+        collapsed") -- a content gap unless the test drove the step with a real
+        row or declared it with a GUIDE-GAP marker (classify checks those first)."""
         if len(step.name) < 6:
             return None
         for rel, number, text in self.softs:
@@ -1554,13 +1561,20 @@ class Grader:
         strong = self.named_cheat(step)
         if strong:
             return "CHEAT", strong
+        # A real driving row wins over anything the content says about the
+        # step; then the file's own declaration (GUIDE-GAP / t.blocked), which
+        # gate_findings accepts; only then the content's collapsed-by-name
+        # prose, which the file can neither drive past nor declare away if it
+        # came first (mourningsendparti's talkToIslwyn, pickUpRottenApple).
+        if driven_reason:
+            return "DRIVEN", driven_reason
+        declared = self.marker(step)
+        if declared:
+            return "CONTENT_GAP", declared
         collapsed = self.collapsed_by_name(step)
         if collapsed:
             return "CONTENT_GAP", collapsed
-        if driven_reason:
-            return "DRIVEN", driven_reason
-        for klass, check in (("CONTENT_GAP", lambda: self.marker(step)),
-                             ("CHEAT", lambda: self.cheat(step, driven_symbols)),
+        for klass, check in (("CHEAT", lambda: self.cheat(step, driven_symbols)),
                              ("BRING_ALONG", lambda: self.bring_along(step)),
                              ("CONTENT_GAP", lambda: self.content_gap(step)),
                              # Weakest test-side evidence last: a goto past a
