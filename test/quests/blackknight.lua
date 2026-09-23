@@ -3,20 +3,25 @@
 -- the cabbage-in-the-hole sabotage (quests/quest_blackknight/scripts/
 -- quest_blackknight.rs2), never through ::setvar on %spy.
 --
--- Every fortress interior loc Quest Helper's guide walks through
--- (bkfortressdoor1/2/3, the ladders, bksecretdoor) is plain walk-through
--- scenery -- grepping the quest's own .rs2 shows only [oploc1,witchgrill]
--- and [oplocu,blackknighthole] ever touch %spy, and bkfortressdoor1's own
--- guard dialogue and bkfortressdoor2's banquet-hall warning are both
--- optional flavour that never gate %spy either. So this file reaches each
--- of the two %spy-writing locs directly with player.goto_tile (doc section
--- 2: "goto_tile ... climbs stairs and ladders for you", the same shortcut
--- the druid/Wizards' Tower trapdoor files use) instead of walking every
--- door and ladder the guide lists. bronze_med_helm/iron_chainbody would
--- only matter for the entrance guard's disguise check, and that guard is
--- never walked up to here, so they are given in setup (Quest Helper
--- bring-alongs -- new_quest.py left no gather-CHECK marker for either)
--- but never equipped.
+-- Grepping the quest's own .rs2 shows only [oploc1,witchgrill] and
+-- [oplocu,blackknighthole] ever touch %spy -- bkfortressdoor1/2/3's own
+-- guard dialogue and banquet-hall warning are optional flavour that never
+-- gates %spy. bkfortressdoor1 and every ladder are plain travel
+-- (helper_coverage.py classifies them TRAVEL, "merged into the step it
+-- leads to") and are crossed with player.goto_tile (doc section 2:
+-- "goto_tile ... climbs stairs and ladders for you"). `bksecretdoor`
+-- (Push-Wall) is different: Quest Helper names it its own step twice
+-- (pushWall at 3016,3517,0 before listening, pushWall2 at 3030,3510,1
+-- before the hole) and it is a secret WALL, so goto_tile'ing past it reads
+-- as a cheat (rule (b)) even though `[oploc1,bksecretdoor]` never writes
+-- %spy -- both copies are pressed for real with player.click_loc below.
+-- bronze_med_helm/iron_chainbody are given in setup (Quest Helper
+-- bring-alongs -- new_quest.py left no gather-CHECK marker for either) and
+-- worn for real once inside: the fortress is patrolled by aggressive
+-- level-33 Black Knights the moment the route actually walks its floors
+-- (run 2 of this file died to them at 3030,3510,1 undisguised), and the
+-- disguise is the guide's own accompanying-item answer to that, not the
+-- entrance guard's dialogue alone.
 --
 -- %qp must be >= ^blackknight_qp_req (12) before Sir Amik offers the quest
 -- at all (sir_amik_varze.rs2's prequest branch) -- a prerequisite (quest
@@ -29,10 +34,21 @@ return {
     setup = {
         "::clearinv",
         "::blackknightrun",         -- content's own reset: %spy=0, clears the cauldron/armour hints and any leftover coins/cabbage/dossier
-        "::give bronze_med_helm 1", -- Quest Helper bring-along (guard disguise) -- not equipped, this run never walks the guarded door
+        "::give bronze_med_helm 1", -- Quest Helper bring-along (guard disguise), worn for real in run() below
         "::give iron_chainbody 1",
         "::give cabbage 1",         -- Quest Helper bring-along (an ordinary cabbage, sourced anywhere) -- the SABOTAGE is using it on the hole, driven for real below
         "::setvar qp 12",           -- prerequisite quest points, not blackknight's own reward
+        -- The disguise stops bkfortressdoor1's guard, not the fortress's
+        -- OWN patrol: areas/world/configs/m47_54.spawn scatters a dozen
+        -- `aggressive_black_knight`/`kr_aggressive_black_knight` (level 33,
+        -- genuinely hostile) across every floor the route below walks,
+        -- several beside the two secret-door tiles themselves. This is an
+        -- incidental hazard the quest's own completion never requires
+        -- fighting through (trap: "::passive <npc_symbol> takes a
+        -- wandering aggressive npc out of a test's way") -- run 3 of this
+        -- file died to one at 3030,3510,1 even disguised.
+        "::passive aggressive_black_knight",
+        "::passive kr_aggressive_black_knight",
     },
 
     run = function(t)
@@ -93,6 +109,44 @@ return {
                 .. " count=" .. tostring(dossier_count) .. "(" .. tostring(dossier_count_result) .. ")")
 
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
+
+        -- The fortress interior is patrolled by `aggressive_black_knight`
+        -- (level 33, genuinely aggressive -- areas/world/configs/m47_54.spawn
+        -- spawns a dozen of them across every floor the route below
+        -- crosses, several right beside the two secret-door tiles). Run 2
+        -- of this file died to them at 3030,3510,1 with the disguise not
+        -- worn. Quest Helper's own "Infiltrate the fortress" panel lists
+        -- bronzeMed/ironChainbody as its accompanying items and its step
+        -- text warns "Be prepared for multiple level 33 Black Knights to
+        -- attack you" -- the disguise is what the real quest wears for
+        -- exactly this leg, so it is equipped for real here, not skipped.
+        t.exec("equip.bronze_med_helm", t.player.equip, "bronze_med_helm")
+        t.exec("equip.iron_chainbody", t.player.equip, "iron_chainbody")
+
+        -- ---------------------------------------- push the secret wall in
+        -- Quest Helper's "Infiltrate the fortress" step is enterFortress
+        -- (bkfortressdoor1, TRAVEL -- helper_coverage.py classifies it
+        -- "merged into the step it leads to", same as the ladders below)
+        -- then pushWall: a real Push-Wall click on `bksecretdoor` at
+        -- 3016,3517,0 (BlackKnightFortress.java:231). `[oploc1,bksecretdoor]`
+        -- (quest_blackknight.rs2:240-242) is a bare mes() + p_teleport, no
+        -- %spy write, but it IS a secret wall the guide names as its own
+        -- step, so it is clicked for real, not goto_tile'd past (doc
+        -- section 2 / rule (b)); the ladders after it are plain floor
+        -- changes goto_tile is documented to cross by itself.
+        -- 3016,3514,0 (Quest Helper's own WorldPoint for enterFortress) is
+        -- the bkfortressdoor1 threshold ITSELF, still outside the fortress
+        -- (measured run 1: the goto landed the player in the open, with no
+        -- wall between him and bksecretdoor, so the push hunted down to
+        -- "1 pixel(s) tried" and settled on some unrelated chat_message,
+        -- never the door's own line) -- bkfortressdoor1 is TRAVEL (no
+        -- disguise equipped here), so the goto is aimed one tile further
+        -- in, mainEntrance3's own zone, already inside and south of
+        -- bksecretdoor's tile.
+        t.exec("goto-fortress-entrance", t.player.goto_tile, 3016, 3516, 0)
+        t.exec("fortress.push_wall", t.player.click_loc, "bksecretdoor", 1)
+        t.exec("fortress.push_wall_message", t.msg.expect, "You push against the wall")
+        t.ticks(2) -- the door's p_teleport lands a tick behind the click (section 2 teleport-door note)
 
         -- --------------------------------------------- listen at the grill
         t.exec("goto-grill", t.player.goto_tile, 3026, 3509, 0)
@@ -168,6 +222,17 @@ return {
         t.expect("quest.stage.listened", t.quest.expect_stage("listened"))
 
         -- ---------------------------------------------- sabotage the potion
+        -- Quest Helper's "Sabotage the potion" section climbs back up
+        -- through the same ladders (TRAVEL) to a SECOND, separately placed
+        -- copy of `bksecretdoor` -- pushWall2 at 3030,3510,1
+        -- (BlackKnightFortress.java:263), on the path to the cabbage hole
+        -- room -- before useCabbageOnHole. Same trigger, different
+        -- placement, so it gets its own real click.
+        t.exec("goto-cabbage-path", t.player.goto_tile, 3030, 3512, 1)
+        t.exec("fortress.push_wall2", t.player.click_loc, "bksecretdoor", 1)
+        t.exec("fortress.push_wall2_message", t.msg.expect, "You push against the wall")
+        t.ticks(2) -- the door's p_teleport lands a tick behind the click (section 2 teleport-door note)
+
         t.exec("goto-hole", t.player.goto_tile, 3026, 3510, 1)
 
         local hole_loc_result, hole_loc = t.world.loc_near("blackknighthole", 20)
