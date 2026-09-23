@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b16	
+quest_fishingcompo	fishingcompo	fishingcontest		1	todo	sonnet-b16	REOPENED after 3cab65207: helper_coverage now grades the driver's reach-retry ::goto stand-on as CHEAT -- ledger row 45 garlicpipe.stash pressed garlicpipe from its own square 2638,3446 (all three pipe squares are BLOCKWALK in m41_53.jm2; collision_test_wdecor has no arm for straight wall decorations, an engine reach gap). Either the seam pass makes the pipe reachable from a neighbour, or the test carries a -- GUIDE-GAP: putGarlicInPipe marker citing m41_53.jm2.
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
