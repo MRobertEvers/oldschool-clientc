@@ -12,7 +12,7 @@ quest_belowicemountain	belowicemountain	belowicemountain		4	todo
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
 quest_betweenarock	betweenarock	betweenarock		1	todo	sonnet-b12	RE-AUTHOR after aa38f602a3: content now picks the Avatar tier by gold ore held at the flame (15+ -> level 75 _yellow, 6-14 -> level 125 _green); drive it per the guide (plus 0ee0ee5e9d's book report -> 60 and gold on Dondakan). First red row: 40 talkToDondakanWithBook-dialog. Legs left: schematic interface puzzle (one click), Khorvak driver settle seam at 2864,9876, Dwarf Cannon prereq.
 quest_biohazard	biohazard	biohazard		1	todo	sonnet-b9	GUIDE GAP (test): enterMournerHeadquarters is CHEAT -- goto_tile 2592,3336,0 at line 126 lands past the door the guide names (mournerstewdoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py biohazard)
-quest_blackarmgang	blackarmgang	shieldofarrav		1	todo	sonnet-b11	RE-AUTHOR after c8b3e2fede: replace goto-weaponStore and ::give arravcertificate_lft with ::blackarmgang_partner then use_on(phoenixkey2, phoenixdoor2) and the real certificate combine (docs/quests/shield_of_arrav.md); searchBookcase still goto_tiles. PARITY done
+quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b15	
 quest_blackknight	blackknight	blackknightfortress		1	todo	sonnet-b5	GUIDE GAP (test): pushWall is CHEAT -- goto_tile 3026,3509,0 at line 98 lands past the door the guide names (bksecretdoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py blackknight)
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
@@ -22,7 +22,7 @@ quest_clientofkourend	clientofkourend	clientofkourend		4	todo
 quest_cog	cog	clocktower		1	todo	sonnet-b8	GUIDE GAP (test): pushWall is CHEAT -- goto_tile 2569,3249,0 at line 76 lands past the door the guide names (secretdoor2) (6 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py cog)
 quest_coldwar	coldwar	coldwar		4	todo		
 quest_contact	contact	contact		4	todo		
-quest_cook	cooks_assistant	cooksassistant		1	todo	hand	GUIDE GAP (test): getBucket is CHEAT -- ::cookbmp_test_give_ingredients (debugproc quests/quest_cook/scripts/quest_cook_test_ingredients.rs2:11) at line 111 -- shares bucket (8 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py cooks_assistant)
+quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
 quest_currentaffairs	currentaffairs	currentaffairs		1	todo	sonnet-b9	RE-AUTHOR after aa38f602a3: content now has Arhein's stage-40 'About that duck...' transcript pages and a 'Board your boat and sail east to the ripple.' choice that lands at 2835,3418 with a ripple mesbox -- drive that instead of goto to the ripple (plus c8b3e2fede's eight form questions). First red row: 15 form.filled. Legs left: own boat/helm (no Sailing vehicle), duck landing at the Catherby dock not the wiki pin.
@@ -42,9 +42,9 @@ quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric
 quest_dragon	dragon	dragonslayer		3	todo		
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		
 quest_dreammentor	dreammentor	dreammentor		4	todo		
-quest_druid	druid	druidicritual		1	todo	haiku-pilot3	GUIDE GAP (test): enterCauldronRoom is CHEAT -- goto_tile 2899,3429,1 at line 73 lands past the door the guide names (cauldrondoor_l,cauldrondoor) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py druid)
+quest_druid	druid	druidicritual		1	green	sonnet-b15	
 quest_druidspirit	druidspirit	naturespirit		3	todo		
-quest_drunkmonk	drunkmonk	monksfriend		1	todo	sonnet-b1	RE-AUTHOR after fc44e385e0: content now has Omad's full party (balloon drops, three-round monk dance, ~32 ticks before the completion queue); drive it per the guide -- first failing row 37 quest.varp_complete client=70 server=70 (t.ticks(3) after finishQuest-dialog); goUpLadder still goto_tiles past ladder_from_cellar
+quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
 quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	RE-AUTHOR after aa38f602a3: content now has the sleeping storeroom guard -- searching the goutweed crate always grants the goutweed, then knocks you out and teleports you to 2865,10088 (LostCity eadgar_take_goutweed); drive it per the guide (plus c8b3e2fede's Parroty Pete gate: ask both questions before vodka on pineapple_chunks). First red row: 24 catchParrot. Legs left: the 8 roaming troll_sguard patrols have no AI.
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	todo	sonnet-b5	GUIDE GAP (test): goDownStairs is CHEAT -- goto_tile 2716,3482,0 at line 77 lands past the stair the guide names (elemental_workshop_spiralstairstop) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py elemental_workshop)
@@ -52,7 +52,7 @@ quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo
 quest_elena	elena	plaguecity		3	todo		
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo		
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
-quest_entertheabyss	entertheabyss	entertheabyss		1	todo	sonnet-b9	RE-AUTHOR after fc44e385e0: content now has the real Chaos Temple offer tree (top menu, care-to-share 4-way, mercenary/loyal branches, Deal/No deal/think) and the orb handover + lore topics ending on I'd better be off.; drive it per the guide -- first failing row 8 talkToMageInVarrock-dialog (old invented line 'Ah, you again. What was it you wanted?')
+quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15	
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
@@ -67,7 +67,7 @@ quest_gettingahead	gettingahead	gettingahead		4	todo
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
-quest_golem	golem	thegolem		1	todo	sonnet-b8	RE-AUTHOR after 0ee0ee5e9d (unchanged): Elissa gates the bookcase, Curator Haig dialogue (now tracked, and after the museum hand-ins), display case Open with the key, four statuettes to turn; drive it per the guide. First red row: 44 useKeyOnCase. PARITY done at c8b3e2fede
+quest_golem	golem	thegolem		1	green	sonnet-b15	
 quest_grail	grail	holygrail		2	todo		
 quest_grandtree	grandtree	thegrandtree		3	todo		
 quest_grimtales	grimtales	grimtales		4	todo		
@@ -76,8 +76,8 @@ quest_haunted	haunted	ernestthechicken		1	todo	sonnet-b9	PARITY done after c8b3e
 quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
 quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
-quest_hero	hero	heroesquest		1	todo	sonnet-b11	RE-AUTHOR after c8b3e2fede: content now has no Phoenix bypass at pete_sidedoor -- run ::hero_partner (the Black Arm partner's misc_key hand-off, docs/QUEST_SERVER_CHEATS.md D) then use_on(misc_key, pete_sidedoor) instead of goto_tile past it (test is green only because it teleports); also drive the Taverley pipe/jail and the White Wolf rockslide instead of goto_tile. PARITY done
-quest_hetty	hetty	witchspotion		1	todo	haiku-b1	GUIDE GAP (test): killRat is CHEAT -- ::give rats_tail 1 at line 13 -- shares rat,tail (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hetty)
+quest_hero	hero	heroesquest		1	green	sonnet-b15	
+quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
 quest_horror	horror	horrorfromthedeep		3	todo		
 quest_hunt	hunt	piratestreasure		1	todo	sonnet-b8	GUIDE GAP (test): goToKaramja is CHEAT -- the journey (seaman_lorris, areas/port_sarim/scripts/sailors.rs2:14) is replaced by goto_tile at line 85 (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hunt)
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
@@ -106,9 +106,17 @@ quest_mm	mm	monkeymadnessi		3	todo
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	todo	sonnet-b14	GUIDE GAP (test): repairTemple is CHEAT -- ::mortton_repairtemple at line 510 (debugproc minigames/game_mortton/scripts/flamtaer_temple.rs2:498) is named after the step (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py mortton)
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	sonnet-b13	RE-AUTHOR after aa38f602a3: content now proves the still through the client (regicide_still_total/_settings transmit); drive the barrel at the tar collection, the still's valves/coal at 2927,3212 and the close (driver seam: its type=5 close icon does not fire through if_click), plus c8b3e2fede's barrel/apple pile, dyed bellows on a toad. First red row: 12 killMourner (settle_after_click walk_near stepped off 2299,3328).
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	content_bug	sonnet-b15	"gate: 5 finding(s) across 1 quest(s)
+mourningsendparti        RED
+    - helper_coverage verdict CONTENT_GAP (python3 tools/quest_gate/helper_coverage.py mourningsendparti)
+    - guide step talkToIslwyn (Talk to Islwyn in Isafdar. If he's not at the marked locatio) is an undeclared CONTENT_GAP: the content's soft-skip comment at quests/quest_mourningsendparti/configs/mend1.constant:60 says talkToIslwyn is collapsed -- add `-- GUIDE-GAP: talkToIslwyn <reason citing the .rs2 line>`
+    - guide step giveGnomeItems (Give the gnome a magic log, some soft leather and some toad ) is an undeclared CONTENT_GAP: the content's soft-skip comment at quests/quest_mourningsendparti/configs/mend1.constant:60 says giveGnomeItems is collapsed -- add `-- GUIDE-GAP: giveGnomeItems <reason citing the .rs2 line>`
+    - guide step askAboutToads (Ask the gnome about ammo.) is an undeclared CONTENT_GAP: the content's soft-skip comment at quests/quest_mourningsendparti/configs/mend1.constant:60 says askAboutToads is collapsed -- add `-- GUIDE-GAP: askAboutToads <reason citing the .rs2 line>`
+    - guide step pickUpRottenApple (Pick up a rotten apple from north-west of the Mourner HQ.) is an undeclared CONTENT_GAP: the content's soft-skip comment at quests/quest_mourningsendparti/scripts/mend1_poison.rs2:8 says pickUpRottenApple is collapsed -- add `-- GUIDE-GAP: pickUpRottenApple <reason citing the .rs2 line>`
+
+VERIFIED as a tools/quest_gate/helper_coverage.py classify()-ordering defect, not a defect in test/quests/mourningsendparti.lua: collapsed_by_name() (line 1538, checked at line 1553 inside classify() BEFORE driven_reason) returns CONTENT_GAP immediately on any step the content's own soft-skip prose names, so the later marker()-based check (which reads this file's `-- GUIDE-GAP:` comments) never runs for these four. talkToIslwyn/giveGnomeItems/askAboutToads (lines 255, 641, 663) already carry correct, lint-clean GUIDE-GAP markers; pickUpRottenApple (lines 919-943, ledger row 132, shot 119-goto-pickUpRottenApple.png) is genuinely DRIVEN by a real goto_tile+click_obj row. gate_findings() (helper_coverage.py:1740) only accepts a CONTENT_GAP reason starting with 'GUIDE-GAP marker' or 't.blocked/content_bug'; collapsed_by_name's reason string can never start with either, so this is structurally unfixable from the .lua file. Fix belongs in tools/quest_gate/helper_coverage.py (out of scope for this worktree). helper_coverage.py itself independently confirms full coverage: VERDICT CONTENT_GAP (34 steps: DRIVEN=28 CONTENT_GAP=5 TRAVEL=1) -- exactly the author's own count."
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b10	RE-AUTHOR after aa38f602a3: content now has Temple of Light puzzle 2 (pull the dispenser again -> 4 mirrors + cyan + yellow and the shared 2_9/2_7 edges reset; re-light 2_9/2_7; cyan crystal on 2_6; mirrors on 2_5 and 2_2; yellow crystal on 2_3; open+search the magenta chest -> parts_3) and every mirror is placed then POINTED: Search the pillar and choose the guide's direction (North./East./South./West./'Up or down...'); drive puzzles 1-2 per the guide. First red row: 18 talkToArianwyn2-dialog. Legs left: puzzles 3-5 and the Death Altar barrier.
-quest_murder	murder	murdermystery		1	todo	sonnet-b9	RE-AUTHOR after 0ee0ee5e9d: content now spawns the plain murderweapon; pick it up, use pot of flour on it, then flypaper; drive it per the guide. First red row: 11 weapon.locate
+quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
@@ -144,7 +152,7 @@ quest_rovingelves	rovingelves	rovingelves		1	todo	sonnet-b10	GUIDE GAP (test): e
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
-quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo	sonnet-b2	RE-AUTHOR after fc44e385e0: content now has Thormac's p_choice3 offer (how to catch / what's in it for me / not interested) and the lost-cage recovery; drive it per the guide -- first failing row 4 talk.thormac1-dialog entry 7 got options. Also: GUIDE GAP (test): enterOutpost is CHEAT -- goto_tile 2552,3570,0 at line 123 lands past the gate the guide names (barbariangatel) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py scorpcatcher)
+quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15	
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
