@@ -35,6 +35,11 @@ without `--claim`. Exits 1, printing to stderr, when no todo row matches.
 `set`: rewrites one row's `status` (one of `todo green blocked
 content_bug` -- refused otherwise, with a message), and optionally `owner`/
 `last_failure`. Refuses an unknown `test_id` with a message naming it.
+`--status green` on a file that still calls `t.blocked(` is refused unless
+build/quest_gate/<test_id>/ledger.tsv (the same file gate.py reads) shows no
+BLOCKED row and no SUMMARY `blocked=` bucket -- a guard the run never
+reached, not a stub the ledger actually hit. Either way the decision prints
+its reason.
 
 `show`: prints one row's columns, one per line. Refuses an unknown
 `test_id` the same way.
@@ -52,6 +57,8 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+
+import ledger  # local module, plain stdlib itself -- see cmd_set's green guard
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
@@ -102,6 +109,38 @@ def format_row(row: dict) -> str:
     return "\t".join(row.get(col, "") for col in QUEUE_COLUMNS)
 
 
+def quest_ledger_path(test_id: str) -> Path:
+    """build/quest_gate/<test_id>/ledger.tsv -- the fixed location run.py
+    writes to and gate.py reads from (gate.py's artefact_dir()), regardless
+    of which QUEUE.tsv copy --file points at."""
+    return REPO / "build" / "quest_gate" / test_id / "ledger.tsv"
+
+
+def ledger_clear_of_blocked(ledger_path: Path):
+    """(ok, reason) -- reads `ledger_path` exactly the way gate.py does
+    (ledger.read(): rows is None, not [], when the file does not exist at
+    all; each row's "verdict" column; the trailing SUMMARY row's
+    "pass=<n> fail=<m>[ blocked=<k>]" text, gate.py's parse_summary_counts).
+    ok is True only when the ledger exists, no row's verdict is BLOCKED,
+    and the SUMMARY line carries no blocked= token at all -- phase 1
+    (torirs_plugin_drive.c) only ever writes that token when K>0, so ANY
+    blocked= token means at least one BLOCKED row, same as gate.py assumes."""
+    rows, summary = ledger.read(str(ledger_path))
+    if rows is None:
+        return False, "no ledger.tsv at %s" % ledger_path
+    for row in rows:
+        if row["verdict"] == "BLOCKED":
+            return False, "%s has a BLOCKED row (%s: %s)" % (
+                ledger_path, row["step"], row["detail"])
+    if summary is not None and len(summary) >= 6:
+        for token in summary[5].split():
+            key, _, _ = token.partition("=")
+            if key == "blocked":
+                return False, "%s SUMMARY row carries a blocked= bucket (%s)" % (
+                    ledger_path, summary[5])
+    return True, "%s has no BLOCKED row and no blocked= bucket" % ledger_path
+
+
 def cmd_next(args: argparse.Namespace) -> int:
     rows = load_rows(args.file)
     tier = str(args.tier)
@@ -128,10 +167,23 @@ def cmd_set(args: argparse.Namespace) -> int:
     if args.status == "green":
         # 2026-09-20: six rows sat at green while their files ended on a
         # t.blocked row; green means the gate's green bucket, nothing less.
+        # A file can still call t.blocked( behind a guard a real run never
+        # reaches (entertheabyss, murder) -- every batch's queue agent has
+        # had to bypass this with a direct QUEUE.tsv write for exactly that
+        # shape. 2026-09-22: the ledger gate.py itself would score is the
+        # tiebreaker instead -- accept when it shows no BLOCKED row and no
+        # blocked= bucket, keep refusing when there is no ledger or it does.
         lua = os.path.join(os.path.dirname(os.path.abspath(args.file)), args.test_id + ".lua")
         if os.path.exists(lua) and "t.blocked(" in open(lua, encoding="utf-8").read():
-            print(f"refusing green: {lua} still calls t.blocked( -- set blocked or content_bug instead", file=sys.stderr)
-            return 1
+            ledger_path = quest_ledger_path(args.test_id)
+            ok, reason = ledger_clear_of_blocked(ledger_path)
+            if ok:
+                print(f"queue.py: {lua} still calls t.blocked( but its ledger clears it "
+                      f"-- accepting green: {reason}", file=sys.stderr)
+            else:
+                print(f"refusing green: {lua} still calls t.blocked( and its ledger does "
+                      f"not clear it -- {reason}", file=sys.stderr)
+                return 1
     row["status"] = args.status
     if args.owner is not None:
         row["owner"] = args.owner
