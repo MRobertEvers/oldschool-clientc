@@ -2023,6 +2023,11 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         before_kind, before_text = QD.player._chat_page()
     end
 
+    -- The teleport arm's state (SEAM settle_teleport_landing, banner over
+    -- QD.player._settle_teleport_ticks): where the player stood when the
+    -- settle began, whether he was idle then, and the last tile a poll saw.
+    local jump = QD.player._settle_jump_start()
+
     local result, detail = QD.await({
         match = function(ev)
             if ev.kind == "sub_mounted" then
@@ -2057,7 +2062,7 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         level = function()
             local kind, text = QD.player._chat_page()
             if kind == before_kind and text == before_text then
-                return false
+                return QD.player._settle_jump_landed(jump, route_issued)
             end
             -- A PAGE THAT WENT AWAY IS NOT A PAGE THIS CLICK PUT UP.
             --
@@ -2076,7 +2081,7 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
             -- mounted sub, a chat line, a route, or a page that IS up and
             -- differs -- or time out and say so.
             if kind == "none" then
-                return false
+                return QD.player._settle_jump_landed(jump, route_issued)
             end
             resolved_by = "page " .. tostring(before_kind) .. "->" .. tostring(kind)
                 .. (text ~= before_text and " (text)" or "")
@@ -2112,10 +2117,103 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
     if refusal then
         return "refused", refusal, "refusal", refusal
     end
+    if result == "ok" and resolved_by == nil and jump.landed then
+        return "ok", "teleport: " .. jump.landed, "teleport", settle_line
+    end
     if result == "ok" then
         return "ok", resolved_by or "settled", resolved_by or "settled", settle_line
     end
     return result, detail, "timeout", settle_line
+end
+
+-- SEAM settle_teleport_landing (seam10, 2026-09-23) -- A CLICK WHOSE WHOLE
+-- ANSWER IS A p_teleport.
+--
+-- WHAT WAS WRONG.  A ladder, a staircase or a Temple of Light door whose
+-- `[oploc1]` body is a bare `p_teleport` (`~climb_ladder`, or
+-- mend2_puzzle3.rs2's [oploc1,mourning_door_1_1_east]) mounts no page, prints
+-- no line and -- from a player already standing beside it -- issues no
+-- route, so none of the four arms above has an edge to resolve on and the
+-- settle ran out its whole budget on a click that visibly landed.  Measured
+-- (build/quest_gate/seam10_reach_base, the shared binary, this Lua before the
+-- arm): row 4 `door.pass FAIL 22 settle_after_click` with row 5 reading the
+-- player one tile west at 1863,4665,0, and row 7 `ladder.down FAIL 22
+-- settle_after_click` with row 8 reading 1898,4666,1 -- a floor lower.  The
+-- same rows in parity_mend2_puzzle3d (62, 64) and parity_mend2_puzzle3_tail
+-- (12), each paired with a `.tile` row that passed.
+--
+-- THE FIFTH ARM, `teleport`: the player's tile moved away from where it was
+-- when the settle began, the move was one no walk makes, and the new tile has
+-- held.  "No walk makes it" is one of three facts: the PLANE changed; one
+-- poll saw the tile jump `_settle_jump_step` tiles or more (a run moves two a
+-- tick, never three); or the player was idle when the settle began and no
+-- route was issued while it waited (api_drive.player_idle: route empty AND
+-- map flag clear) -- a one-tile door teleport is indistinguishable from a
+-- step by distance, and only the absence of any route tells them apart.
+-- "Has held" is `_settle_teleport_ticks` whole ticks on the same tile, so a
+-- two-hop door (p_teleport, p_delay(1), p_teleport) resolves on its landing
+-- and not on its first hop, and a forced walk that is still moving never
+-- resolves at all.
+--
+-- The edge arms still win: they are read first in the pump and the arm needs
+-- two quiet ticks, so a teleport that also prints a line or mounts a page
+-- resolves exactly as it did.  Only a click that would otherwise have timed
+-- out resolves here, and it answers `ok` with `teleport: <from> -> <to>` so
+-- the row says what it saw.
+QD.player._settle_teleport_ticks = 2
+QD.player._settle_jump_step = 3
+
+function QD.player._settle_jump_start()
+    local jump = { landed = nil, jumped = false }
+    local tile_result, tile = api_drive.player_tile()
+    if tile_result == "ok" and tile then
+        jump.start = { x = tile.x, z = tile.z, level = tile.level or 0 }
+        jump.last = { x = tile.x, z = tile.z, level = tile.level or 0 }
+        jump.last_tick = api_drive.tick()
+    end
+    local idle_result, idle = api_drive.player_idle()
+    jump.idle_at_start = idle_result == "ok" and idle == true
+    return jump
+end
+
+-- The level half of the teleport arm: true once the landing has held.  Reads
+-- one tile per poll and nothing else; `route_issued` is the settle's own
+-- map_flag bookkeeping, passed in because the match half owns it.
+function QD.player._settle_jump_landed(jump, route_issued)
+    if jump.start == nil then
+        return false
+    end
+    local tile_result, tile = api_drive.player_tile()
+    if tile_result ~= "ok" or not tile then
+        return false
+    end
+    local level = tile.level or 0
+    local now = api_drive.tick()
+    if tile.x ~= jump.last.x or tile.z ~= jump.last.z or level ~= jump.last.level then
+        if level ~= jump.last.level
+            or QD.player._tile_distance(jump.last.x, jump.last.z, tile.x, tile.z)
+                >= QD.player._settle_jump_step then
+            jump.jumped = true
+        end
+        jump.last = { x = tile.x, z = tile.z, level = level }
+        jump.last_tick = now
+        return false
+    end
+    if tile.x == jump.start.x and tile.z == jump.start.z and level == jump.start.level then
+        return false
+    end
+    local unrouted = jump.idle_at_start and not route_issued
+    if not jump.jumped and not unrouted then
+        return false
+    end
+    if now - jump.last_tick < QD.player._settle_teleport_ticks then
+        return false
+    end
+    jump.landed = string.format("%d,%d,%d -> %d,%d,%d (%s, held %d tick(s))",
+        jump.start.x, jump.start.z, jump.start.level, tile.x, tile.z, level,
+        jump.jumped and "a jump no walk makes" or "moved with no route issued",
+        now - jump.last_tick)
+    return true
 end
 
 -- The first refusal line newer than `since`, or nil.  Newest-first is what
@@ -2242,7 +2340,17 @@ QD.player._talk_page_ticks = 5
 -- press (the `covered` a distant tree behind the Lumbridge fountain gave).
 -- The approach is the same app_try_move_loc the engine's own click would run,
 -- so this is the click a player makes, not a shortcut around one.
-function QD.player.click_loc(loc, op)
+--
+-- `opts` (optional, last): `{ stand_on_square = true }` lets the reach retry
+-- ::goto onto the loc's own square once every walkable approach tile has
+-- refused (SEAM reach_stand_on_opt_in, inside QD.player._reach_retry).  It is
+-- off by default and a quest file that sets it owes a `-- GUIDE-GAP:` marker
+-- beside the call.  `click_loc(loc, opts)` with the op left out is op 1.
+function QD.player.click_loc(loc, op, opts)
+    if type(op) == "table" and opts == nil then
+        opts = op
+        op = nil
+    end
     op = op or 1
     local target, sym_result, sym_name = QD.player.by_symbol("loc", loc)
     if not target then
@@ -2347,7 +2455,7 @@ function QD.player.click_loc(loc, op)
             return retry_result, retry_click
         end
         return QD.player._settle_after_click(20, retry_kind, retry_text)
-    end)
+    end, opts)
     if reach_tried > 0 then
         return result, detail
     end
@@ -2826,7 +2934,10 @@ end
 -- world target -- with a selection armed, add_world_select_row collapses that
 -- target's menu to ONE row whose action is USEHELD_ON*, matched on pick
 -- identity alone (the "select" wildcard above).
-function QD.player.use_on(item, target)
+--
+-- `opts` (optional): `{ stand_on_square = true }`, the same opt-in click_loc
+-- takes -- see SEAM reach_stand_on_opt_in inside QD.player._reach_retry.
+function QD.player.use_on(item, target, opts)
     if type(target) ~= "table" or target.kind == nil then
         return "unsupported", "use_on: target must be a {kind,id} world target"
     end
@@ -2947,25 +3058,28 @@ function QD.player.use_on(item, target)
     -- press is re-taken from each one -- the arming FIRST, because the
     -- refused press spent it (the re-arm seam, 2026-09-20), then the press,
     -- then the held-row check above, which no retry may skip.
+    local reach_press = function()
+        local retry_arm_result, retry_arm_detail = QD.player._arm_held(item, cell)
+        if retry_arm_result ~= "ok" then
+            return retry_arm_result, "use_on: reach retry: " .. tostring(retry_arm_detail)
+        end
+        local retry_kind, retry_text = QD.player._chat_page()
+        local retry_result, retry_click =
+            QD.drive.click_minimenu(target, "select", nil, rearm)
+        if retry_result ~= "ok" then
+            return retry_result, retry_click
+        end
+        local retry_held, retry_why = QD.player._select_row_is_held(target, retry_click)
+        if not retry_held then
+            return "refused", "use_on " .. item .. " on " .. target.kind .. " "
+                .. tostring(target.symbol or target.id) .. ": " .. retry_why
+        end
+        return QD.player._settle_after_click(20, retry_kind, retry_text)
+    end
     settle_result, settle_detail = QD.player._reach_retry(
-        target, settle_result, settle_detail, function()
-            local retry_arm_result, retry_arm_detail = QD.player._arm_held(item, cell)
-            if retry_arm_result ~= "ok" then
-                return retry_arm_result, "use_on: reach retry: " .. tostring(retry_arm_detail)
-            end
-            local retry_kind, retry_text = QD.player._chat_page()
-            local retry_result, retry_click =
-                QD.drive.click_minimenu(target, "select", nil, rearm)
-            if retry_result ~= "ok" then
-                return retry_result, retry_click
-            end
-            local retry_held, retry_why = QD.player._select_row_is_held(target, retry_click)
-            if not retry_held then
-                return "refused", "use_on " .. item .. " on " .. target.kind .. " "
-                    .. tostring(target.symbol or target.id) .. ": " .. retry_why
-            end
-            return QD.player._settle_after_click(20, retry_kind, retry_text)
-        end)
+        target, settle_result, settle_detail, reach_press, opts)
+    settle_result, settle_detail = QD.player._npc_reach_retry(
+        target, settle_result, settle_detail, reach_press)
     -- SEAM use_on_effect_lands: an `ok` that the caller's very next line can
     -- read back.  The banner is over QD.player._await_use_on_effect.
     if settle_result == "ok" then
@@ -4163,6 +4277,12 @@ QD.player._reach_walk_ticks = 10
 -- SEAM use_on_own_square (2026-09-20) -- HOW MANY OF THE LOC'S OWN SQUARES THE
 -- RETRY IS ALLOWED TO STAND ON, and why standing on one is not walking to it.
 --
+-- OPT-IN ONLY SINCE seam10 (2026-09-23): the stand-on below runs only for a
+-- click_loc/use_on called with `{ stand_on_square = true }`; by default an own
+-- square is walked to and a reach nobody can walk to fails `reach_failed`.
+-- See SEAM reach_stand_on_opt_in inside QD.player._reach_retry.  The history
+-- that follows is why the opt-in exists at all.
+--
 -- WHAT WAS WRONG.  _reach_candidates already ends its list with the loc's own
 -- squares, and _step_off_for_click already suppresses the standoff for them,
 -- because a STRAIGHT WALL DECORATION (all.loc `shape1=4`, placed as loc shape
@@ -4449,7 +4569,12 @@ end
 -- It stops at the first press that is neither another reach refusal nor
 -- `covered`: a `refused` for a different reason is content answering on the
 -- merits, and walking further cannot improve that.
-function QD.player._reach_retry(target, result, detail, press)
+--
+-- `opts` is the verb's own caller's options table (click_loc's and use_on's
+-- last argument), and ONE field of it is read here: `stand_on_square`.  See
+-- SEAM reach_stand_on_opt_in below for why the loc's own square is WALKED to
+-- by default and stood on with ::goto only when the quest file says so.
+function QD.player._reach_retry(target, result, detail, press, opts)
     if type(target) ~= "table" or target.kind ~= "loc" then
         return result, detail, 0
     end
@@ -4481,6 +4606,37 @@ function QD.player._reach_retry(target, result, detail, press)
     local tried = 0
     local walked = 0
     local stood = 0
+    -- SEAM reach_stand_on_opt_in (seam10, 2026-09-23) -- THE ::goto ONTO THE
+    -- LOC'S OWN SQUARE IS THE QUEST FILE'S DECISION, NOT THE DRIVER'S.
+    --
+    -- WHAT WAS WRONG.  Once every walkable neighbour had refused, this retry
+    -- ::goto'd the player onto the loc's own square and pressed from there,
+    -- on every click_loc and use_on in the suite, and the only trace was a
+    -- clause in the row's detail.  It hid a skipped river crossing: Roving
+    -- Elves' tree rope was pressed from a ::goto across the water (ledger row
+    -- 39, reverted by sampler sonnet-b16), and fishingcompo's garlicpipe row
+    -- 45 was green only because of it (build/quest_gate/seam10_reach_base row
+    -- 11: `reach retry 2: pressed from 2638,3446 (the loc's own square,
+    -- standoff suppressed, stood on with ::goto) -> ok`).  The audit in
+    -- 3cab65207 made helper_coverage grade such a row CHEAT after the fact;
+    -- this makes the driver refuse to produce one unasked.
+    --
+    -- NOW: an own square is WALKED to like any other candidate (a route that
+    -- really ends on it -- a floor decoration, an open square -- is a tile the
+    -- player walked to, and is pressed from), and when the walk ends
+    -- elsewhere it is NOT stood on: the row fails `refused` with a detail
+    -- that starts `reach_failed` and names every approach tile tried and what
+    -- each one answered.  `{ stand_on_square = true }` on the click_loc/use_on
+    -- call is the opt-in to the old ::goto, and the quest file must carry a
+    -- `-- GUIDE-GAP: <step> <file:line or m<x>_<z>.jm2>` marker beside it
+    -- saying why no route ends anywhere that serves the loc --
+    -- tools/quest_gate/helper_coverage.py grades an opted-in stand-on with
+    -- its marker as a declared guide gap and one without as CHEAT.
+    local stand_on = type(opts) == "table" and opts.stand_on_square == true
+    -- Every candidate this retry spent a walk or a teleport on and did NOT
+    -- press from, so the failing row names every approach tile tried, not
+    -- only the ones that answered.
+    local unpressed = {}
     for i = 1, #candidates do
         if tried >= QD.player._reach_attempts or walked >= QD.player._reach_walks then
             break
@@ -4500,12 +4656,12 @@ function QD.player._reach_retry(target, result, detail, press)
             -- a route on the first kind of tile, and for what the row then owes
             -- its reader.
             local how = "walked to"
-            if want.own then
+            if want.own and stand_on then
                 if stood >= QD.player._reach_stands then
                     break
                 end
                 stood = stood + 1
-                how = "stood on with ::goto"
+                how = "stood on with ::goto, stand_on_square opt-in"
                 QD.player._stand_on_square(want.x, want.z, level)
             else
                 walked = walked + 1
@@ -4551,10 +4707,18 @@ function QD.player._reach_retry(target, result, detail, press)
                 -- ended: the press about to be made names THIS copy (below),
                 -- and the tile that serves it is the one the candidate asked
                 -- for.  ::goto refusing it is an answer about the square.
+                local why = stand_on
+                    and string.format("::goto ended %d,%d", now.x, now.z)
+                    or string.format("the walk ended %d,%d; not stood on with ::goto"
+                        .. " -- stand_on_square not set", now.x, now.z)
+                unpressed[#unpressed + 1] = string.format("%d,%d (the loc's own square: %s)",
+                    want.x, want.z, why)
                 QD.note(string.format(
-                    "reach retry: ::goto to the loc's own square %d,%d ended %d,%d"
-                        .. " -- not pressed", want.x, want.z, now.x, now.z))
+                    "reach retry: the loc's own square %d,%d -- %s -- not pressed",
+                    want.x, want.z, why))
             elseif pressed[tostring(aim_x) .. "," .. tostring(aim_z)] then
+                unpressed[#unpressed + 1] = string.format("%d,%d (%s, already answered)",
+                    want.x, want.z, how)
                 QD.note(string.format(
                     "reach retry: %s and %d,%d has already answered this press"
                         .. " -- not pressed again", how, aim_x, aim_z))
@@ -4596,10 +4760,16 @@ function QD.player._reach_retry(target, result, detail, press)
                     -- one no route can end on (SEAM use_on_own_square), so a
                     -- reader who is not told would take this PASS for a tile a
                     -- player could have walked to.
-                    local reached = want.own
-                        and string.format("its own square %d,%d, which no route can end on"
+                    local reached = string.format("%d,%d (%s)", aim_x, aim_z, how)
+                    if want.own and stand_on then
+                        reached = string.format("its own square %d,%d, which no route can end on"
                             .. " and the harness %s", aim_x, aim_z, how)
-                        or string.format("%d,%d (%s)", aim_x, aim_z, how)
+                    elseif want.own then
+                        -- A route that ended ON the loc's square: walked, so
+                        -- nothing the grader has to see as a teleport.
+                        reached = string.format("its own square %d,%d (%s -- a route ended on it)",
+                            aim_x, aim_z, how)
+                    end
                     return "ok", tostring(detail) .. string.format(
                         " [%s reached from %s, approach tile %d of %d tried:"
                         .. " the press from the standoff tile answered '%s']",
@@ -4612,15 +4782,85 @@ function QD.player._reach_retry(target, result, detail, press)
             end
         end
     end
-    if tried == 0 then
-        return result, tostring(detail) .. " -- and no other approach tile of "
-            .. tostring(target.symbol or target.id) .. " (" .. tostring(#candidates)
-            .. " known, " .. tostring(stood)
-            .. " of them the loc's own squares) could be reached", tried
+    -- A reach refusal that survived every candidate is `reach_failed`, and
+    -- says so FIRST so a reader (and the grader) can find it without parsing
+    -- the account; any other answer is content's and passes through as it
+    -- came.  The result word stays `refused` (the fixed vocabulary).
+    local prefix = ""
+    if result == "covered" or (result == "refused" and QD.player._reach_refusal(detail)) then
+        prefix = "reach_failed: "
     end
-    return result, tostring(detail) .. " -- and from " .. tostring(tried)
+    local own_count = 0
+    for i = 1, #candidates do
+        if candidates[i].own then
+            own_count = own_count + 1
+        end
+    end
+    local tail = ""
+    if #unpressed > 0 then
+        tail = "; tried and not pressed from: " .. table.concat(unpressed, "; ")
+    end
+    if prefix ~= "" and own_count > 0 and not stand_on then
+        tail = tail .. " -- the loc's own square(s) were not stood on with ::goto: pass"
+            .. " { stand_on_square = true } beside a -- GUIDE-GAP marker only when no route"
+            .. " can end on a square that serves it"
+    end
+    if tried == 0 then
+        return result, prefix .. tostring(detail) .. " -- and no other approach tile of "
+            .. tostring(target.symbol or target.id) .. " (" .. tostring(#candidates)
+            .. " known, " .. tostring(own_count)
+            .. " of them the loc's own squares) could be pressed from" .. tail, tried
+    end
+    return result, prefix .. tostring(detail) .. " -- and from " .. tostring(tried)
         .. " of its " .. tostring(#candidates) .. " approach tiles: "
-        .. table.concat(account, "; "), tried
+        .. table.concat(account, "; ") .. tail, tried
+end
+
+-- SEAM npc_reach_repress (seam10, 2026-09-23) -- "I CAN'T REACH THAT!" FROM
+-- A WANDERING NPC IS A PRESS TO MAKE AGAIN, NOT A WALL.
+--
+-- The loc half of a reach refusal is a fact about the tile (_reach_retry,
+-- above); the npc half is usually a fact about the MOMENT: the server routed
+-- the player to where the npc stood when the press was taken, the npc
+-- wandered while he walked, and the route ran out beside an empty square.  A
+-- player clicks again.  MEASURED when the settle's teleport arm shortened
+-- sheepherder's enterEnclosure row from 21 ticks to 3 and shifted every tick
+-- after it: `poison2 FAIL 3 I can't reach that!` with the pen sheep at
+-- 2598,3361 and the player at 2605,3361 -- seven open squares of the same pen
+-- (build/quest_gate/sheepherder probe row 36), the same row the published
+-- ledger passes in 5 ticks from another moment of the same wander.
+--
+-- So an npc target's reach refusal is re-pressed, from wherever the player
+-- now stands, after the player has stopped (the route the refused press
+-- issued is spent), at most `_npc_reach_attempts` times; the row names every
+-- attempt.  Any other answer passes through untouched, and a loc target never
+-- reaches this function's body.
+QD.player._npc_reach_attempts = 2
+
+function QD.player._npc_reach_retry(target, result, detail, press)
+    if type(target) ~= "table" or target.kind ~= "npc" then
+        return result, detail
+    end
+    local account = {}
+    local attempt = 0
+    while result == "refused" and QD.player._reach_refusal(detail)
+        and attempt < QD.player._npc_reach_attempts do
+        attempt = attempt + 1
+        QD.player.idle()
+        local serial_result, since = api_drive.message_serial()
+        result, detail = press()
+        if serial_result == "ok" then
+            result, detail = QD.player._reach_verify(result, detail, since)
+        end
+        account[#account + 1] = "re-press " .. tostring(attempt) .. " -> " .. tostring(result)
+        QD.note("npc reach retry " .. tostring(attempt) .. ": " .. tostring(target.symbol or target.id)
+            .. " -> " .. tostring(result))
+    end
+    if attempt == 0 then
+        return result, detail
+    end
+    return result, tostring(detail) .. " [npc reach retry: the first press answered 'I can't reach that!'; "
+        .. table.concat(account, "; ") .. "]"
 end
 
 -- ==========================================================================

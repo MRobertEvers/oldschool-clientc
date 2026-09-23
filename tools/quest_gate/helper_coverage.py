@@ -45,10 +45,15 @@ CLASSES (first rule that fires wins, in this order).
   CHEAT        a PASS row the driver's reach retry got by standing on the
                loc's own square with ::goto ("stood on with ::goto" in the
                detail) whose loc is a target of the step or whose row is
-               named after it -- DRIVEN when a `-- GUIDE-GAP:` marker for
-               the step cites the .rs2 line or map square (m<x>_<z>.jm2)
-               that says no route ends elsewhere. A stand-on no step claims
-               is a gate finding of its own.
+               named after it. Since seam10 the driver stands on a square
+               only for a call carrying `stand_on_square = true`; that
+               opt-in with a `-- GUIDE-GAP:` marker within 8 lines above it
+               citing the .rs2 line or map square (m<x>_<z>.jm2) that says
+               no route ends elsewhere grades the step CONTENT_GAP (a
+               declared guide gap, which gate.py accepts); a bare opt-in, or
+               a stand-on with no opt-in in the Lua at all, is CHEAT. A
+               stand-on no step claims, and an opt-in with no marker beside
+               it, are gate findings of their own.
   CONTENT_GAP  the content's own soft-skip comment names the step as
                collapsed (mend1_sheep.rs2's `getToads`), even when the test
                drove the stand-in.
@@ -920,6 +925,14 @@ class Test:
             if "t.blocked(" in line:
                 chunk = " ".join(self.code_lines[number - 1:number + 4])
                 self.blocked_text.append((number, chunk))
+        # `stand_on_square = true` -- the one opt-in that lets the driver's
+        # reach retry ::goto onto a loc's own square (pointer.lua SEAM
+        # reach_stand_on_opt_in). Each carries the GUIDE-GAP marker within
+        # STAND_ON_MARKER_SPAN lines above it that declares it, or None.
+        self.stand_on_optins = []  # (line, marker (line, step, reason, cite) or None)
+        for number, line in enumerate(self.code_lines, 1):
+            if STAND_ON_OPTIN.search(line):
+                self.stand_on_optins.append((number, None))
         for number, line in enumerate(self.raw_lines, 1):
             if "content_bug" in line:
                 self.blocked_text.append((number, line))
@@ -958,6 +971,15 @@ class Test:
             for text in named:
                 self.action_strings.setdefault(text, number)
             self.action_lines.append((number, named))
+        for index, (number, _) in enumerate(self.stand_on_optins):
+            for above in range(number, max(0, number - STAND_ON_MARKER_SPAN - 1), -1):
+                match = GUIDE_GAP_RE.match(self.raw_lines[above - 1])
+                if match:
+                    cite = rs2_citation(match.group(2))
+                    if cite:
+                        self.stand_on_optins[index] = (number, (above, match.group(1),
+                                                                match.group(2).strip(), cite))
+                        break
         # "::goto x y z" cheats are gotos too.
         for number, text in self.cheats:
             match = re.match(r"::(?:goto|tele)\s+(\d+)[\s,]+(\d+)[\s,]+(\d+)", text)
@@ -966,6 +988,10 @@ class Test:
 
 
 GUIDE_GAP_RE = re.compile(r"^\s*--\s*GUIDE-GAP:\s*(\S+)\s+(.*)$")
+STAND_ON_OPTIN = re.compile(r"\bstand_on_square\s*=\s*true\b")
+# How far above a `stand_on_square = true` call its GUIDE-GAP marker may sit:
+# the marker, a comment paragraph under it, and a multi-line t.exec.
+STAND_ON_MARKER_SPAN = 8
 
 
 MAPS_ROOT = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "maps")
@@ -1577,6 +1603,23 @@ class Grader:
                 return found
         return None
 
+    def stand_on_optin_for(self, stood):
+        """The (line, marker) of the `stand_on_square = true` call that
+        produced this stand-on row: the opt-in whose line, or one of the
+        three above it (a multi-line t.exec), names the row's step (its -N
+        repeat suffix dropped) or the loc symbol; else the only opt-in the
+        file has; else None."""
+        if not self.test.stand_on_optins:
+            return None
+        name = re.sub(r"-\d+$", "", stood["step"])
+        for number, marker in self.test.stand_on_optins:
+            window = "\n".join(self.test.raw_lines[max(0, number - 4):number])
+            if ('"%s"' % name) in window or (stood["symbol"] and stood["symbol"] in window):
+                return number, marker
+        if len(self.test.stand_on_optins) == 1:
+            return self.test.stand_on_optins[0]
+        return None
+
     def is_travel(self, step):
         lowered = (step.text + " " + " ".join(s for _, s in step.targets)).lower()
         if step.kind == "ObjectStep" and any(w in lowered for w in TRAVEL_WORDS):
@@ -1753,10 +1796,16 @@ class Grader:
             self.claimed_stand_ons.add(stood["row"])
             why = "reach retry stood on %s with ::goto (ledger row %s %r, %s)" % (
                 stood["tile"], stood["row"], stood["step"], stood["symbol"])
-            declared = self.marker(step)
-            if declared and declared.startswith("GUIDE-GAP marker"):
-                return "DRIVEN", "%s -- declared by %s" % (why, declared)
-            return "CHEAT", why
+            optin = self.stand_on_optin_for(stood)
+            if optin is None:
+                return "CHEAT", "%s -- and no `stand_on_square = true` call in the Lua asked for it" % why
+            number, marker = optin
+            if marker is None:
+                return "CHEAT", "%s -- bare stand_on_square opt-in at line %d: no `-- GUIDE-GAP:` marker " \
+                    "citing the .rs2 line or map square within %d lines above it" % (
+                        why, number, STAND_ON_MARKER_SPAN)
+            return "CONTENT_GAP", "GUIDE-GAP marker line %d cites %s -- stand_on_square opt-in at line %d: %s" % (
+                marker[0], marker[3], number, why)
         # A real driving row wins over anything the content says about the
         # step; then the file's own declaration (GUIDE-GAP / t.blocked), which
         # gate_findings accepts; only then the content's collapsed-by-name
@@ -1933,6 +1982,9 @@ class Grader:
             # A reach-retry ::goto stand-on no guide step claimed is still a
             # leg nobody walked: gate_findings reports it.
             "unclaimed_stand_ons": [f for f in self.stand_ons if f["row"] not in self.claimed_stand_ons],
+            # A `stand_on_square = true` with no GUIDE-GAP marker beside it is
+            # a finding whether or not this run's retry ever used it.
+            "bare_stand_on_optins": [number for number, marker in self.test.stand_on_optins if marker is None],
         }
 
 
@@ -1969,6 +2021,11 @@ def gate_findings(test_id):
         findings.append("ledger row %s %r: reach retry stood on %s with ::goto (%s) and no guide step "
                         "claims it -- walk a route to the loc or declare why none exists" % (
                             found["row"], found["step"], found["tile"], found["symbol"]))
+    for number in report["bare_stand_on_optins"]:
+        findings.append("line %d: `stand_on_square = true` with no `-- GUIDE-GAP: <step> <file.rs2:line or "
+                        "m<x>_<z>.jm2>` marker within %d lines above it -- the opt-in to a ::goto onto a "
+                        "loc's own square must say why no route ends anywhere that serves the loc" % (
+                            number, STAND_ON_MARKER_SPAN))
     if findings:
         findings.insert(0, "helper_coverage verdict %s (python3 tools/quest_gate/helper_coverage.py %s)"
                         % (report["verdict"], test_id))
@@ -1990,6 +2047,9 @@ def print_report(report):
     for key in ("first_test_gap", "first_content_gap"):
         if report[key]:
             print("  %s: %s -- %s" % (key, report[key]["step"], report[key]["reason"]))
+    for number in report["bare_stand_on_optins"]:
+        print("  bare stand_on_square opt-in at line %d (no GUIDE-GAP marker within %d lines above)" % (
+            number, STAND_ON_MARKER_SPAN))
     for found in report["unclaimed_stand_ons"]:
         print("  unclaimed stand-on: ledger row %s %r stood on %s with ::goto (%s)" % (
             found["row"], found["step"], found["tile"], found["symbol"]))

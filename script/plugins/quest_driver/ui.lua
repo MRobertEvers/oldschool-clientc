@@ -102,6 +102,180 @@ function QD.ui.tab(name)
     return api_drive.tab(number)
 end
 
+-- emote ---------------------------------------------------------------------
+--
+-- t.player.emote(name) -- play ONE emote through the rev239 emote tab, the
+-- way a player does: select the tab, click the emote's own cell, and settle on
+-- what the server says back.  Seam10 driver-emote-tab-verb (2026-09-23):
+-- Throne of Miscellania's courting legs need Clap / Dance / Blow Kiss
+-- (misc_courting_emotes.rs2), and no verb could play an emote at all.
+--
+-- WHAT IS CLICKED.  Interface 216 `emote` builds its grid in its own onload
+-- (clientscript 699 `emote_init`), one cc_create cell per emote with THE
+-- EMOTE INDEX AS THE SUB-ID, and the server has ONE trigger for all of them,
+-- `[if_button,emote:contents]`, reading which one from `last_slot`
+-- (interface_emote/scripts/emote.rs2).  A script-created cell is a real node
+-- with its own synthetic component id (uitree.c's cc_create path,
+-- UITree_AllocateDynamicComponentId), so api_drive.component("emote:contents",
+-- <index>) resolves THAT cell and api_drive.if_click presses it through
+-- app_plugin_click_node -- the dispatcher a real click reaches -- as op 1,
+-- which is `~emote_perform` for every emote but Sit/Crab Dance (op 1 there is
+-- Loop; this verb refuses those two rather than loop an emote forever).
+-- No cheat, no debugproc: the packet is the tab's own IF_BUTTON1.
+--
+-- WHICH INDEX.  EMOTE_INDEX below is interface_emote/configs/emote.constant
+-- verbatim (the cache's own enum_1000 numbering); the driver cannot read a
+-- content constant (api_drive.symbol has no constant kind), so the table is
+-- restated here and each name is the constant's without `^emote_`.  A name
+-- may be written as the tab labels it -- "Blow Kiss", "Jump for Joy" -- and
+-- is folded to lower_snake before the lookup.  An unknown name is `no_row`;
+-- a NUMBER is pressed as that cell index as-is.
+--
+-- WHAT IT SETTLES ON.  The first NEW chat line after the press (message
+-- serial taken before it).  The driver has no reader for the player's
+-- animation (no api_drive field carries an anim id), so the line is the only
+-- edge it can see: the content's reaction ("You clap along as Prince Brand
+-- recites another verse..."), the server's own refusal ("You haven't
+-- unlocked that emote yet." -> `refused`), or a line some other content
+-- printed in the same window (named in the detail -- it is the first line,
+-- not a claim it came from the emote).  An emote NOTHING reacts to prints
+-- nothing, and this verb then answers `timeout` saying exactly that: an `ok`
+-- there would be the hollow success the ledger exists to refuse.  So a test
+-- plays an emote for its CONTENT reaction and then asserts the content's own
+-- state (%misc_affection) -- never for the animation alone.
+--
+-- AFTERWARDS the sidebar is put back on the backpack.  Every held-item verb
+-- (use_on's arming, inv_op) presses backpack cells, and QUEST_AUTHORING's own
+-- trap says a use_on issued with the sidebar on another tab refuses on the
+-- ARM -- the emote tab left open would be exactly that trap for the next row.
+QD.player.EMOTE_INDEX = {
+    yes = 0, no = 1, bow = 2, angry = 3, think = 4, wave = 5, shrug = 6,
+    cheer = 7, beckon = 8, laugh = 9, jump_for_joy = 10, yawn = 11,
+    dance = 12, jig = 13, spin = 14, headbang = 15, cry = 16, blow_kiss = 17,
+    panic = 18, raspberry = 19, clap = 20, salute = 21, goblin_bow = 22,
+    goblin_salute = 23, glass_box = 24, climb_rope = 25, lean = 26,
+    glass_wall = 27, idea = 28, stamp = 29, flap = 30, slap_head = 31,
+    sit_up = 36, push_up = 37, star_jump = 38, jog = 39, flex = 40,
+    air_guitar = 44, explore = 49, party = 51, trick = 52,
+    sit_down = 54, crab_dance = 55,
+}
+
+-- The two emotes whose op 1 is Loop, not Play (emote.rs2's [if_button]
+-- swap for ^emote_sit_down / ^emote_crab_dance).
+QD.player.EMOTE_LOOP_ON_OP1 = { sit_down = true, crab_dance = true }
+
+-- emote.rs2's `~emote_perform` refusal, word for word.
+QD.player.EMOTE_REFUSAL_LINE = "You haven't unlocked that emote yet."
+
+-- Server ticks a press is given to produce its line.  `anim($anim, 20)` and
+-- the content hook both run inside the IF_BUTTON handler, so the line lands
+-- the tick the packet is processed; five covers a tick of packet latency
+-- with room to spare.
+QD.player.EMOTE_SETTLE_TICKS = 5
+
+-- The tab cell paints ticks after the tab press (the onload builds it); the
+-- same budget the worn-tab press waits (pointer.lua TAB_PAINT_TICKS).
+QD.player.EMOTE_PAINT_TICKS = 12
+
+function QD.player.emote(name)
+    if type(name) == "number" then
+        name = tostring(math.floor(name))
+    end
+    if type(name) ~= "string" or name == "" then
+        return "no_row", "emote: name must be a non-empty string or a cell number, got "
+            .. tostring(name)
+    end
+    local key = string.gsub(string.lower(name), "[%s%-]+", "_")
+    local index = QD.player.EMOTE_INDEX[key]
+    -- A number is "this cell", not a name that parses as one (ui.tab's rule):
+    -- the tab draws cells emote.constant never names (skill capes, holiday
+    -- emotes), and pressing one is how the server's refusal is reached.
+    if index == nil and tonumber(name) then
+        index = tonumber(name)
+    end
+    if index == nil then
+        return "no_row", "emote: " .. name
+            .. " is not in emote.constant's list (QD.player.EMOTE_INDEX)"
+    end
+    if QD.player.EMOTE_LOOP_ON_OP1[key] then
+        return "unsupported", "emote: " .. key .. "'s op 1 is Loop, not Play"
+            .. " (emote.rs2 [if_button,emote:contents]) -- not driven"
+    end
+    local where = key .. " (emote:contents sub " .. tostring(index) .. ")"
+
+    local tab_result, tab_detail = QD.ui.tab("emotes")
+    if tab_result ~= "ok" then
+        return tab_result, "emote " .. where .. ": ui.tab(emotes) -> "
+            .. tostring(tab_result) .. " " .. tostring(tab_detail)
+    end
+    local cell_id = nil
+    local shown = QD.await({
+        level = function()
+            local result, component_id = api_drive.component("emote:contents", index)
+            if result ~= "ok" then
+                return false
+            end
+            local presented_result, presented = api_drive.widget_presented(component_id)
+            if presented_result == "ok" and presented == true then
+                cell_id = component_id
+                return true
+            end
+            return false
+        end,
+        note = "emote: waiting for " .. where .. " to be displayed",
+    }, QD.player.EMOTE_PAINT_TICKS)
+    if shown ~= "ok" or cell_id == nil then
+        local result, component_id = api_drive.component("emote:contents", index)
+        return "not_visible", "emote " .. where .. ": the emote tab never displayed that cell in "
+            .. tostring(QD.player.EMOTE_PAINT_TICKS) .. " ticks (component -> "
+            .. tostring(result) .. " " .. tostring(component_id) .. ")"
+    end
+
+    local serial_result, since = api_drive.message_serial()
+    local click_result, click_why = api_drive.if_click(cell_id, 1)
+    if click_result ~= "ok" then
+        QD.ui.tab("inventory")
+        return click_result, "emote " .. where .. ": if_click(" .. tostring(cell_id)
+            .. ", 1) -> " .. tostring(click_result) .. " " .. tostring(click_why)
+    end
+
+    local line = nil
+    local settled = QD.await({
+        match = function(ev)
+            if ev.kind ~= "chat_message" or serial_result ~= "ok" or ev.b <= since then
+                return false
+            end
+            local rows_result, rows = api_drive.messages()
+            if rows_result == "ok" and type(rows) == "table" then
+                for i = 1, #rows do
+                    if rows[i].serial == ev.b then
+                        line = tostring(rows[i].text)
+                    end
+                end
+            end
+            if line == nil then
+                line = ""
+            end
+            return true
+        end,
+        note = "emote " .. where .. ": waiting for the server's line",
+    }, QD.player.EMOTE_SETTLE_TICKS)
+    local back_result = QD.ui.tab("inventory")
+    local tail = " (sidebar back to inventory: " .. tostring(back_result) .. ")"
+
+    if settled ~= "ok" then
+        return "timeout", "emote " .. where .. ": pressed (cell " .. tostring(cell_id)
+            .. "), no chat line in " .. tostring(QD.player.EMOTE_SETTLE_TICKS)
+            .. " ticks -- nothing reacted; the emote's animation itself is not"
+            .. " readable by the driver, so assert the content's own state instead" .. tail
+    end
+    local trimmed = string.match(line, "^%s*(.-)%s*$") or line
+    if trimmed == QD.player.EMOTE_REFUSAL_LINE then
+        return "refused", "emote " .. where .. ": '" .. trimmed .. "'" .. tail
+    end
+    return "ok", "emote " .. where .. ": pressed, first line after it '" .. trimmed .. "'" .. tail
+end
+
 function QD.ui.is_modal()
     local result, live = api_drive.modal_live()
     if result ~= "ok" then

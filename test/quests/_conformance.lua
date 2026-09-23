@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 110 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 111 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 110
+-- @verb-count 111
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 16
+-- @seam-count 19
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 110
-local SEAM_COUNT = 16
+local VERB_COUNT = 111
+local SEAM_COUNT = 19
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -4101,6 +4101,238 @@ return {
             record(4242, "PASS", "a non-string step name must be coerced and named")
             return "ok", "three mistyped ledger arguments written (boolean verdict, result "
                 .. "word, numeric step name); this row exists, so none of them ended the run"
+        end)
+
+        -- --------- seam10 (2026-09-23): the emote tab, the reach retry's
+        -- stand-on opt-in, the settle's teleport arm, the npc reach re-press
+        --
+        -- player.emote presses the rev239 emote tab's own cc_create cell
+        -- (emote:contents, sub = emote.constant's index) and settles on the
+        -- first chat line after it.  Its subject is the one content reaction a
+        -- conformance character can be put in front of by setvars alone:
+        -- Prince Brand, Throne of Miscellania's courting leg
+        -- (misc_courting_emotes.rs2 [proc,misc_emote_performed_brand]: Clap at
+        -- ^misc_affection_s1_step1 = 11 moves it to ^misc_affection_s1_step5 =
+        -- 15, quest_misc.constant:19/23), standing at ^misc_brand_coord
+        -- 2502,3852,1 (quest_misc.constant:47).  A clap nobody reacts to would
+        -- answer `timeout` by design, so the row reads the content's varp, not
+        -- the verb's word alone -- then the server's own refusal (cell 32, no
+        -- anim in this pack) and an unknown name.
+        step("player.emote", function()
+            local emote = verb("player", "emote")
+            local goto_tile = verb("player", "goto_tile")
+            local server_var = verb("var", "server")
+            if not emote then return missing("player", "emote") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not server_var then return missing("var", "server") end
+            setup_cheat("::setvar misc_toldking 1")                         -- setup
+            setup_cheat("::setvar misc_partner_multivar 1")                 -- setup: Brand
+            setup_cheat("::setvar misc_affection ^misc_affection_s1_step1") -- setup
+            settle(3)
+            local before_result, before = server_var("misc_affection")
+            if before_result ~= "ok" or before ~= 11 then
+                return "no_subject", "::setvar misc_affection ^misc_affection_s1_step1 left "
+                    .. describe(before_result) .. " " .. describe(before) .. ", not 11"
+            end
+            local arrived, where = goto_tile(2502, 3852, 1)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(2502,3852,1) (Prince Brand) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            local clap_result, clap_detail = emote("clap")
+            settle(2)
+            local after_result, after = server_var("misc_affection")
+            local locked_result, locked_detail = emote(32)
+            local unknown_result, unknown_detail = emote("no_such_emote")
+            if clap_result ~= "ok" then
+                return clap_result, "emote(clap) beside Prince Brand: " .. describe(clap_detail)
+            end
+            if after_result ~= "ok" or after ~= 15 then
+                return "hollow", "emote(clap) answered ok (" .. describe(clap_detail)
+                    .. ") but misc_affection went 11 -> " .. describe(after)
+                    .. ", not 15 -- the press did not reach [if_button,emote:contents]"
+            end
+            if locked_result ~= "refused" then
+                return "hollow", "emote(32) must answer emote.rs2's own refusal as `refused`, got "
+                    .. describe(locked_result) .. " " .. describe(locked_detail)
+            end
+            if unknown_result ~= "no_row" then
+                return "hollow", "emote(no_such_emote) must be no_row, got "
+                    .. describe(unknown_result) .. " " .. describe(unknown_detail)
+            end
+            return "ok", describe(clap_detail) .. "; misc_affection 11 -> 15; emote(32) -> refused ("
+                .. describe(locked_detail) .. "); an unknown name -> no_row"
+        end)
+
+        -- SEAM reach_stand_on_opt_in (pointer.lua, inside _reach_retry).  The
+        -- reach retry used to ::goto onto a loc's own square whenever every
+        -- walkable neighbour had refused, unasked, and that hid a skipped river
+        -- crossing (rovingelves row 39, reverted by sampler sonnet-b16) and
+        -- fishingcompo's garlicpipe (build/quest_gate/seam10_reach_base row
+        -- 11).  Now the own square is WALKED to and, when no route ends on
+        -- it, the row fails `refused` with a detail starting `reach_failed:`;
+        -- `{ stand_on_square = true }` is the only way back to the ::goto.
+        --
+        -- Driven with an injected press, like seam.reach_retry, and with the
+        -- candidate list cut to the ONE own square of a Lumbridge tree -- the
+        -- row is about the stand-on decision, not about which neighbour
+        -- answers, and a tree's square is one no route ends on.  The press
+        -- answers the reach sentence from anywhere but that square.
+        seam("seam.reach_stand_on_opt_in", function()
+            local retry = verb("player", "_reach_retry")
+            local candidates_of = verb("player", "_reach_candidates")
+            local goto_tile = verb("player", "goto_tile")
+            local tile_of = verb("world", "tile")
+            if not retry then return missing("player", "_reach_retry") end
+            if not candidates_of then return missing("player", "_reach_candidates") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not tile_of then return missing("world", "tile") end
+            local arrived, where = goto_tile(3222, 3218, 0)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(3222,3218,0) (Lumbridge courtyard) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+            local seam_target = seam_loc_target()
+            if not seam_target then
+                return "no_subject", "player.by_symbol(loc, " .. LOC_SYMBOL .. ") built no target"
+            end
+            local own = nil
+            local all = candidates_of(seam_target)
+            if is_table(all) then
+                for index = 1, #all do
+                    if all[index].own then
+                        own = all[index]
+                        break
+                    end
+                end
+            end
+            if not own then
+                return "not_found", "no own square among " .. LOC_SYMBOL .. "'s approach tiles: "
+                    .. describe(all)
+            end
+            local presses = 0
+            local from_own = 0
+            local function press()
+                presses = presses + 1
+                local at_result, at = tile_of()
+                if at_result == "ok" and is_table(at) and at.x == own.x and at.z == own.z then
+                    from_own = from_own + 1
+                    return "ok", "the injected press landed from the loc's own square"
+                end
+                return "refused", "I can't reach that!"
+            end
+            t.player._reach_candidates = function() return { own } end
+            local plain_result, plain_detail = retry(seam_target, "refused", "I can't reach that!", press)
+            local plain_presses, plain_from_own = presses, from_own
+            local opted_result, opted_detail = retry(seam_target, "refused", "I can't reach that!",
+                press, { stand_on_square = true })
+            t.player._reach_candidates = candidates_of
+            goto_tile(3222, 3218, 0)
+            local said = "default -> " .. describe(plain_result) .. " (" .. describe(plain_presses)
+                .. " press(es)) " .. describe(plain_detail) .. " || opted in -> "
+                .. describe(opted_result) .. " " .. describe(opted_detail)
+            if plain_result ~= "refused" or plain_from_own ~= 0 then
+                return "refused", "the default call stood on the loc's own square unasked -- " .. said
+            end
+            if string.sub(tostring(plain_detail), 1, 14) ~= "reach_failed: "
+                or not string.find(tostring(plain_detail), "stand_on_square not set", 1, true) then
+                return "hollow", "the default refusal does not start `reach_failed:` or does not "
+                    .. "say the own square was left alone -- " .. said
+            end
+            if opted_result ~= "ok" or from_own ~= 1 then
+                return "refused", "{ stand_on_square = true } did not stand on "
+                    .. describe(own.x) .. "," .. describe(own.z) .. " and press from it -- " .. said
+            end
+            if not string.find(tostring(opted_detail), "stand_on_square opt-in", 1, true) then
+                return "hollow", "the opted-in PASS does not name the opt-in, so the grader "
+                    .. "cannot see the ::goto -- " .. said
+            end
+            return "ok", "own square " .. describe(own.x) .. "," .. describe(own.z) .. ": " .. said
+        end)
+
+        -- SEAM settle_teleport_landing (pointer.lua, the fifth arm of
+        -- _settle_after_click).  A click whose whole answer is a p_teleport --
+        -- a ladder, a staircase, a Temple of Light door -- mounts no page,
+        -- prints no line and, from beside it, issues no route, so the settle
+        -- ran out its budget on a click that visibly landed
+        -- (parity_mend2_puzzle3d rows 62/64, build/quest_gate/seam10_reach_base
+        -- row 7).  The subject is that ladder: the Temple of Light's north
+        -- ladder top, the generic climb (no quest state), from beside it on
+        -- level 2.  `ok` alone would pass on any arm, so the row also wants
+        -- the `teleport:` detail and the lower plane.
+        seam("seam.settle_teleport_landing", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local tile_of = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not tile_of then return missing("world", "tile") end
+            local arrived, where = goto_tile(1898, 4666, 2)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(1898,4666,2) (Temple of Light, north ladder top) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+            local result, detail = click_loc("mourning_temple_ladder_wall_top", 1)
+            local after_result, after = tile_of()
+            if result ~= "ok" then
+                return result, "the ladder click: " .. describe(detail)
+            end
+            if string.sub(tostring(detail), 1, 9) ~= "teleport:" then
+                return "hollow", "the ladder settled on another arm, so this row proves nothing "
+                    .. "about the teleport one: " .. describe(detail)
+            end
+            if after_result ~= "ok" or not is_table(after) or after.level ~= 1 then
+                return "hollow", "the settle said teleport but the player is at "
+                    .. describe(after) .. ", not on level 1 -- " .. describe(detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        -- SEAM npc_reach_repress (pointer.lua, QD.player._npc_reach_retry).  A
+        -- wandering npc's "I can't reach that!" is a fact about the MOMENT, and
+        -- use_on re-presses it (up to twice, after the player stops) instead of
+        -- failing the row -- sheepherder's poison2 went red without it once the
+        -- teleport arm shifted its timing.  Injected presses: the re-press
+        -- happens and is named, a loc target and a refusal that is not the
+        -- reach sentence are passed through untouched.
+        seam("seam.npc_reach_repress", function()
+            local repress = verb("player", "_npc_reach_retry")
+            if not repress then return missing("player", "_npc_reach_retry") end
+            local npc_target = { kind = "npc", id = -1, symbol = NPC_SYMBOL }
+            local presses = 0
+            local function second_press_lands()
+                presses = presses + 1
+                if presses < 2 then
+                    return "refused", "I can't reach that!"
+                end
+                return "ok", "the injected re-press landed"
+            end
+            local result, detail = repress(npc_target, "refused", "I can't reach that!", second_press_lands)
+            local npc_presses = presses
+            presses = 0
+            local loc_result = repress({ kind = "loc", id = -1 }, "refused", "I can't reach that!",
+                second_press_lands)
+            local loc_presses = presses
+            local other_result = repress(npc_target, "refused", "Nothing interesting happens.",
+                second_press_lands)
+            local other_presses = presses - loc_presses
+            local said = "npc -> " .. describe(result) .. " after " .. describe(npc_presses)
+                .. " press(es): " .. describe(detail) .. "; loc -> " .. describe(loc_result)
+                .. " (" .. describe(loc_presses) .. "); other refusal -> "
+                .. describe(other_result) .. " (" .. describe(other_presses) .. ")"
+            if result ~= "ok" or npc_presses ~= 2 then
+                return "refused", "the npc reach refusal was not re-pressed to a landing -- " .. said
+            end
+            if not string.find(tostring(detail), "npc reach retry", 1, true) then
+                return "hollow", "the re-pressed row does not say it was re-pressed -- " .. said
+            end
+            if loc_result ~= "refused" or loc_presses ~= 0 or other_result ~= "refused"
+                or other_presses ~= 0 then
+                return "refused", "a loc target or a non-reach refusal was re-pressed -- " .. said
+            end
+            return "ok", said
         end)
 
         -- --------- seam: the photograph's camera, aimed at zero cost

@@ -517,9 +517,63 @@ collision_test_wall(
     return false;
 }
 
+/* Is (x, z) a square nobody can stand on because its FLOOR is blocked (map
+ * tile setting 1, or a blockwalk floor decoration)? Off the map answers false:
+ * the two reach extensions below only ever widen reach, so an unknown square
+ * must not count as the gap or the blocked square they need. */
+static bool
+collision_floor_blocked_at(
+    struct CollisionMap* cm,
+    int x,
+    int z)
+{
+    if( x < 0 || z < 0 || x >= cm->size_x || z >= cm->size_z )
+        return false;
+    return (cm->flags[collision_map_index_at(cm, x, z)] & COLL_FLAG_FLOOR) != COLL_FLAG_OPEN;
+}
+
 /* Reference CollisionMap.testWDecor (CollisionMap.ts:337): approach test for a
  * diagonal wall-decoration loc. shape is the reference locShape (locShape - 1 as
- * the caller passes). Uses the raw WALL_* bits (not BLOCK_*). */
+ * the caller passes). Uses the raw WALL_* bits (not BLOCK_*).
+ *
+ * The straight shapes (4 WALLDECOR_STRAIGHT_NOOFFSET, 5 _OFFSET) have no arm in
+ * the reference, nor in rsmod's ReachStrategy.reachWallDeco1: a straight wall
+ * decoration is reached from its own square and nowhere else. That breaks the
+ * moment the square is not walkable. OSRS 239's map blocks the floor under all
+ * three Hemenster wall pipes (m41_53 0 12..14 54 'f1'; LostCity's 2004 map left
+ * 0 14 54 walkable, which is how its pipe worked), yet the OSRS quest has you
+ * "put the garlic into the pipes on the south wall of the north building"
+ * (oldschool.runescape.wiki/w/Fishing_Contest). So when -- and only when -- the
+ * decoration's own square is floor-blocked, the square in front of it (the side
+ * it faces, away from its wall) reaches it, provided no wall stands between the
+ * two. Every decoration on a walkable square keeps the reference behaviour. */
+static bool
+collision_test_wdecor_straight_front(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    int angle)
+{
+    int f;
+
+    if( !collision_floor_blocked_at(cm, dst_x, dst_z) )
+        return false;
+    f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
+    switch( angle & 0x3 )
+    {
+    case COLL_ANGLE_WEST: /* wall on the west edge: faces east */
+        return src_x == dst_x + 1 && src_z == dst_z && (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN;
+    case COLL_ANGLE_NORTH: /* wall on the north edge: faces south */
+        return src_x == dst_x && src_z == dst_z - 1 && (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN;
+    case COLL_ANGLE_EAST: /* wall on the east edge: faces west */
+        return src_x == dst_x - 1 && src_z == dst_z && (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN;
+    default: /* COLL_ANGLE_SOUTH -- wall on the south edge: faces north */
+        return src_x == dst_x && src_z == dst_z + 1 && (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN;
+    }
+}
+
 static bool
 collision_test_wdecor(
     struct CollisionMap* cm,
@@ -535,6 +589,10 @@ collision_test_wdecor(
 
     int f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
     int sx = src_x, sz = src_z, dx = dst_x, dz = dst_z;
+
+    if( shape == RSCACHE_LOC_SHAPE_WALL_DECOR_INSIDE ||  /* 4 */
+        shape == RSCACHE_LOC_SHAPE_WALL_DECOR_OUTSIDE )  /* 5 */
+        return collision_test_wdecor_straight_front(cm, src_x, src_z, dst_x, dst_z, angle);
 
     if( shape == RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_OUTSIDE || /* 6 */
         shape == RSCACHE_LOC_SHAPE_WALL_DECOR_DIAGONAL_INSIDE )   /* 7 */
@@ -739,6 +797,90 @@ collision_test_rect_adjacent(
     return false;
 }
 
+/*
+ * A floor-decoration obstacle standing alone in a gap: "Jump-across" stepping
+ * stones in the middle of a three-square chasm (Lumbridge Swamp Caves,
+ * swamp_cave_steppingstone_a at 3206,9572 between banks 3204 and 3208, _b at
+ * 3221,9554 between 9552 and 9556). reachRectangle wants the square beside the
+ * stone, which is chasm: the reference geometry can never reach it, yet the
+ * shortcut is taken from the bank -- shortest-path's transport rows (our
+ * maplink_agility.dbrow src 3204,9572 / 3208,9572 / 3221,9552 / 3221,9556)
+ * record the player on the bank square two tiles off, and 2009scape's
+ * LumbridgeBasementPlugin.getDestination walks the player to that same bank
+ * square before the leap.
+ *
+ * So: when EVERY square edge-adjacent to a shape-22 rect is floor-blocked (it
+ * is an island, nothing can stand beside it), the square directly across one
+ * blocked square from an edge reaches it, if no wall stands on the way. A
+ * floor decoration anyone can stand beside is untouched.
+ */
+static bool
+collision_test_rect_across_gap(
+    struct CollisionMap* cm,
+    int src_x,
+    int src_z,
+    int dst_x,
+    int dst_z,
+    struct CollisionApproach const* approach)
+{
+    int width = approach->loc_width > 0 ? approach->loc_width : 1;
+    int length = approach->loc_length > 0 ? approach->loc_length : 1;
+    int max_x = dst_x + width - 1;
+    int max_z = dst_z + length - 1;
+    int blocked = approach->blocked_sides;
+    int f;
+    int gap;
+
+    if( approach->loc_shape != RSCACHE_LOC_SHAPE_FLOOR_DECORATION )
+        return false;
+    if( approach->mover_size > 1 )
+        return false;
+
+    /* Island test: nothing stands beside the rect on any side. */
+    for( int x = dst_x; x <= max_x; x++ )
+    {
+        if( !collision_floor_blocked_at(cm, x, dst_z - 1) ||
+            !collision_floor_blocked_at(cm, x, max_z + 1) )
+            return false;
+    }
+    for( int z = dst_z; z <= max_z; z++ )
+    {
+        if( !collision_floor_blocked_at(cm, dst_x - 1, z) ||
+            !collision_floor_blocked_at(cm, max_x + 1, z) )
+            return false;
+    }
+
+    if( src_x < 0 || src_z < 0 || src_x >= cm->size_x || src_z >= cm->size_z )
+        return false;
+    f = cm->flags[collision_map_index_at(cm, src_x, src_z)];
+
+    if( src_x == dst_x - 2 && src_z >= dst_z && src_z <= max_z && (blocked & DIR_WEST) == 0 )
+    {
+        gap = cm->flags[collision_map_index_at(cm, dst_x - 1, src_z)];
+        return (f & COLL_FLAG_WALL_EAST) == COLL_FLAG_OPEN &&
+               (gap & (COLL_FLAG_WALL_WEST | COLL_FLAG_WALL_EAST)) == COLL_FLAG_OPEN;
+    }
+    if( src_x == max_x + 2 && src_z >= dst_z && src_z <= max_z && (blocked & DIR_EAST) == 0 )
+    {
+        gap = cm->flags[collision_map_index_at(cm, max_x + 1, src_z)];
+        return (f & COLL_FLAG_WALL_WEST) == COLL_FLAG_OPEN &&
+               (gap & (COLL_FLAG_WALL_WEST | COLL_FLAG_WALL_EAST)) == COLL_FLAG_OPEN;
+    }
+    if( src_z == dst_z - 2 && src_x >= dst_x && src_x <= max_x && (blocked & DIR_SOUTH) == 0 )
+    {
+        gap = cm->flags[collision_map_index_at(cm, src_x, dst_z - 1)];
+        return (f & COLL_FLAG_WALL_NORTH) == COLL_FLAG_OPEN &&
+               (gap & (COLL_FLAG_WALL_NORTH | COLL_FLAG_WALL_SOUTH)) == COLL_FLAG_OPEN;
+    }
+    if( src_z == max_z + 2 && src_x >= dst_x && src_x <= max_x && (blocked & DIR_NORTH) == 0 )
+    {
+        gap = cm->flags[collision_map_index_at(cm, src_x, max_z + 1)];
+        return (f & COLL_FLAG_WALL_SOUTH) == COLL_FLAG_OPEN &&
+               (gap & (COLL_FLAG_WALL_NORTH | COLL_FLAG_WALL_SOUTH)) == COLL_FLAG_OPEN;
+    }
+    return false;
+}
+
 /* rsmod reachExclusiveRectangle: adjacent and must NOT overlap. */
 static bool
 collision_test_rect_exclusive(
@@ -875,7 +1017,8 @@ collision_flood_arrived(
          * intersects half; the exact-tile shortcut would bypass allow_overlap=0
          * so it is not applied here. Under exitStrategy RECTANGLE the filler
          * always sets allow_overlap. */
-        return collision_test_rect_adjacent(cm, x, z, dst_x, dst_z, approach);
+        return collision_test_rect_adjacent(cm, x, z, dst_x, dst_z, approach) ||
+               collision_test_rect_across_gap(cm, x, z, dst_x, dst_z, approach);
     case COLL_APPROACH_RECT_INSIDE:
         return (x == dst_x && z == dst_z) ||
                collision_test_rect_inside(x, z, dst_x, dst_z, approach);
