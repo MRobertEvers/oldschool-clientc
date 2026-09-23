@@ -54,24 +54,66 @@ return {
         -- areas/world/configs/m42_55.spawn's own rows for each
         -- kr_<name>_sinclair_multi.
         local SUS = {
-            [1] = { name = "anna", npc = "kr_anna_sinclair_multi", tx = 2734, tz = 3575, tl = 0,
-                barrel = "murderbarrela", item = "murdernecklace", itemdust = "murdernecklacedust",
-                print = "murderfingerprinta", poison_loc = "murdercompost" },
-            [2] = { name = "bob", npc = "kr_bob_sinclair_multi", tx = 2748, tz = 3559, tl = 0,
-                barrel = "murderbarrelb", item = "murdercup", itemdust = "murdercupdust",
-                print = "murderfingerprintb", poison_loc = "murderhive" },
-            [3] = { name = "carol", npc = "kr_carol_sinclair_multi", tx = 2734, tz = 3581, tl = 1,
-                barrel = "murderbarrelc", item = "murderbottle", itemdust = "murderbottledust",
-                print = "murderfingerprintc", poison_loc = "murderdrain" },
-            [4] = { name = "david", npc = "kr_david_sinclair_multi", tx = 2739, tz = 3581, tl = 0,
-                barrel = "murderbarreld", item = "murderbook", itemdust = "murderbookdust",
-                print = "murderfingerprintd", poison_loc = "murderweb" },
-            [5] = { name = "elizabeth", npc = "kr_elizabeth_sinclair_multi", tx = 2746, tz = 3581, tl = 1,
-                barrel = "murderbarrele", item = "murderneedle", itemdust = "murderneedledust",
-                print = "murderfingerprinte", poison_loc = "murderfountain" },
-            [6] = { name = "frank", npc = "kr_frank_sinclair_multi", tx = 2742, tz = 3577, tl = 0,
-                barrel = "murderbarrelf", item = "murderpot", itemdust = "murderpotdust",
-                print = "murderfingerprintf", poison_loc = "murdersign" },
+            [1] = {
+                name = "anna",
+                npc = "kr_anna_sinclair_multi",
+                tx = 2734, tz = 3575, tl = 0,
+                barrel = "murderbarrela",
+                item = "murdernecklace",
+                itemdust = "murdernecklacedust",
+                print = "murderfingerprinta",
+                poison_loc = "murdercompost",
+            },
+            [2] = {
+                name = "bob",
+                npc = "kr_bob_sinclair_multi",
+                tx = 2748, tz = 3559, tl = 0,
+                barrel = "murderbarrelb",
+                item = "murdercup",
+                itemdust = "murdercupdust",
+                print = "murderfingerprintb",
+                poison_loc = "murderhive",
+            },
+            [3] = {
+                name = "carol",
+                npc = "kr_carol_sinclair_multi",
+                tx = 2734, tz = 3581, tl = 1,
+                barrel = "murderbarrelc",
+                item = "murderbottle",
+                itemdust = "murderbottledust",
+                print = "murderfingerprintc",
+                poison_loc = "murderdrain",
+            },
+            [4] = {
+                name = "david",
+                npc = "kr_david_sinclair_multi",
+                tx = 2739, tz = 3581, tl = 0,
+                barrel = "murderbarreld",
+                item = "murderbook",
+                itemdust = "murderbookdust",
+                print = "murderfingerprintd",
+                poison_loc = "murderweb",
+            },
+            [5] = {
+                name = "elizabeth",
+                npc = "kr_elizabeth_sinclair_multi",
+                tx = 2746, tz = 3581, tl = 1,
+                barrel = "murderbarrele",
+                item = "murderneedle",
+                itemdust = "murderneedledust",
+                print = "murderfingerprinte",
+                poison_loc = "murderfountain",
+            },
+            [6] = {
+                name = "frank",
+                npc = "kr_frank_sinclair_multi",
+                tx = 2742, tz = 3577, tl = 0,
+                barrel = "murderbarrelf",
+                item = "murderpot",
+                itemdust = "murderpotdust",
+                print = "murderfingerprintf",
+                poison_loc = "murdersign",
+            },
         }
         -- get_murder_thread's own switch_int (quest_murder_window.rs2):
         -- anna/david green, bob/carol red, elizabeth/frank blue.
@@ -191,6 +233,23 @@ return {
             return
         end
 
+        -- ------------------------------------------------- mansion stairs
+        -- Quest Helper's own step ladder names the spiral staircase
+        -- (murder_qip_spiralstairs) between the sacks and the first barrel
+        -- search -- the loc's own script (kr_mansion.rs2:31-46) is a King's
+        -- Ransom overlay gated on %kr_quest, which this playthrough never
+        -- touches, so the press is a real click that reads content's own
+        -- guard and answers with its plain "It's just a staircase." line
+        -- (the hand-in below never tests a climbed-state varp, so this is
+        -- section 8's goto_tile-bypass rule for a puzzle-gated door whose
+        -- hand-in reads items only -- proved here instead of assumed, since
+        -- the loc DOES have a real trigger). Carol's and Elizabeth's own
+        -- rooms/barrels are the actual upper floor this unlocks; goto_tile
+        -- still lands on them directly (docs section 2's floor/ladder rule),
+        -- this row is what proves the stairs themselves are not a gate.
+        t.exec("goto.stairs", t.player.goto_tile, 2736, 3581, 0)
+        t.exec("stairs.climb", t.player.click_loc, "murder_qip_spiralstairs", 1)
+
         -- ---------------------------------------------- reaching the evidence
         -- Every loc and ground obj from here on is FOUND IN THE LIVE SCENE
         -- and teleported to, never pressed from wherever the step before
@@ -234,13 +293,17 @@ return {
         end
 
         -- --------------------------------------------------- the murder weapon
-        -- Already spawned coated in flour (m42_55.spawn:46's own OBJ row at
-        -- 2746,3578,0, not a fixture cheat) -- only the flypaper step is
-        -- still needed on it. It has no [opobj*] trigger of its own, so the
-        -- press is the engine's plain Take.
-        local weapon_result, weapon_row = t.world.obj_near("murderweapondust", 40)
+        -- Re-authored after 0ee0ee5e9d (m42_55.spawn:46's own OBJ row at
+        -- 2746,3578,0, murderweapon obj 1813, no fixture cheat): the PLAIN
+        -- dagger spawns now, not the pre-floured murderweapondust, so it
+        -- takes the same flour+flypaper trip every suspect's own item takes
+        -- below (quest_murder_prints.rs2 [opheldu,murderweapon] if
+        -- last_useitem=pot_flour -> flour_proofobj -> murderweapondust,
+        -- then [opheldu,murderweapondust] if last_useitem=murderpaper ->
+        -- create_flourprints -> murderweapon + murderfingerprint1).
+        local weapon_result, weapon_row = t.world.obj_near("murderweapon", 40)
         t.step("weapon.locate", weapon_result == "ok" and "PASS" or "FAIL",
-            "world.obj_near(murderweapondust, 40) -> " .. tostring(weapon_result)
+            "world.obj_near(murderweapon, 40) -> " .. tostring(weapon_result)
                 .. (type(weapon_row) == "table" and (" @" .. tostring(weapon_row.tile_x)
                     .. "," .. tostring(weapon_row.tile_z) .. "," .. tostring(weapon_row.level)) or ""))
         t.shot("weapon.locate" .. (weapon_result == "ok" and "" or "-FAIL"))
@@ -257,7 +320,7 @@ return {
         -- goes in the row. The press is one row whatever it took: a retry
         -- that is EXPECTED to be needed sometimes is not a failure to
         -- record, only a detail to name.
-        local weapon_press, weapon_press_detail = "not_found", "murderweapondust is not in the scene"
+        local weapon_press, weapon_press_detail = "not_found", "murderweapon is not in the scene"
         if weapon_result == "ok" and type(weapon_row) == "table" then
             local vantages = { { 0, 0 }, { 0, -2 }, { 2, 0 } }
             local tried = {}
@@ -266,14 +329,14 @@ return {
                     weapon_row.tile_x + vantages[i][1],
                     weapon_row.tile_z + vantages[i][2], weapon_row.level)
                 t.ticks(2)
-                weapon_press, weapon_press_detail = t.player.click_obj("murderweapondust")
+                weapon_press, weapon_press_detail = t.player.click_obj("murderweapon")
                 tried[#tried + 1] = "+" .. tostring(vantages[i][1]) .. ","
                     .. tostring(vantages[i][2]) .. " -> " .. tostring(weapon_press)
                 if weapon_press == "ok" then
                     break
                 end
             end
-            weapon_press_detail = "click_obj(murderweapondust): "
+            weapon_press_detail = "click_obj(murderweapon): "
                 .. table.concat(tried, " | ") .. " -- " .. tostring(weapon_press_detail)
         end
         t.step("weapon.pickup", weapon_press == "ok" and "PASS" or "FAIL", weapon_press_detail)
@@ -284,6 +347,17 @@ return {
         -- own tick and 1 on the next). Every inventory assertion below is an
         -- await for the same reason -- the committed file read all of them
         -- bare and two of its FAIL rows were nothing but that one tick.
+        t.expect("weapon.have_weapon", t.inv.await("murderweapon", 1, 6))
+
+        -- Flour it, the same trip every suspect's own item takes below
+        -- (murder_flour_barrel: pot_empty in, pot_flour out, no
+        -- already-have guard so the barrel is revisited once per item).
+        goto_loc("flourbarrel.weapon", "flourbarrel")
+        t.exec("flour.get.weapon", t.player.click_loc, "flourbarrel", 2)
+        t.exec("flour.close.weapon", t.chat.drain, { stop_at = "none" })
+        t.expect("evidence.have_flour.weapon", t.inv.await("pot_flour", 1, 6))
+
+        t.exec("weapon.flour", t.player.use_item_on_item, "pot_flour", "murderweapon")
         t.expect("weapon.have_dust", t.inv.await("murderweapondust", 1, 6))
 
         -- Three sheets of flypaper: one for the murder weapon, one for
@@ -303,6 +377,28 @@ return {
         -- (quest_murder_prints.rs2 [opheldu,murderweapondust]).
         t.exec("weapon.fingerprint", t.player.use_item_on_item, "murderpaper", "murderweapondust")
         t.expect("evidence.fingerprint1", t.inv.await("murderfingerprint1", 1, 6))
+
+        -- --------------------------------------------------- gossip (hint, no state)
+        -- gossip.rs2's %murderquest=^murder_started branch (once the pot,
+        -- thread and killer's print are all in hand -- Quest Helper's own
+        -- gating here) is real dialogue, just flavour with no varp the
+        -- quest checks, so it is driven for real rather than skipped.
+        -- Quest Helper's own WorldPoint (2741,3557,0) sits just inside the
+        -- mansion gate; ::goto lands there literally, and the press then
+        -- answers "I can't reach that!" across the gate (measured run 2).
+        -- gossipy_man's own spawn row (m42_55.spawn:33) is 2742,3555,0 --
+        -- but that whole row is a closed double gate
+        -- (murder_qip_metalgateclosedl/r, maps/m42_55.jl2 2741-2742,3555),
+        -- a plain shape-0 wall until opened, which blocked the talk from
+        -- one tile north too (measured run 3, same "I can't reach that!").
+        -- Open it first (doors/scripts/doubledoors.rs2, op1) -- the same
+        -- generic idiom used all over this pack.
+        t.exec("goto.gossip", t.player.goto_tile, 2742, 3556, 0)
+        t.exec("gate.open", t.player.click_loc, "murder_qip_metalgateclosedr", 1)
+        t.exec("gossip.talk", t.player.talk_to, "gossipy_man", 1)
+        t.exec("gossip.drain_to_options", t.chat.drain, { stop_at = "options" })
+        t.exec("gossip.choose", t.chat.choose, "Who do you think was responsible?")
+        t.exec("gossip.close", t.chat.drain, { stop_at = "none" })
 
         -- --------------------------------------------------- poison proof
         t.exec("goto.salesman", t.player.goto_tile, 2695, 3495, 0)
@@ -378,8 +474,7 @@ return {
             -- so the candidate's own print is the used item and
             -- murderfingerprint1 is the target -- the reverse of every
             -- other use_item_on_item above.
-            t.exec("fingerprint.compare." .. s.name, t.player.use_item_on_item,
-                s.print, "murderfingerprint1")
+            t.exec("fingerprint.compare." .. s.name, t.player.use_item_on_item, s.print, "murderfingerprint1")
             t.exec("fingerprint.close." .. s.name, t.chat.drain, { stop_at = "none" })
             local match_result = t.inv.await("murderfingerprint", 1, 5)
             if match_result == "ok" then
