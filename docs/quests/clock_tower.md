@@ -2,7 +2,7 @@
 
 Status: `verified-modern` (2026-09-09, gp-cog-t1) — P0 shipped-but-shit gaps
 are closed and 12 named BMPs are on disk under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_cog/` (see §13
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/` (see §13
 Gate D). Native 6/7 resume Kojo's finale; `%cogquest` low bits are derived
 from placed colour bits; lever/gate snapshot `loc_*` before `loc_del`; four
 coloured cogs/spindles/poison/trough/secret wall use real oploc/opheld;
@@ -718,21 +718,21 @@ playthrough evidence. No required kill; no boss cheat.
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=cogbmp_*`). 12 BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_cog/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_cog/01_talk_kojo.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/03_red_cog.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/04_red_spindle.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/05_blue_cog.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/06_black_cog.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/07_lever_cage.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/08_poison_trough.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/09_white_cog.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/10_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/11_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cog/12_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/01_talk_kojo.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/03_red_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/04_red_spindle.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/05_blue_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/06_black_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/07_lever_cage.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/08_poison_trough.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/09_white_cog.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/10_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cog/scenes/12_postquest.bmp`
 
 `ls` of that folder shows those 12 named files only (no `frame_NNNNN.bmp`).
 Unique MD5s; luma 72–106 (not black/login). Talk shows Brother Kojo; choice

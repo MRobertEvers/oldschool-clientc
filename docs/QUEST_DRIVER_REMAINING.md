@@ -18,7 +18,7 @@ Landed and verified by driving the client (2026-09-19, phases 1 and 2 of
   (25 rows, 29 shots) plays Cook's Assistant through the cook's own dialogue
   and hands the ingredients in; `test/quests/hans.lua` (14 rows, 18 shots)
   follows Hans around the courtyard. Both are `green` under `gate.py`, and each green run's ledger and
-  shots are published into `OSRS-Content/.../selftest/quest_tests/<quest>/`.
+  shots are published into `OSRS-Content/.../selftest/quests/<quest_dir>/play/`.
 - **Every verb, executed.** `test/quests/_conformance.lua` calls all **97**
   verbs against a live world, one ledger row each, and
   `make -C src test-quest-conformance` is red unless every one of them PASSes.

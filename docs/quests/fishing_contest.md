@@ -2,7 +2,7 @@
 
 Status: `verified-modern` (2026-09-09, gp-fish-t1) — P0 shipped-but-shit gaps
 are closed and 10 named BMPs are on disk under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fishingcompo/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/`
 (see §10). Native `%fishingcompo` 0–5 plus `garlicpipe` bits are the only
 progress carriers. Garlic no longer teleports the shared Sinister Stranger.
 The White Wolf Tunnel stays closed until state 5. The live contract is one
@@ -594,19 +594,19 @@ PASS fishingcontest start-to-complete via real triggers
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=fishbmp_*`). 10 named BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fishingcompo/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/01_talk_austri.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/03_morris_gate.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/04_grandpa_jack.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/05_vine_worms.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/06_garlic_pipe.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/07_catch_carp.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/08_bonzo_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/09_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fishingcompo/10_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/01_talk_austri.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/03_morris_gate.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/04_grandpa_jack.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/05_vine_worms.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/06_garlic_pipe.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/07_catch_carp.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/08_bonzo_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/09_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fishingcompo/scenes/10_postquest.bmp`
 
 No `TORIRS_BMP_SERIES`, `frame_NNNNN.bmp`, or `exit.bmp`. Ten unique MD5s;
 mean luma 77–100 (not black/login).

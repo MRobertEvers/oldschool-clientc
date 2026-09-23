@@ -2,7 +2,7 @@
 
 Status: `verified-modern` (2026-09-09, gp-bkf-t1) — P0 shipped-but-shit gaps
 are closed and 7 named BMPs are on disk under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_blackknight/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_blackknight/scenes/`
 (see §12). Banquet/entrance doors bind placed `fortressguard_01`–`_04` and
 run authoritative dialogue even when no guard is live. Start is 12 QP +
 explicit Yes/No with atomic `bk_dossier` grant. Disguise accepts bronze med
@@ -497,7 +497,7 @@ BKF PASS: post-quest OPNPC1 stayed complete
 BKF PASS: start-to-complete via real triggers
 ```
 
-BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_blackknight/`):
+BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_blackknight/scenes/`):
 
 | File | What it shows |
 | --- | --- |

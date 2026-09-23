@@ -83,6 +83,18 @@ import build_support  # noqa: E402
 import ledger  # noqa: E402
 import quest_list  # noqa: E402
 
+# tools/quest_gate/queue.py, NOT `import queue` -- that name is the stdlib
+# module ThreadPoolExecutor needs (see the sys.path scrub above), so this
+# file's own queue.py is loaded by path under a name that cannot collide
+# with it, rather than by a plain `import queue` that would shadow it right
+# back.
+import importlib.util as _importlib_util
+
+_queue_tsv_spec = _importlib_util.spec_from_file_location(
+    "quest_gate_queue_tsv", os.path.join(HERE, "queue.py"))
+quest_queue_tsv = _importlib_util.module_from_spec(_queue_tsv_spec)
+_queue_tsv_spec.loader.exec_module(quest_queue_tsv)
+
 OBJ_BASE = "build_questtest"
 TARGET = "torirs_questtest"
 DEFAULT_MAX_FRAMES = "60000"
@@ -95,12 +107,30 @@ DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 
 # Where a PASSING quest's evidence is kept. build/quest_gate/<quest>/ is
 # deleted on every run, so a screenshot there lives exactly until the next
-# run; this directory is inside the OSRS-Content submodule, beside the
-# per-quest `<quest_dir>/*.bmp` sets the content audits already commit
-# (server/scripts/selftest/quest_cook/01_talk_cook.bmp, ...), so the shots
-# a quest test took are versioned with the content they photograph.
+# run; this directory is inside the OSRS-Content submodule, under
+# selftest/quests/<quest_dir>/play/, BESIDE selftest/quests/<quest_dir>/scenes/
+# -- the per-quest Gate D BMP sets the content audits already commit
+# (server/scripts/selftest/quests/quest_cook/scenes/01_talk_cook.bmp, ...) --
+# so the shots a quest test took are versioned with the content they
+# photograph, and everything about one quest's evidence sits under one
+# directory (2026-09-23, selftest/quests/README.md).
 PUBLISH_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts",
-                           "selftest", "quest_tests")
+                           "selftest", "quests")
+
+QUEUE_TSV_PATH = os.path.join(REPO_ROOT, "test", "quests", "QUEUE.tsv")
+
+
+def quest_dir_for(test_id):
+    """test_id -> QUEUE.tsv's quest_dir column for that row, or
+    `quest_<test_id>` when the id has no row at all (hans, which predates
+    QUEUE.tsv and is not in it) -- the same fallback
+    docs/quests/selftest layout uses."""
+    assert test_id
+    rows = quest_queue_tsv.load_rows(QUEUE_TSV_PATH)
+    row = quest_queue_tsv.find_row(rows, test_id)
+    if row and row.get("quest_dir"):
+        return row["quest_dir"]
+    return "quest_%s" % test_id
 
 FIXTURE_RE = re.compile(r'fixture\s*=\s*"([^"]+)"')
 NAME_LINE_RE = re.compile(r"(?m)^name\s*=.*$")
@@ -731,7 +761,9 @@ def ledger_verdict(ledger_path):
 
 def publish(result):
     """Copy a PASSING quest's ledger.tsv and every shots/*.png into
-    PUBLISH_DIR/<quest>/, replacing whatever an earlier run published there.
+    PUBLISH_DIR/<quest_dir>/play/, replacing whatever an earlier run
+    published there -- beside that same quest_dir's scenes/ (the Gate D BMPs
+    content audits already commit).
 
     Only a PASS is published: the directory is the persisted evidence that
     the quest played through, and a red run overwriting a green set would
@@ -746,7 +778,7 @@ def publish(result):
     verdict = ledger_verdict(ledger_path)
     if verdict != "PASS":
         return None, "ledger SUMMARY is %s, not PASS" % verdict
-    target = os.path.join(PUBLISH_DIR, result["name"])
+    target = os.path.join(PUBLISH_DIR, quest_dir_for(result["name"]), "play")
     if os.path.isdir(target):
         shutil.rmtree(target)
     os.makedirs(target)
@@ -914,7 +946,8 @@ def main():
     parser.add_argument("--no-build", action="store_true", help="use the binary already built")
     parser.add_argument("--no-publish", action="store_true",
                         help="do not copy a PASSING quest's ledger and shots into "
-                             "OSRS-Content (%s); by default every quest run does"
+                             "OSRS-Content (%s/<quest_dir>/play/); by default every "
+                             "quest run does"
                              % os.path.relpath(PUBLISH_DIR, REPO_ROOT))
     parser.add_argument("--script", default=None,
                         help="advanced: run this .lua file directly as a single session "

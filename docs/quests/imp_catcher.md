@@ -2,7 +2,7 @@
 
 Status: `in-progress` — 2026-09-09 parent reopen. gp-imp-t1 claimed
 verified-modern and listed 16 BMPs, but
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_imp/` is
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/` is
 empty on disk. A green selftest with missing interaction shots is not
 done. Do not double-claim. Content work stays in tree until named BMPs land.
 
@@ -454,25 +454,25 @@ Headless BMPs (`SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`,
 `TORIRS_NET_CHEAT=vesselgoto 3103 3163 2` plus bead gives, `::talk wizard_mizgog 1`
 / `::talk wizard_grayzag 1`, `TORIRS_SIM_TYPE` space/`1`, `TORIRS_BMP_SERIES`
 + `TORIRS_EXIT_BMP`). 16 named captures under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_imp/` (paths
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/` (paths
 relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_imp/01_arrive_four_beads.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/02_give_me_a_quest.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/03_quest_what.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/04_three_way_choice.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/05_please_path.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/06_grayzag_army.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/07_four_beads_stolen.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/08_get_beads_back.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/09_start_quest_choice.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/10_surprise_shortcut.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/11_accusation.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/12_handin_check.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/13_give_beads_wait.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/14_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/15_postquest_options.bmp`
-- `osrs239-content/server/scripts/selftest/quest_imp/16_grayzag_complete.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/01_arrive_four_beads.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/02_give_me_a_quest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/03_quest_what.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/04_three_way_choice.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/05_please_path.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/06_grayzag_army.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/07_four_beads_stolen.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/08_get_beads_back.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/09_start_quest_choice.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/10_surprise_shortcut.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/11_accusation.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/12_handin_check.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/13_give_beads_wait.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/14_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/15_postquest_options.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_imp/scenes/16_grayzag_complete.bmp`
 
 2006 ending: content plays jingle 133 (`mizgog_s_beads_imp_catcher`),
 `mizgog_placebeads` / `mizgog_beads` synths, `qip_imp_catcher_wizard` +

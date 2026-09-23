@@ -744,21 +744,21 @@ PASS dwarfcannon cleanup trigger=WorldNpcFree spawns reaped
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=mcannonbmp_*`). 12 named BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_mcannon/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_mcannon/01_talk_lawgof.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/03_railing_inspect.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/04_tower_remains.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/05_cave_enter.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/06_lollk_crate.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/07_toolkit_grant.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/08_cannon_repair.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/09_talk_nulodion.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/10_handin_lawgof.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/11_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_mcannon/12_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/01_talk_lawgof.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/03_railing_inspect.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/04_tower_remains.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/05_cave_enter.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/06_lollk_crate.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/07_toolkit_grant.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/08_cannon_repair.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/09_talk_nulodion.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/10_handin_lawgof.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_mcannon/scenes/12_postquest.bmp`
 
 No `TORIRS_BMP_SERIES`, `frame_NNNNN.bmp`, or `exit.bmp`. Twelve unique MD5s;
 mean luma 120–132 (not black/login).

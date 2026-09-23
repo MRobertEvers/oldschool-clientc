@@ -535,21 +535,21 @@ Mutation that proved a check: temporarily required `haunted == 99` on the atomic
 
 `::hauntedrun` / `::haunted` are reset/cheat adapters only. Not playthrough evidence. No boss; no `PASS ernestthechicken boss=… CHEAT-SKIP`. Rubber tube is a ground spawn.
 
-Headless BMPs (12) under `OSRS-Content/osrs239-content/server/scripts/selftest/quest_haunted/`
+Headless BMPs (12) under `OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_haunted/01_talk_veronica.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/03_manor_door.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/04_compost.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/05_fountain.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/06_closet.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/07_levers.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/08_oil_can.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/09_oddenstein.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/10_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/11_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_haunted/12_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/01_talk_veronica.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/03_manor_door.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/04_compost.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/05_fountain.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/06_closet.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/07_levers.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/08_oil_can.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/09_oddenstein.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/10_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_haunted/scenes/12_postquest.bmp`
 
 Gate D: **verified-modern**.
 

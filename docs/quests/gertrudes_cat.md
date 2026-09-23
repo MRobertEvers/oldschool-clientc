@@ -3,7 +3,7 @@
 Status: `verified-modern` (2026-09-09, gp-fluffs-t1) — P0 shipped-but-shit
 gaps on the playable Gertrude → complete route are closed and 9 named BMPs
 are on disk under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fluffs/` (see §11).
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/` (see §11).
 All six crate rolls land on placed `kittens_mew` tiles; rescue does not
 `npc_del` public Fluffs; settlement grants items+XP then writes state 6 with
 no cancellable reward queue; Gertrude topic routing no longer hides A Tail
@@ -553,18 +553,18 @@ evidence. No boss; no boss cheat.
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_BMP_SERIES`). 9 BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_fluffs/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_fluffs/01_talk_gertrude.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/03_children_shilop.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/04_fence.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/05_talk_fluffs.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/06_crate_search.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/07_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/08_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_fluffs/09_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/01_talk_gertrude.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/03_children_shilop.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/04_fence.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/05_talk_fluffs.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/06_crate_search.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/07_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/08_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_fluffs/scenes/09_postquest.bmp`
 
 The six search targets are world `kittens_mew` NPCs (cache name=Crate), not
 `gertrudeempty_crate` locs. `SceneFindLocId` proves `gertrudefence`. All six

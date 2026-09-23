@@ -124,7 +124,7 @@ The ledger at `selftest/quests/quest_mourningsendpartii/play/ledger.tsv` has 40 
 COUNTS guide_steps=24 driven=19 skipped_content=3 skipped_cheat=1 skipped_other=1 verdict=MIXED first_gap=findBob (stage 15: operate the catspeak amulet (e)); the test talks to Unferth instead
 
 Paths: T = R/test/quests/atailoftwocats.lua, C = R/OSRS-Content/osrs239-content/server/scripts/quests/quest_atailoftwocats/scripts/twocats.rs2, QH = QH/.../atailoftwocats/ATailOfTwoCats.java.
-Ledger: selftest/quest_tests/atailoftwocats/ledger.tsv has 89 rows, every one PASS (SUMMARY 89 PASS).
+Ledger: selftest/quests/quest_atailoftwocats/play/ledger.tsv has 89 rows, every one PASS (SUMMARY 89 PASS).
 Bring-alongs given by ::give (legit, QH getItemRequirements QH:240): catspeak amulet (e) (T:36), 5 death runes (T:42), rake/dibber/4 potato seeds/logs/tinderbox/chocolate cake/bucket of milk/shears (T:59-66). Prereq cheats (not guide steps): ::complete quest_icthlarinslittlehelper (T:48), ::complete quest_gertrudescat (T:52). No desert shirt/robe or vial of water is given; the content never checks for them.
 
 | guide varp | guide step (short) | test row(s) or cheat | class | evidence |
@@ -161,7 +161,7 @@ Summary: The quest runs end to end through real interactions, and all 89 ledger 
 COUNTS guide_steps=23 driven=22 skipped_content=1 skipped_cheat=0 skipped_other=0 verdict=CONTENT GAP first_gap=useGoldBarOnDondakan (60)
 
 Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver; test = R/test/quests/betweenarock.lua; content = R/OSRS-Content/osrs239-content/server/scripts/quests/quest_betweenarock/scripts/; guide = QH/.../betweenarock/BetweenARock.java.
-Ledger: R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/betweenarock/ledger.tsv -- SUMMARY 123 PASS, pass=123 fail=0 (every row cited below is PASS).
+Ledger: R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_betweenarock/play/ledger.tsv -- SUMMARY 123 PASS, pass=123 fail=0 (every row cited below is PASS).
 Setup (lua:40-57): ::clearinv, ::setlevel attack/strength/defence/hitpoints 99, mining 40, smithing 50, ::complete quest_fishingcontest (prereq), ::give rune_scimitar, adamant_pickaxe, hammer, gold_bar 4, ammo_mould. All given items are guide bring-alongs (getItemRequirements, java:397-405: pickaxe, goldBars4, hammer, cannonMould, coins1000) or combat gear -- not skips. Travel (tunnels, ferrymen, boatman, Khorvak stairs) done by ::goto; guide lists them as sub-steps of the action they lead to (java:277, 283, 320, 336, 349, 359, 380) and content's travel.rs2 writes no quest state -- merged, not counted.
 
 | guide varp value | guide step text (short) | test row(s) or cheat | class | evidence (file:line) |
@@ -196,7 +196,7 @@ Summary: every guide step is driven through the real client with no stage cheats
 
 COUNTS guide_steps=28 driven=24 skipped_content=0 skipped_cheat=4 skipped_other=0 verdict=TEST GAP first_gap=enterBackyardOfHeadquarters (squeeze through mournerstewfence) bypassed by ::goto
 
-Paths: T = R/test/quests/biohazard.lua; L = R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/biohazard/ledger.tsv (132 rows, SUMMARY 132 PASS, no non-PASS rows); S = R/OSRS-Content/osrs239-content/server/scripts.
+Paths: T = R/test/quests/biohazard.lua; L = R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_biohazard/play/ledger.tsv (132 rows, SUMMARY 132 PASS, no non-PASS rows); S = R/OSRS-Content/osrs239-content/server/scripts.
 Setup (T:72-85): ::clearinv, ::biohazardreset (reset debugproc, quest_biohazard.rs2:81-83), ::give gasmask 1 (guide getItemRequirements() = gasMask only, Biohazard.java:398-403 -> legit bring-along), ::complete quest_plaguecity (prerequisite), ::give rune_scimitar + ::setlevel hp/att/str/def (combat prep, not a quest leg). No ::setvar, no quest-stage debugproc, no ::kill; biohazard_pass_mourner (quest_biohazard.rs2:85-91) is NOT used.
 Note: every t.player.goto_tile is a ::goto teleport (docs/QUEST_AUTHORING.md:161). Pure travel is merged with the action it leads to; the four rows below marked SKIP-CHEAT are guide action steps (operate loc / talk npc) whose content exists and that the test replaces with a ::goto teleport.
 
@@ -238,7 +238,7 @@ Summary: Every stage-writing leg is driven through real triggers and the ledger 
 COUNTS guide_steps=14 driven=9 skipped_content=3 skipped_cheat=2 skipped_other=0 verdict=MIXED first_gap=startQuest (talk to Reldo / book / Reldo again: the port's tramp starts the Black Arm route with no Reldo gate)
 
 Paths: QH = quest-helper/src/main/java/com/questhelper/helpers/quests/shieldofarrav/ShieldOfArravBlackArmGang.java; T = R/test/quests/blackarmgang.lua; Q = R/OSRS-Content/osrs239-content/server/scripts/quests/quest_blackarmgang/scripts/quest_blackarmgang.rs2; V = R/OSRS-Content/osrs239-content/server/scripts/areas/varrock/scripts/.
-Ledger: R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/blackarmgang/ledger.tsv -- SUMMARY 42 PASS, fail=0 (every row cited below is PASS).
+Ledger: R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_blackarmgang/play/ledger.tsv -- SUMMARY 42 PASS, fail=0 (every row cited below is PASS).
 Setup (T:67-86): ::clearinv, ::setlevel hitpoints/defence/attack/strength 99 (combat gearing for the Weaponsmaster fight; not a quest leg).
 
 | guide varp value | guide step text (short) | test row(s) or cheat | class | evidence (file:line) |
@@ -270,7 +270,7 @@ COUNTS guide_steps=8 driven=4 skipped_content=0 skipped_cheat=4 skipped_other=0 
 
 Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, QH=/Users/matthewevers/Documents/git_repos/quest-helper
 Guide = QH/src/main/java/com/questhelper/helpers/quests/blackknightfortress/BlackKnightFortress.java (BKF.java)
-Test = R/test/quests/blackknight.lua ; Ledger = R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/blackknight/ledger.tsv (SUMMARY 37 PASS, fail=0 -- every row PASS, incl. quest.varp_complete client=4 server=4, quest.points 12->15, reward.coins 0->2500)
+Test = R/test/quests/blackknight.lua ; Ledger = R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_blackknight/play/ledger.tsv (SUMMARY 37 PASS, fail=0 -- every row PASS, incl. quest.varp_complete client=4 server=4, quest.points 12->15, reward.coins 0->2500)
 Content = R/OSRS-Content/osrs239-content/server/scripts/quests/quest_blackknight/scripts/quest_blackknight.rs2 (qbk.rs2); Sir Amik = R/OSRS-Content/osrs239-content/server/scripts/areas/falador/scripts/sir_amik_varze.rs2 (amik.rs2)
 
 Counting: Falador-castle stair sub-steps are merged into the Amik talks; the six fortress ladders (climbUpLadder1..climbDownLadder6 and back) are merged into the leg they lead to (listen / cabbage); pushWall3 is a sub-step of goUpLadderToCabbageZone; watchCutscene is merged into useCabbageOnHole; recovery steps (exitBasement etc.) are not counted.
@@ -296,7 +296,7 @@ COUNTS guide_steps=14 driven=10 skipped_content=0 skipped_cheat=4 skipped_other=
 
 Paths: QH = quest-helper/.../quests/clocktower/ClockTower.java; T = test/quests/cog.lua; S = OSRS-Content/osrs239-content/server/scripts; Q = S/quests/quest_cog/scripts.
 Guide: steps.put(0, talkToKojo); steps.put(1..4, doQuest); steps.put(5..7, goFinishQuest) (QH:355-392). The red/blue/black/white sub-ladders are at QH:357-378. Excluded from the count: syncStep (a journal re-sync, not an action) and every ladder/stair climb and plain door (travel only). getBucket/fillBucket (QH:230-233) is left out because the guide itself says it is optional and fills the bucketOfWater bring-along (QH:398-403). The test gives that bucket with `::give bucket_water 1` (T:51), which is legitimate.
-Ledger: selftest/quest_tests/cog/ledger.tsv. 37/37 PASS, exit=0.
+Ledger: selftest/quests/quest_cog/play/ledger.tsv. 37/37 PASS, exit=0.
 Travel in this test is `t.player.goto_tile`, which teleports (T:106 says "a goto_tile teleport"). Where the guide makes the route itself an action (a loc to operate or a puzzle), skipping that route by teleport is classed as a cheat.
 
 | varp | guide step (short) | test row(s) / cheat | class | evidence |
@@ -326,7 +326,7 @@ COUNTS guide_steps=9 driven=1 skipped_content=0 skipped_cheat=8 skipped_other=0 
 
 Paths: QH = quest-helper/src/main/java/com/questhelper/helpers/quests/cooksassistant/CooksAssistant.java; T = test/quests/cooks_assistant.lua; Q = OSRS-Content/osrs239-content/server/scripts/quests/quest_cook/scripts/quest_cook.rs2; W = .../scripts/general_use/scripts/windmills.rs2.
 Guide: steps.put(0, doQuest) and steps.put(1, doQuest) (QH:213-214); doQuest/getFlour ConditionalSteps at QH:195-211. The ladder-climb steps (climbLadderOne/TwoUp, climbLadderThree/TwoDown, QH:155-171) are travel and are merged into fillHopper and collectFlour. Only coins (QH:126) are a real bring-along. Egg, milk and flour are what the quest asks you to go and get (getEgg/getFlour/milkCow in the ladder), so they are not bring-alongs.
-Ledger: selftest/quest_tests/cooks_assistant/ledger.tsv. 25/25 PASS, exit=0.
+Ledger: selftest/quests/quest_cook/play/ledger.tsv. 25/25 PASS, exit=0.
 
 | varp | guide step (short) | test row(s) / cheat | class | evidence |
 |---|---|---|---|---|
@@ -348,7 +348,7 @@ Summary: The two Cook talks (start and hand-in) are driven through the real clie
 
 COUNTS guide_steps=20 driven=16 skipped_content=4 skipped_cheat=0 skipped_other=0 verdict=CONTENT GAP first_gap=doAudit (varp 25: answer Catherine's 8 audit questions matching form cr-4p)
 
-Paths: QH=quest-helper/src/main/java/com/questhelper/helpers/quests/currentaffairs/CurrentAffairs.java; T=test/quests/currentaffairs.lua; C=OSRS-Content/osrs239-content/server/scripts/quests/quest_currentaffairs/scripts/currentaffairs.rs2. Ledger (OSRS-Content/.../selftest/quest_tests/currentaffairs/ledger.tsv): 66/66 PASS, exit=0.
+Paths: QH=quest-helper/src/main/java/com/questhelper/helpers/quests/currentaffairs/CurrentAffairs.java; T=test/quests/currentaffairs.lua; C=OSRS-Content/osrs239-content/server/scripts/quests/quest_currentaffairs/scripts/currentaffairs.rs2. Ledger (OSRS-Content/.../selftest/quests/quest_currentaffairs/play/ledger.tsv): 66/66 PASS, exit=0.
 
 Setup (T:43-50): ::clearinv; ::currentaffairs (debugproc C:406-413 -- resets varbits + teleport to Arhein, performs no leg); ::give coins 50 (guide bring-along coinsRequirement QH:146,327 -- legit); ::setlevel sailing 22 / fishing 10 and ::complete quest_pandemonium (guide general requirements QH:315-317 -- legit, not legs). Charcoal is a guide bring-along too but the test obtains it in-quest from the cabinet.
 
@@ -381,7 +381,7 @@ Summary: The test drives every leg the content implements, with no stage cheats;
 
 COUNTS guide_steps=9 driven=8 skipped_content=0 skipped_cheat=1 skipped_other=0 verdict=TEST GAP first_gap=enterCauldronRoom (Prison door into the cauldron room, passed by ::goto teleport)
 
-Paths: QH = quest-helper/src/main/java/com/questhelper/helpers/quests/druidicritual/DruidicRitual.java; T = R/test/quests/druid.lua; L = R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/druid/ledger.tsv (SUMMARY pass=27 fail=0; every row PASS); C = R/OSRS-Content/osrs239-content/server/scripts.
+Paths: QH = quest-helper/src/main/java/com/questhelper/helpers/quests/druidicritual/DruidicRitual.java; T = R/test/quests/druid.lua; L = R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_druid/play/ledger.tsv (SUMMARY pass=27 fail=0; every row PASS); C = R/OSRS-Content/osrs239-content/server/scripts.
 
 Bring-alongs (getItemRequirements, QH:214-222): raw rat meat, raw bear meat, raw beef, raw chicken -- given by ::give at T:26-29. The ladder has no step for obtaining them (only tooltips QH:112-121), so these are legitimate bring-alongs, not skips.
 
@@ -403,7 +403,7 @@ Summary: Every stage-changing leg (both Kaqemeex talks, both Sanfew talks, all f
 
 COUNTS guide_steps=10 driven=9 skipped_content=0 skipped_cheat=1 skipped_other=0 verdict=TEST GAP first_gap=goUpLadder (climb the cellar ladder out of the blanket cave; test teleports with goto_tile)
 
-Ledger: OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/drunkmonk/ledger.tsv -- 42/42 PASS (SUMMARY pass=42 fail=0).
+Ledger: OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_drunkmonk/play/ledger.tsv -- 42/42 PASS (SUMMARY pass=42 fail=0).
 Setup (drunkmonk.lua:19-23): ::clearinv, ::give jug_water 1, ::give logs 1. Both are guide bring-alongs (MonksFriend.java:157-161 getItemRequirements = jugOfWater, log); legitimate.
 Traversal: every "goto-*" row is t.player.goto_tile, which is a teleport (test/quests/_conformance.lua:134,266).
 
@@ -427,7 +427,7 @@ Summary: every quest-stage leg is played through real clicks and dialogue, and a
 
 COUNTS guide_steps=27 driven=24 skipped_content=0 skipped_cheat=2 skipped_other=1 verdict=TEST GAP first_gap=get Berry's cell key + unlock Eadgar's cell (::setvar troll_freed_eadgar 1)
 
-Paths: guide = QH/src/main/java/com/questhelper/helpers/quests/eadgarsruse/EadgarsRuse.java (EadgarsRuse.java); test = R/test/quests/eadgar.lua; ledger = R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/eadgar/ledger.tsv (SUMMARY line 120: pass=117 fail=0, every row PASS, including thistle.dried at line 84; the QUEUE note about a failing thistle.not_dried row is stale). Content: quest_eadgar/scripts/*.rs2, plus quest_troll/scripts/troll_eadgar.rs2 (Eadgar's state machine), quest_troll/scripts/quest_troll.rs2 (cell doors), areas/area_taverly/scripts/sanfew.rs2 (offer and turn-in), skill_cooking/scripts/cooking.rs2:39-40 (thistle drying).
+Paths: guide = QH/src/main/java/com/questhelper/helpers/quests/eadgarsruse/EadgarsRuse.java (EadgarsRuse.java); test = R/test/quests/eadgar.lua; ledger = R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_eadgar/play/ledger.tsv (SUMMARY line 120: pass=117 fail=0, every row PASS, including thistle.dried at line 84; the QUEUE note about a failing thistle.not_dried row is stale). Content: quest_eadgar/scripts/*.rs2, plus quest_troll/scripts/troll_eadgar.rs2 (Eadgar's state machine), quest_troll/scripts/quest_troll.rs2 (cell doors), areas/area_taverly/scripts/sanfew.rs2 (offer and turn-in), skill_cooking/scripts/cooking.rs2:39-40 (thistle drying).
 
 Bring-alongs (getItemRequirements, EadgarsRuse.java:535-548): climbing boots or 12 coins, vodka, pineapple chunks, 2 logs, 10 grain, 5 raw chicken, tinderbox, pestle and mortar, ranarr potion (unf). The test ::gives all of these except the boots (eadgar.lua:35-42), which is legitimate. The dirty robe is quest-obtained and is talked out of Tegid for real. Walking steps are merged into the action they lead to (Tenzing boots purchase, stile, climbing rocks, secret entrance, stronghold stairs and doors, cave entrance and exit). The test's goto_tile is a teleport (test/quests/_conformance.lua:134, 266), so it never needs or equips climbing boots.
 
@@ -478,7 +478,7 @@ Bring-alongs (java:298): knife, pickaxe, needle, thread, leather, hammer, 4 coal
 rune scimitar and ::setlevel rows (lua:39-46) cover combatGear (java:304) and the 20 Mining/Smithing/Crafting
 requirements (java:357-359); they are not quest steps.
 The test file has NO t.blocked rows (the bookcase / key-making leg the QUEUE row's old rejection mentioned is
-now driven). Ledger: selftest/quest_tests/elemental_workshop/ledger.tsv, SUMMARY 57 PASS, fail=0.
+now driven). Ledger: selftest/quests/quest_elemental_workshop/play/ledger.tsv, SUMMARY 57 PASS, fail=0.
 
 | guide condition | guide step (short) | test row(s) / cheat | class | evidence |
 |---|---|---|---|---|
@@ -513,7 +513,7 @@ anywhere in this tree". That comment is stale, because rs2:240 sets it and this 
 
 COUNTS guide_steps=9 driven=6 skipped_content=0 skipped_cheat=3 skipped_other=0 verdict=TEST GAP first_gap=getGarlic (Seers' table garlic given by ::give)
 
-Paths: C = OSRS-Content/osrs239-content/server/scripts. Ledger: SUMMARY 48 PASS fail=0 (read at selftest/quest_tests/fishingcompo/ledger.tsv; OSRS-Content has since staged a move to selftest/quests/quest_fishingcompo/play/ledger.tsv, same SUMMARY).
+Paths: C = OSRS-Content/osrs239-content/server/scripts. Ledger: SUMMARY 48 PASS fail=0 (read at selftest/quests/quest_fishingcompo/play/ledger.tsv; OSRS-Content has since staged a move to selftest/quests/quest_fishingcompo/play/ledger.tsv, same SUMMARY).
 Bring-alongs (FishingContest.java:287-290 getItemRequirements: coins, redVineWorm, garlic, spade, fishingRod). Coins (::give coins 10, fishingcompo.lua:45) and fishing rod (fishingcompo.lua:44) are treated as legitimate bring-alongs: the rod's Grandpa Jack leg (grandpaJack/runToJack/teleToHemenster, FishingContest.java:167-190) is a 5gp purchase alternative only reached when no rod is held, so not counted as a step. Garlic and the red vine worm are NOT: the guide ladder has its own steps to obtain them (getGarlic FishingContest.java:145-147; getWorms/goToMcGruborWood/goToRedVine :149-157, :200-202; both tooltips "This can be obtained during the quest", :112, :118), and the content implements both legs. The test's header claim (fishingcompo.lua:15-20: "neither kr_seers_table2 nor red_worm_junction has a single [oploc*] handler") is wrong for this pack: see rows below. ::setlevel fishing 10 (lua:46) is the guide's general requirement (FishingContest.java:282), legitimate.
 
 | varp | guide step | test row(s) / cheat | class | evidence |
@@ -535,7 +535,7 @@ Summary: The dialogue/competition core (Vestri, Bonzo, garlic-in-pipe use_on, li
 COUNTS guide_steps=22 driven=18 skipped_content=4 skipped_cheat=0 skipped_other=0 verdict=CONTENT GAP first_gap=talkToElissa (no Elissa trigger in the pack)
 
 Paths: C = OSRS-Content/osrs239-content/server/scripts; G = C/quests/quest_golem/scripts/golem.rs2; P = C/quests/quest_golem/scripts/golem_portal.rs2.
-Ledger: the brief's path selftest/quest_tests/golem/ledger.tsv no longer exists -- OSRS-Content has an in-progress (staged) move quest_tests -> selftest/quests/; the ledger is now C/selftest/quests/quest_golem/play/ledger.tsv: SUMMARY 86 PASS fail=0.
+Ledger: the brief's path selftest/quests/quest_golem/play/ledger.tsv no longer exists -- OSRS-Content has an in-progress (staged) move quest_tests -> selftest/quests/; the ledger is now C/selftest/quests/quest_golem/play/ledger.tsv: SUMMARY 86 PASS fail=0.
 Bring-alongs (TheGolem.java getItemRequirements: 4 soft clay, vial, pestle and mortar, papyrus) -- ::give at golem.lua:23-26 legitimate. ::give hammer (lua:27) is a tool the port's throne-gem path needs (P:218-227), not a quest-obtained item. ::setlevel crafting 20 / thieving 25 (lua:28-29) are the quest's skill requirements. ::golem (lua:22) is a reset + teleport debugproc (G:136-140), no stage skip. Pure travel (enterRuinForFirstTime/enterRuin/enterRuinWithoutStatuette via ::goto over the maplink stairs, leaveThroneRoom, leaveRuin, goUpInMuseum) merged, not counted.
 
 | varp | guide step | test row(s) / cheat | class | evidence |
@@ -569,7 +569,7 @@ Summary: Every leg the port implements is driven with no stage cheat; the four s
 
 COUNTS guide_steps=15 driven=10 skipped_content=0 skipped_cheat=5 skipped_other=0 verdict=TEST GAP first_gap=pickupSpade (spade/compost/closet-key chain bypassed by ::goto into the closet)
 
-Paths: C = OSRS-Content/osrs239-content/server/scripts; Q = C/quests/quest_haunted/scripts/quest_haunted.rs2. Ledger: SUMMARY 36 PASS fail=0 (read at selftest/quest_tests/haunted/ledger.tsv; OSRS-Content has since staged a move to selftest/quests/quest_haunted/play/ledger.tsv, same SUMMARY).
+Paths: C = OSRS-Content/osrs239-content/server/scripts; Q = C/quests/quest_haunted/scripts/quest_haunted.rs2. Ledger: SUMMARY 36 PASS fail=0 (read at selftest/quests/quest_haunted/play/ledger.tsv; OSRS-Content has since staged a move to selftest/quests/quest_haunted/play/ledger.tsv, same SUMMARY).
 No getItemRequirements in the helper; the test gives nothing (setup is ::clearinv + ::haunted, a reset debugproc, haunted.lua:54-55). t.player.goto_tile is the ::goto teleport cheat (script/plugins/quest_driver/pointer.lua:1798; docs/QUEST_SERVER_CHEATS.md:92). Pure travel (stairs, enterManorWithKey, goUpFromBasement, pullLeverToLeave, goToFirstFloor/SecondFloor) is merged; but ::goto used to pass a locked door or a puzzle is counted as a cheat. The file header (haunted.lua:9-27) openly calls the closet key chain and the six-lever maze "walking obstacles" and teleports past them; content implements both.
 
 | varp | guide step | test row(s) / cheat | class | evidence |
@@ -640,7 +640,7 @@ Bring-alongs (getItemRequirements, WitchsPotion.java:101-108 region): onion, bur
 | 1 | Bring the ingredients to Hetty | returnToWitch, hetty.drain_complete_close, hetty.expect_stage_given (ledger 11-13 PASS) | DRIVEN | hetty.lua:63-69; hetty.rs2:21-30 |
 | 2 | Drink from the cauldron | drinkPotion, completion_mesbox_text, completion_continue, quest.varp_complete/scroll/points/journal, reward.magic (ledger 15-22 PASS) | DRIVEN | hetty.lua:76-93; quest_hetty.rs2:6-17 |
 
-Ledger: SUMMARY 22 PASS, fail=0 (read at selftest/quest_tests/hetty/ledger.tsv; during this audit OSRS-Content staged a move to selftest/quests/quest_hetty/play/ledger.tsv, same SUMMARY).
+Ledger: SUMMARY 22 PASS, fail=0 (read at selftest/quests/quest_hetty/play/ledger.tsv; during this audit OSRS-Content staged a move to selftest/quests/quest_hetty/play/ledger.tsv, same SUMMARY).
 
 Summary: The only gap is the rat kill: the test hands itself rats_tail with ::give (hetty.lua:13) although the content implements the drop from rat_indoors (rat.rs2:37-39) and the guide makes it a quest step. Everything else is driven through real dialogue and the cauldron loc.
 
@@ -649,7 +649,7 @@ Summary: The only gap is the rat kill: the test hands itself rats_tail with ::gi
 COUNTS guide_steps=15 driven=14 skipped_content=0 skipped_cheat=1 skipped_other=0 verdict=TEST GAP first_gap=travel to Karamja via Port Sarim seaman (replaced by ::goto teleport to Brimhaven)
 
 Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, QH=quest-helper/.../helpers/quests/piratestreasure, C=R/OSRS-Content/osrs239-content/server/scripts.
-Ledger: R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/hunt/ledger.tsv -- SUMMARY 71 PASS, pass=71 fail=0, 248 ticks, exit=0. The QUEUE note's suspect row gardener-dead is PASS in the ledger (ledger.tsv:60, "already gone before the wait ... hp 0/30 -> gone"); hunt.gardener_gone PASS (ledger.tsv:61).
+Ledger: R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_hunt/play/ledger.tsv -- SUMMARY 71 PASS, pass=71 fail=0, 248 ticks, exit=0. The QUEUE note's suspect row gardener-dead is PASS in the ledger (ledger.tsv:60, "already gone before the wait ... hp 0/30 -> gone"); hunt.gardener_gone PASS (ledger.tsv:61).
 Setup (hunt.lua:39-63): ::clearinv, ::give spade 2, ::give coins 100, ::setlevel attack 40, ::setlevel strength 40, ::give rune_scimitar 1. Spade and coins are guide bring-alongs (PiratesTreasure.java:161-165); the levels + scimitar are combat prerequisites for the gardener, not a quest leg. No ::setvar / ::complete / quest debugproc (huntrun, dig.rs2:62) / ::kill used.
 Note: t.player.goto_tile is a teleport cheat (::goto, fallback ::tele) -- R/script/plugins/quest_driver/pointer.lua:1781-1795. Used for every travel.
 
@@ -681,7 +681,7 @@ COUNTS guide_steps=23 driven=19 skipped_content=4 skipped_cheat=0 skipped_other=
 
 Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, QH=quest-helper. J = QH/.../throneofmiscellania/ThroneOfMiscellania.java.
 C = R/OSRS-Content/osrs239-content/server/scripts/quests/quest_misc/scripts. T = R/test/quests/misc.lua.
-Ledger R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/misc/ledger.tsv: SUMMARY 81 rows, pass=81 fail=0 (every row cited below is PASS).
+Ledger R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_misc/play/ledger.tsv: SUMMARY 81 rows, pass=81 fail=0 (every row cited below is PASS).
 Route audited: Brand courtship (test chooses Brand, T:106; guide courtBrand J:109-118). Astrid alternative (J:98-106) counted once as the chosen branch.
 Bring-alongs (J:469-481 getItemRequirements): iron bar, logs, ring, flowers, bow/cake, reputation item. Setup ::give coins/iron_bar/logs/gold_ring/cake/bronze_axe (T:66-71) are all bring-alongs -> not skips. Flowers are bought live (not given).
 Prerequisite cheat: "::complete quest_heroes" (T:72) satisfies a general requirement (J:496), not a quest leg -> not counted.
@@ -720,7 +720,7 @@ Summary: every quest leg the content implements is driven by the test with no qu
 
 COUNTS guide_steps=22 driven=17 skipped_content=4 skipped_cheat=1 skipped_other=0 verdict=MIXED first_gap=repairTemple (stage 50/55, ::mortton_repairtemple debugproc)
 
-Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver; test=R/test/quests/mortton.lua; ledger=R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/mortton/ledger.tsv (104 rows, all PASS, "SUMMARY 104 PASS"); QS=R/OSRS-Content/osrs239-content/server/scripts/quests/quest_mortton/scripts; GM=R/OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/scripts; QH=ShadesOfMortton.java.
+Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver; test=R/test/quests/mortton.lua; ledger=R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_mortton/play/ledger.tsv (104 rows, all PASS, "SUMMARY 104 PASS"); QS=R/OSRS-Content/osrs239-content/server/scripts/quests/quest_mortton/scripts; GM=R/OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/scripts; QH=ShadesOfMortton.java.
 
 Setup (mortton.lua:37-94): ::give tarrominvial 5 / tinderbox / logs / ashes 5 / hammer / coins 5000 = QH getItemRequirements (QH:284) bring-alongs, legit; rune_scimitar + shark 5 = QH recommended combatGear/food (QH:290), legit; ::setlevel crafting 20 / herblore 15 = quest reqs (QH:318-320); firemaking 99 (req 5) and hp 99 / att/str/def 40 are over-gearing, not quest legs; ::complete quest_priestperil (prereq, QH:317) and quest_druidicritual (herblore unlock) are prerequisites, not legs; ::passive on 4 afflicted types + shadeshadow_level1 (mortton.lua:77-93) removes aggression only, the kills are still real combat (noted, not counted as a skip). No ::setvar of %morttonquest, no ::kill, no ::skipboss.
 
@@ -791,7 +791,7 @@ Summary:
 COUNTS guide_steps=19 driven=14 skipped_content=2 skipped_cheat=0 skipped_other=3 verdict=MIXED first_gap=pick up the pungent pot (murderpot2)
 
 Paths: R=3draster-quest-driver; test=R/test/quests/murder.lua; content=R/OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/scripts/ (abbrev Q/); spawn=R/OSRS-Content/osrs239-content/server/scripts/areas/world/configs/m42_55.spawn.
-Ledger R/OSRS-Content/osrs239-content/server/scripts/selftest/quest_tests/murder/ledger.tsv: 95 rows, all PASS (SUMMARY 95 PASS).
+Ledger R/OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_murder/play/ledger.tsv: 95 rows, all PASS (SUMMARY 95 PASS).
 Setup: ::clearinv, ::give pot_empty 1 (murder.lua:46-47). Pot is the helper's only getItemRequirements item (MurderMystery.java:617-621) -> legitimate bring-along. No ::setvar/::complete/debugproc cheats.
 Per-suspect alternatives (6 barrels, 6 silver items, 6 alibi locs) are counted once each. The test drives BOTH thread-colour candidates (bob/carol in the recorded run); content decides the match.
 
@@ -898,7 +898,7 @@ Summary: every Roving Elves stage write is driven for real, including an actual 
 
 COUNTS guide_steps=9 driven=7 skipped_content=0 skipped_cheat=2 skipped_other=0 verdict=TEST GAP first_gap=get dusty key + unlock deep Taverley gate (bypassed by ::goto)
 
-Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, T=R/test/quests/scorpcatcher.lua, C=R/OSRS-Content/osrs239-content/server/scripts. Ledger: 34/34 PASS (quest_tests/scorpcatcher/ledger.tsv).
+Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, T=R/test/quests/scorpcatcher.lua, C=R/OSRS-Content/osrs239-content/server/scripts. Ledger: 34/34 PASS (selftest/quests/quest_scorpcatcher/play/ledger.tsv).
 Setup: ::clearinv, ::setlevel prayer 31 (T:16-17; the 31 Prayer is a general requirement, not a quest leg). Every travel row is t.player.goto_tile = a ::goto teleport (docs/QUEST_AUTHORING.md:161).
 
 | guide varp | guide step (short) | test row(s) or cheat | class | evidence |
@@ -921,7 +921,7 @@ Summary: every quest-varp transition and all three catches are driven through re
 
 COUNTS guide_steps=7 driven=3 skipped_content=2 skipped_cheat=2 skipped_other=0 verdict=MIXED first_gap=enter Lumbridge Swamp caves (rope) / Juna's cave -- bypassed by ::tearsofguthix teleport
 
-Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, T=R/test/quests/tearsofguthix.lua, Q=R/OSRS-Content/osrs239-content/server/scripts/quests/quest_tearsofguthix/scripts, C=R/OSRS-Content/osrs239-content/server/scripts. Ledger: 16/16 PASS (quest_tests/tearsofguthix/ledger.tsv).
+Paths: R=/Users/matthewevers/Documents/git_repos/3draster-quest-driver, T=R/test/quests/tearsofguthix.lua, Q=R/OSRS-Content/osrs239-content/server/scripts/quests/quest_tearsofguthix/scripts, C=R/OSRS-Content/osrs239-content/server/scripts. Ledger: 16/16 PASS (selftest/quests/quest_tearsofguthix/play/ledger.tsv).
 Setup: ::clearinv, ::tearsofguthix, ::setlevel firemaking 49 / crafting 20 / mining 20 (T:38-42). ::tearsofguthix (Q/tearsofguthix.rs2:183-189) sets %qp=43 (:184), resets the stage (:185), GRANTS tog_stone (:186, the quest-mined magic stone) and chisel (:187), and p_teleports to ^tog_juna_stand (:188). The helper's bring-alongs are rope, lit sapphire lantern, tinderbox, chisel and pickaxe, so the chisel is legitimate; tog_stone is not.
 
 | guide varp | guide step (short) | test row(s) or cheat | class | evidence |

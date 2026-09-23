@@ -447,7 +447,7 @@ DORIC PASS: full inventory blocked accept without losing the pickaxe
 DORIC PASS: start-to-complete via OPNPC1
 ```
 
-BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_doric/`):
+BMP list (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_doric/scenes/`):
 
 | File | What it shows |
 | --- | --- |
