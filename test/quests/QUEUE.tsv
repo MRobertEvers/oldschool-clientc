@@ -4,13 +4,13 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b11	RE-AUTHOR after aa38f602a3: content now has the Sphinx scene and Bob/Neite's travels as the transcript's own pages (Sphinx: 'Good day.' ... teleport choice 'Yes, teleport me to Unferth's house.' / 'No thanks, I'll stay in Sophanem.', objbox chores list, twocats_chores granted), the openable Present (opheld1 -> 2 twocats_rewardlamp + mouse toy), Historian Minas's 5 kudos (vm_timeline_historian, Varrock Museum), and a live amulet bearing mes; drive it per the guide (plus parity1b's worn-amulet start and Hild exchange). First red row: 6 quest.stage.accepted. Legs left: locator IF1 panel, Bob wander, cutscene camera/music, lamp Rub.
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b11	RE-AUTHOR after 15c39665ce: content now has the amulet's Open mounting the real bob_locator_amulet panel (group 48) for 2 ticks before the mesbox closes, Bob pacing one tile (2925,3565<->2927,3563, [ai_timer]), twocats_rewardlamp Rub -> xpreward picker (click a 30+ skill, then Confirm: 2,500 XP, lamp consumed), and Historian Minas's topic menu (pick 'I have some information which might be of use in your displays.' for the claim; offered only at stage>=70 before the reward); drive it per the guide (plus aa38f602a3's Sphinx/travel pages and parity1b's worn-amulet start and Hild exchange). First red row: 6 quest.stage.accepted. Legs left: dial minigame, world-wide Bob wander, other museum displays, cutscene camera/music.
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	todo	sonnet-b12	RE-AUTHOR after aa38f602a3: content now picks the Avatar tier by gold ore held at the flame (15+ -> level 75 _yellow, 6-14 -> level 125 _green); drive it per the guide (plus 0ee0ee5e9d's book report -> 60 and gold on Dondakan). First red row: 40 talkToDondakanWithBook-dialog. Legs left: schematic interface puzzle (one click), Khorvak driver settle seam at 2864,9876, Dwarf Cannon prereq.
+quest_betweenarock	betweenarock	betweenarock		1	todo	sonnet-b12	RE-AUTHOR after 15c39665ce: content now answers Khorvak's own click again ([opnpc1,dwarfrock_engineer2] restored -- before, he opened no dialogue); talk to Khorvak at 2864,9876 for schematic 3 per the guide (plus aa38f602a3's gold-ore avatar tier and 0ee0ee5e9d's book report -> 60 and gold on Dondakan). First red row: 40 talkToDondakanWithBook-dialog. Legs left: schematic interface puzzle (one click), Dwarf Cannon prereq.
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16	
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b15	
 quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16	
@@ -25,7 +25,7 @@ quest_contact	contact	contact		4	todo
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	todo	sonnet-b9	RE-AUTHOR after aa38f602a3: content now has Arhein's stage-40 'About that duck...' transcript pages and a 'Board your boat and sail east to the ripple.' choice that lands at 2835,3418 with a ripple mesbox -- drive that instead of goto to the ripple (plus c8b3e2fede's eight form questions). First red row: 15 form.filled. Legs left: own boat/helm (no Sailing vehicle), duck landing at the Catherby dock not the wiki pin.
+quest_currentaffairs	currentaffairs	currentaffairs		1	todo	sonnet-b9	RE-AUTHOR after 15c39665ce: content now lands the duck at 2801,3321 on the shore near Holgart (not the Catherby dock) after up to 150 ticks -- follow and collect it there (plus aa38f602a3's Arhein 'About that duck...' pages and the 'Board your boat and sail east' choice, and c8b3e2fede's eight form questions). First red row: 15 form.filled. Leg left: own boat/helm (no Sailing vehicle).
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
 quest_druidspirit	druidspirit	naturespirit		3	todo		
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
-quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	RE-AUTHOR after aa38f602a3: content now has the sleeping storeroom guard -- searching the goutweed crate always grants the goutweed, then knocks you out and teleports you to 2865,10088 (LostCity eadgar_take_goutweed); drive it per the guide (plus c8b3e2fede's Parroty Pete gate: ask both questions before vodka on pineapple_chunks). First red row: 24 catchParrot. Legs left: the 8 roaming troll_sguard patrols have no AI.
+quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	RE-AUTHOR after 15c39665ce: content now has the 8 troll_sguard storeroom guards hunting within 3 tiles -- '!', 0-6 damage and a knockout teleport to 2865,10088 (LostCity quest_eadgar.rs2:509-590); route the storeroom leg around them per the guide (plus aa38f602a3's sleeping guard and c8b3e2fede's Parroty Pete gate: ask both questions before vodka on pineapple_chunks). First red row: 24 catchParrot. Legs left: thrown-club projectile (no cache id), fade overlay.
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
@@ -100,14 +100,14 @@ quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	to
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
-quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	RE-AUTHOR after 0ee0ee5e9d (unchanged): Brand/Astrid talk1, real Clap/Dance/Blow Kiss emotes, earned 75% support (rake/coal/rare fish at Frodi); drive it per the guide. First red row: 8 talkBrandNeedFlowers-dialog. Needs a driver emote path (ui.tab emote). Leg left: no maple tree near Leif (PARITY.tsv)
+quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	RE-AUTHOR after 0ee0ee5e9d (content unchanged at 15c39665ce): Brand/Astrid talk1, real Clap/Dance/Blow Kiss emotes, earned 75% support; drive it per the guide. The maple is there: chop mapletree (loc 10832) at 2550,3864 by Leif -- leif_intercept_wood raises approval, logs go to Leif (parity1d proof parity_misc1d_leif_final 9/0). First red row: 8 talkBrandNeedFlowers-dialog. Needs a driver emote path (ui.tab emote). Leg left: Ghrim's 75% support is still one dialogue write.
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b15	
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b10	RE-AUTHOR after aa38f602a3: content now has Temple of Light puzzle 2 (pull the dispenser again -> 4 mirrors + cyan + yellow and the shared 2_9/2_7 edges reset; re-light 2_9/2_7; cyan crystal on 2_6; mirrors on 2_5 and 2_2; yellow crystal on 2_3; open+search the magenta chest -> parts_3) and every mirror is placed then POINTED: Search the pillar and choose the guide's direction (North./East./South./West./'Up or down...'); drive puzzles 1-2 per the guide. First red row: 18 talkToArianwyn2-dialog. Legs left: puzzles 3-5 and the Death Altar barrier.
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b10	RE-AUTHOR after 15c39665ce: content now has Temple of Light puzzle 3 (do NOT reset: take the yellow crystal back out of 2_3 and fit+point a mirror Up; north ladder up, mirror on 3_3 West; down, south stairs up, mirror on 3_1 Down in the NW corner; circle stairs down, Pass-through the white door, Search the pre-fitted 1_1 mirror South; open+search the chest -> 2 mirrors + fractured crystal, parts_5) and puzzle 2's dispenser now gives 6 mirrors (needs 8 free slots); drive puzzles 1-3 per the guide. First red row: 18 talkToArianwyn2-dialog. Legs left: puzzles 4-5, puzzle 6 and the Death Altar barrier.
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
@@ -120,7 +120,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
-quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b9	RE-AUTHOR after aa38f602a3: content now has Steve's 'Cast off your keel and sail your vessel over there.' then 'Sail your vessel to the floating crate.' (lands at the grog crate) and, on the emptied crate, 'Sail back to the Pandemonium.' -- drive those instead of goto-seaCrate (plus Sailing 12 / 800 XP and the Port Sarim ground crate). First red row: 8 letSteveKnow-dialog. Legs left: the Port Sarim<->Pandemonium courier crossing (no sea navigation).
+quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b9	RE-AUTHOR after 15c39665ce: content now has the courier crossing both ways -- Steve's 'About that job' offers 'Cast off and sail to Port Sarim yourself.' (lands 3047,3221 by the looty crate), and Captain Tobias (Talk-to, crate held) offers the ride back for 30gp ('Yes please.' -> Steve); drive those instead of ::goto (plus aa38f602a3's grog-crate sail). First red row: 8 letSteveKnow-dialog. Legs left: generic port-task board and helm navigation (cross-quest Sailing gap).
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
@@ -162,7 +162,7 @@ quest_swansong	swansong	swansong		4	todo
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo		
 quest_tbwt	tbwt	taibwowannaitrio		3	todo		
-quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo	sonnet-b9	RE-AUTHOR after c8b3e2fede: drive the rope at the swamp hole, tog_cave_down, light the sapphire lantern with a tinderbox, use it on the chasm climbing rocks to bring a light-creature, attract it across, mine for real instead of ::tearsofguthix (scratch: build/parity_state/parity1b/scratch/tearsofguthix_parity1b.lua). Leg left: Option A hazards (PARITY.tsv) (parity1c aa38f602a3: wall beasts on the Option A route now fight on approach -- keep 2 tiles off each hole; ledger 16/0 but the guide ladder is still not driven.)
+quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo	sonnet-b9	RE-AUTHOR after c8b3e2fede: drive the rope at the swamp hole, tog_cave_down, light the sapphire lantern with a tinderbox, use it on the chasm climbing rocks to bring a light-creature, attract it across, mine for real instead of ::tearsofguthix (scratch: build/parity_state/parity1b/scratch/tearsofguthix_parity1b.lua). Content at 15c39665ce: a wall beast is 'Hole in the wall' until you stand adjacent, then becomes swamp_wallbeast_combat ('Wall beast') and keeps hitting -- keep 2 tiles off each hole. Leg left: the stepping-stone obstacle is an engine reach gap (PARITY.tsv); ledger 16/0, gate RED on helper_coverage.
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
 quest_thefeud	thefeud	thefeud		2	todo		
