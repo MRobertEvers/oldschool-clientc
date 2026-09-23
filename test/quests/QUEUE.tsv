@@ -4,28 +4,28 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b11	
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b11	GUIDE GAP (test): findBobToFinish is UNMATCHED -- no row, cheat or content evidence found (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py atailoftwocats); content legs: talkToBob +2 more: no [op*]/[ap*] trigger on death_growncat_black_vis serves this quest (only quests/quest_dragonslayer2/scripts/dragonslayer2.rs2:681, another quest's)
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b12	
-quest_biohazard	biohazard	biohazard		1	green	sonnet-b9	RETRY after 4420b02611: the ground spawn in m40_51.spawn is now the full cage 'pigeons' -- rewrite pickupPigeonCage to expect item pigeons and drive on
-quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b11	
-quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b5	REJECTED (reviewer): reported outcome=blocked is wrong -- the file has NO t.blocked() row anywhere (only a header comment referencing the rule); it runs straight through to t.quest.expect_complete() and reward.coins after real failures. gate.py: 45 findings, RED even with --allow-blocked -- 29 step FAILs (settle_after_click / 'menu has no row for it' on the fortress ladder/push-wall clicks, chat.choose against a closed dialogue, useCabbageOnHole still failing with 'pickset held=true, menu has no row for it' despite the author's claim it was 'fixed to click_loc op 5'), plus quest.varp_complete FAIL (spy stays 0, never reaches complete=4), quest.scroll_title/points/journal/reward.coins all FAIL, 9 shot pairs share an unchanged MD5, and gate.py flags 'uses quest.bind but has no passing quest.varp_complete row, and the last row is not BLOCKED'. lint_quest.py: 58 unresolved CHECK markers. The author's checks_resolved list (dialogue rewritten, useCabbageOnHole fixed, constants verified) does not match what the file or the run does. Next attempt: resolve the CHECK-guessed click_loc ops against the real fortress/ladder menu options one by one, verify spy actually advances to complete=4, and either finish the quest for real or end on one honest t.blocked() row naming the specific unreachable step.
+quest_betweenarock	betweenarock	betweenarock		1	content_bug	sonnet-b12	GUIDE GAP: useGoldBarOnDondakan: narrated at quests/quest_betweenarock/scripts/betweenarock_dondakan.rs2:107 (a dialogue-only branch writes the stage: 'Any luck with those schematics? Bring them all together and try assemb')
+quest_biohazard	biohazard	biohazard		1	todo	sonnet-b9	GUIDE GAP (test): enterMournerHeadquarters is CHEAT -- goto_tile 2592,3336,0 at line 126 lands past the door the guide names (mournerstewdoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py biohazard)
+quest_blackarmgang	blackarmgang	shieldofarrav		1	todo	sonnet-b11	GUIDE GAP (test): searchBookcase is CHEAT -- goto_tile 3257,3447,0 at line 258 lands past the bookcase the guide names (questbookcase) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py blackarmgang); content legs: startQuest +1 more: [opnpc1,reldo_normal] (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang -- talking to them cannot advance this quest / getWeaponStoreKey: a two-player step (Get the weapon storeroom key from another player. If you ca); a single-player port has no such leg
+quest_blackknight	blackknight	blackknightfortress		1	todo	sonnet-b5	GUIDE GAP (test): pushWall is CHEAT -- goto_tile 3026,3509,0 at line 98 lands past the door the guide names (bksecretdoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py blackknight)
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo		
 quest_chompybird	chompybird	bigchompybirdhunting		3	todo		
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo		
-quest_cog	cog	clocktower		1	green	sonnet-b8	RETRY after 73a4251d0: click_minimenu's pixel hunt now runs at the camera poses RANKED by how many candidates land inside the world viewport, sharing one probe budget, so all four spindles land. The committed file runs 37/37 PASS and gate.py reports it green with its four t.blocked calls still in it -- delete them and grade those four presses as ordinary rows.
+quest_cog	cog	clocktower		1	todo	sonnet-b8	GUIDE GAP (test): pushWall is CHEAT -- goto_tile 2569,3249,0 at line 76 lands past the door the guide names (secretdoor2) (6 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py cog)
 quest_coldwar	coldwar	coldwar		4	todo		
 quest_contact	contact	contact		4	todo		
-quest_cook	cooks_assistant	cooksassistant		1	green	hand	
+quest_cook	cooks_assistant	cooksassistant		1	todo	hand	GUIDE GAP (test): getBucket is CHEAT -- ::cookbmp_test_give_ingredients (debugproc quests/quest_cook/scripts/quest_cook_test_ingredients.rs2:11) at line 111 -- shares bucket (8 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py cooks_assistant)
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b9	RETRY after 4420b02611: Councillor Catherine is spawned (currentaffairs.spawn); the file binds current_affairs_main, a container varp -- bind the current_affairs stage varbit instead or every expect_stage past the hand-in reads 527
+quest_currentaffairs	currentaffairs	currentaffairs		1	content_bug	sonnet-b9	GUIDE GAP: releaseDuck: soft-skipped at quests/quest_currentaffairs/scripts/currentaffairs.rs2:95 (shares duck,releas) / followThatDuck: soft-skipped at quests/quest_currentaffairs/scripts/currentaffairs.rs2:619 (shares duck,follow)
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -42,12 +42,12 @@ quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric
 quest_dragon	dragon	dragonslayer		3	todo		
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		
 quest_dreammentor	dreammentor	dreammentor		4	todo		
-quest_druid	druid	druidicritual		1	green	haiku-pilot3	
+quest_druid	druid	druidicritual		1	todo	haiku-pilot3	GUIDE GAP (test): enterCauldronRoom is CHEAT -- goto_tile 2899,3429,1 at line 73 lands past the door the guide names (cauldrondoor_l,cauldrondoor) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py druid)
 quest_druidspirit	druidspirit	naturespirit		3	todo		
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b1	
-quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b8	RETRY after 73a4251d0: sscompile now types a bare name from the position it sits in, so cooking.rs2:39's 'if (last_useitem = eadgar_troll_thistle)' compiles to obj 3262 instead of npc 4767 and the thistle dries. The file's own thistle.not_dried row asserts the OLD wrong behaviour and FAILS -- rewrite it and the t.blocked, and extend past the drying step: the later 'last_useitem = eadgar_fake_man' comparison (eadgar_troll_chief_cook.rs2:41) was the same defect and is fixed in the same pass.
+quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	GUIDE GAP (test): climbOverStile is UNMATCHED -- no row, cheat or content evidence found (6 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py eadgar)
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
-quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b5	REJECTED on review, not a gate failure -- run.py --no-build (exit=0), gate.py --allow-blocked (accepted), and lint_quest.py (clean) all passed, and the searchBookcase-covered / OPHELDU-no-verb blocker is independently confirmed real (rs2:10 oploc1 head, shield_book.rs2:13 opheldu head, pointer.lua use_on@1739/inv_op@1546 both checked). Two material findings in the file itself: (1) shots 05-bookcaseView-yaw512.png and 06-bookcaseView-yaw1024.png do NOT show elemental_workshop_bookcase anywhere in frame (only 04-yaw0 and 07-yaw1536 do), yet the file's banner AND its inline comment both claim 'each shot shows the bookcase's own model plainly in view and never under the cursor' for all four camera angles -- false for half of them, and it undercuts the 'target was on screen at every angle' argument the blocker leans on; (2) the makeKey.no_item_on_item_verb check's baked-in detail string cites 'pointer.lua:1502-1506,1721' for where use_on's arming call lives, but those lines are inside unrelated helpers (_inv_cell's symbol lookup; drop's post-drop return), not use_on's arm call (~1763) or inv_op's op<0 refusal (~1546-1549) -- a wrong citation baked into permanent evidence. Resume: keep the real blocker and its rs2/pointer.lua citations (335-343, 1546, 1739 are all correct), fix the 1502-1506/1721 citation to point at use_on's actual arm call, and either caption the yaw512/yaw1024 shots honestly (camera turned away from the bookcase) or drop them and keep only the two angles that actually show it.
+quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	todo	sonnet-b5	GUIDE GAP (test): goDownStairs is CHEAT -- goto_tile 2716,3482,0 at line 77 lands past the stair the guide names (elemental_workshop_spiralstairstop) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py elemental_workshop)
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
 quest_elena	elena	plaguecity		3	todo		
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo		
@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b9	VERIFIED gree
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b10	
+quest_fishingcompo	fishingcompo	fishingcontest		1	todo	sonnet-b10	GUIDE GAP (test): getGarlic is CHEAT -- ::give garlic 1 at line 43 -- shares garlic (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py fishingcompo)
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -67,19 +67,19 @@ quest_gettingahead	gettingahead	gettingahead		4	todo
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
-quest_golem	golem	thegolem		1	green	sonnet-b8	RETRY after 73a4251d0: the server now looks a multiloc's loc trigger up on the varbit-resolved child and then on the BASE, so [oplocu,golem_statuettea] is reached and %golem_a advances to ^golem_portal_open(6). The file's t.blocked ('use_on loses its arming') was already stale after the re-arm seam and is now wrong in both halves; the tail past the alcove (portal, throne, the demon-dead exchange, the golemkey/program hand-in, expect_complete) was deleted when it was blocked and has to be re-authored.
+quest_golem	golem	thegolem		1	content_bug	sonnet-b8	GUIDE GAP: talkToElissa: no [op*]/[ap*] trigger on golem_elissa serves this quest (only quests/quest_deserttreasureii/scripts/deserttreasureii.rs2:320, another quest's) / openCabinet: no [op*]/[ap*] trigger on vm_timeline_terracotta_statue serves this quest anywhere in the pack
 quest_grail	grail	holygrail		2	todo		
 quest_grandtree	grandtree	thegrandtree		3	todo		
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
-quest_haunted	haunted	ernestthechicken		1	green	sonnet-b9	RETRY after 8cd829faf: chat.play waits for page readiness (drop the t.ticks(5) guess); if a door that teleports you grades as timeout, that is _settle_after_click lacking a tile-change arm -- t.blocked it
+quest_haunted	haunted	ernestthechicken		1	todo	sonnet-b9	GUIDE GAP (test): searchBookcase is CHEAT -- goto_tile 3110,3330,0 at line 80 lands past the bookcase the guide names (hauntedbookcasel) (13 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py haunted)
 quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
 quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
-quest_hero	hero	heroesquest		1	green	sonnet-b11	
-quest_hetty	hetty	witchspotion		1	green	haiku-b1	
+quest_hero	hero	heroesquest		1	todo	sonnet-b11	GUIDE GAP (test): useKeyOnDoor is CHEAT -- goto_tile 2793,3188,0 at line 164 lands past the door the guide names (pete_sidedoor) (2 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hero); content legs: getKeyFromPartner: a two-player step (You'll need your partner to give you a miscellaneous key.); a single-player port has no such leg
+quest_hetty	hetty	witchspotion		1	todo	haiku-b1	GUIDE GAP (test): killRat is CHEAT -- ::give rats_tail 1 at line 13 -- shares rat,tail (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hetty)
 quest_horror	horror	horrorfromthedeep		3	todo		
-quest_hunt	hunt	piratestreasure		1	green	sonnet-b8	RETRY after 73a4251d0: hunt is green at HEAD and RED here on ONE row, gardener-dead -- 'await_dead falador_gardener: nothing to wait on within 10 (no_row)' -- while its very next row, hunt.gardener_gone, PASSES. The gardener IS dead; the row is asking to watch a death that has already happened. Cause measured, not guessed: HEAD's Lua against this binary runs 71/71 in 505 ticks and this Lua runs 248, because the press-pixel ranking stops presses burning ticks across five camera poses, so attack-gardener now lands while the gardener is already at 0/30 from the dig redirect's own fight. Two fixes are possible and neither is this file's: npc.await_dead should answer ok for an npc that is already gone (the next seam), or the row should assert hunt.gardener_gone alone. Everything else in the file is green.
+quest_hunt	hunt	piratestreasure		1	todo	sonnet-b8	GUIDE GAP (test): goToKaramja is CHEAT -- the journey (seaman_lorris, areas/port_sarim/scripts/sailors.rs2:14) is replaced by goto_tile at line 85 (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py hunt)
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
 quest_idesofmilk	idesofmilk	theidesofmilk		2	todo		
 quest_ikov	ikov	templeofikov		3	todo		
@@ -100,15 +100,15 @@ quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	to
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
-quest_misc	misc	throneofmiscellania		1	green	sonnet-b11	
+quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	GUIDE GAP (test): get75Support is UNMATCHED -- no row, cheat or content evidence found (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py misc); content legs: talkAstrid1 +7 more: narrated at quests/quest_misc/scripts/misc_courting_emotes.rs2:53 (a mes() branch writes the stage: 'You dance together as Princess Astrid hums along.') / clapForBrand +1 more: narrated at quests/quest_misc/scripts/misc_advisor_ghrim.rs2:56 (a mes() branch writes the stage: 'Advisor Ghrim makes a series of corrections, humming softly to himself')
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
-quest_mortton	mortton	shadesofmortton		1	green	sonnet-b14	
+quest_mortton	mortton	shadesofmortton		1	todo	sonnet-b14	GUIDE GAP (test): repairTemple is CHEAT -- ::mortton_repairtemple at line 510 (debugproc minigames/game_mortton/scripts/flamtaer_temple.rs2:498) is named after the step (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py mortton)
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b13	
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b10	RETRY after 68c5e8d9d: mend2_shared.rs2:97's 300-byte mes() is split (and two more that rendered cut), and ToriRSServer_Send now refuses an over-length var-u8 frame out loud instead of desyncing the session. Remove the t.blocked row and its return and append the talkToArianwyn4/talkToArianwyn5 rows plus t.quest.expect_complete(); a proved copy runs 31/32 with client=60 server=60, the completion scroll and 2 quest points. It then stops on quest.journal alone, which is a SEPARATE content gap needing its own row: there is no [proc,mend2_journal] anywhere and quest_journal.rs2 has no part-2 dispatch row, so the quest falls to the file's 'This world does not run this quest yet.' default.
-quest_murder	murder	murdermystery		1	green	sonnet-b9	
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	sonnet-b13	GUIDE GAP (test): enterBaseAfterSheep is UNMATCHED -- no row, cheat or content evidence found (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py mourningsendparti); content legs: talkToIslwyn +4 more: the content's soft-skip comment at quests/quest_mourningsendparti/configs/mend1.constant:60 says talkToIslwyn is collapsed / pickUpBarrel +1 more: the content's soft-skip comment at quests/quest_mourningsendparti/scripts/mend1_poison.rs2:47 says pickUpBarrel is collapsed
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	content_bug	sonnet-b10	GUIDE GAP: enterCave +94 more: narrated at quests/quest_mourningsendpartii/scripts/mend2_shared.rs2:111 (a mes() branch writes the stage: 'You make your way back into the Temple of Light and spend a long while') / enterNorthWestRoomPuzzle3: no [op*]/[ap*] trigger on mourning_door_1_1_east serves this quest anywhere in the pack
+quest_murder	murder	murdermystery		1	todo	sonnet-b9	GUIDE GAP (test): goUpstairs is CHEAT -- goto_tile 2741,3562,0 at line 92 lands past the stair the guide names (murder_qip_spiralstairs) (7 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py murder)
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
@@ -119,8 +119,8 @@ quest_perilousmoons	perilousmoons	perilousmoon		4	todo
 quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo		
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
-quest_prince	prince	princealirescue		1	green	sonnet-b10	RETRY after b44ce7a2d: REAUTHOR, not a resume. The Osman half is fixed -- contact_osman.rs2 hands %contact < ^contact_met_maisa back to osman.rs2's new [label,osman_talk], so princequest moves 0 -> 10 (Hassan) -> 20 (spoken_osman) through real clicks and Leela answers (build/quest_gate/prince_mn_unblocked/ledger.tsv). FIVE committed rows now assert bugs that are gone and must be rewritten: hassan.nearest, hassan.talk_to, keli.nearest, keli.talk_to (npcs OSRS-Content 033d83f61f spawned) and osman.gated_by_contact (it expects 'Osman has business to attend to.'). Lady Keli, Joe and prince_ali_prison all answer talk_to now too.
-quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b9	RETRY after 4420b02611: the crates are placed by loc_add; if expect_complete's t.var.varp('quest_pry') still answers not_found, t.blocked there with the row
+quest_prince	prince	princealirescue		1	todo	sonnet-b10	GUIDE GAP (test): useKeyOnDoor is CHEAT -- goto_tile 3100,3258,0 at line 142 lands past the door the guide names (alidoor) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py prince)
+quest_pryingtimes	pryingtimes	pryingtimes		1	content_bug	sonnet-b9	GUIDE GAP: deliverCargo +1 more: narrated at quests/quest_pryingtimes/scripts/pryingtimes.rs2:86 (a mes() branch writes the stage: '(The crate is sitting on the ledger down at the Port Sarim docks -- go')
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
@@ -140,11 +140,11 @@ quest_regicide	regicide	regicide		3	todo
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	REJECTED (review 6): outcome reported as blocked, and everything through the first Apothecary visit (23 rows, romeo.rs2/juliet.rs2/father_lawrence.rs2/apothecary.rs2's own [opnpc1,apothecary]) is real and matches the .rs2 exactly -- confirmed, both dry runs agree row-for-row with the author's checks_resolved. But the file itself never reaches its own t.blocked() row under the standard reviewer command: 'python3 tools/quest_gate/run.py romeojuliet --no-build' (no --timeout override, exactly as the review protocol specifies) times out at run.py's DEFAULT_TIMEOUT=180s wall-clock cap while still inside the fight-imp retry loop, both independent runs today (2026-09-19/20) stopping at the identical last row (goto-fight-imp, row 23/54 shots) with build/quest_gate/romeojuliet/TIMEOUT.png captured and no FAIL/BLOCKED row ever written -- gate.py romeojuliet --allow-blocked is RED (not blocked): 'ledger.tsv has no trailing SUMMARY row' + 'uses quest.bind but has no passing quest.varp_complete row, and the last row is not BLOCKED'. client.log shows ~43 loop iterations (49 goto_tile debugproc calls total minus 6 pre-loop) completed in the 180s window, short of the ~52 attempts (47 kills + 5 misses) the author's own last_failure describes needing to reach the stopping condition at tick 1744 -- the loop's own real-combat cost-per-attempt (goto_tile + await_present + click_minimenu's multi-pose camera search + await_gone, each with its own tick budget) is real and correctly driven, just too slow wall-clock to land inside run.py's default window, so the declared BLOCKED stub is never actually reached by the command any other reviewer or CI would run. lint_quest.py is clean; the defect is purely the loop's wall-clock cost under the DEFAULT_TIMEOUT, reproduced identically twice. Next attempt: shrink IMP_KILL_ATTEMPTS's realistic budget so the 5-consecutive-miss stop (or the loop's own bail-out) lands comfortably inside 180s -- e.g. lower the per-attempt npc.await_present/await_gone tick budgets (30 each is generous), or accept fewer real kills before declaring the seam and blocking, rather than relying on a run invoked with a longer --timeout than the documented reviewer command uses.
 quest_routequest	routequest	insearchofthemyreque		3	todo		
-quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b10	RETRY after b44ce7a2d: this row said green while its ledger reported a kill that never happened. killGuardian.await_dead PASSed 'dead after 131 tick(s)' because the guardian's slot left the CLIENT's npc pool when [queue,player_death] teleported the CHARACTER to Lumbridge; the guardian was alive at 2/30. The driver no longer reads an empty pool as a kill, so the run now ends honestly at row 17, player.died, hitpoints 0/99 at 2527,9843 L0, tick 146 (16 PASS / 1 FAIL, was 21/4). THE FIX IS THIS FILE'S SETUP, not the driver: the character fights the Moss Guardian bare-handed (the tomb forbids a loadout) against 120 hp / +62 strength / a prayer-bypassing roll, and carries no food and never eats. Give it food and an eat (or a shorter fight) -- ::setlevel alone is not enough.
+quest_rovingelves	rovingelves	rovingelves		1	todo	sonnet-b10	GUIDE GAP (test): enterGlarialsTombstone is CHEAT -- goto_tile 2528,9843,0 at line 200 lands past the tombstone the guide names (glarials_tombstone_waterfall_quest) (7 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py rovingelves)
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
-quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b2	
+quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	todo	sonnet-b2	GUIDE GAP (test): enterOutpost is CHEAT -- goto_tile 2552,3570,0 at line 123 lands past the gate the guide names (barbariangatel) (1 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py scorpcatcher)
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
@@ -162,7 +162,7 @@ quest_swansong	swansong	swansong		4	todo
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo		
 quest_tbwt	tbwt	taibwowannaitrio		3	todo		
-quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b9	RETRY after 4420b02611: Juna is bound before ~chatnpc_specific so the resume resolves; the tog.accept_stuck rows assert the hang and must be rewritten for the working dialogue
+quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo	sonnet-b9	GUIDE GAP (test): mineRock is CHEAT -- ::tearsofguthix (debugproc quests/quest_tearsofguthix/scripts/tearsofguthix.rs2:183) at line 39 -- shares ston,tog (3 test-side step(s) in all; python3 tools/quest_gate/helper_coverage.py tearsofguthix); content legs: enterJunaRoom: no [op*]/[ap*] trigger on tog_cave_down serves this quest (only quests/quest_deathtothedorgeshuun/scripts/dttd_savezanik.rs2:37, another quest's)
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
 quest_thefeud	thefeud	thefeud		2	todo		
