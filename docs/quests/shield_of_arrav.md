@@ -95,3 +95,39 @@ both legs with `::goto` (past the locked door, navigation only) and `::give
 arravcertificate_lft 1` respectively -- the correct call per
 `docs/QUEST_AUTHORING.md`'s rule for content genuinely beyond a single
 client's reach.
+
+## Content parity pass 3 (2026-09-23): a proper test affordance
+
+The two legs above are genuinely two-player and stay so (nothing above
+changed, still `verified`/matches-LostCity). What pass 3 adds is a named,
+quest-scoped debugproc, `[debugproc,blackarmgang_partner]`
+(`quest_blackarmgang.rs2`, after `[queue,blackarmgang_quest_complete]`), that
+performs exactly the two hand-offs a real Phoenix Gang partner would make --
+`inv_add`s `phoenixkey2` and `arravcertificate_lft`, nothing else, each
+guarded so a repeat call is a no-op -- in place of the raw ladder cheats
+(`::goto`, `::give arravcertificate_lft 1`) a scratch driver script used to
+stand in for the partner before. This is the idiom `QUEST_SERVER_CHEATS.md`
+already documents for other two-player/partner legs in this pack (compare
+`quest_royaltrouble/scripts/royal_bmp.rs2`'s partner debugprocs and
+`quest_hero/scripts/quest_hero.rs2`'s own `[debugproc,hero_partner]`,
+landed the same pass).
+
+Proved (scratch script, not `test/quests/blackarmgang.lua` -- see
+`build/parity_state/parity1b/blackarmgang.parity.json` for the ledger rows):
+`phoenixdoor2` genuinely refuses `[oploc1,...]` ("The door is securely
+locked.") with no key held; `::blackarmgang_partner` grants both items;
+the REAL `[oplocu,phoenixdoor2]` trigger (item armed, clicked on the door)
+unlocks it with `phoenixkey2` in hand, instead of a `::goto` teleport past
+it; the granted `arravcertificate_lft` still drives the real
+`[opheldu,arravcertificate_lft]` combine.
+
+`test/quests/blackarmgang.lua` itself is unchanged by this pass (out of
+scope for this worker -- test/quests/*.lua is owned elsewhere in this batch);
+its own `::give arravcertificate_lft 1` at T:296 is still a raw ladder cheat,
+not yet the `::blackarmgang_partner` debugproc, and its `goto-weaponStore`
+at T:172 still teleports past `phoenixdoor2` rather than unlocking it for
+real. Both are one-line swaps for whoever next owns that file (replace
+`::give arravcertificate_lft 1` with `::blackarmgang_partner` before the
+curator visit, and route `goto-weaponStore` through a real
+`click_loc`/`use_on` sequence on `phoenixdoor2` once `phoenixkey2` is
+carried) -- left as `legs_left` in the parity JSON, not attempted here.

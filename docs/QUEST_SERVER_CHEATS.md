@@ -378,6 +378,25 @@ Is there an engine cheat to kill an npc / set a varp by name?
   engine and content by name (`"cookquest"`, `"qp"`, `"map_instance_handle"`,
   etc.) — this is the table a `cheat_varp_from_name` would walk.
 
+### Two-player partner affordances (parity1b, 2026-09-23)
+
+Some quests are genuinely two-player in the original game and the OSRS wiki
+documents no single-player route. This server drives one account, so the
+partner's half is a named, quest-scoped debugproc that performs exactly the
+partner's action and nothing else; the player still drives every real
+trigger on their own side. Never fold such a grant into ordinary dialogue.
+
+| cheat | quest | what the partner does | gate | then drive for real |
+|---|---|---|---|---|
+| `::hero_partner` | Heroes' Quest (Phoenix route) | hands over `misc_key` (Grip's key, from a Black Arm partner) | `%phoenixgang >= ^phoenixgang_joined` and `%heroquest >= ^hero_phoenix_talked_charlie`; refuses a second key | `use_on(misc_key, pete_sidedoor)` -- `[oplocu,pete_sidedoor]` |
+| `::blackarmgang_partner` | Shield of Arrav (Black Arm route) | hands over `phoenixkey2` (weapon-store key) and `arravcertificate_lft` (the Phoenix half) | none; each item only if not already held | `use_on(phoenixkey2, phoenixdoor2)`, then combine the certificate halves |
+
+Sources: `quest_hero/scripts/quest_hero.rs2` `[debugproc,hero_partner]`,
+`quest_blackarmgang/scripts/quest_blackarmgang.rs2`
+`[debugproc,blackarmgang_partner]`; briefs `docs/quests/shield_of_arrav.md`.
+The C selftest pins the Heroes' Quest door to the LostCity form (op1 from the
+north stays locked, `misc_key` via oplocu walks through).
+
 ## E. Instances
 
 There is a full instance manager: src/torirsserver/torirs_server_mapinstance.h

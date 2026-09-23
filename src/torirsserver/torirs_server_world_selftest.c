@@ -53174,20 +53174,16 @@ ToriRSServer_WorldSelftest(void)
 
         /*
          * MUTATION TARGET, real (non-mirrored) assertion: `[oploc1,
-         * pete_sidedoor]`'s original `coordz(coord) = coordz(loc_coord)`
-         * check, measured via real (non-mirrored) `[oploc1]` dispatch, is
-         * TRUE approaching from the west/east/south neighbour tiles of
-         * loc_coord=(2781,3197) but FALSE from the north (2781,3196) --
-         * directional, not a reliable "you're at the door" test. From the
-         * north, `[oplocu,pete_sidedoor]` (needs `misc_key`,
-         * Black-Arm-exclusive via Grip's own dialogue) was the only route
-         * through, which is a real problem if that is the tile the garden
-         * route actually funnels a Phoenix player onto. Rather than depend
-         * on which exact approach tile is walkable, this is now gated
-         * explicitly. Proven for real from the north tile specifically
-         * (the one direction the base check does NOT already cover, so this
-         * assertion is actually exercising the new OR clause and not the
-         * pre-existing behaviour).
+         * pete_sidedoor]` matches LostCity quests/quest_hero/scripts/locs/
+         * brimhaven_scarface_mansion.rs2:37-43 -- its only free path is the
+         * directional `coordz(coord) = coordz(loc_coord)` check, FALSE from
+         * the north neighbour (2781,3196). From there the only way through is
+         * `[oplocu,pete_sidedoor]` with `misc_key` (Grip's key, handed over
+         * by a Black Arm partner -- Heroes' Quest is two-player at this leg).
+         * 2026-09-23 parity1b removed an earlier invented OR clause that let
+         * a Phoenix player past with no key; this pins its absence (a
+         * qualified Phoenix player still stays locked on op1) and the real
+         * key path (oplocu with misc_key walks through).
          */
         if( loc_pete_sidedoor >= 0 )
         {
@@ -53200,43 +53196,19 @@ ToriRSServer_WorldSelftest(void)
                 int category = ToriRSServer_LocCategory(loc_pete_sidedoor);
                 int varp_phoenixgang = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "phoenixgang");
                 int varp_heroquest2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "heroquest");
+                int obj_misc_key = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "misc_key");
 
-                SELFTEST_CHECK(varp_phoenixgang >= 0 && varp_heroquest2 >= 0,
-                               "pete_sidedoor check needs phoenixgang=%d heroquest=%d "
-                               "to resolve",
-                               varp_phoenixgang, varp_heroquest2);
-                if( varp_phoenixgang >= 0 && varp_heroquest2 >= 0 )
+                SELFTEST_CHECK(varp_phoenixgang >= 0, "pete_sidedoor check needs phoenixgang, got %d",
+                               varp_phoenixgang);
+                SELFTEST_CHECK(varp_heroquest2 >= 0, "pete_sidedoor check needs heroquest, got %d",
+                               varp_heroquest2);
+                SELFTEST_CHECK(obj_misc_key >= 0, "pete_sidedoor check needs misc_key, got %d",
+                               obj_misc_key);
+                if( varp_phoenixgang >= 0 && varp_heroquest2 >= 0 && obj_misc_key >= 0 )
                 {
-                    /* Unqualified, from the north (2781,3196) -- the one
-                     * direction the base coordz check does not already
-                     * cover. Must stay locked; this is the control that
-                     * proves the OR clause, not the base check, is what
-                     * opens it below. */
-                    player->varps[varp_phoenixgang] = 0;
-                    player->varps[varp_heroquest2] = 0;
-                    ToriRSServer_WorldTeleport(srv, 0, 2781, 3196);
-                    selftest_tick(srv);
-                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1,
-                                                        loc_pete_sidedoor, category, slot);
-                    fprintf(stderr,
-                            "  OPLOC1 pete_sidedoor (unqualified) from north "
-                            "(2781,3196): player now at %d,%d (%s)\n",
-                            player->x, player->z,
-                            (player->x != 2781 || player->z != 3196)
-                                ? "WALKED THROUGH"
-                                : "stayed put / locked");
-                    SELFTEST_CHECK(player->x == 2781 && player->z == 3196,
-                                   "an unqualified player should NOT walk through "
-                                   "pete_sidedoor from the north, but ended at %d,%d",
-                                   player->x, player->z);
-
-                    /* MUTATION TARGET: a qualifying solo Phoenix player
-                     * (phoenixgang joined, heroquest >=
-                     * hero_phoenix_talked_charlie), from that SAME north
-                     * tile, must now walk through -- this is the fix
-                     * itself, isolated from the base check. 9 ==
-                     * ^phoenixgang_joined, 4 == ^hero_phoenix_talked_charlie
-                     * (quest_blackarmgang.constant / quest_hero.constant). */
+                    /* A qualifying Phoenix player (9 == ^phoenixgang_joined,
+                     * 4 == ^hero_phoenix_talked_charlie), op1 from the north
+                     * with no key: locked, as in LostCity. */
                     player->varps[varp_phoenixgang] = 9;
                     player->varps[varp_heroquest2] = 4;
                     ToriRSServer_WorldTeleport(srv, 0, 2781, 3196);
@@ -53244,18 +53216,29 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1,
                                                         loc_pete_sidedoor, category, slot);
                     fprintf(stderr,
-                            "  OPLOC1 pete_sidedoor (qualified Phoenix) from north "
-                            "(2781,3196): player now at %d,%d (%s)\n",
-                            player->x, player->z,
-                            (player->x != 2781 || player->z != 3196)
-                                ? "WALKED THROUGH"
-                                : "stayed put / locked");
+                            "  OPLOC1 pete_sidedoor (Phoenix, no key) from north "
+                            "(2781,3196): player now at %d,%d\n",
+                            player->x, player->z);
+                    SELFTEST_CHECK(player->x == 2781 && player->z == 3196,
+                                   "MUTATION TARGET: op1 on pete_sidedoor from the north "
+                                   "must stay locked without misc_key (LostCity has no "
+                                   "Phoenix bypass), but ended at %d,%d",
+                                   player->x, player->z);
+
+                    /* The real path: misc_key used on the door. */
+                    ToriRSServer_WorldTeleport(srv, 0, 2781, 3196);
+                    selftest_tick(srv);
+                    player->last_useitem = obj_misc_key;
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU,
+                                                        loc_pete_sidedoor, category, slot);
+                    player->last_useitem = -1;
+                    fprintf(stderr,
+                            "  OPLOCU misc_key on pete_sidedoor from north "
+                            "(2781,3196): player now at %d,%d\n",
+                            player->x, player->z);
                     SELFTEST_CHECK(player->x != 2781 || player->z != 3196,
-                                   "MUTATION TARGET: a qualifying Phoenix player "
-                                   "(phoenixgang=joined, heroquest>=talked_charlie) "
-                                   "should walk through pete_sidedoor from the north, "
-                                   "but stayed at %d,%d -- this is Heroes' Quest's "
-                                   "pete_sidedoor directional-access fix",
+                                   "misc_key used on pete_sidedoor should walk the "
+                                   "player through, but stayed at %d,%d",
                                    player->x, player->z);
                     player->varps[varp_phoenixgang] = 0;
                     player->varps[varp_heroquest2] = 0;
