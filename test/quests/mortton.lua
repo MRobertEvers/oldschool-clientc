@@ -151,9 +151,27 @@ return {
         -- confirmation appears there), so there is no way to tell from the
         -- log alone whether setup's four ::passive cheats actually registered.
         -- Read the held list back directly.
-        local passive_list_result, passive_list_detail = t.cheat("::passive")
-        t.check("diagnostic.passiveListHeld", passive_list_result == "ok",
-            "t.cheat(::passive) -> " .. tostring(passive_list_result) .. " (" .. tostring(passive_list_detail) .. ")")
+        -- t.cheat's own detail is hollow here (api_drive.cheat's synchronous
+        -- reply, not the async chat line) -- REVERTED last_failure (sampler
+        -- sonnet-b13): this row PASSed as "ok (nil)" without ever reading
+        -- whether the five setup ::passive lines actually registered (trap
+        -- 12). Bare "::passive" prints one "Passive: <name> (<id>)." line
+        -- PER held type -- read the ring back and require all five.
+        local passive_list_result = t.cheat("::passive")
+        local passive_msgs_result, passive_msgs = t.msg.last(8)
+        local passive_lines = {}
+        if passive_msgs_result == "ok" then
+            for i = 1, #passive_msgs do
+                if string.find(passive_msgs[i].text, "Passive:", 1, true) then
+                    table.insert(passive_lines, passive_msgs[i].text)
+                end
+            end
+        end
+        t.check("diagnostic.passiveListHeld",
+            passive_list_result == "ok" and #passive_lines == 5,
+            "t.cheat(::passive) -> " .. tostring(passive_list_result) .. "; held (" .. tostring(#passive_lines)
+                .. "/5 expected -- mort_afflicted_man/_man2/_woman/_woman2/shadeshadow_level1): "
+                .. table.concat(passive_lines, " | "))
 
         -- Search the experiment shelf (all.loc:35647-35662, op1=Search) in
         -- the south building of Mort'ton for Herbi Flax's diary. click_loc
@@ -482,9 +500,24 @@ return {
         -- mortton_can_light_altar(60), Razmire's Serum 207 cure has almost
         -- certainly lapsed again (200-tick npc_changetype), re-cure, buy
         -- another load, and run the hook again.
+        -- t.cheat's own detail is hollow (nil) here too -- the debugproc's
+        -- real answer is a say() line ("The temple is repaired after N
+        -- repair(s)." / "Temple repair stopped at N% after M repair(s) -
+        -- bring more limestone bricks, wooden planks and swamp paste."), not
+        -- a packet reply. REVERTED last_failure: this shape PASSed twice
+        -- with 0 repairs actually made (trap 12) -- read the reply back and
+        -- FAIL a call that repaired nothing.
         local repair_result_1, repair_detail_1 = t.cheat("::mortton_repairtemple")
-        t.check("temple.repair-1", repair_result_1 == "ok",
-            "t.cheat(::mortton_repairtemple) -> " .. tostring(repair_result_1) .. " (" .. tostring(repair_detail_1) .. ")")
+        local repair_msg_result_1, repair_msg_1 = t.msg.expect("repair(s)")
+        local repair_count_1 = nil
+        if repair_msg_result_1 == "ok" then
+            repair_count_1 = tonumber(repair_msg_1:match("after (%d+) repair"))
+        end
+        t.check("temple.repair-1",
+            repair_result_1 == "ok" and repair_msg_result_1 == "ok" and repair_count_1 ~= nil and repair_count_1 > 0,
+            "t.cheat(::mortton_repairtemple) -> " .. tostring(repair_result_1) .. " (" .. tostring(repair_detail_1)
+                .. "); reply: " .. tostring(repair_msg_result_1) .. " (" .. tostring(repair_msg_1)
+                .. "); repairs made: " .. tostring(repair_count_1))
         local temple_stage_result, temple_stage_now = t.quest.stage()
         if temple_stage_result ~= "ok" or type(temple_stage_now) ~= "number" then
             temple_stage_now = 0
@@ -506,6 +539,37 @@ return {
             -- regardless of live presence, unlike an actual world-pool read,
             -- so this checks presence with t.npc.by_symbol instead).
             t.exec("goto-razmire-temple" .. trip_suffix, t.player.goto_tile, 3489, 3296, 0)
+
+            -- Run 2 measured the real bottleneck: NOT shop stock, backpack
+            -- SPACE -- none of timberbeam/limestonebrick/swamppaste stack,
+            -- buying a flat 5 more of each every trip regardless of what is
+            -- already carried fills the pack with unspent timber/limestone
+            -- while swamppaste (spent 5-per-refill, five times faster) never
+            -- gets a slot free, and shop.buy answered "You don't have enough
+            -- inventory space." on every later trip. Two fixes: only top
+            -- timber/limestone up to 5 TOTAL (never re-buy what is already
+            -- held), and the shade hunt is over by this point in the run, so
+            -- the five non-stacking sharks (trap 26's food requirement,
+            -- setup) are no longer load-bearing at their original count --
+            -- drop down to one kept for safety and spend the reclaimed
+            -- slots on the ingredient that actually runs out. Dropped HERE,
+            -- before the shop opens: REVERTED last_failure (sampler
+            -- sonnet-b13) -- run with this drop done AFTER shop.attach read
+            -- "dropped 4 shark(s), 4 left" every trip (t.player.drop failing
+            -- silently with the shop interface open, 23 ticks wasted a
+            -- trip), and the row still graded true against that reading.
+            local shark_result, shark_have = t.inv.count("shark")
+            local shark_drops = 0
+            while shark_result == "ok" and type(shark_have) == "number" and shark_have > 1 and shark_drops < 4 do
+                t.player.drop("shark")
+                shark_drops = shark_drops + 1
+                shark_result, shark_have = t.inv.count("shark")
+            end
+            t.check("temple.freeSharkSlots" .. trip_suffix,
+                shark_result == "ok" and type(shark_have) == "number" and shark_have <= 1,
+                "dropped " .. tostring(shark_drops) .. " shark(s), " .. tostring(shark_have)
+                    .. " left (kept for trap 26's food requirement)")
+
             local razmire_afflicted_present, razmire_afflicted_present_status =
                 t.npc.by_symbol("razmire_keelgan_afflicted")
             local razmire_talk_symbol = "razmire_keelgan"
@@ -545,30 +609,6 @@ return {
             })
             t.exec("razmire.shopAttach" .. trip_suffix, t.shop.attach, "razmirebuildingstore")
 
-            -- Run 2 measured the real bottleneck: NOT shop stock, backpack
-            -- SPACE -- none of timberbeam/limestonebrick/swamppaste stack,
-            -- buying a flat 5 more of each every trip regardless of what is
-            -- already carried fills the pack with unspent timber/limestone
-            -- while swamppaste (spent 5-per-refill, five times faster) never
-            -- gets a slot free, and shop.buy answered "You don't have enough
-            -- inventory space." on every later trip. Two fixes: only top
-            -- timber/limestone up to 5 TOTAL (never re-buy what is already
-            -- held), and the shade hunt is over by this point in the run, so
-            -- the five non-stacking sharks (trap 26's food requirement,
-            -- setup) are no longer load-bearing at their original count --
-            -- drop down to one kept for safety and spend the reclaimed
-            -- slots on the ingredient that actually runs out.
-            local shark_result, shark_have = t.inv.count("shark")
-            local shark_drops = 0
-            while shark_result == "ok" and type(shark_have) == "number" and shark_have > 1 and shark_drops < 4 do
-                t.player.drop("shark")
-                shark_drops = shark_drops + 1
-                shark_result, shark_have = t.inv.count("shark")
-            end
-            t.check("temple.freeSharkSlots" .. trip_suffix, true,
-                "dropped " .. tostring(shark_drops) .. " shark(s), " .. tostring(shark_have)
-                    .. " left (kept for trap 26's food requirement)")
-
             local timber_result, timber_have = t.inv.count("timberbeam")
             if timber_result ~= "ok" or type(timber_have) ~= "number" then
                 timber_have = 0
@@ -591,6 +631,10 @@ return {
                     "already holding " .. tostring(limestone_have) .. " limestonebrick -- skipped, not the bottleneck")
             end
 
+            local swamppaste_have_result, swamppaste_have = t.inv.count("swamppaste")
+            if swamppaste_have_result ~= "ok" or type(swamppaste_have) ~= "number" then
+                swamppaste_have = 0
+            end
             local free_slots = 0
             for slot_index = 0, 27 do
                 local slot_result, slot_cell = t.inv.slot(slot_index)
@@ -598,26 +642,54 @@ return {
                     free_slots = free_slots + 1
                 end
             end
-            local paste_target = 25
-            if free_slots < paste_target then
+            -- Mirror the initial purchase's floor (razmire.buySwamppaste
+            -- above, lines 432-437): the repair debugproc spends 5 swamp
+            -- paste per repair action, so capping THIS trip's buy to
+            -- whatever free_slots happens to be -- with no floor -- can
+            -- leave fewer than 5 held total. REVERTED last_failure (sampler
+            -- sonnet-b13): temple.repair-2/-4 called the debugproc sitting
+            -- on <5 swamp paste and it silently repaired 0, and the old row
+            -- here PASSed on the cheat's bare "ok" without reading that.
+            local paste_target = 25 - swamppaste_have
+            if paste_target > free_slots then
                 paste_target = free_slots
             end
-            t.check("razmire.spaceForPaste" .. trip_suffix, free_slots > 0,
-                tostring(free_slots) .. " free slot(s) -- buying " .. tostring(paste_target)
-                    .. " swamppaste (25 asked, capped to fit)")
+            local paste_floor = 5 - swamppaste_have
+            if paste_floor > 0 and paste_target < paste_floor then
+                paste_target = paste_floor
+            end
+            if paste_target < 0 then
+                paste_target = 0
+            end
+            t.check("razmire.spaceForPaste" .. trip_suffix, free_slots > 0 or swamppaste_have >= 5,
+                tostring(free_slots) .. " free slot(s), " .. tostring(swamppaste_have)
+                    .. " swamppaste already held -- buying " .. tostring(paste_target)
+                    .. " more (floor 5 total, cap 25 total)")
             if paste_target > 0 then
                 t.exec("razmire.buySwamppaste" .. trip_suffix, t.shop.buy, "swamppaste", paste_target)
             else
-                t.check("razmire.buySwamppaste" .. trip_suffix, false,
-                    "0 free slot(s) -- skipped, no room to buy any swamppaste this trip")
+                t.check("razmire.buySwamppaste" .. trip_suffix, swamppaste_have >= 5,
+                    "already holding " .. tostring(swamppaste_have) .. " swamppaste -- skipped buying more")
             end
             local shop_close_result = t.shop.close()
             t.check("razmire.shopClose" .. trip_suffix, shop_close_result == "ok",
                 "shop.close() -> " .. tostring(shop_close_result))
 
+            -- t.cheat's own detail is hollow (nil) here too -- read the
+            -- debugproc's real say() reply back and FAIL a call that
+            -- repaired nothing (trap 12; same shape as temple.repair-1
+            -- above).
             local repair_result, repair_detail = t.cheat("::mortton_repairtemple")
-            t.check("temple.repair" .. trip_suffix, repair_result == "ok",
-                "t.cheat(::mortton_repairtemple) -> " .. tostring(repair_result) .. " (" .. tostring(repair_detail) .. ")")
+            local repair_msg_result, repair_msg = t.msg.expect("repair(s)")
+            local repair_count = nil
+            if repair_msg_result == "ok" then
+                repair_count = tonumber(repair_msg:match("after (%d+) repair"))
+            end
+            t.check("temple.repair" .. trip_suffix,
+                repair_result == "ok" and repair_msg_result == "ok" and repair_count ~= nil and repair_count > 0,
+                "t.cheat(::mortton_repairtemple) -> " .. tostring(repair_result) .. " (" .. tostring(repair_detail)
+                    .. "); reply: " .. tostring(repair_msg_result) .. " (" .. tostring(repair_msg)
+                    .. "); repairs made: " .. tostring(repair_count))
 
             local stage_result, stage_value = t.quest.stage()
             if stage_result == "ok" and type(stage_value) == "number" then
@@ -738,66 +810,160 @@ return {
         -- %morttonquest = mortton_created_pyre_logs. pyre_logs needs 2
         -- doses and sacred_oil3 has 3 (quest_mortton.obj), so one use is
         -- enough.
-        -- CONTENT BUG, read from the engine's own dispatch source, not
-        -- guessed (run 4 caught it: "Nothing interesting happens." with the
-        -- backpack unchanged). torirs_server_scripts.c's
-        -- ToriRSServer_ScriptsRunOpheldu documents ONE INVARIANT for every
-        -- [opheldu,_<category>] rung: "last_item is the item the script is
-        -- bound to, and last_useitem is the other one" -- so a category
-        -- handler reads `last_useitem` for the OTHER item's identity, never
-        -- `last_item` (which is always itself). The sibling handler in the
-        -- SAME content pack gets this right --
-        -- skill_fletching/scripts/cut_logs.rs2:11-12's
-        -- [opheldu,_firemaking_logs] is `switch_obj(last_useitem) { case
-        -- knife : ... }` -- but mortton_pyre.rs2's [opheldu,_sacred_oil]
-        -- (lines 1-13) checks `oc_category(last_item)` on BOTH of its
-        -- branches (line 2's `=111` and line 6's `=22`). Since this handler
-        -- is only ever entered via sacred oil's OWN category (111, category
-        -- .pack:538) matching one of the two category rungs, `last_item` is
-        -- ALWAYS the sacred oil itself (info->category = 111, confirmed in
-        -- configs/all.obj) -- so line 2's `if(oc_category(last_item)=111)`
-        -- is unconditionally true and returns via `~attempt_decant` before
-        -- line 6's `oc_category(last_item)=22` (meant to detect LOGS,
-        -- category22, category.pack:37) can ever run, whichever of sacred
-        -- oil or logs was armed. attempt_decant (skill_herblore/scripts/
-        -- decant_potion.rs2:190) then finds mismatched decant families
-        -- (sacred oil is not a decantable potion) and prints exactly
-        -- "Nothing interesting happens." -- matching this run's row bit for
-        -- bit. Verified against BOTH physical orderings by tracing the
-        -- four-rung dispatch table (torirs_server_scripts.c ~3043-3090):
-        -- arming sacred oil and clicking logs lands on rung 4 ("the dragged
-        -- item's category"), arming logs and clicking sacred oil lands on
-        -- rung 3 ("the clicked item's category") -- both rungs orient
-        -- `last_item` to sacred oil, because 111 is sacred oil's own
-        -- category either way, so no `use_item_on_item` argument order
-        -- reaches line 6. Fix belongs in mortton_pyre.rs2 (swap `last_item`
-        -- for `last_useitem` on lines 2, 6 and 11, matching cut_logs.rs2's
-        -- pattern) -- not in this quest file, which cannot drive around an
-        -- unreachable branch in the content it is testing (trap 7: never
-        -- edit OSRS-Content).
-        -- A RECORDING row, not t.exec -- section 8's rule (trap 15's
-        -- corollary): a real FAIL immediately before t.blocked() is the
-        -- rejected shape, so this reads the verb's own result and grades
-        -- PASS unconditionally, carrying the actual (buggy) reply as
-        -- evidence; t.blocked() below carries the real verdict.
-        local pyre_logs_result, pyre_logs_detail = t.player.use_item_on_item("sacred_oil3", "logs")
-        t.check("temple.makePyreLogs", true,
-            "t.player.use_item_on_item(sacred_oil3, logs) -> " .. tostring(pyre_logs_result) .. " ("
-                .. tostring(pyre_logs_detail) .. ") -- reproduces the content bug below live: the backpack is "
-                .. "unchanged and no pyre logs were made")
-        t.blocked("CONTENT BUG -- OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/scripts/"
-            .. "mortton_pyre.rs2:2,6,11 ([opheldu,_sacred_oil]) checks oc_category(last_item) on both branches, "
-            .. "but last_item is ALWAYS the sacred oil itself (its own category, 111) for every dispatch rung that "
-            .. "can reach this handler -- the engine's own invariant (torirs_server_scripts.c's "
-            .. "ToriRSServer_ScriptsRunOpheldu / opheldu_orient, ~line 2987) is 'last_item is the item the script "
-            .. "is bound to, last_useitem is the other one', and the sibling handler in the same pack gets it "
-            .. "right (skill_fletching/scripts/cut_logs.rs2:12's [opheldu,_firemaking_logs] switches on "
-            .. "last_useitem). So line 6's oc_category(last_item)=22 branch that creates pyre logs is unreachable "
-            .. "-- confirmed on both use_item_on_item orderings by tracing the four-rung dispatch table, both land "
-            .. "on last_item=sacred_oil. temple.makePyreLogs above reproduces it live: "
-            .. "'Nothing interesting happens.' with the backpack unchanged, matching attempt_decant's mismatched-"
-            .. "family fallback exactly. The fix (last_item -> last_useitem on lines 2, 6, 11) is a content change "
-            .. "this quest file cannot make (trap 7).")
+        -- mortton_pyre.rs2's [opheldu,_sacred_oil] used to check
+        -- oc_category(last_item) on both branches, and last_item is ALWAYS
+        -- the sacred oil itself for every dispatch rung that can reach this
+        -- handler (torirs_server_scripts.c's opheldu_orient invariant:
+        -- "last_item is the item the script is bound to, last_useitem is
+        -- the other one") -- so the pyre-logs branch was unreachable and
+        -- this row reproduced it live ("Nothing interesting happens.", the
+        -- prior REVERTED attempt's own finding, reported as a content bug
+        -- against mortton_pyre.rs2:2,6,11). OSRS-Content has since fixed it
+        -- (read fresh this session: lines 7 and 11 now read
+        -- oc_category(last_useitem), with a comment there naming the same
+        -- invariant) -- assert the real, now-reachable behaviour instead of
+        -- re-reporting the old bug (trap: "Rows that ASSERT THE OLD BUG are
+        -- now FAIL and must be rewritten to assert the fixed behaviour").
+        t.exec("temple.makePyreLogs", t.player.use_item_on_item, "sacred_oil3", "logs")
+        t.expect("havePyreLogs", t.inv.expect_has("logs_pyre", 1))
+        t.exec("quest.stage.mortton_created_pyre_logs", t.quest.expect_stage, "mortton_created_pyre_logs")
+
+        -- Build the funeral pyre (mortton_pyre.rs2's [oploc1,temple_pyre] /
+        -- [oploc1,_pyre_loaded] / [oploc1,_pyre_remains_loaded]): op1 on the
+        -- empty pyre uses whatever pyre logs are carried
+        -- (~mortton_best_pyre_logs, only logs_pyre held here), op1 again on
+        -- the loaded pyre adds the best shade remains carried
+        -- (~mortton_best_pyre_remains) -- two shade_bones1 remain after the
+        -- Razmire (2) and Ulsquire (1) hand-ins above, out of the five the
+        -- shade hunt dropped. The funeral pyres sit on the shade street,
+        -- not at the temple altar -- nearest copy of loc 4093
+        -- (all.loc.compack) to the player decoded from maps/m54_50.jl2
+        -- (trap 29): level 0, local 51,12 in map square 54,50 -> 3507,3276.
+        t.exec("goto-pyre", t.player.goto_tile, 3507, 3276, 0)
+        local pyre_near_result, pyre_near_detail = t.world.loc_near("temple_pyre", 15)
+        t.check("temple.pyreFind", pyre_near_result == "ok",
+            "world.loc_near(temple_pyre, 15) -> " .. tostring(pyre_near_result) .. " " .. tostring(pyre_near_detail))
+
+        t.exec("temple.pyreAddLogs", t.player.click_loc, "temple_pyre", 1)
+        t.exec("quest.stage.mortton_logs_on_pyre", t.quest.expect_stage, "mortton_logs_on_pyre")
+        -- Section 8: "give a loc_change 2-3 ticks before a second
+        -- click_loc can see the new form."
+        t.ticks(2)
+        local pyre_logs_near_result, pyre_logs_near_detail = t.world.loc_near("temple_pyre_logs", 5)
+        t.check("temple.pyreLogsPlaced", pyre_logs_near_result == "ok",
+            "world.loc_near(temple_pyre_logs, 5) -> " .. tostring(pyre_logs_near_result) .. " "
+                .. tostring(pyre_logs_near_detail))
+
+        local shade_bones_before_result, shade_bones_before = t.inv.count("shade_bones1")
+        t.check("temple.shadeBonesBeforePyre", shade_bones_before_result == "ok",
+            "inv.count(shade_bones1) -> " .. tostring(shade_bones_before_result) .. " ("
+                .. tostring(shade_bones_before) .. ")")
+        t.exec("temple.pyreAddRemains", t.player.click_loc, "temple_pyre_logs", 1)
+        -- Trap 24: a click verb's `ok` is the server's sentence, one tick
+        -- before the container update reaches the client -- a bare
+        -- t.inv.count on the line right below read 2 -> 2 (run 2's own
+        -- FAIL) though add_remains_to_funeral_pyre's inv_del(inv,
+        -- $remains, 1) already ran. Spend the tick first.
+        t.ticks(1)
+        local shade_bones_after_result, shade_bones_after = t.inv.count("shade_bones1")
+        t.check("temple.shadeBonesAfterPyre",
+            shade_bones_after_result == "ok" and type(shade_bones_before) == "number"
+                and type(shade_bones_after) == "number" and shade_bones_after == shade_bones_before - 1,
+            "inv.count(shade_bones1): " .. tostring(shade_bones_before) .. " -> " .. tostring(shade_bones_after)
+                .. " (add_remains_to_funeral_pyre's own inv_del)")
+        t.ticks(2)
+        local pyre_bones_near_result, pyre_bones_near_detail = t.world.loc_near("temple_pyre_bones_logs", 5)
+        t.check("temple.pyreRemainsPlaced", pyre_bones_near_result == "ok",
+            "world.loc_near(temple_pyre_bones_logs, 5) -> " .. tostring(pyre_bones_near_result) .. " "
+                .. tostring(pyre_bones_near_detail))
+
+        -- Light it ([oploc1,_pyre_remains_loaded] -> label
+        -- light_funeral_pyre): a stat_random(firemaking, 64, 512) roll that
+        -- self-re-arms on its own failure branch via p_oploc(4), same idiom
+        -- as the temple wall/fire altar above (file header) -- press once
+        -- and poll quest.stage() rather than re-pressing per round.
+        t.exec("temple.pyreLight", t.player.click_loc, "temple_pyre_bones_logs", 1)
+        local pyre_lit = false
+        local pyre_rounds = 0
+        while not pyre_lit and pyre_rounds < 10 do
+            pyre_rounds = pyre_rounds + 1
+            t.ticks(10)
+            local pyre_stage_result, pyre_stage_value = t.quest.stage()
+            if pyre_stage_result == "ok" and type(pyre_stage_value) == "number" and pyre_stage_value >= 80 then
+                pyre_lit = true
+            end
+        end
+        t.check("temple.pyreLit", pyre_lit,
+            "polled " .. tostring(pyre_rounds) .. " round(s) of 10 ticks for morttonquest to reach "
+                .. "mortton_lit_pyre(80)")
+
+        if not pyre_lit then
+            local pyre_stage_final_result, pyre_stage_final_value = t.quest.stage()
+            t.blocked("the funeral pyre ([oploc1,_pyre_remains_loaded] -> light_funeral_pyre's self-re-arming "
+                .. "stat_random(firemaking, 64, 512) roll, mortton_pyre.rs2) never reached "
+                .. "%morttonquest=mortton_lit_pyre(80) after " .. tostring(pyre_rounds) .. " round(s) of 10 ticks "
+                .. "with firemaking 99 (setup) -- morttonquest last read " .. tostring(pyre_stage_final_value)
+                .. " (" .. tostring(pyre_stage_final_result) .. ")")
+            return
+        end
+
+        -- The reward queue (funeral_pyre_reward, 2-tick delay) drops loot
+        -- and clears %pyre_loc -- settle before talking to Ulsquire.
+        t.ticks(3)
+
+        -- Reward snapshot before the hand-in (section 7's rule).
+        local skill_snapshot_result, skill_snapshot = t.skill.snapshot()
+        t.check("skill.snapshotBeforeComplete", skill_snapshot_result == "ok",
+            "skill.snapshot() -> " .. tostring(skill_snapshot_result))
+
+        -- Tell Ulsquire the shade's spirit is at rest (ulsquire_shauncy.rs2's
+        -- ulsquire_talk, %morttonquest = mortton_lit_pyre branch) ->
+        -- queue(mortton_quest_complete, 0, 0). Serum 207's 200-tick cure
+        -- (npc_changetype) may have lapsed across the pyre build above --
+        -- opnpc1 on the afflicted form only auto-reverts to @ulsquire_talk
+        -- when ulsquire_visible or ulsquire_perm_serum_used is still set,
+        -- otherwise it falls to @afflicted_talk and this dialogue would not
+        -- match -- re-cure first with the ashes/tarrominvial pair kept in
+        -- reserve since before the first shop trip (same idiom as
+        -- mixSerum207-3 above) if the afflicted form is what is spawned.
+        t.exec("goto-ulsquire-3", t.player.goto_tile, 3496, 3289, 0)
+        local ulsquire_afflicted_final, ulsquire_afflicted_final_status =
+            t.npc.by_symbol("ulsquire_shauncy_afflicted")
+        local ulsquire_final_symbol = "ulsquire_shauncy"
+        if ulsquire_afflicted_final_status == "ok" then
+            ulsquire_final_symbol = "ulsquire_shauncy_afflicted"
+            t.exec("mixSerum207-4", t.player.use_item_on_item, "ashes", "tarrominvial")
+            local ulsquire_afflicted_target, ulsquire_afflicted_target_status =
+                t.player.by_symbol("npc", "ulsquire_shauncy_afflicted")
+            t.check("ulsquire.recureFind", ulsquire_afflicted_target_status == "ok",
+                "player.by_symbol(npc, ulsquire_shauncy_afflicted) -> "
+                    .. tostring(ulsquire_afflicted_target_status))
+            t.exec("ulsquire.recure", t.player.use_on, "mort_serum3", ulsquire_afflicted_target)
+        end
+        t.exec("ulsquire.completePyre", t.player.talk_to, ulsquire_final_symbol, 1)
+        -- ulsquire_talk's universal opener (mortton_used_serum_on_ulsquire
+        -- already true) is "Ah, hello again, what can I do for you now?"
+        -- BEFORE the stage-specific branch -- same shape ulsquire.askOil-
+        -- dialogue above already accounts for; run 2's own FAIL here
+        -- (expected kind=player, got npc) missed it on this list.
+        t.exec("ulsquire.completePyre-dialogue", t.chat.play, {
+            "npc:hello again",
+            "player:I've put the Shade's spirit to rest",
+            "npc:Great! Well done my friend!",
+        })
+        -- Completion is asynchronous (section 8): the queue(0,0) call fires
+        -- behind this dialogue's own close.
+        t.ticks(3)
+        t.quest.expect_complete()
+
+        -- Every reward quest_mortton.rs2's own ~quest_complete_rewards
+        -- lists: "2000 Herblore XP|2000 Crafting XP|Access to the Shade
+        -- Catacombs" (stat_advance(..., 20000) -- the internal *10 unit
+        -- t.skill.expect_gain already accepts and names).
+        t.exec("reward.herbloreXp", t.skill.expect_gain, "herblore", 2000, skill_snapshot)
+        t.exec("reward.craftingXp", t.skill.expect_gain, "crafting", 2000, skill_snapshot)
+
+        t.finish(0)
         return
     end,
 }
