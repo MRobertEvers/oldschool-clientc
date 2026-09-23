@@ -104,3 +104,83 @@ of Guthix (a separate, repeatable, once-weekly minigame) from then on.
   Proved: `build/quest_gate/close_proof_1b/ledger.tsv` rows 1-4
   (`light.tinderbox_on_lantern`, `light.lantern_on_tinderbox`, both
   "You light the sapphire lantern.").
+
+### parity1c pass (2026-09-23) — Option A hazards (wall beasts / cave crawlers / agility obstacle)
+
+This pass's own work item, correcting parity1/parity1b's "no `[oploc*]`/
+`[opnpc*]` for these hazards exists anywhere in the pack" — that was wrong;
+the roster npcs and the agility loc are all real, cache-extracted content.
+What was actually missing/broken differs per hazard:
+
+- **Wall beasts — FIXED.** `swamp_wallbeast` ("Hole in the wall") is a real
+  roster npc already spawned at five real cache-extracted positions
+  (`areas/world/configs/m49_149.spawn`, `m50_149.spawn`; source: dennisdev/
+  rs-map-viewer, same as every other `.spawn` row), squarely on the Option A
+  route between the rope entrance and `tog_cave_down`. But it carried ZERO
+  combat capability anywhere (no `combat_stats.generated.npc` entry, no
+  `huntmode`) — a player could already walk straight through every one with
+  no hazard at all. Fixed with a hand-authored combat overlay,
+  `quest_tearsofguthix/configs/quest_tearsofguthix.npc`, using the SAME
+  idiom this pack already uses for this exact gap class
+  (`quest_zanaris.npc`'s `tree_spirit`/`zombie_entranan`, `quest_ikov.npc`'s
+  `ikov_lucien2`): the cache's own `stat1-4` fields already sitting on this
+  npc (attack=30, defence=16, strength=30, hitpoints=105), which match the
+  OSRS Wiki's "Wall beast" page exactly (combat level 49 — this npc's own
+  `vislevel`/`swamp_wallbeast_combat` vislevel — and 105 hitpoints;
+  https://oldschool.runescape.wiki/w/Wall_beast, read 2026-09-23), plus
+  `huntmode=aggressive`, `huntrange=1` (the wiki's own "stop one square
+  away... run past it" avoidance line, taken as the range spec), Crush
+  damage type and 4-tick attack speed (also wiki-sourced). No scripting
+  beyond the stat block — the engine's generic aggressive-npc AI
+  (`torirs_server_combat.c`) does the rest, the same mechanism that already
+  drives cave crawlers. Proven through the real client, both the damage
+  (adjacent → hitpoints fall) and the avoidance (≥3 tiles → hitpoints hold)
+  — `build/parity_state/parity1c/scratch/tearsofguthix_hazards.lua`, rows
+  `wallbeast.grabbed_and_damaged` / `wallbeast.safe_at_distance`. The
+  overhead name stays "Hole in the wall" rather than swapping to "Wall
+  beast" on aggro — this engine has no `npc_settype`/runtime-retype opcode
+  (checked, none registered) and no passive-proximity disguise-swap idiom
+  exists anywhere in this pack to build one from safely; flagged, not
+  hidden.
+- **Cave crawlers — ALREADY REAL, nothing to fix.** `slayer_cave_crawler_1`
+  (and `_3`/`_4`) are already spawned at real cache positions in
+  `m49_149.spawn`, and already fully combat-capable
+  (`combat_stats.generated.npc`: `huntmode=aggressive`, `huntrange=5`,
+  hitpoints=22) — the same generic engine mechanism as the wall beast fix
+  above, requiring no quest-side content at all. Proven live and hostile:
+  `tearsofguthix_hazards.lua` row `crawler.engaged_when_close`.
+- **Agility obstacle — investigated, NOT fixed, a real pre-existing gap in
+  shared content.** `swamp_cave_steppingstone_a`/`_b` and the
+  `maplink_agility` table row for it
+  (`skill_agility/configs/maplink_agility.dbrow`
+  `maplink_agility_0_50_149_4_36`, 30 Agility XP) are both real and already
+  wired — but the obstacle cannot actually be clicked by any player. No
+  quest anywhere in this pack has ever driven one through the real client
+  before (checked: no `test/quests/*.lua` references any maplink_agility
+  loc). `~maplink_agility` (`skill_agility/scripts/maplink_agility.rs2`)
+  keys its `db_find(maplink_agility:src, coord)` on the PLAYER'S OWN
+  coordinate at click time — the player must stand exactly on the row's src
+  tile (world 3204,9572, decoded from local(4,36) in region 50_149) — but
+  that tile is 2 squares from the loc's own tile (3206,9572, confirmed by
+  `world.loc_near`, `match=exact`), outside the generic engine
+  interaction-reach check's adjacency requirement
+  (`cannot_reach_message`, `torirs_server_world.c`). Proved the conflict
+  both ways through the real client: pressing from the src tile times out
+  on the reach check every retry; pressing from a tile adjacent enough to
+  satisfy reach lands the click but answers content's own `dm_default`
+  ("Nothing interesting happens") because that tile is not the row's src —
+  `tearsofguthix_hazards.lua` rows `obstacle.press_from_src` /
+  `obstacle.press_from_adjacent`. The likely real fix (`blockrange=0` on
+  the loc, matching its own working cache-sibling `brew_stepping_stone`,
+  which already carries `blockrange=0`) lives in `configs/all.loc` — a
+  machine-unpacked cache dump ("Unpacked by cachepack... lossy", its own
+  header says, not meant for hand edits) OUTSIDE `quest_tearsofguthix`'s
+  directory, and this engine's loc loader does not merge a quest-owned
+  `.loc` override onto an already-cache-defined symbol (`ContentLoc` returns
+  the FIRST `[symbol]` block found walking the tree, and `configs/` sorts
+  before `server/` at the content root, so a quest file's override for an
+  `all.loc` symbol is silently dead — confirmed this is why `quest_mm.loc`'s
+  own working `next_loc_stage` override pattern does not generalise here:
+  that symbol has no base `all.loc` entry to lose the race against). Bigger
+  and riskier than this pass's own directory-scoped budget; flagged for
+  whoever owns `configs/all.loc` / the shared reach-check system next.
