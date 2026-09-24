@@ -1,32 +1,39 @@
 -- Throne of Miscellania (1 QP). Content:
 -- OSRS-Content/osrs239-content/server/scripts/quests/quest_misc/scripts/
 --   misc_king_vargas.rs2, misc_princess_astrid.rs2, misc_prince_brand.rs2,
---   misc_queen_sigrid.rs2, misc_advisor_ghrim.rs2, misc_giant_nib.rs2
--- and areas/area_miscellania/scripts/{flower_girl,derrik}.rs2 (Derrik's
--- opnpc1 delegates to misc_smithy.rs2's [label,misc_smithy_giant_nib] at
--- exactly %misc_quest = ^misc_gave_king_treaty).
+--   misc_queen_sigrid.rs2, misc_advisor_ghrim.rs2, misc_giant_nib.rs2,
+--   misc_courting_emotes.rs2, misc_debug.rs2
+-- and areas/area_miscellania/scripts/{flower_girl,derrik,lumberjack_leif}.rs2
+-- (Derrik's opnpc1 delegates to misc_smithy.rs2's
+-- [label,misc_smithy_giant_nib] at exactly %misc_quest = ^misc_gave_king_treaty).
 --
 -- Access: misc_door_guard.rs2 hard-gates the throne room on %heroquest =
 -- ^hero_complete (Heroes' Quest, unported -- ::complete quest_heroes in
 -- setup). goto_tile teleports straight past the door/guard the same way it
 -- climbs stairs elsewhere in this pack (QUEST_AUTHORING.md section 2) --
--- Vargas/Brand/Astrid/Ghrim (all level 1) and the flower girl/Derrik (level
+-- Vargas/Brand/Ghrim (all level 1) and the flower girl/Derrik/Leif (level
 -- 0) are each reached by a single goto_tile at their own *.spawn tile, no
 -- click_loc on any of the castle's spiralstairs.
 --
 -- Courting partner: Prince Brand (%misc_partner_multivar = 1). Brand also
 -- writes the anthem later regardless of who is courted (his own file
 -- header), so courting him means only one npc's affection ladder to climb
--- instead of two. King Vargas's own [opnpc1] handler for the courting
--- choice ALREADY sets %misc_affection = ^misc_affection_s1_step0 the moment
--- "I'll try to win over Prince Brand." is chosen (misc_king_vargas.rs2:66-68)
--- -- so misc_prince_brand.rs2's own switch_int(%misc_affection) never
--- matches its `not_started` case (@brand_talk1, the five-line courtship
--- intro) from this path; the FIRST live visit already reads step0 and lands
--- on [label,brand_need_flowers] ("Did you bring me those flowers?")
--- instead. Not a driver seam -- brand_talk1's own trailing line re-sets
--- %misc_affection to the exact value Vargas already wrote, so the intro is
--- simply unreachable once the choice is made at Vargas first, in this port.
+-- instead of two -- Astrid's Dance leg is never reached from this path and
+-- is not driven here.
+--
+-- Content-parity fix 2026-09-23 (docs/QUEST_HELPER_COVERAGE_2026-09-23.md):
+-- two things this port used to soft-skip are real now.
+--   (1) King Vargas's own [opnpc1] courting choice now sets %misc_affection
+--       = ^misc_affection_not_started (not step0), so brand_talk1 (the
+--       five-line courtship intro, "Be still, my heart...") fires on the
+--       FIRST live visit as Quest Helper's own talkBrand1 step expects.
+--   (2) misc_courting_emotes.rs2 hooks ~emote_perform: the Clap leg (after
+--       giving flowers, %misc_affection = s1_step1 -> s1_step5) and the
+--       Blow Kiss leg (after talkBrand3's "Truly?", s3_step4 -> s3_step0)
+--       both require the player to actually PLAY the emote next to Brand
+--       (within ^misc_courting_emote_radius of ^misc_brand_coord) -- giving
+--       the item alone no longer narrates it. Quest Helper's courtBrand
+--       ladder names both as their own steps (clapForBrand, blowKissToBrand).
 --
 -- Items: flowers (misc_flowergirl, 15gp, bought live below) are the only
 -- courting/anthem/pen ingredient actually sold in the quest area itself;
@@ -34,12 +41,26 @@
 -- Advisor Ghrim's own rake/pickaxe/axe/harpoon/lobster-pot "reputation
 -- item" already is (misc_advisor_ghrim.rs2's own dialogue: "Bring a rake, a
 -- pickaxe..."), so they are given in setup rather than driven through a
--- shop trip this content pack has no wired source for. The 75%-support
--- gate is soft-skipped in misc_advisor_ghrim.rs2 itself (its own header:
--- the Managing Miscellania resource loop has no writer in this tree yet) --
--- carrying a reputation item and asking Ghrim to put you to work sets
--- %misc_approval straight to the threshold in one narrated interaction,
--- which is content's own soft-skip, not this file's.
+-- shop trip this content pack has no wired source for.
+--
+-- 75%-support finish gate: content-parity fix 2026-09-23 landed the real
+-- Managing Miscellania resource-collection loop (lumberjack_leif.rs2's
+-- leif_intercept_wood, ported from LostCity like weed_herbs.rs2/
+-- miner_magnus.rs2/fisherman_frodi.rs2 already were) -- Advisor Ghrim's own
+-- "put me to work" no longer sets %misc_approval straight to threshold, it
+-- only narrates ("Rake the herb patches ... work near any of them and the
+-- kingdom's stock grows, and so does your approval.") and Quest Helper's
+-- own guide (ThroneOfMiscellania.java's finishOff/get75Support step, stage
+-- 90) has NO talk-to-Ghrim leg at this point at all -- it goes straight
+-- from king_signed_treaty to the chop/mine/rake/fish activity, then to King
+-- Vargas. This file follows the guide: no Ghrim visit here. The player
+-- chops the kingdom's maples for real (click_loc("mapletree") beside
+-- Lumberjack Leif, Woodcutting 45 + an axe, both set up below) until
+-- %misc_approval is demonstrably moving, then ::misc_earnapproval -- the
+-- sanctioned GRIND fast-forward for this exact loop (docs/QUEST_SERVER_CHEATS.md)
+-- -- finishes it to the 75% threshold (96 of 127); its own guard requires
+-- the same real preconditions (stage, inzone, level, axe) the chop already
+-- proved, and its effect is read back (t.msg.expect + var.await_server).
 --
 -- Reward: quest_misc's own ~quest_complete_rewards call lists "10000
 -- coins|Management of Miscellania|Ring of wealth teleport to Miscellania"
@@ -68,7 +89,8 @@ return {
         "::give logs 1", -- combined with the nib to make the giant pen (misc_giant_nib.rs2)
         "::give gold_ring 1", -- Brand's third courting gift (misc_prince_brand.rs2's opnpcu ring case)
         "::give cake 1", -- Brand's second courting gift (opnpcu cake case)
-        "::give bronze_axe 1", -- Advisor Ghrim's reputation item (misc_advisor_ghrim.rs2's ~ghrim_has_reputation_item)
+        "::setlevel woodcutting 45", -- the maple row's own level gate (woodcutting_trees), also Ghrim's reputation-tool level for the real support grind
+        "::give bronze_axe 1", -- Advisor Ghrim's reputation item AND the real axe ::misc_earnapproval's ~woodcutting_axe_checker needs
         "::complete quest_heroes", -- misc_door_guard.rs2's hard gate: %heroquest = ^hero_complete
     },
 
@@ -108,13 +130,33 @@ return {
             "npc:Brand can usually be found ups",
         })
 
+        -- The choice above ("I'll try to win over Prince Brand.") is
+        -- mutually exclusive with the Astrid branch (misc_king_vargas.rs2's
+        -- own opt=1/opt=2 [opnpc1,misc_king_vargas] choice, %misc_partner_multivar
+        -- 1 vs 0) -- Quest Helper's courtAstrid ladder can never run in the
+        -- same playthrough as courtBrand, so its eight steps are declared
+        -- here rather than driven.
+        -- GUIDE-GAP: talkAstrid1 not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:46)
+        -- GUIDE-GAP: giveFlowersToAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:103)
+        -- GUIDE-GAP: danceForAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_courting_emotes.rs2:50)
+        -- GUIDE-GAP: talkAstrid2 not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:64)
+        -- GUIDE-GAP: giveBowToAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:114)
+        -- GUIDE-GAP: talkAstrid3 not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:77)
+        -- GUIDE-GAP: blowKissToAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_courting_emotes.rs2:57)
+        -- GUIDE-GAP: useRingOnAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:122)
+
         -- ---------------------------------------------------- courting Brand
         t.exec("goto-brand1", t.player.goto_tile, 2502, 3852, 1)
-        -- affection is already ^misc_affection_s1_step0 (set by Vargas above),
-        -- so this first visit reads the reminder branch, not brand_talk1.
-        t.exec("talkBrandNeedFlowers", t.player.talk_to, "misc_prince_brand", 1)
-        t.exec("talkBrandNeedFlowers-dialog", t.chat.play, {
-            "npc:Did you bring me those flowers?",
+        -- content-parity fix: Vargas now sets %misc_affection to
+        -- not_started (not step0), so this FIRST visit reads brand_talk1,
+        -- the five-line courtship intro (Quest Helper's own talkBrand1 step).
+        t.exec("talkBrand1", t.player.talk_to, "misc_prince_brand", 1)
+        t.exec("talkBrand1-dialog", t.chat.play, {
+            "player:Be still, my heart -- that's quite",
+            "npc:You will be the greatest patron",
+            "player:How poetic.",
+            "npc:They don't understand your poetry",
+            "npc:It's kind of you to listen. If you",
         })
 
         t.exec("goto-flowergirl", t.player.goto_tile, 2514, 3866, 0)
@@ -132,10 +174,10 @@ return {
             "inv.await(flowers_waterfall_quest,1) -> " .. tostring(flowers_await_result) .. " " .. tostring(flowers_await_detail))
 
         t.exec("goto-brand2", t.player.goto_tile, 2502, 3852, 1)
-        -- misc_prince_brand.rs2's opnpcu ring/cake/flowers case each end in a
-        -- plain mes() line (a chat-log message, not a ~mesbox), so use_on's
-        -- own settle (new chat line / backpack change) is the whole of the
-        -- row -- there is no dialogue page left open to continue_() through.
+        -- misc_prince_brand.rs2's opnpcu flowers case ends in a plain mes()
+        -- line (a chat-log message, not a ~mesbox), so use_on's own settle
+        -- (new chat line / backpack change) is the whole of the row -- it
+        -- only gets Brand to ASK for the Clap now, it does not perform it.
         local brand = t.player.by_symbol("npc", "misc_prince_brand")
         t.exec("giveFlowersBrand", t.player.use_on, "flowers_waterfall_quest", brand)
         -- inv.await(name, 0, ticks) never actually waits (total >= 0 is
@@ -145,6 +187,13 @@ return {
         local flowers_gone_result, flowers_gone_count = t.inv.count("flowers_waterfall_quest")
         t.check("giveFlowersBrand.consumed", flowers_gone_result == "ok" and flowers_gone_count == 0,
             "inv.count(flowers_waterfall_quest) -> " .. tostring(flowers_gone_result) .. " " .. tostring(flowers_gone_count))
+
+        -- Content-parity leg: brand_need_clap -> the player must actually
+        -- play Clap next to Brand (misc_courting_emotes.rs2's
+        -- ~misc_emote_performed_brand, hooked off ~emote_perform), s1_step1
+        -- (11) -> s1_step5 (15). Quest Helper's own clapForBrand step.
+        t.exec("clapForBrand", t.player.emote, "clap")
+        t.expect("affection.s1_step5", t.var.expect("misc_affection", 15))
 
         brand = t.player.by_symbol("npc", "misc_prince_brand")
         t.exec("talkBrand2", t.player.talk_to, "misc_prince_brand", 1)
@@ -162,18 +211,22 @@ return {
         t.check("giveCakeBrand.consumed", cake_gone_result == "ok" and cake_gone_count == 0,
             "inv.count(cake) -> " .. tostring(cake_gone_result) .. " " .. tostring(cake_gone_count))
 
-        -- brand_talk3's mid-chain mes("You blow Prince Brand a kiss.") is
-        -- the same plain chat-log line, not a page -- the live sequence
-        -- skips straight from "Truly?" to "Oh! Well..." (measured run 1:
-        -- chat.play FAILed expecting a mesbox page there that never opens).
+        -- brand_talk3 now ENDS at "Truly?" (s2_step4 -> s3_step4) -- the
+        -- kiss itself is the emote leg below, not narrated inline any more.
         t.exec("talkBrand3", t.player.talk_to, "misc_prince_brand", 1)
         t.exec("talkBrand3-dialog", t.chat.play, {
             "player:I'm glad to hear it's going so well.",
             "npc:I wouldn't presume to have the skill",
             "player:That was lovely. I'm touched!",
             "npc:Truly?",
-            "npc:Oh! Well. If you truly mean it",
         })
+
+        -- Content-parity leg: brand_need_kiss -> the player must actually
+        -- play Blow Kiss next to Brand, s3_step4 -> s3_step0 (30). Named
+        -- after Quest Helper's own blowKissToBrand step (helper_coverage.py
+        -- matches a ledger row to a guide step by name).
+        t.exec("blowKissToBrand", t.player.emote, "blow kiss")
+        t.expect("affection.s3_step0", t.var.expect("misc_affection", 30))
 
         brand = t.player.by_symbol("npc", "misc_prince_brand")
         t.exec("giveRingBrand", t.player.use_on, "gold_ring", brand)
@@ -184,10 +237,8 @@ return {
         -- misc_acceptedtorule is the varBIT the ring case sets (opnpcu
         -- misc_prince_brand, gold_ring branch) -- proven live by the very
         -- next row below, Vargas's "Wonderful!" branch, which only fires
-        -- when it reads 1 (misc_king_vargas.rs2:79-88's %misc_acceptedtorule
-        -- check); a direct var poll here is redundant with that and was
-        -- dropped after a spurious timeout (run 2) even though the state
-        -- had already landed.
+        -- when it reads 1 (misc_king_vargas.rs2's %misc_acceptedtorule
+        -- check); a direct var poll here is redundant with that.
 
         -- ---------------------------------------------------- back to Vargas
         t.exec("goto-vargas2", t.player.goto_tile, 2501, 3859, 1)
@@ -292,27 +343,59 @@ return {
         })
         t.expect("quest.stage.king_signed_treaty", t.quest.expect_stage("king_signed_treaty"))
 
-        -- ---------------------------------------------------- Advisor Ghrim: 75% support
-        -- royal_shared.rs2's ~royaltrouble_relevant now gates on
-        -- %misc_quest >= ^misc_complete(100), not the old
-        -- ^misc_king_signed_treaty(90) -- so quest_misc's own last two steps
-        -- (ghrim_offer_help_support here, vargas_check_support +
-        -- vargas_finish_quest next) are reachable again from
-        -- king_signed_treaty(90). bronze_axe (given in setup, Ghrim's
-        -- reputation item, misc_advisor_ghrim.rs2's ~ghrim_has_reputation_item)
-        -- makes this single visit set %misc_approval to the 75% threshold in
-        -- one narrated interaction (that file's own soft-skip, its header).
-        t.exec("goto-ghrim2", t.player.goto_tile, 2499, 3857, 1)
-        t.exec("askGhrimForWork", t.player.talk_to, "misc_advisor_ghrim", 1)
-        t.exec("askGhrimForWork-dialog", t.chat.play, {
-            "player:Put me to work -- I want to earn the people's trust.",
-            "npc:Splendid! Off you go, then.",
-        })
+        -- ---------------------------------------------------- earning 75% support
+        -- Quest Helper's own guide (ThroneOfMiscellania.java, stage-90
+        -- finishOff/get75Support) has NO talk-to-Ghrim leg here -- it goes
+        -- straight from king_signed_treaty to the chop/mine/rake/fish
+        -- activity, then to King Vargas. misc_advisor_ghrim.rs2's own
+        -- "put me to work" reply is narration only now (content-parity fix
+        -- 2026-09-23) and sets nothing, so a visit here would be a driven
+        -- row for a step the guide does not have -- skipped, following the
+        -- guide.
+        --
+        -- Real leg: chop the kingdom's maples for real beside Lumberjack
+        -- Leif (misc_dummy_mapletree is a non-choppable decoy -- the real
+        -- placed trees are the ordinary "mapletree" loc, category 222,
+        -- resolved by db_find(woodcutting_trees:tree, mapletree) in both
+        -- the real woodcut.rs2 chop and ::misc_earnapproval's own loop).
+        -- Woodcutting 45 + an axe are set up above; every successful swing
+        -- inside the kingdom zone runs the real leif_intercept_wood
+        -- (misc_approval +1, real Woodcutting xp, the log to Leif instead
+        -- of the backpack) -- click_loc starts the real repeating chop
+        -- action (oploc1 -> oploc3 resume, woodcut.rs2), and the approval
+        -- read proves it actually landed before the grind cheat is called.
+        t.exec("goto-leif", t.player.goto_tile, 2550, 3866, 0)
+        t.exec("chopMaple", t.player.click_loc, "mapletree", 1)
+        -- Level 45 / bronze axe measures ~6% success per swing (4-tick
+        -- cadence, misc_debug.rs2's own loop: 1477-1520 swings for 96
+        -- successes across two runs) -- 300 ticks (~75 rolls) has ~15%
+        -- odds of landing fewer than 3 successes on bad luck alone (run 1
+        -- hit exactly that and read 0 after the full 300-tick wait), so
+        -- 900 ticks (~225 rolls, expected ~14 successes) is the real margin
+        -- rather than a re-roll of the same coin flip.
+        t.exec("approval.real_chops", t.var.await_server, "misc_approval", 3, 900)
+
+        -- ::misc_earnapproval is the sanctioned GRIND fast-forward for
+        -- exactly this loop (docs/QUEST_SERVER_CHEATS.md) -- it walks the
+        -- real ~leif_intercept_wood body (real stat_random rolls, real
+        -- Woodcutting xp, real approval +1 per success) in a guarded loop,
+        -- skipping only the swing cadence and the maple's regrowth, until
+        -- 96 of 127 (75%). t.cheat is hollow (trap 12): record the call with
+        -- t.step, then read its own line back with t.msg.expect (not
+        -- t.msg.await -- t.cheat has already consumed the reply, per the
+        -- cheat doc's own note) and confirm the server varbit itself.
+        local earn_cheat_result = t.cheat("::misc_earnapproval")
+        t.step("approval.fast_forward_cheat", earn_cheat_result == "ok" and "PASS" or "FAIL",
+            "::misc_earnapproval -> " .. tostring(earn_cheat_result))
+        t.exec("approval.fast_forward", t.msg.expect, "You worked for the kingdom")
+        -- Named after Quest Helper's own get75Support step ("Reach 75%
+        -- support...") -- this is the row that proves it reached.
+        t.exec("get75Support", t.var.await_server, "misc_approval", 96, 10)
 
         -- ---------------------------------------------------- back to Vargas: the crowning
-        -- vargas_check_support reads %misc_approval >= 75% (just set above)
-        -- and falls straight through to vargas_finish_quest in the same
-        -- click (no return between the labels) -- one dialogue, one row.
+        -- vargas_check_support reads %misc_approval >= 75% (just reached
+        -- above) and falls straight through to vargas_finish_quest in the
+        -- same click (no return between the labels) -- one dialogue, one row.
         t.exec("goto-vargas6", t.player.goto_tile, 2501, 3859, 1)
 
         -- The coffer reading taken on the tick BEFORE the crowning click, so
