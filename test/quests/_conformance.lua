@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 19
+-- @seam-count 22
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 111
-local SEAM_COUNT = 19
+local SEAM_COUNT = 22
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -3983,10 +3983,18 @@ return {
         -- at all -- `shop.close` above cleared the one `shop.open` made.  The
         -- row reproduces the refusal, binds, and then buys, because a bind
         -- nothing spends is not evidence.
+        --
+        -- The settle after it is a RESTOCK, not a pause: shop.buy above took
+        -- all five pots generalshop1 holds (lumbridge_general_store.inv:
+        -- `stock1=pot_empty,5,10`, one back every 10 ticks), so the buy below
+        -- had stock only when the global restock tick happened to fall inside
+        -- the old 5-tick gap.  seam11 moved player.attack 4 ticks earlier and
+        -- this row went red on stock 0 -- and, with the shop left open, took
+        -- player.emote's tab down with it (s11close_conf vs s11close_nogate).
         stage(function()
             settle(2)
             setup_cheat("::shop")
-            settle(3)
+            settle(12)
         end)
 
         step("shop.attach", function()
@@ -4045,6 +4053,11 @@ return {
             local bought, bought_detail = buy(SHOP_OBJ_SYMBOL, 1)
             local held_after_result, held_after = count_of(SHOP_OBJ_SYMBOL)
             if bought ~= "ok" then
+                -- Close it anyway: an open shop takes the side panel, and every
+                -- tab row after this one would fail on it instead of on itself.
+                if close then
+                    close()
+                end
                 return "refused", "attach answered ok and the buy behind it answered "
                     .. describe(bought) .. " " .. describe(bought_detail) .. " -- " .. text
             end
@@ -4430,6 +4443,212 @@ return {
                 return "refused", "the live pose after the shot is not the press pose -- " .. said
             end
             return "ok", said
+        end)
+
+        -- SEAM chat_shock_into_mesbox (src/painters/painters.c,
+        -- painter_release_scenery).  Between a Rock froze the WHOLE client when
+        -- Dondakan's ^chat_shock page ("...Now that's not a bad thought...")
+        -- was dismissed into his ~mesbox (betweenarock row 45, author batch
+        -- sonnet-b17, runs 1-4).  The page was never the cause: its
+        -- %dwarfrock_gold_cannonball write re-spawns every multiloc on
+        -- dwarfrock_main, and the dwarf rock beside him was ALREADY a runtime
+        -- spawn from the stage write before it -- so the loc change released
+        -- this cycle's DYNAMIC element by payload, after the paint's sort had
+        -- put that payload in the static node.  The static node left the
+        -- chain, the next reset handed the stranded node out again, and
+        -- bucket_paint_world walked a cycle forever (seam11).  So the row
+        -- stages exactly that: the stage write with the rock on screen, then
+        -- the gold bar on Dondakan and the whole exchange walked to the end,
+        -- ^chat_shock page and ~mesbox both dismissed, and the tick clock still
+        -- running after it.  On the pre-fix painter this row never returns.
+        -- The player is left in the dwarf cave: every row after this one is a
+        -- scheduler control that reads no world.
+        seam("seam.chat_shock_into_mesbox", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local use_on = verb("player", "use_on")
+            local play = verb("chat", "play")
+            local await_server = verb("var", "await_server")
+            local held = verb("inv", "await")
+            local tab = verb("ui", "tab")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not tab then return missing("ui", "tab") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not use_on then return missing("player", "use_on") end
+            if not play then return missing("chat", "play") end
+            if not await_server then return missing("var", "await_server") end
+            if not held then return missing("inv", "await") end
+            -- setup: the quest one stage short, a gold bar to show him.
+            setup_cheat("::clearinv")
+            setup_cheat("::complete quest_fishingcontest")
+            setup_cheat("::setvar dwarfrock_quest 50")
+            setup_cheat("::give gold_bar 1")
+            local bar_result, bar_detail = held("gold_bar", 1, 10)
+            if bar_result ~= "ok" then
+                return "no_subject", "::give gold_bar 1 -> " .. describe(bar_result) .. " " .. describe(bar_detail)
+            end
+            local arrived, where = goto_tile(2824, 10168, 0)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(2824,10168,0) (Dondakan's rock) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(3)
+            -- setup: the stage write with the rock painted -- it re-spawns as
+            -- a runtime loc, which is what the next write has to release.
+            setup_cheat("::setvar dwarfrock_quest 60")
+            settle(3)
+            -- setup: the backpack on screen before the arming.  The rows before
+            -- this one leave another tab up (player.emote's), and use_on's own
+            -- tab press does not wait for the cell to paint.
+            tab("inventory")
+            settle(2)
+            local dondakan, target_result = by_symbol("npc", "dwarfrock_dondakan")
+            if target_result ~= "ok" or type(dondakan) ~= "table" then
+                return "no_subject", "player.by_symbol(npc, dwarfrock_dondakan) -> " .. describe(target_result)
+            end
+            local used, used_detail = use_on("gold_bar", dondakan)
+            if used ~= "ok" then
+                return "no_subject", "use_on(gold_bar, dwarfrock_dondakan) -> " .. describe(used) .. " "
+                    .. describe(used_detail)
+            end
+            local played, played_detail = play({
+                "player:Here, take a look at this.",
+                "npc:Haha, what am I meant to do with that?",
+                "player:The book said there's gold inside the rock.",
+                "npc:Now that's not a bad thought",
+                "mesbox:Dondakan agrees to try firing",
+            })
+            if played ~= "ok" then
+                return played, "the exchange did not walk to its ~mesbox: " .. describe(played_detail)
+            end
+            local flag, flag_detail = await_server("dwarfrock_gold_cannonball", 1, 5)
+            if flag ~= "ok" then
+                return flag, "the ^chat_shock page and the ~mesbox were dismissed but "
+                    .. "%dwarfrock_gold_cannonball did not read 1 -- " .. describe(flag_detail)
+            end
+            local ticked, tick_detail = await_server("dwarfrock_quest", 60, 3)
+            if ticked ~= "ok" then
+                return ticked, "the clock after the dismissal: " .. describe(tick_detail)
+            end
+            return "ok", describe(played_detail) .. " | " .. describe(flag_detail)
+        end)
+
+        -- SEAM pick_same_plane_copy (pointer.lua QD.drive._target_tile /
+        -- _reach_candidates, torirs_plugin_drive_pointer.c's loc and obj
+        -- projectors).  The client's pick keeps a scenery or ground-stack hit
+        -- only on the player's own plane (torirs_pick.c), but the driver
+        -- ranked a symbol's copies by x/z alone, and in the Temple of Light
+        -- the nearest `mourning_temple_circle_stairs_top` from 1888,4642,1 is
+        -- the level-2 copy at 1890,4641 (m29_72.jl2) -- five poses, a 99-probe
+        -- hunt and every approach tile spent on stairs no press could reach
+        -- (seam10_reverify row 75, build/quest_gate/s11_exp circle.near;
+        -- seam11).  Graded on the tile the camera turns to and walk_near
+        -- walks to: the level-1 copy at 1887,4638, never 1890,4641.
+        seam("seam.pick_same_plane_copy", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local target_tile = verb("drive", "_target_tile")
+            local candidates_of = verb("player", "_reach_candidates")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not target_tile then return missing("drive", "_target_tile") end
+            if not candidates_of then return missing("player", "_reach_candidates") end
+            local arrived, where = goto_tile(1888, 4642, 1)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(1888,4642,1) (Temple of Light, level 1) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+            local stairs, target_result = by_symbol("loc", "mourning_temple_circle_stairs_top")
+            if target_result ~= "ok" or type(stairs) ~= "table" then
+                return "no_subject", "player.by_symbol(loc, mourning_temple_circle_stairs_top) -> "
+                    .. describe(target_result)
+            end
+            local tile_result, x, z = target_tile(stairs)
+            if tile_result ~= "ok" then
+                return tile_result, "_target_tile answered no tile: " .. describe(x)
+            end
+            if x == 1890 and z == 4641 then
+                return "refused", "_target_tile chose the level-2 copy at 1890,4641 -- no press "
+                    .. "from level 1 can ever pick it"
+            end
+            if x ~= 1887 or z ~= 4638 then
+                return "hollow", "_target_tile answered " .. describe(x) .. "," .. describe(z)
+                    .. ", neither the level-1 copy 1887,4638 nor the level-2 one"
+            end
+            local all = candidates_of(stairs)
+            if is_table(all) then
+                for index = 1, #all do
+                    local c = all[index]
+                    if math.abs(c.x - 1890) <= 1 and math.abs(c.z - 4641) <= 1
+                        and (math.abs(c.x - 1887) > 1 or math.abs(c.z - 4638) > 1) then
+                        return "refused", "_reach_candidates offers " .. describe(c.x) .. ","
+                            .. describe(c.z) .. ", beside the level-2 copy only -- " .. describe(all)
+                    end
+                end
+            end
+            return "ok", "circle stairs from 1888,4642,1 -> the level-1 copy 1887,4638 ("
+                .. (is_table(all) and #all or 0) .. " approach tile(s), none beside 1890,4641)"
+        end)
+
+        -- SEAM hunt_closes_menu (pointer.lua QD.drive._dismiss_menu,
+        -- _hover_inside/_under_ui over api_drive.world_gate).  Two things read
+        -- as "the world is not picking" in the Temple of Light's rooms: a
+        -- covered press's minimenu, which owns the whole canvas until the
+        -- pointer leaves it, and pixels under the chatbox, where the frame
+        -- resets the pickset instead of stamping it (build/quest_gate/s11_gate:
+        -- the grid all `menu` after one covered press; seam10_reverify row 19).
+        -- The gate must say `ui` under the chatbox and `world` over the world,
+        -- the hunt must treat the chatbox pixel as free, and the Temple's wall
+        -- support -- whose first press is covered, so only the hunt can land
+        -- it -- must be clicked (s11_exp4: covered with every candidate
+        -- "under UI (menu)" before the dismiss; s11_ws: ok after).
+        seam("seam.hunt_closes_menu", function()
+            local goto_tile = verb("player", "goto_tile")
+            local by_symbol = verb("player", "by_symbol")
+            local gate = verb("drive", "_world_gate")
+            local inside = verb("drive", "_hover_inside")
+            local click_minimenu = verb("drive", "click_minimenu")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not gate then return missing("drive", "_world_gate") end
+            if not inside then return missing("drive", "_hover_inside") end
+            if not click_minimenu then return missing("drive", "click_minimenu") end
+            local arrived, where = goto_tile(1901, 4611, 1)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(1901,4611,1) (Temple of Light, the wall support) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+            local chat_world, chat_why = gate(100, 440)
+            local mid_world, mid_why = gate(200, 200)
+            if chat_world == nil then
+                return "missing", "api_drive.world_gate is absent from this binary: " .. describe(chat_why)
+            end
+            if chat_world ~= false or string.sub(tostring(chat_why), 1, 2) ~= "ui" then
+                return "refused", "the gate under the chatbox (100,440) answered "
+                    .. describe(chat_world) .. " " .. describe(chat_why) .. ", not ui"
+            end
+            if mid_world ~= true then
+                return "refused", "the gate over the world (200,200) answered "
+                    .. describe(mid_world) .. " " .. describe(mid_why)
+            end
+            local free, free_why = inside(nil, 100, 440)
+            if free ~= false or string.sub(tostring(free_why), 1, 2) ~= "ui" then
+                return "refused", "_hover_inside would probe the chatbox pixel 100,440: "
+                    .. describe(free) .. " " .. describe(free_why)
+            end
+            local support, target_result = by_symbol("loc", "mourning_temple_agility_hanging")
+            if target_result ~= "ok" or type(support) ~= "table" then
+                return "no_subject", "player.by_symbol(loc, mourning_temple_agility_hanging) -> "
+                    .. describe(target_result)
+            end
+            local result, detail = click_minimenu(support, 1)
+            if result ~= "ok" then
+                return result, "the wall support: " .. describe(detail)
+            end
+            return "ok", "gate 100,440 -> " .. describe(chat_why) .. ", 200,200 -> "
+                .. describe(mid_why) .. "; wall support " .. describe(detail)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

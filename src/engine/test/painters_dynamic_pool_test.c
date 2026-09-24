@@ -232,6 +232,82 @@ test_static_release_after_payload_permutation(void)
     painter_free(p);
 }
 
+/*
+ * 4. A DYNAMIC element released mid-frame after the sort. A zone loc change
+ *    releases whatever element carries the old loc's scene id, and for a
+ *    runtime-spawned loc that is this cycle's dynamic registration. Its
+ *    payload may sit in the static node by then; unlinking by payload alone
+ *    took the STATIC node out and left the above-high-water node linked with
+ *    the static loc's payload, which the next reset cannot see (its element is
+ *    gone), so the truncation handed the index out again and the next append
+ *    made the chain a cycle. That froze the whole client in
+ *    bucket_paint_world when Dondakan's %dwarfrock_gold_cannonball write
+ *    changed the dwarf rock (Between a Rock, 2026-09-23); it fails here
+ *    without the fix.
+ */
+static void
+test_dynamic_release_after_payload_permutation(void)
+{
+    struct Painter* p = painter_new(SCENE, SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersTile* tile;
+    int high_water;
+    int static_element;
+    int32_t static_node;
+    int32_t dynamic_node;
+    int length;
+
+    assert(p);
+    painter_set_draw_distance(p, 25);
+    printf("a dynamic release after a sort keeps the static node in the chain\n");
+
+    static_element = painter_add_normal_scenery(p, 5, 5, 0, 100, 1, 1, 100);
+    painter_mark_static_count(p);
+    high_water = p->static_scenery_pool_count;
+    tile = painter_tile_at(p, 5, 5, 0);
+    static_node = tile->scenery_head;
+    painter_add_normal_scenery(p, 5, 5, 0, 1000, 1, 1, 200);
+    dynamic_node = p->scenery_pool[static_node].next;
+    expect(dynamic_node >= high_water, "the runtime loc's node is above the high-water");
+
+    /* A completed paint: the dynamic payload in the static node, the static
+     * payload in the appended one. */
+    {
+        struct SceneryNode tmp = p->scenery_pool[static_node];
+        p->scenery_pool[static_node].element_idx = p->scenery_pool[dynamic_node].element_idx;
+        p->scenery_pool[static_node].span = p->scenery_pool[dynamic_node].span;
+        p->scenery_pool[dynamic_node].element_idx = tmp.element_idx;
+        p->scenery_pool[dynamic_node].span = tmp.span;
+    }
+
+    /* The loc change releases the runtime loc's scene id (entity 1000). */
+    painter_release_scenery(p, 5, 5, 0, 1000);
+    length = chain_length_bounded(p, tile, 8);
+    expect(length == 1, "the release leaves one node on the tile");
+    expect(tile->scenery_head == static_node, "and it is the static node, not the appended one");
+    expect(
+        tile->scenery_head != -1 &&
+            p->scenery_pool[tile->scenery_head].element_idx == static_element,
+        "holding the static loc's payload");
+
+    painter_reset_to_static(p);
+    length = chain_length_bounded(p, tile, 8);
+    expect(length == 1 && tile->scenery_head == static_node, "the reset keeps the static node");
+
+    /* The next cycle re-registers a dynamic: the truncated index is handed
+     * out again, and a stale link to it would close the chain on itself. */
+    painter_add_normal_scenery(p, 5, 5, 0, 1001, 1, 1, 200);
+    length = chain_length_bounded(p, tile, 8);
+    expect(length == 2, "the next cycle's dynamic gives a two-node chain, not a cycle");
+    if( length == 2 )
+    {
+        painter_reset_to_static(p);
+        length = chain_length_bounded(p, tile, 8);
+        expect(length == 1, "and the reset after it is clean");
+    }
+
+    painter_free(p);
+}
+
 static void
 test_pool_does_not_grow(void)
 {
@@ -379,6 +455,7 @@ main(void)
 {
     test_permuted_chain_survives_reset();
     test_static_release_after_payload_permutation();
+    test_dynamic_release_after_payload_permutation();
     test_pool_does_not_grow();
     test_journal_is_invisible_to_the_paint();
     if( g_failures )

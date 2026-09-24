@@ -385,29 +385,12 @@ tile_recalculate_spans(
         tile->spans |= painter->scenery_pool[n].span;
 }
 
-static void
-tile_remove_scenery_element(
-    struct Painter* painter,
-    struct PaintersTile* tile,
-    int element)
-{
-    int32_t* link = &tile->scenery_head;
-    while( *link != -1 )
-    {
-        struct SceneryNode* node = &painter->scenery_pool[*link];
-        if( node->element_idx == element )
-        {
-            *link = node->next;
-            break;
-        }
-        link = &node->next;
-    }
-    tile_recalculate_spans(painter, tile);
-}
-
 /*
- * Strip a DYNAMIC element from a tile's chain so that the pool can be
- * truncated to `high_water` afterwards.
+ * Strip an element from a tile's chain without ever leaving a node at or
+ * above `high_water` linked in place of a static one. Every unlink goes
+ * through here -- the reset's (a dynamic element, so the pool can be
+ * truncated to `high_water` afterwards) and painter_release_scenery's (a loc
+ * change taking a static OR a dynamic element out mid-frame).
  *
  * The paint's scenery_chain_sort_once permutes (element, span) PAYLOADS
  * between a chain's nodes and leaves the links alone. After a sort the
@@ -425,9 +408,21 @@ tile_remove_scenery_element(
  * already removed that node after sorting put the released static payload in
  * it; in that case the below-high-water victim is now an unused hole and can
  * be unlinked directly.
+ *
+ * painter_release_scenery unlinked by payload alone until 2026-09-23, and a
+ * loc change releases whatever element holds the old loc's scene id -- for a
+ * runtime-spawned loc that is THIS cycle's dynamic registration. After a sort
+ * that payload sits in the static node, so the static node left the chain
+ * and the dynamic node stayed linked holding the static loc's payload; the
+ * next reset could not see it (its dynamic element was already gone), the
+ * truncation handed its index out again, and the chain was a cycle. That hung
+ * the whole client in bucket_paint_world the moment Dondakan's
+ * %dwarfrock_gold_cannonball write changed the dwarf rock (Between a Rock,
+ * seam11). A static node may leave the chain; an above-high-water node may
+ * never stay in it with a payload the reset does not own.
  */
 static void
-tile_unlink_dynamic_scenery_element(
+tile_unlink_scenery_element(
     struct Painter* painter,
     struct PaintersTile* tile,
     int element,
@@ -1455,7 +1450,7 @@ painter_reset_to_static(struct Painter* painter)
                 if( tx >= painter->width || tz >= painter->height )
                     continue;
                 tile = painter_tile_at(painter, tx, tz, painter->elements[i].source_level);
-                tile_unlink_dynamic_scenery_element(
+                tile_unlink_scenery_element(
                     painter, tile, i, painter->static_scenery_pool_count);
             }
         }
@@ -1536,7 +1531,7 @@ painter_release_scenery(
 
     painter->static_generation++;
 
-    /* Collect first, unlink after: tile_remove_scenery_element rewrites the
+    /* Collect first, unlink after: tile_unlink_scenery_element rewrites the
      * chain this walk stands in. The anchor tile is enough to find the element —
      * a loc is registered on every tile of its footprint, so its own tile is
      * always one of them — and the element then names the footprint the unlink
@@ -1561,8 +1556,11 @@ painter_release_scenery(
                 int tz = (int)el->sz + z;
                 if( tx < 0 || tz < 0 || tx >= painter->width || tz >= painter->height )
                     continue;
-                tile_remove_scenery_element(
-                    painter, painter_tile_at(painter, tx, tz, el->source_level), matches[m]);
+                tile_unlink_scenery_element(
+                    painter,
+                    painter_tile_at(painter, tx, tz, el->source_level),
+                    matches[m],
+                    painter->static_scenery_pool_count);
             }
         }
     }
