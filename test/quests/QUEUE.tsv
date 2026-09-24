@@ -4,13 +4,13 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b11	RE-AUTHOR after 15c39665ce: content now has the amulet's Open mounting the real bob_locator_amulet panel (group 48) for 2 ticks before the mesbox closes, Bob pacing one tile (2925,3565<->2927,3563, [ai_timer]), twocats_rewardlamp Rub -> xpreward picker (click a 30+ skill, then Confirm: 2,500 XP, lamp consumed), and Historian Minas's topic menu (pick 'I have some information which might be of use in your displays.' for the claim; offered only at stage>=70 before the reward); drive it per the guide (plus aa38f602a3's Sphinx/travel pages and parity1b's worn-amulet start and Hild exchange). First red row: 6 quest.stage.accepted. Legs left: dial minigame, world-wide Bob wander, other museum displays, cutscene camera/music.
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b17	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	todo	sonnet-b12	RE-AUTHOR after 15c39665ce: content now answers Khorvak's own click again ([opnpc1,dwarfrock_engineer2] restored -- before, he opened no dialogue); talk to Khorvak at 2864,9876 for schematic 3 per the guide (plus aa38f602a3's gold-ore avatar tier and 0ee0ee5e9d's book report -> 60 and gold on Dondakan). First red row: 40 talkToDondakanWithBook-dialog. Legs left: schematic interface puzzle (one click), Dwarf Cannon prereq.
+quest_betweenarock	betweenarock	betweenarock		1	blocked	sonnet-b17	"test/quests/betweenarock.lua:useGoldBarOnDondakan -- betweenarock_dondakan.rs2's [opnpcu,dwarfrock_dondakan] -> dwarfrock_dondakan_gold_bar_shown label's fourth page (""...Now that's not a bad thought..."", ^chat_shock) is up and reads correctly (row above: kind=npc, text matches), but dismissing it -- t.chat.continue_ directly, or any chat.play call whose last list entry is this page -- hangs the whole client process indefinitely (reproduced identically across four separate author runs at --timeout 400/2000/250/250+VERBOSE, all stopping at the byte-identical last log line, and independently reproduced clean-to-BLOCKED in review). No further row of this quest can be driven past this point. script/plugins/quest_driver/chat.lua and src/ are out of scope for this file."
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16	
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b15	
 quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16	
@@ -25,7 +25,7 @@ quest_contact	contact	contact		4	todo
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	todo	sonnet-b9	RE-AUTHOR after 15c39665ce: content now lands the duck at 2801,3321 on the shore near Holgart (not the Catherby dock) after up to 150 ticks -- follow and collect it there (plus aa38f602a3's Arhein 'About that duck...' pages and the 'Board your boat and sail east' choice, and c8b3e2fede's eight form questions). First red row: 15 form.filled. Leg left: own boat/helm (no Sailing vehicle).
+quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b17	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
 quest_druidspirit	druidspirit	naturespirit		3	todo		
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
-quest_eadgar	eadgar	eadgarsruse		1	todo	sonnet-b8	RE-AUTHOR after 15c39665ce: content now has the 8 troll_sguard storeroom guards hunting within 3 tiles -- '!', 0-6 damage and a knockout teleport to 2865,10088 (LostCity quest_eadgar.rs2:509-590); route the storeroom leg around them per the guide (plus aa38f602a3's sleeping guard and c8b3e2fede's Parroty Pete gate: ask both questions before vodka on pineapple_chunks). First red row: 24 catchParrot. Legs left: thrown-club projectile (no cache id), fade overlay.
+quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b17	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	todo	sonnet-b16	RETRY after 3f6d3b65b: engine reach (collision_map.c) serves a straight wall decoration on a floor-blocked square from its front, so use_on(garlic, garlicpipe) lands from 2638,3445 with no ::goto (build/quest_gate/reach_pipe_after2 9/9) -- rewrite row 45 garlicpipe.stash as a plain use_on, no stand_on_square and no GUIDE-GAP marker; the driver no longer stands on a square unasked (reach_failed). Rerun the whole file: a concurrent-edit copy failed rows 15/16 dwarf.drain_to_accept_choice, re-check them.
+quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b17	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -76,7 +76,7 @@ quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16
 quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
 quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
-quest_hero	hero	heroesquest		1	todo	sonnet-b15	RETRY after 3f6d3b65b: the settle's teleport arm resolves mineRockslide (23->10 ticks) and useKeyOnSideDoor (48->33) sooner, which shifts the Ice Queen fight: row 57 iceGloves.visible (a 10-tick obj_near window) times out though pickUpIceGloves passes right after (125/126). Widen the iceGloves.visible await (e.g. 30 ticks) or use t.npc.await_dead_engaged for the Ice Queen; nothing else changes (a padded copy is 126/126, build/seam10_reach/hero_padded.lua).
+quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
 quest_horror	horror	horrorfromthedeep		3	todo		
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
@@ -100,14 +100,14 @@ quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	to
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
-quest_misc	misc	throneofmiscellania		1	todo	sonnet-b11	RE-AUTHOR after 0ee0ee5e9d + RETRY after 3f6d3b65b (OSRS-Content 3b77cbe535): t.player.emote(name) plays Clap/Dance/Blow Kiss through the emote tab (seam10_emote_b: clap beside Brand misc_affection 11->15); ::misc_earnapproval is the sanctioned GRIND fast-forward (docs/QUEST_SERVER_CHEATS.md). Follow Brand's talk1 poem pages, t.exec('clapForBrand', t.player.emote, 'clap') after giveFlowersBrand, talkBrand3 to 'npc:Truly?', t.exec('kissForBrand', t.player.emote, 'blow kiss'); drop Ghrim's 'Put me to work' soft-skip: at king_signed_treaty goto_tile 2550,3866, click_loc('mapletree',1) and var.await_server('misc_approval',3,300), then t.cheat('::misc_earnapproval') read with t.msg.expect('You worked for the kingdom') and var.await_server('misc_approval',96,10); setup needs ::setlevel woodcutting 45 and an axe. Template up to row 82: build/seam_state/seam10/emote/misc_copy.lua; Astrid's Dance not yet driven.
+quest_misc	misc	throneofmiscellania		1	green	sonnet-b17	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b15	
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b10	RE-AUTHOR after 15c39665ce: content now has Temple of Light puzzle 3 (do NOT reset: take the yellow crystal back out of 2_3 and fit+point a mirror Up; north ladder up, mirror on 3_3 West; down, south stairs up, mirror on 3_1 Down in the NW corner; circle stairs down, Pass-through the white door, Search the pre-fitted 1_1 mirror South; open+search the chest -> 2 mirrors + fractured crystal, parts_5) and puzzle 2's dispenser now gives 6 mirrors (needs 8 free slots); drive puzzles 1-3 per the guide. First red row: 18 talkToArianwyn2-dialog. Legs left: puzzles 4-5, puzzle 6 and the Death Altar barrier.
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	blocked	sonnet-b17	"mourning_temple_light_parts_2_closed (the Temple of Light's blue chest, reached via the real wall-support crossing on Puzzle 1's floor): click_loc's own pixel hunt exhausts its full probe budget with ""the world is not picking"" / ""the world stopped picking mid-search"" across every camera pose -- a driver picking/render seam, not a content bug. The real dispenser and all five real Puzzle 1 pillar placements/turns above it PASS. Independently re-verified live in review (not just trusted from the author's narrative): re-ran build/seam_state/seam10/scratch/mend2_full_route_seam10.lua via `run.py --script ... --no-build --no-publish`, a different author's reference proof script that also drives an actual click_loc on the same symbol; it reproduced the identical failure signature at the identical loc on the current build (ledger row 19, build/quest_gate/seam10_reverify/ledger.tsv: 'the world stopped picking mid-search' / 'probe budget spent', then failed again one room later at p3.circlestairs.down with the same signature -- corroborating this is a real, current, room-shape-triggered driver seam, not stale or fabricated). Puzzles 2-6, the Death Altar barrier, and the crystal/completion tail are all gated behind this one chest."
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
@@ -120,7 +120,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
-quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b9	RE-AUTHOR after 15c39665ce: content now has the courier crossing both ways -- Steve's 'About that job' offers 'Cast off and sail to Port Sarim yourself.' (lands 3047,3221 by the looty crate), and Captain Tobias (Talk-to, crate held) offers the ride back for 30gp ('Yes please.' -> Steve); drive those instead of ::goto (plus aa38f602a3's grog-crate sail). First red row: 8 letSteveKnow-dialog. Legs left: generic port-task board and helm navigation (cross-quest Sailing gap).
+quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b17	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
@@ -140,7 +140,7 @@ quest_regicide	regicide	regicide		3	todo
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	
 quest_routequest	routequest	insearchofthemyreque		3	todo		
-quest_rovingelves	rovingelves	rovingelves		1	todo	sonnet-b16	RETRY after 3f6d3b65b: compiler default returns (ssc_compile.c) -- [proc,forcewalk] no longer underflows ~forcewalk2, so use_on(rope, crossing_rock) lays the rope and lands on the island 2513,3468 (settles 'teleport: 2512,3476,0 -> 2513,3468,0'), and useRopeOnTree presses from there with no ::goto (the reach retry no longer stands on squares unasked). Rewrite from 6b0a29651's route: grade useRopeOnRock on 2513,3468, not 2512,3476; proof pfe_rovingelves_b16 63/63 (build/pfe/rovingelves_b16.lua).
+quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17	
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
 quest_rumdeal	rumdeal	rumdeal		2	todo		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
@@ -162,7 +162,7 @@ quest_swansong	swansong	swansong		4	todo
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
 quest_tasteofhope	tasteofhope	atasteofhope		4	todo		
 quest_tbwt	tbwt	taibwowannaitrio		3	todo		
-quest_tearsofguthix	tearsofguthix	tearsofguthix		1	todo	sonnet-b9	RE-AUTHOR after c8b3e2fede + RETRY after 3f6d3b65b: engine reach (collision_map.c) reaches a chasm stepping stone from the bank across one gap square -- Option A is drivable: rope hole, goto_tile 3200,9572, click_loc swamp_cave_steppingstone_a op1 (lands 3208,9572), walk_to 3221,9556, click_loc swamp_cave_steppingstone_b op1 (lands 3221,9552), walk_to 3226,9542, click_loc tog_cave_down (scratch build/seam_state/seam10/scratch_reach/tog_option_a.lua, tog_option_a_after2 12/12). Still: light the sapphire lantern with a tinderbox, use it on the chasm climbing rocks for a light-creature, mine for real instead of ::tearsofguthix (scratch build/parity_state/parity1b/scratch/tearsofguthix_parity1b.lua); a wall beast becomes swamp_wallbeast_combat when you stand adjacent -- keep 2 tiles off each hole. Committed file dies at setup.have_stone.
+quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
 quest_thefeud	thefeud	thefeud		2	todo		
