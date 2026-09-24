@@ -68,6 +68,36 @@
 -- (Getting Started panel) is declared via a marker below -- it is
 -- quest-helper's own plugin-state refresh, not a player action, and the
 -- quest's real sync already runs inside every talk to Kojo.
+--
+-- REOPENED after 9bf6b97c5 (flaky green, run.py --all sweep): two seams, not
+-- a broken row --
+--  * goto-ctlevera (2591,9661,0) sits inside the SAME single basement room
+--    (m40_150.spawn, x2560-2623 z9600-9663) as the whole quest's own npc
+--    population -- not just clocktower_rat/2/3 (the food-trough leg's own
+--    group, quest_cog_food_trough.rs2's ai_queue10/11/12) but goblin(s),
+--    goblin_helmet, goblin_armed, thief_blanket, headthief_blanket,
+--    hobgoblin_unarmed, plain rat, dungeon_rat, ogre and giantspider1, all
+--    well above the fixture's combat level 3 (docs/QUEST_SERVER_CHEATS.md
+--    section F: maybe_aggress's `level * 2` rule means a low-level
+--    character draws aggression from nearly everything in the room, not
+--    only the nearest-looking type). Run 1 of this reopen passivated only
+--    the three clocktower_rat symbols and still lost the row to a
+--    goblin_helmet 7 tiles off the stuck tile (2571,9660) -- HP 8, three
+--    "Teleported to 2591,9661,0." lines in the chat log that never actually
+--    held because retaliation walked the character back each time. Every
+--    hostile symbol this basement room spawns is now held passive in
+--    setup, once, rather than guessing which one a given run's wander
+--    happens to put in the way.
+--  * pickup.blackcog read "bucket_water: not in the backpack" under
+--    TORIRS_EMBED_CLOCK_MS=20 -- pointer.lua's own use_on `not_found` detail
+--    for an item that really was not carried. setup already ::clearinv +
+--    ::give bucket_water 1, and run.py's setup wrapper (trap 23) already
+--    waits for the backpack to rise before run() starts, but nothing here
+--    ever read it back, so a slow sync under a faster embed clock surfaced
+--    three cogs and a dozen rows later instead of at the top of the file.
+--    Trap 23's own advice is to read a setup item in run()'s first row with
+--    no leading t.ticks -- t.inv.await (not a bare t.inv.count) so a
+--    borderline-slow grant is waited out rather than raced.
 
 return {
     id = "cog",
@@ -75,9 +105,35 @@ return {
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so bucket_water fits
         "::give bucket_water 1", -- ClockTower.java's own bucketOfWater requirement
+        -- Every hostile npc TYPE m40_150.spawn stands up in the clock tower
+        -- basement (one room, every cog/lever/poison/gate step is inside
+        -- it): held passive so none of them aggro or retaliate on a level-3
+        -- fixture character and walk it off a goto'd tile mid-leg
+        -- (docs/QUEST_SERVER_CHEATS.md section F). Still attackable, still
+        -- drops, still answers every other op -- this quest never fights
+        -- any of them.
+        "::passive rat",
+        "::passive dungeon_rat",
+        "::passive clocktower_rat",
+        "::passive clocktower_rat2",
+        "::passive clocktower_rat3",
+        "::passive goblin",
+        "::passive goblin_helmet",
+        "::passive goblin_armed",
+        "::passive hobgoblin_unarmed",
+        "::passive thief_blanket",
+        "::passive headthief_blanket",
+        "::passive ogre",
+        "::passive giantspider1",
     },
 
     run = function(t)
+        -- Read the setup grant back before anything else touches the pack
+        -- (trap 23): an active wait, not a bare count, so a borderline-slow
+        -- sync is waited out here instead of surfacing as "not in the
+        -- backpack" three cogs later at pickup.blackcog.
+        t.exec("setup.bucket_water", t.inv.await, "bucket_water", 1, 10)
+
         -- quest_cog_no_remaining_cogs/finish_resume_a/finish_resume_b/complete
         -- are the RAW cogquest values THIS playthrough produces, native
         -- ladder value + 16 (^quest_cog_rat_door_bit, set on %cogquest
