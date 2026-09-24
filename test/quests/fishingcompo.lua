@@ -300,10 +300,18 @@ return {
         -- (%fishingcompo=garlic_comp, not in_comp; npc_type is the sinister
         -- spot, not compofishspot) -> ~get_hemenster_bait picks the carried
         -- red_vine_worm -> [label,hemenster_catch] grants raw_giant_carp
-        -- because npc_type=0_41_53_sinisterfishspot. Tile is the same one
-        -- fishbmp_carp's own debugproc teleports a tester to (0_41_53_13_52
-        -- decodes to 2637,3444).
-        t.exec("goto-fishspot", t.player.goto_tile, 2637, 3444, 0)
+        -- because npc_type=0_41_53_sinisterfishspot. The npc's own *.spawn
+        -- tile (0_41_53_13_52 decodes to 2637,3444) is itself an engine
+        -- collision entry (maps/m41_53.jm2 local 13,52: "o6;0;0 f1", the
+        -- same shape trap 32 names for a floor-blocked square) -- standing
+        -- exactly on it left the automatic same-tile step-off (pointer.lua's
+        -- QD.player._step_off_for_click) with all eight neighbours refused,
+        -- so the press never got an unoccluded camera and read `covered`
+        -- with no clickable pixel in 92 probes. m41_53.jm2 local 14,52
+        -- (2638,3444, one tile east, no o6/f1) is plain walkable ground, so
+        -- stand there instead -- a normal approach-tile choice, not the
+        -- loc-only stand_on_square opt-in.
+        t.exec("goto-fishspot", t.player.goto_tile, 2638, 3444, 0)
         t.exec("fish.carp", t.player.talk_to, "0_41_53_sinisterfishspot")
         local carp_result, carp_detail = t.inv.await("raw_giant_carp", 1, 10)
         t.step("fish.carp_landed", carp_result == "ok" and "PASS" or "FAIL",
