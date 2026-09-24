@@ -229,6 +229,53 @@ return {
         for _, def in ipairs(sheep_defs) do
             t.exec("goto-herd" .. def.id, t.player.goto_tile, def.goto_x, def.goto_z, 0)
 
+            -- BLOCKED (sonnet-b18, run 5): TORIRS_MAX_FRAMES=60000
+            -- (tools/quest_gate/run.py's client_env(), fixed and not
+            -- reachable from test/quests/ or from --timeout) is exhausted
+            -- by setup/dialogue plus sheep 1-3's own herd loop ALONE, every
+            -- single time, before sheep 4's herd loop presses even once.
+            -- Proven deterministic across FOUR independent full runs
+            -- (--timeout 400, 560, 1400, 1400) that all landed on the
+            -- identical row (this exact "goto-herd4" line, ticks=1253) with
+            -- a genuinely CLEAN process exit (code 0, run.py's own
+            -- "timed_out" column reading "no" every time -- never a
+            -- subprocess.TimeoutExpired/SIGKILL) -- main.c's own frame loop
+            -- (`if (max_frames > 0 && frame_count > max_frames) { ...;
+            -- return 0; }`, src/main.c ~line 2441) returns silently with no
+            -- t.finish() and no ledger row for the step in flight, which is
+            -- exactly the "ledger has no FAIL/BLOCKED row" shape gate.py
+            -- reported every time. sheep1-3 cost 251+417+561=1229 ticks for
+            -- 215 presses (an average already inside per-press engine cost,
+            -- not something this file's routing can meaningfully shrink --
+            -- sheep1, the CHEAPEST of the three, still needed 50 presses),
+            -- so sheep4 (comparable distance, likely 50-114 more presses)
+            -- plus the still-undriven poison/incinerate/hand-in sequence
+            -- cannot fit in whatever frame budget remains -- observed
+            -- exhaustion lands at frame 60000 with ticks=1253, well short
+            -- of the ~2,000-tick session guidance (QUEST_AUTHORING.md
+            -- section 8), so it is the FRAME ceiling, not the tick one,
+            -- that binds here; see
+            -- build/author_state/sonnet-b18/sheepherder.author.progress.md
+            -- runs 1-5 for the full per-run evidence. The fix is a
+            -- harness-side budget change (run.py's TORIRS_MAX_FRAMES or a
+            -- faster/parked-resume mechanism), out of test/quests/ reach.
+            if def.id == "4" then
+                t.blocked(
+                    "tools/quest_gate/run.py's fixed TORIRS_MAX_FRAMES=60000 " ..
+                    "client frame budget is exhausted by setup/dialogue plus " ..
+                    "sheep 1-3's herd loop alone (1229 ticks, 215 presses) " ..
+                    "before plaguesheep_4's herd loop can press even once -- " ..
+                    "confirmed deterministic, a clean exit(0) at the SAME row " ..
+                    "across 4 full runs with --timeout 400/560/1400/1400, never " ..
+                    "a run.py TimeoutExpired/killed process -- this quest's " ..
+                    "remaining work (sheep4's herd plus the poison/incinerate/" ..
+                    "hand-in sequence) does not fit inside one client " ..
+                    "session's frame budget as currently authored, and " ..
+                    "TORIRS_MAX_FRAMES is set in tools/quest_gate/run.py, out " ..
+                    "of test/quests/ reach.")
+                return
+            end
+
             local pressed = 0
             local last_detail = "no press issued"
             local history = {}
@@ -290,7 +337,18 @@ return {
             local wall_blacklist = {}
             local outcome_counts = { stepped = 0, walled = 0, out_of_range = 0, lost = 0, other = 0 }
 
-            while pressed < 95 and tracked_x and (bit_result ~= "ok" or bit_value == 0) do
+            -- Cap raised 95 -> 140 (RETRY after 9bf6b97c5, sonnet-b18):
+            -- boulder2 (10791, width=2 length=2, m40_52.jl2 at
+            -- 2592-2593,3381-3382) sits square in plaguesheep_3's own
+            -- final approach corridor and forces a 2-column detour to
+            -- x=2594 before the last ~20 tiles of Z can even start --
+            -- measured a live run landing on x=2594 with its Z push not
+            -- yet begun, exactly AT the old 95-press cap, ticks=1165/~2000
+            -- total for the run so far (sheep1+sheep2 already spent).
+            -- Total session budget (QUEST_AUTHORING.md section 8, "A RUN
+            -- HAS ABOUT 2,000 SERVER TICKS") has ample room at ~5
+            -- ticks/press for this raise even in the worst case.
+            while pressed < 140 and tracked_x and (bit_result ~= "ok" or bit_value == 0) do
                 if unmoved_streak >= 6 then
                     -- Resync: several attempts running (including retreats)
                     -- never moved the tracked copy at all -- pick whichever
@@ -487,10 +545,35 @@ return {
                         stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
                     elseif sheep.x < GATE_X_MIN then
                         stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
-                    elseif sheep.x - 1 >= GATE_X_MIN then
-                        stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
                     else
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
+                        -- In-band dodge, reached via the unmoved_streak==1
+                        -- one-shot perpendicular branch above (which sets
+                        -- axis="x" directly and skips the wall_blacklist
+                        -- redirect below, because THAT check only fires
+                        -- for a blacklisted "x" entry, not a blacklisted
+                        -- "z" one): prefer the neighbour column whose Z
+                        -- push has NOT already been blacklisted at this
+                        -- exact Z row, so a perpendicular retry right
+                        -- after a Z failure keeps closing on an untried
+                        -- column instead of bouncing back onto one already
+                        -- known dead. Measured cost of the old fixed
+                        -- west-biased fallback: plaguesheep_3's approach
+                        -- to boulder2 (10791, width=2 length=2,
+                        -- m40_52.jl2 at 2592-2593,3381-3382) bounced
+                        -- 2593->2592->2593 for two wasted presses before
+                        -- the dedicated x-probe branch above finally
+                        -- pushed it on to the clear column, 2594.
+                        local west_target_open = (sheep.x - 1 >= GATE_X_MIN) and not wall_blacklist[string.format("%d,%d:z", sheep.x - 1, sheep.z)]
+                        local east_target_open = (sheep.x + 1 <= GATE_X_MAX) and not wall_blacklist[string.format("%d,%d:z", sheep.x + 1, sheep.z)]
+                        if east_target_open and not west_target_open then
+                            stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
+                        elseif west_target_open and not east_target_open then
+                            stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
+                        elseif sheep.x - 1 >= GATE_X_MIN then
+                            stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
+                        else
+                            stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
+                        end
                     end
                 else
                     if sheep.z < eff_z_min then
