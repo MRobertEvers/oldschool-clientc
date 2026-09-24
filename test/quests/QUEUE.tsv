@@ -151,7 +151,7 @@ quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
-quest_sheepherder	sheepherder	sheepherder		1	blocked	sonnet-b18	tools/quest_gate/run.py's TORIRS_MAX_FRAMES=60000 (client_env(), unconditional) is out of test/quests/ reach and insufficient for this quest's full guide (4-sheep herd + poison/incinerate/hand-in) in one client session -- confirmed by a clean exit(0), timed_out=no, published run whose ledger stops at a graceful BLOCKED row immediately after goto-herd4, reproduced live by the reviewer and cross-checked against tools/quest_gate/run.py's own source (client_env() sets TORIRS_MAX_FRAMES unconditionally, overwriting any pre-set env var).
+quest_sheepherder	sheepherder	sheepherder		1	todo	sonnet-b18	RETRY after 5b84289fa: run.py honours a per-test `max_frames = <n>,` field beside fixture (ceiling 240000); set max_frames = 120000 and drive on from goto-herd4. The budget run (build/quest_gate/fixer_sheep_budget, t.blocked removed, 120000) stopped at row 25 herd.sheep4_in_pen herded=false after 140 presses (stepped=21 walled=119, 1239 ticks; session total 2492 ticks, ~75k frames, clean exit) because plaguesheep_4 wedged against walls around 2620,3393 NE of the pen -- a sheep-4 routing problem, not the clock; poison/incinerate/hand-in never reached
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
