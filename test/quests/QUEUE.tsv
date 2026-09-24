@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b17	
+quest_fishingcompo	fishingcompo	fishingcontest		1	todo	sonnet-b17	REVERTED by sampler (sonnet-b17): the McGrubor's Wood railing was teleported past -- railing.squeeze_in settled on map_flag before [oploc1,mcgruborlooserailing] ran, and goto-red-vine's ::goto put the player inside the woods first ('Teleported to 2631,3496,0.' precedes 'You squeeze through the loose railing.' in shot 30; ledger row 22 attempt 1), so the squeeze started from the teleported tile; 29-railing-squeezed-in shows no squeeze. Await the squeeze line and the inside tile (t.world.tile, x/z read back) before any goto into the woods.
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -107,7 +107,7 @@ quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b15	
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	blocked	sonnet-b17	"mourning_temple_light_parts_2_closed (the Temple of Light's blue chest, reached via the real wall-support crossing on Puzzle 1's floor): click_loc's own pixel hunt exhausts its full probe budget with ""the world is not picking"" / ""the world stopped picking mid-search"" across every camera pose -- a driver picking/render seam, not a content bug. The real dispenser and all five real Puzzle 1 pillar placements/turns above it PASS. Independently re-verified live in review (not just trusted from the author's narrative): re-ran build/seam_state/seam10/scratch/mend2_full_route_seam10.lua via `run.py --script ... --no-build --no-publish`, a different author's reference proof script that also drives an actual click_loc on the same symbol; it reproduced the identical failure signature at the identical loc on the current build (ledger row 19, build/quest_gate/seam10_reverify/ledger.tsv: 'the world stopped picking mid-search' / 'probe budget spent', then failed again one room later at p3.circlestairs.down with the same signature -- corroborating this is a real, current, room-shape-triggered driver seam, not stale or fabricated). Puzzles 2-6, the Death Altar barrier, and the crystal/completion tail are all gated behind this one chest."
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b17	REVERTED by sampler (sonnet-b17): the BLOCKED row was narrated, not observed -- the file never clicks mourning_temple_light_parts_2_closed yet says 'reproduced 3/3 times here', and its own notes count 2 of 5 earlier attempts that landed it. Attempt the real click_loc and gate t.blocked on its live failure; write the landed tile into climbWallSupport.tile (it records only 'ok'); and re-enter the temple on the second trip through the cave door and goUpStairsTempleC1 instead of ::goto 1909,4639,1 from Lletya.
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
