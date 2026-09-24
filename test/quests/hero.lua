@@ -521,14 +521,18 @@ return {
 
         -- ice_gloves is a real ground drop (ai_queue3,ice_queen -- obj_add
         -- at npc_coord, ice_queen.rs2:16), not a chat grant.
+        -- seam10 (RETRY after 3f6d3b65b): the teleport-settle arm resolves
+        -- mineRockslide/useKeyOnSideDoor sooner, which shifts this fight
+        -- earlier against the tick clock -- widened from 10 to 30 ticks so
+        -- the drop is still caught (queue.py show hero's own last_failure).
         local gloves_visible_result = t.await({
             level = function()
                 return t.world.obj_near("ice_gloves", 10) == "ok"
             end,
             note = "waiting for the Ice Queen's dropped ice gloves to reach the client's entity pool",
-        }, 10)
+        }, 30)
         t.step("iceGloves.visible", gloves_visible_result == "ok" and "PASS" or "FAIL",
-            "t.world.obj_near(ice_gloves, 10) polled up to 10 ticks -> " .. tostring(gloves_visible_result))
+            "t.world.obj_near(ice_gloves, 10) polled up to 30 ticks -> " .. tostring(gloves_visible_result))
 
         local gloves_before_result, gloves_before = t.inv.count("ice_gloves")
         local gloves_click_result, gloves_click_detail = t.player.click_obj("ice_gloves")
@@ -673,15 +677,18 @@ return {
         t.exec("killJailer", t.npc.await_dead, "jailer", 60)
 
         -- jail_key is a real ground drop (ai_queue3,jailer -- obj_add at
-        -- npc_coord), not a chat grant.
+        -- npc_coord), not a chat grant. Same seam as iceGloves.visible above
+        -- (run 1, 2026-09-23): the seam10 teleport-settle arm shifts this
+        -- fight earlier against the tick clock too, so the drop window is
+        -- widened from 10 to 30 ticks the same way.
         local jailkey_visible_result = t.await({
             level = function()
                 return t.world.obj_near("jail_key", 10) == "ok"
             end,
             note = "waiting for the Jailer's dropped jail_key to reach the client's entity pool",
-        }, 10)
+        }, 30)
         t.step("jailKey.visible", jailkey_visible_result == "ok" and "PASS" or "FAIL",
-            "t.world.obj_near(jail_key, 10) polled up to 10 ticks -> " .. tostring(jailkey_visible_result))
+            "t.world.obj_near(jail_key, 10) polled up to 30 ticks -> " .. tostring(jailkey_visible_result))
 
         local jailkey_before_result, jailkey_before = t.inv.count("jail_key")
         local jailkey_click_result, jailkey_click_detail = t.player.click_obj("jail_key")
