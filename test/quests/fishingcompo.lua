@@ -132,8 +132,25 @@ return {
         -- placed at 2631,3496,0 (maps/m41_54.jl2 local 7,40, id 2990), the
         -- SAME tile Quest Helper's WorldPoint names. McGrubor's Woods is
         -- thick with aggressive guard dogs (setup's ::passive).
+        -- RETRY after sampler sonnet-b17's revert: railing.squeeze_in used
+        -- to settle (map_flag) before [oploc1,mcgruborlooserailing]'s own
+        -- mes()+~agility_exactmove ran, so the very next row's ::goto
+        -- teleported the player inside the woods FIRST and the squeeze's
+        -- chat line printed from the teleported tile instead (shot 30:
+        -- "Teleported to 2631,3496,0." before "You squeeze through the
+        -- loose railing."). The railing loc sits at 2662,3500,0
+        -- (maps/m41_54.jl2 local 38,44); await the squeeze's own mes() and
+        -- read the tile back -- proving the player is now SOUTH of the
+        -- railing (z <= 3500), not still at the outside tile's z=3504 --
+        -- before any goto into the woods.
         t.exec("goto-railing-outside", t.player.goto_tile, 2662, 3504, 0)
         t.exec("railing.squeeze_in", t.player.click_loc, "mcgruborlooserailing")
+        t.exec("railing.squeeze_message", t.msg.await, "You squeeze through the loose railing.", 10)
+        local squeeze_tile_result, squeeze_tile = t.world.tile()
+        t.check("railing.squeeze_tile", squeeze_tile_result == "ok" and squeeze_tile and squeeze_tile.z <= 3500,
+            "t.world.tile() after the squeeze -> " .. tostring(squeeze_tile_result) .. " "
+                .. tostring(squeeze_tile and (squeeze_tile.x .. "," .. squeeze_tile.z .. "," .. squeeze_tile.level))
+                .. " (expected z <= 3500, south of the railing at 2662,3500,0)")
         t.shot("railing-squeezed-in")
 
         t.exec("goto-red-vine", t.player.goto_tile, 2631, 3496, 0)
@@ -303,7 +320,16 @@ return {
         -- because npc_type=0_41_53_sinisterfishspot. Tile is the same one
         -- fishbmp_carp's own debugproc teleports a tester to (0_41_53_13_52
         -- decodes to 2637,3444).
+        -- RUN 1: fish.carp FAILed a pixel hunt outright (99/99 probes near
+        -- the projected point found no row for the element, 0 off-viewport)
+        -- right after this goto and a 57-tick garlicpipe reach-retry chain --
+        -- goto_tile only waits for the npc POOL entry to exist, not for the
+        -- scene's geometry to finish building (section 2's teleport bullet /
+        -- trap 21: "the frame right after a teleport ... can still be dark
+        -- ... t.ticks(2) after the goto"). Give the scene a beat to render
+        -- before hunting for the spot's clickable model.
         t.exec("goto-fishspot", t.player.goto_tile, 2637, 3444, 0)
+        t.ticks(2)
         t.exec("fish.carp", t.player.talk_to, "0_41_53_sinisterfishspot")
         local carp_result, carp_detail = t.inv.await("raw_giant_carp", 1, 10)
         t.step("fish.carp_landed", carp_result == "ok" and "PASS" or "FAIL",
