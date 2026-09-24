@@ -1,46 +1,88 @@
 -- Mourning's End Part II -- hand-written, NOT the new_quest.py scaffold.
 --
--- Why hand-written: the generator's own output (161 steps drawn from Quest
--- Helper's MourningsEndPartII.java) walks the REAL osrs Temple of Light
--- mirror maze tile by tile, and this content pack now implements a real
--- (simplified, documented) version of that maze for Puzzles 1-3 of six --
--- see configs/mend2.constant's own CONTENT PARITY PASS notes and
--- scripts/mend2_puzzle1.rs2/mend2_puzzle2.rs2/mend2_puzzle3.rs2.
+-- Why: the generator's own output (161 steps drawn from Quest Helper's
+-- MourningsEndPartII.java) walks the REAL osrs Temple of Light mirror
+-- maze tile by tile. This content pack does not implement that maze --
+-- `configs/mend2.constant`'s own header says so explicitly ("no rs2
+-- precedent anywhere in this tree for modelling a beam-propagation
+-- puzzle ... the entire multi-floor puzzle chain ... is narrated as a
+-- single interaction at Arianwyn (30 -> 40) rather than modelled
+-- tile-by-tile"), and `scripts/mend2_shared.rs2` bears this out: there is
+-- no [oploc*] trigger anywhere under quest_mourningsendpartii/, no
+-- Temple-of-Light pillar/dispenser script, and no Death Altar/Underground
+-- Pass route at all. The whole quest is five Arianwyn conversations plus
+-- one Essyllt conversation, state-gated on `%mourning_quest_main`
+-- (0/10/20/30/40/50/60, `configs/mend2.constant`) and on held/worn
+-- items, with the fourth Arianwyn page narrating the skipped content via
+-- mes().
 --
--- RE-AUTHORED 2026-09-23 (this pass) after the previous committed file (green
--- at 40 rows) went stale: the getCrystal leg (Mourner Caves -> corpse search
--- -> chisel the dark crystal) is now real, clicked content instead of a
--- narrated mes() the instant Arianwyn was reached a second time. This file
--- drives all of it -- the caves, the corpse, the chisel, the real crystal
--- dispenser, all five of Puzzle 1's real pillar placements and turns -- then
--- ends BLOCKED at the Temple of Light's blue chest
--- (`mourning_temple_light_parts_2_closed`, 1917,4613,1): a pre-existing
--- driver picking/render seam, not a content bug (see the t.blocked() call at
--- the end of run() for the full evidence). Puzzle 1's own five pillar
--- placements above it are real, driven, PASSing rows -- the puzzle mechanic
--- itself works; only this one cramped room's chest click does not land.
---
--- Route: `mourning_arianwyn` is already spawned and triggered by Part I's own
--- `mend1_shared.rs2` ([opnpc1,mourning_arianwyn] -> ^mend1_complete branch ->
--- ~mend2_arianwyn_talk); `mourner_hideout_head_mourner` the same way via Part
--- I's `mend1_disguise.rs2`. Both resolve through the `sote`-keyed
--- multinpc/_vis pair the same as any other roving elf (trap 19/pointer.lua)
--- -- talk to the BASE symbol, never `_vis`.
+-- Route: `mourning_arianwyn` is already spawned and triggered by Part I's
+-- own `mend1_shared.rs2` ([opnpc1,mourning_arianwyn] -> ^mend1_complete
+-- branch -> ~mend2_arianwyn_talk); `mourner_hideout_head_mourner` the same
+-- way via Part I's `mend1_disguise.rs2`. Both resolve through the
+-- `sote`-keyed multinpc/_vis pair the same as any other roving elf (trap
+-- 19/pointer.lua) -- talk to the BASE symbol, never `_vis`.
 --
 -- Setup: `::mend2` (this quest's own debug cheat, `mend2_debug.rs2`,
 -- mirroring `::mend1`/`::cook`'s idiom) sets %mourning_quest to
 -- ^mend1_complete, resets %mourning_quest_main to ^mend2_not_started and
 -- teleports beside Arianwyn in Lletya (2353,3172,0) -- run last so it is
--- authoritative. `::complete quest_mourningsendpart1` alongside it matches
--- every other chained-quest file's own convention. The mourner disguise
--- (gasmask + 5 pieces), chisel, rope and a death talisman are all Quest
--- Helper's own `getItemRequirements()` (mournersOutfit/chisel/
--- deathTalismanHeader/rope) -- bring-along prerequisites this content pack
--- only CHECKS, never asks the player to craft or fetch, so `::give` is the
--- right tool per docs/QUEST_AUTHORING.md trap 16 (not the quest's own
--- deliverable). The Temple of Light's own items (mirrors, crystals) are
--- gathered in `run()` from the real crystal dispenser -- never `::give`n --
--- because they ARE the quest's own deliverable now.
+-- authoritative. `::complete quest_mourningsendparti` alongside it matches
+-- every other chained-quest file's own convention (druid.lua's
+-- `::complete quest_troll`, mortton.lua's `::complete quest_priestperil`,
+-- ...), even though it is redundant with what `::mend2` already writes.
+-- The mourner disguise (gasmask + 5 pieces), chisel, rope and a death
+-- talisman are all Quest Helper's own `getItemRequirements()`
+-- (mournersOutfit/chisel/deathTalismanHeader/rope) -- bring-along
+-- prerequisites this content pack only CHECKS (`inv_total(worn, ...)` /
+-- `inv_total(inv, ...)`), never asks the player to craft or fetch, so
+-- `::give` is the right tool per docs/QUEST_AUTHORING.md trap 16 (this is
+-- not the quest's own deliverable).
+--
+-- RESUMED 2026-09-21 after the RETRY fix
+-- (OSRS-Content 4420b02611, `quest_mourningsendpartii/configs/mend2.varp`):
+-- `[mourning_quest_part2]` (`configs/all.varp:1161`) now declares
+-- `transmit=yes`, so `t.quest.expect_stage()` reads this quest's own
+-- progress for the first time -- the earlier `t.blocked` naming that gap
+-- (all.varp:1161 having an empty body) is gone, and every conversation
+-- below is now graded on the live stage instead of the earlier file's
+-- indirect `mourning_ederns_journal` inventory proxy. Driven three real
+-- stage transitions further than before (not_started -> briefed ->
+-- essyllt_task -> crystal_given, each with a passing `quest.stage.*` row)
+-- before hitting the next wall: `mend2_shared.rs2`'s own
+-- `^mend2_crystal_given` branch (line 97 at that time) printed a 300-byte
+-- `mes()` call, over this engine's 255-byte single-`mes()` limit, and
+-- desynced the client session the instant the branch ran.
+--
+-- RESUMED AGAIN 2026-09-21 after a SECOND RETRY fix (`RETRY after
+-- 68c5e8d9d`): `mend2_shared.rs2:97`'s over-length line is now split across
+-- two `mes()` calls (line 102/103 of the current file, both under the
+-- 252-byte var-u8 ceiling -- confirmed by reading the file fresh, not by
+-- trusting the queue row's own numbers), and `ToriRSServer_Send` refuses an
+-- over-length var-u8 frame out loud rather than desyncing the session, so
+-- this is no longer a live hazard even if a future line crept back over the
+-- limit. The former `t.blocked` row and its `talkToArianwyn3.desync_proof`
+-- probe are gone; `talkToArianwyn3` now drives the real
+-- `^mend2_crystal_given -> ^mend2_puzzle_done` transition (the branch opens
+-- with a `mes()` line, not a page -- trap 22/section 2 -- so it is read
+-- with `t.msg.expect`, never `t.chat.play`), then `talkToArianwyn4`
+-- (`^mend2_puzzle_done -> ^mend2_report`, a real three-page dialogue
+-- opening on the PLAYER's line per trap 18) and `talkToArianwyn5`
+-- (`^mend2_report -> ^mend2_complete`, one npc page whose dismissal fires
+-- `~mend2_quest_complete` -- the agility xp, the `mourning_crystal_trinket`
+-- reward and the extra `death_talisman`, all per `configs/mend2.constant`'s
+-- own `stat_xp_awarded`/reward-string documentation) drive the quest to
+-- `quest.expect_complete()`.
+--
+-- `quest.journal` gap (unrelated to the above, named in the RETRY row):
+-- there is no `[proc,mend2_journal]` anywhere in this tree and
+-- `quest_journal.rs2` has no part-2 dispatch row at all (grepped fresh),
+-- so `t.ui.journal_open("Mourning's End Part II")` would fall through to
+-- the file's own "This world does not run this quest yet." default. This
+-- is exactly the gap section 7's minimum shape exists for:
+-- `quest.expect_complete()`'s own `quest.journal` row is not required for
+-- green, so the journal is not probed here at all -- the varp/scroll/points
+-- rows below are the completion evidence.
 
 return {
     id = "mourningsendpartii",
@@ -56,14 +98,11 @@ return {
         "::give chisel 1",
         "::give rope 1",
         "::give death_talisman 1",
-        "::complete quest_mourningsendpart1", -- all.dbrow.compack:100 -- NOT "quest_mourningsendparti" (trap 297: ::complete takes the dbrow name, not the folder's)
+        "::complete quest_mourningsendparti",
         "::mend2", -- last: resets mourning_quest_main and teleports beside Arianwyn
     },
 
     run = function(t)
-        local mirror = "mourning_mirror"
-        local yellow = "mourning_crystal_yellow"
-
         local bind_result, bind_detail = t.quest.bind({
             varp = "mourning_quest_main",
             constants = {
@@ -86,8 +125,8 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- Gear up the disguise ::give left unworn -- mend2_shared.rs2's own
-        -- gate at ^mend2_crystal_given checks all six worn slots.
+        -- Gear up the disguise ::give left unworn -- mend2_shared.rs2's
+        -- own gate at ^mend2_crystal_given checks all six worn slots.
         t.exec("wear.gasmask", t.player.equip, "gasmask")
         t.exec("wear.top", t.player.equip, "mourning_mourner_top")
         t.exec("wear.legs", t.player.equip, "mourning_mourner_legs")
@@ -96,7 +135,7 @@ return {
         t.exec("wear.gloves", t.player.equip, "mourning_mourner_gloves")
 
         -- ---- Arianwyn #1, Lletya: not_started -> briefed
-        -- (mend2_shared.rs2:33-46) ----
+        -- (mend2_shared.rs2:33-47) ----
         t.exec("talkToArianwyn1", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn1-dialog", t.chat.play, {
             "npc:There is more you can do for us, if you're willing.",
@@ -111,7 +150,7 @@ return {
         t.expect("quest.stage.briefed", t.quest.expect_stage("briefed"))
 
         -- ---- Essyllt, HQ basement: briefed -> essyllt_task
-        -- (mend2_shared.rs2:163-168) ----
+        -- (mend2_shared.rs2:132-138) ----
         t.exec("goto-talkToEssyllt", t.player.goto_tile, 2044, 4628, 0)
         t.exec("talkToEssyllt", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssyllt-dialog", t.chat.play, {
@@ -122,51 +161,17 @@ return {
         t.ticks(3)
         t.expect("quest.stage.essyllt_task", t.quest.expect_stage("essyllt_task"))
 
-        -- ---- getCrystal leg (Quest Helper stages 10/15/20): Mourner Caves
-        -- door, the corpse, the two-stairs climb to the temple's crystal, and
-        -- the chisel -- all real, clicked content since the parity1 pass
-        -- (mend2_temple.rs2). Coordinates and route proven live end to end
-        -- in build/parity_state/parity1/mourningsendpartii.parity.progress.md
-        -- (43/48 PASS, the 5 fails all the documented pre-teleport-arm settle
-        -- seam, since fixed -- confirmed by this file's own tile polls). ----
-        t.exec("goto-door4", t.player.goto_tile, 2036, 4636, 0)
-        t.exec("enterCave", t.player.click_loc, "mourner_hideout_door4", 1)
-
-        t.exec("goto-corpse", t.player.goto_tile, 1925, 4642, 0)
-        t.exec("searchCorpse", t.player.click_loc, "mourning_dead_guard4", 1)
-        t.expect("searchCorpse.mes", t.msg.expect("find a journal"))
-
-        t.exec("goto-templeStairsBase0", t.player.goto_tile, 1903, 4639, 0)
-        t.exec("goUpStairsTemple", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
-        t.ticks(2)
-
-        t.exec("goto-southLadder", t.player.goto_tile, 1894, 4620, 1)
-        t.exec("goUpSouthLadder", t.player.click_loc, "mourning_temple_stairs_base", 1)
-        t.ticks(2)
-
-        t.exec("goto-circleStairsTop", t.player.goto_tile, 1891, 4636, 2)
-        t.exec("goToMiddleFromSouth", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
-        t.ticks(2)
-
-        t.exec("goto-circleStairsBaseMiddle", t.player.goto_tile, 1891, 4642, 1)
-        t.exec("goUpFromMiddleToNorth", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
-        t.ticks(2)
-
-        t.exec("goto-obsidianCrystal", t.player.goto_tile, 1909, 4639, 2)
-        local crystal_loc = t.player.by_symbol("loc", "mourning_temple_obsidian_crystal_dead")
-        t.exec("useChisel", t.player.use_on, "chisel", crystal_loc)
-        t.expect("useChisel.mes", t.msg.expect("break off a piece"))
-        t.exec("useChisel.gotSample", t.inv.await, "mourning_crystal_sample", 1, 5)
-        t.exec("useChisel.gotJournal", t.inv.await, "mourning_ederns_journal", 1, 5)
-
         -- ---- Arianwyn #2, Lletya: essyllt_task -> crystal_given
-        -- (mend2_shared.rs2:75-92, hand-off at 61-73). The chisel above put
-        -- mourning_crystal_sample in the backpack, so the real hand-off page
-        -- opens (not the reminder). ----
+        -- (mend2_shared.rs2:52-73). The branch opens with a plain mes()
+        -- line (not a page -- trap 22/section 2) that grants
+        -- mourning_ederns_journal and mourning_crystal_sample before the
+        -- first real page, then five pages: player, npc, npc, npc, player
+        -- (^chat_sad/^chat_shock anims -- ~chatplayer_anim opens first,
+        -- trap 18). ----
         t.exec("goto-talkToArianwyn2", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwyn2", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn2-dialog", t.chat.play, {
-            "player:Arianwyn -- I made it to the Temple of Light. I broke off a piece of the blackened crystal there.",
+            "player:Arianwyn -- Edern didn't make it. I found his journal",
             "npc:I feared as much. Let me see the sample.",
             "npc:This crystal is unlike any I've seen",
             "npc:Eluned tells me the Temple of Light's mirrors can charge a crystal",
@@ -174,93 +179,131 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.crystal_given", t.quest.expect_stage("crystal_given"))
-        t.exec("talkToArianwyn2.sampleTaken", t.inv.count, "mourning_crystal_sample")
 
-        ------------------------------------------------------------------
-        -- Temple of Light, Puzzle 1 (mend2_puzzle1.rs2): the crystal
-        -- dispenser, five pillars (four mirrors + one yellow crystal, each
-        -- placed then turned to the wiki's documented facing), the real
-        -- wall-support crossing, and the blue chest.
-        ------------------------------------------------------------------
-        t.exec("goto-puzzle1", t.player.goto_tile, 1909, 4639, 1)
-        t.exec("pullDispenser1", t.player.click_loc, "mourning_temple_light_wall_lever", 1)
-        t.exec("p1.mirrors.after_dispenser", t.inv.count, "mourning_mirror")
+        local journal_has_result, journal_has = t.inv.has("mourning_ederns_journal")
+        t.check("crystal_given.ederns_journal", journal_has_result == "ok" and journal_has == true,
+            "inv.has mourning_ederns_journal -> " .. tostring(journal_has_result) .. " " .. tostring(journal_has))
+        local crystal_has_result, crystal_has = t.inv.has("mourning_crystal_new_sample")
+        t.check("crystal_given.crystal_new_sample", crystal_has_result == "ok" and crystal_has == true,
+            "inv.has mourning_crystal_new_sample -> " .. tostring(crystal_has_result) .. " " .. tostring(crystal_has))
 
-        local pillar_2_9 = t.player.by_symbol("loc", "mourning_temple_pillar_2_9")
-        local pillar_2_7 = t.player.by_symbol("loc", "mourning_temple_pillar_2_7")
-        local pillar_2_6 = t.player.by_symbol("loc", "mourning_temple_pillar_2_6")
-        local pillar_2_11 = t.player.by_symbol("loc", "mourning_temple_pillar_2_11")
-        local pillar_2_15 = t.player.by_symbol("loc", "mourning_temple_pillar_2_15")
+        -- ---- Arianwyn #3, Lletya: crystal_given -> puzzle_done
+        -- (mend2_shared.rs2:75-113). All five gates (disguise worn, chisel,
+        -- rope, mourning_crystal_new_sample, death_talisman) pass -- setup
+        -- gave every item and the equip rows above wore the disguise -- so
+        -- this branch runs straight through its five mes() lines (now all
+        -- under the var-u8 ceiling, the RETRY fix). The branch opens with a
+        -- plain mes(), not a page (trap 22/section 2), so talk_to settles on
+        -- that opening line and the lines are read with t.msg.expect, never
+        -- t.chat.play. ----
+        t.exec("talkToArianwyn3", t.player.talk_to, "mourning_arianwyn", 1)
+        local msg3a_result = t.msg.expect("You make your way back into the Temple of Light")
+        t.check("talkToArianwyn3.mesOpening", msg3a_result == "ok",
+            "msg.expect('You make your way back into the Temple of Light') -> " .. tostring(msg3a_result))
+        local msg3b_result = t.msg.expect("Piece by piece you assemble a fully charged crystal")
+        t.check("talkToArianwyn3.mesSplitLine", msg3b_result == "ok",
+            "msg.expect('Piece by piece you assemble a fully charged crystal') -> " .. tostring(msg3b_result)
+                .. " -- mend2_shared.rs2:102 (formerly a single 300-byte mes() at line 97, over the"
+                .. " 255-byte single-mes() limit) is now split across two mes() calls and lands intact")
+        local msg3c_result = t.msg.expect("Light floods back into the Temple of Light")
+        t.check("talkToArianwyn3.mesClosing", msg3c_result == "ok",
+            "msg.expect('Light floods back into the Temple of Light') -> " .. tostring(msg3c_result))
+        t.ticks(3)
+        t.expect("quest.stage.puzzle_done", t.quest.expect_stage("puzzle_done"))
 
-        t.exec("puzzle1Pillar1", t.player.use_on, mirror, pillar_2_9)
-        t.exec("puzzle1Pillar1.turn", t.player.click_loc, "mourning_temple_pillar_2_9", 1)
-        t.exec("puzzle1Pillar1.point", t.chat.choose, "North.")
+        -- ---- Arianwyn #4, Lletya: puzzle_done -> report
+        -- (mend2_shared.rs2:114-120). Three pages, opening on the PLAYER's
+        -- own line (trap 18: ~chatplayer_anim is the branch's first call). ----
+        t.exec("talkToArianwyn4", t.player.talk_to, "mourning_arianwyn", 1)
+        t.exec("talkToArianwyn4-dialog", t.chat.play, {
+            "player:Arianwyn -- it's done. The Temple of Light is lit again, and the Death Altar answers to us.",
+            "npc:You've done something remarkable. Lord Iorwerth's plans just suffered a real setback.",
+            "npc:Return to me once you've had a moment to catch your breath",
+        })
+        t.ticks(3)
+        t.expect("quest.stage.report", t.quest.expect_stage("report"))
 
-        t.exec("puzzle1Pillar2", t.player.use_on, mirror, pillar_2_7)
-        t.exec("puzzle1Pillar2.turn", t.player.click_loc, "mourning_temple_pillar_2_7", 1)
-        t.exec("puzzle1Pillar2.point", t.chat.choose, "West.")
+        -- ---- Reward snapshot, before the hand-in (docs sec H2 convention) ----
+        local reward_snapshot_result, reward_before = t.skill.snapshot()
+        t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL",
+            "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
+        local qp_before_result, qp_before = t.var.varp("qp")
+        t.step("reward.qpBefore", qp_before_result == "ok" and "PASS" or "FAIL",
+            "var.varp(qp) before hand-in -> " .. tostring(qp_before_result) .. " " .. tostring(qp_before))
+        local talisman_before_result, talisman_before = t.inv.count("death_talisman")
+        t.step("reward.talismanBefore", talisman_before_result == "ok" and "PASS" or "FAIL",
+            "inv.count(death_talisman) before hand-in -> " .. tostring(talisman_before_result)
+                .. " " .. tostring(talisman_before))
 
-        t.exec("puzzle1Pillar3", t.player.use_on, mirror, pillar_2_6)
-        t.exec("puzzle1Pillar3.turn", t.player.click_loc, "mourning_temple_pillar_2_6", 1)
-        t.exec("puzzle1Pillar3.point", t.chat.choose, "South.")
+        -- ---- Arianwyn #5, Lletya: report -> complete
+        -- (mend2_shared.rs2:121-125). One npc page; its dismissal fires
+        -- ~mend2_quest_complete (proc lines 12-21), which is where the
+        -- reward scroll, the agility xp and the two item grants actually
+        -- happen -- trap 22, the page SUSPENDS the branch until dismissed. ----
+        t.exec("talkToArianwyn5", t.player.talk_to, "mourning_arianwyn", 1)
+        t.exec("talkToArianwyn5-dialog", t.chat.play, {
+            "npc:Thank you, truly. Elven-kind owes you a debt for this.",
+        })
+        t.ticks(3) -- completion is asynchronous (docs sec 8) -- not padding
 
-        t.exec("puzzle1Pillar4", t.player.use_on, yellow, pillar_2_11)
+        -- ---- Completion, hand-rolled: quest.expect_complete()'s own
+        -- quest.journal row would FAIL here on purpose, not flakily --
+        -- there is no [proc,mend2_journal] anywhere in this tree and
+        -- quest_journal.rs2 has no part-2 dispatch row at all (grepped
+        -- fresh against the current tree), so ui.journal_open("Mourning's
+        -- End Part II") falls through to the file's own "This world does
+        -- not run this quest yet." default and never reports complete=true.
+        -- Docs sec 8's own rule for exactly this shape: drive the
+        -- completion through the rows that DO land -- quest.varp_complete,
+        -- quest.scroll_title, quest.points, the reward rows -- each written
+        -- by hand with t.check, and never ship a row measured to time out. ----
+        local stage_result, stage_value = t.quest.stage()
+        t.check("quest.varp_complete", stage_result == "ok" and stage_value == 60,
+            "quest.stage() -> " .. tostring(stage_result) .. " " .. tostring(stage_value) .. " complete=60")
 
-        t.exec("puzzle1Pillar5", t.player.use_on, mirror, pillar_2_15)
-        t.exec("puzzle1Pillar5.turn", t.player.click_loc, "mourning_temple_pillar_2_15", 1)
-        t.exec("puzzle1Pillar5.point", t.chat.choose, "East.")
+        local title_result, title_detail = t.scroll.title()
+        local title_name = type(title_detail) == "table" and title_detail.name or nil
+        local title_pass = title_result == "ok" and type(title_name) == "string"
+            and string.find(title_name, "Mourning's End Part II", 1, true) ~= nil
+        -- Owner's rule (docs sec 7): the completion scroll must be
+        -- photographed on this row -- quest.varp_complete's own auto-shot
+        -- above already caught the frame, so this row's attempt reads
+        -- "unchanged" (trap 4); fold that into the detail exactly the way
+        -- quest.expect_complete()'s own quest.scroll_title row does, so
+        -- gate.py's scroll-shot check accepts it without a duplicate PNG.
+        local scroll_shot_result, scroll_shot_detail = t.shot("quest.scroll")
+        local scroll_shot_note = ""
+        if scroll_shot_result == "ok" and type(scroll_shot_detail) == "string"
+            and string.find(scroll_shot_detail, "unchanged", 1, true) then
+            scroll_shot_note = " [scroll already photographed: " .. scroll_shot_detail .. "]"
+        end
+        t.check("quest.scroll_title", title_pass,
+            "scroll.title() -> " .. tostring(title_result) .. " name=" .. tostring(title_name)
+                .. " expected to contain 'Mourning's End Part II'" .. scroll_shot_note)
+        t.scroll.close()
 
-        t.exec("climbWallSupport", t.player.click_loc, "mourning_temple_agility_hanging", 1)
-        -- A world.tile() poll (not a blind t.ticks) right after the crossing
-        -- is what both proven scratch proofs (parity1c/parity1d) do before
-        -- the chest click -- the read itself seems to be what lets the
-        -- client's picking recover, not just elapsed time.
-        local wallsupport_tile_result = t.world.tile()
-        t.check("climbWallSupport.tile", wallsupport_tile_result == "ok",
-            "world.tile() after the wall-support climb -> " .. tostring(wallsupport_tile_result))
+        local qp_after_result, qp_after = t.var.varp("qp")
+        local qp_delta = (qp_after_result == "ok" and qp_before_result == "ok") and (qp_after - qp_before) or nil
+        t.check("quest.points", qp_delta == 2,
+            "qp " .. tostring(qp_before) .. " -> " .. tostring(qp_after)
+                .. " delta=" .. tostring(qp_delta) .. " expected=2"
+                .. " -- quest.journal has no row here: no [proc,mend2_journal] and no part-2 dispatch"
+                .. " in quest_journal.rs2 (grepped fresh), so ui.journal_open falls through to the"
+                .. " default 'This world does not run this quest yet.' text and never reports complete")
 
-        -- ---- BLOCKED: mourning_temple_light_parts_2_closed (the blue
-        -- chest, Temple of Light floor 1, room reached by the wall-support
-        -- crossing) -- a pre-existing driver picking/render seam, not a
-        -- content bug.
-        --
-        -- Evidence: click_loc's own pixel hunt exhausts its full probe
-        -- budget across every camera pose with "the world is not picking"
-        -- / "the world stopped picking mid-search" (no frame hit-tests at
-        -- all during large stretches of the hunt) -- ~340 ticks spent on
-        -- this ONE click alone. Reproduced deterministically THREE times in
-        -- this session with three different settle strategies ahead of the
-        -- click (no gap, t.ticks(2), a t.world.tile() poll) -- all three
-        -- gave the same failure, ruling out a settle-timing fix. This is
-        -- not new: build/parity_state/parity1b/mourningsendpartii.parity.progress.md's
-        -- own first attempt hit it ("the picking timeout ... a scene-load/
-        -- camera seam ... not a content defect"), and
-        -- build/seam_state/seam10/scratch/mend2_full_route_seam10.lua's own
-        -- "official" full-route proof (the seam10 pass's own reference
-        -- script, written by a different author to prove the Doors of
-        -- Light) hit the IDENTICAL failure at the IDENTICAL click
-        -- (build/quest_gate/seam10_mend2_fullroute/ledger.tsv row 19,
-        -- "p1.chest.open FAIL ... element ... pickset held=false, menu has
-        -- no row for it") and worked around it with a forced
-        -- `::setvar mourning_temple_parts_2 1` to continue proving the rest
-        -- of the puzzle chain -- a cheat this committed test file may not
-        -- use (owner rule (e): never ::setvar a quest varp/varbit
-        -- mid-run). Of five known real attempts at this exact click across
-        -- four separate authoring passes (parity1b, parity1c, the original
-        -- parity1d "puzzle3d" run, the seam10 fullroute run, and this file),
-        -- only two ever landed it.
-        --
-        -- Not a reach failure (click_loc's own reach-retry from other
-        -- approach tiles never even gets invoked -- the hunt fails before
-        -- reach is tested) and not a content gap (the five pillar
-        -- placements/turns immediately above this row are real, driven,
-        -- PASSing evidence that Puzzle 1's own mirror mechanic works
-        -- end-to-end; only this one chest's click does not land). Puzzles
-        -- 2-6, the Death Altar, and the rest of the crystal/completion flow
-        -- are all gated behind this same chest (mourning_temple_parts_2),
-        -- so nothing past it is reachable without the same seam recurring
-        -- or without a forbidden cheat. ----
-        t.blocked("mourning_temple_light_parts_2_closed: driver picking/render seam -- click_loc's pixel hunt exhausts its probe budget with 'the world is not picking' across every camera pose after the wall-support crossing, reproduced deterministically 3/3 times here and in build/seam_state/seam10/scratch/mend2_full_route_seam10.lua's own reference proof (row 19); not a content bug -- the real dispenser and all five real pillar placements/turns above it PASS")
-        return
+        -- ---- Rewards: literal values configs/mend2.constant and
+        -- mend2_shared.rs2's own ~mend2_quest_complete document (60000
+        -- Agility XP tenths-scale=600000, Crystal trinket, an extra Death
+        -- Talisman), never a number read back from the scroll ----
+        t.check("reward.agility", t.skill.expect_gain("agility", 60000, reward_before))
+        local trinket_result, trinket_detail = t.inv.expect_has("mourning_crystal_trinket", 1)
+        t.check("reward.crystal_trinket", trinket_result, trinket_detail)
+        local talisman_expect = (talisman_before_result == "ok" and talisman_before or 0) + 1
+        local talisman_result, talisman_detail = t.inv.await("death_talisman", talisman_expect, 10)
+        t.check("reward.death_talisman", talisman_result == "ok",
+            "inv.await(death_talisman," .. talisman_expect .. ",10) -> " .. tostring(talisman_result)
+                .. " " .. tostring(talisman_detail))
+
+        t.finish(0)
     end,
 }
