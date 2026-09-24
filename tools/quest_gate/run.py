@@ -97,12 +97,20 @@ _queue_tsv_spec.loader.exec_module(quest_queue_tsv)
 
 OBJ_BASE = "build_questtest"
 TARGET = "torirs_questtest"
-DEFAULT_MAX_FRAMES = "60000"
+DEFAULT_MAX_FRAMES = str(quest_list.DEFAULT_MAX_FRAMES)
 # 400, not 180: a 100-shot quest run takes 60-120 s of wall time on this
 # machine, and romeojuliet's legitimate imp-fight retry loop was cut off at 180
 # by a reviewer running the default. A hang still fails in under seven
 # minutes; the virtual clock (TORIRS_MAX_FRAMES) is the tighter bound.
 DEFAULT_TIMEOUT = 400
+# A quest whose real guide does not fit the default virtual clock declares
+# its own budget as a `max_frames = <n>,` field beside `fixture = "..."` in
+# its quest table (Sheep Herder's four-sheep herd plus the feed/incinerate
+# leg overran 60000, 2026-09-24). Read by regex like the fixture, applied to
+# TORIRS_MAX_FRAMES for that run only; the wall-clock --timeout is scaled by
+# the same ratio. The ceiling is a hard stop: lint_quest.py rejects a larger
+# declaration and read_max_frames asserts on one.
+MAX_FRAMES_CEILING = quest_list.MAX_FRAMES_CEILING
 DEFAULT_FIXTURE = "fresh_lumbridge.ini"
 
 # Where a PASSING quest's evidence is kept. build/quest_gate/<quest>/ is
@@ -133,6 +141,7 @@ def quest_dir_for(test_id):
     return "quest_%s" % test_id
 
 FIXTURE_RE = re.compile(r'fixture\s*=\s*"([^"]+)"')
+MAX_FRAMES_RE = quest_list.MAX_FRAMES_RE
 NAME_LINE_RE = re.compile(r"(?m)^name\s*=.*$")
 
 
@@ -182,6 +191,33 @@ def read_fixture_name(quest_file):
     match = FIXTURE_RE.search(text)
     assert match, "%s: no fixture = \"...\" field found" % quest_file
     return match.group(1)
+
+
+def read_max_frames(script_file):
+    """The `max_frames = <n>,` field a quest file (or a --script file) may
+    declare, as an int; DEFAULT_MAX_FRAMES when it declares none. A value
+    above MAX_FRAMES_CEILING is a contract violation, not a clamp -- a
+    silently-clamped budget would fail the run somewhere unrelated."""
+    with open(script_file, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    matches = MAX_FRAMES_RE.findall(text)
+    assert len(matches) <= 1, "%s: more than one max_frames field" % script_file
+    if not matches:
+        return int(DEFAULT_MAX_FRAMES)
+    frames = int(matches[0])
+    assert frames > 0, "%s: max_frames must be positive" % script_file
+    assert frames <= MAX_FRAMES_CEILING, "%s: max_frames %d exceeds the ceiling %d" % (
+        script_file, frames, MAX_FRAMES_CEILING)
+    return frames
+
+
+def scaled_timeout(timeout, max_frames):
+    """The wall-clock ceiling scaled by the same ratio as the frame budget,
+    never below the --timeout the caller asked for."""
+    default_frames = int(DEFAULT_MAX_FRAMES)
+    if max_frames <= default_frames:
+        return timeout
+    return (timeout * max_frames + default_frames - 1) // default_frames
 
 
 def write_session_fixture(fixture_name, saves_dir, user):
@@ -449,7 +485,7 @@ def write_wrapper_script(quest_file, out_path):
         handle.write(wrapper)
 
 
-def client_env(directory, saves, script):
+def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
     environment = dict(os.environ)
     environment.update({
         "SDL_VIDEODRIVER": "dummy",
@@ -477,21 +513,25 @@ def client_env(directory, saves, script):
         "TORIRSSERVER_SAVES": saves,
         "TORIRSSERVER_STAFF_LEVEL": "2",
         "TORIRSSERVER_HOME": "3222,3218",
-        "TORIRS_MAX_FRAMES": DEFAULT_MAX_FRAMES,
+        "TORIRS_MAX_FRAMES": str(max_frames),
         "TORIRS_EMBED_CLOCK_MS": "20",
     })
     return environment
 
 
-def launch_client(binary, manifest_path, user, directory, saves, script, log_path, timeout):
+def launch_client(binary, manifest_path, user, directory, saves, script, log_path, timeout,
+                  max_frames=int(DEFAULT_MAX_FRAMES)):
     """One client process, killed (whole process group) if it outlives
     `timeout` seconds of WALL-CLOCK time -- independent of
     TORIRS_MAX_FRAMES, which only bounds the virtual clock and cannot catch
     a real hang. Returns (exit_code_or_None, timed_out)."""
     command = [binary, "--manifest", manifest_path, "--user", user, "--pass", "test",
                "--soft3d", "--window", "765x503"]
-    environment = client_env(directory, saves, script)
+    environment = client_env(directory, saves, script, max_frames)
     print("+ " + " ".join(command), flush=True)
+    if max_frames != int(DEFAULT_MAX_FRAMES):
+        print("run.py: %s declares max_frames = %d (wall-clock timeout %d s)"
+              % (user, max_frames, timeout), flush=True)
     with open(log_path, "wb") as log:
         # cwd is the repo root, ALWAYS: TORIRS_PLUGIN_MANIFEST resolves under
         # script/ relative to the working directory, not to the binary.
@@ -693,10 +733,12 @@ def copy_timeout_shot(directory):
     return target
 
 
-def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout):
+def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout,
+                      max_frames):
     log_path = os.path.join(directory, "client.log")
     code, timed_out = launch_client(binary, manifest_path, name, directory, saves,
-                                     script, log_path, timeout)
+                                     script, log_path, scaled_timeout(timeout, max_frames),
+                                     max_frames)
     if timed_out:
         copy_timeout_shot(directory)
     ledger_path = os.path.join(directory, "ledger.tsv")
@@ -712,6 +754,7 @@ def run_quest(name, binary, manifest_path, timeout):
     quest_file = quest_list.quest_path(REPO_ROOT, name)
     assert os.path.isfile(quest_file), quest_file
     fixture_name = read_fixture_name(quest_file)
+    max_frames = read_max_frames(quest_file)
     refusal = acquire_session_lock(name)
     if refusal:
         return locked_result(name, refusal)
@@ -720,7 +763,7 @@ def run_quest(name, binary, manifest_path, timeout):
         script = os.path.join(directory, "%s.lua" % name)
         write_wrapper_script(quest_file, script)
         return launch_and_report(name, binary, manifest_path, directory, saves, script,
-                                 timeout)
+                                 timeout, max_frames)
     finally:
         release_session_lock(name)
 
@@ -736,13 +779,14 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
     cross-check against `make test-quest-conformance`'s own answer, rather
     than only ever through conformance.py's separate attempt loop."""
     assert os.path.isfile(script_path), script_path
+    max_frames = read_max_frames(script_path)
     refusal = acquire_session_lock(name)
     if refusal:
         return locked_result(name, refusal)
     try:
         directory, saves = prepare_session(name, fixture_name)
         return launch_and_report(name, binary, manifest_path, directory, saves, script_path,
-                                 timeout)
+                                 timeout, max_frames)
     finally:
         release_session_lock(name)
 
@@ -935,8 +979,9 @@ def main():
                         help="quest client processes to run in parallel (default 1)")
     parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
                         help="wall-clock ceiling per quest process, in seconds "
-                             "(default %d) -- a hung run fails, it never hangs the suite"
-                             % DEFAULT_TIMEOUT)
+                             "(default %d) -- a hung run fails, it never hangs the suite; "
+                             "scaled up by a quest's own max_frames / %s"
+                             % (DEFAULT_TIMEOUT, DEFAULT_MAX_FRAMES))
     parser.add_argument("--warm-from", default="auto",
                         help="seed a not-yet-existing build_questtest objdir from this "
                              "directory, or 'auto' for the freshest sibling *_opt_es objdir "

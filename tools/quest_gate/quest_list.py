@@ -14,6 +14,16 @@ looking at what happened to exist on disk.
 """
 
 import os
+import re
+
+# The per-quest virtual-clock budget. A quest file may declare
+# `max_frames = <n>,` beside its `fixture = "..."` field; run.py applies it to
+# TORIRS_MAX_FRAMES for that run (and scales the wall-clock --timeout by the
+# same ratio), lint_quest.py rejects one above the ceiling. Kept here so the
+# runner and the lint can never disagree about the number.
+DEFAULT_MAX_FRAMES = 60000
+MAX_FRAMES_CEILING = 4 * DEFAULT_MAX_FRAMES
+MAX_FRAMES_RE = re.compile(r"(?m)^[ \t]*max_frames\s*=\s*(\d+)\s*,")
 
 
 def quests_dir(repo_root):

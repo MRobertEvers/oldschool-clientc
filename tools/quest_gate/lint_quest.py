@@ -500,6 +500,29 @@ def check_marker(text):
     return findings
 
 
+def check_max_frames(text):
+    """A quest's own `max_frames = <n>,` budget (run.py applies it to
+    TORIRS_MAX_FRAMES) must be one field, positive, and at most the ceiling
+    quest_list.MAX_FRAMES_CEILING -- run.py asserts on the same bound, and
+    the lint says so first, at authoring time."""
+    import quest_list  # the runner's own constants, so the two cannot disagree
+    findings = []
+    matches = list(quest_list.MAX_FRAMES_RE.finditer(text))
+    if len(matches) > 1:
+        findings.append((_line_of(text, matches[1].start()),
+                          "more than one max_frames field -- declare the budget once"))
+    for match in matches:
+        frames = int(match.group(1))
+        if frames <= 0 or frames > quest_list.MAX_FRAMES_CEILING:
+            findings.append((_line_of(text, match.start()),
+                              "max_frames = %d is outside 1..%d (the ceiling is 4x the "
+                              "default %d; a guide that needs more needs a harness hook, "
+                              "not a bigger clock)"
+                              % (frames, quest_list.MAX_FRAMES_CEILING,
+                                 quest_list.DEFAULT_MAX_FRAMES)))
+    return findings
+
+
 def check_duplicate_exec_names(text):
     findings = []
     seen = {}
@@ -570,6 +593,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings.extend(check_step_pass_literal(code))
     findings.extend(check_step_verdict_type(code))
     findings.extend(check_duplicate_exec_names(code))
+    findings.extend(check_max_frames(code))
     if not allow_check:
         findings.extend(check_marker(text))
     findings.extend(check_guide_gap_markers(text, test_id))
