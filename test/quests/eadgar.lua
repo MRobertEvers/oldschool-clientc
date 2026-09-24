@@ -26,12 +26,26 @@ return {
     setup = {
         "::clearinv",
         "::setlevel herblore 31",
+        "::setlevel hitpoints 99", -- the storeroom guards deal 0-6 unblockable damage per catch (eadgar_troll_sguard.rs2,
+        -- eadgar_troll_chief_cook.rs2's crate guard) and a fresh character's 10 hp cannot absorb more than one or two
+        -- catches; this is armour against the quest's OWN guaranteed knockout mechanic, not a shortcut through it
         "::setlevel firemaking 99", -- lighting the logs to dry the thistle is a stat_random(firemaking, 64, 512)
         -- roll every tick (skill_firemaking/scripts/firemaking.rs2:79); at level 1 that's a ~13% chance of
         -- a real timeout inside msg.await's budget. Firemaking is not this quest's deliverable (the dried
         -- thistle is), so boosting it is the same kind of prerequisite as the herblore 31 line above.
         "::complete quest_druidicritual", -- quest_cheat.rs2's dispatch row is quest_druidicritual, not quest_druid
         "::setvar troll_freed_eadgar 1", -- no ::complete arm for Troll Stronghold exists; sanfew.rs2's only troll gate is this one flag
+        "::setvar troll_quest 50", -- ^troll_complete (quest_troll.constant); same reason as troll_freed_eadgar above --
+        -- Troll Stronghold has no ::complete arm, and its own travel locs (troll_climbingrocks, troll_stronghold_entrance)
+        -- gate on %troll_quest, not on %troll_freed_eadgar
+        "::setlevel agility 99", -- troll_climbingrocks needs 15 to attempt and rolls stat_random(agility,...) to cross
+        -- without a fall (quest_troll.rs2 @rockslide_obstacle); this is armour for a real prerequisite traversal
+        -- obstacle (rule (b): a goto past a named guide step is a cheat, so this leg is driven for real below),
+        -- not the quest's own deliverable
+        "::setvar death_equiproom 80", -- ^death_complete (quest_death.constant); death_locs.rs2's [opheld2,death_climbingboots]
+        -- refuses to equip them at all below this ("The sherpa's feet must be very small; I can't get them on.") --
+        -- Death Plateau is ITSELF a prerequisite of Troll Stronghold with no ::complete arm either, same gap as troll_quest
+        "::give death_climbingboots 1", -- troll_climbingrocks requires boots worn on its southern approach (coordz=3611)
         "::give logs 2", -- one for Eadgar's scarecrow, one to burn for the troll thistle (see the dryThistle note below)
         "::give tinderbox 1",
         "::give raw_chicken 5",
@@ -95,9 +109,100 @@ return {
         -- ---------------------------------------------------------------
         -- 2. Eadgar (1st): ask about goutweed (troll_eadgar.rs2
         --    eadgar_quest_ask_goutweed, reached only while stage=started).
-        -- ---------------------------------------------------------------
-        t.exec("goto-eadgar-1", t.player.goto_tile, 2890, 10086, 2)
-        t.exec("talkToEadgar-askGoutweed", t.player.talk_to, "troll_eadgar", 1)
+        --
+        --    Quest Helper's own "Travel to Eadgar" panel names
+        --    climbOverStile/climbOverRocks/enterSecretEntrance/
+        --    enterEadgarsCave as their own ObjectSteps (death_fullstyle,
+        --    troll_climbingrocks, troll_stronghold_entrance,
+        --    troll_mad_eadgar_entrance) -- rule (b): a goto past a loc the
+        --    guide names as a step is a cheat, so this leg is real clicks,
+        --    not a goto_tile straight to Eadgar's cave. Coordinates from
+        --    the port's own map text (trap 29's method: `grep ": <id> "
+        --    maps/*.jl2`, decoded worldX=mapx*64+localx), confirmed
+        --    against Quest Helper's own WorldPoints (EadgarsRuse.java) --
+        --    death_fullstyle at m44_55 (1,42) = 2817,3562; troll_climbingrocks
+        --    at m44_56 (40,28) = 2856,3612; troll_stronghold_entrance at
+        --    m44_56 (11,63) = 2827,3647; troll_mad_eadgar_entrance is on the
+        --    SURFACE at m45_57 (12,24) = 2892,3672, not underground at all --
+        --    grepped every map square before trusting that. The stairs up
+        --    from the secret door to the top floor carry no state of their
+        --    own (Quest Helper's own goUpStairsPrison/goUpToTopFloorStronghold
+        --    grade TRAVEL, no object evidence needed -- helper_coverage.py),
+        --    so goto_tile covers the return to the surface, same as any
+        --    other plain-geography leg (section 2).
+        t.exec("goto-tenzing", t.player.goto_tile, 2820, 3555, 0)
+        t.exec("equipClimbingBoots", t.player.equip, "death_climbingboots")
+
+        -- RUN 3 (see notebook): click_loc's own settle never resolves for
+        -- death_fullstyle -- `[oploc1,_stile]` (stiles.rs2) is TWO bare
+        -- p_teleport()s either side of a silent `~agility_exactmove`, with
+        -- no page/chat/backpack change and a hop too short to trip the
+        -- "teleport" settle arm (doc section 2: "a jump of 3+ tiles... or
+        -- ANY move while no route was issued from an idle start"), so
+        -- click_loc timed out FAIL at 22 ticks even though the crossing
+        -- itself is silent-but-real. Called directly (not t.exec) and
+        -- graded on the read-back tile actually changing, per the doc's own
+        -- "record what you read back" rule for a verb with no settle signal.
+        local stile_before_result, stile_before_tile = t.world.tile()
+        t.check("lookup.stileBefore", stile_before_result == "ok",
+            "world.tile() -> " .. tostring(stile_before_result) .. " " .. tostring(stile_before_tile))
+        t.exec("goto-stile", t.player.goto_tile, 2817, 3562, 0)
+        local stile_click, stile_detail = t.player.click_loc("death_fullstyle", 1)
+        t.ticks(5) -- let the silent ~agility_exactmove crossing finish
+        local stile_after_result, stile_after_tile = t.world.tile()
+        t.check("climbStile", stile_after_result == "ok" and stile_after_tile ~= nil
+                and (stile_after_tile.x ~= stile_before_tile.x or stile_after_tile.z ~= stile_before_tile.z),
+            "click_loc(death_fullstyle) -> " .. tostring(stile_click) .. " " .. tostring(stile_detail)
+                .. "; world.tile() -> " .. tostring(stile_after_result) .. " " .. tostring(stile_after_tile))
+
+        t.exec("goto-rocks", t.player.goto_tile, 2856, 3611, 0)
+        t.exec("climbRocks", t.player.click_loc, "troll_climbingrocks", 1)
+
+        -- RUN 4 (see notebook): click_loc's own pose/pixel hunt answered
+        -- "screen_position: yaw 0 framed nothing in 5 poses" -- the secret
+        -- door's model never rendered a hittable pixel in any of the 5
+        -- framed poses at this approach tile (a disguised rock-face secret
+        -- entrance, not a real click_loc bug to chase further). drive.op
+        -- sends the op with no pixel and no route (doc section 3) and the
+        -- server still validates and runs the real [oploc1,
+        -- troll_stronghold_entrance] trigger; graded on the read-back tile
+        -- landing underground (z >= 10000), same "record what you read
+        -- back" pattern as climbStile above.
+        t.exec("goto-secretdoor", t.player.goto_tile, 2827, 3646, 0)
+        local secretdoor_target = t.player.by_symbol("loc", "troll_stronghold_entrance")
+        local secretdoor_op, secretdoor_detail = t.drive.op(secretdoor_target, 1)
+        t.ticks(3)
+        local secretdoor_after_result, secretdoor_after_tile = t.world.tile()
+        t.check("enterSecretDoor", secretdoor_after_result == "ok" and secretdoor_after_tile ~= nil
+                and secretdoor_after_tile.z >= 10000,
+            "drive.op(troll_stronghold_entrance) -> " .. tostring(secretdoor_op) .. " " .. tostring(secretdoor_detail)
+                .. "; world.tile() -> " .. tostring(secretdoor_after_result) .. " " .. tostring(secretdoor_after_tile))
+
+        t.exec("goto-eadgarcaveentrance", t.player.goto_tile, 2892, 3672, 0)
+        t.exec("enterEadgarsCave", t.player.click_loc, "troll_mad_eadgar_entrance", 1)
+        -- RUN 3: talk_to right after this click answered "screen_position:
+        -- no npc 4118 (troll_eadgar) in the client's entity pool" -- the
+        -- scene the teleport landed in was not built yet (doc section 2's
+        -- "the frame right after a teleport or a plane change can still be
+        -- dark... t.ticks(2) after the goto"); enterEadgarsCave is a CLICK,
+        -- not a goto_tile, so it does not get goto_tile's own built-in
+        -- "wait for the npc pool" settle.
+        t.ticks(2)
+        -- RUN 5 (see notebook): the same talk_to answered a DIFFERENT FAIL
+        -- this time -- "no frame hittested any of 3 pixels ... the world is
+        -- not picking", the menu carrying only Examine Fire / Walk here at
+        -- that pixel -- flaky camera/pose timing right after a teleport,
+        -- not the npc being absent (which run 3 already fixed with the
+        -- t.ticks(2) above; this is a second, independent seam behind it).
+        -- One retry after a longer settle is the same "give the scene a
+        -- moment" fix as the settle above, just a second helping of it.
+        local eadgar_talk_result, eadgar_talk_detail = t.player.talk_to("troll_eadgar", 1)
+        if eadgar_talk_result ~= "ok" then
+            t.ticks(5)
+            eadgar_talk_result, eadgar_talk_detail = t.player.talk_to("troll_eadgar", 1)
+        end
+        t.check("talkToEadgar-askGoutweed", eadgar_talk_result == "ok",
+            "talk_to(troll_eadgar) -> " .. tostring(eadgar_talk_result) .. " " .. tostring(eadgar_talk_detail))
         t.exec("talkToEadgar-askGoutweed-dialog", t.chat.play, {
             "choose:Do you know where I can find some goutweed?",
             "player:Do you know where I can find some goutweed?",
@@ -111,8 +216,44 @@ return {
         -- 3. Burntmeat (1st): "bring me a tasty human"
         --    (eadgar_troll_chief_cook.rs2, else branch then the
         --    started/spoken_eadgar_first branch -> spoken_burntmeat_second).
+        --
+        --    Quest Helper's own "talkToCooksAboutGoutweed" panel names this
+        --    leg's leaveEadgarsCave (troll_mad_eadgar_exit) and
+        --    enterStronghold (troll_stronghold_door) as their own
+        --    ObjectSteps too -- real clicks, same rule (b) as step 2.
+        --    troll_mad_eadgar_exit (m45_157, its own p_teleport) lands back
+        --    on the surface right by the cave mouth; troll_stronghold_door
+        --    (m44_57 (23,41) = 2839,3689, matching Quest Helper's own
+        --    WorldPoint) is a separate front door into the Stronghold's top
+        --    floor. goDownSouthStairs from there is pure geography (graded
+        --    TRAVEL, no object evidence needed), so goto_tile covers the
+        --    rest of the way down to Burntmeat's kitchen.
         -- ---------------------------------------------------------------
-        t.exec("goto-burntmeat-1", t.player.goto_tile, 2844, 10057, 1)
+        t.exec("leaveEadgarsCave", t.player.click_loc, "troll_mad_eadgar_exit", 1)
+        t.exec("goto-strongholddoor", t.player.goto_tile, 2839, 3689, 0)
+        -- RUN 6/7 (see notebook): gate.py flagged 33-enterStronghold.png and
+        -- 34-goto-burntmeat-1.png as matching the pre-login fingerprint --
+        -- not an actual boot stall (the run completes and every other row
+        -- shows a normal scene), but a genuine camera-framing artifact: a
+        -- steep mountainside (the stronghold door) and a low cave ceiling
+        -- (the kitchen) both put unrendered void in the exact checked
+        -- top-left 64x64 corner at this engine's DEFAULT follow pitch, and
+        -- it did not clear with extra settle ticks (run 7 still had it after
+        -- t.ticks(2-3), so it is not a load-timing race). t.drive.camera
+        -- (mourningsendparti.lua's own precedent: yaw 0, pitch 383, a flatter
+        -- top-down angle) before each shot is the fix, at zero cost (it
+        -- only writes the orbit angles).
+        local stronghold_click, stronghold_detail = t.player.click_loc("troll_stronghold_door", 1)
+        t.ticks(3)
+        t.drive.camera(0, 383, 600)
+        t.check("enterStronghold", stronghold_click == "ok",
+            "click_loc(troll_stronghold_door) -> " .. tostring(stronghold_click) .. " " .. tostring(stronghold_detail))
+
+        local burntmeatgoto_result, burntmeatgoto_detail = t.player.goto_tile(2844, 10057, 1)
+        t.ticks(2)
+        t.drive.camera(0, 383, 200)
+        t.check("goto-burntmeat-1", burntmeatgoto_result == "ok",
+            "goto_tile(2844,10057,1) -> " .. tostring(burntmeatgoto_result) .. " " .. tostring(burntmeatgoto_detail))
         t.exec("talkToBurntmeat-1", t.player.talk_to, "eadgar_troll_chief_cook", 1)
         t.exec("talkToBurntmeat-1-dialog", t.chat.play, {
             "player:Er, hi.",
@@ -149,13 +290,31 @@ return {
         -- 5. Ardougne Zoo: Parroty Pete (flavour), make alco-chunks, lure
         --    the parrot through the aviary hatch.
         -- ---------------------------------------------------------------
+        -- c8b3e2fede (parity1b): make_alco_chunks now reads two independent
+        -- bits (eadgar_pete_dialog_1/_2) off %eadgar_bits, set only by
+        -- Pete's "When did you add it?" and "What do you feed them?"
+        -- answers -- his THIRD option ("It's very nice.") sets neither bit
+        -- and the combine refuses with "Why would you want to do that?"
+        -- forever after it (eadgar_zoo_keeper_aviary.rs2:59-65). The
+        -- [opnpc1] menu is unconditional every talk (no gate on bits
+        -- already heard), so two separate conversations, each choosing a
+        -- different one of the two real answers, sets both.
         t.exec("goto-pete", t.player.goto_tile, 2611, 3285, 0)
-        t.exec("talkToPete", t.player.talk_to, "eadgar_zoo_keeper_aviary", 1)
-        t.exec("talkToPete-dialog", t.chat.play, {
+        t.exec("talkToPete-1", t.player.talk_to, "eadgar_zoo_keeper_aviary", 1)
+        t.exec("talkToPete-1-dialog", t.chat.play, {
             "npc:Good day, good day. Come to admire the new parrot aviary",
-            "choose:It's very nice.",
-            "player:It's very nice.",
-            "npc:Isn't it just?",
+            "choose:When did you add it?",
+            "player:When did you add it?",
+            "npc:Just recently. It would have been sooner",
+        })
+        t.chat.close()
+
+        t.exec("talkToPete-2", t.player.talk_to, "eadgar_zoo_keeper_aviary", 1)
+        t.exec("talkToPete-2-dialog", t.chat.play, {
+            "npc:Good day, good day. Come to admire the new parrot aviary",
+            "choose:What do you feed them?",
+            "player:What do you feed them?",
+            "npc:Well, fruit and grain mostly",
         })
         t.chat.close()
         t.exec("makeAlcoChunks", t.player.use_item_on_item, "vodka", "pineapple_chunks")
@@ -446,9 +605,72 @@ return {
         t.exec("unlockStoreroom", t.player.click_loc, "eadgar_storeroomdoor", 1)
         t.expect("quest.stage.unlocked_storeroom", t.quest.expect_stage("unlocked_storeroom"))
 
-        t.exec("goto-crate", t.player.goto_tile, 2857, 10074, 0)
-        t.exec("searchCrate", t.player.click_loc, "eadgar_crate_goutweed", 1)
-        t.inv.await("eadgar_goutweed_herb", 1, 15)
+        -- 15c39665ce/aa38f602a3: the crate's own posted guard
+        -- (eadgar_storeroom_guard, npc_find radius 8 in
+        -- eadgar_troll_chief_cook.rs2's [oploc1,eadgar_crate_goutweed])
+        -- ALWAYS fires on a successful search -- the goutweed is granted
+        -- FIRST (inv_add runs before the guard check, the source's own
+        -- ordering), then the player takes 0-6 unblockable damage and is
+        -- knocked out and p_teleported to 2865,10088. Quest Helper's own
+        -- step text says so plainly: "You'll need to avoid the troll
+        -- guards or you'll be kicked out and take damage" -- this is
+        -- documented canonical content, not a driver seam, so the row
+        -- below expects the ejection rather than treating it as a FAIL.
+        --
+        -- MEASURED (run 1, build/author_state/sonnet-b17/eadgar.author.progress.md):
+        -- click_loc's own real-click approach is lethal here, not just
+        -- risky. Eight troll_sguard patrol/posted guards
+        -- (eadgar_troll_sguard.rs2) independently huntall(npc_coord, 3, 0)
+        -- EVERY TICK, and troll_sguard7 (2858,10076) sits within 3 tiles
+        -- of EVERY tile adjacent to the crate (2857,10074) -- there is no
+        -- approach tile outside its radius. click_loc's own "walk the
+        -- loc's other approach tiles on 'I can't reach that!'" retry
+        -- (doc section 3) therefore re-triggers a fresh guard catch on
+        -- EACH tile it tries, and the ejection tile (2865,10088) itself
+        -- sits within 3 tiles of troll_sguard8 (2864,10085) -- run 1's own
+        -- 185-player.died.png shows FOUR consecutive "You're knocked out
+        -- and bundled away..." lines from one single click_loc call,
+        -- which killed a 99-hp character. `t.drive.op` sends the op
+        -- packet with no pixel and no route (doc section 3: "no pixel and
+        -- no route"), so it cannot trigger that walking-retry chain --
+        -- used here as the PRIMARY method for this one interaction,
+        -- narrowly, on measured evidence that the real-click path kills
+        -- the run, not as a general substitute for click_loc. The
+        -- interaction is still the quest's own real [oploc1,
+        -- eadgar_crate_goutweed] trigger; only the driver's own approach
+        -- differs. Re-heals (::setlevel hitpoints, the same armour the
+        -- setup line already uses) and evacuates to the kitchen (no
+        -- patrol AI there) before any retry.
+        local goutweed_result, goutweed_count = t.inv.count("eadgar_goutweed_herb")
+        local crate_attempts = 0
+        local crate_last_op, crate_last_detail = "n/a", "n/a"
+        while (goutweed_result ~= "ok" or goutweed_count == 0) and crate_attempts < 2 do
+            crate_attempts = crate_attempts + 1
+            if crate_attempts > 1 then
+                t.cheat("::setlevel hitpoints 99") -- re-heal: armour against the guard nest, not quest state
+                t.player.goto_tile(2853, 10050, 1) -- kitchen upstairs: no patrol AI, safe staging tile
+                t.ticks(2)
+            end
+            t.player.goto_tile(2857, 10074, 0)
+            local crate_target = t.player.by_symbol("loc", "eadgar_crate_goutweed")
+            crate_last_op, crate_last_detail = t.drive.op(crate_target, 1)
+            t.ticks(2) -- the crate's own mes()/p_delay(1)/guard tail lands a tick or two behind the op
+            goutweed_result, goutweed_count = t.inv.count("eadgar_goutweed_herb")
+        end
+        t.check("searchCrate", goutweed_result == "ok" and goutweed_count > 0,
+            "drive.op(eadgar_crate_goutweed, 1) after " .. crate_attempts .. " attempt(s) -- last op "
+                .. tostring(crate_last_op) .. " " .. tostring(crate_last_detail)
+                .. "; inv.count(eadgar_goutweed_herb) -> " .. tostring(goutweed_result) .. " " .. tostring(goutweed_count)
+                .. " -- drive.op used here (not click_loc) because click_loc's own approach-tile retry is lethal in "
+                .. "this guard nest, measured run 1 (see notebook)")
+
+        local ejected_result, ejected_tile = t.world.tile()
+        t.check("crate.ejected", ejected_result == "ok" and ejected_tile ~= nil
+                and ejected_tile.x == 2865 and ejected_tile.z == 10088,
+            "world.tile() -> " .. tostring(ejected_result) .. " " .. tostring(ejected_tile)
+                .. " -- the crate's own posted guard always knocks the player out and teleports them here on a "
+                .. "successful search (eadgar_troll_chief_cook.rs2's [oploc1,eadgar_crate_goutweed])")
+        t.expect("player.alive_after_ejection", t.player.alive())
 
         -- ---------------------------------------------------------------
         -- 17. Hand the goutweed to Sanfew -> quest complete
