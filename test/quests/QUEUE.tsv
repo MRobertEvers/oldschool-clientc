@@ -10,7 +10,7 @@ quest_ball	ball	witchshouse		2	todo
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	todo	sonnet-b17	RETRY after 9bf6b97c5: the whole-client freeze on dismissing Dondakan's ^chat_shock page was a cyclic painter scenery chain (painters.c release path), fixed; a build/ copy with t.blocked removed drove 138/0 to the scroll (s11cs_copy1, build/seam_state/seam11/scratch_chatshock/betweenarock_copy.lua). Rewrite from useGoldBarOnDondakan: remove the t.blocked, complete the gold-bar chat list ('npc:Now that's not a bad thought', 'mesbox:Dondakan agrees to try firing'), then drive the furnace/ammo-mould cannonball, [label,dwarfrock_dondakan_fire_cannonball] and the rest of docs/quests/between_a_rock.md with helpers (the scratch copy's goto_tile tail must still meet helper_coverage).
+quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b18	
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16	
 quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b15	
 quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16	
@@ -19,7 +19,7 @@ quest_cabinfever	cabinfever	cabinfever		4	todo
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo		
 quest_chompybird	chompybird	bigchompybirdhunting		3	todo		
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo		
-quest_cog	cog	clocktower		1	todo	seam11	REOPENED after 9bf6b97c5 (flaky green): the run.py --all sweep failed goto-ctlevera three times -- a basement rat's auto-retaliate walks the player back after every ::goto (shot 34: HP 8, hitsplat); with TORIRS_EMBED_CLOCK_MS=20 it fails pickup.blackcog 'bucket_water: not in the backpack' instead (a setup race). Add ::passive on the rat or an await before the ctlevera goto, and read the bucket back in setup.
+quest_cog	cog	clocktower		1	green	sonnet-b18	
 quest_coldwar	coldwar	coldwar		4	todo		
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	todo	sonnet-b17	REVERTED by sampler (sonnet-b17): the McGrubor's Wood railing was teleported past -- railing.squeeze_in settled on map_flag before [oploc1,mcgruborlooserailing] ran, and goto-red-vine's ::goto put the player inside the woods first ('Teleported to 2631,3496,0.' precedes 'You squeeze through the loose railing.' in shot 30; ledger row 22 attempt 1), so the squeeze started from the teleported tile; 29-railing-squeezed-in shows no squeeze. Await the squeeze line and the inside tile (t.world.tile, x/z read back) before any goto into the woods.
+quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b18	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -151,7 +151,7 @@ quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
-quest_sheepherder	sheepherder	sheepherder		1	todo	seam11	REOPENED after 9bf6b97c5 (flaky green): the herd is stochastic -- sheep 3 or 4 never reaches the pen after 95 presses on either binary (s11close_sheep_nogate, s11close_sheep_reachbin). Route the herd so every sheep's prod path avoids the river pocket (seam10 triage AUTHOR note), or await each sheep's pen tile before the next prod.
+quest_sheepherder	sheepherder	sheepherder		1	blocked	sonnet-b18	tools/quest_gate/run.py's TORIRS_MAX_FRAMES=60000 (client_env(), unconditional) is out of test/quests/ reach and insufficient for this quest's full guide (4-sheep herd + poison/incinerate/hand-in) in one client session -- confirmed by a clean exit(0), timed_out=no, published run whose ledger stops at a graceful BLOCKED row immediately after goto-herd4, reproduced live by the reviewer and cross-checked against tools/quest_gate/run.py's own source (client_env() sets TORIRS_MAX_FRAMES unconditionally, overwriting any pre-set env var).
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
