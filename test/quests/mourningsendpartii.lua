@@ -1,11 +1,15 @@
 -- Mourning's End Part II -- hand-written, NOT the new_quest.py scaffold.
 --
--- RESUMED sonnet-b19 (2026-09-24). The committed file at HEAD (4683ff832,
--- effectively 66f460327's "green 40-row" shape) drove a fully-narrated
--- quest: at that time mend2_shared.rs2 collapsed the ENTIRE Temple of Light
--- (getCrystal leg + all six mirror puzzles + the Death Altar) into a single
--- Arianwyn conversation with no player action. That is no longer true.
--- Content-parity passes parity1b/1c/1d/1e (OSRS-Content, 2026-09-23/24)
+-- RESUMED sonnet-b21 (2026-09-25), continuing sonnet-b19's file (2026-09-24).
+-- The committed file at HEAD (ec30f7f5f) still predated content parity1f and
+-- the seam14 door-collision fix, and ended at Puzzle 4 with a "no content
+-- yet" t.blocked -- that is no longer true (see below and the tail of run()).
+-- Originally: the committed file at 4683ff832 (effectively 66f460327's
+-- "green 40-row" shape) drove a fully-narrated quest: at that time
+-- mend2_shared.rs2 collapsed the ENTIRE Temple of Light (getCrystal leg +
+-- all six mirror puzzles + the Death Altar) into a single Arianwyn
+-- conversation with no player action. That is no longer true.
+-- Content-parity passes parity1b/1c/1d/1e/1f (OSRS-Content, 2026-09-23/24)
 -- landed REAL content for:
 --   * the getCrystal leg (mend2_temple.rs2: walk the Mourner Caves for real,
 --     search the dead guard's corpse for Edern's journal, chisel the dark
@@ -31,20 +35,30 @@
 --     the temple's top floor for two more pillars, cross two yellow Doors of
 --     Light, turn the pre-placed mirror in the far north-west room, open+
 --     search the yellow chest -- sets mourning_temple_parts_5.
--- Only once ALL THREE flags are set does mend2_shared.rs2's crystal_given
--- branch fall through to its own mes() narration (lines 122-129) for
--- Puzzles 4-6 and the Death Altar, which are NOT yet real content
--- (build/parity_state/parity1d/mourningsendpartii.parity.progress.md
--- legs_left: puzzle4's rope mechanic, puzzle5's second wall-support
--- crossing + 14 pillars, puzzle6's 17 pillars, the Death Altar barrier --
--- none written). Quest-helper's own doAllPuzzles ConditionalStep
+--   * Puzzle 4 (mend2_puzzle4.rs2, content parity1f + seam14's 76763bc94
+--     correction): re-turn the shared pillar 1_1 east to leave the yellow
+--     rooms, swap pillar 2_6's cyan crystal for the yellow one, re-turn
+--     pillar 3_1 south (red), fit+turn a brand new pillar 3_13 down
+--     (lights the pre-placed Mirror #9 and the cyan barrier
+--     mourning_door_1_13_north -- NORTH per the wiki's Chest #4 map, not
+--     the _east this file originally guessed), tie the rope at
+--     mourning_temple_way_down and climb down, pass the now-plain-
+--     pressable cyan barrier, open+search the blue chest -- sets
+--     mourning_temple_parts_4.
+-- Only once ALL FOUR flags are set does mend2_shared.rs2's crystal_given
+-- branch fall through to its own mes() narration (lines 135-142) for
+-- Puzzles 5-6 and the Death Altar, which are NOT yet real content
+-- (build/parity_state/parity1f/mourningsendpartii.parity.progress.md
+-- legs_left: puzzle5's second wall-support crossing + 14 pillars, puzzle6's
+-- 17 pillars, the Death Altar barrier -- none written; confirmed no
+-- parity1g exists). Quest-helper's own doAllPuzzles ConditionalStep
 -- (MourningsEndPartII.java:379-389) is the single guide node that chains
 -- puzzle1..puzzle5Part2..deathAltarPuzzle together; the content-gap marker
 -- naming it below (search this file for "doAllPuzzles") covers every leaf
--- step under puzzles 4-6/Death Altar as a declared CONTENT_GAP
+-- step under puzzles 5-6/Death Altar as a declared CONTENT_GAP
 -- (helper_coverage.py's own marker() reads
 -- "a marker may name a ConditionalStep: it covers every leaf under it"),
--- while the driven rows above for Puzzle 1-3's own real leaves still grade
+-- while the driven rows above for Puzzle 1-4's own real leaves still grade
 -- DRIVEN (classify() checks a real driven row before it ever reaches the
 -- marker check). Per this queue's own explicit instruction for this
 -- content shape ("a stage the content advances through a narrating mes()
@@ -53,7 +67,7 @@
 -- false "complete" past it -- the reward hand-in (agility xp, crystal
 -- trinket, death talisman) was already proven reachable by the PREVIOUS
 -- (fully-narrated) version of this file and is not new information; driving
--- three real puzzles end to end is.
+-- four real puzzles end to end is.
 --
 -- Setup: the mourner disguise (gasmask + 5 pieces), chisel, rope and a
 -- death talisman are all Quest Helper's own getItemRequirements()
@@ -432,40 +446,136 @@ return {
             "var.server(mourning_temple_parts_5) -> " .. tostring(parts5_result) .. " " .. tostring(parts5_val))
 
         -- ============================================================
-        -- Puzzles 1-3 solved for real (mourning_temple_parts_2/_3/_5 all
-        -- 1). mend2_shared.rs2's crystal_given branch (lines 92-121) now
-        -- falls all the way through its own three reminder gates to its
-        -- final mes() narration (lines 122-129): "you press on through the
-        -- temple's remaining mirrored pillars floor by floor..." -- Puzzles
-        -- 4-6 and the Death Altar (quest-helper's doAllPuzzles
-        -- ConditionalStep, MourningsEndPartII.java:379-389) collapsed into
-        -- one conversation with no player action, exactly the CLAUDE.md-
-        -- named placeholder shape. This is the real, current content
-        -- boundary -- not a driver seam, not a missing symbol.
+        -- Temple of Light, Puzzle 4 (mend2_puzzle4.rs2) -- REAL content
+        -- (content parity1f, OSRS-Content 2c9bc4d25a, corrected by seam14's
+        -- 76763bc94: Mirror #9 reflects NORTH, so the rope landing passes
+        -- mourning_door_1_13_north -- not _east -- and the barrier
+        -- door/chest take PLAIN presses now that the Door-of-Light
+        -- collision cut is fixed; NO stand_on_square, NO ::goto after the
+        -- rope. Proved end to end, rows 1-144 PASS:
+        -- build/seam_state/seam14/cyan_copy/mourningsendpartii_seam14.lua,
+        -- run seam14_cyan_copy3). Re-turn the shared 1_1 pillar east to
+        -- leave the yellow rooms, climb to pillar 2_6 and swap its cyan
+        -- crystal for the yellow one, re-turn pillar 3_1 south (red), fit
+        -- and turn a brand new pillar 3_13 down (lights the pre-placed
+        -- Mirror #9 and the cyan barrier), tie the rope at
+        -- mourning_temple_way_down and climb down, pass the lit cyan
+        -- barrier, open+search the blue-crystal chest.
         -- ============================================================
-        -- GUIDE-GAP: doAllPuzzles narrated at mend2_shared.rs2:122-129 (puzzles 4-6 and the Death Altar have no real content yet -- build/parity_state/parity1d/mourningsendpartii.parity.progress.md legs_left)
+        t.exec("p4.inv.mirrors", t.inv.count, "mourning_mirror")
+        -- "go back to Mirror #8 and rotate it so you can exit east"
+        t.exec("p4.door_yellow2.back", t.player.click_loc, "mourning_door_1_1_south", 1)
+        t.exec("p4.pillar1_1.turn", t.player.click_loc, "mourning_temple_pillar_1_1", 1)
+        t.exec("p4.pillar1_1.turn_choose", t.chat.play, { "choose:East." })
+        t.exec("p4.door_yellow1.exit", t.player.click_loc, "mourning_door_1_1_east", 1)
+        -- "climb the east stairs ... Pick up the Cyan crystal ... place the Yellow crystal"
+        local pillar26 = t.player.by_symbol("loc", "mourning_temple_pillar_2_6")
+        t.exec("goto-p4.pillar2_6", t.player.goto_tile, 1898, 4650, 1)
+        t.ticks(2)
+        t.exec("p4.pillar2_6.take", t.player.click_loc, "mourning_temple_pillar_2_6", 1)
+        t.ticks(2)
+        t.exec("p4.pillar2_6.yellow", t.player.use_on, "mourning_crystal_yellow", pillar26)
+        t.exec("p4.edge2_5_6", t.var.server, "mourning_light_temple_2_5_6")
+        -- "Rotate Mirror #7 to shine the light south. This light should be red."
+        t.exec("goto-p4.pillar3_1", t.player.goto_tile, 1860, 4665, 2)
+        t.ticks(2)
+        t.exec("p4.pillar3_1.turn", t.player.click_loc, "mourning_temple_pillar_3_1", 1)
+        t.exec("p4.pillar3_1.turn_choose", t.chat.play, { "choose:South." })
+        t.exec("p4.edge3_1_8", t.var.server, "mourning_light_temple_3_1_8")
+        -- "Run all the way south, then place Mirror #8 to shine the light down"
+        local pillar313 = t.player.by_symbol("loc", "mourning_temple_pillar_3_13")
+        t.exec("goto-p4.pillar3_13", t.player.goto_tile, 1860, 4613, 2)
+        t.ticks(2)
+        t.exec("p4.pillar3_13.place", t.player.use_on, "mourning_mirror", pillar313)
+        t.exec("p4.pillar3_13.turn", t.player.click_loc, "mourning_temple_pillar_3_13", 1)
+        t.exec("p4.pillar3_13.turn_choose", t.chat.play, { "choose:Up or down...", "choose:Down." })
+        t.exec("p4.door_cyan_north.lit", t.var.server, "mourning_door_1_13_north")
+        -- "Use the rope shortcut to reach the bottom floor."
+        local rocks = t.player.by_symbol("loc", "mourning_temple_way_down")
+        t.exec("goto-p4.rope", t.player.goto_tile, 1876, 4620, 1)
+        t.ticks(2)
+        t.exec("p4.rope.tie", t.player.use_on, "rope", rocks)
+        t.exec("p4.rope.down", t.player.click_loc, "mourning_temple_way_down", 1)
+        t.ticks(2)
+        -- "Mirror #9 is pre-placed, meaning that you can pass through the cyan barrier."
+        t.exec("p4.door_cyan.pass", t.player.click_loc, "mourning_door_1_13_north", 1)
+        t.ticks(2)
+        -- "Open the chest to obtain a blue crystal."
+        t.exec("p4.chest.open", t.player.click_loc, "mourning_temple_light_parts_4_closed", 1)
+        t.ticks(6)
+        t.exec("p4.chest.search", t.player.click_loc, "mourning_temple_light_parts_4_open", 1)
+        t.ticks(2)
+        local parts4_result, parts4_val = t.var.server("mourning_temple_parts_4")
+        t.check("p4.chest.parts4", parts4_result == "ok" and parts4_val == 1,
+            "var.server(mourning_temple_parts_4) -> " .. tostring(parts4_result) .. " " .. tostring(parts4_val))
+        t.exec("p4.chest.blue", t.inv.count, "mourning_crystal_blue")
+
+        -- ============================================================
+        -- Puzzles 1-4 solved for real (mourning_temple_parts_2/_3/_5/_4 all
+        -- 1, all four proved above through real clicks). mend2_shared.rs2's
+        -- crystal_given branch (lines 75-150) is a top-down waterfall of
+        -- bring-along-item and puzzle-flag reminders, and the ROPE check
+        -- (lines 85-88) sits ABOVE every puzzle flag it re-checks on every
+        -- single visit -- not just the first. Puzzle 4's own rope-shortcut
+        -- mechanic (mend2_puzzle4.rs2's [oplocu,mourning_temple_way_down]
+        -- handler, line 309: `inv_del(inv, rope, 1)`) permanently consumes
+        -- the player's ONE rope as a REQUIRED, REAL part of solving that
+        -- puzzle (the tie is a one-time shortcut -- `%mourning_temple_rope`
+        -- latches to 1 and every later crossing reuses it for free, matching
+        -- the live wiki's "tie once, climb freely after" Chest #4 text).
+        -- Quest-helper's own getItemRequirements() (MourningsEndPartII.
+        -- java:1011) lists exactly ONE rope as the whole quest's bring-along
+        -- requirement -- no spare, and this setup gives exactly that one.
+        -- So a player who solves Puzzle 4 for real, as the content itself
+        -- requires, can NEVER again pass mend2_shared.rs2:85-88's rope
+        -- check: talking to Arianwyn a third time answers "Bring a rope --
+        -- some of the temple's stairwells are broken, and you'll need it to
+        -- climb down safely." forever, and %mourning_quest_main can never
+        -- reach ^mend2_puzzle_done (40) -- it is stuck at ^mend2_crystal_
+        -- given (30). This is the quest's own script misbehaving, not a
+        -- driver seam or a missing symbol: a genuinely-played run is locked
+        -- out of its own next line by a reminder gate the script forgot to
+        -- retire once the item it is checking for has legitimately been
+        -- spent doing the quest's own required work.
+        -- ============================================================
+        -- GUIDE-GAP: doAllPuzzles narrated at mend2_shared.rs2:135-142 (puzzles 5-6 and the Death Altar have no real content yet, and are additionally unreachable behind the rope-recheck content_bug at mend2_shared.rs2:85-88 -- build/parity_state/parity1f/mourningsendpartii.parity.progress.md legs_left)
 
         t.exec("goto-talkToArianwyn3", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwyn3", t.player.talk_to, "mourning_arianwyn", 1)
-        local narration_result = t.msg.expect("press on through the temple's remaining mirrored pillars")
-        t.check("talkToArianwyn3.narration", narration_result == "ok",
-            "msg.expect(\"press on through the temple's remaining mirrored pillars\") -> " .. tostring(narration_result)
-                .. " -- mend2_shared.rs2:122, the doAllPuzzles narration for puzzles 4-6 and the Death Altar")
-        t.ticks(3)
-        local final_stage_result, final_stage_val = t.quest.stage()
-        t.check("quest.stage.puzzle_done_by_narration", final_stage_result == "ok" and final_stage_val == 40,
-            "quest.stage() -> " .. tostring(final_stage_result) .. " " .. tostring(final_stage_val)
-                .. " expected 40 (puzzle_done), reached via mend2_shared.rs2:122-129's own mes() narration, not a player-driven route")
+        -- ~chatnpc(...) opens a PAGE (docs section on "only these open a
+        -- page"), not a chat-log line -- read it with chat.expect_text,
+        -- never msg.expect.
+        local rope_gate_result = t.chat.expect_text("Bring a rope")
+        t.check("talkToArianwyn3.rope_gate_reproduced", rope_gate_result == "ok",
+            "chat.expect_text(\"Bring a rope\") -> " .. tostring(rope_gate_result)
+                .. " -- mend2_shared.rs2:85-88's bring-along rope check fires again here, AFTER"
+                .. " mourning_temple_parts_4 is already 1, because Puzzle 4's own required rope-tie"
+                .. " (mend2_puzzle4.rs2:309, inv_del(inv, rope, 1)) already spent the player's only rope")
+        t.ticks(2)
+        local stuck_stage_result, stuck_stage_val = t.quest.stage()
+        t.check("quest.stage.stuck_at_crystal_given", stuck_stage_result == "ok" and stuck_stage_val == 30,
+            "quest.stage() -> " .. tostring(stuck_stage_result) .. " " .. tostring(stuck_stage_val)
+                .. " -- still 30 (crystal_given), never reaches 40 (puzzle_done): the rope gate above it"
+                .. " in the same branch never releases once the rope is spent")
 
-        t.blocked("mourningsendpartii: Temple of Light Puzzles 4-6 and the Death Altar (quest-helper's "
-            .. "doAllPuzzles ConditionalStep, MourningsEndPartII.java:379-389) have no real content -- "
-            .. "mend2_shared.rs2:122-129 narrates the whole remaining leg in one mes() chain with no "
-            .. "player action once mourning_temple_parts_2/_3/_5 are all set (proved above: Puzzles 1-3 "
-            .. "driven end to end through real dispenser pulls, mirror placements/turns, the wall-support "
-            .. "agility crossing, three Doors of Light and three chests). content_bug, not a driver seam -- "
-            .. "see build/parity_state/parity1d/mourningsendpartii.parity.progress.md legs_left "
-            .. "(puzzle4's rope-descent mechanic, puzzle5's second wall-support crossing + 14 pillars, "
-            .. "puzzle6's 17 pillars, the Death Altar barrier: none written yet).")
+        t.blocked("mourningsendpartii: content_bug, not a driver seam -- mend2_shared.rs2:85-88's"
+            .. " crystal_given-branch rope check (`if (inv_total(inv, rope) < 1) { ~chatnpc(\"Bring a"
+            .. " rope...\"); return; }`) re-fires on EVERY visit and sits ABOVE the"
+            .. " mourning_temple_parts_2/_3/_5/_4 flag checks below it, but Puzzle 4's own real,"
+            .. " required content (mend2_puzzle4.rs2:309, tying the rope shortcut at"
+            .. " mourning_temple_way_down) permanently deletes the player's rope as part of solving"
+            .. " that puzzle -- and quest-helper's own getItemRequirements() (MourningsEndPartII."
+            .. "java:1011) documents exactly one rope for the whole quest, no spare. Proved above:"
+            .. " Puzzles 1-4 driven end to end for real (dispenser pulls, mirror placements/turns, the"
+            .. " wall-support agility crossing, the rope shortcut, four Doors of Light, four chests,"
+            .. " mourning_temple_parts_4 = 1), then talking to Arianwyn a third time reproduces the"
+            .. " exact reminder line and %mourning_quest_main stays at 30 (crystal_given) forever --"
+            .. " it can never reach 40 (puzzle_done), so the mes() narration for puzzles 5-6 and the"
+            .. " Death Altar (mend2_shared.rs2:135-142, itself a separate declared GUIDE-GAP for"
+            .. " those unwritten legs -- see build/parity_state/parity1f/mourningsendpartii.parity."
+            .. "progress.md legs_left) is unreachable by ANY real playthrough that solves Puzzle 4 as"
+            .. " the content requires. Not a driver seam: the click, the item deletion and the"
+            .. " re-check are all real script behaviour, reproduced with no cheat.")
         return
     end,
 }
