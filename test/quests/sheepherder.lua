@@ -91,23 +91,9 @@
 -- the wall_blacklist/dead_tiles machinery only for whatever local
 -- obstacle (a rock, a building corner) this BFS's coarse map-square grid
 -- does not already account for.
---
--- RESUMED (sonnet-b19) after RETRY 5b84289fa: the fixed TORIRS_MAX_FRAMES
--- ceiling this file used to t.blocked() on for plaguesheep_4 specifically
--- is gone -- run.py now honours a per-quest `max_frames` field (see it
--- declared below). The frame-budget t.blocked() for def.id=="4" is
--- deleted; the herd loop drives all four sheep uniformly again.
 return {
     id = "sheepherder",
     fixture = "fresh_lumbridge.ini",
-    -- RESUMED after RETRY 5b84289fa: run.py now honours a per-test
-    -- max_frames field (ceiling 240000; default was the fixed 60000 that
-    -- used to exhaust silently mid sheep4, see the retired banner this
-    -- replaced below). 180000 gives sheep1-3's own herd loop (measured
-    -- 1229 ticks / 215 presses / ~45k frames) plus sheep4's full 140-press
-    -- cap plus the poison/incinerate/hand-in sequence comfortable headroom
-    -- under the ceiling; run.py scales --timeout by the same ratio.
-    max_frames = 180000,
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         "::sheepherder",
@@ -243,6 +229,53 @@ return {
         for _, def in ipairs(sheep_defs) do
             t.exec("goto-herd" .. def.id, t.player.goto_tile, def.goto_x, def.goto_z, 0)
 
+            -- BLOCKED (sonnet-b18, run 5): TORIRS_MAX_FRAMES=60000
+            -- (tools/quest_gate/run.py's client_env(), fixed and not
+            -- reachable from test/quests/ or from --timeout) is exhausted
+            -- by setup/dialogue plus sheep 1-3's own herd loop ALONE, every
+            -- single time, before sheep 4's herd loop presses even once.
+            -- Proven deterministic across FOUR independent full runs
+            -- (--timeout 400, 560, 1400, 1400) that all landed on the
+            -- identical row (this exact "goto-herd4" line, ticks=1253) with
+            -- a genuinely CLEAN process exit (code 0, run.py's own
+            -- "timed_out" column reading "no" every time -- never a
+            -- subprocess.TimeoutExpired/SIGKILL) -- main.c's own frame loop
+            -- (`if (max_frames > 0 && frame_count > max_frames) { ...;
+            -- return 0; }`, src/main.c ~line 2441) returns silently with no
+            -- t.finish() and no ledger row for the step in flight, which is
+            -- exactly the "ledger has no FAIL/BLOCKED row" shape gate.py
+            -- reported every time. sheep1-3 cost 251+417+561=1229 ticks for
+            -- 215 presses (an average already inside per-press engine cost,
+            -- not something this file's routing can meaningfully shrink --
+            -- sheep1, the CHEAPEST of the three, still needed 50 presses),
+            -- so sheep4 (comparable distance, likely 50-114 more presses)
+            -- plus the still-undriven poison/incinerate/hand-in sequence
+            -- cannot fit in whatever frame budget remains -- observed
+            -- exhaustion lands at frame 60000 with ticks=1253, well short
+            -- of the ~2,000-tick session guidance (QUEST_AUTHORING.md
+            -- section 8), so it is the FRAME ceiling, not the tick one,
+            -- that binds here; see
+            -- build/author_state/sonnet-b18/sheepherder.author.progress.md
+            -- runs 1-5 for the full per-run evidence. The fix is a
+            -- harness-side budget change (run.py's TORIRS_MAX_FRAMES or a
+            -- faster/parked-resume mechanism), out of test/quests/ reach.
+            if def.id == "4" then
+                t.blocked(
+                    "tools/quest_gate/run.py's fixed TORIRS_MAX_FRAMES=60000 " ..
+                    "client frame budget is exhausted by setup/dialogue plus " ..
+                    "sheep 1-3's herd loop alone (1229 ticks, 215 presses) " ..
+                    "before plaguesheep_4's herd loop can press even once -- " ..
+                    "confirmed deterministic, a clean exit(0) at the SAME row " ..
+                    "across 4 full runs with --timeout 400/560/1400/1400, never " ..
+                    "a run.py TimeoutExpired/killed process -- this quest's " ..
+                    "remaining work (sheep4's herd plus the poison/incinerate/" ..
+                    "hand-in sequence) does not fit inside one client " ..
+                    "session's frame budget as currently authored, and " ..
+                    "TORIRS_MAX_FRAMES is set in tools/quest_gate/run.py, out " ..
+                    "of test/quests/ reach.")
+                return
+            end
+
             local pressed = 0
             local last_detail = "no press issued"
             local history = {}
@@ -291,31 +324,6 @@ return {
                     end
                 end
                 tracked_x, tracked_z = sheep.x, sheep.z
-            end
-            -- Only plaguesheep_1's own spawn copies (m40_52.spawn:
-            -- 2609,3344 / 2610,3343 / 2610,3345) sit south of the pen
-            -- (PEN_Z_MIN=3351) -- plaguesheep_2/3/4 all spawn north of it
-            -- already (2621-2623,3366-3367 / 2560-2561,3388-3390 /
-            -- 2610-2612,3390-3391). The "climb north around the walls"
-            -- plan below is that colour's own detour and must not apply
-            -- to a colour that never needed it: measured plaguesheep_2,
-            -- run 3 (sonnet-b19) -- once its own Z-fallback (triggered
-            -- when a map-edge X push at 2621-2623 could not even be
-            -- walked to) pushed it back south across PEN_Z_MAX, the
-            -- climbing flag re-armed on every crossing and the loop
-            -- oscillated forever between z=3364 (climb north) and
-            -- z=3365 (fall back south, since climbing's own single-point
-            -- target was already reached and X stayed blocked) --
-            -- stepped=139, herded=false, never a wall in sight. Sticky:
-            -- computed once from whichever live copy could need it, and
-            -- cleared for good the first time the tracked position is
-            -- genuinely observed north of the wall, so a later Z
-            -- fallback push can never re-arm it.
-            local needs_climb = false
-            for _, r in ipairs(rows or {}) do
-                if r.z <= PEN_Z_MAX then
-                    needs_climb = true
-                end
             end
             local unmoved_streak = 0
             local last_axis = nil
@@ -380,10 +388,7 @@ return {
                 -- north FIRST and only turns to X once genuinely clear of
                 -- every wall (see the file banner for the BFS that found
                 -- this route against the real map).
-                if needs_climb and sheep.z > PEN_Z_MAX then
-                    needs_climb = false -- sticky: crossed north for good, never re-arm on a later southward fallback push
-                end
-                local climbing = needs_climb and (not in_x) and (sheep.z <= PEN_Z_MAX)
+                local climbing = (not in_x) and (sheep.z <= PEN_Z_MAX)
                 local eff_z_min, eff_z_max
                 if climbing then
                     eff_z_min, eff_z_max = PEN_Z_MAX + 1, PEN_Z_MAX + 1
@@ -582,19 +587,7 @@ return {
                     end
                 end
 
-                -- goto_tile (the ::goto cheat, re-issuing on arrival --
-                -- section 2), not walk_to: plain positioning to stand next
-                -- to a wandering sheep is not a guide-named obstacle
-                -- (trap (b) doesn't apply -- no door/puzzle/loc is being
-                -- skipped, just the walk itself). Needed because a normal
-                -- walk_to cannot cross this map square's own east seam at
-                -- all -- measured, run 4 (sonnet-b19): plaguesheep_2's own
-                -- spawn copies sit at x=2621-2623 (m40_52 spans
-                -- x=2560..2623) and every walk_to(2624, z) "stalled at
-                -- 2623,z" (never left), so a west push from the map's own
-                -- edge column could never even reach its stand tile and
-                -- fell back to Z every time, unable to ever reduce X.
-                local walk_result, walk_detail = t.player.goto_tile(stand_x, stand_z, 0)
+                local walk_result, walk_detail = t.player.walk_to(stand_x, stand_z, 12)
                 local at_result, at_tile = t.world.tile()
                 local press_result, press_detail = t.player.press(def.npc, 1, 8)
                 pressed = pressed + 1
@@ -655,54 +648,8 @@ return {
                 end
 
                 if outcome == "stepped" then
-                    -- A "stepped" outcome only means the coord_direction/
-                    -- movecoord_indirection pair in diseased_sheep.rs2
-                    -- moved SOME npc SOME tile -- not that it moved THE
-                    -- axis or direction this attempt aimed for, and not
-                    -- that it moved toward the gate at all. Measured
-                    -- plaguesheep_4, run 1 (sonnet-b19): a "push south"
-                    -- (player standing north of the tracked sheep,
-                    -- expecting a decreasing-Z step) landed as a
-                    -- CONFIRMED EASTWARD step every single time for eight
-                    -- consecutive attempts (npc slot 463's own before/
-                    -- after coords: 2611,3392->2612,3392, 2613->2614,
-                    -- ..., 2619->2620,3392 unchanged) while the alternating
-                    -- "push west" attempt from the new tile failed outright
-                    -- -- resetting unmoved_streak to 0 on ANY movement let
-                    -- this march the tracked copy eight tiles due east,
-                    -- in a straight line away from the gate band, before
-                    -- the 140-press cap ran out with it wedged at
-                    -- 2620,3393 (every neighbour there walled). Grade a
-                    -- step by whether it actually CLOSED the clamped
-                    -- Manhattan distance to the gate band (the same
-                    -- formula the candidate ranking above uses), not by
-                    -- "did the coordinate change": a sideways or backward
-                    -- step is bookkept exactly like a walled push (this
-                    -- exact tile+axis blacklisted, streak kept climbing),
-                    -- so the resync/retreat machinery gets a real chance
-                    -- to escape instead of being reset to 0 on every
-                    -- unproductive drift.
-                    -- Graded against THIS iteration's own active sub-goal
-                    -- (eff_z_min/eff_z_max, already computed above from
-                    -- `climbing`), not the final gate band directly: during
-                    -- the climb the real target is "north of the pen's own
-                    -- wall", which is not always the same direction as
-                    -- shrinking the gate-band distance, and grading against
-                    -- the gate band outright regressed plaguesheep_2 (run 2,
-                    -- sonnet-b19: blacklisted genuine climbing progress,
-                    -- drove it into the map square's own east edge at
-                    -- x=2623/2624 -- m40_52 spans x=2560..2623 -- and
-                    -- walk_to there started timing out).
-                    local prior_dist = math.max(0, GATE_X_MIN - sheep.x, sheep.x - GATE_X_MAX) + math.max(0, eff_z_min - sheep.z, sheep.z - eff_z_max)
-                    local moved_x_n, moved_z_n = tonumber(moved_x), tonumber(moved_z)
-                    local new_dist = math.max(0, GATE_X_MIN - moved_x_n, moved_x_n - GATE_X_MAX) + math.max(0, eff_z_min - moved_z_n, moved_z_n - eff_z_max)
-                    tracked_x, tracked_z = moved_x_n, moved_z_n
-                    if new_dist < prior_dist then
-                        unmoved_streak = 0
-                    else
-                        wall_blacklist[string.format("%d,%d:%s", sheep.x, sheep.z, axis)] = true
-                        unmoved_streak = unmoved_streak + 1
-                    end
+                    tracked_x, tracked_z = tonumber(moved_x), tonumber(moved_z)
+                    unmoved_streak = 0
                 else
                     -- Correct the tracked tile to whatever pointer.lua's
                     -- OWN pre-press snapshot named, not the candidate this
