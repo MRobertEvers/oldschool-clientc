@@ -100,14 +100,14 @@ quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	to
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
-quest_misc	misc	throneofmiscellania		1	green	sonnet-b17	
+quest_misc	misc	throneofmiscellania		1	todo	sonnet-b17	RETRY after 87ec0250d: the npc wander parity (LostCity Npc.ts wanderMode) moved the shared RNG stream and approval.real_chops (misc.lua:376, var.await_server misc_approval 3 within 900 ticks) now reads 2 -- only two maple logs land before the tree falls. AUTHOR: make the row independent of the tree roll (re-find and re-chop the respawned or next maple until approval reaches 3, or assert the per-log approval gain), not a longer await; every other row stays (87/88 green on the shared binary)
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b15	
-quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b21	RE-AUTHOR after a0f9104e13: content now has the rope fix (Arianwyn's 'Bring a rope' reminder accepts the tied rope, %mourning_temple_rope >= 1, per Quest Helper MourningsEndPartII.java:507/228-229/1011) -- talkToArianwyn3 must drop its rope_gate_reproduced/stuck_at_crystal_given rows and the t.blocked tail and drive on: the suite run already reads quest.stage() -> ok 40 there. Past 40 the content still NARRATES puzzles 5-6 + the Death Altar (mend2_shared.rs2 post-parts_4 mes chain; PARITY.tsv legs_left) -- drive the report stage per the guide and mark those legs t.blocked GUIDE-GAP, not a green.
+quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	todo	sonnet-b21	RE-AUTHOR after a0f9104e13: content now has the rope fix (Arianwyn's 'Bring a rope' reminder accepts the tied rope, %mourning_temple_rope >= 1, per Quest Helper MourningsEndPartII.java:507/228-229/1011) -- talkToArianwyn3 must drop its rope_gate_reproduced/stuck_at_crystal_given rows and the t.blocked tail and drive on: the suite run already reads quest.stage() -> ok 40 there. Past 40 the content still NARRATES puzzles 5-6 + the Death Altar (mend2_shared.rs2 post-parts_4 mes chain; PARITY.tsv legs_left) -- drive the report stage per the guide and mark those legs t.blocked GUIDE-GAP, not a green. || RETRY after 87ec0250d: the Temple of Light's 'instruction budget exhausted (400000)' on a loc absent from the 8,192-row pool is fixed (pointer.lua scan meter; the parity1g full replay now drives 161 rows through puzzle 4 and talkToArianwyn3 to stage 40) -- re-author as above; puzzles 5-6 + the Death Altar stay narrated until parity1h
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
@@ -151,7 +151,7 @@ quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
-quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b21	
+quest_sheepherder	sheepherder	sheepherder		1	todo	sonnet-b21	RETRY after 87ec0250d: with the npc wander parity landed (no per-tick go-home; the diseased sheep wander wanderrange=3 and bleat back into wander mode every 10-29 ticks, LostCity quest_sheepherder.npc) sheep 1 and 2 still herd (54 and 27 presses) but plaguesheep_3 is not herded in 130 presses: it wanders home toward its spawn box past the player, the herd loop's walk_to(aim = sheep.x-1) stops short on the fenced row and the press lands from the EAST side, so every 'push east' prods it west (2592,3383 -> 2552,3392 over presses 86-113; build/seam_state/seam15/wander/sheep_probe). AUTHOR: the herd loop needs a wrong-side check (player tile vs the aim tile before each press) and a route around the sheep; rewrite herd.sheep3_in_pen and its t.blocked tail. Every press landed on the named copy (lost=0 no_row=0) -- not a driver aim seam
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
