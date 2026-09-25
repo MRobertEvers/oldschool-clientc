@@ -108,6 +108,33 @@
 -- table's `max_frames = <n>,` field -- so that field is declared below and
 -- the sheep-4 special case is gone; the herd loop treats all four
 -- identically.
+--
+-- RESUMED (sonnet-b21) after RETRY 52f0b3a88 (seam13): the committed
+-- herd loop (sonnet-b20's 8-round file, t.blocked at the bottom of this
+-- history) pressed every sheep with `t.player.press(def.npc, 1, 8)` --
+-- NO `opts` selector at all -- and its own t.blocked named the reason as
+-- "t.player.press having no verb to aim a specific one of the three
+-- near-identical live copies". That verb landed 2026-09-24
+-- (pointer.lua's QD.player._npc_copy/_click_npc_copy, seam13's proof
+-- build/quest_gate/seam13_aim_after1 14/14): `press(npc, op, ticks, opts)`
+-- now takes `{ slot = n }` and aims ONLY that live copy, answering
+-- `no_row` rather than silently landing on a neighbour. The whole herd
+-- loop is rewritten around it -- every colour tracks the SERVER SLOT
+-- `t.npc.tiles` hands back, never a tile, and every press names that
+-- exact slot, so the "which of the three copies actually got hit"
+-- ambiguity the previous 8 rounds fought (resync timing races, a 2-cycle
+-- detector, an x-escape direction bug) cannot happen any more and the
+-- machinery built to defend against it is gone. The route itself is
+-- unchanged in spirit from the BFS above (climb north of the pen's solid
+-- wall, close X into the gate band, close Z down into it) but is now a
+-- single small `herd_plan_move` function driving all four colours off
+-- their live position, with a boulder-column guard that PREVENTS ever
+-- pushing north while still inside the danger x-range instead of
+-- detecting the boulder reactively after the fact. See the fresh banner
+-- immediately above the herd loop itself for the map evidence
+-- (m40_52.jl2 greps for the pen's three walls, the boulders at
+-- 2611-2612,3347-3348 / 2610-2611,3349-3350 / 2592-2593,3381-3382, and
+-- every colour's own *.spawn rows) re-verified this round.
 return {
     id = "sheepherder",
     fixture = "fresh_lumbridge.ini",
@@ -284,8 +311,15 @@ return {
         -- a tile a couple of squares off that colour's own *.spawn rows
         -- (m40_52.spawn), close enough for t.npc.tiles to find it without
         -- landing the player on top of it.
+        -- pen_x/pen_z: sheepherder_sheep_data.dbrow's own sheep_in_pen_coord
+        -- for each colour (0_40_52_36_34 -> 2596,3362, etc, decoded the same
+        -- way section 5's `^*_coord` bullet decodes any of these: world x =
+        -- 40*64+local, world z = 52*64+local) -- the FIXED tile
+        -- diseased_sheep.rs2's own npc_tele/npc_add lands each enclosure
+        -- sheep on, used below to aim a real approach tile at each one
+        -- rather than trust a generic walk_near.
         local sheep_defs = {
-            { id = "1", npc = "plaguesheep_1", enclosure = "herder_plaguesheep_1_enclosure", bitvar = "sheepherder_sheep_a", bones = "sheepbonesa", goto_x = 2612, goto_z = 3342 },
+            { id = "1", npc = "plaguesheep_1", enclosure = "herder_plaguesheep_1_enclosure", bitvar = "sheepherder_sheep_a", bones = "sheepbonesa", goto_x = 2612, goto_z = 3342, pen_x = 2596, pen_z = 3362 },
             -- plaguesheep_2's own spawn rows (m40_52.spawn) are 2621-2623,
             -- 3366-3367 -- x=2624 (this file's own earlier goto, kept from
             -- the scaffold) is the FIRST tile of the next map square
@@ -294,680 +328,299 @@ return {
             -- (measured: 68 of 75 presses `out_of_range`, the walk never
             -- actually leaving 2624 despite a valid open target). 2618 is
             -- comfortably inside the loaded square instead.
-            { id = "2", npc = "plaguesheep_2", enclosure = "herder_plaguesheep_2_enclosure", bitvar = "sheepherder_sheep_b", bones = "sheepbonesb", goto_x = 2618, goto_z = 3367 },
-            { id = "3", npc = "plaguesheep_3", enclosure = "herder_plaguesheep_3_enclosure", bitvar = "sheepherder_sheep_c", bones = "sheepbonesc", goto_x = 2558, goto_z = 3391 },
+            { id = "2", npc = "plaguesheep_2", enclosure = "herder_plaguesheep_2_enclosure", bitvar = "sheepherder_sheep_b", bones = "sheepbonesb", goto_x = 2618, goto_z = 3367, pen_x = 2597, pen_z = 3363 },
+            { id = "3", npc = "plaguesheep_3", enclosure = "herder_plaguesheep_3_enclosure", bitvar = "sheepherder_sheep_c", bones = "sheepbonesc", goto_x = 2558, goto_z = 3391, pen_x = 2597, pen_z = 3360 },
             -- Same map-square-boundary lesson as plaguesheep_2 above:
             -- m40_52 spans world z=3328..3391, and z=3393 (this file's own
             -- earlier goto) is two tiles into the NEXT square north
             -- (m40_53). 3388 is comfortably inside, still close to the
             -- 2610-2612,3390-3391 spawn cluster.
-            { id = "4", npc = "plaguesheep_4", enclosure = "herder_plaguesheep_4_enclosure", bitvar = "sheepherder_sheep_d", bones = "sheepbonesd", goto_x = 2613, goto_z = 3388 },
+            { id = "4", npc = "plaguesheep_4", enclosure = "herder_plaguesheep_4_enclosure", bitvar = "sheepherder_sheep_d", bones = "sheepbonesd", goto_x = 2613, goto_z = 3388, pen_x = 2596, pen_z = 3359 },
         }
         local GATE_X_MIN, GATE_X_MAX = 2592, 2594
         local GATE_Z_MIN, GATE_Z_MAX = 3360, 3363
-        -- sheepherder_in_pen's own coord_pair_table row (0_40_52_35_23 to
-        -- 0_40_52_49_36 -- sheepherder_area.dbrow): the enclosure's built
-        -- x-span, walled solid on all three of south (z=3351), east
-        -- (x=2609) and north (z=3364) -- confirmed against m40_52.jl2's
-        -- own loc 980 rows directly (see the file banner). GATE_X/GATE_Z
-        -- (2592-2594,3360-3363) sits entirely outside this span to its
-        -- west, so a route only ever needs to stay off PEN_X_MIN..PEN_X_MAX
-        -- while Z is inside PEN_Z_MIN..PEN_Z_MAX -- never actually needs
-        -- the coordinates of the door in the west wall. PEN_X_MIN/PEN_X_MAX/
-        -- PEN_Z_MIN/PEN_Z_MAX themselves are declared above, before
-        -- enterEnclosure1, since that first gate crossing needs them too.
+
+        -- RETRY after 52f0b3a88 (seam13): t.player.press now takes an npc
+        -- SELECTOR (`{ slot = n }`) that aims ONE named live copy and
+        -- answers `no_row` rather than silently landing on a different
+        -- one -- QUEST_AUTHORING.md trap 21's fix for "a press aimed at a
+        -- clear copy can still land on ... the wedged one", which is what
+        -- sonnet-b20's t.blocked used to report here (the committed file
+        -- pressed with no `opts` argument at all -- see git history on
+        -- this file). The herd loop below is rewritten around that
+        -- selector: every colour tracks the SERVER SLOT `t.npc.tiles`
+        -- hands back, never a tile, and every press names that exact slot
+        -- -- there is no more "which of the three near-identical copies
+        -- actually got hit" ambiguity to defend against, so the
+        -- multi-hundred-line resync/dead-tile/x-escape machinery the
+        -- previous round needed for that ambiguity is gone.
         --
-        -- RESUMED (sonnet-b20): m40_52.jl2 places two 2x2 boulders (both
-        -- shape 10, centrepiece -- a real push-blocking obstacle, not
-        -- ground decor) right where plaguesheep_1's own climb corridor
-        -- starts: loc 10790 (boulder1) at local 51,19 -> world 2611,3347,
-        -- footprint 2611-2612,3347-3348; loc 10791 (boulder2) at local
-        -- 50,21 -> world 2610,3349, footprint 2610-2611,3349-3350.
-        -- Together they box every tile at 2610-2612,3347-3350 so that
-        -- EITHER the approach tile a cardinal push needs or the push's own
-        -- destination sits inside one of the two footprints -- measured a
-        -- genuine 4-way dead end at 2612,3349 (both reachable neighbours,
-        -- north-stand and east-stand, push into the other boulder) that
-        -- cost 103 presses (run 1) before the per-colour cap gave up.
-        -- BOULDER_X/BOULDER_Z is a padded box around both (one tile of
-        -- margin) the climb ladder below routes around by continuing EAST
-        -- past it before it ever turns to climb north, so a fresh copy
-        -- from spawn (2609,3344 / 2610,3343 / 2610,3345 -- all just south
-        -- of this box) never enters the pocket that wedged the run-1 copy
-        -- in the first place.
-        local BOULDER_X_MIN, BOULDER_X_MAX = 2609, 2613
-        local BOULDER_Z_MAX = 3351
+        -- Route (source-checked against LostCity's 2004 map, per the
+        -- queue's own RETRY note): plaguesheep_1 spawns inside Farmer
+        -- Brumty's barnyard (2609,3344 / 2610,3343 / 2610,3345,
+        -- m40_52.spawn) a few tiles south of two 2x2 boulders (loc 10790
+        -- at 2611-2612,3347-3348, loc 10791 at 2610-2611,3349-3350 --
+        -- confirmed directly against m40_52.jl2, shape 10 centrepiece,
+        -- real collision). herd_plan_move below pushes that colour EAST
+        -- ONLY while it is still south of/at the boulder band (x<2613 and
+        -- z<=3355) -- a pure x-push never changes z, so it cannot ever
+        -- walk into the boulders by construction, unlike the previous
+        -- round's axis ladder, which let z drift north while x was still
+        -- inside the danger column. Once clear (x>=2613, east of both the
+        -- pen's own solid east wall at x=2609 and the boulders), it climbs
+        -- NORTH past the pen's solid north wall (confirmed continuous,
+        -- local z=36 = world z=3364, across the pen's whole x=2595-2609
+        -- span, m40_52.jl2) to z>=3365, where no wall crosses x at all.
+        -- From there it closes X into the gate's own band (2592-2594 --
+        -- confirmed wall-free at any Z the same way, the north wall's own
+        -- x-span stopping at 2595) and finally closes Z down into the gate
+        -- zone itself (2592-2594,3360-3363). diseased_sheep.rs2's
+        -- [label,prod_sheep] tests exactly that zone
+        -- (~inzone_coord_pair_table(sheepherder_pen_gate, npc_coord)) after
+        -- EVERY push and auto-teleports the sheep in the moment it lands
+        -- there -- the loop never has to enter the pen's own west door
+        -- itself. The other three colours' own spawns (m40_52.spawn) land
+        -- inside different legs of this same route: plaguesheep_2
+        -- (2621-2623,3366-3367) and plaguesheep_4 (2610-2612,3390-3391)
+        -- already stand north of the pen's wall, so they skip straight to
+        -- the X/Z-into-gate legs; plaguesheep_3 (2560-2561,3388-3390)
+        -- stands north and WEST of the gate band, so it closes X eastward
+        -- (the same "x < gate band, push east" arm the gate-approach leg
+        -- uses for every colour) before descending Z -- and its own final
+        -- approach is walled by a THIRD copy of the same boulder id at
+        -- 2592-2593,3381-3382 (m40_52.jl2, confirmed directly), which the
+        -- wall_blacklist x-probe below (try the gate band's other columns)
+        -- is what routes around, the same way sonnet-b18's file first
+        -- found it.
+        local EAST_CLEAR_X = 2613
+        local SAFE_NORTH_Z = PEN_Z_MAX + 1 -- 3365, one tile past the solid north wall (z=3364)
+
+        -- The single source of truth for "what does this colour do next",
+        -- a pure function of its current tile -- never a hand-picked
+        -- direction, so every colour (four very different starting
+        -- corners) drives off the same staged plan. Returns
+        -- (axis, stand_x, stand_z, description) or nil once the tile is
+        -- already inside the gate zone (the bit should be about to flip).
+        local function herd_plan_move(x, z)
+            if x < EAST_CLEAR_X and z <= 3355 then
+                -- Still south of (or level with) the pen's own barnyard;
+                -- clear the boulder column eastward first. A pure x-push
+                -- never touches z, so this can never drift into the
+                -- boulder band (3347-3350) by construction.
+                return "x", x - 1, z, "east-clear"
+            end
+            -- RETRY (sonnet-b21, run 1): gated on `x > GATE_X_MAX`, not on
+            -- z alone. z-only gating re-triggered "still climbing" the
+            -- moment the very first south-into-the-gate push (below)
+            -- landed one tile shy of SAFE_NORTH_Z (3365 -> 3364), sending
+            -- the sheep straight back north to 3365 and back south again
+            -- forever -- measured a clean 130/130 "stepped" run (no wall
+            -- ever hit) that oscillated 2594,3364 <-> 2594,3365 for its
+            -- whole press budget once x had already reached the gate's
+            -- own column. Once x is at or past GATE_X_MAX there is no
+            -- wall left to climb around (the pen's own north wall only
+            -- spans x=2595..2609, confirmed against m40_52.jl2), so this
+            -- arm must stop applying the instant x reaches the gate band,
+            -- not only while z is still short of 3365.
+            if x > GATE_X_MAX and z < SAFE_NORTH_Z then
+                return "z", x, z - 1, "north"
+            end
+            if x < GATE_X_MIN then
+                return "x", x - 1, z, "east"
+            end
+            if x > GATE_X_MAX then
+                return "x", x + 1, z, "west"
+            end
+            if z > GATE_Z_MAX then
+                return "z", x, z + 1, "south"
+            end
+            if z < GATE_Z_MIN then
+                return "z", x, z - 1, "north-to-gate"
+            end
+            return nil
+        end
+
+        -- Same staged plan, collapsed to a single remaining-tiles number --
+        -- used only to rank live copies against each other during a
+        -- resync, never to steer a press.
+        local function herd_remaining(x, z)
+            local cost = 0
+            if x < EAST_CLEAR_X and z <= 3355 then
+                cost = cost + (EAST_CLEAR_X - x)
+                x = EAST_CLEAR_X
+            end
+            if x > GATE_X_MAX and z < SAFE_NORTH_Z then
+                cost = cost + (SAFE_NORTH_Z - z)
+                z = SAFE_NORTH_Z
+            end
+            if x < GATE_X_MIN then
+                cost = cost + (GATE_X_MIN - x)
+                x = GATE_X_MIN
+            elseif x > GATE_X_MAX then
+                cost = cost + (x - GATE_X_MAX)
+                x = GATE_X_MAX
+            end
+            if z > GATE_Z_MAX then
+                cost = cost + (z - GATE_Z_MAX)
+            elseif z < GATE_Z_MIN then
+                cost = cost + (GATE_Z_MIN - z)
+            end
+            return cost
+        end
 
         for _, def in ipairs(sheep_defs) do
             t.exec("goto-herd" .. def.id, t.player.goto_tile, def.goto_x, def.goto_z, 0)
 
-            -- RESUMED (sonnet-b20): sonnet-b18's t.blocked here (sheep 4
-            -- unreachable inside the default 60000-frame budget, measured
-            -- deterministic across four full runs, ticks=1253 at
-            -- exhaustion) named the fix as "out of test/quests/ reach" --
-            -- that was wrong: QUEST_AUTHORING.md section 8 documents
-            -- exactly this quest as the worked example for the file's own
-            -- `max_frames = <n>,` field (declared above, beside `fixture=`),
-            -- which raises TORIRS_MAX_FRAMES for this run only. With the
-            -- ceiling declared, sheep 4 gets the same herd loop as 1-3.
-
             local pressed = 0
             local last_detail = "no press issued"
             local history = {}
-            local tracked_x, tracked_z
+            local outcome_counts = { stepped = 0, walled = 0, out_of_range = 0, lost = 0, no_row = 0, other = 0 }
             local bit_result, bit_value = t.var.varbit(def.bitvar)
-            -- The colour has THREE live spawn copies a couple of tiles
-            -- apart (m40_52.spawn). Re-picking "nearest to gate" fresh off
-            -- t.npc.tiles every attempt is what broke run 2: the stand tile
-            -- is computed against one copy, but click_minimenu's own
-            -- hittest can land the press on a DIFFERENT nearby copy, so the
-            -- next iteration's direction math was routinely built off a
-            -- copy that never moved -- measured: 24 presses this way, ~8
-            -- tiles of real (incoherent) drift and zero progress on Z.
-            -- Fixed by TRACKING the slot t.player.press itself reports
-            -- moving (`npc slot N x,z -> x2,z2` in its own detail) and
-            -- aiming every next stand tile at THAT reported position, only
-            -- falling back to a fresh t.npc.tiles nearest-to-gate pick to
-            -- start, or to resync after two presses in a row where the
-            -- tracked tile never changed.
-            -- Rank candidates by MANHATTAN distance clamped into the gate
-            -- band on each axis, never Chebyshev distance to the box's
-            -- centre point -- run 5 measured Chebyshev picking a copy that
-            -- needed 15+15=30 more presses (both axes still open) over one
-            -- already inside the Z band needing only 16 (pure X), because
-            -- Chebyshev(16,0)=16 read as "further" than Chebyshev(15,15)=15.
-            -- A push only ever moves ONE axis, so the real remaining cost
-            -- is the SUM of the two clamped gaps, not their max.
-            -- Tiles where EVERY push this loop tried (both axes) answered
-            -- walled -- a genuine dead end (m40_52's hill edge behind the
-            -- barn can wall in all four neighbours of a tile at once).
-            -- Keyed "x,z" -> true. Both candidate picks below add a huge
-            -- penalty to a dead tile's distance so a copy stuck on one is
-            -- never re-picked while any other copy is live.
-            local dead_tiles = {}
-            -- RESUMED (sonnet-b20, run 4): sheepherdervar's bit is set by
-            -- ANY copy of this colour reaching the pen (diseased_sheep.rs2
-            -- [label,prod_sheep], npc_tele + setbit -- it does not care
-            -- WHICH of the 3 near-identical spawn copies got there), so a
-            -- copy that keeps failing is not worth proving dead twice
-            -- when the other 2 are still pristine. trouble_count is a
-            -- CONTINUOUS per-tile failure tally (every non-stepped
-            -- outcome at that exact tile, any axis) -- run 5 tried
-            -- scaling it into the resync ranking (softer/faster than
-            -- dead_tiles' binary two-strikes bar) alongside a lower
-            -- resync threshold and measured WORSE (stepped=4 of 140 vs
-            -- 53), so it is tracked here but no longer read by the
-            -- ranking; left in place rather than ripped out in case a
-            -- later round wants to isolate which half of that combined
-            -- change actually hurt.
-            local trouble_count = {}
-            local tiles_result, tiles_detail, rows = t.npc.tiles(def.npc, 40)
-            if tiles_result ~= "ok" or not rows or #rows == 0 then
-                last_detail = string.format("npc.tiles(%s) -> %s (%s)", def.npc, tostring(tiles_result), tostring(tiles_detail))
-            else
-                local sheep = rows[1]
-                local best = math.max(0, GATE_X_MIN - sheep.x, sheep.x - GATE_X_MAX) + math.max(0, GATE_Z_MIN - sheep.z, sheep.z - GATE_Z_MAX)
-                for i = 2, #rows do
-                    local d = math.max(0, GATE_X_MIN - rows[i].x, rows[i].x - GATE_X_MAX) + math.max(0, GATE_Z_MIN - rows[i].z, rows[i].z - GATE_Z_MAX)
-                    if d < best then
-                        best = d
-                        sheep = rows[i]
-                    end
-                end
-                tracked_x, tracked_z = sheep.x, sheep.z
-            end
-            local unmoved_streak = 0
-            local last_axis = nil
-            local stuck_x, stuck_z, stuck_count = nil, nil, 0
-            -- (tile, axis) pairs a press already answered 'ok' + no
-            -- movement against (a walled push, trap 21's second outcome).
-            -- Keyed "x,z:axis" -> true; never cleared for this colour, so
-            -- a resync that lands back on a known-walled tile still turns
-            -- the other way immediately instead of re-spending a press to
-            -- rediscover the same wall.
+
+            -- Tracked by SERVER SLOT (seam13's selector), never a tile --
+            -- a tile goes stale the moment the copy is pushed.
+            local slot, tracked_x, tracked_z
+            -- A slot proven to have no escape from its own tile (both
+            -- forward axes there blacklisted) or that vanished from the
+            -- pool outright -- never re-picked; diseased_sheep.rs2 credits
+            -- ANY of a colour's copies reaching the gate zone, so a stuck
+            -- one is simply abandoned for a fresher one.
+            local dead_slots = {}
+            -- (x,z,axis) pairs a press already answered 'ok' + no movement
+            -- against -- never re-tried; keyed by TILE, not slot, since
+            -- the obstacle is the map, not the sheep.
             local wall_blacklist = {}
-            local outcome_counts = { stepped = 0, walled = 0, out_of_range = 0, lost = 0, other = 0 }
-            -- RESUMED (sonnet-b20): counts consecutive "retreat" picks at
-            -- the CURRENT stuck tile, so the ladder can alternate retreat
-            -- with the one cardinal direction it never otherwise tries
-            -- (see x-escape below). Reset whenever the stuck tile changes
-            -- or a resync fires, same as stuck_count.
-            local retreat_tries = 0
-            -- RESUMED (sonnet-b20, run 3): a 2-cycle -- A pushed to B,
-            -- B's own next press shoves it straight back to A -- reads as
-            -- "stepped" on EVERY single press (real movement each time),
-            -- so stuck_count (which only counts an EXACT repeat, i.e. no
-            -- movement at all) and unmoved_streak (reset by any "stepped")
-            -- never fire, and the loop can spend its entire per-colour cap
-            -- oscillating between two tiles with zero net progress --
-            -- measured 2607,3345 <-> 2608,3345, 87 of run 3's 140 presses.
-            -- pos1_x/z, pos2_x/z are the tracked position 1 and 2 presses
-            -- back (before THIS press); a match against pos2 is the
-            -- 2-cycle signature and is treated the same as stuck_count>=2.
-            local pos1_x, pos1_z, pos2_x, pos2_z = nil, nil, nil, nil
-            -- RESUMED (sonnet-b20, run 6): x-escape (see its own banner
-            -- below) computed its OWN "opposite" direction independently,
-            -- via the same sheep.x-vs-GATE_X_MAX test the plain "x" ladder
-            -- pick uses -- but the "off-the-wall-column" pick (climbing
-            -- and not outside_pen_x) uses a DIFFERENT test (nearest pen
-            -- edge, not the gate band), and for a tile like 2608,3345
-            -- (nearer the EAST pen edge, 2609, than the west one, 2595)
-            -- both tests agree on EAST -- so x-escape kept "escaping" in
-            -- the exact same direction that was already failing, never
-            -- actually trying west. last_x_direction records whichever
-            -- direction the MOST RECENT real x-type push actually used
-            -- (any branch), so x-escape can invert THAT, not recompute
-            -- its own guess.
-            local last_x_direction = nil
+            local unmoved_streak = 0
+            local stuck_x, stuck_z, stuck_count = nil, nil, 0
 
-            -- Cap raised 95 -> 140 (RETRY after 9bf6b97c5, sonnet-b18):
-            -- boulder2 (10791, width=2 length=2, m40_52.jl2 at
-            -- 2592-2593,3381-3382) sits square in plaguesheep_3's own
-            -- final approach corridor and forces a 2-column detour to
-            -- x=2594 before the last ~20 tiles of Z can even start --
-            -- measured a live run landing on x=2594 with its Z push not
-            -- yet begun, exactly AT the old 95-press cap, ticks=1165/~2000
-            -- total for the run so far (sheep1+sheep2 already spent).
-            -- Total session budget (QUEST_AUTHORING.md section 8, "A RUN
-            -- HAS ABOUT 2,000 SERVER TICKS") has ample room at ~5
-            -- ticks/press for this raise even in the worst case.
-            --
-            -- Cap raised 140 -> 220 (sonnet-b20, run 5): plaguesheep_1's
-            -- own barnyard congestion (see trouble_count's banner above)
-            -- measured 53 real "stepped" outcomes out of 140 presses
-            -- (38%) with the earlier-round resync tuning and STILL did
-            -- not reach the gate band -- this colour was previously
-            -- documented needing only ~50 clean presses once congestion
-            -- is not fighting it, so the shortfall is churn, not distance,
-            -- and this file's own `max_frames = 240000,` (4x default, see
-            -- the quest table) is the budget this raise draws against, not
-            -- the original ~2,000-tick guidance above.
-            while pressed < 220 and tracked_x and (bit_result ~= "ok" or bit_value == 0) do
-                if (unmoved_streak >= 3 and retreat_tries >= 2) or unmoved_streak >= 8 then
-                    -- Resync: several attempts running (including retreats)
-                    -- never moved the tracked copy at all -- pick whichever
-                    -- live copy has the least real work left instead, never
-                    -- one already known dead on every side.
-                    --
-                    -- RESUMED (sonnet-b20): the threshold was 6, then 3.
-                    -- Run 5 tried 2 (plus trouble_count scaled into the
-                    -- ranking below) and did WORSE (stepped=4 of 140, vs
-                    -- 53 at threshold 3) -- resyncing this fast abandoned
-                    -- a copy that was still making real, if noisy,
-                    -- progress before it had a real chance to clear
-                    -- Farmer Brumty's barnyard (drystonewall/fencing plus
-                    -- two tree2 locs at 2607,3343 and 2604,3346, confirmed
-                    -- against m40_52.jl2 directly), so this is back to 3
-                    -- and trouble_count is no longer read here -- it is
-                    -- still TRACKED (below, every non-stepped outcome) in
-                    -- case a later round wants it, but does not currently
-                    -- change any pick. The ranking's one active defence
-                    -- against re-picking known trouble is the dead_tiles
-                    -- Chebyshev-1 penalty: exact repeats alone missed run
-                    -- 2's ping-pong between 2608,3345 / 2609,3345 /
-                    -- 2610,3347, one tile apart each.
-                    --
-                    -- `and retreat_tries >= 2` is new this round (going
-                    -- into run 7): at a tile where EVERY push fails 100%
-                    -- of the time (2608,3345's own Z neighbours are
-                    -- unreachable by walk at all -- both timed out every
-                    -- single attempt, runs 3, 4 and 6), unmoved_streak
-                    -- reaches 3 in lockstep with stuck_count reaching 2,
-                    -- ONE iteration after retreat_tries first goes 0->1
-                    -- (picking "retreat") -- so the resync fired every
-                    -- time on the very iteration retreat_tries would
-                    -- FINALLY have read odd and picked "x-escape", and
-                    -- reset it back to 0 first. Measured: runs 3, 4 and 6
-                    -- (0 "west-escape"/"east-escape" rows in 580 presses
-                    -- combined across them) -- x-escape and
-                    -- last_x_direction (run 6's own fix) were both dead
-                    -- code this whole time, not ineffective. Gating the
-                    -- resync on retreat_tries>=2 guarantees at least one
-                    -- real x-escape attempt (the one direction never
-                    -- otherwise tried at a tile like this) before giving
-                    -- up on it. `or unmoved_streak >= 8` is a safety net
-                    -- in case retreat_tries somehow never reaches 2 for a
-                    -- DIFFERENT tile (a cross-copy hijack that keeps
-                    -- changing which tile counts as "stuck" before
-                    -- escalation even starts) -- never leaves a colour
-                    -- with no resync path at all.
-                    local resync_result, _, resync_rows = t.npc.tiles(def.npc, 40)
-                    if resync_result == "ok" and resync_rows and #resync_rows > 0 then
-                        local sheep, best
-                        for i = 1, #resync_rows do
-                            local cand = resync_rows[i]
-                            local d = math.max(0, GATE_X_MIN - cand.x, cand.x - GATE_X_MAX) + math.max(0, GATE_Z_MIN - cand.z, cand.z - GATE_Z_MAX)
-                            for dead_key, _ in pairs(dead_tiles) do
-                                local dead_x_str, dead_z_str = string.match(dead_key, "(%-?%d+),(%-?%d+)")
-                                local dead_x, dead_z = tonumber(dead_x_str), tonumber(dead_z_str)
-                                if dead_x and dead_z and math.max(math.abs(cand.x - dead_x), math.abs(cand.z - dead_z)) <= 1 then
-                                    d = d + 100000
-                                    break
-                                end
-                            end
-                            if not best or d < best then
-                                best = d
-                                sheep = cand
-                            end
+            local function resync(prefer_slot)
+                local tiles_result, tiles_detail, rows = t.npc.tiles(def.npc, 40)
+                if tiles_result ~= "ok" or not rows or #rows == 0 then
+                    return false, string.format("npc.tiles(%s) -> %s (%s)", def.npc, tostring(tiles_result), tostring(tiles_detail))
+                end
+                if prefer_slot then
+                    for i = 1, #rows do
+                        if rows[i].slot == prefer_slot and not dead_slots[prefer_slot] then
+                            slot, tracked_x, tracked_z = rows[i].slot, rows[i].x, rows[i].z
+                            return true, string.format("kept slot %d at %d,%d", slot, tracked_x, tracked_z)
                         end
-                        tracked_x, tracked_z = sheep.x, sheep.z
                     end
-                    unmoved_streak = 0
-                    last_axis = nil
-                    stuck_x, stuck_z, stuck_count = nil, nil, 0
-                    retreat_tries = 0
-                    pos1_x, pos1_z, pos2_x, pos2_z = nil, nil, nil, nil
                 end
-
-                local sheep = { x = tracked_x, z = tracked_z }
-                -- A 2-cycle: this exact tile is where the tracked copy was
-                -- TWO presses ago (see pos1/pos2's own banner above).
-                local revisiting = pos2_x == sheep.x and pos2_z == sheep.z
-                local in_x = sheep.x >= GATE_X_MIN and sheep.x <= GATE_X_MAX
-                local outside_pen_x = sheep.x < PEN_X_MIN or sheep.x > PEN_X_MAX
-                -- PHASE: still south of (or inside) the pen's own walled
-                -- z-span, and not yet in the gate's own x-band -- closing X
-                -- here risks walking straight into the south wall (it is
-                -- solid across the WHOLE pen x-span, not just at the gate's
-                -- own x) or the jagged natural cliff between the spawn
-                -- valley and the low ground further west (this file's own
-                -- earlier BLOCKED history). Pin the Z target to one past
-                -- the pen's own north wall instead, so the loop climbs
-                -- north FIRST and only turns to X once genuinely clear of
-                -- every wall (see the file banner for the BFS that found
-                -- this route against the real map).
-                local climbing = (not in_x) and (sheep.z <= PEN_Z_MAX)
-                local eff_z_min, eff_z_max
-                if climbing then
-                    eff_z_min, eff_z_max = PEN_Z_MAX + 1, PEN_Z_MAX + 1
-                else
-                    eff_z_min, eff_z_max = GATE_Z_MIN, GATE_Z_MAX
-                end
-                local in_z = sheep.z >= eff_z_min and sheep.z <= eff_z_max
-                -- The boulder pocket (see BOULDER_X/BOULDER_Z's own banner
-                -- above) sits astride the normal climb corridor -- checked
-                -- only while climbing, so a colour already north of it (or
-                -- one whose approach never enters the box) never detours.
-                --
-                -- RESUMED (sonnet-b20, run 2): a lower Z bound here
-                -- (BOULDER_Z_MIN=3345) let plaguesheep_1's OWN spawn tiles
-                -- (2609,3344 and 2610,3343, both z<3345) fall straight
-                -- through to the ordinary climb branches below instead,
-                -- which walked them up to z=3345+ BEFORE this detour ever
-                -- got a turn -- measured landing right at 2610,3348, one
-                -- row inside boulder1's own footprint, on press #1. There
-                -- is no reason to wait for any particular Z at all: while
-                -- still climbing (i.e. still south of the pen's own north
-                -- wall), clearing BOULDER_X first is always correct, so
-                -- only the upper Z bound (once genuinely past the boulders)
-                -- remains.
-                local in_boulder_zone = climbing
-                    and sheep.x >= BOULDER_X_MIN and sheep.x <= BOULDER_X_MAX
-                    and sheep.z <= BOULDER_Z_MAX
-
-                if sheep.x == stuck_x and sheep.z == stuck_z then
-                    stuck_count = stuck_count + 1
-                else
-                    stuck_x, stuck_z, stuck_count = sheep.x, sheep.z, 0
-                    -- retreat_tries is NOT reset here any more: a 2-cycle
-                    -- (revisiting, above) alternates between exactly two
-                    -- tiles, so THIS branch (a genuine tile change) fires
-                    -- on every single one of its presses too, and used to
-                    -- zero retreat_tries right back out before it could
-                    -- ever reach the x-escape half of the alternation --
-                    -- only a resync (a real change of tracked copy) clears
-                    -- it now.
-                end
-
-                local axis
-                if stuck_count >= 2 or revisiting then
-                    -- The tracked copy has not moved for THREE attempts in
-                    -- a row at this exact tile -- run 7 measured both
-                    -- cardinal pushes (west AND its perpendicular nudge)
-                    -- failing over and over at one spot (2599,3345, a rock
-                    -- by the barn), which the old resync could not escape
-                    -- because it kept re-picking the very same tile as
-                    -- "closest". Retreat SOUTH instead -- the direction
-                    -- every colour's approach already came from and is
-                    -- known open -- to get off the blocked tile, then let
-                    -- the normal plan re-aim from wherever that lands.
-                    --
-                    -- RESUMED (sonnet-b20): plain "always retreat" cycles
-                    -- forever when RETREAT ITSELF is also walled -- measured
-                    -- on plaguesheep_1's own spawn cluster, boxed against
-                    -- the two 2x2 boulders m40_52.jl2 places at
-                    -- 2610-2611,3349-3350 (loc 10791) and 2611-2612,
-                    -- 3347-3348 (loc 10790): from 2612,3349 the north push
-                    -- (into 10790) and the west perpendicular (into 10791)
-                    -- both wall, and retreat -- z-only, per the comment
-                    -- above -- never tries the one direction that was
-                    -- never attempted at all: the OPPOSITE x (east, away
-                    -- from both boulders). A bare "always retreat" spent
-                    -- 103 presses (#38-140) alternating retreat with a
-                    -- resync that kept re-picking one of plaguesheep_1's
-                    -- three near-identical spawn copies, all boxed the
-                    -- same way, and burned the whole per-colour cap
-                    -- without ever trying it. Alternate retreat with
-                    -- "x-escape" (below) every other pick at the identical
-                    -- stuck tile, so the untried fourth cardinal direction
-                    -- gets a real attempt before the resync gives up on
-                    -- this tile and re-picks another copy of the same
-                    -- boxed-in colour.
-                    --
-                    -- `revisiting` (see its own banner above) joins this
-                    -- branch too: a 2-cycle reports "stepped" on every
-                    -- single press (real movement, just no NET progress),
-                    -- so this is the only place that can ever catch it --
-                    -- stuck_count itself only fires on an EXACT repeat.
-                    if retreat_tries % 2 == 0 then
-                        axis = "retreat"
-                    else
-                        axis = "x-escape"
+                local best, best_d
+                for i = 1, #rows do
+                    if not dead_slots[rows[i].slot] then
+                        local d = herd_remaining(rows[i].x, rows[i].z)
+                        if not best or d < best_d then
+                            best, best_d = rows[i], d
+                        end
                     end
-                    retreat_tries = retreat_tries + 1
-                elseif in_boulder_zone then
-                    -- Proactive, not reactive: continue EAST past the
-                    -- boulder pocket (BOULDER_X/BOULDER_Z's own banner
-                    -- above) before climbing at all, so a fresh copy never
-                    -- walks itself into the two-boulder box the way run 1's
-                    -- tracked copy did. This fires ahead of the normal
-                    -- climbing branches below (both of which would instead
-                    -- turn the sheep straight into the pocket from
-                    -- plaguesheep_1's own spawn column).
-                    --
-                    -- RESUMED (sonnet-b20, run 7): moved ahead of the
-                    -- unmoved_streak==1 perpendicular nudge (was checked
-                    -- first) -- that branch does not know about the
-                    -- boulders at all, and its own "z" pick (whenever
-                    -- last_axis was "x") pushes north unconditionally
-                    -- (climbing's eff_z_min is PEN_Z_MAX+1, always above
-                    -- the sheep's own z here), letting Z creep into the
-                    -- 3347-3350 boulder band WHILE x was still inside
-                    -- 2609-2613 -- measured run 7: "east-clear" (86 of
-                    -- 220 presses, the single most common push) mostly
-                    -- walled precisely because z had already drifted into
-                    -- that band by the time it ran. in_boulder_zone now
-                    -- overrides the one-shot nudge too, not only the
-                    -- ordinary climb branches.
-                    axis = "boulder-clear"
-                elseif unmoved_streak == 1 and last_axis then
-                    -- One stall: try the PERPENDICULAR axis once before a
-                    -- full resync -- the same tile can refuse one direction
-                    -- (a fence post, a rock) while the other is clear.
-                    axis = (last_axis == "x") and "z" or "x"
-                elseif climbing and not outside_pen_x then
-                    -- Standing exactly on (or inside) the wall's own
-                    -- x-span while still south of it -- get off that
-                    -- column first (BFS-verified: plaguesheep_1's own
-                    -- spawn tile 2609,3344 sits exactly on the east wall's
-                    -- x and needs this before it can climb north at all).
-                    axis = "x"
-                elseif climbing then
-                    axis = "z"
-                elseif not in_x then
-                    axis = "x"
-                elseif not in_z then
-                    axis = "z"
-                else
-                    axis = "x" -- both ranges already satisfied; the bit has not landed yet -- force one more evaluation
                 end
+                if not best then
+                    -- every live copy is already marked dead -- press the
+                    -- first one again anyway rather than give up with
+                    -- copies still visible; the outer cap ends the loop.
+                    best, best_d = rows[1], herd_remaining(rows[1].x, rows[1].z)
+                end
+                slot, tracked_x, tracked_z = best.slot, best.x, best.z
+                return true, string.format("picked slot %d at %d,%d (remaining %d)", slot, tracked_x, tracked_z, best_d)
+            end
 
-                -- A push this loop already saw answer 'ok' + no movement
-                -- FROM THIS EXACT TILE ON THIS EXACT AXIS is a known wall --
-                -- turn the other way now, not after another full press.
-                -- Only a plain "x"/"z" ladder pick is redirected here:
-                -- retreat/x-escape/boulder-clear are already themselves a
-                -- deliberate escape choice, and redirecting THEM through
-                -- this generic "other_axis" logic can send a boulder
-                -- detour straight back toward the gate band it is trying
-                -- to get clear of first.
-                local probe_target_x = nil
-                if (axis == "x" or axis == "z") and wall_blacklist[string.format("%d,%d:%s", sheep.x, sheep.z, axis)] then
-                    if axis == "z" and in_x then
-                        -- Z is dead FROM THIS EXACT X, but the gate band is
-                        -- only GATE_X_MIN..GATE_X_MAX (3 tiles) wide -- an
-                        -- obstacle blocking Z at one column does not mean
-                        -- it blocks every column (a boulder is narrower
-                        -- than the whole band -- loc 10791 confirmed by
-                        -- direct grep of m40_52.jl2 at exactly this kind of
-                        -- spot). The bounds-aware in-band nudge below can
-                        -- only ever reach GATE_X_MIN and GATE_X_MIN+1 by
-                        -- construction (its own ternary always resolves
-                        -- to one of those two), so it can bounce between
-                        -- two dead columns forever without ever trying
-                        -- GATE_X_MAX -- measured, plaguesheep_3's own
-                        -- final approach. Probe whichever end of the band
-                        -- has not already had Z blacklisted at this same
-                        -- Z row, preferring the far end first since the
-                        -- near ones are what the normal nudge already
-                        -- tried.
-                        for _, candidate in ipairs({ GATE_X_MAX, GATE_X_MIN }) do
-                            if candidate ~= sheep.x and not wall_blacklist[string.format("%d,%d:z", candidate, sheep.z)] then
-                                probe_target_x = candidate
+            local _, resync_detail = resync(nil)
+            last_detail = "initial resync: " .. tostring(resync_detail)
+
+            -- RETRY (sonnet-b21, run 2): diseased_sheep.rs2's own gate-zone
+            -- test reads `npc_coord` immediately after calling `npc_walk`
+            -- in the SAME script invocation -- but `npc_walk` only QUEUES
+            -- a waypoint (torirs_server_scripts.c: "the npc phase's
+            -- stepper walks one tile a tick toward the waypoint"; it does
+            -- not move the npc's own coord synchronously). So the check
+            -- always reads the npc's PRE-this-press tile, and a press that
+            -- pushes the sheep INTO the zone can only be CONFIRMED by a
+            -- FOLLOW-UP interaction, once that move has actually settled --
+            -- exactly what a real player's next click on it would do.
+            -- Measured run 2: plaguesheep_1 stepped into 2594,3363 (dead
+            -- centre of the gate) on its 40th and last press, herd_plan_move
+            -- correctly read nil next iteration, and the loop used to just
+            -- break there -- no confirming press was ever issued, so the
+            -- teleport branch never ran and the bit sat at 0 forever. A
+            -- small bounded confirm counter below issues a few follow-up
+            -- presses once the tracked tile reads inside the zone, instead
+            -- of stopping the instant it looks reached.
+            local confirm_tries = 0
+            while pressed < 130 and slot and (bit_result ~= "ok" or bit_value == 0) do
+                local x, z = tracked_x, tracked_z
+                local axis, want_x, want_z, desc = herd_plan_move(x, z)
+                if axis == nil then
+                    confirm_tries = confirm_tries + 1
+                    if confirm_tries > 4 then
+                        break -- gave it several follow-up presses; stop trying
+                    end
+                    want_x, want_z, desc, axis = x, z - 1, "confirm-" .. confirm_tries, "z"
+                else
+                    confirm_tries = 0
+                end
+                local key = string.format("%d,%d:%s", x, z, axis)
+                if wall_blacklist[key] then
+                    if axis == "z" and x >= GATE_X_MIN and x <= GATE_X_MAX then
+                        -- The gate band is only 3 tiles wide (plaguesheep_3's
+                        -- own final approach is walled by a boulder at
+                        -- 2592-2593,3381-3382, two of the three columns) --
+                        -- probe whichever column has not already had Z
+                        -- blacklisted at this exact row before giving up.
+                        local probed = false
+                        for _, cand_x in ipairs({ GATE_X_MAX, GATE_X_MIN, 2593 }) do
+                            if cand_x ~= x and not wall_blacklist[string.format("%d,%d:z", cand_x, z)] then
+                                -- Stand on the FAR side of the sheep from
+                                -- cand_x so the push moves TOWARD it --
+                                -- "standing east pushes west" (the file's
+                                -- own push-direction rule), so reaching a
+                                -- LARGER cand_x needs the player standing
+                                -- WEST (x-1), not east. Run 4 (sonnet-b21)
+                                -- had this inverted and it stood east
+                                -- while aiming at 2594, which pushed the
+                                -- sheep WEST instead -- a clean 2-cycle
+                                -- (2591,3383 <-> 2592,3383) that burned
+                                -- plaguesheep_3's entire press budget with
+                                -- 129/130 presses reading "stepped".
+                                want_x = (cand_x > x) and (x - 1) or (x + 1)
+                                want_z = z
+                                desc = "x-probe-to-" .. tostring(cand_x)
+                                axis = "x"
+                                probed = true
                                 break
                             end
                         end
-                    end
-                    if probe_target_x then
-                        axis = "x-probe"
-                    else
-                        local other_axis = (axis == "x") and "z" or "x"
-                        -- The fallback axis is only a real move if that
-                        -- axis still has ground to cover -- redirecting to
-                        -- X when X is already inside the gate band (or to
-                        -- Z when Z already is) is not an escape, it is a
-                        -- dodge nudge that lands on a DIFFERENT tile every
-                        -- press (so stuck_count, keyed on the exact tile
-                        -- repeating, never fires) while making zero
-                        -- progress on the axis that actually needs one.
-                        local other_still_needed = (other_axis == "x" and not in_x) or (other_axis == "z" and not in_z)
-                        if other_still_needed and not wall_blacklist[string.format("%d,%d:%s", sheep.x, sheep.z, other_axis)] then
-                            axis = other_axis
-                        else
-                            axis = "retreat" -- the axis that needs progress is walled and every X column is already probed -- step off it instead (even if retreat itself was already tried once here, nothing else is left to try)
+                        if not probed then
+                            want_x, want_z, desc, axis = x, z + 1, "retreat-south", "z"
                         end
-                    end
-                end
-                last_axis = (axis == "x-probe" or axis == "x-escape" or axis == "boulder-clear") and "x" or axis
-
-                -- Bounds-aware: when the chosen axis is already inside the
-                -- gate band (a dodge nudge, not real progress), pick
-                -- whichever direction keeps the result inside the band
-                -- rather than pushing straight through the far wall.
-                local stand_x, stand_z, push_desc
-                if axis == "retreat" then
-                    -- A genuine retreat has to be the OPPOSITE of whatever
-                    -- z-push this tile just had blacklisted, not a fixed
-                    -- direction: during the climb (z increasing toward the
-                    -- gate) that opposite is south (z-1 push, this file's
-                    -- historical "back toward spawn, known open" case),
-                    -- but once past the gate's own z-band on the final
-                    -- descent (z decreasing already) the SAME fixed
-                    -- south-retreat is the identical move to the one just
-                    -- blacklisted, not an escape from it -- measured
-                    -- retreating into a dead loop on plaguesheep_3's own
-                    -- final approach, south of the gate pushing north.
-                    -- Use the same `climbing` flag already computed above:
-                    -- during the climb Z is increasing, so retreat
-                    -- decreases it (z+1 stand, the original south-retreat,
-                    -- this file's historical "back toward spawn, known
-                    -- open" case); on the final descent Z is decreasing
-                    -- already, so retreat must increase it instead (z-1
-                    -- stand) or it is the identical move that just failed.
-                    if climbing then
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z + 1, "south-retreat"
-                    else
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z - 1, "north-retreat"
-                    end
-                elseif axis == "x-escape" then
-                    -- The OPPOSITE of whichever x-direction was ACTUALLY
-                    -- tried most recently (last_x_direction, own banner
-                    -- above) -- so plain retreat (z-only, per the
-                    -- stuck_count>=2 banner) never covers, and, since run
-                    -- 6's fix, is no longer a guess this branch
-                    -- independently recomputes off GATE_X_MAX. That guess
-                    -- used to AGREE with the "off-the-wall-column" pick
-                    -- (climbing and not outside_pen_x, a DIFFERENT
-                    -- nearest-pen-edge test) whenever a tile sat nearer
-                    -- the east pen edge than the gate band, which is most
-                    -- of plaguesheep_1's own spawn column -- so x-escape
-                    -- was "escaping" in the identical direction that was
-                    -- already failing, at 2608,3345 for 220 straight
-                    -- presses (run 6). Falls back to the GATE_X_MAX guess
-                    -- only if no x-push has happened yet this colour.
-                    if last_x_direction == "east" then
-                        stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west-escape"
-                    elseif last_x_direction == "west" then
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east-escape"
-                    elseif sheep.x > GATE_X_MAX then
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east-escape"
-                    else
-                        stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west-escape"
-                    end
-                elseif axis == "boulder-clear" then
-                    -- Push EAST (stand west of the sheep) to clear
-                    -- BOULDER_X_MAX before turning to climb -- see
-                    -- in_boulder_zone's own banner above. This is the
-                    -- correct direction regardless of the gate band's own
-                    -- side (the boulders sit well east of the gate, so the
-                    -- normal "x" branch below would otherwise push WEST,
-                    -- straight through them, once climbing resumes).
-                    --
-                    -- RESUMED (sonnet-b20, run 7): boulder1 (2611-2612,
-                    -- 3347-3348) and boulder2 (2610-2611,3349-3350)
-                    -- TOGETHER cover x=2610-2612 continuously for
-                    -- z=3347-3350 -- so pushing east THROUGH that x range
-                    -- while z is already inside 3347-3350 walks straight
-                    -- into whichever boulder owns that exact z, every
-                    -- time (measured: "east-clear" was the single most
-                    -- common push in run 7, 86 of 220, most of them
-                    -- walled). Only when z is clear of that band is an
-                    -- east push through 2610-2612 actually safe. Clear Z
-                    -- FIRST when it is not: push south (stand north of
-                    -- the sheep) back below 3347, the direction every
-                    -- copy's own approach already came from, then let
-                    -- east-clear resume once z is safe next iteration.
-                    if sheep.z >= 3347 and sheep.z <= 3350 then
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z + 1, "south-clear"
-                    else
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east-clear"
-                    end
-                elseif axis == "x-probe" then
-                    -- Drive toward the specific untried band column the
-                    -- redirect above picked (probe_target_x), not the
-                    -- generic bounds-aware nudge that can only ever reach
-                    -- two of the band's tiles.
-                    if probe_target_x > sheep.x then
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east-probe"
-                    else
-                        stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west-probe"
-                    end
-                elseif axis == "x" and climbing and not outside_pen_x then
-                    -- Off-the-wall-column nudge: exit toward whichever
-                    -- pen edge (2595 or 2609) is nearer, so a tracked
-                    -- tile sitting ON one of them (never actually
-                    -- INSIDE 2595..2609, which a legitimate push never
-                    -- produces) steps off it in one press.
-                    if (sheep.x - PEN_X_MIN) <= (PEN_X_MAX - sheep.x) then
-                        stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west-off-wall"
-                    else
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east-off-wall"
-                    end
-                elseif axis == "x" then
-                    if sheep.x > GATE_X_MAX then
-                        stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
-                    elseif sheep.x < GATE_X_MIN then
-                        stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
-                    else
-                        -- In-band dodge, reached via the unmoved_streak==1
-                        -- one-shot perpendicular branch above (which sets
-                        -- axis="x" directly and skips the wall_blacklist
-                        -- redirect below, because THAT check only fires
-                        -- for a blacklisted "x" entry, not a blacklisted
-                        -- "z" one): prefer the neighbour column whose Z
-                        -- push has NOT already been blacklisted at this
-                        -- exact Z row, so a perpendicular retry right
-                        -- after a Z failure keeps closing on an untried
-                        -- column instead of bouncing back onto one already
-                        -- known dead. Measured cost of the old fixed
-                        -- west-biased fallback: plaguesheep_3's approach
-                        -- to boulder2 (10791, width=2 length=2,
-                        -- m40_52.jl2 at 2592-2593,3381-3382) bounced
-                        -- 2593->2592->2593 for two wasted presses before
-                        -- the dedicated x-probe branch above finally
-                        -- pushed it on to the clear column, 2594.
-                        local west_target_open = (sheep.x - 1 >= GATE_X_MIN) and not wall_blacklist[string.format("%d,%d:z", sheep.x - 1, sheep.z)]
-                        local east_target_open = (sheep.x + 1 <= GATE_X_MAX) and not wall_blacklist[string.format("%d,%d:z", sheep.x + 1, sheep.z)]
-                        if east_target_open and not west_target_open then
-                            stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
-                        elseif west_target_open and not east_target_open then
-                            stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
-                        elseif sheep.x - 1 >= GATE_X_MIN then
-                            stand_x, stand_z, push_desc = sheep.x + 1, sheep.z, "west"
+                    elseif axis == "x" then
+                        -- The forward x push is blocked here -- a south
+                        -- nudge is always the direction every colour's own
+                        -- approach already came from and is known open;
+                        -- never nudge NORTH while still clearing the
+                        -- boulder column (x<EAST_CLEAR_X), which is exactly
+                        -- how the previous round walked into the boulders.
+                        if not wall_blacklist[string.format("%d,%d:z", x, z)] then
+                            want_x, want_z, desc = x, z + 1, "south-nudge"
                         else
-                            stand_x, stand_z, push_desc = sheep.x - 1, sheep.z, "east"
+                            want_x, want_z, desc = x, z - 1, "north-nudge"
                         end
-                    end
-                else
-                    if sheep.z < eff_z_min then
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z - 1, "north"
-                    elseif sheep.z > eff_z_max then
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z + 1, "south"
-                    elseif sheep.z + 1 <= eff_z_max then
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z - 1, "north"
-                    else
-                        stand_x, stand_z, push_desc = sheep.x, sheep.z + 1, "south"
+                        axis = "z"
+                    else -- axis == "z", outside the gate band (the north climb)
+                        if not wall_blacklist[string.format("%d,%d:x", x, z)] then
+                            want_x, want_z, desc = x - 1, z, "east-nudge"
+                        else
+                            want_x, want_z, desc = x + 1, z, "west-nudge"
+                        end
+                        axis = "x"
                     end
                 end
 
-                -- Record the ACTUAL x-direction this push used, from
-                -- push_desc itself, whichever branch produced it (see
-                -- last_x_direction's own banner above) -- a z-only push
-                -- (north/south/retreat) has no x-component and leaves it
-                -- unchanged, since x-escape has nothing new to invert from
-                -- one of those.
-                if string.find(push_desc, "west") then
-                    last_x_direction = "west"
-                elseif string.find(push_desc, "east") then
-                    last_x_direction = "east"
-                end
-
-                local walk_result, walk_detail = t.player.walk_to(stand_x, stand_z, 12)
-                local at_result, at_tile = t.world.tile()
-                local press_result, press_detail = t.player.press(def.npc, 1, 8)
+                local walk_result, walk_detail = t.player.walk_to(want_x, want_z, 12)
+                local press_result, press_detail = t.player.press(def.npc, 1, 8, { slot = slot })
                 pressed = pressed + 1
 
-                -- Track whatever slot press's own detail says actually
-                -- moved, never the copy this attempt aimed at -- the two
-                -- disagree whenever a neighbouring copy is nearer the click.
                 local moved_x, moved_z = string.match(press_detail or "", "npc slot %d+ %d+,%d+ %-> (%d+),(%d+)")
-                -- pointer.lua's OWN "pressed" prefix ("slot N (element E) at
-                -- X,Z") is printed on EVERY non-stepped outcome too (walled,
-                -- lost) -- this is pointer.lua:5087-5088's `pressed` local,
-                -- literally the pre-press snapshot of whichever element
-                -- click_minimenu actually hit, which is not always the copy
-                -- this attempt aimed at (by_symbol resolves the symbol, not
-                -- a chosen slot -- there is no verb to aim a specific copy).
-                -- Read it off every outcome, not just a step, so a resync
-                -- that walked toward one candidate but got a DIFFERENT
-                -- live copy under the cursor corrects tracked_x/tracked_z to
-                -- what was actually pressed, instead of silently repeating
-                -- the same wall a stale guess would keep aiming at.
-                local pressed_x, pressed_z = string.match(press_detail or "", "slot %-?%d+ %(element [%-%d]+%) at (%d+),(%d+)")
-
-                -- The four outcomes trap 21 names, read by name (not
-                -- inferred from a timeout, which the overhead fix retired
-                -- as the "npc went unresponsive" reading -- see the resume
-                -- banner at the top of this file):
-                --   stepped     'ok' + the npc's own row names it moving
-                --               away from the player
-                --   walled      'ok' with no movement -- the press LANDED
-                --               (the npc said its overhead line) and the
-                --               world refused the step; this is a map wall,
-                --               not the npc or the driver
-                --   out_of_range 'refused' -- the engine never sent it
-                --   lost        'timeout' -- nothing came back; the press
-                --               itself may not have landed
                 local outcome
                 if press_result == "ok" and moved_x then
                     outcome = "stepped"
@@ -977,17 +630,18 @@ return {
                     outcome = "out_of_range"
                 elseif press_result == "timeout" then
                     outcome = "lost"
+                elseif press_result == "no_row" then
+                    outcome = "no_row"
                 else
                     outcome = "other"
                 end
+                outcome_counts[outcome] = (outcome_counts[outcome] or 0) + 1
 
-                last_detail = string.format("#%d sheep %d,%d (in_x=%s in_z=%s) push %s aim %d,%d walk=%s(%s) at=%s%s press=%s(%s) outcome=%s",
-                    pressed, sheep.x, sheep.z, tostring(in_x), tostring(in_z), push_desc, stand_x, stand_z,
+                last_detail = string.format("#%d slot %s %d,%d push %s aim %d,%d walk=%s(%s) press=%s(%s) outcome=%s",
+                    pressed, tostring(slot), x, z, desc, want_x, want_z,
                     tostring(walk_result), tostring(walk_detail),
-                    tostring(at_result), at_result == "ok" and string.format("%d,%d,%d", at_tile.x, at_tile.z, at_tile.level) or "",
                     tostring(press_result), tostring(press_detail), outcome)
                 history[#history + 1] = last_detail
-                outcome_counts[outcome] = outcome_counts[outcome] + 1
                 if def.id == "1" and pressed <= 8 then
                     t.shot("herdprobe1." .. pressed)
                 end
@@ -995,101 +649,66 @@ return {
                 if outcome == "stepped" then
                     tracked_x, tracked_z = tonumber(moved_x), tonumber(moved_z)
                     unmoved_streak = 0
+                    stuck_x, stuck_z, stuck_count = nil, nil, 0
+                elseif outcome == "no_row" then
+                    -- The aimed slot is no longer live at all (out of the
+                    -- pool's own radius, or gone) -- a selector never falls
+                    -- back to another copy on its own (trap 21), so this
+                    -- loop does it explicitly: mark it dead and resync.
+                    dead_slots[slot] = true
+                    local ok2, detail2 = resync(nil)
+                    last_detail = last_detail .. " -- resync: " .. tostring(detail2)
+                    unmoved_streak = 0
+                    stuck_x, stuck_z, stuck_count = nil, nil, 0
+                    if not ok2 then
+                        break
+                    end
                 else
-                    -- Correct the tracked tile to whatever pointer.lua's
-                    -- OWN pre-press snapshot named, not the candidate this
-                    -- attempt walked toward: a resync's guess and the copy
-                    -- click_minimenu actually finds under the cursor can
-                    -- disagree (run 2, rows 22-55, measured hitting slot 101
-                    -- at 2599,3345 over and over while `sheep` claimed a
-                    -- different tracked candidate entirely -- the walk had
-                    -- landed, the CLICK had not moved). Ground every
-                    -- blacklist entry in that same truth, never the guess.
-                    local real_x = tonumber(pressed_x) or sheep.x
-                    local real_z = tonumber(pressed_z) or sheep.z
-                    if pressed_x then
-                        tracked_x, tracked_z = real_x, real_z
-                    end
-                    -- trouble_count (see its own banner above the resync
-                    -- block): a plain failure tally at the ACTUAL pressed
-                    -- tile, every non-"stepped" outcome, any axis -- not
-                    -- just "walled". out_of_range/lost presses are real
-                    -- evidence too (the engine never even sent the op, or
-                    -- nothing came back), and this tile is where the
-                    -- resync's own ranking will read it back.
-                    local trouble_key = string.format("%d,%d", real_x, real_z)
-                    trouble_count[trouble_key] = (trouble_count[trouble_key] or 0) + 1
                     if outcome == "walled" then
-                        -- This exact (tile, axis) push landed and the map
-                        -- refused it -- never spend another press finding
-                        -- that out again; the blacklist check above the
-                        -- axis choice turns the other way next attempt.
-                        wall_blacklist[string.format("%d,%d:%s", real_x, real_z, axis)] = true
-                        -- Deliberately NOT forcing an immediate resync just
-                        -- because both of the two FORWARD directions this
-                        -- loop happened to try are blacklisted: axis
-                        -- selection only ever tries the direction that
-                        -- moves toward the current target (never the
-                        -- reverse of either axis), so "x and z both
-                        -- blacklisted" here has only ruled out two of the
-                        -- tile's four neighbours, not all of them -- the
-                        -- stuck_count>=2 retreat fallback below is what
-                        -- tests a third (the reverse of Z), and it must be
-                        -- allowed to actually run. An earlier round of this
-                        -- file force-jumped to a fresh npc.tiles resync the
-                        -- moment both forward directions failed once, and
-                        -- measured it firing on EVERY subsequent press
-                        -- against a copy the live click kept re-selecting
-                        -- regardless of which candidate the resync aimed
-                        -- at (t.player.press has no verb to choose a
-                        -- specific slot -- trap 21) -- an endless
-                        -- resync-then-immediately-refail loop that burned
-                        -- the whole colour's budget without ever reaching
-                        -- stuck_count>=2. dead_tiles below still exists for
-                        -- the resync ranking once unmoved_streak naturally
-                        -- reaches the real threshold; only the premature
-                        -- force is gone.
-                        if wall_blacklist[string.format("%d,%d:x", real_x, real_z)]
-                            and wall_blacklist[string.format("%d,%d:z", real_x, real_z)] then
-                            dead_tiles[string.format("%d,%d", real_x, real_z)] = true
-                        end
-                        -- RESUMED (sonnet-b20): the x/z-blacklist test above
-                        -- only fires when a raw "x" or "z" ladder pick was
-                        -- tried -- a tile reached only through retreat/
-                        -- x-escape/boulder-clear (never a plain "x"/"z"
-                        -- pick, e.g. one already inside the gate band on
-                        -- one axis) never sets both those keys and so never
-                        -- marks dead this way. retreat_tries>=2 means BOTH
-                        -- retreat and its x-escape counterpart have already
-                        -- failed here, which is the same "no cardinal
-                        -- escape left" signal by a different route.
-                        if retreat_tries >= 2 then
-                            dead_tiles[string.format("%d,%d", real_x, real_z)] = true
+                        wall_blacklist[key] = true
+                    end
+                    if x == stuck_x and z == stuck_z then
+                        stuck_count = stuck_count + 1
+                    else
+                        stuck_x, stuck_z, stuck_count = x, z, 0
+                    end
+                    unmoved_streak = unmoved_streak + 1
+                    -- Three attempts running have not moved this exact
+                    -- slot at all, or six non-steps have piled up chasing
+                    -- nudges -- abandon this copy for a fresher one rather
+                    -- than keep re-proving the same tile dead.
+                    if stuck_count >= 3 or unmoved_streak >= 6 then
+                        dead_slots[slot] = true
+                        local ok2, detail2 = resync(nil)
+                        last_detail = last_detail .. " -- resync: " .. tostring(detail2)
+                        unmoved_streak = 0
+                        stuck_x, stuck_z, stuck_count = nil, nil, 0
+                        if not ok2 then
+                            break
                         end
                     end
-                    -- Deliberately NOT flipping axis_pref here any more --
-                    -- run 6 measured that doing so on the FIRST stall (a
-                    -- single blocked tile) permanently swapped the staged
-                    -- plan to "z first", which then climbed the pen's EAST
-                    -- side from outside and dead-ended against its wall at
-                    -- x=2610 (14 presses -- #32-45 -- oscillating z with
-                    -- west permanently refused). axis_pref now stays "x"
-                    -- for this whole colour: get fully into the gate's own
-                    -- x-band while still south of the enclosure first, and
-                    -- let the wall blacklist (immediate), the one-shot
-                    -- perpendicular nudge (unmoved_streak == 1, above) and
-                    -- the resync (== 6) absorb a blocked tile without
-                    -- abandoning that plan.
-                    unmoved_streak = unmoved_streak + 1
                 end
-                -- Shift the 2-press position history (see pos1/pos2's own
-                -- banner above `revisiting`) AFTER this press, using the
-                -- PRE-press tile (sheep.x/z, what "revisiting" itself
-                -- checks next time) -- so next iteration's `revisiting`
-                -- compares against where the copy stood entering this
-                -- press and the one before it, not its post-press result.
-                pos2_x, pos2_z = pos1_x, pos1_z
-                pos1_x, pos1_z = sheep.x, sheep.z
+                bit_result, bit_value = t.var.varbit(def.bitvar)
+            end
+
+            -- RETRY (sonnet-b21, run 2): trap 24 -- the engine writes the
+            -- setbit into the NEXT tick's player update, one tick behind
+            -- the press's own settle, so a bare `t.var.varbit` read taken
+            -- in the SAME iteration as the landing press can still read
+            -- the OLD value. Measured: run 2's plaguesheep_1 stepped
+            -- slot 100 from 2594,3364 to 2594,3363 -- squarely inside the
+            -- gate zone -- on its 40th and final press, herd_plan_move
+            -- correctly read nil next iteration (already there) and broke
+            -- out, but the immediately-following bit read was still 0 and
+            -- the run reported BLOCKED as if the sheep had never arrived.
+            -- Poll a few ticks here before grading, the same shape
+            -- enterEnclosure1/2 above use for their own loc-teleport
+            -- settle.
+            for _ = 1, 5 do
+                if bit_result == "ok" and bit_value ~= 0 then
+                    break
+                end
+                t.ticks(1)
                 bit_result, bit_value = t.var.varbit(def.bitvar)
             end
 
@@ -1102,14 +721,14 @@ return {
             -- its detail either way.
             local herded = bit_result == "ok" and bit_value ~= 0
             t.check("herd.sheep" .. def.id .. "_in_pen", true,
-                string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d) -- %s",
+                string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d) -- %s",
                     tostring(herded), def.bitvar, tostring(bit_value), pressed,
-                    outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost,
+                    outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row,
                     table.concat(history, " || ")))
             if not herded then
                 t.blocked(string.format(
-                    "diseased_sheep.rs2 [label,prod_sheep]: %s never reached sheepherder_pen_gate (2592-2594,3360-3363) after %d presses (stepped=%d walled=%d out_of_range=%d lost=%d) -- last attempt: %s -- every press LANDED (the npc's own overhead line answers back), so this is not a missing trigger or a driver click-settle bug. sonnet-b20 (2026-09-24, 8 runs) verified the real obstacle directly against m40_52.jl2/all.loc: plaguesheep_1's own spawn cluster (2609,3344 / 2610,3343 / 2610,3345, m40_52.spawn) sits inside Farmer Brumty's barnyard, boxed by a drystonewall (loc 979, z=3341) and the pen's own fence (loc 980, z=3351, continuous x=2595-2609 with no gap), TWO tree2 locs (loc 1278, at 2607,3343 and 2604,3346) and TWO 2x2 boulders (loc 10790 at 2611-2612,3347-3348, loc 10791 at 2610-2611,3349-3350, shape 10 centrepiece -- real collision, all.loc confirms width=2/length=2) that together seal x=2610-2612 for the whole z=3347-3350 band. A single tile inside this pocket (measured repeatedly at 2608,3345) has BOTH its Z neighbours unreachable by walk (t.player.walk_to times out approaching either one, every attempt) and both its X neighbours' own pushes answering 'ok' with no movement -- a genuine 4-cardinal dead end this file's own herd loop cannot press its way out of. Eight rounds of real, verified fixes landed this session (a proactive boulder detour, a 2-cycle stuck detector, an x-escape direction bug, a resync-vs-escalation timing race that left x-escape entirely unexercised for 3 of those rounds, and an axis-ladder priority bug that let Z drift into the boulder band before the detour ran) each measurably changed the trace and each is a real defect fixed, not a workaround -- but the combination of this terrain and t.player.press having no verb to aim a specific one of the three near-identical live copies (trap 21, QUEST_AUTHORING.md: 'no verb to choose a specific slot') means a press aimed at a clear copy can still land on and fail to move the wedged one. Read the per-press ledger above (stepped/walled counts and the full history) and build/author_state/sonnet-b20/sheepherder.author.progress.md (all 8 runs' evidence) for the complete trail.",
-                    def.npc, pressed, outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, last_detail))
+                    "diseased_sheep.rs2 [label,prod_sheep]: %s never reached sheepherder_pen_gate (2592-2594,3360-3363) after %d presses (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d) -- last attempt: %s -- driven with the seam13 npc selector (t.player.press(..., { slot = n })), so every press named the exact live copy it aimed at; this is a real routing seam in the staged east/north/west/south plan (herd_plan_move), not the multi-copy ambiguity the previous round hit. Read the per-press ledger above (the full history) and build/author_state/sonnet-b21/sheepherder.author.progress.md for the trail.",
+                    def.npc, pressed, outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, last_detail))
                 return
             end
         end
@@ -1180,7 +799,36 @@ return {
                     def.enclosure, tostring(bs_result), tostring(bs_name), def.bitvar))
                 return
             end
-            t.exec("poison" .. def.id, t.player.use_on, "poisoned_feed", sheep_target)
+            -- RETRY (sonnet-b21, run 6): a plain `t.player.walk_near(
+            -- sheep_target, 10, 1)` answered "ok (within 1)" for poison2
+            -- and `use_on` STILL answered "I can't reach that!" three
+            -- times running (the initial press plus both of its own npc
+            -- reach retries) -- the shot (70-poison2.png) shows the player
+            -- standing at a fence CORNER a step from the sheep, so "within
+            -- 1 tile" is not the same as "on a side the pen's own interior
+            -- fencing actually lets you press the sheep from". `use_on`
+            -- has no multi-side fallback for an NPC target the way
+            -- `click_loc` does for a loc (section 3's own use_on banner),
+            -- so this drives one by hand: `pen_x`/`pen_z` above is the
+            -- sheep's own FIXED landing tile (sheepherder_sheep_data.dbrow
+            -- sheep_in_pen_coord), and each of its four neighbours is tried
+            -- in turn with a real `goto_tile` -- plain travel within the
+            -- already-entered enclosure (the "goto-barn" precedent above),
+            -- never a cheat past anything -- until one presses cleanly.
+            local poison_result, poison_detail
+            local approach_tried = {}
+            for _, off in ipairs({ { 0, -1 }, { 0, 1 }, { -1, 0 }, { 1, 0 } }) do
+                local ax, az = def.pen_x + off[1], def.pen_z + off[2]
+                t.player.goto_tile(ax, az, 0)
+                poison_result, poison_detail = t.player.use_on("poisoned_feed", sheep_target)
+                approach_tried[#approach_tried + 1] = string.format("%d,%d->%s", ax, az, tostring(poison_result))
+                if poison_result == "ok" then
+                    break
+                end
+            end
+            t.check("poison" .. def.id, poison_result == "ok",
+                string.format("use_on(poisoned_feed, %s) -> %s (%s) -- approach tiles tried: %s",
+                    def.enclosure, tostring(poison_result), tostring(poison_detail), table.concat(approach_tried, "; ")))
             -- diseased_sheep.rs2 [label,poison_sheep] opens ~mesbox("You feed
             -- the poisoned food to the sheep...") and SUSPENDS on it (trap
             -- 22): the death anim, npc_del and obj_add(npc_coord, bones) all
