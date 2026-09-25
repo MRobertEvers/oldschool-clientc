@@ -81,40 +81,24 @@
 -- deterministically, the same class of setup prerequisite as gearing for a
 -- required fight (docs section 3, t.player.attack's own header).
 --
--- Floor-traversal declarations below. Every staircase/ladder step
--- Quest Helper's own ladder lists as its own leg (`goUp...`/`goDown...`)
--- is real, unscripted geography in this content pack: mend2_puzzle5.rs2:96
--- confirms fresh "no `[oploc]` exists anywhere in this tree for
--- `mourning_temple_stairs_base/_top` or `mourning_temple_circle_stairs_
--- base/_top`", so this file's own `t.player.goto_tile(x, z, LEVEL)` calls
--- climb every one of them directly (docs sec 2: "goto_tile the destination
--- tile with ITS level is the whole of it -- it climbs stairs and ladders
--- for you"). helper_coverage.py classifies each as a declared CONTENT_GAP
--- here rather than DRIVEN because no single click names the staircase loc
--- itself -- the goto crossing it is real, driven travel all the same.
--- GUIDE-GAP: goUpStairsTemple mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: enterTempleOfLight mend2_puzzle6.rs2:746 -- generic stairs/travel leg into the temple, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpLadderNorthForPuzzle3 mend2_puzzle5.rs2:96 -- generic ladder geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownFromF2NorthRoomPuzzle3 mend2_puzzle5.rs2:96 -- generic ladder geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpToFloor2Puzzle3 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownFromF2Puzzle3 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpToFirstFloorPuzzle4 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpToFloor2Puzzle4 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownFromF2Puzzle4 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpToFloor2Puzzle5 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownToMiddleFromSouthPuzzle5 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpFromMiddleToNorthPuzzle5 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownToMiddleFromNorthPuzzle5 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownFromF2Puzzle5 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownFromF1Puzzle5 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpToF1Puzzle6 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownFromF1Puzzle6 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpNorthLadderToF2Puzzle6 mend2_puzzle5.rs2:96 -- generic ladder geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownNorthLadderToF1Puzzle6 mend2_puzzle5.rs2:96 -- generic ladder geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpToFloor2Puzzle6 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownToMiddleFromSouthPuzzle6 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goUpFromMiddleToNorthPuzzle6 mend2_puzzle5.rs2:96 -- generic stairs geography, crossed by this file's own goto_tile floor changes
--- GUIDE-GAP: goDownToCentre mend2_puzzle6.rs2:746 -- generic stairs/travel leg down to the central area, crossed by this file's own goto_tile floor changes
+-- Floor-traversal: RE-AUTHORED sonnet-b24 (2026-09-25) after content
+-- parity1l (OSRS-Content ffeb319150, queue RE-AUTHOR). The Temple of
+-- Light's six staircase/ladder locs are now bound by NAME with real
+-- per-copy landings (mend2_stairs.rs2's own header table) -- every floor
+-- change below is driven by a real t.player.click_loc on the actual
+-- staircase/ladder the guide names, never a goto_tile across levels
+-- (queue rule (b): teleporting past a loc the guide names as its own step
+-- is a cheat). The previous file's 23 "declared content gap" markers for
+-- these ("generic geography", no `[oploc]` existed for them before
+-- parity1l) are gone -- read fresh, helper_coverage.py now finds real
+-- `[oploc1,...]` triggers for all six symbols. The doorway crossing
+-- (enterTempleOfLight) is a walk-in zone teleport, not a clickable loc -- see
+-- mend2_temple.rs2's own header and the walk_to call below. Most
+-- individual stair legs classify TRAVEL (auto-merged into whichever real
+-- click follows, no distinct row name needed); only the ones
+-- helper_coverage.py names explicitly (goUpStairsTemple, enterTempleOfLight
+-- at stage 40, and the Puzzle3/4/5/6 go*/searchMagenta* family) need a row
+-- whose name starts with that exact guide step variable.
 
 return {
     id = "mourningsendpartii",
@@ -211,8 +195,86 @@ return {
         t.check("getcrystal.journal", journal_result == "ok" and journal_has == true,
             "inv.has mourning_ederns_journal -> " .. tostring(journal_result) .. " " .. tostring(journal_has))
 
+        -- enterTempleOfLight leg (stage 10 has no distinct guide row for
+        -- this crossing -- it is folded into goUpStairsTemple below;
+        -- mend2_temple.rs2's own header) -- the temple's east doorway is a
+        -- WALK-IN zone crossing, not a clickable loc at all ("the cache has
+        -- no clickable door there"). Runs #1/#2/#3: a single long walk_to
+        -- straight at the doorway timed out every time it started off the
+        -- z=4639 row (diagonal approach from the corpse room), landing
+        -- short every time. tools/quest_gate/_scratch/
+        -- parity1l_mend2_entrance_probe.lua is the MEASURED working
+        -- sequence this pass finally matches exactly: align on the
+        -- doorway's own row FIRST (a teleport to 1921,4639,0, itself
+        -- outside the zone), then a chain of SHORT, same-row hops --
+        -- 1919, then 1917 -- rather than one long diagonal walk.
+        -- Run #4: the align-then-hop sequence lands correctly (tile check
+        -- below reads exactly 1911,4639,0) even though the individual
+        -- walk_to calls themselves read "timeout" -- the zone's own
+        -- p_teleport interrupts the route mid-walk, same shape as the
+        -- "held 2 tick(s)" teleport arm elsewhere in this file (docs
+        -- section 2: a route cut short by a script teleport is not a
+        -- failed click). Grade this leg on where the player LANDS, not on
+        -- the intermediate walk_to results.
+        t.exec("goto-doorwayAlign", t.player.goto_tile, 1921, 4639, 0)
+        local doorway1_walk_a = t.player.walk_to(1919, 4639, 0)
+        t.note("walk_to 1919,4639,0 -> " .. tostring(doorway1_walk_a))
+        local doorway1_walk = t.player.walk_to(1917, 4639, 0)
+        t.note("walk_to 1917,4639,0 -> " .. tostring(doorway1_walk))
+        t.ticks(3)
+        local doorway1_result, doorway1_tile = t.world.tile()
+        t.check("getcrystal.doorway.walkin", doorway1_result == "ok" and doorway1_tile.x == 1911
+            and doorway1_tile.z == 4639 and doorway1_tile.level == 0,
+            "world.tile() after the doorway walk-in -> " .. tostring(doorway1_result) .. " " .. tostring(doorway1_tile and
+                (doorway1_tile.x .. "," .. doorway1_tile.z .. "," .. doorway1_tile.level) or "nil") .. " expected 1911,4639,0")
+
+        -- goUpStairsTemple (java:645): the east circle staircase, ground
+        -- floor -> floor 1 (mend2_stairs.rs2's own [oploc1,
+        -- mourning_temple_circle_stairs_base] case 0_29_72_46_30). The west
+        -- circle shares floor 0 (~15 tiles away, at 1887,4638) -- approach
+        -- from the east side so the nearer copy resolves.
+        t.exec("goto-eastCircleApproach", t.player.goto_tile, 1905, 4639, 0)
+        t.exec("goUpStairsTemple", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local up1_result, up1_tile = t.world.tile()
+        t.check("goUpStairsTemple.tile", up1_result == "ok" and up1_tile.level == 1,
+            "world.tile() after the east circle stairs -> " .. tostring(up1_result) .. " " .. tostring(up1_tile and
+                (up1_tile.x .. "," .. up1_tile.z .. "," .. up1_tile.level) or "nil") .. " expected level 1")
+
+        -- goUpSouthLadder (java:647): the south straight stairs, floor 1 ->
+        -- floor 2.
+        t.exec("goto-southStairsApproach0", t.player.goto_tile, 1896, 4620, 1)
+        t.exec("goUpSouthLadder", t.player.click_loc, "mourning_temple_stairs_base", 1)
+        t.ticks(3)
+        local up2a_result, up2a_tile = t.world.tile()
+        t.check("goUpSouthLadder.tile", up2a_result == "ok" and up2a_tile.level == 2,
+            "world.tile() after the south stairs -> " .. tostring(up2a_result) .. " " .. tostring(up2a_tile and
+                (up2a_tile.x .. "," .. up2a_tile.z .. "," .. up2a_tile.level) or "nil") .. " expected level 2")
+
+        -- goToMiddleFromSouth (java:659ish): the south circle stairs down,
+        -- floor 2 -> floor 1.
+        t.exec("goto-southCircleApproach0", t.player.goto_tile, 1891, 4634, 2)
+        t.exec("goToMiddleFromSouth", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
+        t.ticks(3)
+        local mid_result, mid_tile = t.world.tile()
+        t.check("goToMiddleFromSouth.tile", mid_result == "ok" and mid_tile.level == 1,
+            "world.tile() after the south circle stairs down -> " .. tostring(mid_result) .. " " .. tostring(mid_tile and
+                (mid_tile.x .. "," .. mid_tile.z .. "," .. mid_tile.level) or "nil") .. " expected level 1")
+
+        -- goUpFromMiddleToNorth (java:649): the north circle staircase,
+        -- floor 1 -> floor 2, lands in northTempleF2 (z>=4635) where the
+        -- dark crystal sits. The south circle shares floor 1 (~6 tiles away)
+        -- -- approach from the north side of the stair square.
+        t.exec("goto-northCircleApproach", t.player.goto_tile, 1891, 4640, 1)
+        t.exec("goUpFromMiddleToNorth.crystal", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local up2_result, up2_tile = t.world.tile()
+        t.check("goUpFromMiddleToNorth.crystal.tile", up2_result == "ok" and up2_tile.level == 2,
+            "world.tile() after the north circle stairs -> " .. tostring(up2_result) .. " " .. tostring(up2_tile and
+                (up2_tile.x .. "," .. up2_tile.z .. "," .. up2_tile.level) or "nil") .. " expected level 2")
+
         t.exec("goto-useChisel", t.player.goto_tile, 1909, 4638, 2)
-        t.ticks(2) -- settle after a multi-floor goto_tile jump (docs section 2)
+        t.ticks(2) -- settle after the real stair climbs above
         local crystal_loc = t.player.by_symbol("loc", "mourning_temple_obsidian_crystal_dead")
         t.exec("getcrystal.chiselCrystal", t.player.use_on, "chisel", crystal_loc)
         local sample_result, sample_has = t.inv.has("mourning_crystal_sample")
@@ -220,39 +282,114 @@ return {
             "inv.has mourning_crystal_sample -> " .. tostring(sample_result) .. " " .. tostring(sample_has))
 
         -- ---- Arianwyn #2, Lletya: essyllt_task -> crystal_given
-        -- (mend2_shared.rs2:60-73). This is the REAL branch, gated on
-        -- mourning_crystal_sample >= 1 -- the old file's dialogue text here
-        -- is dead; read fresh against the current mend2_shared.rs2.
-        -- Quest-helper's own talkToElunedAfterGivingCrystal step (a
-        -- separate NpcStep on Eluned, ROVING_FEMALE_WOODELF_TEMP_1) has no
-        -- content leg at all -- Arianwyn's own line ("I can shape you a
-        -- fresh one to match it", mend2_shared.rs2:66) substitutes for it
-        -- narratively in the SAME conversation, so it is declared here
-        -- rather than left UNMATCHED. ----
-        -- GUIDE-GAP: talkToElunedAfterGivingCrystal Eluned has no [opnpc] trigger anywhere in this quest; Arianwyn's own line substitutes for her narratively (mend2_shared.rs2:66)
+        -- (mend2_shared.rs2:60-84, parity1l leg B). Verbatim from the wiki's
+        -- Transcript:Mourning's_End_Part_II -- the hand-in, then Arianwyn
+        -- summons Eluned (roving_female_woodelf_temp_1) in the SAME
+        -- conversation ("Just a second, I will summon Eluned" ...
+        -- ~chatnpc_specific("Eluned", ...)). ----
         t.exec("goto-talkToArianwyn2", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwyn2", t.player.talk_to, "mourning_arianwyn", 1)
         t.exec("talkToArianwyn2-dialog", t.chat.play, {
-            "player:Arianwyn -- I made it to the Temple of Light",
-            "npc:I feared as much. Let me see the sample.",
-            "npc:This crystal is unlike any I've seen",
-            "npc:Eluned tells me the Temple of Light's mirrors can charge a crystal",
-            "player:I'll see what I can do.",
+            "player:Is this it?",
+            "npc:Yes! Good work.",
+            "player:Thanks, I found it on the top floor of the temple.",
+            "npc:Well done, with this sample, a good crystal chanter should be able to make a replacement. Just a second, I will summon Eluned.",
+            "mesbox:Eluned appears.",
+            "npc:Thank you for responding to my summons Eluned.",
+            "npc:Any time Arianwyn, how can I help?",
+            "npc:here has an old crystal sample, we need you to make a replacement for it.",
         })
         t.ticks(3)
         t.expect("quest.stage.crystal_given", t.quest.expect_stage("crystal_given"))
         local sample_gone_result, sample_gone = t.inv.has("mourning_crystal_sample")
         t.check("crystal_given.sample_consumed", sample_gone_result == "ok" and sample_gone == false,
             "inv.has mourning_crystal_sample after hand-in -> " .. tostring(sample_gone_result) .. " " .. tostring(sample_gone))
+
+        -- ---- talkToElunedAfterGivingCrystal (java:162/665-667): Eluned
+        -- herself makes the replacement crystal, on her own [opnpc1]
+        -- trigger (mend2_shared.rs2:262-277). The trigger dispatch is
+        -- base-only -- the spawn row (m36_49.spawn:36) names the base
+        -- "roving_female_woodelf_temp", not the "_1" child the client
+        -- displays as "Eluned" (mend2_shared.rs2's own header: clicking the
+        -- child ran nothing). ----
+        t.exec("talkToElunedAfterGivingCrystal", t.player.talk_to, "roving_female_woodelf_temp", 1)
+        t.exec("talkToElunedAfterGivingCrystal-dialog", t.chat.play, {
+            "npc:Alright, hand it here and I shall take a look.",
+            "npc:Now, let me see... Hmm... Ah, there we go.",
+        })
+        -- ~objbox(...) is its own page kind ("objbox") -- chat.play has no
+        -- "objbox:" entry (script/plugins/quest_driver/chat.lua's own
+        -- _play_kind_by_prefix table: npc/player/mesbox/count/name/choose
+        -- only), so close this list here, read the item-grant page
+        -- directly, then play a SECOND list for what follows it (docs
+        -- section 8's reopened-dialogue recipe).
+        local objbox_kind = t.chat.kind()
+        t.check("talkToElunedAfterGivingCrystal.objbox", objbox_kind == "objbox",
+            "chat.kind() after Eluned's crystal line -> " .. tostring(objbox_kind))
+        -- close() is idempotent but does NOT resume a suspended script
+        -- (docs section 8/trap 22) -- continue_(true) is what lets the
+        -- lines after the objbox (chatplayer "Thanks." etc) actually run.
+        t.exec("talkToElunedAfterGivingCrystal.objbox_continue", t.chat.continue_, true)
+        t.exec("talkToElunedAfterGivingCrystal-dialog2", t.chat.play, {
+            "player:Thanks.",
+            "npc:No problem, Arianwyn will tell you what you should do with it.",
+        })
         local new_sample_result, new_sample_has = t.inv.has("mourning_crystal_new_sample")
         t.check("crystal_given.new_sample", new_sample_result == "ok" and new_sample_has == true,
             "inv.has mourning_crystal_new_sample -> " .. tostring(new_sample_result) .. " " .. tostring(new_sample_has))
+
+        -- ---- talkToArianwynAfterGivingCrystal (java:509/666-667,
+        -- knowToUseCrystal): Arianwyn's instructions, gating every puzzle
+        -- below on mourning_arianwyn_told = 1 (mend2_shared.rs2:93-106). ----
+        t.exec("talkToArianwynAfterGivingCrystal", t.player.talk_to, "mourning_arianwyn", 1)
+        t.exec("talkToArianwynAfterGivingCrystal-dialog", t.chat.play, {
+            "player:I have the new crystal, now what am I meant to do with it?",
+            "npc:You will need to first take the newly formed crystal to the end of the temple and place it on the altar there. This will imbue the crystal with the power it needs to safeguard the temple.",
+            "player:This is starting to sound hard.",
+            "npc:It should be quite simple. Once you have powered up the newly formed crystal, you will need to return to the blackened crystal and place the new shard with others. This should restore the safeguards.",
+            "player:And that's it?",
+            "npc:Yes, that is all.",
+        })
+        local told_result, told_val = t.var.server("mourning_arianwyn_told")
+        t.check("talkToArianwynAfterGivingCrystal.told", told_result == "ok" and told_val == 1,
+            "var.server(mourning_arianwyn_told) -> " .. tostring(told_result) .. " " .. tostring(told_val))
 
         -- ============================================================
         -- Temple of Light, Puzzle 1 (mend2_puzzle1.rs2) -- REAL content.
         -- All tiles from Quest Helper's own WorldPoints
         -- (MourningsEndPartII.java:681-699).
         -- ============================================================
+
+        -- enterTempleOfLight (stage 40, java:676): the SECOND temple entry
+        -- -- gear worn, chisel/rope/talisman confirmed by Arianwyn's own
+        -- gate above -- through the same east doorway walk-in: align on
+        -- the doorway's row first, then short same-row hops (see the
+        -- getCrystal leg's own comment for why).
+        -- Run #4: grade on the landing, not the intermediate walk_to
+        -- results (see the getCrystal leg's own comment -- the zone
+        -- teleport interrupts the route and reads "timeout" even when it
+        -- landed).
+        t.exec("goto-doorway2Align", t.player.goto_tile, 1921, 4639, 0)
+        local doorway2_walk_a = t.player.walk_to(1919, 4639, 0)
+        t.note("walk_to 1919,4639,0 -> " .. tostring(doorway2_walk_a))
+        local doorway2_walk = t.player.walk_to(1917, 4639, 0)
+        t.note("walk_to 1917,4639,0 -> " .. tostring(doorway2_walk))
+        t.ticks(3)
+        local doorway2_result, doorway2_tile = t.world.tile()
+        t.check("enterTempleOfLight", doorway2_result == "ok" and doorway2_tile.x == 1911
+            and doorway2_tile.z == 4639 and doorway2_tile.level == 0,
+            "world.tile() after the doorway walk-in -> " .. tostring(doorway2_result) .. " " .. tostring(doorway2_tile and
+                (doorway2_tile.x .. "," .. doorway2_tile.z .. "," .. doorway2_tile.level) or "nil") .. " expected 1911,4639,0")
+
+        -- goUpStairsTempleC1 (TRAVEL-merged, stage 40): the east circle
+        -- staircase again, ground floor -> floor 1.
+        t.exec("goto-eastCircleApproach2", t.player.goto_tile, 1905, 4639, 0)
+        t.exec("goUpStairsTempleC1", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local up3_result, up3_tile = t.world.tile()
+        t.check("goUpStairsTempleC1.tile", up3_result == "ok" and up3_tile.level == 1,
+            "world.tile() after the east circle stairs -> " .. tostring(up3_result) .. " " .. tostring(up3_tile and
+                (up3_tile.x .. "," .. up3_tile.z .. "," .. up3_tile.level) or "nil") .. " expected level 1")
 
         t.exec("goto-p1.dispenser", t.player.goto_tile, 1913, 4639, 1)
         t.exec("p1.dispenser", t.player.click_loc, "mourning_temple_light_wall_lever", 1)
@@ -435,15 +572,47 @@ return {
         t.exec("p3.pillar2_3.turn_open", t.player.click_loc, "mourning_temple_pillar_2_3", 1)
         t.exec("p3.pillar2_3.turn_choose", t.chat.play, { "choose:Up or down...", "choose:Up." })
 
-        -- Pillar 3_3, floor 2 north room -- mirror, point west. Reached by
-        -- climbing the north ladder from pillar 2_3's own tile -- generic,
-        -- unscripted geography (goto_tile climbs it for free, docs section 2).
+        -- goUpLadderNorthForPuzzle3 (java:740): the north ladder, floor 1
+        -- -> floor 2, lands in the isolated northRoomF2 pocket
+        -- (1891-1918,4659-4667,2) where pillar 3_3 sits.
+        t.exec("goto-northLadderApproach1", t.player.goto_tile, 1898, 4667, 1)
+        t.exec("goUpLadderNorthForPuzzle3", t.player.click_loc, "mourning_temple_ladder_wall", 1)
+        t.ticks(3)
+        local ladder1_result, ladder1_tile = t.world.tile()
+        t.check("goUpLadderNorthForPuzzle3.tile", ladder1_result == "ok" and ladder1_tile.level == 2,
+            "world.tile() after the north ladder -> " .. tostring(ladder1_result) .. " " .. tostring(ladder1_tile and
+                (ladder1_tile.x .. "," .. ladder1_tile.z .. "," .. ladder1_tile.level) or "nil") .. " expected level 2")
+
+        -- Pillar 3_3, floor 2 north room -- mirror, point west.
         local pillar33 = t.player.by_symbol("loc", "mourning_temple_pillar_3_3")
         t.exec("goto-p3.pillar3_3", t.player.goto_tile, 1898, 4665, 2)
         t.ticks(2)
         t.exec("p3.pillar3_3.place", t.player.use_on, "mourning_mirror", pillar33)
         t.exec("p3.pillar3_3.turn_open", t.player.click_loc, "mourning_temple_pillar_3_3", 1)
         t.exec("p3.pillar3_3.turn_choose", t.chat.play, { "choose:West." })
+
+        -- goDownFromF2NorthRoomPuzzle3 (java:743): the north room is a
+        -- pocket, reachable ONLY via its own ladder -- back down to floor 1
+        -- first.
+        t.exec("goto-northLadderApproach2", t.player.goto_tile, 1898, 4667, 2)
+        t.exec("goDownFromF2NorthRoomPuzzle3", t.player.click_loc, "mourning_temple_ladder_wall_top", 1)
+        t.ticks(3)
+        local ladder2_result, ladder2_tile = t.world.tile()
+        t.check("goDownFromF2NorthRoomPuzzle3.tile", ladder2_result == "ok" and ladder2_tile.level == 1,
+            "world.tile() after climbing down the north ladder -> " .. tostring(ladder2_result) .. " " .. tostring(ladder2_tile and
+                (ladder2_tile.x .. "," .. ladder2_tile.z .. "," .. ladder2_tile.level) or "nil") .. " expected level 1")
+
+        -- goUpToFloor2Puzzle3 (java:744): the south straight stairs, floor 1
+        -- -> floor 2, to reach the rest of floor 2 (pillar 3_1 is OUTSIDE
+        -- the north room). The north straight stairs are 38 tiles away, at
+        -- 1893-1895,4658 -- unambiguous.
+        t.exec("goto-southStairsApproach1", t.player.goto_tile, 1896, 4620, 1)
+        t.exec("goUpToFloor2Puzzle3", t.player.click_loc, "mourning_temple_stairs_base", 1)
+        t.ticks(3)
+        local upstairs1_result, upstairs1_tile = t.world.tile()
+        t.check("goUpToFloor2Puzzle3.tile", upstairs1_result == "ok" and upstairs1_tile.level == 2,
+            "world.tile() after the south stairs -> " .. tostring(upstairs1_result) .. " " .. tostring(upstairs1_tile and
+                (upstairs1_tile.x .. "," .. upstairs1_tile.z .. "," .. upstairs1_tile.level) or "nil") .. " expected level 2")
 
         -- Pillar 3_1, floor 2 far north-west corner -- mirror, point down.
         -- Lights the vertical shaft and flips mourning_door_1_1_east's own
@@ -458,9 +627,27 @@ return {
         t.check("p3.door_yellow1.lit", door_e_result == "ok" and door_e_val == 1,
             "var.server(mourning_door_1_1_east) -> " .. tostring(door_e_result) .. " " .. tostring(door_e_val))
 
-        -- Down to the ground floor, the far north-west room's east doorway.
+        -- Down to the ground floor, the far north-west room's east doorway
+        -- -- the south stairs down (2->1), then the east circle down (1->0),
+        -- the same two crossings used going up, run in reverse.
+        t.exec("goto-southStairsApproach2", t.player.goto_tile, 1892, 4620, 2)
+        t.exec("p3.descendToF1", t.player.click_loc, "mourning_temple_stairs_top", 1)
+        t.ticks(3)
+        local down1_result, down1_tile = t.world.tile()
+        t.check("p3.descendToF1.tile", down1_result == "ok" and down1_tile.level == 1,
+            "world.tile() after the south stairs down -> " .. tostring(down1_result) .. " " .. tostring(down1_tile and
+                (down1_tile.x .. "," .. down1_tile.z .. "," .. down1_tile.level) or "nil") .. " expected level 1")
+
+        t.exec("goto-eastCircleApproach3", t.player.goto_tile, 1901, 4639, 1)
+        t.exec("goDownFromF2Puzzle3", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
+        t.ticks(3)
+        local down2_result, down2_tile = t.world.tile()
+        t.check("goDownFromF2Puzzle3.tile", down2_result == "ok" and down2_tile.level == 0,
+            "world.tile() after the east circle stairs down -> " .. tostring(down2_result) .. " " .. tostring(down2_tile and
+                (down2_tile.x .. "," .. down2_tile.z .. "," .. down2_tile.level) or "nil") .. " expected level 0")
+
         t.exec("goto-p3.door_yellow1", t.player.goto_tile, 1864, 4665, 0)
-        t.ticks(2) -- settle after the multi-floor jump (docs section 2)
+        t.ticks(2) -- settle after the real stair climbs above
         t.exec("p3.door_yellow1.enter", t.player.click_loc, "mourning_door_1_1_east", 1)
 
         -- The pre-placed mirror in pillar_1_1 -- no item, turn only.
@@ -503,6 +690,17 @@ return {
         t.exec("p4.pillar1_1.turn", t.player.click_loc, "mourning_temple_pillar_1_1", 1)
         t.exec("p4.pillar1_1.turn_choose", t.chat.play, { "choose:East." })
         t.exec("p4.door_yellow1.exit", t.player.click_loc, "mourning_door_1_1_east", 1)
+
+        -- goUpToFirstFloorPuzzle4 (java:756): the east circle staircase
+        -- again, ground floor -> floor 1.
+        t.exec("goto-eastCircleApproach4", t.player.goto_tile, 1905, 4639, 0)
+        t.exec("goUpToFirstFloorPuzzle4", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local p4up1_result, p4up1_tile = t.world.tile()
+        t.check("goUpToFirstFloorPuzzle4.tile", p4up1_result == "ok" and p4up1_tile.level == 1,
+            "world.tile() after the east circle stairs -> " .. tostring(p4up1_result) .. " " .. tostring(p4up1_tile and
+                (p4up1_tile.x .. "," .. p4up1_tile.z .. "," .. p4up1_tile.level) or "nil") .. " expected level 1")
+
         -- "climb the east stairs ... Pick up the Cyan crystal ... place the Yellow crystal"
         local pillar26 = t.player.by_symbol("loc", "mourning_temple_pillar_2_6")
         t.exec("goto-p4.pillar2_6", t.player.goto_tile, 1898, 4650, 1)
@@ -511,6 +709,17 @@ return {
         t.ticks(2)
         t.exec("p4.pillar2_6.yellow", t.player.use_on, "mourning_crystal_yellow", pillar26)
         t.exec("p4.edge2_5_6", t.var.server, "mourning_light_temple_2_5_6")
+
+        -- goUpToFloor2Puzzle4 (java:780): the south straight stairs again,
+        -- floor 1 -> floor 2.
+        t.exec("goto-southStairsApproach3", t.player.goto_tile, 1896, 4620, 1)
+        t.exec("goUpToFloor2Puzzle4", t.player.click_loc, "mourning_temple_stairs_base", 1)
+        t.ticks(3)
+        local p4up2_result, p4up2_tile = t.world.tile()
+        t.check("goUpToFloor2Puzzle4.tile", p4up2_result == "ok" and p4up2_tile.level == 2,
+            "world.tile() after the south stairs -> " .. tostring(p4up2_result) .. " " .. tostring(p4up2_tile and
+                (p4up2_tile.x .. "," .. p4up2_tile.z .. "," .. p4up2_tile.level) or "nil") .. " expected level 2")
+
         -- "Rotate Mirror #7 to shine the light south. This light should be red."
         t.exec("goto-p4.pillar3_1", t.player.goto_tile, 1860, 4665, 2)
         t.ticks(2)
@@ -525,6 +734,17 @@ return {
         t.exec("p4.pillar3_13.turn", t.player.click_loc, "mourning_temple_pillar_3_13", 1)
         t.exec("p4.pillar3_13.turn_choose", t.chat.play, { "choose:Up or down...", "choose:Down." })
         t.exec("p4.door_cyan_north.lit", t.var.server, "mourning_door_1_13_north")
+
+        -- goDownFromF2Puzzle4 (java:786): the south straight stairs down,
+        -- floor 2 -> floor 1, to reach the rope.
+        t.exec("goto-southStairsApproach4", t.player.goto_tile, 1892, 4620, 2)
+        t.exec("goDownFromF2Puzzle4", t.player.click_loc, "mourning_temple_stairs_top", 1)
+        t.ticks(3)
+        local p4down_result, p4down_tile = t.world.tile()
+        t.check("goDownFromF2Puzzle4.tile", p4down_result == "ok" and p4down_tile.level == 1,
+            "world.tile() after the south stairs down -> " .. tostring(p4down_result) .. " " .. tostring(p4down_tile and
+                (p4down_tile.x .. "," .. p4down_tile.z .. "," .. p4down_tile.level) or "nil") .. " expected level 1")
+
         -- "Use the rope shortcut to reach the bottom floor."
         local rocks = t.player.by_symbol("loc", "mourning_temple_way_down")
         t.exec("goto-p4.rope", t.player.goto_tile, 1876, 4620, 1)
@@ -618,11 +838,14 @@ return {
         t.check("p5.crossing.out.tile", p5outT == "ok", "world.tile() after crossing out -> " .. tostring(p5outV))
         t.exec("p5.crossing.out.blue_kept", t.inv.count, "mourning_crystal_blue")
 
+        -- puzzle5Pillar6: enter through the door for real, then use_on the
+        -- blue crystal directly -- no goto onto the pillar's own square and
+        -- no stand_on_square (item 3 of the RE-AUTHOR: "the blue room via
+        -- door_2_16_west then use_on").
         t.exec("p5.crossing.door_in", t.player.click_loc, "mourning_door_2_16_west", 1)
-        t.check("goto.p5.pillar6", t.player.goto_tile(1915, 4613, 1) == "ok", "pillar 2_16, blue room")
+        t.ticks(2)
         local pillar216 = t.player.by_symbol("loc", "mourning_temple_pillar_2_16")
-        -- GUIDE-GAP: puzzle5Pillar6 the blue room around mourning_temple_pillar_2_16 is a single-tile cramped pocket (mend2_puzzle5.rs2:234's own [oplocu] trigger) no approach tile reaches
-        t.exec("p5.pillar6.place", t.player.use_on, "mourning_crystal_blue", pillar216, { stand_on_square = true })
+        t.exec("p5.pillar6.place", t.player.use_on, "mourning_crystal_blue", pillar216)
         t.exec("p5.pillar6.edge", t.var.server, "mourning_light_temple_2_16_north")
 
         t.check("goto.p5.door_out", t.player.goto_tile(1913, 4613, 1) == "ok", "back toward the door")
@@ -687,6 +910,37 @@ return {
         t.exec("p5.pillar3.point_up", t.chat.choose, "Up.")
         t.exec("p5.pillar3.edge_up", t.var.server, "mourning_light_temple_2_6_up")
 
+        -- goUpToFloor2Puzzle5: the south straight stairs, floor 1 -> floor 2.
+        t.check("goto.southStairsApproach5", t.player.goto_tile(1896, 4620, 1) == "ok", "the south stairs")
+        t.exec("goUpToFloor2Puzzle5", t.player.click_loc, "mourning_temple_stairs_base", 1)
+        t.ticks(3)
+        local p5up1T, p5up1V = t.world.tile()
+        t.check("goUpToFloor2Puzzle5.tile", p5up1T == "ok" and p5up1V.level == 2,
+            "world.tile() after the south stairs -> " .. tostring(p5up1T) .. " " .. tostring(p5up1V and
+                (p5up1V.x .. "," .. p5up1V.z .. "," .. p5up1V.level) or "nil") .. " expected level 2")
+
+        -- goDownToMiddleFromSouthPuzzle5: the south circle stairs down,
+        -- floor 2 -> floor 1 (the north circle shares floor 1, ~6 tiles
+        -- away -- approach close to the south copy).
+        t.check("goto.southCircleApproach1", t.player.goto_tile(1891, 4634, 2) == "ok", "the south circle stairs")
+        t.exec("goDownToMiddleFromSouthPuzzle5", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
+        t.ticks(3)
+        local p5mid1T, p5mid1V = t.world.tile()
+        t.check("goDownToMiddleFromSouthPuzzle5.tile", p5mid1T == "ok" and p5mid1V.level == 1,
+            "world.tile() after the south circle stairs down -> " .. tostring(p5mid1T) .. " " .. tostring(p5mid1V and
+                (p5mid1V.x .. "," .. p5mid1V.z .. "," .. p5mid1V.level) or "nil") .. " expected level 1")
+
+        -- goUpFromMiddleToNorth (TRAVEL, same crossing as the getCrystal
+        -- leg's own): the north circle stairs up, floor 1 -> floor 2 north,
+        -- where pillars 7-11 sit.
+        t.check("goto.northCircleApproach2", t.player.goto_tile(1891, 4640, 1) == "ok", "the north circle stairs")
+        t.exec("goUpFromMiddleToNorthPuzzle5", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local p5mid2T, p5mid2V = t.world.tile()
+        t.check("goUpFromMiddleToNorthPuzzle5.tile", p5mid2T == "ok" and p5mid2V.level == 2,
+            "world.tile() after the north circle stairs -> " .. tostring(p5mid2T) .. " " .. tostring(p5mid2V and
+                (p5mid2V.x .. "," .. p5mid2V.z .. "," .. p5mid2V.level) or "nil") .. " expected level 2")
+
         ------------------------------------------------------------------
         -- Floor 2 -- pillars 7-11.
         ------------------------------------------------------------------
@@ -725,6 +979,27 @@ return {
         t.exec("p5.pillar11.point", t.chat.choose, "Down.")
         t.exec("p5.pillar11.edge", t.var.server, "mourning_light_temple_2_16_up")
 
+        -- goDownFromF2Puzzle5: the south straight stairs down, floor 2 ->
+        -- floor 1.
+        t.check("goto.southStairsApproach6", t.player.goto_tile(1892, 4620, 2) == "ok", "the south stairs")
+        t.exec("goDownFromF2Puzzle5", t.player.click_loc, "mourning_temple_stairs_top", 1)
+        t.ticks(3)
+        local p5down1T, p5down1V = t.world.tile()
+        t.check("goDownFromF2Puzzle5.tile", p5down1T == "ok" and p5down1V.level == 1,
+            "world.tile() after the south stairs down -> " .. tostring(p5down1T) .. " " .. tostring(p5down1V and
+                (p5down1V.x .. "," .. p5down1V.z .. "," .. p5down1V.level) or "nil") .. " expected level 1")
+
+        -- goDownFromF1Puzzle5: the west circle stairs down, floor 1 ->
+        -- floor 0 (the east circle shares floor 1, ~15 tiles away --
+        -- approach close to the west copy).
+        t.check("goto.westCircleApproach1", t.player.goto_tile(1890, 4639, 1) == "ok", "the west circle stairs")
+        t.exec("goDownFromF1Puzzle5", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
+        t.ticks(3)
+        local p5down2T, p5down2V = t.world.tile()
+        t.check("goDownFromF1Puzzle5.tile", p5down2T == "ok" and p5down2V.level == 0,
+            "world.tile() after the west circle stairs down -> " .. tostring(p5down2T) .. " " .. tostring(p5down2V and
+                (p5down2V.x .. "," .. p5down2V.z .. "," .. p5down2V.level) or "nil") .. " expected level 0")
+
         ------------------------------------------------------------------
         -- Floor 0 -- pillars 12-14, then the chest -> mourning_temple_parts_6.
         ------------------------------------------------------------------
@@ -742,19 +1017,42 @@ return {
         t.exec("p5.pillar13.point", t.chat.choose, "East.")
         t.exec("p5.pillar13.edge", t.var.server, "mourning_light_temple_1_14_east")
 
-        t.check("goto.p5.pillar14", t.player.goto_tile(1915, 4613, 0) == "ok", "pillar 1_16")
+        -- puzzle5Pillar14 ("Enter the south east room", java:846): the lit
+        -- west doorway (mourning_door_1_16_west, 1912,4613,0) is the real
+        -- way in -- pillar 1_14's east turn just above lit it. click it from
+        -- 1909,4613,0, not a ::goto onto the pillar's own square. Run #1
+        -- proved the queue's own warning live -- "mourning_door_1_16_west's
+        -- click answers settle_after_click though the pass lands"
+        -- (last_failure item 1): the crossing is the same 2-tile
+        -- p_teleport glide every other Door of Light here uses
+        -- (mend2_pass_light_door), a SHORT hop under docs section 2's own
+        -- "stiles.rs2" rule -- click_loc's settle never sees a chat line or
+        -- a jump big enough to trip the teleport arm, so grade this one
+        -- directly on where the player lands, not on the verb's own result.
+        t.check("goto.p5.door16west", t.player.goto_tile(1909, 4613, 0) == "ok", "the lit west doorway")
+        local door16west_result, door16west_detail = t.player.click_loc("mourning_door_1_16_west", 1)
+        t.ticks(3)
+        local door16west_tile_result, door16west_tile = t.world.tile()
+        t.check("puzzle5Pillar14", door16west_tile_result == "ok" and door16west_tile
+            and door16west_tile.x and door16west_tile.x >= 1911,
+            "click_loc mourning_door_1_16_west -> " .. tostring(door16west_result) .. " " .. tostring(door16west_detail)
+                .. "; world.tile() -> " .. tostring(door16west_tile_result) .. " " .. tostring(door16west_tile and
+                    (door16west_tile.x .. "," .. door16west_tile.z .. "," .. door16west_tile.level) or "nil"))
         local pillar116 = t.player.by_symbol("loc", "mourning_temple_pillar_1_16")
-        -- GUIDE-GAP: puzzle5Pillar14 the south east room around mourning_temple_pillar_1_16 is a single-tile cramped pocket (mend2_puzzle5.rs2:624's own [oplocu] trigger) no approach tile reaches
-        t.exec("p5.pillar14.place", t.player.use_on, "mourning_mirror", pillar116, { stand_on_square = true })
-        t.exec("p5.pillar14.turn", t.player.click_loc, "mourning_temple_pillar_1_16", 1, { stand_on_square = true })
+        t.exec("p5.pillar14.place", t.player.use_on, "mourning_mirror", pillar116)
+        t.exec("p5.pillar14.turn", t.player.click_loc, "mourning_temple_pillar_1_16", 1)
         t.exec("p5.pillar14.point", t.chat.choose, "North.")
         t.exec("p5.pillar14.edge", t.var.server, "mourning_light_temple_1_16_north")
 
-        t.check("goto.p5.chest", t.player.goto_tile(1910, 4622, 0) == "ok", "the chest room")
-        -- GUIDE-GAP: searchMagentaYellowChest the chest room around mourning_temple_light_parts_6_closed/_open is a single-tile cramped pocket (mend2_puzzle5.rs2:669's own [oploc1] trigger) no approach tile reaches
-        t.exec("p5.chest.open", t.player.click_loc, "mourning_temple_light_parts_6_closed", 1, { stand_on_square = true })
+        -- searchMagentaYellowChest ("Search the chest ... north of you",
+        -- java:849): the lit north doorway (mourning_door_1_16_north,
+        -- 1915,4616,0) is the real way into the chest room.
+        t.exec("searchMagentaYellowChest.door", t.player.click_loc, "mourning_door_1_16_north", 1)
         t.ticks(2)
-        t.exec("p5.chest.search", t.player.click_loc, "mourning_temple_light_parts_6_open", 1, { stand_on_square = true })
+        t.check("goto.p5.chest", t.player.goto_tile(1910, 4622, 0) == "ok", "the chest room")
+        t.exec("p5.chest.open", t.player.click_loc, "mourning_temple_light_parts_6_closed", 1)
+        t.ticks(2)
+        t.exec("p5.chest.search", t.player.click_loc, "mourning_temple_light_parts_6_open", 1)
         t.ticks(2)
         t.exec("p5.chest.mirrors", t.inv.count, "mourning_mirror")
         t.exec("p5.chest.fractured", t.inv.count, "mourning_fractured_crystal_1")
@@ -777,6 +1075,17 @@ return {
         -- Pattern: tools/quest_gate/_scratch/parity1k_mend2_endtoend.lua
         -- (143/143 PASS against this exact content).
         -- ============================================================
+
+        -- goUpToF1Puzzle6: the east circle staircase, ground floor ->
+        -- floor 1, back to the dispenser after the chest room.
+        t.check("goto.eastCircleApproach5", t.player.goto_tile(1905, 4639, 0) == "ok", "the east circle stairs")
+        t.exec("goUpToF1Puzzle6", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local p6up0T, p6up0V = t.world.tile()
+        t.check("goUpToF1Puzzle6.tile", p6up0T == "ok" and p6up0V.level == 1,
+            "world.tile() after the east circle stairs -> " .. tostring(p6up0T) .. " " .. tostring(p6up0V and
+                (p6up0V.x .. "," .. p6up0V.z .. "," .. p6up0V.level) or "nil") .. " expected level 1")
+
         t.check("goto.p6dispenser", t.player.goto_tile(1913, 4639, 1) == "ok", "the crystal dispenser")
         t.ticks(2)
         t.exec("p6.dispenser.pull", t.player.click_loc, "mourning_temple_light_wall_lever", 1)
@@ -802,6 +1111,16 @@ return {
         t.exec("p6.pillar2.point.updown", t.chat.choose, "Up or down...")
         t.exec("p6.pillar2.point", t.chat.choose, "Down.")
         t.exec("p6.pillar2.edge", t.var.server, "mourning_light_temple_1_7_up")
+
+        -- goDownFromF1Puzzle6: the east circle staircase down, floor 1 ->
+        -- ground floor.
+        t.check("goto.eastCircleApproach6", t.player.goto_tile(1901, 4639, 1) == "ok", "the east circle stairs")
+        t.exec("goDownFromF1Puzzle6", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
+        t.ticks(3)
+        local p6down0T, p6down0V = t.world.tile()
+        t.check("goDownFromF1Puzzle6.tile", p6down0T == "ok" and p6down0V.level == 0,
+            "world.tile() after the east circle stairs down -> " .. tostring(p6down0T) .. " " .. tostring(p6down0V and
+                (p6down0V.x .. "," .. p6down0V.z .. "," .. p6down0V.level) or "nil") .. " expected level 0")
 
         -- Pillar 3 (1_7, floor 0): brand new object.
         t.check("goto.p6.pillar3", t.player.goto_tile(1909, 4650, 0) == "ok", "pillar 1_7")
@@ -854,6 +1173,15 @@ return {
         -- Pillar 7's up turn sends the column-10 beam up green (f0r1c2U).
         t.exec("p6.pillar7.green_rises", t.var.server, "mourning_light_temple_2_10_up")
 
+        -- Back up to floor 1 (east circle) for the rest of Puzzle 6.
+        t.check("goto.eastCircleApproach7", t.player.goto_tile(1905, 4639, 0) == "ok", "the east circle stairs")
+        t.exec("p6.climbToF1", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local p6up1T, p6up1V = t.world.tile()
+        t.check("p6.climbToF1.tile", p6up1T == "ok" and p6up1V.level == 1,
+            "world.tile() after the east circle stairs -> " .. tostring(p6up1T) .. " " .. tostring(p6up1V and
+                (p6up1V.x .. "," .. p6up1V.z .. "," .. p6up1V.level) or "nil") .. " expected level 1")
+
         -- Pillar 9 (2_3, floor 1): the yellow crystal.
         t.check("goto.p6.pillar9", t.player.goto_tile(1898, 4665, 1) == "ok", "pillar 2_3")
         t.ticks(2)
@@ -862,6 +1190,16 @@ return {
         t.exec("p6.pillar9.edge", t.var.server, "mourning_light_temple_2_3_up")
         t.exec("p6.pillar9.yellow_gone", t.inv.count, "mourning_crystal_yellow")
 
+        -- goUpNorthLadderToF2Puzzle6: the north ladder, floor 1 -> floor 2
+        -- north room, where pillar 3_3 sits.
+        t.check("goto.northLadderApproach3", t.player.goto_tile(1898, 4667, 1) == "ok", "the north ladder")
+        t.exec("goUpNorthLadderToF2Puzzle6", t.player.click_loc, "mourning_temple_ladder_wall", 1)
+        t.ticks(3)
+        local p6ladderupT, p6ladderupV = t.world.tile()
+        t.check("goUpNorthLadderToF2Puzzle6.tile", p6ladderupT == "ok" and p6ladderupV.level == 2,
+            "world.tile() after the north ladder -> " .. tostring(p6ladderupT) .. " " .. tostring(p6ladderupV and
+                (p6ladderupV.x .. "," .. p6ladderupV.z .. "," .. p6ladderupV.level) or "nil") .. " expected level 2")
+
         -- Pillar 10 (3_3, floor 2): Mirror #7 west (existing Puzzle 3 code).
         t.check("goto.p6.pillar10", t.player.goto_tile(1898, 4664, 2) == "ok", "pillar 3_3")
         t.ticks(2)
@@ -869,6 +1207,25 @@ return {
         t.exec("p6.pillar10.turn", t.player.click_loc, "mourning_temple_pillar_3_3", 1)
         t.exec("p6.pillar10.point", t.chat.choose, "West.")
         t.exec("p6.pillar10.edge", t.var.server, "mourning_light_temple_3_2_3")
+
+        -- goDownNorthLadderToF1Puzzle6: back down to floor 1 (the north room
+        -- is a pocket, same as Puzzle 3), then goUpToFloor2Puzzle6 (south
+        -- stairs) to reach the rest of floor 2.
+        t.check("goto.northLadderApproach4", t.player.goto_tile(1898, 4667, 2) == "ok", "the north ladder")
+        t.exec("goDownNorthLadderToF1Puzzle6", t.player.click_loc, "mourning_temple_ladder_wall_top", 1)
+        t.ticks(3)
+        local p6ladderdownT, p6ladderdownV = t.world.tile()
+        t.check("goDownNorthLadderToF1Puzzle6.tile", p6ladderdownT == "ok" and p6ladderdownV.level == 1,
+            "world.tile() after the north ladder down -> " .. tostring(p6ladderdownT) .. " " .. tostring(p6ladderdownV and
+                (p6ladderdownV.x .. "," .. p6ladderdownV.z .. "," .. p6ladderdownV.level) or "nil") .. " expected level 1")
+
+        t.check("goto.southStairsApproach7", t.player.goto_tile(1896, 4620, 1) == "ok", "the south stairs")
+        t.exec("goUpToFloor2Puzzle6", t.player.click_loc, "mourning_temple_stairs_base", 1)
+        t.ticks(3)
+        local p6up2T, p6up2V = t.world.tile()
+        t.check("goUpToFloor2Puzzle6.tile", p6up2T == "ok" and p6up2V.level == 2,
+            "world.tile() after the south stairs -> " .. tostring(p6up2T) .. " " .. tostring(p6up2V and
+                (p6up2V.x .. "," .. p6up2V.z .. "," .. p6up2V.level) or "nil") .. " expected level 2")
 
         -- Pillar 11 (3_10, floor 2 south): Mirror #8 west, green.
         t.check("goto.p6.pillar11", t.player.goto_tile(1887, 4629, 2) == "ok", "pillar 3_10")
@@ -894,6 +1251,25 @@ return {
         t.exec("p6.pillar13.turn", t.player.click_loc, "mourning_temple_pillar_3_11", 1)
         t.exec("p6.pillar13.point", t.chat.choose, "North.")
         t.exec("p6.pillar13.edge", t.var.server, "mourning_light_temple_3_6_11")
+
+        -- goDownToMiddleFromSouthPuzzle6 / goUpFromMiddleToNorthPuzzle6: the
+        -- same south-circle-down, north-circle-up shuffle Puzzle 5 used, to
+        -- cross from the south part of floor 2 to the north part.
+        t.check("goto.southCircleApproach2", t.player.goto_tile(1891, 4634, 2) == "ok", "the south circle stairs")
+        t.exec("goDownToMiddleFromSouthPuzzle6", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
+        t.ticks(3)
+        local p6mid1T, p6mid1V = t.world.tile()
+        t.check("goDownToMiddleFromSouthPuzzle6.tile", p6mid1T == "ok" and p6mid1V.level == 1,
+            "world.tile() after the south circle stairs down -> " .. tostring(p6mid1T) .. " " .. tostring(p6mid1V and
+                (p6mid1V.x .. "," .. p6mid1V.z .. "," .. p6mid1V.level) or "nil") .. " expected level 1")
+
+        t.check("goto.northCircleApproach3", t.player.goto_tile(1891, 4640, 1) == "ok", "the north circle stairs")
+        t.exec("goUpFromMiddleToNorthPuzzle6", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local p6mid2T, p6mid2V = t.world.tile()
+        t.check("goUpFromMiddleToNorthPuzzle6.tile", p6mid2T == "ok" and p6mid2V.level == 2,
+            "world.tile() after the north circle stairs -> " .. tostring(p6mid2T) .. " " .. tostring(p6mid2V and
+                (p6mid2V.x .. "," .. p6mid2V.z .. "," .. p6mid2V.level) or "nil") .. " expected level 2")
 
         -- Pillar 14 (3_6, floor 2 north): Mirror #11 west.
         t.check("goto.p6.pillar14", t.player.goto_tile(1898, 4649, 2) == "ok", "pillar 3_6")
@@ -933,14 +1309,29 @@ return {
 
         -- ==== the Death Altar leg, on the beams this run lit ====
         t.exec("altar.start.stage", t.var.server, "mourning_quest_main")
-        -- The generic ~climb lands on the same x,z one plane down; the
-        -- landing beside Mirror #14's barrier is 1886,4639,0 (NOT the
-        -- ladder-landing pocket 1890,4639, which no route leaves): plain
-        -- travel from the middle stair square.
-        t.check("goto.altar.landing", t.player.goto_tile(1886, 4639, 0) == "ok", "the central stairs' landing, east of the cyan barrier")
+
+        -- Down from pillar 17 (floor 2) to the Death Altar's own entrance --
+        -- the south straight stairs (2->1), then goDownToCentre: the west
+        -- circle stairs (1->0), landing beside Mirror #14's barrier at
+        -- 1886,4639,0 (NOT the ladder-landing pocket 1890,4639, which no
+        -- route leaves).
+        t.check("goto.southStairsApproach8", t.player.goto_tile(1892, 4620, 2) == "ok", "the south stairs")
+        t.exec("p6.descendToF1", t.player.click_loc, "mourning_temple_stairs_top", 1)
+        t.ticks(3)
+        local p6altardown1T, p6altardown1V = t.world.tile()
+        t.check("p6.descendToF1.tile", p6altardown1T == "ok" and p6altardown1V.level == 1,
+            "world.tile() after the south stairs down -> " .. tostring(p6altardown1T) .. " " .. tostring(p6altardown1V and
+                (p6altardown1V.x .. "," .. p6altardown1V.z .. "," .. p6altardown1V.level) or "nil") .. " expected level 1")
+
+        t.check("goto.westCircleApproach2", t.player.goto_tile(1890, 4639, 1) == "ok", "the west circle stairs")
+        t.exec("goDownToCentre", t.player.click_loc, "mourning_temple_circle_stairs_top", 1)
         t.ticks(12)
         local r_altar_stairs_landed, tl_altar_stairs_landed = t.world.tile()
-        t.check("altar.stairs.landed", r_altar_stairs_landed == "ok", "world.tile() -> " .. tostring(tl_altar_stairs_landed))
+        t.check("altar.stairs.landed", r_altar_stairs_landed == "ok" and tl_altar_stairs_landed.x == 1886
+            and tl_altar_stairs_landed.z == 4639 and tl_altar_stairs_landed.level == 0,
+            "world.tile() -> " .. tostring(r_altar_stairs_landed) .. " " .. tostring(tl_altar_stairs_landed and
+                (tl_altar_stairs_landed.x .. "," .. tl_altar_stairs_landed.z .. "," .. tl_altar_stairs_landed.level) or "nil")
+                .. " expected 1886,4639,0")
 
         -- "Pass through the cyan light barrier"
         t.exec("altar.door_1_b.in", t.player.click_loc, "mourning_door_1_b", 1)
@@ -993,7 +1384,26 @@ return {
         local r_altar_door_1_b_out_tile, tl_altar_door_1_b_out_tile = t.world.tile()
         t.check("altar.door_1_b.out.tile", r_altar_door_1_b_out_tile == "ok", "world.tile() -> " .. tostring(tl_altar_door_1_b_out_tile))
 
-        -- up to the dark crystal (plain travel, same goto the getCrystal leg used)
+        -- Up to the dark crystal -- not a distinct named guide step
+        -- (useCrystalOnCrystal has no ObjectStep of its own), but still a
+        -- real climb: the west circle stairs (0->1), then the north circle
+        -- stairs (1->2), the same crossings the getCrystal leg used.
+        t.check("goto.westCircleApproach3", t.player.goto_tile(1886, 4639, 0) == "ok", "the west circle stairs")
+        t.exec("altar.climbToF1", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local altarUp1T, altarUp1V = t.world.tile()
+        t.check("altar.climbToF1.tile", altarUp1T == "ok" and altarUp1V.level == 1,
+            "world.tile() after the west circle stairs -> " .. tostring(altarUp1T) .. " " .. tostring(altarUp1V and
+                (altarUp1V.x .. "," .. altarUp1V.z .. "," .. altarUp1V.level) or "nil") .. " expected level 1")
+
+        t.check("goto.northCircleApproach4", t.player.goto_tile(1891, 4640, 1) == "ok", "the north circle stairs")
+        t.exec("altar.climbToF2", t.player.click_loc, "mourning_temple_circle_stairs_base", 1)
+        t.ticks(3)
+        local altarUp2T, altarUp2V = t.world.tile()
+        t.check("altar.climbToF2.tile", altarUp2T == "ok" and altarUp2V.level == 2,
+            "world.tile() after the north circle stairs -> " .. tostring(altarUp2T) .. " " .. tostring(altarUp2V and
+                (altarUp2V.x .. "," .. altarUp2V.z .. "," .. altarUp2V.level) or "nil") .. " expected level 2")
+
         t.check("goto.altar.crystal", t.player.goto_tile(1909, 4638, 2) == "ok", "the dark crystal, floor 2 north")
         t.ticks(2)
         local darkCrystal = t.player.by_symbol("loc", "mourning_temple_obsidian_crystal_dead")
