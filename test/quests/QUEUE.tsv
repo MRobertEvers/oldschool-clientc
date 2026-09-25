@@ -4,7 +4,7 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b17	
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	parity1m	RE-AUTHOR after 565711aa90: content now has the locator's turn-the-dial minigame, Bob's world roam and worn catspeak; drive it per the guide (first failing row 14 amulet.open1-dialog). Open the amulet (opheld3, or worn Locate = equipment tab + wornitems:slot2 op2), turn the dial with bob_locator_amulet:bob_locator_r_whisker/_l_whisker until %twocats_locator_found=1 (Bob's sector from t.npc.tiles('death_growncat_black',40) vs the player, 1=N clockwise), close; Bob wanders -- reach him with ::twocats_gotobob then talk_to (never goto 2924,3565); WEAR the Catspeak amulet for Bob's three talks; optionally Historian Minas 'I have some information...' claim (vm_robert, +5 vm_kudos) and the lamp Rub. Examples: build/parity_state/parity1m/parity1m_twocats_locator.lua, parity1m_twocats_minas.lua. Content leg still open: other chores/Reldo check the amulet in inv not worn (PARITY.tsv)
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
@@ -12,7 +12,7 @@ quest_belowicemountain	belowicemountain	belowicemountain		4	todo
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
 quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b19	
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16	
-quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b15	
+quest_blackarmgang	blackarmgang	shieldofarrav		1	todo	parity1m	RE-AUTHOR after 565711aa90: content now has Reldo's OSRS start confirm and the both-routes offer gate; drive Reldo for real on the fresh character BEFORE Charlie: talk_to reldo_normal -> 'I'm in search of a quest.' -> 'Yes.' (page 'Start the Shield of Arrav quest?') -> click_loc questbookcase -> read the_shield_of_arrav (opheld1) -> Reldo again -> then Charlie/Katrine as now; replace the three GUIDE-GAP markers at blackarmgang.lua:127-129 with driven rows (Reldo is not a gate on Charlie -- no claimed gate). getWeaponStoreKey/tradeCertificateHalf stay on ::blackarmgang_partner (verified exact hand-over)
 quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16	
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
 quest_druidspirit	druidspirit	naturespirit		3	todo		
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
-quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b17	
+quest_eadgar	eadgar	eadgarsruse		1	todo	parity1m	RE-AUTHOR after 565711aa90: content now has LostCity's patrolling storeroom guards, the queued knockout with the fade_overlay fade and the crate's objbox; drive it per the guide (first failing row 123 crate.ejected): t.chat.close() the goutweed objbox, then await fade_overlay open/close (~4 ticks) before reading world.tile()==2865,10088; the guards catch only on their tile or 1-2 ahead now, so the drive.op-only crate workaround's radius-3 reason no longer holds -- try click_loc on the crate; name the new legs (8 patrol routes, fade on every knockout, crate objbox)
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b18	
+quest_fishingcompo	fishingcompo	fishingcontest		1	todo	parity1m	RE-AUTHOR after 565711aa90: marker text only, no content gap: replace the getGarlic GUIDE-GAP at fishingcompo.lua:203 with a plain citation -- kr_seers_table2 has no op in configs/all.loc (nor in LostCity), the garlic is the map ground spawn on the table tile (areas/world/configs/m42_54.spawn:45) and click_obj is the real interaction (wiki: 'pick up a piece off the table')
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -101,12 +101,13 @@ quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
+quest_misc	misc_astrid	throneofmiscellania		1	todo	parity1m	AUTHOR: a second Miscellania test that courts Astrid (talkAstrid1..useRingOnAstrid, misc_princess_astrid.rs2 + misc_courting_emotes.rs2), the mutually exclusive branch misc.lua leaves undriven; same setup as misc.lua; if run.py/new_quest.py cannot map a second test_id to quest_misc, report the exact refusal
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b15	
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	parity1m	RE-AUTHOR after 565711aa90: content now has the Eluned start + escort, Arianwyn's verbatim briefing, the feather-on-rack tickle, the rack Release op and the released walking gnome; drive it per the guide (first failing row 2 quest.stage.not_started journal now names Eluned; row 5 talkToIslwyn-dialog): talk_to roving_female_woodelf (2289,3145) 'Yes, I should go see him now.' -> lands 2352,3170 with mourning_teleport_crystal_4; Arianwyn 'Okay, let's begin.'; rack click_loc op1 -> 'You said about toad crunchies and being tickled.'; use_on feather on the rack loc with crunchies held (feather kept); rack op2 Release (key kept); talk_to mourner_hideout_gnome for the hand-over/toads. Drop the GUIDE-GAP markers for talkToIslwyn (map it to Eluned: QH's Islwyn step is pre-2019), useFeatherOnGnome, giveGnomeItems, askAboutToads. t.ui.tab('inventory')+t.ticks(2) before each use_on; keep --name <= 31 chars. Examples: tools/quest_gate/_scratch/parity1m_mourningsendparti*.lua
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24	
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
