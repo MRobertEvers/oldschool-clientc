@@ -1,0 +1,106 @@
+# The osrs239 world, as a container that owns nothing but execution.
+#
+#   docker compose up -d --build     bring it up
+#   docker compose restart           pick up a new binary or content
+#   docker compose down              stop it (saves everyone first)
+#
+# Paths come from .env beside this file; copy .env.example and edit. They are
+# WSL paths: C:\torirs\osrs239 is /mnt/c/torirs/osrs239 seen from the distro.
+
+services:
+  torirs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Must match the uid that owns /mnt/c inside the distro, or the
+        # bind-mounted saves are read-only to the container. `id -u` in WSL.
+        TORIRS_UID: ${TORIRS_UID:-1000}
+        TORIRS_GID: ${TORIRS_GID:-1000}
+    image: torirs-osrs239-runtime:latest
+    container_name: torirs-osrs239
+
+    volumes:
+      # The deployment, READ-ONLY. Read-only stops the container writing to its
+      # own payload; it does not stop the Windows side replacing what is under
+      # it, which is exactly the property wanted here — drop a new
+      # bin-linux/torirsserver or a new content/ on the Windows disk, `docker
+      # compose restart`, done. No image rebuild.
+      - ${TORIRS_DEPLOY_ROOT}:/opt/torirs:ro
+      # The cache, read-WRITE, and only because both servers insist on it:
+      # RSCache_Dat2DiskNewFromDirectory opens main_file_cache.dat2 "rb+", so a
+      # read-only cache directory makes every one of the ~15 metadata loaders
+      # fail. torirsserver does not fail loudly when it does — it logs "no cache
+      # at ..." and carries on with no equipment slots, no npc metadata and no
+      # varbit table, which presents as a broken world rather than a bad mount.
+      # Nothing actually WRITES here; the mode is what the open demands.
+      # (A read-only open exists — RSCache_Dat2DiskNewReadOnlyFromDirectory —
+      # and moving the two servers onto it would let this line go back to :ro.)
+      - ${TORIRS_DEPLOY_ROOT}/cache.osrs239:/opt/torirs/cache.osrs239:rw
+      # ...and the two directories that are the server's to write, mounted over
+      # the top of it read-write. Nested bind mounts resolve longest-path-first,
+      # so these win inside the read-only tree above. THIS is the persistence:
+      # both are real directories on the Windows disk, so a rebuilt image, a
+      # deleted container or a `docker system prune` cannot touch them.
+      - ${TORIRS_SAVES_DIR}:/opt/torirs/saves:rw
+      - ${TORIRS_LOGS_DIR}:/opt/torirs/logs:rw
+
+    environment:
+      # NOTE: the ports the servers bind INSIDE the container are deliberately
+      # not set here, so they stay at the entrypoint's 43594/8088. Only the
+      # published (host) side varies, in `ports:` below.
+      #
+      # Passing the host port in here is the obvious thing to do and it is
+      # wrong: the server then binds the host's port number inside the
+      # container, the `43694:43594` mapping points at a port nothing is
+      # listening on, and the healthcheck — which tests the internal port —
+      # reports unhealthy while the log cheerfully says "listening on
+      # 0.0.0.0:43694". Cost an hour the first time.
+      TORIRS_REV: ${TORIRS_REV:-osrs239}
+      # Under compose's grace period below, so the supervisor's own timeout is
+      # what fires rather than Docker's SIGKILL.
+      TORIRS_STOP_TIMEOUT: 20
+
+    ports:
+      - "${TORIRS_GAME_PORT:-43594}:43594"
+      - "${TORIRS_WEB_PORT:-8088}:8088"
+
+    # A logout is a file write per player, and the whole point of the stop path
+    # is that it finishes. 45s leaves the supervisor's 20s plus room for a
+    # cold/slow drvfs write of two dozen saves.
+    stop_grace_period: 45s
+    restart: unless-stopped
+    init: true
+
+    # ------------------------------------------------------------- sandbox
+    # Nothing in here needs privilege: both servers bind ports above 1024, read
+    # files and talk TCP.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    # The box has 32 cores and 31 GB; this is a fence against a runaway, not a
+    # sizing exercise. The world's resident set is a few hundred MB.
+    mem_limit: 4g
+    cpus: 8.0
+
+    healthcheck:
+      # bash's /dev/tcp rather than curl or nc, so the runtime image needs
+      # neither. Checks the game port, which is the one that matters: io_server
+      # can be restarted under players without anyone noticing, the world
+      # cannot.
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/43594"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

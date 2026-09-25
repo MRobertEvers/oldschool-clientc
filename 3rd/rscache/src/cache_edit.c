@@ -666,13 +666,12 @@ dat2_edit_reftable_ensure_archive(
         for( int i = table->archive_count; i < new_count; i++ )
         {
             memset(&grown[i], 0, sizeof(grown[i]));
-            grown[i].index = -1;
         }
         table->archives = grown;
         table->archive_count = new_count;
     }
 
-    if( table->archives[archive_id].index >= 0 )
+    if( RSCache_ReferenceTableHasArchive(table, archive_id) )
     {
         assert(dat2_edit_ids_contains(table->ids, table->id_count, archive_id));
         return true;
@@ -697,7 +696,7 @@ dat2_edit_reftable_ensure_archive(
     table->ids[insert_at] = archive_id;
     table->id_count++;
 
-    table->archives[archive_id].index = archive_id;
+    RSCache_ReferenceTableSetHasArchive(table, archive_id, true);
     return true;
 }
 
@@ -728,10 +727,12 @@ dat2_edit_ensure_table(
 
 static bool
 dat2_edit_set_children(
+    struct RSCache_ReferenceTable* table,
     struct RSCache_ReferenceTableArchive* archive,
     const int* file_ids,
     int file_count)
 {
+    assert(table != NULL);
     assert(archive != NULL);
     assert(file_count >= 0);
     assert(file_count == 0 || file_ids != NULL);
@@ -746,8 +747,16 @@ dat2_edit_set_children(
             files[i].id = file_ids[i];
     }
 
-    free(archive->children.files);
+    /* A decoded archive's children are a slice of the table's pool — replacing
+     * them just abandons the slice; only an owned array is freed. */
+    if( !RSCache_ReferenceTableChildrenPooled(table, archive->children.files) )
+        free(archive->children.files);
+    if( !RSCache_ReferenceTableChildNameHashesPooled(table, archive->children.name_hashes) )
+        free(archive->children.name_hashes);
     archive->children.files = files;
+    /* A child list built from ids alone carries no names, which is what the
+     * calloc'd array used to say by leaving every name_hash zero. */
+    archive->children.name_hashes = NULL;
     archive->children.count = file_count;
     return true;
 }
@@ -767,21 +776,26 @@ dat2_edit_update_reference_entry(
     archive->version = archive->version <= 0 ? 1 : archive->version + 1;
     if( (table->flags & RSCACHE_REFTABLE_FLAG_SIZES) != 0 )
     {
-        archive->compressed = info->compressed;
-        archive->uncompressed = info->uncompressed;
+        RSCache_ReferenceTableSetSizes(
+            table, info->archive_id, info->compressed, info->uncompressed);
     }
     if( (table->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL) != 0 )
-        memcpy(archive->whirlpool, info->whirlpool, sizeof(archive->whirlpool));
+    {
+        memcpy(
+            RSCache_ReferenceTableWhirlpoolSlot(table, info->archive_id),
+            info->whirlpool,
+            RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+    }
 
     if( info->update_children )
     {
-        if( !dat2_edit_set_children(archive, info->file_ids, info->file_count) )
+        if( !dat2_edit_set_children(table, archive, info->file_ids, info->file_count) )
             return false;
     }
     else if( archive->children.count == 0 )
     {
         int zero = 0;
-        if( !dat2_edit_set_children(archive, &zero, 1) )
+        if( !dat2_edit_set_children(table, archive, &zero, 1) )
             return false;
     }
 

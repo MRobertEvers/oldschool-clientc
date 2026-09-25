@@ -1,0 +1,343 @@
+{
+  "ok": true,
+  "elapsed_ms": 478.369,
+  "session": {
+    "pid": 2632,
+    "process_identity": "Mon Sep  7 09:36:52 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user peerproof --pass test --soft3d",
+    "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+    "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+    "renderer": "soft3d",
+    "user": "peerproof",
+    "headless": true,
+    "boat": "skiff",
+    "fixture_tile": [
+      3072,
+      3160
+    ],
+    "resume_save": false,
+    "archived_save": null,
+    "binary_sha256": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+    "script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "allow_stale_scripts": false
+  },
+  "before": {
+    "ok": true,
+    "online": true,
+    "paused": true,
+    "time_ms": 2200,
+    "server_x": 6404,
+    "server_z": 67,
+    "level": 1,
+    "aboard_view": 1,
+    "logic_cycle": 59,
+    "server_tick": 1,
+    "camera_yaw": 256,
+    "camera_pitch": 256,
+    "camera_zoom": 1000,
+    "world_ready": 1,
+    "renderer": 0,
+    "x": 6404,
+    "z": 67,
+    "camera": 0,
+    "animation": 0,
+    "anim_frame": 0,
+    "chat_blocked": -1,
+    "player_yaw": 0,
+    "cinematic": {
+      "eye_x": 6400,
+      "eye_z": 64,
+      "eye_height": 0,
+      "look_x": 6400,
+      "look_z": 64,
+      "look_height": 0,
+      "render_yaw": 256,
+      "render_pitch": 256,
+      "render_x": 826577,
+      "render_y": -1652,
+      "render_z": 13296,
+      "hide_panels": 0,
+      "fov_mode": 0,
+      "visible_orbs": 4
+    },
+    "rig": {
+      "vertices": 288,
+      "hash": 2307440308,
+      "min_y": -194,
+      "max_y": 8,
+      "posed_frame": 2,
+      "yaw": 0
+    },
+    "sailing": {
+      "ok": true,
+      "aboard": true,
+      "checkpoints": 0,
+      "checkpoint_scope": "movement,stats,varps,inventories,facilities,timers,camera,deck animation; unchanged vessel topology",
+      "server_tick": 1,
+      "player": {
+        "x": 6404,
+        "z": 67,
+        "level": 1,
+        "navigating": 1
+      },
+      "vessel": {
+        "id": 1,
+        "serial": 1,
+        "view": 1,
+        "config": 2,
+        "instance": 1,
+        "fine_x": 393280,
+        "fine_z": 404544,
+        "angle": 0,
+        "heading": 0,
+        "state": 1,
+        "speed_tier": 1,
+        "sails_set": 0,
+        "reversing": 0,
+        "hp": 80,
+        "hp_max": 80,
+        "owner_uid": 1,
+        "cargo_slot": 1,
+        "navigator_mask": 0,
+        "facilities": [
+          1,
+          1,
+          1
+        ]
+      },
+      "client_vessel": {
+        "present": true,
+        "fine_x": 393280,
+        "fine_z": 404544,
+        "angle": 0,
+        "target_fine_x": 393280,
+        "target_fine_z": 404544,
+        "target_angle": 0,
+        "queue_count": 0
+      }
+    },
+    "server_activity": {
+      "active_script": 0,
+      "action_locked": 0,
+      "delay_until": 0,
+      "waypoint": -1,
+      "kind": 0,
+      "op": 0,
+      "target": 0,
+      "x": 0,
+      "z": 0,
+      "use_on": 0,
+      "last_useitem": -1,
+      "last_useslot": -1,
+      "client_selected_obj": -1
+    },
+    "runtime_ms": 0.422,
+    "elapsed_ms": 2.826
+  },
+  "aboard": {
+    "ok": true,
+    "present": true,
+    "pid": 1,
+    "wire_pid": 2,
+    "name": "HarnessMate",
+    "server": {
+      "x": 6403,
+      "z": 69,
+      "level": 1,
+      "obs_x": 3072,
+      "obs_z": 3162,
+      "obs_level": 0,
+      "navigating": 0,
+      "running": 0,
+      "mainmodal": 0,
+      "sidemodal": 0,
+      "role": 3,
+      "varbit": -1,
+      "value": -1,
+      "script": 0,
+      "script_wait": -1
+    },
+    "client": {
+      "present": true,
+      "element": 805308158,
+      "view": 1,
+      "home_view": 1,
+      "fine_x": 448,
+      "fine_z": 704,
+      "view_x": 448,
+      "view_z": 704,
+      "route_length": 0,
+      "route_run": -1
+    },
+    "screen": {
+      "projected": true,
+      "x": 425,
+      "y": 302,
+      "picked": false
+    },
+    "permissions": {
+      "captain_boat": 1,
+      "navigate": false,
+      "cargo": false
+    },
+    "runtime_ms": 1.327,
+    "elapsed_ms": 2.953
+  },
+  "running": {
+    "ok": true,
+    "present": true,
+    "pid": 1,
+    "wire_pid": 2,
+    "name": "HarnessMate",
+    "server": {
+      "x": 6403,
+      "z": 67,
+      "level": 1,
+      "obs_x": 3072,
+      "obs_z": 3159,
+      "obs_level": 0,
+      "navigating": 0,
+      "running": 1,
+      "mainmodal": 0,
+      "sidemodal": 0,
+      "role": 3,
+      "varbit": -1,
+      "value": -1,
+      "script": 0,
+      "script_wait": -1
+    },
+    "client": {
+      "present": true,
+      "element": 805308158,
+      "view": 1,
+      "home_view": 1,
+      "fine_x": 448,
+      "fine_z": 472,
+      "view_x": 448,
+      "view_z": 472,
+      "route_length": 1,
+      "route_run": 1
+    },
+    "screen": {
+      "projected": true,
+      "x": 422,
+      "y": 240,
+      "picked": false
+    },
+    "permissions": {
+      "captain_boat": 1,
+      "navigate": false,
+      "cargo": false
+    },
+    "runtime_ms": 1.192,
+    "elapsed_ms": 2.877
+  },
+  "mid_run": {
+    "ok": true,
+    "present": true,
+    "pid": 1,
+    "wire_pid": 2,
+    "name": "HarnessMate",
+    "server": {
+      "x": 6403,
+      "z": 67,
+      "level": 1,
+      "obs_x": 3072,
+      "obs_z": 3158,
+      "obs_level": 0,
+      "navigating": 0,
+      "running": 1,
+      "mainmodal": 0,
+      "sidemodal": 0,
+      "role": 3,
+      "varbit": -1,
+      "value": -1,
+      "script": 0,
+      "script_wait": -1
+    },
+    "client": {
+      "present": true,
+      "element": 805308158,
+      "view": 1,
+      "home_view": 1,
+      "fine_x": 448,
+      "fine_z": 448,
+      "view_x": 448,
+      "view_z": 448,
+      "route_length": 0,
+      "route_run": -1
+    },
+    "screen": {
+      "projected": true,
+      "x": 421,
+      "y": 236,
+      "picked": false
+    },
+    "permissions": {
+      "captain_boat": 1,
+      "navigate": false,
+      "cargo": false
+    },
+    "runtime_ms": 1.276,
+    "elapsed_ms": 5.252
+  },
+  "captures": [
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/multiplayer/multiplayer-primary.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.697,
+      "elapsed_ms": 36.587,
+      "bytes": 188624,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/multiplayer/multiplayer-aboard.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 36.765,
+      "elapsed_ms": 39.17,
+      "bytes": 189891,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/multiplayer/multiplayer-running.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.459,
+      "elapsed_ms": 38.166,
+      "bytes": 189479,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/multiplayer/multiplayer-removed.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.716,
+      "elapsed_ms": 37.241,
+      "bytes": 189922,
+      "world_order_mode": 0
+    },
+    {
+      "ok": true,
+      "path": "/Users/matthewevers/Documents/git_repos/3draster/docs/sailing_validation/multiplayer/multiplayer-restored.png",
+      "width": 807,
+      "height": 503,
+      "renderer": "soft3d",
+      "runtime_ms": 35.874,
+      "elapsed_ms": 39.78,
+      "bytes": 189024,
+      "world_order_mode": 0
+    }
+  ],
+  "scope": "two actual server players, production v5 packets, one native rendering client"
+}

@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2MapElementLoad
 {
@@ -25,7 +26,7 @@ struct Task_Dat2MapElementLoad
 static int
 Task_Dat2MapElementLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2MapElementLoad* task = (struct Task_Dat2MapElementLoad*)task_base;
     struct RSCache_MapElement entry = { 0 };
@@ -40,9 +41,7 @@ Task_Dat2MapElementLoad_Run(
 
     if( !task->group )
     {
-        fprintf(
-            stderr,
-            "Failed to decode dat2 map element config group for element %d\n",
+        TORIRS_ERR("Failed to decode dat2 map element config group for element %d\n",
             task->element_id);
         PT_EXIT(&task->pt);
     }
@@ -50,7 +49,7 @@ Task_Dat2MapElementLoad_Run(
     pos = Dat2Group_IndexOf(task->group, task->element_id);
     if( pos < 0 )
     {
-        fprintf(stderr, "Failed to find dat2 map element %d in config group\n", task->element_id);
+        TORIRS_ERR("Failed to find dat2 map element %d in config group\n", task->element_id);
         PT_EXIT(&task->pt);
     }
 

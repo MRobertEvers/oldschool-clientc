@@ -1,0 +1,1135 @@
+- generic [active] [ref=f231e1]:
+  - banner [ref=f231e2]:
+    - generic [ref=f231e3]:
+      - link [ref=f231e4] [cursor=pointer]:
+        - /url: /?FORM=Z9FD1
+        - heading "Back to Bing search" [level=1] [ref=f231e5]
+      - search [ref=f231e6]:
+        - button "Search" [ref=f231e9] [cursor=pointer]
+        - searchbox "Enter your search here - Search suggestions will show as you type" [ref=f231e10]: "\"rivals of ixalan\" empty bundle box magic"
+        - generic [ref=f231e11] [cursor=pointer]
+        - button "Search using an image" [ref=f231e16] [cursor=pointer]
+    - complementary "Account Rewards and Preferences" [ref=f231e17]:
+      - button "Microsoft Rewards" [ref=f231e18] [cursor=pointer]:
+        - generic [ref=f231e19]: Rewards
+      - link [ref=f231e35] [cursor=pointer]:
+        - /url: javascript:void(0)
+        - button "Sign in" [ref=f231e38]
+      - button "Settings and quick links" [ref=f231e39] [cursor=pointer]
+    - navigation "Search Filter" [ref=f231e40]:
+      - list [ref=f231e41]:
+        - listitem [ref=f231e42]:
+          - link "All" [ref=f231e43] [cursor=pointer]:
+            - /url: /search?q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=HDRSC1
+        - listitem [ref=f231e44]:
+          - link "Search" [ref=f231e45] [cursor=pointer]:
+            - /url: /copilotsearch?q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=CSSCOP
+        - listitem [ref=f231e48]:
+          - link "Images" [ref=f231e49] [cursor=pointer]:
+            - /url: /images?FORM=HDRSC3
+        - listitem [ref=f231e50]:
+          - list [ref=f231e51]:
+            - listitem [ref=f231e52]:
+              - link "Create" [ref=f231e53] [cursor=pointer]:
+                - /url: /images/create/ai-image-generator?FORM=IRPGEN
+            - listitem [ref=f231e58]:
+              - link "Collections" [ref=f231e59] [cursor=pointer]:
+                - /url: /saves?FORM=IRPCOL
+        - listitem [ref=f231e63]:
+          - link "Videos" [ref=f231e64] [cursor=pointer]:
+            - /url: /videos/search?q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=HDRSC4
+        - listitem [ref=f231e65]:
+          - link "Maps" [ref=f231e66] [cursor=pointer]:
+            - /url: /maps?q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=HDRSC6
+        - listitem [ref=f231e67]:
+          - link "News" [ref=f231e68] [cursor=pointer]:
+            - /url: /news/search?q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=HDRSC7
+        - listitem [ref=f231e69]:
+          - link "Shopping" [ref=f231e70] [cursor=pointer]:
+            - /url: /shop/topics?q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=SHOPTB
+        - listitem [ref=f231e71]:
+          - button [ref=f231e72] [cursor=pointer]
+      - generic [ref=f231e76]:
+        - generic [ref=f231e77]:
+          - list:
+            - listitem [ref=f231e78]:
+              - generic [ref=f231e79]: "SafeSearch:"
+            - listitem [ref=f231e80]:
+              - button "Moderate SafeSearch:" [ref=f231e81] [cursor=pointer]:
+                - generic [ref=f231e82]: Moderate
+        - button "Filter" [ref=f231e85] [cursor=pointer]
+  - main [ref=f231e88]:
+    - navigation [aria-hidden] [ref=f231e89]:
+      - generic [ref=f231e90]:
+        - generic [ref=f231e93]:
+          - link [ref=f231e95] [cursor=pointer]:
+            - /url: /images/search?q=Lost+Caverns+of+Ixalan+Bundle&FORM=IRMHRS
+            - generic [ref=f231e97]:
+              - strong [ref=f231e98]: Lost Caverns
+              - text: of Ixalan Bundle
+          - link [ref=f231e100] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e102]:
+              - text: Magic
+              - strong [ref=f231e103]: The Gathering Ixalan
+          - link [ref=f231e105] [cursor=pointer]:
+            - /url: /images/search?q=Lost+Caverns+of+Ixalan+Gift+Bundle&FORM=IRMHRS
+            - generic [ref=f231e107]:
+              - strong [ref=f231e108]: Lost Caverns
+              - text: of Ixalan Gift Bundle
+          - link [ref=f231e110] [cursor=pointer]:
+            - /url: /images/search?q=Ixalin+Booster+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f231e112]:
+              - strong [ref=f231e113]: Ixalin Booster
+              - text: Bundle Box
+          - link [ref=f231e115] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Bundle+for+New+Player+Wood+Box+Commander&FORM=IRMHRS
+            - generic [ref=f231e117]:
+              - text: Magic The Gathering Bundle
+              - strong [ref=f231e118]: for New Player Wood Box Commander
+          - link [ref=f231e120] [cursor=pointer]:
+            - /url: /images/search?q=MTG+Bundle+Box&FORM=IRMHRS
+            - generic [ref=f231e122]:
+              - strong [ref=f231e123]: MTG
+              - text: Bundle Box
+          - link [ref=f231e125] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Cards&FORM=IRMHRS
+            - generic [ref=f231e127]:
+              - text: Magic
+              - strong [ref=f231e128]: The Gathering Ixalan Cards
+          - link [ref=f231e130] [cursor=pointer]:
+            - /url: /images/search?q=Explorers+of+Ixalan+Deck+Box&FORM=IRMHRS
+            - generic [ref=f231e132]:
+              - text: Explorers of Ixalan
+              - strong [ref=f231e133]: Deck Box
+          - link [ref=f231e135] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Merfolk&FORM=IRMHRS
+            - generic [ref=f231e137]:
+              - text: Magic
+              - strong [ref=f231e138]: The Gathering Ixalan Merfolk
+          - link [ref=f231e140] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Card+Bundle&FORM=IRMHRS
+            - generic [ref=f231e142]:
+              - text: Magic
+              - strong [ref=f231e143]: The Gathering Card Bundle
+          - link [ref=f231e145] [cursor=pointer]:
+            - /url: /images/search?q=Rivals+of+Ixalan+Magic+The+Gathering&FORM=IRMHRS
+            - generic [ref=f231e147]:
+              - text: Rivals of Ixalan Magic
+              - strong [ref=f231e148]: The Gathering
+          - link [ref=f231e150] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+the+Five+Colors&FORM=IRMHRS
+            - generic [ref=f231e152]:
+              - text: Magic The Gathering Ixalan
+              - strong [ref=f231e153]: the Five Colors
+          - link [ref=f231e155] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Ixalan+Artists&FORM=IRMHRS
+            - generic [ref=f231e157]:
+              - text: Magic Ixalan
+              - strong [ref=f231e158]: Artists
+          - link [ref=f231e160] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Ixalan+Gift+Set&FORM=IRMHRS
+            - generic [ref=f231e162]:
+              - text: Magic Ixalan
+              - strong [ref=f231e163]: Gift Set
+          - link [ref=f231e165] [cursor=pointer]:
+            - /url: /images/search?q=Ixalan+Box+Topper&FORM=IRMHRS
+            - generic [ref=f231e167]:
+              - text: Ixalan Box
+              - strong [ref=f231e168]: Topper
+          - link [ref=f231e170] [cursor=pointer]:
+            - /url: /images/search?q=Akbal+Deluxe+Magic+Box&FORM=IRMHRS
+            - generic [ref=f231e172]:
+              - strong [ref=f231e173]: Akbal Deluxe
+              - text: Magic Box
+          - link [ref=f231e175] [cursor=pointer]:
+            - /url: /images/search?q=Caverns+Ixilan+Bundle+Back+of+Box+Image&FORM=IRMHRS
+            - generic [ref=f231e177]:
+              - text: Caverns Ixilan Bundle
+              - strong [ref=f231e178]: Back of Box Image
+          - link [ref=f231e180] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Ixalan+Titus+Lander&FORM=IRMHRS
+            - generic [ref=f231e182]:
+              - text: Magic Ixalan
+              - strong [ref=f231e183]: Titus Lander
+          - link [ref=f231e185] [cursor=pointer]:
+            - /url: /images/search?q=MTG+Collectors+Bundle+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e187]:
+              - strong [ref=f231e188]: MTG Collectors
+              - text: Bundle Ixalan
+          - link [ref=f231e190] [cursor=pointer]:
+            - /url: /images/search?q=Lost+Caverns+of+Ixalan+Collector+Box&FORM=IRMHRS
+            - generic [ref=f231e192]:
+              - strong [ref=f231e193]: Lost Caverns
+              - text: of Ixalan Collector Box
+          - link [ref=f231e195] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Booster+Box+Art&FORM=IRMHRS
+            - generic [ref=f231e197]:
+              - text: Magic Booster Box
+              - strong [ref=f231e198]: Art
+          - link [ref=f231e200] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Ixalan+Jurassic+Emblems&FORM=IRMHRS
+            - generic [ref=f231e202]:
+              - text: Magic Ixalan
+              - strong [ref=f231e203]: Jurassic Emblems
+          - link [ref=f231e205] [cursor=pointer]:
+            - /url: /images/search?q=Surprise+Ideeen+Magic+The+Gathering+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e207]:
+              - text: Surprise Ideeen Magic
+              - strong [ref=f231e208]: The Gathering Ixalan
+          - link [ref=f231e210] [cursor=pointer]:
+            - /url: /images/search?q=Malcolm+Magic+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e212]:
+              - strong [ref=f231e213]: Malcolm
+              - text: Magic Ixalan
+          - link [ref=f231e215] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Ixalan+Re+Master&FORM=IRMHRS
+            - generic [ref=f231e217]:
+              - text: Magic Ixalan
+              - strong [ref=f231e218]: Re Master
+          - link [ref=f231e220] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Cavernas+De+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e222]:
+              - text: Magic
+              - strong [ref=f231e223]: Cavernas De Ixalan
+          - link [ref=f231e225] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Ixalan+100+Sleeves&FORM=IRMHRS
+            - generic [ref=f231e227]:
+              - text: Magic Ixalan
+              - strong [ref=f231e228]: 100 Sleeves
+          - link [ref=f231e230] [cursor=pointer]:
+            - /url: /images/search?q=Diamond+Pickaxes+Magic+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e232]:
+              - strong [ref=f231e233]: Diamond Pickaxes
+              - text: Magic Ixalan
+          - link [ref=f231e235] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Lost+Caverns+of+Ixalan+Bundle+Gift+Edition+Picture&FORM=IRMHRS
+            - generic [ref=f231e237]:
+              - text: Magic Lost Caverns of Ixalan Bundle
+              - strong [ref=f231e238]: Gift Edition Picture
+          - link [ref=f231e240] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Omega+Box&FORM=IRMHRS
+            - generic [ref=f231e242]:
+              - text: Magic
+              - strong [ref=f231e243]: The Gathering Omega Box
+          - link [ref=f231e245] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+One+Package&FORM=IRMHRS
+            - generic [ref=f231e247]:
+              - text: Magic The Gathering Ixalan
+              - strong [ref=f231e248]: One Package
+          - link [ref=f231e250] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Lost+Caverns+of+Ixalan+Draft+Booster+Box&FORM=IRMHRS
+            - generic [ref=f231e252]:
+              - strong [ref=f231e253]: Magic The Gathering Lost Caverns
+              - text: of Ixalan Draft Booster Box
+          - link [ref=f231e255] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Rares&FORM=IRMHRS
+            - generic [ref=f231e257]:
+              - text: Magic
+              - strong [ref=f231e258]: The Gathering Ixalan Rares
+          - link [ref=f231e260] [cursor=pointer]:
+            - /url: /images/search?q=Explorers+of+Ixalan+Basic+Lands&FORM=IRMHRS
+            - generic [ref=f231e262]:
+              - text: Explorers of Ixalan
+              - strong [ref=f231e263]: Basic Lands
+          - link [ref=f231e265] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Lost+Caverns+of+Ixalan+Storage+Box&FORM=IRMHRS
+            - generic [ref=f231e267]:
+              - strong [ref=f231e268]: Magic The Gathering Lost Caverns
+              - text: of Ixalan Storage Box
+          - link [ref=f231e270] [cursor=pointer]:
+            - /url: /images/search?q=Holiday+Caverns+of+Ixalan+Bundle&FORM=IRMHRS
+            - generic [ref=f231e272]:
+              - strong [ref=f231e273]: Holiday Caverns
+              - text: of Ixalan Bundle
+          - link [ref=f231e275] [cursor=pointer]:
+            - /url: /images/search?q=Ultra+Pro+Deck+Box+Magic+The+Gathering+Lost+Caverns+of+Ixalan+A&FORM=IRMHRS
+            - generic [ref=f231e277]:
+              - text: Ultra Pro Deck Box Magic
+              - strong [ref=f231e278]: The Gathering Lost Caverns of Ixalan A
+          - link [ref=f231e280] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Cards+Watercourser&FORM=IRMHRS
+            - generic [ref=f231e282]:
+              - text: Magic The Gathering Ixalan
+              - strong [ref=f231e283]: Cards Watercourser
+          - link [ref=f231e285] [cursor=pointer]:
+            - /url: /images/search?q=Caverns+Ixalan+Bundle+Promo+Card&FORM=IRMHRS
+            - generic [ref=f231e287]:
+              - text: Caverns Ixalan Bundle
+              - strong [ref=f231e288]: Promo Card
+          - link [ref=f231e290] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Dreadmaw+of+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e292]:
+              - strong [ref=f231e293]: Magic The Gathering Dreadmaw
+              - text: of Ixalan
+          - link [ref=f231e295] [cursor=pointer]:
+            - /url: /images/search?q=Ixalan+John+Tedrick+Bundle+Image&FORM=IRMHRS
+            - generic [ref=f231e297]:
+              - text: Ixalan
+              - strong [ref=f231e298]: John Tedrick Bundle Image
+          - link [ref=f231e300] [cursor=pointer]:
+            - /url: /images/search?q=Beginner+Bundle+Mahic+Gathering&FORM=IRMHRS
+            - generic [ref=f231e302]:
+              - text: Beginner Bundle
+              - strong [ref=f231e303]: Mahic Gathering
+          - link [ref=f231e305] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Teh+Gathering+Ixalan&FORM=IRMHRS
+            - generic [ref=f231e307]:
+              - text: Magic
+              - strong [ref=f231e308]: Teh Gathering Ixalan
+          - link [ref=f231e310] [cursor=pointer]:
+            - /url: /images/search?q=Lost+Caverns+of+Ixalan+Bundle+Spin+Down&FORM=IRMHRS
+            - generic [ref=f231e312]:
+              - text: Lost Caverns of Ixalan Bundle
+              - strong [ref=f231e313]: Spin Down
+          - link [ref=f231e315] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Equipment&FORM=IRMHRS
+            - generic [ref=f231e317]:
+              - text: Magic
+              - strong [ref=f231e318]: The Gathering Ixalan Equipment
+          - link [ref=f231e320] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Cavern+Ixalan+Image&FORM=IRMHRS
+            - generic [ref=f231e322]:
+              - text: Magic
+              - strong [ref=f231e323]: The Gathering Cavern Ixalan Image
+          - link [ref=f231e325] [cursor=pointer]:
+            - /url: /images/search?q=Magic+The+Gathering+Ixalan+Card+Rhino&FORM=IRMHRS
+            - generic [ref=f231e327]:
+              - text: Magic The Gathering Ixalan
+              - strong [ref=f231e328]: Card Rhino
+          - link [ref=f231e330] [cursor=pointer]:
+            - /url: /images/search?q=Ixalan+Lost+Caverns+Bundle+Die&FORM=IRMHRS
+            - generic [ref=f231e332]:
+              - text: Ixalan
+              - strong [ref=f231e333]: Lost Caverns Bundle Die
+          - link [ref=f231e335] [cursor=pointer]:
+            - /url: /images/search?q=Old+Magic+The+Gathering+Booster+Box&FORM=IRMHRS
+            - generic [ref=f231e337]:
+              - text: Old Magic
+              - strong [ref=f231e338]: The Gathering Booster Box
+          - link [ref=f231e340] [cursor=pointer]:
+            - /url: /images/search?q=Magic+Arena+Lost+Caverns+of+Ixalan+Wallpaper&FORM=IRMHRS
+            - generic [ref=f231e342]:
+              - text: Magic
+              - strong [ref=f231e343]: Arena Lost Caverns of Ixalan Wallpaper
+        - switch [ref=f231e345] [cursor=pointer]:
+          - generic [ref=f231e346]: New Version
+    - generic [ref=f231e350]:
+      - generic "Suggested searches" [ref=f231e352]:
+        - navigation [ref=f231e353]:
+          - region "Carousel" [ref=f231e354]:
+            - list [ref=f231e358]:
+              - listitem [ref=f231e359]:
+                - link [ref=f231e360] [cursor=pointer]:
+                  - /url: /images/search?q=Lost+Caverns+of+Ixalan+Bundle&FORM=RESTAB
+                  - img "Lost Caverns of Ixalan Bundle" [ref=f231e362]
+                  - generic [aria-hidden] [ref=f231e364]:
+                    - strong [ref=f231e365]: Lost Caverns
+                    - text: of Ixalan Bundle
+              - listitem [ref=f231e366]:
+                - link [ref=f231e367] [cursor=pointer]:
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan&FORM=RESTAB
+                  - img "Magic The Gathering Ixalan" [ref=f231e369]
+                  - generic [aria-hidden] [ref=f231e371]:
+                    - text: Magic
+                    - strong [ref=f231e372]: The Gathering Ixalan
+              - listitem [ref=f231e373]:
+                - link [ref=f231e374] [cursor=pointer]:
+                  - /url: /images/search?q=Lost+Caverns+of+Ixalan+Gift+Bundle&FORM=RESTAB
+                  - img "Lost Caverns of Ixalan Gift Bundle" [ref=f231e376]
+                  - generic [aria-hidden] [ref=f231e378]:
+                    - strong [ref=f231e379]: Lost Caverns
+                    - text: of Ixalan Gift Bundle
+              - listitem [ref=f231e380]:
+                - link [ref=f231e381] [cursor=pointer]:
+                  - /url: /images/search?q=Ixalin+Booster+Bundle+Box&FORM=RESTAB
+                  - img "Ixalin Booster Bundle Box" [ref=f231e383]
+                  - generic [aria-hidden] [ref=f231e385]:
+                    - strong [ref=f231e386]: Ixalin Booster
+                    - text: Bundle Box
+              - listitem [ref=f231e387]:
+                - 'link "Search for: Magic The Gathering Bundle for New Player Wood Box Commander" [ref=f231e388] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Bundle+for+New+Player+Wood+Box+Commander&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e391]:
+                    - text: Magic The Gathering Bundle
+                    - strong [ref=f231e392]: for New Player Wood Box Commander
+              - listitem [ref=f231e393]:
+                - 'link "Search for: MTG Bundle Box" [ref=f231e394] [cursor=pointer]':
+                  - /url: /images/search?q=MTG+Bundle+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e397]:
+                    - strong [ref=f231e398]: MTG
+                    - text: Bundle Box
+              - listitem [ref=f231e399]:
+                - 'link "Search for: Magic The Gathering Ixalan Cards" [ref=f231e400] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Cards&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e403]:
+                    - text: Magic
+                    - strong [ref=f231e404]: The Gathering Ixalan Cards
+              - listitem [ref=f231e405]:
+                - 'link "Search for: Explorers of Ixalan Deck Box" [ref=f231e406] [cursor=pointer]':
+                  - /url: /images/search?q=Explorers+of+Ixalan+Deck+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e409]:
+                    - text: Explorers of Ixalan
+                    - strong [ref=f231e410]: Deck Box
+              - listitem [ref=f231e411]:
+                - 'link "Search for: Magic The Gathering Ixalan Merfolk" [ref=f231e412] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Merfolk&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e415]:
+                    - text: Magic
+                    - strong [ref=f231e416]: The Gathering Ixalan Merfolk
+              - listitem [ref=f231e417]:
+                - 'link "Search for: Magic The Gathering Card Bundle" [ref=f231e418] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Card+Bundle&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e421]:
+                    - text: Magic
+                    - strong [ref=f231e422]: The Gathering Card Bundle
+              - listitem [ref=f231e423]:
+                - 'link "Search for: Rivals of Ixalan Magic The Gathering" [ref=f231e424] [cursor=pointer]':
+                  - /url: /images/search?q=Rivals+of+Ixalan+Magic+The+Gathering&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e427]:
+                    - text: Rivals of Ixalan Magic
+                    - strong [ref=f231e428]: The Gathering
+              - listitem [ref=f231e429]:
+                - 'link "Search for: Magic The Gathering Ixalan the Five Colors" [ref=f231e430] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+the+Five+Colors&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e433]:
+                    - text: Magic The Gathering Ixalan
+                    - strong [ref=f231e434]: the Five Colors
+              - listitem [ref=f231e435]:
+                - 'link "Search for: Magic Ixalan Artists" [ref=f231e436] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Ixalan+Artists&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e439]:
+                    - text: Magic Ixalan
+                    - strong [ref=f231e440]: Artists
+              - listitem [ref=f231e441]:
+                - 'link "Search for: Magic Ixalan Gift Set" [ref=f231e442] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Ixalan+Gift+Set&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e445]:
+                    - text: Magic Ixalan
+                    - strong [ref=f231e446]: Gift Set
+              - listitem [ref=f231e447]:
+                - 'link "Search for: Ixalan Box Topper" [ref=f231e448] [cursor=pointer]':
+                  - /url: /images/search?q=Ixalan+Box+Topper&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e451]:
+                    - text: Ixalan Box
+                    - strong [ref=f231e452]: Topper
+              - listitem [ref=f231e453]:
+                - 'link "Search for: Akbal Deluxe Magic Box" [ref=f231e454] [cursor=pointer]':
+                  - /url: /images/search?q=Akbal+Deluxe+Magic+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e457]:
+                    - strong [ref=f231e458]: Akbal Deluxe
+                    - text: Magic Box
+              - listitem [ref=f231e459]:
+                - 'link "Search for: Caverns Ixilan Bundle Back of Box Image" [ref=f231e460] [cursor=pointer]':
+                  - /url: /images/search?q=Caverns+Ixilan+Bundle+Back+of+Box+Image&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e463]:
+                    - text: Caverns Ixilan Bundle
+                    - strong [ref=f231e464]: Back of Box Image
+              - listitem [ref=f231e465]:
+                - 'link "Search for: Magic Ixalan Titus Lander" [ref=f231e466] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Ixalan+Titus+Lander&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e469]:
+                    - text: Magic Ixalan
+                    - strong [ref=f231e470]: Titus Lander
+              - listitem [ref=f231e471]:
+                - 'link "Search for: MTG Collectors Bundle Ixalan" [ref=f231e472] [cursor=pointer]':
+                  - /url: /images/search?q=MTG+Collectors+Bundle+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e475]:
+                    - strong [ref=f231e476]: MTG Collectors
+                    - text: Bundle Ixalan
+              - listitem [ref=f231e477]:
+                - 'link "Search for: Lost Caverns of Ixalan Collector Box" [ref=f231e478] [cursor=pointer]':
+                  - /url: /images/search?q=Lost+Caverns+of+Ixalan+Collector+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e481]:
+                    - strong [ref=f231e482]: Lost Caverns
+                    - text: of Ixalan Collector Box
+              - listitem [ref=f231e483]:
+                - 'link "Search for: Magic Booster Box Art" [ref=f231e484] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Booster+Box+Art&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e487]:
+                    - text: Magic Booster Box
+                    - strong [ref=f231e488]: Art
+              - listitem [ref=f231e489]:
+                - 'link "Search for: Magic Ixalan Jurassic Emblems" [ref=f231e490] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Ixalan+Jurassic+Emblems&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e493]:
+                    - text: Magic Ixalan
+                    - strong [ref=f231e494]: Jurassic Emblems
+              - listitem [ref=f231e495]:
+                - 'link "Search for: Surprise Ideeen Magic The Gathering Ixalan" [ref=f231e496] [cursor=pointer]':
+                  - /url: /images/search?q=Surprise+Ideeen+Magic+The+Gathering+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e499]:
+                    - text: Surprise Ideeen Magic
+                    - strong [ref=f231e500]: The Gathering Ixalan
+              - listitem [ref=f231e501]:
+                - 'link "Search for: Malcolm Magic Ixalan" [ref=f231e502] [cursor=pointer]':
+                  - /url: /images/search?q=Malcolm+Magic+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e505]:
+                    - strong [ref=f231e506]: Malcolm
+                    - text: Magic Ixalan
+              - listitem [ref=f231e507]:
+                - 'link "Search for: Magic Ixalan Re Master" [ref=f231e508] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Ixalan+Re+Master&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e511]:
+                    - text: Magic Ixalan
+                    - strong [ref=f231e512]: Re Master
+              - listitem [ref=f231e513]:
+                - 'link "Search for: Magic Cavernas De Ixalan" [ref=f231e514] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Cavernas+De+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e517]:
+                    - text: Magic
+                    - strong [ref=f231e518]: Cavernas De Ixalan
+              - listitem [ref=f231e519]:
+                - 'link "Search for: Magic Ixalan 100 Sleeves" [ref=f231e520] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Ixalan+100+Sleeves&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e523]:
+                    - text: Magic Ixalan
+                    - strong [ref=f231e524]: 100 Sleeves
+              - listitem [ref=f231e525]:
+                - 'link "Search for: Diamond Pickaxes Magic Ixalan" [ref=f231e526] [cursor=pointer]':
+                  - /url: /images/search?q=Diamond+Pickaxes+Magic+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e529]:
+                    - strong [ref=f231e530]: Diamond Pickaxes
+                    - text: Magic Ixalan
+              - listitem [ref=f231e531]:
+                - 'link "Search for: Magic Lost Caverns of Ixalan Bundle Gift Edition Picture" [ref=f231e532] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Lost+Caverns+of+Ixalan+Bundle+Gift+Edition+Picture&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e535]:
+                    - text: Magic Lost Caverns of Ixalan Bundle
+                    - strong [ref=f231e536]: Gift Edition Picture
+              - listitem [ref=f231e537]:
+                - 'link "Search for: Magic The Gathering Omega Box" [ref=f231e538] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Omega+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e541]:
+                    - text: Magic
+                    - strong [ref=f231e542]: The Gathering Omega Box
+              - listitem [ref=f231e543]:
+                - 'link "Search for: Magic The Gathering Ixalan One Package" [ref=f231e544] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+One+Package&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e547]:
+                    - text: Magic The Gathering Ixalan
+                    - strong [ref=f231e548]: One Package
+              - listitem [ref=f231e549]:
+                - 'link "Search for: Magic The Gathering Lost Caverns of Ixalan Draft Booster Box" [ref=f231e550] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Lost+Caverns+of+Ixalan+Draft+Booster+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e553]:
+                    - strong [ref=f231e554]: Magic The Gathering Lost Caverns
+                    - text: of Ixalan Draft Booster Box
+              - listitem [ref=f231e555]:
+                - 'link "Search for: Magic The Gathering Ixalan Rares" [ref=f231e556] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Rares&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e559]:
+                    - text: Magic
+                    - strong [ref=f231e560]: The Gathering Ixalan Rares
+              - listitem [ref=f231e561]:
+                - 'link "Search for: Explorers of Ixalan Basic Lands" [ref=f231e562] [cursor=pointer]':
+                  - /url: /images/search?q=Explorers+of+Ixalan+Basic+Lands&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e565]:
+                    - text: Explorers of Ixalan
+                    - strong [ref=f231e566]: Basic Lands
+              - listitem [ref=f231e567]:
+                - 'link "Search for: Magic The Gathering Lost Caverns of Ixalan Storage Box" [ref=f231e568] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Lost+Caverns+of+Ixalan+Storage+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e571]:
+                    - strong [ref=f231e572]: Magic The Gathering Lost Caverns
+                    - text: of Ixalan Storage Box
+              - listitem [ref=f231e573]:
+                - 'link "Search for: Holiday Caverns of Ixalan Bundle" [ref=f231e574] [cursor=pointer]':
+                  - /url: /images/search?q=Holiday+Caverns+of+Ixalan+Bundle&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e577]:
+                    - strong [ref=f231e578]: Holiday Caverns
+                    - text: of Ixalan Bundle
+              - listitem [ref=f231e579]:
+                - 'link "Search for: Ultra Pro Deck Box Magic The Gathering Lost Caverns of Ixalan A" [ref=f231e580] [cursor=pointer]':
+                  - /url: /images/search?q=Ultra+Pro+Deck+Box+Magic+The+Gathering+Lost+Caverns+of+Ixalan+A&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e583]:
+                    - text: Ultra Pro Deck Box Magic
+                    - strong [ref=f231e584]: The Gathering Lost Caverns of Ixalan A
+              - listitem [ref=f231e585]:
+                - 'link "Search for: Magic The Gathering Ixalan Cards Watercourser" [ref=f231e586] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Cards+Watercourser&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e589]:
+                    - text: Magic The Gathering Ixalan
+                    - strong [ref=f231e590]: Cards Watercourser
+              - listitem [ref=f231e591]:
+                - 'link "Search for: Caverns Ixalan Bundle Promo Card" [ref=f231e592] [cursor=pointer]':
+                  - /url: /images/search?q=Caverns+Ixalan+Bundle+Promo+Card&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e595]:
+                    - text: Caverns Ixalan Bundle
+                    - strong [ref=f231e596]: Promo Card
+              - listitem [ref=f231e597]:
+                - 'link "Search for: Magic The Gathering Dreadmaw of Ixalan" [ref=f231e598] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Dreadmaw+of+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e601]:
+                    - strong [ref=f231e602]: Magic The Gathering Dreadmaw
+                    - text: of Ixalan
+              - listitem [ref=f231e603]:
+                - 'link "Search for: Ixalan John Tedrick Bundle Image" [ref=f231e604] [cursor=pointer]':
+                  - /url: /images/search?q=Ixalan+John+Tedrick+Bundle+Image&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e607]:
+                    - text: Ixalan
+                    - strong [ref=f231e608]: John Tedrick Bundle Image
+              - listitem [ref=f231e609]:
+                - 'link "Search for: Beginner Bundle Mahic Gathering" [ref=f231e610] [cursor=pointer]':
+                  - /url: /images/search?q=Beginner+Bundle+Mahic+Gathering&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e613]:
+                    - text: Beginner Bundle
+                    - strong [ref=f231e614]: Mahic Gathering
+              - listitem [ref=f231e615]:
+                - 'link "Search for: Magic Teh Gathering Ixalan" [ref=f231e616] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Teh+Gathering+Ixalan&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e619]:
+                    - text: Magic
+                    - strong [ref=f231e620]: Teh Gathering Ixalan
+              - listitem [ref=f231e621]:
+                - 'link "Search for: Lost Caverns of Ixalan Bundle Spin Down" [ref=f231e622] [cursor=pointer]':
+                  - /url: /images/search?q=Lost+Caverns+of+Ixalan+Bundle+Spin+Down&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e625]:
+                    - text: Lost Caverns of Ixalan Bundle
+                    - strong [ref=f231e626]: Spin Down
+              - listitem [ref=f231e627]:
+                - 'link "Search for: Magic The Gathering Ixalan Equipment" [ref=f231e628] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Equipment&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e631]:
+                    - text: Magic
+                    - strong [ref=f231e632]: The Gathering Ixalan Equipment
+              - listitem [ref=f231e633]:
+                - 'link "Search for: Magic The Gathering Cavern Ixalan Image" [ref=f231e634] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Cavern+Ixalan+Image&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e637]:
+                    - text: Magic
+                    - strong [ref=f231e638]: The Gathering Cavern Ixalan Image
+              - listitem [ref=f231e639]:
+                - 'link "Search for: Magic The Gathering Ixalan Card Rhino" [ref=f231e640] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+The+Gathering+Ixalan+Card+Rhino&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e643]:
+                    - text: Magic The Gathering Ixalan
+                    - strong [ref=f231e644]: Card Rhino
+              - listitem [ref=f231e645]:
+                - 'link "Search for: Ixalan Lost Caverns Bundle Die" [ref=f231e646] [cursor=pointer]':
+                  - /url: /images/search?q=Ixalan+Lost+Caverns+Bundle+Die&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e649]:
+                    - text: Ixalan
+                    - strong [ref=f231e650]: Lost Caverns Bundle Die
+              - listitem [ref=f231e651]:
+                - 'link "Search for: Old Magic The Gathering Booster Box" [ref=f231e652] [cursor=pointer]':
+                  - /url: /images/search?q=Old+Magic+The+Gathering+Booster+Box&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e655]:
+                    - text: Old Magic
+                    - strong [ref=f231e656]: The Gathering Booster Box
+              - listitem [ref=f231e657]:
+                - 'link "Search for: Magic Arena Lost Caverns of Ixalan Wallpaper" [ref=f231e658] [cursor=pointer]':
+                  - /url: /images/search?q=Magic+Arena+Lost+Caverns+of+Ixalan+Wallpaper&FORM=RESTAB
+                  - generic [aria-hidden] [ref=f231e661]:
+                    - text: Magic
+                    - strong [ref=f231e662]: Arena Lost Caverns of Ixalan Wallpaper
+      - switch "New Version" [ref=f231e665] [cursor=pointer]
+    - generic [ref=f231e671]:
+      - list [ref=f231e672]:
+        - listitem [ref=f231e673]:
+          - generic [ref=f231e674]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e676] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=DnrOdI0Z&id=3AB8632C27ED49D66C88394AB69D823731B86861&thid=OIP.DnrOdI0ZJ3XtUB6sEeWlxQAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZ0QAAOSwXmJidN0o%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0e7ace748d192775ed501eac11e5a5c5%3frik%3dYWi4MTeCnbZKOQ%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=7943B030C2898F268A03FF94EE01E5ED&selectedIndex=0&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e678]
+            - generic [ref=f231e679]:
+              - link "Magic The Gathering RIVALS OF IXALAN Empty Booster Box MTG NO CARDS OR ..." [ref=f231e680] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=DnrOdI0Z&id=3AB8632C27ED49D66C88394AB69D823731B86861&thid=OIP.DnrOdI0ZJ3XtUB6sEeWlxQAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZ0QAAOSwXmJidN0o%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0e7ace748d192775ed501eac11e5a5c5%3frik%3dYWi4MTeCnbZKOQ%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=7943B030C2898F268A03FF94EE01E5ED&selectedIndex=0&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering RIVALS OF IXALAN Empty Booster Box MTG NO CARDS …" [ref=f231e681] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=DnrOdI0Z&id=3AB8632C27ED49D66C88394AB69D823731B86861&thid=OIP.DnrOdI0ZJ3XtUB6sEeWlxQAAAA&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fZ0QAAOSwXmJidN0o%2fs-l400.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.0e7ace748d192775ed501eac11e5a5c5%3frik%3dYWi4MTeCnbZKOQ%26pid%3dImgRaw%26r%3d0&exph=300&expw=400&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=7943B030C2898F268A03FF94EE01E5ED&selectedIndex=0&itb=0
+        - listitem [ref=f231e682]:
+          - generic [ref=f231e683]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e685] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=bYT27OeB&id=FF6C48C738735832B2AF6B8579294C3ABAC20D31&thid=OIP.bYT27OeBJpIJe4aB57KINgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGtgAAOSwuXRjWB70%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6d84f6ece7812692097b8681e7b28836%3frik%3dMQ3CujpMKXmFaw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=F5CEFBF6A6026E2833269AB3C9C66D4D&selectedIndex=1&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e687]
+            - generic [ref=f231e688]:
+              - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEALED BRAND NEW MAGIC Fat ..." [ref=f231e689] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=bYT27OeB&id=FF6C48C738735832B2AF6B8579294C3ABAC20D31&thid=OIP.bYT27OeBJpIJe4aB57KINgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGtgAAOSwuXRjWB70%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6d84f6ece7812692097b8681e7b28836%3frik%3dMQ3CujpMKXmFaw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=F5CEFBF6A6026E2833269AB3C9C66D4D&selectedIndex=1&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEA…" [ref=f231e690] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=bYT27OeB&id=FF6C48C738735832B2AF6B8579294C3ABAC20D31&thid=OIP.bYT27OeBJpIJe4aB57KINgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fGtgAAOSwuXRjWB70%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6d84f6ece7812692097b8681e7b28836%3frik%3dMQ3CujpMKXmFaw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=F5CEFBF6A6026E2833269AB3C9C66D4D&selectedIndex=1&itb=0
+        - listitem [ref=f231e691]:
+          - generic [ref=f231e692]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e694] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=COtp2JbJ&id=C0B52DEC430A22E667B63B9826ED007C3ECCFA22&thid=OIP.COtp2JbJdd_yJ3aXHu_adwHaHZ&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f81RQ0hMh15L.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.08eb69d896c975dff22776971eefda77%3frik%3dIvrMPnwA7SaYOw%26pid%3dImgRaw%26r%3d0&exph=1998&expw=2000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=8066EA6D57DAC3B2CAA67016F534445A&selectedIndex=2&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e696]
+            - generic [ref=f231e697]:
+              - 'link "Amazon.com: Magic: The Gathering Rivals of Ixalan Booster Box | 36 ..." [ref=f231e698] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=COtp2JbJ&id=C0B52DEC430A22E667B63B9826ED007C3ECCFA22&thid=OIP.COtp2JbJdd_yJ3aXHu_adwHaHZ&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f81RQ0hMh15L.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.08eb69d896c975dff22776971eefda77%3frik%3dIvrMPnwA7SaYOw%26pid%3dImgRaw%26r%3d0&exph=1998&expw=2000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=8066EA6D57DAC3B2CAA67016F534445A&selectedIndex=2&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Amazon.com: Magic: The Gathering Rivals of Ixalan B…" [ref=f231e699] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=COtp2JbJ&id=C0B52DEC430A22E667B63B9826ED007C3ECCFA22&thid=OIP.COtp2JbJdd_yJ3aXHu_adwHaHZ&mediaurl=https%3a%2f%2fm.media-amazon.com%2fimages%2fI%2f81RQ0hMh15L.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.08eb69d896c975dff22776971eefda77%3frik%3dIvrMPnwA7SaYOw%26pid%3dImgRaw%26r%3d0&exph=1998&expw=2000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=8066EA6D57DAC3B2CAA67016F534445A&selectedIndex=2&itb=0
+        - listitem [ref=f231e700]:
+          - generic [ref=f231e701]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e703] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=8JHVecvK&id=FF5EA4D15A86677748366B6021D4B8362A72FC38&thid=OIP.8JHVecvK4pqOPaJduGTXKwHaG1&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-RIVALS-OF-IXALAN-BUNDLE-FAT-PACK-BOX_bf10c46d-a7d2-4a75-b3df-7192674771bd.fdec7f1e274889d169b3016e271d1bc0.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f091d579cbcae29a8e3da25db864d72b%3frik%3dOPxyKja41CFgaw%26pid%3dImgRaw%26r%3d0&exph=830&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=26E4C659952168341C1D3DDD39BD7701&selectedIndex=3&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e705]
+            - generic [ref=f231e706]:
+              - link "MAGIC RIVALS OF IXALAN BUNDLE FAT PACK BOX - Walmart.com" [ref=f231e707] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=8JHVecvK&id=FF5EA4D15A86677748366B6021D4B8362A72FC38&thid=OIP.8JHVecvK4pqOPaJduGTXKwHaG1&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-RIVALS-OF-IXALAN-BUNDLE-FAT-PACK-BOX_bf10c46d-a7d2-4a75-b3df-7192674771bd.fdec7f1e274889d169b3016e271d1bc0.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f091d579cbcae29a8e3da25db864d72b%3frik%3dOPxyKja41CFgaw%26pid%3dImgRaw%26r%3d0&exph=830&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=26E4C659952168341C1D3DDD39BD7701&selectedIndex=3&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MAGIC RIVALS OF IXALAN BUNDLE FAT PACK BOX - W…" [ref=f231e708] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=8JHVecvK&id=FF5EA4D15A86677748366B6021D4B8362A72FC38&thid=OIP.8JHVecvK4pqOPaJduGTXKwHaG1&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-RIVALS-OF-IXALAN-BUNDLE-FAT-PACK-BOX_bf10c46d-a7d2-4a75-b3df-7192674771bd.fdec7f1e274889d169b3016e271d1bc0.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f091d579cbcae29a8e3da25db864d72b%3frik%3dOPxyKja41CFgaw%26pid%3dImgRaw%26r%3d0&exph=830&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=26E4C659952168341C1D3DDD39BD7701&selectedIndex=3&itb=0
+        - listitem [ref=f231e709]:
+          - generic [ref=f231e710]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e712] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=4t7QlHZq&id=2F8FDAD6EE3C7135C91AA83032DED6E3A51C409C&thid=OIP.4t7QlHZqvyy8vCBT-bAEqQHaHa&mediaurl=https%3a%2f%2ftotalcards.net%2fcdn%2fshop%2ffiles%2fmtg-rivals-of-ixalan-bundle-and-booster-box.jpg%3fv%3d1711237470&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e2ded094766abf2cbcbc2053f9b004a9%3frik%3dnEAcpePW3jIwqA%26pid%3dImgRaw%26r%3d0&exph=660&expw=660&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=6FA5B82E5272EEB40B56CCB416FE9AF9&selectedIndex=4&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e714]
+            - generic [ref=f231e715]:
+              - link "Magic The Gathering - Rivals of Ixalan - Booster Box & Bundle" [ref=f231e716] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=4t7QlHZq&id=2F8FDAD6EE3C7135C91AA83032DED6E3A51C409C&thid=OIP.4t7QlHZqvyy8vCBT-bAEqQHaHa&mediaurl=https%3a%2f%2ftotalcards.net%2fcdn%2fshop%2ffiles%2fmtg-rivals-of-ixalan-bundle-and-booster-box.jpg%3fv%3d1711237470&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e2ded094766abf2cbcbc2053f9b004a9%3frik%3dnEAcpePW3jIwqA%26pid%3dImgRaw%26r%3d0&exph=660&expw=660&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=6FA5B82E5272EEB40B56CCB416FE9AF9&selectedIndex=4&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering - Rivals of Ixalan - Booster Box & B…" [ref=f231e717] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=4t7QlHZq&id=2F8FDAD6EE3C7135C91AA83032DED6E3A51C409C&thid=OIP.4t7QlHZqvyy8vCBT-bAEqQHaHa&mediaurl=https%3a%2f%2ftotalcards.net%2fcdn%2fshop%2ffiles%2fmtg-rivals-of-ixalan-bundle-and-booster-box.jpg%3fv%3d1711237470&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e2ded094766abf2cbcbc2053f9b004a9%3frik%3dnEAcpePW3jIwqA%26pid%3dImgRaw%26r%3d0&exph=660&expw=660&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=6FA5B82E5272EEB40B56CCB416FE9AF9&selectedIndex=4&itb=0
+      - list [ref=f231e718]:
+        - listitem [ref=f231e719]:
+          - generic [ref=f231e720]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e722] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=1dBAFFTi&id=73A6C6D698D3DE4F32383489E36838EE7A567F6F&thid=OIP.1dBAFFTi2WIrHNPA4qfLTgHaGu&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-MTG-RIVALS-OF-IXALAN-BOOSTER-BOX-FACTORY-SEALED-CARD-GAME_9525412b-59fe-471b-a9e8-bc194573b9bb.af059aaf63d79566cbf19d7dd6770b59.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5d0401454e2d9622b1cd3c0e2a7cb4e%3frik%3db39Weu44aOOJNA%26pid%3dImgRaw%26r%3d0&exph=818&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A0EC71331B86DD9AD54E9BC773903A3C&selectedIndex=5&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e724]
+            - generic [ref=f231e725]:
+              - link "MAGIC MTG RIVALS OF IXALAN BOOSTER BOX FACTORY SEALED CARD GAME ..." [ref=f231e726] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=1dBAFFTi&id=73A6C6D698D3DE4F32383489E36838EE7A567F6F&thid=OIP.1dBAFFTi2WIrHNPA4qfLTgHaGu&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-MTG-RIVALS-OF-IXALAN-BOOSTER-BOX-FACTORY-SEALED-CARD-GAME_9525412b-59fe-471b-a9e8-bc194573b9bb.af059aaf63d79566cbf19d7dd6770b59.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5d0401454e2d9622b1cd3c0e2a7cb4e%3frik%3db39Weu44aOOJNA%26pid%3dImgRaw%26r%3d0&exph=818&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A0EC71331B86DD9AD54E9BC773903A3C&selectedIndex=5&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MAGIC MTG RIVALS OF IXALAN BOOSTER BOX F…" [ref=f231e727] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=1dBAFFTi&id=73A6C6D698D3DE4F32383489E36838EE7A567F6F&thid=OIP.1dBAFFTi2WIrHNPA4qfLTgHaGu&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMAGIC-MTG-RIVALS-OF-IXALAN-BOOSTER-BOX-FACTORY-SEALED-CARD-GAME_9525412b-59fe-471b-a9e8-bc194573b9bb.af059aaf63d79566cbf19d7dd6770b59.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.d5d0401454e2d9622b1cd3c0e2a7cb4e%3frik%3db39Weu44aOOJNA%26pid%3dImgRaw%26r%3d0&exph=818&expw=900&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A0EC71331B86DD9AD54E9BC773903A3C&selectedIndex=5&itb=0
+        - listitem [ref=f231e728]:
+          - generic [ref=f231e729]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e731] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=tPgp%2f2Pg&id=366828668A9A5829B28F76302120A80D586CDABE&thid=OIP.tPgp_2PgdIetsvYI3fBD9gHaHa&mediaurl=https%3a%2f%2fwww.steelcitycollectibles.com%2fstorage%2fimg%2fuploads%2fproducts%2ffull%2fmagic-ixlanrivBundle52553.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4f829ff63e07487adb2f608ddf043f6%3frik%3dvtpsWA2oICEwdg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B07B5C47FE1B3B2871D5B3079D2E764F&selectedIndex=6&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e733]
+            - generic [ref=f231e734]:
+              - link "Magic the Gathering Rivals of Ixalan Bundle Box | Steel City Collectibles" [ref=f231e735] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=tPgp%2f2Pg&id=366828668A9A5829B28F76302120A80D586CDABE&thid=OIP.tPgp_2PgdIetsvYI3fBD9gHaHa&mediaurl=https%3a%2f%2fwww.steelcitycollectibles.com%2fstorage%2fimg%2fuploads%2fproducts%2ffull%2fmagic-ixlanrivBundle52553.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4f829ff63e07487adb2f608ddf043f6%3frik%3dvtpsWA2oICEwdg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B07B5C47FE1B3B2871D5B3079D2E764F&selectedIndex=6&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Bundle …" [ref=f231e736] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=tPgp%2f2Pg&id=366828668A9A5829B28F76302120A80D586CDABE&thid=OIP.tPgp_2PgdIetsvYI3fBD9gHaHa&mediaurl=https%3a%2f%2fwww.steelcitycollectibles.com%2fstorage%2fimg%2fuploads%2fproducts%2ffull%2fmagic-ixlanrivBundle52553.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b4f829ff63e07487adb2f608ddf043f6%3frik%3dvtpsWA2oICEwdg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B07B5C47FE1B3B2871D5B3079D2E764F&selectedIndex=6&itb=0
+        - listitem [ref=f231e737]:
+          - generic [ref=f231e738]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e740] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=SZI25bRY&id=2E731C279C30818214705E76850E727E06B55CA1&thid=OIP.SZI25bRYOCguNGj33UEsMQHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fnnNfR5XPow4%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.499236e5b45838282e3468f7dd412c31%3frik%3doVy1Bn5yDoV2Xg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=629481F8C6474332C8364A32CBDC3AAD&selectedIndex=7&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e742]
+            - generic [ref=f231e743]:
+              - link "Rivals of Ixalan Bundle Box MTG Unboxing (4K) - YouTube" [ref=f231e744] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=SZI25bRY&id=2E731C279C30818214705E76850E727E06B55CA1&thid=OIP.SZI25bRYOCguNGj33UEsMQHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fnnNfR5XPow4%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.499236e5b45838282e3468f7dd412c31%3frik%3doVy1Bn5yDoV2Xg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=629481F8C6474332C8364A32CBDC3AAD&selectedIndex=7&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle Box MTG Unboxing (4K) - YouTube" [ref=f231e745] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=SZI25bRY&id=2E731C279C30818214705E76850E727E06B55CA1&thid=OIP.SZI25bRYOCguNGj33UEsMQHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fnnNfR5XPow4%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.499236e5b45838282e3468f7dd412c31%3frik%3doVy1Bn5yDoV2Xg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=629481F8C6474332C8364A32CBDC3AAD&selectedIndex=7&itb=0
+        - listitem [ref=f231e746]:
+          - generic [ref=f231e747]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e749] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=stDgvrAI&id=2630B2CAE6159E3E20F39E0EDDD4E3A709EB4E32&thid=OIP.stDgvrAI6hs8nOm-lPBFgQHaE8&mediaurl=https%3a%2f%2fimperialnumismatics.com.au%2fwp-content%2fuploads%2f2023%2f08%2fRivals-of-Ixalan-4.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2d0e0beb008ea1b3c9ce9be94f04581%3frik%3dMk7rCafj1N0Ong%26pid%3dImgRaw%26r%3d0&exph=1067&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=36922F33F2B732C1A48855AD092B1E17&selectedIndex=8&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e751]
+            - generic [ref=f231e752]:
+              - link "MTG Rivals of Ixalan Booster Box Magic The Gathering - Imperial Numismatics" [ref=f231e753] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=stDgvrAI&id=2630B2CAE6159E3E20F39E0EDDD4E3A709EB4E32&thid=OIP.stDgvrAI6hs8nOm-lPBFgQHaE8&mediaurl=https%3a%2f%2fimperialnumismatics.com.au%2fwp-content%2fuploads%2f2023%2f08%2fRivals-of-Ixalan-4.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2d0e0beb008ea1b3c9ce9be94f04581%3frik%3dMk7rCafj1N0Ong%26pid%3dImgRaw%26r%3d0&exph=1067&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=36922F33F2B732C1A48855AD092B1E17&selectedIndex=8&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Booster Box Magic The Gathering - Imperial Numismatics" [ref=f231e754] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=stDgvrAI&id=2630B2CAE6159E3E20F39E0EDDD4E3A709EB4E32&thid=OIP.stDgvrAI6hs8nOm-lPBFgQHaE8&mediaurl=https%3a%2f%2fimperialnumismatics.com.au%2fwp-content%2fuploads%2f2023%2f08%2fRivals-of-Ixalan-4.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.b2d0e0beb008ea1b3c9ce9be94f04581%3frik%3dMk7rCafj1N0Ong%26pid%3dImgRaw%26r%3d0&exph=1067&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=36922F33F2B732C1A48855AD092B1E17&selectedIndex=8&itb=0
+        - listitem [ref=f231e755]:
+          - generic [ref=f231e756]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e758] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=JRQYL0Fx&id=5A04A7679C879538711D87EC64CC826CCB3F8591&thid=OIP.JRQYL0Fx3BoaST-CSTaLHgHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2f6cAAAOSwnd9eDjW%7e%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2514182f4171dc1a1a493f8249368b1e%3frik%3dkYU%252fy2yCzGTshw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A915D877304A111AC0062F7B5EB8C70C&selectedIndex=9&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e760]
+            - generic [ref=f231e761]:
+              - link "MTG Rivals of Ixalan Bundle Opened But Never Played 460 cards total ..." [ref=f231e762] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=JRQYL0Fx&id=5A04A7679C879538711D87EC64CC826CCB3F8591&thid=OIP.JRQYL0Fx3BoaST-CSTaLHgHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2f6cAAAOSwnd9eDjW%7e%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2514182f4171dc1a1a493f8249368b1e%3frik%3dkYU%252fy2yCzGTshw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A915D877304A111AC0062F7B5EB8C70C&selectedIndex=9&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Op…" [ref=f231e763] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=JRQYL0Fx&id=5A04A7679C879538711D87EC64CC826CCB3F8591&thid=OIP.JRQYL0Fx3BoaST-CSTaLHgHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2f6cAAAOSwnd9eDjW%7e%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2514182f4171dc1a1a493f8249368b1e%3frik%3dkYU%252fy2yCzGTshw%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A915D877304A111AC0062F7B5EB8C70C&selectedIndex=9&itb=0
+      - list [ref=f231e764]:
+        - listitem [ref=f231e765]:
+          - generic [ref=f231e766]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e768] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=oL%2b4zhzv&id=F669D60EDB197D7BE1F85417E1C14E7E64A4588F&thid=OIP.oL-4zhzv4hVgCtMw3eCrwAHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fdN8AAeSwYTJphmDp%2fs-l960.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a0bfb8ce1cefe215600ad330dde0abc0%3frik%3dj1ikZH5OweEXVA%26pid%3dImgRaw%26r%3d0&exph=720&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=30C50BDEB1A0236166F56FA354DC63CF&selectedIndex=10&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e770]
+            - generic [ref=f231e771]:
+              - link "Magic The Gathering MTG - Rivals of Ixalan Booster Box Factory Sealed ..." [ref=f231e772] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=oL%2b4zhzv&id=F669D60EDB197D7BE1F85417E1C14E7E64A4588F&thid=OIP.oL-4zhzv4hVgCtMw3eCrwAHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fdN8AAeSwYTJphmDp%2fs-l960.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a0bfb8ce1cefe215600ad330dde0abc0%3frik%3dj1ikZH5OweEXVA%26pid%3dImgRaw%26r%3d0&exph=720&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=30C50BDEB1A0236166F56FA354DC63CF&selectedIndex=10&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering MTG - Rivals of Ixalan Booster Box F…" [ref=f231e773] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=oL%2b4zhzv&id=F669D60EDB197D7BE1F85417E1C14E7E64A4588F&thid=OIP.oL-4zhzv4hVgCtMw3eCrwAHaFj&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fdN8AAeSwYTJphmDp%2fs-l960.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a0bfb8ce1cefe215600ad330dde0abc0%3frik%3dj1ikZH5OweEXVA%26pid%3dImgRaw%26r%3d0&exph=720&expw=960&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=30C50BDEB1A0236166F56FA354DC63CF&selectedIndex=10&itb=0
+        - listitem [ref=f231e774]:
+          - generic [ref=f231e775]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e777] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=IrLG4TCh&id=B5D8DAF44EB57C4DAA99E5B402690FFF51962777&thid=OIP.IrLG4TCh5gGNYdImeE_G5AHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fZw55s8Rtqs0%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.22b2c6e130a1e6018d61d226784fc6e4%3frik%3ddyeWUf8PaQK05Q%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=88B1268C2FA472B230C7A28C319501BD&selectedIndex=11&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e779]
+            - generic [ref=f231e780]:
+              - link "MTG Rivals of Ixalan Bundle Box Opening - YouTube" [ref=f231e781] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=IrLG4TCh&id=B5D8DAF44EB57C4DAA99E5B402690FFF51962777&thid=OIP.IrLG4TCh5gGNYdImeE_G5AHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fZw55s8Rtqs0%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.22b2c6e130a1e6018d61d226784fc6e4%3frik%3ddyeWUf8PaQK05Q%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=88B1268C2FA472B230C7A28C319501BD&selectedIndex=11&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle Box Opening - YouTube" [ref=f231e782] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=IrLG4TCh&id=B5D8DAF44EB57C4DAA99E5B402690FFF51962777&thid=OIP.IrLG4TCh5gGNYdImeE_G5AHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fZw55s8Rtqs0%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.22b2c6e130a1e6018d61d226784fc6e4%3frik%3ddyeWUf8PaQK05Q%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=88B1268C2FA472B230C7A28C319501BD&selectedIndex=11&itb=0
+        - listitem [ref=f231e783]:
+          - generic [ref=f231e784]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e786] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=gqENMXY3&id=927A87CDA7CF916811F71DC97D599F992E15EADF&thid=OIP.gqENMXY3jnV_4HyXv3eeIgHaHa&mediaurl=https%3a%2f%2fhobbygames.ru%2fimage%2fcache%2fhobbygames_beta%2fdata%2fWizarsds_Of_the_Coast%2fMagic_the_Gathering%2fBitva_za_Ixalan%2fRivals_of_Ixalan_bundle-1024x1024-wm.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.82a10d3176378e757fe07c97bf779e22%3frik%3d3%252boVLpmfWX3JHQ%26pid%3dImgRaw%26r%3d0&exph=800&expw=800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=C7487F1C0B24CC6802B5C29A1958DC43&selectedIndex=12&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e788]
+            - generic [ref=f231e789]:
+              - link "MTG. Rivals of Ixalan. Bundle | Купить настольную игру в магазинах ..." [ref=f231e790] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=gqENMXY3&id=927A87CDA7CF916811F71DC97D599F992E15EADF&thid=OIP.gqENMXY3jnV_4HyXv3eeIgHaHa&mediaurl=https%3a%2f%2fhobbygames.ru%2fimage%2fcache%2fhobbygames_beta%2fdata%2fWizarsds_Of_the_Coast%2fMagic_the_Gathering%2fBitva_za_Ixalan%2fRivals_of_Ixalan_bundle-1024x1024-wm.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.82a10d3176378e757fe07c97bf779e22%3frik%3d3%252boVLpmfWX3JHQ%26pid%3dImgRaw%26r%3d0&exph=800&expw=800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=C7487F1C0B24CC6802B5C29A1958DC43&selectedIndex=12&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG. Rivals of Ixalan. Bundle | Купить наст…" [ref=f231e791] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=gqENMXY3&id=927A87CDA7CF916811F71DC97D599F992E15EADF&thid=OIP.gqENMXY3jnV_4HyXv3eeIgHaHa&mediaurl=https%3a%2f%2fhobbygames.ru%2fimage%2fcache%2fhobbygames_beta%2fdata%2fWizarsds_Of_the_Coast%2fMagic_the_Gathering%2fBitva_za_Ixalan%2fRivals_of_Ixalan_bundle-1024x1024-wm.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.82a10d3176378e757fe07c97bf779e22%3frik%3d3%252boVLpmfWX3JHQ%26pid%3dImgRaw%26r%3d0&exph=800&expw=800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=C7487F1C0B24CC6802B5C29A1958DC43&selectedIndex=12&itb=0
+        - listitem [ref=f231e792]:
+          - generic [ref=f231e793]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e795] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=ieSa21bd&id=5631E1FE31BDD4B560BD100F356F74B8814FE9C7&thid=OIP.ieSa21bd29ujnPCPhleL0gHaHQ&mediaurl=https%3a%2f%2fwww.pngkit.com%2fpng%2ffull%2f606-6063261_rivals-of-ixalan-variety-pack-magic-the-gathering.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.89e49adb56dddbdba39cf08f86578bd2%3frik%3dx%252blPgbh0bzUPEA%26pid%3dImgRaw%26r%3d0&exph=695&expw=709&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=17EF43E55DF3952AD91D4F00E13AAAA0&selectedIndex=13&itb=1
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e797]
+            - generic [ref=f231e798]:
+              - 'link "Download Rivals Of Ixalan Variety Pack - Magic The Gathering: Rivals Of ..." [ref=f231e799] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=ieSa21bd&id=5631E1FE31BDD4B560BD100F356F74B8814FE9C7&thid=OIP.ieSa21bd29ujnPCPhleL0gHaHQ&mediaurl=https%3a%2f%2fwww.pngkit.com%2fpng%2ffull%2f606-6063261_rivals-of-ixalan-variety-pack-magic-the-gathering.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.89e49adb56dddbdba39cf08f86578bd2%3frik%3dx%252blPgbh0bzUPEA%26pid%3dImgRaw%26r%3d0&exph=695&expw=709&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=17EF43E55DF3952AD91D4F00E13AAAA0&selectedIndex=13&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Download Rivals Of Ixalan Variety Pack - …" [ref=f231e800] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=ieSa21bd&id=5631E1FE31BDD4B560BD100F356F74B8814FE9C7&thid=OIP.ieSa21bd29ujnPCPhleL0gHaHQ&mediaurl=https%3a%2f%2fwww.pngkit.com%2fpng%2ffull%2f606-6063261_rivals-of-ixalan-variety-pack-magic-the-gathering.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.89e49adb56dddbdba39cf08f86578bd2%3frik%3dx%252blPgbh0bzUPEA%26pid%3dImgRaw%26r%3d0&exph=695&expw=709&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=17EF43E55DF3952AD91D4F00E13AAAA0&selectedIndex=13&itb=1
+        - listitem [ref=f231e801]:
+          - generic [ref=f231e802]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e804] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=L9HxnrAq&id=5A04A7679C879538711D2C8DD7B67B115459168F&thid=OIP.L9HxnrAqyvn8Vn5VbERTKQHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2faVQAAOSwgV1eDjXl%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fd1f19eb02acaf9fc567e556c445329%3frik%3djxZZVBF7tteNLA%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=4F424DA43BAC671DA55958E134107780&selectedIndex=14&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e806]
+            - generic [ref=f231e807]:
+              - link "MTG Rivals of Ixalan Bundle Opened But Never Played 460 cards total ..." [ref=f231e808] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=L9HxnrAq&id=5A04A7679C879538711D2C8DD7B67B115459168F&thid=OIP.L9HxnrAqyvn8Vn5VbERTKQHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2faVQAAOSwgV1eDjXl%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fd1f19eb02acaf9fc567e556c445329%3frik%3djxZZVBF7tteNLA%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=4F424DA43BAC671DA55958E134107780&selectedIndex=14&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle …" [ref=f231e809] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=L9HxnrAq&id=5A04A7679C879538711D2C8DD7B67B115459168F&thid=OIP.L9HxnrAqyvn8Vn5VbERTKQHaJ4&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2faVQAAOSwgV1eDjXl%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2fd1f19eb02acaf9fc567e556c445329%3frik%3djxZZVBF7tteNLA%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=4F424DA43BAC671DA55958E134107780&selectedIndex=14&itb=0
+        - listitem [ref=f231e810]:
+          - generic [ref=f231e811]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e813] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=bzfcAzuk&id=AC0B500C442B4DE9D6FEAEB53B21B283535C4BF3&thid=OIP.bzfcAzukf_OUheXEg3KkFwAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-box-41039-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6f37dc033ba47ff39485e5c48372a417%3frik%3d80tcU4OyITu1rg%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=F1F15A78CF5E52C531CBC19E8FB8DFFE&selectedIndex=15&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e815]
+            - generic [ref=f231e816]:
+              - link "MTG / Rivals Of Ixalan" [ref=f231e817] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=bzfcAzuk&id=AC0B500C442B4DE9D6FEAEB53B21B283535C4BF3&thid=OIP.bzfcAzukf_OUheXEg3KkFwAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-box-41039-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6f37dc033ba47ff39485e5c48372a417%3frik%3d80tcU4OyITu1rg%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=F1F15A78CF5E52C531CBC19E8FB8DFFE&selectedIndex=15&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG / Rivals Of Ixalan" [ref=f231e818] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=bzfcAzuk&id=AC0B500C442B4DE9D6FEAEB53B21B283535C4BF3&thid=OIP.bzfcAzukf_OUheXEg3KkFwAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-booster-box-41039-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.6f37dc033ba47ff39485e5c48372a417%3frik%3d80tcU4OyITu1rg%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=F1F15A78CF5E52C531CBC19E8FB8DFFE&selectedIndex=15&itb=0
+      - list [ref=f231e819]:
+        - listitem [ref=f231e820]:
+          - generic [ref=f231e821]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e823] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=lgWdPZjb&id=07F054CCE4D384974E2A90D10900A7DE9B98DF4A&thid=OIP.lgWdPZjbeZawFaoSVw4b4QHaF6&mediaurl=https%3a%2f%2fdacardworld1.imgix.net%2f508727_1_5410ggfk4.jpg%3fauto%3dformat%252Ccompress%26fm%3djpg%26h%3d1800%26ixlib%3dphp-3.3.1%26w%3d1800%26s%3d8ab768b05e343b0989cf022c6e49721f&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.96059d3d98db7996b015aa12570e1be1%3frik%3dSt%252bYm96nAAnRkA%26pid%3dImgRaw%26r%3d0&exph=1439&expw=1800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=5829D2E2C09093094A51AB3322D2238F&selectedIndex=16&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e825]
+            - generic [ref=f231e826]:
+              - link "Magic the Gathering Rivals of Ixalan Bundle Box | DA Card World" [ref=f231e827] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=lgWdPZjb&id=07F054CCE4D384974E2A90D10900A7DE9B98DF4A&thid=OIP.lgWdPZjbeZawFaoSVw4b4QHaF6&mediaurl=https%3a%2f%2fdacardworld1.imgix.net%2f508727_1_5410ggfk4.jpg%3fauto%3dformat%252Ccompress%26fm%3djpg%26h%3d1800%26ixlib%3dphp-3.3.1%26w%3d1800%26s%3d8ab768b05e343b0989cf022c6e49721f&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.96059d3d98db7996b015aa12570e1be1%3frik%3dSt%252bYm96nAAnRkA%26pid%3dImgRaw%26r%3d0&exph=1439&expw=1800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=5829D2E2C09093094A51AB3322D2238F&selectedIndex=16&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Bundle Box | DA Card World" [ref=f231e828] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=lgWdPZjb&id=07F054CCE4D384974E2A90D10900A7DE9B98DF4A&thid=OIP.lgWdPZjbeZawFaoSVw4b4QHaF6&mediaurl=https%3a%2f%2fdacardworld1.imgix.net%2f508727_1_5410ggfk4.jpg%3fauto%3dformat%252Ccompress%26fm%3djpg%26h%3d1800%26ixlib%3dphp-3.3.1%26w%3d1800%26s%3d8ab768b05e343b0989cf022c6e49721f&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.96059d3d98db7996b015aa12570e1be1%3frik%3dSt%252bYm96nAAnRkA%26pid%3dImgRaw%26r%3d0&exph=1439&expw=1800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=5829D2E2C09093094A51AB3322D2238F&selectedIndex=16&itb=0
+        - listitem [ref=f231e829]:
+          - generic [ref=f231e830]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e832] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=%2fR0jb8zn&id=0631EB4617AA9A9F11C3F573D4AE36D9D1475C0B&thid=OIP._R0jb8znNmEmscRlrLbN2wAAAA&mediaurl=https%3a%2f%2fres.cloudinary.com%2fcsicdn%2fimage%2fupload%2fc_pad%2cfl_lossy%2ch_350%2cq_auto%2cw_350%2fv1%2fImages%2fProducts%2fmtg+art%2fRivals+of+Ixalan%2ffull%2frix_varietypack.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd1d236fcce7366126b1c465acb6cddb%3frik%3dC1xH0dk2rtRz9Q%26pid%3dImgRaw%26r%3d0&exph=350&expw=350&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=D5B5140365C847814E17602D662DB8DD&selectedIndex=17&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e834]
+            - generic [ref=f231e835]:
+              - link "Rivals of Ixalan - Variety Pack" [ref=f231e836] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=%2fR0jb8zn&id=0631EB4617AA9A9F11C3F573D4AE36D9D1475C0B&thid=OIP._R0jb8znNmEmscRlrLbN2wAAAA&mediaurl=https%3a%2f%2fres.cloudinary.com%2fcsicdn%2fimage%2fupload%2fc_pad%2cfl_lossy%2ch_350%2cq_auto%2cw_350%2fv1%2fImages%2fProducts%2fmtg+art%2fRivals+of+Ixalan%2ffull%2frix_varietypack.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd1d236fcce7366126b1c465acb6cddb%3frik%3dC1xH0dk2rtRz9Q%26pid%3dImgRaw%26r%3d0&exph=350&expw=350&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=D5B5140365C847814E17602D662DB8DD&selectedIndex=17&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan - Variety Pack" [ref=f231e837] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=%2fR0jb8zn&id=0631EB4617AA9A9F11C3F573D4AE36D9D1475C0B&thid=OIP._R0jb8znNmEmscRlrLbN2wAAAA&mediaurl=https%3a%2f%2fres.cloudinary.com%2fcsicdn%2fimage%2fupload%2fc_pad%2cfl_lossy%2ch_350%2cq_auto%2cw_350%2fv1%2fImages%2fProducts%2fmtg+art%2fRivals+of+Ixalan%2ffull%2frix_varietypack.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.fd1d236fcce7366126b1c465acb6cddb%3frik%3dC1xH0dk2rtRz9Q%26pid%3dImgRaw%26r%3d0&exph=350&expw=350&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=D5B5140365C847814E17602D662DB8DD&selectedIndex=17&itb=0
+        - listitem [ref=f231e838]:
+          - generic [ref=f231e839]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e841] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=GyEWZIgP&id=FF6C48C738735832B2AF2DF391B07C94AABE09D8&thid=OIP.GyEWZIgP_hqSYLnpTHgN1QHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSb0AAOSwHuNjWB7s%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b211664880ffe1a9260b9e94c780dd5%3frik%3d2Am%252bqpR8sJHzLQ%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=2A96196B91D27B71CA5AC595792BC441&selectedIndex=18&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e843]
+            - generic [ref=f231e844]:
+              - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEALED BRAND NEW MAGIC Fat ..." [ref=f231e845] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=GyEWZIgP&id=FF6C48C738735832B2AF2DF391B07C94AABE09D8&thid=OIP.GyEWZIgP_hqSYLnpTHgN1QHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSb0AAOSwHuNjWB7s%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b211664880ffe1a9260b9e94c780dd5%3frik%3d2Am%252bqpR8sJHzLQ%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=2A96196B91D27B71CA5AC595792BC441&selectedIndex=18&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEAL…" [ref=f231e846] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=GyEWZIgP&id=FF6C48C738735832B2AF2DF391B07C94AABE09D8&thid=OIP.GyEWZIgP_hqSYLnpTHgN1QHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fSb0AAOSwHuNjWB7s%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.1b211664880ffe1a9260b9e94c780dd5%3frik%3d2Am%252bqpR8sJHzLQ%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=2A96196B91D27B71CA5AC595792BC441&selectedIndex=18&itb=0
+        - listitem [ref=f231e847]:
+          - generic [ref=f231e848]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e850] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=BOBc51lJ&id=9AAA50160667161ABD1566E4A108D18AE78CBCC4&thid=OIP.BOBc51lJw7-DenwQTEJyzgHaHa&mediaurl=https%3a%2f%2fwww.blowoutcards.com%2fmedia%2fcatalog%2fproduct%2fcache%2f1%2fimage%2f750x750%2f5cc9b2084ebab6842194ad7353fd680e%2fr%2fi%2frivalsofixalanbundle.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.04e05ce75949c3bf837a7c104c4272ce%3frik%3dxLyM54rRCKHkZg%26pid%3dImgRaw%26r%3d0&exph=750&expw=750&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B8AC9A3CAFF68C3BEC74B01B57C3FC23&selectedIndex=19&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e852]
+            - generic [ref=f231e853]:
+              - link "Magic the Gathering Rivals of Ixalan Bundle Box" [ref=f231e854] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=BOBc51lJ&id=9AAA50160667161ABD1566E4A108D18AE78CBCC4&thid=OIP.BOBc51lJw7-DenwQTEJyzgHaHa&mediaurl=https%3a%2f%2fwww.blowoutcards.com%2fmedia%2fcatalog%2fproduct%2fcache%2f1%2fimage%2f750x750%2f5cc9b2084ebab6842194ad7353fd680e%2fr%2fi%2frivalsofixalanbundle.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.04e05ce75949c3bf837a7c104c4272ce%3frik%3dxLyM54rRCKHkZg%26pid%3dImgRaw%26r%3d0&exph=750&expw=750&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B8AC9A3CAFF68C3BEC74B01B57C3FC23&selectedIndex=19&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Bundle Box" [ref=f231e855] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=BOBc51lJ&id=9AAA50160667161ABD1566E4A108D18AE78CBCC4&thid=OIP.BOBc51lJw7-DenwQTEJyzgHaHa&mediaurl=https%3a%2f%2fwww.blowoutcards.com%2fmedia%2fcatalog%2fproduct%2fcache%2f1%2fimage%2f750x750%2f5cc9b2084ebab6842194ad7353fd680e%2fr%2fi%2frivalsofixalanbundle.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.04e05ce75949c3bf837a7c104c4272ce%3frik%3dxLyM54rRCKHkZg%26pid%3dImgRaw%26r%3d0&exph=750&expw=750&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B8AC9A3CAFF68C3BEC74B01B57C3FC23&selectedIndex=19&itb=0
+        - listitem [ref=f231e856]:
+          - generic [ref=f231e857]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e859] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=OC%2fcvVWC&id=C16B34BE3A89BD1EB94244F80627CF849EF4337B&thid=OIP.OC_cvVWCSxAySQLq75zblQHaHa&mediaurl=https%3a%2f%2fdown-ph.img.susercontent.com%2ffile%2fph-11134207-7qukx-li1n4rn1fe2x45&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.382fdcbd55824b10324902eaef9cdb95%3frik%3dezP0noTPJwb4RA%26pid%3dImgRaw%26r%3d0&exph=1024&expw=1024&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=506B7F8A03D2C6AF4BAA79B6CE721B52&selectedIndex=20&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e861]
+            - generic [ref=f231e862]:
+              - 'link "MTG Magic: the Gathering Rivals of Ixalan (RIX) - Booster Box | Shopee ..." [ref=f231e863] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=OC%2fcvVWC&id=C16B34BE3A89BD1EB94244F80627CF849EF4337B&thid=OIP.OC_cvVWCSxAySQLq75zblQHaHa&mediaurl=https%3a%2f%2fdown-ph.img.susercontent.com%2ffile%2fph-11134207-7qukx-li1n4rn1fe2x45&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.382fdcbd55824b10324902eaef9cdb95%3frik%3dezP0noTPJwb4RA%26pid%3dImgRaw%26r%3d0&exph=1024&expw=1024&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=506B7F8A03D2C6AF4BAA79B6CE721B52&selectedIndex=20&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "MTG Magic: the Gathering Rivals of Ixalan (RIX) - Boost…" [ref=f231e864] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=OC%2fcvVWC&id=C16B34BE3A89BD1EB94244F80627CF849EF4337B&thid=OIP.OC_cvVWCSxAySQLq75zblQHaHa&mediaurl=https%3a%2f%2fdown-ph.img.susercontent.com%2ffile%2fph-11134207-7qukx-li1n4rn1fe2x45&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.382fdcbd55824b10324902eaef9cdb95%3frik%3dezP0noTPJwb4RA%26pid%3dImgRaw%26r%3d0&exph=1024&expw=1024&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=506B7F8A03D2C6AF4BAA79B6CE721B52&selectedIndex=20&itb=0
+      - list [ref=f231e865]:
+        - listitem [ref=f231e866]:
+          - generic [ref=f231e867]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e869] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=9gVrg4hK&id=AD7DCB151603DC2B6FD9A40EADAB199F99E9DFE7&thid=OIP.9gVrg4hK6BG9gmLksg5F6AHaFq&mediaurl=https%3a%2f%2ficv2.com%2fimages%2fuploads%2f1405a2c62161f96ea062c87af9b91e9e8941626bb24603d57f7868e2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f6056b83884ae811bd8262e4b20e45e8%3frik%3d59%252fpmZ8Zq60OpA%26pid%3dImgRaw%26r%3d0&exph=765&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=12458E8479C249DC4DE748A4D5F49122&selectedIndex=21&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e871]
+            - generic [ref=f231e872]:
+              - 'link "ICv2: Preview: ''Magic: The Gathering - Rivals of Ixalan''" [ref=f231e873] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=9gVrg4hK&id=AD7DCB151603DC2B6FD9A40EADAB199F99E9DFE7&thid=OIP.9gVrg4hK6BG9gmLksg5F6AHaFq&mediaurl=https%3a%2f%2ficv2.com%2fimages%2fuploads%2f1405a2c62161f96ea062c87af9b91e9e8941626bb24603d57f7868e2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f6056b83884ae811bd8262e4b20e45e8%3frik%3d59%252fpmZ8Zq60OpA%26pid%3dImgRaw%26r%3d0&exph=765&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=12458E8479C249DC4DE748A4D5F49122&selectedIndex=21&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "ICv2: Preview: ''Magic: The Gathering - Rivals of Ixalan''" [ref=f231e874] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=9gVrg4hK&id=AD7DCB151603DC2B6FD9A40EADAB199F99E9DFE7&thid=OIP.9gVrg4hK6BG9gmLksg5F6AHaFq&mediaurl=https%3a%2f%2ficv2.com%2fimages%2fuploads%2f1405a2c62161f96ea062c87af9b91e9e8941626bb24603d57f7868e2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f6056b83884ae811bd8262e4b20e45e8%3frik%3d59%252fpmZ8Zq60OpA%26pid%3dImgRaw%26r%3d0&exph=765&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=12458E8479C249DC4DE748A4D5F49122&selectedIndex=21&itb=0
+        - listitem [ref=f231e875]:
+          - generic [ref=f231e876]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e878] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=Ek%2bsINCn&id=BC16768BF79F4CC68404E9823EFC2EE4DF620486&thid=OIP.Ek-sINCnER_jkn0piNutQwHaHa&mediaurl=https%3a%2f%2fdygtyjqp7pi0m.cloudfront.net%2fi%2f66576%2f52971110_1m.jpg%3fv%3d8DC8679A215CBB0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.124fac20d0a7111fe3927d2988dbad43%3frik%3dhgRi3%252bQu%252fD6C6Q%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=9558B715B5E1531918709DD3D3A8F4A0&selectedIndex=22&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e880]
+            - generic [ref=f231e881]:
+              - link "MTG Rivals of Ixalan Bundle" [ref=f231e882] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=Ek%2bsINCn&id=BC16768BF79F4CC68404E9823EFC2EE4DF620486&thid=OIP.Ek-sINCnER_jkn0piNutQwHaHa&mediaurl=https%3a%2f%2fdygtyjqp7pi0m.cloudfront.net%2fi%2f66576%2f52971110_1m.jpg%3fv%3d8DC8679A215CBB0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.124fac20d0a7111fe3927d2988dbad43%3frik%3dhgRi3%252bQu%252fD6C6Q%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=9558B715B5E1531918709DD3D3A8F4A0&selectedIndex=22&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG Rivals of Ixalan Bundle" [ref=f231e883] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=Ek%2bsINCn&id=BC16768BF79F4CC68404E9823EFC2EE4DF620486&thid=OIP.Ek-sINCnER_jkn0piNutQwHaHa&mediaurl=https%3a%2f%2fdygtyjqp7pi0m.cloudfront.net%2fi%2f66576%2f52971110_1m.jpg%3fv%3d8DC8679A215CBB0&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.124fac20d0a7111fe3927d2988dbad43%3frik%3dhgRi3%252bQu%252fD6C6Q%26pid%3dImgRaw%26r%3d0&exph=600&expw=600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=9558B715B5E1531918709DD3D3A8F4A0&selectedIndex=22&itb=0
+        - listitem [ref=f231e884]:
+          - generic [ref=f231e885]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e887] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=9XFVw514&id=039CEA8EA7205FCDD05810DEC45BA035FF789267&thid=OIP.9XFVw514RkjEDV1MyGUg_gHaFj&mediaurl=https%3a%2f%2fauctions.c.yimg.jp%2fimages.auctions.yahoo.co.jp%2fimage%2fdr000%2fauc0112%2fuser%2f13b228b7eaf873630dc25f94c41f140290d8241c4acad2c543560c50323fdd96%2fi-img1200x900-17659536573271msmpod35.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f57155c39d784648c40d5d4cc86520fe%3frik%3dZ5J4%252fzWgW8TeEA%26pid%3dImgRaw%26r%3d0&exph=900&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=10BC5B2312C283A7D5FCD097FF23EBFF&selectedIndex=23&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e889]
+            - generic [ref=f231e890]:
+              - link "Yahoo!オークション - kcc655 未開封 MTG RIVALS OF IXALAN BUNDLE イ..." [ref=f231e891] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=9XFVw514&id=039CEA8EA7205FCDD05810DEC45BA035FF789267&thid=OIP.9XFVw514RkjEDV1MyGUg_gHaFj&mediaurl=https%3a%2f%2fauctions.c.yimg.jp%2fimages.auctions.yahoo.co.jp%2fimage%2fdr000%2fauc0112%2fuser%2f13b228b7eaf873630dc25f94c41f140290d8241c4acad2c543560c50323fdd96%2fi-img1200x900-17659536573271msmpod35.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f57155c39d784648c40d5d4cc86520fe%3frik%3dZ5J4%252fzWgW8TeEA%26pid%3dImgRaw%26r%3d0&exph=900&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=10BC5B2312C283A7D5FCD097FF23EBFF&selectedIndex=23&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Yahoo!オークション - kcc655 未開封 MTG RIVALS OF IXALAN BUNDLE イ..." [ref=f231e892] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=9XFVw514&id=039CEA8EA7205FCDD05810DEC45BA035FF789267&thid=OIP.9XFVw514RkjEDV1MyGUg_gHaFj&mediaurl=https%3a%2f%2fauctions.c.yimg.jp%2fimages.auctions.yahoo.co.jp%2fimage%2fdr000%2fauc0112%2fuser%2f13b228b7eaf873630dc25f94c41f140290d8241c4acad2c543560c50323fdd96%2fi-img1200x900-17659536573271msmpod35.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.f57155c39d784648c40d5d4cc86520fe%3frik%3dZ5J4%252fzWgW8TeEA%26pid%3dImgRaw%26r%3d0&exph=900&expw=1200&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=10BC5B2312C283A7D5FCD097FF23EBFF&selectedIndex=23&itb=0
+        - listitem [ref=f231e893]:
+          - generic [ref=f231e894]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e896] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=p%2fkPymXz&id=B10090106A06D1DA551E320691B1A975015E7628&thid=OIP.p_kPymXz4xVPnV3iiT04fgHaHa&mediaurl=https%3a%2f%2fwww.magickort.se%2fwp-content%2fuploads%2f2021%2f10%2frix-bundle2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a7f90fca65f3e3154f9d5de2893d387e%3frik%3dKHZeAXWpsZEGMg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=552BF9FF281DDFC4ED8D0042517EFA4E&selectedIndex=24&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e898]
+            - generic [ref=f231e899]:
+              - link "Rivals of Ixalan Bundle - Magickort.se" [ref=f231e900] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=p%2fkPymXz&id=B10090106A06D1DA551E320691B1A975015E7628&thid=OIP.p_kPymXz4xVPnV3iiT04fgHaHa&mediaurl=https%3a%2f%2fwww.magickort.se%2fwp-content%2fuploads%2f2021%2f10%2frix-bundle2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a7f90fca65f3e3154f9d5de2893d387e%3frik%3dKHZeAXWpsZEGMg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=552BF9FF281DDFC4ED8D0042517EFA4E&selectedIndex=24&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle - Magickort.se" [ref=f231e901] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=p%2fkPymXz&id=B10090106A06D1DA551E320691B1A975015E7628&thid=OIP.p_kPymXz4xVPnV3iiT04fgHaHa&mediaurl=https%3a%2f%2fwww.magickort.se%2fwp-content%2fuploads%2f2021%2f10%2frix-bundle2.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a7f90fca65f3e3154f9d5de2893d387e%3frik%3dKHZeAXWpsZEGMg%26pid%3dImgRaw%26r%3d0&exph=1000&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=552BF9FF281DDFC4ED8D0042517EFA4E&selectedIndex=24&itb=0
+        - listitem [ref=f231e902]:
+          - generic [ref=f231e903]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e905] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=ITjZatlu&id=91916A2477AF140514293E6829BF2F0C4D14A407&thid=OIP.ITjZatlumem3RmuVvcRVqAHaHa&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-the-Gathering-CCG-Rivals-of-Ixalan-Booster-Pack_a4c503d8-2d5b-418b-8e20-d0924b59b584.d681daa9ed6d418aef6756083662623f.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2138d96ad96e99e9b7466b95bdc455a8%3frik%3dB6QUTQwvvyloPg%26pid%3dImgRaw%26r%3d0&exph=1832&expw=1830&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=7D520A8DE49D1B2081553DBF02AB8BF9&selectedIndex=25&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e907]
+            - generic [ref=f231e908]:
+              - link "Magic The Gathering Rivals of Ixalan Booster Pack - Walmart.com" [ref=f231e909] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=ITjZatlu&id=91916A2477AF140514293E6829BF2F0C4D14A407&thid=OIP.ITjZatlumem3RmuVvcRVqAHaHa&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-the-Gathering-CCG-Rivals-of-Ixalan-Booster-Pack_a4c503d8-2d5b-418b-8e20-d0924b59b584.d681daa9ed6d418aef6756083662623f.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2138d96ad96e99e9b7466b95bdc455a8%3frik%3dB6QUTQwvvyloPg%26pid%3dImgRaw%26r%3d0&exph=1832&expw=1830&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=7D520A8DE49D1B2081553DBF02AB8BF9&selectedIndex=25&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering Rivals of Ixalan Booster Pack - …" [ref=f231e910] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=ITjZatlu&id=91916A2477AF140514293E6829BF2F0C4D14A407&thid=OIP.ITjZatlumem3RmuVvcRVqAHaHa&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-the-Gathering-CCG-Rivals-of-Ixalan-Booster-Pack_a4c503d8-2d5b-418b-8e20-d0924b59b584.d681daa9ed6d418aef6756083662623f.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.2138d96ad96e99e9b7466b95bdc455a8%3frik%3dB6QUTQwvvyloPg%26pid%3dImgRaw%26r%3d0&exph=1832&expw=1830&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=7D520A8DE49D1B2081553DBF02AB8BF9&selectedIndex=25&itb=0
+      - list [ref=f231e911]:
+        - listitem [ref=f231e912]:
+          - generic [ref=f231e913]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e915] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=wv%2fLwMhV&id=34B34497AB588F39A322E7BE7E8DD7FAE58876A1&thid=OIP.wv_LwMhVcBMEBIjyztJPKwHaIN&mediaurl=https%3a%2f%2fwww.crackerjackstadium.com%2fimage%2fcache%2fdata%2fproducts%2fgamingcards%2fMagic-the-Gathering%2f2018%2fRivals-of-Ixalan%2fBooster-Pack%2fMTG_rivals_of_ixalan_booster_pack-500x554.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c2ffcbc0c8557013040488f2ced24f2b%3frik%3doXaI5frXjX6%252b5w%26pid%3dImgRaw%26r%3d0&exph=554&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A413E11F46E98264C79C09C4BDABB662&selectedIndex=26&itb=1
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e917]
+            - generic [ref=f231e918]:
+              - 'link "Magic: The Gathering Rivals of Ixalan Booster Box, 36/Pack" [ref=f231e919] [cursor=pointer]':
+                - /url: /images/search?view=detailV2&ccid=wv%2fLwMhV&id=34B34497AB588F39A322E7BE7E8DD7FAE58876A1&thid=OIP.wv_LwMhVcBMEBIjyztJPKwHaIN&mediaurl=https%3a%2f%2fwww.crackerjackstadium.com%2fimage%2fcache%2fdata%2fproducts%2fgamingcards%2fMagic-the-Gathering%2f2018%2fRivals-of-Ixalan%2fBooster-Pack%2fMTG_rivals_of_ixalan_booster_pack-500x554.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c2ffcbc0c8557013040488f2ced24f2b%3frik%3doXaI5frXjX6%252b5w%26pid%3dImgRaw%26r%3d0&exph=554&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A413E11F46E98264C79C09C4BDABB662&selectedIndex=26&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - 'link "Magic: The Gathering Rivals of Ixalan Boo…" [ref=f231e920] [cursor=pointer]':
+                        - /url: /images/search?view=detailV2&ccid=wv%2fLwMhV&id=34B34497AB588F39A322E7BE7E8DD7FAE58876A1&thid=OIP.wv_LwMhVcBMEBIjyztJPKwHaIN&mediaurl=https%3a%2f%2fwww.crackerjackstadium.com%2fimage%2fcache%2fdata%2fproducts%2fgamingcards%2fMagic-the-Gathering%2f2018%2fRivals-of-Ixalan%2fBooster-Pack%2fMTG_rivals_of_ixalan_booster_pack-500x554.png&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.c2ffcbc0c8557013040488f2ced24f2b%3frik%3doXaI5frXjX6%252b5w%26pid%3dImgRaw%26r%3d0&exph=554&expw=500&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=A413E11F46E98264C79C09C4BDABB662&selectedIndex=26&itb=1
+        - listitem [ref=f231e921]:
+          - generic [ref=f231e922]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e924] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=49rzs17i&id=AC0B500C442B4DE9D6FEA33BED2B7BFC6111949D&thid=OIP.49rzs17ibnLdXGaOWUANuAAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-prerelease-pack-12434-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e3daf3b35ee26e72dd5c668e59400db8%3frik%3dnZQRYfx7K%252b07ow%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=604E57ADE6B5F2267212D2EEC738C8D6&selectedIndex=27&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e926]
+            - generic [ref=f231e927]:
+              - link "MTG / Rivals Of Ixalan" [ref=f231e928] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=49rzs17i&id=AC0B500C442B4DE9D6FEA33BED2B7BFC6111949D&thid=OIP.49rzs17ibnLdXGaOWUANuAAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-prerelease-pack-12434-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e3daf3b35ee26e72dd5c668e59400db8%3frik%3dnZQRYfx7K%252b07ow%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=604E57ADE6B5F2267212D2EEC738C8D6&selectedIndex=27&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "MTG / Rivals Of Ixalan" [ref=f231e929] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=49rzs17i&id=AC0B500C442B4DE9D6FEA33BED2B7BFC6111949D&thid=OIP.49rzs17ibnLdXGaOWUANuAAAAA&mediaurl=https%3a%2f%2fwww.cardkingdom.com%2fimages%2fmagic-the-gathering%2frivals-of-ixalan%2frivals-of-ixalan-prerelease-pack-12434-thumb.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.e3daf3b35ee26e72dd5c668e59400db8%3frik%3dnZQRYfx7K%252b07ow%26pid%3dImgRaw%26r%3d0&exph=202&expw=202&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=604E57ADE6B5F2267212D2EEC738C8D6&selectedIndex=27&itb=0
+        - listitem [ref=f231e930]:
+          - generic [ref=f231e931]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e933] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=NZsgQL%2fO&id=11267DA791F24838C297504493FE1A9E6485678A&thid=OIP.NZsgQL_OevtFvrh2awFw3AHaFj&mediaurl=https%3a%2f%2fimg.ricardostatic.ch%2fimages%2f0d944f07-1e47-4c73-b866-8ce8cffd03d6%2ft_1000x750%2fmagic-the-gathering-rivals-of-ixalan-box&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.359b2040bfce7afb45beb8766b0170dc%3frik%3dimeFZJ4a%252fpNEUA%26pid%3dImgRaw%26r%3d0&exph=750&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B5B25E9C4B3F467FA177817FC24838B6&selectedIndex=28&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e935]
+            - generic [ref=f231e936]:
+              - link "Magic the Gathering Rivals of Ixalan Box (Neu (gemäss Beschreibung)) in ..." [ref=f231e937] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=NZsgQL%2fO&id=11267DA791F24838C297504493FE1A9E6485678A&thid=OIP.NZsgQL_OevtFvrh2awFw3AHaFj&mediaurl=https%3a%2f%2fimg.ricardostatic.ch%2fimages%2f0d944f07-1e47-4c73-b866-8ce8cffd03d6%2ft_1000x750%2fmagic-the-gathering-rivals-of-ixalan-box&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.359b2040bfce7afb45beb8766b0170dc%3frik%3dimeFZJ4a%252fpNEUA%26pid%3dImgRaw%26r%3d0&exph=750&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B5B25E9C4B3F467FA177817FC24838B6&selectedIndex=28&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Box (Neu (gemäss Besc…" [ref=f231e938] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=NZsgQL%2fO&id=11267DA791F24838C297504493FE1A9E6485678A&thid=OIP.NZsgQL_OevtFvrh2awFw3AHaFj&mediaurl=https%3a%2f%2fimg.ricardostatic.ch%2fimages%2f0d944f07-1e47-4c73-b866-8ce8cffd03d6%2ft_1000x750%2fmagic-the-gathering-rivals-of-ixalan-box&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.359b2040bfce7afb45beb8766b0170dc%3frik%3dimeFZJ4a%252fpNEUA%26pid%3dImgRaw%26r%3d0&exph=750&expw=1000&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B5B25E9C4B3F467FA177817FC24838B6&selectedIndex=28&itb=0
+        - listitem [ref=f231e939]:
+          - generic [ref=f231e940]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e942] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=fDJh6gip&id=FB91888F337E32C05ECF4FC86C3130EF7F3A4991&thid=OIP.fDJh6gipk3cfgyN5RPErCwHaDW&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7c3261ea08a993771f83237944f12b0b%3frik%3dkUk6f%252b8wMWzITw%26riu%3dhttp%253a%252f%252fwww.magicspoiler.com%252fwp-content%252fuploads%252f2017%252f12%252fRivals-of-Ixalan-Booster-Packs-615x278.png%26ehk%3dPZud4NzV7aZBHM9NgljeFOz9Li%252fQMkmSCUVsfhfnGx0%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=278&expw=615&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=84DD432C74EB8608CCBEE95C6D132AEC&selectedIndex=29&itb=1
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e944]
+            - generic [ref=f231e945]:
+              - link "Rivals of Ixalan Packaging" [ref=f231e946] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=fDJh6gip&id=FB91888F337E32C05ECF4FC86C3130EF7F3A4991&thid=OIP.fDJh6gipk3cfgyN5RPErCwHaDW&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7c3261ea08a993771f83237944f12b0b%3frik%3dkUk6f%252b8wMWzITw%26riu%3dhttp%253a%252f%252fwww.magicspoiler.com%252fwp-content%252fuploads%252f2017%252f12%252fRivals-of-Ixalan-Booster-Packs-615x278.png%26ehk%3dPZud4NzV7aZBHM9NgljeFOz9Li%252fQMkmSCUVsfhfnGx0%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=278&expw=615&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=84DD432C74EB8608CCBEE95C6D132AEC&selectedIndex=29&itb=1
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Packaging" [ref=f231e947] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=fDJh6gip&id=FB91888F337E32C05ECF4FC86C3130EF7F3A4991&thid=OIP.fDJh6gipk3cfgyN5RPErCwHaDW&mediaurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.7c3261ea08a993771f83237944f12b0b%3frik%3dkUk6f%252b8wMWzITw%26riu%3dhttp%253a%252f%252fwww.magicspoiler.com%252fwp-content%252fuploads%252f2017%252f12%252fRivals-of-Ixalan-Booster-Packs-615x278.png%26ehk%3dPZud4NzV7aZBHM9NgljeFOz9Li%252fQMkmSCUVsfhfnGx0%253d%26risl%3d%26pid%3dImgRaw%26r%3d0&exph=278&expw=615&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=84DD432C74EB8608CCBEE95C6D132AEC&selectedIndex=29&itb=1
+        - listitem [ref=f231e948]:
+          - generic [ref=f231e949]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e951] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=u5jDIBgO&id=C307B28C4B8118E18133D3C835B283EEAD7FDDFF&thid=OIP.u5jDIBgOwqqqp7_DlZtTqQHaE-&mediaurl=https%3a%2f%2fwww.mirajtrading.com%2fcdn%2fshop%2fproducts%2frivals-of-ixalan-booster-box.jpg%3fv%3d1576527847%26width%3d1800&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.bb98c320180ec2aaaaa7bfc3959b53a9%3frik%3d%252f91%252fre6DsjXI0w%26pid%3dImgRaw%26r%3d0&exph=1211&expw=1800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=CB57E4222484ACD8D5F2364679B3447A&selectedIndex=30&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e953]
+            - generic [ref=f231e954]:
+              - link "Magic the Gathering Rivals of Ixalan Booster Box" [ref=f231e955] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=u5jDIBgO&id=C307B28C4B8118E18133D3C835B283EEAD7FDDFF&thid=OIP.u5jDIBgOwqqqp7_DlZtTqQHaE-&mediaurl=https%3a%2f%2fwww.mirajtrading.com%2fcdn%2fshop%2fproducts%2frivals-of-ixalan-booster-box.jpg%3fv%3d1576527847%26width%3d1800&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.bb98c320180ec2aaaaa7bfc3959b53a9%3frik%3d%252f91%252fre6DsjXI0w%26pid%3dImgRaw%26r%3d0&exph=1211&expw=1800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=CB57E4222484ACD8D5F2364679B3447A&selectedIndex=30&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic the Gathering Rivals of Ixalan Booster Box" [ref=f231e956] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=u5jDIBgO&id=C307B28C4B8118E18133D3C835B283EEAD7FDDFF&thid=OIP.u5jDIBgOwqqqp7_DlZtTqQHaE-&mediaurl=https%3a%2f%2fwww.mirajtrading.com%2fcdn%2fshop%2fproducts%2frivals-of-ixalan-booster-box.jpg%3fv%3d1576527847%26width%3d1800&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.bb98c320180ec2aaaaa7bfc3959b53a9%3frik%3d%252f91%252fre6DsjXI0w%26pid%3dImgRaw%26r%3d0&exph=1211&expw=1800&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=CB57E4222484ACD8D5F2364679B3447A&selectedIndex=30&itb=0
+      - list [ref=f231e957]:
+        - listitem [ref=f231e958]:
+          - generic [ref=f231e959]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e961] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=ou6G5kjq&id=46593EFA65490A646875CDBAFBE2B984BCF5C47B&thid=OIP.ou6G5kjq4L6FCH2s5xNuJQAAAA&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-Rivals-of-Ixalan-Booster-Pack-Japanese_caccc104-fdf1-4a4e-9471-48eaefaae8da.f66e77292502577b336d903e2d801753.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a2ee86e648eae0be85087dace7136e25%3frik%3de8T1vIS54vu6zQ%26pid%3dImgRaw%26r%3d0&exph=600&expw=364&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=18919B007FF0D989C2B100E8D0C7BE60&selectedIndex=31&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e963]
+            - generic [ref=f231e964]:
+              - link "Magic The Gathering Rivals of Ixalan Booster Pack (Japanese) - Walmart.com" [ref=f231e965] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=ou6G5kjq&id=46593EFA65490A646875CDBAFBE2B984BCF5C47B&thid=OIP.ou6G5kjq4L6FCH2s5xNuJQAAAA&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-Rivals-of-Ixalan-Booster-Pack-Japanese_caccc104-fdf1-4a4e-9471-48eaefaae8da.f66e77292502577b336d903e2d801753.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a2ee86e648eae0be85087dace7136e25%3frik%3de8T1vIS54vu6zQ%26pid%3dImgRaw%26r%3d0&exph=600&expw=364&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=18919B007FF0D989C2B100E8D0C7BE60&selectedIndex=31&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Magic The Gathering Rival…" [ref=f231e966] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=ou6G5kjq&id=46593EFA65490A646875CDBAFBE2B984BCF5C47B&thid=OIP.ou6G5kjq4L6FCH2s5xNuJQAAAA&mediaurl=https%3a%2f%2fi5.walmartimages.com%2fseo%2fMagic-The-Gathering-Rivals-of-Ixalan-Booster-Pack-Japanese_caccc104-fdf1-4a4e-9471-48eaefaae8da.f66e77292502577b336d903e2d801753.jpeg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a2ee86e648eae0be85087dace7136e25%3frik%3de8T1vIS54vu6zQ%26pid%3dImgRaw%26r%3d0&exph=600&expw=364&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=18919B007FF0D989C2B100E8D0C7BE60&selectedIndex=31&itb=0
+        - listitem [ref=f231e967]:
+          - generic [ref=f231e968]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e970] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=pS80uQE3&id=9E52D9242BB8576C14FA064C36214DB8B0D18F48&thid=OIP.pS80uQE3HhPEKG3YJcEGawHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fEuoQkYqfXNM%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a52f34b901371e13c4286dd825c1066b%3frik%3dSI%252fRsLhNITZMBg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=1C55577B8CCF5382CB86D976F4E61171&selectedIndex=32&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e972]
+            - generic [ref=f231e973]:
+              - link "Unboxing Magic the Gathering Rival of Ixalan bundle box - YouTube" [ref=f231e974] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=pS80uQE3&id=9E52D9242BB8576C14FA064C36214DB8B0D18F48&thid=OIP.pS80uQE3HhPEKG3YJcEGawHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fEuoQkYqfXNM%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a52f34b901371e13c4286dd825c1066b%3frik%3dSI%252fRsLhNITZMBg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=1C55577B8CCF5382CB86D976F4E61171&selectedIndex=32&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Unboxing Magic the Gathering Rival of Ixalan bundle box - YouTube" [ref=f231e975] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=pS80uQE3&id=9E52D9242BB8576C14FA064C36214DB8B0D18F48&thid=OIP.pS80uQE3HhPEKG3YJcEGawHaEK&mediaurl=https%3a%2f%2fi.ytimg.com%2fvi%2fEuoQkYqfXNM%2fmaxresdefault.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.a52f34b901371e13c4286dd825c1066b%3frik%3dSI%252fRsLhNITZMBg%26pid%3dImgRaw%26r%3d0&exph=720&expw=1280&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=1C55577B8CCF5382CB86D976F4E61171&selectedIndex=32&itb=0
+        - listitem [ref=f231e976]:
+          - generic [ref=f231e977]:
+            - link "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e979] [cursor=pointer]:
+              - /url: /images/search?view=detailV2&ccid=mmFUv85D&id=FF6C48C738735832B2AF0EAAD46C9BED66EFDD87&thid=OIP.mmFUv85DJBwq8bmPdAohfgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYU4AAOSwwF1jWB7y%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9a6154bfce43241c2af1b98f740a217e%3frik%3dh93vZu2bbNSqDg%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B94CED5A366013460385BDB9568CC42D&selectedIndex=33&itb=0
+              - img "Image result for \"rivals of ixalan\" empty bundle box magic" [ref=f231e981]
+            - generic [ref=f231e982]:
+              - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY SEALED BRAND NEW MAGIC Fat ..." [ref=f231e983] [cursor=pointer]:
+                - /url: /images/search?view=detailV2&ccid=mmFUv85D&id=FF6C48C738735832B2AF0EAAD46C9BED66EFDD87&thid=OIP.mmFUv85DJBwq8bmPdAohfgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYU4AAOSwwF1jWB7y%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9a6154bfce43241c2af1b98f740a217e%3frik%3dh93vZu2bbNSqDg%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B94CED5A366013460385BDB9568CC42D&selectedIndex=33&itb=0
+              - generic:
+                - generic:
+                  - list:
+                    - listitem:
+                      - link "Rivals of Ixalan Bundle (ENGLISH) FACTORY …" [ref=f231e984] [cursor=pointer]:
+                        - /url: /images/search?view=detailV2&ccid=mmFUv85D&id=FF6C48C738735832B2AF0EAAD46C9BED66EFDD87&thid=OIP.mmFUv85DJBwq8bmPdAohfgHaHa&mediaurl=https%3a%2f%2fi.ebayimg.com%2fimages%2fg%2fYU4AAOSwwF1jWB7y%2fs-l1600.jpg&cdnurl=https%3a%2f%2fth.bing.com%2fth%2fid%2fR.9a6154bfce43241c2af1b98f740a217e%3frik%3dh93vZu2bbNSqDg%26pid%3dImgRaw%26r%3d0&exph=1600&expw=1600&q=%22rivals+of+ixalan%22+empty+bundle+box+magic&FORM=IRPRST&ck=B94CED5A366013460385BDB9568CC42D&selectedIndex=33&itb=0
+  - button "Feedback" [ref=f231e987] [cursor=pointer]
+  - contentinfo [ref=f231e989]:
+    - generic [ref=f231e990]:
+      - generic [ref=f231e991]: © 2026 Microsoft
+      - list:
+        - listitem [ref=f231e992]:
+          - link "Privacy" [ref=f231e993] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkId=521839
+        - listitem [ref=f231e994]:
+          - link "Terms" [ref=f231e995] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=246338
+        - listitem [ref=f231e996]:
+          - link "Advertise" [ref=f231e997] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=868922
+        - listitem [ref=f231e998]:
+          - link "About our ads" [ref=f231e999] [cursor=pointer]:
+            - /url: http://go.microsoft.com/fwlink/?LinkID=286759
+        - listitem [ref=f231e1000]:
+          - link "Help" [ref=f231e1001] [cursor=pointer]:
+            - /url: https://support.microsoft.com/topic/82d20721-2d6f-4012-a13d-d1910ccf203f
+        - listitem [ref=f231e1002]:
+          - button "Feedback" [ref=f231e1003] [cursor=pointer]
+        - listitem [ref=f231e1004]:
+          - link "Consumer Health Privacy" [ref=f231e1005] [cursor=pointer]:
+            - /url: https://go.microsoft.com/fwlink/?linkid=2259814

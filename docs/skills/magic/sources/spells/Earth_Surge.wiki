@@ -1,0 +1,74 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Earth Surge
+|image = [[File:Earth Surge.png]]
+|release = [[4 January]] [[2018]]
+|update = Dragon Slayer II
+|members = Yes
+|level = 90
+|spellbook = Normal
+|type = Combat
+|exp = 48.2
+|element = Earth
+|damage = 23 or 24
+|cost = {{RuneReq|Earth=10|Air=7|Wrath=1}}
+|speed = 5 ticks
+|description = A very high level Earth missile
+|anim = [[File:Earth Surge.gif|300px]]
+|sound = [[File:Earth Surge.ogg]]
+}}
+[[File:Earth Surge icon (mobile).png|left]]
+'''Earth Surge''' is an [[Earth spells|earth]]-based [[Surge spells|surge spell]] in the [[standard spellbook]], requiring level 90 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest earth spell in the game.
+
+==Damage ==
+Earth Surge has a base maximum hit of 23 which increases to 24 when the player unlocks [[Fire Surge]] at level 95 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level surge spell available
+!{{Plink|Earth Surge}} base maximum hit
+|-
+|{{SCP|Magic|90}}- 94
+|{{Plink|Earth Surge}}
+|23
+|-
+|{{SCP|Magic|95}}+
+|{{Plink|Fire Surge}}
+|24
+|}
+As with all combat spells, Earth Surge's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an earth-based spell, Earth Surge's maximum hit is also increased against targets that are [[Elemental weakness|weak to earth]].
+
+===Calculator===
+{{Magic damage calculator|Earth Surge|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand,Twinflame staff|elementalweakness=y|tome=earth}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 10
+|Rune2 = air
+|Rune2num = 7
+|Rune3 = wrath
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[surge spells]] the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

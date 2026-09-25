@@ -1,0 +1,222 @@
+The Nylocas encountered in the Theatre of Blood have consistent spawning and aggression patterns that many players can use to recognize the highest priority targets. 
+
+Below a chart of each wave of Nylocas encountered. The only variable to the waves are how often the waves spawn. Before wave 20, the cap is 12 nylocas; afterwards, the cap is doubled to 24.
+
+In [[Theatre of Blood/Hard Mode|Hard mode]], an additional [[Nylocas Prinkipas]] will spawn at wave 10, 20, and 30. 
+
+== Legend ==
+Nylocas can be any combination of size, flashing, or aggressive. Flashing nylocas will usually flicker twice before entering the attackable arena.
+{| class=wikitable style="text-align: center;"
+|+
+!Nylocas
+!Small
+!Big
+!Flashes
+!Aggressive
+|-
+|[[Nylocas Ischyros]] (Melee)
+|{{Colour|White|melee|slategray}}
+|<big>{{Colour|White|MELEE|slategray}}</big>
+|{{Colour|White|me|slategray}}{{Colour|black|L|cyan}}{{Colour|White|ee|slategray}} / <big>{{Colour|White|ME|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|EE|slategray}}</big>
+|'''{{Colour|orangered|melee|Gray}} <big>/ {{Colour|orangered|MELEE|Gray}}</big>'''
+|-
+|[[Nylocas Toxobolos]] (Ranged)
+|{{Colour|black|range|limegreen}}
+|<big>{{Colour|black|RANGE|limegreen}}</big>
+|{{Colour|black|ra|limegreen}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}} / <big>{{Colour|black|RA|limegreen}}{{Colour|black|N|cyan}}{{Colour|black|GE|limegreen}}</big>
+|'''{{Colour|orangered|range|limegreen}} / <big>{{Colour|Orangered|RANGE|limegreen}}</big>'''
+|-
+|[[Nylocas Hagios]] (Magic)
+|{{Colour|black|mage|cyan}}
+|<big>{{Colour|black|MAGE|cyan}}</big>
+|{{Colour|black|m|cyan}}{{Colour|black|a|limegreen}}{{Colour|black|ge|cyan}} / <big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|'''{{Colour|orangered|mage|cyan}} / <big>{{Colour|orangered|MAGE|cyan}}</big>'''
+|}
+
+Aggressive nylocas can be filtered out through the RuneLite plugin '''Better NPC Highlight''' and placing the following IDs:
+
+===Normal Mode===
+*Small melee: 8348
+*Large melee: 8351
+*Small range: 8349
+*Large range: 8352
+*Small magic: 8350
+*Large magic: 8353
+
+===Hard Mode===
+*Small melee: 10797
+*Large melee: 10800
+*Small ranged: 10798
+*Large ranged: 10801
+*Small magic: 10799
+*Large magic: 10802
+
+== Waves ==
+
+{| class=wikitable style="text-align: center;"
+|+
+! rowspan="2" |Wave 
+! colspan="3" |Lane
+|-
+!East
+!South
+!West
+|-
+|1
+|{{Colour|White|melee|slategray}}
+|{{Colour|black|mage|cyan}}
+|'''{{Colour|orangered|range|limegreen}}'''
+|-
+|2
+|{{Colour|black|range|limegreen}}
+|'''{{Colour|orangered|melee|Gray}}'''
+|{{Colour|black|mage|cyan}}
+|-
+|3
+|'''{{Colour|orangered|mage|cyan}}'''
+|{{Colour|black|range|limegreen}}
+|{{Colour|White|melee|slategray}}
+|-
+|4
+|{{Colour|White|melee|slategray}}
+|<big>{{Colour|black|MAGE|cyan}}</big>
+|{{Colour|black|range|limegreen}}
+|-
+|5
+|{{Colour|black|mage|cyan}}
+|{{Colour|White|melee|slategray}}
+|<big>{{Colour|black|RANGE|limegreen}}</big>
+|-
+|6
+| <big>{{Colour|White|MELEE|slategray}}</big>
+|{{Colour|black|range|limegreen}}
+|{{Colour|black|mage|cyan}}
+|-
+|7
+|<big>{{Colour|White|MELEE|slategray}}</big>
+|{{Colour|black|mage|cyan}} + '''<big>{{Colour|Orangered|RANGE|limegreen}}</big>'''
+| -
+|-
+|8
+|{{Colour|black|range|limegreen}}
+|{{Colour|White|melee|slategray}}
+|'''<big>{{Colour|orangered|MAGE|cyan}}</big>'''
+|-
+|9
+|{{Colour|black|mage|cyan}}
+| -
+|'''<big>{{Colour|Orangered|RANGE|limegreen}}</big>''' + {{Colour|White|melee|slategray}}
+|-
+|10
+|'''{{Colour|orangered|range|limegreen}}''' + <big>{{Colour|black|RANGE|limegreen}}</big>
+|{{Colour|black|range|limegreen}} + {{Colour|black|range|limegreen}}
+|{{Colour|black|range|limegreen}} + '''{{Colour|orangered|range|limegreen}}'''
+|-
+|11
+|'''{{Colour|orangered|mage|cyan}}''' + {{Colour|black|mage|cyan}}
+|{{Colour|black|mage|cyan}} + {{Colour|black|mage|cyan}}
+|'''<big>{{Colour|orangered|MAGE|cyan}}</big>'''
+|-
+|12
+|'''{{Colour|orangered|melee|Gray}}''' + {{Colour|White|melee|slategray}}
+|<big>{{Colour|White|MELEE|slategray}}</big>
+|{{Colour|White|melee|slategray}} + '''{{Colour|orangered|melee|Gray}}''' 
+|-
+|13
+|<big>'''{{Colour|orangered|MELEE|Gray}}'''</big>
+|{{Colour|black|range|limegreen}} + {{Colour|White|melee|slategray}}
+|{{Colour|black|range|limegreen}} + '''{{Colour|orangered|mage|cyan}}'''
+|-
+|14
+|'''<big>{{Colour|Orangered|RANGE|limegreen}}</big>'''
+|{{Colour|black|mage|cyan}} + {{Colour|black|range|limegreen}}
+|{{Colour|black|mage|cyan}} + '''{{Colour|orangered|melee|Gray}}'''
+|-
+|15
+|'''{{Colour|orangered|mage|cyan}}''' + {{Colour|black|range|limegreen}}
+|<big>{{Colour|black|MAGE|cyan}}</big>
+|{{Colour|White|melee|slategray}} + '''{{Colour|orangered|range|limegreen}}'''
+|-
+|16
+|{{Colour|black|ra|cyan}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}}
+|{{Colour|white|ra|slategray}}{{Colour|black|n|cyan}}{{Colour|black|ge|limegreen}}
+|{{Colour|black|ra|limegreen}}{{Colour|black|n|cyan}}{{Colour|black|ge|limegreen}}
+|-
+|17
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|-
+|18
+|<big>{{Colour|black|RA|limegreen}}{{Colour|black|N|cyan}}{{Colour|black|GE|limegreen}}</big>
+|<big>{{Colour|black|RA|limegreen}}{{Colour|black|N|cyan}}{{Colour|black|GE|limegreen}}</big>
+|'''<big>{{Colour|Orangered|RA|limegreen}}{{Colour|Orangered|N|cyan}}{{Colour|orangered|GE|limegreen}}</big>'''
+|-
+|19
+|<big>'''{{Colour|orangered|M|cyan}}{{Colour|orangered|A|slategray}}{{Colour|orangered|GE|cyan}}'''</big>
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|-
+|20
+|<big>{{Colour|White|ME|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|EE|slategray}}</big>
+|<big>'''{{Colour|Orangered|ME|cyan}}{{Colour|orangered|L|limegreen}}{{Colour|orangered|EE|slategray}}'''</big>
+|<big>{{Colour|White|ME|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|EE|slategray}}</big>
+|-
+|21
+|{{Colour|black|ra|limegreen}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}} + '''{{Colour|orangered|ra|limegreen}}{{Colour|orangered|n|slategray}}{{Colour|orangered|ge|limegreen}}'''
+|{{Colour|White|me|slategray}}{{Colour|black|L|cyan}}{{Colour|White|ee|slategray}} + '''{{Colour|orangered|me|slategray}}{{Colour|orangered|L|limegreen}}{{Colour|orangered|ee|slategray}}'''
+|{{Colour|black|m|cyan}}{{Colour|white|a|slategray}}{{Colour|black|ge|limegreen}} + {{Colour|black|ra|cyan}}{{Colour|black|n|limegreen}}{{Colour|black|ge|cyan}}
+|-
+|22
+|<big>'''{{Colour|orangered|ME|cyan}}{{Colour|orangered|L|limegreen}}{{Colour|orangered|EE|slategray}}'''</big>
+|{{Colour|black|me|limegreen}}{{Colour|black|L|cyan}}{{Colour|White|ee|slategray}} + {{Colour|black|me|cyan}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}}
+|<big>{{Colour|White|ME|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|EE|slategray}}</big>
+|-
+|23
+|<big>{{Colour|black|ME|cyan}}{{Colour|black|L|limegreen}}{{Colour|White|EE|slategray}}</big>
+|<big>'''{{Colour|orangered|ME|limegreen}}{{Colour|orangered|L|cyan}}{{Colour|orangered|EE|slategray}}'''</big>
+|{{Colour|black|me|cyan}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}} + {{Colour|black|ra|limegreen}}{{Colour|black|n|cyan}}{{Colour|black|ge|limegreen}} 
+|-
+|24
+|<big>'''{{Colour|orangered|MELEE|Gray}}'''</big>
+|'''<big>{{Colour|orangered|MAGE|cyan}}</big>'''
+|<big>'''{{Colour|orangered|ME|limegreen}}{{Colour|orangered|L|cyan}}{{Colour|orangered|EE|slategray}}'''</big>
+|-
+|25
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|<big>{{Colour|black|RANGE|limegreen}}</big>
+|<big>'''{{Colour|orangered|MELEE|Gray}}'''</big>
+|-
+|26
+|<big>{{Colour|black|MAGE|cyan}}</big>
+|<big>{{Colour|White|ME|slategray}}{{Colour|black|L|cyan}}{{Colour|White|EE|slategray}}</big>
+|'''<big>{{Colour|orangered|MAGE|cyan}}</big>'''
+|-
+|27
+|<big>{{Colour|black|M|cyan}}{{Colour|white|A|slategray}}{{Colour|black|GE|cyan}}</big>
+|<big>'''{{Colour|orangered|RA|slategray}}{{Colour|orangered|N|cyan}}{{Colour|orangered|GE|limegreen}}'''</big>
+|<big>{{Colour|black|MAGE|cyan}}</big>
+|-
+|28
+|{{Colour|black|m|cyan}}{{Colour|white|a|slategray}}{{Colour|black|ge|cyan}} + {{Colour|black|me|limegreen}}{{Colour|black|L|cyan}}{{Colour|White|ee|slategray}}
+|{{Colour|white|me|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}} + {{Colour|black|ra|cyan}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}} 
+|{{Colour|white|me|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}} + '''{{Colour|orangered|m|limegreen}}{{Colour|orangered|a|slategray}}{{Colour|orangered|ge|cyan}}'''
+|-
+|29
+|{{Colour|black|me|cyan}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}} + '''{{Colour|orangered|m|limegreen}}{{Colour|orangered|a|slategray}}{{Colour|orangered|ge|cyan}}'''
+|<big>{{Colour|White|MELEE|slategray}}</big>
+|'''{{Colour|orangered|m|slategray}}{{Colour|orangered|a|limegreen}}{{Colour|orangered|ge|cyan}}''' + {{Colour|black|ra|limegreen}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}} 
+|-
+|30
+|'''<big>{{Colour|orangered|MAGE|cyan}}</big>'''
+|{{Colour|white|me|slategray}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}} + {{Colour|black|me|cyan}}{{Colour|black|L|limegreen}}{{Colour|White|ee|slategray}}
+|<big>{{Colour|black|RA|limegreen}}{{Colour|white|N|slategray}}{{Colour|black|GE|limegreen}}</big>
+|-
+|31
+|{{Colour|black|m|cyan}}{{Colour|black|a|limegreen}}{{Colour|black|ge|cyan}} + {{Colour|black|ra|limegreen}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}}
+|{{Colour|white|ra|slategray}}{{Colour|black|n|cyan}}{{Colour|black|ge|limegreen}} + {{Colour|black|ra|cyan}}{{Colour|white|n|slategray}}{{Colour|black|ge|limegreen}} 
+|{{Colour|white|m|slategray}}{{Colour|black|a|limegreen}}{{Colour|black|ge|cyan}} + {{Colour|black|ra|limegreen}}{{Colour|black|n|cyan}}{{Colour|black|ge|limegreen}}
+|}
+
+[[Category:Theatre of Blood]]
+[[Category:Strategies]]

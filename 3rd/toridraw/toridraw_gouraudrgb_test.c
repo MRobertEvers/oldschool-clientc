@@ -46,9 +46,9 @@
 // clang-format off
 #include "graphics/shared_tables.c"
 
-#include "graphics/raster/gouraudhsllightness/gouraudhsllightness.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraudrgb/gouraudrgb.screen.opaque.bary.branching.s4.c"
-#include "graphics/raster/gouraudrgb/gouraudrgb.screen.alpha.bary.branching.s4.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudrgb/raster.gouraudrgb.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
+#include "impl/raster/gouraudrgb/raster.gouraudrgb.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c"
 // clang-format on
 
 #define W 200
@@ -706,7 +706,7 @@ main(void)
 
     /* Only gouraudhsllightness needs the palette, and only for the coverage
      * comparison; gouraudrgb never touches it. */
-    init_hsl16_to_rgb_table();
+    init_hsl16_to_pixel_table();
 
     test_coverage_matches_hsl(a, b);
     test_constant_colour(a);

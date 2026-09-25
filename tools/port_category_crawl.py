@@ -138,7 +138,7 @@ OVERRIDABLE = (MINTED, "collision", "orphan")
 # `category` namespace. Restated here rather than read, because this tool links
 # no C and parses no register — and the restatement is safe in one direction
 # only, which is the direction it needs: if the two ever disagree the `allocated`
-# rule below gets *weaker*, never wrong. It would accept an id `mock230_pack`
+# rule below gets *weaker*, never wrong. It would accept an id `ToriRSServer_Pack`
 # then rejects, and that fails loudly.
 CATEGORY_SERVER_BASE = 8192
 
@@ -472,7 +472,7 @@ HEADER = """\
 #                content/content_register.c) — so an orphan is no longer blocked,
 #                it is undecided: allocating an id also means authoring the
 #                `category=` key on every member, and until something states it
-#                `mock230_pack` reports the name as carried by nothing. The
+#                `ToriRSServer_Pack` reports the name as carried by nothing. The
 #                evidence column carries the near-miss ids a later reader would
 #                otherwise find by display name and mint — marked SUSPECT because
 #                they are a different concept sharing a word.
@@ -482,7 +482,7 @@ HEADER = """\
 #                disposition that REQUIRES the name to be in pack/category.pack —
 #                because for an allocated id that file is where the id comes from.
 #                It also requires an authored config block to *state* the
-#                category, which is `mock230_pack`'s half of the check, not this
+#                category, which is `ToriRSServer_Pack`'s half of the check, not this
 #                tool's.
 #   placeholder  `category_<n>` — a LostCity id wearing a name.
 """
@@ -713,7 +713,7 @@ def check(tree, ref, verbose, domain=DEFAULT_DOMAIN):
             # `allocated` is excluded: its id comes from the pack file, not from
             # the members, so "the id it refuses" is not a thing it states. The
             # rule that keeps it honest is the base test above, plus
-            # `mock230_pack` demanding an authored block that states it.
+            # `ToriRSServer_Pack` demanding an authored block that states it.
             if disposition in HELD_BACK and disposition != row.disposition and \
                     row.disposition in OVERRIDABLE:
                 overrides += 1

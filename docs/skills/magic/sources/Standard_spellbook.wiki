@@ -1,0 +1,781 @@
+{{External|rs=Standard spells}}
+[[File:Standard spellbook.png|left|The standard spellbook icon.]]
+[[File:Standard spells.png|frame|The standard spellbook.]]
+The '''standard spellbook''' is a group of [[Magic]] spells available to all players, being unlocked by default upon character creation. Standard spells make use of all runes except [[astral rune|Astral]]. Staves are also required to cast some of the spells, including [[Iban's staff]], [[slayer's staff]] or [[Staff of the Dead|staff of the dead]], [[Saradomin staff]] or [[staff of light]], [[Zamorak staff]], and [[Guthix staff]] or [[void knight mace]].
+
+Magic spells are divided into three distinct types: Combat, Utility, and Teleport spells.
+
+You can change back into the standard spellbook at any location where you can change into a different [[Spellbook#Changing spellbooks|spellbook]], and then simply change back again, or at an [[Occult altar]] in a [[POH]].
+
+==Combat spells==
+===Offensive spells===
+Offensive spells such as [[Water Strike]] and [[Fire Blast]] are simple: They deal damage to one target, with the amount of damage varying according to the spell's maximum hit and other modifiers. Some monsters have a partial weakness against them, in which the player's accuracy and damage are increased by 1% for each % the monster is vulnerable to it. For example, [[ice giant]]s, who have a 100% weakness to [[fire spells]], result in the player's accuracy and damage doubled.
+
+Aside from elemental weaknesses, the accuracy of these spells is determined by a number of factors, none of which are the spell itself; all other things being equal. There are four main elements for [[combat spells]] in the standard spellbook: wind (air), water, earth, and fire. Additionally, there are five increasingly strong groups of spells: [[strike spells]], [[bolt spells]], [[blast spells]], [[wave spells]], and [[surge spells]].
+
+Though the elemental spells of each group require different levels to unlock, their max hits are scaled based on the highest level spell of the group the player has unlocked. For example, [[Wind Bolt]] has a base max hit of 9 at level 17 (the level in which it is unlocked), but reaching a Magic level of 29, which is the level where [[Earth Bolt]] is unlocked, will increase its base max hit to 11 - the same number as Earth Bolt. Thus, once the player accesses the fire spell of that group, the base max hits of the wind, water, and earth spells of that group will increase to match fire's; using the aforementioned example, once the player reaches level 35 Magic (where [[Fire Bolt]] is unlocked), all bolt spells will have a base max hit of 12.
+
+In addition to the elemental spells, there are a number of unique combat spells with different properties. [[Iban Blast]] requires that [[Iban's staff]] be equipped to use it, and casts of Iban Blast drain charges on the staff until it must eventually be recharged; however, it hits extremely hard for the level required to use it. [[Magic Dart]] uses no elemental runes, instead using only death runes and mind runes, and has a maximum hit determined by the caster's Magic level. Each of the [[god spell]]s has a secondary effect upon a successful hit.
+
+Compared to melee and Ranged, some lower-levelled offensive spells have exceptionally high maximum hits for the levels required to cast them. For example, [[Fire Strike]] can hit up to 8 damage at a mere level 13 Magic, which is not possible (assuming reasonably consistent skill levels) with either melee or Ranged.
+
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+!Base [[Maximum magic hit|max hit]]<ref>Maximum hit may be increased by using equipment which increases [[magic damage]], wearing a [[black mask (i)]] or [[Slayer helmet (i)]] and attacking an on-task enemy, or by other methods. To see how these affect a spell's max hit, consult the magic damage calculator on that spell's page.</ref><ref>The maximum hit of every elemental spell will increase to match the highest level spell of that tier that the player has unlocked.</ref>
+![[Members]]
+![[Coins]]<ref>Price will vary when using [[combination rune]]s.</ref>
+|-
+|{{plinkt|Wind Strike}}
+|1
+|{{RuneReq|Air=1|Mind=1}}
+|5.5
+|2→8
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}+ {{GEP|Mind rune}})}}
+|-
+|{{plinkt|Water Strike}}
+|5
+|{{RuneReq|Air=1|Water=1|Mind=1}}
+|7.5
+|4→8
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}+{{GEP|Water rune}}+{{GEP|Mind rune}})}}
+|-
+|{{plinkt|Earth Strike}}
+|9
+|{{RuneReq|Air=1|Earth=2|Mind=1}}
+|9.5
+|6→8
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}+{{GEP|Earth rune}}*2+{{GEP|Mind rune}})}}
+|-
+|{{plinkt|Fire Strike}}
+|13
+|{{RuneReq|Air=2|Fire=3|Mind=1}}
+|11.5
+|8
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*2+{{GEP|Fire rune}}*3+{{GEP|Mind rune}})}}
+|-
+|{{plinkt|Wind Bolt}}
+|17
+|{{RuneReq|Chaos=1|Air=2}}
+|13.5
+|9→12
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*2+{{GEP|Chaos rune}})}}
+|-
+|{{plinkt|Water Bolt}}
+|23
+|{{RuneReq|Chaos=1|Air=2|Water=2}}
+|16.5
+|10→12
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*2+{{GEP|Chaos rune}}+{{GEP|Water rune}}*2)}}
+|-
+|{{plinkt|Earth Bolt}}
+|29
+|{{RuneReq|Chaos=1|Air=2|Earth=3}}
+|19.5
+|11→12
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*2+{{GEP|Chaos rune}}+{{GEP|Earth rune}}*3)}}
+|-
+|{{plinkt|Fire Bolt}}
+|35
+|{{RuneReq|Chaos=1|Air=3|Fire=4}}
+|22.5
+|12
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*3+{{GEP|Chaos rune}}+{{GEP|Fire rune}}*4)}}
+|-
+|{{plinkt|Crumble Undead}}<ref>[[Crumble Undead]] can be autocast with a [[skull sceptre (i)]], [[void knight mace]], [[slayer's staff]], [[slayer's staff (e)]], or any [[Staff of the Dead|staff of the dead]] [[Staff_of_the_Dead#Upgrading|variant]]. Only works on [[Undead_(attribute)|undead]].</ref>
+|39
+|{{RuneReq|Air=2|Earth=2|Chaos=1}}
+|24.5
+|15
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*2+{{GEP|Chaos rune}}+{{GEP|Earth rune}}*2)}}
+|-
+|{{plinkt|Wind Blast}}
+|41
+|{{RuneReq|Death=1|Air=3}}
+|25.5
+|13→16
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*3+{{GEP|Death rune}})}}
+|-
+|{{plinkt|Water Blast}}
+|47
+|{{RuneReq|Death=1|Air=3|Water=3}}
+|28.5
+|14→16
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*3+{{GEP|Death rune}}+{{GEP|Water rune}}*3)}}
+|-
+|{{plinkt|Iban Blast}}
+|50
+|{{RuneReq|Fire=5|Death=1}} +[[File:Iban's staff.png|link=Iban's staff]]
+|30
+|25
+|{{members|yes}}
+|{{NoCoins|({{GEP|Fire rune}}*5+{{GEP|Death rune}})}}
+|-
+|{{plinkt|Magic Dart}}
+|50
+|{{RuneReq|Mind=4|Death=1}} +[[File:Slayer's staff.png|link=Slayer's staff]]<ref>[[Magic Dart]] can be autocast with any [[slayer's staff]] or [[Staff of the Dead|staff of the dead]] [[Staff_of_the_Dead#Upgrading|variant]]. If [[slayer's staff (e)]] is used while on task, base max damage is increased by one for every 10 visible levels.</ref>
+|30
+|15 (→19)
+|{{members|yes}}
+|{{NoCoins|({{GEP|Mind rune}}*4+{{GEP|Death rune}})}}
+|-
+|{{plinkt|Earth Blast}}
+|53
+|{{RuneReq|Earth=4|Air=3|Death=1}}
+|31.5
+|15→16
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*3+{{GEP|Death rune}}+{{GEP|Earth rune}}*4)}}
+|-
+|{{plinkt|Fire Blast}}
+|59
+|{{RuneReq|Fire=5|Air=4|Death=1}}
+|34.5
+|16
+|{{members|no}}
+|{{NoCoins|({{GEP|Air rune}}*4+{{GEP|Death rune}}+{{GEP|Fire rune}}*5)}}
+|-
+|{{plinkt|Saradomin Strike}}
+|60 (80)
+|{{RuneReq|Blood=2|Fire=2|Air=4}} +[[File:Saradomin staff.png|link=Saradomin staff]]<ref>[[Saradomin Strike]] can be autocast with [[staff of light]].</ref> (+[[File:Charge.png|link=Standard_spellbook#Support_spells]])
+|35
+|20 (→30)
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*4+{{GEP|Blood rune}}*2+{{GEP|Fire rune}}*2)}}
+|-
+|{{plinkt|Claws of Guthix}}
+|60 (80)
+|{{RuneReq|Blood=2|Fire=1|Air=4}}+[[File:Guthix staff.png|link=Guthix staff]]<ref>[[Claws of Guthix]] can be autocast with [[staff of balance]] or [[void knight mace]].</ref> (+[[File:Charge.png|link=Standard_spellbook#Support_spells]])
+|35
+|20 (→30)
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*4+{{GEP|Blood rune}}*2+{{GEP|Fire rune}})}}
+|-
+|{{plinkt|Flames of Zamorak}}
+|60 (80)
+|{{RuneReq|Blood=2|Fire=4|Air=1}} +[[File:Zamorak staff.png|link=Zamorak staff]]<ref>[[Flames of Zamorak]] can be autocast with [[Staff of the Dead|staff of the dead]], [[toxic staff of the dead]], or [[thammaron's sceptre (a)]], [[accursed sceptre (a)]].</ref> (+[[File:Charge.png|link=Standard_spellbook#Support_spells]])
+|35
+|20 (→30)
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*1+{{GEP|Blood rune}}*2+{{GEP|Fire rune}}*4)}}
+|-
+|{{plinkt|Wind Wave}}
+|62
+|{{RuneReq|Air=5|Blood=1}}
+|36
+|17→20
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*5+{{GEP|Blood rune}})}}
+|-
+|{{plinkt|Water Wave}}
+|65
+|{{RuneReq|Water=7|Air=5|Blood=1}}
+|37.5
+|18→20
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*5+{{GEP|Blood rune}}+{{GEP|Water rune}}*7)}}
+|-
+|{{plinkt|Earth Wave}}
+|70
+|{{RuneReq|Earth=7|Air=5|Blood=1}}
+|40
+|19→20
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*5+{{GEP|Blood rune}}+{{GEP|Earth rune}}*7)}}
+|-
+|{{plinkt|Fire Wave}}
+|75
+|{{RuneReq|Fire=7|Air=5|Blood=1}}
+|42.5
+|20
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*5+{{GEP|Blood rune}}+{{GEP|Fire rune}}*7)}}
+|-
+|{{plinkt|Wind Surge}}
+|81
+|{{RuneReq|Wrath=1|Air=7}}
+|44.5
+|21→24
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*7+{{GEP|Wrath rune}})}}
+|-
+|{{plinkt|Water Surge}}
+|85
+|{{RuneReq|Wrath=1|Air=7|Water=10}}
+|46.5
+|22→24
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*7+{{GEP|Wrath rune}}+{{GEP|Water rune}}*10)}}
+|-
+|{{plinkt|Earth Surge}}
+|90
+|{{RuneReq|Wrath=1|Air=7|Earth=10}}
+|48.2
+|23→24
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*7+{{GEP|Wrath rune}}+{{GEP|Earth rune}}*10)}}
+|-
+|{{plinkt|Fire Surge}}
+|95
+|{{RuneReq|Wrath=1|Air=7|Fire=10}}
+|50.5
+|24
+|{{members|yes}}
+|{{NoCoins|({{GEP|Air rune}}*7+{{GEP|Wrath rune}}+{{GEP|Fire rune}}*10)}}
+|}
+<references/>
+
+===Support spells===
+[[File:Charge_icon_(mobile).png|left]]
+Support spells offer a range of benefits to the caster, such as increasing damage, curing poison, and healing other players. However, the standard spellbook only offers one support spell, which increases damage for [[god spells]]. 
+When cast, the player becomes imbued with magical power, and for the next 7 minutes god spells will deal up to 30 damage per cast, instead of the usual 20. The respective [[god cape]] must be worn for the charge effect to work.
+
+{|class="wikitable sortable" style="text-align:center; width:500px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+![[Members]]
+|-
+|{{plinkt|Charge}}
+|80
+|{{RuneReq|Air=3|Fire=3|Blood=3}}
+|180
+|{{members|yes}}
+|}
+
+===Curse spells===
+Curse spells are combat spells that are primarily used to temporarily lower the target's stats or prevent movement. As Magic is meant to be strong against [[melee]] users, the various curse spells lower [[Attack]], [[Strength]], and [[Defence]] by either 5% or 10%. Additionally, [[Tele Block]] may be classified as a curse spell, although it prevents [[teleportation]] rather than lowering a stat.
+
+Curse spells '''do not''' stack with themselves or similar curses; for example, it is not possible to frequently cast [[Stun]] on a target to drain its Attack further than 10%, nor is it possible to cast [[Confuse]] afterward for an additional 5% drain.
+
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+![[Members]]
+! style="width:400px;" |Effect <ref>[[Tome_of_water#Effects|Charged Tome of water]] equipped boosts curse spells accuracy by 20% (except Tele Block), and stat draining amount by 50%.</ref><ref>Players can increase the binding duration by equipping [[swampbark armour]]; the [[Swampbark helm|helm]], [[Swampbark body|body]], and [[Swampbark legs|legs]] will increase the duration by 2 [[ticks]] (1.2 seconds) each.</ref>
+|-
+|{{plinkt|Confuse}}
+|3
+|{{RuneReq|Body=1|Earth=2|Water=3}}
+|13
+|{{members|no}}
+| style="text-align: left;" | Reduces the target's Attack by 5%.
+|-
+|{{plinkt|Weaken}}
+|11
+|{{RuneReq|Body=1|Earth=2|Water=3}}
+|21
+|{{members|no}}
+| style="text-align: left;" | Reduces the target's Strength by 5%.
+|-
+|{{plinkt|Curse}}
+|19
+|{{RuneReq|Body=1|Earth=3|Water=2}}
+|29
+|{{members|no}}
+| style="text-align: left;" | Reduces the target's Defence by 5%.
+|-
+|{{plinkt|Bind}}
+|20
+|{{RuneReq|Nature=2|Earth=3|Water=3}}
+|30
+|{{members|no}}
+| style="text-align: left;" | Prevents the target from moving for 8 ticks (4.8 secs).
+|-
+|{{plinkt|Snare}}
+|50
+|{{RuneReq|Nature=3|Earth=4|Water=4}}
+|60
+|{{members|no}}
+| style="text-align: left;" | Prevents the target from moving for 16 ticks (9.6 secs). Can deal up to 3 points of damage.
+|-
+|{{plinkt|Vulnerability}}
+|66
+|{{RuneReq|Water=5|Earth=5|Soul=1}}
+|76
+|{{members|yes}}
+| style="text-align: left;" | Reduces the target's Defence by 10%.
+|-
+|{{plinkt|Enfeeble}}
+|73
+|{{RuneReq|Earth=8|Water=8|Soul=1}}
+|83
+|{{members|yes}}
+| style="text-align: left;" | Reduces the target's Strength by 10%.
+|-
+|{{plinkt|Entangle}}
+|79
+|{{RuneReq|Nature=4|Earth=5|Water=5}}
+|89
+|{{members|yes}}
+| style="text-align: left;" | Prevents the target from moving for 24 ticks (14.4 secs). Can deal up to 5 points of damage.
+|-
+|{{plinkt|Stun}}
+|80
+|{{RuneReq|Earth=12|Water=12|Soul=1}}
+|90
+|{{members|yes}}
+| style="text-align: left;" | Reduces the target's Attack by 10%.
+|-
+|{{plinkt|Tele Block}}
+|85
+|{{RuneReq|Chaos=1|Law=1|Death=1}}
+|80
+|{{members|no}}
+| style="text-align: left;" | Prevents the target from teleporting for five minutes (half if they are using [[Protect from Magic]]).
+|}
+<references/>
+
+==Teleport spells==
+The standard spellbook contains a number of [[teleport spells]], which instantly transport the caster to a certain destination. These spells are popular as they offer a considerably faster method of transportation than walking everywhere, and several of them, such as [[Varrock Teleport]], lead to popular areas of the map. Free players may access all teleport spells up to and including [[Falador Teleport]]. All teleport spells use [[law rune]]s in addition to other runes.
+
+The standard spellbook is also the only spellbook to feature teleother spells (although the Lunar spellbook has '[[Tele Group]]' spells). When cast on another player, these spells will teleport that player to a certain destination. However, the targeted player must have [[Accept Aid]] on, and will be asked whether they wish to accept the teleportation. All teleother spells use soul runes in addition to law runes.
+
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+![[Members]]
+!Notes
+|-
+|{{plinkt|Lumbridge Home Teleport}}
+|{{NA|data-sort=0}}
+|{{NA}}
+|0
+|{{members|no}}
+| style="text-align: left;" | Teleports the player to Lumbridge. It can only used once every 30 minutes and can be interrupted by combat.
+|-
+|{{plinkt|Minigame Teleport}}
+|{{NA|data-sort=0}}
+|{{NA}}
+|0
+|{{members|no}}
+| style="text-align: left;" | Teleports the caster to a minigame of their choice. It can only be used once every 20 minutes and can be interrupted by combat.
+|-
+|{{plinkt|Varrock Teleport}}
+|25
+|{{RuneReq|Law=1|Air=3|Fire=1}}
+|35
+|{{members|no}}
+| style="text-align: left;" | Teleports the caster to the market square in [[Varrock]].
+|-
+|{{plinkt|Lumbridge Teleport}}
+|31
+|{{RuneReq|Law=1|Air=3|Earth=1}}
+|41
+|{{members|no}}
+| style="text-align: left;" | Teleports the caster to the courtyard of [[Lumbridge Castle]].
+|-
+|{{plinkt|Falador Teleport}}
+|37
+|{{RuneReq|Law=1|Air=3|Water=1}}
+|48
+|{{members|no}}
+| style="text-align: left;" | Teleports the caster to the centre of [[Falador]].
+|-
+|{{plinkt|Teleport to House}}
+|40
+|{{RuneReq|Law=1|Air=1|Earth=1}}
+|30
+|{{members|yes}}
+| style="text-align: left;" | Teleports the caster to their [[player-owned house]]. This spell's destination can either be the exit portal inside the house itself, or outside the entrance portal.
+|-
+|{{plinkt|Camelot Teleport}}
+|45
+|{{RuneReq|Law=1|Air=5}}
+|55.5
+|{{members|yes}}
+| style="text-align: left;" | Teleports the caster to the gates of Camelot.
+|-
+|{{plinkt|Kourend Castle Teleport}}
+|48
+|{{RuneReq|Law=2|Fire=1|Water=1}}
+|58
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of [[Client of Kourend]]. Teleports the caster to the [[Kourend Castle]] courtyard.
+|-
+|{{plinkt|Ardougne Teleport}}
+|51
+|{{RuneReq|Law=2|Water=2}}
+|61
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of [[Plague City]]. Teleports the caster to the market square in [[East Ardougne]].
+|-
+|{{plinkt|Civitas illa Fortis Teleport}}
+|54
+|{{RuneReq|Law=2|Earth=1|Fire=1}}
+|64
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of [[Twilight's Promise]]. Teleports the caster to [[Sunrise Palace]] in [[Civitas illa Fortis]].
+|-
+|{{plinkt|Watchtower Teleport}}
+|58
+|{{RuneReq|Law=2|Earth=2}}
+|68
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of [[Watchtower Quest]]. Teleports the caster to the top of the [[Watchtower (building)|Watchtower]] outside of [[Yanille]].
+|-
+|{{plinkt|Trollheim Teleport}}
+|61
+|{{RuneReq|Law=2|Fire=2}}
+|68
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of [[Eadgar's Ruse]]. Teleports the caster to the top of [[Trollheim]].
+|-
+|{{plinkt|Ape Atoll Teleport (standard)|txt=Ape Atoll Teleport}}
+|64
+|{{RuneReq|Law=2|Fire=2|Water=2}} <sup>1</sup>[[File:Banana.png|link=Banana]]
+|74
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of the [[Freeing King Awowogei]] sub-quest of [[Recipe for Disaster]]. Teleports the caster to a safe area in the [[Temple of Marimbo]].
+|-
+|{{plinkt|Teleport to Boat}}
+|67
+|{{RuneReq|Law=2|Earth=2|Water=2}}
+|77
+|{{members|yes}}
+| style="text-align: left;" | Requires completion of [[Pandemonium]] and construction of a [[Greater teleport focus (facility)|greater teleport focus]] on the boat the player wishes to teleport to. Teleports the caster to their player-owned [[boat]].
+|-
+|{{plinkt|Teleother Lumbridge}}
+|74
+|{{RuneReq|Law=1|Soul=1|Earth=1}}
+|84
+|{{members|yes}}
+| style="text-align: left;" | Teleports another player, who must have [[Accept Aid]] on, to the courtyard of Lumbridge Castle.
+|-
+|{{plinkt|Teleother Falador}}
+|82
+|{{RuneReq|Law=1|Soul=1|Water=1}}
+|92
+|{{members|yes}}
+| style="text-align: left;" | Teleports another player, who must have [[Accept Aid]] on, to the centre of Falador.
+|-
+|{{plinkt|Teleport to Target}}
+|85
+|{{RuneReq|Law=1|Death=1|Chaos=1}}
+|45
+|{{members|yes}}
+| style="text-align: left;" | Teleports the player to their assigned target inside [[Daimon's Crater]]. Can only be cast on [[Bounty Hunter]] worlds.
+|-
+|{{plinkt|Teleother Camelot}}
+|90
+|{{RuneReq|Law=1|Soul=2}}
+|100
+|{{members|yes}}
+| style="text-align: left;" | Teleports another player, who must have [[Accept Aid]] on, to the gates of Camelot.
+|}
+
+==Utility spells==
+Utility spells are spells that are typically used outside of combat, such as enchanting items.
+
+===Alchemy spells===
+Alchemy spells convert items into other items. Including the following: [[Low Level Alchemy]] and [[High Level Alchemy]] convert items into certain amounts of coins, and [[Superheat Item]] may be used to forge [[ore]] into [[bar]]s without a [[furnace]]. These three spells all use nature runes and fire runes. Standard magic also includes; [[Bones to Bananas]], and [[Bones to Peaches]], which use Nature, Earth, and, Water runes.
+
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+![[Members]]
+!Effect
+|-
+|{{plinkt|Bones to Bananas}}
+|15
+|{{RuneReq|Water=2|Earth=2|Nature=1}}
+|25
+|{{members|no}}
+| style="text-align: left;" | Converts all normal [[bones]] in the inventory into [[banana]]s.
+|-
+|{{plinkt|Low Level Alchemy}}
+|21
+|{{RuneReq|Nature=1|Fire=3}}
+|31
+|{{members|no}}
+| style="text-align: left;" | Gives [[coins]] equal to <math>\left \lfloor 0.4 \times \text{Value} \right \rfloor</math> of the item the spell was cast on.
+|-
+|{{plinkt|Superheat Item}}
+|43
+|{{RuneReq|Fire=4|Nature=1}}
+|53
+|{{members|no}}
+| style="text-align: left;" | Smelts [[ore]] into [[bars]] without need of a [[furnace]]. [[Iron ore]]'s success rate is 100% when used with this spell.
+|-
+|{{plinkt|High Level Alchemy}}
+|55
+|{{RuneReq|Fire=5|Nature=1}}
+|65
+|{{members|no}}
+| style="text-align: left;" | Gives [[coins]] equal to <math>\left \lfloor 0.6 \times \text{Value} \right \rfloor</math> of the item the spell was cast on.
+|-
+|{{plinkt|Bones to Peaches}}
+|60
+|{{RuneReq|Water=4|Earth=2|Nature=2}}
+|35.5
+|{{members|yes}}
+| style="text-align: left;" | Converts all normal [[bones]] in the inventory into [[peach]]es. Must be unlocked at the [[Mage Training Arena]].
+|}
+
+===Enchantment spells===
+There are three types of enchantment spells. Jewellery Enchantments are used for enchanting jewellery with gems, Enchant Crossbow Bolt provides jewel-tipped crossbow bolts with additional effects, and Charge Orb spells will apply elemental alignments to staff orbs. All enchantment spells make use of [[cosmic rune]]s.
+
+====Jewellery Enchantments====
+[[File:Jewellery Enchantments icon (mobile).png|left]]
+Enchantment spells imbue certain items with magical properties, giving them new abilities. Any piece of [[jewellery]] crafted with a [[gem]] may be enchanted by the proper Enchant Jewellery spell. [[Enchanted jewellery|Enchanted jewellery items]] have a wide variety of effects, such as teleportation, increased [[Equipment Stats|equipment bonuses]], and assistance in skills such as [[Smithing]] and [[Runecraft]].
+
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+![[Members]]
+!Effect
+|-
+|{{plinkt|Lvl-1 Enchant}}
+|7
+|{{RuneReq|Cosmic=1|Water=1}}
+|17.5
+|{{members|no}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[sapphire]] and [[opal]].
+|-
+|{{plinkt|Lvl-2 Enchant}}
+|27
+|{{RuneReq|Cosmic=1|Air=3}}
+|37
+|{{members|no}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[emerald]] and [[jade]].
+|-
+|{{plinkt|Lvl-3 Enchant}}
+|49
+|{{RuneReq|Cosmic=1|Fire=5}}
+|59
+|{{members|no}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[ruby]] and [[red topaz]].
+|-
+|{{plinkt|Lvl-4 Enchant}}
+|57
+|{{RuneReq|Cosmic=1|Earth=10}}
+|67
+|{{members|no}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[diamond]].
+|-
+|{{plinkt|Lvl-5 Enchant}}
+|68
+|{{RuneReq|Cosmic=1|Earth=15|Water=15}}
+|78
+|{{members|yes}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[dragonstone]].
+|-
+|{{plinkt|Lvl-6 Enchant}}
+|87
+|{{RuneReq|Cosmic=1|Earth=20|Fire=20}}
+|97
+|{{members|yes}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[onyx]].
+|-
+|{{plinkt|Lvl-7 Enchant}}
+|93
+|{{RuneReq|Soul=20|Blood=20|Cosmic=1}}
+|110
+|{{members|yes}}
+| style="text-align: left;" | Enchants [[jewellery]] made from [[zenyte]].
+|}
+
+====Enchant Crossbow Bolt====
+[[File:Enchant Crossbow Bolt icon (mobile).png|left]]
+[[Bolts#Gem-tipped and enchanted bolts|Crossbow bolts with tips made from gems]] may be enchanted by [[members]] with the proper [[Enchant Crossbow Bolt]] spell, where they then gain secondary effects in combat.
+
+{|class="wikitable sortable" style="text-align:center; width:700px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!Input
+!Output
+!XP
+![[Members]]
+|-
+|[[File:Opal bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Opal)]]
+|4
+|{{RuneReq|Cosmic=1|Air=2}}
+|<sup>10</sup>[[File:Opal bolts 5.png|link=Opal bolts]]<br>or<br><sup>10</sup>[[File:Opal dragon bolts 5.png|link=Opal dragon bolts]] 
+|<sup>10</sup>[[File:Opal bolts (e) 5.png|link=Opal bolts (e)]]<br>or<br><sup>10</sup>[[File:Opal dragon bolts (e) 5.png|link=Opal dragon bolts (e)]] 
+|9
+|{{members|yes}}
+|-
+|[[File:Sapphire bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Sapphire)]]
+|7
+|{{RuneReq|Cosmic=1|Water=1|Mind=1}}
+|<sup>10</sup>[[File:Sapphire bolts 5.png|link=Sapphire bolts]]<br>or<br><sup>10</sup>[[File:Sapphire dragon bolts 5.png|link=Sapphire dragon bolts]]
+|<sup>10</sup>[[File:Sapphire bolts (e) 5.png|link=Sapphire bolts (e)]]<br>or<br><sup>10</sup>[[File:Sapphire dragon bolts (e) 5.png|link=Sapphire dragon bolts (e)]]
+|17.5
+|{{members|yes}}
+|-
+|[[File:Jade bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Jade)]]
+|14
+|{{RuneReq|Cosmic=1|Earth=2}}
+|<sup>10</sup>[[File:Jade bolts 5.png|link=Jade bolts]]<br>or<br><sup>10</sup>[[File:Jade dragon bolts (e) 5.png|link=Jade dragon bolts (e)]]
+|<sup>10</sup>[[File:Jade bolts (e) 5.png|link=Jade bolts (e)]]<br>or<br><sup>10</sup>[[File:Jade dragon bolts (e) 5.png|link=Jade dragon bolts (e)]]
+|19
+|{{members|yes}}
+|-
+|[[File:Pearl bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Pearl)]]
+|24
+|{{RuneReq|Cosmic=1|Water=2}}
+|<sup>10</sup>[[File:Pearl bolts 5.png|link=Pearl bolts]]<br>or<br><sup>10</sup>[[File:Pearl dragon bolts (e) 5.png|link=Pearl dragon bolts (e)]]
+|<sup>10</sup>[[File:Pearl bolts (e) 5.png|link=Pearl bolts (e)]]<br>or<br><sup>10</sup>[[File:Pearl dragon bolts (e) 5.png|link=Pearl dragon bolts (e)]]
+|29
+|{{members|yes}}
+|-
+|[[File:Emerald bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Emerald)]]
+|27
+|{{RuneReq|Cosmic=1|Air=3|Nature=1}}
+|<sup>10</sup>[[File:Emerald bolts 5.png|link=Emerald bolts]]<br>or<br><sup>10</sup>[[File:Emerald dragon bolts (e) 5.png|link=Emerald dragon bolts (e)]]
+|<sup>10</sup>[[File:Emerald bolts (e) 5.png|link=Emerald bolts (e)]]<br>or<br><sup>10</sup>[[File:Emerald dragon bolts (e) 5.png|link=Emerald dragon bolts (e)]]
+|37
+|{{members|yes}}
+|-
+|[[File:Topaz bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Red Topaz)]]
+|29
+|{{RuneReq|Cosmic=1|Fire=2}}
+|<sup>10</sup>[[File:Topaz bolts 5.png|link=Topaz bolts]]<br>or<br><sup>10</sup>[[File:Topaz dragon bolts (e) 5.png|link=Topaz dragon bolts (e)]]
+|<sup>10</sup>[[File:Topaz bolts (e) 5.png|link=Topaz bolts (e)]]<br>or<br><sup>10</sup>[[File:Topaz dragon bolts (e) 5.png|link=Topaz dragon bolts (e)]]
+|33
+|{{members|yes}}
+|-
+|[[File:Ruby bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Ruby)]]
+|49
+|{{RuneReq|Cosmic=1|Fire=5|Blood=1}}
+|<sup>10</sup>[[File:Ruby bolts 5.png|link=Ruby bolts]]<br>or<br><sup>10</sup>[[File:Ruby dragon bolts (e) 5.png|link=Ruby dragon bolts (e)]]
+|<sup>10</sup>[[File:Ruby bolts (e) 5.png|link=Ruby bolts (e)]]<br>or<br><sup>10</sup>[[File:Ruby dragon bolts (e) 5.png|link=Ruby dragon bolts (e)]]
+|59
+|{{members|yes}}
+|-
+|[[File:Diamond bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Diamond)]]
+|57
+|{{RuneReq|Cosmic=1|Earth=10|Law=2}}
+|<sup>10</sup>[[File:Diamond bolts 5.png|link=Diamond bolts]]<br>or<br><sup>10</sup>[[File:Diamond dragon bolts (e) 5.png|link=Diamond dragon bolts (e)]]
+|<sup>10</sup>[[File:Diamond bolts (e) 5.png|link=Diamond bolts (e)]]<br>or<br><sup>10</sup>[[File:Diamond dragon bolts (e) 5.png|link=Diamond dragon bolts (e)]]
+|67
+|{{members|yes}}
+|-
+|[[File:Dragonstone bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Dragonstone)]]
+|68
+|{{RuneReq|Cosmic=1|Earth=15|Soul=1}}
+|<sup>10</sup>[[File:Dragonstone bolts 5.png|link=Dragonstone bolts]]<br>or<br><sup>10</sup>[[File:Dragonstone dragon bolts (e) 5.png|link=Dragonstone dragon bolts (e)]]
+|<sup>10</sup>[[File:Dragonstone bolts (e) 5.png|link=Dragonstone bolts (e)]]<br>or<br><sup>10</sup>[[File:Dragonstone dragon bolts (e) 5.png|link=Dragonstone dragon bolts (e)]]
+|78
+|{{members|yes}}
+|-
+|[[File:Onyx bolts (e) detail.png|center|35px]]
+|[[Enchant Crossbow Bolt (Onyx)]]
+|87
+|{{RuneReq|Cosmic=1|Fire=20|Death=1}}
+|<sup>10</sup>[[File:Onyx bolts 5.png|link=Onyx bolts]]<br>or<br><sup>10</sup>[[File:Onyx dragon bolts (e) 5.png|link=Onyx dragon bolts (e)]]
+|<sup>10</sup>[[File:Onyx bolts (e) 5.png|link=Onyx bolts (e)]]<br>or<br><sup>10</sup>[[File:Onyx dragon bolts (e) 5.png|link=Onyx dragon bolts (e)]]
+|97
+|{{members|yes}}
+|}
+
+====Charge Orb spells====
+Charge Orb spells are used to imbue [[unpowered orb]]s with elemental magic, after which they may be used to make [[elemental staves]].
+
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2 style="width:200px;"|Spell
+!Level
+!class="unsortable" style="width:120px;"|[[Runes]]
+!XP
+![[Members]]
+!Effect
+|-
+|{{plinkt|Charge Water Orb}}
+|56
+|{{RuneReq|Cosmic=3|Water=30}}<sup>1</sup>[[File:Unpowered orb.png|link=Unpowered orb]]
+|56
+|{{members|yes}}
+| style="text-align: left;" | Enchants an [[unpowered orb]] into a [[water orb]] when cast at the [[Obelisk of Water]].
+|-
+|{{plinkt|Charge Earth Orb}}
+|60
+|{{RuneReq|Cosmic=3|Earth=30}}<sup>1</sup>[[File:Unpowered orb.png|link=Unpowered orb]]
+|70
+|{{members|yes}}
+| style="text-align: left;" | Enchants an [[unpowered orb]] into an [[earth orb]] when cast at the [[Obelisk of Earth]].
+|-
+|{{plinkt|Charge Fire Orb}}
+|63
+|{{RuneReq|Cosmic=3|Fire=30}}<sup>1</sup>[[File:Unpowered orb.png|link=Unpowered orb]]
+|73
+|{{members|yes}}
+| style="text-align: left;" | Enchants an [[unpowered orb]] into a [[fire orb]] when cast at the [[Obelisk of Fire]].
+|-
+|{{plinkt|Charge Air Orb}}
+|66
+|{{RuneReq|Cosmic=3|Air=30}}<sup>1</sup>[[File:Unpowered orb.png|link=Unpowered orb]]
+|76
+|{{members|yes}}
+| style="text-align: left;" | Enchants an [[unpowered orb]] into an [[air orb]] when cast at the [[Obelisk of Air]].
+|}
+
+===Other spells===
+{|class="wikitable sortable" style="text-align:center; width:850px;"
+!colspan=2|Spell
+!Level
+!class="unsortable"|[[Runes]]
+!XP
+![[Members]]
+!Effect
+|-
+|{{plinkt|Telekinetic Grab}}
+|33
+|{{RuneReq|Law=1|Air=1}}
+|43
+|{{members|no}}
+| style="text-align: left;" | Remotely takes an item laying on the ground or on a table. Can be cast through barriers such as fences and jail cell bars, but not through solid objects like doors or walls.
+|-
+|{{plinkt|Monster Inspect}}
+|42
+|{{RuneReq|Body=2|Mind=2}}
+|30.5
+|{{members|no}}
+| style="text-align: left;" | Displays information about the monster the spell is cast upon, such as its combat stats, defensive bonuses, and whether it can be killed as part of a Slayer task. 
+|-
+|{{plinkt|Summon Boat}}
+|56
+|{{RuneReq|Law=2|Earth=1|Water=1}}
+|66
+|{{members|yes}}
+| style="text-align: left;" | Teleports the caster's player-owned [[boat]] to the nearest [[mooring point]]. Requires completion of [[Pandemonium]] and construction of a [[Teleport focus (facility)|teleport focus]] on the boat the player wishes to teleport.
+|}
+
+==Trivia==
+*Within the game cache, there are three unused spell icons that can be found ([[File:Unused standard spell 1.png]] [[File:Unused standard spell 2.png]] [[File:Unused standard spell 3.png]]). These were scrapped summoning spells from ''[[RuneScape Classic]]'' that utilised [[classicrsw:Life-Rune|life runes]], which were also scrapped.
+[[File:Restraint icon (mobile).png|right]]
+*There is also one unused mobile spell icon within the game cache, which is the icon for Restraint, a level 89 spell costing 5 Wrath, 10 Fire and 10 Earth runes per cast, capable of hitting up to 8 damage and being able to freeze a single opponent for 20 seconds. This spell was offered in the [[Poll:Revenant Cave Rewards: Revisited & Content Changes Poll|Revenant Cave Rewards: Revisited & Content Changes Poll]], but failed by 3.3% votes.
+
+{{Spellbooks}}
+{{Standard spellbook}}

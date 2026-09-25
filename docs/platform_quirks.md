@@ -39,7 +39,7 @@ the client.
 | Linux | `make -C src all` or `release` | `src/torirs` | SDL2 window/input/audio, stdio cache IO | Soft3D by default; `--opengl3` opts into desktop GL |
 | Modern Windows | `make -C src win64` or `win64-debug`; normally use `build_windows.ps1` | `src/torirs_win64.exe`, staged as `dist/win64/torirs.exe` | raw Win32 window/input, stdio cache IO, null audio | fixed-function D3D9 by default; `--soft3d` opts into GDI presentation |
 | Windows XP | `make -C src winxp` or `winxp-debug`; normally use `build_winxp.ps1` | `src/torirs.exe`, staged as `dist/win32/torirs.exe` | raw Win32 window/input, stdio cache IO, null audio | fixed-function D3D9 by default; `--soft3d` opts into GDI presentation |
-| Web | `make -C src web` or `web-debug` | `build-web/torirs.js` plus Wasm and host assets | browser SDL2, HTTP cache IO, WebAudio | Soft3D by default; `--webgl1` opts into WebGL1 |
+| Web | `make -C src web` or `web-debug` | `build-web/torirs.js` plus Wasm and host assets | browser SDL2, HTTP cache IO, WebAudio | Soft3D by default; `--webgl1` (ES2 core) and `--webgl2` (ES3 core) opt into the two GPU renderers |
 
 Every `(PLATFORM, OPT, TORIDRAW_OPT, MEMTRACE, EMBED_SERVER)` flavor has a
 separate object directory. Never share or manually copy object files between
@@ -48,9 +48,86 @@ lanes. Both native optimization levels link the same output name, so
 
 Renderer flags are deliberately host-specific. A build rejects a renderer flag
 it cannot honor instead of silently falling back: desktop SDL accepts
-`--opengl3`, the browser accepts `--webgl1`, and Win32 accepts `--d3d9` and
-`--soft3d`. Keep shared manifests platform-neutral unless they are intended for
-one lane only.
+`--opengl3`, the browser accepts `--webgl1` and `--webgl2`, Android accepts
+`--gles2` and `--gles3`, and Win32 accepts `--d3d9` and `--soft3d`. Keep shared
+manifests platform-neutral unless they are intended for one lane only.
+
+### GPU-FAMILY-001 - Two shared ES cores, four named lane renderers
+
+- **Status:** Contract
+- **Applies to:** Android `--gles2` / `--gles3`, Web `--webgl1` / `--webgl2`
+- **Behavior:** The OpenGL ES family is two CORES and four RENDERERS:
+
+  | core | files | Android renderer | browser renderer |
+  |---|---|---|---|
+  | OpenGL ES 2.0 | `platform_renderer_es2_{core,ui,painter,zbuffer}.c` | `platform_androidarmv7_renderer_opengles2.c` (`--gles2`) | `platform_web_renderer_webgl1.c` (`--webgl1`) |
+  | OpenGL ES 3.0 | `platform_renderer_es3_{core,ui,painter,zbuffer}.c` | `platform_androidarmv7_renderer_opengles3.c` (`--gles3`) | `platform_web_renderer_webgl2.c` (`--webgl2`) |
+
+  A core makes the GL calls and knows nothing about the lane it is in: it has
+  no `TORIRS_PLATFORM_WEB`, no `TORIRS_PLATFORM_ANDROID`, and it is told its
+  own name (`ToriRS_ES2_New`, `ToriRS_ES3_New`) rather than deciding it.
+
+  A lane renderer is a header and a source file of one-line delegations. It is
+  the whole of the difference between two lanes that share a core: the name in
+  every log line, the `ToriRS_GLClient` the context seam is asked for, the
+  flag that selects it, and the `ToriRS_RendererKind` Client Settings offers.
+  Its handle (`struct ToriRS_WebGL1`, `struct ToriRS_GLES3`, …) is an opaque
+  type that is never defined -- it IS the core's, and only the lane file casts
+  -- so a caller cannot reach past the lane into the core by accident.
+
+  Every kind has exactly one true name, so `TORIRS_RENDERER_LABELS` is
+  unconditional: `OpenGL ES 2`, `OpenGL ES 3`, `WebGL 1`, `WebGL 2`. Each lane
+  offers only the kinds it can start, so no list shows a name for a renderer
+  that is not there.
+- **Why:** the ES2 core was one set of files linked by two lanes under one
+  name, and the name it had was Android's. In a browser it logged "GLES2" and
+  Client Settings offered "OpenGL ES 2" for what was running as WebGL1 --
+  merely vague until the lane gained a WebGL 2 renderer to sit beside it in
+  the same list, at which point it was wrong. Splitting the name without
+  splitting the files would have left the same thing one `#if` further in.
+- **What is NOT duplicated:** the cores, the bake pipeline, the 28-byte vertex
+  (`TRSPK_VertexGLES2`), the atlas, the pose tables, every TRSPK helper. A fix
+  to a bake still lands on all four renderers at once.
+- **Verification:** `make -C src lane-check PLATFORM=web` requires the ES2 and
+  ES3 core sources plus `platform_web_renderer_webgl1.c` and
+  `platform_web_renderer_webgl2.c`, and FORBIDS `platform_androidarmv7_renderer_opengles2.c` and
+  `platform_androidarmv7_renderer_opengles3.c`; `PLATFORM=android` requires the mirror image.
+  That is what keeps a phone's renderer out of a tab under the wrong name.
+  Both lanes run `tools/webgl_lane_audit.py` over the cores.
+- **Sources:** [`src/platform/platform_renderer_es2.h`](../src/platform/platform_renderer_es2.h),
+  [`src/platform/platform_renderer_es3.h`](../src/platform/platform_renderer_es3.h),
+  [`src/platform/platform_web_renderer_webgl1.h`](../src/platform/platform_web_renderer_webgl1.h),
+  [`src/platform/platform_androidarmv7_renderer_opengles3.h`](../src/platform/platform_androidarmv7_renderer_opengles3.h),
+  [`src/render/torirs_renderer_kind.h`](../src/render/torirs_renderer_kind.h),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
+
+### ANDROID-GLES3-001 - Android can run the ES 3.0 core too
+
+- **Status:** Contract
+- **Applies to:** Android `--gles3` / `--gles3-zbuffer`
+- **Behavior:** The Android lane builds both ES cores and offers both
+  renderers. `--gles2` remains what the lane starts with; `--gles3` is opt-in
+  and selects the same core the browser runs as WebGL2, on an EGL context at
+  client version 3 from an `EGL_OPENGL_ES3_BIT` config.
+- **Why it is possible:** the phone this client targets is a Moto X gen 1
+  (XT1060, Snapdragon S4 Pro MSM8960DT, **Adreno 320**, Android 5.1). The
+  Adreno 320 is an OpenGL ES **3.0** part -- 3.1 first appears on Adreno 4xx,
+  as does Vulkan. ES 2.0 was forced on the BROWSER by Chrome blacklisting the
+  Krait drivers for WebGL2, not by the hardware, so the native lane was never
+  bound by it. Confirm on the device with `adb shell getprop
+  ro.opengles.version`: 196608 is 0x30000, ES 3.0.
+- **Why the ES3 core runs here unchanged:** it is written to ES 3.0 **as
+  WebGL2 exposes it**, which is a subset of what Android offers. The one place
+  the two differ is `GL_TEXTURE_SWIZZLE_*`, which ES 3.0 has and WebGL2 does
+  not; the core does without it (the UI fragment shader builds the font
+  coverage instead), which costs Android nothing.
+- **NOT measured:** whether ES 3.0 is faster than ES 2.0 on a 2013 Adreno.
+  The 32-bit-index win assumes a driver that is not itself the bottleneck, and
+  nobody has run this on the device. `--gles3` must not become the lane's
+  default on anything but a measurement.
+- **Sources:** [`src/platform/platform_androidarmv7_renderer_opengles3.h`](../src/platform/platform_androidarmv7_renderer_opengles3.h),
+  [`src/platform/platform_android_gl.c`](../src/platform/platform_android_gl.c),
+  [`src/platform/platform.mk`](../src/platform/platform.mk)
 
 ## Common runtime rules
 
@@ -90,6 +167,143 @@ one lane only.
   scene settles once at 807x503 for its 42-pixel strip. It must not print a
   resize every frame; steady `surface_sync` p95 should be effectively zero.
 - **Sources:** [`src/app.c`](../src/app.c), [`src/main.c`](../src/main.c)
+
+### COMMON-WINDOW-003 - The plugin pane grows the window only where it can
+
+- **Status:** Contract
+- **Applies to:** SDL (macOS, Linux) and Win32 attached plugin chrome
+- **Behavior:** Opening the rail or a page reserves its points at the window's
+  trailing edge. The window is widened by that amount only when the frame is
+  the user's (not maximised, zoomed, or fullscreen) and the display it sits on
+  has the room: in place, or after sliding the window left by exactly the
+  overhang when there is room on that side. Otherwise the pane opens inside
+  the current frame and the game area gives up the width -- unless that would
+  take the game area below its floor (the window minimum), where the window
+  grows off the display instead, since a game scaled down beside its own
+  plugin page is the worse outcome. Close gives back exactly what was grown,
+  never below the canvas floor plus the rail, never moves the window back, and
+  does nothing while the frame is maximised. A pane that changed inside the
+  frame relayouts the canvas itself (the SDL pump pushes
+  `TORIRS_CMD_WINDOW_RESIZE` with the game area, since no `SIZE_CHANGED`
+  arrives). `PlatformWindow_SetWindowSize` and the fixed-mode snap size the
+  game area and keep the pane's points beside it, and neither touches a
+  maximised window.
+- **Failure mode:** The SDL backend grew the window unconditionally: a
+  maximised window on macOS jumped out of maximised every time the plugin tab
+  or the fixed-mode plugin strip opened (Cocoa treats a programmatic resize of
+  a zoomed window as un-zooming it), and a windowed client near the screen's
+  right edge hung its 360-point page off the display. The backend also reset
+  the pane to a hardcoded 48-point rail on Close while the executors open the
+  rail at 40 or 42, leaving a band of window background beside the rail.
+- **Verification:** `make -C src test-sdl-chrome-geometry` stages both "no
+  room" and "room" with the dummy driver; `TORIRS_RESIZE_DEBUG=1` prints one
+  `chrome pane:` line per decision with its reason on a real window.
+- **Sources:** [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
+  [`src/platform/platform_window.h`](../src/platform/platform_window.h),
+  [`src/platform/test/sdl_chrome_geometry_test.c`](../src/platform/test/sdl_chrome_geometry_test.c),
+  [`src/platform/platform_win32gdi.c`](../src/platform/platform_win32gdi.c)
+
+### COMMON-CHROME-001 - Every plugin shares one persistent browser
+
+- **Status:** Contract
+- **Applies to:** Web, macOS, Win32, and Win64 plugin chrome; Linux and Android
+  use the internal BUFFER fallback until they have the common browser transport
+- **Behavior:** One application window owns exactly one plugin-chrome
+  browser instance, one document, one persistent rail root, and zero or one
+  page root. Every plugin registers a rail destination, but only the most
+  recently selected plugin may build, render, or receive input for a page.
+  Selecting another destination replaces that page in place. Collapse clears
+  the page and reduces the browser allocation to the rail; it does not destroy,
+  navigate, or recreate the browser. Only application-window shutdown
+  destroys it.
+- **Platform meaning:** macOS embeds one `WKWebView`; Win64 one WebView2
+  controller; XP one `IWebBrowser2`/MSHTML
+  ActiveX control. The Web lane owns one application iframe in one stable DOM
+  mount; that iframe is the sole plugin-chrome browsing context, not one iframe
+  per plugin. It must not add a nested iframe or popup. All native controls are
+  children of the existing top-level application window, not auxiliary
+  top-level windows.
+- **Reason:** Browser creation, engine startup, stylesheet/script parse, focus,
+  accessibility, and resource caches have application lifetime. A browser or
+  hidden page per plugin would create unbounded process and focus state and
+  would allow inactive plugins to retain UI or steal input.
+- **Failure mode:** Destroying the WebView on collapse reparses the bundle and
+  loses the rail/icon cache. Keeping more than one page lets stale generations
+  submit input. A popout, nested/additional iframe, or auxiliary plugin window
+  creates another plugin-chrome document lifetime and violates the
+  single-instance guarantee.
+- **Verification:** Repeated expand/collapse and cross-plugin selection must
+  preserve browser object identity, keep exactly one rail, leave no nonselected
+  page in the DOM, and never leak rail/page input into the game. Use
+  `make -C src test-chrome-browser-exec` and the Web DOM/layout tests. The
+  internal BUFFER fallback is not accepted as verification of this
+  browser-backed contract.
+- **Sources:** [`docs/chrome_executors.md`](chrome_executors.md),
+  [`src/ui/torirs_chrome_exec.h`](../src/ui/torirs_chrome_exec.h),
+  [`src/ui/torirs_chrome_rail.h`](../src/ui/torirs_chrome_rail.h),
+  [`src/platform/platform_macos_webview.m`](../src/platform/platform_macos_webview.m),
+  [`src/platform/platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c),
+  [`src/platform/platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c)
+
+### COMMON-CHROME-002 - Plugin chrome is retained semantic data, not plugin web content
+
+- **Status:** Contract
+- **Applies to:** Every browser-backed plugin-chrome host
+- **Behavior:** Plugins publish bounded registration metadata, semantic control
+  records, authored icon pixels, and retained custom-region pixels. They never
+  publish HTML, JavaScript, CSS, a URL, or navigation policy. The application
+  owns the local modern-OSRS bundle and reduces `rail.snapshot`,
+  `page.snapshot`, and `page.delta` messages into one retained DOM tree. Result
+  intents return through bounded nonblocking queues and are validated again on
+  the frame thread. Rail selection carries the snapshot generation; widget
+  input and custom frames carry page generation and widget serial.
+- **Security boundary:** Embedded hosts may load only application-packaged
+  bundle files and locally staged host-owned bitmap resources. They reject
+  external navigation, network loads, new windows, downloads, permissions, and
+  arbitrary plugin filesystem paths. The Web host follows the same content and
+  ownership boundary inside its sole application-owned plugin-chrome iframe.
+- **Performance boundary:** A clean retained model emits no browser message,
+  DOM walk, or bitmap upload. A changed model patches the existing selected
+  page rather than recreating the browser or document. The browser retains the
+  active HTML editor so model echoes do not discard its caret or composition.
+- **Failure mode:** Plugin-authored markup turns the semantic ABI into an
+  unbounded browser capability. Handle-only events can mutate a recycled node;
+  synchronous browser calls can stall the game thread; rebuilding the document
+  for a value change loses focus and repays startup cost.
+- **Verification:** The host bridge tests reject stale generations/serials,
+  unknown protocol versions, queue overflow, and nonlocal resource attempts.
+  A maximum-size clean page must produce no transaction. Changing one control
+  must preserve neighboring DOM nodes and focused-editor state.
+- **Sources:** [`src/plugin_chrome/HOST_BRIDGE.md`](../src/plugin_chrome/HOST_BRIDGE.md),
+  [`src/plugin/torirs_plugin_host.h`](../src/plugin/torirs_plugin_host.h),
+  [`src/ui/torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c)
+
+### COMMON-CHROME-003 - XP uses the same styled page contract
+
+- **Status:** Contract
+- **Applies to:** Windows XP MSHTML
+- **Behavior:** XP loads `legacy-ie8.html` explicitly; it does not guess from a
+  user agent. Its reducer implements the same protocol and modern OSRS
+  presentation as the modern page using conservative ES3/ES5 syntax and an
+  IE6/7-safe DOM subset. It uses table/absolute layout, the bundled JSON codec,
+  ordinary local `IMG` URLs, and private revisioned BMP/GIF files because
+  canvas, data URLs, CSS
+  Grid, CSS variables, modern events, and native `JSON` cannot be assumed.
+- **Scale rule:** Bundle dimensions are authored 1x logical CSS pixels. Device
+  density scales the complete composition; platform code must not independently
+  double rows, icons, or skin pieces. The compatibility layout must retain the
+  ToriRS silhouette, palette, spacing, skin pieces, and states rather than
+  exposing generic white browser controls.
+- **Reason:** A page that parses on current Chromium can fail before startup in
+  XP MSHTML. A visually unstyled fallback would meet syntax compatibility
+  while failing the actual chrome contract.
+- **Verification:** `make -C src test-web-channel` covers the modern and legacy
+  reducer and rejects unsupported syntax/DOM APIs. A runtime check on an
+  XP-compatible MSHTML host remains required.
+- **Sources:** [`src/plugin_chrome/README.md`](../src/plugin_chrome/README.md),
+  [`src/plugin_chrome/legacy-ie8.html`](../src/plugin_chrome/legacy-ie8.html),
+  [`src/plugin_chrome/legacy-ie8.css`](../src/plugin_chrome/legacy-ie8.css),
+  [`src/plugin_chrome/runtime-ie8.js`](../src/plugin_chrome/runtime-ie8.js)
 
 ### COMMON-INPUT-001 - Escape is an application key by default
 
@@ -197,7 +411,9 @@ one lane only.
   dropped while bytes from the previous clip remain queued.
 - **Reason:** This matches the reference client's one-effect-at-a-time behavior
   and avoids a separate callback mixer/audio synchronization path.
-- **Source:** [`src/platform/platform_audio_sdl2.c`](../src/platform/platform_audio_sdl2.c)
+- **Sources:** [`src/platform/platform_audio_sdl2.c`](../src/platform/platform_audio_sdl2.c),
+  [`src/platform/platform_audio_capture.c`](../src/platform/platform_audio_capture.c)
+  (`TORIRS_AUDIO_WAV`, shared with the Android backend)
 
 ## Windows (raw Win32, D3D9, and Soft3D/GDI)
 
@@ -206,8 +422,8 @@ one lane only.
 - **Status:** Contract
 - **Applies to:** Win32 and Win64 build lanes
 - **Behavior:** The canonical i686 and x86_64 MinGW toolchains are Git LFS
-  archives under `lib/`. The wrappers extract them on demand into ignored
-  `toolchain/mingw32` and `toolchain/mingw64` directories, require the exact
+  archives under `lib/`. The wrappers extract them on demand into the shared
+  `toolchains/mingw32` and `toolchains/mingw64` directories, require the exact
   target triple, and reject a Git LFS pointer in place of archive contents.
   Git for Windows still supplies `sh.exe` for the POSIX make recipes.
 - **Reason:** A developer's ambient `gcc` can silently change the PE
@@ -309,6 +525,11 @@ one lane only.
 - **Reason:** Requiring SDL or an audio runtime would violate the standalone
   artifact contract. D3D9 consumes the existing `HWND`; it must not create a
   second window.
+- **Amendment (plugin chrome):** The one plugin browser is a child control of
+  the existing main `HWND`, never an auxiliary top-level window. Win64 embeds
+  one WebView2 controller; XP embeds one system `IWebBrowser2`/MSHTML control.
+  They share the game window's lifetime, own no game renderer, and receive only
+  the trailing chrome rectangle. See COMMON-CHROME-001.
 
 ### WINDOWS-RENDER-001 - D3D9 is the default; GDI is an explicit fallback
 
@@ -468,7 +689,7 @@ one lane only.
   vs 48,862 — back faces and hidden faces never enter the stream) and no longer
   sorts them.
 - **Sources:**
-  [`src/platform/platform_sdl2_renderer_webgl1zb.c`](../src/platform/platform_sdl2_renderer_webgl1zb.c),
+  [`src/platform/platform_renderer_es2_zbuffer.c`](../src/platform/platform_renderer_es2_zbuffer.c),
   [`src/platform/platform_sdl2_renderer_gl3zb.c`](../src/platform/platform_sdl2_renderer_gl3zb.c)
 
 ### WINDOWS-D3D9-UPLOAD-001 - Retained resources upload only when dirty
@@ -632,7 +853,7 @@ one lane only.
   together; a missed gate remains an open performance defect even when capped
   wall cadence happens to look correct.
 - **Current optimized measurement (2026-08-06):** Win64 `-O3`, pristine
-  revision-239 offline scene (`manifest_osrs239.ini`), uncapped. Each run used
+  revision-239 offline scene (`manifests/manifest_osrs239.ini`), uncapped. Each run used
   6,000 frames in twelve 500-frame windows with a stable 1,072-component,
   4,946-command workload. Times are milliseconds and include no frame-limiter
   wait; aggregate distributions cover the profiler's retained last 2,048
@@ -738,22 +959,32 @@ one lane only.
 
 ## Web (Emscripten and WebGL1)
 
-### WEB-IO-001 - Cache IO is remote and has two pump modes
+### WEB-IO-001 - The IO executor is JavaScript; a task's items complete before it resumes
 
 - **Status:** Contract
 - **Applies to:** Web build
-- **Behavior:** The module has no local cache disk. `platform_x_io_web.c`
-  serializes logical cache-item requests to the native `io_server` over
-  `POST /io`. The server alone opens the real cache. Boot manifests and the
-  RevConfig files they name are fetched through `/boot/` into Emscripten's
-  virtual filesystem before `main()`.
-- **Transport quirk:** The host uses synchronous XHR by default so a boot task
-  can drain immediately, which temporarily blocks the browser main thread. Add
-  `io_sync=0` to the query string for asynchronous fetch; pending tasks then
-  complete on later browser turns and must remain frame-gated.
-- **Reason:** Keeping cache interpretation on the native side avoids duplicating
-  cache generation, map/XTEA, and archive semantics in JavaScript.
-- **Sources:** [`src/platform/platform_x_io_web.c`](../src/platform/platform_x_io_web.c),
+- **Behavior:** The module has no cache disk. The IO queue (`asyncio.h`) is
+  answered by `platform/platform_web_io.js`, linked as an emscripten JS
+  library so its functions define the `PlatformWeb_IO_*` symbols. It reads
+  each item at offsets the queue reports about itself, awaits the host for the
+  bytes -- IndexedDB, then JS5 for a dat2 group or `io_server`'s dat1 proxy
+  for a dat1 container, then `io_server`'s `/boot/` for a file -- and hands
+  them to C (`platform_web_api.c`) to decode. `PlatformX_IO_Pending` counts
+  items still in flight per queue, and `TaskRunner_Step` does not resume a
+  task while it has any: every item a task queued is filled when it resumes.
+  Boot manifests and the RevConfig files they name are fetched through
+  `/boot/` into the virtual filesystem before `main()`.
+- **Transport quirk:** Every answer arrives after an await, so a task that
+  queues one item per yield pays a network round trip per archive. Parallelism
+  is the task's: queue independent reads together (32 slots). The executor
+  and the producers never prefetch or resume early -- a producer that fetched
+  on a task's behalf broke the contract above once.
+- **Reason:** Keeping cache decoding in C avoids duplicating container framing,
+  compression, XTEA and reference-table semantics in JavaScript; keeping the
+  executor in JavaScript avoids a second reader of the queue in the seam.
+- **Sources:** [`src/platform/platform_web_io.js`](../src/platform/platform_web_io.js),
+  [`src/platform/platform_web_api.c`](../src/platform/platform_web_api.c),
+  [`src/web/torirs_hostio.js`](../src/web/torirs_hostio.js),
   [`src/ioserver/`](../src/ioserver/), [web build detail](web_build.md)
 
 ### WEB-LOOP-001 - The browser owns pacing; Asyncify stays off
@@ -810,50 +1041,168 @@ one lane only.
   shell text. Keep platform-only renderer flags out of shared manifests.
 - **Detail:** [Web query-string and manifest arguments](web_build.md#the-query-string-is-the-command-line)
 
-### WEB-GL1-000 - WebGL1 is its own renderer, not a compile flag on GL3
+### WEB-GL1-000 - The browser's GPU renderer is the GLES2 renderer, shared with Android
 
 - **Status:** Contract
-- **Applies to:** Web `--webgl1` / `--webgl1-zbuffer`, desktop `--opengl3` /
-  `--opengl3-zbuffer`
-- **Behavior:** There are four GPU world renderers, in four sets of files, with
-  no preprocessor switch between them:
+- **Applies to:** Web `--webgl1` / `--webgl1-zbuffer`, Android `--gles2` /
+  `--gles2-zbuffer`, desktop `--opengl3` / `--opengl3-zbuffer`
+- **Behavior:** There are two GPU world renderers in the GL family, each in its
+  own set of files, with no preprocessor switch between them:
 
-  | | painter order | depth buffered |
+  | | files | lanes |
   |---|---|---|
-  | WebGL1 | `platform_sdl2_renderer_webgl1.c` | `platform_sdl2_renderer_webgl1zb.c` |
-  | GL 3.2 | `platform_sdl2_renderer_gl3.c` | `platform_sdl2_renderer_gl3zb.c` |
+  | ES 2.0 core | `platform_renderer_es2_{core,ui,painter,zbuffer}.c` | android (`--gles2`), web (`--webgl1`) |
+  | GL 3.2 | `platform_sdl2_renderer_gl3.c`, `platform_sdl2_renderer_gl3zb.c` | macos, linux |
 
-  Each backend's pair shares its own `*_internal.h` (renderer state, constants,
-  the few helpers both need). Both backends implement the same public interface
-  in `platform_sdl2_renderer_gl3.h`; `platform.mk` links exactly one, so the
-  shared handle name is the interface and not the backend.
-- **Why:** it used to be one renderer compiled twice, with `TORIRS_GL_ES2`
-  choosing at 21 branches. That made WebGL1 correctness depend on someone
-  remembering to add an `#else`, and it stopped GL3 from using GL3 — every
-  desktop feature needed an ES2 twin beside it. Neither file now contains the
-  switch: the WebGL1 pair may use only WebGL1 with no extensions, and the GL3
-  pair may use anything GL 3.2 core offers.
-- **Verification:** `grep -c TORIRS_GL_ES2` over the four `.c` files is zero.
-  The WebGL1 pair contains no `glBindVertexArray`, `GL_UNSIGNED_INT` element
-  type, sized internal format, `GL_BGRA`, `glReadBuffer` or
-  `GL_UNPACK_ROW_LENGTH` (mentions of those names survive only in comments
-  explaining why they are unavailable).
+  The ES2 CORE is one set of sources linked by two lanes; each lane has its
+  own renderer file over it and its own name (GPU-FAMILY-001). WebGL1 is
+  OpenGL ES 2.0 with no extensions, which is exactly the ceiling that renderer
+  was written to (ANDROID-GLES2-001), so the browser compiles the four files
+  unchanged against emscripten's `<GLES2/gl2.h>` and reaches its context through
+  the same `platform_gl_context.h` seam the phone does. The flag is spelled per
+  lane -- `--webgl1` in the browser, `--gles2` on Android -- and each build
+  refuses the other's spelling by name rather than aliasing it, so a manifest
+  written for one cannot run on the other unnoticed.
+
+  **So is the NAME, and so are the FILES.** See GPU-FAMILY-001: the core is
+  lane-neutral and told its own name, and each lane has a renderer file and a
+  `ToriRS_RendererKind` of its own -- `TORIRS_RENDERER_KIND_GLES2` is now
+  Android's alone and `TORIRS_RENDERER_KIND_WEBGL1` is the browser's. A web
+  client that had saved the old shared kind finds it not offered once, is
+  refused, and falls back to the launch default; picking again re-saves.
+- **Why:** there used to be a third renderer here, a fork of the desktop GL one
+  switched at 21 places by `TORIRS_GL_ES2` and later split into its own pair of
+  files. It re-expressed 32-bit indices into 16-bit windows every frame, issued
+  a draw per model, and retained nothing of the scene; the GLES2 renderer bakes
+  the scene once into 16-bit pages, streams one index buffer a frame, and on
+  the depth path draws most of the static world as array ranges with no
+  indices at all. Keeping the fork meant every fix landing twice and the slower
+  renderer being the one in the browser.
+- **Verification:** `grep -c TORIRS_GL_ES2` over `src/` is zero outside
+  `platform_check.mk`, which forbids it. `make lane-check PLATFORM=web` requires
+  `TORIRS_HAVE_GLES2=1` and forbids `TORIRS_HAVE_GL3`, `TORIRS_GL_ES2` and the
+  fork's `webgl1_index16` object. No file under `src/platform/` is named
+  `*webgl1*`.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
-  [`src/platform/`](../src/platform/)
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`src/platform/platform_renderer_es2.h`](../src/platform/platform_renderer_es2.h)
+
+### WEB-GL2-000 - The browser has a second, modern GPU renderer
+
+- **Status:** Contract
+- **Applies to:** Web `--webgl2` / `--webgl2-zbuffer`
+- **Behavior:** The browser lane carries TWO GPU world renderers, in two
+  disjoint sets of files, with no preprocessor switch between them and no call
+  from one to the other:
+
+  | | core | lane file | context | flags |
+  |---|---|---|---|---|
+  | WebGL1 | `platform_renderer_es2_*.c` | `platform_web_renderer_webgl1.c` | WebGL1 (OpenGL ES 2.0) | `--webgl1`, `--webgl1-zbuffer` |
+  | WebGL2 | `platform_renderer_es3_*.c` | `platform_web_renderer_webgl2.c` | WebGL2 (OpenGL ES 3.0) | `--webgl2`, `--webgl2-zbuffer` |
+
+  Each core is shared with an Android renderer of the same generation
+  (GPU-FAMILY-001); the lane file is what makes it the browser's.
+
+  Both are in the module and either can be running: Client Settings switches
+  renderer between two frames (device option `RS_CS2_DEVICEOPTION_RENDERER`),
+  and a browser that cannot give a WebGL2 context must still be able to run the
+  WebGL1 one. They are `TORIRS_RENDERER_KIND_WEBGL2` / `_WEBGL2_DEPTH`,
+  appended after the D3D9 entries, and `RS_CS2_RENDERER_MAX` is 9.
+
+  Which context each renderer gets is decided per renderer, not by the runtime.
+  `ToriRS_GLContext_Create` takes an `enum ToriRS_GLClient`; SDL passes
+  `SDL_GL_CONTEXT_MAJOR_VERSION` through EGL as `EGL_CONTEXT_CLIENT_VERSION`,
+  and emscripten's EGL maps 2 to a WebGL1 canvas context and 3 to a WebGL2 one.
+- **Why a second renderer rather than a mode of the first:** the WebGL1
+  renderer is shared with Android (WEB-GL1-000) and is written to ES 2.0 core.
+  Most of what that ceiling costs is not a missing feature but a missing INDEX:
+  a 16-bit element cannot reach past 65,536 vertices from wherever the
+  attributes are bound, so the retained world is addressed in pages, a draw ends
+  at every page crossing, and the painter path cannot index the retained world
+  at all -- it copies each drawn model into a GPU ring first, with per-entry
+  placement serials, an overwrite guard and a fragmentation compaction with
+  hysteresis. Making that conditional inside one renderer would put two shapes
+  of the scene bake, the draw sequence, the painter and the depth path in one
+  set of files under runtime tests. What is genuinely shared already is shared:
+  the bake pipeline, the 28-byte vertex (`TRSPK_VertexGLES2`), the atlas, the
+  pose tables and every TRSPK helper. Only the GL layer differs.
+- **What the WebGL2 renderer uses that the WebGL1 one cannot:** 32-bit indices
+  (the big one: the retained world is indexed where it was baked, so a settled
+  static scene is a handful of `glDrawRangeElements` and the resident ring is
+  gone); vertex array objects; a std140 uniform block for the world matrix and
+  clock; `glVertexAttribIPointer` for the tile/scroll word;
+  `GL_UNPACK_ROW_LENGTH` for in-place sub-rectangle texture uploads; sized
+  internal formats, including a single-channel `GL_R8` font atlas in place of
+  `GL_LUMINANCE_ALPHA`; `glInvalidateFramebuffer` on the client-scaling
+  offscreen; `GL_DEPTH_COMPONENT24` renderbuffers; and a readback clipped to the
+  letterbox. Neither renderer queries or requires an extension.
+- **WebGL2 is not all of OpenGL ES 3.0.** `GL_TEXTURE_SWIZZLE_*` is the piece
+  this renderer wanted and cannot have: the font atlas was first written as a
+  swizzled `GL_R8` presenting itself as `(1, 1, 1, coverage)`, which compiles,
+  links and runs, and produces four `INVALID_ENUM: texParameter` warnings and
+  invisible text. Nothing in C catches that -- the swizzle is silently ignored
+  and the texture keeps its default -- so the coverage is built in the UI
+  fragment shader instead, which is sound because sampler unit 1 in that
+  program is a font and nothing else. A GLES3 feature must be checked against
+  the WebGL2 spec, not just against `<GLES3/gl3.h>`, and checked in a browser.
+- **Failure mode this replaces:** the lane used to pin
+  `-sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1`, which made "the WebGL1 renderer
+  stays inside ES 2.0" a link-time guarantee -- a GLES3 entry point could not
+  resolve to a working context, so a mistake failed on that build rather than in
+  someone else's browser. A module containing a WebGL2 renderer cannot keep that
+  pin. The guarantee moved into the sources instead: `make lane-check
+  PLATFORM=web` runs `tools/webgl_lane_audit.py --es2` over the four WebGL1
+  files and fails on any ES 3.0 entry point or token, comments excluded and
+  string literals included (a shader's `#version 300 es` is source; a comment
+  saying "ES2 has no `GL_UNPACK_ROW_LENGTH`" is documentation of the rule). A
+  second pass proves neither renderer reaches for an extension.
+- **Verification:** `make -C src lane-check PLATFORM=web` prints `total 0` from
+  both audits and requires `-sMAX_WEBGL_VERSION=2`, `TORIRS_HAVE_GLES2=1` and
+  `TORIRS_HAVE_WEBGL2=1` while forbidding `-sMAX_WEBGL_VERSION=1`.
+
+  In a browser: `--webgl2` reaches the world and the performance plugin names
+  the renderer "WebGL 2"; `--webgl2-zbuffer` names "WebGL 2 (depth buffer)".
+  Headless Chrome needs `--enable-unsafe-swiftshader`, because
+  `tools/web/browser_probe.py` launches it with `--disable-gpu` and a page with
+  no GPU has no WebGL2 at all: `getContext('webgl2')` returns null, emscripten's
+  EGL reports `EGL_BAD_MATCH`, and the client falls back to Soft3D. That is a
+  property of the probe, not of the renderer.
+
+  What the census says, measured on a settled Lumbridge scene with
+  `TORIRS_WEBGL2_DEBUG=1` against `TORIRS_GLES2_DEBUG=1`: **the draw count is
+  not where the difference is.** Both index the same 7,187 static faces a frame
+  and issue a similar handful of draws (5.6-7.5 against 3.0-7.0), because the
+  ES2 ring does its job while the camera is still. The difference is the
+  machinery that is not there: the WebGL1 readout also shows ~670 residency
+  lookups a frame and a placement whenever the camera reaches new geometry, and
+  behind it a 4 x 65,536-vertex GPU ring, its CPU staging buffer, and a 64-bit
+  serial per batch entry. A claim that this renderer collapses the world to one
+  draw would be wrong, and the census is what says so.
+- **Sources:** [`src/platform/platform_renderer_es3.h`](../src/platform/platform_renderer_es3.h),
+  [`src/platform/platform_renderer_es3_core.h`](../src/platform/platform_renderer_es3_core.h),
+  [`src/platform/platform_renderer_es3_painter.c`](../src/platform/platform_renderer_es3_painter.c),
+  [`src/platform/platform_gl_context.h`](../src/platform/platform_gl_context.h),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`tools/webgl_lane_audit.py`](../tools/webgl_lane_audit.py)
 
 ### WEB-GL1-001 - WebGL1 means no extensions
 
 - **Status:** Contract
 - **Applies to:** Web `--webgl1`
-- **Behavior:** The build pins both the minimum and maximum WebGL version to 1
-  and disables automatic extension enablement. It uses no VAOs, 32-bit element
-  indices, uniform blocks, sized GLES3 texture formats, BGRA upload, instancing,
-  derivative, depth-texture, or float-texture extensions.
-- **Required alternatives:** Re-point attributes when the base vertex changes;
-  split retained ranges into 16-bit base windows; use plain uniforms and ES2
-  formats; convert ToriDraw ARGB pixels to RGBA before upload. The world texture
-  atlas is pinned to 2048x2048 (256 slots) even when the browser reports a
-  larger limit.
+- **Behavior:** This renderer uses no VAOs, 32-bit element indices, uniform
+  blocks, sized GLES3 texture formats, BGRA upload, instancing, derivative,
+  depth-texture, or float-texture extensions, and the build disables automatic
+  extension enablement. The build no longer pins the maximum WebGL version to 1
+  -- it cannot, since the module also contains a WebGL2 renderer (WEB-GL2-000)
+  -- so this renderer's ceiling is checked in its sources by
+  `tools/webgl_lane_audit.py` instead of by the link. It still RUNS on a WebGL1
+  context: `ToriRS_GLContext_Create` is told `TORIRS_GL_CLIENT_ES2` and SDL asks
+  the browser for WebGL1 by name.
+- **Required alternatives:** those of ANDROID-GLES2-001, because it is that
+  renderer: 65,536-vertex pages selected by re-pointing the attributes, plain
+  uniforms and ES2 formats, ToriDraw ARGB swizzled to RGBA at upload, a
+  2048x2048 world atlas (256 slots) whatever limit the browser reports.
 - **Also absent, and not obvious:** `GL_UNPACK_ROW_LENGTH`. It is a
   GLES3/desktop pixel-store parameter, so a sub-rectangle of a wider CPU buffer
   cannot be handed to `glTexSubImage2D` in place — the rows must be packed into
@@ -861,10 +1210,448 @@ one lane only.
   bug in it cannot hide on the host nobody tests.
 - **Reason:** The renderer must work on a conforming WebGL1 implementation,
   rather than only on browsers that happen to expose a desktop-like extension
-  set.
+  set. It is also the Android lane's renderer, where the target genuinely is
+  ES 2.0 with no extensions, so a WebGL2-shaped fix landing here would break a
+  phone. The modern feature set has its own renderer (WEB-GL2-000).
+- **Browser specifics the shared code does not see:** depth and stencil are
+  fixed when the SDL WINDOW is created (SDL's emscripten backend chooses its
+  EGL config there), so `platform_sdl2.c` asks for depth 24 and stencil 0 on
+  this lane; `ToriRS_GLContext_SetSwapInterval` is a no-op here because
+  emscripten's `eglSwapInterval` re-times the main loop, which `main.c` owns;
+  and no `glGetError` runs per frame, because in a browser it is a synchronous
+  round trip to the GPU process.
 - **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
-  [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
-  [`3rd/trspk/webgl1/`](../3rd/trspk/webgl1/)
+  [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
+  [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
+  [`src/platform/platform_gl_context_sdl.c`](../src/platform/platform_gl_context_sdl.c)
+
+### ANDROID-GLES2-001 - The GLES2 renderer, with no extensions
+
+- **Status:** Contract
+- **Applies to:** Android `--gles2` / `--gles2-zbuffer`; Web `--webgl1` /
+  `--webgl1-zbuffer` (WEB-GL1-000)
+- **Behavior:** The GPU path on both lanes is
+  `platform_renderer_es2_{core,ui,painter,zbuffer}.c` -- OpenGL ES 2.0
+  core and nothing else. It is not a build of the GL3 renderer, and it replaced
+  the WebGL1 fork of that renderer on both hosts. Its retained model is
+  the D3D9 renderer's (WINDOWS-D3D9-CORE-001 / -ZBUFFER-001 / -UPLOAD-001 /
+  -2D-001), because that is the model that already answers a 2013 phone's
+  questions:
+  - geometry baked once into 65,536-vertex pages (Batch16 for the scene, a
+    paged arena otherwise), addressed with `uint16` page-local indices; the
+    page is selected by re-pointing the vertex attributes, never by a
+    base-vertex draw or a 32-bit index;
+  - one 2048x2048 world atlas for every texture, scrolling ones included. The
+    vertex (`TRSPK_VertexGLES2`, 28 bytes) carries its tile and scroll bytes and
+    the fragment shader wraps/clamps the local coordinate per fragment (the GL3
+    formula), so the world pass binds one texture and the index stream is never
+    split by texture;
+  - on the depth path a pose whose faces are all opaque/cutout is drawn as an
+    array range (`glDrawArrays`, no indices), coalesced with its neighbours;
+    only mixed poses go through per-page index buckets and only genuinely
+    blended faces are sorted. Opaque faces run a fragment shader that cannot
+    `discard`, so tile-based GPUs keep early depth rejection for them;
+  - the 2D stack is a retained sprite atlas, `GL_LUMINANCE_ALPHA` font atlases,
+    one streamed vertex ring appended at the head, and a two-sampler rotmask
+    draw. Widget models carry the view depth in the vertex's w for
+    perspective-correct interpolation through the UI program.
+- **Required alternatives (the GLES2 ceiling):** no VAOs (attribute pointers
+  re-issued per (buffer, page)), no buffer mapping (glBufferData orphaning +
+  glBufferSubData at a ring head), no `GL_UNPACK_ROW_LENGTH` (packed staging
+  rows), no sized internal formats, no BGRA (ARGB swizzled at upload, vertex
+  colour stored in RGBA byte order), no uniform blocks. NPOT textures are used
+  only with `CLAMP_TO_EDGE` and no mipmaps, which core ES2 permits.
+- **Flags:** `--gles2` and `--gles2-zbuffer` exist only under
+  `TORIRS_HAVE_GLES2` off the web; the browser spells the same renderer
+  `--webgl1` / `--webgl1-zbuffer`. Each lane refuses the other's spelling by
+  name rather than aliasing it, so a device manifest carrying
+  `arg=--webgl1-zbuffer` must be edited to `--gles2-zbuffer`.
+  `make lane-check PLATFORM=android` forbids `TORIRS_HAVE_GL3`, `TORIRS_GL_ES2`
+  and any `webgl1` object on the command line.
+- **Verification:** `grep -c "GL_OES_\|GL_EXT_\|glGetString(GL_EXTENSIONS)"`
+  over the four `.c` files is zero; `TORIRS_PERF=1` on the device reports
+  `gl_draw_calls` in the tens for a settled scene under `--gles2-zbuffer` and
+  `gl_static_vbo_upload_bytes` at zero once the scene is built.
+- **Sources:** [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`3rd/trspk/gles2/gles2_vertex.h`](../3rd/trspk/gles2/gles2_vertex.h)
+
+### ANDROID-INPUT-001 - A finger's tap is a press and a release in one frame
+
+- **Status:** Fixed 2026-09-02
+- **Applies to:** Every touch backend (`input/torirs_touch.c` pushes move,
+  down and up together for a tap); a mouse clicked faster than a frame too
+- **Behavior:** Every 2D widget was dead to a tap while a long press (a right
+  click) worked; then, once taps worked, an inventory tap could drop the item.
+- **Cause or reason:** `UITree_InputUpdate` fires a component's on_op/on_click
+  on the DOWN (press-edge click) and suppresses the release; the bridge in
+  `uitree_interact.c` returned only the UP's result and so lost the click,
+  and the press-click latch that swallows the matching release stayed armed
+  for a release that had already happened, swallowing the NEXT tap. The
+  drop: the inventory grid's slot on_op is the SHIFT-CLICK handler, bound
+  only while `keyheld(shift)` -- a soft keyboard's synthesised modifier with
+  a lost release makes that true for the whole session.
+- **Rules:** the bridge carries a press-edge click across a same-frame UP;
+  the latch arms only while the button is still held; `ClientActivity` drops
+  SHIFT/CTRL/ALT that come from the virtual keyboard. Tests:
+  `test_same_frame_press_release_clicks`, `test_touch_swipe_scrolls_layer`
+  (`make -C src test-uitree`).
+- **Swipe-to-scroll:** `UIInteraction::touch_scroll` (from `App.touch_ui`):
+  a HELD left press inside a layer that needs vertical scrolling scrolls it
+  by the finger's travel and presses nothing beneath; a tap still clicks.
+- **Levers:** `TORIRS_TOUCH_DEBUG=1` (touch -> canvas mapping, every key edge),
+  `TORIRS_LOGIN_DEBUG=1` (`ui_click: hovered/clicked`),
+  `TORIRS_CLICK_DEBUG=1` (`invclick:` rows, `clickdbg: send op`).
+
+### ANDROID-INPUT-001 - A feedback overlay must be pass-through, and the touch overlay test must know the game's own windows
+
+- **Status:** Fixed 2026-09-02
+- **Applies to:** every touch lane (Android; a desktop with TORIRS_TOUCH_UI)
+- **Behavior:** On the mobile gameframe a TAP on the top-left stones (logout,
+  chat toggle) ran nothing while a LONG PRESS on the same pixel worked, and a
+  finger dragging a list or window turned the camera instead of the widget.
+- **Cause 1:** `UIELEM_BUILTIN_INKWELL`, the touch ripple, is a 64x64 late
+  root parked at the canvas origin and was missing from the pass-through
+  switch in `UITree_ComponentIsPassThrough`. A later root's hit beats an
+  earlier one, so it won every hit test over that corner. The minimenu builds
+  from components carrying ops and never sees it, which is why the long press
+  still worked. `MULTIWAY` and `REBOOT_TIMER` were missing too.
+- **Cause 2:** the touch layer's overlay test (`ToriRS_TouchSetOverlayTest`)
+  was answered by `App_ChromePointerOwned`, which knows only the debug chrome
+  and the plugin panel. Every drag starting over the viewport was therefore a
+  camera drag. It now answers `App_PointerOwnedByUi` -- chrome, or anything
+  `app_world_mouse_gate` refuses -- so the drag and the click agree about who
+  owns a pixel.
+- **Rule:** a node that is only feedback needs an entry in that switch (the
+  file says so; the click cross carries the same warning). Anything asking
+  "is this point the world" asks `app_world_mouse_gate`, not a chrome test.
+- **Verification:** `make -C src test-uitree`
+  (`test_feedback_overlay_never_takes_a_click`, which asserts the predicate
+  directly because the test host never reports the marker visible). On device:
+  `TORIRS_HIT_TRACE=1` names the node under a tap, `TORIRS_TOUCH_DEBUG=1`
+  prints `touch: drag ... button=LEFT(widget) ... overlay=1`.
+
+### ANDROID-GLES2-003 - The fourth vertex attribute slot is shared, and the rotated-mask draw must leave it enabled
+
+- **Status:** Fixed 2026-09-02
+- **Applies to:** Every GLES2 lane (Android, and the web build that shares
+  `platform_androidarmv7_renderer_opengles2_*`)
+- **Behavior:** The minimap terrain and the compass drew nothing, on every
+  identity and every UI path, with two rotated-mask draws per frame, live
+  textures and no GL error. The disc showed the 3D world through it.
+- **Cause or reason:** The enable-once attribute scheme (2ad46de3b, 2026-09-01)
+  put the world's texinfo, the UI's sampler select and the rotated-mask
+  program's `a_mask_texcoord` on ONE attribute index (the static assert in
+  `platform_renderer_es2_core.c`). `gles2_bind_rotmask_stream` kept its
+  older line that switched "the unused texinfo array" off for this draw, and
+  re-enabled the mask uv only when arriving from the UI layout. Arriving from
+  the world layout -- every frame on the phone, the minimap being the first 2D
+  draw after the world pass -- the mask uv array stayed disabled, the shader
+  read the constant (0,0), an opaque mask corner, and discarded every
+  fragment.
+- **Rule:** the shared slot is enabled at init and by every layout; a layout
+  switch may re-point it, never disable it. The Adreno 320 note about a stray
+  enabled array applied only while the mask uv had its own index.
+- **How it was found:** `TORIRS_GLES2_DEBUG=1` shows `rotmask 2.0` draws per
+  frame; a one-shot print of each rotmask command (rect, anchors, sprite and
+  mask sizes, opaque pixel counts, texture ids) showed identical, sane inputs
+  on both identities, which left the draw itself; `TORIRS_GLES2_UI_DEFER=0`
+  failed the same way, which left the stream binding.
+
+### ANDROID-GLES2-002 - The dual-core lane runs the world's model stage on the second core
+
+- **Status:** Opt-in contract
+- **Applies to:** Android `--gles2-dualcore` / `--gles2-dualcore-zbuffer`
+  (`TORIRS_HAVE_GLES2_DUALCORE`, the android lane only)
+- **Behavior:** The GLES2 renderer (ANDROID-GLES2-001), unchanged, driven
+  through `platform_androidarmv7_renderer_opengles2_dualcore.c`: a persistent worker thread
+  replays the frame's world pass on a scratch view of the scene
+  (`ToriDraw_SceneScratchViewNew`) and computes each model's pose, cull,
+  projection, pick test and face sort one command ahead of the draw. The draw
+  thread keeps the frame bus, the vertex-stream gather, the actor bakes, the
+  interface and every GL call. The renderer consults a `GLES2ModelStageSource`
+  when one is installed (`ToriRS_GLES2::model_stage_source`) and computes the
+  stage itself when not, so `--gles2` is byte for byte what it was.
+- **Cause or reason:** The target phone (MSM8960: two Krait cores, an Adreno
+  320 measured ~2% busy) spends its whole frame on one thread; the per-model
+  CPU stage is about a third of it and touches no GL. Measured on the XT1060
+  while the client played: both cores online at 1.73 GHz, the process using
+  1.0 CPU.
+- **Ordering:** The worker is woken at the draw's first `BEGIN_3D`, after the
+  frame's scene events (model and animation loads, which write models) have
+  run, and joined before `ToriRS_FrameEnd`, which frees the scene's pending
+  poses. Results are published per model with a release store and read with
+  an acquire; the model pose the worker applied is what the draw's bake reads.
+  A frame that exhausts the results arena finishes on the draw thread (the
+  inline stage is complete), and the arena grows for the next. The two
+  threads BALANCE by claiming: each model is claimed (a CAS per slot) by
+  whichever thread reaches it first, so a draw thread that finds result i
+  unpublished stages i itself on the scene's own bench instead of waiting,
+  and the worker publishes a placeholder for it. Without this the frame was
+  paced by the worker's pass (measured 7.8 ms/frame: it also pays the frame
+  bus), and the draw stalled on half of all models. The worker also HANDS
+  OFF a slot whenever the draw is within `TORIRS_GLES2_DUALCORE_LEAD`
+  (default 2) slots behind it, so the two never run in lockstep. Measured
+  on OSRS239 (draw thread CPU, simpleperf): 12.26 → 11.66 ms/frame, of
+  which ~1.2 ms is still the draw waiting: the worker's per-model cost
+  (it re-runs the frame bus) exceeds the draw's remainder. The next lever
+  is for the worker to publish the translated command with its result.
+- **Verification:** `make -C src test-gles2-dualcore-stage` (host, GL-free):
+  the stage on a scratch view against the stage on the scene -- cull, pick,
+  depth, sorted order -- interleaved, on both scene tiers, plus arena
+  exhaustion and view sync. On device: `TORIRS_GLES2_DUALCORE_DEBUG=1` prints
+  a line every 300 frames (`stalls`, `desyncs`, `exhausted-frames`,
+  `reprojected` should sit at or near zero); `TORIRS_GLES2_DUALCORE=0` is the
+  single-threaded control arm on the same binary.
+- **Per-scene, not per-process:** everything the stage reaches must live on
+  the scene it runs on. The radix sort's count tables were file statics until
+  2026-09-02; the frame thread (scene) and the worker (view) scattering
+  through one table at once scrambled both face orders (visible as flicker
+  on OSRS239) and, through a foreign face index in the priority partition,
+  a SIGSEGV on the worker. `case_concurrent_sort` in the stage test holds
+  two benches sorting at once to a serial reference, and the makefile runs
+  the suite a second time with `TORIDRAW_SORT_BITONIC_MAX=4` so the host
+  takes the radix path the phone's neon32 lane takes past 64 keys.
+- **Limits:** A model that appears in two `DRAW_MODEL` commands of one frame
+  is not covered (the draw may bake it under the worker's second pose); the
+  walk emits each element once. Env-resolved `static` caches inside the
+  emitter and the kernels are settled by the warm-up frame(s)
+  (`TORIRS_GLES2_DUALCORE_WARMUP`, default 1) before the worker starts.
+- **Sources:**
+  [`src/platform/platform_androidarmv7_renderer_opengles2_dualcore.c`](../src/platform/platform_androidarmv7_renderer_opengles2_dualcore.c),
+  [`src/platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c`](../src/platform/platform_androidarmv7_renderer_opengles2_dualcore_stage.c),
+  [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h)
+  (`GLES2ModelStageSource`),
+  [`3rd/toridraw/toridraw.c`](../3rd/toridraw/toridraw.c) (scratch views),
+  [`src/render/torirs_frame.c`](../src/render/torirs_frame.c)
+  (`ToriRS_FrameBeginWorldOnly`)
+
+### ANDROID-AUDIO-001 - The device is OpenSL ES, and it stops with the activity
+
+- **Status:** Contract
+- **Applies to:** Android
+- **Behavior:** `platform_audio_opensles.c` opens an Android simple buffer
+  queue player and mixes `ToriRS_Mixer` on OpenSL ES's own callback thread,
+  four 20ms blocks in flight; the game thread submits under a plain mutex. It
+  is the SDL2 backend's shape (DESKTOP-AUDIO-001's callback mode), not the
+  browser's scheduled-block one, because a device callback is what keeps the
+  music continuous across the hundreds of milliseconds a world rebuild costs on
+  this hardware. Three things Android decides rather than the client:
+  - **OpenSL ES, not AAudio.** AAudio does not exist below API 26 and this
+    lane's floor is 21, on a 2013 armv7 phone. One backend serves every device
+    the APK installs on, and 80ms of queue is not a latency this client can
+    perceive -- an effect's trigger already arrived on a 600ms server tick.
+  - **22050Hz is asked for anyway.** No phone runs its mixer there, so
+    AudioFlinger resamples. The alternative is resampling every clip, voice and
+    synthesised music frame on the CPU this lane is shortest of, to hand the
+    platform something it will resample regardless.
+  - **The player is parked when the Surface goes.** The frame loop keeps
+    running with no Surface (the world ticks, the socket drains), so nothing
+    else in this lane would stop the sound and the client would sing from the
+    recents list. `PlatformAudio_Update` reads `PlatformAndroid_Window()` once
+    a frame and pauses/resumes the player; pause keeps the queue, so returning
+    is one call and no re-prime.
+
+  `SL_ANDROID_STREAM_MEDIA` is set explicitly, before Realize, through the one
+  interface OpenSL ES allows on an unrealized object -- it is what puts the
+  client under the volume rocker while it is in front.
+- **Verification:** on a device, with `TORIRS_AUDIO_TRACE=1` in the data root's
+  `env.txt`, `adb shell dumpsys media.audio_flinger` lists one **active** track
+  for the client's pid at `SRate 22050`, `Type 3` (music) and `UndFrmCnt 0`;
+  its `Server` position advances by ~22050 frames a second. Pressing Home flips
+  the same row to inactive and `P`, and its position freezes. On exit the
+  client's own ledger reports `stream 0 dropped / 0 starved`.
+- **Sources:** [`src/platform/platform_audio_opensles.c`](../src/platform/platform_audio_opensles.c),
+  [`src/platform/platform_audio_capture.c`](../src/platform/platform_audio_capture.c),
+  [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk)
+
+### ANDROID-UI-001 - A non-integer interface scale samples the canvas, and nearest deforms small text
+
+- **Status:** Contract
+- **Applies to:** Android (and any lane whose interface scale is not 100% or a
+  whole multiple)
+- **Behavior:** On the phone the minimap orbs' numbers came out misshapen --
+  a `9` with a squat loop, stems 1px on one digit and 2px on the next -- while
+  the same glyphs at 100% were exact.
+- **Cause or reason:** interface scale (device option 27) makes the CANVAS
+  smaller than the surface and the present scales it back up: 125% is
+  956x576 into 1196x720, a ratio of 1.251, so every fourth column and row is
+  duplicated. Device option 15 picks the sampler, and this phone had it stored
+  as `0` (nearest), which is what turns that duplication into a deformed
+  glyph. It is not a font bug and not an orb bug: the whole canvas is
+  resampled, and small green digits on a dark orb are just where the eye
+  catches it first.
+- **Verification:** on the device, in the data root's `preferences.ini`,
+  `[device_options] 15=0` with `27=125` reproduces it; `15=2` (the client's
+  own default -- bicubic in the cache's enum, `GL_LINEAR` in this renderer)
+  fixes it at the same scale, and `27=100` fixes it at the same sampler.
+  Screenshot the orbs with `adb exec-out screencap -p` and magnify: the
+  landscape content sits in a portrait frame, so crop first and rotate after.
+- **Note:** only the GLES2 lane reads the mode
+  (`ToriRS_GLES2_SetInterfaceScaleMode`). Android's software present stores it
+  in `PlatformWindow_SetInterfaceScaleMode` and its blit samples nearest
+  regardless, so a scaled software frame on this lane cannot be smoothed.
+- **Sources:** [`src/platform/platform_renderer_es2_core.c`](../src/platform/platform_renderer_es2_core.c),
+  [`src/platform/platform_android.c`](../src/platform/platform_android.c),
+  [`src/game/rs_cs2_host.c`](../src/game/rs_cs2_host.c)
+
+### ANDROID-DEVICE-001 - The battery and the link are Android's answers, and the pre-24 lane needs the broadcast
+
+- **Status:** Contract
+- **Applies to:** Android (every other lane keeps the seeded "100%, charging,
+  wifi")
+- **Behavior:** Three CS2 opcodes ask what the device's power and network are
+  -- `MOBILE_BATTERYLEVEL` (6524), `MOBILE_BATTERYCHARGING` (6525) and
+  `MOBILE_WIFIAVAILABLE` (6526). They used to push literals, so a phone at 8%
+  on cellular read as full and on wifi.
+- **Cause or reason:** only Java can answer. `ClientActivity` registers a
+  receiver for the sticky `ACTION_BATTERY_CHANGED` (which is why the first
+  report happens at boot rather than at the next percent) and, for the link, a
+  `registerDefaultNetworkCallback` on API 24+ and a `CONNECTIVITY_ACTION`
+  receiver below it. The pre-24 receiver is not optional: measured on an API 22
+  phone, a battery tick can be minutes away, and until one arrives the client
+  would keep reporting a link that is gone. Anything connected that is not
+  cellular counts as wifi -- what a script does with the answer is decide
+  whether the connection is the metered one.
+- **How it travels:** `nativeDeviceStatus` -> latest-value state under the
+  platform's lock -> `PlatformWindow_PollCommands` pushes
+  `TORIRS_CMD_DEVICE_STATUS` only when one of the three changes -> the app
+  calls `RS_CS2Host_SetDeviceStatus`. Level state, coalesced at the drain, for
+  the reason the keyboard inset is (ANDROID-INPUT-001's neighbour): a phone
+  reports its battery every percent, and a per-frame command for a value that
+  moves once a minute is noise in the record.
+- **Verification:** put `TORIRS_DEVICE_DEBUG=1` in the data root's `env.txt`,
+  then drive the battery service:
+
+  ```text
+  adb shell dumpsys battery set level 42     -> device status -> battery 42% ...
+  adb shell dumpsys battery set status 3     -> ... charging 0 ...
+  adb shell dumpsys battery reset            -> back to the real reading
+  ```
+
+  `adb shell svc wifi disable` is **not** a way to test the link half: on API
+  22 the shell uid is refused and `settings get global wifi_on` stays `1`, so
+  the absence of a report proves nothing.
+- **Sources:** [`android/src/main/java/com/torirs/client/ClientActivity.java`](../android/src/main/java/com/torirs/client/ClientActivity.java),
+  [`src/platform/platform_android.c`](../src/platform/platform_android.c),
+  [`src/game/rs_cs2_host.c`](../src/game/rs_cs2_host.c),
+  [`src/cmd/cmdbus.h`](../src/cmd/cmdbus.h)
+
+### ANDROID-CHROME-001 - There is no chrome executor, so a plugin has no launcher
+
+- **Status:** Open gap
+- **Applies to:** Android (and any other lane whose chrome falls back to
+  BUFFER, but on desktop the pop-out column covers for it)
+- **Behavior:** a screen-space plugin overlay draws on the phone -- the
+  performance display is the one verified on the XT1060 -- but there is no
+  plugin rail and no way to open a plugin PAGE. `Manage Plugins`, the XP
+  tracker panel and every other windowed plugin are unreachable, with nothing
+  on screen saying so.
+- **Cause or reason:** three things stack, and only the third is Android's.
+  1. `platform.mk` leaves `PLATFORM_CHROME_EXEC_SRC` empty for this lane
+     (`platform.mk:839`), so `torirs_chrome_exec.c` binds its internal BUFFER
+     sink. This is deliberate and enforced: `LANE_FORBID_android` names
+     `TORIRS_CHROME_EXEC_WEB_AVAILABLE`,
+     `TORIRS_CHROME_EXEC_BROWSER_AVAILABLE` and both sources, and
+     `CHROME_EXEC_FORBID_LEGACY` names the deleted
+     `ui/torirs_chrome_exec_android.c`. The WebView that used to be here was
+     removed for the memory and thread cost measured in
+     `docs/android_architecture.md`.
+  2. The rail's page allocation is **presenter-owned** --
+     `app->plugin_rail_layout` is filled only by an executor that publishes
+     `ToriRSChromeRailIntent` (`torirs_chrome_exec_web.c`,
+     `torirs_chrome_exec_winbrowser.c`, `platform_win32gdi.c`). BUFFER
+     publishes none, so there is no rail geometry to press.
+  3. The engine's second launcher, the pop-out nav column, needs
+     `[role:plugin_nav_column]` (interface 728 child 6) **on screen**. The
+     mobile toplevel mounts 728 hidden, and a hidden column hands its
+     destinations back to the rail by design
+     (`revconfig/osrs239/osrs239_dat2_cache.ini`,
+     `src/plugin/torirs_plugin_popout_nav.u.c`). That is why Linux -- BUFFER
+     chrome too -- is fine and the phone is not: on desktop the column is
+     visible and does the job.
+  4. The third launcher is a profile-authored component carrying
+     `option_action=PLUGIN_PANEL`, which `app_minimenu.c` turns into
+     `app_plugin_window_set_open`. Only `revconfig/rs245_2lc` authors one
+     (`manage_plugins_button`, bottom of the logout tab). The osrs239 dat2
+     profile authors none, because on desktop it has the nav column.
+- **What is NOT missing:** the window itself. BUFFER is, in
+  `torirs_chrome_exec.h`'s words, "an internal sink for that stream because
+  the same model already draws itself in the game canvas" -- `app->plugin_ui`
+  is a full `ToriRSChrome` with widgets, dropdowns and focus, and
+  `app_chrome.c` emits its primitives into the frame. So the missing piece is
+  a **launcher**, not a WebView port, which is a much smaller job than the
+  removed executor was. `TORIRS_CMD_PLUGIN_CHROME_TOGGLE` is already wired
+  from the command bus to that call in `app_frame.c` and has **no producer
+  anywhere in the tree**; a caller for it is the smallest launcher there is.
+  (`ui/torirs_chrome_panel_draw.c` is NOT this path -- it transforms
+  plugin-authored panel primitives, and today only its test calls it.)
+- **A fourth launcher now exists, on the Stone Drawer.** The mobile gameframe
+  (`plugin/plugins/mobile_gameframe.c`) carries a third switch beside its chat
+  and keyboard switches -- the OSRS wrench, sprite 785 -- which calls
+  `client.plugin_window_show`. A frame that has replaced the lane's chrome
+  inherits the ways into the client's own windows the way it already inherits
+  the tab strip. Verified on the XT1060 on 2026-09-19: tapping it logs
+  `chrome: plugin window executor = buffer (default)` and the roster draws
+  in-canvas with working toggles.
+- **What is still open:** the switch is on the STONE DRAWER, and
+  `preferred_frame=auto` on an OldSchool cache deliberately means the cache's
+  own mobile toplevel (interface 601), not this frame -- "selecting this frame
+  on an OldSchool lane is how a player gets that look back". So the phone's
+  default configuration still has no launcher. Reaching it there wants the
+  third kind: an `option_action=PLUGIN_PANEL` component authored in
+  `revconfig/osrs239` for the mobile toplevel, the way `revconfig/rs245_2lc`
+  authors `manage_plugins_button`.
+- **And a smaller one:** on a phone the plugin window covers the switch row, so
+  the switch cannot close what it opened. The window's own title-bar X does.
+- **Verification:** boot the phone lane with `TORIRS_PLUGINS=1` and a plugin
+  set that has both kinds. With `preferred_frame=auto` the screen-space overlay
+  appears, no rail appears, and there is no way to open a page.
+  `TORIRS_FRAME_ROLE_AUDIT=1` prints which frame won; the Stone Drawer is
+  `preferred_frame=mobile-gameframe/stone-drawer` in `preferences.ini`, and the
+  id must be **qualified** -- a bare `stone-drawer` is rejected with
+  `plugin: invalid saved gameframe`.
+- **Sources:** [`src/platform/platform.mk`](../src/platform/platform.mk),
+  [`src/platform/platform_check.mk`](../src/platform/platform_check.mk),
+  [`src/app.h`](../src/app.h),
+  [`src/ui/torirs_chrome_panel_draw.h`](../src/ui/torirs_chrome_panel_draw.h),
+  [`src/plugin/torirs_plugin_popout_nav.u.c`](../src/plugin/torirs_plugin_popout_nav.u.c),
+  [`docs/android_architecture.md`](android_architecture.md)
+
+### ANDROID-IO-001 - Plugins can come from io_server; they do not have to be pushed
+
+- **Status:** Contract
+- **Applies to:** Android (and every other native lane -- this is the shared
+  executor, not a browser path)
+- **Behavior:** with `TORIRS_IO_SERVER=<host>[:<port>]` in the data root's
+  `env.txt`, or `[io] host=/port=` in the boot manifest, the phone loads
+  `script/plugins/plugins.ini`, the Lua each entry names, and each shipped
+  asset over HTTP as a plugin asks for it. `tools/android_push_data.sh` is
+  then only the cache.
+- **Cause or reason:** `stored_file_read` in `platform_x_io.c` has two legs --
+  the data root, then `GET /boot/<path>` on the named server -- and
+  `platform_x_http.c` is linked on this lane. Nothing about leg 2 is
+  browser-only; the web lane is simply the one that has always had to use it.
+  Nothing is written back to the data root, deliberately: a local copy is how a
+  device ends up running plugins nobody has looked at in weeks. That is not
+  hypothetical -- on 2026-09-19 this phone was loading a performance overlay
+  from a copy pushed on 2026-09-03, whose Lua predated the V2 plugin definition
+  the client had since started requiring, and the only symptom was "plugin
+  table must declare a non-empty V2 id".
+- **Precedence:** `TORIRS_IO_SERVER` wins over the manifest and is remembered
+  as such (`io_server_from_env`), so a one-off debugging run cannot be silently
+  undone by a manifest read afterwards. An empty manifest host means "no
+  opinion", not "off". Both sides default to port 8088.
+- **Verification (XT1060, 2026-09-19):** rename `script/plugins` away on the
+  device, point `TORIRS_IO_SERVER` at the Mac, boot. `io_server -v` logs
+  `200 ./script/plugins/plugins.ini`, then `performance_display.lua` (11456
+  bytes) and every asset, **each fetched exactly once**, and the overlay draws.
+- **Sources:** [`src/platform/platform_x_io.c`](../src/platform/platform_x_io.c),
+  [`src/platform/platform_x_io.h`](../src/platform/platform_x_io.h),
+  [`src/bootmanifest/bootmanifest.c`](../src/bootmanifest/bootmanifest.c),
+  [`src/ioserver/io_server_main.c`](../src/ioserver/io_server_main.c)
 
 ### GPU-PROJ-001 - The projection is a scale, never a field of view
 
@@ -876,7 +1663,7 @@ one lane only.
   from that same scale, resolved through
   [`3rd/toridraw/graphics/projection.h`](../3rd/toridraw/graphics/projection.h)
   so the rasterizer and the GPU cannot disagree about what the camera asked for.
-  `trspk_compute_pass_matrices` takes the camera's `proj_mode`, `proj_scale`,
+  `trspk_compute_pass_matrices` takes the camera's `projection_mode`, `projection_scale`,
   `fov_rpi2048` and `parallel_zoom16` and does that resolution.
 - **What was wrong:** It previously took a hardcoded 90-degree field of view,
   which multiplied a hardcoded `512`. That is exactly right when the camera
@@ -890,7 +1677,7 @@ one lane only.
   can only ever approximate the rasterizer it is meant to match. This is the
   same finding as the Inferno "orange wedge" (`docs/ORANGE_WEDGE.md` §11-12),
   reaching the GPU backends.
-- **Parallel projection:** `TORIDRAW_PROJ_MODE_PARALLEL` now builds an
+- **Parallel projection:** `TORIDRAW_PROJECTION_MODE_PARALLEL` now builds an
   orthographic matrix from `parallel_zoom16` instead of silently projecting
   perspective.
 - **Verification:** Capture the same scene on Soft3D and on the GPU backend and
@@ -921,84 +1708,41 @@ one lane only.
   allocation and one 64 MB static vertex upload; window 1 (steady) carries
   neither, and 120 frames produce 120 index uploads.
 - **Sources:** [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c),
+  [`src/platform/platform_renderer_es2_core.c`](../src/platform/platform_renderer_es2_core.c),
   [`src/perf/torirs_perf.h`](../src/perf/torirs_perf.h)
 
-### WEB-GL1-002 - 16-bit indices cost a draw call per visible model
+### WEB-GL1-002 - 16-bit indices used to cost a draw call per visible model
 
-- **Status:** Open - measured, partially mitigated
+- **Status:** Resolved by replacing the renderer (WEB-GL1-000)
 - **Applies to:** Web `--webgl1`
-- **Behavior:** WebGL1 draws with `GL_UNSIGNED_SHORT` and has no
+- **Behavior, as it was:** WebGL1 draws with `GL_UNSIGNED_SHORT` and has no
   `glDrawElementsBaseVertex`, so a draw's vertices must lie inside one
   65536-vertex window and the base is folded into the `glVertexAttribPointer`
-  offsets. `trspk_webgl1_split16` groups consecutive triangles into one draw
-  for as long as the span between the lowest and highest vertex index they
-  touch stays inside that window.
-- **A draw call should cost a state change, and here it costs an arena jump.**
-  The renderer is otherwise built the right way — static models baked once into
-  retained buffers, dynamic elements baked per frame, the index chain built from
-  face order at render time, and draws split at state boundaries. A settled
-  osrs239 scene produces exactly **one** draw range, i.e. one state config for
-  the whole world pass. It then submits ~48,900 triangles as **2,878 draw
-  calls**, and every one of those extra splits is the 16-bit window, not a state
-  change.
-- **The cause is arena locality, measured** (`TORIRS_GL_CHUNK_DEBUG=1`, settled
-  osrs239 boot). Distance between consecutive drawn triangles' arena indices:
-
-  | delta | count | |
-  |---|---|---|
-  | < 64 | 29,432 | within one model |
-  | < 1K | 16,157 | within one model |
-  | < 8K | 209 | |
-  | < 64K | 212 | |
-  | >= 64K | **2,875** | forces a split |
-
-  94% of transitions group perfectly; it is the model-to-model boundary that
-  fails, and it fails essentially every time (2,875 of 2,877). The drawn models
-  span the entire 1,333,334-vertex arena (bases 582..1,333,010), so painter
-  order — which is distance order — is uncorrelated with arena order, which is
-  load order.
-- **What does not fix it:** a better splitter (the runs it can merge, it already
-  merges), and baking into 64K-sized VBOs (painter order would hop among 21
-  buffers just as randomly, for the same ~2,878 switches). Reordering draws is
-  not available either: painter order is the correctness constraint.
-- **What would fix it:** allocating static arena slots with *spatial* locality
-  rather than in load order, so that a spatial traversal is also a local arena
-  traversal. Then a run stays inside one 64K window across many models and the
-  draw count falls toward the state-change count, which is 1. This is not done.
-- **Paging the arena was tried and is worse.** Setting the arena page to 65536
-  (as D3D9 does at `D3D9_VBO_PAGE`, for the identical 16-bit limit) lets the
-  base be derived from the triangle's page in one pass with no search, which
-  sounds strictly better. It is not: a page boundary is an arbitrary place to
-  cut, while the sliding window merges any run that happens to fit wherever it
-  starts. Measured on the same scene, **2,990 chunks paged versus 2,878
-  searching**. `trspk_webgl1_split16_paged` is kept for the arena-invariant
-  check it makes possible, and is not what the renderer uses. D3D9 needs the
-  paging because fixed-function `SetStreamSource` binds a page; WebGL1 folds
-  the base into pointers and does not.
-- **What was mitigated:** the per-chunk state. Each chunk used to issue twelve
-  GL calls (an array-buffer bind, five `glEnableVertexAttribArray`, five
-  `glVertexAttribPointer`, an element-buffer bind); only the five pointers carry
-  the base vertex. The buffer binds and enables are now hoisted out of the draw
-  loop, taking the frame from ~37,400 GL calls to ~17,300. Every GL call on this
-  host is a crossing out of wasm into JavaScript.
-- **Measured effect:** under SwiftShader (headless software GL) the `render`
-  stage moved 4.97ms -> 4.82ms of a 6.9ms frame, so on that host rasterization
-  dominates and the call reduction is small. The saving is expected to matter
-  more on a real GPU, where the driver call is the cost rather than the
-  fragments; that has not been measured here and should not be assumed.
-- **Do not re-bake the visible set per frame to get around this.** It would make
-  the indices sequential and collapse the draw count, and it is the wrong trade:
-  it throws away the retained static buffers that WINDOWS-D3D9-UPLOAD-001 and
-  GPU-UPLOAD-001 exist to protect, and pays ~7 MB/frame of vertex upload
-  (146K vertices x 48 bytes) to save GL calls. Static geometry is baked once;
-  only dynamic elements are baked per frame. Fix the allocation order instead.
-- **Diagnostic:** `TORIRS_GL_CHUNK_DEBUG=1` dumps one frame's chunking —
-  chunks, triangles per chunk, single-triangle chunks, and how many 64K windows
-  the bases span. Use it before changing anything here; the obvious metric
-  (whether adjacent chunks share a base) is tautologically zero, because the
-  splitter has already merged any that would.
-- **Sources:** [`3rd/trspk/webgl1/webgl1_index16.c`](../3rd/trspk/webgl1/webgl1_index16.c),
-  [`src/platform/platform_sdl2_renderer_gl3.c`](../src/platform/platform_sdl2_renderer_gl3.c)
+  offsets. The previous WebGL1 renderer baked static models into one
+  1.3M-vertex arena in LOAD order and then, every frame, scanned the
+  painter-ordered 32-bit index list for runs that fit a window
+  (`trspk_webgl1_split16`). A settled osrs239 scene had exactly one state
+  configuration for the whole world pass and still went out as **2,878 draw
+  calls**, because painter order is distance order and was uncorrelated with
+  arena order: 2,875 of 2,877 model-to-model transitions crossed a window.
+  Hoisting the buffer binds and attribute enables out of the loop took the
+  frame from ~37,400 GL calls to ~17,300 and no further.
+- **Resolution:** the GLES2 renderer never has this problem to solve. Geometry
+  is baked once into 65,536-vertex PAGES (Batch16 for the scene, a paged arena
+  for the rest) and a slot never crosses a page, so a draw's page is decided at
+  placement and the index stream is page-local `uint16` from the start -- no
+  re-expression, no search. On the painter path the static models being drawn
+  are copied once into a resident 65,536-vertex window and indexed from it
+  every frame after, so the whole visible static set is ONE page; actors go
+  into a per-frame stream in sorted order. On the depth path opaque poses are
+  array ranges with no indices at all. Draws are issued only at a page change
+  or the plain/cutout program boundary.
+- **Verification:** `TORIRS_GLES2_DEBUG=1` prints the census every 300 frames
+  (`gles2 draws/frame: world N ...`); `TORIRS_PERF=1` reports
+  `gl_draw_calls`. Both should read in the tens for a settled scene.
+- **Sources:** [`src/platform/platform_renderer_es2_core.h`](../src/platform/platform_renderer_es2_core.h),
+  [`src/platform/platform_renderer_es2_painter.c`](../src/platform/platform_renderer_es2_painter.c),
+  [`3rd/trspk/core/trspk_batch16.h`](../3rd/trspk/core/trspk_batch16.h)
 
 ### GPU-CAPTURE-001 - The generic BMP dump is a Soft3D image
 
@@ -1007,8 +1751,9 @@ one lane only.
 - **Behavior:** `TORIRS_EXIT_BMP` writes the framebuffer produced by
   `App_Render`, not the pixels presented by a GPU backend. It can look correct
   while GL/WebGL is black or channel-swapped.
-- **Verification:** Use `TORIRS_GL3_READBACK=<path>` and optionally
-  `TORIRS_GL3_READBACK_FRAME=<n>` to capture the actual GPU framebuffer.
+- **Verification:** Use `TORIRS_GL3_READBACK=<path>` (desktop) or
+  `TORIRS_GLES2_READBACK=<path>` (web, Android), optionally with the matching
+  `*_READBACK_FRAME=<n>`, to capture the actual GPU framebuffer.
 - **Reason:** This distinction previously hid a missing ARGB-to-RGBA conversion
   on rotated/masked sprite uploads.
 - **Detail:** [Web sprite pixel conversion](web_build.md#sprite-pixels-are-argb-gl-wants-rgba)
@@ -1037,6 +1782,80 @@ one lane only.
 - **Reason:** These are browser autoplay and memory-lifetime constraints, not
   game-thread scheduling choices.
 - **Source:** [`src/platform/platform_audio_wasm.c`](../src/platform/platform_audio_wasm.c)
+
+### WEB-AUDIO-002 - The schedule depth follows the frame rate
+
+- **Status:** Implemented
+- **Applies to:** Web build
+- **Behavior:** This is the only backend whose device is fed from the frame
+  loop instead of a device callback, so `PlatformAudio_Update` refills the
+  WebAudio schedule to a target lead however many blocks that takes, and the
+  lead itself follows a decaying peak of the measured Update interval (floor
+  `WASM_AUDIO_LEAD_MIN` 80 ms, ceiling `WASM_AUDIO_LEAD_MAX` 500 ms). A stall
+  longer than the lead is still audible as a gap, because nothing runs to
+  refill it; `PlatformAudioStats.underruns` counts those.
+- **Reason:** A fixed one block per Update caps playback at one block of audio
+  per frame. With a block of one 50 Hz tick that breaks even at exactly 50 fps
+  and starves below it, so every frame under 50 fps chopped the audio. A fixed
+  lead has the same shape of problem one level up: it is only ever right for
+  one frame rate.
+- **Verification:** with the schedule driven at a fixed rate, frames handed to
+  the device over wall-clock seconds stays at 1.0x from 60 Hz down to 10 Hz
+  (before: 0.80x at 40, 0.61x at 30, 0.20x at 10) and
+  `PlatformAudioStats.underruns` stays at 0. `queue_min_frames` is 0 in any run
+  -- the first Update always finds an empty schedule -- so `underruns` is the
+  metric to read, not that one.
+- **Source:** [`src/platform/platform_audio_wasm.c`](../src/platform/platform_audio_wasm.c)
+
+### AUDIO-THREAD-001 - Two backends render on a device thread
+
+- **Status:** Implemented
+- **Applies to:** Desktop (SDL2) and Android (OpenSL ES)
+- **Behavior:** `ToriRS_Mixer_Render` is called from SDL's audio thread and from
+  OpenSL ES's callback thread, at the device's cadence rather than the frame
+  loop's. Each backend owns the exclusion and publishes it through
+  `PlatformAudio_Exclusion`; the web and null backends render on the frame loop
+  and hand back a zeroed handle. The rule is wider than "the backend locks its
+  own entry points", because Render calls a pull source's `render` with the
+  game's own ctx: **everything the device thread can reach is mutated only under
+  that exclusion**, which includes the music player's synth and soundbank.
+  `ToriRS_Music_SetExclusion` is how it gets there.
+- **Reason:** SDL2 moved from `SDL_QueueAudio` to callback mode so a loading
+  stall could not drain the queue, and the Android backend copied that shape.
+  Neither is a thread this tree creates, which is why the mixer's header claimed
+  for a while that there were none.
+- **Two things it forbids, both of which were bugs:**
+  - Render must not allocate. `ToriRS_Mixer_Reserve` and
+    `ToriRS_MidiSynth_Reserve` size the scratch at Init instead; before them the
+    first song of a run `realloc`'d inside the audio callback.
+  - Applying a command must not allocate inside the lock. `ToriRS_Mixer_Stage`
+    copies each ASSET_LOAD's PCM on the game thread first, so a scene rebuild's
+    worth of them does not hold the device out for every memcpy.
+- **Source:** [`src/audio/torirs_mixer.h`](../src/audio/torirs_mixer.h),
+  [`src/platform/platform_audio_sdl2.c`](../src/platform/platform_audio_sdl2.c),
+  [`src/platform/platform_audio_opensles.c`](../src/platform/platform_audio_opensles.c)
+
+### AUDIO-MUSIC-001 - A song is retired before the next one's loader runs
+
+- **Status:** Implemented
+- **Applies to:** All platforms
+- **Behavior:** `ToriRS_Music_Tick` releases the outgoing song and closes its
+  stream as soon as a request is pending with no fade-out left, before
+  `ToriRS_Music_TakeLoadRequest` will hand the loader anything. app_tick.c calls
+  them in that order, so the loader still starts on the same tick.
+- **Reason:** The loader grows the soundbank, and growing it `realloc`s
+  `bank->patches` and `bank->samples` -- while a live `ToriRS_MidiNode` holds raw
+  pointers into both (`node->patch`, `node->sound`). The fade path was already
+  safe, because TakeLoadRequest refuses while `fade_ticks > 0` and fade-end
+  releases. A fade-out of **zero** has no such tick, and that is every jingle
+  (`RS_Audio_Jingle` requests 0/0), so a jingle over a playing track moved the
+  arrays under the track's live notes. Not a threading bug -- it happened on
+  every lane.
+- **Verification:** `test_music_jingle_retires_outgoing_before_load` in
+  `src/audio/test/audio_test.c`. It fails four checks against the code before
+  this (the outgoing song is still current, its stream still open, no
+  ASSET_UNLOAD queued).
+- **Source:** [`src/audio/torirs_music.c`](../src/audio/torirs_music.c)
 
 ### WEB-NET-001 - Browser sockets require a WebSocket endpoint
 
@@ -1103,7 +1922,7 @@ make -C src io-server
 For Windows, use the repository toolchain through the matching wrapper:
 
 ```powershell
-./build_winxp.ps1 -Opt
+./build_winxp.ps1
 ./build_windows.ps1 -Opt
 ```
 

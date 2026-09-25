@@ -53,4 +53,8 @@ NetTransport_Free(struct NetTransport* t)
         t->vtable->free_(t);
 }
 
+/* Explicit test clock; only works for the in-process transport. */
+struct ToriRSServerEmbed;
+struct ToriRSServerEmbed* NetTransport_TestClock(struct NetTransport* t, unsigned long long now);
+
 #endif

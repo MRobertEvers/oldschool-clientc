@@ -1,0 +1,369 @@
+From d432e021221daa44a5b52b06a7487526f6b50e9d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 25 Aug 2026 02:19:35 -0500
+Subject: [PATCH] arm(dispatch): gouraud dispatch + branchless sort
+
+Measured, moving camera, 900 frames, best-of-4:
+
+  job 0824-234549-mg2010 [MERGED-gouraudsort]
+  ctl 64.38 ms   d_both 63.87 ms   -0.50 ms  -0.78%   2.5 sigma  PROBABLE
+
+Rungs: disp -0.62%, sortbl -0.65%, sum -1.27% vs measured both -0.78%.
+Sub-additive, consistent with the two touching the same path.
+
+2.5 sigma is probable, not confirmed. Needs a re-run before banking.
+Touches gouraud_tri_i686.S, which hunt/w7 also edits -- CONFLICTS with the
+prologue arm.
+
+NOT YET adversarially verified.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../gouraudhsllightness/gouraud_tri_i686.S    | 168 ++++++++++--------
+ .../triangles/toridraw_triangle_gouraud.u.c   | 117 +++++++++---
+ 2 files changed, 184 insertions(+), 101 deletions(-)
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index d8b79f6d2..e5782567c 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -354,28 +354,6 @@
+ 	movl	%ebp, V_HSL(%esp)
+ .endm
+ 
+-/* Copy one of the six vertex orderings into the sorted slots. */
+-.macro	SORTSTORE ia, ib, ic
+-	movl	A(4 + \ia), %eax
+-	movl	%eax, V_X0(%esp)
+-	movl	A(4 + \ib), %eax
+-	movl	%eax, V_X1(%esp)
+-	movl	A(4 + \ic), %eax
+-	movl	%eax, V_X2(%esp)
+-	movl	A(7 + \ia), %eax
+-	movl	%eax, V_Y0(%esp)
+-	movl	A(7 + \ib), %eax
+-	movl	%eax, V_Y1(%esp)
+-	movl	A(7 + \ic), %eax
+-	movl	%eax, V_Y2(%esp)
+-	movl	A(10 + \ia), %eax
+-	movl	%eax, V_C0(%esp)
+-	movl	A(10 + \ib), %eax
+-	movl	%eax, V_C1(%esp)
+-	movl	A(10 + \ic), %eax
+-	movl	%eax, V_C2(%esp)
+-.endm
+-
+ /* Load the generic segment slots for one segment. */
+ .macro	SETSEG el, er, sl, sr, nc, cnt
+ 	movl	\el(%esp), %eax
+@@ -415,61 +393,90 @@ _toridraw_gouraud_tri_opaque_s4_asm:
+ 	movl	A(3), %eax
+ 	movl	%eax, V_SCRH(%esp)
+ 
+-	/* ---- sort the three vertices by y, with the same early-outs ---- */
+-	movl	A(7), %eax		/* y0 */
+-	movl	A(8), %ecx		/* y1 */
+-	movl	A(9), %edx		/* y2 */
++	/* ---- sort the three vertices by y, branchlessly ----
++	 *
++	 * The six-way branch tree this replaces was the only unpredictable branch
++	 * left in the kernel. Its inputs are three screen-space y values in
++	 * whatever order the model's face list happened to store them, so the
++	 * three or four conditional jumps it took to reach a store were coin
++	 * flips, and a Prescott pays twenty to thirty cycles plus a trace cache
++	 * refill for each one it calls wrong.
++	 *
++	 * So the ordering is computed instead of jumped to. Four signed
++	 * comparisons -- and the pair (y0 <= y2, y2 <= y0) comes out of ONE cmp,
++	 * because both are wanted and they are not complements when the two are
++	 * equal -- pack into a four bit key, and three sixteen byte tables turn
++	 * the key into the three source vertex indices. One store site, indexed,
++	 * replaces the six the tree jumped to.
++	 *
++	 * The tables are transcribed from the branch tree case by case, ties
++	 * included. That matters: the reference does NOT sort stably --
++	 * y1 < y0 == y2 yields 1,2,0 and not 1,0,2 -- and which of two equal-y
++	 * vertices lands in B decides which trapezoid segment is the empty one,
++	 * so the tie rules are visible output. Seven of the sixteen keys are
++	 * unreachable (y0 <= y2 and y2 <= y0 cannot both be false; y0 <= y1 and
++	 * y1 <= y2 force y0 <= y2); they hold whatever the same decision
++	 * procedure gives, and are never read.
++	 *
++	 * The two early-outs move BELOW the store instead of being replicated six
++	 * ways. Both are pure returns with nothing observable in between, and
++	 * after the store the smallest y is in V_Y0 and the largest in V_Y2 by
++	 * construction, so the pair of tests is the pair the tree ran -- only now
++	 * heavily biased, and predicted. The cost is that a wholly off-screen
++	 * triangle marshals nine slots it will not use; anything that reached
++	 * this kernel already survived the model's own bounds test, so that case
++	 * is rare.
++	 */
++#define AR(n, r) (180 + 4 * (n))(%esp, r, 4)
++
++	movl	A(7), %ebx		/* y0 */
++	movl	A(8), %esi		/* y1 */
++	movl	A(9), %edi		/* y2 */
+ 
+-	cmpl	%ecx, %eax
+-	jg	Lsort_b
+-	cmpl	%edx, %eax
+-	jg	Lsort_b
++	xorl	%eax, %eax
++	xorl	%ecx, %ecx
++	xorl	%edx, %edx
++	cmpl	%esi, %ebx
++	setle	%al			/* y0 <= y1 -> bit 0                 */
++	cmpl	%edi, %ebx
++	setle	%cl			/* y0 <= y2 -> bit 1                 */
++	setge	%dl			/* y2 <= y0 -> bit 3                 */
++	leal	(%eax,%ecx,2), %eax
++	leal	(%eax,%edx,8), %eax
++	xorl	%ecx, %ecx
++	cmpl	%edi, %esi
++	setle	%cl			/* y1 <= y2 -> bit 2                 */
++	leal	(%eax,%ecx,4), %eax	/* the key, in [0, 16)               */
++
++	movzbl	Lperm_b(%eax), %edx
++	movzbl	Lperm_c(%eax), %ecx
++	movzbl	Lperm_a(%eax), %eax
++
++	movl	AR(4, %eax), %ebx
++	movl	%ebx, V_X0(%esp)
++	movl	AR(7, %eax), %ebx
++	movl	%ebx, V_Y0(%esp)
++	movl	AR(10, %eax), %ebx
++	movl	%ebx, V_C0(%esp)
++	movl	AR(4, %edx), %ebx
++	movl	%ebx, V_X1(%esp)
++	movl	AR(7, %edx), %ebx
++	movl	%ebx, V_Y1(%esp)
++	movl	AR(10, %edx), %ebx
++	movl	%ebx, V_C1(%esp)
++	movl	AR(4, %ecx), %ebx
++	movl	%ebx, V_X2(%esp)
++	movl	AR(7, %ecx), %ebx
++	movl	%ebx, V_Y2(%esp)
++	movl	AR(10, %ecx), %ebx
++	movl	%ebx, V_C2(%esp)
++
++	movl	V_Y0(%esp), %eax	/* smallest y, by construction       */
+ 	cmpl	V_SCRH(%esp), %eax
+ 	jg	Lret
+-	cmpl	%edx, %ecx
+-	jg	Lsort_a2
+-	testl	%edx, %edx
+-	js	Lret
+-	SORTSTORE 0, 1, 2
+-	jmp	Lsorted
+-Lsort_a2:
+-	testl	%ecx, %ecx
+-	js	Lret
+-	SORTSTORE 0, 2, 1
+-	jmp	Lsorted
++	cmpl	$0, V_Y2(%esp)		/* largest y, by construction        */
++	jl	Lret
+ 
+-Lsort_b:
+-	cmpl	%edx, %ecx
+-	jg	Lsort_c
+-	cmpl	V_SCRH(%esp), %ecx
+-	jg	Lret
+-	cmpl	%eax, %edx
+-	jg	Lsort_b2
+-	testl	%eax, %eax
+-	js	Lret
+-	SORTSTORE 1, 2, 0
+-	jmp	Lsorted
+-Lsort_b2:
+-	testl	%edx, %edx
+-	js	Lret
+-	SORTSTORE 1, 0, 2
+-	jmp	Lsorted
+-
+-Lsort_c:
+-	cmpl	V_SCRH(%esp), %edx
+-	jg	Lret
+-	cmpl	%ecx, %eax
+-	jg	Lsort_c2
+-	testl	%ecx, %ecx
+-	js	Lret
+-	SORTSTORE 2, 0, 1
+-	jmp	Lsorted
+-Lsort_c2:
+-	testl	%eax, %eax
+-	js	Lret
+-	SORTSTORE 2, 1, 0
+-
+-Lsorted:
+ 	/* ---- per-triangle prologue ---- */
+ 	movl	V_Y2(%esp), %eax
+ 	subl	V_Y0(%esp), %eax	/* dy_AC */
+@@ -756,3 +763,18 @@ Lret:
+ 	popl	%edi
+ 	popl	%ebp
+ 	ret
++
++
++/* ---- the y-order tables ----------------------------------------------
++ * key = (y0<=y1) | (y0<=y2)<<1 | (y1<=y2)<<2 | (y2<=y0)<<3, and each entry is
++ * the vertex index the branch tree would have copied into that sorted slot.
++ * Forty-eight bytes on one line, so the three lookups are one miss at worst.
++ */
++	.section .rdata,"dr"
++	.p2align 6
++Lperm_a:
++	.byte	2,2,2,0, 1,1,1,0, 2,2,2,0, 1,1,1,0
++Lperm_b:
++	.byte	1,0,1,2, 0,0,0,1, 1,0,1,2, 2,2,2,1
++Lperm_c:
++	.byte	0,1,0,1, 2,2,2,2, 0,1,0,1, 0,0,0,2
+diff --git a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+index 22e2fd2eb..17d519258 100644
+--- a/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
++++ b/3rd/toridraw/triangles/toridraw_triangle_gouraud.u.c
+@@ -20,8 +20,33 @@
+ #include "graphics/raster/face_census.h"
+ // clang-format on
+ 
+-static inline void
+-ToriDraw_TriangleGouraud(
++/**
++ * The dispatcher's two cold destinations, out of line.
++ *
++ * ToriDraw_TriangleGouraud is written `static inline` and gcc outlines it
++ * anyway: _ToriDraw_TriangleGouraud.lto_priv.0 is a real symbol in the
++ * shipping win32 binary and the EIP profile charges it 1.15 ms of a 64 ms
++ * frame, about 199 cycles across the 15-16k gouraud faces the face census
++ * counts. Size is why. The body held four separate thirteen- and
++ * fourteen-argument calls, and its own fourteen arguments arrive as stack
++ * slots -- every call site sits inside a function that already carries twenty
++ * or more parameters of its own -- so each argument costs a load and a store
++ * to marshal. Outlined, a face pays that marshalling TWICE: once into the
++ * dispatcher and once back out of it into the kernel, roughly fifty-six memory
++ * accesses to move values that were already in memory.
++ *
++ * Moving the scanline family and the alpha kernel behind one noinline call
++ * leaves the hot path a single test and a single call. `noinline` is
++ * load-bearing in the other direction too: without it gcc pulls these bodies
++ * back into the caller and restores exactly the size that refused the inline.
++ *
++ * Four of the five call sites are cold regardless -- the two near-clip
++ * builders and the S1 family -- so the growth lands where nothing runs. The
++ * one that matters is ToriDraw_TriangleFaceGouraud's straight-through path.
++ */
++__attribute__((noinline))
++static void
++toridraw_triangle_gouraud_cold(
+     toripixel_t* RESTRICT pixel_buffer,
+     int stride,
+     int screen_width,
+@@ -37,13 +62,6 @@ ToriDraw_TriangleGouraud(
+     int color_c,
+     int alpha)
+ {
+-    TORIDRAW_FACE_CENSUS_RECORD(
+-        TORIDRAW_FACE_CENSUS_GOURAUD,
+-        x1, y1,
+-        x2, y2,
+-        x3, y3,
+-        screen_width * screen_height);
+-
+     if( TORIDRAW_SCANLINE_SELECTED() )
+     {
+         if( alpha == 0xFF )
+@@ -84,7 +102,51 @@ ToriDraw_TriangleGouraud(
+         return;
+     }
+ 
+-    if( alpha == 0xFF )
++    raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
++        pixel_buffer,
++        stride,
++        screen_width,
++        screen_height,
++        x1,
++        x2,
++        x3,
++        y1,
++        y2,
++        y3,
++        color_a,
++        color_b,
++        color_c,
++        alpha);
++}
++
++/* always_inline, because the heuristic already had its say and got it wrong;
++ * see toridraw_triangle_gouraud_cold above for what it cost. */
++__attribute__((always_inline))
++static inline void
++ToriDraw_TriangleGouraud(
++    toripixel_t* RESTRICT pixel_buffer,
++    int stride,
++    int screen_width,
++    int screen_height,
++    int x1,
++    int x2,
++    int x3,
++    int y1,
++    int y2,
++    int y3,
++    int color_a,
++    int color_b,
++    int color_c,
++    int alpha)
++{
++    TORIDRAW_FACE_CENSUS_RECORD(
++        TORIDRAW_FACE_CENSUS_GOURAUD,
++        x1, y1,
++        x2, y2,
++        x3, y3,
++        screen_width * screen_height);
++
++    if( alpha == 0xFF && !TORIDRAW_SCANLINE_SELECTED() )
+     {
+         // raster_gouraudhsllightness_screen_opaque_edge_sort_s4(
+         TORIDRAW_GOURAUD_TRI_OPAQUE_S4(
+@@ -101,25 +163,24 @@ ToriDraw_TriangleGouraud(
+             color_a,
+             color_b,
+             color_c);
++        return;
+     }
+-    else
+-    {
+-        raster_gouraudhsllightness_screen_alpha_bary_branching_s4(
+-            pixel_buffer,
+-            stride,
+-            screen_width,
+-            screen_height,
+-            x1,
+-            x2,
+-            x3,
+-            y1,
+-            y2,
+-            y3,
+-            color_a,
+-            color_b,
+-            color_c,
+-            alpha);
+-    }
++
++    toridraw_triangle_gouraud_cold(
++        pixel_buffer,
++        stride,
++        screen_width,
++        screen_height,
++        x1,
++        x2,
++        x3,
++        y1,
++        y2,
++        y3,
++        color_a,
++        color_b,
++        color_c,
++        alpha);
+ }
+ 
+ static inline void

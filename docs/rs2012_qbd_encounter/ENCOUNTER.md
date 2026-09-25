@@ -1,7 +1,7 @@
 # Queen Black Dragon — Encounter Design Guide
 
 Prescriptive design contract for the 29-May-2012 Queen Black Dragon encounter as
-implemented in mock230. Where `RS2012_QBD_TD.md` is the *evidence record* (what
+implemented in ToriRSServer. Where `RS2012_QBD_TD.md` is the *evidence record* (what
 the sources establish and how assets were ported), this document is the
 *encounter script*: what the player must experience, attack by attack, tick by
 tick, and how the implementation must realise it. Deviations between this guide
@@ -46,10 +46,10 @@ Timing conventions used throughout:
 The Queen Black Dragon is a strictly solo boss. She is a colossal, mostly
 stationary serpent at the north end of a dragonkin platform; the player fights
 from the platform south of her. She is never killed: the player drains four
-18,750-LP life-force pools (75,000 LP total, player hits capped at 1,000 LP)
-and, after each drained pool, restores a dragonkin artefact while she is
-dormant and grotworms erupt around the arena. The fourth artefact forces her
-back to sleep and opens the stairs to the Dragonkin coffer.
+1,875-LP life-force pools (7,500 LP total, player hits capped at 100 LP) and,
+after each drained pool, restores a dragonkin artefact while she is dormant
+and grotworms erupt around the arena. The fourth artefact forces her back to
+sleep and opens the stairs to the Dragonkin coffer.
 
 The fight escalates across the four pools ("phases"). Phase 1 is a pure
 positioning fight (melee zone, ranged sweep, dragonfire, one moving fire
@@ -57,7 +57,7 @@ wall). Each later phase layers on mechanics — tortured souls, armour forms +
 siphon, then time stop + extreme dragonfire — while the fire wall gains extra
 waves, so the end of the fight interleaves every mechanic at once.
 
-Player-side damage numbers below are mock230 hitpoints (2012 LP ÷ 10; the
+Player-side damage numbers below are ToriRSServer hitpoints (2012 LP ÷ 10; the
 2012 client showed a 99-HP OSRS player as 990 LP).
 
 ## 2. Arena
@@ -144,37 +144,55 @@ whole family without fighting for it.
    untargetable and inert; artefact n gains its `Activate` option; she coughs
    a grotworm **every 5 ticks** (§5.11) until the artefact is restored.
    Surviving souls/worms persist and keep fighting throughout.
-5. **Restoration**: activating artefact n heals a fresh 18,750-LP pool,
+5. **Restoration**: activating artefact n heals a fresh 1,875-LP pool,
    reveals the next raw-platform path (n=1 south-west, n=2 south-east, n=3
    south-centre — §2.1), plays the stop-cough (16748), and
    resumes combat in phase n+1 — her **first attack comes 20 ticks after the
    restoration**, giving the player the documented breather. The first
    restoration switches music to 1118 *Queen Black Dragon*.
-6. **Completion**: artefact 4 → return-to-sleep sequence (16742), every
-   surviving add removed, reward stairs (70790) appear, coffer rolled once
-   into the persistent ten-slot `rs2012_qbd_rewardinv`. 16742 is her death
-   animation and it is played on the **awake** npc: the retype to
-   `rs2012_qbd_sleeping` is deferred `^rs2012_qbd_sleep_anim_ticks` into
-   `[queue,rs2012_qbd_sleep]`, because `npc_changetype` clears the transient
-   animation and the wire writes SEQUENCE before TRANSFORMATION — issuing both
-   on one tick renders as an instant snap to the sleeping idle with no death at
-   all. Same rule, same reason as the wake swap in step 2 above.
+6. **Completion**: artefact 4 → every surviving add removed, the arena floor
+   opens (70838 at (21,24) and 70841 at (33,24) on plane 0, both `^loc_west`,
+   each *replacing* the intact slab on its own slot rather than stacking on it)
+   and the reward stairs (70790 at (31,29), `^loc_west`) appear, artefact 1's
+   restored loc (70778) is deleted because the 5x-scaled staircase reaches over
+   its tile, and the coffer is rolled once into the persistent ten-slot
+   `rs2012_qbd_rewardinv`. open727 also spawns 70775 under the stairwell; it
+   has no home here, see §2.1. Her death is **three ticks' work**, not one:
+
+   | tick | what | why not sooner |
+   |---|---|---|
+   | 0 | stop-cough 16748, claws revert to the default form | — |
+   | +`^rs2012_qbd_stopcough_anim_ticks` | death 16742, `[queue,rs2012_qbd_death]` | 16742 is priority 5 and everything before it is priority 6; the client gate is `wanted >= incumbent`, so it is refused until 16748 has ended |
+   | +`^rs2012_qbd_sleep_anim_ticks` | retype to `rs2012_qbd_sleeping`, `[queue,rs2012_qbd_sleep]` | `npc_changetype` clears the transient animation and the wire writes SEQUENCE before TRANSFORMATION, so the two on one tick render as an instant snap |
+
+   The stop-cough is load-bearing, not cosmetic. She coughs worms for the whole
+   intermission and 16747 is `framestep=8` over eight frames — it loops, and it
+   is still playing when the artefact is restored, so without 16748 displacing
+   it her death is dropped and she goes on coughing until the retype. The
+   restoration must also close the fight for good: `%rs2012_qbd_active` stays 1
+   until the player takes the stairs, so the `[ai_queue3]` emergency pool
+   restore is gated on `%rs2012_qbd_reward_ready` as well — otherwise it heals
+   her a life point back, re-opens a fifth intermission, and the re-armed worm
+   cough steals the death animation two ticks in.
+
+   `::rs2012qbdfinish` drives this whole ending on demand; playing up to it
+   kills an unattended QA account long before it is on screen.
 7. **Departure at any point** (teleport/logout/death): the one-tick lifecycle
    watchdog tears down queues, timers, locks, HUD, music, and owned NPCs. An
    unclaimed coffer survives everything.
 
 ## 4. The cast
 
-| Actor | Type(s) | Level | LP (2012) | Notes |
+| Actor | Type(s) | Level | LP | Notes |
 |---|---|---:|---:|---|
-| Queen Black Dragon | `rs2012_qbd_sleeping` / `default` / `crystal` / `hardened` | 2,100 | 4 × 18,750 | never dies; forms swap via `npc_changetype`, phase 3+ |
-| Tortured soul | `rs2012_qbd_tortured_soul` | 147 | 500 | slow (1 tile per 2 ticks); casts a homing shadow, then weak melee; weak to slash |
-| Giant worm | `rs2012_qbd_giant_worm` | 123 | 650 | intermission add; melee in reach, accurate magic bolt otherwise; drops bones |
+| Queen Black Dragon | `rs2012_qbd_sleeping` / `default` / `crystal` / `hardened` | 2,100 | 4 × 1,875 | never dies; forms swap via `npc_changetype`, phase 3+ |
+| Tortured soul | `rs2012_qbd_tortured_soul` | 147 | 50 | slow (1 tile per 2 ticks); casts a homing shadow, then weak melee; weak to slash |
+| Giant worm | `rs2012_qbd_giant_worm` | 123 | 65 | intermission add; melee in reach, accurate magic bolt otherwise; drops bones |
 
 Souls per phase (target population): 0 / 1 / 2 / 4 — and phase 4 opens with
 all four summoned at once. Fire-wall waves per phase: 1 / 2 / 3 / 3. Souls
-and worms are ordinary mortal NPCs in the 2012-LP domain (player rolls ×10 on
-their pools; XP stays on the raw roll); they bypass QBD's hit cap and
+and worms are ordinary mortal NPCs on ToriRSServer's own HP scale, the same as
+every other NPC in the tree; they bypass QBD's hit cap and
 intermission immunity.
 
 ## 5. Attack compendium
@@ -268,12 +286,12 @@ The signature attack. Full specification in §6.
 - Tell: `The Queen Black Dragon starts to siphon the energy of her mages.`
   (purple).
 - **Channeled drain**, not a one-shot: every 2 ticks, each living idle soul
-  plays 3148 and takes 20 (2012-LP domain), and she heals 40 per soul
-  drained; the adjacent siphon effect 3150 plays on her while the channel
-  runs. The channel ends when no soul remains or after 25 drains (a full
-  500-LP soul drains to death for 1,000 LP healed — "any damage done to them
-  is worth double the health the QBD would restore", so killing siphoned
-  souls quickly is the counterplay).
+  plays 3148 and takes 2, and she heals 4 per soul drained; the adjacent
+  siphon effect 3150 plays on her while the channel runs. The channel ends
+  when no soul remains or after 25 drains (a full 50-LP soul drains to death
+  for 100 LP healed — "any damage done to them is worth double the health
+  the QBD would restore", so killing siphoned souls quickly is the
+  counterplay).
 - Ordinary attacks continue during the channel (it is a background drain).
 - Release profile: no cooldown. 7-Aug profile: 50-tick (~30 s) cooldown.
   Recovery 4–15.
@@ -329,7 +347,7 @@ The signature attack. Full specification in §6.
 ### 6.1 What the player experiences
 
 `The Queen Black Dragon takes a huge breath.` (orange) — she rears up
-(16746, 3 s) and exhales a **wall of licking orange flame spanning the full
+(16846) and exhales a **wall of licking orange flame spanning the full
 19-square platform**. The wall detaches from her at row z=38 and sweeps south
 at **one tile per tick**, burning past the last platform row (z=19) before
 dissipating (~11.4 s of travel). Each wall has exactly one cool gap, and the
@@ -374,11 +392,13 @@ front itself.
 
 | Tick | Event |
 |---|---|
-| T0 | orange warning line; 16746 wind-up begins |
+| T0 | orange warning line; the breath OPENS on 16846 |
 | T0+3 | wave 1 wall materialises across z=38 |
 | T0+3+k | wave 1 occupies row z=38−k; that row and the one behind it burn |
 | T0+10 | wave 2 materialises (phase ≥ 2), next gap type |
+| T0+11 | 16846 ends; 16747 takes over and loops — she holds the breath |
 | T0+17 | wave 3 materialises (phase ≥ 3), next gap type |
+| T0+17 | the last wall has left her: 16748 closes the breath |
 | T0+22 | wave 1 passes z=19 and dissipates |
 | T0+29 / T0+36 | waves 2 / 3 dissipate |
 
@@ -533,7 +553,7 @@ position and wave bookkeeping live in player varps (session-scoped).
   cooldown switches, caps, masks, teardown) plus the new wall-cycle, anchor,
   and cadence assertions.
 - `tools/test_rs2012_qbd_combat_contract.py` — static contract greps.
-- Wire: a mock230 selftest capture stanza byte-decoding the wall rows off
+- Wire: a ToriRSServer selftest capture stanza byte-decoding the wall rows off
   MAP_ANIM — 1/2/3 rows on ticks 3/10/17 and 60 rows per three-wave cast.
 - Timing: server queue tracing (`TORIRS_ANIM_DEBUG`) across one phase-4
   rotation; every §5/§6 timeline lands on its tick.

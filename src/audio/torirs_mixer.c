@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 bool
 ToriRS_AudioTraceEnabled(void)
@@ -18,7 +19,7 @@ ToriRS_AudioTraceEnabled(void)
     do                                                                                             \
     {                                                                                              \
         if( ToriRS_AudioTraceEnabled() )                                                           \
-            fprintf(stderr, __VA_ARGS__);                                                          \
+            TORIRS_LOG(__VA_ARGS__);                                                          \
     } while( 0 )
 
 void
@@ -143,23 +144,41 @@ stop_voices_on_asset(
     }
 }
 
+/**
+ * `staged`, when non-NULL, is a copy the caller already made -- and owns until
+ * this takes it. That is how a backend with a device thread keeps the memcpy
+ * out of its locked region; see ToriRS_Mixer_Stage.
+ */
 static void
 asset_load(
     struct ToriRS_Mixer* mixer,
-    const struct ToriRS_AudioCommand* command)
+    const struct ToriRS_AudioCommand* command,
+    int16_t* staged)
 {
     struct ToriRS_MixerAsset* slot;
-    int16_t* copy = NULL;
+    int16_t* copy = staged;
     bool generator = command->source.render != NULL;
 
     if( command->asset_id < 0 )
+    {
+        free(staged);
         return;
+    }
     if( !generator && (!command->pcm || command->sample_count <= 0) )
+    {
+        free(staged);
         return;
+    }
 
     /* A generator carries no samples: the mixer pulls them a block at a time,
      * which is the only way a multi-megabyte track can be an asset. */
-    if( !generator )
+    if( generator )
+    {
+        /* A staged copy for a generator is a caller bug, not a leak to hide. */
+        assert(!staged);
+        copy = NULL;
+    }
+    else if( !copy )
     {
         copy = malloc((size_t)command->sample_count * sizeof(int16_t));
         assert(copy);
@@ -397,9 +416,10 @@ fade_frames(
 }
 
 void
-ToriRS_Mixer_Apply(
+ToriRS_Mixer_ApplyStaged(
     struct ToriRS_Mixer* mixer,
-    const struct ToriRS_AudioCommand* command)
+    const struct ToriRS_AudioCommand* command,
+    int16_t* staged)
 {
     assert(mixer);
     assert(command);
@@ -407,7 +427,8 @@ ToriRS_Mixer_Apply(
     switch( command->kind )
     {
     case TORIRS_AUDIO_CMD_ASSET_LOAD:
-        asset_load(mixer, command);
+        asset_load(mixer, command, staged);
+        staged = NULL;
         break;
     case TORIRS_AUDIO_CMD_ASSET_UNLOAD:
         asset_unload(mixer, command->asset_id);
@@ -587,6 +608,42 @@ ToriRS_Mixer_Apply(
 }
 
 void
+ToriRS_Mixer_Apply(
+    struct ToriRS_Mixer* mixer,
+    const struct ToriRS_AudioCommand* command)
+{
+    ToriRS_Mixer_ApplyStaged(mixer, command, NULL);
+}
+
+void
+ToriRS_Mixer_Stage(
+    const struct ToriRS_AudioCommand* command,
+    struct ToriRS_MixerStaged* staged)
+{
+    assert(command);
+    assert(staged);
+    staged->pcm = NULL;
+    /* Only ASSET_LOAD borrows a buffer, and only when it is not a generator --
+     * a generator is pulled, so there is nothing to copy. */
+    if( command->kind != TORIRS_AUDIO_CMD_ASSET_LOAD || command->source.render )
+        return;
+    if( !command->pcm || command->sample_count <= 0 )
+        return;
+    staged->pcm = malloc((size_t)command->sample_count * sizeof(int16_t));
+    assert(staged->pcm);
+    memcpy(staged->pcm, command->pcm, (size_t)command->sample_count * sizeof(int16_t));
+}
+
+void
+ToriRS_Mixer_StageFree(struct ToriRS_MixerStaged* staged)
+{
+    if( !staged )
+        return;
+    free(staged->pcm);
+    staged->pcm = NULL;
+}
+
+void
 ToriRS_Mixer_ApplyAll(
     struct ToriRS_Mixer* mixer,
     const struct ToriRS_AudioCommand* commands,
@@ -596,6 +653,30 @@ ToriRS_Mixer_ApplyAll(
     assert(commands);
     for( int i = 0; i < count; i++ )
         ToriRS_Mixer_Apply(mixer, &commands[i]);
+}
+
+static bool
+ensure_accumulator(struct ToriRS_Mixer* mixer, int frames);
+static bool
+ensure_source_scratch(struct ToriRS_Mixer* mixer, int frames);
+
+void
+ToriRS_Mixer_Reserve(
+    struct ToriRS_Mixer* mixer,
+    int frames)
+{
+    assert(mixer);
+    if( frames <= 0 )
+        return;
+    /*
+     * Grow both scratch buffers now, on whatever thread Init runs on, so that
+     * Render never reaches a realloc on a device thread. The accumulator is
+     * needed by every render; the source scratch only by a generator, which is
+     * why warming with a render alone never sized it and the first song used
+     * to malloc inside the audio callback.
+     */
+    ensure_accumulator(mixer, frames);
+    ensure_source_scratch(mixer, frames);
 }
 
 static bool

@@ -1,0 +1,88 @@
+{{External|rs|rsc=Tramp}}
+{{Infobox NPC
+|name = Charlie the Tramp
+|image = [[File:Charlie the Tramp.png|120px]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|members = No
+|race = [[Human]]
+|quest = [[Shield of Arrav]]
+|location = [[Varrock]]
+|gender = Male
+|options = Talk-to
+|examine = Looks down on his luck.
+|map = {{Map|name=Charlie the Tramp|x=3206|y=3390|plane=0|r=4|mtype=square}}
+|id = 5209
+|leagueRegion = Misthalin
+}}
+[[File:Charlie the Tramp chathead.png|left]]
+'''Charlie Lyeman'''{{CiteText|text=Varrock Census|quote=[Citizen's name] Charlie Lyeman.|loc=}} (or '''Charles E. Trampin'''', as he calls himself) is a tramp that tells the player about the [[Black Arm Gang]] headquarters during the [[Shield of Arrav]] [[Quests|quest]]. He is found right next to the southern entrance to [[Varrock]], at the end of the alleyway to the Black Arm Gang's headquarters. If players choose to do so they may donate a [[Coins|coin]] or two to him.
+
+He has a cousin named [[Marley]], who the player seeks out as part of the quest [[Below Ice Mountain]].
+
+==Treasure Trails==
+*{{Anagram|Charlie|medium|[[Clue scroll (medium) - ARMCHAIR THE PELT|ARMCHAIR THE PELT]]}}. The solution to the [[challenge scroll]] question is '''0'''.
+*{{CrypticNPC|Charlie|beginner|[[Clue scroll (beginner) - Talk to Charlie the Tramp|Talk to Charlie the Tramp in Varrock.]]}} He'll give you one of the tasks listed below.
+===Charlie's clues===
+A [[Clue scroll (beginner)|beginner clue scroll]] will sometimes instruct the player to talk to Charlie. Once there, Charlie will assign the player a short skilling task. After completing the task, the player can return to Charlie in order to continue the Treasure Trail. Charlie will accept items sourced from anywhere, including the [[Grand Exchange]], and items obtained prior to receiving the clue scroll, so skilling is not required, though noted items are '''not''' accepted.
+
+{{:Charlie the Tramp/Tasks}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = Charlie the Tramp now refers to female players as madam instead of miss.
+}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|poll = Old School Content Poll 77: Quality of Life
+|change = Charlie the Tramp will now accept items sourced from anywhere for tasks given from beginner [[cryptic clues]].
+}}
+{{Subject changes
+|date = 3 July 2007
+|update = Skill sounds
+|change = The NPC's hair was recoloured.
+}}
+{{Subject changes
+|date = 29 May 2007
+|update = Varrock's New Look
+|change = *The NPC was graphically updated with the rework of Varrock.
+*The NPC was renamed from "Tramp" to "Charlie the Tramp".
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Charlie the Tramp (historical v1).png|center|300x150px]]
+|[[File:Charlie the Tramp (historical v2).png|center|300x150px]]
+|[[File:Charlie the Tramp.png|center|300x150px]]
+|-
+|[[File:Charlie the Tramp chathead (historical v1).png|center]]
+|[[File:Charlie the Tramp chathead (historical v2).png|center]]
+|[[File:Charlie the Tramp chathead.png|center]]
+|-
+|29 March 2004 –<br/>29 May 2007
+|29 May 2007 –<br/>3 July 2007
+|3 July 2007 –<br/>present
+|}
+
+==Trivia==
+* His name and title are references to the silent film star {{Wp|Charlie Chaplin}} and his onscreen persona, "The Tramp".
+* If the player obtains Charlie's task item themselves, they will receive a message "You have completed Charlie's task, go back and give him the [required item.]"
+* During [[Defender of Varrock]], Charlie's full name and profession can be learned from the [[Varrock census records]]: "Charles Lyeman", who is unemployed.
+* Charlie made an [[Charlie the Tramp (2024 Christmas event)|appearance]] in the [[2024 Christmas event]], during which he adopted a [[stray dog]] whom he names [[Duke (dog)|Duke]].
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}
+{{Shield of Arrav}}
+{{Below Ice Mountain}}
+{{Varrock}}
+{{Black Arm Gang}}

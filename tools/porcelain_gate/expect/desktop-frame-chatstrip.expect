@@ -1,0 +1,255 @@
+# What seating the chat pack on the 2004 filter strip changes on purpose.
+#
+#   gate_diff.py --expect tools/porcelain_gate/expect/desktop-frame-chatstrip.expect <pairs...>
+#
+# Baseline: the commit this branch left, captured with the same binary family
+# and the same harness. Do NOT concatenate this with gameframe-layout.expect:
+# that file declares what the PORT changed against the pre-port commit, and
+# every one of its lines would be stale against this baseline -- which the
+# comparator fails on, correctly.
+#
+# Every line here is a claim a reader is meant to be able to disagree with.
+#
+# --------------------------------------------------------------------------
+# 1. The chat pack is seated ON the 2004 filter strip, not above it.
+#
+# Classic Fixed gave the lane's 519-wide pack the 2004 chat hole's own 96
+# rows. The pack's eight filters therefore ended at 453 and the frame's own
+# filter strip stood below them -- its parchment lip at 453, its button band
+# at 467 -- so the player saw a filter row, a pale ledge, and a second row of
+# sockets. The pack now takes the hole AND the strip, 17,357 519x146: 357 + 96
+# + 50 = 503 is the canvas's last row, so nothing of the frame's bar band is
+# left beside the pack's, and 146 - 23 = 123 rows of backing puts the pack's
+# own 23-row bar on row 480 -- which is exactly the row interface 548 puts
+# that same bar on when it draws its own frame.
+#
+# THE CLAIM: every line below is interface 162 or the toplevel slot that
+# holds it, and every one of them is the same component with the same size
+# relationship to its parent, fifty rows further down or fifty rows taller.
+# The eight filters are the lane's, all eight of them, on the hollows the
+# dressing already cuts; nothing is hidden here that was not hidden before.
+# They are written out rather than normalised away because a rule that dropped
+# the box from a BOUNDS line would stop the gate noticing a component that
+# really did move.
+#
+# 2. The composed band over the hollows is retired (`abs=0,467 536x32`, and
+#    `owned-drop piece.13` below).
+#
+# 3. The screenshot plugin's camera button follows the bar it sits above
+#    (`abs=483,433` -> `abs=483,483`, and `owned-move camera_report` below).
+
+only-before BOUNDS com=0x0224000b (548|11) type=18 graphic=-1 hidden=0 abs=17,357 519x96 wh=519,165 modes=w0,h0,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=0,467 536x32 wh=536,32 modes=w0,h0,x-1,y-1 scroll=-1x-1 off=0,0 = the composed band over the 2004 hollows, retired: it tiled 29 columns that carry the first hollow's shadow, so it WAS the row of sockets it was meant to cover
+only-before BOUNDS com=0x00a20000 (162|0) type=18 graphic=-1 hidden=0 abs=17,357 519x96 wh=0,0 modes=w1,h1,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20001 (162|1) type=18 graphic=-1 hidden=0 abs=17,430 519x23 wh=519,23 modes=w0,h0,x0,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20002 (162|2) type=18 graphic=-1 hidden=0 abs=17,430 519x23 wh=0,0 modes=w1,h1,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20003 (162|3) type=15 graphic=1018 hidden=0 abs=17,430 519x23 wh=519,23 modes=w0,h0,x0,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20004 (162|4) type=18 graphic=-1 hidden=0 abs=22,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20005 (162|5) type=15 graphic=3053 hidden=0 abs=22,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20006 (162|6) type=14 graphic=-1 hidden=0 abs=22,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20007 (162|7) type=18 graphic=-1 hidden=0 abs=84,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20008 (162|8) type=15 graphic=3051 hidden=0 abs=84,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20009 (162|9) type=14 graphic=-1 hidden=0 abs=84,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2000a (162|10) type=14 graphic=-1 hidden=0 abs=84,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2000b (162|11) type=18 graphic=-1 hidden=0 abs=146,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2000c (162|12) type=15 graphic=3051 hidden=0 abs=146,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2000d (162|13) type=14 graphic=-1 hidden=0 abs=146,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2000e (162|14) type=14 graphic=-1 hidden=0 abs=146,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2000f (162|15) type=18 graphic=-1 hidden=0 abs=208,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20010 (162|16) type=15 graphic=3051 hidden=0 abs=208,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20011 (162|17) type=14 graphic=-1 hidden=0 abs=208,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20012 (162|18) type=14 graphic=-1 hidden=0 abs=208,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20013 (162|19) type=18 graphic=-1 hidden=0 abs=270,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20014 (162|20) type=15 graphic=3051 hidden=0 abs=270,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20015 (162|21) type=14 graphic=-1 hidden=0 abs=270,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20016 (162|22) type=14 graphic=-1 hidden=0 abs=270,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20017 (162|23) type=18 graphic=-1 hidden=0 abs=332,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20018 (162|24) type=15 graphic=3051 hidden=0 abs=332,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20019 (162|25) type=14 graphic=-1 hidden=0 abs=332,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2001a (162|26) type=14 graphic=-1 hidden=0 abs=332,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2001b (162|27) type=18 graphic=-1 hidden=0 abs=394,430 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2001c (162|28) type=15 graphic=3051 hidden=0 abs=394,430 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2001d (162|29) type=14 graphic=-1 hidden=0 abs=394,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2001e (162|30) type=14 graphic=-1 hidden=0 abs=394,430 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2001f (162|31) type=18 graphic=-1 hidden=0 abs=454,430 79x23 wh=79,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20020 (162|32) type=15 graphic=3057 hidden=0 abs=454,430 79x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20021 (162|33) type=14 graphic=-1 hidden=0 abs=454,430 79x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20022 (162|34) type=18 graphic=-1 hidden=0 abs=17,357 519x73 wh=519,23 modes=w0,h1,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20025 (162|37) type=18 graphic=-1 hidden=0 abs=17,357 519x73 wh=0,0 modes=w1,h1,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20026 (162|38) type=18 graphic=-1 hidden=1 abs=17,400 519x30 wh=0,30 modes=w1,h0,x0,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20027 (162|39) type=18 graphic=-1 hidden=1 abs=24,364 505x59 wh=14,14 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20028 (162|40) type=18 graphic=-1 hidden=1 abs=24,364 505x59 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2002b (162|43) type=14 graphic=-1 hidden=1 abs=24,365 505x40 wh=0,40 modes=w1,h0,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2002c (162|44) type=14 graphic=-1 hidden=1 abs=24,405 505x20 wh=0,20 modes=w1,h0,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2002d (162|45) type=18 graphic=-1 hidden=1 abs=194,390 25x25 wh=25,25 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2002e (162|46) type=18 graphic=-1 hidden=1 abs=264,390 25x25 wh=25,25 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2002f (162|47) type=18 graphic=-1 hidden=1 abs=334,390 25x25 wh=25,25 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20030 (162|48) type=18 graphic=-1 hidden=1 abs=24,384 505x39 wh=0,20 modes=w1,h1,x0,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20031 (162|49) type=19 graphic=-1 hidden=1 abs=24,384 505x39 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20032 (162|50) type=19 graphic=-1 hidden=1 abs=24,384 505x39 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20033 (162|51) type=19 graphic=-1 hidden=1 abs=25,385 503x37 wh=2,2 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20034 (162|52) type=18 graphic=-1 hidden=1 abs=26,386 485x35 wh=20,4 modes=w1,h1,x0,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20035 (162|53) type=18 graphic=-1 hidden=1 abs=511,386 16x35 wh=16,4 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20036 (162|54) type=18 graphic=-1 hidden=1 abs=268,407 16x16 wh=16,16 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20037 (162|55) type=18 graphic=-1 hidden=0 abs=17,357 519x73 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20038 (162|56) type=18 graphic=-1 hidden=0 abs=24,363 505x61 wh=14,12 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20039 (162|57) type=14 graphic=-1 hidden=0 abs=27,408 502x16 wh=3,16 modes=w1,h0,x2,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2003a (162|58) type=18 graphic=-1 hidden=0 abs=24,363 489x45 wh=16,16 modes=w1,h1,x0,y0 scroll=0x142 off=0,28 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2022f (162|559) type=18 graphic=-1 hidden=0 abs=513,363 16x45 wh=16,16 modes=w0,h1,x2,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20230 (162|560) type=18 graphic=-1 hidden=0 abs=17,357 519x73 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20231 (162|561) type=18 graphic=-1 hidden=0 abs=24,330 506x129 wh=506,129 modes=w0,h0,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20232 (162|562) type=18 graphic=-1 hidden=0 abs=24,330 506x129 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20233 (162|563) type=19 graphic=-1 hidden=1 abs=24,330 506x129 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20234 (162|564) type=18 graphic=-1 hidden=1 abs=497,332 32x32 wh=32,32 modes=w0,h0,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20235 (162|565) type=15 graphic=539 hidden=1 abs=500,336 26x23 wh=26,23 modes=w0,h0,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20236 (162|566) type=18 graphic=-1 hidden=1 abs=37,346 479x96 wh=479,96 modes=w0,h0,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a20237 (162|567) type=18 graphic=-1 hidden=1 abs=37,346 479x96 wh=479,96 modes=w0,h0,x1,y1 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a29174 (162|37236) type=15 graphic=792 hidden=0 abs=513,379 16x13 wh=0,32 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a29175 (162|37237) type=15 graphic=790 hidden=0 abs=513,379 16x10 wh=0,10 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a29176 (162|37238) type=15 graphic=789 hidden=0 abs=513,379 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a29177 (162|37239) type=15 graphic=791 hidden=0 abs=513,384 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a29179 (162|37241) type=15 graphic=788 hidden=0 abs=513,392 16x16 wh=0,16 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2a3f5 (162|41973) type=15 graphic=1017 hidden=0 abs=17,357 519x73 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2a3f6 (162|41974) type=19 graphic=-1 hidden=0 abs=24,408 505x1 wh=0,1 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=483,433 20x16 wh=20,16 modes=w0,h0,x-1,y-1 scroll=-1x-1 off=0,0 = the screenshot button's old seat, one row above the pack's filter bar
+only-before BOUNDS com=0x00a10060 (161|96) type=18 graphic=-1 hidden=0 abs=17,357 519x96 wh=519,165 modes=w0,h0,x0,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a4005d (164|93) type=18 graphic=-1 hidden=0 abs=17,357 519x96 wh=519,165 modes=w0,h0,x0,y2 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc9c (162|48284) type=15 graphic=1017 hidden=0 abs=17,357 519x73 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc9d (162|48285) type=19 graphic=-1 hidden=0 abs=24,408 505x1 wh=0,1 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc99 (162|48281) type=15 graphic=788 hidden=0 abs=513,392 16x16 wh=0,16 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc97 (162|48279) type=15 graphic=791 hidden=0 abs=513,384 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc96 (162|48278) type=15 graphic=789 hidden=0 abs=513,379 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc95 (162|48277) type=15 graphic=790 hidden=0 abs=513,379 16x10 wh=0,10 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x00a2bc94 (162|48276) type=15 graphic=792 hidden=0 abs=513,379 16x13 wh=0,32 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+only-before BOUNDS com=0x0000c46a (0|50282) type=18 graphic=-1 hidden=0 abs=1896,735 458x0 wh=458,0 modes=w0,h0,x0,y0 scroll=0x0 off=0,0 = the chat pack in the 2004 hole alone, with the frame's filter strip standing below its bar
+
+only-after  BOUNDS com=0x0224000b (548|11) type=18 graphic=-1 hidden=0 abs=17,357 519x146 wh=519,165 modes=w0,h0,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20000 (162|0) type=18 graphic=-1 hidden=0 abs=17,357 519x146 wh=0,0 modes=w1,h1,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20001 (162|1) type=18 graphic=-1 hidden=0 abs=17,480 519x23 wh=519,23 modes=w0,h0,x0,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20002 (162|2) type=18 graphic=-1 hidden=0 abs=17,480 519x23 wh=0,0 modes=w1,h1,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20003 (162|3) type=15 graphic=1018 hidden=0 abs=17,480 519x23 wh=519,23 modes=w0,h0,x0,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20004 (162|4) type=18 graphic=-1 hidden=0 abs=22,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20005 (162|5) type=15 graphic=3053 hidden=0 abs=22,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20006 (162|6) type=14 graphic=-1 hidden=0 abs=22,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20007 (162|7) type=18 graphic=-1 hidden=0 abs=84,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20008 (162|8) type=15 graphic=3051 hidden=0 abs=84,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20009 (162|9) type=14 graphic=-1 hidden=0 abs=84,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2000a (162|10) type=14 graphic=-1 hidden=0 abs=84,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2000b (162|11) type=18 graphic=-1 hidden=0 abs=146,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2000c (162|12) type=15 graphic=3051 hidden=0 abs=146,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2000d (162|13) type=14 graphic=-1 hidden=0 abs=146,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2000e (162|14) type=14 graphic=-1 hidden=0 abs=146,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2000f (162|15) type=18 graphic=-1 hidden=0 abs=208,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20010 (162|16) type=15 graphic=3051 hidden=0 abs=208,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20011 (162|17) type=14 graphic=-1 hidden=0 abs=208,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20012 (162|18) type=14 graphic=-1 hidden=0 abs=208,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20013 (162|19) type=18 graphic=-1 hidden=0 abs=270,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20014 (162|20) type=15 graphic=3051 hidden=0 abs=270,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20015 (162|21) type=14 graphic=-1 hidden=0 abs=270,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20016 (162|22) type=14 graphic=-1 hidden=0 abs=270,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20017 (162|23) type=18 graphic=-1 hidden=0 abs=332,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20018 (162|24) type=15 graphic=3051 hidden=0 abs=332,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20019 (162|25) type=14 graphic=-1 hidden=0 abs=332,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2001a (162|26) type=14 graphic=-1 hidden=0 abs=332,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2001b (162|27) type=18 graphic=-1 hidden=0 abs=394,480 56x23 wh=56,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2001c (162|28) type=15 graphic=3051 hidden=0 abs=394,480 56x22 wh=56,22 modes=w0,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2001d (162|29) type=14 graphic=-1 hidden=0 abs=394,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2001e (162|30) type=14 graphic=-1 hidden=0 abs=394,480 56x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2001f (162|31) type=18 graphic=-1 hidden=0 abs=454,480 79x23 wh=79,0 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20020 (162|32) type=15 graphic=3057 hidden=0 abs=454,480 79x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20021 (162|33) type=14 graphic=-1 hidden=0 abs=454,480 79x22 wh=0,22 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20022 (162|34) type=18 graphic=-1 hidden=0 abs=17,357 519x123 wh=519,23 modes=w0,h1,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20025 (162|37) type=18 graphic=-1 hidden=0 abs=17,357 519x123 wh=0,0 modes=w1,h1,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20026 (162|38) type=18 graphic=-1 hidden=1 abs=17,450 519x30 wh=0,30 modes=w1,h0,x0,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20027 (162|39) type=18 graphic=-1 hidden=1 abs=24,364 505x109 wh=14,14 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20028 (162|40) type=18 graphic=-1 hidden=1 abs=24,364 505x109 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2002b (162|43) type=14 graphic=-1 hidden=1 abs=24,390 505x40 wh=0,40 modes=w1,h0,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2002c (162|44) type=14 graphic=-1 hidden=1 abs=24,430 505x20 wh=0,20 modes=w1,h0,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2002d (162|45) type=18 graphic=-1 hidden=1 abs=194,440 25x25 wh=25,25 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2002e (162|46) type=18 graphic=-1 hidden=1 abs=264,440 25x25 wh=25,25 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2002f (162|47) type=18 graphic=-1 hidden=1 abs=334,440 25x25 wh=25,25 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20030 (162|48) type=18 graphic=-1 hidden=1 abs=24,384 505x89 wh=0,20 modes=w1,h1,x0,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20031 (162|49) type=19 graphic=-1 hidden=1 abs=24,384 505x89 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20032 (162|50) type=19 graphic=-1 hidden=1 abs=24,384 505x89 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20033 (162|51) type=19 graphic=-1 hidden=1 abs=25,385 503x87 wh=2,2 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20034 (162|52) type=18 graphic=-1 hidden=1 abs=26,386 485x85 wh=20,4 modes=w1,h1,x0,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20035 (162|53) type=18 graphic=-1 hidden=1 abs=511,386 16x85 wh=16,4 modes=w0,h1,x2,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20036 (162|54) type=18 graphic=-1 hidden=1 abs=268,457 16x16 wh=16,16 modes=w0,h0,x1,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20037 (162|55) type=18 graphic=-1 hidden=0 abs=17,357 519x123 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20038 (162|56) type=18 graphic=-1 hidden=0 abs=24,363 505x111 wh=14,12 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20039 (162|57) type=14 graphic=-1 hidden=0 abs=27,458 502x16 wh=3,16 modes=w1,h0,x2,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2003a (162|58) type=18 graphic=-1 hidden=0 abs=24,363 489x95 wh=16,16 modes=w1,h1,x0,y0 scroll=0x142 off=0,28 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2022f (162|559) type=18 graphic=-1 hidden=0 abs=513,363 16x95 wh=16,16 modes=w0,h1,x2,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20230 (162|560) type=18 graphic=-1 hidden=0 abs=17,357 519x123 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20231 (162|561) type=18 graphic=-1 hidden=0 abs=24,355 506x129 wh=506,129 modes=w0,h0,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20232 (162|562) type=18 graphic=-1 hidden=0 abs=24,355 506x129 wh=0,0 modes=w1,h1,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20233 (162|563) type=19 graphic=-1 hidden=1 abs=24,355 506x129 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20234 (162|564) type=18 graphic=-1 hidden=1 abs=497,357 32x32 wh=32,32 modes=w0,h0,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20235 (162|565) type=15 graphic=539 hidden=1 abs=500,361 26x23 wh=26,23 modes=w0,h0,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20236 (162|566) type=18 graphic=-1 hidden=1 abs=37,370 479x96 wh=479,96 modes=w0,h0,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a20237 (162|567) type=18 graphic=-1 hidden=1 abs=37,370 479x96 wh=479,96 modes=w0,h0,x1,y1 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a29174 (162|37236) type=15 graphic=792 hidden=0 abs=513,379 16x63 wh=0,32 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a29175 (162|37237) type=15 graphic=790 hidden=0 abs=513,391 16x42 wh=0,42 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a29176 (162|37238) type=15 graphic=789 hidden=0 abs=513,391 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a29177 (162|37239) type=15 graphic=791 hidden=0 abs=513,428 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a29179 (162|37241) type=15 graphic=788 hidden=0 abs=513,442 16x16 wh=0,16 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2a3f5 (162|41973) type=15 graphic=1017 hidden=0 abs=17,357 519x123 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2a3f6 (162|41974) type=19 graphic=-1 hidden=0 abs=24,458 505x1 wh=0,1 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0xffffffff (65535|65535) type=15 graphic=-1 hidden=0 abs=483,483 20x16 wh=20,16 modes=w0,h0,x-1,y-1 scroll=-1x-1 off=0,0 = and its new one, fifty rows down, still one row above that same bar
+only-after  BOUNDS com=0x00a10060 (161|96) type=18 graphic=-1 hidden=0 abs=17,357 519x146 wh=519,165 modes=w0,h0,x0,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a4005d (164|93) type=18 graphic=-1 hidden=0 abs=17,357 519x146 wh=519,165 modes=w0,h0,x0,y2 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc9c (162|48284) type=15 graphic=1017 hidden=0 abs=17,357 519x123 wh=0,0 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc9d (162|48285) type=19 graphic=-1 hidden=0 abs=24,458 505x1 wh=0,1 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc99 (162|48281) type=15 graphic=788 hidden=0 abs=513,442 16x16 wh=0,16 modes=w1,h0,x1,y2 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc97 (162|48279) type=15 graphic=791 hidden=0 abs=513,456 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc96 (162|48278) type=15 graphic=789 hidden=0 abs=513,396 16x5 wh=0,5 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc95 (162|48277) type=15 graphic=790 hidden=0 abs=513,396 16x65 wh=0,65 modes=w1,h0,x1,y0 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x00a2bc94 (162|48276) type=15 graphic=792 hidden=0 abs=513,379 16x63 wh=0,32 modes=w1,h1,x1,y1 scroll=-1x-1 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+only-after  BOUNDS com=0x0000c466 (0|50278) type=18 graphic=-1 hidden=0 abs=1896,735 458x0 wh=458,0 modes=w0,h0,x0,y0 scroll=0x0 off=0,0 = and the same component with the strip under it, which puts the pack's own bar on row 480 -- interface 548's own row for it
+
+# --------------------------------------------------------------------------
+# The same three differences, said about the roles and the owned controls
+# rather than about the capture lines.
+#
+# Fifteen roles move and they are the pack's own: the bar, the backing, the
+# input line, the eight filter plates and the Report plate's action role. The
+# role names are spelled per lane by the profile, so they are named here one
+# by one rather than by a prefix -- a prefix would also excuse a role this
+# change has nothing to do with.
+role-move frame_chat = the pack seated on the strip; @see the capture lines above
+role-move chat_backing = its parchment, 73 rows becoming 123
+role-move chat_bar = its filter bar, on row 480, where 548 puts that bar on its own frame
+role-move chat_input = the typing line, fifty rows down with the rest of the pack
+role-move chat_plate_0 = filter 1, moved with the bar it stands on
+role-move chat_plate_1 = filter 2, moved with the bar it stands on
+role-move chat_plate_2 = filter 3, moved with the bar it stands on
+role-move chat_plate_3 = filter 4, moved with the bar it stands on
+role-move chat_plate_4 = filter 5, moved with the bar it stands on
+role-move chat_plate_5 = filter 6, moved with the bar it stands on
+role-move chat_plate_6 = filter 7, moved with the bar it stands on
+role-move chat_plate_7 = filter 8 (Report), moved with the bar it stands on
+role-move public_chat_button = the same plate under the name the profile gives its action
+role-move report_button = the same plate under the name the profile gives its action
+role-move action_frame_chat_button_report_activate = Report's activation role, on the plate that moved
+
+# The band itself. `piece.13` is the layout's thirteenth blit and it was that
+# picture; the layout now states twelve, and there is no thirteenth key.
+owned-drop piece.13 = the composed band over the 2004 hollows, retired: nothing is left for it to cover once the pack's bar stands on them
+
+# And the one control of another plugin's that follows the bar.
+owned-move camera_report = the screenshot button sits one row above the pack's filter bar and went with it, 433 to 483
+
+# --------------------------------------------------------------------------
+# The composed art lands in different image slots on the remount lanes.
+#
+# Every box, every size and every hidden bit is identical; what moved is the
+# internal slot number the client hands a picture. The describe now states
+# nothing on the fence a new frame root appears, so the pictures that fence
+# would have named are requested and released one fence later and everything
+# allocated afterwards renumbers.
+#
+# THE CLAIM, stated so it can be argued with: a slot id is an internal handle
+# and not behaviour. Nothing reads it, nothing persists it, and no two builds
+# are obliged to agree on it. It is the same line the two ports before this
+# one carry, for the same reason.
+normalise scene = the image slot is an internal handle, and a describe that states nothing on a remount fence renumbers what is allocated after it

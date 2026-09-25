@@ -54,7 +54,7 @@ struct MountSpec
 };
 
 /** Fixed-mode gameframe (archive 165) sidebar mount slots are 1×1 logical layers.
- *  rev_kronos_ui.ini places all sidebar_tab_* panels at this rect on fixed_shell. */
+ *  osrs_kronos_ui.ini places all sidebar_tab_* panels at this rect on fixed_shell. */
 enum
 {
     GAMEFRAME_165_SIDEBAR_X = 547,

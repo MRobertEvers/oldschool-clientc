@@ -54,6 +54,20 @@ PlayerModel_DesignColourCount(int part)
     return k_recol1d[part].count;
 }
 
+/* PlayerComposition's seven design-part -> wear-slot table (Statics.method8884
+ * / class389.field4882 in the 239 client). @see PlayerModel_DesignPartWearpos. */
+static int const k_design_part_wearpos[7] = {
+    8, 11, 4, 6, 9, 7, 10,
+};
+
+int
+PlayerModel_DesignPartWearpos(int part)
+{
+    if( part < 0 || part >= (int)(sizeof(k_design_part_wearpos) / sizeof(int)) )
+        return -1;
+    return k_design_part_wearpos[part];
+}
+
 static void
 obj_wear_models(
     struct ToriRS_Objtype const* obj,
@@ -137,6 +151,88 @@ PlayerModel_CollectAppearanceModelIds(
 }
 
 int
+PlayerModel_AppearanceResident(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int gender)
+{
+    assert(provider);
+    assert(slots);
+
+    for( int s = 0; s < 12; s++ )
+    {
+        int value = slots[s];
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
+        {
+            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
+            if( !idk )
+                return 0;
+            for( int m = 0; m < idk->model_ids_count; m++ )
+                if( idk->model_ids[m] >= 0 && !CacheProvider_ModelHas(provider, idk->model_ids[m]) )
+                    return 0;
+        }
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
+        {
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
+            int wear[3];
+            if( !obj )
+                return 0;
+            obj_wear_models(obj, gender, wear);
+            for( int m = 0; m < 3; m++ )
+                if( wear[m] >= 0 && !CacheProvider_ModelHas(provider, wear[m]) )
+                    return 0;
+        }
+    }
+    return 1;
+}
+
+/*
+ * The head twin of PlayerModel_AppearanceResident: is every idk / obj config
+ * the appearance names resident, and every HEAD model those configs name for
+ * `gender`? Reference ClientPlayer.getHeadModel asks exactly this first
+ * (IdkType.checkHead / ObjType.checkHeadModel) and returns null when one part
+ * is still coming, because a head merged from the parts that happened to have
+ * landed is cached by the caller and never rebuilt.
+ */
+static int
+player_head_appearance_resident(
+    struct CacheProvider* provider,
+    int const slots[12],
+    int gender)
+{
+    assert(provider);
+    assert(slots);
+
+    for( int s = 0; s < 12; s++ )
+    {
+        int value = slots[s];
+        if( Appearance_SlotKind(value) == APPEARANCE_SLOT_KIT )
+        {
+            struct ToriRS_Idk* idk = CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
+            if( !idk )
+                return 0;
+            for( int h = 0; h < 10; h++ )
+                if( idk->heads[h] > 0 && !CacheProvider_ModelHas(provider, idk->heads[h]) )
+                    return 0;
+        }
+        else if( Appearance_SlotKind(value) == APPEARANCE_SLOT_OBJ )
+        {
+            struct ToriRS_Objtype* obj =
+                CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
+            int head[2];
+            if( !obj )
+                return 0;
+            obj_head_models(obj, gender, head);
+            for( int m = 0; m < 2; m++ )
+                if( head[m] >= 0 && !CacheProvider_ModelHas(provider, head[m]) )
+                    return 0;
+        }
+    }
+    return 1;
+}
+
+int
 PlayerHeadModel_CollectHeadModelIds(
     struct CacheProvider* provider,
     int const slots[12],
@@ -205,6 +301,12 @@ PlayerModel_BuildFromAppearance(
 
     assert(provider && slots);
 
+    /* All or nothing (reference PlayerComposition.getModel's isReady gate):
+     * a body missing a part is not a body, and whoever holds the previous
+     * one keeps drawing it until this one can be whole. */
+    if( !PlayerModel_AppearanceResident(provider, slots, gender) )
+        return NULL;
+
     for( int s = 0; s < 12; s++ )
     {
         int value = slots[s];
@@ -212,14 +314,13 @@ PlayerModel_BuildFromAppearance(
         {
             struct ToriRS_Idk* idk =
                 CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
-            if( !idk )
-                continue;
+            assert(idk);
             for( int m = 0; m < idk->model_ids_count; m++ )
             {
                 struct ToriRS_Model* rs;
                 struct ToriDraw_Model* model;
                 int mid = idk->model_ids[m];
-                if( mid < 0 || !CacheProvider_ModelHas(provider, mid) )
+                if( mid < 0 )
                     continue;
                 rs = CacheProvider_ModelGet(provider, mid);
                 model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
@@ -238,14 +339,13 @@ PlayerModel_BuildFromAppearance(
             struct ToriRS_Objtype* obj =
                 CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int wear[3];
-            if( !obj )
-                continue;
+            assert(obj);
             obj_wear_models(obj, gender, wear);
             for( int m = 0; m < 3; m++ )
             {
                 struct ToriRS_Model* rs;
                 struct ToriDraw_Model* model;
-                if( wear[m] < 0 || !CacheProvider_ModelHas(provider, wear[m]) )
+                if( wear[m] < 0 )
                     continue;
                 rs = CacheProvider_ModelGet(provider, wear[m]);
                 model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
@@ -309,6 +409,9 @@ PlayerHeadModel_BuildFromAppearance(
 
     assert(provider && slots);
 
+    if( !player_head_appearance_resident(provider, slots, gender) )
+        return NULL;
+
     for( int s = 0; s < 12; s++ )
     {
         int value = slots[s];
@@ -316,19 +419,18 @@ PlayerHeadModel_BuildFromAppearance(
         {
             struct ToriRS_Idk* idk =
                 CacheProvider_IdkGet(provider, Appearance_SlotKit(value));
-            if( !idk )
-                continue;
+            assert(idk); /* the residency pass above already said yes */
             for( int h = 0; h < 10; h++ )
             {
                 struct ToriRS_Model* rs;
                 struct ToriDraw_Model* model;
                 int mid = idk->heads[h];
-                if( mid <= 0 || !CacheProvider_ModelHas(provider, mid) )
-                    continue;
+                if( mid <= 0 )
+                    continue; /* this kit covers no head */
                 rs = CacheProvider_ModelGet(provider, mid);
-                model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
-                if( !model )
-                    continue;
+                assert(rs);
+                model = ToriDraw_ModelFromToriRS(rs);
+                assert(model);
                 for( int r = 0; r < 10; r++ )
                     if( idk->recolors_from[r] != 0 || idk->recolors_to[r] != 0 )
                         ToriDraw_ModelRecolor(
@@ -345,19 +447,18 @@ PlayerHeadModel_BuildFromAppearance(
             struct ToriRS_Objtype* obj =
                 CacheProvider_ObjtypeGet(provider, Appearance_SlotObj(value));
             int head[2];
-            if( !obj )
-                continue;
+            assert(obj); /* the residency pass above already said yes */
             obj_head_models(obj, gender, head);
             for( int m = 0; m < 2; m++ )
             {
                 struct ToriRS_Model* rs;
                 struct ToriDraw_Model* model;
-                if( head[m] < 0 || !CacheProvider_ModelHas(provider, head[m]) )
-                    continue;
+                if( head[m] < 0 )
+                    continue; /* this item covers no head */
                 rs = CacheProvider_ModelGet(provider, head[m]);
-                model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
-                if( !model )
-                    continue;
+                assert(rs);
+                model = ToriDraw_ModelFromToriRS(rs);
+                assert(model);
                 for( int r = 0; r < obj->recolor_count; r++ )
                     ToriDraw_ModelRecolor(model, obj->recolors_from[r], obj->recolors_to[r]);
                 part_count = append_model(parts, part_count, model);

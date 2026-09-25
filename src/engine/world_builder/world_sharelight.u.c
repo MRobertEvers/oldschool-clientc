@@ -7,6 +7,7 @@
 #include "toridraw_lighting.h"
 #include "toridraw_model.h"
 #include "toridraw_scene.h"
+#include "toridraw_shared_model.h"
 #include "world_builder.h"
 
 #include <assert.h>
@@ -99,13 +100,117 @@ static int g_merge_index = 0;
 static int g_vertex_a_merge_index[10000] = { 0 };
 static int g_vertex_b_merge_index[10000] = { 0 };
 
+/*
+ * Scratch hash for merge_normals: buckets the OTHER model's vertex positions so
+ * each of this model's vertices probes a chain instead of scanning every other
+ * vertex. Grow-only, reused across the whole build (a rebuild calls
+ * merge_normals tens of thousands of times; per-call malloc would dominate).
+ *
+ * head[] entries are stamped with the build serial rather than cleared, so a
+ * new pair costs O(vertices inserted), not O(table).
+ */
+static uint32_t* g_slh_head; /* bucket -> (serial, first chain index) */
+static int32_t* g_slh_next; /* per-inserted-vertex chain link, -1 ends */
+static uint32_t* g_slh_serial; /* bucket stamp; matches g_slh_build if live */
+static int g_slh_bucket_cap;
+static int g_slh_next_cap;
+static uint32_t g_slh_build;
+
+static inline uint32_t
+slh_hash(
+    int x,
+    int y,
+    int z)
+{
+    uint32_t h = (uint32_t)x * 73856093u ^ (uint32_t)y * 19349663u ^ (uint32_t)z * 83492791u;
+    h ^= h >> 15;
+    return h;
+}
+
+static void
+slh_reserve(
+    int vertex_count)
+{
+    int want_buckets = 16;
+    while( want_buckets < vertex_count * 2 )
+        want_buckets <<= 1;
+    if( want_buckets > g_slh_bucket_cap )
+    {
+        free(g_slh_head);
+        free(g_slh_serial);
+        g_slh_head = malloc((size_t)want_buckets * sizeof(*g_slh_head));
+        assert(g_slh_head);
+        g_slh_serial = calloc((size_t)want_buckets, sizeof(*g_slh_serial));
+        assert(g_slh_serial);
+        g_slh_bucket_cap = want_buckets;
+        g_slh_build = 0;
+    }
+    if( vertex_count > g_slh_next_cap )
+    {
+        free(g_slh_next);
+        g_slh_next_cap = vertex_count * 2;
+        g_slh_next = malloc((size_t)g_slh_next_cap * sizeof(*g_slh_next));
+        assert(g_slh_next);
+    }
+}
+
 static int*
 ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
 {
     assert(model);
     if( !model->face_infos && model->face_count > 0 )
+    {
         model->face_infos = calloc((size_t)model->face_count, sizeof(int));
+        assert(model->face_infos);
+    }
     return model->face_infos;
+}
+
+/**
+ * Hide the seam: every face whose three corners all landed on the neighbour
+ * stops being drawn, because the neighbour's own face is there instead.
+ *
+ * This is the write the topology loan is shaped around. face_infos is the one
+ * face array a sharelight placement does NOT borrow, and the only reason it
+ * does not is this loop -- lend it and one segment's seam disappears at every
+ * placement of the same wall in the scene. The assert is what says so at the
+ * write rather than three rooms away.
+ */
+static void
+hide_merged_faces(
+    struct ToriDraw_Model* model,
+    const int* vertex_merge_index)
+{
+    int face_count;
+    faceint_t const* fa;
+    faceint_t const* fb;
+    faceint_t const* fc;
+    int* infos;
+    int face;
+
+    assert(model);
+    assert(vertex_merge_index);
+
+    face_count = model->face_count;
+    fa = model->face_indices_a;
+    fb = model->face_indices_b;
+    fc = model->face_indices_c;
+    infos = NULL;
+
+    for( face = 0; face < face_count; face++ )
+    {
+        if( vertex_merge_index[fa[face]] != g_merge_index ||
+            vertex_merge_index[fb[face]] != g_merge_index ||
+            vertex_merge_index[fc[face]] != g_merge_index )
+            continue;
+
+        if( !infos )
+        {
+            infos = ToriDraw_ModelFaceInfosEnsureZero(model);
+            assert(infos);
+        }
+        infos[face] = 2;
+    }
 }
 
 static void
@@ -128,7 +233,6 @@ merge_normals(
     struct ToriDraw_Normal* model_a_lighting_normal = NULL;
     struct ToriDraw_Normal* model_b_lighting_normal = NULL;
     int x, y, z;
-    int other_x, other_y, other_z;
 
     int merged_vertex_count = 0;
 
@@ -142,80 +246,81 @@ merge_normals(
     vertexint_t* other_vy = other_model->vertices_y;
     vertexint_t* other_vz = other_model->vertices_z;
 
+    /* Bucket the other model's shareable vertices (face_count > 0) by position,
+     * then probe once per own vertex. Yields exactly the (vertex, other_vertex)
+     * pairs the old full cross scan found — duplicates included, since bucket
+     * chains keep every vertex at a position — at O(m + n) instead of O(m * n).
+     * Serial-stamped buckets make the table reusable without clearing. */
+    slh_reserve(other_vc);
+    g_slh_build++;
+    uint32_t const bucket_mask = (uint32_t)g_slh_bucket_cap - 1;
+    for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
+    {
+        if( other_vertex_normals[other_vertex].face_count == 0 )
+            continue;
+        uint32_t b =
+            slh_hash(other_vx[other_vertex], other_vy[other_vertex], other_vz[other_vertex]) &
+            bucket_mask;
+        if( g_slh_serial[b] != g_slh_build )
+        {
+            g_slh_serial[b] = g_slh_build;
+            g_slh_next[other_vertex] = -1;
+        }
+        else
+            g_slh_next[other_vertex] = (int32_t)g_slh_head[b];
+        g_slh_head[b] = (uint32_t)other_vertex;
+    }
+
     for( int vertex = 0; vertex < model_vc; vertex++ )
     {
+        model_a_normal = &vertex_normals[vertex];
+        if( model_a_normal->face_count == 0 )
+            continue;
+
         x = model_vx[vertex] - check_offset_x;
         y = model_vy[vertex] - check_offset_y;
         z = model_vz[vertex] - check_offset_z;
 
-        model_a_normal = &vertex_normals[vertex];
+        uint32_t b = slh_hash(x, y, z) & bucket_mask;
+        if( g_slh_serial[b] != g_slh_build )
+            continue;
+
         model_a_lighting_normal = &lighting_vertex_normals[vertex];
 
-        for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
+        for( int32_t other_vertex = (int32_t)g_slh_head[b]; other_vertex != -1;
+             other_vertex = g_slh_next[other_vertex] )
         {
-            other_x = other_vx[other_vertex];
-            other_y = other_vy[other_vertex];
-            other_z = other_vz[other_vertex];
+            if( x != other_vx[other_vertex] || y != other_vy[other_vertex] ||
+                z != other_vz[other_vertex] )
+                continue;
 
             model_b_normal = &other_vertex_normals[other_vertex];
             model_b_lighting_normal = &other_lighting_vertex_normals[other_vertex];
 
-            if( x == other_x && y == other_y && z == other_z && model_b_normal->face_count > 0 &&
-                model_a_normal->face_count > 0 )
-            {
-                model_a_lighting_normal->x += model_b_normal->x;
-                model_a_lighting_normal->y += model_b_normal->y;
-                model_a_lighting_normal->z += model_b_normal->z;
-                model_a_lighting_normal->face_count += model_b_normal->face_count;
-                model_a_lighting_normal->merged++;
+            model_a_lighting_normal->x += model_b_normal->x;
+            model_a_lighting_normal->y += model_b_normal->y;
+            model_a_lighting_normal->z += model_b_normal->z;
+            model_a_lighting_normal->face_count += model_b_normal->face_count;
+            model_a_lighting_normal->merged++;
 
-                model_b_lighting_normal->x += model_a_normal->x;
-                model_b_lighting_normal->y += model_a_normal->y;
-                model_b_lighting_normal->z += model_a_normal->z;
-                model_b_lighting_normal->face_count += model_a_normal->face_count;
-                model_b_lighting_normal->merged++;
+            model_b_lighting_normal->x += model_a_normal->x;
+            model_b_lighting_normal->y += model_a_normal->y;
+            model_b_lighting_normal->z += model_a_normal->z;
+            model_b_lighting_normal->face_count += model_a_normal->face_count;
+            model_b_lighting_normal->merged++;
 
-                merged_vertex_count++;
+            merged_vertex_count++;
 
-                g_vertex_a_merge_index[vertex] = g_merge_index;
-                g_vertex_b_merge_index[other_vertex] = g_merge_index;
-            }
+            g_vertex_a_merge_index[vertex] = g_merge_index;
+            g_vertex_b_merge_index[other_vertex] = g_merge_index;
         }
     }
 
     if( merged_vertex_count < 3 || !hide_faces )
         return;
 
-    int m_fc = model->face_count;
-    faceint_t* m_fa = model->face_indices_a;
-    faceint_t* m_fb = model->face_indices_b;
-    faceint_t* m_fci = model->face_indices_c;
-    for( int face = 0; face < m_fc; face++ )
-    {
-        if( g_vertex_a_merge_index[m_fa[face]] == g_merge_index &&
-            g_vertex_a_merge_index[m_fb[face]] == g_merge_index &&
-            g_vertex_a_merge_index[m_fci[face]] == g_merge_index )
-        {
-            int* infos = ToriDraw_ModelFaceInfosEnsureZero(model);
-            if( infos )
-                infos[face] = 2;
-        }
-    }
-    int o_fc = other_model->face_count;
-    faceint_t* o_fa = other_model->face_indices_a;
-    faceint_t* o_fb = other_model->face_indices_b;
-    faceint_t* o_fci = other_model->face_indices_c;
-    for( int face = 0; face < o_fc; face++ )
-    {
-        if( g_vertex_b_merge_index[o_fa[face]] == g_merge_index &&
-            g_vertex_b_merge_index[o_fb[face]] == g_merge_index &&
-            g_vertex_b_merge_index[o_fci[face]] == g_merge_index )
-        {
-            int* infos = ToriDraw_ModelFaceInfosEnsureZero(other_model);
-            if( infos )
-                infos[face] = 2;
-        }
-    }
+    hide_merged_faces(model, g_vertex_a_merge_index);
+    hide_merged_faces(other_model, g_vertex_b_merge_index);
 }
 
 /*
@@ -239,7 +344,6 @@ merge_normals(
 static void
 defaultlight_build(struct WorldBuilder* builder)
 {
-    struct World* world = builder->world;
     struct ToriDraw_SceneElement* scene_element = NULL;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
@@ -262,7 +366,7 @@ defaultlight_build(struct WorldBuilder* builder)
 
                     scene_element =
                         ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                    if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                    if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                         !scene_element->model.u.model.model )
                         continue;
 
@@ -285,12 +389,24 @@ defaultlight_build(struct WorldBuilder* builder)
 
 #define SHARELIGHT_MERGE_LOOKAHEAD 6
 
+/* Alloc order matters: CalculateVertexNormals seeds merged_normals from the
+ * base normals only if merged is already allocated. */
+static void
+sharelight_ensure_normals(struct ToriDraw_Model* dm)
+{
+    assert(dm);
+    if( dm->normals )
+        return;
+    ToriDraw_ModelAllocNormals(dm);
+    ToriDraw_ModelAllocMergedNormals(dm);
+    ToriDraw_ModelCalculateVertexNormals(dm);
+}
+
 static void
 alloc_normals_for_column(
     struct WorldBuilder* builder,
     int sx)
 {
-    struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct ToriDraw_SceneElement* scene_element = NULL;
@@ -307,16 +423,10 @@ alloc_normals_for_column(
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
                 scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                     !scene_element->model.u.model.model )
                     continue;
-                struct ToriDraw_Model* dm = scene_element->model.u.model.model;
-                if( !dm->normals )
-                {
-                    ToriDraw_ModelAllocNormals(dm);
-                    ToriDraw_ModelAllocMergedNormals(dm);
-                    ToriDraw_ModelCalculateVertexNormals(dm);
-                }
+                sharelight_ensure_normals(scene_element->model.u.model.model);
             }
         }
     }
@@ -359,7 +469,7 @@ merge_column(
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
                 scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                     !scene_element->model.u.model.model )
                     continue;
 
@@ -392,7 +502,7 @@ merge_column(
                         adjacent_scene_element = ToriDraw_SceneElementGet(
                             builder->scene, adjacent_map_element->element_idx);
                         if( !adjacent_scene_element ||
-                            adjacent_scene_element->model.kind != TORIDRAWMK_MODEL ||
+                            !ToriDraw_ModelKindIsFull(adjacent_scene_element->model.kind) ||
                             !adjacent_scene_element->model.u.model.model )
                             continue;
 
@@ -420,6 +530,17 @@ merge_column(
                             !ToriDraw_ModelIsLightable(dm) )
                             continue;
 
+                        /* The batch alloc only leads by SHARELIGHT_MERGE_LOOKAHEAD
+                         * columns, but adjacency reaches the element's whole
+                         * footprint (up to SHARELIGHT_MAX_ELEMENT_TILES): a
+                         * 7-tile-wide sharelight loc (ToA's Crondis water
+                         * source, 7x5) gathers a column the alloc pass has not
+                         * visited yet, whose models still have NULL normals. */
+                        sharelight_ensure_normals(adjacent_dm);
+                        assert(dm->normals);
+                        assert(dm->merged_normals);
+                        assert(adjacent_dm->merged_normals);
+
                         bool hide_faces = sharelight_should_hide_faces_for_merge(
                             slevel, adjacent_tile_coord.level);
 
@@ -446,7 +567,6 @@ apply_and_free_column(
     struct WorldBuilder* builder,
     int sx)
 {
-    struct World* world = builder->world;
     struct SharelightMapTile* map_tile = NULL;
     struct SharelightMapElement* map_element = NULL;
     struct ToriDraw_SceneElement* scene_element = NULL;
@@ -464,7 +584,7 @@ apply_and_free_column(
             {
                 map_element = &builder->sharelight_map->pool[pi].element;
                 scene_element = ToriDraw_SceneElementGet(builder->scene, map_element->element_idx);
-                if( !scene_element || scene_element->model.kind != TORIDRAWMK_MODEL ||
+                if( !scene_element || !ToriDraw_ModelKindIsFull(scene_element->model.kind) ||
                     !scene_element->model.u.model.model )
                     continue;
 
@@ -486,6 +606,11 @@ apply_and_free_column(
                     struct ToriDraw_Model* dm = scene_element->model.u.model.model;
                     if( !ToriDraw_ModelIsLightable(dm) )
                         continue;
+                    /* Every sharelight element's column is alloc'd before its
+                     * apply pass; NULL here means the alloc/merge/apply
+                     * lifecycle broke, not a legitimate unlit model. */
+                    assert(dm->normals);
+                    assert(dm->merged_normals);
                     ToriDraw_ApplyLighting(
                         dm->face_colors_a,
                         dm->face_colors_b,
@@ -522,27 +647,58 @@ world_build_lighting(struct WorldBuilder* builder)
     assert(builder->sharelight_map);
 
     int scene_size = builder->sharelight_map->width;
+    double t_alloc = 0.0;
+    double t_merge = 0.0;
+    double t_apply = 0.0;
+    double tp;
 
     int initial_cols =
         scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ? scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
+    tp = wb_timing_on() ? wb_now_ms() : 0.0;
     for( int sx = 0; sx < initial_cols; sx++ )
         alloc_normals_for_column(builder, sx);
+    if( wb_timing_on() )
+        t_alloc += wb_now_ms() - tp;
 
     for( int sx = 0; sx < scene_size; sx++ )
     {
         int alloc_sx = sx + SHARELIGHT_MERGE_LOOKAHEAD;
         if( alloc_sx < scene_size && alloc_sx >= initial_cols )
+        {
+            tp = wb_timing_on() ? wb_now_ms() : 0.0;
             alloc_normals_for_column(builder, alloc_sx);
+            if( wb_timing_on() )
+                t_alloc += wb_now_ms() - tp;
+        }
 
+        tp = wb_timing_on() ? wb_now_ms() : 0.0;
         merge_column(builder, sx);
+        if( wb_timing_on() )
+        {
+            double t = wb_now_ms();
+            t_merge += t - tp;
+            tp = t;
+        }
 
         if( sx >= 1 )
             apply_and_free_column(builder, sx - 1);
+        if( wb_timing_on() )
+            t_apply += wb_now_ms() - tp;
     }
 
+    tp = wb_timing_on() ? wb_now_ms() : 0.0;
     apply_and_free_column(builder, scene_size - 1);
 
     defaultlight_build(builder);
+
+    if( wb_timing_on() )
+        fprintf(
+            stderr,
+            "rebuild_timing: lighting alloc=%.1fms merge=%.1fms apply=%.1fms tail=%.1fms\n",
+            t_alloc,
+            t_merge,
+            t_apply,
+            wb_now_ms() - tp);
 }
 
 #endif

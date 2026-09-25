@@ -12,7 +12,9 @@ from pathlib import Path
 from summoning_script_sources import (
     EXPECTED_MODULES,
     declaration_owners,
+    definition,
     read_all,
+    read_module,
     script_dir,
     script_paths,
 )
@@ -50,12 +52,65 @@ def main() -> int:
     paths = script_paths(scripts)
     source = read_all(scripts)
     expect(
-        {path.name for path in paths} == EXPECTED_MODULES,
-        "Summoning server-script module layout drifted",
+        {path.name for path in scripts.glob("*.rs2")} == EXPECTED_MODULES,
+        "Summoning top-level server-script module layout drifted",
+    )
+    familiar_paths = sorted((scripts / "familiars").glob("summoning_familiar_*.rs2"))
+    expect(
+        len(familiar_paths) == 78,
+        f"Summoning familiar module layout has {len(familiar_paths)} files, expected 78",
+    )
+    expect(
+        all(
+            len(re.findall(r"^\[proc,summoning_[a-z0-9_]+_special\]", path.read_text(), re.MULTILINE))
+            == 1
+            for path in familiar_paths
+        ),
+        "each familiar module must own exactly one special-move handler",
+    )
+    familiar_handlers = {
+        match.group(1)
+        for path in familiar_paths
+        for match in re.finditer(
+            r"^\[proc,(summoning_[a-z0-9_]+_special)\]", path.read_text(), re.MULTILINE
+        )
+    }
+    immediate_dispatch = read_module(scripts, "summoning_special_immediate.rs2")
+    targeted_dispatch = read_module(scripts, "summoning_special_targeted.rs2")
+    dispatched_handlers = set(
+        re.findall(r"return\(~(summoning_[a-z0-9_]+_special)\(", immediate_dispatch + targeted_dispatch)
+    )
+    expect(
+        len(familiar_handlers) == 78 and familiar_handlers == dispatched_handlers,
+        "the 78 familiar-owned special handlers and central dispatch routes differ",
+    )
+    expect(
+        "npc_anim(" not in immediate_dispatch
+        and "npc_damage(" not in immediate_dispatch
+        and "npc_anim(" not in definition(scripts, "proc,summoning_familiar_special_target_execute")
+        and "npc_damage(" not in definition(scripts, "proc,summoning_familiar_special_target_execute"),
+        "familiar-specific special behavior leaked back into a central dispatcher",
     )
     owners = declaration_owners(scripts)
     duplicate_headers = sorted(name for name, paths in owners.items() if len(paths) != 1)
     expect(not duplicate_headers, f"Summoning declarations have multiple owners: {duplicate_headers}")
+    familiar_combat_hooks = {
+        "summoning_honey_badger_charged_attack_tick": "summoning_familiar_honey_badger.rs2",
+        "summoning_iron_titan_normal_combat_tick": "summoning_familiar_iron_titan.rs2",
+        "summoning_spirit_graahk_normal_combat_tick": "summoning_familiar_spirit_graahk.rs2",
+        "summoning_spirit_scorpion_qualifying_weapon": "summoning_familiar_spirit_scorpion.rs2",
+        "summoning_spirit_scorpion_adjust_ranged_battle": "summoning_familiar_spirit_scorpion.rs2",
+        "summoning_steel_titan_normal_combat_tick": "summoning_familiar_steel_titan.rs2",
+        "summoning_talon_beast_normal_combat_tick": "summoning_familiar_talon_beast.rs2",
+    }
+    expect(
+        all(
+            len(owners.get(f"proc,{proc}", [])) == 1
+            and owners[f"proc,{proc}"][0].name == filename
+            for proc, filename in familiar_combat_hooks.items()
+        ),
+        "a familiar-specific combat hook is not owned by that familiar's module",
+    )
     expect(len(owners) >= 100, "too few callable entry points were inspected")
     # Helpers are only reachable through gated runtime entries, so test actual
     # trigger headers rather than requiring an artificial gate on pure typed

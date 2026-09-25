@@ -1,0 +1,247 @@
+{{External|rs=Void knight equipment}}
+{{redirect|Void}}
+{{otheruses|the regular version|the upgraded version|Elite Void Knight equipment}}
+'''Void Knight equipment''', often referred to as the '''void set''', '''void armour''', or simply just '''void''', is a set of armour which can be purchased from the Void Knights with the [[commendation points]] earned from [[Pest Control]]. To buy or equip any of the items (besides the [[Void seal|seal]]), a player must have 42 [[Attack]], [[Strength]], [[Defence]], [[Hitpoints]], [[Ranged]], and [[Magic]], along with 22 [[Prayer]].
+
+Void Knight armour contributes Defence bonuses to all stats equally (including Magic and Ranged) without lowering any attack bonuses. Wearing a complete set offers various combat bonuses which make the armour a popular choice for players using multiple attack styles.
+
+The equipment can be stored in the [[armour case]] of the [[costume room]] in a [[player-owned house]].
+
+Players can attach [[Shattered relics void ornament kit|Shattered relics void ornament kits]] to change the cosmetic look of the set pieces. Kits can be obtained from [[Leagues Tutor]], [[Leagues Reward Shop]], or Grand Exchange. This does not affect the stat bonuses. It can be dismantled at any time to return the original equipment and ornament kits to the inventory.
+
+==Set effects==
+Void Knight armour has a set effect in addition to each item's stats. These depend upon which of the three Void Knight helmets are worn. An additional bonus is added when wearing the [[elite void equipment|elite Void]] [[elite void top|top]] and [[elite void robe|robe]]:
+
+{| class="wikitable lighttable" style="text-align:center;"
+!Helmet
+!Base set effect
+!Additional [[Elite Void Knight equipment|elite set]] bonus
+|-
+|{{plink|Void melee helm}}
+| +10% to melee damage and accuracy
+| None
+|-
+|{{plink|Void ranger helm}}
+| +10% to ranged damage and accuracy{{Refn|The Void Knight equipment set effect only affects the accuracy (but not the damage) of [[Dwarf multicannon|dwarf cannons]] and [[Comp ogre bow|Comp ogre bows]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1146228446646996992|date=3 July 2019|archiveurl=https://reldo.runescape.wiki/i/107873|archivedate=29 May 2020|quote=I think it'd help with the accuracy if you're wielding a melee weapon and using the melee set, or wielding a ranged weapon and using the ranged set.}}|group=a}}
+| +2.5% ranged damage{{Refn|The upgraded [[Elite Void Knight equipment|Elite ranger]] version provides an additional '''2.5%''' ranged damage; <small>''a total bonus of 12.5% ranged damage instead of 10%.''</small>|group=a}}
+|-
+|{{plink|Void mage helm}}
+| +45% to magic accuracy
+| +5% magic damage
+|}
+{{Reflist|group=a}}
+
+In addition to one of the three helmets, the player also needs to wear '''all''' of the items below:
+*[[Void Knight gloves]]
+*[[Void Knight top]] or [[Elite void top|elite Void top]]
+*[[Void Knight robe]] or [[Elite void robe|elite Void robe]]
+The [[Void Knight mace]] and [[Void seal]] do '''not''' contribute to the set effect.
+
+==Obtaining==
+Void Knight equipment requires [[commendation points]], which must be obtained from [[Pest Control]]. Equipment can also be sold to the [[Dodgy Squire]] for 80% of the item's original commendation point value; for example, exchanging any of the helmets would return 160 commendation points, compared to the 200 the helmet originally cost.
+
+===Cost===
+In total, the minimum amount of points needed to get a set that provides the damage bonus is 850 [[commendation points]]. This cost includes only one helmet, and excludes the [[Void knight mace|mace]] and [[Void Knight seal|seal]]. An additional 400 points are needed to upgrade the robe and top to [[Elite Void Knight equipment]], for a total of 1250.
+
+Players will need an additional 400 points for the other two helmets; this brings the total points needed for a full set of elite void in every style to 1650.
+
+{| class="wikitable lighttable" style="text-align:center;"
+! Icon
+! Equipment
+! Commendations cost
+|-
+|{{plinkp|Void melee helm}} {{plinkp|Void ranger helm}} {{plinkp|Void mage helm}}
+|[[Void Knight helmet|Helmet]]
+|200 (each)
+|-
+|{{plinkt|Void knight top|txt=Top}}
+|250
+|-
+|{{plinkt|Void knight robe|txt=Robe}}
+|250
+|-
+|{{plinkt|Void knight gloves|txt=Gloves}}
+|150
+|-
+|{{plinkt|Void knight mace|txt=Mace}}
+|250
+|-
+|{{plinkt|Void seal|txt=Seal}}
+|10
+|}
+
+===Gaining commendations ===
+Players who wish to get the [[Void Knight top|top]], [[Void knight robe|bottom]], [[Void knight gloves|gloves]], and one [[Void Knight helmet|helmet]] must '''win''' the following number of games for the set:
+{| class="wikitable sortable"
+!Lander type
+!Combat achievement tier
+!# wins
+!Time (hh:mm)
+!Points/Win
+|-
+|Novice
+|None 
+| style="text-align: center;" |284
+| style="text-align: right;" |09:28
+|3
+|-
+|Novice
+|Easy
+| style="text-align: center;" |213
+| style="text-align: right;" |07:06
+|4
+|-
+|Novice
+|Medium
+| style="text-align: center;" |170
+| style="text-align: right;" |05:40
+|5
+|-
+|Novice
+|Hard and above
+| style="text-align: center;" |142
+| style="text-align: right;" |04:44
+|6
+|-
+|Intermediate
+|None
+| style="text-align: center;" |213
+| style="text-align: right;" |07:06
+|4
+|-
+|Intermediate
+|Easy
+| style="text-align: center;" |170
+| style="text-align: right;" |05:40
+|5
+|-
+|Intermediate
+|Medium
+| style="text-align: center;" |142
+| style="text-align: right;" |04:44
+|6
+|-
+|Intermediate
+|Hard and above
+| style="text-align: center;" |122
+| style="text-align: right;" |04:04
+|7
+|-
+|Veteran
+|None
+| style="text-align: center;" |170
+| style="text-align: right;" |05:40
+|5
+|-
+|Veteran
+|Easy
+| style="text-align: center;" |142
+| style="text-align: right;" |04:44
+|6
+|-
+|Veteran
+|Medium
+| style="text-align: center;" |122
+| style="text-align: right;" |04:04
+|7
+|-
+|Veteran
+|Hard and above
+| style="text-align: center;" |107
+| style="text-align: right;" |03:34
+|8
+|}
+
+'''Note:''' The time estimates above are under ideal conditions (minimal to no wait time between games, no losses, etc.) and assume 2 minutes per game. A more realistic time for the novice lander is 12–14 hours. The official world for Pest Control is 344.
+
+==Bonuses==
+
+The tables below show the regular equipment bonuses ''without'' the set effects applied.
+
+<tabber>
+
+|-|
+
+Melee=<br/>
+
+{{Infotable Bonuses|Void melee helm#Normal|Void knight top#Normal|Void knight robe#Normal|Void knight gloves#Normal}}
+
+|-|
+
+Ranged=<br/>
+
+{{Infotable Bonuses|Void ranger helm#Normal|Void knight top#Normal|Void knight robe#Normal|Void knight gloves#Normal}}
+
+|-|
+
+Magic=<br/>
+
+{{Infotable Bonuses|Void mage helm#Normal|Void knight top#Normal|Void knight robe#Normal|Void knight gloves#Normal}}
+
+</tabber>
+
+==Uses==
+Compared to other [[Ranged armour]], the Void Knight ranged set generally increases max hit but has less accuracy making it good versus low defence monsters, but worse against high defence monsters. The Void knight melee set, however, typically offers better accuracy at the expense of a lower max hit compared to its competitors. This has the effect that in [[Monster killing|PvM]] situations, the Void Ranged set is best used against monsters with low Defence, while the melee set better competes with other melee gear on monsters with higher Defence.
+
+A notable use for Void armour is when killing [[Vorkath]], especially when paired with a [[dragon hunter crossbow]], which has a 30% bonus in  accuracy and a 25% bonus in damage. For [[Barrows]], Void armour aids switching between [[combat styles]] to adapt to each [[Barrows brothers|Barrows brother's]] attack style and weakness. Void can also be used as a low-cost, inventory space-saving, reasonably effective [[Raids]] set-up by those who cannot afford more expensive gear.
+
+The set can be used to speed up [[Slayer task]]s when a [[Slayer helm|Slayer helmet]] isn't a priority. For example, when fighting [[undead]], a [[Salve amulet]] ([[Salve amulet (e)|e]]/[[Salve amulet(ei)|ei]]) can be used instead of a Slayer helmet. Conversely, when a Salve amulet is not useful, it should be noted that the boost to Ranged accuracy and damage is 10% with [[Void ranger helm|Void Ranged]]. However, on Slayer tasks, the [[Slayer helmet (i)]] and [[black mask (i)]] provides a bonus of 15% Ranged accuracy and damage, which coupled with the accuracy of [[black dragonhide]] or [[Armadyl armour]], results in higher damage per second than the 10% boost from Void.
+
+{| class="wikitable"
+!Combat style
+!Paired with
+!Pro/Advantage
+!Con/Disadvantage
+|-
+|Melee
+|[[Godsword]]s, [[Dragon defender]] or [[Dragonfire shield]]
+|High [[Attack]]: tremendous accuracy.<br/>High magic defence: somewhere between black d'hide and blessed d'hide armour.<br/>High [[Strength]]: slightly inferior to [[Bandos armour]].
+|Biggest loss to [[Defence]] (except [[Magic]]), certainly compared to higher levelled armour.
+|-
+|Ranged
+|Chinchompas ([[Chinchompa|Grey]]/[[Red chinchompa|Red]]), [[toxic blowpipe]] for effective training or other good training weapons, for fewer expenses.
+|Like in other [[combat styles]], capable of giving accuracy boost while not on [[Slayer task]]s.
+Increases max hit for ranged, which is only otherwise possible with [[Masori armour]], [[crystal armour]] when using a [[crystal bow]] or [[bow of Faerdhinen]], or [[Eclipse moon armour]] when using the [[Eclipse atlatl]].
+|Slight loss of [[Ranged]] accuracy, slight [[Defence]] loss, compared to [[Black d'hide armour]]; considerably less of a problem when fighting things that are weak to Ranged.
+|-
+|Magic
+|[[Staff of the Dead]]
+|In general, an increase in overall Defensive stats, especially [[Ranged]] [[Defence]].
+|Loss of [[Magic]] accuracy; considerably less of a problem when fighting things that are weak to Magic.
+|}
+
+==Gallery==
+<gallery>
+File:Void knight robes (female) equipped.png|Void knight robes on body type B
+File:Void knight robes (male) equipped.png|Void knight robes on body type A
+File:Void knight robes (or) equipped male.png|Void knight robes (or)
+File:Elite void set equipped male.png|Elite void set
+File:Elite void set (or) equipped female.png|Elite void set (or)
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 June 2017
+|update = Midsummer 2017
+|change = The accuracy bonus of the Void Knight Mage set has been increased from 30% to 45%.
+}}
+{{Subject changes
+|date = 25 May 2017
+|update = World Map & Balancing Changes
+|change = The damage bonus of the Void Knight Ranged set has been lowered from 20% to 10%.
+}}
+{{Subject changes
+|date = 17 July 2007
+|update = Pest Control Update
+|change = Added the Void knight set effect.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Pest Control}}
+[[Category:Armour]]
+[[Category:Equipment]]
+[[Category:Hybrid armour]]

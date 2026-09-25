@@ -739,9 +739,38 @@ test_wav_header(void)
     RSCACHE_CHECK_EQ(RSCache_SoundPcmWriteWav(&pcm, out, 40), 0u);
 }
 
+/* The filter and the mixing generation are separate boundaries: 289 decodes
+ * the filter but still mixes WAVE. No cache needed; the gate is profile-only. */
+static void
+test_filter_gate(void)
+{
+    static const struct
+    {
+        int revision;
+        int expect_flags;
+        int expect_codec;
+    } rows[] = {
+        { 254, 0, RSCACHE_CODEC_SOUND_WAVE },
+        { 289, RSCACHE_SOUND_HAS_FILTER, RSCACHE_CODEC_SOUND_WAVE },
+        { 377, RSCACHE_SOUND_HAS_FILTER, RSCACHE_CODEC_SOUND_SYNTH },
+    };
+    for( size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++ )
+    {
+        struct RSCache profile = RSCache_ProfileZero();
+        profile.game = RSCACHE_GAME_RS2;
+        profile.epoch = RSCACHE_EPOCH_DAT1;
+        profile.revision = rows[i].revision;
+        RSCACHE_CHECK_EQ(RSCache_SoundFlags(&profile), rows[i].expect_flags);
+        RSCACHE_CHECK_EQ(RSCache_SoundCodecVersion(&profile), rows[i].expect_codec);
+    }
+}
+
 int
 main(void)
 {
+    RSCACHE_TEST_GROUP("filter gate");
+    test_filter_gate();
+
     RSCACHE_TEST_GROUP("dat1 sound banks");
     for( size_t i = 0; i < sizeof(DAT1_CACHES) / sizeof(DAT1_CACHES[0]); i++ )
         test_dat1_cache(&DAT1_CACHES[i]);

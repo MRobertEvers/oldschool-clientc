@@ -1,0 +1,105 @@
+{{External|rs=Golden mining suit}}
+{| style="float: right;"
+|[[File:Prospector kit (male) equipped.png|130px|]]||[[File:Prospector kit (female) equipped.png|121px|]]
+|}
+
+The '''prospector kit''' is an [[experience-boosting set]], purchasable from [[Prospector Percy's Nugget Shop]] in the [[Motherlode Mine]] for a total of 180 [[golden nugget]]s, which are obtained occasionally when cleaning [[pay-dirt]], or from [[Petrified Pete's Ore Shop]] near the [[Volcanic Mine]] for a total of 120,000 volcanic mine reward points. Pieces purchased from [[Petrified Pete]] cannot be sold back to [[Prospector Percy]] for golden nuggets; attempting to do so will yield the message "''You can't sell this item back to Percy as you did not buy it from this shop''".
+
+The full set, when worn, grants +2.5% bonus [[Mining]] [[experience]]. Players who have completed the [[Varrock Diary#Elite|elite]] [[Varrock Diary]] may wear [[Varrock armour 4]] in place of the [[prospector jacket|jacket]].
+
+Despite having two lights attached to it, the [[prospector helmet]] does '''not''' act as a [[light sources|light source]]. Wearing pieces of the Prospector kit in the [[Desert heat|Desert]] will reduce the need for [[waterskin]]s, similar to the [[desert clothing|desert robes]].<ref>[https://www.youtube.com/watch?v=ggO8ARYEB-w RuneScape Mythbusters Special - Ep. 2] (21:15 - 21:41) on Jagex's official ''Old School RuneScape'' YouTube channel.</ref>
+
+[[Star fragment]]s, purchasable from [[Dusuri's Star Shop]] for 3,000 [[stardust]] each, can be used to recolour pieces of the kit into the [[Prospector kit (golden)|golden prospector kit]], costing a total of 12,000 stardust for the entire set. Pieces from both versions of the kit may be worn together to obtain the set bonus, however this change in appearance '''cannot''' be undone, nor can pieces of the golden prospector kit be sold back to Prospector Percy for a refund.
+
+Wearing the prospector helmet while entering the [[Mining Guild]] is one of the tasks in the [[Falador Diary#Hard|hard]] [[Falador Diary]]. The [[golden prospector helmet]] will also complete the task.  
+
+This set can be stored in the [[armour case space]] of a [[costume room]] in a [[player-owned house]]. [[Ultimate Ironmen]] will be unable to retrieve individual pieces until the full set is stored.
+
+==Obtaining==
+{| class="wikitable lighttable sortable align-left-2" style="text-align:center;"
+! colspan="2" |Item
+! XP Boost
+! Buys for (in {{plinkp|Golden nugget}})
+! Sells for (in {{plinkp|Golden nugget}})
+! Boost (%pt. per {{plinkp|Golden nugget}})<sup>[1]</sup>
+|-
+|{{plinkt|Prospector helmet|txt=Helmet}}||+0.4%||40||32||0.010
+|-
+|{{plinkt|Prospector jacket|txt=Jacket}}||+0.8%||60||48||0.013
+|-
+|{{plinkt|Prospector legs|txt=Legs}}||+0.6%||50||40||0.012
+|-
+|{{plinkt|Prospector boots|txt=Boots}}||+0.2%||30||24||0.007
+|- class="sortbottom"
+! colspan="2" | Set bonus
+! +0.5%
+| {{NA|colspan="3"}}
+|-
+! colspan="2" | Complete set
+! +2.5%
+! 180
+! 144
+! 0.042
+|}
+
+When obtaining the set, it is slightly more efficient to start by purchasing the more expensive items first. This can be calculated by adding up the experience boosts one would get when buying the items in either order.
+
+<small>[1] This relates to the relative XP boost to the cost of the piece. Prospector armour doesn't increase golden nugget chance.</small>
+
+==Treasure Trails==
+*{{SherlockChallenge|Wearing the full prospector kit whilst mining a piece of [[runite ore]]|master}} [[Varrock armour 4]] can be used in place of the [[prospector jacket]] for the purposes of this clue.
+
+== Desert Heat Protection ==
+Wearing pieces of the kit in the [[Desert heat|Desert]] protects against the [[desert heat]] by extending the time needed between drinks of water.
+{| class="wikitable"
+|+Additional time (in seconds) provided per item
+!Item set
+!Helm
+!Top
+!Legs
+!Boots
+|-
+|[[Prospector kit]]
+| +6
+| +12
+| +12
+| +6
+|}
+
+== Changes ==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 January 2026
+|update = QoL Tweaks & Fixes
+|change = The equipped prospector outfit pieces now correctly align for both body types.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = The prospector kit has been added to Petrified Pete's Ore Shop.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Additional ores gathered by Varrock armours now provide the bonus experience from the Prospector's outfit.
+}}
+{{Subject changes
+|date = 15 May 2014
+|update = Coal & gem bags and Attack options
+|poll = Old School feature poll 19
+|change = The Prospector outfit now also provides some protection from desert heat.
+}}
+{{Subject changes footer}}
+
+== Trivia ==
+
+* Obtaining the 180 golden nuggets needed to purchase the full set from Prospector Pete would require mining 5,760 pay-dirt on average.
+
+==References==
+{{Reflist}}
+
+{{Motherlode Mine}}
+{{Skilling outfits}}
+{{Desert heat gear}}
+[[Category:Clothing sets]]
+[[Category:Heat-resistant gear]]

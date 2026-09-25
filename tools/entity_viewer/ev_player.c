@@ -4,6 +4,11 @@
 #include "engine/torirs_model_from_rscache.h"
 #include "engine/torirs_types.h"
 
+/* The idk/obj/spotanim record loaders used to live here as statics. They moved
+ * out when the obj and loc model builds needed the same two of them — see
+ * ev_config.h for why a second copy of that layout branch would be silent. */
+#include "ev_config.h"
+
 #include "rscache.h"
 #include "toridraw.h"
 
@@ -11,148 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* ---- one config record's bytes ------------------------------------------ */
-
-/*
- * asset_access.c has a loader per datatype and none for obj, idk or spotanim,
- * and each of those loaders is the same twenty lines around a different
- * decoder. This is that shape once, returning the bytes for the caller's own
- * decoder to read.
- *
- * `RSCache_RecordAddressFor` is what settles whether a type is sharded across
- * archives (an id's high bits pick the archive) or lives as one file inside a
- * single config archive — the two layouts OldSchool actually uses. Reproducing
- * the branch rather than assuming one is why this works on both.
- */
-static int
-ev_config_record(
-    struct Tool_Dat2Cache* c,
-    enum RSCache_Type type,
-    int config_kind,
-    int record_id,
-    char** out_bytes,
-    int* out_size,
-    struct RSCache* out_profile)
-{
-    struct RSCache_RecordAddress addr;
-    struct RSCache_Dat2DiskArchive* archive;
-    struct RSCache_FileList* files;
-    int table;
-    int archive_id;
-    int found = 0;
-
-    assert(c && c->disk && out_bytes && out_size);
-    *out_bytes = NULL;
-    *out_size = 0;
-
-    addr = RSCache_RecordAddressFor(&c->profile, type);
-    if( addr.group_shift == 0 )
-    {
-        table = RSCache_Dat2DiskTableId(c->disk, RSCACHE_DAT2_TABLE_CONFIGS);
-        archive_id = config_kind;
-    }
-    else
-    {
-        table = RSCache_Dat2DiskTableId(c->disk, addr.table);
-        archive_id = record_id >> addr.group_shift;
-    }
-
-    archive = RSCache_Dat2DiskArchiveNewLoad(c->disk, table, archive_id);
-    if( !archive )
-        return 0;
-    if( !RSCache_Dat2DiskArchiveInitMetadata(c->disk, archive) || archive->file_count <= 0 )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
-    }
-
-    if( out_profile )
-    {
-        *out_profile = c->profile;
-        RSCache_ProfileSetGroupRevision(out_profile, type, archive->revision);
-    }
-
-    files = RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
-    if( !files )
-    {
-        RSCache_Dat2DiskArchiveFree(archive);
-        return 0;
-    }
-
-    for( int i = 0; i < files->file_count; i++ )
-    {
-        int file_id = (archive->file_ids && i < archive->file_count) ? archive->file_ids[i] : i;
-        int global = addr.group_shift == 0
-                         ? file_id
-                         : ((archive_id << addr.group_shift) | (file_id & addr.file_mask));
-        if( global != record_id || files->file_sizes[i] <= 0 )
-            continue;
-        *out_bytes = malloc((size_t)files->file_sizes[i]);
-        assert(*out_bytes);
-        memcpy(*out_bytes, files->files[i], (size_t)files->file_sizes[i]);
-        *out_size = files->file_sizes[i];
-        found = 1;
-        break;
-    }
-
-    RSCache_FileListFree(files);
-    RSCache_Dat2DiskArchiveFree(archive);
-    return found;
-}
-
-static struct RSCache_Dat2ConfigIdk*
-ev_idk_load(struct Tool_Dat2Cache* c, int idk_id)
-{
-    char* bytes = NULL;
-    int size = 0;
-    struct RSCache_Dat2ConfigIdk* idk;
-
-    if( !ev_config_record(
-            c, RSCACHE_TYPE_IDK, RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, idk_id, &bytes, &size, NULL) )
-        return NULL;
-    idk = RSCache_Dat2ConfigIdkNewDecode(bytes, size);
-    free(bytes);
-    return idk;
-}
-
-static struct RSCache_Dat2ConfigObj*
-ev_obj_load(struct Tool_Dat2Cache* c, int obj_id)
-{
-    char* bytes = NULL;
-    int size = 0;
-    struct RSCache profile;
-    struct RSCache_Dat2ConfigObj* obj;
-
-    if( !ev_config_record(
-            c, RSCACHE_TYPE_OBJ, RSCACHE_DAT2_CONFIG_KIND_OBJECT, obj_id, &bytes, &size, &profile) )
-        return NULL;
-    obj = RSCache_Dat2ConfigObjNewDecodeProfile(&profile, bytes, size);
-    free(bytes);
-    return obj;
-}
-
-static struct RSCache_Dat2ConfigSpotanim*
-ev_spotanim_load(struct Tool_Dat2Cache* c, int spotanim_id)
-{
-    char* bytes = NULL;
-    int size = 0;
-    struct RSCache profile;
-    struct RSCache_Dat2ConfigSpotanim* spot;
-
-    if( !ev_config_record(
-            c,
-            RSCACHE_TYPE_SPOTANIM,
-            RSCACHE_DAT2_CONFIG_KIND_SPOTANIM,
-            spotanim_id,
-            &bytes,
-            &size,
-            &profile) )
-        return NULL;
-    spot = RSCache_Dat2ConfigSpotanimNewDecodeProfile(&profile, bytes, size);
-    free(bytes);
-    return spot;
-}
 
 /* ---- model helpers ------------------------------------------------------- */
 
@@ -437,12 +300,40 @@ ev_spotanim_model_id(
     return id;
 }
 
+/*
+ * Turn a model about y by an arbitrary angle, the renderer's own way.
+ *
+ * `ToriDraw_ModelOrient` only does quarter turns, which is all a spotanim
+ * record can carry. A tile graphic reproduced inside a player-attached model
+ * needs the inverse of the player's yaw, and that is any angle at all.
+ *
+ * The formula is `project_orthographic`'s
+ * (v1/toridraw/graphics/projection.u.c): x' = x*cos + z*sin, z' = z*cos -
+ * x*sin, with toridraw's own 16.16 sin/cos tables rather than libm — so a mesh
+ * turned here and a mesh turned by the renderer land on the same integers.
+ */
+static void
+rotate_model_y(struct ToriDraw_Model* m, int yaw)
+{
+    assert(m);
+    int s = ToriDraw_Sin(yaw & 2047);
+    int c = ToriDraw_Cos(yaw & 2047);
+    for( int v = 0; v < m->vertex_count; v++ )
+    {
+        int x = m->vertices_x[v];
+        int z = m->vertices_z[v];
+        m->vertices_x[v] = (vertexint_t)(((int64_t)x * c + (int64_t)z * s) >> 16);
+        m->vertices_z[v] = (vertexint_t)(((int64_t)z * c - (int64_t)x * s) >> 16);
+    }
+}
+
 struct ToriDraw_Model*
 ev_build_spotanim_model(
     struct Tool_Dat2Cache* c,
     int spotanim_id,
     const char* model_file_override,
     int angle_override,
+    int free_yaw,
     int* out_seq_id)
 {
     struct RSCache_Dat2ConfigSpotanim* spot;
@@ -484,6 +375,8 @@ ev_build_spotanim_model(
         ToriDraw_ModelOrient(model, angle_override & 3);
     else if( spot->angle != 0 )
         ToriDraw_ModelOrient(model, spot->angle / 90);
+    if( (free_yaw & 2047) != 0 )
+        rotate_model_y(model, free_yaw);
 
     if( model->face_textures )
         for( int face = 0; face < model->face_count; face++ )

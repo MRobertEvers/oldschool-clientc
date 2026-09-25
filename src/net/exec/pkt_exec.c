@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* ------------------------------------------------------------------ */
 /* The primitive table                                                 */
@@ -692,7 +693,7 @@ rsprot_version_pick(const RsprotVersionRange *ranges, int count, int revision)
 void
 rsprot_schema_print(const RsprotSchema *schema, const char *title)
 {
-    printf("%s: %d field%s%s\n",
+    TORIRS_ERR("%s: %d field%s%s\n",
            title ? title : "packet",
            schema->count,
            schema->count == 1 ? "" : "s",
@@ -707,16 +708,16 @@ rsprot_schema_print(const RsprotSchema *schema, const char *title)
 
         switch (f->kind) {
         case RSPROT_FIELD_BITS:
-            printf("  %3d  %-14s %2d bits  %-6s %s\n", i, "bits", f->bit_width, at, f->name);
+            TORIRS_LOG("  %3d  %-14s %2d bits  %-6s %s\n", i, "bits", f->bit_width, at, f->name);
             break;
         case RSPROT_FIELD_STR:
-            printf("  %3d  %-14s %8s  %-6s %s\n", i, "str", "", at, f->name);
+            TORIRS_LOG("  %3d  %-14s %8s  %-6s %s\n", i, "str", "", at, f->name);
             break;
         case RSPROT_FIELD_DATA:
-            printf("  %3d  %-14s %8s  %-6s %s\n", i, "data", "", at, f->name);
+            TORIRS_LOG("  %3d  %-14s %8s  %-6s %s\n", i, "data", "", at, f->name);
             break;
         case RSPROT_FIELD_PRIM:
-            printf("  %3d  %-14s %8s  %-6s %s\n", i, k_prim[f->prim].name, "", at, f->name);
+            TORIRS_LOG("  %3d  %-14s %8s  %-6s %s\n", i, k_prim[f->prim].name, "", at, f->name);
             break;
         }
     }

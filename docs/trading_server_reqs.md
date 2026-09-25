@@ -15,7 +15,7 @@
 
 > **UPDATE 2026-08-02 (lane-blockers): the container half is cleared; the
 > client half is not.** `container_for` is a registry
-> ([`mock230_containers.md`](mock230_containers.md)) and `tradeoffer` (inv 90,
+> ([`torirs_server_containers.md`](torirs_server_containers.md)) and `tradeoffer` (inv 90,
 > 28 slots) resolves and transmits with no new C. What that does **not** solve
 > is the cross-player half: the registry resolves against the player it is
 > handed, and nothing hands it a *second* player — `SSVM_SECONDARY` is never
@@ -32,7 +32,7 @@
 > exact pre-friends failure shape. Behind it: zero `invother` support anywhere
 > in `src/game/`, `src/ui/` or `src/cs2vm2/` (one `InvManager`), no wire packet
 > for a second player's container, `container_for` still three cases
-> (`mock230_scripts.c:2088`), and `INVOTHER_TRANSMIT` (4332) / `BOTH_MOVEINV`
+> (`torirs_server_scripts.c:2088`), and `INVOTHER_TRANSMIT` (4332) / `BOTH_MOVEINV`
 > (4301) still declared-and-uncovered (all re-measured today). The variadic
 > `script_1216`/`_1217` push (§1, 28 ints each) is **no longer a blocker** —
 > `SS_OP_RUNCLIENTSCRIPTVARARG` (11003) landed 2026-08-01. Two corrections:
@@ -54,7 +54,7 @@
 
 ## 0. Status up front
 
-**Fully greenfield, and more so than shop.** No `mock230_trade.{c,h}`, no
+**Fully greenfield, and more so than shop.** No `ToriRSServer_Trade.{c,h}`, no
 `tradeoffer` container, no dispatch for the player-vs-player trigger that
 opens a trade at all. The CS2 op table already reserves the exact ops
 LostCity's engine needs (`invother_getobj/getnum`, `SS_OP_INVOTHER_TRANSMIT`)
@@ -124,14 +124,14 @@ mechanic**, not something to build without a fresh confirmed source.
 
 ## 4. Server obligations
 
-| what | mock230 status |
+| what | ToriRSServer status |
 |---|---|
 | A `tradeoffer` container (id 90, 28 slots) per player, transmitted like a bank tab | **not implemented** — `container_for()` recognizes only backpack/worn/bank |
 | Cross-player container read (`invother_getobj/getnum`) | **CS2 host ops declared, zero dispatch** |
 | `SS_OP_INVOTHER_TRANSMIT` (opcode 4332, declared) | **zero implementation** — the sibling `SS_OP_INV_TRANSMIT` (4331) *is* implemented but only against `active_player`; no second-player parameter exists anywhere in that path |
-| A pairing/session concept ("who is my trade partner") | **does not exist** — `mock230.h`'s own doc comment confirms `active_player` means "whose turn it is," not a pair; no second pointer analogous to LostCity's `_activePlayer2` |
+| A pairing/session concept ("who is my trade partner") | **does not exist** — `torirs_server.h`'s own doc comment confirms `active_player` means "whose turn it is," not a pair; no second pointer analogous to LostCity's `_activePlayer2` |
 | Cross-player atomic item transfer on final confirm | **not implemented** — no equivalent primitive anywhere |
-| The player-vs-player click that opens the whole flow | **trigger constants exist (`SS_TRIGGER_OPPLAYER1..U`), zero dispatch** anywhere in `mock230_scripts.c`/`mock230_world.c` outside unrelated NPC-approaches-player triggers |
+| The player-vs-player click that opens the whole flow | **trigger constants exist (`SS_TRIGGER_OPPLAYER1..U`), zero dispatch** anywhere in `torirs_server_scripts.c`/`torirs_server_world.c` outside unrelated NPC-approaches-player triggers |
 | Accept-delay countdown | **not implemented** — no analogue timer, and no LostCity precedent either (their accept flow is a plain boolean handshake) |
 | Per-slot "other player removed this" diff → flash trigger | **not implemented** — server-side diffing logic with no client-computable fallback |
 | Two-screen open, symmetric on both connections | infrastructure partially reusable (`if_openmain_side`), unused for trade — needs a trade-specific open firing on both connections at once |
@@ -143,7 +143,7 @@ mechanic**, not something to build without a fresh confirmed source.
 The first cross-player economic interaction in this series, so worth being
 exact about what existing multiplayer work does and doesn't buy:
 
-**Genuinely helps**: a real player pool (`players[MOCK230_PLAYER_MAX]`),
+**Genuinely helps**: a real player pool (`players[TORIRSSERVER_PLAYER_MAX]`),
 with `active_player` explicitly documented as "whose turn it is" rather
 than a singleton — confirmed, the header comment already states this
 design intent. Per-player entity streams are proven cross-player
@@ -159,7 +159,7 @@ declared but never dispatched — the entry point does nothing today.
 **Net**: the connection/presence layer has a head start; the container
 layer and interaction-trigger layer for player-to-player content are both
 greenfield — trade needs a container type *plus* a cross-player read/pub-
-sub mechanism *plus* a pairing concept nothing else in mock230 has needed
+sub mechanism *plus* a pairing concept nothing else in ToriRSServer has needed
 yet, making this architecturally the most novel gap found in this series.
 
 ## 6. LostCity precedent — full and detailed

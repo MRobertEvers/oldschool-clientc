@@ -1,0 +1,67 @@
+{{otheruses|the removed Arceuus spell|the new spell for reanimating trolls|Adept reanimation}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Reanimate Troll
+|image = [[File:Reanimate Troll.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 46
+|spellbook = Arceuus
+|type = Utility
+|exp = 93
+|cost = {{RuneReq|Soul=2|Nature=2|Body=3}}
+|speed = 
+|quest = None
+|description = Reanimates an ensouled corpse
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Reanimate Troll icon (mobile).png|left]]
+'''Reanimate Troll''' was a [[reanimation spell]]that required a [[Magic]] level of 46 and an [[ensouled troll head]] to cast. This spell will summon a [[reanimated troll]] with 35 [[hitpoints]].
+
+Upon killing the reanimated troll, players would gain 780 [[Prayer]] experience and 0.5% [[Arceuus]] [[favour]].
+
+Reanimated Trolls grant 35 [[Slayer]] experience if you are on a [[Troll]] [[slayer task|task]].
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 2
+|Rune2 = nature
+|Rune2num = 2
+|Rune3 = body
+|Rune3num = 3
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 14 January 2016
+|update = Price Checks & Improvements
+|poll = 
+|change = The prayer experience from defeating reanimated creatures has been doubled. As a result, the 50% experience bonus gained from doing so when within range of the Dark Altar was removed.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Reanimate Troll v1.png|center]]
+|[[File:Reanimate Troll.png|center]]
+|-
+|7 January 2016–<br/>11 October 2018
+|11 October 2018 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}

@@ -1,0 +1,198 @@
+{
+  "ok": true,
+  "worker": "social",
+  "date": "2026-09-06",
+  "recorded_utc": "2026-09-07T02:53:04Z",
+  "supersedes": "the 2026-09-06T18:35 results.json of worker 'james', measured on private binary af694927... and private pack 21e85980.... The defect/fix narrative below is carried forward from it verbatim and is unchanged; every MEASUREMENT here is new and comes from the shared binary.",
+  "subject": "native cargo-hold privacy dropdown, All Settings row 470 / struct 6372 / varbit 19614",
+  "defect": "setting_dropdown_entry_op (clientscript 3852) rewrote the row label with cc_settext and only called ~settings_set_dropdown (3967) when $int12 == 0. Struct 6372 carries param1085=1, so for cargo privacy neither 3967 nor 8830 ran and the label moved while client and server both stayed at 0.",
+  "fix": "src/game/rs_cs2_host.c: on a CC_SETTEXT whose UITree_ApplyText succeeded, rs_cs2_settings_apply_cargo_privacy_dropdown identifies script 3852's cargo row from its integer locals ([0]==2 dropdown kind, [10]==470 setting, [13]==6372 struct, [12]!=0 server-applied) and applies choice locals[2] when 0..2: varbit 19614 is written and the EXISTING settings mirror is queued (CLIENT_CHEAT 'setting 19614 <value>', flushed by app_cs2_flush_settings_mirrors at the settled CS2 boundary; the server validates 0..2). No generic varp/varbit sync path was added; 8830, 3967 and the 9657 hub path are unchanged.",
+  "provenance": {
+    "note": "SHARED binaries and the SHARED script pack only. This worker rebuilt nothing and edited no C or content source.",
+    "src/torirs": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
+    "src/build_opt/torirsserver": "a53899eb8ce5d086e36df3653aaccfd2ee93c05f8e767ece05ecc40a94b9c3db",
+    "script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_pack": "OSRS-Content/osrs239-content/server/scripts/build (30,076 scripts)",
+    "renderer": "soft3d, headless",
+    "driver": "a scratchpad script driving tools/sailing_harness.py; no new tool was added to tools/",
+    "ocean_session": {
+      "dir": "/tmp/sailing-final-privacy",
+      "user": "finalpriv",
+      "fixture_tile": [
+        3072,
+        3160
+      ]
+    },
+    "resume_session": {
+      "dir": "/tmp/sailing-final-privacy-resume",
+      "user": "finalpriv",
+      "mode": "start --resume-save with the save copied in"
+    },
+    "elapsed_ms": 23270.606,
+    "elapsed_is_not_performance_evidence": "Several workers were running clients concurrently during this phase; wall clock here is under contention and is not a performance measurement."
+  },
+  "native": {
+    "route": [
+      "start --headless --user finalpriv (fresh session, ocean fixture 3072,3160)",
+      "button settings_side:settings_open -1 1   (opens All Settings)",
+      "click 250 56, 14x 'key backspace', then 'text c','a','r','g','o' one settled character at a time",
+      "click 433 105                              (opens the row's dropdown)",
+      "widget settings:dropdown_buttons <2|5|8>   (re-derives the choice row rect; the panel is not assumed to be where it was last time)",
+      "click the row's measured centre, step 40 (>= one server tick), then varbit settings_cargo_hold_privacy"
+    ],
+    "initial": {
+      "client": 0,
+      "server": 0
+    },
+    "order": "2, then 1, then 0 - so every choice is driven from a DIFFERENT starting value (0->2, 2->1, 1->0) and a stuck varbit cannot be mistaken for a correct one.",
+    "choices": [
+      {
+        "choice": 2,
+        "label_expected": "No players",
+        "started_from": 0,
+        "dropdown_row_rect": {
+          "x": 388,
+          "y": 158,
+          "w": 74,
+          "h": 20
+        },
+        "client": 2,
+        "server": 2,
+        "png": "docs/sailing_validation/privacy/privacy-choice2-no-players.png",
+        "capture_ms": 32.499,
+        "agree": true
+      },
+      {
+        "choice": 1,
+        "label_expected": "All players",
+        "started_from": 2,
+        "dropdown_row_rect": {
+          "x": 388,
+          "y": 138,
+          "w": 74,
+          "h": 20
+        },
+        "client": 1,
+        "server": 1,
+        "png": "docs/sailing_validation/privacy/privacy-choice1-all-players.png",
+        "capture_ms": 33.115,
+        "agree": true
+      },
+      {
+        "choice": 0,
+        "label_expected": "Navigators",
+        "started_from": 1,
+        "dropdown_row_rect": {
+          "x": 388,
+          "y": 118,
+          "w": 74,
+          "h": 20
+        },
+        "client": 0,
+        "server": 0,
+        "png": "docs/sailing_validation/privacy/privacy-choice0-navigators.png",
+        "capture_ms": 33.292,
+        "agree": true
+      }
+    ],
+    "all_three_agree": true
+  },
+  "persistence": {
+    "method": "raw logout (production ToriRS_Network_Logout, ordinary server disconnect/save) -> wait for the save file -> stop the client -> copy the save into a NEW session directory -> start --resume-save there. --resume-save suppresses both the environment and the manifest bootstrap cheats, so nothing re-applies the value.",
+    "set_to": {
+      "client": 1,
+      "server": 1
+    },
+    "save": {
+      "path": "/tmp/sailing-final-privacy/saves/finalpriv.ini",
+      "sha256": "d02e73348a95c86d42f766643866ac03e0c393d8cf1c0b78d33763f868613b11",
+      "bytes": 2429,
+      "varp_4849_line": "4849 = 4194304",
+      "decoded": "4849 = 4194304 = 1 << 22, i.e. varp 4849 bits 22-23 = 1 = 'All players'"
+    },
+    "new_session_dir": "/tmp/sailing-final-privacy-resume (created empty; only saves/finalpriv.ini was copied in)",
+    "after_resume": {
+      "client": 1,
+      "server": 1
+    },
+    "png": "docs/sailing_validation/privacy/privacy-persist-after-relogin.png",
+    "agree": true
+  },
+  "unit_test": {
+    "target": "make -C src PLATFORM_OBJ_BASE=build_james test-cs2-sailing-settings",
+    "source": "src/cs2vm2/test/sailing_settings_test.c",
+    "result": "PASS",
+    "covers": [
+      "real CS2VM2 execution of a script-id-3852 frame with 14 int locals + 1 string local, issuing CC_SETTEXT through RS_CS2Host_Exec onto a real UITree text node, for choices 0, 1 and 2",
+      "each choice driven from a different starting varbit so a stuck value cannot pass",
+      "label text asserted on the component after each apply",
+      "negative rows: other setting id + struct, cargo setting id with the wrong struct, keybind entry kind, $int12 == 0 (the hub-applied branch), choice 3 (out of range), and a CC_SETTEXT that resolves to no component",
+      "pre-existing 8830 and 3967/9657 paths retained"
+    ],
+    "negative_control": "With the one call to rs_cs2_settings_apply_cargo_privacy_dropdown replaced by a no-op and everything else identical, the same target aborts at sailing_settings_test.c:219 'VarPManager_GetVarbit(&varps, SAILING_CARGO_PRIVACY_VARBIT) == choice'. The source was restored byte-for-byte afterwards (sha256 7851f2617b6bde35733823a7dcf0c5aeecede89d7639a4243c27c74d83c0ca89).",
+    "rerun_by_this_worker": false,
+    "rerun_note": "NOT re-run here. This worker was not permitted to build, and test-cs2-sailing-settings needs one. The record above is worker james's, against the same sources that produced the shared binary; treat it as carried-forward provenance, not as evidence produced in this phase."
+  },
+  "images": {
+    "privacy-search-cargo.png": {
+      "sha256": "a65f03c398c639785c176ad535633b3762ee803ee3f2da933a264fa6cd40303f",
+      "bytes": 143145,
+      "shows": "All Settings open with search 'cargo'. The 'Cargo hold access privacy - Determines who can access cargo holds built on your boat' row reads 'Navigators' (the fixture's initial 0), above the two related 'Port task cargo' warning checkboxes.",
+      "visually_reviewed": true
+    },
+    "privacy-dropdown-open.png": {
+      "sha256": "7697e8a0cc14a057f05bac16ef039dc0e8d36bfc4d65b35e90d0d9d18489d035",
+      "bytes": 146403,
+      "shows": "The same row with its dropdown open: Navigators / All players / No players, the closed row still reading 'Navigators' and the cursor prompt reading 'Close dropdown'.",
+      "visually_reviewed": true
+    },
+    "privacy-choice0-navigators.png": {
+      "sha256": "a65f03c398c639785c176ad535633b3762ee803ee3f2da933a264fa6cd40303f",
+      "bytes": 143145,
+      "shows": "After clicking Navigators (from 1): the row reads 'Navigators'; measured client 0 / server 0.",
+      "visually_reviewed": true
+    },
+    "privacy-choice1-all-players.png": {
+      "sha256": "db1c5f752239128e27582c552b948a62cc3ff7266d1f3a2b26aa09984f9d79f6",
+      "bytes": 143819,
+      "shows": "After clicking All players (from 2): the row reads 'All players'; measured client 1 / server 1.",
+      "visually_reviewed": true
+    },
+    "privacy-choice2-no-players.png": {
+      "sha256": "82055d819824268c278b51c08535c9a4a9f0c95c1aba4599be6e589f8bc1ba05",
+      "bytes": 143814,
+      "shows": "After clicking No players (from 0): the row reads 'No players'; measured client 2 / server 2.",
+      "visually_reviewed": true
+    },
+    "privacy-persist-after-relogin.png": {
+      "sha256": "01c8eee9cc88e1661f8e941ae5d394bc93fcc8ebf77d11cbc0677cd492e1287b",
+      "bytes": 135501,
+      "shows": "After raw logout, a NEW session directory with the save copied in, and start --resume-save: the row reads 'All players', measured client 1 / server 1. The sidepanel reads 'Not steering' because --resume-save does not take the helm, and the chat is a fresh login log. NO 'Connection lost' overlay this time - the previous run's cosmetic overlay observation did not reproduce.",
+      "visually_reviewed": true
+    },
+    "sailing-privacy-native-before.png": {
+      "sha256": "aea5104c056cbe4b428bbec4da69cad54ee650d84cb853def3abdc28152530e4",
+      "bytes": 162775,
+      "visually_reviewed": false
+    },
+    "sailing-privacy-native-bug.png": {
+      "sha256": "dc3cd1b9e4445da0e644a39d8d6f75011c246103d485f38e8347f054cf0ed8c1",
+      "bytes": 162902,
+      "visually_reviewed": false
+    }
+  },
+  "negative_control_images": {
+    "sailing-privacy-native-before.png": "Pre-fix baseline from the earlier /tmp/sailing-privacy-plan session: the cargo row reads 'Navigators' with client 0 / server 0.",
+    "sailing-privacy-native-bug.png": "The pre-fix DEFECT: the same row's label reads 'No players' after clicking that choice, while the recorded client and server values were both still 0."
+  },
+  "negative_controls_preserved": {
+    "sailing-privacy-native-before.png": "unchanged, sha256 aea5104c056cbe4b428bbec4da69cad54ee650d84cb853def3abdc28152530e4",
+    "sailing-privacy-native-bug.png": "unchanged, sha256 dc3cd1b9e4445da0e644a39d8d6f75011c246103d485f38e8347f054cf0ed8c1",
+    "checked": "both hashes match the previous results.json byte for byte; neither was regenerated."
+  },
+  "known_observations": [
+    "The 'Connection lost - please wait, attempting to reestablish' overlay that the previous run saw on its second start --resume-save did NOT reproduce here. privacy-persist-after-relogin.png is clean.",
+    "The All Settings search box keeps its previous text across a logout/resume, so this run clears it with 14 backspaces before typing 'cargo'. Without that, the previous run got 'cargocargo' and an empty result list.",
+    "Carried forward, NOT re-tested here: a private OPT=0 (asserts-on) embedded build of these sources was reported to abort in frame_lookahead_element_id (src/render/torirs_frame.c). The prefetch-across-marker fix landed in torirs_frame.c since; this worker did not build and cannot say whether it is still live."
+  ]
+}

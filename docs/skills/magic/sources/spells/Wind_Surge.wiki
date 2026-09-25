@@ -1,0 +1,79 @@
+{{External|rs=Air Surge}}
+{{Infobox Spell
+|name = Wind Surge
+|image = [[File:Wind Surge.png]]
+|release = [[4 January]] [[2018]]
+|update = Dragon Slayer II
+|members = Yes
+|level = 81
+|spellbook = Normal
+|type = Combat
+|exp = 44.5
+|element = Air
+|damage = 21, 22, 23, or 24
+|cost = {{RuneReq|Air=7|Wrath=1}}
+|speed = 5 ticks
+|description = A very high level Air missile
+|anim = [[File:Wind Surge.gif|300px]]
+|sound = [[File:Wind Surge.ogg]]
+}}
+[[File:Wind Surge icon (mobile).png|left]]
+'''Wind Surge''' is an [[Wind spells|air]]-based [[Surge spells|surge spell]] in the [[standard spellbook]], requiring level 81 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest wind spell in the game, as well as the most cost-effective surge spell to cast.
+
+==Damage==
+Wind Surge has a base maximum hit of 21 which increases as the player unlocks additional surge spells, up to 24 at level 95 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level surge spell available
+!{{Plink|Wind Surge}} base maximum hit
+|-
+|{{SCP|Magic|81}}- 84
+|{{Plink|Wind Surge}}
+|21
+|-
+|{{SCP|Magic|85}}- 89
+|{{Plink|Water Surge}}
+|22
+|-
+|{{SCP|Magic|90}}- 94
+|{{Plink|Earth Surge}}
+|23
+|-
+|{{SCP|Magic|95}}+
+|{{Plink|Fire Surge}}
+|24
+|}
+As with all combat spells, Wind Surge's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an air-based spell, Wind Surge's maximum hit is also increased against targets that are [[Elemental weakness|weak to air]].
+
+===Calculator===
+{{Magic damage calculator|Wind Surge|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 7
+|Rune2 = wrath
+|Rune2num = 1
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[surge spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

@@ -1,0 +1,253 @@
+# Every plugin on the CS1 lane, LOGGED IN against LostCity_Server.
+#
+# The drives are NOT the cs1 (offline) ones. `dropobj`, `setlevel` and `xp` are
+# the EMBEDDED server's cheats; only `lootkill` is handled client side
+# (app_net.c's app_client_cheat), so everything else here is a LostCity
+# debugproc with a `~` prefix. @see lostcity.sh.
+#
+# Every line opens the same way and it is not boilerplate:
+#   click (259,285)  -- accept the character designer; a new account is parked
+#                       on it and nothing else happens until it is dismissed.
+#   ~skiptutorial    -- set %tutorial past the end AND re-run the login block's
+#                       tab mount. Without it the sidebar has NO tabs at all:
+#                       no inventory to hover, no skills tab, no prayer book.
+#   ~varrock         -- somewhere with scenery, npcs and other players in it.
+#
+# No account is named. shot.sh derives a base37-safe one per shot, so every
+# line is a different player and none of them waits out another's session
+# (LostCity answers login reply 5 for about a minute after a client leaves).
+orbs-live          minimap-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+# preferred_frame is the MASTER SWITCH for a frame provider, and this row did
+# not set it: `cs1live` defaults to `auto`, which leaves the provider OFF
+# however its ini row is written, so this shot photographed the lane's own
+# 2004 frame with the plugin never started.
+#
+# That picture was then read as "the desktop provider draws nothing on CS1",
+# and it CANNOT be read any other way from pixels: Classic Fixed on a dat1
+# lane is a deliberate pixel-for-pixel reproduction of that same frame, so a
+# provider-on run and a provider-off run are identical outside the world. A
+# perfect reproduction and an absent provider produce the same photograph.
+# Hence the two traces below: EMIT_EXIT names the plugin's own draw commands
+# in the frame that was captured, and FRAME_APPLY names the lane chrome the
+# provision suppressed. Those tell the two apart; nothing else here does.
+# preferred_frame is the MASTER SWITCH for a frame provider, and this row did
+# not set it: `cs1live` defaults to `auto`, which leaves gameframe-layout OFF
+# however its ini row is written, so this shot photographed the lane's own
+# 2004 frame with the plugin never started. That picture was then read as
+# "the desktop provider draws nothing on CS1" -- and it cannot be read any
+# other way, because Classic Fixed on a dat1 lane is a deliberate
+# pixel-for-pixel reproduction of that same frame. Switched on, and carrying
+# the two traces that tell the two apart: EMIT_EXIT names the plugin's own
+# draw commands, FRAME_APPLY names the lane chrome the provision suppressed.
+gf-desktop-live    gameframe-layout    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=gameframe-layout/classic-fixed TORIRS_TRACE_NATIVE_UI=1 TORIRS_DUMP_ROLES=1 TORIRS_DUMP_BOUNDS=all TORIRS_DUMP_EMIT_EXIT=all TORIRS_TRACE_FRAME_APPLY=1
+perf-live          performance-display cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+screenshot-live    screenshot          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+widgetdemo-live    widget-demo         cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_WIDGET_DEMO=only TORIRS_MAX_FRAMES=2200
+control-live       none                cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200
+tileind-c-live     tile-indicator-c    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2200
+tileind-lua-live   tile-indicator-lua  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2200
+# The same two with a WALK under them, because the two rows above photograph a
+# standing player and a standing player has no destination: the map flag is
+# only up between the click and the arrival. Without these the CS1 lane had no
+# picture of the destination marker at all -- the one marker of the three that
+# needs a live server to be worth anything. The fifth click is the walk, and
+# 2180 cuts the run twenty frames after it so the flag is still standing.
+tile-c-all-live    tile-indicator-c    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285;2160,80,120' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2180
+tile-lua-all-live  tile-indicator-lua  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285;2160,80,120' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_HOVER=300,180 TORIRS_MAX_FRAMES=2180
+clientsettings-live client-settings    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_PLUGIN_PANEL=1600,client-settings,page TORIRS_MAX_FRAMES=2200
+featureflags-live  feature-flags       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_PLUGIN_PANEL=1600,feature-flags,page TORIRS_MAX_FRAMES=2200
+loottracker-live   loot-tracker        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,lootkill Goblin 995 5000;910,lootkill Goblin 526 1' TORIRS_SIM_PLUGIN_PANEL=1600,loot-tracker,page TORIRS_MAX_FRAMES=2200
+nxthl-live         nxt-highlight       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_MOVE_AT=1600,330,120 TORIRS_SIM_HOVER=330,120 TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_MAX_FRAMES=2200
+# A TAG IS AN NPC ID, AND AN NPC ID IS A FACT ABOUT THE LANE'S CONTENT.
+#
+# This line used to carry the cs2 job's tag list -- 5037,6708,2880,2899,3106,
+# 3108, which are osrs239 ids. LostCity's npcs are three-digit ids from its own
+# npc.pack, so not one of those six named anything the scene contained, the
+# plugin drew nothing, and the shot came back a picture of Varrock square with
+# no highlight in it. Nothing in the run said so: the config write reported
+# applied=1 (it IS a valid tag list -- tagging a species that is not in front
+# of you is normal), and a driven run with TORIRS_TRACE_PLUGIN_WORLD=1 shows
+# zero PLUGIN_HULL lines for all 2200 frames. A dead plugin and a working one
+# photograph identically here, which is the one thing a shot must never do.
+#
+# So the ids are chosen from the spawns this drive actually walks into.
+# ~varrock lands on 0_50_53_13_31, and content/maps/m50_53.jm2's NPC block is
+# the authority for what stands near it:
+#
+#   547 baraek  (18,43)  the fur trader
+#   781 shilop  (21,42)  \  the two children at his stall
+#   783 wilough (21,43)  /
+#
+# All three spawn NORTH of the teleport tile -- the direction the camera looks
+# over the player's shoulder -- and all three declare wanderrange=2, so they
+# cannot leave the forward view during the run. That is why they are here and
+# 639 (romeo, two tiles away and the obvious first choice) is not: romeo
+# declares no wanderrange at all, takes the engine default, and is somewhere
+# else by frame 2200 -- tagged, correct, and invisible, which would leave this
+# capture as ambiguous as the one it replaces.
+#
+# The OFFLINE cs1 lane cannot photograph this plugin at all, whatever the tags:
+# it never logs in, so the npc pool is empty and app_plugin_npc_next answers
+# -1 on the first call. Measured: a cs1 run tagging 547,781,783,639,153,1,3
+# logs zero PLUGIN_NPC lines. Only this lane has npcs to highlight.
+highlighter-live   entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_MAX_FRAMES=2200
+gf-mobile-live     mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
+# The SAME frame with its drawer OPEN, which is a different frame and not a
+# variation on the one above: opening the drawer takes the chat sheet down, and
+# every piece of chat furniture the frame does not account for is then standing
+# on bare world. That is where the 2004 lane's four filter captions were found
+# still painting with their plates gone -- invisible to every shot in this file,
+# because not one of them ever tapped a rock. The tap is at 698,370, which is
+# the inventory stone on the classic rail (tab.03, 680,352 36x37); ONE tap, not
+# two, because a second one shuts the drawer again and the shot is of the state
+# it started in.
+gf-mobile-drawer   mobile-gameframe    cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285;1900,698,370' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_MAX_FRAMES=2200 TORIRS_SHOT_FRAME=mobile-gameframe/stone-drawer
+
+# ~giverunes puts 1000 of each rune in the INVENTORY, which is the only reason
+# item-stats has anything to hover. The offline lane's inventory was empty, so
+# its "item stats" shot was a picture of no tooltip.
+itemstats-live     item-stats          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~giverunes' TORIRS_SIM_HOVER=627,228 TORIRS_MAX_FRAMES=2200
+itemstats-set-live item-stats          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_PLUGIN_PANEL=1600,item-stats,settings TORIRS_MAX_FRAMES=2200
+
+# ~torirsdrop puts a rune scimitar, a dragon med helm, 20k coins and 5 sharks on
+# the player's own tile -- the CS2 lane's `dropobj` pile, said in this server's
+# vocabulary, so the two lanes' ground-item pictures are comparable.
+grounditems-live   ground-items        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_GROUND_ITEMS_DEBUG=1 TORIRS_MAX_FRAMES=2200
+lootbeam-live      loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
+
+# This row is a REFUSAL capture, and it is the only bird-nest picture rev289
+# can produce. It used to be a silent copy of the grounditems-live line above,
+# which reads as a bird-nest drive and is not one; the three walls in the way
+# were never written down, so the shot -- a two-dozen-line log and an ordinary
+# Varrock frame -- could not be told apart from a dead plugin.
+#
+# WALL 1, the governing one: revconfig/rs289lc/rs289lc_dat1_cache.ini declares
+# ZERO `[varbit:]` rows, `[varbit:bird_nest]` among them. `Porcelain_Require`
+# refuses, `NxtBirdNestState::available` is false, and nxt_bird_nest_spawn
+# returns at its FIRST gate for every obj -- not at the id test, which is what
+# the original report of this guessed. The two PORCELAIN_FINDING lines at frame
+# 0 say so, and they are the result this shot is of.
+#
+# WALL 2: the rev289 world has no bird nest AT ALL. LostCity_Server's
+# content/pack/obj.pack holds 4089 rows and its highest id is 4088; the ten ids
+# nxt_bird_nest.c matches run 5070..22800, every one of them above the top of
+# that id space, and grepping `bird` through content/scripts' .obj files finds
+# feathers, birdfeed and chompy hats and no nest. So no `obj_add` in any
+# debugproc can name one, and "give this row a drive that drops a nest" is not
+# a repair that exists here. The positive picture is birdnest-cs2, whose drive
+# IS `dropobj bird_nest_egg_red 1` and whose log carries PLUGIN_NOTIFY.
+#
+# WALL 3, and it is not this plugin's: THE CHATBOX IS COVERED. A fresh account
+# logs in with the tutorial's `tut_open(tutorial_text)` overlay -- the blue
+# "Getting started" plate -- standing over the whole chat pane, and the cheat's
+# `if_close` does not take it down: `tut_close` is a separate engine command
+# and nothing here sends it. Measured rather than assumed, in
+# plugins/birdnest-live-chatprobe.png: a THIRD close at frame 2000, from
+# ~torirscoins, raised the coin pile from 20000 to 40000 -- so the cheat ran --
+# and the plate is still there 200 frames later. A Porcelain_Notify line is an
+# ordinary chat line, so no notification capture on this lane can show one; it
+# is filed as CS1LIVE-CHATBOX-COVERED and it also holds cannon-live.
+#
+# What the drive must therefore do is put the plugin's one reachable state in
+# front of it -- a ground item spawning on the player's own tile -- and prove
+# in the capture that it did. ~torirsdrop is that pile. TORIRS_TRACE_NATIVE_UI
+# is the half that was missing, and it is what the four CS2 birdnest rows have
+# always set: it prints NATIVE_PLAYER and one NATIVE_GROUND_STACK per stack, so
+# both walls and the exercise are in the log rather than in a paragraph:
+#
+#   NATIVE_PLAYER true=3213,3423,0 ...
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=1333  count=1     name=Rune scimitar
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=1149  count=1     name=Dragon med helm
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=995   count=20000 name=Coins
+#   NATIVE_GROUND_STACK tile=3213,3423,0 id=385   count=1     name=Shark
+#   NATIVE_GROUND_STACK tile=3232,3399,0 id=1931  count=1     name=Pot
+#
+# Four stacks on the player's OWN true tile, so the tile test the plugin ends
+# with would have passed; five in total, which is the count lootbeam-live reads
+# off the same drive. Every id is three or four digits and the lowest nest is
+# 5070. It costs ~3160 log lines, nearly all of them NATIVE_CS1 -- the same
+# switch prints those on a CS1 lane -- and that is the price of the six lines
+# above being there at all. plugins/birdnest-live-before.png is the same drive
+# on the same binary without it: same picture, 24 lines, nothing to read.
+birdnest-live      nxt-bird-nest       cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_TRACE_NATIVE_UI=1 TORIRS_MAX_FRAMES=2200
+cannon-live        nxt-cannon-ammo     cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_TRACE_NATIVE_UI=1 TORIRS_MAX_FRAMES=2200
+
+# ~maxme is here and nowhere else: it is what puts a real number on an xp orb,
+# and it also floods the chat with level-up dialogues, so no shot that wants a
+# readable chat pane can afford it.
+#
+# It fires at 2150 and not at 1000, and that is the whole shot. An orb is a
+# THING THAT EXPIRES -- `orb_duration` is 10s, the "+N" that climbs into it
+# lasts 1.2s -- and 1000 to 2200 is 1200 frames, about 22 seconds at the 20ms
+# pacer. The old line raised every skill at frame 1000 and photographed frame
+# 2200, twice the orb's whole life later, so the capture held not one plugin
+# pixel: five globes were planned, logged at x=137..337 y=4, and every one of
+# them had gone by the time the BMP was written. That reads as "the plugin is
+# dead on CS1" and it is the recipe, not the plugin. 2150 leaves 50 frames --
+# one second -- which is inside both clocks, so the shot carries the globes AND
+# the labels still in the air under them. Anything earlier than ~2140 loses the
+# labels; anything earlier than ~1700 loses the globes too.
+xporbs-live        xp-drop-orbs        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;2150,~maxme' TORIRS_MAX_FRAMES=2200
+xptracker-live     xp-tracker          cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1000,~maxme' TORIRS_SIM_PLUGIN_PANEL=1600,xp-tracker,page TORIRS_MAX_FRAMES=2200
+
+# Coins on their own, with the hide exception that makes them visible.
+#
+# `hidden_items` defaults to RuneLite's own list -- "Vial, Ashes, Coins,
+# Bones, ..." -- so a coin pile draws NO caption out of the box and its
+# absence looks exactly like the old defect where a pile was worth nothing.
+# It is not: it is the reference's default, and the way to photograph coins
+# is to except them, not to "fix" the filter.
+gi-coins-live      ground-items        cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;1200,~torirscoins' TORIRS_MAX_FRAMES=2200 -- hide_exceptions=Coins
+# ~torirsbeamdrop is the SAME line with a different pile, and it is the only
+# picture of the thing loot_beam 2.0 was rewritten to do.
+#
+# The row above is a CORRECTLY dark picture and that is the problem with it.
+# The ~torirsdrop pile alches to 15,360 / 60,000 / 20,000 / 180 against a
+# shipped `high_value` of 1,000,000, so no beam can stand on it -- and a
+# beamless frame is what a broken plugin photographs as too. The one live
+# beam this programme had (lb-live-beam.png) was taken with `tier` forced down
+# to `low`, which proves the model, the scene object and the plane filter on a
+# dat1 world and proves NOTHING about the name-keyed price table, because the
+# beam it raises comes from the cache's own OC_COST.
+#
+# ~torirsbeamdrop drops two objs chosen so the cache alone cannot light
+# either: a red partyhat (this cache states no cost, so ObjType.cost is its
+# default of 1 and the alch price is floor(1 * 0.6) = 0) and a dragon
+# chainbody (cost 250,000, alch 150,000 -- a MEDIUM item, under the `high`
+# floor). prices.txt's `Red partyhat` and `Dragon chainbody` rows make them
+# 900,000,000 and 1,080,000, so the pink INSANE beam and the orange HIGH one
+# in lb-priced-live.png are both beams the NAME lookup raised on a 2004 cache.
+# Two tiles, not one pile: one beam per tile takes the best thing on it.
+#
+# The proc is not in the LostCity checkout by default. It is carried in this
+# repo -- shots/lostcity/cheat_torirsbeam.rs2 -- because a drive a picture
+# depends on is part of the picture, and ~skiptutorial / ~torirsdrop /
+# ~torirscoins / ~torirskit are not: they live only in that other tree, so a
+# fresh clone can read these rows and cannot reproduce the shots.
+lb-priced-live     loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsbeamdrop' TORIRS_MAX_FRAMES=2200
+# The control for it, and the only difference between the two lines is which
+# drop proc runs. Same lane, same one-plugin ini, same shipped config, same
+# 2200 frames -- so a beam in one and not the other is the price table and
+# nothing else. (lootbeam-live above is the same drive and serves as well; this
+# row exists so the pair can be re-taken together, minutes apart, when the
+# Varrock floor and the npc crowd are the same.)
+lb-ctrl-torirsdrop loot-beam           cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial;900,~torirsdrop' TORIRS_MAX_FRAMES=2200
+# And the OTHER half of the same plugin, which the line above cannot see.
+#
+# Everything above is the hull pass. The Tag/Untag rows live on the right-click
+# menu and only while the reveal key is HELD, so no capture in this programme
+# ever built one -- the menu code could have been deleted and this file's own
+# shot would not have changed by a pixel or a log line. 42 is TORIRS_KEY_SHIFT
+# and the press is deferred past the teleport, because a key pressed on frame 1
+# lands on the title screen; the npc is named by TYPE because these three
+# wander and a fixed pixel is a coin toss.
+#
+#   ehreveal-live  right-clicks a TAGGED id and leaves the menu open, so the
+#                  last frame carries "Untag @yel@..." over the hull.
+#   ehtag-live     starts with NO tags, so the row reads "Tag"; SIM_MENU_ROW
+#                  finds it by label, prints the label it found and clicks it.
+#                  The hull in the last frame is there only because of that
+#                  click, which is the only proof of on_menu_select that a
+#                  picture can carry.
+ehreveal-live      entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' 'TORIRS_SIM_PLUGIN_CONFIG=1400,entity-highlighter,tags,547,781,783' TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=1500 TORIRS_SIM_CLICK_NPC=2100,547,1 TORIRS_MAX_FRAMES=2200
+ehtag-live         entity-highlighter  cs1live 'TORIRS_SIM_CLICK_AT=300,259,285;450,259,285;600,259,285;750,259,285' 'TORIRS_SIM_CMD=900,~skiptutorial;1000,~varrock;1100,~skiptutorial' TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_KEYHOLD_FRAME=1500 TORIRS_SIM_CLICK_NPC=1900,547,1 TORIRS_SIM_MENU_ROW=1950,Tag TORIRS_MAX_FRAMES=2200

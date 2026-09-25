@@ -87,4 +87,33 @@ World_EntityAddHitmark(
     int duration,
     int slot_policy);
 
+/**
+ * One decoded HEADBAR block, already resolved against its healthbar type.
+ *
+ * A struct rather than six parameters because the caller assembles it in one
+ * place from one wire block, and because the two `World_*SetHealthbar` entry
+ * points would otherwise repeat the same argument list twice each.
+ */
+struct WorldEntity_Headbar
+{
+    /** Healthbar config id. Never negative -- "no bar" is ClearHealthbar. */
+    int type;
+    /** loopCycle + the block's start delay. */
+    int start_cycle;
+    /** Cycles the fill travels over; 0 means it is already at `end_fill`. */
+    int duration;
+    int start_fill;
+    int end_fill;
+    /** start_cycle + duration + the type's persist window. */
+    int end_cycle;
+};
+
+/** Copy a headbar onto a combat facet. Shared so the player and npc paths
+ *  cannot drift; see World_PlayerSetHealthbar for why nothing is interpreted
+ *  here. */
+void
+World_EntityApplyHeadbar(
+    struct WorldEntityFacet_Combat* combat,
+    struct WorldEntity_Headbar bar);
+
 #endif

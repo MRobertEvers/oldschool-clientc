@@ -1,0 +1,20 @@
+# The Loot Tracker's two defects, before and after.
+#
+# SERIAL ONLY, and the BEFORE shots need TORIRS_SHOT_BIN pointing at a binary
+# built before the fix -- both defects are in C, so pointing
+# TORIRS_SHOT_WORKTREE at the old tree (which is how the Lua pairs were taken)
+# would change nothing.
+#
+# lt-blank-*: 621 frames stops one RENDERED frame after the page opens, which
+# is inside the 3,520 ms the well used to stay blank after every open. It is
+# not another go at lootsweep/lootrepeat, which tried to catch that interval by
+# luck and could not: four blanks of eleven at this same tick, and six
+# deliberate repeats that all painted.
+#
+# lt-cells-*: two goblin kills, each 5000 coins and a bone -- the drive from
+# jobs/pages.txt, kept identical so the pictures are comparable.
+
+lt-blank-before loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=621 TORIRS_TRACE_NATIVE_UI=1
+lt-blank-after  loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page TORIRS_MAX_FRAMES=621 TORIRS_TRACE_NATIVE_UI=1
+lt-cells-before loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1;580,lootkill Goblin 995 5000;590,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1
+lt-cells-after  loot-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=620,loot-tracker,page 'TORIRS_SIM_CMD=560,lootkill Goblin 995 5000;570,lootkill Goblin 526 1;580,lootkill Goblin 995 5000;590,lootkill Goblin 526 1' TORIRS_TRACE_NATIVE_UI=1

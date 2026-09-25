@@ -245,6 +245,64 @@ net_out_if_button(
 }
 
 int
+net_out_if_script_trigger(struct GameProtoRevTable const* rev,
+    struct Isaac* random_out, uint8_t* buf, int cap, int crc, int component_id,
+    int child, int object_id, const char* signature, const int* values,
+    const char* const* strings)
+{
+    assert(rev);
+    assert(random_out);
+    assert(buf);
+    assert(signature);
+    assert(values);
+    assert(strings);
+    int payload = 12;
+    int count = (int)strlen(signature);
+    if( count > 16 ) return -1;
+    /* Check capacity before spending an ISAAC word. */
+    for( int i = 0; i < count; ++i )
+    {
+        if( signature[i] == 'i' )
+        {
+            uint32_t value = ((uint32_t)values[i] << 1) ^ (uint32_t)-(values[i] < 0);
+            do { payload++; value >>= 7; } while( value );
+        }
+        else
+        {
+            assert(strings[i]);
+            size_t length = strlen(strings[i]);
+            if( length > 65535 ) return -1;
+            payload += (int)length + 1;
+        }
+    }
+    if( payload > 65535 || cap < payload + 3 ) return -1;
+    struct RSCache_Buffer out;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_SCRIPT_TRIGGER,
+                  payload + 2, &out) < 0 ) return -1;
+    p2(&out, payload);
+    p2_le_add128(&out, child);
+    p2(&out, object_id);
+    p4_le(&out, component_id);
+    p4_le(&out, crc);
+    for( int i = 0; i < count; ++i )
+    {
+        if( signature[i] == 'i' )
+        {
+            uint32_t value = ((uint32_t)values[i] << 1) ^ (uint32_t)-(values[i] < 0);
+            while( value >= 128 ) { p1(&out, (value & 127) | 128); value >>= 7; }
+            p1(&out, value);
+        }
+        else
+        {
+            for( const unsigned char* p = (const unsigned char*)strings[i]; *p; ++p )
+                p1(&out, *p);
+            p1(&out, 0);
+        }
+    }
+    return 1 + (int)out.position;
+}
+
+int
 net_out_if_button_op(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
@@ -372,6 +430,253 @@ net_out_resume_countdialog(
     return 1 + (int)b.position;
 }
 
+/*
+ * A var-u8 packet whose body `write` fills. The length byte is back-patched
+ * once the body is known, the way net_out_client_cheat does it.
+ */
+static int
+out_var_u8_end(uint8_t* buf, struct RSCache_Buffer* b, int len_pos, int start)
+{
+    int const length = (int)b->position - start;
+    if( length > 255 )
+        return -1;
+    buf[1 + len_pos] = (uint8_t)length;
+    return 1 + (int)b->position;
+}
+
+static int
+out_var_u8_begin(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int out_name,
+    int min_payload,
+    struct RSCache_Buffer* b,
+    int* len_pos,
+    int* start)
+{
+    if( out_begin(rev, random_out, buf, cap, out_name, 1 + min_payload, b) < 0 )
+        return -1;
+    p1(b, 0);
+    *len_pos = (int)b->position - 1;
+    *start = (int)b->position;
+    return 0;
+}
+
+static int
+out_jstr_only(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int out_name,
+    char const* text)
+{
+    struct RSCache_Buffer b;
+    int len_pos;
+    int start;
+    assert(text);
+    if( out_var_u8_begin(rev, random_out, buf, cap, out_name, (int)strlen(text) + 1, &b, &len_pos, &start) < 0 )
+        return -1;
+    pjstr(&b, text, RSCACHE_JSTR_TERMINATOR_NULL);
+    return out_var_u8_end(buf, &b, len_pos, start);
+}
+
+int
+net_out_resume_namedialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name)
+{
+    return out_jstr_only(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_NAMEDIALOG, name);
+}
+
+int
+net_out_resume_stringdialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* text)
+{
+    return out_jstr_only(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_STRINGDIALOG, text);
+}
+
+int
+net_out_resume_countdialog_long(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int64_t amount)
+{
+    struct RSCache_Buffer b;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, 8, &b) < 0 )
+        return -1;
+    out_p8(&b, amount);
+    return 1 + (int)b.position;
+}
+
+int
+net_out_resume_objdialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int obj_id)
+{
+    struct RSCache_Buffer b;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_OBJDIALOG, 2, &b) < 0 )
+        return -1;
+    p2(&b, obj_id);
+    return 1 + (int)b.position;
+}
+
+/* RSProt BugReportDecoder, revisions 222-239: jstr description, g1Alt3 type,
+ * jstr instructions, framed by a var-u16 length. */
+int
+net_out_bug_report(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* description, char const* instructions, int template_id)
+{
+    struct RSCache_Buffer b;
+    assert(description);
+    assert(instructions);
+    int const body = (int)strlen(description) + 1 + 1 + (int)strlen(instructions) + 1;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_BUG_REPORT, 2 + body, &b) < 0 )
+        return -1;
+    p2(&b, 0);
+    int const len_pos = (int)b.position - 2;
+    int const start = (int)b.position;
+    pjstr(&b, description, RSCACHE_JSTR_TERMINATOR_NULL);
+    out_p1_alt3(&b, template_id);
+    pjstr(&b, instructions, RSCACHE_JSTR_TERMINATOR_NULL);
+    int const length = (int)b.position - start;
+    buf[1 + len_pos] = (uint8_t)(length >> 8);
+    buf[1 + len_pos + 1] = (uint8_t)length;
+    return 1 + (int)b.position;
+}
+
+/* RSProt SendSnapshotDecoder: jstr name, g1 rule, g1 mute (== 1). */
+int
+net_out_send_snapshot(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name, int rule_id, int mute)
+{
+    struct RSCache_Buffer b;
+    int len_pos;
+    int start;
+    assert(name);
+    if( out_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_SEND_SNAPSHOT, (int)strlen(name) + 3, &b, &len_pos, &start) < 0 )
+        return -1;
+    pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
+    p1(&b, rule_id);
+    p1(&b, mute);
+    return out_var_u8_end(buf, &b, len_pos, start);
+}
+
+/* RSProt FriendChatJoinLeaveDecoder: an empty body is a leave. */
+int
+net_out_friendchat_join_leave(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name)
+{
+    struct RSCache_Buffer b;
+    int len_pos;
+    int start;
+    if( out_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, name ? (int)strlen(name) + 1 : 0, &b, &len_pos, &start) < 0 )
+        return -1;
+    if( name )
+        pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
+    return out_var_u8_end(buf, &b, len_pos, start);
+}
+
+int
+net_out_friendchat_kick(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name)
+{
+    return out_jstr_only(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_KICK, name);
+}
+
+/* RSProt FriendChatSetRankDecoder at rev 239 (codec v4): g1Alt3 rank, jstr name. */
+int
+net_out_friendchat_setrank(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name, int rank)
+{
+    struct RSCache_Buffer b;
+    int len_pos;
+    int start;
+    assert(name);
+    if( out_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_SETRANK, (int)strlen(name) + 2, &b, &len_pos, &start) < 0 )
+        return -1;
+    out_p1_alt3(&b, rank);
+    pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
+    return out_var_u8_end(buf, &b, len_pos, start);
+}
+
+int
+net_out_clanchannel_full_request(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id)
+{
+    struct RSCache_Buffer b;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST, 1, &b) < 0 )
+        return -1;
+    p1(&b, clan_id);
+    return 1 + (int)b.position;
+}
+
+int
+net_out_clansettings_full_request(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id)
+{
+    struct RSCache_Buffer b;
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLANSETTINGS_FULL_REQUEST, 1, &b) < 0 )
+        return -1;
+    p1(&b, clan_id);
+    return 1 + (int)b.position;
+}
+
+/* The two member-moderation requests share one body: g1 clan, g2 member, jstr name. */
+static int
+out_clan_member(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int out_name, int clan_id, int member_index, int muted, char const* name)
+{
+    struct RSCache_Buffer b;
+    int len_pos;
+    int start;
+    assert(name);
+    if( out_var_u8_begin(rev, random_out, buf, cap, out_name, (int)strlen(name) + 5, &b, &len_pos, &start) < 0 )
+        return -1;
+    p1(&b, clan_id);
+    p2(&b, member_index);
+    if( muted >= 0 )
+        p1(&b, muted);
+    pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
+    return out_var_u8_end(buf, &b, len_pos, start);
+}
+
+int
+net_out_clanchannel_kickuser(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, char const* name)
+{
+    return out_clan_member(rev, random_out, buf, cap, PKTOUT_NAME_CLANCHANNEL_KICKUSER, clan_id, member_index, -1, name);
+}
+
+int
+net_out_affinedclansettings_addbanned_fromchannel(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, char const* name)
+{
+    return out_clan_member(rev, random_out, buf, cap, PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL, clan_id, member_index, -1, name);
+}
+
+/* RSProt AffinedClanSettingsSetMutedFromChannelDecoder: g1 clan, g2 member,
+ * g1 muted (== 1), jstr name. */
+int
+net_out_affinedclansettings_setmuted_fromchannel(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, int muted, char const* name)
+{
+    return out_clan_member(rev, random_out, buf, cap, PKTOUT_NAME_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL, clan_id, member_index, muted ? 1 : 0, name);
+}
+
 int
 net_out_tut_clickside(
     struct GameProtoRevTable const* rev,
@@ -464,6 +769,25 @@ out_move(
         }
         return 1 + (int)b.position;
     }
+}
+
+int
+net_out_set_heading(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int heading)
+{
+    struct RSCache_Buffer b;
+
+    assert(heading >= 0);
+    assert(heading < 16);
+    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_SET_HEADING, 1, &b) < 0 )
+        return -1;
+    /* RSProt SetHeadingDecoder v4, used by revision 239: no byte transform. */
+    p1(&b, heading);
+    return 1 + (int)b.position;
 }
 
 int
@@ -626,6 +950,37 @@ out_obj_slot_com(
     return 1 + (int)b.position;
 }
 
+/* The five ObjType inventory actions as COMPONENT ops on rev-239's backpack.
+ * File scope because two callers need it now: the packet below, and
+ * app_minimenu.c's cell flash, which re-enters the cell's own on_op with an
+ * op number and was handing it the OPHELD index instead.  See
+ * net_out_opheld_component_op. */
+static const int OPHELD_IF_BUTTONX_OP[5] = { 2, 3, 4, 6, 7 };
+
+/*
+ * THE OP NUMBER A BACKPACK ROW REALLY CARRIES, for anything that has to speak
+ * to the interface in its own op space rather than OPHELD's.
+ *
+ * The one caller that is not this file is the cell flash in app_minimenu.c:
+ * rev-239's backpack installs cc_setonop on every cell, and that handler is
+ * not cosmetic -- op 1 there is the shift-click-drop chain, which answers by
+ * naming the real Drop op through cc_triggerop.  Dispatching it with the
+ * OPHELD index meant every OPHELD1 press ("Dig", "Eat", "Open", ...) ran the
+ * drop chain a tick later and put the item on the floor: measured on the
+ * spade at three separate dig tiles, `<- OPHELD1 obj=952` followed every time
+ * by `<- IF_BUTTONX 149:0 op=7` and `<- OPHELD5`
+ * (build/quest_gate/seam_heldop1_probe2/client.log, 2026-09-20).
+ *
+ * 0 when `op_num` is not one of the five.
+ */
+int
+net_out_opheld_component_op(int op_num)
+{
+    if( op_num < 1 || op_num > 5 )
+        return 0;
+    return OPHELD_IF_BUTTONX_OP[op_num - 1];
+}
+
 int
 net_out_opheld(
     struct GameProtoRevTable const* rev,
@@ -637,17 +992,30 @@ net_out_opheld(
     int slot,
     int component_id)
 {
+    /* Newer revisions have no OPHELD opcode at all: the five ObjType inventory
+     * actions leave as IF_BUTTONX ops on the backpack component. The mapping is
+     * NOT consecutive. Rev 239's backpack is scripted (script_7779 over
+     * enum_4303): generic Use owns op 1, op 5 stays a plain component action,
+     * and the five iop rows land on 2, 3, 4, 6, 7. This table is the exact
+     * inverse of the server's own decoder, mock239_if_button_backpack_op
+     * (src/torirsserver/mock239_interface_inbound.c), which a captured official
+     * packet pins: the Dreadfowl pouch's iop4 Summon arrives as wire op 6
+     * (src/torirsserver/test/mock239_interface_inbound_test.c).
+     *
+     * This used to be a flat `op_num + 1`, which got ops 1..3 right by accident
+     * and both of the others wrong: OPHELD4 went out as op 5 and decoded as no
+     * held action at all, and OPHELD5 -- Drop -- went out as op 6 and arrived
+     * as OPHELD4, so a right-click Drop answered "Nothing interesting happens."
+     * Nothing exercised either op end to end until the quest driver's
+     * player.drop verb did. */
     int collapsed;
 
     if( op_num < 1 || op_num > 5 )
         return -1;
-    /* Newer revisions have no OPHELD opcode at all. IF3's generic Use row is
-     * op 1, so its five ObjType inventory actions are IF_BUTTONX ops 2..6.
-     * (The golden client's default Drop fallback is op 7; either 6 or 7 maps
-     * back to classic OPHELD5 at the server.) Tried first because
-     * `packetout_code` is what decides, not the revision number. */
-    collapsed =
-        out_if_buttonx(rev, random_out, buf, cap, op_num + 1, component_id, slot, obj_id);
+    /* Tried first because `packetout_code` is what decides, not the revision
+     * number. */
+    collapsed = out_if_buttonx(
+        rev, random_out, buf, cap, OPHELD_IF_BUTTONX_OP[op_num - 1], component_id, slot, obj_id);
     if( collapsed >= 0 )
         return collapsed;
     return out_obj_slot_com(
@@ -1232,8 +1600,25 @@ net_out_opplayer(
 {
     struct RSCache_Buffer b;
 
-    if( op_num < 1 || op_num > 5 )
+    if( op_num < 1 || op_num > 8 )
         return -1;
+    if( op_num >= 6 )
+    {
+        /* RSProt OpPlayer6..8Decoder at rev 239. Only 239 names these rows; an
+         * older revision has no row and builds nothing. */
+        int const out_name = op_num == 6 ? PKTOUT_NAME_OPPLAYER6
+                             : op_num == 7 ? PKTOUT_NAME_OPPLAYER7
+                                           : PKTOUT_NAME_OPPLAYER8;
+        if( out_begin(rev, random_out, buf, cap, out_name, 3, &b) < 0 )
+            return -1;
+        switch( op_num )
+        {
+        case 6: out_p2_alt3(&b, player_slot); out_p1_alt3(&b, 0); break;
+        case 7: p1(&b, 0); p2(&b, player_slot); break;
+        default: p2(&b, player_slot); out_p1_alt2(&b, 0); break;
+        }
+        return 1 + (int)b.position;
+    }
     if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
     {
         int out_name = PKTOUT_NAME_OPPLAYER1 + (op_num - 1);
@@ -1326,9 +1711,10 @@ net_out_message_public(
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    char const* text)
+    char const* text,
+    int colour_effect)
 {
-    /* MESSAGE_PUBLIC: var-u8 length, body = colour(0) effect(0) wordpacked. */
+    /* MESSAGE_PUBLIC: var-u8 length, body = colour effect wordpacked. */
     struct RSCache_Buffer b;
     int len_pos;
     int start;
@@ -1338,8 +1724,8 @@ net_out_message_public(
     p1(&b, 0); /* length placeholder */
     len_pos = (int)b.position - 1;
     start = (int)b.position;
-    p1(&b, 0); /* colour */
-    p1(&b, 0); /* effect */
+    p1(&b, (colour_effect >> 8) & 0xff); /* colour */
+    p1(&b, colour_effect & 0xff);        /* effect */
     wordpack_pack(&b, text);
     buf[1 + len_pos] = (uint8_t)((int)b.position - start);
     return 1 + (int)b.position;

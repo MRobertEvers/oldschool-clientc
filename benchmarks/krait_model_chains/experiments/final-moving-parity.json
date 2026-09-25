@@ -1,0 +1,46 @@
+{
+  "scene": "grand-exchange-ground",
+  "serial": "T062809L3Z",
+  "aa": false,
+  "parity": {
+    "width": 1196,
+    "height": 720,
+    "different_pixels": 0,
+    "draw_items": 239,
+    "frame": 480
+  },
+  "parities": [
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 539,
+      "frame": 300
+    },
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 230,
+      "frame": 360
+    },
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 243,
+      "frame": 420
+    },
+    {
+      "width": 1196,
+      "height": 720,
+      "different_pixels": 0,
+      "draw_items": 239,
+      "frame": 480
+    }
+  ],
+  "motion": true,
+  "scope": "Real frozen painter draw-list replay; device-wide shader hardware counts. No time/occupancy/FPS inference.",
+  "rows": [],
+  "library_sha256": "aabf71a59cc0acd309cbf45c7d2119cf1e21d12b26a3d1f41e09968b5e05b03a"
+}

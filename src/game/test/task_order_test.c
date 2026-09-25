@@ -34,7 +34,7 @@ struct WriteTask
 };
 
 static int
-WriteTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+WriteTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct WriteTask* self = (struct WriteTask*)base;
     (void)io;
@@ -53,7 +53,7 @@ struct YieldTask
 };
 
 static int
-YieldTask_Run(struct ToriRS_Task* base, struct ToriRS_IO* io)
+YieldTask_Run(struct ToriRS_Task* base, struct ToriRS_IOBatch* io)
 {
     struct YieldTask* self = (struct YieldTask*)base;
     (void)io;
@@ -91,7 +91,7 @@ int
 main(void)
 {
     struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
-    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
 
     /* Enqueue in wire order: VARP(1), PLAYER_INFO(yields), VARP(2). */
     ToriRS_TaskQueue_Add(queue, new_write(1));
@@ -114,7 +114,7 @@ main(void)
     printf("ok - serial FIFO order preserved across the IO yield\n");
 
     ToriRS_TaskQueue_Free(queue);
-    ToriRS_IO_Free(io);
+    ToriRS_IOBatch_Free(io);
     printf("task-order: all tests passed\n");
     return 0;
 }

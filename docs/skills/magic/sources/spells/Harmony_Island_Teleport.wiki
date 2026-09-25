@@ -1,0 +1,57 @@
+{{otheruses|the teleport spell|the teleport tablet|Harmony island teleport (tablet)}}
+{{Infobox Spell
+|name = Harmony Island Teleport
+|image = [[File:Harmony Island Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 65
+|spellbook = Arceuus
+|type = Teleport
+|exp = 74
+|cost = {{RuneReq|Law=1|Soul=1|Nature=1}}
+|speed = 4 ticks
+|description = Teleports you to Harmony Island
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Harmony Island Teleport icon (mobile).png|left|class=pageimage]]
+'''Harmony Island Teleport''' teleports the caster to [[Harmony Island]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]]. In addition, completion of [[The Great Brain Robbery]] is required to cast the spell as well.
+
+The teleport is useful for players that have completed the [[elite Morytania Diary]], as they can use the herb patch located on the island.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Soul
+|Rune2num = 1
+|Rune3 = Nature
+|Rune3num = 1
+}}
+==Destination==
+{{Map|3797,2866|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Harmony Island Teleport v1.png|center]]
+|[[File:Harmony Island Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

@@ -1,0 +1,99 @@
+{{External|rs|rsc=Telekinetic grab}}
+{{otheruses|the spell|the unobtainable [[magic tablet]]|Telekinetic grab (tablet)}}
+{{Infobox Spell
+|name = Telekinetic Grab
+|image = [[File:Telekinetic Grab.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 33
+|spellbook = Normal
+|type = Utility
+|exp = 43
+|cost = {{RuneReq|Law=1|Air=1}}
+|speed = 3 ticks
+|description = Take an item you can see but can't reach
+|anim = [[File:Telekinetic Grab.gif|200px]]
+|sound = [[File:Telekinetic Grab.ogg]]
+}}
+[[File:Telekinetic Grab icon (mobile).png|left]]
+'''Telekinetic Grab''' (also known as '''telegrab''') is a [[Utility spells|utility spell]] available in the [[standard spellbook]]. It requires level 33 [[Magic]] to cast, and grants 43 Magic [[experience]] per cast.
+
+The spell can be used to pick up an item (or a pile of a stackable item) up to 10 tiles away, including over or through obstacles such as fences, gates, and rivers. It is useful when picking up item spawns that are guarded by dangerous monsters, such as the [[wine of Zamorak]] in the [[Chaos Temple (Asgarnia)|Chaos Temple]], and is also sometimes required for quests in order to pick up items that are guarded by [[Non-player character|NPCs]] or otherwise unreachable. For repeated casting, it is recommended to have a [[staff of air]] equipped to negate the need for [[Air rune|air runes]], and to have a way of [[Stat restoration|restoring]] Magic level if grabbing wine of Zamorak outside of the [[Deep Wilderness Dungeon]].
+
+Telekinetic Grab can also be used to loot [[lost crate]]s and [[Boat combat#Monsters|Sailing monster]] corpses from a distance, which is helpful if the player is in a multicombat area and does not wish to aggro nearby monsters by getting closer to the corpse. This also skips the net throwing animation that normally plays.
+
+There are only a few items, such as [[Ahab's beer]], [[raw pheasant]], [[Red flowers (Trouble Brewing)|Trouble Brewing flowers]], [[dragon token|dragon tokens]] and equipable reward items from [[Achievement_Diary|achievement diaries]], which cannot be picked up with Telekinetic Grab.
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 1
+|Rune2 = law
+|Rune2num = 1
+}}
+
+==Uses==
+Some notable areas where Telekinetic Grab can be used:
+*The [[Mage Training Arena]]'s [[Telekinetic Theatre]]
+*The [[lesser demon]] in the [[Wizards' Tower]]
+*[[Goat hunting]] on [[Wyrmscraig]]
+*The cellar below [[Varrock west bank]] - {{Map|name=Coins|mapID=12|3188:9820,qty:42|3188:9819,qty:26|3189:9819,qty:35|3190:9819,qty:56|3191:9821,qty:66|3195:9820,qty:4|mtype=pin|ptype=item|type=maplink}}
+*[[Wine of Zamorak]] in the [[Chaos Temple (Asgarnia)|Asgarnian Chaos Temple]] west of the [[Goblin Village]] - {{Map|name=Wine of Zamorak|2930,3515|mtype=pin|ptype=item|type=maplink}}
+*Wine of Zamorak in the [[Chaos Temple (church)|Wilderness Chaos Temple]] - {{Map|name=Wine of Zamorak|2950,3824|mtype=pin|ptype=item|type=maplink}}
+*Wine of Zamorak in the [[Deep Wilderness Dungeon]] - {{Map|name=Wine of Zamorak|mapID=26|3018,10353|mtype=pin|ptype=item|type=maplink}}
+*[[Nature rune]]s by the [[Demonic Ruins]] in the [[Wilderness]] - {{Map|name=Nature rune|3311:3853,qty:3|3307:3859,qty:4|mtype=pin|ptype=item|type=maplink}}
+*Nature rune north of [[Rellekka]] - {{Map|name=Nature rune|2671:3737,qty:2|2672:3738,qty:2|mtype=pin|ptype=item|type=maplink}}
+*[[Teak plank]]s by the [[sawmill]] in [[Prifddinas]] - {{Map|name=Teak plank|mapID=29|3313,6109|mtype=pin|ptype=item|type=maplink}}
+
+===Quests===
+*[[Creature of Fenkenstrain]] (optional, saves {{Coins|50}})
+*[[Darkness of Hallowvale]] (required)
+*[[Dragon Slayer I]] (optional, saves {{Coins|10000}})
+*[[King's Ransom]] (sometimes required)
+*[[Recipe for Disaster/Freeing the Mountain Dwarf|Recipe for Disaster - Freeing the Mountain Dwarf]] (optional)
+*[[Spirits of the Elid]] (required)
+*[[The Giant Dwarf]] (required)
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 May 2026
+|update = Further Leagues VI Changes
+|change =
+* Casting Telekinetic Grab on defeated seaborne creatures now lets you collect their loot while remaining engaged to the cannon, or to similar facilities.
+* The Telekinetic Grab spell now works on [[lost crate]]s too, provided you have the required Sailing level and some space for the crates' contents.
+}}
+{{Subject changes
+|date = 18 March 2026
+|update = Boat Combat Fixes
+|change = You can now use Telekinetic Grab to instantly loot a sea monster corpse with no net animation. Previously, there was a delay in place, which could cause the player to automatically Telekinetic Grab the corpse a second time while it was already moving towards the ship.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll = Poll 81 - Mage Training Arena
+|change = Casting Telekinetic Grab will no longer stall the player. Additionally the projectile travel time no longer varies by distance.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1851242961268281825|date=29 October 2024|archiveurl=https://reldo.runescape.wiki/i/27963342|archivedate=7 April 2026|quote=[Does the casting speed of Telekinetic Grab depend on distance? It doesn't seem like it does based on testing, but according to the Wiki it does.] No. Though before the update in May, the projectile's travel time was based on the distance, which may well have given that impression. Since May it's been using a static projectile travel time.}}
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = You can now cast telegrab around Seers' courthouse.
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|change = You can no longer telegrab members objects in F2P worlds, however you can still telegrab untrimmed skill capes.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*If you move to a different level while you are casting Telekinetic Grab, you will use the runes but not receive the item. You will receive the message {{mes|Your telegrab fizzles as you move too far away.}}
+*If the target item of Telekinetic Grab disappears due to it either despawning or being picked up by another player, you will receive the message {{mes|Too late - it's gone!}}
+*It is not possible to cast Telekinetic Grab close to the [[Tower of Life (building)|Tower of Life]]. You will receive the message {{mes|That nearby tower seems to be interfering with the spell.}}
+*If you cast Telekinetic Grab on an item, and then start to interact with a farming patch immediately after casting, the spell will be cast, but you will not receive the item. Instead, you will receive the message {{mes|You're too busy to take that item right now.}}
+
+==References==
+{{Reflist}}
+
+{{Standard spellbook}}

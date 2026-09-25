@@ -1,0 +1,405 @@
+- generic [active] [ref=f212e1]:
+  - generic [ref=f212e3]:
+    - banner [ref=f212e7]:
+      - link "Skip to main content" [ref=f212e9] [cursor=pointer]:
+        - /url: "#mainContent"
+      - navigation [ref=f212e10]:
+        - generic [ref=f212e11]:
+          - generic [ref=f212e13]:
+            - text: Hi!
+            - link "Sign in" [ref=f212e14] [cursor=pointer]:
+              - /url: https://signin.ebay.com/ws/eBayISAPI.dll?SignIn&sgfl=gh&ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F225591892802
+            - generic [ref=f212e15]:
+              - text: or
+              - link "register" [ref=f212e16] [cursor=pointer]:
+                - /url: https://signup.ebay.com/pa/crte?ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F225591892802
+          - link "Deals" [ref=f212e18] [cursor=pointer]:
+            - /url: https://www.ebay.com/deals
+          - link "Brand Outlet" [ref=f212e20] [cursor=pointer]:
+            - /url: https://www.ebay.com/b/Brand-Outlet/bn_7115532402
+          - link "Help & Contact" [ref=f212e22] [cursor=pointer]:
+            - /url: https://www.ebay.com/help/home
+        - generic [ref=f212e23]:
+          - generic [ref=f212e25]:
+            - link "Sell" [ref=f212e26] [cursor=pointer]:
+              - /url: https://www.ebay.com/sl/sell
+            - button "Expand Sell Menu" [ref=f212e28]
+          - generic [ref=f212e29]:
+            - link "Watchlist" [ref=f212e30] [cursor=pointer]:
+              - /url: https://www.ebay.com/mye/myebay/watchlist
+            - button "Expand Watch List" [ref=f212e32]
+          - generic [ref=f212e33]:
+            - link "My eBay" [ref=f212e34] [cursor=pointer]:
+              - /url: https://www.ebay.com/mys/home?source=GBH
+            - button "Expand My eBay" [ref=f212e36]
+          - button "Notifications" [ref=f212e39] [cursor=pointer]
+          - generic [ref=f212e42]:
+            - link "Your shopping cart contains 0 items" [ref=f212e43] [cursor=pointer]:
+              - /url: https://cart.ebay.com
+            - button "Expand Cart" [ref=f212e45]
+      - generic [ref=f212e46]:
+        - generic [ref=f212e47]:
+          - link "eBay Home" [ref=f212e48] [cursor=pointer]:
+            - /url: https://www.ebay.com
+            - img "eBay Home" [ref=f212e49]
+          - button "Shop by category" [ref=f212e57] [cursor=pointer]
+        - generic [ref=f212e59]:
+          - status [ref=f212e60]
+          - generic [ref=f212e62]:
+            - generic [ref=f212e63]:
+              - combobox "Search for anything" [ref=f212e64]
+              - button "Camera icon" [ref=f212e65]
+            - combobox "Select a category for search" [ref=f212e66]:
+              - option "All Categories" [selected]
+              - option "Antiques"
+              - option "Art"
+              - option "Baby"
+              - option "Books"
+              - option "Business & Industrial"
+              - option "Cameras & Photo"
+              - option "Cell Phones & Accessories"
+              - option "Clothing, Shoes & Accessories"
+              - option "Coins & Paper Money"
+              - option "Collectibles"
+              - option "Computers/Tablets & Networking"
+              - option "Consumer Electronics"
+              - option "Crafts"
+              - option "Dolls & Bears"
+              - option "Movies & TV"
+              - option "eBay Motors"
+              - option "Entertainment Memorabilia"
+              - option "Gift Cards & Coupons"
+              - option "Health & Beauty"
+              - option "Home & Garden"
+              - option "Jewelry & Watches"
+              - option "Music"
+              - option "Musical Instruments & Gear"
+              - option "Pet Supplies"
+              - option "Pottery & Glass"
+              - option "Real Estate"
+              - option "Specialty Services"
+              - option "Sporting Goods"
+              - option "Sports Mem, Cards & Fan Shop"
+              - option "Stamps"
+              - option "Tickets & Experiences"
+              - option "Toys & Hobbies"
+              - option "Travel"
+              - option "Video Games & Consoles"
+              - option "Everything Else"
+          - generic [ref=f212e67]:
+            - button "Search" [ref=f212e68] [cursor=pointer]
+            - link "Advanced" [ref=f212e70] [cursor=pointer]:
+              - /url: https://www.ebay.com/sch/ebayadvsearch
+    - main [ref=f212e71]:
+      - generic [ref=f212e73]:
+        - generic [ref=f212e81]:
+          - generic [ref=f212e82]:
+            - img "Mtg - Adventures In The Forgotten Realms Bundle Box *Empty/Storage*" [ref=f212e85]
+            - generic [ref=f212e86]:
+              - generic [ref=f212e87]:
+                - generic [aria-hidden] [ref=f212e88]: Mtg - Adventures In The Forgotten Realms Bundle Box *Empty/Storage*
+                - generic [ref=f212e89]: Mtg - Adventures In The Forgotten Realms Bundle Box *Empty/Storage*
+              - generic [ref=f212e90]: Ended
+              - generic [ref=f212e95]:
+                - text: US $17.99
+                - generic [ref=f212e96]: US $17.99
+              - generic [ref=f212e98]:
+                - text: Tue, Feb 11, 11:45 AM
+                - generic [ref=f212e99]: Tue, Feb 11, 11:45 AM
+          - link "Seller's other items" [ref=f212e104] [cursor=pointer]:
+            - /url: https://www.ebay.com/sch/i.html?sid=mage_of_fire&_pgn=1&isRefine=true&_trksid=p4429486.m2548.l49496
+        - generic [ref=f212e108]:
+          - generic [ref=f212e119]:
+            - generic [ref=f212e122]:
+              - generic [ref=f212e124]:
+                - heading "Similar Items" [level=2] [ref=f212e126]
+                - generic [ref=f212e129]:
+                  - generic [ref=f212e130]: 蛫ڶれؠぱक़Ґ۞
+                  - generic [ref=f212e131]: S
+                  - generic [ref=f212e132]: ば֐Ρぁ둑律퍔リ
+                  - generic [ref=f212e133]: p
+                  - generic [ref=f212e134]: ؠϤढзィキ์サ
+                  - generic [ref=f212e135]: o
+                  - generic [ref=f212e136]: 릈ӑׯ०ज़ىふス
+                  - generic [ref=f212e137]: "n"
+                  - generic [ref=f212e138]: 矅ۅۀБ֑櫋ッパ
+                  - generic [ref=f212e139]: s
+                  - generic [ref=f212e140]: ٭ろۙ゜ۨく҉ч
+                  - generic [ref=f212e141]: ѷѫָびЌ봮っし
+                  - generic [ref=f212e142]: o
+                  - generic [ref=f212e143]: 褻׏۽һエส뾽ب
+                  - generic [ref=f212e144]: r
+                  - generic [ref=f212e145]: झ粅鐸׻ӬϺฆѶ
+                  - generic [ref=f212e146]: e
+                  - generic [ref=f212e147]: ศ崮आΐς뛬Οْ
+                  - generic [ref=f212e149]: т׍ゖアплνҨ
+                  - generic [ref=f212e150]: चぼऊ๗ϒゞדヺ
+                  - generic [ref=f212e151]: d
+                  - generic [ref=f212e152]: つ७֧鷪ָ֕یल
+                  - generic [ref=f212e153]: β֪؛钝б偩Ϣひ
+                  - generic [ref=f212e154]: ゎด돱んۻΟベϚ
+                  - generic [ref=f212e155]: ڍन๟점ڇ΢盒ェ
+                  - generic [ref=f212e156]: ฐビำツ๚ばֵ֢
+                  - generic [ref=f212e157]: อ꺺प侒֨ः쟄ภ
+                  - generic [ref=f212e159]: 穫ぇڒしҷぼӽइ
+                  - generic [ref=f212e160]: װΫพѽ҉ЌΏֻ
+                  - generic [ref=f212e161]: २ぐ֫α΄얩๬ۅ
+                  - generic [ref=f212e162]: Ѻねज़ぁٴٗ๔偆
+                  - generic [ref=f212e163]: 촦ฮ֥Ϡ긵ऀ篫ฦ
+                  - generic [ref=f212e164]: 톤ुҕ΢ぃ빩֕ϲ
+                  - generic [ref=f212e166]: ゜むンψڐยϱ慒
+                  - generic [ref=f212e167]: ͵डゑ׶゙ף乍؂
+                  - generic [ref=f212e168]: ڿ蟵ใ쁨ьڶצ๺
+                  - generic [ref=f212e169]: इ옥賜ภวシアѽ
+              - link "See all" [ref=f212e172] [cursor=pointer]:
+                - /url: https://www.ebay.com/recs?component=lex6aspects-5-items&algos=HOMESPLICE.SIM.SimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall&placement_title=i18n.Tag_SIs&placement_subTitle=i18n.ModuleSubTitle_Sponsored&sourceModuleId=101875&item_id=225591892802
+            - group [ref=f212e175]:
+              - generic [ref=f212e176]:
+                - button "Go to the previous slide, Similar Items" [disabled] [ref=f212e177]
+                - list [ref=f212e179]:
+                  - listitem [ref=f212e180]:
+                    - generic [ref=f212e182]:
+                      - generic [ref=f212e188]:
+                        - heading [level=3] [ref=f212e189]:
+                          - link "MTG The Hobbit Bundle Box - EMPTY NO PACKS | Deck Storage - Magic HOB" [ref=f212e190] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/327337201743?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEB%2F93B125oESJwJl8z5a8yM%3D%26itm%3D327337201743%26noa%3D0%26plcampt%3D0%3A159642195015%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D1%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A327337201743679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRot5%252Bn29FYzMpoRQQ0WSEI%252BuUv4CROen1Uqz1Czql0rMihuGaEcFrKBEK1bxi1auYmsE3ipuQG66q8u%252F6rnmbkKoweW7NFeel7ZkpyM7UyCq9JAGDmm7kJqRTTMaBEhVNHbPmkBaIjxzgPACbZZSkcbFHvKNgxn7DCQQwPRPJfFo4lxiqfLR9wEh%252B0KHw%252BtTQCszVnMeyzUMcezCc09drJSvnn2XO9SghM0Nl0IvsKHjvqDOCmhnjY3MLHsirfXgFtWjA7es%252B1ZhfnxfZGjEM5thU7XEuSoUoFe2n40aC9DI%252F%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFQ3JE1P8T1EP37YV56W
+                        - generic [ref=f212e191]:
+                          - generic [ref=f212e192]: New
+                          - generic [ref=f212e194]: $14.99
+                        - generic [ref=f212e195]: + $5.89 delivery
+                        - generic [ref=f212e197]: Top Rated Plus
+                        - generic [ref=f212e201]: 10% off 3+ with coupon
+                      - link [aria-hidden] [ref=f212e203] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/327337201743?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEB%2F93B125oESJwJl8z5a8yM%3D%26itm%3D327337201743%26noa%3D0%26plcampt%3D0%3A159642195015%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D1%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A327337201743679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRot5%252Bn29FYzMpoRQQ0WSEI%252BuUv4CROen1Uqz1Czql0rMihuGaEcFrKBEK1bxi1auYmsE3ipuQG66q8u%252F6rnmbkKoweW7NFeel7ZkpyM7UyCq9JAGDmm7kJqRTTMaBEhVNHbPmkBaIjxzgPACbZZSkcbFHvKNgxn7DCQQwPRPJfFo4lxiqfLR9wEh%252B0KHw%252BtTQCszVnMeyzUMcezCc09drJSvnn2XO9SghM0Nl0IvsKHjvqDOCmhnjY3MLHsirfXgFtWjA7es%252B1ZhfnxfZGjEM5thU7XEuSoUoFe2n40aC9DI%252F%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFQ3JE1P8T1EP37YV56W
+                      - button "Add MTG The Hobbit Bundle Box - EMPTY NO PACKS | Deck Storage - Magic HOB to your watch list" [ref=f212e206] [cursor=pointer]
+                  - listitem [ref=f212e207]:
+                    - generic [ref=f212e209]:
+                      - generic [ref=f212e215]:
+                        - generic [ref=f212e216]: LAST ONE
+                        - heading [level=3] [ref=f212e217]:
+                          - 'link "Adventures in the Forgotten Realms: Draft Booster Box New Magic The Gathering" [ref=f212e218] [cursor=pointer]':
+                            - /url: https://www.ebay.com/itm/157591670766?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEG1%2B2WCaG5yCLnOPkoUnWRM%3D%26itm%3D157591670766%26noa%3D0%26plcampt%3D0%3A152243739012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D2%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A157591670766679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRoloVW5YW7IqefRdw%252Bqb%252FnJkUftyd%252BlHEWSRPzZ4WWIkwyiwxa16nqmIuevZTQcfrSUbGxr8arWHqbq%252F3ITxuX2r0%252FM1%252FF8alpWgpu7lbi37vcfzaRaYaqcO6iJ5Fg96Jg8rM1KiW1tHv%252F46xfwE7B%252Fga6jm056L811E4WG%252FibwcjNBFlyWkjZq3UPOk2bAJPod64Pkr0hwS8tTCYP5YEtz%252Bgvyf%252FcaMx88P8Pl%252FMIMsY0qEvLdRCSz4Qw8UfdnOHn5SK8CNSAOXUs2d3enkBhpo1%252FfSQJr5ijnlPD9In8etgnvjScbv7iZcwplOfrwhyXg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFQZWYCA5X13V3DRZ8WC
+                        - generic [ref=f212e219]:
+                          - generic [ref=f212e220]: New
+                          - generic [ref=f212e222]: $399.99
+                        - generic [ref=f212e223]: Free delivery
+                        - generic [ref=f212e225]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e227] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/157591670766?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEG1%2B2WCaG5yCLnOPkoUnWRM%3D%26itm%3D157591670766%26noa%3D0%26plcampt%3D0%3A152243739012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D2%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A157591670766679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRoloVW5YW7IqefRdw%252Bqb%252FnJkUftyd%252BlHEWSRPzZ4WWIkwyiwxa16nqmIuevZTQcfrSUbGxr8arWHqbq%252F3ITxuX2r0%252FM1%252FF8alpWgpu7lbi37vcfzaRaYaqcO6iJ5Fg96Jg8rM1KiW1tHv%252F46xfwE7B%252Fga6jm056L811E4WG%252FibwcjNBFlyWkjZq3UPOk2bAJPod64Pkr0hwS8tTCYP5YEtz%252Bgvyf%252FcaMx88P8Pl%252FMIMsY0qEvLdRCSz4Qw8UfdnOHn5SK8CNSAOXUs2d3enkBhpo1%252FfSQJr5ijnlPD9In8etgnvjScbv7iZcwplOfrwhyXg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFQZWYCA5X13V3DRZ8WC
+                      - 'button "Add Adventures in the Forgotten Realms: Draft Booster Box New Magic The Gathering to your watch list" [ref=f212e230] [cursor=pointer]'
+                  - listitem [ref=f212e231]:
+                    - generic [ref=f212e233]:
+                      - generic [ref=f212e239]:
+                        - heading [level=3] [ref=f212e240]:
+                          - link "Magic The Gathering Tiamat Standard Gold EX Adventures Forgotten Realms 235/281" [ref=f212e241] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/336762843892?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEEC78hq64SnFefASVEX9QPY%3D%26itm%3D336762843892%26noa%3D0%26plcampt%3D0%3A160298542017%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D3%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A336762843892679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRosTK3xUFsatCemsLUvofRNFcUvYpWsBnxwS3FZDp0tGrjgT2emPQGD6xF4BnkF4XqHdJcRsypOES7%252FjJ76Z9pk7Qv0BoVu4TFCPr3bLDgxLYOdiDPljPiOcOXFPnjV6YAqg0veGlLMSs1UaO9PS3tA7mTIDxVSaUV50ONv8BXy0jTxgrVab%252BCNGzTwDV8PKiUFME4R2bNxdyt58Hv5k54ald9Q9MdzzDT9vEILmumvWTwzZ6nmQ3f813OQOan%252FNDIqzdJIp9jqwd3xEOLNEStREDjUj55CtP3ryMBFVVLlvjwpMdDPSpfMWApC%252BlDWFlCg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFR3VY14DR2JK6MJB1R2
+                        - generic [ref=f212e242]:
+                          - generic [ref=f212e243]: Pre-owned
+                          - generic [ref=f212e245]: $23.49
+                        - generic [ref=f212e246]: + $7.37 delivery
+                        - generic [ref=f212e248]: Seller with 99% positive feedback
+                      - link [aria-hidden] [ref=f212e250] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/336762843892?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEEC78hq64SnFefASVEX9QPY%3D%26itm%3D336762843892%26noa%3D0%26plcampt%3D0%3A160298542017%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D3%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A336762843892679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRosTK3xUFsatCemsLUvofRNFcUvYpWsBnxwS3FZDp0tGrjgT2emPQGD6xF4BnkF4XqHdJcRsypOES7%252FjJ76Z9pk7Qv0BoVu4TFCPr3bLDgxLYOdiDPljPiOcOXFPnjV6YAqg0veGlLMSs1UaO9PS3tA7mTIDxVSaUV50ONv8BXy0jTxgrVab%252BCNGzTwDV8PKiUFME4R2bNxdyt58Hv5k54ald9Q9MdzzDT9vEILmumvWTwzZ6nmQ3f813OQOan%252FNDIqzdJIp9jqwd3xEOLNEStREDjUj55CtP3ryMBFVVLlvjwpMdDPSpfMWApC%252BlDWFlCg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFR3VY14DR2JK6MJB1R2
+                      - button "Add Magic The Gathering Tiamat Standard Gold EX Adventures Forgotten Realms 235/281 to your watch list" [ref=f212e253] [cursor=pointer]
+                  - listitem [ref=f212e254]:
+                    - generic [ref=f212e256]:
+                      - generic [ref=f212e262]:
+                        - heading [level=3] [ref=f212e263]:
+                          - 'link "Adventures in the Forgotten Realms: Draft Booster Box New Magic The Gathering" [ref=f212e264] [cursor=pointer]':
+                            - /url: https://www.ebay.com/itm/157892650394?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEBo%2BCgaxGe0NCp3QSZ7vN0A%3D%26itm%3D157892650394%26noa%3D0%26plcampt%3D0%3A13955792013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D4%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A157892650394679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRomuanfmCBveOEdrJXtaPhBachwhe5R61w40MInZxHzKDr3neq5h9GKA9dZ7RULQ8hizUgBODF6b5olFo7C3%252B521CmgYYtSxV1RA5qnAyenxGFsWMdruswLC6bZArZ8qpFgse3RwNYm02iEHXNYxI9tIWwzQvqxphMqoGB3JY4gqBUZSm1%252Bm6lR%252F9PBON7ls46ZO4aE4HtUT5ZZPQOyE0VZt16iQIogTQMd80rNkfH4fqgvOw0O%252FBOLefcMjw6ITobT29RoQ1ivMLviul2WaPc%252Bb4UVeLm2FveVevuzBTqj%252BymyeTyk%252F6zzhIJUlo3%252B3b1w%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFR8C8KCGK5W5WXGGA6X
+                        - generic [ref=f212e265]:
+                          - generic [ref=f212e266]: New
+                          - generic [ref=f212e268]: $399.95
+                        - generic [ref=f212e269]: Free delivery
+                        - generic [ref=f212e271]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e273] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/157892650394?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEBo%2BCgaxGe0NCp3QSZ7vN0A%3D%26itm%3D157892650394%26noa%3D0%26plcampt%3D0%3A13955792013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D4%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A157892650394679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRomuanfmCBveOEdrJXtaPhBachwhe5R61w40MInZxHzKDr3neq5h9GKA9dZ7RULQ8hizUgBODF6b5olFo7C3%252B521CmgYYtSxV1RA5qnAyenxGFsWMdruswLC6bZArZ8qpFgse3RwNYm02iEHXNYxI9tIWwzQvqxphMqoGB3JY4gqBUZSm1%252Bm6lR%252F9PBON7ls46ZO4aE4HtUT5ZZPQOyE0VZt16iQIogTQMd80rNkfH4fqgvOw0O%252FBOLefcMjw6ITobT29RoQ1ivMLviul2WaPc%252Bb4UVeLm2FveVevuzBTqj%252BymyeTyk%252F6zzhIJUlo3%252B3b1w%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFR8C8KCGK5W5WXGGA6X
+                      - 'button "Add Adventures in the Forgotten Realms: Draft Booster Box New Magic The Gathering to your watch list" [ref=f212e276] [cursor=pointer]'
+                  - listitem [aria-hidden] [ref=f212e277]:
+                    - generic [ref=f212e279]:
+                      - generic [ref=f212e285]:
+                        - heading [level=3] [ref=f212e286]:
+                          - link [ref=f212e287] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/387689199689?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEGOeiS4n1PV4t52NbH2TNCM%3D%26itm%3D387689199689%26noa%3D0%26plcampt%3D0%3A12986577013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D5%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A387689199689679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRognF5AbL%252F79IZMe%252FtELKt3Ct%252B9%252FPjZAX6Tc6PPZIDKyY5S0mWuNvRWXE58kQOb8Nky%252FxSvHYxxowkTtmPUsxy9fh7QwaYGQ0X03RtV5KJrqt4kpSO371oGl1dKTpmxlk%252FPfbWLEttViwgH3%252BDgC%252Bni0O2StGwHsggIGAivZjODNSfKr3ivVacwthAgLo3cc%252FQ3%252FNNA9iUGimmlNXRV%252B6pSwtyCtNv1K5236KJBZV5FGWcu19WOZpTU5BBEMMYYU%252FDmyPO3ZVblEtdNsDVWu90KRUOyVfWv8Ug%252BtoY8vzi5hxptvtVgjzH3%252FiJBgdg5iZ3Q%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRB2ZZAW9ADB9NSP304
+                            - text: MTG X D&D Adventures in the Forgotten Realms Notebook & Card Binder NEW
+                        - generic [ref=f212e288]:
+                          - generic [ref=f212e289]: New
+                          - generic [ref=f212e291]: $9.98
+                        - generic [ref=f212e292]: + $4.99 delivery
+                        - generic [ref=f212e294]: Top Rated Plus
+                        - generic [ref=f212e298]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e300] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/387689199689?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEGOeiS4n1PV4t52NbH2TNCM%3D%26itm%3D387689199689%26noa%3D0%26plcampt%3D0%3A12986577013%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D5%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A387689199689679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRognF5AbL%252F79IZMe%252FtELKt3Ct%252B9%252FPjZAX6Tc6PPZIDKyY5S0mWuNvRWXE58kQOb8Nky%252FxSvHYxxowkTtmPUsxy9fh7QwaYGQ0X03RtV5KJrqt4kpSO371oGl1dKTpmxlk%252FPfbWLEttViwgH3%252BDgC%252Bni0O2StGwHsggIGAivZjODNSfKr3ivVacwthAgLo3cc%252FQ3%252FNNA9iUGimmlNXRV%252B6pSwtyCtNv1K5236KJBZV5FGWcu19WOZpTU5BBEMMYYU%252FDmyPO3ZVblEtdNsDVWu90KRUOyVfWv8Ug%252BtoY8vzi5hxptvtVgjzH3%252FiJBgdg5iZ3Q%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRB2ZZAW9ADB9NSP304
+                      - button [ref=f212e303] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e304]:
+                    - generic [ref=f212e306]:
+                      - generic [ref=f212e312]:
+                        - heading [level=3] [ref=f212e313]:
+                          - link [ref=f212e314] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/256240803291?var=557292092372&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEIITgvB%2BsFP%2Fd9V3blpNLlE%3D%26itm%3D557292092372%26noa%3D0%26plcampt%3D0%3A14211333017%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D6%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A256240803291679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRonjIFsUPY6isvxM75gUKvbKGmknAWiYriWvgpvTOALMgmKdh6LGSMyxx7%252F0%252BS86wx%252FWXtLR87ak4J1k7yBuWFyAUYGMVCHspBGpGuyE2XyFrmGJdmOK1rZF%252FwiWJ3IFtN3sn0CBQ2aLBM084NMhLJ6IyPxg9N8L7lgppGGpH4RiHZPBmc7GNfae7bdQEcTLd9uA8Y9%252BRXj%252Fvj1GNPQqfUxflwR6DheolIlv4fIhJZiYEpnEnkZ42cCnpYzj%252BAihIoCYaGa74EIDCQP4jxI9Z497FUwCw8CaeEa%252BxB274Vk5b%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRFYYY7B0HTE4V9KQ1A
+                            - text: Magic The Gathering Set Binder Sticker "Side of Binder" (3.5" or less)
+                        - generic [ref=f212e315]:
+                          - generic [ref=f212e316]: New
+                          - generic [ref=f212e318]: $1.99
+                        - generic [ref=f212e319]: + $1.99 delivery
+                        - generic [ref=f212e321]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e323] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/256240803291?var=557292092372&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEIITgvB%2BsFP%2Fd9V3blpNLlE%3D%26itm%3D557292092372%26noa%3D0%26plcampt%3D0%3A14211333017%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D6%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A256240803291679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRonjIFsUPY6isvxM75gUKvbKGmknAWiYriWvgpvTOALMgmKdh6LGSMyxx7%252F0%252BS86wx%252FWXtLR87ak4J1k7yBuWFyAUYGMVCHspBGpGuyE2XyFrmGJdmOK1rZF%252FwiWJ3IFtN3sn0CBQ2aLBM084NMhLJ6IyPxg9N8L7lgppGGpH4RiHZPBmc7GNfae7bdQEcTLd9uA8Y9%252BRXj%252Fvj1GNPQqfUxflwR6DheolIlv4fIhJZiYEpnEnkZ42cCnpYzj%252BAihIoCYaGa74EIDCQP4jxI9Z497FUwCw8CaeEa%252BxB274Vk5b%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRFYYY7B0HTE4V9KQ1A
+                      - button [ref=f212e326] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e327]:
+                    - generic [ref=f212e329]:
+                      - generic [ref=f212e335]:
+                        - heading [level=3] [ref=f212e336]:
+                          - link [ref=f212e337] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/204507995522?var=505458571592&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEGTuKx%2FWisldzWvYgSGmz6Q%3D%26itm%3D505458571592%26noa%3D0%26plcampt%3D0%3A149419232014%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D7%26mehot%3Dnone%26lsid%3D3%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A204507995522679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRooBR%252FWZEbvWmysfjuL2dgrKh1kwXR2z5wkBcCW%252BVGsqq3JREWuB%252B%252FzAQVgTdGJu3I7crXTqmgeN5ETfpkzSfuja8CgWU1%252FQ0Ep9p6pMHPewyzpTlT%252Be%252BmJgZ0g0uWZO10RNjhnS4HKtqU8WeP4hr5S1697HbtXoPe%252F3hiAB5Px8ZNhHKqarwPAPIq9hxtn0bDtypVbumN6y4MLA%252FsZoXUIyB6WYZynMDBPZ7hYV3wRM9FNVGt76UaaHhFNwnlg9PQOkpapsAutnI9i7yL6t%252FxkThq%252BRFexy7C76pCcaWCT59%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRMC7ESQSZGY2AWX920
+                            - text: "MTG Magic The Gathering D20 SPINDOWN LIFE DICE (DIE) #CHOOSE YOUR SET#"
+                        - generic [ref=f212e338]:
+                          - generic [ref=f212e339]: New
+                          - generic [ref=f212e341]: $6.76
+                        - generic [ref=f212e342]: + delivery
+                        - generic [ref=f212e344]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e346] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/204507995522?var=505458571592&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEGTuKx%2FWisldzWvYgSGmz6Q%3D%26itm%3D505458571592%26noa%3D0%26plcampt%3D0%3A149419232014%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D7%26mehot%3Dnone%26lsid%3D3%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A204507995522679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRooBR%252FWZEbvWmysfjuL2dgrKh1kwXR2z5wkBcCW%252BVGsqq3JREWuB%252B%252FzAQVgTdGJu3I7crXTqmgeN5ETfpkzSfuja8CgWU1%252FQ0Ep9p6pMHPewyzpTlT%252Be%252BmJgZ0g0uWZO10RNjhnS4HKtqU8WeP4hr5S1697HbtXoPe%252F3hiAB5Px8ZNhHKqarwPAPIq9hxtn0bDtypVbumN6y4MLA%252FsZoXUIyB6WYZynMDBPZ7hYV3wRM9FNVGt76UaaHhFNwnlg9PQOkpapsAutnI9i7yL6t%252FxkThq%252BRFexy7C76pCcaWCT59%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRMC7ESQSZGY2AWX920
+                      - button [ref=f212e349] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e350]:
+                    - generic [ref=f212e352]:
+                      - generic [ref=f212e358]:
+                        - heading [level=3] [ref=f212e359]:
+                          - link [ref=f212e360] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/256240802056?var=557292281669&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEIITgvB%2BsFP%2Fd9V3blpNLlE%3D%26itm%3D557292281669%26noa%3D0%26plcampt%3D0%3A14211333017%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D8%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A256240802056679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRogSzfGJTFdBbXRmMQEnwbhzaGFkO9fQ45QnMML%252B0E15bB%252FpyJ0KnG6UlTKVOO6AORKxfTmCpA%252BUE9N9%252F7uCSqQG9UA897BXLtaiI%252BL9%252FFAa4fWeRv38THtc%252FyntbX9%252BAH0wgdNtQDVug3VpNPMrD%252FLG6TCUz1boJqTbRTb3DPpphZ95F3Dg64JmMUZEj4s11wwPFlTaWxZX7S0MTITWzAjtgKXMkxCccZbZtv1ovuA0MOuBTyGRcjbykBeM%252FyOTToMk%252Fliz7O2YfVvhMELDwVd2l6pXO4QpNvb4Y4VJIykz1%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRRZJ86W0YWGC6AFZ9Z
+                            - text: Magic The Gathering Set Binder Sticker "Front of Binder" (6.5" or less)
+                        - generic [ref=f212e361]:
+                          - generic [ref=f212e362]: New
+                          - generic [ref=f212e364]: $3.99
+                        - generic [ref=f212e365]: + $1.99 delivery
+                        - generic [ref=f212e367]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e369] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/256240802056?var=557292281669&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEIITgvB%2BsFP%2Fd9V3blpNLlE%3D%26itm%3D557292281669%26noa%3D0%26plcampt%3D0%3A14211333017%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D8%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A256240802056679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRogSzfGJTFdBbXRmMQEnwbhzaGFkO9fQ45QnMML%252B0E15bB%252FpyJ0KnG6UlTKVOO6AORKxfTmCpA%252BUE9N9%252F7uCSqQG9UA897BXLtaiI%252BL9%252FFAa4fWeRv38THtc%252FyntbX9%252BAH0wgdNtQDVug3VpNPMrD%252FLG6TCUz1boJqTbRTb3DPpphZ95F3Dg64JmMUZEj4s11wwPFlTaWxZX7S0MTITWzAjtgKXMkxCccZbZtv1ovuA0MOuBTyGRcjbykBeM%252FyOTToMk%252Fliz7O2YfVvhMELDwVd2l6pXO4QpNvb4Y4VJIykz1%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRRZJ86W0YWGC6AFZ9Z
+                      - button [ref=f212e372] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e373]:
+                    - generic [ref=f212e375]:
+                      - generic [ref=f212e381]:
+                        - generic [ref=f212e382]: LAST ONE
+                        - heading [level=3] [ref=f212e383]:
+                          - link [ref=f212e384] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/387236137957?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAENG8bJhVtrLjYmAJjplC3lM%3D%26itm%3D387236137957%26noa%3D0%26plcampt%3D0%3A11451630014%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D9%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A387236137957679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRouS%252Bx%252Bvr5zf26W%252F0oA%252FBb9b5FETgjXlYL2KuPtP60eqh1zPaliiSE%252FIwHY1EH89Nr%252FowEevfZndKtf%252F7fseJtpeeWWXGuxvJrGp9jEMdzDhrcQGXMPCjxtJWw4mgQqmee6v%252FBE4E%252FDoZFye4X%252BBamcE5O%252FpE9%252BzeDFsh4XslhiWqvCIrKE2WGk6Tprj8CS6V7EBPOpz%252BKAYa%252BKr8oLlTfnnoFYrPeZWYhKbtgvtHTpEcbD1ieo4E2Vyxvl5JgVLyG7VvzdyLOzIWdzZK3TTZWOqTjUZc6LIBlRTGYr1FOxEDlosyIvrVcka6Ux5ELqPAYg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRXTKYPB4VYJXGGXAYW
+                            - text: MtG Murders at Karlov Manor bundle empty storage card box Magic the Gathering
+                        - generic [ref=f212e385]:
+                          - generic [ref=f212e386]: New
+                          - generic [ref=f212e388]: $5.00
+                        - generic [ref=f212e389]: + $10.20 delivery
+                        - generic [ref=f212e391]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e393] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/387236137957?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAENG8bJhVtrLjYmAJjplC3lM%3D%26itm%3D387236137957%26noa%3D0%26plcampt%3D0%3A11451630014%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D9%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A387236137957679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRouS%252Bx%252Bvr5zf26W%252F0oA%252FBb9b5FETgjXlYL2KuPtP60eqh1zPaliiSE%252FIwHY1EH89Nr%252FowEevfZndKtf%252F7fseJtpeeWWXGuxvJrGp9jEMdzDhrcQGXMPCjxtJWw4mgQqmee6v%252FBE4E%252FDoZFye4X%252BBamcE5O%252FpE9%252BzeDFsh4XslhiWqvCIrKE2WGk6Tprj8CS6V7EBPOpz%252BKAYa%252BKr8oLlTfnnoFYrPeZWYhKbtgvtHTpEcbD1ieo4E2Vyxvl5JgVLyG7VvzdyLOzIWdzZK3TTZWOqTjUZc6LIBlRTGYr1FOxEDlosyIvrVcka6Ux5ELqPAYg%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFRXTKYPB4VYJXGGXAYW
+                      - button [ref=f212e396] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e397]:
+                    - generic [ref=f212e399]:
+                      - generic [ref=f212e405]:
+                        - heading [level=3] [ref=f212e406]:
+                          - link [ref=f212e407] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/155869772592?var=456257115847&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEKcRFdUyb6M24kwMk6y2hyA%3D%26itm%3D456257115847%26noa%3D0%26plcampt%3D0%3A11520004011%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D10%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A155869772592679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRomxiAaSDEZvW9xixaFRxfJiaDULTQDOi9KAVDu31jRxPhZg261cuGmcVEspYw6wtWva8KxrHi4HSg%252FO%252BlPmIL8C6MD99Sd2lwAITPhGRgheoI0Fu2KyXyQmLPB2tegmAN5tT7X2abr4TIQ%252Bqfp96K%252FniAnx0oZitis4K%252Ba7It8FJa9yDcWZRf7LiJe3gFyDMN6fpip0UnZoR3Bl%252BWaBTr5lEAfZMYiCOiuuVCOokVX5qJlOIW%252FcyTNZYZxg3WL7CkFYLWlpH8KJnGf0iuVfmocc9IwyU%252F363--dQ3rBQWM70Fk9z%252BG34cAKRpQJzmuYYuQ%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFS1P9490CSN6CEE68SK
+                            - text: Empty MtG Set Booster Box only - No Cards or Packs - Pick from the List
+                        - generic [ref=f212e408]:
+                          - generic [ref=f212e409]: Pre-owned
+                          - generic [ref=f212e411]: $2.99
+                        - generic [ref=f212e412]: + $6.00 delivery
+                        - generic [ref=f212e414]: Top Rated Plus
+                        - generic [ref=f212e418]: Seller 99.8% positive
+                      - link [aria-hidden] [ref=f212e420] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/155869772592?var=456257115847&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEKcRFdUyb6M24kwMk6y2hyA%3D%26itm%3D456257115847%26noa%3D0%26plcampt%3D0%3A11520004011%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D10%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A155869772592679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRomxiAaSDEZvW9xixaFRxfJiaDULTQDOi9KAVDu31jRxPhZg261cuGmcVEspYw6wtWva8KxrHi4HSg%252FO%252BlPmIL8C6MD99Sd2lwAITPhGRgheoI0Fu2KyXyQmLPB2tegmAN5tT7X2abr4TIQ%252Bqfp96K%252FniAnx0oZitis4K%252Ba7It8FJa9yDcWZRf7LiJe3gFyDMN6fpip0UnZoR3Bl%252BWaBTr5lEAfZMYiCOiuuVCOokVX5qJlOIW%252FcyTNZYZxg3WL7CkFYLWlpH8KJnGf0iuVfmocc9IwyU%252F363--dQ3rBQWM70Fk9z%252BG34cAKRpQJzmuYYuQ%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFS1P9490CSN6CEE68SK
+                      - button [ref=f212e423] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e424]:
+                    - generic [ref=f212e426]:
+                      - generic [ref=f212e432]:
+                        - heading [level=3] [ref=f212e433]:
+                          - link [ref=f212e434] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/296654498337?var=594513294476&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEGxCb0V7KPQgjkhpD%2BJyZD4%3D%26itm%3D594513294476%26noa%3D0%26plcampt%3D0%3A11809843014%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D11%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A296654498337679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRoniNXpnPEKibv7UJ%252Fw%252F8jCaz58QhV9N4foVK5sLQ%252BMYe%252BSS40XKIKpoXkqyA8CIVuNdHOUdRvUYv1%252FDzHjHU%252Fm1Im74aaTFlCyLHcAam3kGxNwVBMA%252BccLp%252F2W4VORhxbTEfN%252BO%252F9IzLEb8cWs3V1T14xHkG2DksmPFI2ndilY%252BNLH7tiNdKuQu7NfKHMHigDuadhqMvUD92Ubi6GWGMH80Tyxk0LC%252Fdv6mmv7XLWMfzY%252F7QGsv8FXDL2KvfrDAwPcEaXvIYxy8erWJWj510%252B%252FMvZHfaR%252Fc2ebwe6JYPb130%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFS644DXNPG9V4N17ZVR
+                            - text: "Magic The Gathering: D20 Oversized Spindown Dice + HTF, Choose Your Set MTG WOTC"
+                        - generic [ref=f212e435]:
+                          - generic [ref=f212e436]: New
+                          - generic [ref=f212e438]: $11.45
+                        - generic [ref=f212e439]: Free delivery
+                        - generic [ref=f212e441]: Seller with 100% positive feedback
+                      - link [aria-hidden] [ref=f212e443] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/296654498337?var=594513294476&_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26asc%3D20231207125618%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEGxCb0V7KPQgjkhpD%2BJyZD4%3D%26itm%3D594513294476%26noa%3D0%26plcampt%3D0%3A11809843014%26algo%3DHOMESPLICE.SIM%26ao%3D1%26rk%3D11%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A296654498337679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABcOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRoniNXpnPEKibv7UJ%252Fw%252F8jCaz58QhV9N4foVK5sLQ%252BMYe%252BSS40XKIKpoXkqyA8CIVuNdHOUdRvUYv1%252FDzHjHU%252Fm1Im74aaTFlCyLHcAam3kGxNwVBMA%252BccLp%252F2W4VORhxbTEfN%252BO%252F9IzLEb8cWs3V1T14xHkG2DksmPFI2ndilY%252BNLH7tiNdKuQu7NfKHMHigDuadhqMvUD92Ubi6GWGMH80Tyxk0LC%252Fdv6mmv7XLWMfzY%252F7QGsv8FXDL2KvfrDAwPcEaXvIYxy8erWJWj510%252B%252FMvZHfaR%252Fc2ebwe6JYPb130%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFS644DXNPG9V4N17ZVR
+                      - button [ref=f212e446] [cursor=pointer]
+                  - listitem [aria-hidden] [ref=f212e447]:
+                    - generic [ref=f212e449]:
+                      - generic [ref=f212e455]:
+                        - heading [level=3] [ref=f212e456]:
+                          - link [ref=f212e457] [cursor=pointer]:
+                            - /url: https://www.ebay.com/itm/187342807519?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEJh2w97Ux8OEVnGDjWnfPFg%3D%26itm%3D187342807519%26noa%3D0%26plcampt%3D0%3A15110716012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D12%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A187342807519679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRousDVjl35H1sSpBAPL15ttwaDR9GUIxFR8pQ%252BucGu%252F6ZwpVde7mNfdue%252Bcq%252Fi6zfIFUvzMaCvvpxA99sBRLyh5JP3YOEQuGLxCWzc2GSi1hIPb2%252F%252BajrnJLbRqz0IsuPcOMY1w4UIvUtW12tPZZDvQ04D8FfwICBDZN1rmEmLBdD5ZrgpFzz2LdvdPxBKMUsXQTzhBWE79aS0mNK7h9ch80IEr%252FA2CxKQw%252BqanbY24Phw%252FOGWOuHp3RKEdY6WDlIu1%252FheTcesHlPKivTbe7ZV7BZ8y8H6p7yDbFGWVSXnfzwO4FM2FIwIojsMLwVGLZ0rw%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFS989YPT9615MAPGG5Q
+                            - text: Adventures In The Forgotten Realms MTG x D&D binder booklet DND Notebook
+                        - generic [ref=f212e458]:
+                          - generic [ref=f212e459]: New
+                          - generic [ref=f212e461]: $5.40
+                        - generic [ref=f212e462]: + $8.06 delivery
+                        - generic [ref=f212e464]: Seller 99.7% positive
+                      - link [aria-hidden] [ref=f212e466] [cursor=pointer]:
+                        - /url: https://www.ebay.com/itm/187342807519?_trkparms=itmf%3D1%26aid%3D1110006%26rkt%3D12%26pid%3D101875%26mech%3D1%26algv%3DSimplAMLv11WebTrimmedV3MskuWithLambda85KnnRecallV1V2V4ItemNrtInQueryAndCassiniVisualRankerAndBertRecallWithVMEV3CPCAutoWithCassiniEmbRecall%26pmt%3D1%26amclksrc%3DITM%26sd%3D225591892802%26sid%3DAQALAAAAEJh2w97Ux8OEVnGDjWnfPFg%3D%26itm%3D187342807519%26noa%3D0%26plcampt%3D0%3A15110716012%26algo%3DHOMESPLICE.SIM%26brand%3DWizards+of+the+Coast%26asc%3D20231207125618%26ao%3D1%26rk%3D12%26mehot%3Dnone%26lsid%3D0%26meid%3D679a23f8cbc34bc595e56db89171a45a%26pg%3D2332490&_trksid=p2332490.c101875.m1851&itmprp=cksum%3A187342807519679a23f8cbc34bc595e56db89171a45a%7Cenc%3AAQALAAABgOrUAJyocs9zq5pLBX3YtmatWsILip3iH8cXvCuqAHQycQTv%252F0%252FsvMD%252FiujDLuk04YfjG4hB1bvoSoZT22fSr86l4ZShqsEbKB92VPEA3U8iJy4PIJKdxno0JaAN1O0l9SNW8FeXf9POlGhR7no0dngpp41JhUposDyp8wrIWePZ2WVit%252Fs77Ssad66Av4xRousDVjl35H1sSpBAPL15ttwaDR9GUIxFR8pQ%252BucGu%252F6ZwpVde7mNfdue%252Bcq%252Fi6zfIFUvzMaCvvpxA99sBRLyh5JP3YOEQuGLxCWzc2GSi1hIPb2%252F%252BajrnJLbRqz0IsuPcOMY1w4UIvUtW12tPZZDvQ04D8FfwICBDZN1rmEmLBdD5ZrgpFzz2LdvdPxBKMUsXQTzhBWE79aS0mNK7h9ch80IEr%252FA2CxKQw%252BqanbY24Phw%252FOGWOuHp3RKEdY6WDlIu1%252FheTcesHlPKivTbe7ZV7BZ8y8H6p7yDbFGWVSXnfzwO4FM2FIwIojsMLwVGLZ0rw%253D%253D%7Campid%3APL_CLK%7Cclp%3A2332490&itmmeta=01M249NFS989YPT9615MAPGG5Q
+                      - button [ref=f212e469] [cursor=pointer]
+                - button "Go to the next slide, Similar Items" [ref=f212e470]
+          - navigation "Quick Links" [ref=f212e473]:
+            - link "Back to home page" [ref=f212e474] [cursor=pointer]:
+              - /url: https://www.ebay.com
+            - button "Return to top" [ref=f212e475] [cursor=pointer]
+  - contentinfo [ref=f212e485]:
+    - list [ref=f212e486]:
+      - listitem [ref=f212e487]:
+        - link "About eBay" [ref=f212e488] [cursor=pointer]:
+          - /url: https://www.ebayinc.com
+      - listitem [ref=f212e489]:
+        - link "Announcements" [ref=f212e490] [cursor=pointer]:
+          - /url: https://community.ebay.com/t5/Announcements/bg-p/Announcements
+      - listitem [ref=f212e491]:
+        - link "Community" [ref=f212e492] [cursor=pointer]:
+          - /url: https://community.ebay.com
+      - listitem [ref=f212e493]:
+        - link "Security Center" [ref=f212e494] [cursor=pointer]:
+          - /url: https://pages.ebay.com/securitycenter/index.html
+      - listitem [ref=f212e495]:
+        - link "Seller Center" [ref=f212e496] [cursor=pointer]:
+          - /url: https://www.ebay.com/sellercenter
+      - listitem [ref=f212e497]:
+        - link "Policies" [ref=f212e498] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/policies/default/ebays-rules-policies?id=4205
+      - listitem [ref=f212e499]:
+        - link "Affiliates" [ref=f212e500] [cursor=pointer]:
+          - /url: https://partnernetwork.ebay.com/
+      - listitem [ref=f212e501]:
+        - link "Product Safety Tips" [ref=f212e502] [cursor=pointer]:
+          - /url: https://pages.ebay.com/safetytips
+      - listitem [ref=f212e503]:
+        - link "Help & Contact" [ref=f212e504] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/home
+      - listitem [ref=f212e505]:
+        - link "Site Map" [ref=f212e506] [cursor=pointer]:
+          - /url: https://pages.ebay.com/sitemap.html
+    - generic [ref=f212e507]:
+      - text: Copyright © 1995-2026 eBay Inc. All Rights Reserved.
+      - link "Accessibility" [ref=f212e508] [cursor=pointer]:
+        - /url: https://www.ebayinc.com/accessibility/
+      - text: ","
+      - link "User Agreement" [ref=f212e509] [cursor=pointer]:
+        - /url: https://www.ebay.com/help/policies/member-behaviour-policies/user-agreement?id=4259
+      - text: ","
+      - link "Privacy" [ref=f212e510] [cursor=pointer]:
+        - /url: https://www.ebay.com/help/policies/member-behaviour-policies/user-privacy-notice-privacy-policy?id=4260
+      - text: ","
+      - link "Consumer Health Data" [ref=f212e511] [cursor=pointer]:
+        - /url: https://www.ebayinc.com/company/privacy-center/privacy-notice/consumer-health-data-privacy-policy/
+      - text: ","
+      - link "Payments Terms of Use" [ref=f212e512] [cursor=pointer]:
+        - /url: https://pages.ebay.com/payment/2.0/terms.html
+      - text: ","
+      - link "Cookies" [ref=f212e513] [cursor=pointer]:
+        - /url: https://www.ebay.com/help/policies/member-behaviour-policies/ebay-cookie-notice?id=4267
+      - text: ","
+      - link "CA Privacy Notice" [ref=f212e514] [cursor=pointer]:
+        - /url: https://www.ebayinc.com/company/privacy-center/privacy-notice/state-privacy-disclosures/#california
+      - text: ","
+      - link "Your Privacy Choices" [ref=f212e515] [cursor=pointer]:
+        - /url: https://www.ebay.com/adchoice/ccpa
+      - text: and
+      - link "AdChoice" [ref=f212e516] [cursor=pointer]:
+        - /url: https://www.ebay.com/adchoice

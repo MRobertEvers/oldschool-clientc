@@ -1,0 +1,35 @@
+{{otheruses|the teleport spell|the teleport tablet|Arceuus library teleport (tablet)}}
+{{Infobox Spell
+|name = Arceuus Library Teleport
+|image = [[File:Arceuus Library Teleport.png]]
+|release = [[28 April]] [[2021]]
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 6
+|spellbook = Arceuus
+|type = Teleport
+|exp = 9
+|cost = {{RuneReq|Law=1|Earth=2}}
+|speed = 4 ticks
+|description = Teleports you to the Arceuus Library
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Arceuus Library Teleport icon (mobile).png|left|class=pageimage]]
+'''Arceuus Library Teleport''' teleports the caster north of the [[Arceuus Library|Grand Library of Great Kourend]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 2
+}}
+
+==Destination==
+{{Map|1632,3837|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

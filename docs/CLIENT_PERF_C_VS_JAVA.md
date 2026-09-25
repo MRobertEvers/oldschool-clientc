@@ -104,7 +104,7 @@ checks, in order of how much they catch:
 2. **Semantic audit of every source edit** — the repairs are typing-only by
    construction, and each one is reviewed against the bytecode
    (`javap -c -p`) before it counts as done.
-3. **It runs** — RuneLite reaches the login screen, logs into the mock230
+3. **It runs** — RuneLite reaches the login screen, logs into the ToriRSServer
    server at revision 239, and renders a scene.
 
 ---
@@ -369,7 +369,7 @@ catalogue in `Deobfuscator/instr/DEOB_DEFECTS.md`; the procedure to reproduce
 is `Deobfuscator/instr/RUNNING.md`.
 
 The client now logs in through the control channel and renders the world:
-player, terrain, lava, orbs, inventory, minimap, "Welcome to the mock230 world".
+player, terrain, lava, orbs, inventory, minimap, "Welcome to the ToriRSServer world".
 
 Two that generalise beyond this client:
 
@@ -399,7 +399,7 @@ the decompressed format byte is outside 5–7. Seeding `~/jagexcache/torirs239`
 from `cache.osrs239` does not avoid it — the client still fetches reference
 tables over JS5.
 
-This is server-side (`src/net/mock/mock_js5.c` / `mock230`), on the
+This is server-side (`src/torirsserver/mock_js5.c` / `ToriRSServer`), on the
 `rsprot-osrs239` branch with uncommitted changes, i.e. work in flight. It is
 not a deob or instrumentation problem: everything above it works.
 
@@ -412,7 +412,7 @@ away.
 
 ## 4. C client baselines (measured)
 
-Build: `EMBED_SERVER=1`, `manifest_osrs230_embed.ini`, `--uncapped --soft3d`,
+Build: `EMBED_SERVER=1`, `manifests/manifest_osrs230_embed.ini`, `--uncapped --soft3d`,
 1200 frames, headless (`SDL_VIDEODRIVER=dummy`), scenario `idle`.
 `-O0` also carries `TORIDRAW_OPT=1` (Soft3D at `-O2`), which is the tree's
 standard developer build; `-O3` is `OPT=1`, the whole tree.

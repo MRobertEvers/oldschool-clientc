@@ -18,13 +18,29 @@
 #   make -C src lane-check-artifact PLATFORM=win32   # after linking
 #   make -C src lane-check-artifact PLATFORM=win64   # after linking
 
-# --- macOS: desktop GL, and the one linker that has -dead_strip -------------
-LANE_REQUIRE_macos := OpenGL -dead_strip
-LANE_FORBID_macos  := --gc-sections
+# Plugin chrome has exactly two external executors. WEB is the Emscripten DOM
+# path; BROWSER is the shared protocol used by embedded browser engines. When
+# neither is present, torirs_chrome_exec.c selects its internal BUFFER sink.
+# The old platform-specific executors must never re-enter a production lane.
+CHROME_EXEC_FORBID_LEGACY := TORIRS_CHROME_EXEC_SDL_AVAILABLE \
+                             TORIRS_CHROME_EXEC_GDI_AVAILABLE \
+                             TORIRS_CHROME_EXEC_ANDROID_AVAILABLE \
+                             ui/torirs_chrome_exec_sdl.c \
+                             ui/torirs_chrome_exec_gdi.c \
+                             ui/torirs_chrome_exec_android.c
 
-# --- Linux: desktop GL, and specifically NOT the Apple-only strip flag -------
+# --- macOS: desktop GL, embedded browser chrome, and -dead_strip ------------
+LANE_REQUIRE_macos := OpenGL -dead_strip TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+                      ui/torirs_chrome_exec_winbrowser.c
+LANE_FORBID_macos  := --gc-sections TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c
+
+# --- Linux: desktop GL and BUFFER chrome (no embedded browser transport) -----
 LANE_REQUIRE_linux := -lGL
-LANE_FORBID_linux  := -dead_strip
+LANE_FORBID_linux  := -dead_strip TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c \
+                      ui/torirs_chrome_exec_winbrowser.c
 
 # --- Windows XP: the ABI contract that makes the binary loadable on XP SP3 ---
 # console:5.01 is the PE subsystem *version*. Without it binutils stamps 6.00
@@ -33,45 +49,158 @@ LANE_FORBID_linux  := -dead_strip
 # D3D_DISABLE_9EX removes the Vista-only interfaces from MinGW's d3d9.h at
 # compile time. The post-link probe below also proves the executable imports
 # classic Direct3DCreate9 and no Ex/D3DX/shader-compiler entry point.
-LANE_REQUIRE_win32 := _WIN32_WINNT=0x0501 WINVER=0x0501 -march=i686 \
-                      -mfpmath=387 console:5.01 -static -static-libgcc win32_compat.h \
-                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
+LANE_REQUIRE_win32 := _WIN32_WINNT=0x0501 WINVER=0x0501 -march=pentium4 \
+                      -mfpmath=sse console:5.01 -static -static-libgcc win32_compat.h \
+                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9 \
+                      TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+                      ui/torirs_chrome_exec_winbrowser.c
+# -march=i686/-mfpmath=387 are forbidden, not merely un-required. SSE2 is
+# assumed present on every XP target, and the i686 baseline silently costs this
+# lane the SIMD textured span it selects with #if -- 79% of its raster cycles.
+# A well-meaning "restore the conservative baseline" edit must fail the check.
 LANE_FORBID_win32  := -dead_strip -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
-                      -ld3dx -ld3dcompiler -ldxcompiler
+                      -march=i686 -mfpmath=387 \
+                      -ld3dx -ld3dcompiler -ldxcompiler \
+                      TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c
 
 # --- Modern Windows: explicit Windows 10+, x86_64, standalone D3D9 ----------
 LANE_REQUIRE_win64 := _WIN32_WINNT=0x0A00 WINVER=0x0A00 -march=x86-64 \
                       console:6.0 -static -static-libgcc win32_compat.h \
-                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
-LANE_FORBID_win64  := -march=i686 -mfpmath=387 console:5.01 -dead_strip \
+                      TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9 \
+                      TORIRS_CHROME_EXEC_BROWSER_AVAILABLE=1 \
+                      ui/torirs_chrome_exec_winbrowser.c
+LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dead_strip \
                       -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
-                      -ld3dx -ld3dcompiler -ldxcompiler
+                      -ld3dx -ld3dcompiler -ldxcompiler \
+                      TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                      ui/torirs_chrome_exec_web.c
 
-# --- Web: WebGL1 pinned, and no ASYNCIFY ------------------------------------
+# --- Web: both GPU renderers, and no ASYNCIFY -------------------------------
 # The IO path yields to the main loop and lets torirs_host.js pump responses
 # back in (docs/web_build.md). ASYNCIFY would rewrite the entire module to buy
 # the same behaviour at a large size and speed cost, so its absence is a
 # property of the design rather than an accident worth re-deciding.
-LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
-                    GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0
-LANE_FORBID_web  := ASYNCIFY -dead_strip
+#
+# This lane carries TWO GPU renderers: TORIRS_HAVE_GLES2, the four GLES2 units
+# the Android lane also links, run against WebGL1; and TORIRS_HAVE_WEBGL2, the
+# four platform_web_renderer_webgl2_*.c units, run against WebGL2 (WEB-GL2-000).
+# MAX_WEBGL_VERSION is therefore 2 -- the runtime has to be able to make either
+# context -- and which one each renderer gets is decided per renderer at
+# creation, not by the runtime; check-webgl1-es2 below is what keeps the first
+# one honest now that the link-time pin cannot.
+#
+# TORIRS_HAVE_GL3 and TORIRS_GL_ES2 stay forbidden: the first would offer
+# main.c a GL 3.2 renderer no browser can create, the second was the switch of
+# the retired WebGL1 fork of the GLES2 renderer, and webgl1_index16 was that
+# fork's index-splitting object.
+LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=2 \
+                    GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0 \
+                    TORIRS_HAVE_WEBGL1=1 \
+                    TORIRS_HAVE_WEBGL2=1 \
+                    platform/platform_web_renderer_webgl1_core.c \
+                    platform/platform_web_renderer_webgl1.c \
+                    platform/platform_web_renderer_webgl2_core.c \
+                    platform/platform_web_renderer_webgl2_ui.c \
+                    platform/platform_web_renderer_webgl2.c \
+                    TORIRS_CHROME_EXEC_WEB_AVAILABLE=1 \
+                    ui/torirs_chrome_exec_web.c
+# -O0 is forbidden here at any OPT level, which is the one lane where that is
+# true. wasm at -O0 is several times larger and slow enough that the client
+# stops reproducing what you are trying to look at, so the debug flavor is -Og
+# (PLATFORM_DEBUG_O_LEVEL in platform.mk) rather than the -O0 every other lane
+# gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
+LANE_FORBID_web  := ASYNCIFY -dead_strip -O0 TORIRS_HAVE_GL3 TORIRS_GL_ES2 webgl1_index16 \
+                    -sMAX_WEBGL_VERSION=1 \
+                    platform/platform_androidarmv7_renderer_opengles2.c platform/platform_androidarmv7_renderer_opengles3.c \
+                    TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+                    ui/torirs_chrome_exec_winbrowser.c
+
+# --- Android: GLES2, armv7 NEON, and NO SDL ---------------------------------
+#
+# Three things this lane must keep true, all of which have failed quietly
+# before rather than loudly:
+#
+#   -mfpu=neon        armv7 does not enable NEON by default, and the toridraw
+#                     span/projection/facesort kernels select their SIMD lane
+#                     with `#if defined(__ARM_NEON)` at COMPILE time. Without
+#                     this flag every one of them silently takes the scalar
+#                     fallback -- on the device class that can least afford it,
+#                     and with no symptom but a slower frame.
+#   -fPIC             the output is a shared library. Missing it does at least
+#                     fail, but deep in the linker with "relocation R_ARM_REL32
+#                     cannot be used against symbol 's_mp_prime_tab'", which
+#                     names a tommath symbol and not the cause.
+#   TORIRS_HAVE_GLES2 the GLES2 renderer (shared with the web lane) is the
+#                     GPU path. Neither TORIRS_HAVE_GL3 nor TORIRS_GL_ES2 may
+#                     appear: the first would let main.c hand this lane the
+#                     desktop GL 3.3 renderer no phone driver can run, the
+#                     second was the switch of the retired WebGL1 fork of it.
+#   -lOpenSLES and    this lane has a real audio device (ANDROID-AUDIO-001).
+#   the opensles      Reverting it is a one-word edit -- platform_audio_null.c
+#   backend           defines exactly the same functions -- and the result
+#                     builds, boots, and is silent. Nothing else would say so,
+#                     so both halves are named: the library and the source that
+#                     needs it.
+LANE_REQUIRE_android := -DTORIRS_PLATFORM_ANDROID=1 -fPIC -mfpu=neon \
+                        TORIRS_HAVE_GLES2=1 \
+                        TORIRS_HAVE_GLES3=1 \
+                        platform/platform_androidarmv7_renderer_opengles2_core.c \
+                        platform/platform_androidarmv7_renderer_opengles2.c \
+                        platform/platform_androidarmv7_renderer_opengles3_core.c \
+                                                platform/platform_androidarmv7_renderer_opengles3.c \
+                        -shared -llog -landroid -lGLESv2 -lGLESv3 -lEGL -lOpenSLES \
+                        platform/platform_audio_opensles.c
+# -lSDL2/-sUSE_SDL=2 are forbidden, not merely absent. "No SDL on Android" is
+# the defining property of this lane, and the way it would be lost is somebody
+# adding SDL to a SHARED variable to fix another host -- which this catches at
+# `make lane-check` instead of on a device.
+#
+# -dead_strip is ld64-only; -mfpmath=sse and -march=pentium4 are x86. Their
+# presence would mean a desktop block's flags leaked into this one.
+LANE_FORBID_android  := -lSDL2 -sUSE_SDL=2 -dead_strip -mfpmath=sse \
+                        -march=pentium4 -march=x86-64 -ld3d9 TORIRS_HAVE_D3D9 \
+                        TORIRS_HAVE_GL3 TORIRS_GL_ES2 \
+                        platform/platform_web_renderer_webgl1.c \
+                        platform/platform_web_renderer_webgl2.c \
+                        platform/platform_web_renderer_webgl2_core.c \
+                        platform/platform_web_renderer_webgl1.c \
+                        platform/platform_audio_null.c \
+                        TORIRS_CHROME_EXEC_WEB_AVAILABLE \
+                        TORIRS_CHROME_EXEC_BROWSER_AVAILABLE \
+                        ui/torirs_chrome_exec_web.c \
+                        ui/torirs_chrome_exec_winbrowser.c
 
 # Everything a lane actually compiles and links with. GPU object names are in
-# here so "no WebGL in the win32 link" is checkable as a flag would be.
-LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES)
+# here so "no WebGL in the win32 link" is checkable as a flag would be, and the
+# platform sources so is "which backend did this lane pick" -- a swapped
+# implementation of an interface every lane implements is invisible in the
+# flags.
+LANE_EFFECTIVE = $(CFLAGS) $(LDFLAGS) $(PLATFORM_GPU_OBJ_NAMES) $(PLATFORM_SRCS) \
+                 $(PLATFORM_CHROME_EXEC_SRC)
 
 LANE_MISSING = $(strip $(foreach f,$(LANE_REQUIRE_$(PLATFORM)), \
                  $(if $(findstring $(f),$(LANE_EFFECTIVE)),,$(f))))
-LANE_FORBIDDEN_PRESENT = $(strip $(foreach f,$(LANE_FORBID_$(PLATFORM)), \
+LANE_FORBIDDEN_PRESENT = $(strip $(foreach f,$(CHROME_EXEC_FORBID_LEGACY) \
+                                                  $(LANE_FORBID_$(PLATFORM)), \
                            $(if $(findstring $(f),$(LANE_EFFECTIVE)),$(f),)))
 
 # Lanes needing more than a flag comparison name an extra target here.
 LANE_EXTRA_CHECKS_win32 := lane-check-toolchain-win32 lane-check-fixed-function-win32
 LANE_EXTRA_CHECKS_win64 := lane-check-toolchain-win64 lane-check-fixed-function-win32
+# The android lane's flag contract says SDL is not on the command line. This
+# proves it of the ARTIFACT: a linked library with an SDL symbol in it would
+# mean SDL arrived some way the flags do not show.
+# The web lane carries both GPU renderers, so the ES2 one's ceiling is no
+# longer guaranteed by the link. It is checked in its sources instead.
+LANE_EXTRA_CHECKS_web := lane-check-webgl1-es2 lane-check-webgl2-no-extensions
+LANE_EXTRA_CHECKS_android := lane-check-no-sdl-android lane-check-webgl1-es2 \
+                             lane-check-webgl2-no-extensions
 
 .PHONY: lane-check lane-check-flags lane-check-all lane-check-artifact \
         lane-check-toolchain-win32 lane-check-toolchain-win64 \
-        lane-check-fixed-function-win32
+        lane-check-fixed-function-win32 lane-check-no-sdl-android \
+        lane-check-webgl1-es2 lane-check-webgl2-no-extensions
 
 lane-check: lane-check-flags $(LANE_EXTRA_CHECKS_$(PLATFORM))
 
@@ -94,6 +223,49 @@ lane-check-flags:
 # x86_64; each Windows wrapper runs the full check with its own compiler.
 lane-check-all:
 	@for p in $(PLATFORM_LIST); do $(MAKE) --no-print-directory PLATFORM=$$p lane-check-flags || exit 1; done
+
+# The ES2 core must stay inside OpenGL ES 2.0, and no GPU core may reach for
+# an extension. Both are source questions, not flag ones, so they are asked of
+# the files by tools/webgl_lane_audit.py -- which also says, at length, why
+# the link can no longer answer the first.
+#
+# The question is asked of the CORES, not the lanes: a lane file is a dozen
+# one-line delegations and a name, and the ceiling lives in the code that
+# makes GL calls. The ES2 core is the one with a ceiling to keep -- WebGL1 and
+# a 2013 Adreno both stop at ES 2.0 -- and the ES3 core has only the
+# extension rule, because ES 3.0 is the floor of both lanes that run it.
+# Both ES 2.0 families; @see ES3_CORE_SRCS for why the audit reads every copy.
+ES2_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles2_core.c \
+                 platform/platform_androidarmv7_renderer_opengles2_ui.c \
+                 platform/platform_androidarmv7_renderer_opengles2_painter.c \
+                 platform/platform_androidarmv7_renderer_opengles2_zbuffer.c \
+                 platform/platform_web_renderer_webgl1_core.c \
+                 platform/platform_web_renderer_webgl1_ui.c \
+                 platform/platform_web_renderer_webgl1_painter.c \
+                 platform/platform_web_renderer_webgl1_zbuffer.c \
+                 $(REPO_ROOT)/3rd/trspk/es2/es2_core.h \
+                 $(REPO_ROOT)/3rd/trspk/es2/es2_shaders.h
+# Both ES 3.0 FAMILIES, because the audit is about what the SOURCE may say and
+# each lane now has its own copy: an extension slipping into one of them is
+# still a defect even if the other stays clean. @see platform.mk's four
+# renderer families.
+ES3_CORE_SRCS := platform/platform_androidarmv7_renderer_opengles3_core.c \
+                 platform/platform_androidarmv7_renderer_opengles3_ui.c \
+                 platform/platform_androidarmv7_renderer_opengles3_painter.c \
+                 platform/platform_androidarmv7_renderer_opengles3_zbuffer.c \
+                 platform/platform_web_renderer_webgl2_core.c \
+                 platform/platform_web_renderer_webgl2_ui.c \
+                 platform/platform_web_renderer_webgl2_painter.c \
+                 platform/platform_web_renderer_webgl2_zbuffer.c \
+                 $(REPO_ROOT)/3rd/trspk/es3/es3_core.h \
+                 $(REPO_ROOT)/3rd/trspk/es3/es3_shaders.h
+
+lane-check-webgl1-es2:
+	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --es2 $(ES2_CORE_SRCS)
+
+lane-check-webgl2-no-extensions:
+	@python3 $(REPO_ROOT)/tools/webgl_lane_audit.py --no-extensions \
+		$(ES3_CORE_SRCS) $(ES2_CORE_SRCS)
 
 # 32-bitness is not forced with -m32 (on an x86_64 MinGW without multilib that
 # fails deep in the assembler with nothing pointing at the cause). The triple is
@@ -164,3 +336,26 @@ lane-check-artifact:
 	if [ '$(PLATFORM)' = 'win32' ] && printf '%s\n' "$$imports_lc" | grep -Eq '(^|[[:space:]])_?putenv_s$$'; then \
 		echo "lane-check-artifact: $(TARGET) imports _putenv_s, which XP msvcrt.dll does not export" >&2; exit 1; fi; \
 	echo "lane-check-artifact: $(TARGET) ok ($$expected_fmt, subsystem $$expected_subsystem, fixed-function d3d9, QPC pacing, standalone)"
+
+# No SDL in the shipped Android library.
+#
+# Checked on the artifact rather than only the flags because that is where the
+# claim actually has to hold: "this app does not carry SDL" is about what is in
+# the .so, and a symbol could arrive through a static archive that never appears
+# on a command line. Skipped (not failed) when the library has not been built
+# yet, so `lane-check-all` stays runnable from a clean tree.
+lane-check-no-sdl-android:
+	@so='$(PLATFORM_TARGET)'; \
+	if [ ! -f "$$so" ]; then \
+		echo "lane-check: $$so not built yet - skipping the no-SDL artifact probe"; \
+		exit 0; fi; \
+	nm='$(ANDROID_TOOLCHAIN)/bin/llvm-nm'; \
+	if [ ! -x "$$nm" ]; then \
+		echo "lane-check: $$nm not found - skipping the no-SDL artifact probe"; \
+		exit 0; fi; \
+	if "$$nm" -D "$$so" 2>/dev/null | grep -q 'SDL_'; then \
+		echo "lane-check: PLATFORM=android links SDL symbols:" >&2; \
+		"$$nm" -D "$$so" | grep 'SDL_' | head >&2; \
+		echo "  This lane must have no SDL. See the android block in platform.mk." >&2; \
+		exit 1; fi; \
+	echo "lane-check: android artifact carries no SDL symbol"

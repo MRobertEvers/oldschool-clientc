@@ -1,0 +1,415 @@
+- generic [active] [ref=f112e1]:
+  - banner [ref=f112e5]:
+    - link "Skip to main content" [ref=f112e7] [cursor=pointer]:
+      - /url: "#mainContent"
+    - navigation [ref=f112e8]:
+      - generic [ref=f112e9]:
+        - generic [ref=f112e11]:
+          - text: Hi!
+          - link "Sign in" [ref=f112e12] [cursor=pointer]:
+            - /url: https://signin.ebay.com/ws/eBayISAPI.dll?SignIn&sgfl=gh&ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F143562399603
+          - generic [ref=f112e13]:
+            - text: or
+            - link "register" [ref=f112e14] [cursor=pointer]:
+              - /url: https://signup.ebay.com/pa/crte?ru=https%3A%2F%2Fwww.ebay.com%2Fitm%2F143562399603
+        - link "Deals" [ref=f112e16] [cursor=pointer]:
+          - /url: https://www.ebay.com/deals
+        - link "Brand Outlet" [ref=f112e18] [cursor=pointer]:
+          - /url: https://www.ebay.com/b/Brand-Outlet/bn_7115532402
+        - link "Help & Contact" [ref=f112e20] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/home
+      - generic [ref=f112e21]:
+        - link "Sell" [ref=f112e24] [cursor=pointer]:
+          - /url: https://www.ebay.com/sl/sell
+        - generic [ref=f112e25]:
+          - link "Watchlist" [ref=f112e26] [cursor=pointer]:
+            - /url: https://www.ebay.com/mye/myebay/watchlist
+          - button "Expand Watch List" [ref=f112e28]
+        - generic [ref=f112e29]:
+          - link "My eBay" [ref=f112e30] [cursor=pointer]:
+            - /url: https://www.ebay.com/mys/home?source=GBH
+          - button "Expand My eBay" [ref=f112e32]
+        - button "Notifications" [ref=f112e35] [cursor=pointer]
+        - generic [ref=f112e38]:
+          - link "Your shopping cart contains 0 items" [ref=f112e39] [cursor=pointer]:
+            - /url: https://cart.ebay.com
+          - button "Expand Cart" [ref=f112e41]
+    - generic [ref=f112e42]:
+      - generic [ref=f112e43]:
+        - link "eBay Home" [ref=f112e44] [cursor=pointer]:
+          - /url: https://www.ebay.com
+          - img "eBay Home" [ref=f112e45]
+        - button "Shop by category" [ref=f112e53] [cursor=pointer]
+      - generic [ref=f112e55]:
+        - status [ref=f112e56]
+        - generic [ref=f112e58]:
+          - generic [ref=f112e59]:
+            - combobox "Search for anything" [ref=f112e60]
+            - button "Camera icon" [ref=f112e61]
+          - combobox "Select a category for search" [ref=f112e62]:
+            - option "All Categories" [selected]
+            - option "Antiques"
+            - option "Art"
+            - option "Baby"
+            - option "Books"
+            - option "Business & Industrial"
+            - option "Cameras & Photo"
+            - option "Cell Phones & Accessories"
+            - option "Clothing, Shoes & Accessories"
+            - option "Coins & Paper Money"
+            - option "Collectibles"
+            - option "Computers/Tablets & Networking"
+            - option "Consumer Electronics"
+            - option "Crafts"
+            - option "Dolls & Bears"
+            - option "Movies & TV"
+            - option "eBay Motors"
+            - option "Entertainment Memorabilia"
+            - option "Gift Cards & Coupons"
+            - option "Health & Beauty"
+            - option "Home & Garden"
+            - option "Jewelry & Watches"
+            - option "Music"
+            - option "Musical Instruments & Gear"
+            - option "Pet Supplies"
+            - option "Pottery & Glass"
+            - option "Real Estate"
+            - option "Specialty Services"
+            - option "Sporting Goods"
+            - option "Sports Mem, Cards & Fan Shop"
+            - option "Stamps"
+            - option "Tickets & Experiences"
+            - option "Toys & Hobbies"
+            - option "Travel"
+            - option "Video Games & Consoles"
+            - option "Everything Else"
+        - generic [ref=f112e63]:
+          - button "Search" [ref=f112e64] [cursor=pointer]
+          - link "Advanced" [ref=f112e66] [cursor=pointer]:
+            - /url: https://www.ebay.com/sch/ebayadvsearch
+  - main [ref=f112e67]:
+    - generic [ref=f112e68]:
+      - generic [ref=f112e72]:
+        - generic [ref=f112e73]:
+          - heading "We looked everywhere!" [level=2] [ref=f112e74]
+          - paragraph [ref=f112e75]:
+            - text: Looks like this page is missing. If you still need help, visit our
+            - link "help pages" [ref=f112e76] [cursor=pointer]:
+              - /url: https://ocsnext.ebay.com/ocs/home
+            - text: .
+        - link "Go to homepage" [ref=f112e77] [cursor=pointer]:
+          - /url: https://www.ebay.com
+      - region [ref=f112e78]:
+        - heading "Inspired by your recent views" [level=2] [ref=f112e79]
+        - list [ref=f112e80]:
+          - listitem [ref=f112e81]:
+            - article [ref=f112e82]:
+              - generic [ref=f112e84]:
+                - generic [ref=f112e86]:
+                  - link [aria-hidden] [ref=f112e87] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/227212077122?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D1%26rkt%3D25%26mehot%3Dnone%26itm%3D227212077122%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434DA2EPS0BY01MA26DB&itmprp=cksum%3A22721207712203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b3KUP7fh%252BCx4kwZ9YCij4Z3Qg0q0Bnnq4psAAUZy2du%252F1SErcAT650uf1H62BhjxqzlridKKp8sQgAKdkTJGKeVDRDapuE9VXiVFJiEmrG7ShFB7HTLP9a2psYbBlJYaFkXTdtgGoaVVZ4oZGkdmwfFVeZ8u%252BxL6KKn8qVmdSTr1%252FhyMxXRMFbZynvY%252FxPyLzB2Q9j%252FiZ8RcfLU0urzu6u0HTkAIsOr8HXi8rjoEI%252BkI2iDF02VinnQSug5WnI%252FRYoDSqeojOWU4gC%252BwKfMHC3%252BdAmuKR1697VSumULzEwZl%7Campid%3APL_CLK
+                  - button "Watch MTG Magic the Gathering Empty Bundle/Fat Pack Box - Used - Pick Your Box" [ref=f112e90] [cursor=pointer]
+                  - generic [ref=f112e92]: $7.99
+                - link "MTG Magic the Gathering Empty Bundle/Fat Pack Box - Used - Pick Your Box" [ref=f112e96] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/227212077122?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D1%26rkt%3D25%26mehot%3Dnone%26itm%3D227212077122%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434DA2EPS0BY01MA26DB&itmprp=cksum%3A22721207712203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b3KUP7fh%252BCx4kwZ9YCij4Z3Qg0q0Bnnq4psAAUZy2du%252F1SErcAT650uf1H62BhjxqzlridKKp8sQgAKdkTJGKeVDRDapuE9VXiVFJiEmrG7ShFB7HTLP9a2psYbBlJYaFkXTdtgGoaVVZ4oZGkdmwfFVeZ8u%252BxL6KKn8qVmdSTr1%252FhyMxXRMFbZynvY%252FxPyLzB2Q9j%252FiZ8RcfLU0urzu6u0HTkAIsOr8HXi8rjoEI%252BkI2iDF02VinnQSug5WnI%252FRYoDSqeojOWU4gC%252BwKfMHC3%252BdAmuKR1697VSumULzEwZl%7Campid%3APL_CLK
+          - listitem [ref=f112e98]:
+            - article [ref=f112e99]:
+              - generic [ref=f112e101]:
+                - generic [ref=f112e103]:
+                  - link [aria-hidden] [ref=f112e104] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/137505221772?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D2%26rkt%3D25%26mehot%3Dnone%26itm%3D137505221772%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434QTA806ZCD3AK2GBAJ&itmprp=cksum%3A13750522177203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b2lKY5E9LHCnGjqgSOFPiHVGroFiy9Y4MfLqFX9bRKb7gTMECdN7q0xDqJ4H3tUfB1b%252BsMQQ0QJClqsii91kOlXIF5RbOkBNY1WNFNvQTduHGjgXRmeTeRV8zwdVVPu09g8hYy%252BUWKDBaQer1%252F%252B6Pa2nCADyxvfiAKAB%252BI37trSoC80%252BATFHoK1nyldTELQgcA2seDMWTa0uvatTQBX6zdXLgbDLouAHrLRDeb9d6IwWqvjOMI0m9epmuMq6C6mmk2Hy0S0ZKaOZXW2zdycqw1SmVVu2NWrXhhag5Oe%252BpBKf%7Campid%3APL_CLK
+                  - button "Watch Ravnica City of Guilds Empty Fat Pack Box Magic the Gathering MTG" [ref=f112e107] [cursor=pointer]
+                  - generic [ref=f112e109]: $17.00
+                - link "Ravnica City of Guilds Empty Fat Pack Box Magic the Gathering MTG" [ref=f112e113] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/137505221772?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D2%26rkt%3D25%26mehot%3Dnone%26itm%3D137505221772%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434QTA806ZCD3AK2GBAJ&itmprp=cksum%3A13750522177203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b2lKY5E9LHCnGjqgSOFPiHVGroFiy9Y4MfLqFX9bRKb7gTMECdN7q0xDqJ4H3tUfB1b%252BsMQQ0QJClqsii91kOlXIF5RbOkBNY1WNFNvQTduHGjgXRmeTeRV8zwdVVPu09g8hYy%252BUWKDBaQer1%252F%252B6Pa2nCADyxvfiAKAB%252BI37trSoC80%252BATFHoK1nyldTELQgcA2seDMWTa0uvatTQBX6zdXLgbDLouAHrLRDeb9d6IwWqvjOMI0m9epmuMq6C6mmk2Hy0S0ZKaOZXW2zdycqw1SmVVu2NWrXhhag5Oe%252BpBKf%7Campid%3APL_CLK
+          - listitem [ref=f112e115]:
+            - article [ref=f112e116]:
+              - generic [ref=f112e118]:
+                - generic [ref=f112e120]:
+                  - link [aria-hidden] [ref=f112e121] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/307137389842?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D3%26rkt%3D25%26mehot%3Dnone%26itm%3D307137389842%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434RBTXTYM335SDTPBED&itmprp=cksum%3A30713738984203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b3nQowlbJkkuVw8MiaCNsWLNODL2Eg42OxgMRUyCQP0hAo8MDfX6zgvINHiC0CAxKBXSaH%252FmbUB20xr%252BpwBgc4g6J4C%252F%252BDRSaEPyFVSPbaEjMrAFu%252FHFiQzv6TBf5dljzGOGiVUwrmiiCk1KVDPZIax7WbI%252BFzY56kG2Z3Vn9gEOoS0MRPs%252BEimLjIq4SGhNNGQdEbOZMbmsW964YfZvBaX75%252FqpbGtrFTTKXUSfjuV5o73a8jVOfRxZnw1xlBzagQdcYhEBuVTjmyN6TwkiW3s%253D%7Campid%3APL_CLK
+                  - button "Watch EMPTY BOX MTG Magic 2015 Fat Pack – Collectible Storage Box" [ref=f112e124] [cursor=pointer]
+                  - generic [ref=f112e126]: $9.00
+                - link "EMPTY BOX MTG Magic 2015 Fat Pack – Collectible Storage Box" [ref=f112e130] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/307137389842?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D3%26rkt%3D25%26mehot%3Dnone%26itm%3D307137389842%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434RBTXTYM335SDTPBED&itmprp=cksum%3A30713738984203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b3nQowlbJkkuVw8MiaCNsWLNODL2Eg42OxgMRUyCQP0hAo8MDfX6zgvINHiC0CAxKBXSaH%252FmbUB20xr%252BpwBgc4g6J4C%252F%252BDRSaEPyFVSPbaEjMrAFu%252FHFiQzv6TBf5dljzGOGiVUwrmiiCk1KVDPZIax7WbI%252BFzY56kG2Z3Vn9gEOoS0MRPs%252BEimLjIq4SGhNNGQdEbOZMbmsW964YfZvBaX75%252FqpbGtrFTTKXUSfjuV5o73a8jVOfRxZnw1xlBzagQdcYhEBuVTjmyN6TwkiW3s%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e132]:
+            - article [ref=f112e133]:
+              - generic [ref=f112e135]:
+                - generic [ref=f112e137]:
+                  - link [aria-hidden] [ref=f112e138] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/397876610798?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D4%26rkt%3D25%26mehot%3Dnone%26itm%3D397876610798%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434RR1XXMT7F42GF9FMC&itmprp=cksum%3A39787661079803d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABIMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b0QXRC97A0FkxYR7wvjhziNRiUjIzoax7sPciUxihPoS53h86ya%252Fu1Hvi4jKQV558zUKir42O%252BQMNQDLNffpPnvov1OdSEGwvAIx5m0E7KGn52OJgPKrFKV1CIslThRTS1hauT4HWtUXhcffI3C3yws37khzrxH8ZcmgLForKlFDCF8XpQNijpkhvF6cEcw5wH7JEufsp5YZwtMwnwFEf73aF3cdRnWNJG8EmqpRNZXmmXpDFSOSMsTKa%252F19IYXG45EpJjqgi2CRjr6zAEMvLQYHtBcFOnUeIRdMKpmd%252FW3kklKTB%252FBEl%252B451z%252BzQid3Kw%253D%253D%7Campid%3APL_CLK
+                  - 'button "Watch Wizards of the Coast Magic: The Gathering Vintage Black Lot - Vampiric Touch, 20" [ref=f112e141] [cursor=pointer]'
+                  - generic [ref=f112e143]: $10.06
+                - 'link "Wizards of the Coast Magic: The Gathering Vintage Black Lot - Vampiric Touch, 20" [ref=f112e147] [cursor=pointer]':
+                  - /url: https://www.ebay.com/itm/397876610798?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D4%26rkt%3D25%26mehot%3Dnone%26itm%3D397876610798%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434RR1XXMT7F42GF9FMC&itmprp=cksum%3A39787661079803d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABIMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b0QXRC97A0FkxYR7wvjhziNRiUjIzoax7sPciUxihPoS53h86ya%252Fu1Hvi4jKQV558zUKir42O%252BQMNQDLNffpPnvov1OdSEGwvAIx5m0E7KGn52OJgPKrFKV1CIslThRTS1hauT4HWtUXhcffI3C3yws37khzrxH8ZcmgLForKlFDCF8XpQNijpkhvF6cEcw5wH7JEufsp5YZwtMwnwFEf73aF3cdRnWNJG8EmqpRNZXmmXpDFSOSMsTKa%252F19IYXG45EpJjqgi2CRjr6zAEMvLQYHtBcFOnUeIRdMKpmd%252FW3kklKTB%252FBEl%252B451z%252BzQid3Kw%253D%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e149]:
+            - article [ref=f112e150]:
+              - generic [ref=f112e152]:
+                - generic [ref=f112e154]:
+                  - link [aria-hidden] [ref=f112e155] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/297634771011?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D5%26rkt%3D25%26mehot%3Dag%26itm%3D297634771011%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434R0M6D0DQ65JS08NY9&itmprp=cksum%3A29763477101103d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b8wMfDLMqHrhjJThC3ThVRjBjiDll29cO%252B2rZi8kMZmD94fJ%252FgwHO0Me3%252BWK5imDNsJksWO%252F5xwQTBFpMeMfRPpFC2y5FXHM5AH%252F9mlTM8YohsEx3yHYf29eVv4m7H7TEyUtmPBwVH2qhxlMFGZCGFN1Fg--4%252FpJkKCKHd8jBQ19dv%252BJ0hWrbv3IiaLGWuNMYnyhLAZIwUCZoYaC1NhpZ--FufNUa4jPZzD1tBSxmgPBwhn6m80LVTkuS4IcwHE5vpszVaBpgjiCTNBfUKWXTShVN%252BRwgTiQ4Xg0n7RJmf0f%7Campid%3APL_CLK
+                  - button "Watch FATE REFORGED Fat Pack Magic the Gathering New &amp; Sealed" [ref=f112e158] [cursor=pointer]
+                  - generic [ref=f112e160]: $64.99
+                - link "FATE REFORGED Fat Pack Magic the Gathering New & Sealed" [ref=f112e164] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/297634771011?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D5%26rkt%3D25%26mehot%3Dag%26itm%3D297634771011%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434R0M6D0DQ65JS08NY9&itmprp=cksum%3A29763477101103d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b8wMfDLMqHrhjJThC3ThVRjBjiDll29cO%252B2rZi8kMZmD94fJ%252FgwHO0Me3%252BWK5imDNsJksWO%252F5xwQTBFpMeMfRPpFC2y5FXHM5AH%252F9mlTM8YohsEx3yHYf29eVv4m7H7TEyUtmPBwVH2qhxlMFGZCGFN1Fg--4%252FpJkKCKHd8jBQ19dv%252BJ0hWrbv3IiaLGWuNMYnyhLAZIwUCZoYaC1NhpZ--FufNUa4jPZzD1tBSxmgPBwhn6m80LVTkuS4IcwHE5vpszVaBpgjiCTNBfUKWXTShVN%252BRwgTiQ4Xg0n7RJmf0f%7Campid%3APL_CLK
+          - listitem [ref=f112e166]:
+            - article [ref=f112e167]:
+              - generic [ref=f112e169]:
+                - generic [ref=f112e171]:
+                  - link [aria-hidden] [ref=f112e172] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/306883968446?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D6%26rkt%3D25%26mehot%3Dnone%26itm%3D306883968446%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434SZJ11QNAQ15BEW36T&itmprp=cksum%3A30688396844603d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b902%252BRfCdTyqgGVkSBh2k%252FML7iDjP0K4wvfjeijLXBLi1zIQ36mexubFOvM9obyGdJCiXab2IA3oLhqSHbR%252BZnVUMG9GqdZsRtcAuegNnrP4UCsJ5mlUiVgMRNlGImM8G%252BldiZUK2Aj6v%252BgXiuGlOUfHCfhr5HamQe5sbLBCuYFwifug%252BZsiPxU9uJbgJkubUE6ZHEx69bpWwCgqZiO29Xjo9mvqfE3REiqjMnpbpV5ih4O0v%252BrLSERZyDGNbq7FTPF8QSGfKm5f4vXw4Om7QKuC0OPN8LZyo7PI9m3MRTnc%7Campid%3APL_CLK
+                  - button "Watch Magic The Gathering STRIXHAVEN School of Mages Collector Box EMPTY NO PACKS" [ref=f112e175] [cursor=pointer]
+                  - generic [ref=f112e177]: $9.99
+                - link "Magic The Gathering STRIXHAVEN School of Mages Collector Box EMPTY NO PACKS" [ref=f112e181] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/306883968446?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D6%26rkt%3D25%26mehot%3Dnone%26itm%3D306883968446%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434SZJ11QNAQ15BEW36T&itmprp=cksum%3A30688396844603d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b902%252BRfCdTyqgGVkSBh2k%252FML7iDjP0K4wvfjeijLXBLi1zIQ36mexubFOvM9obyGdJCiXab2IA3oLhqSHbR%252BZnVUMG9GqdZsRtcAuegNnrP4UCsJ5mlUiVgMRNlGImM8G%252BldiZUK2Aj6v%252BgXiuGlOUfHCfhr5HamQe5sbLBCuYFwifug%252BZsiPxU9uJbgJkubUE6ZHEx69bpWwCgqZiO29Xjo9mvqfE3REiqjMnpbpV5ih4O0v%252BrLSERZyDGNbq7FTPF8QSGfKm5f4vXw4Om7QKuC0OPN8LZyo7PI9m3MRTnc%7Campid%3APL_CLK
+          - listitem [ref=f112e183]:
+            - article [ref=f112e184]:
+              - generic [ref=f112e186]:
+                - generic [ref=f112e188]:
+                  - link [aria-hidden] [ref=f112e189] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/385378752152?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D7%26rkt%3D25%26mehot%3Dpp%26itm%3D385378752152%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434SNQYHDGH9GQWJGRTV&itmprp=cksum%3A38537875215203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b%252FaG1KalvxT1hck9TWra3Vcz%252Fl%252BEiOshivyBJNJ%252BGR4GKJfBIF5ihLDMcm4NQJvvS4MN3Jhv%252BxbBcn%252BcCn%252BgsD6aHIcBZfT%252BF7hlG7ruTe%252BJhyxdFWQ8M5wEQi6NTsh%252B1Q%252Bkbx39cTnV3iQyv9EAYDLyOzLEwlKAnAfpLCgyl3V%252BAmBHt%252FdUX1lza%252Ftx50uqrfkNfcPyUlAhkktH%252FrFXmUUKgGQsxFKgsdLQUCPWPTmpD%252B71ZfwrWK9N%252B2IN5IEY3DOLYQupRUJgLV1QQh7OdDc%253D%7Campid%3APL_CLK
+                  - button "Watch 3x EMPTY FAT PACK BOX - 500ct Bundle - various sets - Magic the Gathering MTG" [ref=f112e192] [cursor=pointer]
+                  - generic [ref=f112e194]: $23.01
+                - link "3x EMPTY FAT PACK BOX - 500ct Bundle - various sets - Magic the Gathering MTG" [ref=f112e198] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/385378752152?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D7%26rkt%3D25%26mehot%3Dpp%26itm%3D385378752152%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434SNQYHDGH9GQWJGRTV&itmprp=cksum%3A38537875215203d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b%252FaG1KalvxT1hck9TWra3Vcz%252Fl%252BEiOshivyBJNJ%252BGR4GKJfBIF5ihLDMcm4NQJvvS4MN3Jhv%252BxbBcn%252BcCn%252BgsD6aHIcBZfT%252BF7hlG7ruTe%252BJhyxdFWQ8M5wEQi6NTsh%252B1Q%252Bkbx39cTnV3iQyv9EAYDLyOzLEwlKAnAfpLCgyl3V%252BAmBHt%252FdUX1lza%252Ftx50uqrfkNfcPyUlAhkktH%252FrFXmUUKgGQsxFKgsdLQUCPWPTmpD%252B71ZfwrWK9N%252B2IN5IEY3DOLYQupRUJgLV1QQh7OdDc%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e200]:
+            - article [ref=f112e201]:
+              - generic [ref=f112e203]:
+                - generic [ref=f112e205]:
+                  - link [aria-hidden] [ref=f112e206] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/166203736315?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D8%26rkt%3D25%26mehot%3Dnone%26itm%3D166203736315%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434SFZMD2FZTXNE02DG2&itmprp=cksum%3A16620373631503d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6byQui2HFGLqUvb4iSPYTGEdum7YqmCwOtm4Xqbub3CGQtvN0fi7WeSQaPSvaXVuF0Y17c%252FpGf%252BVtx4KMU7SkChNGr3i7SV5sVgCzCPzdF46RHP4b09GR79NkYNa%252BRqaq1FCGsTBwXzxiv4S9riSK0pOqqVv1kizQf2WZCRJGkrSy1uuUFpk3wFcHEA%252FUVdfHXLWyKAYD56PBoLxw0tuSNXIwHx%252FuCWc6e4xSte2sFr01jD4hIT5qwoBS4eNvsDpwLFeWJc06rAp3U1W30t9yrrVEYe3DT%252BDEMxHSg4GFPc96%7Campid%3APL_CLK
+                  - button "Watch Mirrodin Besieged Fat Pack Box Empty MTG Magic The Gathering." [ref=f112e209] [cursor=pointer]
+                  - generic [ref=f112e211]: $12.95
+                - link "Mirrodin Besieged Fat Pack Box Empty MTG Magic The Gathering." [ref=f112e215] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/166203736315?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D8%26rkt%3D25%26mehot%3Dnone%26itm%3D166203736315%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434SFZMD2FZTXNE02DG2&itmprp=cksum%3A16620373631503d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6byQui2HFGLqUvb4iSPYTGEdum7YqmCwOtm4Xqbub3CGQtvN0fi7WeSQaPSvaXVuF0Y17c%252FpGf%252BVtx4KMU7SkChNGr3i7SV5sVgCzCPzdF46RHP4b09GR79NkYNa%252BRqaq1FCGsTBwXzxiv4S9riSK0pOqqVv1kizQf2WZCRJGkrSy1uuUFpk3wFcHEA%252FUVdfHXLWyKAYD56PBoLxw0tuSNXIwHx%252FuCWc6e4xSte2sFr01jD4hIT5qwoBS4eNvsDpwLFeWJc06rAp3U1W30t9yrrVEYe3DT%252BDEMxHSg4GFPc96%7Campid%3APL_CLK
+          - listitem [ref=f112e217]:
+            - article [ref=f112e218]:
+              - generic [ref=f112e220]:
+                - generic [ref=f112e222]:
+                  - link [aria-hidden] [ref=f112e223] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/196888980177?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D9%26rkt%3D25%26mehot%3Dnone%26itm%3D196888980177%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434TZ2F92QRKG0NYR47Z&itmprp=cksum%3A19688898017703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b1dG2Irb8fVosxq7fEKULH0HY%252Bm7%252B5rFim3bw%252BAqSjn%252BZQmOJ0HNaqiD9Dk1Mj0lnp5M3MTVQabOZfmmJVvEc0%252FdO79zt%252FHPMYXMoNjvx%252BE2rG0qYeUXausNmmOpiGDBt0ab%252F0PdxBXMXfIT8JXs9CG75ubIWdk5Fi1XJLnYGvfk7YlQVv%252FtlMQKLRsKxPH0cpFi9ZUqUhBhrCkMg6lbp6A176WeBF6NqaA7QaZg0Rj7LDjZifXsjk8Ix7WRWBxGSQc51pFAmDscH%252BMfmzWMpnDWCelM5lxjsfYYV3vXxwuH%7Campid%3APL_CLK
+                  - button "Watch Magic the Gathering 2013 Core Set Deckbuilder Toolkit Empty Storage Box WotC MTG" [ref=f112e226] [cursor=pointer]
+                  - generic [ref=f112e228]: $16.94
+                - link "Magic the Gathering 2013 Core Set Deckbuilder Toolkit Empty Storage Box WotC MTG" [ref=f112e232] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/196888980177?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D9%26rkt%3D25%26mehot%3Dnone%26itm%3D196888980177%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434TZ2F92QRKG0NYR47Z&itmprp=cksum%3A19688898017703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b1dG2Irb8fVosxq7fEKULH0HY%252Bm7%252B5rFim3bw%252BAqSjn%252BZQmOJ0HNaqiD9Dk1Mj0lnp5M3MTVQabOZfmmJVvEc0%252FdO79zt%252FHPMYXMoNjvx%252BE2rG0qYeUXausNmmOpiGDBt0ab%252F0PdxBXMXfIT8JXs9CG75ubIWdk5Fi1XJLnYGvfk7YlQVv%252FtlMQKLRsKxPH0cpFi9ZUqUhBhrCkMg6lbp6A176WeBF6NqaA7QaZg0Rj7LDjZifXsjk8Ix7WRWBxGSQc51pFAmDscH%252BMfmzWMpnDWCelM5lxjsfYYV3vXxwuH%7Campid%3APL_CLK
+          - listitem [ref=f112e234]:
+            - article [ref=f112e235]:
+              - generic [ref=f112e237]:
+                - generic [ref=f112e239]:
+                  - link [aria-hidden] [ref=f112e240] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/398097211524?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D10%26rkt%3D25%26mehot%3Dnone%26itm%3D398097211524%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434T8E3DP509AHW04NFW&itmprp=cksum%3A39809721152403d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABIMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b4gwcsy1ApR3rftsLRcZHr3ue361AaP2MJ2SJ9Rx2kssVqtPO2RwqVxsbSchRu1D1Ye%252BFpswYUuwSyXfZBmE2LaQuvJGHOKpmcOyS5mXhMlTePfcKo7NEf5lK6X9meB8YxcroKqkufjNc4xNMbyEhr%252FML4qn9dnn0Mmu6ivaQTir68DzVEkLhViDGjad7MI8ahjgppZSqPcMslTEAjB1lMKTMi%252Bm58nVvtzJobywNlq0%252FeLibTIlwrVnV9QFhDvAvsMJzYy6yK2FVJ0grluNEqbW9TwAA2w%252BVLzrMhgj4KrZgnHcqiFvOHAZ8ZLLBY2mJA%253D%253D%7Campid%3APL_CLK
+                  - 'button "Watch Wizards of the Coast Magic: The Gathering Revised 1994 19 Card Lot Fog" [ref=f112e243] [cursor=pointer]'
+                  - generic [ref=f112e245]: $13.50
+                - 'link "Wizards of the Coast Magic: The Gathering Revised 1994 19 Card Lot Fog" [ref=f112e249] [cursor=pointer]':
+                  - /url: https://www.ebay.com/itm/398097211524?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D10%26rkt%3D25%26mehot%3Dnone%26itm%3D398097211524%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434T8E3DP509AHW04NFW&itmprp=cksum%3A39809721152403d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABIMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b4gwcsy1ApR3rftsLRcZHr3ue361AaP2MJ2SJ9Rx2kssVqtPO2RwqVxsbSchRu1D1Ye%252BFpswYUuwSyXfZBmE2LaQuvJGHOKpmcOyS5mXhMlTePfcKo7NEf5lK6X9meB8YxcroKqkufjNc4xNMbyEhr%252FML4qn9dnn0Mmu6ivaQTir68DzVEkLhViDGjad7MI8ahjgppZSqPcMslTEAjB1lMKTMi%252Bm58nVvtzJobywNlq0%252FeLibTIlwrVnV9QFhDvAvsMJzYy6yK2FVJ0grluNEqbW9TwAA2w%252BVLzrMhgj4KrZgnHcqiFvOHAZ8ZLLBY2mJA%253D%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e251]:
+            - article [ref=f112e252]:
+              - generic [ref=f112e254]:
+                - generic [ref=f112e256]:
+                  - link [aria-hidden] [ref=f112e257] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/294937368700?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D11%26rkt%3D25%26mehot%3Dlo%26itm%3D294937368700%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434TEJ727ECYV54ZQD16&itmprp=cksum%3A29493736870003d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b48sZtccY40t0YzQzlS07hqrnVG9MJySYtJ8sq9YEAi6lvy%252F45MyjZJNGtF5XK4sp2D6ObyLlnbXfJlSNfHaqR%252B2rBT5e7uQOBkrG5k0aGJII1DA2%252FRFm6mOZ94tf7NWYSdJyiLkWHl9jDaG%252Fb6iMuYnHBSIFKLquuhDtfHCtSIPcH9KAqPPuCUMZPS066gUt3v3lm5EIrYzfsGkrSgyYAP02CjYP%252BB59PKTEzQpBdnub9Ql7pu8ZHli3h07BNPf8ywQNt0UhA3Rb8Y5Qn37FUM%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - WORLDWAKE - Played - Magic MTG FTG" [ref=f112e260] [cursor=pointer]
+                  - generic [ref=f112e262]: $18.99
+                - link "1 Empty Fat Pack Box - WORLDWAKE - Played - Magic MTG FTG" [ref=f112e266] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/294937368700?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D11%26rkt%3D25%26mehot%3Dlo%26itm%3D294937368700%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434TEJ727ECYV54ZQD16&itmprp=cksum%3A29493736870003d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b48sZtccY40t0YzQzlS07hqrnVG9MJySYtJ8sq9YEAi6lvy%252F45MyjZJNGtF5XK4sp2D6ObyLlnbXfJlSNfHaqR%252B2rBT5e7uQOBkrG5k0aGJII1DA2%252FRFm6mOZ94tf7NWYSdJyiLkWHl9jDaG%252Fb6iMuYnHBSIFKLquuhDtfHCtSIPcH9KAqPPuCUMZPS066gUt3v3lm5EIrYzfsGkrSgyYAP02CjYP%252BB59PKTEzQpBdnub9Ql7pu8ZHli3h07BNPf8ywQNt0UhA3Rb8Y5Qn37FUM%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e268]:
+            - article [ref=f112e269]:
+              - generic [ref=f112e271]:
+                - generic [ref=f112e273]:
+                  - link [aria-hidden] [ref=f112e274] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/291535979441?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D12%26rkt%3D25%26mehot%3Dnone%26itm%3D291535979441%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434VETY8AMFTY13HVK9M&itmprp=cksum%3A29153597944103d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6bx%252F1E9xymCrE8cL%252FkzHexkpdVLzi2%252BRfrvgfpT42EILJuSgBxqHgRazWK1Ndh6kk2FEg12TAS1nv1fVpufUcMJ8ML%252BFeUUAo76y6buzCnsz3WE1ikBoxx09bM10klZMzC00FSt0wwAuGBdFJIyWVJFzRtiWhVZH3GeJ3EOZTLz6aOE6wYPHP5poVUD%252FbKQ8LgMwHHAxpWTVybfyJkOXpbE5lqIgqp8wbViJ6J%252BuocwkYtIDpQlxWbjAnQk4xLHPjPc7w7Iq1VZbHiynlwIUd7%252BI%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - GATECRASH - PLAYED - Magic the Gathering MTG FTG" [ref=f112e277] [cursor=pointer]
+                  - generic [ref=f112e279]: $10.99
+                - link "1 Empty Fat Pack Box - GATECRASH - PLAYED - Magic the Gathering MTG FTG" [ref=f112e283] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/291535979441?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D12%26rkt%3D25%26mehot%3Dnone%26itm%3D291535979441%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434VETY8AMFTY13HVK9M&itmprp=cksum%3A29153597944103d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6bx%252F1E9xymCrE8cL%252FkzHexkpdVLzi2%252BRfrvgfpT42EILJuSgBxqHgRazWK1Ndh6kk2FEg12TAS1nv1fVpufUcMJ8ML%252BFeUUAo76y6buzCnsz3WE1ikBoxx09bM10klZMzC00FSt0wwAuGBdFJIyWVJFzRtiWhVZH3GeJ3EOZTLz6aOE6wYPHP5poVUD%252FbKQ8LgMwHHAxpWTVybfyJkOXpbE5lqIgqp8wbViJ6J%252BuocwkYtIDpQlxWbjAnQk4xLHPjPc7w7Iq1VZbHiynlwIUd7%252BI%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e285]:
+            - article [ref=f112e286]:
+              - generic [ref=f112e288]:
+                - generic [ref=f112e290]:
+                  - link [aria-hidden] [ref=f112e291] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/317904188631?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D13%26rkt%3D25%26mehot%3Dnone%26itm%3D317904188631%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DUnbranded%26tu%3D01M240434VP8HT2SC2DBTMDMRD&itmprp=cksum%3A31790418863103d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b3KTjsPhIdOQSK7DWpQtVtjuwnaLWaQDw0WRal4yYePe3RSkn4uPN5LEkEVwXp2dbJrvhKF4VxUxnJrqa2CGw7EMFm8EyQA0DLjMcd5xaQJg9cSbGpjpTADMkWO0TchU03gNO71Bl6wI9FilLcitDzPyZVcEo%252Bvs7%252FvCErHlCA74KRyYVAxgR3E5EbpFBJuhHFsU79gEdxBQXVz282JO8Qo0YomstglUVJR5%252BcNQ2%252FgXlZ9FRHlS06EIV0MDNSPwfIAPo0Rzr65O%252BbgRBN0W0HjtC0boUbnKR5etdSpMhn3h%7Campid%3APL_CLK
+                  - button "Watch Magic The Gathering MTG 30pk Play Booster Box Plastic Protector ( Pack of 5 )" [ref=f112e294] [cursor=pointer]
+                  - generic [ref=f112e296]: $10.00
+                - link "Magic The Gathering MTG 30pk Play Booster Box Plastic Protector ( Pack of 5 )" [ref=f112e300] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/317904188631?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D13%26rkt%3D25%26mehot%3Dnone%26itm%3D317904188631%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DUnbranded%26tu%3D01M240434VP8HT2SC2DBTMDMRD&itmprp=cksum%3A31790418863103d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b3KTjsPhIdOQSK7DWpQtVtjuwnaLWaQDw0WRal4yYePe3RSkn4uPN5LEkEVwXp2dbJrvhKF4VxUxnJrqa2CGw7EMFm8EyQA0DLjMcd5xaQJg9cSbGpjpTADMkWO0TchU03gNO71Bl6wI9FilLcitDzPyZVcEo%252Bvs7%252FvCErHlCA74KRyYVAxgR3E5EbpFBJuhHFsU79gEdxBQXVz282JO8Qo0YomstglUVJR5%252BcNQ2%252FgXlZ9FRHlS06EIV0MDNSPwfIAPo0Rzr65O%252BbgRBN0W0HjtC0boUbnKR5etdSpMhn3h%7Campid%3APL_CLK
+          - listitem [ref=f112e302]:
+            - article [ref=f112e303]:
+              - generic [ref=f112e305]:
+                - generic [ref=f112e307]:
+                  - link [aria-hidden] [ref=f112e308] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/167657102108?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D14%26rkt%3D25%26mehot%3Dnone%26itm%3D167657102108%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434V8HNWJBRWX9FZQYYF&itmprp=cksum%3A16765710210803d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b10cRlmzyS64N76Y9oeUiLu5qvh7JPZulRE0ayHA93XJuqxqWARZEZwdDludJ1W6ch6L%252FgkdKWOLCY3TAarMvcl82lpAgEg8%252FzjVC7zcMUTG2TXbdJCWuZLH7cFHPmSW8bnEHAaeNVH8Ol4ICCWAVTtl7lrTgLWtBPKA99H%252FK7%252Fqr6Yto9wzWzg7NsqwdpVmCTUeE4Ijc0wsKVC%252BiYeKS7uw4dJ8WwIjIihyS4qGOzNXO2ycZyxtk807wwy5nCKkmVpO1yeujcwjZaNSryNXEt7bOY%252FAvof%252F08iUPFBbYX%252B4%7Campid%3APL_CLK
+                  - button "Watch Magic The Gathering Guilds of Ravnica Fat Pack Bundle Box" [ref=f112e311] [cursor=pointer]
+                  - generic [ref=f112e313]: $29.99
+                - link "Magic The Gathering Guilds of Ravnica Fat Pack Bundle Box" [ref=f112e317] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/167657102108?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D14%26rkt%3D25%26mehot%3Dnone%26itm%3D167657102108%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434V8HNWJBRWX9FZQYYF&itmprp=cksum%3A16765710210803d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b10cRlmzyS64N76Y9oeUiLu5qvh7JPZulRE0ayHA93XJuqxqWARZEZwdDludJ1W6ch6L%252FgkdKWOLCY3TAarMvcl82lpAgEg8%252FzjVC7zcMUTG2TXbdJCWuZLH7cFHPmSW8bnEHAaeNVH8Ol4ICCWAVTtl7lrTgLWtBPKA99H%252FK7%252Fqr6Yto9wzWzg7NsqwdpVmCTUeE4Ijc0wsKVC%252BiYeKS7uw4dJ8WwIjIihyS4qGOzNXO2ycZyxtk807wwy5nCKkmVpO1yeujcwjZaNSryNXEt7bOY%252FAvof%252F08iUPFBbYX%252B4%7Campid%3APL_CLK
+          - listitem [ref=f112e319]:
+            - article [ref=f112e320]:
+              - generic [ref=f112e322]:
+                - generic [ref=f112e324]:
+                  - link [aria-hidden] [ref=f112e325] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/114796109778?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D15%26rkt%3D25%26mehot%3Dnone%26itm%3D114796109778%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434W44N6FEGDVR9H3HDP&itmprp=cksum%3A11479610977803d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6byZVUF4dgZwJTZYfRbxH5jN%252BBEVTvp9uUPBtPE8UH5EF9eXbghqnbndMfGqmVC7xrj%252FCe6viW8Iwk7oh5s54rgnDcLbLThptPu0JOcGhpTrd4TFMywVCucPnwIf9FTtgiIsfgHB37srqPRLqVXiYiHhiUQiR69KRL7LepF3rHQmaPP0YyKxVsBMPtsMZkSv3fuSH0s%252BG5ri2MaTDLnzJ82hM1idYtnwSjnOnSjqPLQ4tvLDDaGMLtoDJ2y3rxyqzK5Na6T13Q%252FvqPo3iVHxhNl8p%252BKbYZWcmuNMKTVE9GbCl%7Campid%3APL_CLK
+                  - button "Watch MTG Empty Fat Pack Box - Khans of Tarkir - Used" [ref=f112e328] [cursor=pointer]
+                  - generic [ref=f112e330]: $15.00
+                - link "MTG Empty Fat Pack Box - Khans of Tarkir - Used" [ref=f112e334] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/114796109778?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D15%26rkt%3D25%26mehot%3Dnone%26itm%3D114796109778%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434W44N6FEGDVR9H3HDP&itmprp=cksum%3A11479610977803d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6byZVUF4dgZwJTZYfRbxH5jN%252BBEVTvp9uUPBtPE8UH5EF9eXbghqnbndMfGqmVC7xrj%252FCe6viW8Iwk7oh5s54rgnDcLbLThptPu0JOcGhpTrd4TFMywVCucPnwIf9FTtgiIsfgHB37srqPRLqVXiYiHhiUQiR69KRL7LepF3rHQmaPP0YyKxVsBMPtsMZkSv3fuSH0s%252BG5ri2MaTDLnzJ82hM1idYtnwSjnOnSjqPLQ4tvLDDaGMLtoDJ2y3rxyqzK5Na6T13Q%252FvqPo3iVHxhNl8p%252BKbYZWcmuNMKTVE9GbCl%7Campid%3APL_CLK
+          - listitem [ref=f112e336]:
+            - article [ref=f112e337]:
+              - generic [ref=f112e339]:
+                - generic [ref=f112e341]:
+                  - link [aria-hidden] [ref=f112e342] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/291535982207?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D16%26rkt%3D25%26mehot%3Dnone%26itm%3D291535982207%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434W0EZ3AT4EDXC9Q5T5&itmprp=cksum%3A29153598220703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b2av5f3LvjLcWGGMxF0HrJ9Qo7r9vXvy661galjuOtk3%252BNCG%252BJy%252FRDKSJ0h3fG6q7eQ0N%252BJUYhU%252BckjW6sWljeBdkYEOZmzmNOgEusVdBu%252FEQ%252FDQ%252FU%252BHmvzZyHk5ox%252FBlMzgOFOcNzssprJzHzr6engpTF81AJc50B1M38sIXq5%252FfpfOIbEFDnhTK3zJDw23IqwEAz204L77YyQTS5xogtAt6ftbBV4%252B4LFKUF%252FvgejIvUDdwXEkBnQH2Pd17qQQk8pjYOF2S1TmMksPMQGWC9I%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - MIRRODIN BESIEGED - PLAYED - Magic the Gathering MTG FTG" [ref=f112e345] [cursor=pointer]
+                  - generic [ref=f112e347]: $10.99
+                - link "1 Empty Fat Pack Box - MIRRODIN BESIEGED - PLAYED - Magic the Gathering MTG FTG" [ref=f112e351] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/291535982207?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D16%26rkt%3D25%26mehot%3Dnone%26itm%3D291535982207%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434W0EZ3AT4EDXC9Q5T5&itmprp=cksum%3A29153598220703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b2av5f3LvjLcWGGMxF0HrJ9Qo7r9vXvy661galjuOtk3%252BNCG%252BJy%252FRDKSJ0h3fG6q7eQ0N%252BJUYhU%252BckjW6sWljeBdkYEOZmzmNOgEusVdBu%252FEQ%252FDQ%252FU%252BHmvzZyHk5ox%252FBlMzgOFOcNzssprJzHzr6engpTF81AJc50B1M38sIXq5%252FfpfOIbEFDnhTK3zJDw23IqwEAz204L77YyQTS5xogtAt6ftbBV4%252B4LFKUF%252FvgejIvUDdwXEkBnQH2Pd17qQQk8pjYOF2S1TmMksPMQGWC9I%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e353]:
+            - article [ref=f112e354]:
+              - generic [ref=f112e356]:
+                - generic [ref=f112e358]:
+                  - link [aria-hidden] [ref=f112e359] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/292631734294?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D17%26rkt%3D25%26mehot%3Dnone%26itm%3D292631734294%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434W6K739JT7BKH1JAP9&itmprp=cksum%3A29263173429403d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b33MhrzGHo%252Fhp2GJJ7bN88o7XwnmJ7xgJq8kYghE4fDTv4e44aSv2k65Cq%252B%252FxJhRhQvEJitUL2yTtv9%252FCSFjyRYwbA3KN3X%252BAHdK6%252BUleP9GF5ceeR%252FIUOxBQEO%252BTzcuRIikphV3gjOw8hHK%252Ffe0MSKmB%252FeAyLPtOs4wy6rUVlVixnzStdw80dtokuTldAQ4v6CANpLam0X%252BRlAPWFnWFWRsvwxiTnBat6w%252BgM129TSCmpo18QKi8RCQPqSGzQ256PCah3SbokEioJjSoN1VHwk%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - OATH OF THE GATEWATCH -NM/SP- Magic the Gathering MTG FTG" [ref=f112e362] [cursor=pointer]
+                  - generic [ref=f112e364]: $10.99
+                - link "1 Empty Fat Pack Box - OATH OF THE GATEWATCH -NM/SP- Magic the Gathering MTG FTG" [ref=f112e368] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/292631734294?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D17%26rkt%3D25%26mehot%3Dnone%26itm%3D292631734294%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434W6K739JT7BKH1JAP9&itmprp=cksum%3A29263173429403d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b33MhrzGHo%252Fhp2GJJ7bN88o7XwnmJ7xgJq8kYghE4fDTv4e44aSv2k65Cq%252B%252FxJhRhQvEJitUL2yTtv9%252FCSFjyRYwbA3KN3X%252BAHdK6%252BUleP9GF5ceeR%252FIUOxBQEO%252BTzcuRIikphV3gjOw8hHK%252Ffe0MSKmB%252FeAyLPtOs4wy6rUVlVixnzStdw80dtokuTldAQ4v6CANpLam0X%252BRlAPWFnWFWRsvwxiTnBat6w%252BgM129TSCmpo18QKi8RCQPqSGzQ256PCah3SbokEioJjSoN1VHwk%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e370]:
+            - article [ref=f112e371]:
+              - generic [ref=f112e373]:
+                - generic [ref=f112e375]:
+                  - link [aria-hidden] [ref=f112e376] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/302117592267?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D18%26rkt%3D25%26mehot%3Dnone%26itm%3D302117592267%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434XQJTAK6X7YMH1BP70&itmprp=cksum%3A30211759226703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b7aVHdCBC43aG23c8kswUCSVLZ3z%252Bg9EDXnfqGLJTO%252F7XwPV21kpI7A%252BSO8%252FiQu%252BhF4aNNHXYGq3atBhcm%252BvOISa0lfcl29irxZRrLtHOZxLdsIs9%252FaK6oEpoNHR%252FeBhBBtHf46U0aEvgPLvQxDkB01wEKj%252BSf4pnJkaCXAoOOwPFCG7ObiXVFZLzk05REkKmxNIRliSxzXKqOsF6YN28P1IKU5pkKcylOMc01YD8YeOv6eioJQjC9QgPzanY4nm2j0dowMHUBr9q9b0xS%252FXnlI%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - BORN OF THE GODS - PLAYED - Magic the Gathering MTG FTG" [ref=f112e379] [cursor=pointer]
+                  - generic [ref=f112e381]: $9.99
+                - link "1 Empty Fat Pack Box - BORN OF THE GODS - PLAYED - Magic the Gathering MTG FTG" [ref=f112e385] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/302117592267?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D18%26rkt%3D25%26mehot%3Dnone%26itm%3D302117592267%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434XQJTAK6X7YMH1BP70&itmprp=cksum%3A30211759226703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b7aVHdCBC43aG23c8kswUCSVLZ3z%252Bg9EDXnfqGLJTO%252F7XwPV21kpI7A%252BSO8%252FiQu%252BhF4aNNHXYGq3atBhcm%252BvOISa0lfcl29irxZRrLtHOZxLdsIs9%252FaK6oEpoNHR%252FeBhBBtHf46U0aEvgPLvQxDkB01wEKj%252BSf4pnJkaCXAoOOwPFCG7ObiXVFZLzk05REkKmxNIRliSxzXKqOsF6YN28P1IKU5pkKcylOMc01YD8YeOv6eioJQjC9QgPzanY4nm2j0dowMHUBr9q9b0xS%252FXnlI%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e387]:
+            - article [ref=f112e388]:
+              - generic [ref=f112e390]:
+                - generic [ref=f112e392]:
+                  - link [aria-hidden] [ref=f112e393] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/291922046116?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D19%26rkt%3D25%26mehot%3Dnone%26itm%3D291922046116%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434XPXNTAY0TPEN2X1EH&itmprp=cksum%3A29192204611603d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6byuNcdMEbz8lkL8K8Sy%252F%252B5GcQqEi9Cpm2fKuPRU7iWqOomOqpfpHAXRRCKmQrJSLXEkXRKXYPEXRsDvArEvxRkKtKkA4PNxT3%252BtbE0Ue6LIiXXVdSF5ox3ZFIFTDeGAdm6plyYae4gvZDOkE6pSWqSYbybSh3R7MzQF%252F0%252BREJgls0f5bU9uItqOI5v7CsOKBlPHo%252BB5yPdaH9OaPEfYYPh6WNK7zn9PXamvoC8fJI0DzNDAcDpSQsprO9mi29zeAt99BytauDBOPhXyTeUZpGT0%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - MAGIC 2015 M15 - PLAYED - Magic the Gathering MTG FTG" [ref=f112e396] [cursor=pointer]
+                  - generic [ref=f112e398]: $9.99
+                - link "1 Empty Fat Pack Box - MAGIC 2015 M15 - PLAYED - Magic the Gathering MTG FTG" [ref=f112e402] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/291922046116?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D19%26rkt%3D25%26mehot%3Dnone%26itm%3D291922046116%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434XPXNTAY0TPEN2X1EH&itmprp=cksum%3A29192204611603d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6byuNcdMEbz8lkL8K8Sy%252F%252B5GcQqEi9Cpm2fKuPRU7iWqOomOqpfpHAXRRCKmQrJSLXEkXRKXYPEXRsDvArEvxRkKtKkA4PNxT3%252BtbE0Ue6LIiXXVdSF5ox3ZFIFTDeGAdm6plyYae4gvZDOkE6pSWqSYbybSh3R7MzQF%252F0%252BREJgls0f5bU9uItqOI5v7CsOKBlPHo%252BB5yPdaH9OaPEfYYPh6WNK7zn9PXamvoC8fJI0DzNDAcDpSQsprO9mi29zeAt99BytauDBOPhXyTeUZpGT0%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e404]:
+            - article [ref=f112e405]:
+              - generic [ref=f112e407]:
+                - generic [ref=f112e409]:
+                  - link [aria-hidden] [ref=f112e410] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/327337201743?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D20%26rkt%3D25%26mehot%3Dnone%26itm%3D327337201743%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434XRN25PNGY089X4R7T&itmprp=cksum%3A32733720174303d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b9QqcmbUyxDVFjNli3DqwN5LqWOq5aF%252B9qp5nrSAnCpD9%252B%252FxI9tGz8GAJ2uKSJiWGurjPWuRVpPTrzaliqcgXSbtPFKISH%252FUX9NQaHYxOrz497q1yWkJ265Gf1IJZGmWCYYHOt5hG3OZu9rLDL%252BSCUQWoICDtj4SCGjxKGEV9BkP8wDGdgHdMqoMpLwhCXolsx96dHUrwkC0LQ6tGQECXd7v%252BNpqKHO7I6ejBQJszI%252FtRrkK9%252Fme45acDIsPsdz7g6yhuxWvSocJ33X0kHHjRCQ%253D%7Campid%3APL_CLK
+                  - button "Watch MTG The Hobbit Bundle Box - EMPTY NO PACKS | Deck Storage - Magic HOB" [ref=f112e413] [cursor=pointer]
+                  - generic [ref=f112e415]: $14.99
+                - link "MTG The Hobbit Bundle Box - EMPTY NO PACKS | Deck Storage - Magic HOB" [ref=f112e419] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/327337201743?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D20%26rkt%3D25%26mehot%3Dnone%26itm%3D327337201743%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434XRN25PNGY089X4R7T&itmprp=cksum%3A32733720174303d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b9QqcmbUyxDVFjNli3DqwN5LqWOq5aF%252B9qp5nrSAnCpD9%252B%252FxI9tGz8GAJ2uKSJiWGurjPWuRVpPTrzaliqcgXSbtPFKISH%252FUX9NQaHYxOrz497q1yWkJ265Gf1IJZGmWCYYHOt5hG3OZu9rLDL%252BSCUQWoICDtj4SCGjxKGEV9BkP8wDGdgHdMqoMpLwhCXolsx96dHUrwkC0LQ6tGQECXd7v%252BNpqKHO7I6ejBQJszI%252FtRrkK9%252Fme45acDIsPsdz7g6yhuxWvSocJ33X0kHHjRCQ%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e421]:
+            - article [ref=f112e422]:
+              - generic [ref=f112e424]:
+                - generic [ref=f112e426]:
+                  - link [aria-hidden] [ref=f112e427] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/307158847406?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D21%26rkt%3D25%26mehot%3Dnone%26itm%3D307158847406%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434YKARC3QEAC5MTN35J&itmprp=cksum%3A30715884740603d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b62AR09kovNEANAvcghh60hMZsNSpHSVeX0nHb0iyRAIeDvoF32Uoip6y8TXF8smLVmWXmGQ5GYcpZA8BwuOF%252F5mZcZnMpjiRNavQUFKraWM%252BVJR5cH2wQnc0ZppKOO2E6A6utKWITVZRUDiErnl1xpb8TPLh4RbDfp5mk2uIvgXAoyndSyAG3883Hmq93VHZwRF%252FUrFj7jMQR%252F7hcwx7iyqo22kIwTRAJQMhEbIn8%252F2xPfTGF5ureVNl%252FL4EdCVwrQSvINUdfpAwMtUMgXzIVNnZc23fWKYhoP0DNQgvO2H%7Campid%3APL_CLK
+                  - button "Watch Magic the Gathering EMPTY Tempest, 2x Exodus STARTER SET Mtg DECK BOX Only" [ref=f112e430] [cursor=pointer]
+                  - generic [ref=f112e432]: $14.95
+                - link "Magic the Gathering EMPTY Tempest, 2x Exodus STARTER SET Mtg DECK BOX Only" [ref=f112e436] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/307158847406?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D21%26rkt%3D25%26mehot%3Dnone%26itm%3D307158847406%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434YKARC3QEAC5MTN35J&itmprp=cksum%3A30715884740603d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b62AR09kovNEANAvcghh60hMZsNSpHSVeX0nHb0iyRAIeDvoF32Uoip6y8TXF8smLVmWXmGQ5GYcpZA8BwuOF%252F5mZcZnMpjiRNavQUFKraWM%252BVJR5cH2wQnc0ZppKOO2E6A6utKWITVZRUDiErnl1xpb8TPLh4RbDfp5mk2uIvgXAoyndSyAG3883Hmq93VHZwRF%252FUrFj7jMQR%252F7hcwx7iyqo22kIwTRAJQMhEbIn8%252F2xPfTGF5ureVNl%252FL4EdCVwrQSvINUdfpAwMtUMgXzIVNnZc23fWKYhoP0DNQgvO2H%7Campid%3APL_CLK
+          - listitem [ref=f112e438]:
+            - article [ref=f112e439]:
+              - generic [ref=f112e441]:
+                - generic [ref=f112e443]:
+                  - link [aria-hidden] [ref=f112e444] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/137582134687?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D22%26rkt%3D25%26mehot%3Dnone%26itm%3D137582134687%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434YQ02PKYVYM9F0X4W2&itmprp=cksum%3A13758213468703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b25VBPBG7YSCj%252BIrVAx%252FnPurV%252BlJOruZpTUPoYAl6xMoY6zBsOM2oakP1kb5DgOKlZuMiBQqXsqRvRfLhS7xCZUmBZokXsazsNraU7gVY%252FYjvjlKI9JafGOJga0WwyWjcGifzPmB8JjWUc4FIkO3vj25A93USBi%252FuN%252BG2rTzUA9bFcrE9PKBCyaL3LlHsc6h8J6ChK%252Ba8bvYTdCo6aB7Xki4%252BJMMTUc7VaNTxpZolPeEAqv3WzF15r2txt%252FO8tPwBhMj%252BiCrlg4BhR42Al8SXXLjdQTpyH1CbPH2zqg8DO4R%7Campid%3APL_CLK
+                  - button "Watch Magic The Gathering Oath of the Gatewatch Fat Pack Bundle Empty Box" [ref=f112e447] [cursor=pointer]
+                  - generic [ref=f112e449]: $10.00
+                - link "Magic The Gathering Oath of the Gatewatch Fat Pack Bundle Empty Box" [ref=f112e453] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/137582134687?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D22%26rkt%3D25%26mehot%3Dnone%26itm%3D137582134687%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434YQ02PKYVYM9F0X4W2&itmprp=cksum%3A13758213468703d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b25VBPBG7YSCj%252BIrVAx%252FnPurV%252BlJOruZpTUPoYAl6xMoY6zBsOM2oakP1kb5DgOKlZuMiBQqXsqRvRfLhS7xCZUmBZokXsazsNraU7gVY%252FYjvjlKI9JafGOJga0WwyWjcGifzPmB8JjWUc4FIkO3vj25A93USBi%252FuN%252BG2rTzUA9bFcrE9PKBCyaL3LlHsc6h8J6ChK%252Ba8bvYTdCo6aB7Xki4%252BJMMTUc7VaNTxpZolPeEAqv3WzF15r2txt%252FO8tPwBhMj%252BiCrlg4BhR42Al8SXXLjdQTpyH1CbPH2zqg8DO4R%7Campid%3APL_CLK
+          - listitem [ref=f112e455]:
+            - article [ref=f112e456]:
+              - generic [ref=f112e458]:
+                - generic [ref=f112e460]:
+                  - link [aria-hidden] [ref=f112e461] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/114794481974?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D23%26rkt%3D25%26mehot%3Dnone%26itm%3D114794481974%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434YKXFSWZA37DYQCZRT&itmprp=cksum%3A11479448197403d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b8z8qfLnzoAdht6%252Fr7BiN4ELsL5%252BDC2NTYM1sCUM1VI%252BL4ySVCKRFuENdfbrCPTmZTK1E3c9xZ%252FHjkMyZ8ljGPaCPt7oXcC1Q3mujtmmxxm8imJtVnbiOSwtV0HSV8bemTFmbLRpY7c1r%252F3tkz5puH2AsJXHNU%252BfqnVcGQRzzPbFviGpCsTxq0lEsXa1oAIy7o%252F%252B%252FK%252BDzuj5pf%252F0rOyOMVIH5Nq0WxSom8GoekE2PG5V%252FPAiHsKWkpAaXhbpAwoUl8VmaYiiAwZw8%252F%252BxijeD%252BhrDFHhkXZNrC5zwv%252BkOFPQ6%7Campid%3APL_CLK
+                  - button "Watch MTG Empty Fat Pack Box - Dragons Maze - Used" [ref=f112e464] [cursor=pointer]
+                  - generic [ref=f112e466]: $15.00
+                - link "MTG Empty Fat Pack Box - Dragons Maze - Used" [ref=f112e470] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/114794481974?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D23%26rkt%3D25%26mehot%3Dnone%26itm%3D114794481974%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434YKXFSWZA37DYQCZRT&itmprp=cksum%3A11479448197403d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b8z8qfLnzoAdht6%252Fr7BiN4ELsL5%252BDC2NTYM1sCUM1VI%252BL4ySVCKRFuENdfbrCPTmZTK1E3c9xZ%252FHjkMyZ8ljGPaCPt7oXcC1Q3mujtmmxxm8imJtVnbiOSwtV0HSV8bemTFmbLRpY7c1r%252F3tkz5puH2AsJXHNU%252BfqnVcGQRzzPbFviGpCsTxq0lEsXa1oAIy7o%252F%252B%252FK%252BDzuj5pf%252F0rOyOMVIH5Nq0WxSom8GoekE2PG5V%252FPAiHsKWkpAaXhbpAwoUl8VmaYiiAwZw8%252F%252BxijeD%252BhrDFHhkXZNrC5zwv%252BkOFPQ6%7Campid%3APL_CLK
+          - listitem [ref=f112e472]:
+            - article [ref=f112e473]:
+              - generic [ref=f112e475]:
+                - generic [ref=f112e477]:
+                  - link [aria-hidden] [ref=f112e478] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/301709233749?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D24%26rkt%3D25%26mehot%3Dnone%26itm%3D301709233749%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434ZYH92NJX5PQ837NCG&itmprp=cksum%3A30170923374903d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b52yjT6ApbqGrlOokLPRY0QCaw4Yt%252BevJVWs9T2dHaTfIcXf8HZfgeESyjy5vXPyxJmGMNoqMUJxcR%252BlxwM6n3i9KXnRmhdJo5avKa9lZSKyt0yNdzBc0sJuC79iVY1Om0rXkge94wN2v5PZ6w%252FbOGnB5mTJYRLUcAefracDk2gYLgE77vdeoAzC5Kvc4C1MiddxI6kgxulj9FNbQF7FhgoAB3M14%252FLeMFtcmCLzqzgCwTdD6f4Ae6u5AeIhljfyRzaFKJbcWBaGogtuM48h5b4%253D%7Campid%3APL_CLK
+                  - button "Watch 1 Empty Fat Pack Box - JOURNEY INTO NYX - PLAYED - Magic the Gathering MTG FTG" [ref=f112e481] [cursor=pointer]
+                  - generic [ref=f112e483]: $9.99
+                - link "1 Empty Fat Pack Box - JOURNEY INTO NYX - PLAYED - Magic the Gathering MTG FTG" [ref=f112e487] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/301709233749?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D24%26rkt%3D25%26mehot%3Dnone%26itm%3D301709233749%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26tu%3D01M240434ZYH92NJX5PQ837NCG&itmprp=cksum%3A30170923374903d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABAMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b52yjT6ApbqGrlOokLPRY0QCaw4Yt%252BevJVWs9T2dHaTfIcXf8HZfgeESyjy5vXPyxJmGMNoqMUJxcR%252BlxwM6n3i9KXnRmhdJo5avKa9lZSKyt0yNdzBc0sJuC79iVY1Om0rXkge94wN2v5PZ6w%252FbOGnB5mTJYRLUcAefracDk2gYLgE77vdeoAzC5Kvc4C1MiddxI6kgxulj9FNbQF7FhgoAB3M14%252FLeMFtcmCLzqzgCwTdD6f4Ae6u5AeIhljfyRzaFKJbcWBaGogtuM48h5b4%253D%7Campid%3APL_CLK
+          - listitem [ref=f112e489]:
+            - article [ref=f112e490]:
+              - generic [ref=f112e492]:
+                - generic [ref=f112e494]:
+                  - link [aria-hidden] [ref=f112e495] [cursor=pointer]:
+                    - /url: https://www.ebay.com/itm/354611352573?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D25%26rkt%3D25%26mehot%3Dnone%26itm%3D354611352573%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434Z87CGS7CV9YM4NPHA&itmprp=cksum%3A35461135257303d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b4Dm%252FWAgibkJvDVm3py9y1cM7DUDmSfK9BEldG%252BUBkYMtIGsNI71Mn801euKVCuw5GXV%252FiZCXtWRoDdacn1cWZQk1lFAG7epMPmeMvTjVLJxda5Plw2eNziRRV%252F467OsVjoDEG3aI%252FAr%252BDPNa5KxEWCi0MnJ0WdoTQWO1EFUWnQBTytOjpEUITTzenLicX0WDn7YZPQWudJPdZ2lb1o61xlPhbcksHdeRAs0eXPCMFZumTuLjnnC5fHjcbmKqdFJpGvfpHRx9vBwPYxq1I8LDG%252FUf1xcSAW17zoPY%252BHqHUU5%7Campid%3APL_CLK
+                  - button "Watch EMPTY Magic Origins MTG Fat Pack Deck Box Magic The Gathering" [ref=f112e498] [cursor=pointer]
+                  - generic [ref=f112e500]: $9.99
+                - link "EMPTY Magic Origins MTG Fat Pack Deck Box Magic The Gathering" [ref=f112e504] [cursor=pointer]:
+                  - /url: https://www.ebay.com/itm/354611352573?_trkparms=amclksrc%3DITM%26aid%3D1110013%26algo%3DHOMESPLICE.SIMRXI%26ao%3D1%26asc%3D20240229164639%26meid%3D03d36227f37946dc91ca3e6e5e7970a3%26pid%3D102015%26rk%3D25%26rkt%3D25%26mehot%3Dnone%26itm%3D354611352573%26pmt%3D1%26noa%3D0%26pg%3D2332490%26algv%3DSimRXIVIWithPreRankerShuffling%26brand%3DWizards%2Bof%2Bthe%2BCoast%26tu%3D01M240434Z87CGS7CV9YM4NPHA&itmprp=cksum%3A35461135257303d36227f37946dc91ca3e6e5e7970a3%7Cenc%3AAQALAAABEMfAA%252BYWBCJeSL%252BkOlT7clgcHfVZ%252BWFlKIDUNvM2SI6SVqmcRGCwOSuGFmWaT5W6b4Dm%252FWAgibkJvDVm3py9y1cM7DUDmSfK9BEldG%252BUBkYMtIGsNI71Mn801euKVCuw5GXV%252FiZCXtWRoDdacn1cWZQk1lFAG7epMPmeMvTjVLJxda5Plw2eNziRRV%252F467OsVjoDEG3aI%252FAr%252BDPNa5KxEWCi0MnJ0WdoTQWO1EFUWnQBTytOjpEUITTzenLicX0WDn7YZPQWudJPdZ2lb1o61xlPhbcksHdeRAs0eXPCMFZumTuLjnnC5fHjcbmKqdFJpGvfpHRx9vBwPYxq1I8LDG%252FUf1xcSAW17zoPY%252BHqHUU5%7Campid%3APL_CLK
+  - contentinfo [ref=f112e509]:
+    - list [ref=f112e510]:
+      - listitem [ref=f112e511]:
+        - link "About eBay" [ref=f112e512] [cursor=pointer]:
+          - /url: https://www.ebayinc.com
+      - listitem [ref=f112e513]:
+        - link "Announcements" [ref=f112e514] [cursor=pointer]:
+          - /url: https://community.ebay.com/t5/Announcements/bg-p/Announcements
+      - listitem [ref=f112e515]:
+        - link "Community" [ref=f112e516] [cursor=pointer]:
+          - /url: https://community.ebay.com
+      - listitem [ref=f112e517]:
+        - link "Security Center" [ref=f112e518] [cursor=pointer]:
+          - /url: https://pages.ebay.com/securitycenter/index.html
+      - listitem [ref=f112e519]:
+        - link "Seller Center" [ref=f112e520] [cursor=pointer]:
+          - /url: https://www.ebay.com/sellercenter
+      - listitem [ref=f112e521]:
+        - link "Policies" [ref=f112e522] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/policies/default/ebays-rules-policies?id=4205
+      - listitem [ref=f112e523]:
+        - link "Affiliates" [ref=f112e524] [cursor=pointer]:
+          - /url: https://partnernetwork.ebay.com/
+      - listitem [ref=f112e525]:
+        - link "Product Safety Tips" [ref=f112e526] [cursor=pointer]:
+          - /url: https://pages.ebay.com/safetytips
+      - listitem [ref=f112e527]:
+        - link "Help & Contact" [ref=f112e528] [cursor=pointer]:
+          - /url: https://www.ebay.com/help/home
+      - listitem [ref=f112e529]:
+        - link "Site Map" [ref=f112e530] [cursor=pointer]:
+          - /url: https://pages.ebay.com/sitemap.html
+    - generic [ref=f112e531]:
+      - text: Copyright © 1995-2026 eBay Inc. All Rights Reserved.
+      - link "Accessibility" [ref=f112e532] [cursor=pointer]:
+        - /url: https://www.ebayinc.com/accessibility/
+      - text: ","
+      - link "User Agreement" [ref=f112e533] [cursor=pointer]:
+        - /url: https://www.ebay.com/help/policies/member-behaviour-policies/user-agreement?id=4259
+      - text: ","
+      - link "Privacy" [ref=f112e534] [cursor=pointer]:
+        - /url: https://www.ebay.com/help/policies/member-behaviour-policies/user-privacy-notice-privacy-policy?id=4260
+      - text: ","
+      - link "Consumer Health Data" [ref=f112e535] [cursor=pointer]:
+        - /url: https://www.ebayinc.com/company/privacy-center/privacy-notice/consumer-health-data-privacy-policy/
+      - text: ","
+      - link "Payments Terms of Use" [ref=f112e536] [cursor=pointer]:
+        - /url: https://pages.ebay.com/payment/2.0/terms.html
+      - text: ","
+      - link "Cookies" [ref=f112e537] [cursor=pointer]:
+        - /url: https://www.ebay.com/help/policies/member-behaviour-policies/ebay-cookie-notice?id=4267
+      - text: ","
+      - link "CA Privacy Notice" [ref=f112e538] [cursor=pointer]:
+        - /url: https://www.ebayinc.com/company/privacy-center/privacy-notice/state-privacy-disclosures/#california
+      - text: ","
+      - link "Your Privacy Choices" [ref=f112e539] [cursor=pointer]:
+        - /url: https://www.ebay.com/adchoice/ccpa
+      - text: and
+      - link "AdChoice" [ref=f112e540] [cursor=pointer]:
+        - /url: https://www.ebay.com/adchoice
+  - paragraph [ref=f112e542]

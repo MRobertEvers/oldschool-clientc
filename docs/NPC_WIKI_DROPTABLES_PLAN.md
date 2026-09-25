@@ -405,8 +405,8 @@ than no binding).
 3. **A kill-based test for a TzHaar silently never runs.** `selftest_find_npc`
    scans active npc slots; the selftest scene is Lumbridge and TzHaar spawn at
    2506,5168. Written that way it passed against deliberately broken data.
-   `mock230_world.c`'s "the death drop is content's" case D asserts on the def
-   instead — `mock230_content_npc` + `mock230_content_npc_param`, the exact pair
+   `torirs_server_world.c`'s "the death drop is content's" case D asserts on the def
+   instead — `ToriRSServer_ContentNpc` + `ToriRSServer_ContentNpcParam`, the exact pair
    `npc_param` reads at rank 1 — and covers null, plain, variant and ashes.
 4. **That call's "was it stated" return is always true**, because of the default
    seed. Asserting it is a check that cannot fail. Assert the value.

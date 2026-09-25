@@ -1,0 +1,13 @@
+panel_icon.png -- where it came from.
+
+The XP Tracker's rail icon is the OldSchool popout's own graphic, not
+RuneLite's similar `skill_icons/overall.png` resource.
+
+`torirs_popout_icons` (clientscript 5356) looks up each popout slot in
+`enum_4067`, then assigns `struct_param(slot, param_1412)` as its graphic. Slot
+1 is XP Tracker (`struct_3742`), whose `param_1412` is 3579: `popout_icons,2`.
+
+The cache sprite has a 30x30 logical canvas and 23x22 painted bounds at (3,4).
+SOURCES.sh extracts that complete logical sprite so the cache-authored padding,
+palette, and alpha all survive. `overview_icon.png` is intentionally different:
+the XP tracker's total row names `staticons2,7` (sprite 222) directly.

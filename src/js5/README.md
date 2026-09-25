@@ -185,7 +185,7 @@ The stable readiness line is `READY 127.0.0.1 43594 239`. To opt the C client
 into that endpoint:
 
 ```powershell
-src\torirs C:\temp\cache.osrs239.sparse --manifest manifest_osrs239.ini `
+src\torirs C:\temp\cache.osrs239.sparse --manifest manifests/manifest_osrs239.ini `
   --offline --js5 --js5-host 127.0.0.1 --js5-port 43594 `
   --js5-fallback-port 0
 ```

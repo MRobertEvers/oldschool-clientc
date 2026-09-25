@@ -50,7 +50,7 @@ sim_path_followers(void)
     int idle_all = 0;
     for( int t = 0; t < 2000; t++ )
     {
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
         if( (t % 100) == 0 )
         {
             TEST_ASSERT(pool_active_matches_iterate(&world->entities.player), "player iterate");
@@ -132,7 +132,7 @@ sim_projectile_barrage(void)
 
     for( int t = 0; t < 500 && world->entities.projectile.active_count > 0; t += 5 )
     {
-        World_Cycle(world, 5);
+        World_TestCycle(world, 5);
         removed += World_TestDrainRemovedEvents(world);
 
         for( int i = World_EntityPoolHead(&world->entities.projectile); i != WORLD_ENTITY_NIL;
@@ -172,7 +172,7 @@ sim_spotanim_wave(void)
 
     for( int t = 0; t < 1000 && world->entities.spotanim.active_count > 0; t++ )
     {
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
         if( (t % 20) == 0 )
             removed += World_TestDrainRemovedEvents(world);
     }
@@ -237,7 +237,7 @@ sim_mixed_churn(void)
             }
         }
 
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
         if( (t % 25) == 0 )
             World_EventsClear(world);
@@ -280,7 +280,7 @@ sim_scene_reset_midflight(void)
 
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_WALK, 4);
     for( int t = 0; t < 100; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
     /* Clear dynamics before reset (ResetScene only clears terrain/picks/events). */
     while( World_EntityPoolHead(&world->entities.player) != WORLD_ENTITY_NIL )
@@ -310,7 +310,7 @@ sim_scene_reset_midflight(void)
     World_PlayerPathPushStep(world, pi, WORLD_PATHSTEP_RUN, 1);
 
     for( int t = 0; t < 100; t++ )
-        World_Cycle(world, 1);
+        World_TestCycle(world, 1);
 
     TEST_ASSERT(World_TerrainElementAt(world, 2, 2, 1) == 222, "terrain after reseed");
     TEST_ASSERT(World_EntityPoolIsActive(&world->entities.player, pi), "player alive");

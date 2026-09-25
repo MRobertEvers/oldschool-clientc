@@ -43,9 +43,14 @@
  *               dat2 cache: osrs 184/230/239, rs2 634/643. Parsing without a
  *               filter desyncs immediately.
  *
- * No cache in the corpus sits between 254 and 377, so the exact RS2 revision
- * that introduced the filter is unmeasured; RSCache_SoundCodecVersion states
- * the boundary at 377 and test_sound.c fails loudly if a cache disagrees.
+ * The filter and the mixer rewrite are NOT the same boundary. rs2/dat1 289
+ * (the LostCity 289 server's sounds.dat, 277355 bytes; all 975 of its .synth
+ * records) already carries the filter, yet its client still mixes the WAVE
+ * way (webclient JagFX.ts). So RSCache_SoundFlags gates the filter at 289 and
+ * RSCache_SoundCodecVersion gates the mixing generation at 377. Parsing 289
+ * without the filter stopped at a spurious 65535 after 98124 bytes, and every
+ * effect it kept was misframed. Nothing between 254 and 289, or between 289
+ * and 377, is measured.
  *
  * ## What is not decoded here
  *
@@ -59,16 +64,17 @@
 /** Tone records carry a trailing filter + filter envelope. */
 #define RSCACHE_SOUND_HAS_FILTER 0x1
 
-/** dat1 up to 254: no filter. Reference Tone (Client-TS sound/Tone.ts). */
+/** dat1 up to 289: u8 wrap mixing. Reference Tone (Client-TS sound/Tone.ts). Filter
+ * from 289 on; see RSCache_SoundFlags. */
 #define RSCACHE_CODEC_SOUND_WAVE 1
-/** dat1 377 and every dat2: filter present. Reference SynthInstrument (rt4). */
+/** dat1 377 and every dat2: signed clamp mixing. Reference SynthInstrument (rt4). */
 #define RSCACHE_CODEC_SOUND_SYNTH 2
 
 /** Which sound codec this cache uses. */
 int
 RSCache_SoundCodecVersion(const struct RSCache* cache);
 
-/** Decode flags for this cache, derived from the codec version. */
+/** Decode flags for this cache. The filter boundary (289) is not the codec one (377). */
 int
 RSCache_SoundFlags(const struct RSCache* cache);
 

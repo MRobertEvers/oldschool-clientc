@@ -1,0 +1,131 @@
+{{Redirect|Baba|the member of the [[Moon Clan]]|Baba Yaga}}
+{{Infobox Monster
+|name = Ba-Ba
+|image = [[File:Ba-Ba.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 359
+|size = 5
+|examine = A big ol' monke.
+|xpbonus = 
+|max hit = 24
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Crush]], [[Ranged]]
+|attack speed = 6
+|hitpoints = 380
+|scaledhp = Yes
+|att = 150
+|str = 160
+|def = 80
+|mage = 100
+|range = 0
+|attbns = 0
+|strbns = 26
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 80
+|dslash = 160
+|dcrush = 240
+|dmagic = 280
+|dlight = 200
+|dstandard = 200
+|dheavy = 120
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11778,11779,11780
+}}
+'''Ba-Ba''' is an ancient baboon matriarch encountered at the end of the [[Path of Apmeken]] within the [[Tombs of Amascut]] [[raid]]. Once ruling over a large troop of baboons, she was deceived with an offer of immortality by [[Amascut]] and instead came under her servitude. Ba-Ba and her baboons were then used to overcome and imprison their goddess [[Apmeken]] for Amascut.
+
+==History==
+Ba-Ba was once the matriarch of a large troop of baboons whose domain spread across a large area of the [[Kharidian Desert]].{{CiteText|text=Apmeken's capture|quote=In life, Ba-Ba's troop dominated a large area of the Kharidian Desert, thriving under her watchful eye.}} Ba-Ba feared for the future of her troop as she aged, longing to continue ruling as matriarch as she did not see her heir, her daughter, as a worthy successor due to her lazy and arrogant nature.{{CiteText|text=Apmeken's capture|quote=Althought a natural part of life, Ba-Ba could not accept her mortality. This fear was not born out of selfishness - her concern was for her troop.}}{{CiteText|text=Apmeken's capture|quote=Upon her death, Ba-Ba's daughter would have become matriarch, but she was lazy and arrogant. Ba-Ba did not consider her a worthy successor and longed to continue ruling herself.}}
+
+[[Amascut]] eventually learned of Ba-Ba's fears and desires, and promised her immortality to allow her to rule over her troop for all of time, in exchange for her and her troop's servitude.{{CiteText|text=Apmeken's capture|quote=Learning of Ba-Ba's desires, the Devourer promised her a way to rule her troop forever. Believing there to be no other option, Ba-Ba agreed.}} Agreeing to the terms, Ba-Ba and her troop were all killed off with a single spell from Amascut, and were promptly all reanimated as undead.{{CiteText|text=Apmeken's capture|quote=Ever the deceiver, the Devourer's true plan soon became clear. With a single spell, she killed Ba-Ba and her entire troop, only to reanimate them all together.}}  As corrupted thralls, the troop easily overwhelmed their goddess [[Apmeken]] and captured her for Amascut.{{CiteText|text=Apmeken's capture|quote=With her new army, the Devourer had no difficulties in capturing Apmeken. Now, Ba-Ba rules eternally over her undead horde, ensuring Apmeken remains a prisoner to the Devourer.}}
+
+An [[Player character|adventurer]] would later defeat Ba-Ba, forcing her to retreat. In her haste, she dropped a [[big banana]], which they would pick up and hand to [[Awowogei]] in [[Ape Atoll]]. Learning of her troop's story, Awowogei promised to ensure their memory would live on.
+
+==Mechanics==
+{{Main|Tombs of Amascut/Strategies#Ba-Ba, Guardian of Apmeken}}
+[[File:Tombs of Amascut - Fighting Ba-Ba.png|thumb|left|280px|A player fighting Ba-Ba, the Guardian of Apmeken.]]
+Despite being an [[undead]] monster, [[salve amulet]]s have no effect when fighting Ba-Ba. Her base defence level can be lowered by a maximum of 20 damage, reducing her base defence level down to a minimum of 60. Ba-Ba's melee attacks are fully blocked with [[Protect from Melee]]. In addition to her standard attacks, Ba-Ba uses a number of special attacks that can be quite difficult to negate without proper communication in a team.
+
+* '''Shockwave''' - Ba-Ba prepares to slam the ground, indicated by a shadow on the ground spreading in a cross‐shaped pattern and filling a 5x5, or if Shaking Things Up is active, a 7x7 "circular" area. This slam deals damage to any player in the area of the shockwave. This attack is also used as a "stomp" attack if Ba-Ba's target is underneath her for a prolonged amount of time, and she reacts much faster if prompted to use it in this manner.
+* '''Rockfall''' - Large boulders fall at random locations throughout the arena and damage the player if not avoided. Shortly after, Ba-Ba will hurl rocks at every player. In order to avoid the damage from the thrown rock, the player needs to stand next to a large debris pile, a sarcophagus, baboon or even another player.
+* '''Baboon's Discharge''' - Ba-Ba will summon 1-4 [[baboon]]s, who will target the sarcophagi found on the edges of the arena. If a baboon manages to destroy and open a sarcophagus, it will start discharging a deluge of projectiles into the arena.
+* '''Rolling Stones''' - Once Ba-Ba reaches 66% and 33% health, Ba-Ba will knock the player(s) to the bottom of the arena, and will start to send waves of four [[Boulder (Tombs of Amascut)|boulders]] that roll down. One of the five boulders in each row will be visibly cracked, and players are guaranteed a max hit against this boulder. If Ba-Ba is attacked with Melee, she will stop throwing boulders and start attacking players again early. Getting hit by a boulder deals moderate damage and knocks the player backwards. The boulders will instantly kill any baboons they run into.
+** With the '''Mind the Gap''' invocation active, the gap in the bottom of the arena will instantly kill players if they fall into it, either from a boulder knockback or from the scream. To avoid dying to the knock back from her scream, player(s) must stand either near the sides of the area (avoiding the middle columns where the gap is) or the very top row of it. If not, the player is flung into the pit, resulting in death.         
+Should players have the '''Path Level''' invocations active, every two levels will cause the following:
+* The speed of which the boulders drop from the ceiling will significantly increase.
+* The potential AoE from an opened sarcophagi increases.
+* The boulders will gain additional health - an additional 2 at level 2 for 27 health, and an additional 4 on top of this at level 4 for 31 health.
+
+==Drops==
+{{DropsTableHead|leagueRegion=Desert}}
+{{DropsLine|name=Apmeken's capture|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players has not read the item.</ref>}}
+{{DropsLine|name=Big banana|quantity=1|rarity=Always|raritynotes=<ref group="d">Only received if players dealt the most damage to Ba-Ba.</ref>}}
+{{DropsTableBottom}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:left">
+Ba-Ba concept art.png|Concept art of Ba-Ba, by [[Mod Grub]].
+Tombs of Amascut - Path of Apmeken concept art.png|Concept art of the Path of Apmeken, by Mod Grub.
+Ba-Ba boss room concept art.png|Concept art of Ba-Ba's room, by [[Mod Jerv]].
+Ba-Ba encounter artwork.jpg|Official artwork of the Ba-Ba encounter.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change =
+* [[Protect from Melee]] now fully protects the player from Ba-Ba's melee attack rather than reduce damage to 25%.
+* Damage from Ba-Ba's boulder throw attack is now always split completely with any appropriate object, including sarcophagi.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = 
+* Ba-Ba's melee damage while [[Protect from Melee]] is active has been reduced from 33% to 25%.
+* Ba-Ba's heavy [[Ranged]] defence was reduced from 200 to 120.
+}}
+{{Subject changes
+|date = 14 September 2022
+|update = Quest Speedrunning, Wilderness Boss Rework Rewards & Poison Dynamite Betas
+|change = Fixed an issue where players could sometimes walk inside of rubble in Baba's boss fight.
+}}
+{{Subject changes
+|date = 8 September 2022
+|update = Tombs of Amascut: Ornament Kits & More!
+|change = * The boulders in the Ba-Ba fight may no longer become invisible.
+* An issue has been fixed in which Ba-Ba's defence was unable to be reduced.
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = * [[Banana peel]]s now appear upon killing a [[baboon]] rather than randomly. The damage they deal has also been significantly reduced.
+* Energy blasts from open sarcophagi now damage players in a 1x1 area instead of 3x3.
+* Players are no longer able to get stuck inside a big rock.
+}}
+{{Subject changes
+|date = 26 August 2022
+|type = hotfix
+|change = Players can no longer safespot Ba-Ba using the fallen rubble in some positions.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Ba-Ba's name appears to be derived from {{WP|Babi (mythology)|Babi}}, a baboon god from Egyptian mythology. 
+** Considering her history as an old matriarch, her name may also be inspired by ''Baba'' (婆) meaning ''grandmother'', ''old woman'' or ''hag'' in Slavic languages, Yiddish, Romanian, and Japanese.
+*The examine texts features "''monke''", which is internet slang for "monkey" used by popular memes, most notably the "''Reject Humanity, Return to Monke''" meme.
+
+==References==
+{{reflist}}
+
+{{Tombs of Amascut}}
+{{Bosses}}

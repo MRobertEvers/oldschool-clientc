@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2ObjLoad
 {
@@ -70,7 +71,7 @@ obj_adapt_member(
 static int
 Task_Dat2ObjLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2ObjLoad* task = (struct Task_Dat2ObjLoad*)task_base;
     int pos;
@@ -85,15 +86,14 @@ Task_Dat2ObjLoad_Run(
 
     if( !task->group )
     {
-        fprintf(
-            stderr, "Failed to decode dat2 object config group for obj %d\n", task->obj_id);
+        TORIRS_ERR("Failed to decode dat2 object config group for obj %d\n", task->obj_id);
         PT_EXIT(&task->pt);
     }
 
     pos = Dat2Group_IndexOf(task->group, task->obj_id);
     if( pos < 0 || !obj_adapt_member(task->bc, task->group, pos, task->obj_id) )
     {
-        fprintf(stderr, "Failed to load dat2 obj %d\n", task->obj_id);
+        TORIRS_ERR("Failed to load dat2 obj %d\n", task->obj_id);
         PT_EXIT(&task->pt);
     }
 
@@ -184,7 +184,7 @@ struct Task_Dat2ObjLoadAll
 static int
 Task_Dat2ObjLoadAll_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* cache_io)
+    struct ToriRS_IOBatch* cache_io)
 {
     struct Task_Dat2ObjLoadAll* task = (struct Task_Dat2ObjLoadAll*)task_base;
     int idx;
@@ -197,7 +197,7 @@ Task_Dat2ObjLoadAll_Run(
 
     if( !task->group )
     {
-        fprintf(stderr, "Failed to decode dat2 object config group for load-all\n");
+        TORIRS_ERR("Failed to decode dat2 object config group for load-all\n");
         PT_EXIT(&task->pt);
     }
 
@@ -208,6 +208,8 @@ Task_Dat2ObjLoadAll_Run(
     {
         int obj_id = task->group->file_ids ? task->group->file_ids[idx] : idx;
 
+        if( obj_id + 1 > task->bc->base.objtype_count )
+            task->bc->base.objtype_count = obj_id + 1;
         if( CacheProvider_ObjtypeHas(&task->bc->base, obj_id) )
             continue;
         (void)obj_adapt_member(task->bc, task->group, idx, obj_id);

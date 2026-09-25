@@ -1,0 +1,45 @@
+{{Infobox Monster
+|name = Agile Scarab
+|image = [[File:Agile Scarab.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 53
+|size = 1
+|examine = A tiny annoying scarab.
+|attributes = kalphite
+|xpbonus = 
+|max hit = 5
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]]
+|attack speed = 4
+|hitpoints = 30
+|scaledhp = Yes
+|att = 60
+|str = 20
+|def = 5
+|mage = 30
+|range = 40
+|attbns = 0
+|strbns = 25
+|amagic = 150
+|mbns = 25
+|arange = 150
+|rngbns = 5
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 11727
+}}
+'''Agile Scarabs''' are a monster hatched from [[Egg (Tombs of Amascut)|eggs]] laid by [[Kephri]] in the [[Tombs of Amascut]]. They [[retreat]] from players at running speed, unlike most other monsters in the game.
+
+{{Tombs of Amascut}}

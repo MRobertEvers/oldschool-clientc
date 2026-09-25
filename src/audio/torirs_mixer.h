@@ -23,10 +23,33 @@
  *
  * ## Threading
  *
- * None. Render is called from the frame loop, like everything else in this
- * client; there is no audio thread and no lock. A backend that needs a callback
- * thread must own the synchronisation itself and is expected not to -- SDL2
- * queue mode exists precisely so it does not have to.
+ * The mixer takes no locks of its own. Whether anything else is running while
+ * Render does is the backend's answer, and there are two:
+ *
+ *   - **SDL2 and Android render on a device thread.** SDL's audio thread and
+ *     OpenSL ES's callback thread call Render at the device's cadence, so the
+ *     mix survives a frame stall. Each owns the exclusion the other side has to
+ *     hold -- SDL2 the device lock, Android a recursive mutex -- and publishes
+ *     it through PlatformAudio_Exclusion.
+ *   - **Web and null render on the frame loop.** There is no second thread and
+ *     nothing to exclude; their exclusion handle is zeroed.
+ *
+ * The rule the first group imposes is wider than "the backend locks its own
+ * entry points", because Render reaches past the mixer: a pull source's
+ * `render` runs inside it with the game's own ctx. So:
+ *
+ *   **Everything the device thread can reach is mutated only under that
+ *   backend's exclusion** -- the mixer's tables, and every live pull source's
+ *   state. The music player is the one that matters today; see
+ *   `struct ToriRS_AudioExclusion` in torirs_audio.h.
+ *
+ * Two consequences worth stating, because both were bugs:
+ *
+ *   - Render must not allocate: it is reached from a real-time callback. The
+ *     scratch it would grow is sized by ToriRS_Mixer_Reserve at Init instead.
+ *   - Applying a command must not allocate *inside* the lock either, or a
+ *     scene rebuild's worth of ASSET_LOADs holds the device out for every
+ *     memcpy. ToriRS_Mixer_Stage does the copying first.
  *
  * ## Lifetimes
  *
@@ -142,6 +165,51 @@ void
 ToriRS_Mixer_Apply(
     struct ToriRS_Mixer* mixer,
     const struct ToriRS_AudioCommand* command);
+
+/**
+ * A command's borrowed PCM, copied ahead of a backend's lock.
+ *
+ * ASSET_LOAD is the one command that carries a buffer, and copying it is the
+ * expensive part of applying one -- a scene rebuild loads dozens of area sounds
+ * at once. A backend with a device thread holds the render out for the whole
+ * batch it applies, so doing the copies inside that region is an underrun
+ * mechanism. Stage first, on the game thread, then apply.
+ */
+struct ToriRS_MixerStaged
+{
+    /** Owned by the caller until ApplyStaged takes it; NULL when the command
+     *  carries nothing to copy. */
+    int16_t* pcm;
+};
+
+/** Copy whatever `command` borrows. Call outside the lock. */
+void
+ToriRS_Mixer_Stage(
+    const struct ToriRS_AudioCommand* command,
+    struct ToriRS_MixerStaged* staged);
+
+/** Apply, taking ownership of `staged->pcm`. Call inside the lock. */
+void
+ToriRS_Mixer_ApplyStaged(
+    struct ToriRS_Mixer* mixer,
+    const struct ToriRS_AudioCommand* command,
+    int16_t* staged);
+
+/** Release a staged copy that was never applied. */
+void
+ToriRS_Mixer_StageFree(struct ToriRS_MixerStaged* staged);
+
+/**
+ * Grow the render scratch to `frames` now, so Render never reallocs later.
+ *
+ * Call from a backend's Init, before the device thread starts, with the largest
+ * block that thread will ask for. Render still grows on demand if something
+ * asks for more -- this only keeps the common case off the device thread.
+ */
+void
+ToriRS_Mixer_Reserve(
+    struct ToriRS_Mixer* mixer,
+    int frames);
 
 void
 ToriRS_Mixer_ApplyAll(

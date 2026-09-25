@@ -243,7 +243,7 @@ bed then treats the id as a single looping sound effect — which is the only
 thing revisions before 231 can have meant by it. `RSCACHE_DAT2_CONFIG_KIND_SOUNDSCAPE`
 and `..._VARCLIENT_STRING` are both 15, distinguished by era, not by sniffing.
 
-**mock230 now sends it** (`MOCK230_AMBIENT=<id>`, default soundscape 1), because
+**ToriRSServer now sends it** (`TORIRSSERVER_AMBIENT=<id>`, default soundscape 1), because
 nothing did before and an unreachable subsystem is one nobody notices is broken.
 A live run against the embed server:
 
@@ -345,7 +345,7 @@ Nothing in any cache has one, so it is built from two sources and committed:
 | [docs/audio/music_regions.tsv](audio/music_regions.tsv) (2026-08-13 addition) | 552 more region → track-name entries, sourced live against current content | OSRS Wiki Bucket API (`Module:Music map`'s data store — `action=bucket` against `oldschool.runescape.wiki`), exact GeoJSON polygons in world-tile coordinates, point-sampled per 64×64 square |
 
 `tools/gen_music_regions.py` joins them into
-`src/net/mock/mock230_music_regions.gen.h` — **988 map squares** with a song
+`src/torirsserver/torirs_server_music_regions.gen.h` — **988 map squares** with a song
 archive id and an unlock bit each (575 of the cache's 876 tracks now have at
 least one, up from 363). The join matches names case-insensitively against both
 the display and sort forms, because the two sources disagree on the
@@ -401,8 +401,8 @@ order of usefulness for anyone extending it further:
 
 ### 2.4 The server side
 
-`mock230_music_enter_region` hangs off the **map-square** latch in
-`mock230_world_update_map` — the same granularity music is keyed at, and next to
+`ToriRSServer_MusicEnterRegion` hangs off the **map-square** latch in
+`ToriRSServer_WorldUpdateMap` — the same granularity music is keyed at, and next to
 the `[mapzone]` trigger it shares the latch with. On entering a mapped square it
 unlocks the track if the bit is clear, then plays it if the song differs from
 what is already playing (`player->music_track`, so a track does not restart
@@ -410,22 +410,22 @@ every 64 tiles).
 
 > **The unlock is a bit write, and that distinction is enforced.** Music unlock
 > flags share varps with other varbits, so the first version — which used
-> `mock230_world_set_varp` — wiped neighbouring bits. mock230's selftest counts
+> `ToriRSServer_WorldSetVarp` — wiped neighbouring bits. ToriRSServer's selftest counts
 > whole-varp writes that land on a carrier varp and failed immediately. It now
-> patches `varps[]` and calls `mock230_world_mark_varp`, which is the path the
+> patches `varps[]` and calls `ToriRSServer_WorldMarkVarp`, which is the path the
 > varbit writers take. See [[varp-two-writers-side-effects]].
 
 `MIDI_SONG` / `_WITHSECONDARY` / `MIDI_SWAP` / `MIDI_JINGLE` / `MIDI_SONG_STOP`
 were already parsed and played client-side; nothing there needed changing.
 
-For mapped region changes mock230 now emits the reference-proven `0/30/0/30`
+For mapped region changes ToriRSServer now emits the reference-proven `0/30/0/30`
 envelope and updates the music-tab label before the packet.  The local backend
 has one generator synth/voice, unlike the reference's concurrently active
 players: it fades the outgoing voice, hands the synth to the loaded incoming
 song, then fades that voice in.  This gives an audible 600 ms fade-out and
 600 ms fade-in, but it is a serialized approximation rather than a true
 overlapping crossfade; a faithful overlap needs a second synth, asset and voice
-with separate lifetime handling.  The generic `mock230_send_midi_song` keeps
+with separate lifetime handling.  The generic `ToriRSServer_SendMidiSong` keeps
 the `script_9630` **wire** fallback for callers that did not request a
 transition profile; the local common packet representation intentionally keeps
 only the two ramp lengths.
@@ -437,8 +437,8 @@ only the two ramp lengths.
 `docs/WEAPON_FX.md` §6 established the chain and it is now closed:
 weapon obj params (`sound_stance1..4`, `equipment_sound`; 2,307 objs carry one)
 → server script `sound_synth` (246 call sites in `OSRS-Content/osrs239-content`)
-→ `SS_OP_SOUND_SYNTH` ([mock230_scripts.c:7634](src/net/mock/mock230_scripts.c#L7634))
-→ `SYNTH_SOUND` encoder ([mock230_encode.c:1734](src/net/mock/mock230_encode.c#L1734))
+→ `SS_OP_SOUND_SYNTH` ([torirs_server_scripts.c:7634](src/torirsserver/torirs_server_scripts.c#L7634))
+→ `SYNTH_SOUND` encoder ([torirs_server_encode.c:1734](src/torirsserver/torirs_server_encode.c#L1734))
 → opcode 77 on osrs239 / 102 on osrs230 → `RS_Audio_Synth`.
 
 The corollary matters for anyone hunting a missing swing sound: **attack
@@ -640,7 +640,7 @@ regression: a SOUND_AREA followed by a MAP_ANIM in one enclosed batch, asserting
 the **MAP_ANIM** arrives. Deleting the ordinal case fails it, which is the check
 that it can fail.
 
-This stays latent against `mock230`, which never sends it: `[proc,sound_area]`
+This stays latent against `ToriRSServer`, which never sends it: `[proc,sound_area]`
 in the content tree fans out plain `sound_synth` to every player found by
 `huntall` — the LostCity 254-era emulation. So against the mock an area sound
 still arrives unpositioned and plays centred. **Open**, and content-side.
@@ -664,8 +664,8 @@ LostCity/2004 layout (`g2 id / g2 delay`) and then asserted
 `position == data_size` — a real 239 packet would trip that assert in a build
 with no `-DNDEBUG`, which this tree's `makefile` never sets.
 
-Both are fixed. `mock230_scripts.c` now has a real `SS_OP_MIDI_JINGLE` case
-(`mock230_send_midi_jingle`, wired through `mock230_wire.c`'s `midi_jingle`
+Both are fixed. `torirs_server_scripts.c` now has a real `SS_OP_MIDI_JINGLE` case
+(`ToriRSServer_SendMidiJingle`, wired through `torirs_server_wire.c`'s `midi_jingle`
 payload slot and `k_transcribed_osrs239[]`), and rev 239's actual 5-byte layout
 — `p3 length_in_millis` / `p2Alt3 id`, confirmed against the vendored generated
 codec (`3rd/rsprot/packets/midi_jingle.c`, v16 = revs 239), the 239 Kotlin
@@ -673,7 +673,7 @@ transcription, and the rev-239 deob independently — is decoded by a new
 `bridge_midi_jingle` row in `src/net/rev/rsprot_bridge.c`, which `net.c` tries
 before the hand-written parser. The length field itself is computed
 server-side from the cache (`tools/gen_jingle_lengths.py` →
-`mock230_jingle_lengths.gen.h`, a real Standard MIDI File duration integration,
+`torirs_server_jingle_lengths.gen.h`, a real Standard MIDI File duration integration,
 not a placeholder) because the client decodes but does not act on it either way
 (`RS_Audio_Jingle`'s own comment: "trusting it would cut a jingle short on a
 slow load").
@@ -716,7 +716,7 @@ effect, not a jingle) — see `quests/scripts/questpoints.rs2`'s
 Everything ranked in the original work order is done. What remains, in the order
 it is worth doing:
 
-1. **§3.4 — mock230 should send `SOUND_AREA`.** The client decodes it; the mock
+1. **§3.4 — ToriRSServer should send `SOUND_AREA`.** The client decodes it; the mock
    still emulates area sound the LostCity way by fanning out unpositioned
    `sound_synth`. Content-side work, and the only reason the new decode path is
    not exercised end-to-end against the embed server.
@@ -760,7 +760,7 @@ The data they produced is committed, and one of them has a permanent generator:
 |---|---|
 | `docs/audio/music_tracks_osrs239.tsv` | `dbdump --sweep 44 --tsv` |
 | `docs/audio/music_regions.tsv` | a parse of Kronos's `MusicPlayer.java` |
-| `src/net/mock/mock230_music_regions.gen.h` | **`tools/gen_music_regions.py`** — rerun it when either TSV changes |
+| `src/torirsserver/torirs_server_music_regions.gen.h` | **`tools/gen_music_regions.py`** — rerun it when either TSV changes |
 
 Tests that hold this work:
 
@@ -769,7 +769,7 @@ Tests that hold this work:
 | `make -C src test-sound` | the effect queue's schedule, including `test_late_load_timing` — the one that sees a clip arriving after its due time |
 | `make -C src test-audio` | the generator-backed music voice receives real outgoing and incoming `VOICE_UPDATE` ramps rather than the retired stream-volume command |
 | `make -C src test-midi-packets` | the V2 MIDI field transforms and the SOUND_AREA layout, including that a SOUND_AREA does not truncate the zone batch after it |
-| `MOCK230_REV=osrs239 ./src/build/mock230 --selftest` | among much else, the carrier-varp rule, music-tab label ordering, and the region's `0/30/0/30` V2 envelope |
+| `TORIRSSERVER_REV=osrs239 ./src/build/torirsserver --selftest` | among much else, the carrier-varp rule, music-tab label ordering, and the region's `0/30/0/30` V2 envelope |
 | `3rd/rscache/build/test_soundscape <root>` | the group-15 format, byte-exact over the whole cache |
 
 Two traps worth repeating from [[audio-harness-and-measurement-traps]]:

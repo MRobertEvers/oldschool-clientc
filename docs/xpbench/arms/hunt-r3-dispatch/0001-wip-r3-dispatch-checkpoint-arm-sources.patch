@@ -1,0 +1,465 @@
+From e4f3a8d6079f423c26f71042737b309d74533796 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:41 -0500
+Subject: [PATCH] wip(r3-dispatch): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-dispatch.
+
+files: 3rd/toridraw/toridraw_raster.u.c
+---
+ 3rd/toridraw/toridraw_raster.u.c | 263 ++++++++++++++++++++++++++++---
+ 1 file changed, 242 insertions(+), 21 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..6fd00f4c8 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -17,6 +17,88 @@
+ static const int g_empty_texture_texels[128 * 128] = { 0 };
+ #endif
+ 
++/* ------------------------------------------------------------------ */
++/* Dispatch census: -DTORIDRAW_DISPATCH_CENSUS=1. Never timed.        */
++/* ------------------------------------------------------------------ */
++#if defined(TORIDRAW_DISPATCH_CENSUS) && TORIDRAW_DISPATCH_CENSUS
++#include <stdlib.h>
++struct ToriDraw_DispatchCensus
++{
++    long long models;
++    long long models_face_infos_null;
++    long long models_alphas_null;
++    long long models_rendertypes_null;
++    long long models_texcoords_null;
++    long long models_dbg;
++    long long models_zbuf;
++    long long models_nearclipped;
++    long long models_uniform_kernel;   /* every drawn face same kernel id */
++    long long models_uniform_tex;      /* every drawn face same texture id */
++    long long faces_visited;
++    long long skip_type;
++    long long skip_hidden;
++    long long skip_alpha;
++    long long skip_texmiss;
++    long long skip_env;
++    long long textured;
++    long long tex_cache_hit;
++    long long tex_cache_miss;
++    long long kernel[12];
++    long long kernel_transitions;      /* adjacent faces with different kernel */
++    long long drawn;
++};
++static struct ToriDraw_DispatchCensus g_dc;
++enum { DCK_GOURAUD_SMOOTH=0, DCK_GOURAUD=1, DCK_FLAT=2, DCK_ZBUF=3,
++       DCK_TEX_AFFINE=4, DCK_TEX_OPAQUE=5, DCK_TEX_TRANSP=6,
++       DCK_TEXFLAT_AFFINE=7, DCK_TEXFLAT_OPAQUE=8, DCK_TEXFLAT_TRANSP=9 };
++static const char* g_dck_name[12] = {
++    "gouraud_smooth","gouraud","flat","zbuf",
++    "tex_affine","tex_opaque","tex_transp",
++    "texflat_affine","texflat_opaque","texflat_transp","?10","?11" };
++static void
++toridraw_dispatch_census_print(void)
++{
++    fprintf(stderr, "\n=== DISPATCH CENSUS ===\n");
++    fprintf(stderr, "models                 %lld\n", g_dc.models);
++    fprintf(stderr, "  face_infos NULL      %lld\n", g_dc.models_face_infos_null);
++    fprintf(stderr, "  face_alphas NULL     %lld\n", g_dc.models_alphas_null);
++    fprintf(stderr, "  render_types NULL    %lld\n", g_dc.models_rendertypes_null);
++    fprintf(stderr, "  tex_coords NULL      %lld\n", g_dc.models_texcoords_null);
++    fprintf(stderr, "  raster_debug != NULL %lld\n", g_dc.models_dbg);
++    fprintf(stderr, "  zbuffered            %lld\n", g_dc.models_zbuf);
++    fprintf(stderr, "  near_clipped         %lld\n", g_dc.models_nearclipped);
++    fprintf(stderr, "  uniform kernel       %lld\n", g_dc.models_uniform_kernel);
++    fprintf(stderr, "  uniform texture id   %lld\n", g_dc.models_uniform_tex);
++    fprintf(stderr, "faces visited          %lld\n", g_dc.faces_visited);
++    fprintf(stderr, "  skip raw_type        %lld\n", g_dc.skip_type);
++    fprintf(stderr, "  skip hidden(-2)      %lld\n", g_dc.skip_hidden);
++    fprintf(stderr, "  skip alpha<=1        %lld\n", g_dc.skip_alpha);
++    fprintf(stderr, "  skip tex not loaded  %lld\n", g_dc.skip_texmiss);
++    fprintf(stderr, "  skip env knob        %lld\n", g_dc.skip_env);
++    fprintf(stderr, "  drawn                %lld\n", g_dc.drawn);
++    fprintf(stderr, "textured faces         %lld  (cache hit %lld / miss %lld)\n",
++            g_dc.textured, g_dc.tex_cache_hit, g_dc.tex_cache_miss);
++    for( int i = 0; i < 10; i++ )
++        if( g_dc.kernel[i] )
++            fprintf(stderr, "  kernel %-16s %lld\n", g_dck_name[i], g_dc.kernel[i]);
++    fprintf(stderr, "kernel transitions     %lld  (of %lld drawn)\n",
++            g_dc.kernel_transitions, g_dc.drawn);
++}
++static int g_dc_registered;
++#define DC_INIT() do { if(!g_dc_registered){ g_dc_registered=1; atexit(toridraw_dispatch_census_print);} } while(0)
++#define DC(f) do { g_dc.f++; } while(0)
++#define DC_KERNEL(ctx,k) do { \
++    g_dc.kernel[(k)]++; g_dc.drawn++; \
++    if( (ctx)->dc_last_kernel >= 0 && (ctx)->dc_last_kernel != (k) ) { \
++        g_dc.kernel_transitions++; (ctx)->dc_uniform_kernel = 0; } \
++    (ctx)->dc_last_kernel = (k); \
++} while(0)
++#else
++#define DC_INIT() do { } while(0)
++#define DC(f) do { } while(0)
++#define DC_KERNEL(ctx,k) do { (void)(ctx); } while(0)
++#endif
++
+ enum DashModelRasterFlags
+ {
+     RASTER_FLAG_GOURAUD_SMOOTH = 1 << 0,
+@@ -103,6 +185,12 @@ struct ToriDrawModelRasterContext
+     /* #region agent log */
+     int ordered_faces;
+     /* #endregion */
++#if defined(TORIDRAW_DISPATCH_CENSUS) && TORIDRAW_DISPATCH_CENSUS
++    int dc_last_kernel;
++    int dc_uniform_kernel;
++    int dc_last_tex;
++    int dc_uniform_tex;
++#endif
+ };
+ 
+ /** Per-model raster counters: one bucket per skip reason plus drawn faces.
+@@ -372,15 +460,45 @@ toridraw_raster_coord_is_plane_mapped(
+     return false;
+ }
+ 
+-static inline void
++/**
++ * TORIDRAW_SKIP_TEXTURED, resolved once for the process.
++ *
++ * getenv() walks environ with a strncmp per entry, and the answer cannot change
++ * mid-run.  Kept out of the per-face path entirely -- see the call site.
++ */
++static int
++toridraw_raster_skip_textured(void)
++{
++    static int cached = -1;
++    if( cached < 0 )
++        cached = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
++    return cached;
++}
++
++/**
++ * `generic` is a COMPILE-TIME literal at every call site, never a variable.
++ *
++ * Measured on the moving-Lumbridge bench (900-frame run minus 450-frame run, so
++ * startup cancels): raster_debug was non-NULL for 0 of 586,160 models, and
++ * zbuffered for 0 of 586,160.  Both are none the less tested on every one of
++ * the 19,919 faces per frame that reach here, and -- worse -- their never-taken
++ * arms force GCC to canonicalise the stack slots of face_indices_a/b/c and
++ * vertex_x at each merge point, which is where 10 of the 54 stores on the hot
++ * gouraud path come from.  Passing 0 lets that whole half fold away; a model
++ * that really wants debug stats or z-buffering goes to the out-of-line generic
++ * clone instead, so neither feature changes.
++ */
++static inline __attribute__((always_inline)) void
+ ToriDraw_RasterModelFace(
+     int face,
+-    struct ToriDrawModelRasterContext* ctx)
++    struct ToriDrawModelRasterContext* ctx,
++    const int generic)
+ {
+     assert(face >= 0 && face < ctx->num_faces);
++    DC(faces_visited);
+ 
+     struct ToriDraw_Texture* texture = NULL;
+-    struct ToriDraw_RasterDebugStats* dbg = ctx->raster_debug;
++    struct ToriDraw_RasterDebugStats* dbg = generic ? ctx->raster_debug : NULL;
+ 
+     /* Render type is the raw byte (reference ModelData.light). 0=gouraud,
+      * 1=flat, 2=hidden, 3=black/hidden; any other value is also hidden. */
+@@ -391,6 +509,7 @@ ToriDraw_RasterModelFace(
+     {
+         if( dbg )
+             dbg->skipped_type++;
++        DC(skip_type);
+         return;
+     }
+     enum FaceType type = (enum FaceType)raw_type;
+@@ -432,6 +551,7 @@ ToriDraw_RasterModelFace(
+         // getModelFaces
+         if( dbg )
+             dbg->skipped_hidden++;
++        DC(skip_hidden);
+         return;
+         // color_c = 0;
+     }
+@@ -474,19 +594,28 @@ ToriDraw_RasterModelFace(
+      * A bisect knob for docs/qbd_toridraw_streaks_debug.md - it answers whether
+      * a given artifact comes from the textured span path or from
+      * gouraud/flat, without having to reason about which faces are which. */
++    /* `generic` only: the knob fired 0 times in 8,963,657 faces on the bench,
++     * yet its guarded-static load plus two tests sat on the per-face path.  The
++     * caller reads it once per model and sends every model down the generic
++     * clone when it is set, so setting it still drops exactly the same faces. */
++    if( generic && toridraw_raster_skip_textured() && texture_id != -1 )
+     {
+-        static int skip_textured = -1;
+-        if( skip_textured < 0 )
+-            skip_textured = getenv("TORIDRAW_SKIP_TEXTURED") ? 1 : 0;
+-        if( skip_textured && texture_id != -1 )
+-            return;
++        DC(skip_env);
++        return;
+     }
+     /* #endregion */
+ 
+     if( texture_id != -1 )
+     {
++        DC(textured);
++#if defined(TORIDRAW_DISPATCH_CENSUS) && TORIDRAW_DISPATCH_CENSUS
++        if( ctx->dc_last_tex >= -1 && ctx->dc_last_tex != texture_id )
++            ctx->dc_uniform_tex = 0;
++        ctx->dc_last_tex = texture_id;
++#endif
+         if( texture_id == ctx->cache_texture_id )
+         {
++            DC(tex_cache_hit);
+             texels = ctx->cache_texels;
+             texture_size = ctx->cache_texture_size;
+             texture_opaque = ctx->cache_texture_opaque;
+@@ -496,6 +625,7 @@ ToriDraw_RasterModelFace(
+                 goto textured;
+         }
+ 
++        DC(tex_cache_miss);
+         // gamma 0.8 is the default in os1
+         texture = (texture_id >= 0 && texture_id < TORIDRAW_TEXTURE_ID_CAPACITY)
+                       ? ToriDraw_TextureMapGet(ctx->texture_map, texture_id)
+@@ -505,6 +635,7 @@ ToriDraw_RasterModelFace(
+         // draw garbage; the reference skips the face too.
+         if( texture == NULL )
+         {
++            DC(skip_texmiss);
+             if( dbg )
+                 dbg->skipped_tex_miss++;
+             /* TORIRS_RASTER_TEX_DEBUG=1: tally skipped textured faces.
+@@ -562,6 +693,7 @@ ToriDraw_RasterModelFace(
+         {
+             if( dbg )
+                 dbg->skipped_alpha++;
++            DC(skip_alpha);
+             return;
+         }
+ 
+@@ -619,7 +751,7 @@ ToriDraw_RasterModelFace(
+         /* A z-buffered model routes every face here instead. The shades a flat
+          * face carries in colors_b/c are the TORIDRAWHSL16_FLAT selector, not
+          * colours, so it passes colors_a three times. */
+-        if( ctx->zbuffered )
++        if( generic && ctx->zbuffered )
+         {
+             bool const flat = type == FACE_TYPE_FLAT;
+ 
+@@ -649,6 +781,7 @@ ToriDraw_RasterModelFace(
+         case FACE_TYPE_GOURAUD:
+             if( (ctx->flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0 )
+             {
++                DC_KERNEL(ctx, DCK_GOURAUD_SMOOTH);
+                 ToriDraw_TriangleFaceGouraudSmooth(
+                     ctx->pixel_buffer,
+                     face,
+@@ -677,6 +810,7 @@ ToriDraw_RasterModelFace(
+             }
+             else
+             {
++                DC_KERNEL(ctx, DCK_GOURAUD);
+                 ToriDraw_TriangleFaceGouraud(
+                     ctx->pixel_buffer,
+                     face,
+@@ -708,6 +842,7 @@ ToriDraw_RasterModelFace(
+         case FACE_TYPE_FLAT:
+             // Skip triangle if any vertex was clipped
+ 
++            DC_KERNEL(ctx, DCK_FLAT);
+             ToriDraw_TriangleFaceFlat(
+                 ctx->pixel_buffer,
+                 face,
+@@ -787,7 +922,7 @@ ToriDraw_RasterModelFace(
+             assert(tm_vertex < ctx->num_vertices);
+             assert(tn_vertex < ctx->num_vertices);
+ 
+-            if( ctx->zbuffered )
++            if( generic && ctx->zbuffered )
+             {
+                 ToriDraw_TriangleFaceZBuffered(
+                     &ctx->zbuf_target,
+@@ -826,6 +961,7 @@ ToriDraw_RasterModelFace(
+ 
+             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 || complex_texture )
+             {
++                DC_KERNEL(ctx, DCK_TEX_AFFINE);
+                 ToriDraw_TriangleFaceTextureBlendAffineV3(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -859,6 +995,7 @@ ToriDraw_RasterModelFace(
+             }
+             else if( texture_opaque )
+             {
++                DC_KERNEL(ctx, DCK_TEX_OPAQUE);
+                 ToriDraw_TriangleFaceTextureBlendOpaque(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -891,6 +1028,7 @@ ToriDraw_RasterModelFace(
+             }
+             else
+             {
++                DC_KERNEL(ctx, DCK_TEX_TRANSP);
+                 ToriDraw_TriangleFaceTextureBlendTransparent(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -973,7 +1111,7 @@ ToriDraw_RasterModelFace(
+             assert(tm_vertex < ctx->num_vertices);
+             assert(tn_vertex < ctx->num_vertices);
+ 
+-            if( ctx->zbuffered )
++            if( generic && ctx->zbuffered )
+             {
+                 /* Flat-shaded: one lightness for the whole face. */
+                 ToriDraw_TriangleFaceZBuffered(
+@@ -1003,6 +1141,7 @@ ToriDraw_RasterModelFace(
+                 ctx->texture_render_types_nullable[texture_face] != 0;
+             if( (ctx->flags & RASTER_FLAG_TEXTURE_AFFINE) != 0 || complex_texture_flat )
+             {
++                DC_KERNEL(ctx, DCK_TEXFLAT_AFFINE);
+                 ToriDraw_TriangleFaceTextureFlatAffineV3(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -1034,6 +1173,7 @@ ToriDraw_RasterModelFace(
+             }
+             else if( texture_opaque )
+             {
++                DC_KERNEL(ctx, DCK_TEXFLAT_OPAQUE);
+                 ToriDraw_TriangleFaceTextureFlatOpaque(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -1064,6 +1204,7 @@ ToriDraw_RasterModelFace(
+             }
+             else
+             {
++                DC_KERNEL(ctx, DCK_TEXFLAT_TRANSP);
+                 ToriDraw_TriangleFaceTextureFlatTransparent(
+                     ctx->pixel_buffer,
+                     ctx->stride,
+@@ -1289,6 +1430,41 @@ toridraw_raster_face_front_facing(
+         ctx->vertex_y[c]);
+ }
+ 
++/**
++ * The debug / z-buffer walk, deliberately kept OUT of line.
++ *
++ * It is entered by 0 of 586,160 models on the bench, so every byte of it inside
++ * the hot function is a byte of Prescott trace cache spent on nothing.  The two
++ * loops are the same two the caller has; only `generic` differs.
++ */
++static void __attribute__((noinline))
++toridraw_raster_faces_generic(
++    struct ToriDraw_Scene* scene,
++    struct ToriDrawModelRasterContext* ctx,
++    bool unsorted)
++{
++    assert(scene);
++    assert(ctx);
++
++    if( unsorted )
++    {
++        for( int face = 0; face < ctx->num_faces; face++ )
++        {
++            if( !toridraw_raster_face_front_facing(ctx, face) )
++                continue;
++            ToriDraw_RasterModelFace(face, ctx, 1);
++        }
++    }
++    else
++    {
++        for( int i = 0; i < scene->tmp_face_order_count; i++ )
++        {
++            int face = scene->tmp_face_order[i];
++            ToriDraw_RasterModelFace(face, ctx, 1);
++        }
++    }
++}
++
+ static inline void
+ ToriDraw_RasterWithFaceIndices(
+     struct ToriDraw_Scene* scene,
+@@ -1353,25 +1529,70 @@ ToriDraw_RasterWithFaceIndices(
+     /* #region agent log */
+     ctx.ordered_faces = unsorted ? ctx.num_faces : scene->tmp_face_order_count;
+     /* #endregion */
++#if defined(TORIDRAW_DISPATCH_CENSUS) && TORIDRAW_DISPATCH_CENSUS
++    DC_INIT();
++    DC(models);
++    if( !ctx.face_infos )              DC(models_face_infos_null);
++    if( !ctx.face_alphas_nullable )    DC(models_alphas_null);
++    if( !ctx.texture_render_types_nullable ) DC(models_rendertypes_null);
++    if( !ctx.face_texture_coords )     DC(models_texcoords_null);
++    if( ctx.raster_debug )             DC(models_dbg);
++    if( ctx.zbuffered )                DC(models_zbuf);
++    if( ctx.near_clipped )             DC(models_nearclipped);
++    ctx.dc_last_kernel = -1;
++    ctx.dc_uniform_kernel = 1;
++    ctx.dc_last_tex = -2;
++    ctx.dc_uniform_tex = 1;
++#endif
+ 
+-    if( unsorted )
++    /* Two clones of the walk, chosen once per model, never once per face.  See
++     * the note on ToriDraw_RasterModelFace: `generic` has to arrive there as a
++     * literal or none of the folding happens. */
++    if( ctx.raster_debug || ctx.zbuffered || toridraw_raster_skip_textured() )
+     {
+-        for( int face = 0; face < ctx.num_faces; face++ )
+-        {
+-            if( !toridraw_raster_face_front_facing(&ctx, face) )
+-                continue;
+-            ToriDraw_RasterModelFace(face, &ctx);
+-        }
++        toridraw_raster_faces_generic(scene, &ctx, unsorted);
+     }
+     else
+     {
+-        for( int i = 0; i < scene->tmp_face_order_count; i++ )
++        /* `lctx` is the same context, but its address never reaches a function
++         * GCC cannot see through -- ToriDraw_RasterModelFace is always_inline
++         * and nothing else takes it.  `ctx` itself escapes into
++         * context_from_handle and toridraw_raster_faces_generic, so every one
++         * of its fields has to be treated as clobbered by each kernel call:
++         * that is where the 24-instruction ctx-to-canonical-slot copy block at
++         * the head of every face comes from.  Through lctx the copy is loop
++         * invariant and hoists out.
++         *
++         * Same reason for `order` / `order_count`: scene->tmp_face_order was a
++         * two-deep dependent load at the top of each of the 19,919 faces per
++         * frame, and the count a third load at the bottom, purely because a
++         * kernel writing through pixel_buffer might have aliased scene. */
++        struct ToriDrawModelRasterContext lctx = ctx;
++        int const* const order = scene->tmp_face_order;
++        int const order_count = scene->tmp_face_order_count;
++        int const num_faces = ctx.num_faces;
++
++        if( unsorted )
+         {
+-            int face = scene->tmp_face_order[i];
+-            ToriDraw_RasterModelFace(face, &ctx);
++            for( int face = 0; face < num_faces; face++ )
++            {
++                if( !toridraw_raster_face_front_facing(&lctx, face) )
++                    continue;
++                ToriDraw_RasterModelFace(face, &lctx, 0);
++            }
++        }
++        else
++        {
++            for( int i = 0; i < order_count; i++ )
++                ToriDraw_RasterModelFace(order[i], &lctx, 0);
+         }
+     }
+ 
++#if defined(TORIDRAW_DISPATCH_CENSUS) && TORIDRAW_DISPATCH_CENSUS
++    if( ctx.dc_uniform_kernel ) DC(models_uniform_kernel);
++    if( ctx.dc_uniform_tex )    DC(models_uniform_tex);
++#endif
++
+     if( ctx.raster_debug )
+         toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
+ }

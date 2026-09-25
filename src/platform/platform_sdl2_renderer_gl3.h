@@ -4,7 +4,8 @@
 #include "render/torirs_pick.h"
 #include "render/torirs_render.h"
 
-#include <SDL.h>
+#include "platform/client_scale.h"
+#include "platform/platform_gl_context.h"
 #include <stdbool.h>
 
 struct ToriDraw_Scene;
@@ -12,23 +13,44 @@ struct ToriRS_Frame;
 
 #define TORIRS_GL3_BG 0xFF202428
 
-struct ToriRS_GL3;
+struct ToriPlatformSDL2_Renderer_GL3;
 
-struct ToriRS_GL3*
-ToriRS_GL3_New(int width, int height);
+struct ToriPlatformSDL2_Renderer_GL3*
+ToriPlatformSDL2_Renderer_GL3_New(int width, int height);
 
 void
-ToriRS_GL3_Free(struct ToriRS_GL3* gl3);
+ToriPlatformSDL2_Renderer_GL3_Free(struct ToriPlatformSDL2_Renderer_GL3* gl3);
 
 /** Point the renderer at a new canvas size (client resize). Only the GL
  *  viewport and the 2D ortho projection depend on it — the atlases, VBO pool
  *  and pose table are size-independent, so nothing is reallocated. No-op when
  *  the size is unchanged. */
 void
-ToriRS_GL3_SetViewport(
-    struct ToriRS_GL3* gl3,
+ToriPlatformSDL2_Renderer_GL3_SetViewport(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     int width,
     int height);
+
+void
+ToriPlatformSDL2_Renderer_GL3_SetInterfaceScaleMode(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    int mode);
+
+/** Stretch mode, pixel limit and output filter; read at the next frame. */
+void
+ToriPlatformSDL2_Renderer_GL3_SetClientScaling(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    struct ClientScaleSettings const* settings);
+
+/** Reserve drawable pixels at the trailing edge for application chrome. */
+void
+ToriPlatformSDL2_Renderer_GL3_SetHostRightInset(struct ToriPlatformSDL2_Renderer_GL3* gl3, int pixels);
+
+/** Upload and composite one retained top-down ARGB ToriRSChrome surface into
+ * the reserved trailing pane. No-op when pixels/size are absent. */
+void
+ToriPlatformSDL2_Renderer_GL3_DrawChromePixels(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3, int const* pixels, int width, int height);
 
 /**
  * Bring up the GL context and the renderer's resources.
@@ -41,27 +63,66 @@ ToriRS_GL3_SetViewport(
  * and the opaque face-distance sort.
  */
 bool
-ToriRS_GL3_Init(
-    struct ToriRS_GL3* gl3,
-    SDL_Window* window,
+ToriPlatformSDL2_Renderer_GL3_Init(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    ToriPlatform_GLWindow* window,
     struct ToriDraw_Scene* scene,
     bool z_buffer);
 
 void
-ToriRS_GL3_SetPick(struct ToriRS_GL3* gl3, int mouse_x, int mouse_y);
+ToriPlatformSDL2_Renderer_GL3_SetPick(struct ToriPlatformSDL2_Renderer_GL3* gl3, int mouse_x, int mouse_y);
 
 void
-ToriRS_GL3_RenderFrame(struct ToriRS_GL3* gl3, struct ToriRS_Frame* frame);
+ToriPlatformSDL2_Renderer_GL3_RenderFrame(struct ToriPlatformSDL2_Renderer_GL3* gl3, struct ToriRS_Frame* frame);
 
 void
-ToriRS_GL3_Execute(
-    struct ToriRS_GL3* gl3,
+ToriPlatformSDL2_Renderer_GL3_Execute(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
     struct ToriRS_RenderCommand const* cmd);
 
+/**
+ * The startup progress bar, before there is a frame to build.
+ *
+ * `progress` < 0 clears without a bar (the post-login loading screen). The
+ * caption is drawn either way, so the text-only screen still carries its
+ * sentence; pass caption NULL / caption_font_id < 0 for none. Both come from
+ * App_BootBarCaption -- the font id is a SCENE font id, resolved out of the
+ * scene this renderer was initialised with, so the app must have registered
+ * the face before the id means anything here.
+ */
 void
-ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress);
+ToriPlatformSDL2_Renderer_GL3_DrawBootBar(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    int progress,
+    int caption_font_id,
+    char const* caption);
 
 struct ToriRS_PickHits const*
-ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3);
+ToriPlatformSDL2_Renderer_GL3_PickHits(struct ToriPlatformSDL2_Renderer_GL3 const* gl3);
+
+/**
+ * Read the presented frame back off the device into `pixels`, top-down ARGB.
+ *
+ * `width`/`height` are the CANVAS size, not the window's: the frame fills only
+ * its client-scale output rect, at the display's DPI, or a smaller scale FBO
+ * when the pixel limit applies, so the readback is sampled back down onto the
+ * canvas grid the rest of the client thinks in. That is what makes a GPU
+ * capture the same size as a software one.
+ *
+ * Call it AFTER the buffer swap: without the scale FBO it reads GL_FRONT, the
+ * buffer the swap moved the frame into (RuneLite's pairing). With the FBO it
+ * reads the FBO, which holds the last frame until the next one draws. Returns
+ * false when there is no context to read.
+ *
+ * This is a pipeline stall and is meant to be called rarely: the app asks for
+ * it only when a capture is actually pending (App_DrawComplete), the same way
+ * RuneLite's DrawManager only invokes its supplier when a listener is queued.
+ */
+bool
+ToriPlatformSDL2_Renderer_GL3_ReadPixels(
+    struct ToriPlatformSDL2_Renderer_GL3* gl3,
+    int* pixels,
+    int width,
+    int height);
 
 #endif

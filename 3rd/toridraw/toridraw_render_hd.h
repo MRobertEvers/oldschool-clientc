@@ -19,7 +19,13 @@
  *
  *   projection   texture_render_types[coord]: 0 plane, 1 cylinder, 2 cube,
  *                3 sphere. Types 1-3 need a mapping, which is why they are only
- *                reachable from a TORIDRAWMK_MODEL_HD handle.
+ *                reachable from a TORIDRAWMK_MODEL_HD handle. Type 0 is drawn
+ *                by `texpmn` — the P/M/N frame projected along its own normal,
+ *                as the HD reference does — and NOT by the stock `texplane`
+ *                eye-ray walk, which is only right when the face lies in the
+ *                frame's plane. HD content routinely does not; the result was a
+ *                texture that slid across its face as the camera turned. See
+ *                toridraw_texmap_project_plane in texmap_common.h.
  *   gate         the material's: every texel / colour key / per-texel alpha.
  *   facealpha    the face's own alpha byte, when it has one.
  *   modulate     the material's: tint the shaded texel by the face colour.
@@ -35,6 +41,7 @@
  */
 
 struct ToriDraw_Scene;
+struct ToriDraw_RasterKernelHD;
 
 /** How a material's texels decide coverage. */
 enum ToriDraw_HDGate
@@ -96,6 +103,7 @@ struct ToriDraw_HDRenderStats
 {
     int faces;
     int drawn_untextured;
+    /** Render type 0 — the P/M/N frame, drawn by `texpmn`. */
     int drawn_plane;
     int drawn_cylinder;
     int drawn_cube;
@@ -103,7 +111,7 @@ struct ToriDraw_HDRenderStats
     /** Textured faces whose material had no texels; drawn as flat colour. */
     int fallback_no_texels;
     /** Faces a mapped render type named, on a model with no mappings; drawn
-     *  through the plane kernel, which is wrong but visible. */
+     *  through the frame kernel, which is wrong but visible. */
     int fallback_no_mapping;
     int skipped_hidden;
     int skipped_alpha;
@@ -216,6 +224,74 @@ ToriDraw_RenderHD(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats);
+
+/* Render through a complete per-call HD kernel, satisfying the face-sort and
+ * depth-buffer requirements in `kernel->flags`. */
+int
+ToriDraw_RenderHDWithRasterKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    const struct ToriDraw_RasterKernelHD* kernel);
+
+/**
+ * The same render, resolved per pixel instead of per face.
+ *
+ * Draws through the depth-tested twin of every kernel above, and — the part that
+ * is not just "z-buffered ToriDraw_RenderHD" — **does not sort the faces at
+ * all**. No depth buckets, no `face_priorities`, no `model_priority`: faces are
+ * drawn in the order the model stores them and the z-buffer decides what is
+ * visible. Back-facing faces are still culled, because the face sort is what
+ * used to do that and there is no face sort here.
+ *
+ * ## When this is the right entry point
+ *
+ * A model whose parts interpenetrate cannot be drawn correctly by ANY ordering
+ * of whole faces, and one imported from a client whose priority bytes mean
+ * something else is worse off still — the sort then actively enforces a wrong
+ * order. Both are exactly the cases where throwing the order away is an
+ * improvement rather than a loss.
+ *
+ * It is not free and it is not a drop-in for the game path: the reference's
+ * layering rules live in the sort, so a model that was authored against them
+ * (a cape over a body, a face over a hood) will lose them here. Between MODELS
+ * nothing changes — the scene's painter order still applies, and the buffer is
+ * reset per model.
+ *
+ * The scene needs no TORIDRAW_SCENE_MODEL_ZBUFFER flag and the model needs no
+ * TORIDRAW_MODEL_FLAG_ZBUFFER: calling this is the opt-in, and the depth scratch
+ * is sized on the first call. Same arguments, same return value and the same
+ * per-face stats as ToriDraw_RenderHD.
+ */
+int
+ToriDraw_RenderHDZBuffered(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats);
+
+/* The explicit kernel must require a z-buffer. Its face-sort flag is still
+ * honored; the compatibility function above uses a model-order Z kernel. */
+int
+ToriDraw_RenderHDZBufferedWithRasterKernel(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    const struct ToriDraw_RasterKernelHD* kernel);
 
 /**
  * Build the per-face-group mappings for an HD model from a decoder's raw

@@ -237,6 +237,7 @@ LibToriRS_Input_PushMouseDown(
         return;
     input->curr.mouse_x = x;
     input->curr.mouse_y = y;
+    input->mouse_pointer_absent = 0;
     input->curr.mouse_button_down[button] = 1;
     input->mouse_button_held[button] = 1;
     input->press_origin_x[button] = x;
@@ -258,6 +259,7 @@ LibToriRS_Input_PushMouseUp(
         return;
     input->curr.mouse_x = x;
     input->curr.mouse_y = y;
+    input->mouse_pointer_absent = 0;
     input->curr.mouse_button_up[button] = 1;
 
     if( input->mouse_button_held[button] )
@@ -315,8 +317,17 @@ LibToriRS_Input_PushMouseMove(
     assert(input);
     input->curr.mouse_x = x;
     input->curr.mouse_y = y;
+    /* A pointer that moves is a pointer that is there. */
+    input->mouse_pointer_absent = 0;
     for( int b = TORIRSM_LEFT; b < TORIRSM_COUNT; b++ )
         try_start_drag(input, (enum LibToriRS_MouseButton)b);
+}
+
+void
+LibToriRS_Input_PushMouseLeave(struct LibToriRS_Input* input)
+{
+    assert(input);
+    input->mouse_pointer_absent = 1;
 }
 
 void

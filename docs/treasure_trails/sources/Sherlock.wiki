@@ -1,0 +1,73 @@
+{{Infobox NPC
+|name = Sherlock
+|image = [[File:Sherlock.png|110px]]
+|release = [[12 June]] [[2014]]
+|update = Treasure Trail Expansion
+|members = Yes
+|race = [[Human]]
+|location = East of [[Sorcerer's Tower]]
+|gender = Male
+|options = Talk-to
+|examine = Master of all clues.
+|map = {{Map|name=Sherlock|x=2733|y=3413|plane=0|r=5|mtype=square}}
+|id = 6586
+|leagueRegion = Kandarin
+}}
+[[File:Sherlock chathead.png|left]]
+'''Sherlock''' is the [[Treasure Trails]] master, who players must speak to if their [[Clue scroll (elite)|elite]] or [[Clue scroll (master)|master]] clue directs them to do so. He can be found wandering the woodland between the [[Sorcerer's Tower]] and [[Keep Le Faye]]. 
+
+==Transportation==
+*Using the teleport option of the [[Kandarin headgear 3]] or [[Kandarin headgear 4]].
+*Using the [[Quest cape|Quest Cape]] to teleport outside of the [[Legends' Guild]] then heading north above the guild.
+*[[Fairy ring]] code {{Fairycode|blr}} to teleport south-east of the [[Legends' Guild]] then heading north above the guild.
+*[[Skills necklace]] teleport option to the [[Fishing Guild]] and heading east
+*[[Combat bracelet]] teleport option to the [[Ranging Guild]] and heading east
+*[[Camelot teleport]] to Seers' village and head south
+*[[Ardougne cloak 2|Ardougne Cloak 2]] or higher to the [[Ardougne farm]] patch and heading north-east
+
+==Description==
+Sherlock will assign players a skill challenge, which may consist of one of the following ([[temporary skill boost]]s may be used where applicable). Once complete, he will give players their next clue or reward.
+
+Note that for the skill challenge to count as completed, the [[Challenge scroll#Elite|challenge scroll]] '''must be held in the inventory''' when the action is performed. If the challenge is completed but the challenge scroll is not in the player's inventory, it will not be counted and the player must do it again with the challenge scroll in their inventory.
+
+==Elite skill challenges==
+{{:Sherlock/Elite}}
+
+==Master skill challenges==
+{{:Sherlock/Master}}
+
+==Dialogue==
+{{hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|change = Sherlock no longer requires you to use a clue scroll on him in order to get a challenge scroll. You can now simply talk to Sherlock with your clue scroll in your inventory. 
+}}
+{{Subject changes
+|date = 17 September 2015
+|update = Angler's Outfit & Slayer
+|change = The 'Wedge' now tells you the correct amount of teleports to Sherlock for completing the Elite Kandarin diary in his reward dialogue.
+}}
+{{Subject changes
+|date = 23 July 2015
+|update = Big Cats & WWF 
+|change = Sherlock's scarf will no longer be visible through the back of the NPC and his waist line will no longer be transparent.
+}}
+{{Subject changes
+|date = 12 March 2015
+|update = Diary Skillcape Emote
+|change = Crafting anything with leather no longer completes an elite skill challenge.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The character is a reference to Arthur Conan Doyle's character [[wikipedia:Sherlock_Holmes|Sherlock Holmes]].
+*When your character observes that he has no shirt on, he will reply with "''No shirt, Sherlock''". This is a play on the phrase "''[[wiktionary:no shit, Sherlock|no shit, Sherlock]]''", an insult used when somebody points out an obvious fact.
+*When using an item on Sherlock, he'll say: "That's nice, but... I don't really need one of those."
+
+{{Treasure Trails}}
+[[Category:Achievement diaries]]
+[[Category:Kandarin]]

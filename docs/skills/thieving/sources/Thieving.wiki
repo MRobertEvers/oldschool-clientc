@@ -1,0 +1,654 @@
+{{External|rs|rsc}}
+{{Otheruses|def=no|a list of all requirements and unlockables within the Thieving skill|Thieving/Level up table}}
+{{Has calculator|Calculator:Thieving}}
+{{Has skill guide|members=Thieving training|iron=Ironman Guide/Thieving|UIM=Ultimate Ironman Guide/Thieving}}
+{{Infobox Skill
+|name = Thieving
+|image = [[File:Thieving icon.png]]
+|release = [[30 April]] [[2002]]
+|update = Latest RuneScape News (30 April 2002)
+|members = Yes
+|type = Utility
+}}
+[[File:Thieving icon (detail).png|left]]
+'''Thieving''' is a [[members]]-only [[skill]] which allows players to obtain [[coins]] and items by stealing from market stalls, [[chest]]s, or by [[pickpocketing]] [[non-player character]]s. This skill also allows players to unlock [[door]]s and disarm traps.
+
+{{Listen
+|align = right
+|title = [[Thieving Level Up!]]
+|filename = Thieving Level Up!.ogg
+|desc = The music that plays when levelling up.}}
+
+{{Listen
+|align = right
+|title = [[Thieving Level Up! (Unlocks)]]
+|filename = Thieving Level Up! (Unlocks).ogg
+|desc = The music that plays when levelling up and unlocking new content.}}
+
+==Pickpocketing==
+[[File:Pickpocket.gif|150px|thumb|A player pickpocketing a guard.]]
+Pickpocketing is the act of walking up to an [[NPC]] and right-clicking them, then selecting ''Pickpocket''. A successful pickpocket grants Thieving [[experience]] and loot. Failing a pickpocket will make the NPC damage the player and [[Stun (status)|stun]] them for several seconds. Because of the possibility for damage, bring [[food]] to heal the damage taken.
+
+Coins obtained via pickpocketing are obtained via [[coin pouch]]es. Players can have a stack of up to 28 coin pouches in their inventory, after which they must open them before they can pickpocket more. Players can quickly open a stack of coin pouches with a single left-click. After completion of the [[Medium Ardougne Diary|Medium Ardougne Achievement Diaries]] players are able to stack more than 28 pouches, increasing to 56, 84, and 140 after completion of the medium, hard, and elite Ardougne Diaries respectively.
+
+NPCs may be pickpocketed every two ticks (1.2 seconds). There is no need to wait until the pickpocket animation is finished before pickpocketing again. Another attempt may be performed as soon as the sound of the item entering the player's [[inventory]] is played and the experience is given.
+
+Being stunned prevents the player from moving for nine ticks (5.4 seconds), and from further pickpocketing for eight ticks (4.8s). Eating food while stunned will extend the time before the player can pickpocket again by the food's attack delay. To avoid losing time because of this delay, time eating directly after successfully pickpocketing. Since every pickpocket will take on average <math display="inline">2+8(1-p)=10-8p</math> ticks (based on the success chance, p), the actual amount of pickpockets in n ticks will be <math display="inline">\frac{np}{10-8p}</math> . In the same matter to gave s successful pickpockets it will take <math display="inline">\frac{s(10-8p)}{p}</math> .
+
+A useful trick that allows pickpocket spamming is by going to the Controls (Joystick) settings tab and changing the attack option priority to 'Always right-click'. This effectively changes the left-click option from "Attack" to "Pickpocket" for most NPCs. To avoid accidentally attacking NPCs, the player can also equip a [[bow]] without [[arrows]].
+
+For NPCs with a right-click "Pickpocket" option unaffected by the previous tip, such as [[elf (Thieving)|elves]], the player may change their game client layout to "Resizable", then orient their camera so that the NPC is close to the bottom of their screen. In the correct position, the player should be able to right-click to open the interaction menu, then left-click to pickpocket without moving their mouse down to select the option.
+
+===Equipment===
+Wearing certain [[armour|equipment]] grants benefits to pickpocketing. 
+
+*The [[Rogue equipment|rogue outfit]] grants a chance of getting double loot when pickpocketing NPCs. Wearing the full set guarantees getting double loot. It does not increase success rate.
+*The [[gloves of silence]] increases the success rate of pickpocketing by 5%. Degrade, but can be repaired. Requires [[Hunter]] level 54 to wear.
+*[[Dodgy necklace]] provides a 25% chance to avoid being stunned and taking damage when failing a pickpocket. Each necklace has 10 charges.
+*The [[Thieving cape]] (and by extension, the [[Max cape]]) will provide an additional 10% chance of being successful when pickpocketing NPCs.
+*While wearing parts of [[H.A.M. robes|H.A.M. outfit]], players are less likely to be kicked out of the [[H.A.M. Hideout]] when failing to pick the pockets of H.A.M. members. This does not increase pickpocketing success rates, however.
+
+===Other effects===
+The [[Shadow Veil]] spell from the [[Arceuus spellbook]] provides a 15% chance to avoid being stunned and taking damage when failing a pickpocket. Requires [[Magic]] level 47 and duration scales with Magic level.
+
+Completing the [[medium Ardougne Diary]] grants a 10% increased success rate for pickpocketing NPCs in [[Ardougne]]. This bonus is extended to all NPCs around [[Gielinor]] after completing the [[hard Ardougne Diary]]. The Ardougne cloak '''does not''' need to be equipped or be in the inventory to get this bonus.
+
+===Thievable NPCs===
+This table shows information about all pickpocketable NPCs. The Fail level column indicates at which level players will stop failing attempts to pickpocket the NPC, given that the [[Ardougne Diary#Hard|Hard Ardougne diary]] has been completed (or the [[Ardougne Diary#Medium|Medium Ardougne diary]] has been completed while pickpocketing within [[Ardougne]]). Loot from these NPCs is located on their respective pages.
+{| class="wikitable sortable align-center-1"
+!colspan="2"| Name
+!{{SCP|Thieving}} Level
+![[Experience|XP]]
+!{{plinkp|Ardougne cloak 3}} 100% success lvl
+![[Stun (status)|Stun]] damage 
+!Notes
+|-
+|{{plinkt|Man|pic=Thief Man}}/[[Woman]]/[[Citizen (Civitas illa Fortis)|Citizen]]
+| 1 || 8 || 85 || 1
+| Found all around [[Gielinor]].
+|-
+|{{plinkt|Farmer|pic=Thief Farmer}}
+|10 || 14.5 || 90 || 1
+|Commonly found in [[Lumbridge]] farms and north of [[Ardougne]].
+|-
+|{{plinkt|H.A.M. Member|pic=Thief Ham (Woman)}}
+|15 || 22.2 || 91 || 1-3
+|Wearing [[H.A.M. clothing]] reduces chances of being jailed, but does not increase the success rate.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/751400357473947648|date=8 July 2016|archiveurl=https://reldo.runescape.wiki/i/97065|archivedate=20 December 2019|quote=HAM kit doesn't reduce getting caught, but each piece makes you slightly less likely to be ejected after being caught.|name=ham}}<br/>Also drops [[easy clue scroll]]s commonly.
+|-
+|{{plinkt|Warrior (Thieving)|pic=Thief Warrior|txt=Warrior}}/[[Al Kharid warrior]]
+|25 || 26 || 93 || 2
+|Warriors are commonly found in [[East Ardougne]], as well in the back of the [[Varrock Palace]].
+|-
+|{{chatlp|Digsite workman|pic=Digsite workman (1) chathead}} || [[Digsite workman]]
+|25 || 10.4 || ''Unknown'' || 1
+|Pickpocketing workmen is twice as slow as pickpocketing any other NPC.
+|-
+|{{plinkt|Villager|pic=Thief Villager}}
+|30 || 8 || ''Unknown'' || 2
+|Partial completion of {{SCP|Quest}} [[The Feud]] to use [[blackjack]]s.
+|-
+|{{plinkt|Rogue|pic=Thief Rogue}}
+|32 || 36.5 || 94 || 2
+|Found deep in [[Wilderness]] south-west of [[Mage Arena]] or in far north-east wilderness at [[Rogues' Castle]].
+|-
+|{{plinkt|Cave goblin (Dorgesh-Kaan)|pic=Thief Cave goblin|txt=Cave goblin}}
+|36 || 40 || ''Unknown'' || 1
+|Found in [[Dorgesh-Kaan]] after completion of {{SCP|Quest}} [[Death to the Dorgeshuun]].
+|-
+|{{plinkt|Master Farmer|pic=Thief Master farmer}}
+|38 || 43 || 94 || 3
+|Rarity of the seed increases with [[Farming]] level.
+|-
+|{{plinkt|Guard|pic=Thief Guard}}
+|40 || 46.8 || 95 || 2
+|
+|-
+|{{plinkt|Fremennik Citizen|pic=Thief Fremennik}}
+|45 || 65 || ''Unknown'' || 2
+|Must complete {{SCP|Quest}} [[The Fremennik Trials]].
+|-
+|{{plinkt|Bearded Pollnivnian Bandit|pic=Thief Pollnivnian bandit}}
+|45 || 65 || ''Unknown'' || 5
+|Partial completion of {{SCP|Quest}} [[The Feud]] to use [[blackjack]]s.
+|-
+|{{plinkt|Wealthy citizen|pic=Thief Wealthy citizen|txt=Wealthy citizen}}
+|50 || 96 || {{NA}} || 3
+|Can be pickpocketed consecutively with a single click when distracted by street urchins nearby.<br/>Also drops [[easy clue scroll]]s fairly commonly.
+|-
+|{{plinkt|Bandit (Bandit Camp)|pic=Thief Desert bandit|txt=Desert Bandit}}
+|53 || 79.4 || 95 || 3
+|
+|-
+|{{plinkt|Knight of Ardougne|pic=Thief Knight}}/[[Knight of Varlamore]]
+|55 || 84.3 || 95 || 3
+|Knights of Varlamore require completion of {{SCP|Quest}} [[Children of the Sun]] to access [[Varlamore]].
+|-
+|{{plinkt|Bandit (Pollnivneach)|pic=Thief Pollnivnian bandit|txt=Pollnivnian Bandit}}
+|55 || 84.3 || ''Unknown'' || 5
+|Partial completion of {{SCP|Quest}} [[The Feud]] to use [[blackjack]]s.
+|-
+|{{plinkt|Pirate (Thieving)|pic=Thief Pirate|txt=Pirate}}
+|60 || 72 || {{NA}} || 3
+|
+|-
+|{{plinkt|Watchman (Yanille)|pic=Thief Watchman|txt=Yanille Watchman}}
+|65 || 137.5 || {{NA}} || 3
+|
+|-
+|{{plinkt|Menaphite Thug|pic=Thief Menaphite thug}}
+|65 || 137.5 || {{NA}} || 5
+|Partial completion of {{SCP|Quest}} [[The Feud]] to use [[blackjack]]s.
+|-
+|{{plinkt|Paladin|pic=Thief Paladin}}
+|70 || 131.8 || {{NA}} || 3
+|Also drops [[hard clue scroll]]s rarely.
+|-
+|{{plinkt|Gnome|pic=Thief Gnome}}
+|75 || 133.3 || {{NA}} || 1
+|Also drops [[medium clue scroll]]s uncommonly.
+|-
+|{{plinkt|Hero|pic=Thief Hero}}
+|80 || 163.3 || {{NA}} || 3
+|Also drops [[elite clue scroll]]s very rarely.
+|-
+|{{plinkt|Vyre (Thieving)|pic=Vyre icon|txt=Vyre}}
+|82 || 306.9 || {{NA}} || 5
+|Completion of {{SCP|Quest}} [[Sins of the Father]] to access [[Darkmeyer]].
+|-
+|{{plinkt|Elf (Thieving)|pic=Thief Elf|txt=Elf}}
+|85 || 353.3 || {{NA}} || 5
+|Partial completion of {{SCP|Quest}} [[Mourning's End Part I]] to access [[Lletya]].
+(However, only elves in [[Prifddinas]], which requires  {{SCP|Quest}} [[Song of the Elves]], drop [[Enhanced crystal teleport seed|enhanced teleport seeds]].)
+|-
+|{{plinkt|TzHaar-Hur|pic=Thief TzHaar-Hur}}
+|90 || 103.4 || {{NA}} || 4
+|Requires a {{plink|Fire cape}} to access the inner city of [[Mor Ul Rek]]. [[Ice gloves]] are recommended to reduce damage taken.
+|}
+{{Reflist}}
+
+==Stalls==
+[[File:Silk stall.png|thumb|An example of a [[silk]] stall found in the [[East Ardougne]] marketplace.|183x183px]]There are a large number of stalls throughout [[Gielinor]], many of which can be found in the [[Ardougne Market]]. Unlike pickpocketing, stealing from stalls has a 100% success rate as long as you are not in the line of sight of the stall owner or any of the nearby [[guards]]. If you are, the stall owner will call over a guard who will begin to attack you. 
+
+After successfully stealing from a stall, their respective owners will refuse to interact with the player until 10 consecutive in-game minutes have passed since the last theft from their stall. Time passed while logged out does not count toward removing this restriction. This extends to any NPC that owns the same type of stall, not just the one you stole from.
+
+Multiple players can steal from the same stall, provided they do so on the same [[game tick]]. 
+
+===Thievable stalls===
+{{:Stall/Thievable}}
+
+==Chests==
+There are many [[chest]]s scattered throughout [[Gielinor]]. Some chests will have traps on them, which must be disarmed before looting them. To disarm a trap, select the "Search for traps" option from the drop-down menu.
+
+After a player steals from a chest, they will need to wait before they can do so again. If "Search for traps" is not selected when attempting to open a trapped chest, the player will attempt to open the chest and take damage; this damage scales off of your current health down to a minimum.
+===Thievable chests===
+''Loot from these chests is located on their respective pages.''
+{| class="wikitable sortable align-center-1"
+! colspan=2 |Chest!!{{SCP|Thieving}} Level!![[Experience]]!!Location(s)!!Respawn Time
+|-
+|{{plinkt|Chest (Underwater)|pic=Glistening tear 5|txt=Underwater Agility and Thieving chest}}||1||4.5||[[Underwater]]||?
+|-
+|{{plinkt|Chest (10 coins)|pic=Coins|txt=10 coin chest}}||13||7.8||[[East Ardougne]], [[Magic axe hut]], [[Pirates' Hideout]], [[Rellekka]], [[Rogues' Den]]||3.5 seconds
+|-
+|{{plinkt|Chest (nature runes)|pic=Nature rune|txt=Nature rune chest}}{{Refn|Disabled in [[ Deadman_Mode#In_seasonal_events|seasonal Deadman Modes]].|group=t}}||28||25||[[East Ardougne]], [[Pirates' Hideout]], [[Rellekka]]||8 seconds
+|-
+|{{plinkt|Chest (Isle of Souls Dungeon)|pic=Dark key|txt=Isle of Souls chest}}||28||150||[[Isle of Souls Dungeon]]||1.2 seconds
+|-
+|{{plinkt|Rusty chest|pic=Bronze cannonball|txt=Rusty pirate chest}}||33||90||[[Dognose Island]], [[Vatrachos Island]]||0 seconds
+|-
+|{{plinkt|Chest (Aldarin Villas)|pic=Eclipse red|txt=Aldarin Villas chest}}||36||200||[[Aldarin]]||1.8 seconds
+|-
+|{{plinkt|Chest (50 coins)|pic=Coins|txt=50 coin chest}}||43||125||[[Ardougne]], [[Mourner Tunnels]], [[Pirates' Hideout]]||45 seconds
+|-
+|{{plinkt|Chest (steel arrowtips)|pic=Steel arrowtips|txt=Steel arrowtips chest}}||47||150||[[Hemenster]], [[Rellekka]], [[Mourner Tunnels]]||75 seconds
+|-
+|{{plinkt|Chest (Dorgesh-Kaan Average)|pic=Oil lamp|txt=Dorgesh-Kaan average chest}}||52||200||[[Dorgesh-Kaan]]||90 seconds
+|-
+|{{plinkt|Tarnished chest|pic=Cannonball|txt=Tarnished pirate chest}}||54||122.5||[[The Crown Jewel]], [[Shimmering Atoll]]||0 seconds
+|-
+|{{plinkt|Chest (blood runes)|pic=Blood rune|txt=Blood runes chest}}||59||250||[[Chaos Druid Tower]]||120 seconds
+|-
+|{{plinkt|Stone chest|pic=Xerician fabric}}||64||280||[[Lizardman Temple]]||0 seconds
+|-
+|{{plinkt|Chest (Ardougne Castle)|pic=Raw shark|txt=Ardougne Castle chest}}||72||500||[[Ardougne Castle]]||240 seconds
+|-
+|{{plinkt|Reinforced chest|pic=Adamant cannonball|txt=Reinforced pirate chest}}||76||182.5||[[Ynysdail]], [[Brittle Isle]]||0 seconds
+|-
+|{{plinkt|Chest (Dorgesh-Kaan Rich)|pic=Uncut sapphire|txt=Dorgesh-Kaan rich chest}}||78||650||[[Dorgesh-Kaan]]||300 seconds
+|-
+|{{plinkt|Chest (Rogues' Castle)|pic=Dragonstone|txt=Rogues' Castle chest}}||84||701.7||[[Rogues' Castle]]||20.4 seconds
+|}
+{{Reflist|group=t}}
+
+==Doors==
+Certain [[door]]s cannot be opened by players unless the lock is picked. To pick a lock, right-click on a door and select "Pick Lock". If the player has the required Thieving [[level]], the door will open. Some doors will require a [[lockpick]] to successfully pick the lock.
+
+===Pickable doors===
+{| class="wikitable sortable"
+!Door!!Level!!Exp.!!Lockpick!!Location
+|-
+|Door to 10 Coin Chest||1||3.8||No||[[East Ardougne]]; the door to the empty house east of the east Baker's Stall
+|-
+|[[Door (H.A.M. Hideout Jail)|H.A.M. Jail Door]]||1||4||No||[[H.A.M. Hideout]]
+|-
+|[[Trapdoor (H.A.M. Hideout)|H.A.M. Trapdoor]]||1||4||No||East of [[Draynor]]
+|-
+|[[Door (Ross' House)|Door to Ross's House]]||13||15||No||[[East Ardougne]]; the door to the house with the [[File:Cooking range icon.png]] just south of the north bank
+|-
+|Door to Nature Rune Chest||16||15||No||[[East Ardougne]]; the door to the empty house just east of the Gem Stall
+|-
+|[[Door (Magic axe hut)|Magic Axe Hut Door]]||23||22.5||Yes||Level 54 [[Wilderness]]; north-east of the [[Ardougne lever]]
+|-
+|[[Gate (Ardougne Sewers)|Ardougne Sewers Gate]]||31||25||No||[[Ardougne Sewers]]
+|-
+|[[Door (Pirates' Hideout)|Pirates' Hideout Door]]||39||35||Yes||Level 54 [[Wilderness]]; west of the [[Mage Arena]]
+|-
+|[[Door (Chaos Druid Tower)|Chaos Druid Tower Door]]||46||37.5||No||The [[Chaos Druid Tower]] north of Ardougne
+|-
+|[[Gate (Underground Pass Shortcut)|Underground Pass Gate]]||50||3||No||[[Underground Pass (dungeon)|Underground Pass]]
+|-
+|[[Ancient Gate]]||50||10||Yes||[[Shaman Caves]]
+|-
+|[[Grubby Door]]||57||10||No||[[Forthos Dungeon]]
+|-
+|[[Door (Ardougne Castle)|Ardougne Castle door]]||61||50||No||[[Ardougne Castle]]
+|-
+|[[Door (Yanille Dungeon)|Yanille Dungeon Door]]||82||50||Yes||[[Yanille]]
+|}
+
+==Other==
+{| class="wikitable sortable"
+!Name!!Level!!Exp.!!Possible Loot!![[Stun (status)|Stun]] Time (seconds)!![[Stun (status)|Stun]] Damage
+|-
+|Steal cowbells from [[dairy cow]]s
+|15
+|16
+|[[Cowbells]]
+|4.8
+|1 - "The cow kicks you and stuns you"
+|-
+|Steal candles from the [[Candles|candle stand]], north of the [[Entrana]] altar||20||20||[[Candle]]||4.8||1 - "A higher power smites you"
+|-
+|Steal wire from the Dorgeshuun [[Wire machine]]
+|44
+|22
+|[[Cave goblin wire]]
+|4
+|5
+|-
+|Crack [[Wall safe (lobby)|wall safes]] in [[Rogues' Den]]
+|50
+|70
+|[[Coins]], [[Uncut gem]]s
+|2
+|2 - 6
+|}
+
+==Training strategies==
+{{Main|Thieving training}}
+
+==Thieving minigames==
+There are a number of [[minigame]]s which are based on or include Thieving.
+
+*[[Pyramid Plunder]] - the desert city [[Sophanem]] has a pyramid where you can thieve for artefacts. As you get further into the pyramid, higher Thieving is required but it brings increasing amounts of Thieving [[experience]]. This is one of the fastest methods to train Thieving.
+*[[Blackjack]] - another Thieving activity in the [[desert]].
+*[[Rogues' Den]] - Traverse a maze with Thieving and [[Agility]] obstacles. Modest experience. More interesting for thieves is to open the safes in the dungeon. Good for experience and for the gems that you obtain as loot. Completing the maze also has a chance of rewarding you with the [[Rogue equipment|Rogue outfit]], which when worn will double the loot you receive from pickpocketing.
+*[[Sorceress's Garden]] - An interesting game where you dodge [[guards]] and try to get fruit. Requires patience, a bit of skill, and experience, but yields excellent experience. It has four levels, each giving increased experience at levels 1, 25, 45, and 65. Bring a [[pestle and mortar]] and a large amount of empty [[beer glasses]] (can be obtained for free at the shelves in the [[Sorcerer's house]]).
+*[[Stealing artefacts]] - located in [[Port Piscarilius]], players with level 49 Thieving can talk to [[Captain Khaled]] to engage in stealing artefacts from those living in the residential district. It's a good way to train Thieving while [[fletching]] ammo or [[alching]]. Requires a [[lockpick]] or a [[hair clip]] to steal artefacts, and experience rate scales based on level.
+*[[Stealing valuables]] - located in [[Civitas illa Fortis]], players with level 50 Thieving can steal [[house keys]] and loot [[valuables]] from [[wealthy citizens]], which can be then given to [[Oriana]] for monetary rewards.
+
+==Thieving pet==
+{{Main|Rocky}}
+[[File:Rocky (follower).png|right|120x120px]]
+'''[[Rocky]]''' is a skilling [[pet]] that can be obtained when training the [[Thieving]] skill. This includes stealing from stalls, pickpocketing from NPCs, picking fruit in the [[Sorceress's Garden]] and looting grand gold chests within [[Pyramid Plunder]]. The chances of getting it are dependent on the player's Thieving level, and the person/object the player is stealing from.
+
+==Temporary boosts==
+{{main|Temporary skill boost}}
+{{:Temporary skill boost/Thieving}}
+
+==Quests==
+{{Sync}}
+
+===Quests requiring Thieving===
+{| class="wikitable sortable qc-active lighttable mw-collapsible" style="text-align:center;"
+!Quest
+!Thieving<br/>requirement
+!Other requirements
+|-
+|[[The Lost Tribe]]||{{SCP|Thieving|13}}||{{SCP|Agility|13}}, {{SCP|Mining|17}}
+|-
+|[[The Giant Dwarf]]||{{SCP|Thieving|14}}||{{SCP|Crafting|12}}, {{SCP|Firemaking|16}}, {{SCP|Magic|33}}
+|-
+|[[Watchtower]]||{{SCP|Thieving|15}}||{{SCP|Magic|15}}, {{SCP|Agility|25}}, {{SCP|Herblore|14}}, {{SCP|Mining|40}}
+|-
+|[[Cold War]]||{{SCP|Thieving|15}}||{{SCP|Hunter|10}}, {{SCP|Agility|30}}, {{SCP|Crafting|30}}, {{SCP|Construction|34}}
+|-
+|[[The Hand in the Sand]]||{{SCP|Thieving|17}}||{{SCP|Crafting|49}}
+|-
+|[[Tribal Totem]]||{{SCP|Thieving|21}}||-
+|-
+|[[Darkness of Hallowvale]]||{{SCP|Thieving|22}}||{{SCP|Construction|5}}, {{SCP|Mining|20}}, {{SCP|Agility|26}}, {{SCP|Crafting|32}}, {{SCP|Magic|33}}, {{SCP|Strength|40}}
+|-
+|[[Death to the Dorgeshuun]]||{{SCP|Thieving|23}}||{{SCP|Agility|23}}
+|-
+|[[Creature of Fenkenstrain]]||{{SCP|Thieving|25}}||{{SCP|Crafting|20}}
+|-
+|[[The Dig Site]]||{{SCP|Thieving|25}}||{{SCP|Agility|10}}, {{SCP|Herblore|10}}
+|-
+|[[Ethically Acquired Antiquities]]||{{SCP|Thieving|25}}||-
+|-
+|[[The Golem]]||{{SCP|Thieving|25}}||{{SCP|Crafting|20}}
+|-
+|[[The Feud]]||{{SCP|Thieving|30}}||-
+|-
+|[[The Slug Menace]]||{{SCP|Thieving|30}}||{{SCP|Crafting|30}}, {{SCP|Runecraft|30}}, {{SCP|Slayer|30}}
+|-
+|[[Death on the Isle]]||{{SCP|Thieving|34}}||{{SCP|Agility|32}}
+|-
+|[[Spirits of the Elid]]||{{SCP|Thieving|37}}||{{SCP|Magic|33}}, {{SCP|Ranged|37}}, {{SCP|Mining|37}}
+|-
+|[[Fairytale II - Cure a Queen]]||{{SCP|Thieving|40}}||{{SCP|Farming|49}}, {{SCP|Herblore|57}}
+|-
+|[[Temple of Ikov]]||{{SCP|Thieving|42}}||{{SCP|Ranged|40}}
+|-
+|[[Land of the Goblins]]||{{SCP|Thieving|45}}||{{SCP|Agility|38}}, {{SCP|Fishing|40}}, {{SCP|Herblore|48}}
+|-
+|[[The Heart of Darkness]]||{{SCP|Thieving|48}}||{{SCP|Agility|46}}, {{SCP|Mining|55}}, {{SCP|Slayer|48}}
+|-
+|[[Legends' Quest]]||{{SCP|Thieving|50}}||{{SCP|Agility|50}}, {{SCP|Crafting|50}}, {{SCP|Herblore|45}}, {{SCP|Magic|56}}, {{SCP|Mining|52}}, {{SCP|Prayer|42}}, {{SCP|Smithing|50}}, {{SCP|Strength|50}}, {{SCP|Woodcutting|50}}
+|-
+|[[Mourning's End Part I]]||{{SCP|Thieving|50}}||{{SCP|Ranged|60}}
+|-
+|[[A Kingdom Divided]]||{{SCP|Thieving|52}}||{{SCP|Agility|54}},{{SCP|Crafting|38}},{{SCP|Herblore|50}},{{SCP|Magic|35}},{{SCP|Mining|42}},{{SCP|Woodcutting|52}}
+|-
+|[[Desert Treasure I]]||{{SCP|Thieving|53}}||{{SCP|Magic|50}}, {{SCP|Firemaking|50}}, {{SCP|Slayer|10}}
+|-
+|[[Monkey Madness II]]||{{SCP|Thieving|55}}||{{SCP|Crafting|70}}, {{SCP|Slayer|69}}, {{SCP|Hunter|60}}, {{SCP|Agility|55}}
+|-
+|[[The Path of Glouphrie]]||{{SCP|Thieving|56}}||{{SCP|Strength|60}}, {{SCP|Slayer|56}}, {{SCP|Ranged|47}}, {{SCP|Agility|45}}
+|-
+|[[Grim Tales]]||{{SCP|Thieving|58}}||{{SCP|Farming|45}}, {{SCP|Herblore|52}}, {{SCP|Agility|59}}, {{SCP|Woodcutting|71}}
+|-
+|[[Dragon Slayer II]]||{{SCP|Thieving|60}}||{{SCP|Quest|200}}, {{SCP|Magic|75}}, {{SCP|Smithing|70}}, {{SCP|Mining|68}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Construction|50}}, {{SCP|Hitpoints|50}}
+|-
+|[[The Curse of Arrav]]||{{SCP|Thieving|62}}||{{SCP|Agility|61}}, {{SCP|Mining|64}}, {{SCP|Ranged|62}}, {{SCP|Strength|58}},{{SCP|Slayer|37}}
+|-
+|[[Secrets of the North]]||{{SCP|Thieving|64}}||{{SCP|Agility|69}}, {{SCP|Hunter|56}}
+|-
+|[[The Final Dawn]]||{{SCP|Thieving|66}}||{{SCP|Runecraft|52}}, {{SCP|Fletching|52}}
+|-
+|[[Desert Treasure II]]||{{SCP|Thieving|70}}||{{SCP|Magic|75}}, {{SCP|Firemaking|75}},{{SCP|Herblore|62}},{{SCP|Runecraft|60}},{{SCP|Construction|60}}
+|-
+|[[While Guthix Sleeps]]||{{SCP|Thieving|72}}||{{SCP|Quest|180}}, {{SCP|Magic|67}}, {{SCP|Agility|66}}, {{SCP|Farming|65}}, {{SCP|Herblore|65}}, {{SCP|Hunter|62}}, {{SCP|Defence|40}}
+|}
+
+===Quests rewarding Thieving experience===
+{{Main|Quest experience rewards}}
+
+{| class="wikitable sortable qc-active lighttable mw-collapsible" style="text-align:center;"
+!Quest
+!Experience<br/>reward
+!Thieving<br/>requirement
+!Other requirements
+|-
+|[[Tower of Life]]||{{+=|ThievingExp|500|echo=2}}||-||{{SCP|Construction|10}}
+|-
+|[[Creature of Fenkenstrain]]||{{+=|ThievingExp|1,000|echo=2}}||{{SCP|Thieving|25}}||{{SCP|Crafting|20}}
+|-
+|[[The Golem]]||{{+=|ThievingExp|1,000|echo=2}}||{{SCP|Thieving|25}}||{{SCP|Crafting|20}}
+|-
+|[[The Hand in the Sand]]||{{+=|ThievingExp|1,000|echo=2}}||{{SCP|Thieving|17}}||{{SCP|Crafting|49}}
+|-
+|[[Spirits of the Elid]]||{{+=|ThievingExp|1,000|echo=2}}||{{SCP|Thieving|37}}||{{SCP|Magic|33}}, {{SCP|Ranged|37}}, {{SCP|Mining|37}}
+|-
+|[[Biohazard]]||{{+=|ThievingExp|1,250|echo=2}}||-||-
+|-
+|[[The Giant Dwarf]]||{{+=|ThievingExp|1,500|echo=2}}||{{SCP|Thieving|14}}||{{SCP|Crafting|12}}, {{SCP|Firemaking|16}}, {{SCP|Magic|33}}
+|-
+|[[Hazeel Cult]]||{{+=|ThievingExp|1,500|echo=2}}||-||-
+|-
+|[[Tribal Totem]]||{{+=|ThievingExp|1,775|echo=2}}||{{SCP|Thieving|21}}||-
+|-
+|[[The Queen of Thieves]]||{{+=|ThievingExp|2,000|echo=2}}||{{SCP|Thieving|20}}||-
+|-
+|[[Death to the Dorgeshuun]]||{{+=|ThievingExp|2,000|echo=2}}||{{SCP|Thieving|23}}||{{SCP|Agility|23}}
+|-
+|[[Fight Arena]]||{{+=|ThievingExp|2,175|echo=2}}||-||-
+|-
+|[[Fairytale II - Cure a Queen]]||{{+=|ThievingExp|2,500|echo=2}}||{{SCP|Thieving|40}}||{{SCP|Farming|49}}, {{SCP|Herblore|57}}
+|-
+|[[The Fremennik Trials]]||{{+=|ThievingExp|2,812|echo=2}}||-||{{SCP|Fletching|25}}, {{SCP|Woodcutting|40}}, {{SCP|Crafting|40}} if crafting your own lyre
+|-
+|[[Twilight's Promise]]||{{+=|ThievingExp|3,000|echo=2}}||-||-
+|-
+|[[The Slug Menace]]||{{+=|ThievingExp|3,500|echo=2}}||{{SCP|Thieving|30}}||{{SCP|Crafting|30}}, {{SCP|Runecraft|30}}, {{SCP|Slayer|30}}
+|-
+|[[Icthlarin's Little Helper]]||{{+=|ThievingExp|4,500|echo=2}}||-||-
+|-
+|[[Ratcatchers]]||{{+=|ThievingExp|4,500|echo=2}}||-||-
+|-
+|[[The Path of Glouphrie]]||{{+=|ThievingExp|5,000|echo=2}}||{{SCP|Thieving|56}}||{{SCP|Strength|60}}, {{SCP|Slayer|56}}, {{SCP|Ranged|47}}, {{SCP|Agility|45}}
+|-
+|[[Ethically Acquired Antiquities]]||{{+=|ThievingExp|6,000|echo=2}}||{{SCP|Thieving|25}}||-
+|-
+|[[Darkness of Hallowvale]]||{{+=|ThievingExp|6,000|echo=2}}||{{SCP|Thieving|22}}||{{SCP|Construction|5}}, {{SCP|Mining|20}}, {{SCP|Agility|26}}, {{SCP|Crafting|32}}, {{SCP|Magic|33}}, {{SCP|Strength|40}}
+|-
+|[[Contact!]]||{{+=|ThievingExp|7,000|echo=2}}||-||-
+|-
+|[[Land of the Goblins]]||{{+=|ThievingExp|8,000|echo=2}}||{{SCP|Thieving|45}}||{{SCP|Agility|38}}, {{SCP|Fishing|40}}, {{SCP|Herblore|48}}
+|-
+|[[The Heart of Darkness]]||{{+=|ThievingExp|8,000|echo=2}}||{{SCP|Thieving|48}}||{{SCP|Agility|46}}, {{SCP|Slayer|48}}, {{SCP|Mining|55}}
+|-
+|[[Death on the Isle]]||{{+=|ThievingExp|10,000|echo=2}}||{{SCP|Thieving|34}}||{{SCP|Agility|32}}
+|-
+|[[The Feud]]||{{+=|ThievingExp|15,000|echo=2}}||{{SCP|Thieving|30}}||-
+|-
+|[[Grim Tales]]||{{+=|ThievingExp|25,000|echo=2}}||{{SCP|Thieving|58}}||{{SCP|Farming|45}}, {{SCP|Herblore|52}}, {{SCP|Agility|59}}, {{SCP|Woodcutting|71}}
+|-
+|[[The Curse of Arrav]]||{{+=|ThievingExp|40,000|echo=2}}||{{SCP|Thieving|62}}||{{SCP|Agility|61}}, {{SCP|Mining|64}}, {{SCP|Ranged|62}}, {{SCP|Strength|58}},{{SCP|Slayer|37}}
+|-
+|[[Mourning's End Part I]]||{{+=|ThievingExp|40,000|echo=2}}||{{SCP|Thieving|50}}||{{SCP|Ranged|60}}
+|-
+|[[Dragon Slayer II]]||{{+=|ThievingExp|50,000|echo=2}}||{{SCP|Thieving|60}}||{{SCP|Quest|200}}, {{SCP|Magic|75}}, {{SCP|Smithing|70}}, {{SCP|Mining|68}}, {{SCP|Crafting|62}}, {{SCP|Agility|60}}, {{SCP|Construction|50}}, {{SCP|Hitpoints|50}}
+|-
+|[[Monkey Madness II]]||{{+=|ThievingExp|50,000|echo=2}}|| {{SCP|Thieving|55}}||{{SCP|Slayer|69}}, {{SCP|Crafting|70}}, {{SCP|Hunter|60}}, {{SCP|Agility|55}}
+|-
+|[[Secrets of the North]]||{{+=|ThievingExp|50,000|echo=2}}||{{SCP|Thieving|64}}||{{SCP|Agility|69}}, {{SCP|Hunter|56}}
+|-
+|[[The Final Dawn]]||{{+=|ThievingExp|55,000|echo=2}}||{{SCP|Thieving|66}}||{{SCP|Runecraft|52}}, {{SCP|Fletching|52}}
+|-
+|[[While Guthix Sleeps]]||{{+=|ThievingExp|80,000|echo=2}}||{{SCP|Thieving|72}}||{{SCP|Quest|180}}, {{SCP|Magic|67}}, {{SCP|Agility|66}}, {{SCP|Farming|65}}, {{SCP|Herblore|65}}, {{SCP|Hunter|62}}, {{SCP|Defence|40}}
+|-
+!Total
+!{{formatnum:{{#var:ThievingExp}}}}
+! colspan="2" |
+|}
+
+===Diaries requiring Thieving===
+{{main|Achievement_Diary#Thieving}}
+{| class="wikitable sortable lighttable mw-collapsible" style="text-align:center;"
+!Diary
+!Thieving<br/>requirement
+!Other requirements for<br/> tasks requiring thieving
+|-
+|[[Ardougne_Diary#Easy|Ardougne Easy Diary]]
+|{{SCP|Thieving|5}}
+| -
+|-
+|[[Ardougne_Diary#Medium|Ardougne Medium Diary]]
+|{{SCP|Thieving|38}}
+| -
+|-
+|[[Ardougne_Diary#Hard|Ardougne Hard Diary]]
+|{{SCP|Thieving|72}}
+| -
+|-
+|[[Ardougne_Diary#Elite|Ardougne Elite Diary]]
+|{{SCP|Thieving|82}}
+| -
+|-
+|[[Desert_Diary#Easy|Desert Easy Diary]]
+|{{SCP|Thieving|21}}
+| -
+|-
+|[[Desert_Diary#Medium|Desert Medium Diary]]
+|{{SCP|Thieving|25}}
+| -
+|-
+|[[Desert_Diary#Hard|Desert Hard Diary]]
+|{{SCP|Thieving|65}}
+| -
+|-
+|[[Desert_Diary#Elite|Desert Elite Diary]]
+|{{SCP|Thieving|91}}
+| -
+|-
+|[[Falador_Diary#Medium|Falador Medium Diary]]
+|{{SCP|Thieving|40}}
+| -
+|-
+|[[Falador_Diary#Hard|Falador Hard Diary]]
+|{{SCP|Thieving|50}}
+| -
+|-
+|[[Fremennik_Diary#Easy|Fremennik Easy Diary]]
+|{{SCP|Thieving|5}}
+| -
+|-
+|[[Fremennik_Diary#Medium|Fremennik Medium Diary]]
+|{{SCP|Thieving|42}}
+| -
+|-
+|[[Fremennik_Diary#Hard|Fremennik Hard Diary]]
+|{{SCP|Thieving|75}}
+| -
+|-
+|[[Kandarin_Diary#Medium|Kandarin Medium Diary]]
+|{{SCP|Thieving|47}}
+| -
+|-
+|[[Kandarin_Diary#Hard|Kandarin Hard Diary]]
+|{{SCP|Thieving|53}}
+| -
+|-
+|[[Karamja_Diary#Hard|Karamja Hard Diary]]
+|{{SCP|Thieving|50}}
+|{{SCP|Woodcutting|15}}, {{SCP|Strength|50}}, {{SCP|Agility|50}}, {{SCP|Mining|52}}
+|-
+|[[Kourend_%26_Kebos_Diary#Easy|Kourend & Kebos Easy Diary]]
+|{{SCP|Thieving|25}}
+| -
+|-
+|[[Kourend_%26_Kebos_Diary#Hard|Kourend & Kebos Hard Diary]]
+|{{SCP|Thieving|49}}
+| -
+|-
+|[[Lumbridge_%26_Draynor_Diary#Medium|Lumbridge & Draynor Medium Diary]]
+|{{SCP|Thieving|38}}
+| -
+|-
+|[[Lumbridge_%26_Draynor_Diary#Elite|Lumbridge & Draynor Elite Diary]]
+|{{SCP|Thieving|78}}
+| -
+|-
+|[[Varrock_Diary#Easy|Varrock Easy Diary]]
+|{{SCP|Thieving|5}}
+| -
+|-
+|[[Western_Provinces_Diary#Hard|Western Provinces Hard Diary]]
+|{{SCP|Thieving|75}}
+| -
+|-
+|[[Western_Provinces_Diary#Elite|Western Provinces Elite Diary]]
+|{{SCP|Thieving|85}}
+| -
+|-
+|[[Wilderness_Diary#Elite|Wilderness Elite Diary]]
+|{{SCP|Thieving|84}}
+| -
+|}
+
+===Skill choice===
+Upon completing any of the following quests, players may choose to allocate experience to Thieving. These rewards usually come in the form of items, such as lamps or books, and are independent of any experience rewards directly received for completing the quest.
+{{SkillChoice|Thieving}}
+
+==Level up messages==
+{{hastranscript|skill}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 9 September 2024
+|update = Wintertodt Updates & Varlamore Drop Rates
+|change = ''(Hidden update)'' Changed the pickpocketing animation so it can play while the player is walking (e.g. when following an NPC around).
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = * The failure rate of pickpocketing [[gnome]]s, [[paladin]]s, and [[hero]]es has been reduced.
+* There is now an uncommon chance to receive a [[medium clue scroll]] when pickpocketing a gnome.
+* There is now a rare chance to receive a [[hard clue scroll]] when pickpocketing a paladin.
+* There is now a very rare chance to receive a [[elite clue scroll]] when pickpocketing a hero.
+* The following stalls have reduced spawn timers and increased experience rates:
+** [[Crafting stall]]
+*** [[Amulet mould]]s, [[bracelet mould]]s and [[gold bar]]s have been added as loot when thieving crafting stalls.
+** [[Solihib's Food Stall|Monkey food stall]]
+** [[General Stall|Monkey general stall]]
+** [[Tea stall]]
+** [[Wine stall]]
+** [[Seed stall]]
+** [[Fur stall]]
+** [[Fish stall]]
+** [[Crossbow stall]]
+*** [[Mithril limbs]] and [[mithril bolt]]s have been added as loot when thieving crossbow stalls.
+** [[Silver stall]]
+*** [[Tiara]]s and [[silver bar]]s have been added as loot when thieving silver stalls.
+** [[Spice stall]]
+** [[Magic stall]]
+*** [[Nature rune|Nature]] and [[law rune]]s have been added as loot when thieving magic stalls.
+** [[Scimitar stall]]
+*** [[Mithril scimitar|Mithril]] and [[adamant scimitar]]s have been added as loot when thieving scimitar stalls.
+** [[Gem stall]]
+** [[Ore stall]]
+}}
+{{Subject changes
+|date = 4 July 2019
+|update = Forthos Dungeon
+|change = The [[Grubby Chest]] chest door pick-lock now appears in the Thieving skill guide.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|change = Corrected some grammar on the message given when attempting to pickpocket without the required level.
+}}
+{{Subject changes
+|date = 14 May 2015
+|update = System Update & Poll 33
+|change = Filtered some game messages relating to pickpocketing.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You now get the following for the completion of [[Ardougne Diary|Ardougne Diaries]]:
+*10% increased chance of thieving [[stall]]s in [[Ardougne]] for the [[Ardougne easy diary|easy diary]].
+*10% increased chance of pickpocketing in [[Ardougne]] for the [[Ardougne medium diary|medium diary]].
+*10% increased chance of pickpocketing in all of [[Gielinor]] for the [[Ardougne Hard Diary|hard diary]].
+}}
+{{Subject changes
+|date = 27 March 2014
+|update = Wilderness Feedback Update
+|change = [[Rogues' Castle]] chests now appears in the Thieving skill guide.
+}}
+
+{{Subject changes footer}}
+
+==Trivia==
+*Thieving is one of the many skills that does not require any items for training, unless the player is blackjacking, breaking into homes in Varlamore, or lockpicking.
+*Picking locks has a random chance of numbing your fingers, which will result in a temporary debuff to your thieving skill. It takes roughly 1 minute per point lost to wear off.
+
+==See also==
+* [[Thieving/Experience table]], a list of all Thieving experience sources
+* [[Thieving/Level up table]], a list of all requirements and unlockables within the Thieving skill
+
+{{Skills}}
+[[Category:Members' skills]]

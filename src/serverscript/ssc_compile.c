@@ -21,6 +21,7 @@
 #include <assert.h>
 
 #include "ss_meta.h"
+#include "ssc_command_kinds.gen.h"
 #include "ssc_lex.h"
 #include "ssvm_provider.h"
 
@@ -76,6 +77,22 @@ struct SSC_Build
      */
     uint8_t param_types[SS_MAX_PARAM_TYPES];
     int param_type_count;
+
+    /*
+     * The value each DECLARED return gets when the body falls off its end, in
+     * declaration order (enum SSC_ReturnDefault).
+     *
+     * The reference compiler ends every script with its "default returns"
+     * (RuneScript CodeGenerator.generateDefaultReturns): `int` pushes 0, every
+     * other int-stack type pushes -1, `string` pushes "". Content leans on it:
+     * `[proc,forcewalk](coord $dest)(int)` (agility.rs2) returns nothing on its
+     * last line, and `~forcewalk2` discards the int it was promised. A bare
+     * RETURN left that discard to pop the caller's stack — an int underflow
+     * that killed every agility obstacle and the Waterfall rope crossing one
+     * line after the forcewalk.
+     */
+    int8_t return_defaults[SS_MAX_PARAM_TYPES];
+    int return_count;
 
     int32_t line_pcs[SSC_MAX_OPS];
     int32_t line_numbers[SSC_MAX_OPS];
@@ -140,9 +157,14 @@ struct SSC_Compiler
      *  argument that *is* a call can be scored by what it actually pushed.
      *  -1 when that callee declared no header. */
     /** Set by parse_command on every command it compiles; an enclosing argument
-     *  list reads and clears it per argument to learn that the argument was a
-     *  call whose pushed count is not known here. */
+     *  list reads and clears it per argument to distinguish a direct command
+     *  expression from an ordinary one. */
     int saw_command_call;
+    /** Fixed return arity of the most recently compiled command, or -1 for a
+     *  runtime-typed command such as db_getfield. Unlike procedures, command
+     *  arity comes from ss_meta. */
+    int last_command_int_returns;
+    int last_command_str_returns;
     int last_call_int_returns;
     int last_call_str_returns;
     int name_count;
@@ -156,6 +178,26 @@ struct SSC_Compiler
      *  enumeration the packs also use as data names — see parse_expression. */
     enum SSC_SymbolKind arg_kind_hint;
 
+    /**
+     * The namespace the expression just compiled is a value OF, or
+     * SSC_SYM_UNKNOWN: a command's declared single return type, or the kind a
+     * bare name resolved as. Cleared at the head of every parse_expression, so
+     * it describes the last value and not some argument inside it.
+     *
+     * What reads it is `parse_comparison`: `if (last_useitem = <name>)` states
+     * the namespace of BOTH sides on the left, and that is the only thing that
+     * can type the right — a bare name in a comparison has no declaring
+     * signature of its own. Without it, `eadgar_troll_thistle` (npc 4767 and
+     * obj 3262) compiled to the npc, the equality could never hold, and the
+     * troll thistle answered "You can't cook that." with the OPLOCU packet
+     * carrying the right obj all along.
+     */
+    enum SSC_SymbolKind last_value_kind;
+
+    /** Bare names that resolved with nothing to say which namespace was meant,
+     *  reported one by one and counted for the summary line. */
+    int ambiguous_names;
+
     /** Set for the one argument position that names a *server script* rather
      *  than a value — `settimer(<here>, 30)`. The script namespace is not in the
      *  symbol table, so without this the generic lookup answers first and a
@@ -165,6 +207,43 @@ struct SSC_Compiler
      *  queue family. Tried before the generic name-addressed order, so
      *  `settimer(x)` cannot pick up a `[proc,x]` that happens to share the name. */
     const char* arg_script_trigger;
+
+    /**
+     * The declared types of the last `table:column` an expression resolved, or
+     * NULL — the `.dbtable`'s own text ("string", "coord,int,int,int,LIST").
+     *
+     * `db_getfield` is the one command whose return type is *data*: the column
+     * decides which stack it pushes onto, so the opcode table's `str_out = 0`
+     * describes only the common int case (ss_meta.h `runtime_typed`). Nothing
+     * carried the column's answer to the caller, so a string column read inside
+     * a string literal — `mes("You hold the <db_getfield($data,
+     * runecraft_table:name, 0)> Talisman…")` — had TOSTRING appended to a value
+     * that was already on the *string* stack. The int stack was empty and the
+     * script aborted at the message, which is why the talisman-on-ruins
+     * teleport (runecraft.rs2:95) died after the animation and the sound with
+     * nothing said.
+     *
+     * Read and cleared per argument by parse_command, which keeps the one from
+     * `db_getfield`'s column position rather than whatever a nested call
+     * resolved last.
+     */
+    const char* last_dbcolumn_types;
+
+    /**
+     * Set while the file being read is a lane seam (struct SSC_SourceRoot's
+     * `weak`), so a name a real lane already declared is stepped over here
+     * rather than reported as a duplicate.
+     */
+    int weak_source;
+    /** How many names the strong roots declared, fixed before the weak pass
+     *  starts. A weak declaration is an override candidate only against those:
+     *  two weak files sharing a name is the ordinary duplicate, not a seam. */
+    int strong_name_count;
+    /** The seam names a lane took over, so the compile pass drops those bodies
+     *  instead of writing them over the lane's at the same id. */
+    char (*shadowed)[SSC_MAX_NAME];
+    int shadowed_count;
+    int shadowed_capacity;
 
     struct SSC_Build build;
     struct SSC_Lexer lexer;
@@ -272,6 +351,28 @@ declare_local(struct SSC_Compiler* compiler, const char* name, int is_string)
     struct SSC_Build* build = &compiler->build;
     struct SSC_Local* local;
 
+    /* Locals are script-scoped. A declaration in each arm of an `if` names
+     * the same slot: only one arm executes, but both are compiled into the one
+     * locals table. Allocating a second slot while find_local() kept resolving
+     * the first made this shape silently read an uninitialised value:
+     *
+     *     if (...) { def_int $option = 1; ... }
+     *     else     { def_int $option = 2; if ($option = 2) ... }
+     *
+     * The second assignment went to slot 1 and the comparison read slot 0.
+     * Reuse an existing declaration, and reject a spelling that attempts to
+     * change stacks because no single slot can represent both types. */
+    local = find_local(compiler, name);
+    if( local )
+    {
+        if( local->is_string != is_string )
+        {
+            fail(compiler, "local '$%s' redeclared with a different type", name);
+            return NULL;
+        }
+        return local;
+    }
+
     if( build->local_count >= SSC_MAX_LOCALS )
     {
         fail(compiler, "more than %d locals in one script", SSC_MAX_LOCALS);
@@ -301,6 +402,28 @@ type_is_string(const char* type)
     return type && strcmp(type, "string") == 0;
 }
 
+/** What a declared return holds when the script falls off its end — see
+ *  SSC_Build.return_defaults. */
+enum SSC_ReturnDefault
+{
+    SSC_RETURN_DEFAULT_ZERO = 0,
+    SSC_RETURN_DEFAULT_MINUS_ONE,
+    SSC_RETURN_DEFAULT_EMPTY_STRING,
+};
+
+/* The reference's rule, not the type's own default: only the `int` primitive is
+ * 0 (`boolean` is 0 as a local but -1 here), every other int-stack type is -1. */
+static enum SSC_ReturnDefault
+return_default_for_type(const char* type)
+{
+    assert(type);
+    if( type_is_string(type) )
+        return SSC_RETURN_DEFAULT_EMPTY_STRING;
+    if( strcmp(type, "int") == 0 )
+        return SSC_RETURN_DEFAULT_ZERO;
+    return SSC_RETURN_DEFAULT_MINUS_ONE;
+}
+
 /* ------------------------------------------------------------------ */
 /* Expressions                                                         */
 /* ------------------------------------------------------------------ */
@@ -322,6 +445,40 @@ script_id_for_name(struct SSC_Compiler* compiler, const char* name)
             return i;
     }
     return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Lane seams                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Was this name declared by a lane, leaving the base tree's seam unused? */
+static int
+is_shadowed(struct SSC_Compiler* compiler, const char* name)
+{
+    int i;
+
+    for( i = 0; i < compiler->shadowed_count; i++ )
+    {
+        if( strcmp(compiler->shadowed[i], name) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
+static void
+shadow_add(struct SSC_Compiler* compiler, const char* name)
+{
+    if( compiler->shadowed_count == compiler->shadowed_capacity )
+    {
+        int capacity = compiler->shadowed_capacity ? compiler->shadowed_capacity * 2 : 32;
+        char (*grown)[SSC_MAX_NAME] =
+            (char(*)[SSC_MAX_NAME])realloc(compiler->shadowed, (size_t)capacity * SSC_MAX_NAME);
+
+        assert(grown);
+        compiler->shadowed = grown;
+        compiler->shadowed_capacity = capacity;
+    }
+    snprintf(compiler->shadowed[compiler->shadowed_count++], SSC_MAX_NAME, "%s", name);
 }
 
 /*
@@ -521,10 +678,16 @@ script_id_for_bare_name(struct SSC_Compiler* compiler, const char* name, int* ou
  *
  * A ScriptVarType and the pack namespace it names are the same word for
  * everything that has a pack, so the content register's own mapping answers
- * almost all of it. Three spellings it cannot: `locshape` and `npc_mode` are
+ * almost all of it. Five spellings it cannot: `locshape` and `npc_mode` are
  * enumerations with no pack (SSC_SymbolsSeedBuiltins puts them in the table),
- * and `namedobj` is an obj whose name the client shows — the OBJ namespace
- * under a second type name.
+ * `namedobj` is an obj whose name the client shows, `npc_stat` is the STAT
+ * enumeration read off an npc rather than a player, and `intparam` is a param
+ * whose value is an int — each of them a namespace already mapped, under a
+ * second type name.
+ *
+ * `npc_stat` and `intparam` arrived with the engine.rs2 signature table
+ * (ssc_command_kinds.gen.h): before it, the only reader was a proc header, and
+ * no proc in this tree declares either word.
  *
  * Deliberately not covered: the script-typed parameters (`queue`, `timer`).
  * Those want `arg_is_script_name` rather than a symbol kind, and no header in
@@ -541,7 +704,82 @@ param_type_kind(const char* type)
         return SSC_SYM_LOCSHAPE;
     if( strcmp(type, "npc_mode") == 0 )
         return SSC_SYM_NPC_MODE;
+    if( strcmp(type, "npc_stat") == 0 )
+        return SSC_SYM_STAT;
+    if( strcmp(type, "intparam") == 0 )
+        return SSC_SYM_PARAM;
     return SSC_SymbolKindForNamespace(type);
+}
+
+/*
+ * The types a command DECLARES, from the reference's engine.rs2.
+ *
+ * ss_meta.gen.h carries how many values a command pops and pushes and throws
+ * away what each of them was declared as — and that discarded half is exactly
+ * what a bare name needs. Every hint table below this line was a hand-copy of
+ * one line of engine.rs2, added the day a collision was noticed: `shark` is obj
+ * 385 and npc 1830, `hitpoints` is param 2100 and a stat, `farming_tools` is
+ * loc 7516, varp 615 and interface 125. The list was never the fix; the
+ * signature is.
+ *
+ * Sorted by opcode id, so a lookup is a binary search over 362 rows.
+ */
+static const struct SSC_CommandTypes*
+command_types(int opcode)
+{
+    int lo = 0;
+    int hi = (int)(sizeof(g_ssc_command_types) / sizeof(g_ssc_command_types[0])) - 1;
+
+    while( lo <= hi )
+    {
+        int mid = lo + ((hi - lo) / 2);
+
+        if( g_ssc_command_types[mid].opcode < opcode )
+            lo = mid + 1;
+        else if( g_ssc_command_types[mid].opcode > opcode )
+            hi = mid - 1;
+        else
+            return &g_ssc_command_types[mid];
+    }
+    return NULL;
+}
+
+/**
+ * The kind the `index`th declared argument asks a bare name to resolve as, or
+ * SSC_SYM_UNKNOWN — past the end of the list, or a type that names no namespace.
+ *
+ * Whether the command HAS a declaration is the caller's question — an opcode
+ * this tree added itself (IF_OPENSUB, OBJ_ADD_PRIVATE, STAT_XP, … everything in
+ * the 11000 range) has none, and those keep the hand-written hints in
+ * parse_command. The caller asks that once, where it already has to choose
+ * between the two; passing NULL here is a bug.
+ */
+static enum SSC_SymbolKind
+command_arg_kind(const struct SSC_CommandTypes* types, int index)
+{
+    const char* cursor;
+    int position = 0;
+
+    assert(types);
+    assert(index >= 0);
+    for( cursor = types->args; *cursor; position++ )
+    {
+        char word[32];
+        size_t length = 0;
+
+        while( *cursor && *cursor != ' ' )
+        {
+            if( length + 1 < sizeof(word) )
+                word[length++] = *cursor;
+            cursor++;
+        }
+        word[length] = '\0';
+        while( *cursor == ' ' )
+            cursor++;
+        if( position == index )
+            return param_type_kind(word);
+    }
+    return SSC_SYM_UNKNOWN;
 }
 
 /** Emit a call to `[proc,name]` or `[label,name]`. */
@@ -608,9 +846,14 @@ parse_call(
                  * turn into a confident wrong number.
                  */
                 int arg_is_call = compiler->lexer.current.kind == SSC_TOK_PROC;
+                int arg_is_command =
+                    compiler->lexer.current.kind == SSC_TOK_IDENT &&
+                    SSVM_OpcodeFromName(compiler->lexer.current.text) >= 0;
 
                 compiler->last_call_int_returns = -1;
                 compiler->last_call_str_returns = -1;
+                compiler->last_command_int_returns = -1;
+                compiler->last_command_str_returns = -1;
                 compiler->saw_command_call = 0;
                 compiler->arg_kind_hint =
                     (param_kinds && param_index_known && param_index < SS_MAX_PARAM_TYPES)
@@ -624,6 +867,14 @@ parse_call(
                                    compiler->last_call_str_returns;
                     pushed_ints += compiler->last_call_int_returns;
                     pushed_strs += compiler->last_call_str_returns;
+                }
+                else if( arg_is_command &&
+                         compiler->last_command_int_returns >= 0 )
+                {
+                    param_index += compiler->last_command_int_returns +
+                                   compiler->last_command_str_returns;
+                    pushed_ints += compiler->last_command_int_returns;
+                    pushed_strs += compiler->last_command_str_returns;
                 }
                 else if( arg_is_string )
                 {
@@ -642,7 +893,8 @@ parse_call(
                  * hint has to as well, because a wrong hint resolves silently
                  * where a wrong count is at worst reported. */
                 if( (arg_is_call && compiler->last_call_int_returns < 0) ||
-                    compiler->saw_command_call )
+                    (arg_is_command && compiler->last_command_int_returns < 0) ||
+                    (!arg_is_command && compiler->saw_command_call) )
                     param_index_known = 0;
                 if( SSC_LexIsPunct(&compiler->lexer, "," ) )
                 {
@@ -702,6 +954,26 @@ parse_call(
     return 1;
 }
 
+/*
+ * Does a `.dbtable` column's declared type list start with `string`?
+ *
+ * `types` is the text after the column name — "string", "coord,int,int,int,LIST",
+ * "namedobj,int,int". Only the first entry is consulted, because that is the
+ * only one an expression can be: a multi-value column pushes every value, and a
+ * caller reading one of them (an interpolation, a `def_string` initialiser)
+ * reads the first. A column mixing a string with an int is not something an
+ * expression can express either way.
+ */
+static int
+dbcolumn_first_type_is_string(const char* types)
+{
+    assert(types);
+    while( *types == ' ' || *types == '\t' )
+        types++;
+    return strncmp(types, "string", 6) == 0 &&
+           (types[6] == '\0' || types[6] == ',' || types[6] == ' ' || types[6] == '\t');
+}
+
 /** Emit a command call. `dot` selects the secondary-pointer form. */
 static int
 parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
@@ -710,6 +982,11 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     const struct SSVM_OpcodeMeta* meta;
     int dot = (name[0] == '.');
     int variadic = 0;
+    /* The `.dbtable` types of the column a `db_getfield` was handed, filled by
+     * the argument loop below and read by the return-type decision at the end.
+     * NULL for every other command, and for a `db_getfield` whose column came
+     * from a variable rather than a `table:column` literal. */
+    const char* column_types = NULL;
 
     /*
      * `queue*(script, delay)(args...)` is a different opcode from `queue`, not a
@@ -775,6 +1052,13 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         /* Set when an argument was itself a call whose pushed count this pass
          * cannot know exactly — `arg_index` is then a LOWER bound. */
         int arg_lower_bound = 0;
+        /* What engine.rs2 declares this command's arguments and return to be,
+         * or NULL for an opcode this tree added itself. */
+        const struct SSC_CommandTypes* types = command_types(opcode);
+        /* The declared parameter the next argument fills, and whether that
+         * position is still exact. See the advance at the foot of the loop. */
+        int hint_index = 0;
+        int hint_index_known = 1;
         int saved_saw_command = compiler->saw_command_call;
         /*
          * Leading arguments that name a *server script* rather than a value.
@@ -826,6 +1110,11 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
         const char* script_trigger = NULL;
         int saved_script_arg = compiler->arg_is_script_name;
         const char* saved_script_trigger = compiler->arg_script_trigger;
+        /* Argument position whose `table:column` decides this command's return
+         * type, or -1. `db_getfield` is the whole list: it is the only command
+         * that reads a column's declared type and pushes onto the stack that
+         * type names. See `last_dbcolumn_types`. */
+        int column_types_arg = (op_name && strcmp(op_name, "DB_GETFIELD") == 0) ? 1 : -1;
 
         if( op_name )
         {
@@ -936,12 +1225,63 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                      * field pushes two and says nothing), so any call argument
                      * marks the count as a lower bound rather than exact. */
                     int arg_is_proc = compiler->lexer.current.kind == SSC_TOK_PROC;
+                    /* The declared type of THIS position, when the position is
+                     * still exact — see hint_index below. */
+                    int arg_is_command =
+                        compiler->lexer.current.kind == SSC_TOK_IDENT &&
+                        SSVM_OpcodeFromName(compiler->lexer.current.text) >= 0;
+                    enum SSC_SymbolKind declared =
+                        (types && hint_index_known)
+                            ? command_arg_kind(types, hint_index)
+                            : SSC_SYM_UNKNOWN;
 
                     compiler->last_call_int_returns = -1;
                     compiler->last_call_str_returns = -1;
+                    compiler->last_command_int_returns = -1;
+                    compiler->last_command_str_returns = -1;
                     compiler->saw_command_call = 0;
+                    compiler->last_dbcolumn_types = NULL;
+                    /*
+                     * engine.rs2's declared type for this argument wins over
+                     * the whole-command hints above, because it is positional
+                     * and they are not: `split_init(string, int, int,
+                     * fontmetrics)` wants the fontmetrics namespace for its
+                     * FOURTH argument only, and a base_hint applies it to every
+                     * one of them. Where the table says nothing — a type that
+                     * names no namespace, or one of this tree's own opcodes,
+                     * which the reference never declared — the hand-written
+                     * hint is still what answers.
+                     */
                     compiler->arg_kind_hint =
-                        arg_index < type_args ? SSC_SYM_TYPE : base_hint;
+                        arg_index < type_args
+                            ? SSC_SYM_TYPE
+                            : (declared != SSC_SYM_UNKNOWN ? declared : base_hint);
+                    /* These commands declare their second argument as an obj
+                     * (`namedobj` for the add forms). A bare name still needs
+                     * that declared namespace here: `shark` is both obj 385
+                     * and npc 1830 in rev 239, and the generic resolver picks
+                     * the npc. That made every `obj_add(..., shark, ...)`
+                     * quietly put a waterskin-shaped id on the floor.
+                     *
+                     * Kept for OBJ_ADD_PRIVATE alone now: every other member is
+                     * declared in engine.rs2 and answered by the table above,
+                     * which says the same thing. */
+                    if( arg_index == 1 && op_name &&
+                        (strcmp(op_name, "OBJ_ADD") == 0 ||
+                         strcmp(op_name, "OBJ_ADDALL") == 0 ||
+                         strcmp(op_name, "OBJ_ADD_PRIVATE") == 0 ||
+                         strcmp(op_name, "OBJ_FIND") == 0 ||
+                         strcmp(op_name, "INV_ADD") == 0 ||
+                         strcmp(op_name, "INV_DEL") == 0 ||
+                         strcmp(op_name, "INV_TOTAL") == 0) )
+                        compiler->arg_kind_hint = SSC_SYM_OBJ;
+                    /* `sound_synth(arrow_launch, ...)` names a synth, not the
+                     * sequence which shares that cache name. As with the
+                     * spotanim family, the command signature supplies the
+                     * namespace which bare-name sorting cannot infer. */
+                    if( arg_index == 0 && op_name &&
+                        strcmp(op_name, "SOUND_SYNTH") == 0 )
+                        compiler->arg_kind_hint = SSC_SYM_SYNTH;
                     compiler->arg_is_script_name = arg_index < script_args;
                     compiler->arg_script_trigger =
                         arg_index < script_args ? script_trigger : NULL;
@@ -949,6 +1289,12 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                         return 0;
                     compiler->arg_is_script_name = 0;
                     compiler->arg_script_trigger = NULL;
+                    /* `db_getfield(row, table:column, index)`: the column names
+                     * the stack the result lands on, and this is the only place
+                     * it is visible. Taken from position 1 alone so a nested
+                     * call's own column reference cannot stand in for it. */
+                    if( column_types_arg == arg_index )
+                        column_types = compiler->last_dbcolumn_types;
                     if( arg_is_proc && compiler->last_call_int_returns >= 0 )
                         arg_index += compiler->last_call_int_returns +
                                      compiler->last_call_str_returns;
@@ -957,6 +1303,33 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
                     if( arg_is_proc || compiler->last_call_int_returns >= 0 ||
                         compiler->saw_command_call )
                         arg_lower_bound = 1;
+                    /*
+                     * Which DECLARED parameter the next argument fills, tracked
+                     * apart from `arg_index` because the two answer different
+                     * questions: the arity check above is allowed to be a lower
+                     * bound, and a hint is not. A wrong hint resolves a name
+                     * silently, where a wrong count is at worst reported, so
+                     * the moment a call leaves a count this pass cannot know,
+                     * hinting stops rather than guesses — the same rule
+                     * parse_call applies to a `~proc`'s parameters.
+                     *
+                     * `obj_add(coord, shark, 1, 200)` is why the command branch
+                     * is here at all: `coord` is itself a command, and treating
+                     * every command argument as unknowable would give up on the
+                     * position of the obj one slot later.
+                     */
+                    if( arg_is_proc && compiler->last_call_int_returns >= 0 )
+                        hint_index += compiler->last_call_int_returns +
+                                      compiler->last_call_str_returns;
+                    else if( arg_is_command && compiler->last_command_int_returns >= 0 )
+                        hint_index += compiler->last_command_int_returns +
+                                      compiler->last_command_str_returns;
+                    else
+                        hint_index++;
+                    if( (arg_is_proc && compiler->last_call_int_returns < 0) ||
+                        (arg_is_command && compiler->last_command_int_returns < 0) ||
+                        (!arg_is_command && compiler->saw_command_call) )
+                        hint_index_known = 0;
                     if( SSC_LexIsPunct(&compiler->lexer, ",") )
                     {
                         SSC_LexNext(&compiler->lexer);
@@ -1084,13 +1457,35 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
     /* Commands carry a one-byte operand that is the dot flag, never an id. */
     emit(compiler, opcode, dot ? 1 : 0);
     /* Tell an enclosing argument list that one of its arguments was a command.
-     * A command's pushed count is not tracked the way a proc's declared return
-     * arity is — `db_getfield` on a `coord,coord` column pushes two and says
-     * nothing — so the enclosing count becomes a lower bound. */
+     * Fixed signatures keep their exact return arity. Runtime-typed commands
+     * (`db_getfield`, params, enum) remain unknown because data chooses both the
+     * stack and, for DB columns, the number of values. */
     compiler->saw_command_call = 1;
+    compiler->last_command_int_returns = meta->runtime_typed ? -1 : meta->int_out;
+    compiler->last_command_str_returns = meta->runtime_typed ? -1 : meta->str_out;
+    /*
+     * And what namespace the value it just pushed belongs to, for a comparison
+     * against a bare name — `if (last_useitem = eadgar_troll_thistle)`.
+     *
+     * Only a single declared return can say this: a command that pushes two
+     * leaves the reader of `last_value_kind` no way to know which one the
+     * comparison takes, and the generator writes "" for those. A runtime-typed
+     * command (db_getfield, the param family, enum) is data-decided and gets
+     * nothing either, which is what `result` being a declared word rather than
+     * an inferred one already gives.
+     */
+    {
+        const struct SSC_CommandTypes* declared = command_types(opcode);
+
+        compiler->last_value_kind =
+            (declared && !meta->runtime_typed && declared->result[0])
+                ? param_type_kind(declared->result)
+                : SSC_SYM_UNKNOWN;
+    }
 
     if( is_string )
-        *is_string = meta->str_out > 0;
+        *is_string = column_types ? dbcolumn_first_type_is_string(column_types)
+                                  : meta->str_out > 0;
     return 1;
 }
 
@@ -1334,6 +1729,93 @@ parse_calc_term(struct SSC_Compiler* compiler)
 }
 
 /**
+ * A bare name that exists in more than one namespace, resolved where nothing
+ * declared which one was meant.
+ *
+ * The resolver answers such a name with the lowest-numbered kind that carries
+ * it (ssc_symbols.c `cmp_order`), and that answer is a coin toss dressed as a
+ * decision: `eadgar_troll_thistle` is npc 4767 and obj 3262, NPC sorts first,
+ * and `if (last_useitem = eadgar_troll_thistle)` compiled to `= 4767` — a
+ * comparison against a player's held item that no held item can ever equal. The
+ * thistle fell through to the generic cooking handler and answered "You can't
+ * cook that.", with the OPLOCU packet carrying obj 3262 the whole time. Nothing
+ * in the build said a word.
+ *
+ * 69 names in this tree live in two namespaces, so the typed positions
+ * (engine.rs2's signatures, a proc's declared parameters, the other side of a
+ * comparison, a `switch_obj`'s case labels) are what keep this quiet; what is
+ * left over is a position with genuinely nothing to go on, and it is printed
+ * rather than guessed at in silence. It is a warning and not a fatal: the
+ * spelling that would settle it is a content edit, and a compiler that refuses
+ * the tree it is given cannot be the thing that reports the list.
+ */
+/** How many ambiguous names a build prints before it stops repeating itself. */
+enum
+{
+    SSC_AMBIGUOUS_SHOWN = 20,
+};
+
+static void
+report_ambiguous_name(
+    struct SSC_Compiler* compiler,
+    const char* name,
+    const struct SSC_Symbol* taken)
+{
+    const struct SSC_Symbol* kinds[4];
+    int count;
+    int shown;
+    int i;
+
+    assert(compiler);
+    assert(name);
+    assert(taken);
+
+    count = SSC_SymbolsValueKinds(compiler->symbols, name,
+                                  kinds, (int)(sizeof(kinds) / sizeof(kinds[0])));
+    if( count < 2 )
+        return;
+    compiler->ambiguous_names++;
+    /*
+     * 1,283 of these compile in this tree today, which is a list to work
+     * through and not something to print in full on every content build: a
+     * build whose warnings nobody can read has no warnings. The count on the
+     * summary line is what always shows, and `SSCOMPILE_AMBIGUOUS=all` is how
+     * the whole list is taken when somebody is working through it.
+     */
+    {
+        static int show_all = -1;
+
+        if( show_all < 0 )
+        {
+            const char* setting = getenv("SSCOMPILE_AMBIGUOUS");
+
+            show_all = setting && strcmp(setting, "all") == 0;
+        }
+        if( !show_all && compiler->ambiguous_names == SSC_AMBIGUOUS_SHOWN )
+        {
+            fprintf(stderr,
+                    "sscompile: further ambiguous names not shown; "
+                    "SSCOMPILE_AMBIGUOUS=all lists every one\n");
+            return;
+        }
+        if( !show_all && compiler->ambiguous_names > SSC_AMBIGUOUS_SHOWN )
+            return;
+    }
+    shown = count < (int)(sizeof(kinds) / sizeof(kinds[0]))
+                ? count
+                : (int)(sizeof(kinds) / sizeof(kinds[0]));
+    fprintf(stderr, "sscompile: %s:%d: warning: '%s' names ", compiler->lexer.file,
+            compiler->lexer.current.line, name);
+    for( i = 0; i < shown; i++ )
+        fprintf(stderr, "%s%s %d", i ? " and " : "", SSC_SymbolKindLabel(kinds[i]->kind),
+                kinds[i]->value);
+    if( count > shown )
+        fprintf(stderr, " and %d more", count - shown);
+    fprintf(stderr, "; nothing here says which, so %s %d is what compiled\n",
+            SSC_SymbolKindLabel(taken->kind), taken->value);
+}
+
+/**
  * One value onto the stack.
  *
  * Reports through `is_string` which stack it landed on, because the caller
@@ -1349,6 +1831,9 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
     int32_t secondary = 0;
 
     *is_string = 0;
+    /* Whatever the previous value was of, this one is not it until something
+     * below says so. See `last_value_kind`. */
+    compiler->last_value_kind = SSC_SYM_UNKNOWN;
 
     /* `.%inferno_glyph_dir` reads the variable off the SECONDARY pointer. The
      * lexer leaves the dot as punctuation here (it only glues a dot onto a
@@ -1525,6 +2010,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
             symbol = SSC_SymbolsFind(compiler->symbols, text, compiler->arg_kind_hint);
             if( symbol )
             {
+                compiler->last_value_kind = symbol->kind;
                 emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
                 SSC_LexNext(lexer);
                 return 1;
@@ -1604,6 +2090,14 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
         symbol = SSC_SymbolsFindValue(compiler->symbols, text);
         if( symbol )
         {
+            /* A `table:column` carries its declared types along, for the one
+             * caller that needs them — see `last_dbcolumn_types`. */
+            if( symbol->kind == SSC_SYM_DBCOLUMN )
+                compiler->last_dbcolumn_types = symbol->text;
+            /* Nothing typed this position and the name may live in more than
+             * one namespace, in which case sort order alone chose. */
+            report_ambiguous_name(compiler, text, symbol);
+            compiler->last_value_kind = symbol->kind;
             emit(compiler, SS_OP_PUSH_CONSTANT_INT, symbol->value);
             SSC_LexNext(lexer);
             return 1;
@@ -1688,9 +2182,12 @@ parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
     int right_is_string = 0;
     char op[4];
     int opcode;
+    enum SSC_SymbolKind left_kind;
+    enum SSC_SymbolKind saved_hint;
 
     if( !parse_expression(compiler, &left_is_string) )
         return 0;
+    left_kind = compiler->last_value_kind;
 
     if( lexer->current.kind != SSC_TOK_PUNCT )
         return fail(compiler, "expected a comparison operator in the condition");
@@ -1698,8 +2195,29 @@ parse_comparison(struct SSC_Compiler* compiler, int* out_branch)
     snprintf(op, sizeof(op), "%.3s", lexer->current.text);
     SSC_LexNext(lexer);
 
+    /*
+     * Both sides of a comparison are values of the SAME kind, and that is the
+     * only thing in the language that can type a bare name here.
+     *
+     * `if (last_useitem = eadgar_troll_thistle)`: the left is declared to
+     * return an obj, so the right is an obj — without saying so the resolver
+     * took npc 4767 over obj 3262 and the branch was dead code that read as
+     * correct content. Six comparisons in this tree were compiled that way
+     * (eadgar_troll_thistle, eadgar_fake_man, red_crab twice, cavewitchcat,
+     * bloated_toad), and the class is open-ended: a new collision is one
+     * `.npc` file away.
+     *
+     * The hint is a preference, never a requirement — a name with no entry in
+     * the left's namespace falls through to the ordinary lookup, so a
+     * comparison against something that is not an id of that kind compiles
+     * exactly as it did.
+     */
+    saved_hint = compiler->arg_kind_hint;
+    if( left_kind != SSC_SYM_UNKNOWN )
+        compiler->arg_kind_hint = left_kind;
     if( !parse_expression(compiler, &right_is_string) )
         return 0;
+    compiler->arg_kind_hint = saved_hint;
 
     /* The emitted branch is the INVERSE of the source comparison, because it
      * jumps over the block when the condition does not hold. */
@@ -1926,9 +2444,18 @@ parse_while(struct SSC_Compiler* compiler)
     return 1;
 }
 
-/** Fold a case label to a constant. Case keys live in the table, not in code. */
+/**
+ * Fold a case label to a constant. Case keys live in the table, not in code.
+ *
+ * `kind` is the namespace the switch itself declares — `switch_obj` switches on
+ * an obj, so `case eadgar_troll_thistle:` is obj 3262 and not npc 4767. The
+ * type is right there in the keyword and was being thrown away: 382 of this
+ * tree's switches are `switch_obj`, every one of them resolving its labels by
+ * sort order. SSC_SYM_UNKNOWN for the switches whose suffix names no namespace
+ * (`switch_int`, `switch_coord`, `switch_protection`), which resolve as before.
+ */
 static int
-parse_case_value(struct SSC_Compiler* compiler, int32_t* out)
+parse_case_value(struct SSC_Compiler* compiler, enum SSC_SymbolKind kind, int32_t* out)
 {
     struct SSC_Lexer* lexer = &compiler->lexer;
     const struct SSC_Symbol* symbol;
@@ -1957,7 +2484,15 @@ parse_case_value(struct SSC_Compiler* compiler, int32_t* out)
             SSC_LexNext(lexer);
             return 1;
         }
-        symbol = SSC_SymbolsFind(compiler->symbols, lexer->current.text, SSC_SYM_UNKNOWN);
+        symbol = kind != SSC_SYM_UNKNOWN
+                     ? SSC_SymbolsFind(compiler->symbols, lexer->current.text, kind)
+                     : NULL;
+        if( !symbol )
+        {
+            symbol = SSC_SymbolsFind(compiler->symbols, lexer->current.text, SSC_SYM_UNKNOWN);
+            if( symbol && symbol->kind != SSC_SYM_CONSTANT )
+                report_ambiguous_name(compiler, lexer->current.text, symbol);
+        }
         if( !symbol )
             return fail(compiler, "case value '%s' is not a known symbol", lexer->current.text);
         *out = symbol->value;
@@ -1979,6 +2514,14 @@ parse_switch(struct SSC_Compiler* compiler)
     int exits[SSC_MAX_SWITCH_CASES];
     int exit_count = 0;
     int case_count = 0;
+    /* `switch_obj` states the namespace of every case label in the keyword
+     * itself — the one place in the language where the type is spelled out and
+     * the labels were still resolved blind. See parse_case_value. */
+    enum SSC_SymbolKind case_kind;
+
+    /* The only caller reaches here on an identifier beginning `switch_`. */
+    assert(strncmp(lexer->current.text, "switch_", 7) == 0);
+    case_kind = param_type_kind(lexer->current.text + 7);
 
     if( build->table_count >= SSC_MAX_SWITCH_TABLES )
         return fail(compiler, "more than %d switch tables in one script",
@@ -2030,7 +2573,7 @@ parse_switch(struct SSC_Compiler* compiler)
 
                 if( key_count >= SSC_MAX_SWITCH_CASES )
                     return fail(compiler, "too many case values");
-                if( !parse_case_value(compiler, &key) )
+                if( !parse_case_value(compiler, case_kind, &key) )
                     return 0;
                 keys[key_count++] = key;
                 if( SSC_LexIsPunct(lexer, "," ) )
@@ -2097,6 +2640,48 @@ parse_switch(struct SSC_Compiler* compiler)
     build->tables[table_index].cases = build->cases[table_index];
     build->tables[table_index].case_count = (uint16_t)case_count;
     return 1;
+}
+
+/*
+ * Drop what a call left behind when nothing wanted it.
+ *
+ * `npc_finduid($me);` is a STATEMENT, and `npc_finduid` pushes a boolean. The
+ * VM's operand stack is shared across frames — `pop_frame` restores locals and
+ * the pc and nothing else — so a value nobody popped stays there, under
+ * everything the rest of the script pushes.
+ *
+ * It is invisible until something reads by position. A proc call's arguments
+ * are exactly that: the callee pops the top N, so one leaked int inside an
+ * argument shifts every argument to its LEFT by one. The Nylocas room's health
+ * bar is the case that found it —
+ *
+ *     ~tob_hud_push(^tob_hud_type_special, ~tob_nylo_pillar_health, $max)
+ *
+ * — where `~tob_nylo_pillar_health` ends `npc_finduid($me); return($cur);`. The
+ * leaked 1 became `$type`, so the room drew a BOSS bar (type 1) instead of a
+ * special-phase bar (type 2) for its whole wave defence, with the right numbers
+ * on it. `~tob_nset(..., ~tob_xarpus_exhumed_step($rec))` was the same defect
+ * one room over, where it ate the store instead.
+ *
+ * The reference emits these (`POP_INT_DISCARD` / `POP_STRING_DISCARD` are
+ * LostCity opcodes 38/39 and its compiler writes them at exactly this point);
+ * this compiler never did.
+ *
+ * Unknown arity is -1 and stays undiscarded: a runtime-typed command
+ * (`db_getfield`, `enum`, params) chooses its stack from data, and guessing
+ * would corrupt the stack in the other direction. Those are still the old
+ * behaviour, which is why this is a fix rather than a guarantee.
+ */
+static void
+discard_unused_returns(
+    struct SSC_Compiler* compiler,
+    int int_returns,
+    int str_returns)
+{
+    for( int i = 0; i < int_returns; i++ )
+        emit(compiler, SS_OP_POP_INT_DISCARD, 0);
+    for( int i = 0; i < str_returns; i++ )
+        emit(compiler, SS_OP_POP_STRING_DISCARD, 0);
 }
 
 static int
@@ -2190,8 +2775,12 @@ parse_statement(struct SSC_Compiler* compiler)
 
         /* Anything else that starts with a name is a command call. */
         SSC_LexNext(lexer);
+        compiler->last_command_int_returns = -1;
+        compiler->last_command_str_returns = -1;
         if( !parse_command(compiler, text, NULL) )
             return 0;
+        discard_unused_returns(compiler, compiler->last_command_int_returns,
+                               compiler->last_command_str_returns);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
@@ -2202,8 +2791,15 @@ parse_statement(struct SSC_Compiler* compiler)
         int is_label = lexer->current.kind == SSC_TOK_LABEL;
 
         SSC_LexNext(lexer);
+        compiler->last_call_int_returns = -1;
+        compiler->last_call_str_returns = -1;
         if( !parse_call(compiler, text, is_label, NULL) )
             return 0;
+        /* A label is a JUMP: it replaces this script rather than returning to
+         * it, so there is nothing of its to drop. */
+        if( !is_label )
+            discard_unused_returns(compiler, compiler->last_call_int_returns,
+                                   compiler->last_call_str_returns);
         if( SSC_LexIsPunct(lexer, ";") )
             SSC_LexNext(lexer);
         return 1;
@@ -2423,7 +3019,7 @@ parse_header(
          *
          * Neither shape is addressable by key, which is why the engine formats
          * the header's own text and asks `getByName`
-         * (`mock230_scripts_run_trigger_at`, `NetworkPlayer.updateMap`). Writing
+         * (`ToriRSServer_ScriptsRunTriggerAt`, `NetworkPlayer.updateMap`). Writing
          * a key nothing can look up was harmless only while nothing dispatched
          * these triggers; that stopped being true with triage §9 step 5c.
          *
@@ -2465,7 +3061,8 @@ parse_header(
                 want = SSC_SYM_NPC; /* the npc running the AI, whatever it acts on */
             else if( strncmp(trigger_name, "oploc", 5) == 0 ||
                      strncmp(trigger_name, "aplloc", 6) == 0 ||
-                     strncmp(trigger_name, "opheldloc", 9) == 0 )
+                     strncmp(trigger_name, "opheldloc", 9) == 0 ||
+                     strcmp(trigger_name, "locstep") == 0 )
                 want = SSC_SYM_LOC;
             else if( strncmp(trigger_name, "opnpc", 5) == 0 ||
                      strncmp(trigger_name, "apnpc", 5) == 0 )
@@ -2599,13 +3196,24 @@ parse_header_lists(struct SSC_Compiler* compiler)
         return fail(compiler, "expected ')' to close the argument list");
     SSC_LexNext(lexer);
 
-    /* The return list is parsed and discarded: return arity is not stored in
-     * the format at all — a caller simply reads whatever RETURN left behind. */
+    /* Return arity is not stored in the format at all — a caller simply reads
+     * whatever RETURN left behind. What IS kept is each return's type, for the
+     * default values finish_script pushes when the body falls off its end. */
     if( SSC_LexIsPunct(lexer, "(") )
     {
         SSC_LexNext(lexer);
         while( !SSC_LexIsPunct(lexer, ")") && lexer->current.kind != SSC_TOK_EOF )
+        {
+            if( lexer->current.kind == SSC_TOK_IDENT )
+            {
+                if( compiler->build.return_count >= SS_MAX_PARAM_TYPES )
+                    return fail(compiler, "more than %d declared returns",
+                                SS_MAX_PARAM_TYPES);
+                compiler->build.return_defaults[compiler->build.return_count++] =
+                    (int8_t)return_default_for_type(lexer->current.text);
+            }
             SSC_LexNext(lexer);
+        }
         if( SSC_LexIsPunct(lexer, ")") )
             SSC_LexNext(lexer);
     }
@@ -2673,6 +3281,7 @@ SSC_Free(struct SSC_Compiler* compiler)
     free(compiler->name_int_returns);
     free(compiler->name_str_returns);
     free(compiler->name_param_kinds);
+    free(compiler->shadowed);
     free(compiler);
 }
 
@@ -2680,6 +3289,13 @@ int
 SSC_ScriptCount(const struct SSC_Compiler* compiler)
 {
     return compiler ? compiler->script_count : 0;
+}
+
+int
+SSC_AmbiguousNameCount(const struct SSC_Compiler* compiler)
+{
+    assert(compiler);
+    return compiler->ambiguous_names;
 }
 
 const struct SSVM_Script*
@@ -2773,6 +3389,31 @@ SSC_Declare(
             /* Command declarations are not scripts and must not take ids. */
             if( strcmp(trigger, "command") == 0 )
                 continue;
+
+            /*
+             * A seam a lane took over. The lane's declaration already holds the
+             * name and this one must not become a second id — that is precisely
+             * the duplicate the check below refuses. Recorded rather than merely
+             * skipped, because the emit pass has to drop this body too: it would
+             * otherwise resolve the same name back to the lane's id and write
+             * the default over the lane's real script.
+             *
+             * Only against the strong roots. Two seams sharing a name, or two
+             * lanes, is the ordinary duplicate and is still an error.
+             */
+            if( compiler->weak_source )
+            {
+                char seam_name[SSC_MAX_NAME];
+                int existing;
+
+                snprintf(seam_name, sizeof(seam_name), "[%.32s,%.90s]", trigger, subject);
+                existing = script_id_for_name(compiler, seam_name);
+                if( existing >= 0 && existing < compiler->strong_name_count )
+                {
+                    shadow_add(compiler, seam_name);
+                    continue;
+                }
+            }
 
             /*
              * Some script names are singleton entry points. Two declarations
@@ -2979,9 +3620,51 @@ finish_script(struct SSC_Compiler* compiler)
 
     /* Every script must end in RETURN: the VM errors when pc runs past the last
      * instruction, so a script without one could never complete. Content is not
-     * required to write it. */
-    if( build->op_count == 0 || build->opcodes[build->op_count - 1] != SS_OP_RETURN )
-        emit(compiler, SS_OP_RETURN, 0);
+     * required to write it.
+     *
+     * Unconditionally, and that is the whole point. This used to skip the
+     * append when the last opcode already WAS a return — which is exactly
+     * wrong for the commonest shape in the tree:
+     *
+     *     [proc,clear_desertheat_timer]
+     *     if (<cond>) {
+     *         ...
+     *         return;
+     *     }
+     *
+     * `parse_if` branches over the body to `op_count`, the body's own last
+     * opcode is the RETURN, so the append was skipped and the not-taken branch
+     * jumped one past the end. The script worked whenever the condition held
+     * and aborted with "ran past the last instruction without a return"
+     * whenever it did not — which for that proc meant every player leaving a
+     * desert map square with the heat timer already off.
+     *
+     * The cost of always appending is one unreachable byte per script that did
+     * not need it.
+     *
+     * Ahead of it go the declared returns' defaults (return_defaults), the
+     * reference's generateDefaultReturns: a proc that promises `(int)` and
+     * falls off its end still hands its caller one int. Without them the
+     * caller's POP/assignment underflowed — [proc,forcewalk] into every
+     * ~forcewalk2 — or, worse, took a value the caller had pushed itself. */
+    for( i = 0; i < build->return_count; i++ )
+    {
+        switch( build->return_defaults[i] )
+        {
+        case SSC_RETURN_DEFAULT_EMPTY_STRING:
+            emit_string(compiler, "");
+            break;
+        case SSC_RETURN_DEFAULT_ZERO:
+            emit(compiler, SS_OP_PUSH_CONSTANT_INT, 0);
+            break;
+        default:
+            emit(compiler, SS_OP_PUSH_CONSTANT_INT, -1);
+            break;
+        }
+    }
+    emit(compiler, SS_OP_RETURN, 0);
+    if( compiler->failed )
+        return 0;
 
     index = script_id_for_name(compiler, build->name);
     if( index < 0 )
@@ -3259,6 +3942,35 @@ SSC_CompileFile(
             continue;
         }
 
+        /*
+         * The other half of the seam override (see SSC_Declare): this name
+         * belongs to a lane in this build, so the default body is discarded
+         * rather than finished. finish_script resolves by name, and the name now
+         * answers with the lane's id — writing there would replace the lane's
+         * script with the stub, which is the failure this whole mechanism
+         * exists to avoid, and it would do it silently.
+         *
+         * A shadowed seam cannot carry stacked headers with it: those names
+         * would alias onto a body that is not being emitted. Say so rather than
+         * dropping them.
+         */
+        if( compiler->weak_source && is_shadowed(compiler, compiler->build.name) )
+        {
+            int i;
+
+            if( pending_count )
+            {
+                fail(compiler,
+                     "lane seam '%s' shares a body with %d other declaration(s); "
+                     "give each seam its own body",
+                     compiler->build.name, pending_count);
+                break;
+            }
+            for( i = 0; i < compiler->build.op_count; i++ )
+                free(compiler->build.string_operands[i]);
+            continue;
+        }
+
         if( !finish_script(compiler) )
             break;
 
@@ -3287,13 +3999,45 @@ compare_paths(const void* a, const void* b)
     return strcmp(*(const char* const*)a, *(const char* const*)b);
 }
 
-/** Collect every `.rs2` under `dir`, recursively. */
+/**
+ * Is `path` this exclusion, or inside it?
+ *
+ * Compared as whole path components, so excluding `.../ported_curses` cannot
+ * also take `.../ported_curses_extra` with it.
+ */
 static int
-collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_capacity)
+path_is_within(const char* path, const char* prefix)
 {
-    DIR* handle = opendir(dir);
-    struct dirent* entry;
+    size_t length = strlen(prefix);
 
+    while( length > 0 && prefix[length - 1] == '/' )
+        length--;
+    if( strncmp(path, prefix, length) != 0 )
+        return 0;
+    return path[length] == '\0' || path[length] == '/';
+}
+
+/** Collect every `.rs2` under `dir`, recursively, minus the excluded subtrees. */
+static int
+collect_sources(
+    const char* dir,
+    const char* const* excludes,
+    int exclude_count,
+    char*** out_paths,
+    int* out_count,
+    int* out_capacity)
+{
+    DIR* handle;
+    struct dirent* entry;
+    int i;
+
+    for( i = 0; i < exclude_count; i++ )
+    {
+        if( path_is_within(dir, excludes[i]) )
+            return 0;
+    }
+
+    handle = opendir(dir);
     if( !handle )
         return 0;
 
@@ -3311,7 +4055,7 @@ collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_cap
 
         if( S_ISDIR(info.st_mode) )
         {
-            collect_sources(path, out_paths, out_count, out_capacity);
+            collect_sources(path, excludes, exclude_count, out_paths, out_count, out_capacity);
             continue;
         }
 
@@ -3335,16 +4079,26 @@ collect_sources(const char* dir, char*** out_paths, int* out_count, int* out_cap
 }
 
 int
-SSC_CompileDir(
+SSC_CompileRoots(
     struct SSC_Compiler* compiler,
-    const char* dir,
+    const struct SSC_SourceRoot* roots,
+    int root_count,
+    const char* const* excludes,
+    int exclude_count,
     struct SSC_Diag* diag)
 {
-    char** paths = NULL;
-    int count = 0;
-    int capacity = 0;
+    char** strong = NULL;
+    int strong_count = 0;
+    int strong_capacity = 0;
+    char** weak = NULL;
+    int weak_count = 0;
+    int weak_capacity = 0;
     int ok = 1;
     int i;
+
+    assert(compiler);
+    assert(roots);
+    assert(root_count > 0);
 
     /* SSC_Declare runs before SSC_CompileFile ever sets compiler->diag, but
      * both go through fail(), which only writes compiler->diag when it is
@@ -3352,23 +4106,154 @@ SSC_CompileDir(
      * drops its message and the caller sees an empty diagnostic. */
     compiler->diag = diag;
 
-    collect_sources(dir, &paths, &count, &capacity);
+    for( i = 0; i < root_count; i++ )
+    {
+        /*
+         * An exclusion subtracts a subtree from the roots that *contain* it; it
+         * never cancels a root of its own.
+         *
+         * Every other root is an exclusion too, and that is not a convenience:
+         * a lane's scripts and the base tree's seams both live *inside* `--src`,
+         * so without this each of them is walked twice — once by the root that
+         * contains it and once as itself — and every name in it is a duplicate
+         * declaration. Deriving it here rather than asking each caller to
+         * subtract its own roots is what keeps that from being a footgun with
+         * one correct spelling and several plausible wrong ones.
+         */
+        const char* kept[128];
+        int kept_count = 0;
+        int j;
+
+        assert(roots[i].dir);
+        for( j = 0; j < exclude_count + root_count; j++ )
+        {
+            const char* exclusion =
+                j < exclude_count ? excludes[j] : roots[j - exclude_count].dir;
+
+            if( path_is_within(roots[i].dir, exclusion) )
+                continue;
+            /* Dropping one silently is a subtree that quietly compiles back
+             * into the pack — abort instead. */
+            assert(kept_count < (int)(sizeof(kept) / sizeof(kept[0])));
+            kept[kept_count++] = exclusion;
+        }
+        if( roots[i].weak )
+            collect_sources(roots[i].dir, kept, kept_count, &weak, &weak_count,
+                            &weak_capacity);
+        else
+            collect_sources(roots[i].dir, kept, kept_count, &strong, &strong_count,
+                            &strong_capacity);
+    }
     /* Sorted so script ids are stable across machines — the container indexes
-     * by id, and a gosub compiled today must still resolve tomorrow. */
-    qsort(paths, (size_t)count, sizeof(char*), compare_paths);
+     * by id, and a gosub compiled today must still resolve tomorrow. Sorted
+     * across roots rather than per root, so which root a file arrived through
+     * cannot move it. */
+    qsort(strong, (size_t)strong_count, sizeof(char*), compare_paths);
+    qsort(weak, (size_t)weak_count, sizeof(char*), compare_paths);
 
-    for( i = 0; i < count && ok; i++ )
-        ok = SSC_Declare(compiler, paths[i], diag);
-    for( i = 0; i < count && ok; i++ )
-        ok = SSC_CompileFile(compiler, paths[i], diag);
+    /*
+     * Every strong name first. A seam only knows it lost once the lane that
+     * defines the same name has been declared, and the declare pass is a single
+     * forward walk, so the two sets cannot be interleaved.
+     */
+    for( i = 0; i < strong_count && ok; i++ )
+        ok = SSC_Declare(compiler, strong[i], diag);
+    compiler->strong_name_count = compiler->name_count;
+    compiler->weak_source = 1;
+    for( i = 0; i < weak_count && ok; i++ )
+        ok = SSC_Declare(compiler, weak[i], diag);
+    compiler->weak_source = 0;
 
-    for( i = 0; i < count; i++ )
-        free(paths[i]);
-    free(paths);
+    for( i = 0; i < strong_count && ok; i++ )
+        ok = SSC_CompileFile(compiler, strong[i], diag);
+    compiler->weak_source = 1;
+    for( i = 0; i < weak_count && ok; i++ )
+        ok = SSC_CompileFile(compiler, weak[i], diag);
+    compiler->weak_source = 0;
+
+    for( i = 0; i < strong_count; i++ )
+        free(strong[i]);
+    free(strong);
+    for( i = 0; i < weak_count; i++ )
+        free(weak[i]);
+    free(weak);
     return ok;
 }
 
+int
+SSC_CompileDir(
+    struct SSC_Compiler* compiler,
+    const char* dir,
+    struct SSC_Diag* diag)
+{
+    struct SSC_SourceRoot root;
+
+    assert(compiler);
+    assert(dir);
+
+    root.dir = dir;
+    root.weak = 0;
+    return SSC_CompileRoots(compiler, &root, 1, NULL, 0, diag);
+}
+
 /* ------------------------------------------------------------------ */
+
+/* Recompile a body edit against the already loaded declarations. Compile into
+ * a separate owner so errors cannot partially replace the last good program.
+ * New/removed signatures need a full compile: existing callers embed IDs and
+ * stack arities. This API deliberately refuses such edits. */
+int
+SSC_RecompileFile(struct SSC_Compiler* compiler, const char* path, struct SSC_Diag* diag)
+{
+    struct SSC_Compiler* next = SSC_New(compiler->symbols);
+    int ok = next && SSC_Declare(next, path, diag);
+    int old_count = 0;
+    for( int i = 0; i < compiler->script_count; i++ )
+        if( compiler->scripts[i].source_path && !strcmp(compiler->scripts[i].source_path, path) )
+            old_count++;
+    if( ok && (old_count == 0 || next->name_count != old_count) ) ok = 0;
+    for( int i = 0; ok && i < next->name_count; i++ )
+    {
+        int id = script_id_for_name(compiler, next->names[i]);
+        if( id < 0 || id >= compiler->script_count ||
+            !compiler->scripts[id].source_path || strcmp(compiler->scripts[id].source_path, path) ||
+            next->name_int_args[i] != compiler->name_int_args[id] ||
+            next->name_str_args[i] != compiler->name_str_args[id] ||
+            next->name_str_return[i] != compiler->name_str_return[id] ||
+            next->name_int_returns[i] != compiler->name_int_returns[id] ||
+            next->name_str_returns[i] != compiler->name_str_returns[id] ||
+            memcmp(next->name_param_kinds[i], compiler->name_param_kinds[id], SS_MAX_PARAM_TYPES) )
+            ok = 0;
+    }
+    if( !ok )
+    {
+        if( diag && !diag->message[0] )
+            snprintf(diag->message, sizeof(diag->message), "declarations changed or source not in this pack; full compile required");
+        SSC_Free(next);
+        return 0;
+    }
+    /* The declaration-only candidate owns no script bodies yet. */
+    next->name_count = compiler->name_count;
+    next->strong_name_count = compiler->strong_name_count;
+    memcpy(next->names, compiler->names, (size_t)compiler->name_count * sizeof(*compiler->names));
+#define COPY_DECL(field) memcpy(next->field, compiler->field, (size_t)compiler->name_count * sizeof(*compiler->field))
+    COPY_DECL(name_int_args); COPY_DECL(name_str_args); COPY_DECL(name_str_return);
+    COPY_DECL(name_int_returns); COPY_DECL(name_str_returns); COPY_DECL(name_param_kinds);
+#undef COPY_DECL
+    ok = SSC_CompileFile(next, path, diag);
+    if( ok )
+    {
+        for( int i = 0; i < next->script_count; i++ )
+        {
+            if( !next->scripts[i].op_count ) continue;
+            SSVM_ScriptFree(&compiler->scripts[i]);
+            compiler->scripts[i] = next->scripts[i];
+            memset(&next->scripts[i], 0, sizeof(next->scripts[i]));
+        }
+    }
+    SSC_Free(next);
+    return ok;
+}
 
 int
 SSC_Write(

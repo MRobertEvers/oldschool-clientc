@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2FontLoad
 {
@@ -23,7 +24,7 @@ struct Task_Dat2FontLoad
 static int
 Task_Dat2FontLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2FontLoad* task = (struct Task_Dat2FontLoad*)task_base;
     struct RSCache_Dat2DiskArchive* sprite_archive = NULL;
@@ -37,7 +38,7 @@ Task_Dat2FontLoad_Run(
     task->font_archive = RSCache_IO_Dat2FontDecode(io, 0);
     if( !task->font_archive )
     {
-        fprintf(stderr, "Failed to decode dat2 font archive %d\n", task->font_id);
+        TORIRS_ERR("Failed to decode dat2 font archive %d\n", task->font_id);
         PT_EXIT(&task->pt);
     }
 
@@ -47,7 +48,7 @@ Task_Dat2FontLoad_Run(
     sprite_archive = RSCache_IO_Dat2SpriteDecode(io, 0);
     if( !sprite_archive )
     {
-        fprintf(stderr, "Failed to decode dat2 sprite archive for font %d\n", task->font_id);
+        TORIRS_ERR("Failed to decode dat2 sprite archive for font %d\n", task->font_id);
         RSCache_Dat2DiskArchiveFree(task->font_archive);
         task->font_archive = NULL;
         PT_EXIT(&task->pt);
@@ -61,7 +62,7 @@ Task_Dat2FontLoad_Run(
     task->font_archive = NULL;
     if( !font )
     {
-        fprintf(stderr, "Failed to convert dat2 font %d\n", task->font_id);
+        TORIRS_ERR("Failed to convert dat2 font %d\n", task->font_id);
         PT_EXIT(&task->pt);
     }
 

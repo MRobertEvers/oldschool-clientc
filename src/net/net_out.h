@@ -19,6 +19,13 @@
 
 #include <stdint.h>
 
+/** Native rev-239 opcode 2929 notification. Types are selected by CRC on the
+ * server; integers use ZigZag/LEB128 and strings are NUL-terminated. */
+int net_out_if_script_trigger(struct GameProtoRevTable const* rev,
+    struct Isaac* random_out, uint8_t* buf, int cap, int crc, int component_id,
+    int child, int object_id, const char* signature, const int* values,
+    const char* const* strings);
+
 /** Encrypt+write one opcode byte for a canonical out-name.
  *  Returns 1, or -1 when the revision lacks the packet. */
 int
@@ -112,6 +119,70 @@ net_out_resume_countdialog(
     uint8_t* buf,
     int cap,
     int amount);
+/* The clientscript dialog resumes (3104..3106, 3114, 3115): the answer to the
+ * server's prompt, as the command's own argument. */
+int
+net_out_resume_namedialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name);
+int
+net_out_resume_stringdialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* text);
+int
+net_out_resume_countdialog_long(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int64_t amount);
+int
+net_out_resume_objdialog(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int obj_id);
+/* bug_report (3116): the two free-text fields and the template id. */
+int
+net_out_bug_report(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* description, char const* instructions, int template_id);
+/* chat_sendabusereport (5002), SEND_SNAPSHOT at rev 239. `rule_id` is what the
+ * wire carries: the script's rule minus one. */
+int
+net_out_send_snapshot(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name, int rule_id, int mute);
+/* Friends chat (legacy clan chat). `name` NULL on JOIN_LEAVE is a leave. */
+int
+net_out_friendchat_join_leave(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name);
+int
+net_out_friendchat_kick(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name);
+int
+net_out_friendchat_setrank(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    char const* name, int rank);
+/* Clans: the full-state requests and the three moderation requests, each
+ * about member `member_index` of clan `clan_id`. */
+int
+net_out_clanchannel_full_request(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id);
+int
+net_out_clansettings_full_request(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id);
+int
+net_out_clanchannel_kickuser(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, char const* name);
+int
+net_out_affinedclansettings_addbanned_fromchannel(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, char const* name);
+int
+net_out_affinedclansettings_setmuted_fromchannel(
+    struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
+    int clan_id, int member_index, int muted, char const* name);
 int
 net_out_tut_clickside(
     struct GameProtoRevTable const* rev,
@@ -125,6 +196,15 @@ net_out_tut_clickside(
  * startX(2) + startZ(2) + up to 24 signed (dx,dz) byte pairs. route uses the
  * collision_map_try_route layout ([0] = destination, ascending toward the
  * source); start = route[route_len-1] + base (scene tile -> absolute). */
+/** Native sailing direction. heading is a compass point in 0..15. */
+int
+net_out_set_heading(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int heading);
+
 int
 net_out_move_gameclick(
     struct GameProtoRevTable const* rev,
@@ -175,6 +255,16 @@ net_out_move_minimapclick(
 
 /* -- held-item / inventory-component ops -------------------------------- */
 /* op is 1..5 (OPHELD1..OPHELD5 etc). */
+/* The COMPONENT op number rev-239's backpack carries for OPHELD<n> (n 1..5),
+ * 0 for anything else.  The mapping is not consecutive (2, 3, 4, 6, 7): op 1
+ * is the generic Use row and op 5 a plain component action.  Anything that
+ * speaks to the backpack in its own op space -- notably app_minimenu.c's cell
+ * flash, which re-enters the cell's cc_setonop handler -- must translate
+ * through this and not pass the OPHELD index, because op 1 there is the
+ * shift-click-drop chain and running it drops the item. */
+int
+net_out_opheld_component_op(int op_num);
+
 int
 net_out_opheld(
     struct GameProtoRevTable const* rev,
@@ -357,13 +447,18 @@ net_out_opplayeru(
     int use_component_id);
 
 /* -- chat / social ------------------------------------------------------ */
+/** `colour_effect` is the pair the wire carries as two bytes and every other
+ *  surface carries as one int: high byte the chat colour, low byte the effect
+ *  (the same packing PLAYER_INFO's inbound chat block uses). 0 is plain
+ *  yellow, which is what a client with no chat-style selector always sends. */
 int
 net_out_message_public(
     struct GameProtoRevTable const* rev,
     struct Isaac* random_out,
     uint8_t* buf,
     int cap,
-    char const* text);
+    char const* text,
+    int colour_effect);
 int
 net_out_message_private(
     struct GameProtoRevTable const* rev,

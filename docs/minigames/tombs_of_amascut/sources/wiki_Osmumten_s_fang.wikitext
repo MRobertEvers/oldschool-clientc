@@ -1,0 +1,189 @@
+{{redirect|Fang|other uses|Fang (disambiguation)}}
+{{Infobox Item
+|name = Osmumten's fang
+|image = [[File:Osmumten's fang.png]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = Yes
+|stackable = No
+|noteable = Yes
+|options = Wield, Drop
+|examine = A deadly sword created long ago.
+|value = 1000000
+|weight = 1.814
+|exchange = Yes
+|id = 26219
+|leagueRegion = Desert
+}}
+[[File:Osmumten's fang detail.png|left|150px]]
+'''Osmumten's fang''' is a one-handed [[stab weapon]] obtained as a rare reward from the [[Tombs of Amascut]]. It was the weapon of Pharaoh [[Osmumten]], who was a skilled hunter.{{CiteNews|url=https://secure.runescape.com/m=news/tombs-of-amascut?oldschool=1|title=Tombs of Amascut|newsdate=24 August 2022|quote=Known to his people as Osmumten the Hunter, this pharaoh was renowned for bringing down the land’s deadliest beasts. During his hunts, he wore armour and weapons crafted by the region's finest artisans. One such weapon was his Fang, with which he was eventually buried.}} It requires level 82 [[Attack]] to wield. A [[cursed phalanx]] can be attached to the fang to create [[Osmumten's fang (or)]], a cosmetic variant of the weapon.
+
+When using the Stab attack styles (''Stab'', ''Lunge'', and ''Block''), the fang has two unique [[passive effect]]s which aim to make it effective against targets with high [[Defence]] levels and more consistent overall: re-rolling accuracy on an unsuccessful hit and making damage rolls closer to the average. The special combat mechanics are described in more detail [[#Passive effects|below]]. Like spears, halberds, and magic, the fang is also [[Corpbane weapons|able to deal full damage]] to the [[Corporeal Beast]].
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = +105
+|aslash = +75
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = +103
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 5
+|attackrange = 1
+|combatstyle = Stab Sword
+|image = [[File:Osmumten's fang equipped male.png|170px]]
+|altimage = [[File:Osmumten's fang equipped female.png|170px]]
+}}
+
+{{CombatStyles|Stab Sword|speed=5|attackrange=1}}
+
+==Passive effects==
+[[File:Osmumten's fang attack.gif|thumb|250px|A player attacks an opponent with Osmumten's fang.]]
+When using Osmumten's fang, it has two [[passive effect]]s where it behaves differently at both stages of an attack. That is, when determining if a [[successful hit]] has occurred, and then how much damage is applied. The first effect only occurs when using the Stab attack styles (''Stab'', ''Lunge'', and ''Block'').
+
+===Successful hit chance===
+The first effect concerns the [[Damage_per_second/Melee#Step_six:_Calculate_the_hit_chance|probability]] of landing a successful hit on an opponent and only occurs when using the Stab attack styles (''Stab'', ''Lunge'', and ''Block''), which differs depending on whether the weapon is used within or outside of the [[Tombs of Amascut]] raid.{{CiteTwitter|author=OldSchoolRS|url=https://twitter.com/OldSchoolRS/status/1587104713383845891|date=31 October 2022|archiveurl=https://reldo.runescape.wiki/i/100329|archivedate=31 October 2022|quote=Whilst within the tombs, the previous behaviour of rolling both the player's accuracy and the monster's defence will apply, as it did before today's change.}} Within the raid, this check is performed using the standard mechanics, but is repeated; if either check succeeds, a successful hit has been made. This means the opponent's defence is also re-rolled, making the accuracy far higher.
+
+When determining if the attack lands outside the raid, two independent accuracy rolls are made and if either is higher than the opponent's original defence roll, the attack succeeds. To calculate the exact probability, the following formula can be used (where <math display="inline">a</math> represents your maximum attack roll and <math display="inline">d</math> represents the opponent's maximum defence roll):
+
+<math>
+\text{Hit Chance} = \begin{cases}
+ \displaystyle 1-\frac{(d+2) (2 d+3)}{6 (a+1)^2}, & \quad \text{when } a \ge d, \text{ and} \\
+ \displaystyle \frac{a (4 a+5)}{6 (a+1) (d+1)}, & \quad \text{when } a < d.
+\end{cases}
+</math>
+
+In simpler terms, the fang rolls accuracy twice in a single hit.
+
+===Damage calculation===
+The second effect involves using a different formula to determine damage rolls and occurs with any attack type; unlike other weapons that roll between one and the [[maximum hit]] of the player upon a [[successful hit]], the fang will instead always deal between 15% and 85% of the maximum hit upon a successful hit, except when making use of the weapon's [[#Special attack|special attack]]. For example, if the fang's true max hit was 60, it would roll between 9 and 51 instead of 1 and 60 (inclusive) damage upon a successful hit. While this effect does not increase the expected [[Damage_per_second/Melee|damage per second]], it does have the effect of lowering the overall variance of the damage output.
+
+==Special attack==
+[[File:Eviscerate.gif|thumb|250px|A player performing Osmumten's fang's special attack, ''Eviscerate''.]]
+Osmumten's fang has a [[special attack]], ''Eviscerate'', which consumes 25% of the player's special attack energy. The attack provides a 50% increase to accuracy for the next hit. The fang's normal attacks are limited to 85% of the player's max hit; the special attack instead uses the fang's true max hit when determining damage rolls (i.e., 100% of max hit). 
+
+For example, if the fang's true max hit was 60, it would roll between 9 to 60 damage upon a successful hit, rather than the usual 9 to 51 damage it would normally roll. This effectively increases damage by the same amount as a weapon special that increases max hit by 17.65%.
+
+==Products==
+{{Uses material list|Osmumten's fang}}
+
+==Item sources==
+{{Drop sources|Osmumten's fang}}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip fun.wav|desc=Wielding}}
+{{SFXLine|file=Stabsword attack (stab).wav|desc=Attacking with stab}}
+{{SFXLine|file=Stabsword attack (slash).wav|desc=Attacking with slash}}
+{{SFXLine|file=Osmumten's fang special attack unused.wav|desc=''Unused''}}
+{{SFXLine|file=Osmumten's fang special attack 1.wav|desc=Special attack part 1}}
+{{SFXLine|file=Osmumten's fang special attack 2.wav|desc=Special attack part 2}}
+{{SFXLine|file=Osmumten's fang special attack 3.wav|desc=Special attack part 3}}
+{{SFXTableBottom}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Osmumten's fang}}
+
+==Gallery==
+<gallery mode="packed" heights="250" style="text-align:left">
+Osmumten's fang concept art.jpg|Concept art of Osmumten's fang by [[Mod Jerv]]. <!-- It's Brok! -->
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 August 2024
+|update = Araxxor
+|change = The item's inventory icon was adjusted again so that the tip is not cut off in the inventory.
+}}
+{{Subject changes
+|date = 21 August 2024
+|update = Miscellaneous Fixes
+|change = The item's inventory icon was adjusted.
+}}
+{{Subject changes
+|date = 7 August 2024
+|update = Poll 82 Changes
+|change = 
+* The special attack animation has been updated to use a unique animation, rather than reuse that of the [[brine sabre]].
+* The item's model has been [[graphically updated]] slightly.
+}}
+{{Subject changes
+|date = 17 January 2024
+|update = Scythe & Fang Updates
+|change = The passive effect which performs a double-accuracy roll now only applies whilst Osmumten's fang is using the Stab attack styles, due to the fang's secondary Slash type being vastly superior compared to primary slash-based weapons against enemies weak to slash attacks.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = The item has been added to the Grand Exchange's [[Grand_Exchange#Items_regulated_via_item_sink|item sink list]].
+}}
+{{Subject changes
+|date = 31 October 2022
+|update = 
+|type = hotfix
+|change = 
+* The fang will now only re-roll the player's accuracy roll, rather than re-rolling both accuracy and the monster's defence outside the Tombs of Amascut, due to it being vastly superior compared to other melee weapons even in super effective situations (e.g [[dragon hunter lance]] against dragons).
+}}
+{{Subject changes
+|date = 1 September 2022
+|update = Tombs of Amascut: Balancing & Bugfixes
+|change = 
+* The fang should now distribute damage accordingly rather than 'clamping' damage at the lowest hits.
+* The [[Masori mask]] no longer has any graphical issues when worn with Osmumten's fang.
+}}
+{{Subject changes
+|prerelease = yes
+|page = Osmumten's fang (beta)
+|date = 20 October 2021
+|update = Tombs of Amascut & Nex Rewards Beta
+|poll = 
+|change = 
+* The item's name was changed from "Osmumten's khopesh" to "Osmumten's fang".
+* The item has been recategorised as a stab weapon instead of a slash weapon.
+}}
+{{Subject changes
+|daterange =  12 - 17 August 2021
+|beta = Tombs of Amascut: Rewards Beta
+|change = First present in the Tombs of Amascut: Rewards Beta.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Osmumten's fang detail v1.png|center|300x150px]]
+|[[File:Osmumten's fang detail v2.png|center|300x150px]]
+|[[File:Osmumten's fang detail v3.png|center|300x150px]]
+|[[File:Osmumten's fang detail.png|center|300x150px]]
+|-
+|[[File:Osmumten's fang v1.png|center]]
+|[[File:Osmumten's fang v2.png|center]]
+|[[File:Osmumten's fang v3.png|center]]
+|[[File:Osmumten's fang.png|center]]
+|-
+|24 August 2022 –<br/>7 August 2024
+|7 August 2024 –<br/>21 August 2024
+|21 August 2024 –<br/>28 August 2024
+|28 August 2024 –<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Stab weapons}}
+{{Tombs of Amascut}}
+[[Category:Weapons with Special attacks]]
+[[Category:Items subject to Grand Exchange item sink]]
+[[Category:Collection log items]]

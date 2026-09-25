@@ -47,19 +47,26 @@ RS_IdkDesign_Init(struct RS_IdkDesign* design)
 }
 
 int
-RS_IdkDesign_ResolveKitCount(
-    struct RS_IdkDesign* design,
-    struct CacheProvider* provider)
+RS_IdkDesign_KitTableCount(struct CacheProvider* provider)
 {
     int count = 0;
-    assert(design && provider);
+    assert(provider);
     for( int id = 0; id < PLAYER_IDK_SCAN_MAX; id++ )
     {
         if( CacheProvider_IdkHas(provider, id) )
             count = id + 1;
     }
-    design->kit_count = count;
     return count;
+}
+
+int
+RS_IdkDesign_ResolveKitCount(
+    struct RS_IdkDesign* design,
+    struct CacheProvider* provider)
+{
+    assert(design && provider);
+    design->kit_count = RS_IdkDesign_KitTableCount(provider);
+    return design->kit_count;
 }
 
 void
@@ -129,9 +136,43 @@ RS_IdkDesign_LoadRequestAdd(
     return 1;
 }
 
-/* Reference clientButton, CC_CHANGE_HEAD_L..CC_CHANGE_FEET_R: step the kit id
- * one at a time (wrapping over the whole IdkType table) until one is selectable
- * and belongs to this part+gender. */
+/* Step the kit id one at a time (wrapping over the whole IdkType table) until
+ * one is selectable and belongs to this part+gender. @see the header for why
+ * this walk and an index into a filtered list are the same sequence. */
+int
+RS_IdkDesign_StepKitId(
+    struct CacheProvider* provider,
+    int kit_count,
+    int body_part_id,
+    int kit,
+    int step)
+{
+    assert(provider);
+    assert(step == 1 || step == -1);
+
+    /* Reference guards the whole walk on `kit !== -1`: with no kit to stand on
+     * there is nothing to step from. */
+    if( kit < 0 || kit_count <= 0 )
+        return -1;
+
+    /* The reference loops unbounded — it relies on the part always having at
+     * least one match (the kit it is standing on). Bound it at one full lap so
+     * a cache whose kits do not satisfy that cannot hang the client. */
+    for( int i = 0; i < kit_count; i++ )
+    {
+        kit += step;
+        if( kit < 0 )
+            kit = kit_count - 1;
+        else if( kit >= kit_count )
+            kit = 0;
+
+        if( design_kit_matches(provider, kit, body_part_id) )
+            return kit;
+    }
+    return -1;
+}
+
+/* Reference clientButton, CC_CHANGE_HEAD_L..CC_CHANGE_FEET_R. */
 static void
 design_cycle_part(
     struct RS_IdkDesign* design,
@@ -139,40 +180,18 @@ design_cycle_part(
     int part,
     int direction)
 {
-    int want = design_body_part_id(design, part);
-    int kit = design->parts[part];
+    int next = RS_IdkDesign_StepKitId(
+        provider,
+        design->kit_count,
+        design_body_part_id(design, part),
+        design->parts[part],
+        direction == 0 ? -1 : 1);
 
-    /* Reference guards the whole walk on `kit !== -1`: with no kit resolved for
-     * this part there is nothing to step from. */
-    if( kit < 0 || design->kit_count <= 0 )
+    if( next < 0 )
         return;
-
-    /* The reference loops unbounded — it relies on the part always having at
-     * least one match (the kit it is standing on). Bound it at one full lap so
-     * a cache whose kits do not satisfy that cannot hang the client. */
-    for( int step = 0; step < design->kit_count; step++ )
-    {
-        if( direction == 0 )
-        {
-            kit--;
-            if( kit < 0 )
-                kit = design->kit_count - 1;
-        }
-        else
-        {
-            kit++;
-            if( kit >= design->kit_count )
-                kit = 0;
-        }
-
-        if( design_kit_matches(provider, kit, want) )
-        {
-            design->parts[part] = kit;
-            design->redraw = 1;
-            design->load_requested_count = 0;
-            return;
-        }
-    }
+    design->parts[part] = next;
+    design->redraw = 1;
+    design->load_requested_count = 0;
 }
 
 static void

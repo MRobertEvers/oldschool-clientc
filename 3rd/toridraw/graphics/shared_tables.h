@@ -1,6 +1,8 @@
 #ifndef SHARED_TABLES_H
 #define SHARED_TABLES_H
 
+#include "pixel_format.h"
+
 #include <math.h>
 #include <stdint.h>
 
@@ -14,23 +16,20 @@ extern "C" {
 #define TORIDRAW_TABLE_QUAL
 #endif
 
-#ifndef TORIDRAW_PIXEL_T
-#  ifdef TORIDRAW_PIXEL16
-#    define TORIDRAW_PIXEL_T uint16_t
-#  else
-#    define TORIDRAW_PIXEL_T int
-#  endif
-#endif
-typedef TORIDRAW_PIXEL_T toripixel_t;
+/*
+ * `toripixel_t` and everything that knows the framebuffer's layout now live in
+ * graphics/pixel_format.h, included above. This header owns the TABLES; that
+ * one owns the FORMAT their entries are in.
+ */
 
 //   This tool renders a color palette using jagex's 16-bit HSL, 6 bits
 //             for hue, 3 for saturation and 7 for lightness, bitpacked and
 //             represented as a short.
-#ifdef TORIDRAW_PIXEL16
-extern TORIDRAW_TABLE_QUAL uint16_t g_hsl16_to_rgb_table[65536];
-#else
-extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
-#endif
+//
+// Entries are native framebuffer words, packed once at build time, so every
+// solid kernel is a palette lookup and a store on every format. On a 16-bit
+// target that also halves the hottest table in the engine, 256KB to 128KB.
+extern TORIDRAW_TABLE_QUAL toripixel_t g_hsl16_to_pixel_table[65536];
 
 /*
  * Gouraud rasterizers carry packed HSL16 in 8.8 fixed point while walking a
@@ -41,18 +40,30 @@ extern TORIDRAW_TABLE_QUAL int g_hsl16_to_rgb_table[65536];
  * deliberately only for interpolated values: callers with a real hsl16_t
  * already have a valid index and retain the branch-free direct lookup.
  */
-static inline int
-ToriDraw_Hsl16Ish8ToRgb(int hsl16_ish8)
+static inline toripixel_t
+ToriDraw_Hsl16Ish8ToPixel(int hsl16_ish8)
 {
     int hsl16 = hsl16_ish8 >> 8;
     if( (unsigned)hsl16 > 0xFFFFu )
         hsl16 = hsl16 < 0 ? 0 : 0xFFFF;
-    return g_hsl16_to_rgb_table[hsl16];
+    return g_hsl16_to_pixel_table[hsl16];
 }
 
 extern const int* g_sin_table;
 extern const int* g_cos_table;
 extern const int* g_tan_table;
+
+/*
+ * Interleaved { cosine, sine } pairs for the projection hot path.  The table is
+ * rebuilt whenever either selected source table changes, so a yaw lookup is one
+ * 8-byte pair on one cache line instead of two lines from two 8KB tables.
+ *
+ * Unconditional: projection16.aarch64.S reads it with `ld2r`, and the x86
+ * prepared kernel (projection16_prepared.sse2.h) reads both halves per call.
+ * 16KB of BSS is not worth a conditional-compilation trap where the definition
+ * exists on one target and silently does not on the others.
+ */
+extern int g_projection_model_yaw_table[2048][2];
 
 /** Initialize and select ToriDraw's built-in 2,048-entry sine table. */
 void
@@ -64,6 +75,12 @@ ToriDraw_InitCosTable(void);
 void
 ToriDraw_InitTanTable(void);
 
+/**
+ * Select the 2,048-entry 16.16 sine table used by ToriDraw.
+ *
+ * Selected custom tables must remain alive and unchanged until they are
+ * replaced. Reselecting the same pointer refreshes projection-derived data.
+ */
 void
 ToriDraw_SetSinTable(const int* table);
 /**
@@ -71,7 +88,9 @@ ToriDraw_SetSinTable(const int* table);
  *
  * ToriDraw does not take ownership. Passing NULL restores its standalone
  * built-in table, so callers may optionally share a table owned by another
- * library without creating a dependency on that library.
+ * library without creating a dependency on that library. Selected custom
+ * tables must remain alive and unchanged until they are replaced; reselecting
+ * the same pointer refreshes projection-derived data.
  */
 void
 ToriDraw_SetCosTable(const int* table);
@@ -237,7 +256,25 @@ ToriDraw_AsinTurns16(float x)
 extern TORIDRAW_TABLE_QUAL int g_reciprocal16[4096];
 extern TORIDRAW_TABLE_QUAL int g_reciprocal15[4096];
 
-#ifndef TORIDRAW_DISABLE_SIMD_TABLES
+/*
+ * The two vector reciprocal tables: 640 KB of BSS, and OPT-IN.
+ *
+ * They were opt-OUT, behind TORIDRAW_DISABLE_SIMD_TABLES, which no build lane
+ * in this tree ever set -- so every build carried them, and ToriDraw_Init ran
+ * 288K divisions filling them. A grep says nothing reads either one: the
+ * kernels that were to use them exist only as commented-out lines in
+ * projection.scalar_reference.u.c. That is affordable on a desktop and it is
+ * two and a half times an embedded client's whole budget.
+ *
+ * Defining TORIDRAW_SIMD_RECIPROCAL_TABLES brings them back, declaration,
+ * storage and builder together, for the lane that finally writes those
+ * kernels.
+ */
+#ifdef TORIDRAW_DISABLE_SIMD_TABLES
+#error "TORIDRAW_DISABLE_SIMD_TABLES is retired -- the tables are opt-in now; define TORIDRAW_SIMD_RECIPROCAL_TABLES to have them"
+#endif
+
+#ifdef TORIDRAW_SIMD_RECIPROCAL_TABLES
 /** 256 Ki entries; valid denominator indices are 1 .. G_RECIPROCAL16_SIMD_LEN-1. */
 #define G_RECIPROCAL16_SIMD_LEN (256 * 1024)
 extern uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
@@ -248,8 +285,23 @@ extern uint16_t g_reciprocal16_simd[G_RECIPROCAL16_SIMD_LEN];
 extern uint32_t g_reciprocal_norm30[G_RECIPROCAL_NORM_LEN];
 #endif
 
+/**
+ * Gamma-correct one 24-bit RGB triple, channel by channel, in the reference
+ * client's own arithmetic (Pix3D applies 0.8 to every palette it builds).
+ *
+ * Declared here because the palette above is not the only thing that needs it:
+ * a texture baked from a cache sprite has to gamma its palette by the SAME
+ * curve, or the textured faces of a model come out a different brightness from
+ * its solid ones. toridraw_rscache calls this rather than carrying a second
+ * copy of six pow() calls.
+ */
+int
+pix3d_set_gamma(
+    int rgb,
+    double gamma);
+
 void
-init_hsl16_to_rgb_table(void);
+init_hsl16_to_pixel_table(void);
 void
 init_reciprocal16(void);
 

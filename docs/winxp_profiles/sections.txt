@@ -1,0 +1,39 @@
+﻿
+src\torirs.exe:     file format pei-i386
+
+Sections:
+Idx Name          Size      VMA       LMA       File off  Algn
+  0 .text         00352200  00401000  00401000  00000600  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, CODE
+  1 .data         00011a10  00754000  00754000  00352800  2**2
+                  CONTENTS, ALLOC, LOAD, DATA
+  2 .rdata        0009ed74  00766000  00766000  00364400  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  3 .eh_frame     00033d54  00805000  00805000  00403200  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  4 .bss          014fdd24  00839000  00839000  00000000  2**2
+                  ALLOC
+  5 .idata        00001c68  01d37000  01d37000  00437000  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  6 .tls          00000008  01d39000  01d39000  00438e00  2**2
+                  CONTENTS, ALLOC, LOAD, DATA
+  7 .reloc        0001a164  01d3a000  01d3a000  00439000  2**2
+                  CONTENTS, ALLOC, LOAD, READONLY, DATA
+  8 .debug_aranges 00000a08  01d55000  01d55000  00453200  2**0
+                  CONTENTS, READONLY, DEBUGGING
+  9 .debug_info   0045de0f  01d56000  01d56000  00453e00  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 10 .debug_abbrev 0001713d  021b4000  021b4000  008b1e00  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 11 .debug_line   002f6a01  021cc000  021cc000  008c9000  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 12 .debug_frame  00000038  024c3000  024c3000  00bbfc00  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 13 .debug_str    000105a8  024c4000  024c4000  00bbfe00  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 14 .debug_line_str 0001a13b  024d5000  024d5000  00bd0400  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 15 .debug_loclists 005747a3  024f0000  024f0000  00bea600  2**0
+                  CONTENTS, READONLY, DEBUGGING
+ 16 .debug_rnglists 000bc0f1  02a65000  02a65000  0115ee00  2**0
+                  CONTENTS, READONLY, DEBUGGING

@@ -1,0 +1,5 @@
+// The fletching recipe table.
+[fletching_table]
+column=item,obj,INDEXED,REQUIRED
+column=product,namedobj,int
+column=level,int

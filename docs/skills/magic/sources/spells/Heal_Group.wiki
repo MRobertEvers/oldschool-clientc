@@ -1,0 +1,47 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Heal Group
+|image = [[File:Heal Group.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 95
+|spellbook = Lunar
+|type = combat
+|exp = 124
+|cost = {{RuneReq|Blood=3|Law=6|Astral=4}}
+|speed = 150 ticks
+|description = Transfers up to 75% of Hitpoints to a group
+|anim = [[File:Heal Group.gif]]
+|sound = [[File:Heal Group.ogg]]
+}}
+[[File:Heal Group icon (mobile).png|left]]
+'''Heal Group''' reduces the caster's current [[hitpoints]] by 75% and heals up to five injured players that are standing within 1 square from the casting player (including players standing on the same spot as the caster) for the amount lost plus 5 hitpoints, split evenly across the nearby injured players. Players must have [[Accept Aid]] turned on to receive healing from this spell. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+It is not possible to die from using this spell, as it will not work if the player has less than 11% health. This spell is able to heal other players in [[Monster killing|PvM]] [[single-way combat]]. It does not work, however, in single-way [[Player killing|PvP]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Blood
+|Rune1num = 3
+|Rune2 = Law
+|Rune2num = 6
+|Rune3 = Astral
+|Rune3num = 4
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 May 2021
+|update = Games Room Tables and Fishing Skill Boss Improvements
+|change =
+* The spell now functions by dividing up to 75% of the healer's health equally between up to five injured players in the immediate area, and throwing in an additional five points for healing.
+* Once the spell has been cast, it will update the player's attack delay by three cycles (akin to eating food).
+* The spell now has a 90 second cooldown once cast.
+}}
+{{Subject changes footer}}
+
+
+{{Lunar spellbook}}
+{{Combat spells}}

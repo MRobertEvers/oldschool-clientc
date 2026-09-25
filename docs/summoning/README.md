@@ -149,7 +149,7 @@ From the repository root, build and launch the entire Summoning lane with one
 command:
 
 ```sh
-./run-live.sh manifest_osrs239_summoning.ini
+./run-live.sh manifests/manifest_osrs239_summoning.ini
 ```
 
 The launcher reads the cache, compiled-script directory, credentials, renderer,
@@ -160,15 +160,15 @@ If those artifacts are already built, the equivalent direct client invocation
 is:
 
 ```sh
-./src/torirs --manifest manifest_osrs239_summoning.ini
+./src/torirs --manifest manifests/manifest_osrs239_summoning.ini
 ```
 
-`manifest_osrs239_summoning.ini` selects `cache.osrs239.summoning`, the
+`manifests/manifest_osrs239_summoning.ini` selects `cache.osrs239.summoning`, the
 `build_summoning` server scripts, embedded transport, development credentials,
 Soft3D, level 99 Summoning, the persisted Summoning unlock, all three playable
 familiar pouches, the Clockwork cat, and Spirit wolf infusion supplies.
-`MOCK230_CACHE` and `MOCK230_SCRIPTS` are no longer required. They remain
-higher-priority overrides for diagnostics. The original `manifest_osrs239.ini`,
+`TORIRSSERVER_CACHE` and `TORIRSSERVER_SCRIPTS` are no longer required. They remain
+higher-priority overrides for diagnostics. The original `manifests/manifest_osrs239.ini`,
 cache, and content trees are not modified by this selection.
 
 Nothing is summoned automatically. Use a pouch's real Summon option, then open
@@ -189,7 +189,7 @@ The Summoning cache must be repacked when overlay interfaces, CS2, models, or
 texture mappings change:
 
 ```sh
-make -C src mock230-cache-summoning mock230-scripts-summoning
+make -C src torirsserver-cache-summoning torirsserver-scripts-summoning
 make -C src torirs EMBED_SERVER=1
 ```
 

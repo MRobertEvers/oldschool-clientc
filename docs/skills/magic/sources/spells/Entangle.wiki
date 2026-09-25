@@ -1,0 +1,72 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Entangle
+|image = [[File:Entangle.png]]
+|release = [[29 March]] [[2004]]
+|update = RS2 Launched!
+|members = Yes
+|level = 79
+|spellbook = Normal
+|type = Combat
+|exp = 89
+|damage = 5
+|cost = {{RuneReq|Nature=4|Earth=5|Water=5}}
+|speed = 5 ticks
+|description = Holds your opponent for 15 seconds
+|anim = [[File:Entangle.gif|300px]]
+|sound = [[File:Entangle.ogg]]
+}}
+[[File:Entangle icon (mobile).png|left]]
+'''Entangle''' is a members-only [[spell]] that requires level 79 [[Magic]] to cast. Casting Entangle will hold your target in place for 24 [[ticks]] (14.4 seconds) and grants 89 Magic experience (in addition to 2 experience per damage dealt). A successful hit, without any damage boosting items, can deal up to 5 damage. When used on a player and the entanglement is about to wear off, the entangled player will receive this message in their chatbox: {{Mes|The holding effect is beginning to fade.|color=red}} Players can increase the binding duration by equipping [[swampbark armour]]; the [[Swampbark helm|helm]], [[Swampbark body|body]], and [[Swampbark legs|legs]] will increase the duration by 2 [[ticks]] (1.2 seconds) each, up to a maximum of 30 [[ticks]] (18.0 seconds).
+
+Once the spell wears off, the target has 5 ticks (3 seconds) of immunity before they can be entangled again.
+
+Unsuccessful cast, or a [[splash]], yields only 70 [[Magic]] experience.
+
+Entangle is a stronger version of the level 20 spell [[Bind]] and the level 50 spell [[Snare]].
+
+==Cost==
+{{Spell cost table
+|Rune1=Water
+|Rune1num=5
+|Rune2=Earth
+|Rune2num=5
+|Rune3=Nature
+|Rune3num=4
+|uses_pages_water = yes
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted entangle sack}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 September 2023
+|update = The Path of Glouphrie
+|change = Lower [[Magic]] [[experience]] gain of 70 for splashing an Entangle spell is now consistent in both PvP and PvM combat.
+}}
+{{Subject changes
+|date = 21 June 2023
+|update = More Poll 79 Changes
+|poll = Old School Content Poll 79: Quality of Life
+|change = 
+* The maximum Swampbark Armour set bonus for the Entangle spell can now be achieved with just the [[Swampbark helm|helm]], [[Swampbark_body|body]] and [[Swampbark_legs|legs]] as opposed to the full set.
+* Each outfit piece now increases the duration of the Entangle spell by an additional [[tick]], so the complete bonus increases the duration to 6 ticks.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = An audio cue and message have been added to the Entangle spell to tell the victims when the freeze is about to expire.
+}}
+{{Subject changes
+|date = 5 September 2019
+|update = PvP Balancing, LMS, and Elf Graphics
+|change = [[Protect from Magic]] no longer halves the duration of Entangle.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

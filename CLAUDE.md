@@ -4,8 +4,7 @@
 
 A function that is handed something it cannot accept must **abort loudly**, not
 return a neutral value and let the caller carry on. Use `assert()` from
-`<assert.h>`. `NDEBUG` is never defined in this tree, so asserts are live in
-every configuration, `OPT=1` included.
+`<assert.h>`.
 
 ```c
 /* NO — the caller's bug becomes a silent no-op, surfacing later as a
@@ -145,3 +144,90 @@ if( fread(data, 1, size, f) != size )
 `TEST_ASSERT(f(NULL) == 0, "f tolerates NULL")` freezes the exact habit above.
 If NULL is a contract violation, delete the line rather than keeping the guard
 alive to satisfy it.
+
+## Never mutate source in this working tree to prove a test fails
+
+Several sessions build from this checkout at once, into shared object
+directories (`src/build_opt_es`, `src/build_opt`, ...). A mutation check that
+edits a real file, runs a test, and restores it leaves a window in which any
+other build compiles the mutant. The restore does not undo that: the object
+can finish after the restore, and GNU Make 3.81 here compares whole-second
+mtimes, so the object never looks stale again.
+
+This happened on 2026-09-16. A check deleted the blank-line rule from
+`3rd/toridraw/toridraw_font.c` for eight seconds; a concurrent build compiled
+`src/build_opt_es/toridraw_unity.o` from it in the same second as the restore,
+and every later `./launch` linked the mutant. The chat filter labels overlapped
+"On" on every renderer while the source, the tests, and every clean private
+build said the bug was fixed.
+
+```sh
+# NO — mutates the tree other builds are reading.
+sed -i '' 's/rule/(void)0/' 3rd/toridraw/toridraw_font.c && make test-x; git checkout 3rd/toridraw/toridraw_font.c
+
+# YES — mutate a throwaway worktree; the shared tree never sees the mutant.
+git worktree add --detach "$SCRATCH/mut" HEAD
+cp 3rd/toridraw/toridraw_font.c src/ui/test/font_markup_test.c ...   # uncommitted work the test needs
+( cd "$SCRATCH/mut" && <apply mutation> && make -C src PLATFORM_OBJ_BASE=build_mut test-x )
+git worktree remove --force "$SCRATCH/mut"
+```
+
+The same holds for any temporary edit to a source file that is not the change
+itself (a probe, a forced branch, a commented-out call): do it in a worktree,
+or make it the committed change.
+
+If a build ever disagrees with its source, delete the object and rebuild; do
+not trust `make` to notice.
+
+## No `switch` inside a protothread
+
+A protothread is any function whose body sits between `PT_BEGIN(...)` and
+`PT_END(...)` — the `PT_*` macros are how you recognise one (`PT_BEGIN`,
+`PT_END`, `PT_YIELD`, `PT_EXIT`, `PT_WAIT_*`, `PT_TASK_AWAITSELF*`,
+`PT_TASK_JOIN`, `TASK_AWAIT_STATE`, `DAT2_GROUP_AWAIT`; anything that expands
+to one of those is a suspension point). `PT_BEGIN` opens a `switch` on the
+saved resume point and every suspension point expands to a `case __LINE__:`
+label. A `switch` written inside that body captures any label inside it, so
+on resume the outer switch finds no case, skips the body, and the task reaches
+`PT_END` as if it had finished — without stepping its child, with a landed
+answer still in its item. That is not a compile error; it is a silent
+use-after-free (`Task_AppPlaceholder_Run`, 2026-09-18).
+
+So: **never write a `switch` anywhere between `PT_BEGIN` and `PT_END`**, even
+one with no suspension point inside it, even one that compiles. Dispatch with
+an `if`/`else` chain, or call a plain (non-PT) helper that contains the
+`switch` and returns a plan, then do the awaits linearly. `make -C src
+check-pt-switch` (tools/pt_switch_audit.py) must print `total 0`.
+
+## A lookup must not re-walk the UI tree on a frame where nothing changed
+
+A loop over every node (`for( i = 0; i < tree->component_count; i++ )`,
+~7,000 on an OSRS239 frame) is fine once when something changed. Asked again
+per widget per frame, it is the failure that ran the Stone Drawer at 68 ms a
+frame on the phone and 1 ms on the desktop, where nobody saw it
+(`UITree_FrameSlotMemberNode`, 2026-09-21): a lookup whose MISS was never
+remembered, asked fourteen times per tab stone per frame.
+
+- **Remember misses, not just hits.** "Not found" is an answer. Key it on
+  what can change it (`generation`, `id_generation`, `frame_stamp_serial`),
+  and give "cannot say yet" its own value instead of refusing to cache: a
+  role fallback returns `-3` while its pack or enum is not resident, and `-1`
+  is remembered.
+- **Scan a candidate list, not the tree**, when only a few node kinds can
+  answer (`frame_slot_candidates`, the canvas-query candidates).
+- **Every whole-tree loop is marked** on one of the three lines above it:
+  `UITREE_SCAN_METER(tree);` (walks of a subtree, pack or enum:
+  `UITREE_SCAN_METER_NODES(n)`), or `/* tree-walk-exempt: <reason> */` for
+  code the frame loop never runs (boot, teardown, a debug dump).
+  `make -C src check-tree-walks` must pass.
+- **Slot stamps go through `UITree_FrameStamp`**, never a direct write to
+  `slot_tag` / `frame_member_plus1`: the candidate list trusts the serial.
+
+The meter judges it at run time: if steady frames (topology, ids and stamps
+unchanged) average more than `UITREE_SCAN_METER_STEADY_WALKS` whole-tree walks
+over the last `UITREE_SCAN_METER_WINDOW`, the client prints a `uitree:` line
+naming the site, a debug build asserts, and `TORIRS_SCAN_METER_STRICT=1`
+aborts. `make -C src check-scan-meter` runs the real client under every frame
+provider and the phone's mobile identity and must pass after any change to a
+plugin, the bridge or a tree lookup. `TORIRS_SCAN_METER_TRACE=1|2` prints the
+per-frame reading and sites.

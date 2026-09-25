@@ -1,0 +1,381 @@
+From 9c4579e93a14c04de98941da0dcc62f53754a821 Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Mon, 24 Aug 2026 23:48:01 -0500
+Subject: [PATCH] perf(texspan): three per-span prologue variants behind knobs
+
+The per-span prologue runs 34,643 times a frame for 396,845 textured
+pixels, and 61.4% of those spans never fill an 8-pixel block, so it is
+paid roughly once per eleven pixels drawn. Three independent changes,
+each defaulting to 0 so the file assembles the kernel that shipped:
+
+TEXSPAN_PACK_PRIME folds prime-cur and prime-nxt into one 4-lane SSE2
+chain. The two pairs are the same four operations over two divisors and
+neither depends on the other, and cur_u/cur_v/nxt_u/nxt_v are four
+contiguous frame slots, so [1/w0,1/w0,1/w1,1/w1] times [au0,bv0,au1,bv1]
+produces all four at once. Lane-wise single precision is defined the
+same as its scalar twin -- rcpps and rcpss share one approximation table
+and the Newton step is the same three operations -- so every lane
+produces the bits the scalar sequence produced. The wrapped-quotient
+range test rides along as one cmpltps against a per-lane limit, FLT_MAX
+on the u lanes and 2097152.0f on the v lanes, read out with movmskps;
+anything but 15 means a v lane left the exact range and is redone with
+the reference idivl in .Lprfix. 17 fewer instructions on the fast path,
+six scalar int-float conversions replaced by three packed ones, and the
+two WRAPQ slow paths moved out of the hot trace.
+
+TEXSPAN_WRAP_MASK replaces WRAPQ's comiss + jp + jae with cmpltss +
+movmskps + one branch. The unordered case is unreachable, so the jp is
+being removed rather than folded away.
+
+TEXSPAN_SEED_AFTER_BLKN tests the block count before seeding the
+reciprocal pipeline. On the 61.4% of spans with no full block the seed
+is a reciprocal nobody reads: .Ltail, .Ltexact and .Ltlerp are integer
+throughout.
+
+Verified against a pristine copy of the kernel, asm to asm, over 50,000
+spans and 7.7M pixels per configuration with zero differing bytes, and
+both in-tree compare tests reproduce their baseline mismatch counts (19
+spans, 10 triangles -- pre-existing, the C twin divides where the asm
+refines rcpss) unchanged under every knob.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../raster/texture/span/tex_span_body.inc     | 272 ++++++++++++++++++
+ 1 file changed, 272 insertions(+)
+
+diff --git a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+index 33caa4842..d49c0deb4 100644
+--- a/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
++++ b/3rd/toridraw/graphics/raster/texture/span/tex_span_body.inc
+@@ -40,6 +40,31 @@
+  * Those counters live in the C twin; measure them there.
+  */
+ 
++/* ------------------------------------------------------------------ */
++/*  Per-span prologue variants, for the XP frame hunt.                  */
++/*                                                                     */
++/*  Every textured span pays the prologue below whatever it goes on to  */
++/*  draw, and on [bench:lumbridge-ground] 61.4% of them never fill a    */
++/*  single 8-pixel block. That makes the prologue, not the fill, the    */
++/*  thing 34,643 spans a frame have in common. Three knobs, each an     */
++/*  independent arm so the benchmark can tell them apart:               */
++/*                                                                     */
++/*  TEXSPAN_PACK_PRIME       cur and nxt as one 4-lane SSE2 chain       */
++/*  TEXSPAN_WRAP_MASK        WRAPQ range test through movmskps          */
++/*  TEXSPAN_SEED_AFTER_BLKN  do not seed a pipeline with no blocks      */
++/*                                                                     */
++/*  All three default to 0, which assembles the kernel that shipped.    */
++/* ------------------------------------------------------------------ */
++#ifndef TEXSPAN_PACK_PRIME
++#define TEXSPAN_PACK_PRIME 0
++#endif
++#ifndef TEXSPAN_WRAP_MASK
++#define TEXSPAN_WRAP_MASK 0
++#endif
++#ifndef TEXSPAN_SEED_AFTER_BLKN
++#define TEXSPAN_SEED_AFTER_BLKN 0
++#endif
++
+ /* ------------------------------------------------------------------ */
+ /*  Stack frame. Four pushes then FRAME bytes, and cdecl puts the      */
+ /*  return address and then the arguments above them, so argument n    */
+@@ -184,15 +209,30 @@
+  * n numerator (register or m32), w divisor (register or m32) -- but not eax or
+  * edx, which the divide sequence writes before it reads w. out a register.
+  * Clobbers xmm2, xmm3, eax, edx.
++ *
++ * TEXSPAN_WRAP_MASK replaces the comiss with cmpltss + movmskps. comiss writes
++ * the arithmetic flags, so an unordered compare has to be caught separately and
++ * that costs a second branch on a path where the first one is already taken
++ * 15% of the time; the compare-to-mask form produces one flag and needs one.
++ * The unordered case is unreachable -- xmm1 is a finite reciprocal and \n is an
++ * integer -- so the two forms agree on every input this kernel can present, and
++ * the jp is being removed rather than folded away.
+  */
+ 	.macro WRAPQ n, w, out
+ 	cvtsi2ssl \n, %xmm2
+ 	mulss   %xmm1, %xmm2
+ 	movaps  %xmm2, %xmm3
+ 	andps   LC_absmask, %xmm3
++#if TEXSPAN_WRAP_MASK
++	cmpltss LC_lim, %xmm3
++	movmskps %xmm3, %eax
++	testb   $1, %al
++	je      8f
++#else
+ 	comiss  LC_lim, %xmm3
+ 	jp      8f
+ 	jae     8f
++#endif
+ 	cvttss2si %xmm2, \out
+ 	jmp     9f
+ 8:
+@@ -424,6 +464,94 @@
+  */
+ 	.macro SPANBODY sh, twm1, vmask, twm1f, tag, done
+ 
++#if TEXSPAN_PACK_PRIME
++	/*
++	 * --- prime cur and nxt together ---
++	 *
++	 * The two priming pairs are the same four operations on four different
++	 * numerators over two divisors, and nothing in either depends on the
++	 * other, so the scalar form runs two RECIP chains and four conversions
++	 * where one packed chain covers all of it. cur_u/cur_v/nxt_u/nxt_v are
++	 * four contiguous dwords in the frame and are built as one vector, in
++	 * that order, with the reciprocal duplicated per pair:
++	 *
++	 *     xmm1 = [ 1/w0, 1/w0, 1/w1, 1/w1 ]
++	 *     xmm2 = [  au0,  bv0,  au1,  bv1 ]
++	 *
++	 * Lane-wise single-precision arithmetic is defined identically to its
++	 * scalar twin, so every lane produces the bits the scalar sequence
++	 * produced -- rcpps and rcpss share one approximation table, and the
++	 * Newton step is the same three operations. What changes is only that
++	 * they issue four at a time.
++	 *
++	 * The two lanes that carry v need the wrapped-quotient range test, and
++	 * that is the movmskps in the middle: the u lanes are compared against
++	 * FLT_MAX so their bits are always set, and a mask of anything but 15
++	 * means at least one v left the reciprocal exact range and has to be
++	 * redone with the divide, out of line in .Lprfix.
++	 */
++	movl    CW(%esp), %ecx
++	movl    %ecx, %eax
++	addl    ST_CW8(%esp), %eax
++	sarl    $\sh, %ecx
++	sarl    $\sh, %eax
++	testl   %ecx, %ecx
++	je      .Lprscalar\tag
++	testl   %eax, %eax
++	je      .Lprscalar\tag
++
++	/* w0 and w1 again, from memory this time -- a second dependency chain
++	 * off the same two loads costs three uops and keeps the ten-cycle
++	 * GPR-to-xmm transfer off the front of the reciprocal. */
++	movd    CW(%esp), %xmm0
++	movd    ST_CW8(%esp), %xmm3
++	punpckldq %xmm0, %xmm0
++	pslldq  $4, %xmm3
++	paddd   %xmm3, %xmm0
++	psrad   $\sh, %xmm0
++	pshufd  $0x50, %xmm0, %xmm0
++	cvtdq2ps %xmm0, %xmm0
++	rcpps   %xmm0, %xmm1
++	mulps   %xmm1, %xmm0
++	mulps   %xmm1, %xmm0
++	addps   %xmm1, %xmm1
++	subps   %xmm0, %xmm1
++
++	/* AU/BV and ST_AU8/ST_BV8 are adjacent slots, so each pair is one movq
++	 * and the block-1 numerators are one packed add. */
++	movq    AU(%esp), %xmm2
++	movq    ST_AU8(%esp), %xmm3
++	paddd   %xmm2, %xmm3
++	punpcklqdq %xmm3, %xmm2
++	cvtdq2ps %xmm2, %xmm2
++	mulps   %xmm1, %xmm2
++
++	movaps  %xmm2, %xmm3
++	andps   LC_absmask, %xmm3
++	cmpltps LC_qlim, %xmm3
++	movmskps %xmm3, %edx
++
++	/* Clamp before converting, and clamp the v lanes too. The u lanes want
++	 * [0, texture_width - 1] as QUOTU does; the v lanes want nothing, but
++	 * cvttps2dq is a packed instruction and a lane past 2^31 would hand the
++	 * P4 an out-of-range conversion in every span that has one. They are
++	 * pinned at the exact-range limit instead, which .Lprfix overwrites. */
++	maxps   LC_qlo, %xmm2
++	minps   LC_qhi\tag, %xmm2
++	cvttps2dq %xmm2, %xmm2
++
++	movd    %xmm2, CUR_U(%esp)
++	pshufd  $0x55, %xmm2, %xmm3
++	movd    %xmm3, CUR_V(%esp)
++	pshufd  $0xAA, %xmm2, %xmm3
++	movd    %xmm3, NXT_U(%esp)
++	pshufd  $0xFF, %xmm2, %xmm3
++	movd    %xmm3, NXT_V(%esp)
++
++	cmpl    $15, %edx
++	jne     .Lprfix\tag
++.Lprimed\tag:
++#else
+ 	/* --- prime cur, the quotient pair for block 0 --- */
+ 	movl    CW(%esp), %ecx
+ 	sarl    $\sh, %ecx
+@@ -458,15 +586,35 @@
+ 3:
+ 	movl    $-1, NXT_U(%esp)
+ 4:
++#endif
++
++#if TEXSPAN_SEED_AFTER_BLKN
++	/*
++	 * The block count is tested before the pipeline is seeded, not after.
++	 * 61.4% of the textured spans in [bench:lumbridge-ground] have no full
++	 * block at all, and for those the seed is a reciprocal chain nobody
++	 * reads: .Ltail leaves xmm7 alone, and .Ltexact and .Ltlerp are integer
++	 * throughout. The only cost is that the two paths no longer share the
++	 * three instructions that reload cw.
++	 */
++	cmpl    $0, BLKN(%esp)
++	jle     .Ltail\tag
+ 
+ 	/* Seed the reciprocal pipeline: block 0 consumes 1/w_2. */
+ 	movl    CW(%esp), %eax
+ 	addl    ST_CW16(%esp), %eax
+ 	sarl    $\sh, %eax
+ 	RECIP7  %eax, %edx
++#else
++	/* Seed the reciprocal pipeline: block 0 consumes 1/w_2. */
++	movl    CW(%esp), %eax
++	addl    ST_CW16(%esp), %eax
++	sarl    $\sh, %eax
++	RECIP7  %eax, %edx
+ 
+ 	cmpl    $0, BLKN(%esp)
+ 	jle     .Ltail\tag
++#endif
+ 
+ .Lblk\tag:
+ 	/*
+@@ -654,6 +802,94 @@
+ 	decl    EB_N(%esp)
+ 	jne     .Ltloop\tag
+ 	jmp     \done
++
++#if TEXSPAN_PACK_PRIME
++	/*
++	 * The two priming paths the packed form cannot take, out of line so the
++	 * span that takes neither never fetches them.
++	 *
++	 * .Lprscalar is the original scalar prime, unchanged: w == 0 means the
++	 * block draws nothing and there is no reciprocal to pack it with, and
++	 * the vector form would have to branch per lane to say so.
++	 */
++.Lprscalar\tag:
++	movl    CW(%esp), %ecx
++	sarl    $\sh, %ecx
++	testl   %ecx, %ecx
++	je      1f
++	RECIP   %ecx
++	QUOTU   AU(%esp), \twm1f, %edx
++	movl    %edx, CUR_U(%esp)
++	WRAPQ   BV(%esp), %ecx, %edx
++	movl    %edx, CUR_V(%esp)
++	jmp     2f
++1:
++	movl    $-1, CUR_U(%esp)
++2:
++	movl    CW(%esp), %ecx
++	addl    ST_CW8(%esp), %ecx
++	sarl    $\sh, %ecx
++	testl   %ecx, %ecx
++	je      3f
++	RECIP   %ecx
++	movl    AU(%esp), %edx
++	addl    ST_AU8(%esp), %edx
++	QUOTU   %edx, \twm1f, %ebx
++	movl    %ebx, NXT_U(%esp)
++	movl    BV(%esp), %edx
++	addl    ST_BV8(%esp), %edx
++	WRAPQ   %edx, %ecx, %ebx
++	movl    %ebx, NXT_V(%esp)
++	jmp     4f
++3:
++	movl    $-1, NXT_U(%esp)
++4:
++	jmp     .Lprimed\tag
++
++	/*
++	 * .Lprfix: one or both v lanes left the reciprocal exact range, so redo
++	 * exactly those with WRAPQ's divide -- the same idivl and the same
++	 * INT_MIN / -1 peel, so the value written is the reference quotient. On
++	 * [bench:lumbridge-ground] about one WRAPQ in seven lands here, which is
++	 * far too often to redo the whole prologue for; only the failing lane is
++	 * patched, and the mask moves to ebx first because cltd writes edx.
++	 * w0 survives in ecx from the fast path; w1 does not survive the first
++	 * divide, so it is rebuilt.
++	 */
++.Lprfix\tag:
++	movl    %edx, %ebx
++	testl   $2, %ebx
++	jne     5f
++	movl    BV(%esp), %eax
++	cmpl    $-1, %ecx
++	je      6f
++	cltd
++	idivl   %ecx
++	movl    %eax, CUR_V(%esp)
++	jmp     5f
++6:
++	negl    %eax
++	movl    %eax, CUR_V(%esp)
++5:
++	testl   $8, %ebx
++	jne     7f
++	movl    CW(%esp), %ecx
++	addl    ST_CW8(%esp), %ecx
++	sarl    $\sh, %ecx
++	movl    BV(%esp), %eax
++	addl    ST_BV8(%esp), %eax
++	cmpl    $-1, %ecx
++	je      8f
++	cltd
++	idivl   %ecx
++	movl    %eax, NXT_V(%esp)
++	jmp     7f
++8:
++	negl    %eax
++	movl    %eax, NXT_V(%esp)
++7:
++	jmp     .Lprimed\tag
++#endif
+ 	.endm
+ 	.section .rdata,"dr"
+ 	.align 16
+@@ -674,6 +910,42 @@ LC_f127:
+ LC_f63:
+ 	.long 0x427C0000        /* 63.0f */
+ 
++#if TEXSPAN_PACK_PRIME
++	/*
++	 * The packed prime lays the four quotients out as [u, v, u, v], so
++	 * every constant it needs alternates the u limit with the v one.
++	 *
++	 * LC_qlim is the WRAPQ range test: 2097152.0f on the v lanes, FLT_MAX
++	 * on the u lanes, which have already been clamped to the texture width
++	 * and can never trip it. Comparing all four in one cmpltps and reading
++	 * one movmskps is the whole reason the layout is interleaved.
++	 */
++	.align 16
++LC_qlim:
++	.long 0x7F7FFFFF        /* FLT_MAX -- u never leaves the range */
++	.long 0x4A000000        /* 2097152.0f */
++	.long 0x7F7FFFFF
++	.long 0x4A000000
++	.align 16
++LC_qlo:
++	.long 0x00000000        /* +0.0f -- QUOTU's clamp */
++	.long 0xCA000000        /* -2097152.0f -- keeps cvttps2dq in range */
++	.long 0x00000000
++	.long 0xCA000000
++	.align 16
++LC_qhi128:
++	.long 0x42FE0000        /* 127.0f */
++	.long 0x4A000000        /* +2097152.0f */
++	.long 0x42FE0000
++	.long 0x4A000000
++	.align 16
++LC_qhi64:
++	.long 0x427C0000        /* 63.0f */
++	.long 0x4A000000
++	.long 0x427C0000
++	.long 0x4A000000
++#endif
++
+ 	/* The constants sit in the middle of the translation unit now -- this
+ 	 * file is included ABOVE the entry that uses them, where the original
+ 	 * had them last. Switch back, or every instruction after the include

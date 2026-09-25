@@ -1,0 +1,563 @@
+{{External|rs|rsc=Combat instructor|dw}}
+{{Redirect3|Edgeville Slayer Master|For the [[Wilderness]] [[Slayer Master]] in [[Edgeville]], see [[Krystilia]]}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|version1 = Vannaka
+|version2 = Combat Instructor
+|name1 = Vannaka
+|name2 = Combat Instructor
+|image1 = [[File:Vannaka.png|150px]]
+|image2 = [[File:Combat Instructor.png|150px]]
+|release1 = [[26 January]] [[2005]]
+|release2 = [[29 March]] [[2004]]
+|update1 = Slayer Skill
+|update2 = RS2 Launched!
+|level = 146
+|members1 = Yes
+|members2 = No
+|race = [[Human]]
+|location1 = [[Edgeville Dungeon]]
+|location2 = [[Tutorial Island]]
+|shop1 = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|shop2 = No
+|gender = Male
+|options1 = Talk-to, Assignment, Trade, Rewards
+|options2 = Talk-to
+|examine1 = He looks dangerous!
+|examine2 = An expert on all forms of combat.
+|map1 = {{Map|name=Vannaka|x=3147|y=9914|mapID=12|r=3|mtype=square}}
+|map2 = {{Map|name=Combat Instructor|x=1697|y=12516|plane=0|r=2|mapID=-1|mtype=square}}
+|id1 = 403
+|id2 = 3307
+|leagueRegion = Misthalin
+}}
+{{Synced switch
+|version1=[[File:Vannaka chathead.png|left]]
+|version2=[[File:Combat Instructor chathead.png|left]]
+}}
+'''Vannaka''' is a highly accomplished fighter who serves as the '''Combat Instructor''' on [[Tutorial Island]] and a [[Slayer master]] in [[Edgeville Dungeon]]. He claims to be the greatest swordsman alive, which is suggested by his [[combat level]] of 146 and his ability to carry both a [[Steel 2h sword|steel two-handed sword]] and [[dragon square shield]] at the same time, a trait unattainable by players. According to the [[Transcript:The woeful tale of the bunny ears.|14th]] [[Postbag from the Hedge]], his [[Strength]] level is 112.
+
+During the tutorial, he dismisses the player character's attempts at making idle conversation, and proceeds to teach them how [[Melee]] and [[Ranged]] [[combat]] work. He tasks the player with [[slaying]] a [[giant rat]] in close combat. Afterwards, he instructs the player to kill a second rat from outside of the enclosure using [[ranged]] attacks, a strategy colloquially known as [[safespotting]].
+
+Vannaka gives the player a [[bronze sword]], a [[wooden shield]], a [[shortbow]], and some [[bronze arrows]] to keep as part of his lessons on the island.
+
+When encountered after the tutorial, Vannaka acts as a mid-level Slayer Master. He is found due east of the [[Wilderness]] entrance within the Edgeville Dungeon, and is marked by a Slayer Master icon on the [[minimap]]. Players with [[Combat level]] 40 or higher may receive [[Slayer task]]s from him. Receiving a Slayer task is a requirement for the [[Medium Varrock Diary]].
+
+Blocking a task with Vannaka costs 60 [[Slayer reward point|Slayer reward points]].
+
+==Slayer points==
+Players can receive [[Slayer reward point]]s for completing [[Slayer task]]s—this is based on how many tasks players have accomplished in a row. Completion of a task assigned by Vannaka will grant you:
+{|class=wikitable style="text-align:center;"
+!Task interval
+!Points given
+|-
+|Every task
+|8
+|-
+|Every 10th
+|40
+|-
+|Every 50th
+|120
+|-
+|Every 100th
+|200
+|-
+|Every 250th
+|280
+|-
+|Every 1,000th
+|400
+|}
+
+==Tasks==
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+{| class="wikitable sortable lighttable qc-active"
+!Monster
+!Amount
+![[Slayer Rewards#Extend|Extended amt.]]
+!class="sortable"|Unlock requirement
+!class="sortable"|Alternative(s)
+![[Task weight|Weight]]
+|-
+|[[Aberrant spectre]]s
+|40-90
+|200-250
+|data-sort-value="6065"|{{SCP|Slayer|60}}, {{SCP|Combat|65}}, completion of [[Priest in Peril]]
+|[[Deviant spectre]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Abyssal demon]]s
+|40-90
+|200-250
+|data-sort-value="8585"|{{SCP|Slayer|85}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]] or [[Fairytale II - Cure a Queen]] {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1122846921331224576|date=29 April 2019|archiveurl=https://reldo.runescape.wiki/i/108660|archivedate=4 March 2023|quote=(...) Abyssal demons will accept Fairy Tale II for abyss access.}}
+|[[Abyssal Sire]]
+|{{+=|weight|5|echo=2}}
+|-
+|[[Ankou]]
+|25-35
+|91-150
+|data-sort-value="40"|{{SCP|Combat|40}}
+|[[Dark Ankou]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Basilisk]]s
+|40-90
+|200-250
+|data-sort-value="4040"|{{SCP|Slayer|40}}, {{SCP|Combat|40}}, {{SCP|Defence|20}}
+|[[Basilisk Knight]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Bloodveld]]
+|40-90
+|200-250
+|data-sort-value="5050"|{{SCP|Slayer|50}}, {{SCP|Combat|50}}, completion of [[Priest in Peril]]
+|[[Mutated Bloodveld]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Blue dragon]]s
+|40-90
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}, partial completion of [[Dragon Slayer I]]
+|[[Baby blue dragon]]s, [[brutal blue dragon]]s, [[Vorkath]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Brine rat]]s
+|40-90
+| {{NA}}
+|data-sort-value="4745"|{{SCP|Slayer|47}}, {{SCP|Combat|45}}, partial completion of [[Olaf's Quest]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Cockatrice]]
+|40-90
+| {{NA}}
+|data-sort-value="2525"|{{SCP|Slayer|25}}, {{SCP|Combat|25}}, {{SCP|Defence|20}}
+|[[Moonlight Cockatrice]]
+|8
+|-
+|[[Slayer task/Crabs|Crabs]]
+|40-90
+|{{NA}}
+|None
+|[[Ammonite crab]]s, [[Frost crab]]s, [[Rock crab]]s, [[Sand crab]]s, [[Swamp crab]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Crocodile]]s
+|40-90
+| {{NA}}
+|data-sort-value="50"|{{SCP|Combat|50}}
+| {{NA|None}}
+|{{+=|weight|6|echo=2}}
+|-
+|[[Dagannoth]]
+|40-90
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}, completion of [[Horror from the Deep]]
+|[[Dagannoth spawn]], [[Dagannoth fledgeling]], [[Dagannoth Kings]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Dust devil]]s
+|40-90
+|200-250
+|data-sort-value="6570"|{{SCP|Slayer|65}}, {{SCP|Combat|70}}, partial completion of [[Desert Treasure I]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Slayer task/Elves|Elves]]
+|30-70
+| {{NA}}
+|data-sort-value="70"|{{SCP|Combat|70}}, completion of [[Regicide]]
+|[[Elf warrior]], [[Mourner]] ([[Mourner Headquarters]])
+|{{+=|weight|7|echo=2}}
+|-
+|[[Fever spider]]s
+|30-90
+| {{NA}}
+|data-sort-value="4240"|{{SCP|Slayer|42}}, {{SCP|Combat|40}}, partial completion of [[Rum Deal]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Fire giant]]s
+|40-90
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}
+| [[Branda the Fire Queen]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Gargoyle]]s
+|40-90
+|200-250
+|data-sort-value="7580"|{{SCP|Slayer|75}}, {{SCP|Combat|80}}, completion of [[Priest in Peril]]
+|[[Grotesque Guardians]]
+|{{+=|weight|5|echo=2}}
+|-
+|[[Ghoul]]s
+|10-40
+| {{NA}}
+|data-sort-value="25"|{{SCP|Combat|25}}, completion of [[Priest in Peril]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Gryphon]]s
+|30-80
+|110-160
+|data-sort-value="5145"|{{SCP|Slayer|51}}, {{SCP|Sailing|45}}, completion of [[Troubled Tortugans]]
+|[[Shellbane gryphon]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Harpie Bug Swarm]]s
+|40-90
+| {{NA}}
+|data-sort-value="3345"|{{SCP|Slayer|33}}, {{SCP|Combat|45}}, {{SCP|Firemaking|33}}
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Hellhound]]s
+|30-60
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}
+|[[Cerberus]], [[Skeleton Hellhound (Vet'ion)|Skeleton Hellhound]], [[Greater Skeleton Hellhound (Vet'ion)|Greater Skeleton Hellhound]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Hill Giant]]s
+|40-90
+| {{NA}}
+|data-sort-value="25"|{{SCP|Combat|25}}
+|[[Obor]], [[Cyclops]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Hobgoblin]]s
+|40-90
+| {{NA}}
+|data-sort-value="20"|{{SCP|Combat|20}}
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Ice giant]]s
+|30-80
+| {{NA}}
+|data-sort-value="50"|{{SCP|Combat|50}}
+|[[Eldric the Ice King]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Ice warrior]]s
+|40-90
+| {{NA}}
+|data-sort-value="45"|{{SCP|Combat|45}}
+| [[Icelord]]s
+|{{+=|weight|7|echo=2}}
+|-
+|[[Infernal Mage]]s
+|40-90
+| {{NA}}
+|data-sort-value="4540"|{{SCP|Slayer|45}}, {{SCP|Combat|40}}, completion of [[Priest in Peril]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Jelly|Jellies]]
+|40-90
+| {{NA}}
+|data-sort-value="5257"|{{SCP|Slayer|52}}, {{SCP|Combat|57}}
+|[[Warped Jelly]], [[Chilled jelly]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Jungle horror]]s
+|40-90
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}, completion of [[Cabin Fever]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Kalphite]]
+|40-90
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Kalphite worker]], [[Kalphite soldier]], [[Kalphite guardian]], [[Kalphite Queen]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Kurask]]
+|40-90
+| {{NA}}
+|data-sort-value="7065"|{{SCP|Slayer|70}}, {{SCP|Combat|65}}
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Lesser demon]]s
+|40-90
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}
+|[[Zakl'n Gritch]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Mogre]]s
+|40-90
+| {{NA}}
+|data-sort-value="3230"|{{SCP|Slayer|32}}, {{SCP|Combat|30}}, completion of [[Skippy and the Mogres]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Molanisk]]s
+|40-50
+| {{NA}}
+|data-sort-value="3950"|{{SCP|Slayer|39}}, {{SCP|Combat|50}}, completion of [[Death to the Dorgeshuun]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Moss giant]]s
+|40-90
+| {{NA}}
+|data-sort-value="40"|{{SCP|Combat|40}}
+|[[Bryophyta]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Nechryael]]
+|40-90
+|200-250
+|data-sort-value="8085"|{{SCP|Slayer|80}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]]
+|[[Greater Nechryael]]
+|{{+=|weight|5|echo=2}}
+|-
+|[[Ogre]]s
+|40-90
+| {{NA}}
+|data-sort-value="40"|{{SCP|Combat|40}}
+|[[Ogress Shaman]], [[Ogress Warrior]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Otherworldly being]]s
+|40-90
+| {{NA}}
+|data-sort-value="40"|{{SCP|Combat|40}}, completion of [[Lost City]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Pyrefiend]]s
+|40-90
+| {{NA}}
+|data-sort-value="3025"|{{SCP|Slayer|30}}, {{SCP|Combat|25}}
+|[[Pyrelord]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Sea snake]]s
+|40-90
+| {{NA}}
+|data-sort-value="4050"|{{SCP|Slayer|40}}, {{SCP|Combat|50}}, completion of [[Royal Trouble]]
+|[[Sea Snake Hatchling]], [[Sea Snake Young]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Slayer task/Shades|Shades]]
+|40-90
+| {{NA}}
+|data-sort-value="30"|{{SCP|Combat|30}}
+|[[Loar Shade|Loar]], [[Phrin Shade|Phrin]], [[Riyl shade|Riyl]], [[Asyn shade|Asyn]], [[Fiyr shade|Fiyr]], and [[Urium Shade]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Shadow warrior]]s
+|30-80
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}, completion of [[Legends' Quest]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Spiritual creatures]]
+|40-90
+|181-250
+|data-sort-value="6360"|{{SCP|Slayer|63}}, {{SCP|Combat|60}}, completion of [[Death Plateau]], level 60 in {{SCP|Strength}} or {{SCP|Agility}}
+|[[Spiritual ranger]] ({{SCP|Slayer|63}}), [[spiritual warrior|warrior]] ({{SCP|Slayer|68}}), [[spiritual mage|mage]] ({{SCP|Slayer|83}})
+|{{+=|weight|8|echo=2}}
+|-
+|[[Terror dog]]s
+|20-45
+| {{NA}}
+|data-sort-value="4060"|{{SCP|Slayer|40}}, {{SCP|Combat|60}}, completion of [[Haunted Mine]]
+| {{NA|None}}
+|{{+=|weight|6|echo=2}}
+|-
+|[[Troll]]s
+|40-90
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}
+|[[Mountain troll]], [[ice troll]], [[Troll general]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Turoth]]
+|30-90
+| {{NA}}
+|data-sort-value="5560"|{{SCP|Slayer|55}}, {{SCP|Combat|60}}
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Vampyre]]s
+|10-20
+|200-250
+|data-sort-value="35"|{{SCP|Combat|35}}, completion of [[Priest in Peril]]
+|[[Feral Vampyre]], [[Vampyre Juvinate]], [[Vyrewatch]], [[Vyrewatch Sentinel]], [[Venator]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Werewolf|Werewolves]]
+|30-60
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}, completion of [[Priest in Peril]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+!colspan="5" |Total [[task weight]]
+!{{#var:weight}}
+|}
+Note: Vannaka is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]].
+
+==Treasure Trails==
+*{{CrypticNPC|Vannaka|easy|[[Clue scroll (easy) - I wonder how many bronze swords he has handed out|I wonder how many bronze swords he has handed out.]]}}
+*{{CrypticNPC|Vannaka|elite|[[Clue scroll (elite) - You were 3 and I was the 6th Come speak to me|You were 3 and I was the 6th. Come speak to me.]]}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change =
+The amount of [[Slayer points]] given by Vannaka was increased:
+* Every task - 8 points (up from 4)
+* Every 10th task - 40 points (up from 20)
+* Every 50th task - 120 points (up from 60)
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = Vannaka will now assign [[Slayer task/Crabs|crabs]] tasks.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll =
+|change = *Vannaka no longer assigns the following tasks:
+**Banshees
+**Bronze dragons
+**Cave bugs
+**Cave crawlers
+**Cave slime
+**Crawling Hands
+**Earth warriors
+**Green dragons
+**Killerwatts
+**Lizards
+**Rockslugs
+**Wall beasts
+*Various minimum and maximum quantities of Slayer tasks have been reduced.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Slayer masters now give information about your current task if you prematurely request a new one.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = Spiritual rangers, mages and warrior are now grouped into a single slayer task of spiritual creatures.
+}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = Gargoyles, nechryaels, abyssal demons, spiritual mages, spiritual rangers and spiritual warriors can now be assigned by Vannaka.
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|poll = Old School Content Poll 29: Grand Exchange
+|change = Slayer masters now have a right-click option, Assignment, which allows players to quickly check a task's progress or start a new one.
+}}
+{{Subject changes
+|date = 31 May 2006
+|update = Readers' letters, bank space and game tweaks!
+|change = The NPC's shield was graphically updated.
+}}
+{{Subject changes
+|date = 26 September 2005
+|update = New graphics for Port Sarim, Rimmington and Thurgo's Peninsula
+|change = Vannaka's chathead and animation were fixed, though the Combat Instructor's remained unchanged.
+}}
+{{Subject changes
+|date = 31 May 2005
+|update = New Emotes And Other Tweaks
+|change = The NPC's sword was graphically updated.
+}}
+{{Subject changes
+|daterange = 1 – 21 June 2004
+|change = The NPC now always appears above players standing in the same tile.
+}}
+{{Subject changes
+|date = 29 March 2004
+|update = RS2 Launched!
+|change = The NPC was permanently added with the launch of ''RuneScape 2''.
+}}
+{{Subject changes
+|date = 25 March 2004
+|update = RS2 - Duelling and Extras
+|change = The NPC was released ingame to the ''RuneScape 2'' Beta.
+}}
+{{Subject changes
+|date = 1 December 2003
+|update = RuneScape 2 Beta is Here!
+|change = The NPC was added to the ''RuneScape 2'' Beta cache.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+<tabber>
+Vannaka=
+{|style="text-align: center" cellpadding="15"
+|[[File:Vannaka (historical v1).png|300x150px]]
+|[[File:Vannaka (historical v2).png|300x150px]]
+|[[File:Vannaka (historical v3).png|300x150px]]
+|[[File:Vannaka.png|300x150px]]
+|-
+|[[File:Vannaka chathead (historical).png]]
+|[[File:Vannaka chathead (historical).png]]
+|[[File:Vannaka chathead.png]]
+|[[File:Vannaka chathead.png]]
+|-
+|26 January 2004 –<br/>31 May 2005
+|31 May 2005 –<br/>26 September 2005
+|26 September 2005 –<br/>31 May 2006
+|31 May 2006 –<br/>present
+|}
+|-|
+Combat Instructor=
+{|style="text-align: center" cellpadding="15"
+|[[File:Combat Instructor (beta).png|300x150px]]
+|[[File:Combat Instructor (historical v1).png|300x150px]]
+|[[File:Combat Instructor (historical v2).png|300x150px]]
+|[[File:Combat Instructor.png|300x150px]]
+|-
+|RuneScape 2<br/>Beta
+|29 March 2004 –<br/>31 May 2005
+|31 May 2005 –<br/>31 May 2006
+|31 May 2006 –<br/>present
+|}
+</tabber>
+
+==Trivia==
+* He is one of four [[NPCs]] to be seen wielding a [[two-handed sword]] with just one hand, the other three being [[Kamfreena]], [[Morgiana]], and [[Achtryn]].
+* His combat level is no longer displayed when found outside of [[Tutorial Island]].
+* According to [[Duradel]] in 20th [[Postbag from the Hedge]], Vannaka is a student of Duradel. He once challenged Duradel to a battle and lost.{{CitePostbag|issue=20|author=Duradel|letter=Letter 8|name=}}
+* In ''[[RuneScape: Dragonwilds]]'', it is revealed that Vannaka is a [[werewolf]].
+
+==References==
+{{Reflist}}
+
+{{Slayer Master}}
+{{Tutors}}
+{{Edgeville Dungeon}}
+{{Tutorial Island}}
+{{Astral Contact}}
+[[Category:Non-player characters with a combat level]]

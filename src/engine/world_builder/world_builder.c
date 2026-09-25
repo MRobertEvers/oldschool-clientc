@@ -1,4 +1,5 @@
 #include "world_builder.h"
+#include "toridraw_element_id.h"
 
 #include "blendmap.h"
 #include "collision_map.h"
@@ -16,18 +17,127 @@
 #include "shademap.h"
 #include "sharelight_map.h"
 #include "terrain_shapemap.h"
+#include "toridraw_model.h"
 #include "toridraw_scene.h"
+#include "toridraw_shared_model.h"
 #include <rscache.h>
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* TORIRS_REBUILD_TIMING=1: per-phase wall-clock of a scene rebuild on stderr.
+ * The helpers live above the .u.c includes so the scenery pass can charge its
+ * model-build time to the same accumulators. */
+static double
+wb_now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+static int
+wb_timing_on(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        const char* e = getenv("TORIRS_REBUILD_TIMING");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v;
+}
+
+/* The same two, for the load task that wraps a rebuild: its span starts at
+ * the first map read and ends here, and the two readings belong on one line. */
+double
+WorldBuilder_TimingNowMs(void)
+{
+    return wb_now_ms();
+}
+
+int
+WorldBuilder_TimingOn(void)
+{
+    return wb_timing_on();
+}
+
+extern int g_wb_share_hit;
+extern int g_wb_share_clone;
+extern int g_wb_share_proto;
+extern int g_wb_share_no_contour;
+extern int g_wb_share_no_sharelight;
+extern int g_wb_share_no_seq;
+
+/* Scenery model-build accumulators (reset in Begin, reported at End). */
+static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
+static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
+static int g_wb_n_model_builds;
+static int g_wb_n_model_srcs;
+
+/*
+ * Scenery model heap census (TORIRS_SCENERY_CENSUS=1). Splits the scene's model
+ * bytes into the part that is irreducible -- one prototype per distinct
+ * (id, shape, rotation), plus every placement-dependent model -- and the part
+ * that is pure duplication, i.e. the per-placement ToriDraw_ModelCopy of a
+ * shareable prototype that nothing ever mutates. `dup` is what refcounting the
+ * shareable path would hand back.
+ */
+static int g_wb_census_proto_n;      /* distinct shareable prototypes built */
+static size_t g_wb_census_proto_b;
+static int g_wb_census_dup_n;        /* placements served from the prototype cache */
+static size_t g_wb_census_dup_b;
+static int g_wb_census_unique_n;     /* non-shareable, genuinely per-placement */
+static size_t g_wb_census_unique_b;
+
+
+static int
+wb_census_on(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        const char* e = getenv("TORIRS_SCENERY_CENSUS");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v;
+}
+
+/* Cached env-flag probes for the per-model / per-tile debug hooks below.
+ * getenv() in those loops was the single hottest symbol of a whole rebuild
+ * (__findenv_locked walks the environment list on every call — ~8k models and
+ * ~43k tiles per scene paid it each time). The debug knobs stay usable; they
+ * are simply read once per process like TORIRS_ZBUFFER_LOCS already was. */
+static int
+wb_env_on(
+    const char* name,
+    int* cache)
+{
+    if( *cache < 0 )
+        *cache = getenv(name) != NULL;
+    return *cache;
+}
+
+static int g_wb_env_scenery_dbg = -1;
+static int g_wb_env_strip_tex = -1;
+static int g_wb_env_no_face_clone = -1;
+
+#define WB_ENV_SCENERY_DEBUG() wb_env_on("TORIRS_SCENERY_DEBUG", &g_wb_env_scenery_dbg)
+#define WB_ENV_STRIP_TEXTURES() wb_env_on("TORIRS_STRIP_TEXTURES", &g_wb_env_strip_tex)
+/* TORIRS_NO_FACE_CLONE=1 puts every half-shared placement back to building its
+ * own model before handing the faces over. The A/B the clone was measured
+ * with, and the first thing to try if a scene ever looks wrong only when
+ * placements repeat. */
+#define WB_ENV_NO_FACE_CLONE() wb_env_on("TORIRS_NO_FACE_CLONE", &g_wb_env_no_face_clone)
 
 // clang-format off
 #include "world_terrain.u.c"
 #include "world_collision.u.c"
 #include "world_scenery.u.c"
 #include "world_sharelight.u.c"
+#include "log/torirs_log.h"
 // clang-format on
 
 static void
@@ -74,8 +184,10 @@ world_builder_mark_element_keep(
     uint8_t* keep,
     int element_id)
 {
-    if( element_id >= 0 && element_id < TORIDRAW_SCENE_MAX_ELEMENTS )
-        keep[element_id] = 1;
+    int const index = ToriDraw_ElementIndexOfRaw(element_id);
+
+    if( index >= 0 && index < TORIDRAW_SCENE_MAX_ELEMENTS )
+        keep[index] = 1;
 }
 
 /*
@@ -113,28 +225,35 @@ world_builder_claim_element(
     int owner_tag)
 {
     int const id = *element_id_field;
+    /*
+     * claimed_by[] and keep[] are indexed by the SCENE index, and the id
+     * carries its kind in the top four bits -- so both the bound test and the
+     * two subscripts have to mask. Testing the raw id against the element
+     * count instead read every tagged id as out of range, and a player's id is
+     * 0x3xxxxxxx: on the first map rebuild every player and npc was declared
+     * to reference a dead element and had its element_id cleared, which is
+     * "the movers vanished on a rebuild".
+     */
+    int const index = ToriDraw_ElementIndexOfRaw(id);
 
     if( id < 0 )
         return;
-    if( id >= TORIDRAW_SCENE_MAX_ELEMENTS || !ToriDraw_SceneElementIsLive(scene, id) )
+    if( index >= TORIDRAW_SCENE_MAX_ELEMENTS || !ToriDraw_SceneElementIsLive(scene, id) )
     {
-        fprintf(
-            stderr, "world_builder: entity %#x referenced dead element %d - cleared\n",
+        TORIRS_LOG("world_builder: entity %#x referenced dead element %d - cleared\n",
             owner_tag, id);
         *element_id_field = -1;
         return;
     }
-    if( claimed_by[id] >= 0 )
+    if( claimed_by[index] >= 0 )
     {
-        fprintf(
-            stderr,
-            "world_builder: element %d claimed by entities %#x and %#x - the second is "
+        TORIRS_LOG("world_builder: element %d claimed by entities %#x and %#x - the second is "
             "cleared (they would fight over its model, animation and position)\n",
-            id, claimed_by[id], owner_tag);
+            id, claimed_by[index], owner_tag);
         *element_id_field = -1;
         return;
     }
-    claimed_by[id] = owner_tag;
+    claimed_by[index] = owner_tag;
     world_builder_mark_element_keep(keep, id);
 }
 
@@ -202,13 +321,37 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
             world_builder_claim_element(scene, claimed_by, keep, &s->element_id, 0x50000 | i);
     }
 
+    /* Actors standing here whose records live in another world (SAILING_PLAN
+     * C5.1: someone is on this deck). Their elements are tagged with this
+     * world's dynamic pool so the OTHER world's rebuild leaves them alone —
+     * which means this sweep is the one that would otherwise free them, out
+     * from under a live player. No claim map for these: two worlds cannot
+     * both own the same actor record, so there is nothing here to collide
+     * with the loops above. */
+    if( world->foreign_dynamic_claim_fn )
+    {
+        int* foreign = (int*)malloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
+        int n;
+        assert(foreign && "world_builder_reconcile_dynamic_elements: foreign claim list");
+        n = world->foreign_dynamic_claim_fn(
+            world->foreign_dynamic_claim_userdata, world, foreign, TORIDRAW_SCENE_MAX_ELEMENTS);
+        assert(n >= 0);
+        assert(n <= TORIDRAW_SCENE_MAX_ELEMENTS);
+        for( int fi = 0; fi < n; fi++ )
+        {
+            if( foreign[fi] >= 0 && foreign[fi] < TORIDRAW_SCENE_MAX_ELEMENTS )
+                world_builder_mark_element_keep(keep, foreign[fi]);
+        }
+        free(foreign);
+    }
+
     for( id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL; id = next )
     {
         struct ToriDraw_SceneElement* el;
 
         next = scene->elements.nodes[id].next;
         el = ToriDraw_SceneElementGet(scene, id);
-        if( !el || el->pool != (uint8_t)TORIDRAW_SCENE_POOL_DYNAMIC )
+        if( !el || el->pool != (uint8_t)builder->dynamic_pool )
             continue;
         if( !keep[id] )
             ToriDraw_SceneElementRemove(scene, id);
@@ -230,6 +373,10 @@ WorldBuilder_New(
     builder->cache = cache;
     builder->scene = scene;
     builder->varp = varp;
+    /* The root view's pair until told otherwise (WorldBuilder_SetSceneView) —
+     * the pools a single-world client has always used. */
+    builder->static_pool = TORIDRAW_SCENE_POOL_STATIC;
+    builder->dynamic_pool = TORIDRAW_SCENE_POOL_DYNAMIC;
     /* calloc leaves the debug ring at 0, which is a valid element id. */
     for( int i = 0; i < (int)(sizeof(builder->scenery_dbg_element) /
                               sizeof(builder->scenery_dbg_element[0]));
@@ -248,6 +395,45 @@ WorldBuilder_Free(struct WorldBuilder* builder)
 }
 
 void
+WorldBuilder_SetSceneView(
+    struct WorldBuilder* builder,
+    int view_id)
+{
+    assert(builder);
+    assert(view_id >= 0);
+    assert(view_id < TORIDRAW_SCENE_POOL_VIEW_MAX);
+    builder->static_pool = TORIDRAW_SCENE_POOL_STATIC_VIEW(view_id);
+    builder->dynamic_pool = TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id);
+}
+
+/*
+ * Batching is a retained-arena upload for view 0's static geometry, and only
+ * view 0's clear drops that arena (ToriDraw_SceneClearPool). A boat deck lives
+ * in its own pool and is unloaded element by element, so batching it would
+ * leave its geometry in the arena after the elements are gone — stale hulls
+ * that only a mainland rebuild could clear. Off the batch path, a deck's
+ * elements emit MODEL_LOAD and draw through the per-element route entities
+ * already use, which is what a few hundred tiles wants anyway.
+ */
+static void
+world_builder_batch_begin(struct WorldBuilder* builder)
+{
+    assert(builder);
+    if( builder->static_pool != TORIDRAW_SCENE_POOL_STATIC )
+        return;
+    ToriDraw_SceneBatchBegin(builder->scene);
+}
+
+static void
+world_builder_batch_end(struct WorldBuilder* builder)
+{
+    assert(builder);
+    if( builder->static_pool != TORIDRAW_SCENE_POOL_STATIC )
+        return;
+    ToriDraw_SceneBatchEnd(builder->scene);
+}
+
+void
 WorldBuilder_RebuildCenterzoneBegin(
     struct WorldBuilder* builder,
     int zone_center_x,
@@ -257,12 +443,38 @@ WorldBuilder_RebuildCenterzoneBegin(
     struct World* world = builder->world;
     assert(world && "WorldBuilder_RebuildCenterzoneBegin: world is NULL");
 
+    g_wb_t_model_convert_ms = 0.0;
+    g_wb_t_model_transform_ms = 0.0;
+    g_wb_n_model_builds = 0;
+    g_wb_n_model_srcs = 0;
+    /* The loc-id memo describes THIS build's configs; a morph or a reload
+     * between rebuilds changes what a loc is called. */
+    World_SceneryInfoMemoClear(world);
+
+    g_wb_share_hit = 0;
+    g_wb_share_clone = 0;
+    g_wb_share_proto = 0;
+    g_wb_share_no_contour = 0;
+    g_wb_share_no_sharelight = 0;
+    g_wb_share_no_seq = 0;
+    g_wb_census_proto_n = 0;
+    g_wb_census_proto_b = 0;
+    g_wb_census_dup_n = 0;
+    g_wb_census_dup_b = 0;
+    g_wb_census_unique_n = 0;
+    g_wb_census_unique_b = 0;
+
+    /* Loc configs may have been reloaded (varbit morphs re-resolve per place;
+     * the map editor re-seeds the provider) — a prototype baked from the old
+     * config must not survive into this build. The scene's shared-model store
+     * needs no explicit clear for that: it retains nothing on its own, so the
+     * ClearPool below is what empties it. */
     world_builder_free_transient_maps(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
 
     /* Static pool only: entity elements (players/npcs/objs) keep their ids
      * across a rebuild — the REBUILD_NORMAL shift relocates them instead. */
-    ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
+    ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
     world_builder_reconcile_dynamic_elements(builder);
 
     builder->blendmap = blendmap_new(scene_size, scene_size, WORLD_MAP_TERRAIN_LEVELS);
@@ -363,10 +575,8 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
         scenery_add(builder, map_loc, config_loc, scene_x, scene_z);
     }
 
-    if( getenv("TORIRS_SCENERY_DEBUG") )
-        fprintf(
-            stderr,
-            "scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
+    if( WB_ENV_SCENERY_DEBUG() )
+        TORIRS_LOG("scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
             "scene_elements=%d\n",
             mapx,
             mapz,
@@ -377,16 +587,16 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
             dbg_added,
             g_scenery_dbg_elements);
 
-    if( getenv("TORIRS_SCENERY_DEBUG") )
+    if( WB_ENV_SCENERY_DEBUG() )
     {
-        fprintf(stderr, "  levels:");
+        TORIRS_LOG("  levels:");
         for( int lv = 0; lv < 4; lv++ )
-            fprintf(stderr, " %d:%d", lv, dbg_level[lv]);
-        fprintf(stderr, "\n  shapes:");
+            TORIRS_LOG(" %d:%d", lv, dbg_level[lv]);
+        TORIRS_LOG("\n  shapes:");
         for( int sh = 0; sh < 32; sh++ )
             if( dbg_shape[sh] )
-                fprintf(stderr, " %d:%d", sh, dbg_shape[sh]);
-        fprintf(stderr, "\n");
+                TORIRS_LOG(" %d:%d", sh, dbg_shape[sh]);
+        TORIRS_LOG("\n");
     }
 }
 
@@ -513,13 +723,14 @@ WorldBuilder_RebuildInstance(
     const int32_t* zones)
 {
     int zone_count = scene_size / 8;
+    double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     assert(zones && "WorldBuilder_RebuildInstance: no descriptor grid");
     assert(zone_count <= WORLD_INSTANCE_ZONES);
 
     WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
 
-    ToriDraw_SceneBatchBegin(builder->scene);
+    world_builder_batch_begin(builder);
 
     for( int pass = 0; pass < 2; pass++ )
     {
@@ -559,7 +770,10 @@ WorldBuilder_RebuildInstance(
 
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
-    ToriDraw_SceneBatchEnd(builder->scene);
+    world_builder_batch_end(builder);
+
+    if( wb_timing_on() )
+        TORIRS_REPORT("rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
 }
 
 /* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
@@ -599,13 +813,16 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
+    double te0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* Terrain first (place-time LinkBelow shift for BLOCK flags), then End's
      * no-op bridge hook — loc collision already shifted at place time. Geometry
      * push-down below is separate. See docs/COLLISION_MAP.md. */
     world_collision_apply_terrain(builder);
     world_collision_apply_bridges(builder);
+    double te_collision = wb_timing_on() ? wb_now_ms() : 0.0;
     world_contour_ground(builder);
+    double te_contour = wb_timing_on() ? wb_now_ms() : 0.0;
     world_builder_apply_wall_decor_offsets(builder);
 
     /* Bridge decks are LinkBelow: geometry / painter push-down below move a
@@ -732,8 +949,11 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( world->painter )
         painter_mark_static_count(world->painter);
 
+    double te_mid = wb_timing_on() ? wb_now_ms() : 0.0;
     world_build_scene_terrain(builder);
+    double te_terrain_mesh = wb_timing_on() ? wb_now_ms() : 0.0;
     world_build_lighting(builder);
+    double te_lighting = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* A level with no terrain mesh emits nothing. The reference never queues a
      * content-less tile at all (class112.method3940 gates marking on the
@@ -821,6 +1041,49 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         builder->lightmap = NULL;
     }
 
+    if( wb_timing_on() )
+    {
+        double te1 = wb_now_ms();
+        TORIRS_REPORT("rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
+            "terrain_mesh=%.1f lighting=%.1f occluders_free=%.1f | scenery models: n=%d "
+            "srcs=%d convert=%.1fms transform=%.1fms\n",
+            te1 - te0,
+            te_collision - te0,
+            te_contour - te_collision,
+            te_mid - te_contour,
+            te_terrain_mesh - te_mid,
+            te_lighting - te_terrain_mesh,
+            te1 - te_lighting,
+            g_wb_n_model_builds,
+            g_wb_n_model_srcs,
+            g_wb_t_model_convert_ms,
+            g_wb_t_model_transform_ms);
+    }
+
+    if( wb_census_on() )
+    {
+        size_t const kept = g_wb_census_proto_b + g_wb_census_unique_b;
+        TORIRS_REPORT("scenery_share: cache_hit=%d clone=%d proto_built=%d | not shareable: "
+            "contour=%d sharelight=%d seq=%d\n",
+            g_wb_share_hit,
+            g_wb_share_clone,
+            g_wb_share_proto,
+            g_wb_share_no_contour,
+            g_wb_share_no_sharelight,
+            g_wb_share_no_seq);
+        TORIRS_REPORT("scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
+            "| dup_placements n=%d %.2fMB | unique n=%d %.2fMB\n",
+            (double)(kept + g_wb_census_dup_b) / (1024.0 * 1024.0),
+            (double)kept / (1024.0 * 1024.0),
+            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
+            g_wb_census_proto_n,
+            (double)g_wb_census_proto_b / (1024.0 * 1024.0),
+            g_wb_census_dup_n,
+            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
+            g_wb_census_unique_n,
+            (double)g_wb_census_unique_b / (1024.0 * 1024.0));
+    }
+
     world->load_complete = true;
 }
 
@@ -841,9 +1104,13 @@ WorldBuilder_RebuildCenterzone(
     int zone_center_z,
     int scene_size)
 {
+    double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
+
     WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
 
-    ToriDraw_SceneBatchBegin(builder->scene);
+    double t_begin = wb_timing_on() ? wb_now_ms() : 0.0;
+
+    world_builder_batch_begin(builder);
 
     struct World* world = builder->world;
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
@@ -852,15 +1119,34 @@ WorldBuilder_RebuildCenterzone(
             WorldBuilder_RebuildCenterzoneChunkTerrain(builder, mapx, mapz);
     }
 
+    double t_terrain = wb_timing_on() ? wb_now_ms() : 0.0;
+
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
     {
         for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
             WorldBuilder_RebuildCenterzoneChunkScenery(builder, mapx, mapz);
     }
 
+    double t_scenery = wb_timing_on() ? wb_now_ms() : 0.0;
+
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
-    ToriDraw_SceneBatchEnd(builder->scene);
+    double t_end = wb_timing_on() ? wb_now_ms() : 0.0;
+
+    world_builder_batch_end(builder);
+
+    if( wb_timing_on() )
+    {
+        double t_batch = wb_now_ms();
+        TORIRS_REPORT("rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
+            "batch_flush=%.1f\n",
+            t_batch - t0,
+            t_begin - t0,
+            t_terrain - t_begin,
+            t_scenery - t_terrain,
+            t_end - t_scenery,
+            t_batch - t_end);
+    }
 }
 
 void
@@ -875,7 +1161,7 @@ WorldBuilder_RebuildChunklistBegin(
     world_builder_free_transient_maps(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);
 
-    ToriDraw_SceneClearPool(builder->scene, TORIDRAW_SCENE_POOL_STATIC);
+    ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
     world_builder_reconcile_dynamic_elements(builder);
 
     int scene_size = world->_scene_size;
@@ -902,7 +1188,7 @@ WorldBuilder_RebuildChunklist(
 {
     WorldBuilder_RebuildChunklistBegin(builder, chunks_xz, count);
 
-    ToriDraw_SceneBatchBegin(builder->scene);
+    world_builder_batch_begin(builder);
 
     for( int i = 0; i < count; i++ )
     {
@@ -920,7 +1206,7 @@ WorldBuilder_RebuildChunklist(
 
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
-    ToriDraw_SceneBatchEnd(builder->scene);
+    world_builder_batch_end(builder);
 }
 
 /* Client-TS locChangeUnchecked (Client.ts:7733): a zone LOC_ADD_CHANGE/LOC_DEL
@@ -990,13 +1276,20 @@ WorldBuilder_ApplyLocChange(
                     }
                 }
             }
+            /* Both releases address the PAINT grid, so a bridge column has to
+             * make the push-down trip first (World_LocPaintLevel): the deck's
+             * baked slot was moved from cache level 1 to paint level 0 when the
+             * scene was built, and releasing at the cache level would silently
+             * find nothing there. */
+            int paint_level = World_LocPaintLevel(world, scene_x, scene_z, level);
             /* A removed WALL loc must also release its exclusive painter tile
              * slot (wall_a/wall_b): the dead static element would otherwise
              * keep the slot claimed, blocking the replacement wall's per-frame
              * registration and leaving a stale reference. */
             if( old->shape >= RSCACHE_LOC_SHAPE_WALL_SINGLE_SIDE &&
                 old->shape <= RSCACHE_LOC_SHAPE_WALL_RECT_CORNER && world->painter )
-                painter_release_wall(world->painter, scene_x, scene_z, level, old->element_id);
+                painter_release_wall(
+                    world->painter, scene_x, scene_z, paint_level, old->element_id);
             /* Same for a centrepiece/decoration: the baked static scenery element
              * has to leave its tile chains, or it keeps drawing whatever scene
              * element id it holds — and that id is handed straight back to the
@@ -1004,7 +1297,7 @@ WorldBuilder_ApplyLocChange(
              * different depths. See painter_release_scenery. */
             if( world->painter )
                 painter_release_scenery(
-                    world->painter, scene_x, scene_z, level, old->element_id);
+                    world->painter, scene_x, scene_z, paint_level, old->element_id);
         }
         World_SceneryRemove(world, idx);
     }
@@ -1032,6 +1325,10 @@ WorldBuilder_ApplyLocChange(
             builder, CacheProvider_LocationGet(builder->cache, loc_id), &resolved_cfg);
         if( cfg )
         {
+            /* The map keeps its base id while a varp changes the child. A
+             * per-build memo hit here would restore the old child's actions
+             * (e.g. Board after logging in aboard, instead of Disembark). */
+            World_SceneryInfoMemoInvalidate(world, loc_id);
             struct ToriRS_MapLoc ml = {
                 .loc_id = loc_id,
                 .shape_select = shape,
@@ -1040,14 +1337,16 @@ WorldBuilder_ApplyLocChange(
                 .chunk_pos_z = scene_z,
                 .chunk_pos_level = level,
             };
-            ToriDraw_SceneBatchBegin(builder->scene);
+            world_builder_batch_begin(builder);
             builder->scenery_runtime_spawn = 1;
             /* Reuse the build path for correct per-shape model/orientation/size,
              * but suppress its single-slot painter registration (it would assert
              * on the baked static slot and be truncated next frame anyway) — the
              * spawned loc is drawn via world_cycle's per-frame scenery pass. The
-             * shade/decor/sharelight accumulators are build-only (freed at build
-             * end) and NULL-guarded, so those calls are safe no-ops here. */
+             * shade/occluder/decor/sharelight accumulators are build-only (freed
+             * at build end); world_scenery.u.c's scenery_shade_/scenery_occluder_/
+             * scenery_decor_ shims answer for their absence, so those calls are
+             * safe no-ops here. */
             painter_set_suppress_slot_registration(builder->world->painter, 1);
             scenery_add(builder, &ml, cfg, scene_x, scene_z);
             painter_set_suppress_slot_registration(builder->world->painter, 0);
@@ -1079,7 +1378,7 @@ WorldBuilder_ApplyLocChange(
                     }
                 }
             }
-            ToriDraw_SceneBatchEnd(builder->scene);
+            world_builder_batch_end(builder);
         }
     }
 }

@@ -1,0 +1,579 @@
+{{External|rs=Karamja achievements}}
+{{Infobox Achievement Diary
+|name = Karamja Diary
+|image = [[File:Karamja Diary.png]]
+|release = [[8 May]] [[2007]]
+|update = The Achievement Diary
+|areas = [[Karamja]], [[Kharazi Jungle]]
+|members = Yes
+|reward = [[Karamja gloves|Gloves]]
+|taskmasters = [[Pirate Jackie the Fruit]]
+|leagueRegion = Karamja
+}}
+{{Map|name=Pirate Jackie the Fruit|x=2809|y=3193|r=3|mtype=square|align=left|height=250|width=250|caption=Pirate Jackie the Fruit's location}}
+The '''Karamja Diary''' is an [[Achievement Diary]] whose tasks revolve around areas within [[Karamja]], which include the [[Kharazi Jungle]] and [[Mor Ul Rek]]. This is the first diary to be introduced into the game. The [[Antique lamp (Karamja Diary)|antique lamps]] earned from its easy, medium, and hard tiers are different than those of other diaries.
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Pirate Jackie the Fruit]] in [[Brimhaven]]'s [[Brimhaven Agility Arena|Agility Arena]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 40
+|Agility = 15
+|Total = 85
+}}
+| style="vertical-align:top;" |
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 40
+|Agility = 32
+|Herblore = 3
+|Fishing = 65
+|Cooking = 16
+|Crafting = 20
+|Woodcutting = 50
+|Farming = 27
+|Hunter = 41
+|Quest = 32
+|Total = 318
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="The Grand Tree"
+|[[The Grand Tree]]
+|- data-rowid="Shilo Village"
+|[[Shilo Village]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Partial completion of [[Dragon Slayer I]]
+|-
+|Partial completion of [[Tai Bwo Wannai Trio]]
+|-
+|Reach 100% [[Tai Bwo Wannai Cleanup]] favour
+|}
+|}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 52
+|Strength = 50
+|Agility = 53
+|Smithing = 40
+|SmithingNotes = <ref name="Iron">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Herblore = 25
+|Fishing = 65
+|Ranged = 42
+|Thieving = 50
+|Cooking = 53
+|Crafting = 50
+|Fletching = 1
+|FletchingNotes = <ref name="Iron"/>
+|Magic = 59
+|Woodcutting = 50
+|Runecraft = 44
+|Slayer = 50
+|SlayerNotes = <ref name="Duradel">You'll need either 50 [[Slayer]] and a [[Combat level]] of 100, or 99 [[Slayer]].</ref>
+|Farming = 27
+|Hunter = 41
+|Combat = 100
+|CombatNotes = <ref name="Duradel"/>
+|Quest = 107
+|Total = 767
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="The Grand Tree"
+|[[The Grand Tree]]
+|- data-rowid="Tai Bwo Wannai Trio"
+|[[Tai Bwo Wannai Trio]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Partial completion of [[Legends' Quest]]
+|-
+|Defeat a [[Ket-Zek]] in the [[TzHaar Fight Cave]] on the 31st wave
+|-
+|Reach 100% [[Tai Bwo Wannai Cleanup]] favour
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 52
+|Strength = 50
+|Agility = 53
+|Smithing = 40
+|SmithingNotes = <ref name="Iron">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Herblore = 87
+|Fishing = 65
+|Ranged = 42
+|Thieving = 50
+|Cooking = 53
+|Crafting = 50
+|Fletching = 1
+|FletchingNotes = <ref name="Iron"/>
+|Magic = 59
+|Woodcutting = 50
+|Runecraft = 91
+|Slayer = 50
+|SlayerNotes = <ref name="Duradel">You'll need either 50 [[Slayer]] and a [[Combat level]] of 100, or 99 [[Slayer]].</ref>
+|Farming = 72
+|Hunter = 41
+|Combat = 100
+|CombatNotes = <ref name="Duradel"/>
+|Quest = 107
+|Total = 921
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="The Grand Tree"
+|[[The Grand Tree]]
+|- data-rowid="Tai Bwo Wannai Trio"
+|[[Tai Bwo Wannai Trio]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Partial completion of [[Legends' Quest]]
+|-
+|Completion of the [[TzHaar Fight Cave]]
+|-
+|Reach 100% [[Tai Bwo Wannai Cleanup]] favour
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{{Listen
+|align = right
+|title = [[Easy Task (Karamja Diary)|Easy Task]]
+|filename = Easy Task (Karamja Diary).ogg
+|desc = The music that plays after completing an easy task.}}
+
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Karamja" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+| 1. Pick 5 [[banana]]s from the [[Banana plantation|plantation]] located east of the [[Karamja Volcano|volcano]].
+|{{NA|None}}
+|-
+| 2. Use the [[Ropeswing_(Brimhaven)|rope swing]] to travel to the [[Moss Giant Island]] north-west of [[Karamja]].
+| 
+*{{SCP|Agility|10|link=yes}}
+|-
+| 3. Mine some [[gold ore|gold]] from the rocks on the [[North Brimhaven mine|north-west peninsula]] of [[Karamja]].
+| 
+*{{SCP|Mining|40|link=yes}}
+*Any [[pickaxe]]
+|-
+| 4. Travel to [[Port Sarim]] via the dock, east of [[Musa Point]].
+|
+*30 [[coins]] or an activated [[Ring of charos (a)|ring of Charos]]
+''This can also be completed by travelling to Port Sarim from [[The Pandemonium]] via [[Seaman Morris]].''
+|-
+| 5. Travel to [[Ardougne]] via the port near [[Brimhaven]].
+| 
+*30 [[coins]] or an activated [[Ring of charos (a)|ring of Charos]]
+|-
+| 6. Explore [[Cairn Isle|Cairn Island]] to the west of [[Karamja]].
+| 
+*{{SCP|Agility|15|link=yes}}
+|-
+| 7. Use the [[Fishing spots]] north of the [[banana plantation]].
+''Note: Fishing at any of the [[fishing spots]] there will count for this task.
+|
+*[[Harpoon]] (or [[Barbarian_Training#Barbarian_Fishing|bare-handed fishing]]), [[lobster pot]], [[small fishing net]], or a [[fishing rod]] with [[Fishing bait|bait]], depending on the spot you fish at
+|-
+| 8. Collect 5 [[seaweed]] from anywhere on [[Karamja]].
+''Note: You can just drop and pick up the same [[seaweed]] five times. ''
+|
+*[[Seaweed]] (can be found near [[Jiminua's Jungle Store.|Jiminua's Jungle Store]])
+|-
+| 9. Attempt the [[TzHaar Fight Pit]]s or [[Fight Cave]].
+''Note: You can simply enter and leave after the first wave begins. No actual attempt is necessary, but the [[Fight Pits]] will not allow entrance without at least one other player.''
+|{{NA|None}}
+|-
+| 10. Kill a [[jogre]] in the [[Pothole dungeon]].
+|
+*[[Weaponry]]
+|}
+{{Listen
+|align = right
+|title = [[All Easy Tasks (Karamja Diary)|All Easy Tasks]]
+|filename = All Easy Tasks (Karamja Diary).ogg
+|desc = The music that plays after completing all easy tasks.}}
+===Rewards===
+*[[Karamja gloves 1]]:
+**While worn, [[Brimhaven]]—[[Ardougne]] and [[Musa Point]]—[[Port Sarim]] boat trips cost 15 [[coins]] instead of 30 [[coins]]
+**While worn, items in [[Karamja gloves#Discounted shops|various shops]] around [[Karamja]] are sold at a discounted rate and bought for more
+*[[Antique lamp (Karamja Diary)|Antique lamp]] worth 1,000 experience in any skill of any level (instead of the usual [[Antique lamp (easy)|antique lamp]] for this tier)
+
+==Medium==
+{{Listen
+|title = [[Medium Task (Karamja Diary)|Medium Task]]
+|filename = Medium Task (Karamja Diary).ogg
+|desc = The music that plays after completing a medium task.}}
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Karamja" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+| 1. Claim a ticket from the [[Brimhaven Agility Arena|Agility Arena]] in [[Brimhaven]].
+| 
+*200 [[coins]]
+*{{SCP|Agility|40|link=yes}} recommended''
+|-
+| 2. Discover [[Wall (Crandor and Karamja Dungeon)|hidden wall]]{{sic}} in the [[Crandor and Karamja Dungeon|dungeon]] below the [[Karamja Volcano|volcano]].
+|
+*{{SCP|Quest}} Started [[Dragon Slayer I]]
+|-
+| 3. Visit the [[Crandor|Isle of Crandor]] via the [[Crandor and Karamja Dungeon|dungeon]] below the [[Karamja Volcano|volcano]].
+''Note: You must go through the [[Wall (Crandor and Karamja Dungeon)|hidden wall]], past the [[lesser demon]]s, and then climb the rope to the surface of [[Crandor]] to complete this task.
+|
+*{{SCP|Quest}} Started [[Dragon Slayer I]]
+|-
+| 4. Use [[Vigroy]] and [[Hajedy]]'s [[Hajedy's cart|cart service]].
+|
+*{{SCP|Quest}} Completion of [[Shilo Village]]
+*200 [[coins]]
+|-
+| 5. Earn 100% favour in the village of [[Tai Bwo Wannai Cleanup|Tai Bwo Wannai]].
+|
+*{{SCP|Quest}} Completion of [[Jungle Potion]]
+*{{SCP|Woodcutting|10|link=yes}}
+*See the [[Tai Bwo Wannai Cleanup#Necessary items|recommendations]]
+|-
+| 6. Cook a [[Spider on stick|spider on a stick]].
+''Note: Cooking a [[Spider on shaft|spider on a shaft]] also counts for this task. This does not have to be done on [[Karamja]].''
+|
+*{{SCP|Cooking|16|link=yes}}
+*[[Spider carcass]], and a [[skewer stick]] or an [[arrow shaft]]
+|-
+| 7. Charter the [[Lady of the Waves]] from [[Cairn Isle]] to [[Port Khazard]].
+| 
+*{{SCP|Quest}} Completion of [[Shilo Village]]
+*[[Ship ticket]] or 20-50 [[coins]] (the price is random)
+|-
+| 8. Cut a log from a [[teak tree]].
+''Note: [[Teak tree]]s can be found in the [[Hardwood Grove]] or within the harder-to-access [[Kharazi Jungle]].''
+|
+*{{SCP|Quest}} Completion of [[Jungle Potion]]
+*{{SCP|Woodcutting|35|link=yes}}
+*Any [[axe]]
+*100 [[trading sticks]] and having helped{{efn|name=Favour|You must have gained some favour by repairing at least one [[village fence]] and then talking to [[Murcaily]] for [[trading sticks]]. Otherwise, you'll not be allowed to chop trees in the [[Hardwood Grove]] or trade for [[machete]]s with [[Safta Doc]].}} in [[Tai Bwo Wannai Cleanup]] (if using the [[Hardwood Grove]]) 
+*[[Machete]] or {{SCP|Agility|79|link=yes}}, and having started {{SCP|Quest}} [[Legends' Quest]] (if using the [[Kharazi Jungle]])
+|-
+| 9. Cut a log from a [[mahogany tree]].
+''Note: [[Mahogany tree]]s can be found in the [[Hardwood Grove]] or within the harder-to-access [[Kharazi Jungle]].''
+|
+*{{SCP|Quest}} Completion of [[Jungle Potion]]
+*{{SCP|Woodcutting|50|link=yes}}
+*Any [[axe]]
+*100 [[trading sticks]] and having helped{{efn|name=Favour}} in [[Tai Bwo Wannai Cleanup]] (if using the [[Hardwood Grove]]) 
+*[[Machete]] or {{SCP|Agility|79|link=yes}}, and having started {{SCP|Quest}} [[Legends' Quest]] (if using the [[Kharazi Jungle]])
+|-
+| 10. Catch a [[raw karambwan|karambwan]].
+|
+*{{SCP|Quest}} Partial completion of [[Tai Bwo Wannai Trio]]
+*{{SCP|Fishing|65|link=yes}}
+*[[Karambwan vessel]], some [[raw karambwanji]], and a [[small fishing net]]
+|-
+| 11. Exchange [[gems]] for a [[machete (weapon)|machete]].
+''Note: This is done by talking to [[Safta Doc]] with the required items.{{efn|name=Favour}}
+|
+*{{SCP|Quest}} Completion of [[Jungle Potion]]
+*[[Gout tuber]], as well one of the following:
+**300 [[trading stick]]s and 3 [[opal|cut]] or [[uncut opal]]s
+**600 [[trading stick]]s and 3 [[jade|cut]] or [[uncut jade]]s
+**1200 [[trading stick]]s and 3 [[red topaz|cut]] or [[uncut red topaz]]
+*You need to speak to [[Sharimika]] and go through the dialogue options and you must have picked up some trading sticks from a villager as reward before the dialogue options will show up for this diary step.
+
+|-
+| 12. Use the [[gnome glider]] to travel to [[Karamja]].
+| 
+*{{SCP|Quest}} Completion of [[The Grand Tree]]
+|-
+| 13. Grow a healthy [[fruit tree]] in the patch near [[Brimhaven]].
+|
+*{{SCP|Farming|27|link=yes}}
+*Any [[fruit tree sapling]], a [[spade]], and a [[rake]]
+|-
+| 14. Trap a [[horned graahk]].
+|
+*{{SCP|Hunter|41|link=yes}}
+*[[Teasing stick]] or [[Hunter's spear]], [[knife]], and any [[logs]].
+|-
+| 15. Chop the [[Vines (Brimhaven Dungeon)|vines]] to gain deeper access to [[Brimhaven Dungeon]].
+''Note: These are the vines found immediately within the [[Dungeon entrance (Brimhaven Dungeon)|main entrance]].
+| 
+*{{SCP|Woodcutting|10|link=yes}}
+*Any [[axe]] and 875 [[coins]]
+|-
+| 16. Cross the lava using the [[Stepping stones (Western Brimhaven Dungeon)|stepping stones]] within [[Brimhaven Dungeon]].
+''Note: Not to be confused with the [[Stepping stones (Eastern Brimhaven Dungeon)|stepping stones]] towards the [[red dragons]].
+|
+*{{SCP|Woodcutting|10|link=yes}} and {{SCP|Agility|12|link=yes}}
+*Any [[axe]] and 875 [[coins]]
+|-
+| 17. Climb the stairs within [[Brimhaven Dungeon]].
+''Note: You have to climb the stairs south of the [[Stepping stones (Western Brimhaven Dungeon)|stepping stones]] of the previous task, next to the [[moss giant]]s.''
+|
+*{{SCP|Woodcutting|10|link=yes}}
+*Any [[axe]] and 875 [[coins]]
+|-
+| 18. Charter a ship from the [[Shipyard (Karamja)|shipyard]] in the far east of [[Karamja]].
+''Note: The destination does not matter for this task.
+|
+*{{SCP|Quest}} Partial completion of [[The Grand Tree]]
+*Enough [[coins]] to pay the [[Charter ship#Fares|fare]] for a [[charter ship]].
+|-
+| 19. Mine a [[red topaz]] from a [[gem rock]].
+''Note: [[Gem rock]]s are found [[Shilo Village (location)|Shilo Village]] and rarely appear within the [[Tai Bwo Wannai Cleanup]] minigame.''
+| 
+*{{SCP|Quest}} Completion of [[Jungle Potion]], and either completion of [[Shilo Village]] or [[Tai Bwo Wannai Cleanup#Necessary items|items]] for [[Tai Bwo Wannai Cleanup]]
+*{{SCP|Mining|40|link=yes}}
+*Any [[pickaxe]]
+|}
+{{Notelist}}
+
+{{Listen
+|title = [[All Medium Tasks (Karamja Diary)|All Medium Tasks]]
+|filename = All Medium Tasks (Karamja Diary).ogg
+|desc = The music that plays after completing all medium tasks.}}
+===Rewards===
+*[[Karamja gloves 2]]:
+**While worn, 10% additional [[Agility]] experience from all obstacles in the [[Brimhaven Agility Arena]] and from [[Agility arena ticket]]s
+*[[Antique lamp (Karamja Diary)|Antique lamp]] worth 5,000 experience in any skill of at least level 30 (instead of the usual [[Antique lamp (medium)|antique lamp]] for this tier)
+*Access to the underground portion of the [[Shilo Village mine]]
+
+==Hard==
+{{Listen
+|title = [[Hard Task (Karamja Diary)|Hard Task]]
+|filename = Hard Task (Karamja Diary).ogg
+|desc = The music that plays after completing a hard task.}}
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Karamja" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+| 1. Become the Champion of the [[TzHaar Fight Pit|Fight Pits]].
+''Note: In Deadman Mode, this task is instead "Speak to TzHaar-Mej-Kah at the Fight Pits."
+| 
+*At least one other player
+*[[Weapon]]ry, optionally
+|-
+| 2. Kill a [[Ket-Zek]] in the [[TzHaar Fight Cave|Fight Caves]].
+''Note: [[Ket-Zek]]s start to appear on the 31st wave. You can leave the arena safely after killing it.
+
+''This wave can be reached with relatively little effort, as long as the [[Yt-MejKot]]s are kept out of melee range and [[Protect from Missiles]] is used against the [[Tok-Xil]]s. Though, you may as well try to complete the entire [[TzHaar Fight Cave|Fight Caves]] when going for this task.
+|
+*See the [[TzHaar Fight Cave/Strategies|strategy guide]]
+|-
+| 3. Eat an [[oomlie wrap]].
+|
+*[[Cooked oomlie wrap]], or the requirements to make it ({{SCP|Cooking|50|link=yes}} {{boostable|n}}, a [[palm leaf]], and a [[raw oomlie]])
+|-
+| 4. Craft some [[nature rune]]s from Essence.
+|
+*{{SCP|Runecraft|44|link=yes}}
+*[[Pure essence|Pure]] or [[daeyalt essence]]
+*Access to the [[Nature Altar]] ([[nature talisman]]/[[Nature tiara|tiara]], [[catalytic talisman]]/[[Catalytic tiara|tiara]], or the [[Abyss]])
+|-
+| 5. Cook a [[Raw karambwan|karambwan]] thoroughly.
+|
+*{{SCP|Quest}} Completion of [[Tai Bwo Wannai Trio]] (speak to [[Tinsay]] after the quest) 
+*{{SCP|Cooking|30|link=yes}}
+*[[Raw karambwan]], multiple recommended in case of [[Burnt karambwan|burning]] one
+|-
+| 6. Kill a [[Death wing|deathwing]]{{sic}} in the [[Shaman Caves|dungeon]] under the [[Kharazi Jungle]].
+|
+*{{SCP|Quest}} Partial completion of [[Legends' Quest]]
+**The quest can be started without all the required skills, but reaching this area requires {{SCP|Agility|50|link=yes}}, {{SCP|Thieving|50|link=yes}}, {{SCP|Mining|52|link=yes}}, and {{SCP|Strength|50|link=yes}} (all boostable).
+*Any [[axe]], any [[Machete (weapon)|machete]], any [[pickaxe]], and a [[lockpick]]
+|-
+| 7. Use the [[Strong_Tree_(Karamja)|crossbow shortcut]] south of the [[Karamja Volcano|volcano]].
+|
+*{{SCP|Agility|53|link=yes}}, {{SCP|Ranged|42|link=yes}} and {{SCP|Strength|21|link=yes}}
+*[[Mith grapple]]{{efn|[[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].}} and any [[Crossbow (weapon)|crossbow]]
+|-
+| 8. Collect 5 [[Palm leaf|palm leaves]].
+''Note: You can just drop and pick up the same palm leaf five times.''
+|
+*{{SCP|Quest}} Partial completion of [[Legends' Quest]]
+*Any [[axe]] and [[Machete (weapon)|machete]], or {{SCP|Agility|79|link=yes}} for the [[Vine (Kharazi Jungle)|vine shortcut]]
+|-
+| 9. Be assigned a [[Slayer]] task by the [[Duradel|Slayer Master]] in [[Shilo Village (location)|Shilo Village]].
+| 
+*{{SCP|Quest}} Completion of [[Shilo Village]]
+*{{SCP|Combat|100|link=yes}} and {{SCP|Slayer|50|link=yes}}, or a [[Slayer cape]]
+|-
+| 10. Kill a [[metal dragon]] in [[Brimhaven Dungeon]].
+|
+*{{SCP|Woodcutting|10|link=yes}}
+*Any [[axe]], protection from [[dragonfire]], and [[weapon]]ry
+*875 [[coins]] (unless you have unlocked permanently free access via either [[Saniboch]] or [[Banisoch]])
+|}
+{{Notelist}}
+
+{{Listen
+|title = [[All Hard Tasks (Karamja Diary)|All Hard Tasks]]
+|filename = All Hard Tasks (Karamja Diary).ogg
+|desc = The music that plays after completing all hard tasks.}}
+===Rewards===
+*[[Karamja gloves 3]]:
+**Unlimited teleports to the underground portion of the [[Shilo Village mine]]
+**[[Jiminua's Jungle Store]] and the [[Karamja General Store]] are now also affected by the gloves' [[Karamja gloves#Discounted shops|discounted store prices]]
+*[[Antique lamp (Karamja Diary)|Antique lamp]] worth 10,000 experience in any skill of at least level 40 (instead of the usual [[Antique lamp (hard)|antique lamp]] for this tier)
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Karamja" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+| 1. Craft 56 [[Nature rune]]s simultaneously from Essence without the use of [[Runic extract|Extracts]].
+|
+*{{SCP|Runecraft|91|link=y}}{{Boostable|yes}}
+*28 [[Pure essence|pure]] or [[daeyalt essence]] (less may suffice with [[Raiments of the Eye]] pieces){{efn|To guarantee the task completes, bring at least 26 essence with 1 piece, 24 with 2 pieces, 22 with 3 pieces, or 19 with the full [[Raiments of the Eye]] set.}}
+*Access to the [[Nature Altar]] ([[nature talisman]]/[[Nature tiara|tiara]], [[catalytic talisman]]/[[Catalytic tiara|tiara]], or the [[Abyss]])
+|-
+| 2. Equip a [[Fire Cape]] or [[Infernal Cape]] in [[Mor Ul Rek]].
+|
+*See the [[TzHaar Fight Cave/Strategies|strategy guide]] for the [[TzHaar Fight Cave]]
+*[[Fire cape]] or [[infernal cape]]
+|-
+| 3. Check the health of a [[palm tree]] in [[Brimhaven]].
+|
+*{{SCP|Farming|68|link=y}}
+*[[Palm sapling]], [[spade]] and [[rake]]
+*15 [[papaya fruit]] recommended to pay the [[Garth|gardener]]
+|-
+| 4. Create an [[Anti-venom|antivenom]] potion whilst standing in the [[Horseshoe mine|horse shoe mine]].
+|
+*{{SCP|Herblore|87|link=y}}{{Boostable|yes}}
+*[[Antidote++]] and 5-20 [[Zulrah's scales]] (5 per dose)
+|-
+| 5. Check the health of your [[Calquat tree]] patch.
+''Note: This is the [[farming patch]] next to [[Imiago]].
+| 
+*{{SCP|Farming|72|link=y}}
+*[[Calquat sapling]], [[spade]] and [[rake]]
+*8 [[poison ivy berries]] recommended to pay the [[Imiago|gardener]]
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Karamja gloves 4]]:
+**Unlimited teleports to [[Duradel]]/[[Kuradal]]
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*10% chance of receiving two [[Agility arena ticket]]s and [[Brimhaven voucher]]s, instead of one, when successfully tagging a [[ticket dispenser]] at the [[Brimhaven Agility Arena]]
+*Free usage of Shilo Village's [[furnace]], down from a fee of 20 [[coins]] per use
+*Free access to the [[Hardwood Grove]], down from a fee of 100 [[trading sticks]]
+*Free [[Shilo Village cart system|cart rides]] between [[Brimhaven]] and [[Shilo Village]], down from a fee of 10-200 [[coins]]
+*[[Red dragonhide]] from [[red dragon]]s in the [[Brimhaven Dungeon]] is now [[Bank note|noted]] (cannot be disabled)
+*[[Bar]]s from [[Dragon_(race)#Metal_dragons|metal dragon]]s in the [[Brimhaven Dungeon]] are now [[noted]], unless this feature is disabled by talking to [[Pirate Jackie the Fruit]]
+*Double [[Tokkul]] from the [[TzHaar Fight Cave]], the [[Inferno]], and [[TzHaar-Ket-Rak's Challenges]]
+*Resurrect with full health and restored stats once per day when you reach 0 hitpoints in the [[TzHaar Fight Cave]], allowing you to continue on with the fight (the task list of this diary will show you whether you've used this daily resurrection)
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change =
+* The Karamja hard diary [[Antique lamp (Karamja Diary)|reward lamp]] can now only be used on skills that meet the level 40 requirement.
+* The Karamja medium diary reward lamp can now only be used on skills that meet the level 30 requirement.
+}}
+{{Subject changes
+|date = 10 July 2024
+|update = While Guthix Sleeps
+|change = The diary task of getting a slayer task from Duradel has been replaced with getting a slayer task from the Slayer Master in Shilo Village.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Access to the underground portion of the [[Shilo Village mine]] is now granted upon completion of the [[Karamja Diary#Medium|Medium Karamja Diary]].
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they only can be completed with essence.
+}}
+{{Subject changes
+|date = 30 March 2017
+|update = Interface Improvement & More
+|change = Pirate Jackie the Fruit is now the diary master for all of tiers retiring [[Kaleb Paramaya]], the [[Jungle forester]], and [[TzHaar-Mej (Diary)|TzHaar-Mej]].
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = Fixed misspelling of "receive" in Ardougne, Karamja, Morytania and Wilderness Diaries.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change =
+*Karamja diary now checks for the elite tasks being completed before stating you have completed all of the tasks.
+*You are no longer directed towards 'someone somewhere' after completing the Karamja Elite tasks.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|change =
+*Karamja diary elite tier added with [[TzHaar-Mej (Diary)|TzHaar-Mej]] as its taskmaster.
+}}
+
+{{Subject changes footer}}
+
+==Trivia==
+*The Karamja Diary was the only Achievement Diary in ''Old School RuneScape'' until the introduction of other diaries in [[Update:Achievement Diaries|an update]] on 5 March 2015. The update also introduced an elite tier for the Karamja Diary.
+*This diary's design is slightly different than other Achievement Diaries:
+**The antique lamp experience for the completion of each tier is different than the other diaries.
+**Completing each task, or all tasks of a tier, results in a completion audio [[jingle]]. This jingle is different for each tier, with the exception of the elite tier having no jingle at all.
+**The diary had different taskmasters for each tier: [[Pirate Jackie the Fruit]] for the easy tier, [[Kaleb Paramaya]] for the medium tier, the [[Jungle forester]] for the hard tier, and [[TzHaar-Mej (Diary)|TzHaar-Mej]] for the elite tier. This was changed in [[Update:Interface Improvement & More|an update]] on 30 March 2017.
+
+{{Achievement diary}}

@@ -1,0 +1,40 @@
+# <shot-name> <plugin-id> <lane> [ENV=value ...] [-- cfg=value ...]
+#
+# The overlay plugins, one per picture. drive_overlays.sh photographed four of
+# these with every other plugin ALSO on; these are the isolated forms.
+#
+# `dropobj` is a content debugproc and it uses the ACTIVE PLAYER'S coord, so the
+# pile lands under the player on the player's own plane -- which is why the
+# fixture's own plane-1 stacks never produced a ground-item label.
+
+tileind-c-cs2   tile-indicator-c   cs2 TORIRS_SIM_HOVER=300,180
+tileind-c-cs1   tile-indicator-c   cs1 TORIRS_SIM_HOVER=300,180
+tileind-lua-cs2 tile-indicator-lua cs2 TORIRS_SIM_HOVER=300,180
+tileind-lua-cs1 tile-indicator-lua cs1 TORIRS_SIM_HOVER=300,180
+
+xporbs-cs2 xp-drop-orbs cs2 'TORIRS_SIM_CMD=660,setlevel 10 45'
+xporbs-cs1 xp-drop-orbs cs1 'TORIRS_SIM_CMD=660,setlevel 10 45'
+
+grounditems-cs2 ground-items cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1
+grounditems-cs1 ground-items cs1 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1;70,dropobj ags 1;80,dropobj abyssal_whip 1' TORIRS_GROUND_ITEMS_DEBUG=1
+
+lootbeam-cs2 loot-beam cs2 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1'
+lootbeam-cs1 loot-beam cs1 'TORIRS_SIM_CMD=60,dropobj abyssal_tentacle 1'
+
+highlighter-cs2 entity-highlighter cs2 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'
+# The OFFLINE cs1 line below is a picture of nothing and no tag list can change
+# that: the lane never logs in, so the npc pool is empty and the plugin's first
+# world.npc_next answers -1 on every frame. Measured -- a cs1 run tagging
+# 547,781,783,639,153,1,3 (LostCity's own ids, not the osrs239 ones this line
+# carries) logs zero PLUGIN_NPC lines under TORIRS_TRACE_PLUGIN_WORLD=1. The
+# CS1 picture of this plugin is highlighter-live, in jobs/cs1live.txt, where
+# there is a server to spawn npcs; read that one, not this.
+highlighter-cs1 entity-highlighter cs1 'TORIRS_SIM_PLUGIN_CONFIG=60,entity-highlighter,tags,5037,6708,2880,2899,3106,3108'
+
+xptracker-cs2 xp-tracker cs2 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000'
+xptracker-cs1 xp-tracker cs1 TORIRS_SIM_PLUGIN_PANEL=600,xp-tracker,page 'TORIRS_SIM_CMD=300,setlevel 10 45;400,xp fishing 30000'
+
+# The two controls: no optional plugin at all, so the frame the lane draws by
+# itself is on the record and every overlay above can be subtracted from it.
+control-cs2 none cs2
+control-cs1 none cs1

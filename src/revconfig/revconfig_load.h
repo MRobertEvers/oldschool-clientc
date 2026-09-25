@@ -44,6 +44,19 @@ revconfig_load_fields_from_ini_bytes_prefixed(
     struct RevConfigBuffer* revconfig_buffer);
 
 /** True when `filename` holds at least one `[<section_prefix>:…]` section. */
+/**
+ * Does `filename` contain a `[layout:<group>]` section?
+ *
+ * A cheap header scan, like revconfig_ini_has_prefixed_sections beside it, for
+ * the one question a caller has to answer before deciding whether to bake a
+ * group at all: selecting a group that is not there yields an empty tree, and
+ * an empty tree is indistinguishable from a broken one once it is up.
+ */
+int
+revconfig_ini_has_layout_group(
+    const char* filename,
+    const char* group);
+
 int
 revconfig_ini_has_prefixed_sections(
     const char* filename,

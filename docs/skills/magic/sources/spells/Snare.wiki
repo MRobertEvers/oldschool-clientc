@@ -1,0 +1,74 @@
+{{External|rs|dw}}
+{{Otheruses|the Snare spell|the bird trap|bird snare|the rabbit trap|rabbit snare}}
+{{Infobox Spell
+|name = Snare
+|image = [[File:Snare.png]]
+|release = [[29 March]] [[2004]]
+|update = RS2 Launched!
+|members = No
+|level = 50
+|spellbook = Normal
+|type = Combat
+|exp = 61
+|damage = 2
+|cost = {{RuneReq|Nature=3|Earth=4|Water=4}}
+|speed = 5 ticks
+|description = Hold your opponent for 10 seconds
+|anim = [[File:Snare.gif|300px]]
+|sound = [[File:Snare.ogg]]
+}}
+[[File:Snare icon (mobile).png|left]]
+'''Snare''' is a level 50 [[Magic]] [[spell]]. Casting Snare on an opponent will prevent it from moving for 16 [[ticks]] (9.6 seconds). When used on a player and the snare is about to wear off, the snared player will receive this message in their chatbox: {{mes|The holding effect is beginning to fade.|color=red}} Players can increase the binding duration by equipping [[swampbark armour]]; the [[Swampbark helm|helm]], [[Swampbark body|body]], and [[Swampbark legs|legs]] will increase the duration by 2 [[ticks]] (1.2 seconds) each, up to a maximum of 22 [[ticks]] (13.2 seconds).
+
+Snare gives 61 Magic [[experience]] if it successfully hits the target, or 60 experience if it [[splash]]es.
+
+==Cost==
+{{Spell cost table
+|Rune1=Water
+|Rune1num=4
+|Rune2=Earth
+|Rune2num=4
+|Rune3=Nature
+|Rune3num=3
+|uses_pages_water = yes
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted entangle sack}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 September 2023
+|update = The Path of Glouphrie
+|change = Snare now yields 61 [[Magic]] [[experience]] upon a successful cast.
+}}
+{{Subject changes
+|date = 21 June 2023
+|update = More Poll 79 Changes
+|poll = Old School Content Poll 79: Quality of Life
+|change = 
+* The maximum Swampbark Armour set bonus for the Snare spell can now be achieved with just the [[Swampbark helm|helm]], [[Swampbark_body|body]] and [[Swampbark_legs|legs]] as opposed to the full set.
+* Each outfit piece now increases the duration of the Snare spell by an additional [[tick]], so the complete bonus increases the duration to 6 ticks.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = An audio cue and message have been added to the Snare spell to tell the victims when the freeze is about to expire.
+}}
+{{Subject changes
+|date = 5 September 2019
+|update = PvP Balancing, LMS, and Elf Graphics
+|change = 
+*[[Protect from Magic]] no longer halves the duration of Snare.
+*Snare can now be cast in [[free-to-play]] worlds.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* '''Snare''' behaviour was modified without a patch note in an update. Unlike [[Bind]] and similarly to [[ice spells]] like [[Ice Barrage]], this spell could have been cast on a target that was immune to its binding effect (likely due to the minor damage that it can inflict). Currently, attempting to cast the spell on an immobilized target results in the message {{mes|Your target is already held by a magical force.}}, while trying to cast the spell on a target during the grace period after the end of the binding effect results in the message {{mes|The target is currently immune to that spell.}}
+
+{{Standard spellbook}}

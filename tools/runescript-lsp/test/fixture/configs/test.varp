@@ -1,0 +1,9 @@
+// The bank pin the player set, as four digits packed into one int.
+[bankpin_code]
+scope=perm
+type=int
+transmit=no
+
+[bankpin_set]
+scope=perm
+type=int

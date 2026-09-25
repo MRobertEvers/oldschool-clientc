@@ -1,8 +1,9 @@
+#include "engine/cache_provider.h"
+#include "engine/dat2/dat2_tasks.h"
+#include "engine/title_panel.h"
+#include "engine/uitree_builder/task_pack_assets_load.h"
 #include "uitree_builder.h"
 #include "uitree_builder_manifest.h"
-
-#include "engine/cache_provider.h"
-#include "engine/uitree_builder/task_pack_assets_load.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -20,6 +21,8 @@ struct Task_UIBuilderAssetsLoad
     int* unique_objs;
     int unique_obj_count;
     int unique_obj_cap;
+    /* Siblings still running from a fan-out below; PT_TASK_JOIN waits on it. */
+    int pending;
 };
 
 static int
@@ -62,7 +65,7 @@ collect_unique_objs(struct Task_UIBuilderAssetsLoad* self)
 static int
 Task_UIBuilderAssetsLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_UIBuilderAssetsLoad* self = (struct Task_UIBuilderAssetsLoad*)base;
     assert(self->builder);
@@ -76,18 +79,85 @@ Task_UIBuilderAssetsLoad_Run(
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
         UITreeBuilder_RegisterSprite(
-            self->builder,
-            req->name,
-            req->archive_id,
-            req->atlas_index,
-            req->atlas_count);
+            self->builder, req->name, req->archive_id, req->atlas_index, req->atlas_count);
     }
+    /*
+     * Every load below that is addressed by a cache id -- a sprite archive, a
+     * font, an obj, a component pack -- is independent of the others, so it is
+     * queued as a sibling on the asset queue and joined, the way
+     * task_pack_assets_load.c already loads an interface's assets. Awaited
+     * one after another they were a network round trip apiece on a streamed
+     * cache: 212 of the 251 round trips a browser paid before the title screen
+     * were this loop's sprites, at ~70 ms each through a reverse proxy. The
+     * fan-out is this task's own -- it queues, and it does not resume past
+     * the join until every sibling has ended -- so nothing downstream sees a
+     * load half done. A sprite named rather than numbered (`sprite=logo`, the
+     * form this manifest uses throughout) resolves its id from the sprites
+     * reference table, already resident by now, and then reads one archive,
+     * so it is just as independent and goes in the same fan-out; a duplicate
+     * name yields a NULL task, which AddParallelPoolSubTask does not count. The defaults,
+     * title-panel and from-source loads stay serial: there are a handful.
+     */
+    assert(self->builder->provider->asset_queue);
+    for( int k = 0; k < self->manifest->sprite_count; k++ )
+    {
+        struct UIBuilderSpriteReq const* req = &self->manifest->sprites[k];
+        if( req->archive_id >= 0 )
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
+                self->builder->provider->asset_queue,
+                CreateTask_SpriteLoad(self->builder->provider, req->archive_id),
+                &self->pending);
+        else if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
+            continue;
+        else if(
+            strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
+            strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+            continue;
+        else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
+            /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
+             * sprites table is addressed by archive NAME on this era, and the
+             * id it lands on differs between caches — which is the whole reason
+             * the name belongs in RevConfig and not in a C table. The dat1
+             * spelling is distinguished by carrying filename=, since a dat1
+             * section names both a jagfile archive and a file inside it. */
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
+                self->builder->provider->asset_queue,
+                CreateTask_SpriteLoadByName(self->builder->provider, req->archive),
+                &self->pending);
+    }
+    PT_TASK_JOIN(pending);
     for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
     {
         struct UIBuilderSpriteReq const* req = &self->manifest->sprites[self->i];
         if( req->archive_id >= 0 )
+            continue;
+        if( req->defaults_slot >= 0 && strcmp(req->table, "defaults") == 0 )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
+            /*
+             * `table=defaults slot=<n>`: read the id out of the defaults record,
+             * which is what the client does. Index 17 group 3 stores eleven
+             * sprite ids positionally and the engine loads each by id — it never
+             * looks a sprite up by name — so a slot is an address rather than a
+             * label, and this path does not depend on index 8 still shipping
+             * name hashes.
+             *
+             * Checked before the name path so a section may carry both: a
+             * profile can name `archive=` as documentation of what the slot
+             * resolved to at the revision it was written for, without that name
+             * being what the client acts on.
+             */
+            PT_TASK_AWAITSELF_IF(CreateTask_DefaultsSpriteLoad(
+                self->builder->provider, req->defaults_slot, req->name));
+        }
+        else if(
+            strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
+            strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+        {
+            /* The title backdrop, which OldSchool keeps in the BINARY table
+             * rather than among the sprites -- so it is addressed by table and
+             * name, and assembled by the same composite the dat1 lane uses. */
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_Dat2TitlePanelLoad(self->builder->provider, req->archive, req->name));
         }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {
@@ -98,6 +168,11 @@ Task_UIBuilderAssetsLoad_Run(
                 .format = req->format,
                 .data_filename = req->data_filename,
                 .index_filename = req->index_filename,
+                /* Which jagfile: "title" for the login screen's art, the media
+                 * archive for everything else. Distinguished from the dat2
+                 * reading of `archive=` above by this branch carrying
+                 * filename=, which a dat2 section never does. */
+                .archive = req->archive,
                 .atlas_index = req->atlas_index,
                 .atlas_count = req->atlas_count,
                 .crop_x = req->crop_x,
@@ -110,7 +185,7 @@ Task_UIBuilderAssetsLoad_Run(
             PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->builder->provider, &src));
         }
     }
-    /* Re-register dat1 sprites with their assigned provider ids so bake's
+    /* Re-register name-keyed sprites with their assigned provider ids so bake's
      * UITreeBuilder_ResolveSpriteRef returns a loadable id. */
     for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
     {
@@ -118,6 +193,17 @@ Task_UIBuilderAssetsLoad_Run(
         if( req->archive_id < 0 )
         {
             int assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->name);
+            /* A dat2 load registers under the ARCHIVE name, which need not be
+             * the section name — rev-239 ships the hitsplat pack as `hitmark`
+             * while the client asks for `hitmarks`. Alias the section name onto
+             * the same id so every later lookup, including the host's static
+             * slots, can use the one spelling C knows. */
+            if( assigned < 0 && req->archive[0] != '\0' )
+            {
+                assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->archive);
+                if( assigned >= 0 )
+                    CacheProvider_SpriteNameMapPut(self->builder->provider, req->name, assigned);
+            }
             if( assigned >= 0 )
                 UITreeBuilder_RegisterSprite(
                     self->builder, req->name, assigned, req->atlas_index, req->atlas_count);
@@ -128,33 +214,47 @@ Task_UIBuilderAssetsLoad_Run(
     for( self->i = 0; self->i < self->manifest->font_count; self->i++ )
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
-        UITreeBuilder_RegisterFont(
-            self->builder, req->name, req->archive_id, req->cache_font_id);
+        UITreeBuilder_RegisterFont(self->builder, req->name, req->archive_id, req->cache_font_id);
     }
+    for( int k = 0; k < self->manifest->font_count; k++ )
+    {
+        struct UIBuilderFontReq const* req = &self->manifest->fonts[k];
+        if( req->archive_id >= 0 )
+            ToriRS_TaskQueue_AddParallelPoolSubTask(
+                self->builder->provider->asset_queue,
+                CreateTask_FontLoad(self->builder->provider, req->archive_id),
+                &self->pending);
+    }
+    PT_TASK_JOIN(pending);
     for( self->i = 0; self->i < self->manifest->font_count; self->i++ )
     {
         struct UIBuilderFontReq const* req = &self->manifest->fonts[self->i];
-        if( req->archive_id >= 0 )
-            PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(self->builder->provider, req->archive_id));
-        else if( req->cache_font_id >= 0 && req->font_name[0] != '\0' )
+        if( req->archive_id < 0 && req->cache_font_id >= 0 && req->font_name[0] != '\0' )
             PT_TASK_AWAITSELF_IF(CreateTask_FontLoadByName(
                 self->builder->provider, req->font_name, req->cache_font_id));
     }
 
     /* Unique inv objs */
     collect_unique_objs(self);
-    for( self->i = 0; self->i < self->unique_obj_count; self->i++ )
-    {
-        PT_TASK_AWAITSELF_IF(
-            CreateTask_ObjLoad(self->builder->provider, self->unique_objs[self->i]));
-    }
+    for( int k = 0; k < self->unique_obj_count; k++ )
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
+            self->builder->provider->asset_queue,
+            CreateTask_ObjLoad(self->builder->provider, self->unique_objs[k]),
+            &self->pending);
+    PT_TASK_JOIN(pending);
 
-    /* Components / packs. Locals do not survive the yields between the two
-     * awaits — index through self each time. */
+    /* Components / packs: the packs first, together; then each pack's own
+     * assets, in order, because a pack's asset list is read out of the loaded
+     * pack. The pack loader fans its assets out itself. */
+    for( int k = 0; k < self->manifest->component_count; k++ )
+        ToriRS_TaskQueue_AddParallelPoolSubTask(
+            self->builder->provider->asset_queue,
+            CreateTask_ComponentLoad(
+                self->builder->provider, self->manifest->components[k].packed_id),
+            &self->pending);
+    PT_TASK_JOIN(pending);
     for( self->i = 0; self->i < self->manifest->component_count; self->i++ )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_ComponentLoad(
-            self->builder->provider, self->manifest->components[self->i].packed_id));
         /* Prefetch pack-referenced assets (MODEL widgets especially; dat1 sprite
          * refs resolve during the pack load itself, so those awaits no-op). */
         PT_TASK_AWAITSELF_IF(CreateTask_PackAssetsLoad(

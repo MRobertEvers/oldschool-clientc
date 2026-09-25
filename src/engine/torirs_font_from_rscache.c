@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define FONT_ADVANCE_ONLY_GLYPH TORIRS_FONT_GLYPH_COUNT
 
@@ -16,7 +17,7 @@ static uint16_t const TORIRS_FONT_CHARSET[TORIRS_FONT_GLYPH_COUNT] = {
     'g',    'h', 'i',  'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',  't', 'u', 'v',
     'w',    'x', 'y',  'z', '0', '1', '2', '3', '4', '5', '6', '7', '8',  '9', '!', '"',
     0x00A3, '$', '%',  '^', '&', '*', '(', ')', '-', '_', '=', '+', '[',  '{', ']', '}',
-    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', ' '
+    ';',    ':', '\'', '@', '#', '~', ',', '<', '.', '>', '/', '?', '\\', '|'
 };
 
 static int
@@ -40,14 +41,17 @@ font_init_charcodeset(struct ToriRS_Font* font)
     for( i = 0; i < 256; i++ )
     {
         int c = font_index_of_char((uint8_t)i);
-        if( c == -1 )
-            c = font_index_of_char(' ');
+        /* A character this font has no record for draws nothing and advances
+         * like a space. It must NOT fall back to the last glyph record --
+         * that slot is '|', and every unknown byte would draw a bar. */
         if( c < 0 || c >= TORIRS_FONT_GLYPH_COUNT )
-            c = TORIRS_FONT_GLYPH_COUNT - 1;
+            c = FONT_ADVANCE_ONLY_GLYPH;
         font->charcodeset[i] = (char)c;
     }
+    /* The space is the one character with no glyph record: it is the
+     * advance-only slot past the end of the 94 records. @see the CHARSET
+     * note in 3rd/rscache dat1_pix_font.c, which this table mirrors. */
     font->charcodeset[(unsigned char)' '] = (char)FONT_ADVANCE_ONLY_GLYPH;
-    font->charcodeset[(unsigned char)'|'] = (char)FONT_ADVANCE_ONLY_GLYPH;
 }
 
 static void
@@ -56,8 +60,6 @@ font_finish_draw_widths(struct ToriRS_Font* font)
     int const fallback = font->advance[8] > 0 ? font->advance[8] : 4;
     int i;
 
-    if( font->advance[93] < 4 )
-        font->advance[93] = fallback;
     if( font->advance[FONT_ADVANCE_ONLY_GLYPH] <= 0 )
         font->advance[FONT_ADVANCE_ONLY_GLYPH] = fallback;
 
@@ -65,7 +67,6 @@ font_finish_draw_widths(struct ToriRS_Font* font)
         font->draw_width[i] = font->advance[(unsigned char)font->charcodeset[i]];
 
     font->draw_width[(unsigned char)' '] = font->advance[FONT_ADVANCE_ONLY_GLYPH];
-    font->draw_width[(unsigned char)'|'] = font->advance[FONT_ADVANCE_ONLY_GLYPH];
 }
 
 static int
@@ -155,6 +156,25 @@ font_new_from_dat2_metrics_and_sprite_pack(
     return font;
 }
 
+static int
+font_name_is_full(char const* font_name)
+{
+    size_t len;
+
+    assert(font_name);
+    len = strlen(font_name);
+    return len > 5 && strcmp(font_name + len - 5, "_full") == 0;
+}
+
+/* The quill font, whatever stem a revision gives it. PixFont.depack takes this
+ * as a separate argument and passes 1 for exactly one font. */
+static int
+font_name_is_quill(char const* font_name)
+{
+    assert(font_name);
+    return strncmp(font_name, "q8", 2) == 0;
+}
+
 struct ToriRS_Font*
 ToriRS_FontFromDat1Jagfile(
     struct RSCache_FileListDat* title_jagfile,
@@ -177,17 +197,28 @@ ToriRS_FontFromDat1Jagfile(
     index_file_idx = RSCache_FileListDatFindFileByName(title_jagfile, "index.dat");
     if( data_file_idx == -1 || index_file_idx == -1 )
     {
-        fprintf(
-            stderr, "ToriRS_FontFromDat1Jagfile: missing %s/index.dat in title jagfile\n",
+        TORIRS_ERR("ToriRS_FontFromDat1Jagfile: missing %s/index.dat in title jagfile\n",
             data_filename);
         return NULL;
     }
 
-    pixfont = RSCache_Dat1PixFontNewDecode(
-        title_jagfile->files[data_file_idx],
-        title_jagfile->file_sizes[data_file_idx],
-        title_jagfile->files[index_file_idx],
-        title_jagfile->file_sizes[index_file_idx]);
+    /* "<stem>_full" is the 256-record, character-code-indexed layout; anything
+     * else is the 94-record CHARSET one. See the header for why the stem is
+     * allowed to decide this. `quill` is the reference's own special case: the
+     * quill font (q8) takes its space width from 'I' rather than 'i'. */
+    if( font_name_is_full(font_name) )
+        pixfont = RSCache_Dat1PixFontFullNewDecode(
+            title_jagfile->files[data_file_idx],
+            title_jagfile->file_sizes[data_file_idx],
+            title_jagfile->files[index_file_idx],
+            title_jagfile->file_sizes[index_file_idx],
+            font_name_is_quill(font_name));
+    else
+        pixfont = RSCache_Dat1PixFontNewDecode(
+            title_jagfile->files[data_file_idx],
+            title_jagfile->file_sizes[data_file_idx],
+            title_jagfile->files[index_file_idx],
+            title_jagfile->file_sizes[index_file_idx]);
     if( !pixfont )
         return NULL;
 

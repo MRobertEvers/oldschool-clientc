@@ -1,0 +1,78 @@
+{{External|rs=Air Blast|rsc=Wind blast}}
+{{Infobox Spell
+|name = Wind Blast
+|image = [[File:Wind Blast.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 41
+|spellbook = Normal
+|type = Combat
+|exp = 25.5
+|element = Air
+|damage = 13, 14, 15, or 16
+|cost = {{RuneReq|Air=3|Death=1}}
+|speed = 5 ticks
+|description = A medium level Air missile
+|anim = [[File:Wind Blast.gif|300px]]
+|sound = [[File:Wind Blast.ogg]]
+}}
+[[File:Wind Blast icon (mobile).png|left]]
+'''Wind Blast''' is an [[Wind spells|air]]-based [[Blast spells|blast spell]] in the [[standard spellbook]], requiring level 41 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest wind spell available to [[free-to-play]] players, as well as the most cost-effective blast spell to cast.
+
+==Damage==
+Wind Blast's base maximum hit starts at 13 and increases as the player unlocks additional blast spells, up to 16 at level 59 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level blast spell available
+!{{Plink|Wind Blast}} base maximum hit
+|-
+|{{SCP|Magic|41}}- 46
+|{{Plink|Wind Blast}}
+|13
+|-
+|{{SCP|Magic|47}}- 52
+|{{Plink|Water Blast}}
+|14
+|-
+|{{SCP|Magic|53}}- 58
+|{{Plink|Earth Blast}}
+|15
+|-
+|{{SCP|Magic|59}}+
+|{{Plink|Fire Blast}}
+|16
+|}
+As with all combat spells, Wind Blast's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an air-based spell, Wind Blast's maximum hit is also increased against targets that are [[Elemental weakness|weak to air]].
+
+===Calculator===
+{{Magic damage calculator|Wind Blast|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 3
+|Rune2 = death
+|Rune2num = 1
+|is_offensive = y
+}}
+
+== Notable uses ==
+
+* Wind Blast is the most cost-effective blast spell, since it deals the same amount of damage as the other blast spells while requiring the least amount of runes. Therefore, it is generally preferred over the other blast spells unless the player is fighting a monster with a specific [[elemental weakness]].
+* During the [[Family Crest]] quest, the player must deal damage to the demon [[Chronozon]] with Wind Blast (along with each of the other three blast spells) at least once in order to defeat it.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[blast spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

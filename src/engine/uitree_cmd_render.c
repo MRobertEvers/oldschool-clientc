@@ -1,6 +1,6 @@
 #include "uitree_cmd_render.h"
 
-#include "platform/platform_sdl2_renderer_soft3d.h"
+#include "platform/platform_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 #include "ui/uitree_emit.h"
 
@@ -19,7 +19,7 @@ UITreeCmd_RenderToPixels(
     int height)
 {
     struct ToriRS_Frame frame;
-    struct ToriRS_Soft3D soft;
+    struct ToriPlatform_Renderer_Soft3D* soft;
 
     assert(scene);
     assert(pixels);
@@ -32,8 +32,12 @@ UITreeCmd_RenderToPixels(
     ToriRS_FrameSetCanvas(&frame, width, height);
     ToriRS_FrameSetEmit(&frame, cmds, cmd_count);
 
-    ToriRS_Soft3D_Init(&soft, scene, pixels, width, height);
-    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+    /* One shot: this renderer's caches have nothing to carry to a next frame,
+     * so it lives no longer than the picture it draws. */
+    soft = ToriPlatform_Renderer_Soft3D_New();
+    ToriPlatform_Renderer_Soft3D_Init(soft, scene, pixels, width, height);
+    ToriPlatform_Renderer_Soft3D_RenderFrame(soft, &frame);
+    ToriPlatform_Renderer_Soft3D_Free(soft);
 }
 
 int

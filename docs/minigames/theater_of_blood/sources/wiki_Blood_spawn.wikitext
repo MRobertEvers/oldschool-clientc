@@ -1,0 +1,75 @@
+{{otheruses|the NPC spawned by [[the Maiden of Sugadinti]]|the NPC spawned by [[Zebak]]|Blood Cloud}}
+{{Infobox Monster
+|version1 = Entry
+|version2 = Normal
+|name = Blood spawn
+|image = [[File:Blood spawn.png|200px]]
+|release = [[7 June]] [[2018]]
+|update = The Theatre of Blood
+|members = Yes
+|combat = 55
+|size = 1
+|examine = The power of blood.
+|xpbonus = 0
+|max hit = 1 (does not attack)
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|hitpoints1 = 7
+|hitpoints2 = 120
+|scaledhp = Yes
+|att = 1
+|str = 1
+|def = 0
+|mage = 0
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|id = 8367,10821,10829
+}}
+'''Blood spawn''' are monsters that spawn during [[the Maiden of Sugadinti]] encounter in the [[Theatre of Blood]], in which up to eight can spawn. If players successfully avoid the Maiden's blood splat attack, a maximum of one blood spawn will appear.
+
+They wander around the arena, creating a trail of blood which deal damage if stood upon. In [[Theatre of Blood/Entry Mode|entry mode]] the damage is 2 to 5, and in [[Theatre of Blood|normal mode]] the damage is 5 to 13.
+
+Despite never attacking the player directly, casting [[Monster Examine]] will reveal that it has a stab attack style and a max hit of 1.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Blood spawns now have a 50% [[elemental weakness]] to [[earth spells]].
+}}
+{{Subject changes
+|date = 12 August 2021
+|update = Tombs of Amascut: Rewards Beta
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = There's now less variation in where the Maiden Blood Spawns appear. Additionally, if players successfully dodge the blood, a maximum of only one Blood Spawn will appear.
+}}
+{{Subject changes
+|date = 9 January 2020
+|update = Eating in the Bank
+|poll = Old School Content Poll 69: Game Improvements
+|change = 
+*The chance of blood spawns spawning are now halved if players successfully avoid the Maiden's blood splat attack.
+*The amount of blood spawns that can appear in the fight is now capped at eight.
+}}
+{{Subject changes footer}}
+
+{{Theatre of Blood}}

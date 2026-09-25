@@ -112,6 +112,18 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /**
+     * Turn the minimap off, or to the "hidden but still clickable" middle
+     * state (LostCity 274+; one byte, 0/1/2 -- see struct PktMinimapToggle).
+     *
+     * A name in this list is also what gives the packet a LENGTH in a
+     * revision's table: a server packet with no length there consumes zero
+     * bytes and misframes everything after it, so a name has to exist here
+     * before a decoder does. This one carried its length alone for a while,
+     * which is the correct half-measure -- an unhandled packet must still be
+     * a correctly skipped one.
+     */
+    PKT_NAME_MINIMAP_TOGGLE,
     /** Run the current root's CS2 onDialogAbort listeners before teardown. */
     PKT_NAME_TRIGGER_ONDIALOGABORT,
     /** End of a server tick's packet group. The client uses it to know a tick's
@@ -191,6 +203,61 @@ enum GameProtoPktName
      * in the client's npc table with the right ids, and none of them is drawn.
      */
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
+
+    /**
+     * Select the root/dynamic world and plane that the following entity and
+     * zone packets address. Revision 239 does not derive the active root plane
+     * from PLAYER_INFO: omitting this leaves the actor tracker on the new
+     * plane while the rendered WorldView remains on the old one.
+     */
+    PKT_NAME_SET_ACTIVE_WORLD,
+
+    /**
+     * Per-view world-entity (sailing boat) sync: movement ops against the
+     * active view's entity list in list order, then a spawn trailer for new
+     * entities (rev 239+, WORLDENTITY_INFO_V7). SAILING.md §5.4 — RSProt
+     * carries no decoder for the info family, so the layout is transcribed
+     * from the deob's Statics.method977.
+     */
+    PKT_NAME_WORLDENTITY_INFO,
+
+    /**
+     * Rebuild the ACTIVE view's deck map (rev 237+, REBUILD_WORLDENTITY_V4):
+     * u16 baseX, u16 baseZ (absolute root-world tiles of the view's SW
+     * staging corner — deob Statics.method6693 stores them straight into
+     * field1405/field1395), then the same source-square count + bit-packed
+     * zone-descriptor grid REBUILD_REGION carries, except the grid's
+     * dimensions are the active view's spawn-time size and are not on the
+     * wire. V3+ dropped V2's leading view-id field: the target is always the
+     * SET_ACTIVE_WORLD cursor (deob field5861).
+     */
+    PKT_NAME_REBUILD_WORLDENTITY,
+
+    /*
+     * The social packets the clientscript social commands read (3611-3627,
+     * 3800-3890, 3903-3913). Each carries its payload raw (PktRawPayload): the
+     * stores that decode them (game/rs_friends_chat, game/rs_clan) need client
+     * state the stateless parser does not have -- the VarClanType table, the
+     * existing channel a delta applies to.
+     */
+    PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL,
+    PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER,
+    PKT_NAME_VARCLAN,
+    PKT_NAME_VARCLAN_ENABLE,
+    PKT_NAME_VARCLAN_DISABLE,
+    PKT_NAME_CLANCHANNEL_FULL,
+    PKT_NAME_CLANCHANNEL_DELTA,
+    PKT_NAME_CLANSETTINGS_FULL,
+    PKT_NAME_CLANSETTINGS_DELTA,
+    /* g1s clan, gjstr sender, g2 world, g3 counter, g1 chat crown, text. */
+    PKT_NAME_MESSAGE_CLANCHANNEL,
+    /* g1s clan, g2 world, g3 counter, text. */
+    PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM,
+    /* g1 slot, g1s status, g2 obj, g4 price, g4 count, g4 completed count,
+     * g4 completed gold; status 0 is an empty slot and the rest is padding. */
+    PKT_NAME_UPDATE_STOCKMARKET_SLOT,
+    /* Raw: the trading-post offer list (RS_CS2Host_ApplyTradingPost). */
+    PKT_NAME_UPDATE_TRADINGPOST,
 
     PKT_NAME_COUNT
 };
@@ -333,6 +400,8 @@ enum GameProtoPktOutName
     PKTOUT_NAME_REPORT_ABUSE,
     PKTOUT_NAME_MOVE_MINIMAPCLICK,
     PKTOUT_NAME_MOVE_GAMECLICK,
+    /** Sailing's 16-point compass bearing; revision 239 carries one raw byte. */
+    PKTOUT_NAME_SET_HEADING,
 
     PKTOUT_NAME_IGNORELIST_DEL,
     PKTOUT_NAME_IGNORELIST_ADD,
@@ -348,6 +417,23 @@ enum GameProtoPktOutName
      *  RSProt WINDOW_STATUS is op 10, but that collides with OPNPC2 here).
      *  mode is OpenRune clientMode 0/1/2, not just fixed/resizable. */
     PKTOUT_NAME_WINDOW_STATUS,
+
+    /* Clientscript-command packets: bug_report (3116), chat_sendabusereport
+     * (5002, SEND_SNAPSHOT at rev 239), opplayer ops 6..8 (3107), and the
+     * friends-chat and clan requests (36xx / 38xx). */
+    PKTOUT_NAME_BUG_REPORT,
+    PKTOUT_NAME_SEND_SNAPSHOT,
+    PKTOUT_NAME_OPPLAYER6,
+    PKTOUT_NAME_OPPLAYER7,
+    PKTOUT_NAME_OPPLAYER8,
+    PKTOUT_NAME_FRIENDCHAT_KICK,
+    PKTOUT_NAME_FRIENDCHAT_SETRANK,
+    PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE,
+    PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST,
+    PKTOUT_NAME_CLANSETTINGS_FULL_REQUEST,
+    PKTOUT_NAME_CLANCHANNEL_KICKUSER,
+    PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL,
+    PKTOUT_NAME_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL,
 
     PKTOUT_NAME_COUNT
 };

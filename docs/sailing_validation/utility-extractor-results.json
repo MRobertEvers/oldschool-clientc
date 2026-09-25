@@ -1,0 +1,152 @@
+{
+  "ok": true,
+  "initial": {
+    "ok": true,
+    "slot": 2,
+    "registers": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "wind": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      49,
+      0,
+      0
+    ],
+    "sailing_xp_tenths": 130344310,
+    "fishing_xp_tenths": 0,
+    "ranged_xp_tenths": 0,
+    "construction_xp_tenths": 130344310,
+    "target_hp": -1,
+    "target_frozen": 0,
+    "target_slow_token": 0,
+    "target_burn_token": 0,
+    "runtime_ms": 1.223,
+    "elapsed_ms": 2.983
+  },
+  "active": {
+    "ok": true,
+    "slot": 2,
+    "registers": [
+      0,
+      0,
+      97,
+      0,
+      1,
+      0,
+      1
+    ],
+    "wind": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      49,
+      0,
+      0
+    ],
+    "sailing_xp_tenths": 130344310,
+    "fishing_xp_tenths": 0,
+    "ranged_xp_tenths": 0,
+    "construction_xp_tenths": 130344310,
+    "target_hp": -1,
+    "target_frozen": 0,
+    "target_slow_token": 0,
+    "target_burn_token": 0,
+    "runtime_ms": 1.18,
+    "elapsed_ms": 2.954
+  },
+  "ready": {
+    "ok": true,
+    "slot": 2,
+    "registers": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      1
+    ],
+    "wind": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      49,
+      0,
+      0
+    ],
+    "sailing_xp_tenths": 130344310,
+    "fishing_xp_tenths": 0,
+    "ranged_xp_tenths": 0,
+    "construction_xp_tenths": 130344310,
+    "target_hp": -1,
+    "target_frozen": 0,
+    "target_slow_token": 0,
+    "target_burn_token": 0,
+    "runtime_ms": 1.213,
+    "elapsed_ms": 3.031
+  },
+  "harvested": {
+    "ok": true,
+    "slot": 2,
+    "registers": [
+      0,
+      0,
+      101,
+      0,
+      1,
+      0,
+      1
+    ],
+    "wind": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      49,
+      0,
+      0
+    ],
+    "sailing_xp_tenths": 130346810,
+    "fishing_xp_tenths": 0,
+    "ranged_xp_tenths": 0,
+    "construction_xp_tenths": 130344310,
+    "target_hp": -1,
+    "target_frozen": 0,
+    "target_slow_token": 0,
+    "target_burn_token": 0,
+    "runtime_ms": 1.202,
+    "elapsed_ms": 4.706
+  },
+  "provenance": {
+    "pid": 52802,
+    "process_identity": "Sun Sep  6 14:49:11 2026     /Users/matthewevers/Documents/git_repos/3draster/src/torirs --manifest /Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini --user sailingtest --pass test --soft3d",
+    "binary": "/Users/matthewevers/Documents/git_repos/3draster/src/torirs",
+    "manifest": "/Users/matthewevers/Documents/git_repos/3draster/manifests/manifest_osrs239_sailing.ini",
+    "renderer": "soft3d",
+    "user": "sailingtest",
+    "headless": true,
+    "boat": "skiff",
+    "binary_sha256": "092d1e5bfc50466e66814f55675c39f6cc1d384ffc9f864a983830893098da04",
+    "script_pack": "/private/tmp/sailing-utils-check/script.dat",
+    "launch_script_pack": "/Users/matthewevers/Documents/git_repos/3draster/OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "b118d39851de53586f5b5eaafd7a6b3b52d9c32a40b709e4a893a6b26b2a52ad",
+    "allow_stale_scripts": true
+  },
+  "visual_review_completed": true,
+  "visual_review_notes": "Both current native captures inspected: the separate cloth and mast remain aligned after more than100 server ticks, the installed extractor/catcher are visible, and the harvest adds exactly250 Sailing XP andone mote."
+}

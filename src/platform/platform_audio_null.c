@@ -14,11 +14,29 @@
  * sound card. And it is the honest answer when a device cannot be opened: the
  * game keeps running and keeps reporting what it wanted to play.
  *
- * It runs the same `ToriRS_Mixer` as the SDL2 backend and renders a block per
- * frame exactly as that one does. Mixing and throwing the result away costs a
- * fraction of a millisecond and is what makes the silent path exercise the same
- * code the audible one does -- a null backend that skipped the mix would let a
- * mixer crash reach only the machines with speakers.
+ * It runs the same `ToriRS_Mixer` every other backend does. Mixing and throwing
+ * the result away costs a fraction of a millisecond and is what makes the silent
+ * path exercise the same code the audible one does -- a null backend that
+ * skipped the mix would let a mixer crash reach only the machines with speakers.
+ *
+ * ## Exactly one block per Update, and why it stays that way
+ *
+ * This is the third of the three clock shapes, not a worse copy of one of the
+ * other two:
+ *
+ *   - SDL2 and Android are *pulled* by a device thread at its own cadence.
+ *   - WebAudio is *pushed* from the frame loop and has to refill to a lead,
+ *     because how much it owes depends on how long the last frame took.
+ *   - This one is *stepped*. There is no device and therefore no clock to keep
+ *     up with, so "how much does it owe" has no answer -- and the tests are the
+ *     caller. `PlatformAudioNull_LastPeak` and `LastVoiceSource` report the
+ *     block this Update rendered, and rs_audio_test counts Updates to decide
+ *     when a clip became audible. Refilling to a lead here would make the peak
+ *     "the last of however many blocks" and shift every frame count in the
+ *     suite, for no gain: nothing is listening.
+ *
+ * So the fixed block below is deliberate. `PlatformAudioStats.underruns` is
+ * structurally zero for the same reason -- there is no device to starve.
  */
 
 /** Frames rendered per Update, mirroring a 50Hz tick at the mixer's rate. */
@@ -115,6 +133,27 @@ PlatformAudio_Update(struct PlatformAudio* audio)
     audio->last_peak = peak;
     audio->last_energy = energy;
     audio->frames_played += NULL_AUDIO_FRAMES_PER_UPDATE;
+}
+
+int
+PlatformAudio_BlockFrames(struct PlatformAudio* audio)
+{
+    return audio ? NULL_AUDIO_FRAMES_PER_UPDATE : 0;
+}
+
+struct ToriRS_AudioExclusion
+PlatformAudio_Exclusion(struct PlatformAudio* audio)
+{
+    struct ToriRS_AudioExclusion exclusion;
+
+    /*
+     * Nothing to exclude: this backend renders from the frame loop, on the same
+     * thread the game mutates from. The zeroed handle's acquire and release are
+     * no-ops, so the game locks unconditionally and pays nothing here.
+     */
+    (void)audio;
+    memset(&exclusion, 0, sizeof(exclusion));
+    return exclusion;
 }
 
 void

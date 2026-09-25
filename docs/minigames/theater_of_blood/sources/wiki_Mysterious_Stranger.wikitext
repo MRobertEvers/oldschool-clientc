@@ -1,0 +1,93 @@
+{{Otheruses|the NPC outside of the [[Theatre of Blood]]}}
+{{Infobox NPC
+|version1 = Mysterious Stranger
+|version2 = Sarei
+|version3 = Replacement
+|name1 = Mysterious Stranger
+|name2 = Sarei
+|name3 = Mysterious Stranger
+|image1 = [[File:Mysterious Stranger.png|120px]]
+|image2 = [[File:Sarei.png|120px]]
+|image3 = [[File:Mysterious Stranger (replacement).png|120px]]
+|release1 = [[24 May]] [[2018]]
+|release2 = [[30 June]] [[2026]]
+|release3 = [[30 June]] [[2026]]
+|update1 = A Taste of Hope
+|update2 = The Blood Moon Rises - Out Today!
+|update3 = The Blood Moon Rises - Out Today!
+|members = Yes
+|race = [[Aranei]]
+|quest1 = [[A Night at the Theatre]]
+|quest2 = [[The Blood Moon Rises]]
+|quest3 = No
+|location1 = [[Ver Sinhaza]]
+|location2 = [[Vampyrium]]
+|location3 = [[Ver Sinhaza]]
+|shop1 = [[Mysterious Stranger (shop)]]
+|shop2 = N/A
+|shop3 = [[Mysterious Stranger (shop)]]
+|options1 = Talk-to, Trade
+|options2 = Talk-to
+|options3 = Talk-to, Trade
+|examine = I can't see their face.
+|map1 = {{Map|name=Mysterious Stranger|x=3673|y=3222|r=2|mtype=square}}
+|map2 = No
+|map3 = {{Map|name=Mysterious Stranger|x=3673|y=3222|r=2|mtype=square}}
+|id1 = 8208,10875,10876,10877,11162
+|id2 = 16005,16006,16007,16008,16009,16242
+|id3 = 16269,16270
+|leagueRegion = Morytania
+}}
+{{Synced switch
+|version1 = [[File:Mysterious Stranger chathead.png|left]]
+|version2 = [[File:Sarei chathead.png|left]]
+|version3 = [[File:Mysterious Stranger (replacement) chathead.png|left]]
+}}
+'''Sarei''', the '''Mysterious Stranger''', is an [[aranei]] found by the entrance to the [[Theatre of Blood]]. They sell [[escape crystal]]s, which allows players to teleport out of the Theatre of Blood.
+
+They claim to work for some unnamed 'associates', who would like to see [[Verzik Vitur]] embarrassed. Players may speak to them to start [[A Night at the Theatre]], a [[quest]] wherein the Theatre of Blood must be completed in any of the three modes. Should the player succeed, the Mysterious Stranger will reveal that they actually work for a master named [[Sugadinti]], and will reward the player for successfully completing the Theatre and humiliating its hostess.
+
+Players who complete certain amounts of the Theatre of Blood may speak to the Mysterious Stranger to receive a cape, though players can change their appearance through the right-click "Change" option, providing that they have met the completion count required for them:
+
+During [[The Blood Moon Rises]], Sarei is killed by [[Lowerniel Drakan]], and a different aranei replaces them at the [[Theatre of Blood]], offering the same services.
+
+{| class="wikitable align-center-1 align-right-3"
+! colspan="2" |Cape
+!Completions<br/>required
+|-
+|{{plinkt|Sinhaza shroud tier 1}}
+|100
+|-
+|{{plinkt|Sinhaza shroud tier 2}}
+|500
+|-
+|{{plinkt|Sinhaza shroud tier 3}}
+|1,000
+|-
+|{{plinkt|Sinhaza shroud tier 4}}
+|1,500
+|-
+|{{plinkt|Sinhaza shroud tier 5}}
+|2,000
+|}
+
+==Stock==
+{{StoreTableHead|hidege=y|sellmultiplier=750|buymultiplier=100|delta=0|bucket=No}}
+{{StoreLine|name=Escape crystal|stock=9500|gemw=n|restock=1}}
+{{StoreTableBottom}}
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 June 2020
+|update = Darkmeyer
+|change = Mysterious Stranger's [[chathead]] was updated.
+}}
+{{Subject changes footer}}
+
+{{The Blood Moon Rises}}
+{{A Night at the Theatre}}
+{{Theatre of Blood}}

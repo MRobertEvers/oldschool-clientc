@@ -1,0 +1,14 @@
+{
+  "corpus": "benchmarks/krait_model_chains/varrock-low.chain.gz",
+  "corpus_sha256": "344de8e795f0c4aee18a0caf236959332bd102077d13137ea542b36bed51a1b6",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "138232c130cedde50be57dff6979e0ebfde182ba7df44d4eb916adfbbdec7eab",
+  "mode": "chain",
+  "env": [],
+  "events": {},
+  "placement": "placement: requested cpu0, effective cpu0=1 cpu1=0",
+  "workload": "verified: 6760 chains, 4 passes, 1493 distinct posed assets, 4156 visible, 90462 faces, 72 clipped, 28 pick hits, 1784 prioritized, 16 animated snapshots, 0 dynamic"
+}

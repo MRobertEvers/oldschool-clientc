@@ -1,0 +1,73 @@
+{{Navbox
+|name = Lunar spellbook
+|title = [[Lunar spellbook]]
+|gtitle1 = Combat
+|gtype1 = subgroup
+|group1 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = Healing or Curing
+  |group1 =
+   * {{plink|Cure Other}}
+   * {{plink|Cure Me}}
+   * {{plink|Cure Group}}
+   * {{plink|Dream}}
+   * {{plink|Heal Other}}
+   * {{plink|Heal Group}}
+  |gtitle2 = Sharing
+  |group2 =
+   * {{plink|Stat Restore Pot Share}}
+   * {{plink|Boost Potion Share}}
+   * {{plink|Energy Transfer}}
+  |gtitle3 = Other
+  |group3 =
+   * {{plink|Monster Examine}}
+   * {{plink|Stat Spy}}
+   * {{plink|Vengeance}}
+   * {{plink|Vengeance Other}}
+  }}
+|gtitle2 = Teleport
+|gtype2 = subgroup
+|group2 =
+  {{Navbox
+  |subgroup = yes
+  |group1 =
+   * {{plink|Lunar Home Teleport|txt=Lunar Home}}
+   * {{plink|Minigame Teleport|txt=Minigame}}
+   * {{plink|Moonclan Teleport|txt=Moonclan}}
+   * {{plink|Ourania Teleport|txt=Ourania}}
+   * {{plink|Waterbirth Teleport|txt=Waterbirth}}
+   * {{plink|Barbarian Teleport|txt=Barbarian Outpost}}
+   * {{plink|Khazard Teleport|txt=Khazard}}
+   * {{plink|Fishing Guild Teleport|txt=Fishing Guild}}
+   * {{plink|Teleport to Target|txt=Target}}
+   * {{plink|Catherby Teleport|txt=Catherby}}
+   * {{plink|Ice Plateau Teleport|txt=Ice Plateau}}
+  |gtitle2 = Group
+  |group2 =
+   * {{plink|Tele Group Moonclan|txt=Moonclan}}
+   * {{plink|Tele Group Waterbirth|txt=Waterbirth}}
+   * {{plink|Tele Group Barbarian|txt=Barbarian Outpost}}
+   * {{plink|Tele Group Khazard|txt=Khazard}}
+   * {{plink|Tele Group Fishing Guild|txt=Fishing Guild}}
+   * {{plink|Tele Group Catherby|txt=Catherby}}
+   * {{plink|Tele Group Ice Plateau|txt=Ice Plateau}}
+  }}
+|gtitle3 = Utility
+|group3 =
+ * {{plink|Bake Pie}}
+ * {{plink|Geomancy}}
+ * {{plink|Cure Plant}}
+ * {{plink|Astral Contact}}
+ * {{plink|Humidify}}
+ * {{plink|Hunter Kit (spell)|pic=Hunter Kit|txt=Hunter Kit}}
+ * {{plink|Spin Flax}}
+ * {{plink|Superglass Make}}
+ * {{plink|Tan Leather}}
+ * {{plink|String Jewellery}}
+ * {{plink|Magic Imbue}}
+ * {{plink|Fertile Soil}}
+ * {{plink|Plank Make}}
+ * {{plink|Recharge Dragonstone}}
+ * {{plink|Spellbook Swap}}
+}}{{Ctg|Lunar spells}}

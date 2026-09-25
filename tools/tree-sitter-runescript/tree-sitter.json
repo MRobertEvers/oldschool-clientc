@@ -1,0 +1,19 @@
+{
+  "grammars": [
+    {
+      "name": "runescript",
+      "camelcase": "RuneScript",
+      "scope": "source.runescript",
+      "path": ".",
+      "file-types": ["rs2", "cs2"],
+      "highlights": ["queries/highlights.scm"],
+      "locals": ["queries/locals.scm"],
+      "injections": ["queries/injections.scm"]
+    }
+  ],
+  "metadata": {
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "RuneScript grammar for .rs2 (ServerScript) and .cs2 (ClientScript)"
+  }
+}

@@ -385,7 +385,7 @@ cp_server_band_init(struct CP_ServerBand* band)
 /*
  * The bytes go through RSCache_Buffer, for the reason its reader does.
  *
- * `mock230_servercodec.c` decodes this band with `g1/g2/g4`, and `rsbuffer.h`
+ * `torirs_server_servercodec.c` decodes this band with `g1/g2/g4`, and `rsbuffer.h`
  * states the one property that makes the pair safe: *"every `g` below has a `p`
  * that is its exact inverse"*. Writing the shifts out here instead would put the
  * two directions in two files that agree only by inspection — and a u2 written

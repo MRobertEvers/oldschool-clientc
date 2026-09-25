@@ -1,0 +1,35 @@
+{{External|rs=Tele-other Falador}}
+{{Infobox Spell
+|name = Teleother Falador
+|image = [[File:Teleother Falador.png]]
+|release = [[14 March]] [[2005]]
+|update = Magic and Wilderness Updates
+|members = Yes
+|level = 82
+|spellbook = Normal
+|type = teleport
+|exp = 92
+|cost = {{RuneReq|Soul=1|Law=1|Water=1}}
+|speed = 10 ticks
+|description = Teleports target to Falador
+|anim = [[File:Teleother.gif]]
+|sound = [[File:Teleother.ogg]]
+}}
+[[File:Teleother Falador icon (mobile).png|left|class=pageimage]]
+'''Teleother Falador''' is a [[standard spell]] where the caster [[teleport]]s a target, who must have [[Accept Aid]] turned on, to [[Falador]]. A window will pop for the person being teleported asking them if they wished to be teleported. It requires 82 [[Magic]] and yields 92 [[Magic]] experience.
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 1
+|Rune2 = water
+|Rune2num = 1
+|Rune3 = law
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|2964,3378|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

@@ -9,6 +9,7 @@
  */
 
 #include "platform/platform_sdl2_renderer_gl3zb.h"
+#include "toridraw_element_id.h"
 #include <assert.h>
 
 #include "platform/platform_sdl2_renderer_gl3_internal.h"
@@ -39,11 +40,11 @@
  */
 static enum GL3WorldFacePass
 gl3_world_face_pass(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriDraw_ModelHandle handle,
     uint32_t face)
 {
-    if( handle.kind == TORIDRAWMK_MODEL )
+    if( ToriDraw_ModelKindIsFull(handle.kind) )
     {
         struct ToriDraw_Model* model = handle.u.model.model;
         int raw_type;
@@ -98,7 +99,7 @@ gl3_material_pose_clear(struct GL3MaterialPose* pose)
 static bool
 gl3_material_pose_set(
     struct GL3MaterialPose* pose,
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriDraw_ModelHandle handle)
 {
     int face_count = trspk_toridraw_face_count(handle);
@@ -140,10 +141,10 @@ gl3_material_table_get(
 {
     const struct GL3MaterialTrack* track;
     if( !table || !table->elements || element_id < 0 ||
-        (uint32_t)element_id >= table->element_count || anim_index < 0 ||
+        (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
         return NULL;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     if( !track->poses || (uint32_t)pose_id >= track->pose_count ||
         !track->poses[pose_id].face_passes )
         return NULL;
@@ -153,7 +154,7 @@ gl3_material_table_get(
 static const struct GL3MaterialPose*
 gl3_material_table_set(
     struct GL3MaterialTable* table,
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -165,7 +166,7 @@ gl3_material_table_set(
     if( !table || element_id < 0 || anim_index < 0 ||
         anim_index >= TRSPK_POSE_TRACK_COUNT || pose_id < 0 )
         return NULL;
-    needed = (uint32_t)element_id + 1u;
+    needed = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) + 1u;
     if( needed > table->element_capacity )
     {
         uint32_t capacity = table->element_capacity ? table->element_capacity : 64u;
@@ -185,7 +186,7 @@ gl3_material_table_set(
     if( table->element_count < needed )
         table->element_count = needed;
 
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     needed = (uint32_t)pose_id + 1u;
     if( needed > track->pose_capacity )
     {
@@ -216,7 +217,7 @@ gl3_material_table_set(
 /* Cached lookup, classifying on first use. */
 static const struct GL3MaterialPose*
 gl3_material_for(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index,
     int pose_id,
@@ -232,17 +233,17 @@ gl3_material_for(
 
 void
 GL3ZB_ForgetElement(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id)
 {
     struct GL3MaterialTable* table;
     assert(renderer);
     table = &renderer->materials;
-    if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count )
+    if( !table->elements || element_id < 0 || (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count )
         return;
     for( int t = 0; t < TRSPK_POSE_TRACK_COUNT; t++ )
     {
-        struct GL3MaterialTrack* track = &table->elements[element_id].tracks[t];
+        struct GL3MaterialTrack* track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[t];
         for( uint32_t i = 0u; i < track->pose_count; i++ )
             gl3_material_pose_clear(&track->poses[i]);
         free(track->poses);
@@ -254,7 +255,7 @@ GL3ZB_ForgetElement(
 
 void
 GL3ZB_ForgetTrack(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int element_id,
     int anim_index)
 {
@@ -262,10 +263,10 @@ GL3ZB_ForgetTrack(
     struct GL3MaterialTrack* track;
     assert(renderer);
     table = &renderer->materials;
-    if( !table->elements || element_id < 0 || (uint32_t)element_id >= table->element_count ||
+    if( !table->elements || element_id < 0 || (uint32_t)ToriDraw_ElementIndexOfRaw(element_id) >= table->element_count ||
         anim_index < 0 || anim_index >= TRSPK_POSE_TRACK_COUNT )
         return;
-    track = &table->elements[element_id].tracks[anim_index];
+    track = &table->elements[ToriDraw_ElementIndexOfRaw(element_id)].tracks[anim_index];
     for( uint32_t i = 0u; i < track->pose_count; i++ )
         gl3_material_pose_clear(&track->poses[i]);
     free(track->poses);
@@ -301,64 +302,8 @@ gl3_material_table_free(struct GL3MaterialTable* table)
  * apart because the far side is genuinely behind.
  */
 static bool
-gl3_world_face_front_facing(
-    struct ToriDraw_ModelHandle handle,
-    const struct ToriDraw_Scene* scene,
-    uint32_t face)
-{
-    const faceint_t* face_a;
-    const faceint_t* face_b;
-    const faceint_t* face_c;
-    uint32_t vertex_count;
-    uint32_t a;
-    uint32_t b;
-    uint32_t c;
-    int64_t dx1;
-    int64_t dy1;
-    int64_t dx2;
-    int64_t dy2;
-
-    assert(scene);
-    if( !scene->screen_vertices_x || !scene->screen_vertices_y )
-        return false;
-    if( handle.kind == TORIDRAWMK_MODEL && handle.u.model.model )
-    {
-        struct ToriDraw_Model* model = handle.u.model.model;
-        if( face >= (uint32_t)model->face_count )
-            return false;
-        face_a = model->face_indices_a;
-        face_b = model->face_indices_b;
-        face_c = model->face_indices_c;
-        vertex_count = (uint32_t)model->vertex_count;
-    }
-    else if( handle.kind == TORIDRAWMK_GROUND && handle.u.model.ground )
-    {
-        struct ToriDraw_ModelGround* ground = handle.u.model.ground;
-        if( face >= (uint32_t)ground->face_count )
-            return false;
-        face_a = ground->face_indices_a;
-        face_b = ground->face_indices_b;
-        face_c = ground->face_indices_c;
-        vertex_count = (uint32_t)ground->vertex_count;
-    }
-    else
-        return false;
-
-    a = (uint32_t)face_a[face];
-    b = (uint32_t)face_b[face];
-    c = (uint32_t)face_c[face];
-    if( a >= vertex_count || b >= vertex_count || c >= vertex_count )
-        return false;
-    dx1 = (int64_t)scene->screen_vertices_x[a] - scene->screen_vertices_x[b];
-    dy1 = (int64_t)scene->screen_vertices_y[a] - scene->screen_vertices_y[b];
-    dx2 = (int64_t)scene->screen_vertices_x[c] - scene->screen_vertices_x[b];
-    dy2 = (int64_t)scene->screen_vertices_y[c] - scene->screen_vertices_y[b];
-    return dx1 * dy2 - dy1 * dx2 > 0;
-}
-
-static bool
 gl3_reserve_model_indices(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t count)
 {
     if( count <= renderer->model_index_capacity )
@@ -379,7 +324,7 @@ gl3_reserve_model_indices(
 /* Hold one model's translucent faces for the sorted pass. */
 static bool
 gl3_queue_alpha_submission(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t group,
     int depth,
     const uint32_t* indices,
@@ -445,7 +390,7 @@ gl3_queue_alpha_submission(
  */
 void
 GL3ZB_SubmitModel(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct ToriRS_RenderCommand_Model const* mcmd,
     struct ToriDraw_Scene* ctx,
     uint32_t group,
@@ -478,8 +423,6 @@ GL3ZB_SubmitModel(
 
         if( pass != GL3_WORLD_FACE_OPAQUE && pass != GL3_WORLD_FACE_CUTOUT )
             continue;
-        if( !gl3_world_face_front_facing(mcmd->model, ctx, face) )
-            continue;
         b = vertex_base + face * 3u;
         renderer->model_indices[written++] = b;
         renderer->model_indices[written++] = b + 1u;
@@ -495,7 +438,8 @@ GL3ZB_SubmitModel(
         return;
 
     /* Only now, and only for models that really have translucency. */
-    sorted_face_count = ToriDraw_RenderModel2SortFaces(mcmd->model, ctx);
+    sorted_face_count =
+        ToriDraw_RenderModel2SortFacesWithTable(mcmd->model, ctx, renderer->kernel);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GL_Z_SORTED_MODELS, 1);
     if( sorted_face_count <= 0 )
         return;
@@ -537,7 +481,7 @@ GL3ZB_SubmitModel(
  */
 static void
 gl3_draw_indices32(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     uint32_t group,
     const uint32_t* idx,
     uint32_t count)
@@ -580,7 +524,7 @@ gl3_alpha_order_cmp(
  * because the order is only known once every model has been submitted.
  */
 void
-GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer)
+GL3ZB_DrawAlphaPass(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !renderer->z_buffer_enabled || renderer->alpha_submission_count == 0u )
         return;
@@ -632,7 +576,7 @@ GL3ZB_DrawAlphaPass(struct ToriRS_GL3* renderer)
 
 
 void
-GL3ZB_Free(struct ToriRS_GL3* renderer)
+GL3ZB_Free(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     if( !renderer )
         return;
@@ -653,7 +597,7 @@ GL3ZB_Free(struct ToriRS_GL3* renderer)
 }
 
 void
-GL3ZB_ResetFrame(struct ToriRS_GL3* renderer)
+GL3ZB_ResetFrame(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     assert(renderer);
     renderer->alpha_submission_count = 0u;
@@ -662,7 +606,7 @@ GL3ZB_ResetFrame(struct ToriRS_GL3* renderer)
 
 void
 GL3ZB_BeginPass(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     int gl_x,
     int gl_y,
     int gl_w,
@@ -689,7 +633,7 @@ GL3ZB_BeginPass(
 
 void
 GL3ZB_ApplyProjectionDepth(
-    struct ToriRS_GL3* renderer,
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
     const struct ToriDraw_Camera* camera)
 {
     float near_z;
@@ -720,7 +664,7 @@ GL3ZB_ApplyProjectionDepth(
 }
 
 void
-GL3ZB_BindDrawState(struct ToriRS_GL3* renderer)
+GL3ZB_BindDrawState(struct ToriPlatformSDL2_Renderer_GL3* renderer)
 {
     (void)renderer;
     /* LEQUAL, not LESS: coplanar geometry submitted twice (a decor plane on its
@@ -729,4 +673,18 @@ GL3ZB_BindDrawState(struct ToriRS_GL3* renderer)
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL);
     glDepthMask(GL_TRUE);
+    /* The GPU does the front-facing test, as it does on the D3D9 z-buffer
+     * lane. The software check this replaces re-derived screen-space
+     * winding from the projection for every face of every model.
+     *
+     * GL_CCW front + cull GL_BACK is the GL spelling of D3DCULL_CW, which
+     * is the handedness measured on the D3D9 lane. It is NOT verified
+     * here: these lanes do not run on the XP box, and a projection that
+     * flips Y would flip the winding with it. If a model looks inside
+     * out, that is the first thing to suspect -- glDisable(GL_CULL_FACE)
+     * restores the previous drawing, since the depth buffer never needed
+     * the cull to be correct. */
+    glFrontFace(GL_CCW);
+    glCullFace(GL_BACK);
+    glEnable(GL_CULL_FACE);
 }

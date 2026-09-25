@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 rev_packetin_size(int wire_opcode)
@@ -48,6 +49,10 @@ static struct GameProtoRevTable k_rev_lc254 = {
     .packetin_code = rev_packetin_code,
     .packetin_wire = rev_packetin_wire,
     .packetout_code = rev_packetout_code,
+
+    /* LostCity re-establishes a session with opcode 18 and an otherwise
+     * identical block; the answer is a bare 15 (Client-TS Client.ts). */
+    .reconnect_kind = NET_RECONNECT_CREDS,
 };
 
 struct GameProtoRevTable const*
@@ -67,9 +72,7 @@ GameProtoRev_LC254(void)
             for( char* tok = strtok(buf, ","); tok && i < 9; tok = strtok(NULL, ",") )
                 k_rev_lc254.jag_checksum[i++] = (int32_t)strtol(tok, NULL, 10);
             if( i != 9 )
-                fprintf(
-                    stderr,
-                    "lc254: TORIRS_JAG_CRC had %d of 9 values; login CRCs incomplete\n",
+                TORIRS_LOG("lc254: TORIRS_JAG_CRC had %d of 9 values; login CRCs incomplete\n",
                     i);
         }
     }
@@ -82,6 +85,8 @@ GameProtoRev_ByName(char const* name)
     assert(name);
     if( strcmp(name, "lc254") == 0 )
         return GameProtoRev_LC254();
+    if( strcmp(name, "lc289") == 0 )
+        return GameProtoRev_LC289();
     if( strcmp(name, "lc245_2") == 0 )
         return GameProtoRev_LC245_2();
     if( strcmp(name, "xrsps233") == 0 )

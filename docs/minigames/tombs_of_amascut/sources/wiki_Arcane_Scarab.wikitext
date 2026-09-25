@@ -1,0 +1,83 @@
+{{Infobox Monster
+|name = Arcane Scarab
+|image = [[File:Arcane Scarab.png|280px]]
+|release = [[24 August]] [[2022]]
+|update = Tombs of Amascut
+|members = Yes
+|combat = 89
+|size = 3
+|examine = One of Kephri's false children.
+|attributes = kalphite
+|xpbonus = 
+|max hit = 22
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 6
+|hitpoints = 40
+|scaledhp = Yes
+|att = 75
+|str = 80
+|def = 80
+|mage = 100
+|range = 95
+|attbns = 0
+|strbns = 55
+|amagic = 250
+|mbns = 65
+|arange = 350
+|rngbns = 0
+|dstab = 15
+|dslash = 250
+|dcrush = 30
+|dmagic = 75
+|dlight = 50
+|dstandard = 50
+|dheavy = 50
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|immuneburn = No
+|id = 11726
+}}
+'''Arcane Scarabs''' are a monster that is summoned by [[Kephri]] in the [[Tombs of Amascut]]. They slowly charge up red swarms around themselves. If allowed to fully charge, they will unleash the red swarm and deal massive damage, although it can be reduced by using [[Protect from Magic]]. After enough combat, the scarab will relocate, dispersing the red swarm around them.
+
+It is possible for the scarab to relocate if it takes 39 damage or more in a single hit.{{CiteTwitter|author=Mod Ash|url=https://x.com/jagexash/status/1850841701327282588|date=28 October 2024|archiveurl=https://reldo.runescape.wiki/i/27963443|archivedate=7 April 2026|quote=I confirm it has such a mechanic.}} Otherwise, the scarab will relocate after 2 + N hits, where N is the amount of players in the raid. Missed attacks will contribute towards relocating the scarab whereas thrall attacks and burn damage do not.
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Kephri's children concept art.png|Concept art of the Arcane Scarab by [[Mod Jerv]], alongside the [[Soldier Scarab|Soldier]] and [[Spitting Scarab]]s.
+Arcane Scarab - Swarm dispersion.gif|Arcane Scarab's swarm charge attack.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = Thralls no longer force the Arcane Scarab to move as frequently, as it did since release.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Scarabs inside Kephri's encounter no longer scale their Defence with Raid Level.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The Arcane Scarab now has a 50% weakness to [[Fire spells|fire spells]].
+}}
+{{Subject changes
+|date = 24 January 2024
+|update = Scurrius, the Rat King
+|change = The Arcane Scarab has been given render priority so that it reliably appears over [[Agile Scarab]]s.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Tombs of Amascut}}

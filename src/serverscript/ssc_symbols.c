@@ -173,6 +173,12 @@ shared_var_kinds(unsigned char* out)
 static const char*
 kind_label(enum SSC_SymbolKind kind)
 {
+    return SSC_SymbolKindLabel(kind);
+}
+
+const char*
+SSC_SymbolKindLabel(enum SSC_SymbolKind kind)
+{
     static struct ContentRegister registry;
     static int loaded;
 
@@ -288,15 +294,14 @@ SSC_SymbolsValidate(struct SSC_Symbols* symbols)
 }
 
 /*
- * The shared lookup. `allow_constant` is what separates the two entry points
- * below; everything else is one binary search over the name-sorted order.
+ * Position in `order` of the FIRST entry named `name`, or -1.
+ *
+ * Both lookups below walk from here: the name-sorted order groups every kind
+ * that carries a name together, so finding one of them is a binary search and
+ * enumerating all of them is the walk that follows.
  */
-static const struct SSC_Symbol*
-find_symbol(
-    struct SSC_Symbols* symbols,
-    const char* name,
-    enum SSC_SymbolKind kind,
-    int allow_constant)
+static int
+first_ordered_index(struct SSC_Symbols* symbols, const char* name)
 {
     int lo;
     int hi;
@@ -305,7 +310,7 @@ find_symbol(
     assert(name);
     ensure_sorted(symbols);
     if( !symbols->order )
-        return NULL;
+        return -1;
 
     lo = 0;
     hi = symbols->count - 1;
@@ -327,25 +332,82 @@ find_symbol(
         {
             int i = mid;
 
-            /* Walk to the first entry with this name, then take the first that
-             * matches the requested kind (or any, when none was requested). */
             while( i > 0 && strcmp(symbols->entries[symbols->order[i - 1]].name, name) == 0 )
                 i--;
-            for( ; i < symbols->count; i++ )
-            {
-                const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
-
-                if( strcmp(candidate->name, name) != 0 )
-                    break;
-                if( !allow_constant && candidate->kind == SSC_SYM_CONSTANT )
-                    continue;
-                if( kind == SSC_SYM_UNKNOWN || candidate->kind == kind )
-                    return candidate;
-            }
-            return NULL;
+            return i;
         }
     }
+    return -1;
+}
+
+/*
+ * The shared lookup. `allow_constant` is what separates the two entry points
+ * below; everything else is the walk from the first entry with this name,
+ * taking the first that matches the requested kind (or any, when none was
+ * requested).
+ */
+static const struct SSC_Symbol*
+find_symbol(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    enum SSC_SymbolKind kind,
+    int allow_constant)
+{
+    int i = first_ordered_index(symbols, name);
+
+    if( i < 0 )
+        return NULL;
+    for( ; i < symbols->count; i++ )
+    {
+        const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
+
+        if( strcmp(candidate->name, name) != 0 )
+            break;
+        if( !allow_constant && candidate->kind == SSC_SYM_CONSTANT )
+            continue;
+        if( kind == SSC_SYM_UNKNOWN || candidate->kind == kind )
+            return candidate;
+    }
     return NULL;
+}
+
+int
+SSC_SymbolsValueKinds(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const struct SSC_Symbol** out,
+    int max)
+{
+    enum SSC_SymbolKind previous = SSC_SYM_UNKNOWN;
+    int found = 0;
+    int i;
+
+    assert(symbols);
+    assert(name);
+    assert(out);
+    assert(max > 0);
+
+    i = first_ordered_index(symbols, name);
+    if( i < 0 )
+        return 0;
+    for( ; i < symbols->count; i++ )
+    {
+        const struct SSC_Symbol* candidate = &symbols->entries[symbols->order[i]];
+
+        if( strcmp(candidate->name, name) != 0 )
+            break;
+        if( candidate->kind == SSC_SYM_CONSTANT )
+            continue;
+        /* The order is (name, kind), so equal kinds are adjacent: an alias pack
+         * listing the same name twice in one namespace is one kind, not two. */
+        if( found && candidate->kind == previous )
+            continue;
+        previous = candidate->kind;
+        if( found < max )
+            out[found] = candidate;
+        found++;
+    }
+    return found;
 }
 
 const struct SSC_Symbol*
@@ -416,13 +478,48 @@ SSC_SymbolsLoadPack(
         if( trailing )
             *trailing = '\0';
         strip_eol(equals + 1);
-        if( !equals[1] )
-            continue;
-        if( SSC_SymbolsAdd(symbols, equals + 1, (int32_t)atoi(cursor), kind, NULL) )
-            loaded++;
+        /* A trailing provenance suffix. An archive-level pack whose cache index
+         * stores only a hash carries what it was hashed from beside the name --
+         * `496=font_496 hashcode(1057075019)`,
+         * `2584=tutorial_overlay_hint hashname("[clientscript,...]")`. That is
+         * a note about the id, not part of the name, and a symbol name never
+         * contains whitespace, so the name ends at the first space. Without
+         * this cut, 13_fonts, 12_clientscripts, 8_sprites and 6_musictracks
+         * loaded every entry under a name no script can spell -- which is how
+         * `split_init(..., font_496)` came to fail against a pack that lists
+         * font_496 on line 3. */
+        {
+            char* name = equals + 1;
+
+            while( *name == ' ' || *name == '\t' )
+                name++;
+            name[strcspn(name, " \t")] = '\0';
+            if( !*name )
+                continue;
+            if( SSC_SymbolsAdd(symbols, name, (int32_t)atoi(cursor), kind, NULL) )
+                loaded++;
+        }
     }
     fclose(file);
     return loaded;
+}
+
+int
+SSC_SymbolsDefineConstant(
+    struct SSC_Symbols* symbols,
+    const char* name,
+    const char* text,
+    const char* origin)
+{
+    assert(symbols);
+    assert(name);
+    assert(text);
+    assert(origin);
+
+    if( !SSC_SymbolsAdd(symbols, name, 0, SSC_SYM_CONSTANT, text) )
+        return 0;
+    symbols->entries[symbols->count - 1].origin = strdup(origin);
+    return 1;
 }
 
 int
@@ -612,12 +709,32 @@ has_suffix(
 
 /* dirent's d_type is a BSD/Linux extension MinGW's dirent lacks, so classify by
  * path with stat() instead -- portable across the unix and win32 builds. Same
- * shape as mock230_path_is_dir() in src/net/mock/mock230_content.c. */
+ * shape as ToriRSServer_PathIsDir() in src/torirsserver/torirs_server_content.c. */
 static int
 ssc_path_is_dir(const char* path)
 {
     struct stat st;
     return stat(path, &st) == 0 && (st.st_mode & S_IFDIR) != 0;
+}
+
+int
+SSC_SymbolsLoadPackFile(
+    struct SSC_Symbols* symbols,
+    const char* path)
+{
+    const char* base;
+    const char* slash;
+
+    assert(symbols);
+    assert(path);
+
+    base = path;
+    for( slash = path; *slash; slash++ )
+    {
+        if( *slash == '/' || *slash == '\\' )
+            base = slash + 1;
+    }
+    return SSC_SymbolsLoadPack(symbols, path, kind_for_pack(base));
 }
 
 int
@@ -706,7 +823,7 @@ SSC_SymbolsLoadPackDir(
  * 12, and the symbol is 786444.
  *
  * Call after the pack directories, since it reads the interface symbols they load.
- * Mirrors `load_component_symbols` in `src/net/mock/mock230_content.c` — the server
+ * Mirrors `load_component_symbols` in `src/torirsserver/torirs_server_content.c` — the server
  * was taught this and the compiler was not, which is why every component reference
  * in RuneScript stopped resolving.
  */
@@ -831,9 +948,17 @@ SSC_SymbolsLoadConstantDir(
  *   column=spell,int,INDEXED,REQUIRED
  *   column=spellcom,component
  *
+ * Cache exports spell the same data with explicit indices:
+ *
+ *   [poh_room]
+ *   columns=12
+ *   columndef=5:source_offset,int,int
+ *
  * A `table:column` reference compiles to (table << 12) | (column << 4), matching
  * how DbOps.ts unpacks it; the low nibble is a tuple index the corpus does not
- * use. The table id comes from dbtable.pack, so that has to be loaded first.
+ * use. The table id comes from the dbtable symbol packs, so those have to be
+ * loaded first. Supporting both spellings lets scripts query imported cache
+ * tables without maintaining a second, hand-transcribed schema.
  */
 static int
 load_dbtable_file(
@@ -873,28 +998,65 @@ load_dbtable_file(
             continue;
         }
 
-        if( strncmp(cursor, "column=", 7) != 0 )
-            continue;
-
         {
-            char* name = cursor + 7;
-            char* comma = strchr(name, ',');
+            char* name;
+            char* comma;
             char qualified[SSC_MAX_NAME];
+            int explicit_index = -1;
+            int field_index;
+
+            if( strncmp(cursor, "column=", 7) == 0 )
+            {
+                name = cursor + 7;
+                field_index = column_index++;
+            }
+            else if( strncmp(cursor, "columndef=", 10) == 0 )
+            {
+                char* colon;
+
+                name = cursor + 10;
+                colon = strchr(name, ':');
+                if( !colon )
+                    continue;
+                *colon = '\0';
+                explicit_index = atoi(name);
+                if( explicit_index < 0 || explicit_index > 255 )
+                    continue;
+                name = colon + 1;
+                field_index = explicit_index;
+                if( column_index <= explicit_index )
+                    column_index = explicit_index + 1;
+            }
+            else
+                continue;
+
+            comma = strchr(name, ',');
+            /*
+             * Everything after the column name — its declared types and flags,
+             * `string` or `coord,int,int,int,LIST` — kept because `db_getfield`
+             * pushes onto the stack the FIRST of those types names, and nothing
+             * else in the compiler can know that. Dropping it made a string
+             * column read inside a string literal compile a TOSTRING over an
+             * empty int stack; see `last_dbcolumn_types` in ssc_compile.c.
+             */
+            const char* types = NULL;
 
             if( comma )
+            {
                 *comma = '\0';
+                types = comma + 1;
+            }
             if( table_id >= 0 && *name )
             {
                 snprintf(qualified, sizeof(qualified), "%s:%s", table_name, name);
                 if( SSC_SymbolsAdd(
                         symbols,
                         qualified,
-                        (table_id << 12) | (column_index << 4),
+                        (table_id << 12) | (field_index << 4),
                         SSC_SYM_DBCOLUMN,
-                        NULL) )
+                        types) )
                     loaded++;
             }
-            column_index++;
         }
     }
     fclose(file);
@@ -950,7 +1112,7 @@ SSC_SymbolsLoadDbTableDir(
  * The relation is one key — `basevar=` on a varbit record — and it exists in
  * exactly one place, `configs/all.<varbit>`, written by `cachepack unpack` out of
  * config group 14. Nothing here re-derives it, guesses it, or keeps a list; the
- * compiler reads the same file `mock230_varbit.c`'s header calls the authority.
+ * compiler reads the same file `torirs_server_varbit.c`'s header calls the authority.
  *
  * The filename is composed from the register rather than typed, so a tree that
  * spells the namespace differently is still read: `ContentRegister` says which
@@ -1404,7 +1566,7 @@ SSC_SymbolsSeedBuiltins(struct SSC_Symbols* symbols)
      * its param type as `int` (parse_header_lists' "a type the symbol table does
      * not know is int" fallback). Nothing in a compiled script noticed, because
      * an inv rides the int stack either way; what it broke is the one consumer
-     * that reads `param_types` back, `mock230_scripts_run_debugproc`, which then
+     * that reads `param_types` back, `ToriRSServer_ScriptsRunDebugproc`, which then
      * ran `strtol("collection_transmit")` and passed container 0.
      *
      * Lookups are kind-specific (SSC_SymbolsFind walks every entry with the

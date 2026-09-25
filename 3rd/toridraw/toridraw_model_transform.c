@@ -133,6 +133,15 @@ ToriDraw_ModelMoveArrays(
     dst->face_count = src->face_count;
     dst->textured_face_count = src->textured_face_count;
     dst->model_priority = src->model_priority;
+    dst->post_transform = src->post_transform;
+    dst->post_resize = src->post_resize;
+    dst->post_resize_x = src->post_resize_x;
+    dst->post_resize_z = src->post_resize_z;
+    dst->post_resize_height = src->post_resize_height;
+    dst->post_orient = src->post_orient;
+    dst->post_offset_x = src->post_offset_x;
+    dst->post_offset_y = src->post_offset_y;
+    dst->post_offset_z = src->post_offset_z;
 
 #define MODEL_MOVE(field) TORIDRAW_MODEL_MOVE(dst, field, src->field)
 
@@ -162,7 +171,9 @@ ToriDraw_ModelMoveArrays(
     MODEL_MOVE(merged_normals);
     MODEL_MOVE(vertex_bones);
     MODEL_MOVE(face_bones);
-    MODEL_MOVE(bounds_cylinder);
+    dst->bounds_cylinder = src->bounds_cylinder;
+    dst->has_bounds_cylinder = src->has_bounds_cylinder;
+    src->has_bounds_cylinder = false;
     MODEL_MOVE(animaya_group_counts);
     MODEL_MOVE(animaya_groups);
     MODEL_MOVE(animaya_scales);
@@ -185,8 +196,102 @@ ToriDraw_ModelSteal(struct ToriDraw_Model* src)
     return dst;
 }
 
+static size_t
+model_bones_bytes(const struct ToriDraw_Bones* bones)
+{
+    size_t total;
+    int i;
+
+    if( !bones )
+        return 0;
+
+    total = sizeof(*bones);
+    total += (size_t)bones->bones_count * sizeof(boneint_t*);
+    total += (size_t)bones->bones_count * sizeof(boneint_t);
+    for( i = 0; i < bones->bones_count; i++ )
+        total += (size_t)bones->bones_sizes[i] * sizeof(boneint_t);
+
+    return total;
+}
+
+static size_t
+model_normals_bytes(const struct ToriDraw_Normals* normals)
+{
+    size_t total;
+
+    if( !normals )
+        return 0;
+
+    /* Capacity, not count: a recycled block keeps the larger allocation. */
+    total = sizeof(*normals);
+    total += (size_t)normals->vertex_normals_cap * sizeof(struct ToriDraw_Normal);
+    total += (size_t)normals->face_normals_cap * sizeof(struct ToriDraw_Normal);
+
+    return total;
+}
+
+size_t
+ToriDraw_ModelHeapBytes(const struct ToriDraw_Model* model)
+{
+    size_t total;
+    int i;
+
+    assert(model);
+
+    total = sizeof(*model);
+
+#define BYTES_IF(FIELD, COUNT, TYPE)                                                               \
+    if( (model->FIELD) )                                                                           \
+        total += (size_t)(COUNT) * sizeof(TYPE);
+
+    BYTES_IF(vertices_x, model->vertex_count, vertexint_t)
+    BYTES_IF(vertices_y, model->vertex_count, vertexint_t)
+    BYTES_IF(vertices_z, model->vertex_count, vertexint_t)
+    BYTES_IF(original_vertices_x, model->vertex_count, vertexint_t)
+    BYTES_IF(original_vertices_y, model->vertex_count, vertexint_t)
+    BYTES_IF(original_vertices_z, model->vertex_count, vertexint_t)
+
+    BYTES_IF(face_indices_a, model->face_count, faceint_t)
+    BYTES_IF(face_indices_b, model->face_count, faceint_t)
+    BYTES_IF(face_indices_c, model->face_count, faceint_t)
+    BYTES_IF(face_colors_a, model->face_count, hsl16_t)
+    BYTES_IF(face_colors_b, model->face_count, hsl16_t)
+    BYTES_IF(face_colors_c, model->face_count, hsl16_t)
+    BYTES_IF(face_colors, model->face_count, hsl16_t)
+    BYTES_IF(face_textures, model->face_count, faceint_t)
+    BYTES_IF(face_alphas, model->face_count, alphaint_t)
+    BYTES_IF(original_face_alphas, model->face_count, alphaint_t)
+    BYTES_IF(face_infos, model->face_count, int)
+    BYTES_IF(face_texture_coords, model->face_count, faceint_t)
+
+    BYTES_IF(textured_p_coordinate, model->textured_face_count, faceint_t)
+    BYTES_IF(textured_m_coordinate, model->textured_face_count, faceint_t)
+    BYTES_IF(textured_n_coordinate, model->textured_face_count, faceint_t)
+    BYTES_IF(texture_render_types, model->textured_face_count, uint8_t)
+
+#undef BYTES_IF
+
+    if( model->face_priorities )
+        total += ToriDraw_FacePrioritiesByteCount(model->face_count);
+
+    total += model_normals_bytes(model->normals);
+    total += model_normals_bytes(model->merged_normals);
+    total += model_bones_bytes(model->vertex_bones);
+    total += model_bones_bytes(model->face_bones);
+
+    if( model->animaya_vertex_count > 0 && model->animaya_group_counts )
+    {
+        total += (size_t)model->animaya_vertex_count;
+        total += (size_t)model->animaya_vertex_count * sizeof(uint8_t*) * 2u;
+        for( i = 0; i < model->animaya_vertex_count; i++ )
+            total += (size_t)model->animaya_group_counts[i] * 2u;
+    }
+
+    return total;
+}
+
 struct ToriDraw_Model*
-ToriDraw_ModelCopy(struct ToriDraw_Model* src)
+ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
 {
     assert(src);
 
@@ -197,6 +302,18 @@ ToriDraw_ModelCopy(struct ToriDraw_Model* src)
     dst->vertex_count = src->vertex_count;
     dst->face_count = src->face_count;
     dst->textured_face_count = src->textured_face_count;
+    /* Travels with the bind pose below, and for the same reason: a copy whose
+     * originals are the authored geometry but whose placement record is empty
+     * poses itself back to unplaced on the next frame. */
+    dst->post_transform = src->post_transform;
+    dst->post_resize = src->post_resize;
+    dst->post_resize_x = src->post_resize_x;
+    dst->post_resize_z = src->post_resize_z;
+    dst->post_resize_height = src->post_resize_height;
+    dst->post_orient = src->post_orient;
+    dst->post_offset_x = src->post_offset_x;
+    dst->post_offset_y = src->post_offset_y;
+    dst->post_offset_z = src->post_offset_z;
 
     if( src->vertex_count > 0 )
     {
@@ -633,7 +750,6 @@ ToriDraw_ModelRecolor(
     int color_src,
     int color_dst)
 {
-    assert(model);
     ToriDraw_ModelRecolorHslArray(model->face_colors, model->face_count, color_src, color_dst);
     ToriDraw_ModelRecolorHslArray(model->face_colors_a, model->face_count, color_src, color_dst);
     ToriDraw_ModelRecolorHslArray(model->face_colors_b, model->face_count, color_src, color_dst);
@@ -646,7 +762,6 @@ ToriDraw_ModelRetexture(
     int texture_src,
     int texture_dst)
 {
-    assert(model);
     if( !model->face_textures )
         return;
     for( int i = 0; i < model->face_count; i++ )
@@ -659,7 +774,7 @@ ToriDraw_ModelRetexture(
 void
 ToriDraw_ModelMirror(struct ToriDraw_Model* model)
 {
-    assert(model);
+    /* Swaps two of the three face indices, so it writes the borrowed half. */
     for( int v = 0; v < model->vertex_count; v++ )
         model->vertices_z[v] = (vertexint_t)(-model->vertices_z[v]);
     for( int f = 0; f < model->face_count; f++ )
@@ -675,7 +790,6 @@ ToriDraw_ModelOrient(
     struct ToriDraw_Model* model,
     int orientation)
 {
-    assert(model);
     orientation &= 3;
     while( orientation-- > 0 )
     {
@@ -695,13 +809,77 @@ ToriDraw_ModelScale(
     int z,
     int height)
 {
-    assert(model);
     for( int i = 0; i < model->vertex_count; i++ )
     {
         model->vertices_x[i] = (vertexint_t)((int)model->vertices_x[i] * x / 128);
         model->vertices_y[i] = (vertexint_t)((int)model->vertices_y[i] * height / 128);
         model->vertices_z[i] = (vertexint_t)((int)model->vertices_z[i] * z / 128);
     }
+}
+
+/* One flag for the whole record, so a posed model pays a single branch. */
+static void
+ToriDraw_ModelPostTransformRefresh(struct ToriDraw_Model* model)
+{
+    model->post_transform = model->post_resize || model->post_orient != 0 ||
+                            model->post_offset_x != 0 || model->post_offset_y != 0 ||
+                            model->post_offset_z != 0;
+}
+
+void
+ToriDraw_ModelSetPostResize(
+    struct ToriDraw_Model* model,
+    int x,
+    int z,
+    int height)
+{
+    assert(model);
+    model->post_resize = (x != 128 || z != 128 || height != 128);
+    model->post_resize_x = x;
+    model->post_resize_z = z;
+    model->post_resize_height = height;
+    ToriDraw_ModelPostTransformRefresh(model);
+}
+
+void
+ToriDraw_ModelSetPostOrient(
+    struct ToriDraw_Model* model,
+    int quarter_turns)
+{
+    assert(model);
+    model->post_orient = quarter_turns & 3;
+    ToriDraw_ModelPostTransformRefresh(model);
+}
+
+void
+ToriDraw_ModelSetPostOffset(
+    struct ToriDraw_Model* model,
+    int x,
+    int y,
+    int z)
+{
+    assert(model);
+    model->post_offset_x = x;
+    model->post_offset_y = y;
+    model->post_offset_z = z;
+    ToriDraw_ModelPostTransformRefresh(model);
+}
+
+void
+ToriDraw_ModelApplyPostTransforms(struct ToriDraw_Model* model)
+{
+    assert(model);
+    if( !model->post_transform )
+        return;
+    /* Orient, resize, translate -- see post_transform in ToriDraw_Model. */
+    if( model->post_orient != 0 )
+        ToriDraw_ModelOrient(model, model->post_orient);
+    if( model->post_resize )
+        ToriDraw_ModelScale(
+            model, model->post_resize_x, model->post_resize_z, model->post_resize_height);
+    if( model->post_offset_x != 0 || model->post_offset_y != 0 || model->post_offset_z != 0 )
+        ToriDraw_ModelTranslate(
+            model, model->post_offset_x, model->post_offset_y, model->post_offset_z);
 }
 
 void
@@ -711,7 +889,6 @@ ToriDraw_ModelTranslate(
     int y,
     int z)
 {
-    assert(model);
     for( int i = 0; i < model->vertex_count; i++ )
     {
         model->vertices_x[i] = (vertexint_t)((int)model->vertices_x[i] + x);
@@ -724,15 +901,11 @@ void
 ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
 {
     assert(model && "ToriDraw_ModelSetBoundsCylinder: model is NULL");
-    if( !model->bounds_cylinder )
-        model->bounds_cylinder = calloc(1, sizeof(struct ToriDraw_BoundsCylinder));
-    assert(
-        model->bounds_cylinder &&
-        "ToriDraw_ModelSetBoundsCylinder: failed to allocate bounds cylinder");
+    model->has_bounds_cylinder = true;
 
     if( model->vertex_count <= 0 )
     {
-        memset(model->bounds_cylinder, 0, sizeof(struct ToriDraw_BoundsCylinder));
+        memset(&model->bounds_cylinder, 0, sizeof(struct ToriDraw_BoundsCylinder));
         return;
     }
 
@@ -756,11 +929,11 @@ ToriDraw_ModelSetBoundsCylinder(struct ToriDraw_Model* model)
 
     int center_to_bottom_edge = (int)sqrt((double)radius_squared + (double)min_y * min_y) + 1;
     int center_to_top_edge = (int)sqrt((double)radius_squared + (double)max_y * max_y) + 1;
-    model->bounds_cylinder->center_to_bottom_edge = center_to_bottom_edge;
-    model->bounds_cylinder->center_to_top_edge = center_to_top_edge;
-    model->bounds_cylinder->min_y = min_y;
-    model->bounds_cylinder->max_y = max_y;
-    model->bounds_cylinder->radius = (int)sqrt((double)radius_squared);
-    model->bounds_cylinder->min_z_depth_any_rotation =
+    model->bounds_cylinder.center_to_bottom_edge = center_to_bottom_edge;
+    model->bounds_cylinder.center_to_top_edge = center_to_top_edge;
+    model->bounds_cylinder.min_y = min_y;
+    model->bounds_cylinder.max_y = max_y;
+    model->bounds_cylinder.radius = (int)sqrt((double)radius_squared);
+    model->bounds_cylinder.min_z_depth_any_rotation =
         center_to_top_edge > center_to_bottom_edge ? center_to_top_edge : center_to_bottom_edge;
 }

@@ -38,7 +38,7 @@ test_init_free(void)
     LootStore_Init(&store);
 
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "empty after init");
-    TEST_ASSERT(LootStore_AuxCountTotal(&store) == 0, "no aux entries");
+    TEST_ASSERT(LootStore_VectorSize(&store, 1) == 0, "no string vector entries");
 
     LootStore_Free(&store);
     LootStore_Free(&store); /* double free safe */
@@ -82,6 +82,50 @@ test_add_kill_loot(void)
 
     TEST_ASSERT(LootStore_SourceItemCount(&store, "Unknown") == 0, "unknown source: 0 items");
     TEST_ASSERT(LootStore_SourceKillCount(&store, "Unknown") == 0, "unknown source: 0 kills");
+
+    LootStore_Free(&store);
+}
+
+/*
+ * What a row's `value` MEANS.
+ *
+ * It is the unit price -- `ObjType.cost` for one of them -- and never the
+ * stack's total, which is what the plugin API has documented it to be since
+ * the field existed. The store used to accumulate `value * qty` into it, and
+ * the one reader that follows the stated contract multiplied by the quantity a
+ * SECOND time: ten thousand coins at a cost of one came out of the Loot
+ * Tracker's totals band as a hundred million gp.
+ *
+ * MUTATION: `row->value = value * qty` on the create arm reddens the first
+ * assertion; `src->rows[i].value += value` on the merge arm reddens the third.
+ */
+static void
+test_row_value_is_the_unit_price(void)
+{
+    printf("TEST: a row's value is what ONE of them costs\n");
+
+    struct LootStore store;
+    LootStore_Init(&store);
+
+    /* Five thousand coins at a cache cost of one. */
+    LootStore_AddKillLoot(&store, "Goblin", 995, 5000, 1, 1);
+    TEST_ASSERT(store.source_count == 1, "one source");
+    TEST_ASSERT(store.sources[0].rows[0].qty == 5000, "five thousand of them");
+    TEST_ASSERT(
+        store.sources[0].rows[0].value == 1,
+        "and one gp each, not five thousand");
+
+    /* A second kill of the same pile. The quantities add up; the unit price is
+     * a property of the objtype and does not. */
+    LootStore_AddKillLoot(&store, "Goblin", 995, 5000, 1, 2);
+    TEST_ASSERT(store.sources[0].rows[0].qty == 10000, "ten thousand of them");
+    TEST_ASSERT(
+        store.sources[0].rows[0].value == 1,
+        "still one gp each after a merge");
+    TEST_ASSERT(
+        (long long)store.sources[0].rows[0].value * store.sources[0].rows[0].qty ==
+            10000,
+        "so the pile is worth ten thousand gp, not a hundred million");
 
     LootStore_Free(&store);
 }
@@ -196,47 +240,67 @@ test_row_access(void)
 static void
 test_aux_lists(void)
 {
-    printf("TEST: aux string lists\n");
+    printf("TEST: string vectors (7400..7409)\n");
 
     struct LootStore store;
     LootStore_Init(&store);
 
-    /* Script 7200: _7409(2), then _7401(2, name, 0) loop */
-    LootStore_AuxClear(&store, 2);
-    LootStore_AuxUpsert(&store, 2, "Bones", 0);
-    LootStore_AuxUpsert(&store, 2, "Coins", 0);
-    LootStore_AuxUpsert(&store, 2, "Bones", 0); /* duplicate — no-op */
+    /* 7400 APPEND keeps duplicates; only 7401 APPEND_UNIQUE de-duplicates. */
+    LootStore_VectorAppend(&store, 2, "Bones");
+    LootStore_VectorAppend(&store, 2, "Bones");
+    TEST_ASSERT(LootStore_VectorSize(&store, 2) == 2, "append keeps a duplicate");
+    LootStore_VectorClear(&store, 2);
 
-    TEST_ASSERT(LootStore_AuxCount(&store, 2) == 2, "2 entries in kind 2");
-    TEST_ASSERT(LootStore_AuxCountTotal(&store) == 2, "2 total");
+    /* Script 7200: _7409(2), then stringvector_addunique(2, name, 0) -- case
+     * insensitive, since its flag is case_sensitive and it passes 0. */
+    LootStore_VectorAppendUnique(&store, 2, "Bones", false);
+    LootStore_VectorAppendUnique(&store, 2, "Coins", false);
+    LootStore_VectorAppendUnique(&store, 2, "BONES", false);
+    TEST_ASSERT(LootStore_VectorSize(&store, 2) == 2, "unique, case-insensitive: BONES is Bones");
+    LootStore_VectorAppendUnique(&store, 2, "BONES", true);
+    TEST_ASSERT(LootStore_VectorSize(&store, 2) == 3, "unique, case-sensitive: BONES is new");
 
-    /* op 7408 — lookup */
-    TEST_ASSERT(LootStore_AuxLookup(&store, 2, "Bones", 0, 0) == 1, "Bones found");
-    TEST_ASSERT(LootStore_AuxLookup(&store, 2, "Missing", 0, 0) == 0, "Missing not found");
+    /* Order is the vector's, and erasing keeps it. */
+    LootStore_VectorErase(&store, 2, "bones", false);
+    TEST_ASSERT(LootStore_VectorSize(&store, 2) == 2, "erase removes one entry");
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 0), "Coins") == 0, "order kept after erase (0)");
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 1), "BONES") == 0, "order kept after erase (1)");
 
-    /* op 7406 — get by index */
-    const char* s = LootStore_AuxGet(&store, 2, 0);
-    TEST_ASSERT(strlen(s) > 0, "index 0 non-empty");
+    /* 7402 INSERT, 7403 SET, 7405 REMOVEAT */
+    LootStore_VectorInsert(&store, 2, 1, "Ashes");
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 1), "Ashes") == 0, "insert lands at its index");
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 2), "BONES") == 0, "insert shifts the rest up");
+    LootStore_VectorSet(&store, 2, 0, "Feathers");
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 0), "Feathers") == 0, "set replaces in place");
+    LootStore_VectorEraseAt(&store, 2, 0);
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 0), "Ashes") == 0, "removeat shifts the rest down");
+    TEST_ASSERT(strcmp(LootStore_VectorGet(&store, 2, 5), "") == 0, "get out of range is empty");
 
-    /* Remove */
-    LootStore_AuxRemove(&store, 2, "Bones", 0);
-    TEST_ASSERT(LootStore_AuxCount(&store, 2) == 1, "1 entry after remove");
-    TEST_ASSERT(LootStore_AuxLookup(&store, 2, "Bones", 0, 0) == 0, "Bones gone");
+    /* 7408 CONTAINS: wildcard entries are patterns. */
+    LootStore_VectorClear(&store, 3);
+    LootStore_VectorAppend(&store, 3, "*rune*");
+    TEST_ASSERT(LootStore_VectorContains(&store, 3, "Chaos rune", true, false), "wildcard matches");
+    TEST_ASSERT(!LootStore_VectorContains(&store, 3, "Chaos rune", false, false), "no wildcard: literal only");
+    TEST_ASSERT(!LootStore_VectorContains(&store, 3, "CHAOS RUNE", true, true), "case-sensitive wildcard");
+    TEST_ASSERT(LootStore_VectorContains(&store, 3, "CHAOS RUNE", true, false), "case-insensitive wildcard");
 
-    /* Clear */
-    LootStore_AuxClear(&store, 2);
-    TEST_ASSERT(LootStore_AuxCount(&store, 2) == 0, "cleared");
+    /* The cache uses ids up to 6; this store used to hold 5. */
+    LootStore_VectorAppend(&store, 6, "sixth");
+    TEST_ASSERT(LootStore_VectorSize(&store, 6) == 1, "vector 6 exists");
 
-    /* Ground Items highlight/filter use aux kinds 3/4 */
-    LootStore_AuxUpsert(&store, 3, "Filter*", 0);
-    LootStore_AuxUpsert(&store, 4, "Highlight*", 0);
-    TEST_ASSERT(LootStore_AuxCount(&store, 3) == 1, "kind 3");
-    TEST_ASSERT(LootStore_AuxCount(&store, 4) == 1, "kind 4");
-    TEST_ASSERT(LootStore_AuxCountTotal(&store) == 2, "kinds 3+4 total");
-
-    /* out of range kind */
-    TEST_ASSERT(LootStore_AuxCount(&store, -1) == 0, "negative kind");
-    TEST_ASSERT(LootStore_AuxCount(&store, 99) == 0, "oversize kind");
+    /* Revisions: a real change bumps only its own vector's. */
+    LootStore_VectorAppend(&store, 4, "Highlight*");
+    uint64_t filter_revision = LootStore_VectorRevision(&store, 3);
+    uint64_t highlight_revision = LootStore_VectorRevision(&store, 4);
+    TEST_ASSERT(filter_revision && highlight_revision, "edits publish a revision");
+    LootStore_VectorAppendUnique(&store, 3, "*rune*", true);
+    TEST_ASSERT(LootStore_VectorRevision(&store, 3) == filter_revision, "a no-op unique append does not invalidate views");
+    LootStore_VectorErase(&store, 3, "*rune*", true);
+    TEST_ASSERT(LootStore_VectorRevision(&store, 3) != filter_revision &&
+                    LootStore_VectorRevision(&store, 4) == highlight_revision,
+        "an erase invalidates only its own vector");
+    LootStore_VectorClear(&store, 4);
+    TEST_ASSERT(LootStore_VectorRevision(&store, 4) != highlight_revision, "clear invalidates dependent views");
 
     LootStore_Free(&store);
 }
@@ -274,8 +338,8 @@ test_ignore_list(void)
     TEST_ASSERT(strcmp(LootStore_SourceIgnoreName(&store, 1), "Goblin") == 0, "src 1-based");
 
     /* 1792/7200 must not circularly wipe: clearing aux leaves persistent lists */
-    LootStore_AuxUpsert(&store, 1, "scratch", 0);
-    LootStore_AuxClear(&store, 1);
+    LootStore_VectorAppend(&store, 1, "scratch");
+    LootStore_VectorClear(&store, 1);
     TEST_ASSERT(LootStore_SourceIgnoreCount(&store) == 2, "src ignore survives aux clear");
     TEST_ASSERT(LootStore_ItemIgnoreCount(&store) == 2, "item ignore survives aux clear");
 
@@ -316,7 +380,7 @@ test_clear_and_remove(void)
     /* Script 7179 Clear-data sequence: 7614 then kind-2 query + 7615 */
     LootStore_AddKillLoot(&store, "Guard", 300, 1, 50, 3);
     LootStore_ClearSourceByName(&store, "Guard");
-    int n = LootStore_BeginQuery(&store, 0, LootStore_AuxCountTotal(&store) + 10, 2);
+    int n = LootStore_BeginQuery(&store, 0, LootStore_DropLimit(&store), 2);
     for( int i = 0; i < n; i++ )
     {
         int id = LootStore_QueryId(&store, i);
@@ -352,21 +416,28 @@ test_reset_all(void)
 
     struct LootStore store;
     LootStore_Init(&store);
+    uint64_t revision = LootStore_Revision(&store);
+    TEST_ASSERT(revision != 0, "revision starts nonzero");
 
     LootStore_AddKillLoot(&store, "Goblin", 100, 1, 5, 1);
-    LootStore_AuxUpsert(&store, 1, "SrcName", 0);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "a drop advances revision");
+    revision = LootStore_Revision(&store);
+    LootStore_VectorAppend(&store, 1, "SrcName");
     LootStore_ItemIgnoreAdd(&store, "Bones");
     LootStore_SourceIgnoreAdd(&store, "Goblin");
 
     LootStore_ResetAll(&store);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "reset cannot resurrect an old revision");
+    revision = LootStore_Revision(&store);
 
     TEST_ASSERT(LootStore_SourceCount(&store) == 0, "sources cleared");
-    TEST_ASSERT(LootStore_AuxCountTotal(&store) == 0, "aux cleared");
+    TEST_ASSERT(LootStore_VectorSize(&store, 1) == 0, "string vectors cleared");
     TEST_ASSERT(!LootStore_IsItemIgnored(&store, "Bones"), "item ignore cleared");
     TEST_ASSERT(!LootStore_IsSourceIgnored(&store, "Goblin"), "source ignore cleared");
 
     /* Usable after reset */
     LootStore_AddKillLoot(&store, "Imp", 200, 1, 10, 1);
+    TEST_ASSERT(LootStore_Revision(&store) > revision, "post-reset mutation advances revision");
     TEST_ASSERT(LootStore_SourceCount(&store) == 1, "usable after reset");
     TEST_ASSERT(LootStore_SourceKillCount(&store, "Imp") == 1, "kill after reset");
 
@@ -431,6 +502,7 @@ main(void)
 {
     test_init_free();
     test_add_kill_loot();
+    test_row_value_is_the_unit_price();
     test_begin_query();
     test_row_access();
     test_aux_lists();

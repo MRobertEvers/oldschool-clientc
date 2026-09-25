@@ -2,9 +2,9 @@
 
 The two Windows build lanes use pinned WinLibs/MinGW-w64 archives committed
 through Git LFS under `lib/`. The PowerShell wrappers validate the compiler
-triple and extract the required archive on demand into the ignored
-`toolchain/` directory. Extracted compiler trees are caches, not source files;
-do not force-add them.
+triple and extract the required archive on demand into the shared
+`toolchains/` directory alongside the Java toolchain. The directory is not
+ignored, so all repository toolchain material is visible to Git in one place.
 
 | Lane | Canonical archive | Required triple | Contents | Repository SHA-256 |
 |---|---|---|---|---|
@@ -38,6 +38,22 @@ the compiler archives do not contain a shell.
 Do not run the two wrappers concurrently. Their platform object directories
 and final executables are distinct, but a few generated host-tool outputs and
 `src/.last_flavor` are still shared.
+
+## XP profiler archives
+
+The Windows XP profiling tools follow the same `lib/` rule — the zip is the
+checked-in form, the unpacked tree is gitignored. These two are under a
+megabyte each, so they are ordinary git blobs and need no `git lfs pull`.
+
+| Archive | Contents | Unpacks to | Repository SHA-256 |
+|---|---|---|---|
+| `lib/cv2pdb-0.54-win32.zip` | cv2pdb 0.54 — converts GCC DWARF to a PDB Very Sleepy can read | `toolchains/winxp_profiles/cv2pdb-0.54/` | `b2fc075b0b57fbf6d989bf380d91ba443bec0110b6a3e5a8d4b95a078903e02c` |
+| `lib/verysleepy-0.7.2-win32.zip` | Very Sleepy 0.7.2 sampling profiler | `toolchains/winxp_profiles/verysleepy_0_7/` | `db68365225f0fbb05ba3d386048d18076de5997dafe9d93331172a2cbaf66ccd` |
+
+Both are byte-identical to their upstream releases; the checksums above are the
+upstream ones. Usage, CLI-switch differences between 0.7 and 0.7.2, and the
+`dbghelp.dll` the release zip omits are documented in
+[`toolchains/winxp_profiles/README.md`](../../toolchains/winxp_profiles/README.md).
 
 ## Stylizer model archive
 

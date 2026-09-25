@@ -207,7 +207,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # RUNCLIENTSCRIPT_SS is fixed at one int and two strings because the one
     # caller it was written for (chatbox_multi_init) takes exactly that. The
     # wire is not: RUNCLIENTSCRIPT carries a per-argument type string, and
-    # `mock230_send_run_clientscript_mixed` has taken one since it was written.
+    # `ToriRSServer_SendRunClientscriptMixed` has taken one since it was written.
     # Everything else in the rev-230 UI needs other shapes — the skill guide's
     # clientscript 1902 takes four ints — and there is no way to spell that
     # with the _SS form.
@@ -511,6 +511,457 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # NPC_SETFOLLOWER). Prefer this one where the intent is the follower.
     "NPC_FINDFOLLOWER": (11043, 0, 0, 1, 0),
 
+    # trigger_decline()
+    #
+    # "This script does not handle the current interaction — try the next rung."
+    #
+    # The reference's dispatch stops at the FIRST binding it finds, so a script
+    # bound to one family consumes a click even when it does not recognise the
+    # other half of it, and the binding that WOULD have answered never runs. That
+    # is not a hypothetical: gem-tipped bolts above bronze were dead in both click
+    # orders because `[opheldu,_bolts]` (weapon poison) and `[opheldu,bolt]`
+    # (bronze bolt tipping) each swallowed one order. There is no way for content
+    # to fix that inside a single script — the two halves belong to different
+    # lanes, and a lane cannot enumerate every family it might meet.
+    #
+    # So the resolver keeps walking when a script says it declined, and stops at
+    # the first one that does not. Outside a chained dispatch there is no rung
+    # below, so it degrades to exactly what `~displaymessage(^dm_default)` did:
+    # the engine says "Nothing interesting happens".
+    #
+    # Contract: call it INSTEAD of doing anything, not after. A script that has
+    # already changed the world and then declines has handed a half-finished
+    # interaction to the next rung.
+    "TRIGGER_DECLINE": (11044, 0, 0, 0, 0),
+
+    # npc_facing_coord(coord)(boolean)
+    #
+    # Whether the active NPC's persistent 8-way facing direction points into
+    # the half-plane containing the supplied tile. Content can already test
+    # sight and walking reach, but neither answers the Storerooms rule that a
+    # patrolling guard only notices a door while looking toward it.
+    "NPC_FACING_COORD": (11045, 1, 0, 1, 0),
+
+    # ---- durable Player-owned House storage (11046..11056) ---------------
+    #
+    # Construction policy remains RuneScript and cache DB data. These commands
+    # expose only the versioned player record which content cannot represent in
+    # temp varps: room rows, hotspot furniture rows, and durable house settings.
+    "POH_STATE_RESET": (11046, 0, 0, 0, 0),
+    "POH_STATE_GET": (11047, 1, 0, 1, 0),
+    "POH_STATE_SET": (11048, 2, 0, 1, 0),
+    "POH_ROOM_ADD": (11049, 6, 0, 1, 0),
+    "POH_ROOM_COUNT": (11050, 0, 0, 1, 0),
+    "POH_ROOM_GET": (11051, 2, 0, 1, 0),
+    "POH_DECOR_SET": (11052, 5, 0, 1, 0),
+    "POH_DECOR_GET": (11053, 3, 0, 1, 0),
+    # Atomic whole-player write after content has committed inventory, varp,
+    # and house mutations in one non-suspending script turn.
+    "POH_STATE_COMMIT": (11054, 0, 0, 1, 0),
+    "POH_ROOM_SET": (11055, 3, 0, 1, 0),
+    "POH_ROOM_REMOVE": (11056, 1, 0, 1, 0),
+
+    # map_instance_owner(int $handle)(player_uid)
+    #
+    # The live player who allocated the reservation. A handle/coordinate says
+    # where an instance is but not whose persistent state backs it; POH guest
+    # interactions (tips first, then friend entry and host controls) need that
+    # identity without making the generic instance registry Construction-aware.
+    "MAP_INSTANCE_OWNER": (11062, 1, 0, 1, 0),
+
+    # npc_respawn_remaining(coord, npc, range)(int)
+    #
+    # Remaining ticks on the nearest matching dead NPC's absolute respawn
+    # clock, or -1 when there is no such actor. Ordinary npc_find deliberately
+    # excludes dead actors; encounter dependants still need this one piece of
+    # lifecycle state to synchronize with their controller (2009scape's God
+    # Wars minions copy boss.getRespawnTick()). Geometry and the clock are
+    # engine mechanism; which encounter shares them remains content policy.
+    "NPC_RESPAWN_REMAINING": (11063, 3, 0, 1, 0),
+
+    # map_instance_flag_get(int $handle, int $mask)(boolean)
+    # map_instance_flag_set(int $handle, int $mask, boolean $enabled)(boolean)
+    #
+    # Session-local state shared by everyone inside one dynamic map. The engine
+    # owns only the bitset lifetime; content assigns meanings to masks. This is
+    # intentionally not durable POH storage: challenge mode ends with the house
+    # visit, applies to guests as well as the owner, and a reused handle must
+    # begin clear.
+    "MAP_INSTANCE_FLAG_GET": (11064, 2, 0, 1, 0),
+    "MAP_INSTANCE_FLAG_SET": (11065, 3, 0, 1, 0),
+
+    # last_step_coord()(coord)
+    #
+    # The tile occupied before the active player's most recent successful step.
+    # Unlike WALKSTEP_COORD this remains readable after movement, so an
+    # underfoot loc can knock a player back to the side from which they entered.
+    "LAST_STEP_COORD": (11066, 0, 0, 1, 0),
+
+    # map_instance_var_get(int $handle, int $slot)(int)
+    # map_instance_var_set(int $handle, int $slot, int $value)(boolean)
+    #
+    # A bounded register file with the same lifetime as the flag bitset above.
+    # Content owns the schema; the engine supplies only shared integer storage
+    # for dynamic-map phases, player uids, scores, clocks and prize balances.
+    "MAP_INSTANCE_VAR_GET": (11067, 2, 0, 1, 0),
+    "MAP_INSTANCE_VAR_SET": (11068, 3, 0, 1, 0),
+
+    # p_namedialog(string $prompt); last_string()(string)
+    #
+    # Revision 239 removed the old server packet but retained the generic
+    # meslayer clientscript and RESUME_P_NAMEDIALOG reply. Keep the reference's
+    # wait/read split (the same shape as P_COUNTDIALOG/LAST_INT) while letting
+    # current content state its own prompt.
+    "P_NAMEDIALOG": (11069, 0, 1, 0, 0),
+    "LAST_STRING": (11070, 0, 0, 0, 1),
+
+    # p_findmutualfriend(string $display_name)(boolean)
+    #
+    # Resolve an online player on this world only when both accounts list one
+    # another as friends, then grant protected access to that player. This is
+    # generic group-instance mechanism; Nex and POH content keep ownership,
+    # admission, fee and capacity policy in RuneScript.
+    "P_FINDMUTUALFRIEND": (11071, 0, 1, 1, 0),
+
+    # p_overhit(player_uid $uid, int $amount, int $type, boolean $lethal)
+    #
+    # Damage a player with a hit that was already decided. `$lethal` is the
+    # caller's answer to "was this enough to kill them WHEN IT WAS ROLLED", and
+    # when it is true the player dies however much they healed in between.
+    #
+    # This is the Theatre of Blood's "over-hit", and the Inferno's: the OSRS
+    # Wiki says of the Maiden that she "will over-hit the player beyond their
+    # current health when damage is calculated; this makes it so you cannot
+    # tick-eat the maiden boss's magic attacks", and TzKal-Zuk does the same.
+    #
+    # It is a separate opcode rather than a flag on `damage` because the two
+    # are different questions. `damage` asks "subtract this much"; a projectile
+    # that has already been rolled asks "did this kill you", and the answer was
+    # settled on the tick it launched. Content computes `$lethal` there, where
+    # it knows the target's hitpoints; the engine only honours it. Same split
+    # as npc_freeze above - engine takes the mechanism, content keeps the policy.
+    "P_OVERHIT": (11077, 4, 0, 0, 0),
+
+    # npc_setmovespeed(int $speed)
+    #
+    # How many tiles the active NPC takes off its queued route per tick: 0 for
+    # a walk, 1 for a run. The reference has no such command and could not have
+    # one -- `Npc.defaultMoveSpeed()` returns `MoveSpeed.WALK` unconditionally,
+    # so every LostCity npc walks and nothing in its content ever needed to ask.
+    #
+    # OldSchool bosses do ask. The Pestilent Bloat's speed is a pure function of
+    # its health -- it walks above 60%, RUNS between 40% and 60%, and alternates
+    # below 40% on every attack made against it (OSRS Wiki: Pestilent Bloat) --
+    # and the band it is in is what decides whether a team can keep behind a
+    # pillar. There is no way to express that from content: `npc_walk` queues a
+    # waypoint and the npc phase drains exactly one tile from it.
+    #
+    # The engine already renders the two-tile step; only the switch was missing.
+    # `ToriRSServerNpc.run_dir` is NPC_INFO's second direction and `playerfollow`
+    # has filled it since familiars landed, so this reuses that path rather
+    # than inventing one. Speed is engine mechanism; which health band means
+    # which speed stays content policy, in tob_bloat.rs2.
+    "NPC_SETMOVESPEED": (11078, 1, 0, 0, 0),
+
+    # map_instance_findflag(int $required_flags)(int)
+    #
+    # The first live reservation carrying every requested content-owned flag,
+    # whoever owns it, or 0. The join-side counterpart to
+    # `map_instance_find_owner`, which answers a different question and
+    # deliberately refuses `player_uid <= 0`: it finds an instance you already
+    # own, and a player trying to JOIN one does not know whose it is.
+    #
+    # That is not a hypothetical shortfall. The Theatre of Blood's second
+    # player has no way to reach the first player's raid: every entrant ran
+    # `map_instance_from_square` and got a private copy of the room with a
+    # private boss, so a "party" was five simultaneous solo raids. The
+    # Pestilent Bloat's flies "spread to other players in the raid", and its
+    # line of sight is a custom near-side test whose whole purpose is the
+    # pillar a teammate hides behind -- both of those are mechanics about a
+    # SECOND PLAYER, and neither could ever fire.
+    #
+    # The engine supplies only "a live instance carries this bitmask". Which
+    # mask means "a raid", whether a joiner is admitted, party size, mode
+    # agreement and orb order all stay content policy, exactly as the flag
+    # bitset's own contract says.
+    "MAP_INSTANCE_FINDFLAG": (11079, 1, 0, 1, 0),
+
+    # inv_transmit_from(player_uid $owner, inv $inventory, component $component)(boolean)
+    #
+    # Paint a live owner's private inventory on the active viewer's component.
+    # Mutation remains ordinary owner-context RuneScript; this is the generic
+    # read-only mechanism needed by guest-visible POH collections.
+    "INV_TRANSMIT_FROM": (11072, 3, 0, 1, 0),
+
+    # p_findvisibleplayer(string $display_name)(boolean)
+    #
+    # Resolve an online player whom the active player's social relationship is
+    # allowed to see, then grant protected access to that player.  Unlike the
+    # mutual-friend command this preserves the three-way private-chat policy
+    # (off/friends/on), including the target's ignore list.  House portals use
+    # it because the cache's own contract is "private chat set so that you can
+    # message them", not "both players must have added each other".
+    "P_FINDVISIBLEPLAYER": (11073, 0, 1, 1, 0),
+
+    # p_isfriend(player_uid $other)(boolean)
+    #
+    # One-way friend-list membership for the active player.  Current POHs may
+    # be entered while their online owner is elsewhere only by a player the
+    # owner has added; mutual friendship is a stricter and different rule.
+    "P_ISFRIEND": (11074, 1, 0, 1, 0),
+
+    # map_instance_find_owner(player_uid $owner, int $required_flags)(int)
+    #
+    # Find a live reservation owned by a player and carrying every requested
+    # content-owned flag.  A zero mask matches any owned instance.  This lets
+    # content resume a shared house after its owner walked out without treating
+    # the owner's generic %map_instance_handle as a global registry.
+    "MAP_INSTANCE_FIND_OWNER": (11075, 2, 0, 1, 0),
+
+    # map_instance_playercount(int $handle)(int)
+    #
+    # Count live players whose coordinates are inside the reservation.  The
+    # engine supplies geometry only; content decides whether zero means free,
+    # a delayed shutdown, or a session that remains joinable.
+    "MAP_INSTANCE_PLAYERCOUNT": (11076, 1, 0, 1, 0),
+
+    # loc_add_op(coord, loc, int angle, locshape shape, int duration,
+    #            int opslot, string optext)
+    #
+    # `loc_add`, plus the one thing LOC_ADD_CHANGE_V2 can say and `loc_add`
+    # cannot: this PLACEMENT's right-click menu is a single option, `optext` on
+    # slot `opslot`, whatever the loctype declares.
+    #
+    # The reference has no equivalent and could not: at rev 254 a loc's menu is
+    # a property of its type, full stop, so the only way to change one is to
+    # become a different type — which is exactly what LostCity's doors do, via
+    # `loc_param(next_loc_stage)` and a second cache record per door. This
+    # cache does not have that second record for 182 of its placed doors (see
+    # docs/DOORS_GATES_QUEUE.md), and OldSchool does not need one: since rev 228
+    # the add packet carries an opFlags mask and a list of replacement labels,
+    # and the 239 gamepack applies both per scene loc (deob class69/class108).
+    # One record can therefore be "Open" on the tile the map put it on and
+    # "Close" on the tile it swung to.
+    #
+    # Narrow on purpose. The wire can replace all five slots independently and
+    # a general form would be eleven arguments, ten of which every call site
+    # would pass empty; "this placement offers exactly one thing" is the whole
+    # of what content has to say, and it says it without a sentinel.
+    "LOC_ADD_OP": (11057, 6, 1, 0, 0),
+
+    # ---- player-scoped remote map view (11058..11059) --------------------
+    #
+    # remote_view_start(coord $at, int $ticks) / remote_view_end()
+    #
+    # Temporarily rebuild one player's client around a normal-world coord
+    # without moving the authoritative player. This is the protocol mechanism
+    # used by Construction's scrying pool: content owns the destination,
+    # camera, overlay and duration; the engine owns keeping scene-local packets
+    # away from the temporary WorldView and rebuilding the player's real
+    # (possibly instanced) scene afterwards.
+    #
+    # There is no LostCity reference command because its rev-254 content tree
+    # predates player-owned-house scrying. A normal teleport is not equivalent:
+    # it would run zone/map triggers, expose the player at the destination and
+    # remove them from their house. The separate start/end pair makes the
+    # temporary-view lifetime explicit and lets modal-close cleanup end it
+    # early; `$ticks` is also a fail-safe if a suspended content script is
+    # cancelled before calling the inverse.
+    "REMOTE_VIEW_START": (11058, 2, 0, 0, 0),
+    "REMOTE_VIEW_END": (11059, 0, 0, 0, 0),
+
+    # stat_xp(stat)(int) — raw experience in RuneScript's tenths-of-XP unit.
+    # The mock already stores the exact value for persistence and level-up
+    # calculations; exposing a read is needed for content rules keyed to the
+    # 200,000,000 XP cap (notably Wintertodt's Phoenix modifier).
+    "STAT_XP": (11060, 1, 0, 1, 0),
+
+    # hitmark(uid, hitsplat, amount) — show a player hitsplat without changing
+    # Hitpoints or invoking combat/death. Alternate resources such as
+    # Wintertodt Warmth still need the ordinary player update mask, but must
+    # not fake the effect by adding and subtracting real Hitpoints.
+    "HITMARK": (11061, 3, 0, 0, 0),
+
+    # npc_hitmark(hitsplat, amount) — the active NPC's cosmetic hitsplat, and
+    # the overhead health bar that rides with it. Changes no hitpoints and
+    # provokes no retaliation.
+    #
+    # `hitmark` above is the player-side twin and cannot serve: it resolves its
+    # uid through `player_by_uid` and aborts on anything else. `npc_damage` is
+    # not it either — that one subtracts hitpoints and starts a fight, which is
+    # the wrong direction for the case this exists for.
+    #
+    # That case is a splat the server wants SEEN without an HP change it owns
+    # separately: Xarpus absorbing an exhumed's orb shows a purple heal splat
+    # over him for the amount, and the heal itself is `npc_statheal`. Without a
+    # splat there is no NPC_INFO hitmark block, and without that block the
+    # encoder sends no HEADBAR either — so his overhead bar stayed dark for the
+    # whole of phase one while the raid HUD tracked him correctly.
+    "NPC_HITMARK": (11080, 2, 0, 0, 0),
+
+    # p_stun(ticks) / p_stunned()(int) — OldSchool's stun as player state.
+    #
+    # There was no primitive for it. Content approximated with `%action_delay`,
+    # an ordinary varp that only gates the scripts choosing to read it, so a
+    # "stunned" player still walked and still attacked. A stun stops movement
+    # and world interaction and deliberately leaves the inventory, equipment
+    # and prayer book alone — see `stun_ticks` in torirs_server.h.
+    #
+    # `ticks <= 0` clears; otherwise the longer stun wins, as `npc_freeze` does.
+    "P_STUN": (11081, 1, 0, 0, 0),
+    "P_STUNNED": (11082, 0, 0, 1, 0),
+
+    # map_canstep(coord, dx, dz)(boolean) — can a size-1 actor on `coord` take
+    # one step by (dx, dz)?
+    #
+    # `map_blocked` answers "is that tile blocked", which cannot see a wall
+    # between two open tiles nor the corner rule on a diagonal. Anything
+    # resolving where a shove or a slide comes to rest needs the step question,
+    # and approximating it with `map_blocked` pushes actors through walls.
+    #
+    # Terrain only: npcs and players are not collision here, which is what a
+    # knockback wants.
+    "MAP_CANSTEP": (11083, 3, 0, 1, 0),
+
+    # map_instance_setlinger(int $handle, int $ticks) /
+    # map_instance_linger(int $handle)(int) /
+    # map_instance_setlingergroup(int $handle, int $group)
+    #
+    # How long a reservation survives once its linger group has been empty of
+    # players — the engine's abandoned-encounter reclaim. Every alloc starts at
+    # the 100-tick default; `setlinger(h, 0)` opts out and hands the lifetime
+    # back to content. The getter exists so the [logout] backstop can tell a
+    # lingering instance (leave the character standing in it for a resumable
+    # login) from an opted-out one (teleport out and free, as it always did).
+    # Groups make emptiness a raid-wide question: a ToA Nexus is legitimately
+    # empty for the whole fight and must live as long as the room its party is
+    # actually in.
+    "MAP_INSTANCE_SETLINGER": (11084, 2, 0, 0, 0),
+    "MAP_INSTANCE_LINGER": (11085, 1, 0, 1, 0),
+    "MAP_INSTANCE_SETLINGERGROUP": (11086, 2, 0, 0, 0),
+
+    # npc_setmaxhp(max) — the active npc's hitpoint POOL, not its current hp.
+    #
+    # Sets `base_hitpoints` and `max_hitpoints` together and clamps current
+    # hitpoints into the new range, so `npc_basestat(hitpoints)` and the engine
+    # agree on one number.
+    #
+    # It exists because a scaled raid boss has no way to say how big it is. The
+    # config `hitpoints=` is authored at one scale (5-man for every boss in the
+    # Theatre), and a party below that gets its real pool by SETTING current
+    # hitpoints lower — which leaves the base, and therefore the engine, still
+    # holding the 5-man figure. Two things read that base and get it wrong:
+    # `npc_statheal` clamps a heal at 3500 for a Maiden whose party will only
+    # ever see 2625, and the NPC_INFO HEADBAR encoder divides by it, so the
+    # overhead bar drew 75% of the truth at every point of the fight including
+    # full health. The raid HUD was right throughout because content tracks the
+    # scaled maximum itself (`~tob_boss_hp_max_here`) — this is how that number
+    # reaches the engine instead of living only in a content var.
+    "NPC_SETMAXHP": (11087, 1, 0, 0, 0),
+
+    # vessel_spawn(config, size_x, size_z, coord, angle)(int)
+    #
+    # The sailing hulls (docs/SAILING_PLAN.md S1). LostCity predates sailing by
+    # two decades, so like the map-instance band above these are engine-only
+    # commands: the engine gets the mechanism (a hull that turns, moves and
+    # collides against water), content keeps the decisions (which boat, where,
+    # how fast). `size_x`/`size_z` are the hull footprint in tiles — a config-72
+    # reader is S3's; until then content states the footprint it authored.
+    # `coord` is the tile the hull centers on; `angle` is yaw in 2048-space.
+    # Returns the vessel handle, or 0 when the deck-instance pool is exhausted —
+    # the same "check your handle" contract as map_instance_alloc.
+    "VESSEL_SPAWN": (11088, 5, 0, 1, 0),
+
+    # vessel_settarget(handle, coord)
+    # Sail toward the center of a tile, re-deriving the 16-point heading every
+    # tick; the hull parks on arrival or on a blocked step.
+    "VESSEL_SETTARGET": (11089, 2, 0, 0, 0),
+
+    # vessel_setheading(handle, heading)
+    # Sail on a 16-point compass heading (0..15, heading*128 in angle space)
+    # until told otherwise.
+    "VESSEL_SETHEADING": (11090, 2, 0, 0, 0),
+
+    # vessel_setspeed(handle, tier)
+    # Speed tier 1..4 -> 64/128/192/256 fine units per tick (0.5..2 tiles).
+    "VESSEL_SETSPEED": (11091, 2, 0, 0, 0),
+
+    # vessel_pos(handle)(coord)
+    # The tile the hull currently centers on, as a packed coord; coord 0 for a
+    # dead handle — the same "nowhere" map_instance_coord answers with.
+    "VESSEL_POS": (11092, 1, 0, 1, 0),
+
+    # vessel_free(handle)
+    # Release the hull and its deck instance.
+    "VESSEL_FREE": (11093, 1, 0, 0, 0),
+
+    # vessel_here()(int)
+    # The handle of the vessel whose deck reservation contains the active
+    # player's feet, or 0 ashore — the aboard test every deck-facility op
+    # starts from.
+    "VESSEL_HERE": (11094, 0, 0, 1, 0),
+
+    # vessel_sails(handle, set)(int)
+    # Hoist (1), furl (0) or toggle (-1) the sails — the launch model's sail
+    # gate: a hull with sails set advances on its heading each tick. Returns
+    # the resulting state so one op can both act and report.
+    "VESSEL_SAILS": (11095, 2, 0, 1, 0),
+
+    # vessel_facility(handle, slot, option)
+    # Record which option a hull's facility slot holds (0 sail, 1 helm,
+    # 2 hull; option is the 1-based pick into that column, 0 = empty). The
+    # sidepanel's Facilities tab renders exactly this.
+    "VESSEL_FACILITY": (11102, 3, 0, 0, 0),
+
+    # Authoritative helm throttle: toggle, lower/reverse, raise, or stop.
+    "VESSEL_CONTROL": (11103, 2, 0, 1, 0),
+    # Resolve the owning captain's persistent, per-boat cargo inventory.
+    "VESSEL_CARGO": (11104, 1, 0, 2, 0),
+    # Transfer slot contents between a rider and the captain cargo, safely bounded.
+    "VESSEL_CARGO_TRANSFER": (11105, 5, 0, 1, 0),
+    "VESSEL_FURNISH": (11106, 1, 0, 1, 0),
+    "VESSEL_INFO": (11107, 1, 0, 2, 0),
+    "VESSEL_GETFACILITY": (11108, 2, 0, 1, 0),
+    # Set/read native hull stats; value -1 is a query.
+    "VESSEL_STAT": (11109, 3, 0, 1, 0),
+    "VESSEL_OWNED": (11110, 1, 0, 1, 0),
+    "VESSEL_RECOVER": (11111, 2, 0, 1, 0),
+    "VESSEL_SLOT": (11112, 2, 0, 1, 0),
+    # Project a verified vessel deck tile into its current root-world position.
+    "VESSEL_PROJECT": (11113, 2, 0, 1, 0),
+
+    # vessel_hp(handle)(int)
+    # The hull's integrity, and its maximum as the second return — the pair
+    # the sailing sidepanel's bar shows. 0,0 for a dead handle.
+    "VESSEL_HP": (11100, 1, 0, 2, 0),
+
+    # vessel_damage(handle, amount)(int)
+    # Take `amount` off the hull (negative repairs), clamped to 0..max, and
+    # answer the resulting integrity. Content owns what costs what.
+    "VESSEL_DAMAGE": (11101, 2, 0, 1, 0),
+
+    # vessel_nearest(coord, range)(int)
+    # The live hull nearest that coord within `range` tiles, or 0 — the "is
+    # there a boat at this dock?" question a gangplank asks.
+    "VESSEL_NEAREST": (11097, 2, 0, 1, 0),
+
+    # vessel_board(handle)(boolean)
+    # Stand the active player on that hull's deck (its walkable plane, the
+    # deck box's centre). False for a hull with no built deck.
+    "VESSEL_BOARD": (11098, 1, 0, 1, 0),
+
+    # vessel_disembark()(boolean)
+    # Put an aboard player ashore on the nearest walkable ground beside the
+    # hull. False when there is none — a boat at sea has no shore.
+    "VESSEL_DISEMBARK": (11099, 0, 0, 1, 0),
+
+    # vessel_helm(handle)(int)
+    # Put the active player at the hull's helm (handle 0, or the helm they
+    # already hold, releases it). While helming, ground clicks steer and the
+    # speed/sails ops act on this hull — the state `::helm` toggles. Returns
+    # 1 engaged, 0 released.
+    "VESSEL_HELM": (11096, 1, 0, 1, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -587,7 +1038,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # for a submenu's slot index instead.
     #
     # The wire already carries it (mock239_interface_inbound.c decodes
-    # `button.subop`) and mock230_world.c already stores it
+    # `button.subop`) and torirs_server_world.c already stores it
     # (`player->last_subop`), same as `last_slot`/`last_item` — this command
     # is only the missing read side. LostCity's reference predates rev-239's
     # Rub submenu convention entirely: ScriptOpcode.ts has no subop/subaction
@@ -699,6 +1150,10 @@ EXTRA_TRIGGERS: dict[str, int] = {
     # sequence. LostCity has no death trigger — content wrappers queue after
     # damage — but raw SS_OP_DAMAGE / C hit paths still need an event name.
     "PLAYERDEATH": 181,
+    # A floor loc may react when a player finishes movement on its footprint.
+    # This is deliberately a final-tile event, rather than another walktrigger:
+    # running across a one-tile hazard without finishing on it must not fire it.
+    "LOCSTEP": 182,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.
@@ -768,6 +1223,9 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FINDOWNED": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETMOVESPEED": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETMAXHP": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (
         (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["active_player"]),
@@ -793,6 +1251,54 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
         (1 << POINTER_BITS["active_npc"]) | (1 << POINTER_BITS["p_active_player"]),
         0,
     ),
+    "POH_STATE_RESET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_STATE_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_STATE_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_ADD": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_COUNT": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_DECOR_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_DECOR_GET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_STATE_COMMIT": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_SET": (1 << POINTER_BITS["p_active_player"], 0),
+    "POH_ROOM_REMOVE": (1 << POINTER_BITS["p_active_player"], 0),
+    "MAP_INSTANCE_OWNER": (0, 0),
+    "MAP_INSTANCE_FLAG_GET": (0, 0),
+    "MAP_INSTANCE_FLAG_SET": (0, 0),
+    "LAST_STEP_COORD": (1 << POINTER_BITS["p_active_player"], 0),
+    "MAP_INSTANCE_VAR_GET": (0, 0),
+    "MAP_INSTANCE_VAR_SET": (0, 0),
+    "P_NAMEDIALOG": (1 << POINTER_BITS["p_active_player"], 0),
+    "LAST_STRING": (0, 0),
+    "P_FINDMUTUALFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_OVERHIT": (0, 0),
+    "INV_TRANSMIT_FROM": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_FINDVISIBLEPLAYER": (1 << POINTER_BITS["p_active_player"], 0),
+    "P_ISFRIEND": (1 << POINTER_BITS["p_active_player"], 0),
+    "MAP_INSTANCE_FIND_OWNER": (0, 0),
+    "MAP_INSTANCE_PLAYERCOUNT": (0, 0),
+    # None, and that matches LOC_ADD (3000), whose require mask is 0x000: the
+    # command names its own coord and needs no active anything. Listed rather
+    # than omitted so the assert in the writer stays a whitelist.
+    "LOC_ADD_OP": (0, 0),
+    "REMOTE_VIEW_START": (1 << POINTER_BITS["p_active_player"], 0),
+    "REMOTE_VIEW_END": (1 << POINTER_BITS["p_active_player"], 0),
+    # The splat needs somebody to appear over. NPC_DAMAGE (2509) carries
+    # `active_npc | active_npc2` for the same reason, so this is transcription
+    # from its reference twin rather than a new judgement.
+    "NPC_HITMARK": (
+        1 << POINTER_BITS["active_npc"],
+        1 << POINTER_BITS["active_npc2"],
+    ),
+    # Stunning needs somebody to stun. `map_canstep` is a pure map query and
+    # correctly takes no pointer at all.
+    "P_STUN": (1 << POINTER_BITS["active_player"], 0),
+    "P_STUNNED": (1 << POINTER_BITS["active_player"], 0),
+    # Registry bookkeeping addressed by handle, like the rest of the
+    # map_instance family: no active anything.
+    "MAP_INSTANCE_SETLINGER": (0, 0),
+    "MAP_INSTANCE_LINGER": (0, 0),
+    "MAP_INSTANCE_SETLINGERGROUP": (0, 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means
@@ -1152,8 +1658,17 @@ def main() -> int:
             return 1
 
     opcodes = parse_opcodes(script_dir / "ScriptOpcode.ts")
+    # Both halves of the collision, because the tables are keyed by NAME and
+    # emitted by ID: a duplicate id passes the name check, then silently
+    # overwrites the earlier opcode's row in every generated array. The C
+    # compiler catches it only if both cases are in one switch, and only then.
+    taken = {opcode_id: name for name, opcode_id in opcodes.items()}
     for extra_name, extra_row in EXTRA_OPCODES.items():
         assert extra_name not in opcodes, f"{extra_name} collides with a reference opcode"
+        assert extra_row[0] not in taken, (
+            f"{extra_name} id {extra_row[0]} is already {taken[extra_row[0]]}"
+        )
+        taken[extra_row[0]] = extra_name
         opcodes[extra_name] = extra_row[0]
     triggers = parse_triggers(script_dir / "ServerTriggerType.ts")
     for extra_trigger, extra_id in EXTRA_TRIGGERS.items():
@@ -1162,6 +1677,10 @@ def main() -> int:
         triggers[extra_trigger] = extra_id
     sigs = parse_engine_rs2(ref / "content/scripts/engine.rs2")
     pointers = parse_pointers(script_dir / "ScriptOpcodePointers.ts", opcodes)
+    # The owner is an explicit UID argument; only the receiving player must
+    # already be selected (with the same alternate context for the dot form).
+    pointers["INVOTHER_TRANSMIT"] = (1 << POINTER_BITS["active_player"],
+                                      1 << POINTER_BITS["active_player2"])
     for extra_name, extra_mask in EXTRA_POINTERS.items():
         assert extra_name in EXTRA_OPCODES, f"{extra_name} is not an extra opcode"
         assert extra_name not in pointers, f"{extra_name} already has a reference mask"

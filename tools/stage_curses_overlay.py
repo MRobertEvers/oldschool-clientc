@@ -56,7 +56,7 @@ LANE_SPRITE_OVERRIDES = ("headicons_prayer",)
 # Pack files the RUNTIME reads and the packer must not.
 #
 # `pack/varp.alloc` names the lane's two minted varps for the server
-# (`mock230_content.c: load_ported_pack_symbols`, which walks `ported/*/pack/`
+# (`torirs_server_content.c: load_ported_pack_symbols`, which walks `ported/*/pack/`
 # and nothing else). The same two ids are already in the lane's
 # `configs/all.varp.compack`, which is how they reach the cache — and cachepack
 # refuses to see one id in both layers ("the layers must be disjoint"), rightly,

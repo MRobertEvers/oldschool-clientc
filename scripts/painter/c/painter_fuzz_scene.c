@@ -113,7 +113,9 @@ painter_fuzz_build_scene(
         };
         struct ToriDrawTrigFns trig;
         ToriDraw_TrigFnsFromTables(&trig, &tables);
-        cm = painters_cullmap_build_toridraw(25, 50, 512, 384, &trig);
+        cm = painters_cullmap_build_toridraw(
+            25, 50, 512, 384, toridraw_projection_cot16_from_fov(
+                TORIDRAW_PROJECTION_FOV_DEFAULT), &trig);
         if( !cm )
         {
             painter_free(painter);

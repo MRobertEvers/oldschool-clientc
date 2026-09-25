@@ -1,16 +1,23 @@
 /*
  * Mapped textured triangle, `branching` walk. Included once per variant by the
- * `texcylinder`, `texcube` and `texsphere` families. The includer defines:
+ * `texpmn`, `texcylinder`, `texcube` and `texsphere` families. The includer
+ * defines:
  *
  *   TMAP_FN    triangle entry point name
  *   TMAP_SPAN  scanline kernel from span/tex.span.gates.u.c
- *   TMAP_KIND  1 = cylinder, 2 = cube, 3 = sphere
+ *   TMAP_KIND  0 = P/M/N plane frame, 1 = cylinder, 2 = cube, 3 = sphere
+ *   TMAP_ZBUF  1 = depth-tested variant (optional; absent means 0)
  *
- * The three families share this walker and differ only in TMAP_KIND, which
+ * The four families share this walker and differ only in TMAP_KIND, which
  * selects the projection and its seam fixup. They are separate kernels rather
  * than one kernel with a runtime mode because the projection is the thing that
  * distinguishes them: a per-pixel branch on a per-triangle property is waste,
  * and a name that says `texsphere` should not be able to draw a cube.
+ *
+ * Kind 0 takes a `struct ToriDraw_TexPlaneFrame` (the P/M/N model-space
+ * positions) where the other three take a `struct ToriDraw_TexMapping`; see
+ * TMAP_MAP_T. Why type 0 is drawn here and not by `texplane` is the note above
+ * toridraw_texmap_project_plane in texmap_common.h.
  *
  * ## Why there is no ordered helper
  *
@@ -23,14 +30,55 @@
  *
  * ## What the caller supplies
  *
- * Model-space vertex positions as well as screen and camera-space ones. The
- * mapping is defined in model space about the face group's centre, and after
- * animation only the model-space positions still relate to it.
+ * Screen and camera-space positions from the POSED projection, and BIND-POSE
+ * model-space positions for the uv solve — for the face's own three vertices
+ * and, for kind 0, the P/M/N frame alike. The mapping is defined about a
+ * bind-pose centre and the frame is a set of helper vertices that need not be
+ * rigged with the faces that use it, so only the bind pose gives a uv that
+ * stays put while an animation plays. See texmap_common.h.
+ *
+ * ## The depth variant
+ *
+ * A TMAP_ZBUF variant takes the three corners' depth KEYS (graphics/zdepth.h)
+ * and a z-buffer, and changes nothing else. The keys do NOT ride the y sort
+ * below, for the same reason the shade plane's coefficients do not: a plane is
+ * invariant under permutation, so it is solved once from the unsorted triangle.
+ *
+ * The keys are supplied rather than derived from z0/z1/z2 here, even though
+ * those are the camera depths the key is a function of, because the FUNCTION
+ * differs by projection mode — a reciprocal under perspective, a negated scale
+ * under a parallel camera — and the kernel has no way to know which one it is
+ * drawing. The caller does.
  */
+
+#include "graphics/int_wrap.h"
+
+#ifndef TMAP_ZBUF
+#define TMAP_ZBUF 0
+#endif
+
+/* What the "mapping" argument is: a P/M/N frame for kind 0, a face-group
+ * mapping for the rest. Same slot in the signature either way, so the render
+ * dispatch tables line up. */
+#if TMAP_KIND == 0
+#define TMAP_MAP_T struct ToriDraw_TexPlaneFrame
+#else
+#define TMAP_MAP_T struct ToriDraw_TexMapping
+#endif
+
+#if TMAP_ZBUF
+#define TMAP_ZKEY_PARAMS , float key_a, float key_b, float key_c, torizdepth_t* RESTRICT zbuffer
+#define TMAP_ZROW_ARGS , zbuffer, key_row, depth.step_dx
+#define TMAP_ZADVANCE() (key_row += depth.step_dy)
+#else
+#define TMAP_ZKEY_PARAMS
+#define TMAP_ZROW_ARGS
+#define TMAP_ZADVANCE() ((void)0)
+#endif
 
 static inline void
 TMAP_FN(
-    int* RESTRICT pixel_buffer,
+    toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
     int screen_height,
@@ -57,15 +105,20 @@ TMAP_FN(
     int shade7bit_a,
     int shade7bit_b,
     int shade7bit_c,
-    const struct ToriDraw_TexMapping* RESTRICT mapping,
-    const struct ToriDraw_TexSampler* RESTRICT sampler)
+    const TMAP_MAP_T* RESTRICT mapping,
+    const struct ToriDraw_TexSampler* RESTRICT sampler TMAP_ZKEY_PARAMS)
 {
     /* ---------------------------------------------------- 1. projection */
 
     float u[3];
     float v[3];
 
-#if TMAP_KIND == 1
+#if TMAP_KIND == 0
+    /* Fixed per-vertex uv in the frame; nothing here depends on the camera.
+     * No seam fixup: a plane projection has no seam. */
+    toridraw_texmap_project_plane(
+        mapping, mx0, my0, mz0, mx1, my1, mz1, mx2, my2, mz2, u, v);
+#elif TMAP_KIND == 1
     toridraw_texmap_project_cylinder(mapping, mx0, my0, mz0, &u[0], &v[0]);
     toridraw_texmap_project_cylinder(mapping, mx1, my1, mz1, &u[1], &v[1]);
     toridraw_texmap_project_cylinder(mapping, mx2, my2, mz2, &u[2], &v[2]);
@@ -199,13 +252,24 @@ TMAP_FN(
     if( sarea == 0 )
         return;
 
+#if TMAP_ZBUF
+    /* From the UNSORTED corners, like every other plane here. */
+    struct ToriDraw_ZbufPlane depth;
+    if( !toridraw_zbuf_plane_solve(
+            &depth, x0, y0, key_a, x1, y1, key_b, x2, y2, key_c) )
+        return;
+#endif
+
     int dblend_ab = sh[1] - sh[0];
     int dblend_ac = sh[2] - sh[0];
 
     int shade8bit_yhat_ish8 = ((dx_AC * dblend_ab - dx_AB * dblend_ac) << 9) / sarea;
     int shade8bit_xhat_ish8 = ((dy_AB * dblend_ac - dy_AC * dblend_ab) << 9) / sarea;
-    int shade8bit_edge_ish8 =
-        (sh[0] << 9) - shade8bit_xhat_ish8 * sx[0] + shade8bit_xhat_ish8;
+    /* Modular: the reference client relies on int wraparound here, and an edge-on
+     * triangle reaches the overflow. See graphics/int_wrap.h. */
+    int shade8bit_edge_ish8 = toridraw_wrap_add(
+        toridraw_wrap_sub(sh[0] << 9, toridraw_wrap_mul(shade8bit_xhat_ish8, sx[0])),
+        shade8bit_xhat_ish8);
 
     int step_edge_x_AC_ish16 = 0;
     int step_edge_x_AB_ish16 = 0;
@@ -233,7 +297,8 @@ TMAP_FN(
          * argument in graphics/raster/zbuffer/zbuf.screen.u.c. */
         if( ry1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * ry0;
-        shade8bit_edge_ish8 -= shade8bit_yhat_ish8 * ry0;
+        shade8bit_edge_ish8 = toridraw_wrap_sub(
+            shade8bit_edge_ish8, toridraw_wrap_mul(shade8bit_yhat_ish8, ry0));
         ry0 = 0;
     }
     if( ry1 < 0 )
@@ -270,6 +335,10 @@ TMAP_FN(
     int cw = uv.cw;
     int offset = ry0 * stride;
 
+#if TMAP_ZBUF
+    float key_row = toridraw_zbuf_plane_row(&depth, ry0);
+#endif
+
     /* ---------------------------------------------------------- 5. walk */
 
 #define TMAP_ROW(left, right)                                                                      \
@@ -287,7 +356,7 @@ TMAP_FN(
         uv.step_cw_dx,                                                                             \
         shade8bit_edge_ish8,                                                                       \
         shade8bit_xhat_ish8,                                                                       \
-        sampler)
+        sampler TMAP_ZROW_ARGS)
 
 #define TMAP_ADVANCE()                                                                             \
     do                                                                                             \
@@ -295,8 +364,9 @@ TMAP_FN(
         au += uv.step_au_dy;                                                                       \
         bv += uv.step_bv_dy;                                                                       \
         cw += uv.step_cw_dy;                                                                       \
-        shade8bit_edge_ish8 += shade8bit_yhat_ish8;                                                \
+        shade8bit_edge_ish8 = toridraw_wrap_add(shade8bit_edge_ish8, shade8bit_yhat_ish8);         \
         offset += stride;                                                                          \
+        TMAP_ZADVANCE();                                                                           \
     } while( 0 )
 
     int seg1 = ry1 - ry0;
@@ -348,6 +418,12 @@ TMAP_FN(
 #undef TMAP_ADVANCE
 }
 
+#undef TMAP_ZKEY_PARAMS
+#undef TMAP_ZROW_ARGS
+#undef TMAP_ZADVANCE
+#undef TMAP_MAP_T
+
 #undef TMAP_FN
 #undef TMAP_SPAN
 #undef TMAP_KIND
+#undef TMAP_ZBUF

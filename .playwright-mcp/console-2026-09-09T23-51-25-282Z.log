@@ -1,0 +1,8 @@
+[     818ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ about:blank:0
+[    1073ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1184ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1184ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1185ms] [WARNING] Header: trk missing @ https://ir.ebaystatic.com/rs/c/globalheaderweb/index_lcNW.5e957a01.js:0
+[    1617ms] [LOG] done @ https://www.ebay.com/itm/406151943005:4
+[    2124ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0
+[    2139ms] [ERROR] Failed to load resource: net::ERR_FAILED @ chrome-extension://invalid/:0

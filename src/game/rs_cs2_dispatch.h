@@ -10,13 +10,15 @@
 
 /*
  * The game layer's single entry point for executing component script hooks.
- * Owns the "how CS2 hooks run" policy: enqueue the script task and drive it to
- * completion (native drain). UI code returns intents; the application layer
- * applies event context and calls this. Widget-loaded transmit traversal is
- * coalesced into RS_CS2_PumpTransmits, run once per logic tick.
+ * Owns the "how CS2 hooks run" policy: build the script task and enqueue it on
+ * the runner's serial FIFO, which the app's per-frame pump drains. Nothing here
+ * runs a script. UI code returns intents; the application layer applies event
+ * context and calls this. Widget-loaded transmit traversal is coalesced into
+ * RS_CS2_PumpTransmits, run once per logic tick.
  */
 
-/** Run one hook to completion. No-op if hook is NULL or unset. */
+/** Enqueue one hook. The app's per-frame pump drives it; this does not run the
+ *  script. No-op if hook is NULL or unset. */
 void
 RS_CS2_DispatchHook(
     struct RS_CS2Host* host,

@@ -22,9 +22,13 @@ make -C src io-server    # cache/boot server used by the browser build
 ```
 
 On Windows, use `./build_windows.ps1 -Opt` for the modern x86_64 artifact or
-`./build_winxp.ps1 -Opt` for the XP-compatible i686 artifact. Omitting `-Opt`
-intentionally builds the corresponding debug lane. Both compiler toolchains
-are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
+`./build_winxp.ps1` for the XP-compatible i686 artifact. The two wrappers
+differ on purpose: `build_windows.ps1` builds its debug lane when `-Opt` is
+omitted, whereas the XP lane defaults to release, because it is the lane the
+numbers in `docs/xpbench` are measured on and an OPT=0 artifact is not
+comparable to them. Pass `-DebugBuild` for the XP debug lane.
+
+Both compiler toolchains are pinned in this repository; see [Repository Windows toolchains](tools/toolchain/README.md).
 Platform selection, prerequisites, renderer flags, compatibility constraints,
 and known defects are centralized in
 [Platform quirks and contracts](docs/platform_quirks.md). Detailed active guides
@@ -44,40 +48,40 @@ The client boots from a cache built from `OSRS-Content/osrs239-content/`:
 
 | Step | Command | Output |
 |---|---|---|
-| ServerScript pack | `make -C src mock230-scripts` | `server/scripts/build/script.dat` |
-| Server bands | `make -C src mock230-servpack` | `server/pack/` (no cache opened) |
-| Cache bake | `make -C src mock230-cache` | `cache.osrs239.baked` |
-| Table check | `make -C src mock230-cache-check` | asserts all 23 tables |
+| ServerScript pack | `make -C src torirsserver-scripts` | `server/scripts/build/script.dat` |
+| Server bands | `make -C src torirsserver-servpack` | `server/pack/` (no cache opened) |
+| Cache bake | `make -C src torirsserver-cache` | `cache.osrs239.baked` |
+| Table check | `make -C src torirsserver-cache-check` | asserts all 23 tables |
 
 The bake takes `--base` when a pristine cache is present, so records the tree
 does not change keep the bytes they had. **Without a base it creates the cache**,
 and what lands is exactly what the tree states. Aim it elsewhere with:
 
 ```
-make -C src mock230-cache MOCK230_CACHE_DIR=$PWD/cache.osrs239_packed
-make -C src mock230-cache MOCK230_CACHE_BASE=/path/to/cache.osrs239
+make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239_packed
+make -C src torirsserver-cache TORIRSSERVER_CACHE_BASE=/path/to/cache.osrs239
 ```
 
-`mock230-cache-check` lists any missing `main_file_cache.idxN` by number. A
+`torirsserver-cache-check` lists any missing `main_file_cache.idxN` by number. A
 table with no idx file is a table the client cannot read, and `idx255`—the
 reference-table index—is what makes every other table reachable at all.
 
 ### Booting a packed cache
 
-[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
-`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+[`manifests/manifest_osrs239_packed.ini`](manifests/manifest_osrs239_packed.ini) is
+`manifests/manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
 cache built from content rather than the pristine dump:
 
 ```sh
-src/torirs --manifest manifest_osrs239_packed.ini --offline
+src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 On Windows, build either repository-owned lane with the wrapper described
 above, then run its staged artifact:
 
 ```powershell
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239_packed.ini
-.\dist\win32\torirs.exe --manifest .\manifest_osrs239_packed.ini
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239_packed.ini
+.\dist\win32\torirs.exe --manifest .\manifests/manifest_osrs239_packed.ini
 ```
 
 Two things a from-scratch cache needs that a `--base` bake inherits for free,
@@ -94,8 +98,710 @@ complete:
 
 ```
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
-    src/torirs --manifest manifest_osrs239_packed.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
+
+## Architecture — as of 2026-08-20
+
+The whole client is a computation over a cache and a socket. It owns **no
+device, no disk, and no file handle**: it produces *queues*, and exactly one
+piece of code — the executor in [`src/main.c`](src/main.c) — carries those
+queues to a platform. Everything below is a consequence of that one rule, and
+every host (SDL2 desktop, Win32/D3D9, WinXP, Android/iOS, a browser tab, a
+headless test) is a different answer to "who drains the queues".
+
+```
+ ┌──────────────────────────────────── the client (src/app.c) ───────────────────────────────────┐
+ │  UITree + World + CS1/CS2 VMs + net decode + game logic                                       │
+ │                                                                                               │
+ │   graphics                 audio                    IO                    input/net           │
+ │   UITreeEmitBuffer         ToriRS_AudioQueue        ToriRS_IO             ToriRS_CmdBus       │
+ │   + PaintersBuffer         (256 commands)           (2 x 32 slots)        (drained IN)        │
+ │   + Scene asset events                                                                        │
+ └────────┬───────────────────────┬────────────────────────┬──────────────────────┬──────────────┘
+   App_BuildFrame /         App_DrainAudio          TaskRunner_Step         App_DrainCommands
+   App_Render                    │                        │                        ▲
+          │                      │                        │                        │
+ ┌────────▼──────────────────────▼────────────────────────▼────────────────────────┴──────────────┐
+ │                        the executor — frame_loop_step() in src/main.c                          │
+ └────────┬──────────────────────┬────────────────────────┬────────────────────────┬──────────────┘
+          │                      │                        │                        │
+   ToriRS_Frame            PlatformAudio            PlatformX_IO             NetTransport
+   (pull, 1 cmd/call)      (retained mixer)         (item backend)           (tcp / ws / embed)
+          │                      │                        │                        │
+   Soft3D / GL3 /          SDL2 / WebAudio /         ┌─────▼──────┐                 │
+   WebGL1 / D3D9 /         null                      │  rscache   │           game server
+   GDI                                               │ dat1/dat2  │        (ToriRSServer, …)
+                                                     └─────┬──────┘
+                                                    miss →  │  JS5 client (src/js5)
+                                                            ▼
+                                                     io_server / js5_server
+```
+
+Four queues, not three. The three the client *produces* (graphics, audio, IO)
+all flow outward; the command bus flows the other way and is the single inbound
+funnel for keyboard, mouse, window resize and raw network bytes. It is listed
+here because it is the reason record/replay works at all — see
+[The command bus](#the-command-bus-input-and-network-inbound).
+
+---
+
+### The executor: one frame, in order
+
+[`frame_loop_step()`](src/main.c) is the entire host. Native spins it; the
+browser hands it to `requestAnimationFrame`; the loop's state is at file scope
+because `emscripten_set_main_loop` unwinds the C stack and anything `main` held
+as a local would be gone by the first tick.
+
+The order inside one iteration is a contract, not a style choice:
+
+| # | step | why it must be here |
+|---|---|---|
+| 1 | `PlatformX_IO_Process` / `Pending` (inside step 5, per task runner) | the platform executor takes what a task queued and reports what is still in flight; a task is not resumed until every item it queued is filled |
+| 2 | drain SDL/JS events → `ToriRS_CmdBus` | input and network bytes enter as recordable frames |
+| 3 | `App_DrainCommands` | bus → `ToriRS_Input` / `ToriRS_Network` / canvas resize |
+| 4 | surface reconcile (canvas size, DPI, chrome scale) | layout is computed against the canvas, so it must be settled before logic |
+| 5 | `App_RunOnce(now_ms, input)` | pump both task runners, run pending 20 ms logic ticks, interaction pass, emit rebuild |
+| 6 | `App_BuildFrame` + backend `RenderFrame`, **or** `App_Render` | the graphics queue is consumed here |
+| 7 | `App_PickFinish(hits)` | render-time hittest results become a `World_PickSet` |
+| 8 | window/canvas sync (`App_SyncUiScale`, fixed-mode chrome inset, windowmode change) | must be after `App_RunOnce`, because clientscripts changed it during the tick |
+| 9 | `PlatformAudio_SubmitAll(App_DrainAudio(...))` → `PlatformAudio_Update` → `PlatformAudio_Feedback` → `App_SetAudioFeedback` | see [Audio](#the-audio-queue) — this exact order is the whole audio contract |
+| 10 | `TORIRS_PERF_FRAME_END()`, `fflush(stderr)`, pacing | the work timer closes *before* the pacing sleep, or every capped frame reports ~20 ms |
+
+A frame is not a tick. The client clock runs at 20 ms and catches up inside
+`App_RunOnce`; the frame rate is whatever the host gives it. `App_FrameSettled`
+is the gate: while it is false the host must **present the last committed
+framebuffer** rather than calling `App_Render` against a half-applied CS2 or
+server transaction.
+
+---
+
+### The client's async runtime: tasks, IO slots, protothreads
+
+Everything that touches the cache is a **task** — a protothread
+([`src/asyncio.h`](src/asyncio.h), `3rd/minipt.h`) with a `run(task, io)`
+vtable, held on a `ToriRS_TaskQueue`. A task queues an item into a slot of the
+shared `struct ToriRS_IO` (32 slots), `PT_YIELD`s, and finds the answer in that
+slot when it resumes.
+
+```c
+RSCache_IO_Dat2ModelLoad(io, 0, task->model_id);   /* fills io_slots[0]      */
+PT_YIELD(&task->pt);                               /* control leaves         */
+rscache_model = RSCache_IO_Dat2ModelDecode(io, 0); /* …and comes back filled */
+```
+
+**The App owns two runners, sharing one `PlatformX_IO`:**
+
+- `app->runner` — the asset pipeline. Model/sprite/font/config/map loads. Runs
+  head-first but tasks complete out of order relative to each other only by
+  queue position.
+- `app->exec_runner` — the serial game-action FIFO. Per-packet exec tasks and
+  interface-slot mounts. Head-only execution makes it a strict FIFO, so packet
+  application order survives IO yields, and a mount enqueued by a packet runs
+  before the next packet is even popped.
+
+They have **separate `ToriRS_IO` instances** and that is exactly why
+`PlatformX_IO_Pending` takes an `io` argument: one pipeline blocked on a JS5
+download must not stall the other.
+
+Three yield outcomes, and the distinction is load-bearing
+([`src/task_runner.h`](src/task_runner.h)):
+
+| status | meaning | what the runner does |
+|---|---|---|
+| `IDLE` | queue drained | frame may be published |
+| `PENDING` | head yielded on a **platform request** | hand the IO list to the platform and step again |
+| `BLOCKED` | head yielded on **another queue's state** (`TASK_AWAIT_STATE`) | end the frame — re-stepping is an unbreakable busy-wait |
+
+`TaskRunner_Drain` is native/test only. `TaskRunner_SettleFrame` is what the
+frame loop uses: keep stepping until nothing can make progress, then publish.
+
+**The protothread trap, stated because it shipped a bug:** a `PT_TASK_AWAITSELF`
+is an unbounded suspension. World-pool indices and scene element ids are
+*recycled* across it. Hold the stable identity (server slot, pid) across an
+await and re-derive the index after — never carry the derived index.
+
+---
+
+### The graphics queue
+
+The client never rasterizes into a device. Per frame it produces three things:
+
+1. **`UITreeEmitBuffer`** — flat `UITreeEmitDesc` records from a UITree walk:
+   `SPRITE`, `TEXT`, `RECT`, `LINE`, `MODEL`, `CC_OBJ`, `SCROLLBAR_V/H`,
+   `WORLD`, `MINIMAP`, `COMPASS`, `ENTITY_OVERLAY`, `WORLDMAP`,
+   `DEBUG_OVERLAY`. Every desc carries its own clip rect — clipping is
+   per-surface, never compounded.
+2. **`PaintersBuffer`** — the world's back-to-front painter command stream,
+   produced by [`src/painters/`](src/painters/) from the built scene.
+3. **`ToriDraw_Scene` events** — asset load/unload edges (a sprite became
+   resident, a model was dropped), which become `TORIRSRC_*_LOAD/_UNLOAD`.
+
+[`ToriRS_Frame`](src/render/torirs_frame.h) is the adapter, and it is **pull,
+not push**:
+
+```c
+ToriRS_FrameBegin(&frame);
+while( ToriRS_FrameNextCommand(&frame, &cmd) ) { /* one command per call */ }
+ToriRS_FrameEnd(&frame);
+```
+
+One `ToriRS_RenderCommand` per call, greedily expanded — a `UITREE_EMIT_WORLD`
+desc opens a `BEGIN_3D` pass and then walks the painter buffer; a scrollbar
+expands into its sub-steps; a polygon is a `POLYGON_BEGIN` / `POLYGON_POINT…` /
+`POLYGON_END` **run** rather than one command carrying an array, because the
+emit layer produces exactly one command per step. A run that is never closed
+draws nothing — the right failure for a truncated command list.
+
+Command kinds ([`src/render/torirs_render.h`](src/render/torirs_render.h)):
+state (`BEGIN/END_2D/3D`, `CLEAR_RECT`, `FILL_RECT`), resources
+(`MODEL/ANIM/TEX/SPRITE/FONT_LOAD` + `_UNLOAD`), drawing (`DRAW_MODEL`,
+`DRAW_MODEL_WIDGET`, `SPRITE`, `FONT`, `LINE`, `POLYGON_*`), and reserved
+GPU batching (`BATCH3D_*`, `TEX/SPRITE/FONT_BEGIN/END`).
+
+**Backends** — each drains the identical stream:
+
+| backend | file | notes |
+|---|---|---|
+| Soft3D | `platform_sdl2_renderer_soft3d.c` | reference rasterizer; `App_Render` writes ARGB pixels, then `PlatformWindow_Present` |
+| Desktop GL3 | `platform_sdl2_renderer_gl3.c` (+`gl3zb`) | `--opengl3` |
+| WebGL1 | `platform_sdl2_renderer_webgl1.c` (+`webgl1zb`) | same source family as GL3 under `TORIRS_GL_ES2`; needs the 16-bit index splitter |
+| D3D9 | `platform_win32_renderer_d3d9_*.c` | fixed-function, XP lane |
+| GDI | `platform_win32gdi.c` | blit-only fallback |
+
+`DRAW_MODEL` is **self-contained** (project + sort + raster in the consumer);
+emitters must not rely on projection scratch surviving across commands.
+
+**Picking rides the render pass.** A pickable `DRAW_MODEL` that projects
+`VISIBLE` is hittested against the mouse point right there, while the scene's
+per-model `screen_vertices`/aabb scratch still holds that projection
+([`src/render/torirs_pick.h`](src/render/torirs_pick.h)). The renderer records
+raw hits only; `App_PickFinish` classifies them into a `World_PickSet` after
+the frame, so no renderer ever includes `struct World`. Pick/render parity is
+therefore automatic — the hittest uses the executor's own `BEGIN_3D` viewport.
+Note that the per-face test is a **bbox** test, so hidden faces do not pick.
+
+---
+
+### The audio queue
+
+Same split as rendering, for the same reason: the game must run where it cannot
+own a device. The interface is
+[`src/audio/torirs_audio.h`](src/audio/torirs_audio.h), and it is **retained**,
+not immediate:
+
+- **assets** — immutable 16-bit mono PCM under a handle, living in the
+  `ToriDraw_Scene` asset registry beside models and sprites. The scene's
+  load/unload events become `ASSET_LOAD`/`ASSET_UNLOAD` exactly as sprite
+  events become `TORIRSRC_SPRITE_LOAD`.
+- **voices** — one playback of an asset, with a game-chosen id so an area sound
+  can be moved or stopped. `VOICE_START` / `VOICE_UPDATE` / `VOICE_STOP`.
+- **streams** — PCM the game *generates*: music, synthesised from a MIDI track
+  and a cache soundbank, pushed in blocks and ringed by the backend.
+
+Nothing on the audio path allocates per play. `ASSET_LOAD` and `STREAM_PUSH`
+carry a pointer borrowed **only for the duration of the submit call** — the
+backend copies immediately, so a moving wasm heap cannot invalidate it.
+
+Three buses (`EFFECTS`, `MUSIC`, `AREA`) with independent volumes, because the
+settings panel has three independent sliders plus a master.
+
+[`src/game/rs_audio.c`](src/game/rs_audio.c) is the game half — four genuinely
+different problems feeding one queue: server/seq/script **effects** (a 50-entry
+delay queue counted down on the client tick, discarded once 10 ticks late),
+scene-walked **area** loops whose pan follows the camera, **music**, and
+**jingles**. The asset drain runs on the *logic tick*, before the render frame
+consumes and clears the same scene event queue.
+
+The frame contract, in this order and no other:
+
+```
+PlatformAudio_SubmitAll(queue)  apply what the tick produced
+PlatformAudio_Update()          mix, push to the device
+PlatformAudio_Feedback(&fb)     how much headroom the music stream has
+App_SetAudioFeedback(&fb)       …which sizes the NEXT tick's synthesis
+```
+
+Backends: `platform_audio_sdl2.c` (native), `platform_audio_wasm.c`
+(WebAudio), `platform_audio_null.c` (headless, tests, and the fallback when a
+device fails to open — so a machine with no sound card still runs). The mixer
+itself (`audio/torirs_mixer.c`) is shared by every backend and is driven
+directly by `make -C src test-audio` with no device at all.
+
+---
+
+### The IO queue
+
+[`src/asyncio.h`](src/asyncio.h) defines the only thing the client can ask a
+host for. Seven kinds:
+
+| kind | payload | notes |
+|---|---|---|
+| `CACHE` | epoch, **logical** table, archive, flags | flags select `DAT2`, `DAT1`, `DAT1_MAP_TERRAIN`, `DAT1_MAP_SCENERY` |
+| `REFERENCE_TABLE` | table id | returns a decoded `RSCache_ReferenceTable` |
+| `CONFIG_FILE` | path under the config dir | revconfig INIs |
+| `SCRIPT` | path under the script dir | |
+| `FILE_READ` | verbatim path | the player's own settings file |
+| `FILE_WRITE` | verbatim path **+ borrowed data** | the only item carrying data *inward* |
+| `NONE` | — | empty slot |
+
+Two rules that are easy to get wrong:
+
+- **A dat2 item names a table by *role*, not by number** (`RSCACHE_DAT2_TABLE_*`).
+  Ids are not portable — 19 is OldSchool's worldmap and RS2's objs, 26 is RS2's
+  materials and nothing in OldSchool. The number is settled in the platform
+  layer, which is the one place holding the open cache.
+- **A dat1 map item carries a map-square id**, not an archive id. Only the disk
+  layer holds the versionlist that maps region → terrain/loc archive.
+
+`FILE_WRITE` is the exception to the "platform fills these in" rule:
+`data`/`data_size` are the bytes to write, borrowed for the request, and
+`PlatformX_IO_LoadItem` handles it *before* the field clear that every other
+kind gets — zeroing them would hand the platform an empty file.
+
+---
+
+### Platform executor → cache system
+
+[`PlatformX_IO`](src/platform/platform_x_io.h) is the item backend. Four calls:
+
+```c
+PlatformX_IO_LoadItem(px, item)   /* satisfy one item                        */
+PlatformX_IO_Process(px, io)      /* satisfy (or start) every active slot    */
+PlatformX_IO_Pending(px, io)      /* how many reads for THIS io are unanswered */
+PlatformX_IO_Free(px)
+```
+
+`Pending` is what makes the same client code work on a synchronous and an
+asynchronous host. The native backends always return 0 — `Process` satisfies
+everything before returning. The asynchronous ones only *start* the read, and
+`Pending` is what stops `TaskRunner_Step` from resuming a task over an empty
+slot and reporting a decode failure.
+
+Inside `Process`, a dat2 cache read walks:
+
+1. **Table resolution** — `dat2_resolve_table` turns the logical table into this
+   cache's on-disk id via `RSCache_Dat2DiskTableId`, or returns
+   `RSCACHE_DAT2_DISK_TABLE_ABSENT`. That refusal is deliberate: the id a
+   wrong-branch read would land on usually *exists* and decodes into something
+   else, surfacing far from the cause.
+2. **The decompressed-archive LRU** — 32 slots, deep-copied on hit because
+   callers own and free what they receive. Group archives are requested once
+   per contained id; without this, interface 100 spent ~6 s re-running bzip2 on
+   the obj config group **219 times** in one boot.
+3. **XTEA** — loc (`lX_Z`) map archives are encrypted on OldSchool below 237 and
+   RS2 dat2 from 414; terrain (`mX_Z`) never is. The *cache identity* decides,
+   not the presence of a key file — applying a key to plain data corrupts it.
+4. **`RSCache_Dat2DiskArchiveNewLoadDecrypted`** → sector chain → container →
+   decompress → reference-table metadata attach.
+
+The **cache system** itself is the vendored library at
+[`3rd/rscache/`](3rd/rscache/): `dat2disk` (six-byte idx records, sector chains,
+containers), `dat1disk` (versionlist/OnDemand), `reference_table` (protocols
+5/6/7, delta-coded ids, CRCs, versions, child ids), `compression` (gzip/bzip2/
+lzma), `xtea_config`, and ~55 `datatypes/` decoders. Every revision-sensitive
+codec takes a `struct RSCache` **profile** (epoch, game, revision, quirks) —
+the identity a boot manifest states — rather than a bare `int revision` lifted
+from whatever archive the record came from.
+
+Above rscache sit the **build caches** and the **provider**:
+
+```
+task_dat2_*_load.c ──> Dat2BuildCache (raw RSCache_* records)
+                  └──> CacheProvider  (decoded ToriRS_* / ToriDraw_* by id)
+```
+
+[`CacheProvider`](src/engine/cache_provider.h) is ~26 hash maps — models,
+sprites, fonts, enums, structs, params, componentpacks, clientscripts, obj/npc/
+spotanim types, sounds, idks, map terrain/scenery, locs, flos, underlays,
+textures, mapelements, dbrows/dbtables/dbindexes, worldmap geography — plus the
+name-hash indexes and the cache profile. Everything downstream of Phase 2 in
+`App_Init` sees only the provider, never a disk.
+
+`DAT2_GROUP_AWAIT` ([`engine/dat2/dat2_group_await.h`](src/engine/dat2/dat2_group_await.h))
+is the shared shape of every record load: resolve `(table, group)`, read on a
+miss, find the member. Both addressing schemes reach the same key — OSRS keeps
+records in one config group `(CONFIGS, config_kind)`, RS2 shards them into their
+own table `(table, id >> shift)`.
+
+---
+
+### Cache system → JS5
+
+JS5 is the client's incremental cache filler, and it is **opt-in and executor-
+owned**: the core App, task runner, cache providers and cache request
+interfaces did not change to accommodate it.
+
+Three deliberately narrow layers ([`src/js5/`](src/js5/)):
+
+- **`js5.[ch]`** — the rev-239 protocol and incremental-cache state machine.
+  Its only dependencies are `Js5TransportOps` and `Js5StorageOps` callback
+  tables, so tests replace both with deterministic in-memory pipes.
+- **`js5_rscache.[ch]`** — the persistence adapter; the only client-side JS5
+  code that knows how to install data through rscache.
+- **`server/`** — a standalone read-only JS5 service (below).
+
+Boot order:
+
+1. 21-byte handshake: opcode 15, revision, four 32-bit seed words.
+2. Request `255/255`, validate the master index, read its `(CRC, version)` for
+   every archive.
+3. Load a valid local `255/N` reference table or fetch and persist it. **No
+   game task is stepped until every required reference table is ready** — this
+   is the *metadata barrier*.
+4. Scan existing groups on a bounded per-tick budget. CRC covers the JS5
+   container only; the trailing group version is checked separately.
+5. Queue invalid/absent groups on the normal background lane.
+6. Persist a validated response, then retry the original read through the same
+   rscache path the core already uses.
+
+The bridge is
+[`platform_x_io_js5_cache.c`](src/platform/platform_x_io_js5_cache.c) plus the
+`js5_*` half of `platform_x_io.c`:
+
+- A **local hit stays synchronous** — `js5_queue_cache_item` calls
+  `load_cache_item_dat2` directly when `RequestGroup` says `ALREADY_READY`.
+- A **miss parks one slot**: `Js5PendingItem{io, slot, archive, group}`, and
+  `PlatformX_IO_Pending(px, io)` counts only that pipeline's parked slots.
+  A synchronous core miss is requested on the **urgent** lane; background fill
+  uses the normal lane.
+- `PlatformXIO_Js5Pump` ticks the state machine and `js5_service_pending`
+  completes or fails each parked slot.
+
+Protocol behaviour carried over: nonblocking pump after the barrier, urgent and
+normal lanes with 200 in-flight each, 512-byte blocks with `0xFF` continuation
+markers, duplicate promotion (an urgent duplicate when the normal copy is
+already in flight), inactivity timeouts, primary/fallback ports (443 only when
+the primary is 43594), replay after reconnect, CRC-triggered XOR recovery, and
+progress reporting. Compressed/XTEA'd group bytes are preserved exactly — JS5
+validates and stores the framed container without decoding it.
+
+Native opt-in:
+
+```sh
+src/torirs cache.osrs239.sparse --manifest manifests/manifest_osrs239.ini \
+    --offline --js5 --js5-host 127.0.0.1 --js5-port 43594 --js5-fallback-port 0
+```
+
+or `[js5:boot]` in the manifest. Settings are resolved in
+[`executor_config.c`](src/executor_config.c) — host-owned, never leaking into
+`AppConfig`.
+
+---
+
+### The two servers
+
+Both are always built native, even from a web build:
+`make -C src servers`. They have different jobs, different lifetimes and very
+different exposure, which is why they are separate executables with separate
+bind addresses. Full detail in [docs/WEB_SERVERS.md](docs/WEB_SERVERS.md).
+
+#### `io_server` — the page, the boot files, and the dat1 proxy
+
+[`src/ioserver/`](src/ioserver/). Serves `build-web/`, revalidates the files
+the client opens by name, and stands in for the one cache source a page
+cannot reach itself: a LostCity dat1 cache, whose on-demand half is raw TCP and
+whose jag archives carry no CORS header.
+
+| route | method | what |
+|---|---|---|
+| `/boot/<path>` | GET | a manifest, RevConfig INI or plugin script, under `--boot-root`, with a validator |
+| `/cache/dat1/<table>/<archive>` | GET | one raw dat1 container, proxied off the LostCity server the manifest names |
+| `/cache/dat1/batch` | POST | several of those on one connection |
+| `/stats` | GET | what it served, which caches are open |
+| `/io` | POST | an `IOWire` batch — the removed wire lane's route; `test-io-wire` still checks the codec, no client sends to it |
+| everything else | GET | static files under `--root` (default `build-web/`) |
+
+What crosses the dat1 proxy is the container exactly as the server serves it,
+undecoded: the browser stores raw containers for dat2 already, and one shape
+for both keeps a single decode step at the far end (`platform_web_api.c`).
+Client-supplied cache directories and manifest paths are treated as input:
+resolved under `--boot-root`, rejected if absolute or escaping the tree.
+
+Boot files carry `ETag: "<mtime>-<size>"` + `Cache-Control: no-cache` +
+`Access-Control-Expose-Headers: ETag`, so a hand-edited manifest is picked up
+without re-downloading it every boot. (`no-cache`, not `no-store` — `no-store`
+forbids keeping the copy you would revalidate.)
+
+#### `js5_server` — the cache over the wire
+
+[`src/js5/server/`](src/js5/server/). Read-only, never writes the served cache.
+
+- `js5_server_cache.c` — opens dat2 through rscache's read-only API, validates
+  every index/reference pair, strips local version trailers from responses, and
+  synthesises `255/255`.
+- `js5_server_session.c` — a **socket-free** protocol state machine: fragmented
+  handshakes, urgent/normal queues, response framing, XOR, per-client limits,
+  deadlines.
+- `js5_server_conn.c` — framing. **One port, two framings, decided by the first
+  byte**: `'G'` is an HTTP upgrade, opcode 15 is a raw JS5 stream. This is not a
+  convenience — Emscripten implements BSD sockets as WebSockets, so the browser
+  build's `connect()` *is* an upgrade request, and a raw-TCP-only server is
+  unreachable from a page.
+- `js5_server.c` — a cross-platform nonblocking `select()` reactor; one stalled
+  client cannot block accepts, parsing or writes for another. Cache reads stay
+  serialized in the reactor, so rscache's file cursor is never shared.
+
+It re-`stat`s the dat2 and idx255 once a second and reloads when they move, so
+repacking the cache under a running server works. A failed reload is not fatal
+(a repack in progress genuinely looks corrupt): the rebuild goes to a scratch
+store and swaps in only on success. Sessions mid-download are not told — JS5 has
+no "the cache moved" message — so a client holding the previous master fails a
+CRC, drops, and re-primes, which is the recovery path a corrupt local copy
+already takes.
+
+No auth, no origin check, no encryption; it hands out every byte of the cache.
+Loopback default matters more because it accepts WebSockets: any page the
+browser loads can reach it.
+
+Readiness line: `READY 127.0.0.1 43594 239`.
+
+---
+
+### The web lane
+
+One lane, and its cache is in the browser: one raw container per archive in
+IndexedDB (`src/web/torirs_idb.js`), filled on demand by a producer that
+speaks the cache's own protocol -- JS5 (`torirs_js5.js`) for a dat2 world,
+the 2004 on-demand protocol proxied through `io_server` (`torirs_ondemand.js`)
+for a dat1 one. The IO queue the game writes to is the desktop's
+(`asyncio.h`); the *executor* that answers it is JavaScript
+([`platform_web_io.js`](src/platform/platform_web_io.js), linked as an
+emscripten JS library so its functions define the `PlatformWeb_IO_*` symbols),
+and decoding stays in C (`platform_web_api.c` over `3rd/rscache`). No ASYNCIFY:
+C queues and asks whether an item is done; `PlatformX_IO_Pending` keeps
+`TaskRunner_Step` from resuming a task until every item it queued is filled.
+
+The earlier "wire" lane -- no cache in the tab, every read a `POST /io` to
+`io_server` -- was removed; `src/platform/platform.mk` keeps the reasoning.
+`io_server` serves the page, revalidates the boot files (`GET /boot/`, ETag),
+proxies dat1 containers, and still answers `/io` for `test-io-wire` only.
+
+The store keeps no JavaScript mirror and no hydrate pass: records are read
+from IndexedDB when asked, since everything that touches the store is
+asynchronous. `TORIRS_IOK_FILE_READ/WRITE` go to the durable `files` store,
+**not** MEMFS -- MEMFS lives for the life of the tab, and a client file is the
+player's saved options, precisely the thing that must survive a reload.
+
+---
+
+### The command bus (input and network, inbound)
+
+The counterpart to the three outbound queues.
+[`src/cmd/cmdbus.h`](src/cmd/cmdbus.h) is a 128 KB ring of
+`[type][length][payload]` frames, and **the ring's byte layout is the record
+file format**: a recorded session is the pushed stream teed to disk, and replay
+is a file-read loop pushing the same frames back. `TORIRS_CMD_FRAME` delimits
+loop iterations and carries that iteration's timestamp, so a replay reproduces
+tick catch-up exactly.
+
+Frame types: `INPUT_KEY_*` / `INPUT_MOUSE_*` / `INPUT_CLEAR_KEYS` →
+`ToriRS_Input`; `NET_CONNECT` / `NET_RECV` / `NET_STATUS` → `ToriRS_Network`;
+`WINDOW_RESIZE` → App (a resize is a *layout* event — the gameframe is laid out
+against the canvas — and it goes on the bus so a replay resizes at the same
+frame).
+
+The network side has its own platform seam,
+[`net_transport.h`](src/platform/net_transport.h): `NET_TRANSPORT_TCP`,
+`NET_TRANSPORT_WS` (RFC 6455 client — a browser has no TCP), and an in-process
+`embed` transport for the built-in `ToriRSServer`. `NET_RECV` always carries
+de-framed application bytes, so `packetbuffer` above never sees WebSocket
+headers and the net stack is transport-blind.
+
+---
+
+### Boot, end to end
+
+```
+BootManifest_LoadFile(manifest.ini)      cache identity + dir, net rev/transport/host,
+                                         login RSA/CRCs, revconfig includes, features era
+        │
+ToriRS_ExecutorConfig_ResolveJs5         host-owned JS5 settings, validated against the
+        │                                cache identity
+[JS5 enabled] open/create sparse cache; PlatformXIO_Js5Enable
+        │
+App_Init                                 Phase 1 task runtime + disk
+        │                                Phase 2 build cache + CacheProvider (SetProfile)
+        │                                Phase 3 scene + UITree bridge
+        │                                Phase 4 world sim + builder + painters
+[JS5 enabled] pump the metadata barrier until every reference table is ready
+        │
+App_OpenRootInterface(id)                async — enqueues the boot task and returns
+        │
+while( frame_loop_step() ) …             App_IsBooting drives the boot bar until READY
+```
+
+`App_BootWait` is the one place that steps **both** runners, because a task
+`BLOCKED` on the other queue's state cannot be settled from a single-queue
+drain — that is the deadlock `TASK_RUNNER_BLOCKED` exists to prevent.
+
+---
+
+### Invariants worth stating outright
+
+- **The client owns no device, no disk, no socket.** If a subsystem needs one,
+  it queues instead. This is what makes headless tests, BMP capture, replay and
+  the browser build the same code path.
+- **One implementation per question.** `PlatformX_IO_LoadItem` answers "what
+  does this archive request mean" for the desktop client, the io_server, and
+  (via the wire) the browser. There is no second copy to drift.
+- **Identity travels with the request.** Every dat2 read is meaningful only
+  against a particular cache profile; the profile is stated by the manifest,
+  carried in `IOWireCache` across the wire, and asserted by
+  `CacheProvider_Profile`.
+- **Refuse, don't guess.** An absent table resolves to
+  `RSCACHE_DAT2_DISK_TABLE_ABSENT` rather than to a plausible-looking id from
+  the other branch.
+- **Asynchrony is invisible above the platform layer.** A task queues, yields,
+  and finds its slot filled. Whether that took a `pread` or a JS5 download and a
+  round trip is `PlatformX_IO_Pending`'s business alone.
+- **A yield is not a frame boundary,** and a frame is not a tick.
+
+### Where things live
+
+| layer | path |
+|---|---|
+| executor / frame loop | [`src/main.c`](src/main.c) |
+| client | [`src/app.c`](src/app.c), [`src/app.h`](src/app.h) |
+| async runtime | [`src/asyncio.h`](src/asyncio.h), [`src/task_runner.h`](src/task_runner.h) |
+| graphics queue | [`src/ui/uitree_emit.h`](src/ui/uitree_emit.h), [`src/render/`](src/render/), [`src/painters/`](src/painters/) |
+| audio queue | [`src/audio/`](src/audio/), [`src/game/rs_audio.c`](src/game/rs_audio.c) |
+| command bus | [`src/cmd/`](src/cmd/), [`src/net/`](src/net/) |
+| platform backends | [`src/platform/`](src/platform/) |
+| cache tasks + provider | [`src/engine/`](src/engine/) |
+| cache library | [`3rd/rscache/`](3rd/rscache/) |
+| JS5 client + server | [`src/js5/`](src/js5/) |
+| IO server | [`src/ioserver/`](src/ioserver/) |
+| boot manifest | [`src/bootmanifest/`](src/bootmanifest/), [`manifests/`](manifests/) |
+
+Deeper guides: [WEB_SERVERS.md](docs/WEB_SERVERS.md),
+[JS5_INCREMENTAL_CACHE.md](docs/JS5_INCREMENTAL_CACHE.md),
+[JS5_SERVER.md](docs/JS5_SERVER.md),
+[WEB_CACHE_INDEXEDDB.md](docs/WEB_CACHE_INDEXEDDB.md),
+[platform_quirks.md](docs/platform_quirks.md),
+[ui_click_system.md](docs/ui_click_system.md).
+
+## Display scaling (DPI)
+
+Five independent knobs decide how many device pixels a drawn pixel covers.
+They compose, and most scaling complaints are two of them disagreeing rather
+than any one of them being wrong.
+
+### The knobs
+
+| Knob | Where | Values | What it decides |
+| --- | --- | --- | --- |
+| `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` | Web: whether the drawable is device **pixels** (default off). Desktop: what HighDPI "automatic" means — `0` is window points, else device pixels |
+| HighDPI | device option 34, in-client | automatic / device pixels / window points | What 100% interface scaling is one pixel **of** |
+| Render resolution (the pixel limit) | device options 31/35, in-client | a resolution, or Match window | The largest buffer the game renders into: it caps what 100% interface scaling is, and the scale divides that |
+| Renderer | device option 36, in-client and saved; a renderer flag (`--opengl3[-zbuffer]`, `--d3d9[-zbuffer]`, `--gles2[-zbuffer]`, `--soft3d`, on the command line or in the manifest) always wins at launch | the renderers this build and window can start | Swapped live between two frames: the old renderer is freed, the window changes how it presents, the new one starts and is handed the scene again. The game, network and plugins keep running. Desktop SDL: Software / OpenGL / OpenGL (depth buffer). Windows XP: Software (GDI) / Direct3D 9 / Direct3D 9 (depth buffer). Android and the browser keep the renderer they launched with. With no renderer flag, the saved pick is applied once preferences load. A pick that cannot start falls back and the page says so |
+| Integer scaling | device option 30 = 1, in-client toggle beside interface scaling | on/off | Interface scaling rounded to whole multiples so every buffer pixel covers a whole number of window pixels |
+| Stretch mode | device option 30 = 0/2, in-client, shown only when it can matter | keep aspect / stretch to fill | Placing a buffer that is NOT the window's shape: a fixed frame, or a resizable one the window could not hold. A resizable buffer is otherwise the window's own shape and both modes draw the same picture |
+| `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
+| `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
+| Interface scaling | device option 27, in-client | percent | The interface's layout size (buffer / percent); every 2D element is drawn scaled into the buffer. Never the 3D world |
+
+Precedence for `hidpi` and `chrome_scale` is env, then manifest, then the
+platform default.
+
+Off the web the window is always created with `SDL_WINDOW_ALLOW_HIGHDPI`
+(`TORIRS_HIDPI=0` still declines it), so the client can always **detect** the
+display density — drawable pixels per window point — and every HighDPI mode is
+live-switchable from Client Settings:
+
+- **Device pixels** — 100% is one buffer pixel per drawable pixel. Sharpest and
+  roomiest; the interface is half size on a 2x display.
+- **Window points** — 100% is one buffer pixel per window point: what `hidpi=0`
+  used to buy by declining the drawable, stretched by the present instead of
+  the window server.
+
+Every renderer — Soft3D, GL3, GLES2, D3D9 — runs one pipeline: the game renders
+into a buffer the size of the frame's place in the window (in HighDPI's unit, and
+no larger than the render resolution). The 3D world is drawn at the buffer's own
+pixels. The interface is laid out at the buffer divided by interface scaling and
+every 2D element — fills, sprites, text, lines, polygons, item and head models —
+is written scaled into the buffer (Soft3D scales each primitive; the GPU lanes
+scale their 2D vertices). Then stretch mode and the frame filter fit the buffer
+to the window. Interface scaling therefore never lowers the world's resolution,
+and the limit applies before the scaling, so every scale step still draws a
+different interface under a limit. A resizable window is grown
+to, and held at, the frame at the chosen scale (capped at the display and at
+what the limit can hold); only a buffer that still cannot hold the frame has
+its scale lowered.
+
+"Automatic" (the stored default) resolves per lane, so a shared
+`preferences.ini` never pins one lane's choice onto another: `hidpi=0`
+manifests get window points, everything else (and every Android lane, which has
+no points layer) gets device pixels. The web lane keeps `hidpi` as the creation
+flag and defaults off: there the density is `devicePixelRatio`, 3 on a phone
+rather than 2 on a desk, against a software rasteriser in wasm.
+
+### The two layers
+
+Only one of them has authored sizes, and that asymmetry is the source of most
+of the confusion:
+
+- **ToriRSChrome** — editor panels, debug overlay, minimenu. Scales by picking
+  a **baked** face, never by stretching. `fontbake` writes Small/Body/Menu at
+  @1/@2/@3 (`TORIRS_CHROME_SCALE_MAX` is what the bake carries, not a taste), and
+  every metric in `uitree_debug_overlay.c` goes through `DBG_PX()`, so the
+  layout reflows rather than blurs.
+- **The UITree / IF3 game layer**, and the world's 2D overlays (click cross,
+  loc outlines, hover text, minimap) — **no density concept at all**. One art
+  pixel is one canvas pixel, always. Its art is 1x cache sprites, and there is
+  no second size to pick.
+
+The 3D world is neither: the projection's field of view is a function of the
+canvas, so geometry keeps its physical size and merely gains resolution. Turn
+`hidpi` on and the world gets sharper while the 2D overlays over it halve.
+
+### `chrome_scale=dynamic`
+
+    scale = canvas_h / density / 500 * density
+
+Two questions, deliberately separated. *How big* the chrome should be is a
+question about room, and room is measured in **points** — 500 per step, so the
+classic 503-row frame is one step. *How many pixels* one chrome pixel spans is
+a question about the display, and that is the density. Stepping off the raw
+canvas instead counts density twice: on a 2x display a 733-point window is a
+1466-row canvas, reads as two steps, and then gets drawn at 2x anyway.
+
+### Points vs pixels
+
+SDL delivers **mouse positions in points**. `SDL_RenderCopy` destinations and
+GL viewports are in **pixels**. `letterbox_dst` is therefore called in both
+units, at two sites, on purpose:
+
+- `PlatformWindow_MapMouse` builds its box from `SDL_GetWindowSize` (points).
+- `PlatformWindow_Present` builds its box from `sdl_drawable_size` (pixels).
+
+Making those two agree "for consistency" breaks either picking or presentation.
+Likewise `PlatformWindow_PixelDensity` re-reads rather than answering from a
+cache: on macOS the drawable is not backed at device size until the window is
+shown, so a value taken at creation reports 1 on a Retina display.
+
+### Recognising the failure modes
+
+| Symptom | Cause |
+| --- | --- |
+| Whole frame soft/blocky, world included | The buffer is smaller than the window: HighDPI is window points (a `hidpi=0` lane on automatic), interface scaling is above 100%, or the render resolution is below the window |
+| Frame in the top-left quarter, rest black | A present path sizing its destination in points against a pixel target |
+| Panels grow just from enabling `hidpi` | A dynamic ladder reading the raw canvas — density counted twice |
+| Chrome correct, game UI half-size | HighDPI is device pixels. Window points counts interface scaling in points |
+| Chrome text crisp, arrows and scrollbars chunky | `spritebake` has no scale variants — see below |
+
+### Known gaps
+
+- **The skin bake is 1x only.** `fontbake` writes three sizes; `spritebake`
+  writes one. At `chrome_scale=2` the boxed blits (dropdown and scrollbar
+  arrows, grip caps) get an integer nearest stretch while the text beside them
+  is a true 2x bake, and the tiled fills (`PanelBody`, `DropdownBody`) keep
+  tiling at *native* size, so the parchment grain stays 1x. Closing it means
+  baking scaled variants, not changing the blitter.
+- **The IF3 layer follows the density only by shrinking the buffer.** A larger
+  interface is a smaller buffer, the 3D world included, on every renderer.
+- **Win32 GDI reports a 1x density.** The process is not DPI aware, so Windows
+  scales the finished window and every HighDPI mode lays out alike there.
 
 ## Engine notes
 
@@ -627,7 +1333,7 @@ same — *nothing happens* — and the cause can be at any of eight stages.
 | 4 | Raw hits are classified into the pickset + hover tile | [torirs_pick.c](src/render/torirs_pick.c) `ToriRS_PickHitsClassify` |
 | 5 | Minimenu turns the pickset into rows; the terrain row becomes `Walk here` | [rs_minimenu_world.c](src/game/rs_minimenu_world.c) `RS_Minimenu_AddWorldRows` |
 | 6 | The default row runs → `MOVE_GAMECLICK` | [app.c](src/app.c) `app_try_move` |
-| 7 | Server routes, queues waypoints, sends `SET_MAP_FLAG` | [mock230_world.c](src/net/mock/mock230_world.c) `handle_move` → `mock230_world_walk_to` |
+| 7 | Server routes, queues waypoints, sends `SET_MAP_FLAG` | [torirs_server_world.c](src/torirsserver/torirs_server_world.c) `handle_move` → `ToriRSServer_WorldWalkTo` |
 | 8 | BFS + the unreachable fallback | [collision_map.c](src/engine/world_builder/collision_map.c) `collision_map_route_tiles` |
 
 Stages 1–6 are the client deciding **which tile you clicked**. Stages 7–8 are
@@ -752,7 +1458,7 @@ fought the echo and made the player stutter.
 `handle_move` rejects a click more than a scene away, ends any pending
 interaction (walking off *is* a new interaction — it stops you swinging at
 what you were fighting, retires a queued op, and closes an open dialogue), then
-calls `mock230_world_walk_to`, which BFS-routes and subsamples the path into at
+calls `ToriRSServer_WorldWalkTo`, which BFS-routes and subsamples the path into at
 most 25 dest-first **corner** waypoints. `SET_MAP_FLAG` is sent only if a route
 was found.
 
@@ -774,7 +1480,7 @@ movement at all* when the box is empty. The era table picks one as
 decides, because the client never routes; set both ends anyway so they cannot
 disagree when the era changes. Overrides:
 `[features:boot] ground_click_nearest=` and `TORIRS_GROUND_CLICK_NEAREST` on
-the client, `MOCK230_GROUND_CLICK_NEAREST` on the server (which prints the
+the client, `TORIRSSERVER_GROUND_CLICK_NEAREST` on the server (which prints the
 resolved value in its boot line).
 
 This is the whole of "click across a river and walk up to the bank instead of
@@ -811,7 +1517,7 @@ arena edge:
 ```
 world_pick: mouse=120,140 count=3 hover_tile=50,55,0
 minimenu: walk-click scene=50,55 abs=6426,111
-mock230: route from=6431,104 to=6426,111 steps=6 nearest=1 arrive=6426,110
+torirsserver: route from=6431,104 to=6426,111 steps=6 nearest=1 arrive=6426,110
 ```
 
 `nearest=1` is the `box10_rect` fallback firing.
@@ -834,15 +1540,15 @@ Work down the chain — each variable answers exactly one stage.
 | `TORIRS_PICK_DEBUG=1\|all` | what the raster says is under the pointer |
 | `TORIRS_LOC_DEBUG=1` | lifts the non-interactive gate, so inactive locs show in the pickset |
 | `TORIRS_NET_DEBUG=1` | `minimenu: walk-click`, `trymove:`, and the packet |
-| `MOCK230_VERBOSE=1` | `mock230: route ... nearest=N arrive=x,z` |
+| `TORIRSSERVER_VERBOSE=1` | `torirsserver: route ... nearest=N arrive=x,z` |
 
 The whole thing reproduces headlessly, no human at the mouse:
 
 ```sh
 TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=out.bmp TORIRS_NET_CHEAT=zuk \
 TORIRS_SIM_CLICK_AT="560,120,140" TORIRS_WORLD_PICK_DEBUG=1 \
-TORIRS_NET_DEBUG=1 MOCK230_VERBOSE=1 \
-    src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+TORIRS_NET_DEBUG=1 TORIRSSERVER_VERBOSE=1 \
+    src/torirs --manifest manifests/manifest_osrs239.ini --user testc --pass test
 ```
 
 (`dist\win64\torirs.exe` on Windows; add `--soft3d` to exercise the software
@@ -919,8 +1625,8 @@ if the port is idle, boot the client headless, sample it, render the SVG, and
 print the main-thread breakdown:
 
 ```
-./profile-mac.sh                              # manifest_osrs230.ini, 25s sample
-./profile-mac.sh manifest_rs254.ini 40        # another manifest, 40s
+./profile-mac.sh                              # manifests/manifest_osrs230.ini, 25s sample
+./profile-mac.sh manifests/manifest_rs254lc.ini 40        # another manifest, 40s
 TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real window instead of SDL dummy
 TORIRS_PROFILE_ATTACH=$(pgrep -f src/torirs) ./profile-mac.sh   # client already running
 OUT=before ./profile-mac.sh                   # names the outputs before.svg/.folded
@@ -930,7 +1636,7 @@ It finds FlameGraph under `~/Documents/git_repos/FlameGraph`,
 `~/git_repos/FlameGraph`, `../FlameGraph` or `$FLAMEGRAPH_DIR`. By hand it is:
 
 ```
-./run-live.sh manifest_osrs230.ini &          # or a headless run, see below
+./run-live.sh manifests/manifest_osrs230.ini &          # or a headless run, see below
 sample $(pgrep -f 'src/torirs') 20 1 -f out.sample
 awk -f ~/git_repos/FlameGraph/stackcollapse-sample.awk out.sample > out.folded
 ~/git_repos/FlameGraph/flamegraph.pl out.folded > flamegraph.svg
@@ -942,7 +1648,7 @@ regressions until frames blow past 20 ms):
 
 ```
 time SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1000 \
-    src/torirs --manifest manifest_osrs230.ini --user asdf --pass a
+    src/torirs --manifest manifests/manifest_osrs230.ini --user asdf --pass a
 ```
 
 Note the main thread is only half the samples — the other ~50% is AppKit's event
@@ -952,12 +1658,12 @@ thread parked in `mach_msg2_trap`. Filter to the main thread
 ## UITree performance — what pegged the CPU on rev230
 
 > **2026-08-03 update:** for live frame-budget work see
-> [`docs/PERF_HARNESS.md`](docs/PERF_HARNESS.md). On `manifest_osrs230_embed.ini`
+> [`docs/PERF_HARNESS.md`](docs/PERF_HARNESS.md). On `manifests/manifest_osrs230_embed.ini`
 > with `-O0` + `TORIDRAW_OPT=1`, idle/ui frame p95 is ~8 ms (50 fps gate is
 > 20 ms). Soft3D remains the dominant stage; the numbers below are the
 > historical UITree-only story.
 
-`./run-live.sh manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
+`./run-live.sh manifests/manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
 1000 frames (~33 ms/frame) against a 20 ms budget, in the default `-O0` build.
 Almost none of it was the renderer. Three things compounded, all of them widget
 bookkeeping:
@@ -1016,7 +1722,7 @@ where the ids are recorded now. `app_sync_textures` drains them with
 nothing on a tick that built no geometry. `CollectMissingTextures` is still there
 for one-shot audits of a built scene; nothing calls it per frame.
 
-Measured, `-O0`, 1000 frames headless against `src/build/mock230`:
+Measured, `-O0`, 1000 frames headless against `src/build/torirsserver`:
 
 | build                              | CPU for 1000 frames | ms/frame | CPU% at the 50 fps cap |
 | ---------------------------------- | ------------------- | -------- | ---------------------- |
@@ -1034,7 +1740,7 @@ sync and the var-transmit scripts are 0.0%, `app_logic_tick` as a whole is 0.3%,
 and **84% is inside `ToriDraw`** — the software renderer, which is where it
 belongs. `flamegraph_osrs230_before.svg` and `flamegraph_osrs230_after.svg` in
 the repo root are those two profiles. Re-measure with `./tools/perf/run_perf.sh`
-/ `./profile-mac.sh manifest_osrs230_embed.ini` before citing these percentages —
+/ `./profile-mac.sh manifests/manifest_osrs230_embed.ini` before citing these percentages —
 they are from an older tree; live numbers live in `docs/PERF_HARNESS.md`.
 
 ### The rebuild burst — node size and the by-sub-id scan
@@ -1253,15 +1959,15 @@ new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 2
 On linux
 
 ```
-valgrind --leak-check=full src/torirs --manifest manifest_osrs230.ini --offline
+valgrind --leak-check=full src/torirs --manifest manifests/manifest_osrs230.ini --offline
 
 # Callgrind must be built without ASan
-valgrind --tool=callgrind src/torirs --manifest manifest_osrs230.ini --offline > log.txt 2>&1
+valgrind --tool=callgrind src/torirs --manifest manifests/manifest_osrs230.ini --offline > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
 valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out \
-  src/torirs --manifest manifest_osrs230.ini --offline
+  src/torirs --manifest manifests/manifest_osrs230.ini --offline
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```
@@ -1423,7 +2129,7 @@ dat2 model task adapts a _copy_ — drop the field and everything silently
 un-scales again.
 
 Full write-ups: `3rd/rscache/EXCEPTIONS.md` B12 (scale) and B18 "The SD gate"
-(materials); `manifest_rs643.ini` carries the status and the debug tooling
+(materials); `manifests/manifest_rs643.ini` carries the status and the debug tooling
 (`test_rs2_sweep <root> loc|model|spawns|materials`).
 
 ## Server
@@ -2828,3 +3534,24 @@ var2855 := Client Layout/ fixed, etc
 Hands on level 1
 Near clipping busted
 Wrong painter algorithm
+
+
+### WinXP SP3 Pentium4@2.8GHz and DDR1
+
+┌──────────────────────────┬──────────────┬───────────────┬──────────────┐
+│    client / renderer     │ fps (median) │ CPU of 1 core │ ms CPU/frame │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ Java client              │        24.80 │         59.6% │        24.03 │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ Java client (repeat)     │        24.80 │         59.2% │        23.89 │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ ToriRS --soft3d          │        48.90 │         78.1% │        15.97 │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ ToriRS --soft3d (repeat) │        48.80 │         77.5% │        15.88 │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ ToriRS --d3d9            │        49.40 │         31.1% │         6.29 │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ ToriRS --d3d9 (repeat)   │        49.60 │         31.8% │         6.41 │
+├──────────────────────────┼──────────────┼───────────────┼──────────────┤
+│ ToriRS --d3d9-zbuffer    │        49.00 │         27.3% │         5.57 │
+└──────────────────────────┴──────────────┴───────────────┴──────────────┘

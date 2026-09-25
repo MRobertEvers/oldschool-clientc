@@ -22,11 +22,44 @@ struct VarCIds
     /* VarC STRING: the chatbox text-input dialog mirrors its current input
      * string here (CS2 reads it back to submit). */
     int chatbox_input_string;
+    /*
+     * VarC INT: an interface's own text box has taken the keyboard.
+     *
+     * Set to 1 by `~chatdefault_stopinput` (proc 2157), which is what every
+     * panel with a search field calls — settings 134, collection log 621,
+     * league tasks — along with disarming the chatbox's onKey. Put back to 0 by
+     * `~chatdefault_restoreinput` (proc 4079, wrapper clientscript 2158), which
+     * re-arms it. Never written reads -1, so the test is `== 1` and not
+     * `!= 0`.
+     *
+     * The C client reads it for one thing: while a box owns the keyboard no
+     * client-side hotkey may fire, or a search term switches tabs and flies the
+     * camera as it is typed.
+     */
+    int interface_input_active;
+    /*
+     * VarC INT: which chatbox-input PROMPT is live, if any -- `%varcint5` in
+     * every decompiled CS2 script that branches on it (meslayer_enter,
+     * meslayer_mode1/7/8/9/..., meslayer_open/close). Unset reads -1; 0 and 1
+     * both mean "ordinary chat line, no prompt" (meslayer_mode1.cs2:
+     * `if (%varcint5 <= 0 | %varcint5 = 1)`). meslayer_enter's own
+     * switch_int(%varcint5) is the source of truth for the rest: 7 and 19 are
+     * a quantity prompt (resume_countdialog), 8 is a name prompt
+     * (resume_namedialog), and every other nonzero value (2..6, 9, 10, 12,
+     * 13, 15, 16, 18, 20, 21, 27, 28, 29 -- friend/ignore add-delete, clan
+     * name, world search, chat filter, autotyper, quantity-button callback,
+     * ...) is some other typed prompt that must not be treated as ordinary
+     * chat: typing into it blind is how a quest test's digits end up as a
+     * public chat line instead of a bank withdraw amount.
+     */
+    int meslayer_mode;
 };
 
 /* OSRS revision 230 (and the near-era caches this client targets). */
 static const struct VarCIds VARC_IDS_OSRS230 = {
     .chatbox_input_string = 335,
+    .interface_input_active = 11,
+    .meslayer_mode = 5,
 };
 
 /** Resolve the varc id set for a revision. Defaults to the OSRS-230 set (the

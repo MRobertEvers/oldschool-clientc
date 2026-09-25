@@ -1,0 +1,89 @@
+From b7a5c47c9991cd9d76c64cb70ba57b40ed7e6ea4 Mon Sep 17 00:00:00 2001
+From: hunt <hunt@local>
+Date: Tue, 25 Aug 2026 04:15:53 -0500
+Subject: [PATCH] wip(r3-facesort2): checkpoint arm sources
+
+Committed by the batch sweep, not by the agent that wrote it. The scratchpad
+lost ~half its built exes when C: hit 100%, so the source in this worktree is
+the only surviving copy of this arm. Branch hunt/r3-facesort2.
+
+files: 3rd/toridraw/toridraw_render.u.c
+---
+ 3rd/toridraw/toridraw_render.u.c | 39 ++++++++++++++++++++++++++++----
+ 1 file changed, 34 insertions(+), 5 deletions(-)
+
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..71d8467bf 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -1039,6 +1039,29 @@ ToriDraw_CalculateCylinderAabb8point(
+ }
+ 
+ /*
++ * The face table is PLANE-MAJOR: `buckets[count * depth_levels + depth]`, not
++ * `buckets[depth * depth_stride + count]`.
++ *
++ * Same allocation, same size, same capacity of `depth_stride` faces per depth
++ * level, same emitted order -- only the address arithmetic moves. The reason
++ * is the measured access pattern. Over the Lumbridge bench camera a model
++ * accepts 14.82 faces into 10.75 distinct depth buckets across a depth span of
++ * 57, and the deepest bucket ever seen holds 25 faces against a stride of 512.
++ * Bucket-major therefore put each of those 10.75 live faces 1024 bytes from
++ * the next: 10.75 separate cache lines, spread over 58 KB of address range and
++ * 6.77 distinct 4 KB pages, per model, to store 30 bytes of face indices. It
++ * is also pathological on a 16 KB 8-way L1D -- a 1024-byte stride advances the
++ * set index by 16 of 32, so every depth bucket in the program competed for two
++ * sets, sixteen lines total.
++ *
++ * Plane-major puts the FIRST face of every depth level in one contiguous
++ * depth_levels-wide plane, indexed exactly like the bucket-count array beside
++ * it. 90.1% of accepted faces are the first in their bucket and 98.2% are in
++ * the first two, so a model's writes collapse from 10.75 scattered lines to
++ * ~3 lines inside a 114-byte window. Measured over the same camera, the live
++ * footprint of the whole table falls from 812 KB (793 depth levels x 1024 B)
++ * to about 6 KB.
++ *
+  * Split so the shift is chosen ONCE, not per face.
+  *
+  * `depth_shift` is zero for every ordinary model, and the wrapper below calls
+@@ -1130,7 +1153,9 @@ bucket_sort_by_average_depth_impl(
+                     assert(f >= 0 && f <= 0x7FFF && "face index must fit faceint_t");
+ 
+                     face_depth_bucket_counts[depth_avg] = count + 1;
+-                    face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
++                    /* Plane-major, not bucket-major: see the note on
++                     * bucket_sort_by_average_depth_impl. */
++                    face_depth_buckets[count * depth_levels + depth_avg] = (faceint_t)f;
+ 
+                     if( debug_stats )
+                     {
+@@ -1254,10 +1279,11 @@ partition_and_accumulate_faces_by_priority(
+          * into the next depth level's slice of the same allocation. */
+         assert(face_count > 0 && face_count <= depth_stride);
+ 
+-        faceint_t* faces = &face_depth_buckets[depth * depth_stride];
++        const faceint_t* faces = &face_depth_buckets[depth];
+         for( int i = 0; i < face_count; i++ )
+         {
+-            faceint_t face_idx = faces[i];
++            faceint_t face_idx = *faces;
++            faces += depth_levels;
+             int prio = faceprio_unpack(face_priorities, face_idx);
+             int n;
+ 
+@@ -1672,10 +1698,13 @@ ToriDraw_ComputeProjectedFaceOrder(
+             if( bucket_count == 0 )
+                 continue;
+ 
+-            faceint_t* faces = &scene->tmp_depth_faces[depth * scene->depth_stride];
++            /* Plane-major: the j-th face of every depth lives in plane j, so
++             * stepping j strides by depth_levels rather than by 1. */
++            const faceint_t* faces = &scene->tmp_depth_faces[depth];
+             for( int j = 0; j < bucket_count; j++ )
+             {
+-                scene->tmp_face_order[order_index++] = faces[j];
++                scene->tmp_face_order[order_index++] = *faces;
++                faces += scene->depth_levels;
+             }
+         }
+         scene->tmp_face_order_count = order_index;

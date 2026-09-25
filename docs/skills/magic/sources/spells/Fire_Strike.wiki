@@ -1,0 +1,50 @@
+{{External|rs|rsc=Fire strike}}
+{{Infobox Spell
+|name = Fire Strike
+|image = [[File:Fire Strike.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 13
+|spellbook = Normal
+|type = Combat
+|exp = 11.5
+|element = Fire
+|damage = 8
+|cost = {{RuneReq|Fire=3|Air=2|Mind=1}}
+|speed = 5 ticks
+|description = A basic Fire missile
+|anim = [[File:Fire Strike.gif|300px]]
+|sound = [[File:Fire Strike.ogg]]
+}}
+[[File:Fire Strike icon (mobile).png|left]]
+'''Fire Strike''' is a [[Fire spells|fire]]-based [[Strike spells|strike spell]] in the [[standard spellbook]], available at level 13 [[Magic]]. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Fire Strike has a base maximum hit of 8. As with all combat spells, this maximum hit is increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a fire-based spell, Fire Strike's maximum hit is also increased against targets that are [[Elemental weakness|weak to fire]].
+
+===Calculator===
+{{Magic damage calculator|Fire Strike|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=fire}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 3
+|Rune2 = air
+|Rune2num = 2
+|Rune3 = mind
+|Rune3num = 1
+|uses_pages = y
+|is_offensive = y
+}}
+
+== Notable uses ==
+
+* As a strike spell, Fire Strike is one of the only spells that can be used to damage [[Salarin the twisted]]. When used this way, its damage is scaled up to match that of [[Fire Bolt]].
+
+== Trivia ==
+
+* Prior to [[Update:Project Rebalance: Combat Changes#Elemental Spell Scaling|an update on May 29, 2024]], Fire Strike had the highest base maximum hit out of all the strike spells. For this reason, it was commonly used by low-level players to defeat enemies and quest bosses with a much higher combat level, such as the [[Khazard warlord]] in the [[Tree Gnome Village]] quest. After the update, all of the strike spells have a base maximum hit equal to the strongest strike spell that the player has unlocked, making [[Wind Strike]] a cheaper but equally effective alternative (unless the player is fighting a monster that is specifically [[Elemental weakness|weak to fire spells]]).
+{{Standard spellbook}}

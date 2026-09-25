@@ -1,0 +1,1150 @@
+torirs: js5 host=10.10.10.1 port=43595 fallback=0 revision=239 cache=build/manifests/..\..\cache.osrs239.sparse
+torirs: dat2 cache=build/manifests/..\..\cache.osrs239.sparse iface=161
+torirs: JS5 reference tables primed (23 references, 208 network bytes)
+torirs: JS5 metadata ready (23 references, 208 network bytes)
+torirs_perf: enabled (ring=2048 window=100 budget=20ms cpu_clock=GetThreadTimes) csv=C:\dev\oldschool-clientc\winxp-soft3d-torirs-perf.csv
+audio: no device; running silent
+plugin: 8 of 11 enabled -- client-settings, feature-flags, tile-indicator-c, minimap-orbs (off), xp-drop-orbs (off), gameframe-layout (off), item-stats, nxt-highlight, nxt-bird-nest, nxt-cannon-ammo, lua
+plugin: item-stats asset 'text.png' not found (plugin_assets/item-stats/text.png, plugins/assets/item-stats/text.png)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: OK, local player index 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+textures: sprite-backed system (no materials table)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+Failed to load dat2 idk 307
+spawn_player: element=23155 tile=52,52 level=0
+if-opentop: switching root 161 -> 548
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: Forever
+windowmode: fixed
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=100 writing C:\dev\oldschool-clientc\winxp-soft3d-torirs-perf.csv.windows.csv
+torirs_perf: window=0 frame_p95=5366.18ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+net: connection lost (client was not running) — attempting to reestablish
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+net: reconnect attempt 1
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+world_load: 6 chunks, 17 underlays, 26 overlays, 22 textures, 999 locs, 933 models, 23 seqs
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+Failed to load dat2 idk 307
+spawn_player: element=23155 tile=50,51 level=0
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: Forever
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=1 frame_p95=3994.36ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=2 frame_p95=86.35ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=3 frame_p95=87.73ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=4 frame_p95=86.01ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=5 frame_p95=86.21ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=6 frame_p95=94.26ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=7 frame_p95=97.40ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+torirs_perf: window=8 frame_p95=97.67ms
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+plugin: item-stats asset 'text.ini' not found (plugin_assets/item-stats/text.ini, plugins/assets/item-stats/text.ini)
+Connection in progress to 10.10.10.1:43595
+Connection completed
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+Connection in progress to 10.10.10.1:43595
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+varp load: 5725 types (5725 records, ids 0..5724)
+varbit load: 20411 types (19086 records, ids 0..20410)
+hitsplat load: 83 types (83 records, 34 var selectors)
+healthbar load: 85 types (85 records)
+soundscape load: 11 ids (10 records)
+RevConfigBuild done: iface=161 ui=- inline=build/manifests/osrs239-xp-js5.ini tree_components=1073 sprites=0 fonts=0 onloads=6 inv_hooks=0 var_hooks=6 mounts=0
+Connection in progress to 10.10.10.1:43596
+Connection completed
+RevConfigBuild done: iface=548 ui=- inline=build/manifests/osrs239-xp-js5.ini tree_components=1075 sprites=0 fonts=0 onloads=1 inv_hooks=0 var_hooks=6 mounts=0
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+Connection in progress to 10.10.10.1:43596
+Connection completed
+torirs_perf: window=9 frame_p95=93.01ms
+
+=== torirs_perf report ===
+frames=1000 ring=1000 over_20ms=996 (99.6%) eff_fps=6.2
+frame_ns mean=160434180 p50=67845215 p95=97898196 max=11038903268  (budget=20000000)
+main_thread_cpu_ns mean=115750000 p50=62500000 p95=78125000 max=5828125000  (clock=GetThreadTimes distribution=coarse_direct raw_total=115750000000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async           8595667     220419     243327 7776933661
+logic          92403877   10342376   36215497 10775882409
+cs2            91471398    9550098   35487471 10773926854
+layout            11100       9778      15365      59505
+interact         469578     384686     418489   18275786
+emit            3244807    2894782    6900878   40433910
+paint           1475336    1074717    1134223   32510836
+build           1483038    1082261    1142045   32518099
+render         47160294   47505479   60372198  317210986
+pick_finish           0          0          0          0
+present         1746701    1202667    1286197   33483585
+server                0          0          0          0
+platform_poll     243148      16203      96660  101721867
+command_drain     315115       6146     136889   63785202
+app_run       107033708   15653107   43319752 10939109859
+frame_post      1606706    1096508    1181994   36057097
+input_prep       263923      36318     117334  101745054
+surface_sync       8771       6984       7264    1731226
+display        50455355   50146318   64185532  336491369
+window_sync      597856     460393     513752   19136511
+pace              55712       4000       4000   16603000
+period        160503758   67941000   97732000 11038968000
+cs2_settle     13864335    9134960   30631546 1459738039
+ui_icon           11582          0          0   10163025
+tick_packets   77226924     130743     456203 9304790134
+cs2_settle_layout      10221       8939      14526      53359
+present_fill      18024       3352       3353   14714161
+present_blit    1718887    1186464    1269714   33467102
+cs2_host_op     4631994    2160613    4392462  879290419
+cs2_settle_followups      26267      10616      16762   14797132
+cs2_script      9736162    5040586   19125899 1721112594
+task_queue_run   75284653    9007289   29241984 7867035056
+cs2_task_start    1467020    1039236    1667817   31621896
+cs2_script_in   10346028    5814437   20149204 1651559924
+task_io        23428268     319316     442793 7116295499
+r_clear         1018942     735009     809042   27310175
+r_model        31196307   26961242   45089514  127548316
+r_sprite        3559538    2818514   15381282   23565837
+r_font           498737     384685     447262   16216307
+r_rect            52308      38553      66487   13028193
+r_other         1317274     111469     118453  115820936
+residual     -664125139  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                         690779       690.78
+uitree_find_id_probes                 1106354      1106.35
+uitree_find_id_linear                     118         0.12
+uitree_id_rebuild                          17         0.02
+uitree_find_child                       49583        49.58
+uitree_find_child_hit                   31214        31.21
+uitree_find_child_ceil_miss             17161        17.16
+uitree_walk_emit                      2408102      2408.10
+uitree_walk_hit                        775194       775.19
+uitree_walk_hover                      129506       129.51
+uitree_emit_skip                      1850888      1850.89
+uitree_layout_resolve                    8157         8.16
+uitree_layout_skip                       6874         6.87
+uitree_layout_nodes                   8992021      8992.02
+uitree_layout_node_skip               8869971      8869.97
+uitree_layout_depth_recompute             373         0.37
+uitree_ensure_layout                    77637        77.64
+uitree_cc_create                        20203        20.20
+uitree_cc_delete                            8         0.01
+uitree_cc_deleteall                      3952         3.95
+uitree_cc_deleteall_rows                10868        10.87
+uitree_apply_geo                        45130        45.13
+uitree_apply_content                    41559        41.56
+uitree_apply_hook                       25351        25.35
+uitree_apply_hook_skip                  19139        19.14
+uitree_apply_other                      41087        41.09
+uitree_apply_nochange                   53691        53.69
+uitree_components                     6041858      6041.86
+uitree_capacity                       6881280      6881.28
+uitree_free_list                         3466         3.47
+uitree_node_bytes                  4734320640   4734320.64
+cs2_scripts                            120438       120.44
+cs2_opcodes                           6634961      6634.96
+cs2_host_ops                           991027       991.03
+cs2_cycles                            6634961      6634.96
+cs2_vm_acquire                         118095       118.09
+cs2_vm_pool_hit                        118094       118.09
+cs2_vm_pool_miss                            1         0.00
+cs2_vm_init_ns                      467549119    467549.12
+cs2_vm_release_ns                   533871775    533871.78
+cs2_frame_pool_hit                     156110       156.11
+cs2_frame_pool_miss                        10         0.01
+cs2_frame_push                         265614       265.61
+cs2_frame_clear_bytes                 6239176      6239.18
+cs2_frame_locals_bytes                   3040         3.04
+cache_model_hit                        150648       150.65
+cache_model_miss                         1944         1.94
+cache_sprite_hit                        37718        37.72
+cache_sprite_miss                        1183         1.18
+model_inst_hit                          14534        14.53
+model_inst_miss                         12096        12.10
+model_inst_evict                        10855        10.86
+painter_pops                          6280290      6280.29
+painter_gate_rejects                  2797122      2797.12
+painter_pushes                        6280290      6280.29
+painter_push_dedup                    5860845      5860.85
+painter_commands                      1624722      1624.72
+painter_tiles_remaining_set           3216084      3216.08
+scene_elements                       23046371     23046.37
+scene_anim_list                        109340       109.34
+cache_model_size                       991396       991.40
+cache_sprite_size                      733600       733.60
+iface_open                                 46         0.05
+iface_close                                 4         0.00
+iface_bake                                 20         0.02
+iface_bake_reuse                           26         0.03
+iface_mount_ns                      128840123    128840.12
+iface_close_ns                          12572        12.57
+iface_groups_resident                     629         0.63
+uitree_hidden                           81427        81.43
+uitree_unmounted                           27         0.03
+uitree_freed                               82         0.08
+uitree_hook_blocks                      54506        54.51
+uitree_hook_bytes                    43604800     43604.80
+host_inv_hooks                            489         0.49
+host_var_hooks                           4949         4.95
+host_stat_hooks                          1775         1.77
+bridge_sprite_map                       13605        13.61
+bridge_obj_icon_map                       447         0.45
+cache_clientscript_size                 14568        14.57
+uitree_anim_scan                         7064         7.06
+iface_group_scan_nodes                   9318         9.32
+logic_ticks                              3545         3.54
+proto_packets                            1077         1.08
+ui_icon_raster                             32         0.03
+npc_model_cache_hit                        26         0.03
+npc_model_cache_miss                       19         0.02
+present_blit_1to1                        1003         1.00
+present_blit_pixels                 406589487    406589.49
+present_fill_pixels                     21126        21.13
+chrome_strip_vischeck                    1956         1.96
+emit_list_same                            921         0.92
+emit_list_diff                             72         0.07
+emit_desc_diff                            874         0.87
+emit_dirty_bumps                        82458        82.46
+emit_dirty_unreached                    51398        51.40
+emit_dirty_mark                         43563        43.56
+emit_dirty_topo                         46869        46.87
+emit_gen_quiet                            150         0.15
+task_steps                              13964        13.96
+task_resumes                           127767       127.77
+task_ends                              122959       122.96
+gate_tree_quiet                           825         0.82
+gate_hover_quiet                          992         0.99
+emit_retained                             150         0.15
+r_cmds                                2084925      2084.93
+r_cmds_model                          1624722      1624.72
+r_cmds_sprite                           98347        98.35
+r_cmds_font                             32913        32.91
+r_cmds_rect                              8796         8.80
+
+torirs_perf: wrote C:\dev\oldschool-clientc\winxp-soft3d-torirs-perf.csv
+=== end torirs_perf ===
+

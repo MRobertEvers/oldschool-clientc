@@ -1,0 +1,408 @@
+{{External|rs}}
+{{Dangerous}}
+{{Infobox Activity
+|name = Pyramid Plunder
+|image = [[File:Pyramid Plunder.png|300px]]
+|release = [[17 July]] [[2006]]
+|update = Pyramid Plunder
+|type = Minigame
+|members = Yes
+|location = [[Sophanem]]
+|players = 1
+|skills = [[Thieving]]
+|currency = N/A
+|tutorial = No
+|music = [[Tomb Raider (music track)|Tomb Raider]]
+|map = {{Map|name=Pyramid Plunder|x=3289|y=2793|zoom=3}}
+|leagueRegion = Desert
+}}
+[[File:Pyramid Plunder logo.jpg|left]]
+'''Pyramid Plunder''' is a [[Thieving]] [[minigame]] set in the [[Jalsavrah Pyramid]] in the city of [[Sophanem]], far in the southern [[Kharidian Desert]]. Access to the minigame can be found behind one of four [[An anonymous looking door|anonymous looking doors]], guarded by the [[Guardian mummy]].
+
+Upon starting the minigame, the player has five minutes to plunder the contents of Jalsavrah. The pyramid consists of eight rooms, each requiring progressively higher Thieving levels.
+
+This is the only place where players can obtain the [[Pharaoh's sceptre]].
+
+==Requirements==
+*At least 21 [[Thieving]] is necessary to start the game. Every ten levels thereafter will grant entrance to the more valuable rooms, up to level 91. Note that these levels '''cannot''' be boosted.
+*Players must have started [[Icthlarin's Little Helper]] for access to [[Sophanem]].
+
+===Recommended===
+*It is highly recommended to finish [[Contact!]] to be able to bank in the nearby [[Sophanem Dungeon]].
+*With at least 43 [[Prayer]] for [[Protect from Melee]], damage from [[Mummy (Pyramid Plunder)|mummies]] and [[scarab swarm]]s will be fully negated.
+
+==Official world==
+The following [[World#Themed_worlds|official world]] is assigned to Pyramid Plunder:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|493|United States (east)|mems=yes|Pyramid Plunder}}
+|}
+
+==Transportation==
+[[Jalsavrah]] is the northern pyramid in the city of [[Sophanem]]. You can get there in several ways;
+* Use the [[Pharaoh's sceptre]] to directly enter the minigame lobby of [[Jalsavrah]]. You have to charge the sceptre first by talking to the [[Guardian mummy]] inside this room.
+* Travel to [[fairy ring]] code {{fairycode|AKP}} and enter the city's eastern gate. This method requires unlocking the [[Necropolis]] during [[Beneath Cursed Sands]] and 62 [[Agility]], which can be boosted.
+* Take Shantay Pass Carpet  ('''OR''' break a [[Pollnivneach teleport]]/use the house portal) to Pollnivneach, then run south and ride the [[magic carpet]] from [[Pollnivneach]] to Sophanem for 400 [[coins]], or 200 with the [[Rogue Trader]] miniquest.
+
+==Recommended setup==
+{{Equipment
+| align = right
+| head = Serpentine helm
+| cape = Ardougne cloak 4
+| neck = Dragonbone necklace
+| ammo = Rada's blessing 4
+| weapon = Pharaoh's sceptre
+| torso = Monk's robe top
+| legs = Monk's robe
+| shield = Holy book
+| gloves = Regen bracelet
+| boots = Graceful boots
+| ring = Ring of suffering (i)
+| caption = Advanced setup
+}}
+===Items===
+*[[Lockpick]] to open the tomb doors more easily, at the cost of only gaining half the amount of Thieving experience for unlocking the door.
+**In practice, the altered success rate of using a lockpick is not noticeable. Players may choose to forgo using one for the added experience and extra inventory slot.
+*[[Snake charm]] at Thieving levels below 51, for higher chances of looting an urn. It is inefficient to use at higher levels.
+*Some [[superantipoison]]s or [[Antidote++|antidotes++]].
+**For players who can start [[The Great Brain Robbery]], a [[prayer book]] and [[holy symbol]] can save some inventory space at the cost of a few prayer points. The prayer book can be obtained quite early on in the quest, not requiring full completion of it.
+*One or two [[Prayer potions]], or other potions that restore Prayer for [[Protect from Melee]].
+*Optionally, a [[stamina potion]] or two.
+*Unless the player wants to collect the regular artefacts, it is recommended to fill all other inventory slots with [[food]].
+
+===Equipment===
+*[[Pharaoh's sceptre]] for the fastest teleport to the start of each game.
+**Should the player have a [[rejuvenation pool]] or better, it is helpful to bring [[Teleport to house (tablet)|Teleport to House tablets]] in combination with the sceptre.
+**Without the rejuvenation pool, a [[ring of dueling]] or [[desert amulet 4]] also allows the player to continuously restore all stats, while furthermore granting quick access to a bank. 
+*[[Graceful outfit]] or other [[weight-reducing gear]], so stamina potions are not necessary.
+*[[Prayer items|Prayer-boosting equipment]], such as the [[Ardougne cloak 1]]+ or a [[dragonbone necklace]].
+*[[Armour]] for melee defence, only if not using Protect from Melee. Using tank gear such as melee [[Barrows equipment]] combined with regen bracelet and either [[Hitpoints cape]] or [[Rapid Heal]] prayer keeps player alive comfortably. Note that even though [[Mummy (Pyramid Plunder)]] deals crush damage you should aim to maximize slash defence because [[Scarab Swarm]] uses slash and can only poison player if it lands successful attack on player.
+*Charged [[serpentine helm]] for immunity against poison, as alternative to antidotes or antipoisons. Note that scarab swarms will always consume 10 [[Zulrah's scales]] when they appear and attack the player, even with Prayer on. This can be avoided if the player escapes the current room before receiving any hitsplats from scarab swarms.
+*[[Prayer book]] and [[holy symbol]] for a free, low level alternative to cure poison.
+
+==Guide==
+[[File:Pyramid Plunder first room.png|thumb|300px|The guardian mummy's chamber.]]
+A player can enter the [[Jalsavrah Pyramid]] via one of its four [[An anonymous looking door|anonymous looking doors]]. Only a single door leads to the [[Guardian mummy]], while the rest lead to an abandoned room. If the player stumbles upon the latter, they may simply leave the pyramid and try another entrance. Leaving will always place a player in front of the northern door.
+
+The correct entrance is randomised every 25 minutes by effectively rotating the pyramid. Note that until then, the correct door is the same for all players, which makes it useful to play on the official game world (493) if lacking a [[Pharaoh's sceptre]]. 
+
+When the player finds the right door, the odds of successfully entering are dependent on their [[Thieving]] level. On a failed attempt, the player will be stunned and take 1-4 damage. Once inside the pyramid, players can speak to the Guardian mummy or simply right-click him to start the game. Using the [[Pharaoh's sceptre]] to teleport to Jalsavrah will place the player directly next to the mummy.
+
+The player will appear in the first room, and a timer of five minutes will commence. The player has this time to loot as much treasure from the pyramid as they can. When the time runs out or when the player manually leaves, they will appear outside. When the sceptre is found, the player is immediately ejected from the pyramid. If the player's inventory is full, the sceptre will be dropped on the ground outside the pyramid.
+
+===Gameplay===
+In each room, the player will first need to disarm a spear trap, which deals 1-4 damage on a failed attempt. It grants 10 Thieving experience when disarmed. The player then encounters several containers, granting you an [[#Rewards|artefact]] and experience when opened. Rewards are dependent on the room.
+
+*'''[[Urn (Pyramid Plunder)|Urns]]:''' Every room contains exactly 13 lootable urns (bar the third room, which contains one fewer). Searching it might cause a snake inside the urn to bite the player for 1-4 damage and [[poison]] the player for the same amount. The player may try to search the urn again until they are successful. Alternatively, the player may first check an urn for snakes, and then charm them with a [[snake charm]] for higher chances of success. This might save time if the player's Thieving level is less than 51, but it is counterproductive at higher levels. 
+[[File:Scarab Swarm.png|thumb|right|The golden chests may spawn scarabs upon looting them.|125px]]
+*'''[[Grand Gold Chest]]:''' There is a golden chest in the centre of each room. The player will always open it instantly, and may rarely find a [[Pharaoh's sceptre]] inside one. However, based on the player's [[Thieving]] level, there is a chance to set off a trap and take 1-4 damage. This also causes a level 98 [[scarab swarm]] to appear, which has 25 [[Hitpoints]] and will rapidly deal up to one damage every 0.6 seconds. Its attacks can poison, and it will only try to attack the player who set off the trap. When the swarm appears, the player still receives an artefact from the chest, but no Thieving experience.
+[[File:Mummy (Pyramid Plunder, 1).png|thumb|I want my mummy!|150px]]
+*'''[[Sarcophagus (Pyramid Plunder)|Sarcophagus]]:''' Each room has a sarcophagus, which may also contain a Pharaoh's sceptre, though it takes some time to open one. Instead of Thieving, opening it uses [[Strength]] and always grants Strength experience.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1405564579351040000|date=17 June 2021|archiveurl=https://reldo.runescape.wiki/i/109871|archivedate=17 June 2021|quote=Yes, your current Strength level does affect that.}} Combat with a scarab swarm will not interrupt this action.{{CiteNews|title=Theatre of Blood: Entry Mode Improvements|url=https://secure.runescape.com/m=news/theatre-of-blood-entry-mode-improvements?oldschool=1|newsdate=1March2023}} Occasionally, a level 84 [[Mummy (Pyramid Plunder)|mummy]] will arise from the sarcophagus. The chance for this event is based on the room, occurring more frequently in later rooms. The mummy is only aggressive to the player who opened the sarcophagus, hitting up to 6 damage.
+*'''[[Tomb Door|Tomb doors]]:''' Each room has four locked tomb doors, one of which will lead to the next room, while three of them are fake. Players can fail in opening the doors, although no consequences will occur if they fail. Having a [[lockpick]] will increase the chance to open the doors, though it will halve the experience gained from doing so. The correct doors in each room are the same for every player. However, the doors in each room change whenever a new player starts a round by entering room 1 (a player entering the lobby or a subsequent room has no effect upon the correct door). It is possible for the doors to change so that a previously opened incorrect door is now correct - upon trying this door again players can simply pass through it.
+**Since a hidden update, if the player has attempted three doors and all were incorrect, the fourth door will always let the player through. This is the case even if a new player joined and the door has changed - in this case, both the fourth door and the new correct door will take the player to the next room. However, the fourth door will not work for any subsequent players who joined - therefore players should be aware that doors that others disappear through are not necessarily correct.
+
+Players can leave the game earlier via an exit door or any teleport.
+
+==Experience==
+[[File:Pyramid Plunder map.png|thumb|A map of the pyramid chambers.]]
+This minigame provides relatively high experience rates, especially beyond 71 [[Thieving]]. Players gain access to more valuable rooms every ten Thieving levels past level 21.
+
+{|class="wikitable"
+!Room
+!Lvl Req
+!Urn<ref group="n">Searching an urn grants as much experience as first checking and then searching one.</ref>
+!Chest<ref group="n">No experience is gained from the chest if a [[Scarab swarm]] is found.</ref>
+!Door<ref group="n">Experience for opening doors is halved when using a [[lockpick]].</ref>
+!Sarcophagus<ref group="n">Sarcophagi grant [[Strength]] experience.</ref>
+|-
+|'''1'''
+|{{SCP|Thieving|21+}}||60||40||40||{{SCP|Strength|20}}
+|-
+|'''2'''
+|{{SCP|Thieving|31+}}||90||60||60||{{SCP|Strength|30}}
+|-
+|'''3'''
+|{{SCP|Thieving|41+}}||150||100||100||{{SCP|Strength|50}}
+|-
+|'''4'''
+|{{SCP|Thieving|51+}}||215||140||140||{{SCP|Strength|70}}
+|-
+|'''5'''
+|{{SCP|Thieving|61+}}||300||200||200||{{SCP|Strength|100}}
+|-
+|'''6'''
+|{{SCP|Thieving|71+}}||450||300||300||{{SCP|Strength|150}}
+|-
+|'''7'''
+|{{SCP|Thieving|81+}}||675||450||450||{{SCP|Strength|225}}
+|-
+|'''8'''
+|{{SCP|Thieving|91+}}||825||550||{{NA}}||{{SCP|Strength|275}}
+|}
+<references group="n" />
+
+===Experience rates and strategy===
+In the most optimal scenario, up to 120,000 [[Thieving]] experience can be gained per hour at level 71, and upwards of 275,000 experience at level 91, accounting for failed searches and the occasional resupply. Rates are also dependent on the player's equipment, e.g. a [[Pharaoh's sceptre]] will nullify the time spent entering the pyramid.
+
+Generally, for the highest experience rates, a player will only want to loot the following;
+* The [[Grand Gold Chest|golden chests]] in room 4 and beyond. With low Thieving, it is advisable to also search chests in earlier rooms.
+* All [[Urn (Pyramid Plunder)|urns]] in the second to last and last possible room. A player should save at least 90 seconds for the last room.
+
+To increase chances of finding the [[Pharaoh's sceptre]], a player should loot every Grand Gold Chest, and can also search the sarcophagi in rooms 4 onward. These have higher sceptre rates than the sarcophagi in previous rooms. However, sarcophagi grant no Thieving experience and take some time to open.
+
+Chests and sarcophagi should always be searched last, just before leaving the room, as it might cost time or resources to defend against possible enemies.
+
+==Rewards==
+Players will find artefacts within the urns, chests, and sarcophagi. Artefacts in later rooms are generally more valuable. They can be used to [[Pharaoh's sceptre#Recharging|charge]] the Pharaoh's sceptre. They can also be sold to [[Simon Templeton]] at the [[Agility Pyramid]] just north-east from [[Sophanem]] as noted items after completion of [[Easy Desert Diary]], though this is not recommended, as selling them on the [[Grand Exchange]] grants about the same returns and is faster. The [[ivory comb]] is even worth a lot more on the Grand Exchange.
+
+{| class="wikitable sortable align-center-1 align-left-2 align-left-3" style="text-align: right;"
+! colspan="2" |Artefact
+!Rooms
+!Sold for
+![[GE]] price
+!Difference
+|-
+|{{plinkt|Ivory comb}}
+|1–2
+|{{Coins|50}}
+|{{Coins|{{GEP|ivory comb}}}}
+|{{Coins|50 - {{GEP|ivory comb}}}}
+|-
+|{{plinkt|Pottery scarab}}
+|1
+|{{Coins|75}}
+|{{Coins|{{GEP|pottery scarab}}}}
+|{{Coins|75 - {{GEP|pottery scarab}}}}
+|-
+|{{plinkt|Pottery statuette}}
+|1-3
+|{{Coins|100}}
+|{{Coins|{{GEP|pottery statuette}}}}
+|{{Coins|100 - {{GEP|pottery statuette}}}}
+|-
+|{{plinkt|Stone seal}}
+|1-5
+|{{Coins|150}}
+|{{Coins|{{GEP|stone seal}}}}
+|{{Coins|150 - {{GEP|stone seal}}}}
+|-
+|{{plinkt|Stone scarab}}
+|1-7
+|{{Coins|175}}
+|{{Coins|{{GEP|stone scarab}}}}
+|{{Coins|175 - {{GEP|stone scarab}}}}
+|-
+|{{plinkt|Stone statuette}}
+|All
+|{{Coins|200}}
+|{{Coins|{{GEP|stone statuette}}}}
+|{{Coins|200 - {{GEP|stone statuette}}}}
+|-
+|{{plinkt|Gold seal}}
+|3–8
+|{{Coins|750}}
+|{{Coins|{{GEP|gold seal}}}}
+|{{Coins|750 - {{GEP|gold seal}}}}
+|-
+|{{plinkt|Golden scarab}}
+|5-8
+|{{Coins|1000}}
+|{{Coins|{{GEP|golden scarab}}}}
+|{{Coins|1000 - {{GEP|golden scarab}}}}
+|-
+|{{plinkt|Golden statuette}}
+|7–8
+|{{Coins|1250}}
+|{{Coins|{{GEP|golden statuette}}}}
+|{{Coins|1250 - {{GEP|golden statuette}}}}
+|}
+
+===Sceptre===
+Players may rarely find a [[Pharaoh's sceptre]] instead of an artefact inside a [[Grand Gold Chest|golden chest]] or [[Sarcophagus (Pyramid Plunder)|sarcophagus]]. When a player finds the sceptre, they are immediately ejected from the pyramid, as the [[Guardian mummy]] will be angry that the player has found his master's sceptre. The sceptre will be dropped on the ground under the player outside the pyramid if their inventory is full.
+
+The Pharaoh's sceptre will appear more frequently in chests or sarcophagi in later rooms. The sceptre’s drop rates are shown below for each room.
+
+{|class="wikitable"
+!Room
+!Lvl Req
+!Sarcophagus
+!Chest
+|-
+|'''1'''
+|{{SCP|Thieving|21+}}
+|1/4,200
+|1/4,200
+|-
+|'''2'''
+|{{SCP|Thieving|31+}}
+|1/2,800
+|1/2,800
+|-
+|'''3'''
+|{{SCP|Thieving|41+}}
+|1/1,600
+|1/1,600
+|-
+|'''4'''
+|{{SCP|Thieving|51+}}
+|1/950
+|1/950
+|-
+|'''5'''
+|{{SCP|Thieving|61+}}
+|1/800
+|1/800
+|-
+|'''6'''
+|{{SCP|Thieving|71+}}
+|1/750
+|1/750
+|-
+|'''7'''
+|{{SCP|Thieving|81+}}
+|1/650
+|1/650
+|-
+|'''8'''
+|{{SCP|Thieving|91+}}
+|1/650
+|1/650
+|}
+
+If the player searches all golden chests as far as their level allows, the cumulative rates for obtaining a [[Pharaoh's sceptre]] per run are as below. Note that due to the lengthy animation for opening the sarcophagus, it is generally considered a more effective use of time to ignore the sarcophagus entirely until reaching room 4 due to the relatively low odds of rolling a sceptre during the first three rooms. 
+{| class="wikitable"
+|+
+!Level
+!Cumulative Rate
+!Cumulative Rate
+(Skipping Room 1-3 
+Sarcophagi)
+!Chest-only Cumulative Rate
+|-
+|'''21-30'''
+|1/2,100
+|1/4,200
+|1/4,200
+|-
+|'''31-40'''
+|~1/840
+|~1/1,680
+|~1/1,680
+|-
+|'''41-50'''
+|~1/410
+|~1/820
+|~1/820
+|-
+|'''51-60'''
+|~1/220
+|~1/301
+|~1/440
+|-
+|'''61-70'''
+|~1/142
+|~1/172
+|~1/284
+|-
+|'''71-80'''
+|~1/103
+|~1/118
+|~1/206
+|-
+|'''81-90'''
+|~1/78.5
+|~1/87
+|~1/157
+|-
+|'''91+'''
+|~1/63.5
+|~1/69
+|~1/126
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll = 
+|change = 
+* The drop rate of the [[pharaoh's sceptre]] has been adjusted; previously, it was reduced once players reached the sixth room, and becoming four times rarer in the eighth room.
+* Chests and sarcophagi will now roll the sceptre if players fail to open them.
+}}
+{{Subject changes
+|date = 1 March 2023
+|update = Theatre of Blood: Entry Mode Improvements
+|poll = 
+|change = Scarab swarms will no longer interrupt players looting the sarcophagus. 
+}}
+{{Subject changes
+|date = 24 March 2021
+|update = Fishing Skill Boss and Easter Event
+|change = Pharaoh's Sceptre now has scaling drop rates depending on the room its chest/sarcophagus is located.
+}}
+{{Subject changes
+|date = 18 April 2019
+|update = QoL and Treasure Trails Feedback Changes
+|change = W493 has been made a [[Server#Themed_servers/worlds|themed world]] for Pyramid Plunder.
+}}
+{{Subject changes
+|date = 12 April 2018
+|update = Quality of Life Improvements
+|change = The hourglass has been removed.
+}}
+{{Subject changes
+|date = 15 December 2015
+|update = Christmas 2015
+|poll = 
+|change = Corrected a problem where the timer in Pyramid Plunder would interrupt actions such as casting a home teleport spell.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = Scarab Swarms should no longer follow you outside of Pyramid Plunder.
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = The Pyramid Plunder timer overlay now increments more reliably when switching between graphics modes.
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|change = Relocated the pyramid plunder timer in resizable mode.
+}}
+{{Subject changes
+|date = 14 August 2014
+|update = The Penance Pet & Super Combat Potions
+|poll = Old School feature poll - Content Poll 23
+|change = Pyramid Plunder exits now have a right-click quick-leave option.
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Teletabs, Clues and Poll 17
+|poll = Old School feature poll 16
+|change = The Pyramid Plunder overlay now displays your time remaining more accurately.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Using an [[oculus orb]] in the lobby of Pyramid Plunder, it is possible to see [[Waterbirth Island Dungeon]] to the south-west of the lobby.
+[[File:Pyramid Plunder hourglass.png|thumb|right|The hourglass that used to be displayed.]]
+*Before {{UD|Quality of Life Improvements|an update}} on [[12 April]] [[2018]], an hourglass was displayed alongside the current timer in the upper-left corner of the interface. This was removed as there was already a bar showing players' remaining time in a run.
+*A room can be seen from the third room of Pyramid Plunder on the top edge of the map that appears to be an area in [[Keldagrim]]. According to Jagex, the area is in fact a duplicate part of the map that was used for a cutscene (specifically the Consortium meeting at the end of [[The Giant Dwarf]]) before developers were able to generate [[instance]]s for them.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1162261891537707008|date=16 August 2019|archiveurl=https://archive.fo/19tgw|archivedate=16 August 2019|quote=Sort of. Before developers could generate instanced copies of areas on demand, cutscenes had to take place in static copies of the map, and you're seeing one of those.}}
+*In the minigame lobby, a non-interactive grey [[sarcophagus (Pyramid Plunder lobby)|sarcophagus]] can be seen in the centre, closed. Bizarrely, this sarcophagus will only appear open after players mine the [[rubble (In Aid of the Myreque)|rubble]] leading to the [[Burgh de Rott]] pub's basement during [[In Aid of the Myreque]].
+
+==References==
+{{Reflist}}
+
+{{Pyramid Plunder}}
+{{Sophanem}}
+{{Pyramids}}
+{{Minigames}}
+[[Category:Thieving]]
+[[Category:Kharidian Desert]]

@@ -33,7 +33,7 @@
  * Command range (>= 100): audited against the 634 client's dispatcher and split
  * three ways — renumbered ids translate here, ids that name a *different* command
  * under RS2 divert to a stubbed signature (g_cs2vm2_opcode_stack_rs2 in
- * cs2vm2.c), and two need real behaviour (CC_CREATE's arity, CC_GETPARAM).
+ * cs2vm2.c), and two need real behaviour (CC_CREATE's arity, CC_GETBLENDMODE).
  * The full list is docs/RS2_634_CLIENT_REFERENCES.md section 3.
  */
 

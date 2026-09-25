@@ -1,0 +1,53 @@
+{{External|rs=Remote Farm}}
+{{Infobox Spell
+|name = Geomancy
+|image = [[File:Geomancy.png]]
+|release = [[15 October]] [[2015]]
+|update = The Max Cape
+|members = Yes
+|level = 65
+|spellbook = Lunar
+|type = Utility
+|exp = 60
+|cost = {{RuneReq|Astral=3|Nature=3|Earth=8}}
+|speed = 
+|description = Checks the status of your main Farming patches
+|anim = [[File:Geomancy.gif]]
+|sound = [[File:Geomancy.ogg]]
+}}
+[[File:Geomancy icon (mobile).png|left]]
+
+'''Geomancy''' is a [[Lunar spells|lunar spell]] that allows the status of every single [[Farming/Patch locations|farming patch]] in [[Gielinor]] to be viewed, excluding ones used during [[quests]], as well as [[compost]] progress.
+
+[[File:Geomancy interface.png|thumb|left|The Geomancy interface.]]
+Players can view the following information about their farming patches via the interface that opens when the spell is cast:
+*Crop type
+*Growth stage
+*Patch protection status
+*Patch compost status
+*Patch water status
+*Available yield or minimum yield
+
+{{clear|left}}
+
+The spell continuously checks the status of farming patches for as long as the spell interface is left open; it does not need to be cast again to update.
+{{Spell cost table
+|Rune1=Astral
+|Rune1num=3
+|Rune2=Nature
+|Rune2num=3
+|Rune3=Earth
+|Rune3num=8
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 August 2025
+|update = Varlamore & Summer Sweep-Up Combat Tweaks
+|change = The Geomancy spell interface no longer incorrectly displays the Tai Bwo Wannai calquat patch or the Draynor Manor belladonna patch.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

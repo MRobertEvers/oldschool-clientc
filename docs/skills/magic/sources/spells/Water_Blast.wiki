@@ -1,0 +1,76 @@
+{{External|rs|rsc=Water blast}}
+{{Infobox Spell
+|name = Water Blast
+|image = [[File:Water Blast.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 47
+|spellbook = Normal
+|type = Combat
+|exp = 28.5
+|element = Water
+|damage = 14, 15, or 16
+|cost = {{RuneReq|Water=3|Air=3|Death=1}}
+|speed = 5 ticks
+|description = A medium level Water missile
+|anim = [[File:Water Blast.gif|300px]]
+|sound = [[File:Water Blast.ogg]]
+}}
+[[File:Water Blast icon (mobile).png|left]]
+'''Water Blast''' is a [[Water spells|water]]-based [[Blast spells|blast spell]] in the [[standard spellbook]], requiring level 47 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest water spell available to [[free-to-play]] players.
+
+==Damage==
+Water Blast's base maximum hit starts at 14 and increases as the player unlocks additional blast spells, up to 16 at level 59 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level blast spell available
+!{{Plink|Water Blast}} base maximum hit
+|-
+|{{SCP|Magic|47}}- 52
+|{{Plink|Water Blast}}
+|14
+|-
+|{{SCP|Magic|53}}- 58
+|{{Plink|Earth Blast}}
+|15
+|-
+|{{SCP|Magic|59}}+
+|{{Plink|Fire Blast}}
+|16
+|}
+As with all combat spells, Water Blast's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a water-based spell, Water Blast's maximum hit is also increased against targets that are [[Elemental weakness|weak to water]].
+
+===Calculator===
+{{Magic damage calculator|Water Blast|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=water}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 3
+|Rune2 = air
+|Rune2num = 3
+|Rune3 = death
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+
+== Notable uses ==
+
+* During the [[Family Crest]] quest, the player must deal damage to the demon [[Chronozon]] with Water Blast (along with each of the other three blast spells) at least once in order to defeat it.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[blast spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

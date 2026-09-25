@@ -2,6 +2,7 @@
 #define RS_LOOT_STORE_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /*
  * Client-native loot tracker store.
@@ -28,12 +29,33 @@
  * programming errors per .cursor/rules/c-assert-invariants.mdc.
  */
 
-#define LOOT_AUX_KIND_MAX 5
+/* String vectors are addressed by client-variable id (the rev-239 client's
+ * ClientVarValues::GetVeccValue). The cache's scripts use ids 1..6; this held 5,
+ * so every stringvector op on ids 5 and 6 was silently dropped. */
+#define LOOT_AUX_KIND_MAX 64
 
 struct LootRow
 {
     int obj_id;
+    /** How many of them, summed over every kill in this group. */
     int qty;
+    /**
+     * What ONE of them is worth: `ObjType.cost` as the drop was recorded.
+     *
+     * A UNIT price and not the stack's total, which is what the only reader of
+     * this field -- ToriRS_LootRow, handed to plugins -- has always documented
+     * it to be. It used to hold `value * qty` accumulated over the group, so a
+     * reader following the stated contract multiplied by the quantity a second
+     * time: ten thousand coins at a cost of one came out of the loot tracker's
+     * totals band as a hundred million gp, and two kills of five thousand as
+     * twenty-five.
+     *
+     * The unit price is also the only form a per-item rule can be written
+     * against. High alchemy is `floor(cost * 3 / 5)` PER ITEM before the stack
+     * multiply -- the reference's GroundItem holds a per-unit haPrice and
+     * multiplies on the way out -- and that truncation cannot be recovered
+     * from a total.
+     */
     int value;
 };
 
@@ -48,6 +70,9 @@ struct LootSource
      * event_id so multi-item drops from one death count as one kill. */
     int kill_count;
     int last_event_id;
+    /* From LOOTTRACKER_SOURCEADD (7600); -1 until a script supplies them. */
+    int category;
+    int level;
 };
 
 struct LootAuxList
@@ -63,6 +88,7 @@ struct LootStore
     int source_count;
     int source_cap;
     int next_source_id;
+    int drop_limit;
 
     /* Item ignore (7616/7617/7621); backs 7619/7620. */
     char** item_ignored;
@@ -75,6 +101,7 @@ struct LootStore
     int source_ignored_cap;
 
     struct LootAuxList aux[LOOT_AUX_KIND_MAX];
+    uint64_t aux_revision[LOOT_AUX_KIND_MAX];
 
     int* query_ids;
     int query_count;
@@ -83,6 +110,8 @@ struct LootStore
     /* Monotonic ids for debug/seed paths that call AddKillLoot without a
      * server event_id (App_LootNotifyKill). */
     int next_event_id;
+    /** Changes only when the retained source/row view changes; never zero. */
+    uint64_t revision;
 };
 
 void
@@ -97,8 +126,9 @@ LootStore_ResetAll(struct LootStore* store);
 /* --- Populate hook (server/engine side) --------------------------------- */
 
 /** Record one loot drop. Creates the source group if it does not exist;
- *  appends or merges a row for obj_id. Increments kill_count when event_id
- *  differs from the source's last seen event (multi-item kills share one id).
+ *  appends or merges a row for obj_id -- the quantities add up, the `value`
+ *  is the UNIT price and does not. Increments kill_count when event_id differs
+ *  from the source's last seen event (multi-item kills share one id).
  *  Does not consult ignore lists. */
 void
 LootStore_AddKillLoot(
@@ -108,6 +138,17 @@ LootStore_AddKillLoot(
     int qty,
     int value,
     int event_id);
+
+/** Register a source (op 7600): creates it if new, records its category and
+ *  level, and counts one kill per distinct `unique_identifier` -- the same id
+ *  LOOTTRACKER_LOOTADD (7628) then files each dropped item under. */
+void
+LootStore_AddSource(
+    struct LootStore* store,
+    const char* source_name,
+    int category,
+    int level,
+    int unique_identifier);
 
 /* --- Source queries (backing ops 7601..7606, 7630) ----------------------- */
 
@@ -121,7 +162,7 @@ LootStore_SourceName(
     const struct LootStore* store,
     int source_id);
 
-/** Source name → number of distinct item rows (op 7603). */
+/** Source name → number of distinct item rows. */
 int
 LootStore_SourceItemCount(
     const struct LootStore* store,
@@ -179,48 +220,114 @@ LootStore_RowById(
     int* out_obj_id,
     int* out_qty);
 
-/* --- Aux string lists (backing ops 7401/7404/7407/7408/7409) ------------ */
+/* --- String vectors (backing ops 7400..7409) ------------------------------
+ *
+ * The rev-239 client's jag::oldscape::rs2lib::StringVector, addressed by
+ * client-variable id. Order matters and duplicates are allowed: APPEND always
+ * appends, only the *_UNIQUE form de-duplicates, and every erase keeps the
+ * remaining entries in order. `vector` must be a valid id (see
+ * LootStore_VectorValid): the client errors the script on an unknown one, and
+ * so does the host. */
+
+bool
+LootStore_VectorValid(int vector);
 
 void
-LootStore_AuxUpsert(
+LootStore_VectorAppend(
     struct LootStore* store,
-    int kind,
-    const char* str,
-    int flag);
+    int vector,
+    const char* str);
 
 void
-LootStore_AuxRemove(
+LootStore_VectorAppendUnique(
     struct LootStore* store,
-    int kind,
+    int vector,
     const char* str,
-    int flag);
+    bool case_sensitive);
+
+/** Insert at `index` (0 <= index <= size); an out-of-range index does nothing. */
+void
+LootStore_VectorInsert(
+    struct LootStore* store,
+    int vector,
+    int index,
+    const char* str);
+
+/** Replace the entry at `index`; an out-of-range index does nothing. */
+void
+LootStore_VectorSet(
+    struct LootStore* store,
+    int vector,
+    int index,
+    const char* str);
+
+/** Erase the first entry equal to `str`. */
+void
+LootStore_VectorErase(
+    struct LootStore* store,
+    int vector,
+    const char* str,
+    bool case_sensitive);
+
+/** Erase the entry at `index`; an out-of-range index does nothing. */
+void
+LootStore_VectorEraseAt(
+    struct LootStore* store,
+    int vector,
+    int index);
+
+/** Whether any entry matches `str`. With `wildcard`, an entry is a pattern in
+ *  which `*` matches any run of characters (the loot tracker's ignore lists). */
+bool
+LootStore_VectorContains(
+    const struct LootStore* store,
+    int vector,
+    const char* str,
+    bool wildcard,
+    bool case_sensitive);
 
 int
-LootStore_AuxCount(
+LootStore_VectorSize(
     const struct LootStore* store,
-    int kind);
+    int vector);
 
-int
-LootStore_AuxLookup(
-    const struct LootStore* store,
-    int kind,
-    const char* str,
-    int arg3,
-    int arg4);
-
+/** The entry at `index`, or "" out of range. */
 const char*
-LootStore_AuxGet(
+LootStore_VectorGet(
     const struct LootStore* store,
-    int kind,
+    int vector,
     int index);
 
 void
-LootStore_AuxClear(
+LootStore_VectorClear(
     struct LootStore* store,
-    int kind);
+    int vector);
 
+/** Bumps on every change to `vector`, so a view built from it can tell it is stale. */
+uint64_t
+LootStore_VectorRevision(
+    const struct LootStore* store,
+    int vector);
+
+/* --- Loot tracker settings ------------------------------------------------ */
+
+/** Source id for `source_name`, or -1 when no such source is recorded (op 7603). */
 int
-LootStore_AuxCountTotal(const struct LootStore* store);
+LootStore_SourceIdByName(
+    const struct LootStore* store,
+    const char* source_name);
+
+/** The drop limit (op 7608): the hard limit LootStore_SetDropLimit set, or --
+ *  since this store has no limit of its own -- every recorded source. */
+int
+LootStore_DropLimit(const struct LootStore* store);
+
+/** Set the hard limit (op 7629). 0 or less clears it. The value is kept and
+ *  reported; this store does not evict sources to honour it. */
+void
+LootStore_SetDropLimit(
+    struct LootStore* store,
+    int hard_limit);
 
 /* --- Item ignore (7616/7617/7621) + 1-based 7619/7620 -------------------- */
 
@@ -233,6 +340,12 @@ void
 LootStore_ItemIgnoreRemove(
     struct LootStore* store,
     const char* name);
+
+/** Remove the 1-based entry `index_1based` (op 7618), matching 7620's indexing. */
+void
+LootStore_ItemIgnoreRemoveAt(
+    struct LootStore* store,
+    int index_1based);
 
 void
 LootStore_ItemIgnoreClear(struct LootStore* store);
@@ -272,6 +385,16 @@ LootStore_SourceIgnoreRemove(
     struct LootStore* store,
     const char* name);
 
+/** Remove the 1-based entry `index_1based` (op 7624), matching 7626's indexing. */
+void
+LootStore_SourceIgnoreRemoveAt(
+    struct LootStore* store,
+    int index_1based);
+
+/** Empty the source ignore list (op 7627). */
+void
+LootStore_SourceIgnoreClear(struct LootStore* store);
+
 bool
 LootStore_IsSourceIgnored(
     const struct LootStore* store,
@@ -307,5 +430,8 @@ void
 LootStore_RemoveById(
     struct LootStore* store,
     int source_id);
+
+uint64_t
+LootStore_Revision(const struct LootStore* store);
 
 #endif /* RS_LOOT_STORE_H */

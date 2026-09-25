@@ -1,0 +1,41 @@
+From d1665d0e37f52cba690ad9139e22cb32d1fec08b Mon Sep 17 00:00:00 2001
+From: Matt Evers <mrobertevers@gmail.com>
+Date: Mon, 24 Aug 2026 23:07:26 -0500
+Subject: [PATCH 1/4] arm(pal_pref): prefetch the triangle's palette lines in
+ the prologue
+
+---
+ .../gouraudhsllightness/gouraud_tri_i686.S    | 20 +++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+diff --git a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+index d8b79f6d2..a2e93d73a 100644
+--- a/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
++++ b/3rd/toridraw/graphics/raster/gouraudhsllightness/gouraud_tri_i686.S
+@@ -470,6 +470,26 @@ Lsort_c2:
+ 	SORTSTORE 2, 1, 0
+ 
+ Lsorted:
++	/*
++	 * The three palette lines this triangle will read, asked for before the
++	 * prologue rather than during the first span.  The vertex colours ARE
++	 * palette indices -- the accumulator is only `colour << 8` -- so the
++	 * address is known here, and everything between this point and the first
++	 * LOOKUP is three idivl and a divsd, none of which touches memory.  A
++	 * triangle varies only in lightness, so those three lines cover most of
++	 * the slice it will walk.
++	 *
++	 * prefetcht0 changes no architectural state and faults on nothing, so a
++	 * colour outside the palette is harmless here in a way a load would not
++	 * be; the clamp in LOOKUP still owns correctness.
++	 */
++	movl	V_C0(%esp), %eax
++	prefetcht0 _g_hsl16_to_rgb_table(,%eax,4)
++	movl	V_C1(%esp), %eax
++	prefetcht0 _g_hsl16_to_rgb_table(,%eax,4)
++	movl	V_C2(%esp), %eax
++	prefetcht0 _g_hsl16_to_rgb_table(,%eax,4)
++
+ 	/* ---- per-triangle prologue ---- */
+ 	movl	V_Y2(%esp), %eax
+ 	subl	V_Y0(%esp), %eax	/* dy_AC */

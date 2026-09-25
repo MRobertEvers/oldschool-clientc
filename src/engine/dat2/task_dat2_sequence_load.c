@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 struct Task_Dat2SequenceLoad
 {
@@ -46,6 +47,13 @@ struct Task_Dat2SequenceLoad
     int frame_i;
     struct RSCache_Dat2DiskArchive* frame_archive;
     struct RSCache_FileList* frame_filelist;
+    /** Which animation archive frame_archive holds, or -1: consecutive
+     *  frames of one archive reuse the decode instead of re-asking. */
+    int loaded_archive_id;
+    /* Every distinct animation archive the sequence's frames live in, lent
+     * to one prefetch item so they are fetched together (see the loop). */
+    int* archive_ids;
+    int archive_id_count;
     int cur_frame_id;
     int cur_file_id;
     int cur_file_pos; /* filelist array position of cur_file_id (IDs are not 0-based) */
@@ -198,6 +206,10 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
         anim->skeletal = self->skeletal;
         self->skeletal = NULL;
         anim->frame_count = play_frames > 0 ? play_frames : 1;
+        /* DynamicObject uses frameStep for Maya loops too. Leaving calloc's
+         * zero here discards a looping sail at its first 90-frame boundary
+         * and exposes the cloth's unposed, offset bind geometry. */
+        anim->frame_step = self->seq ? self->seq->frame_step : -1;
         if( self->seq )
         {
             seq_apply_meta(anim, self->seq);
@@ -209,9 +221,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
             anim->replaceheldright = -1;
         }
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
+            TORIRS_LOG("seq_load: seq=%d skeletal maya=%d bones=%d baked=%d play=%d\n",
                 self->seq_id,
                 self->seq ? self->seq->anim_maya_id : -1,
                 anim->skeletal->bone_count,
@@ -245,9 +255,7 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
     {
         anim = calloc(1, sizeof(*anim));
         if( getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
+            TORIRS_LOG("seq_load: seq=%d unavailable (config=%p frame_count=%d framemap=%p)\n",
                 self->seq_id,
                 (void*)self->seq,
                 self->seq ? self->seq->frame_count : -1,
@@ -259,10 +267,10 @@ seq_register_result(struct Task_Dat2SequenceLoad* self)
 
 static struct RSCache_Dat2DiskArchive*
 seq_take_archive(
-    struct ToriRS_IO* io,
+    struct ToriRS_IOBatch* io,
     int slot)
 {
-    struct ToriRS_IOItem* item = &io->io_slots[slot];
+    struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, slot);
     struct RSCache_Dat2DiskArchive* archive = (struct RSCache_Dat2DiskArchive*)item->data;
     item->data = NULL;
     ToriRS_IO_ClearItem(item);
@@ -287,7 +295,7 @@ seq_drop_frame_temporaries(struct Task_Dat2SequenceLoad* self)
 static int
 Task_Dat2SequenceLoad_Run(
     struct ToriRS_Task* base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2SequenceLoad* self = (struct Task_Dat2SequenceLoad*)base;
 
@@ -373,11 +381,11 @@ Task_Dat2SequenceLoad_Run(
         {
             self->cur_framemap_id = self->maya->base_id;
             ToriRS_IO_QueueCache(
-                io, 1, 0, RSCACHE_DAT2_TABLE_SKELETONS, self->cur_framemap_id,
+                io, 0, 0, RSCACHE_DAT2_TABLE_SKELETONS, self->cur_framemap_id,
                 TORIRS_IO_CACHE_DAT2);
             PT_YIELD(&self->pt);
             {
-                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 1);
+                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 0);
                 if( fm_archive )
                 {
                     /* The rig rides in the framemap's trailing bytes, so decode
@@ -397,9 +405,7 @@ Task_Dat2SequenceLoad_Run(
                 self->seq_id, self->maya, self->skeletal_base);
         }
         if( !self->skeletal && getenv("TORIRS_ANIM_DEBUG") )
-            fprintf(
-                stderr,
-                "seq_load: seq=%d skeletal bake failed (maya_id=%d maya=%p base=%p)\n",
+            TORIRS_ERR("seq_load: seq=%d skeletal bake failed (maya_id=%d maya=%p base=%p)\n",
                 self->seq_id,
                 self->seq->anim_maya_id,
                 (void*)self->maya,
@@ -418,8 +424,60 @@ Task_Dat2SequenceLoad_Run(
     self->frames = calloc((size_t)self->frame_count, sizeof(struct RSCache_Dat2Frame*));
     self->delays = calloc((size_t)self->frame_count, sizeof(int));
     self->loaded_framemap_id = -1;
+    self->loaded_archive_id = -1;
 
-    /* 2. Per frame: load its animation archive, then its framemap, then decode. */
+    /*
+     * Every animation archive the frames name, fetched TOGETHER before any
+     * frame is decoded.
+     *
+     * The loop below used to ask for each frame's archive as it reached
+     * that frame, one round trip after another; a sequence whose frames
+     * span several archives paid a round trip per archive, in a line, and
+     * on a streamed cache that line ran behind every other stage of a
+     * region load (runner telemetry, 2026-09-17: a chain 109 reads deep).
+     * One prefetch item makes them all resident in one round trip, and
+     * the reads in the loop are then answered inside Process. Only for
+     * a sequence that spans more than one archive: a single archive is
+     * one read either way.
+     */
+    {
+        int n = 0;
+        self->archive_ids = malloc((size_t)self->frame_count * sizeof(int));
+        assert(self->archive_ids);
+        for( int i = 0; i < self->frame_count; i++ )
+        {
+            int id = self->seq->frame_ids[i];
+            int archive_id;
+            int seen = 0;
+            if( id < 0 )
+                continue;
+            archive_id = (id >> 16) & 0xFFFF;
+            for( int k = 0; k < n; k++ )
+                if( self->archive_ids[k] == archive_id )
+                    seen = 1;
+            if( !seen )
+                self->archive_ids[n++] = archive_id;
+        }
+        self->archive_id_count = n;
+    }
+    if( self->archive_id_count > 1 )
+    {
+        ToriRS_IO_QueueCachePrefetch(
+            io,
+            0,
+            0,
+            RSCACHE_DAT2_TABLE_ANIMATIONS,
+            TORIRS_IO_CACHE_DAT2,
+            self->archive_ids,
+            self->archive_id_count);
+        PT_YIELD(&self->pt);
+        ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
+    }
+    free(self->archive_ids);
+    self->archive_ids = NULL;
+
+    /* 2. Per frame: its animation archive (reused while consecutive frames
+     * share one), then its framemap, then decode. */
     for( self->frame_i = 0; self->frame_i < self->frame_count; self->frame_i++ )
     {
         self->cur_frame_id = self->seq->frame_ids[self->frame_i];
@@ -428,31 +486,36 @@ Task_Dat2SequenceLoad_Run(
         if( self->cur_frame_id < 0 )
             continue;
 
-        ToriRS_IO_QueueCache(
-            io,
-            0,
-            0,
-            RSCACHE_DAT2_TABLE_ANIMATIONS,
-            (self->cur_frame_id >> 16) & 0xFFFF,
-            TORIRS_IO_CACHE_DAT2);
-        PT_YIELD(&self->pt);
-        self->frame_archive = seq_take_archive(io, 0);
+        if( self->loaded_archive_id != ((self->cur_frame_id >> 16) & 0xFFFF) )
+        {
+            seq_drop_frame_temporaries(self);
+            self->loaded_archive_id = -1;
+            ToriRS_IO_QueueCache(
+                io,
+                0,
+                0,
+                RSCACHE_DAT2_TABLE_ANIMATIONS,
+                (self->cur_frame_id >> 16) & 0xFFFF,
+                TORIRS_IO_CACHE_DAT2);
+            PT_YIELD(&self->pt);
+            self->frame_archive = seq_take_archive(io, 0);
+            if( !self->frame_archive )
+                continue;
+            self->frame_filelist = RSCache_FileListNewFromDecode(
+                self->frame_archive->data,
+                self->frame_archive->data_size,
+                self->frame_archive->file_count);
+            self->loaded_archive_id = (self->cur_frame_id >> 16) & 0xFFFF;
+        }
         if( !self->frame_archive )
             continue;
-        self->frame_filelist = RSCache_FileListNewFromDecode(
-            self->frame_archive->data,
-            self->frame_archive->data_size,
-            self->frame_archive->file_count);
         self->cur_file_id = self->cur_frame_id & 0xFFFF;
         /* Frame file IDs are not 0-based/dense — resolve to the filelist position. */
         self->cur_file_pos = seq_file_pos_for_id(self->frame_archive, self->cur_file_id);
         if( !self->frame_filelist || self->cur_file_pos < 0 ||
             self->cur_file_pos >= self->frame_filelist->file_count ||
             !self->frame_filelist->files[self->cur_file_pos] )
-        {
-            seq_drop_frame_temporaries(self);
             continue;
-        }
         self->cur_framemap_id = RSCache_Dat2FrameFramemapIdFromFileProfile(
             CacheProvider_Profile(self->provider),
             self->frame_filelist->files[self->cur_file_pos],
@@ -463,14 +526,14 @@ Task_Dat2SequenceLoad_Run(
         {
             ToriRS_IO_QueueCache(
                 io,
-                1,
+                0,
                 0,
                 RSCACHE_DAT2_TABLE_SKELETONS,
                 self->cur_framemap_id,
                 TORIRS_IO_CACHE_DAT2);
             PT_YIELD(&self->pt);
             {
-                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 1);
+                struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 0);
                 if( fm_archive )
                 {
                     if( self->framemap )
@@ -492,9 +555,8 @@ Task_Dat2SequenceLoad_Run(
                 self->framemap,
                 self->frame_filelist->files[self->cur_file_pos],
                 self->frame_filelist->file_sizes[self->cur_file_pos]);
-
-        seq_drop_frame_temporaries(self);
     }
+    seq_drop_frame_temporaries(self);
 
     /* 3. Assemble render-ready animation and register it in the scene. */
     seq_register_result(self);
@@ -507,6 +569,7 @@ Task_Dat2SequenceLoad_Free(struct ToriRS_Task* base)
 {
     struct Task_Dat2SequenceLoad* self = (struct Task_Dat2SequenceLoad*)base;
     seq_drop_frame_temporaries(self);
+    free(self->archive_ids);
     if( self->frames )
     {
         for( int i = 0; i < self->frame_count; i++ )

@@ -1,0 +1,150 @@
+{{Navbox
+|name = Arceuus spellbook
+|title = [[Arceuus spells]]
+|gtitle1 = Combat
+|gtype1 = subgroup
+|group1 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = [[Grasp spells]]
+  |group1 =
+   * {{plink|Ghostly Grasp|txt=Ghostly}}
+   * {{plink|Skeletal Grasp|txt=Skeletal}}
+   * {{plink|Undead Grasp|txt=Undead}}
+  |gtitle2 = [[Demonbane spells]]
+  |group2 =
+   * {{plink|Inferior Demonbane|txt=Inferior}}
+   * {{plink|Superior Demonbane|txt=Superior}}
+   * {{plink|Dark Demonbane|txt=Dark}}
+  |gtitle3 = [[Corruption spells]]
+  |group3 =
+   * {{plink|Lesser Corruption|txt=Lesser}}
+   * {{plink|Greater Corruption|txt=Greater}}
+  |gtitle4 = [[Resurrection spells]]
+  |gtype4 = subgroup
+  |group4 =
+    {{Navbox
+    |subgroup = yes
+    |gtitle1 = Lesser
+    |group1 =
+     * {{plink|Resurrect Lesser Ghost|txt=Ghost}}
+     * {{plink|Resurrect Lesser Skeleton|txt=Skeleton}}
+     * {{plink|Resurrect Lesser Zombie|txt=Zombie}}
+    |gtitle2 = Superior
+    |group2 =
+     * {{plink|Resurrect Superior Ghost|txt=Ghost}}
+     * {{plink|Resurrect Superior Skeleton|txt=Skeleton}}
+     * {{plink|Resurrect Superior Zombie|txt=Zombie}}
+    |gtitle3 = Greater
+    |group3 =
+     * {{plink|Resurrect Greater Ghost|txt=Ghost}}
+     * {{plink|Resurrect Greater Skeleton|txt=Skeleton}}
+     * {{plink|Resurrect Greater Zombie|txt=Zombie}}
+     }}
+ |gtitle5 = [[Thrall]]s
+  |gtype5 = subgroup
+  |group5 =
+    {{Navbox
+    |subgroup = yes
+    |gtitle1 = Lesser
+    |group1 =
+     * [[Lesser ghostly thrall|Ghost]]
+     * [[Lesser skeletal thrall|Skeleton]]
+     * [[Lesser zombified thrall|Zombie]]
+    |gtitle2 = Superior
+    |group2 =
+     * [[Superior ghostly thrall|Ghost]]
+     * [[Superior skeletal thrall|Skeleton]]
+     * [[Superior zombified thrall|Zombie]]
+    |gtitle3 = Greater
+    |group3 =
+     * [[Greater ghostly thrall|Ghost]]
+     * [[Greater skeletal thrall|Skeleton]]
+     * [[Greater zombified thrall|Zombie]]
+    }}
+  |gtitle6 = Other spells
+  |group6 =
+   * {{plink|Mark of Darkness}}
+   * {{plink|Ward of Arceuus}}
+  }}
+|gtitle2 = Teleport
+|group2 =
+ * {{plink|Arceuus Home Teleport|txt=Arceuus Home}}
+ * {{plink|Minigame Teleport|txt=Minigame}}
+ * {{plink|Arceuus Library Teleport|txt=Arceuus Library}}
+ * {{plink|Draynor Manor Teleport|txt=Draynor Manor}}
+ * {{plink|Battlefront Teleport|txt=Kebos Battlefront}}
+ * {{plink|Mind Altar Teleport|txt=Mind Altar}}
+ * {{plink|Respawn Teleport|txt=Respawn point}}
+ * {{plink|Salve Graveyard Teleport|txt=Salve Graveyard}}
+ * {{plink|Fenkenstrain's Castle Teleport|txt=Fenkenstrain's Castle}}
+ * {{plink|West Ardougne Teleport|txt=West Ardougne}}
+ * {{plink|Harmony Island Teleport|txt=Harmony Island}}
+ * {{plink|Cemetery Teleport|txt=Forgotten Cemetery}}
+ * {{plink|Barrows Teleport|txt=Barrows}}
+ * {{plink|Ape Atoll Teleport (Arceuus)|txt=Ape Atoll Dungeon}}
+ * {{plink|Teleport to Target|txt=Target}}
+|gtitle3 = Utility
+|gtype3 = subgroup
+|group3 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = [[Reanimation spells]]
+  |group1 =
+   * {{plink|Basic Reanimation|txt=Basic}}
+   * {{plink|Adept Reanimation|txt=Adept}}
+   * {{plink|Expert Reanimation|txt=Expert}}
+   * {{plink|Master Reanimation|txt=Master}}
+  |gtitle2 = Offering spells
+  |group2 =
+   * {{plink|Demonic Offering|txt=Demonic}}
+   * {{plink|Sinister Offering|txt=Sinister}}
+  |gtitle3 = Other spells
+  |group3 =
+   * {{plink|Shadow Veil}}
+   * {{plink|Dark Lure}}
+   * {{plink|Vile Vigour}}
+   * {{plink|Degrime}}
+   * {{plink|Resurrect Crops}}
+   * {{plink|Death Charge}}
+  }}
+|gtitle4 = Discontinued
+|gtype4 = subgroup
+|group4 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = 
+  |group1 =
+   * {{plink|Lumbridge Graveyard Teleport}}
+  |gtitle2 = Basic Reanimation
+  |group2 =
+   * {{plink|Reanimate Goblin|txt=Goblin}}
+   * {{plink|Reanimate Monkey|txt=Monkey}}
+   * {{plink|Reanimate Imp|txt=Imp}}
+   * {{plink|Reanimate Minotaur|txt=Minotaur}}
+   * {{plink|Reanimate Scorpion|txt=Scorpion}}
+   * {{plink|Reanimate Bear|txt=Bear}}
+   * {{plink|Reanimate Unicorn|txt=Unicorn}}
+  |gtitle3 = Adept Reanimation
+  |group3 =
+   * {{plink|Reanimate Dog|txt=Dog}}
+   * {{plink|Reanimate Chaos Druid|txt=Chaos Druid}}
+   * {{plink|Reanimate Giant|txt=Giant}}
+   * {{plink|Reanimate Ogre|txt=Ogre}}
+   * {{plink|Reanimate Elf|txt=Elf}}
+   * {{plink|Reanimate Troll|txt=Troll}}
+   * {{plink|Reanimate Horror|txt=Horror}}
+  |gtitle4 = Expert Reanimation
+  |group4 =
+   * {{plink|Reanimate Kalphite|txt=Kalphite}}
+   * {{plink|Reanimate Dagannoth|txt=Dagannoth}}
+   * {{plink|Reanimate Bloodveld|txt=Bloodveld}}
+   * {{plink|Reanimate TzHaar|txt=TzHaar}}
+   * {{plink|Reanimate Demon|txt=Demon}}
+  |gtitle5 = Master Reanimation
+  |group5 =
+   * {{plink|Reanimate Aviansie|txt=Aviansie}}
+   * {{plink|Reanimate Abyssal Creature|txt=Abyssal Creature}}
+   * {{plink|Reanimate Dragon|txt=Dragon}}
+  }}
+}}{{Ctg|Spells|Arceuus spells}}

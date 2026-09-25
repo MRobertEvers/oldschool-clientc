@@ -1,0 +1,5 @@
+WARNING: linker: Unsupported flags DT_FLAGS_1=0x8000001
+WARNING: linker: /data/local/tmp/final-placement_chain_test: unused DT entry: type 0x6ffffef5 arg 0x34c
+WARNING: linker: /data/local/tmp/final-placement_chain_test: unused DT entry: type 0x6ffffffe arg 0x32c
+WARNING: linker: /data/local/tmp/final-placement_chain_test: unused DT entry: type 0x6fffffff arg 0x1
+PASS: 51 placement checks, fallback, invalidation, compaction, index reuse

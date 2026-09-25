@@ -1,0 +1,39 @@
+{{Infobox Spell
+|name = Alchemic Divergence
+|image = [[File:Alchemic Divergence.png]]
+|release = [[15 April]] [[2026]]
+|update = Leagues VI: Demonic Pacts - Launches Today!
+|members = Yes
+|level = 1
+|spellbook = Normal
+|type = Utility
+|exp = 10 * items
+|cost = None
+|speed = 5 ticks
+|description = Upgrades up to 10 of a resource into a higher tier.
+|anim = [[File:Alchemic Divergence.webm]]
+}}
+[[File:Alchemic Divergence icon (mobile).png|left|class=pageimage]]
+'''Alchemic Divergence'''  is a [[Utility spells|utility spell]] available in the [[standard spellbook]] in the [[Demonic Pacts League]] when the Tier 4 Relic [[Transmute (Demonic Pacts League)|Transmute]] was selected. It requires level 1 [[Magic]] to cast, and grants 10 Magic [[experience]] per item converted when cast.
+
+This spell converts specific skilling resources into a higher tier of the same category effectively "upgrading" it. For example [[raw karambwan]]s can be upgraded to [[raw shark]]s after one cast, and upgraded again to [[raw anglerfish]]. When cast upon a stack of noted items, it will convert 10 of them at a time. These spells will automatically re-cast over time as long as the items are available in the same slot in your inventory.
+
+This spell replaces the [[High Level Alchemy]] spell in your spellbook when unlocked, however, this can still be cast via a toggle or through the spellbook itself.
+
+==Transmutable resources==
+{{:Transmute (Demonic Pacts League)/Resources}}
+
+==Notes==
+{{Notelist}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 May 2026
+|update = Further Leagues VI Changes
+|change = Alchemic Divergence now correctly displays as costing no runes and is highlighted to indicate it is are available to use.
+}}
+{{Subject changes footer}}
+
+{{Demonic Pacts League}}
+{{Utility spells}}

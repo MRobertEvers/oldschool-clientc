@@ -1,0 +1,39 @@
+{{External|rs|rsc=Charge air Orb}}
+{{Infobox Spell
+|name = Charge Air Orb
+|image = [[File:Charge Air Orb.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 66
+|spellbook = Normal
+|type = Utility
+|exp = 76
+|cost = {{RuneReq|Cosmic=3|Air=30|Orb=1}}
+|speed = 3 ticks (6 on autocast)
+|description = Needs to be cast on an air obelisk
+|anim = [[File:Charge Air Orb.gif]]
+|sound = [[File:Charge Air Orb.ogg]]
+}}
+[[File:Charge Air Orb icon (mobile).png|left|class=pageimage]]
+'''Charge Air Orb''' is a spell which can be cast on the [[Air Obelisk]] above [[Edgeville Dungeon]], turning an [[unpowered orb]] into an [[air orb]]. It requires 66 Magic to cast, at which point it will [[autocast]] every 3.6 seconds. Players can speed up this time by casting it manually for each orb; it is possible to gain up to 40,000 [[Magic]] experience per hour using the spell in this way.
+
+Using an air orb on a [[battlestaff]] makes an [[air battlestaff]], requiring 66 [[Crafting]] and granting 137.5 Crafting experience. Charging an [[air orb]] is a hard task for the [[Wilderness Diary Hard|Wilderness Diary]].
+
+=== Wilderness location ===
+The Air Obelisk is located above the Edgeville Dungeon, and requires going into level 7 [[Wilderness]] to access. Players may be attacked by other players within 7 combat levels of them; as such, some players create pures to attack low-level accounts casting the spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 30
+|Rune2 = cosmic
+|Rune2num = 3
+|Rune3 = unpowered orb
+|Rune3num = 1
+}}
+
+==Money making==
+{{Mmgsection|Charging air orbs}}
+
+{{Standard spellbook}}

@@ -294,7 +294,7 @@ def main():
         return
 
     if not args.modulus:
-        raise SystemExit("--modulus is required (see MOCK230_RSA_PUBLIC_MODULUS)")
+        raise SystemExit("--modulus is required (see TORIRSSERVER_RSA_PUBLIC_MODULUS)")
 
     entry, old = patch(jar, out_jar, args.modulus.lower())
     print(f"patched {entry} in {os.path.basename(jar)}", file=sys.stderr)

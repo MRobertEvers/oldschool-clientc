@@ -58,9 +58,28 @@ enum ToriRS_NetOutType
     TORIRS_NET_OUT_DISCONNECT = 3,
 };
 
+/**
+ * The login screen could not reach a server at all.
+ *
+ * Outside the protocol's own byte range so it can share ToriRS_Network's
+ * login_reply, and negative so a profile spells it by name
+ * ([login_reply:connect_failed]) rather than by number.
+ */
+#define TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED (-100)
+
 struct ToriRS_Network
 {
     enum ToriRS_NetState state;
+    /**
+     * The server's rejection byte from the last failed login, or -1.
+     *
+     * Survives the drop back to DISCONNECTED on purpose: that transition is
+     * how the login screen learns the attempt failed, and the code is the only
+     * thing that says WHY. TORIRS_NET_LOGIN_REPLY_CONNECT_FAILED is the
+     * transport's own answer for a socket that never got far enough to be
+     * refused.
+     */
+    int login_reply;
     struct GameProtoRevTable const* rev;
 
     struct Isaac* random_in;
@@ -85,6 +104,15 @@ struct ToriRS_Network
     char username[64];
     char password[64];
 
+    /** What the login block says this client is: the revision-239 login
+     *  header's clientType / platformType (rsprot LoginClientType /
+     *  LoginPlatformType: 7 = enhanced android, 10 = enhanced linux;
+     *  platform 2 = android, 0 = default). The app sets them from the same
+     *  resolved identity the cache scripts are told (CS2VM2_SetClientIdentity),
+     *  so the server and the scripts agree on which gameframe this is. */
+    int client_type;
+    int platform_type;
+
     loginproto_seed_fn seed_fn;
     void* seed_user;
 
@@ -107,6 +135,20 @@ struct ToriRS_Network
     /** The local player's slot as last stated by a login response, or -1.
      * A reconnect keeps it: RECONNECT_OK restates nothing. */
     int local_index;
+
+    /**
+     * A previous session's seed and slot were handed in from outside this
+     * process (ToriRS_Network_ArmResume) and the next ConnectLogin presents
+     * them as a reconnect, once. What a reloaded browser tab boots with.
+     */
+    int resume_armed;
+
+    /**
+     * The handshake in flight is that armed reconnect. Left standing if it
+     * fails, so the caller can learn so once (ToriRS_Network_TakeResumeRefused)
+     * and log in with the password instead.
+     */
+    int resume_in_flight;
 };
 
 /** Initialize with a revision table and RSA key (hex exponent/modulus). */
@@ -144,16 +186,46 @@ ToriRS_Network_ConnectLogin(
  * session back instead of logging it in again. Callers own the client-side
  * reset; this touches only the connection.
  *
- * Only revision 239 has the reconnect handshake wired up. On every other
- * revision the login driver ignores the flag and sends an ordinary
- * GAMELOGIN — which re-establishes the session all the same, because a server
- * that persists a character on disconnect hands the same one back. The
- * difference is a password round trip, not an outcome.
+ * Which handshake that is, is the revision's to state: `rev->reconnect_kind`
+ * picks between LostCity's credential block behind opcode 18, RSProt's
+ * cipher-seed block behind the same opcode, and having no reconnect at all.
+ * The last of those still re-establishes the session — it sends an ordinary
+ * GAMELOGIN, and a server that persists a character on disconnect hands the
+ * same one back. The difference is a password round trip, not an outcome.
  *
  * Returns 0 when there is nothing to reconnect to (no prior ConnectLogin).
  */
 int
 ToriRS_Network_Reconnect(struct ToriRS_Network* net);
+
+/**
+ * Hand this network a session that another process was playing: the cipher
+ * seed that session authenticated with, and the slot it was told it had.
+ *
+ * A reloaded browser tab loses both with the wasm heap, and without them all
+ * it can send is a fresh GAMELOGIN -- which a server reads as a new arrival,
+ * not as the same player coming back. Armed, the next ToriRS_Network_ConnectLogin
+ * sends GAMERECONNECT with this seed instead, once.
+ *
+ * Returns 0 when this revision has no seed reconnect, and the answer matters
+ * to the caller: the title screen holds its loading bar over a reconnect
+ * rather than showing a login form, and doing that over a handshake that is
+ * really a passwordless GAMELOGIN is a bar that waits for a reply nothing can
+ * send.
+ */
+int
+ToriRS_Network_ArmResume(
+    struct ToriRS_Network* net,
+    int32_t const seed[4],
+    int local_index);
+
+/**
+ * 1, once, when the armed reconnect was refused (or its link dropped) -- the
+ * caller then logs in with the credentials it has. The seed is dropped with
+ * it: whatever session it named is not coming back.
+ */
+int
+ToriRS_Network_TakeResumeRefused(struct ToriRS_Network* net);
 
 /**
  * Handle one TORIRS_CMD_NET_* command (raw-byte semantics):

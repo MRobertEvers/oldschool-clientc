@@ -1,11 +1,14 @@
 #ifndef TORIDRAW_TYPES_H
 #define TORIDRAW_TYPES_H
 
-#include "graphics/projection.h"
+#include "impl/projection/projection.scalar_reference.h"
 #include "graphics/zdepth.h"
 #include "toridraw_intrusive_list.h"
+#include "toridraw_texture_mapping.h"
 
 #include <stdbool.h>
+#include <assert.h>
+#include <stddef.h>
 #include <stdint.h>
 
 typedef int16_t faceint_t;
@@ -13,6 +16,46 @@ typedef int16_t vertexint_t;
 typedef uint16_t hsl16_t;
 typedef uint8_t alphaint_t;
 typedef uint16_t boneint_t;
+
+/*
+ * The priority partition's thirteen band slices (ToriDraw_Scene::sm_prio_faces):
+ * where band `prio` begins, in faces. Every reader and writer of the slices
+ * goes through this, so the layout has one owner.
+ *
+ * The pad is a measured null. Without it the slices sit max_faces * 2 bytes
+ * apart -- 16 KB at the 8192-face profile, a multiple of the L1's 4 KB way
+ * (Krait 300: 16 KB, 4-way, 64 B lines, sets by VA[11:6]) -- so every band's
+ * write cursor shares one L1 set, and a model with faces in five or more
+ * bands would evict a cursor line on each band change. Staggering the slices
+ * by three lines (pad 96) against no pad, arms alternating in one launch on
+ * the phone (TORIRS_GLES2_DUALCORE_PRIO_PAD_AB=96,0, kr14, 2026-09-03):
+ * draw CPU 14.35..15.09 against 14.49..14.90 ms/frame, worker 6.36..6.48
+ * against 6.15..6.66, five pairs, no direction. The varied-priority models
+ * (226 a frame) evidently occupy too few bands at once for the 4-way set to
+ * matter. Left at 0; the allocation is sized for the full pad so the A/B
+ * stays runnable.
+ */
+#define TORIDRAW_PRIO_SLICE_PAD 96
+#define TORIDRAW_PRIO_SLICE_PAD_DEFAULT 0
+#define TORIDRAW_PRIO_SLICES 13
+
+/* The pad in effect: TORIDRAW_PRIO_SLICE_PAD_DEFAULT unless an A/B has set
+ * it, at most TORIDRAW_PRIO_SLICE_PAD (what the allocation is sized for).
+ * Between frames only. */
+extern int g_toridraw_prio_slice_pad;
+
+static inline int
+toridraw_prio_slice_base(int max_faces, int prio)
+{
+    return prio * (max_faces + g_toridraw_prio_slice_pad);
+}
+
+/* Faces to allocate for all thirteen slices. */
+static inline size_t
+toridraw_prio_slices_len(int max_faces)
+{
+    return (size_t)TORIDRAW_PRIO_SLICES * (size_t)(max_faces + TORIDRAW_PRIO_SLICE_PAD);
+}
 
 /** Map dat2 raw per-face texture coord to renderer form (-1 = none, else PNM index). */
 static inline faceint_t
@@ -47,8 +90,10 @@ struct ToriDraw_BoundsCylinder
     int min_z_depth_any_rotation;
 };
 
-#define TORIDRAW_AABB_KIND_CYLINDER_4POINT 0
-#define TORIDRAW_AABB_KIND_CYLINDER_8POINT 1
+/** The box over the model's own projected vertices, dilated by the pick slop;
+ *  see toridraw_projected_bound. (Kinds 0 and 1 were the cylinder boxes the
+ *  fast cull and the eight-corner bound used to write; neither exists now.) */
+#define TORIDRAW_AABB_KIND_VERTICES 2
 
 struct ToriDraw_AABB
 {
@@ -75,6 +120,15 @@ struct ToriDraw_Normals
 
     struct ToriDraw_Normal* face_normals;
     int face_normals_count;
+
+    /** Allocated length of the two arrays, which a recycled block keeps while
+     *  `*_count` drops to what the current model actually uses. Only
+     *  `ToriDraw_NormalsNew` / `ToriDraw_NormalsFree` may touch these -- they
+     *  are what lets a freed block be handed to a smaller model without
+     *  reallocating, and reading `*_count` as the capacity would then walk off
+     *  the end of a block that is genuinely larger than it claims. */
+    int vertex_normals_cap;
+    int face_normals_cap;
 };
 
 struct ToriDraw_Bones
@@ -128,9 +182,74 @@ struct ToriDraw_Bones
  */
 #define TORIDRAW_MODEL_FLAG_NO_FACE_PRIORITY ((uint8_t)(1u << 1))
 
+/**
+ * Rasterise this model's textured faces with the AFFINE texture kernels.
+ *
+ * The stock textured kernels are perspective-correct: every eight pixels they
+ * re-derive u and v from the plane equation, which is a reciprocal and two
+ * multiplies per block. The affine family derives u and v only at the two ends
+ * of each span and steps linearly between them. On a face that is nearly
+ * parallel to the screen -- a terrain tile seen from the game camera -- the two
+ * agree to the texel, and the affine walk is the cheaper one.
+ *
+ * This is a per-MODEL policy, set by whoever builds the model and knows what
+ * it is (world_decode_tile sets it on every textured terrain tile); the
+ * raster reads it once per model, next to the camera's own texture_affine.
+ * Every lane honours it: the per-face C kernels through the affine family
+ * (tri.texture_affine.u.c), the presorted-run assembly kernels through the
+ * affine lane of the staged row (tex_tri_asm.h, TORIDRAW_TEXBATCH_LANE_AFFINE).
+ * It is not implied by, and does not imply, either flag above.
+ */
+#define TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES ((uint8_t)(1u << 2))
+
+/**
+ * A model that owns every array reachable from it.
+ *
+ * That is not a description, it is the invariant. Geometry a placement does NOT
+ * own lives in one of the two types below, each of which embeds one of these as
+ * its first member -- so a `struct ToriDraw_Model*` you can write through is
+ * always yours, and the only way to obtain one is a handle whose kind says
+ * TORIDRAWMK_MODEL. The shared regimes yield a `const struct ToriDraw_Model*`
+ * instead; see ToriDraw_ModelRead / ToriDraw_ModelWrite.
+ *
+ * The alternative -- one struct with a couple of nullable "actually this bit
+ * belongs to someone else" back-pointers -- is what this replaced, and it made
+ * every write site look identical whether or not it was legal. One of them was
+ * not, and the wall it deleted took a day to find.
+ */
 struct ToriDraw_Model
 {
     uint8_t flags;
+    /**
+     * Non-zero if this model is a terrain tile whose triangulation the face
+     * sort may resolve at COMPILE time: `1 + rotation`, rotation in 0..3.
+     *
+     * A world tile is not an arbitrary mesh. Its vertex layout and its index
+     * triples come from four static tables in world_decode_tile.c, keyed by a
+     * shape id, and a census of a loaded map says 94% of tiles are one of the
+     * three 4-vertex, 2-triangle shapes -- PLAIN, DIAGONAL and the unnamed
+     * shape 0 -- which all carry the SAME triples, (1,2,3) and (0,1,3), turned
+     * by the tile's rotation. That is the fast path's premise: with the triples
+     * known at compile time the sort reads nothing out of face_indices_a/b/c,
+     * the two faces provably share two of the four vertices so the duplicated
+     * coordinate loads fold, and a two-face model is culled, keyed and ordered
+     * without a loop or a sort network. 6.5 ns per input face against the
+     * general path's 8.7 on the dev host. See
+     * toridraw_face_sort_bitonic_radix_tile2_scalar.
+     *
+     * Spending the same constants on SIMD instead -- one vector load per axis,
+     * a shuffle per lane -- is written as toridraw_face_sort_bitonic_radix_tile2_sse2 and is
+     * SLOWER than both, 8.9 ns. Its comment has the numbers and the reason. The
+     * field selects neither; TORIDRAW_TILE_SORT does, and the field only says
+     * the model is eligible.
+     *
+     * Zero for everything else, INCLUDING the other ten tile shapes: the field
+     * is the eligibility test, so nothing downstream re-derives it, and the
+     * shapes that would need their own kernels simply take the general path.
+     * Set only by world_decode_tile, which is the one place a tile's shape and
+     * rotation are known.
+     */
+    uint8_t tile_sort_kernel;
     int vertex_count;
     int face_count;
     vertexint_t* vertices_x;
@@ -147,6 +266,45 @@ struct ToriDraw_Model
     vertexint_t* original_vertices_x;
     vertexint_t* original_vertices_y;
     vertexint_t* original_vertices_z;
+
+    /*
+     * Placement the reference applies AFTER animating, not before.
+     *
+     * A model's keyframes are authored against the model at its own size, in
+     * its own frame, about its own origin. Every getModel in the rev-239 deob
+     * therefore animates first and places afterwards:
+     *
+     *   npc      Statics.method9204   animate -> resize
+     *   spotanim Statics.method8758   animate -> resize -> rotate90 x n
+     *   loc      class393.method8916  animate -> rotate90 x n -> resize -> translate
+     *
+     * original_vertices_* holds that authored bind pose, so the placement has
+     * to be re-derived on every pose. Baking it into the bind instead leaves a
+     * frame's translations and its type-0 ORIGIN pivots at full magnitude
+     * against geometry that has been moved, turned or shrunk out from under
+     * them. Xarpus (resizeh/resizev 64) came out floating several tiles above
+     * his own arena; `whirlpool` is a loc resized to 1/128 of its height.
+     *
+     * Applied in ONE canonical order -- orient, resize, translate -- which is
+     * the loc order verbatim. It is also exact for a spotanim despite the deob
+     * resizing first there, because a spotanim's resize is (h, h, v): x and z
+     * scale by the same factor, and a quarter turn only ever exchanges those
+     * two axes.
+     *
+     * `post_transform` is the "any of these is not identity" fast path, and it
+     * is also the contract: ToriDraw_ModelApplyPostTransforms must run exactly
+     * ONCE per pose (or once at build for a model that is never posed), or the
+     * placement compounds.
+     */
+    bool post_transform;
+    bool post_resize; /* post_resize_* are meaningful (identity is 128, not 0) */
+    int post_resize_x;
+    int post_resize_z;
+    int post_resize_height;
+    int post_orient; /* quarter turns, 0..3 */
+    int post_offset_x;
+    int post_offset_y;
+    int post_offset_z;
 
     alphaint_t* face_alphas;
     alphaint_t* original_face_alphas;
@@ -166,11 +324,40 @@ struct ToriDraw_Model
     uint8_t* texture_render_types;
     faceint_t* face_texture_coords;
 
+    /*
+     * One block holding every array below the geometry line, or NULL.
+     *
+     * A world tile is four vertices and two faces -- about a hundred bytes of
+     * real data spread over thirteen arrays. Allocating them one at a time cost
+     * thirteen mallocs and thirteen frees per tile, and a scene is eleven
+     * thousand tiles, so the allocator saw a hundred and forty thousand calls
+     * per rebuild to move a megabyte. Carving them out of a single block makes
+     * that one call, and the free path one more.
+     *
+     * Set ONLY by a producer that carved every one of those arrays out of it
+     * (world_decode_tile is the one), and it is all-or-nothing: with this set,
+     * ToriDraw_ModelFree_arrays frees the block INSTEAD of the individual
+     * arrays it covers, so a model carrying it must never have one of them
+     * replaced or grown. The fields it does not cover -- normals, bones,
+     * animaya, the original_* bind pose -- are freed the ordinary way whether
+     * this is set or not.
+     */
+    void* arrays_block;
+
     struct ToriDraw_Normals* normals;
     struct ToriDraw_Normals* merged_normals;
     struct ToriDraw_Bones* vertex_bones;
     struct ToriDraw_Bones* face_bones;
-    struct ToriDraw_BoundsCylinder* bounds_cylinder;
+    /*
+     * Embedded, not pointed to. ToriDraw_Project reads the cylinder on every
+     * model it culls, and as a separate allocation that was a dependent cache
+     * line behind the model struct itself -- for a four-vertex terrain tile,
+     * one of about seven the projection touched. has_bounds_cylinder is the
+     * "was it ever computed" test the NULL pointer used to be;
+     * ToriDraw_ModelGetBoundsCylinder still answers NULL when it is false.
+     */
+    struct ToriDraw_BoundsCylinder bounds_cylinder;
+    bool has_bounds_cylinder;
 
     /* Animaya per-vertex skin (NULL if no skeletal rigging) */
     int      animaya_vertex_count;
@@ -195,19 +382,31 @@ struct ToriDraw_ModelGround
     faceint_t* face_textures;
 };
 
+/**
+ * Which struct is behind a handle -- and for the three model types, that is the
+ * same question as who owns the geometry, because each regime is its own type.
+ *
+ *   MODEL             struct ToriDraw_Model. Owns every array. Writable.
+ *   MODEL_HD          struct ToriDraw_ModelHD. Owns everything too; the HD tail
+ *                     is the difference.
+ *   MODEL_SHARED      struct ToriDraw_SharedModel. Owned by a store, N holders,
+ *                     no private half. Read only.
+ *   MODEL_LENT_FACES  struct ToriDraw_ModelLentFaces. Vertices, per-corner
+ *                     colours and face_infos are the placement's; the twelve
+ *                     face arrays are on loan.
+ *
+ * All four embed or ARE a ToriDraw_Model at offset zero, so reading is uniform
+ * (ToriDraw_ModelRead). Writing is not, which is the entire point.
+ */
 enum ToriDraw_ModelKind
 {
     TORIDRAWMK_NONE = 0,
     TORIDRAWMK_MODEL = 1,
     TORIDRAWMK_GROUND = 2,
-    /** A ToriDraw_ModelHD. Its `base` is a plain model, so everything that
-     *  takes a TORIDRAWMK_MODEL works unchanged — see ToriDraw_ModelAsFull. */
     TORIDRAWMK_MODEL_HD = 3,
+    TORIDRAWMK_MODEL_SHARED = 4,
+    TORIDRAWMK_MODEL_LENT_FACES = 5,
 };
-
-/* Defined in graphics/raster/texture/texmap_common.h. Only ever held by pointer
- * here, so the model header does not pull in the raster layer. */
-struct ToriDraw_TexMapping;
 
 /**
  * A model that carries what the HD (procedural-material) render path needs, and
@@ -245,6 +444,48 @@ struct ToriDraw_ModelHD
     struct ToriDraw_TexMapping* texture_mappings;
 };
 
+/**
+ * A model the scene shares whole: one object, N placements pointing at it.
+ *
+ * `base` first and by value, so the read view is a plain model and every
+ * consumer keeps working -- but only through a const pointer, because this
+ * model has no private half at all and a write moves every fence in the county.
+ * ToriDraw_SceneElementModelForWrite is the way to geometry you may edit.
+ *
+ * The tail is the store's bookkeeping and nothing outside toridraw_shared_model.c
+ * touches it.
+ */
+struct ToriDraw_SharedModel
+{
+    struct ToriDraw_Model base;
+
+    struct ToriDraw_SharedModelStore* store;
+    struct ToriDraw_SharedModel* next;
+    int64_t key;
+    /** Placements holding this model. The store is not one of them. */
+    int holders;
+};
+
+/**
+ * A placement that owns its vertices and borrows its faces.
+ *
+ * The half-shared case, and the larger population: a loc contoured to the
+ * ground or lit from its neighbour needs its own vertices, per-corner colours
+ * and face_infos, but the faces indexing those vertices are identical at every
+ * placement of it and are most of the bytes.
+ *
+ * `base`'s twelve TORIDRAW_SHARED_FACE_FIELDS pointers alias `faces`; every
+ * other array in it is this placement's own. That is why the read view is const
+ * here too even though half of it really is writable -- C has no way to say
+ * "these twelve members are not yours", so the write goes through
+ * ToriDraw_ModelLentFacesPrivate, which names what it is handing over.
+ */
+struct ToriDraw_ModelLentFaces
+{
+    struct ToriDraw_Model base;
+    struct ToriDraw_SharedFaces* faces;
+};
+
 struct ToriDraw_ModelHandle
 {
     enum ToriDraw_ModelKind kind;
@@ -255,8 +496,43 @@ struct ToriDraw_ModelHandle
             struct ToriDraw_Model* model;
             struct ToriDraw_ModelGround* ground;
         } model;
+        /** kind == TORIDRAWMK_MODEL_SHARED */
+        struct ToriDraw_SharedModel* shared;
+        /** kind == TORIDRAWMK_MODEL_LENT_FACES */
+        struct ToriDraw_ModelLentFaces* lent;
     } u;
 };
+
+static inline int
+ToriDraw_ModelKindIsFull(enum ToriDraw_ModelKind kind)
+{
+    return kind == TORIDRAWMK_MODEL || kind == TORIDRAWMK_MODEL_HD ||
+           kind == TORIDRAWMK_MODEL_SHARED || kind == TORIDRAWMK_MODEL_LENT_FACES;
+}
+
+/**
+ * The geometry, for reading, whoever owns it.
+ *
+ * All four model types put a ToriDraw_Model at offset zero -- MODEL is one,
+ * the other three embed one as their first member -- so this is the uniform
+ * view every consumer wants and the only one most of them need. Const because
+ * three of the four are not the caller's to write; the two accessors below are
+ * how a caller that has earned the right says so.
+ */
+static inline const struct ToriDraw_Model*
+ToriDraw_ModelRead(struct ToriDraw_ModelHandle hnd)
+{
+    assert(ToriDraw_ModelKindIsFull(hnd.kind));
+    switch( hnd.kind )
+    {
+    case TORIDRAWMK_MODEL_SHARED:
+        return &hnd.u.shared->base;
+    case TORIDRAWMK_MODEL_LENT_FACES:
+        return &hnd.u.lent->base;
+    default:
+        return hnd.u.model.model;
+    }
+}
 
 struct ToriDraw_Position
 {
@@ -288,27 +564,27 @@ struct ToriDraw_Camera
     /** Which of the two knobs below drives the projection. Zero-initialising a
      *  camera selects SCALE, so a memset camera projects at the reference's
      *  default 512 rather than at whatever an unset angle would resolve to. */
-    enum ToriDraw_ProjMode proj_mode;
+    enum ToriDraw_ProjectionMode projection_mode;
 
     /** The reference client's viewport scale (class159.method5357 ->
      *  client.field817): the integer multiplier in screen = coord * scale / z,
      *  recomputed per layout from the world viewport height. Live when
-     *  proj_mode == TORIDRAW_PROJ_MODE_SCALE. 0 = TORIDRAW_PROJ_SCALE_DEFAULT.
+     *  projection_mode == TORIDRAW_PROJECTION_MODE_SCALE. 0 = TORIDRAW_PROJECTION_SCALE_DEFAULT.
      *
      *  The only way to match a reference projection exactly -- most integer
      *  scales are not reachable through fov_rpi2048 at all. */
-    int proj_scale;
+    int projection_scale;
 
-    /** Field of view, in units of 2*pi/2048. Live when proj_mode ==
-     *  TORIDRAW_PROJ_MODE_FOV. 0 = TORIDRAW_PROJ_FOV_DEFAULT. Natural for a
+    /** Field of view, in units of 2*pi/2048. Live when projection_mode ==
+     *  TORIDRAW_PROJECTION_MODE_FOV. 0 = TORIDRAW_PROJECTION_FOV_DEFAULT. Natural for a
      *  free camera; lossy as a way to request a specific scale (see the ladder
      *  note in graphics/projection.h). */
     int fov_rpi2048;
 
     /**
-     * Pixels per world unit, 16.16 fixed point. Live when proj_mode ==
-     * TORIDRAW_PROJ_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
-     * Deliberately not proj_scale reused: that one is a perspective numerator
+     * Pixels per world unit, 16.16 fixed point. Live when projection_mode ==
+     * TORIDRAW_PROJECTION_MODE_PARALLEL; TORIDRAW_ORTHO_ZOOM_UNIT (65536) is 1:1.
+     * Deliberately not projection_scale reused: that one is a perspective numerator
      * measured against z, this is a plain screen scale, and collapsing two
      * different quantities into one field is how a camera ends up projecting
      * with a value nobody set.
@@ -337,6 +613,51 @@ struct ToriDraw_Camera
     int roll;
 };
 
+/*
+ * Camera-only constants shared by every yaw projection in a command stream.
+ * Each value is splatted so the Apple AArch64 projection kernel can load the
+ * complete prepared state with two paired vector loads and one vector load.
+ * Keep the order and 16-byte alignment in sync with projection16.aarch64.S.
+ */
+struct ToriDraw_ProjectionPreparedCamera
+{
+    _Alignas(16) int cos_yaw[4];
+    int sin_yaw[4];
+    int cos_pitch[4];
+    int sin_pitch[4];
+    int cot15[4];
+};
+
+/**
+ * The same prepared camera's pitch and fov, already in the form the SSE2
+ * kernel actually multiplies by.
+ *
+ * toridraw_projection_prepared_core wants these three as floats scaled by 1/65536,
+ * 1/65536 and 1/64. They were being derived from the int block above on every
+ * call -- a load, a cvtdq2ps and a mulps each -- for values that change once a
+ * frame. That is nothing on a 380-vertex model and it is not nothing on a
+ * four-vertex terrain tile, where the loop body runs exactly ONCE and the
+ * prologue is the call.
+ *
+ * A SEPARATE BLOCK, not three more members on the struct above, because that
+ * struct's size and field offsets are pinned by _Static_asserts in toridraw.c
+ * for projection16.aarch64.S, which loads it with ldp pairs. Appending would
+ * keep those offsets valid and still trip the size assert, and the Apple lane
+ * cannot be built here to check. Nothing on that lane reads this one.
+ *
+ * The conversion is EXACT, so this is a hoist and not an approximation: both
+ * scales are powers of two (2^-16 and 2^-6), so the multiply only adjusts an
+ * exponent, and the int-to-float conversion rounds identically whether C or
+ * cvtdq2ps does it. The bytes the kernel reads are the bytes it used to
+ * compute -- which the pixel comparison then confirms rather than assumes.
+ */
+struct ToriDraw_ProjectionPreparedCameraFloat
+{
+    _Alignas(16) float cos_pitch[4];
+    float sin_pitch[4];
+    float cot15[4];
+};
+
 enum ToriDraw_TextureAnimation
 {
     TORIDRAW_TEXANIM_DIRECTION_NONE,
@@ -352,6 +673,11 @@ struct ToriDraw_Texture
     int width;
     int height;
     bool opaque;
+    /* Set when `texels` belongs to somebody else and this texture only points
+     * at it -- the scene still owns the struct and frees it, but leaves the
+     * pixels alone. Zero means owned, so a texture built the ordinary way (all
+     * of them are calloc'd or brace-initialised) frees its texels as before. */
+    bool borrowed_texels;
     int animation_direction;
     int animation_speed;
 };
@@ -362,7 +688,17 @@ struct ToriDraw_Texture
  * 255, so a 256-slot map silently never draws them (the raster skips faces whose texture
  * is absent). 2048 covers the era with headroom; the map is pointers, so the cost is 16KB.
  */
+/* Overridable, because the map is a flat array and 2048 pointers is 16 KB --
+ * affordable in a world client, most of an embedded client's whole budget. A
+ * client whose texture ids are all small builds with
+ * -DTORIDRAW_TEXTURE_ID_CAPACITY=64. Registering an id past the capacity is
+ * dropped by ToriDraw_TextureMapSet; LOOKING one up aborts in
+ * ToriDraw_TextureMapGet, which is the right way round -- a model naming a
+ * texture this build cannot hold is a configuration error, and the
+ * alternative is a face that silently does not draw. */
+#ifndef TORIDRAW_TEXTURE_ID_CAPACITY
 #define TORIDRAW_TEXTURE_ID_CAPACITY 2048
+#endif
 
 
 struct ToriDraw_TextureMap
@@ -456,8 +792,26 @@ struct ToriDraw_Event
 
 struct ToriDraw_EventQueue
 {
-    struct ToriDraw_Event events[TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE];
+    /* Grown on demand instead of a flat TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE
+     * array. The queue is drained every frame by ToriDraw_SceneFrameEnd, so
+     * its real high-water is a small fraction of the cap, while the inline
+     * form put 5.5 MB into every struct ToriDraw_Scene -- and the scene is
+     * calloc'd, so all of it was resident from construction.
+     *
+     * The cap itself is unchanged: the emitters still refuse a push at
+     * TORIDRAW_SCENE_EVENT_QUEUE_MAX_SIZE. Only the allocation follows
+     * demand, and capacity is never released -- there is nothing to release.
+     * The high-water is one event per scene element (19,360 in a loaded
+     * region), and it is reached again inside every window a trim could
+     * measure, so a shrink policy here only ever gives back what the next
+     * frame immediately takes.
+     *
+     * Element pointers must not outlive a push: `events` moves on grow.
+     * Both back-patch sites take theirs from the push that just happened,
+     * and both drains (rs_audio.c, torirs_frame.c) index. */
+    struct ToriDraw_Event* events;
     int count;
+    int cap;
 };
 
 struct ToriDraw_TextureState
@@ -507,6 +861,26 @@ struct ToriDraw_SceneElement
      *  ObjType.getWorldModel / ClientPlayer / NpcType); locs keep the exact
      *  per-face test. */
     bool pick_aabb;
+
+    /*
+     * The pose the model is currently holding, so ToriDraw_SceneElementApplyAnimation
+     * can skip a request for the pose it already computed (TORIDRAW_ANIM_SKIP_SAME):
+     * a sequence advances its frame every two to four cycles, and the
+     * renderer asks for the pose every frame, so most requests are repeats.
+     * posed_primary < 0 = the model holds no known pose. Every mutation that
+     * can change what a (track, frame) pair produces -- a model mounted or
+     * un-shared, a sequence bound or dropped, an in-place edit through
+     * ToriDraw_SceneElementModelForWrite -- bumps model_revision and
+     * clears posed_primary. The track pointers are in the tuple as well so
+     * a direct write of `animation` / `skeletal_animation` is caught by
+     * identity even without the bump.
+     */
+    int8_t posed_primary;
+    int16_t posed_frame;
+    int16_t posed_frame2;
+    uint32_t model_revision;
+    const void* posed_track;
+    const void* posed_track2;
 };
 
 struct ToriDraw_SceneBatchElementHandle
@@ -537,7 +911,6 @@ struct ToriDraw_Scene
 
     struct ProjectedVertex projected_vertex;
     struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_fast_aabb;
 
     /*
      * Whether the model ToriDraw_Project last projected could reach behind the
@@ -590,6 +963,46 @@ struct ToriDraw_Scene
     int* orthographic_vertices_y;
     int* orthographic_vertices_z;
 
+    /*
+     * Optional prepared-camera state for the projection hot path. Pointer
+     * identity makes the normal render-command stream a single cheap compare;
+     * callers using another camera continue through the portable kernels.
+     */
+    struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
+    /*
+     * The screen box the AArch64 prepared kernel accumulates WHILE it
+     * projects: lane-wise min x, max x, min y, max y over every full
+     * four-vertex block its vector loop ran, straight from the registers the
+     * screen coordinates were converted in. projection16.aarch64.S writes it
+     * 128 bytes past screen_vertices_x -- immediately after the prepared
+     * camera; the static asserts in toridraw.c pin both -- so the bound of a
+     * large model costs four vector ops per block inside the kernel instead
+     * of a second pass that reads every coordinate back.
+     *
+     * projection_bound_vertices is how many leading vertices the block
+     * covers (a multiple of four); the caller sets it after the kernel
+     * returns and ToriDraw_Project zeroes it before dispatch, so a kernel
+     * that does not write the block leaves zero and
+     * toridraw_projected_bound sweeps the outputs instead.
+     */
+    _Alignas(16) int projection_bound[4][4];
+    int projection_bound_vertices;
+    const struct ToriDraw_Camera* projection_prepared_camera_source;
+    /* Published and cleared with the block above, and by the same function --
+     * projection_prepared_camera_source guards both. Placed AFTER the source
+     * pointer so the offset of projection_prepared_camera, which a static
+     * assert pins relative to screen_vertices_x, does not move. */
+    struct ToriDraw_ProjectionPreparedCameraFloat projection_prepared_camera_f;
+    /*
+     * The same camera's full cot16 -- the value the near-clip rule's safe
+     * plane scales by -- so the per-model near-clip reads it here instead of
+     * re-running the fov table and clamp ladder for every model in the frame
+     * (toridraw_projection_near_clip_perspective). Guarded by the same
+     * projection_prepared_camera_source, written by the same function. Here
+     * and not in the int block above: that block's size is pinned for
+     * projection16.aarch64.S. */
+    int projection_prepared_cot16;
+
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;
     faceint_t* tmp_priority_face_count;
@@ -606,11 +1019,87 @@ struct ToriDraw_Scene
     int* tmp_flex_prio12_face_to_depth;
 
     faceint_t* sm_face_depth;
+
+    /*
+     * The six screen coordinates of each accepted face, stashed by the depth
+     * sort so nothing downstream has to gather them again.
+     *
+     * Eight ints per face: x0,x1,x2, the near-clip flag, y0,y1,y2, spare. The
+     * sort already holds all six in registers -- it needs them for the winding
+     * cross product -- and used to throw them away, leaving the raster pass to
+     * re-read them through face_indices_a/b/c into screen_vertices_x/y, which
+     * is nine dependent loads per face to recover what was in hand a moment
+     * earlier. Writing them out costs six stores into a region that is a few
+     * hundred bytes for a typical model and therefore always hot.
+     *
+     * The flag in lane 3 is the sort's `clip_candidate`, carried for the same
+     * reason: the raster pass re-derived it by reading the same three vertex_x
+     * entries the sort had already tested.
+     *
+     * Only faces the sort ACCEPTED have meaningful entries, and only they can
+     * appear in tmp_face_order, so no consumer can read a stale one.
+     */
+    /* Two planes, four ints per face each, so the NEON sort can write four
+     * faces with two interleaving stores: sm_face_x4 = {x0, x1, x2, clip},
+     * sm_face_y4 = {y0, y1, y2, perm}. Allocated max_faces + 4 records, since
+     * the vector sort writes whole blocks of four. */
+    int* sm_face_x4;
+    int* sm_face_y4;
+    /*
+     * The bitonic+radix sort's composite keys, (0xFFFF - depth) << 16 | face,
+     * and the radix sort's bounce buffer. Sized to the next power of two above
+     * max_faces plus four lanes of slack for the unconditional pack store.
+     */
+    uint32_t* sm_sort_keys;
+    uint32_t* sm_sort_tmp;
+    /* The projected vertices of the model being sorted, interleaved as
+     * {x, y, z, 0} quads: max_vertices + 4 of them, rebuilt per model by a
+     * lane whose gather wants whole-register loads (the A32 NEON lane; see
+     * its block4). NULL until the bitonic+radix scratch is allocated. */
+    int* sm_vertex_xyz;
+    /*
+     * The same vertices as {x - box_min_x, y - box_min_y, z, 0} int16 quads,
+     * for the A32 lane's eight-face K16 block: a model whose screen box is
+     * under 32K wide and tall has every rebased coordinate and every winding
+     * delta an exact int16, and the products exact int32 (see the lane).
+     * (max_vertices + 8) quads.
+     */
+    int16_t* sm_vertex_xyz16;
+    /*
+     * The screen box toridraw_projected_bound swept for the model last
+     * projected, RAW: min x, max x, min y, max y in the projection's own
+     * space, before the viewport offset and the pick dilation that go into
+     * `aabb`. What a sort lane reads to classify a model's extent.
+     */
+    int projected_box[4];
+    /*
+     * The depth range a lane could prove for the model it just culled, from
+     * the z range of its vertices: every accepted face's depth is in
+     * [sm_sort_depth_lo, sm_sort_depth_hi]. The dispatcher resets both to
+     * "unknown" (0, INT_MAX) before the lane runs; a lane that sweeps the
+     * vertices anyway (the A32 lane's interleave pass) narrows them for
+     * free, and a range under 256 levels lets the radix finish in ONE pass.
+     */
+    int sm_sort_depth_lo;
+    int sm_sort_depth_hi;
+    /*
+     * Whether the LAST sort actually filled sm_face_x4/y4, which is not the same
+     * question as whether the build can. Three things have to hold -- the
+     * kernel wanted it (its raster has a whole-model door and its sort can
+     * stash -- see sd_wants_presort; no caller states this), the batched
+     * kernels are armed, and this is a small-mode scene, since sm_face_x4/y4
+     * are allocated nowhere else. The batched raster
+     * walk requires this rather than re-deriving it, so the side that writes
+     * the buffer and the side that reads it cannot disagree.
+     */
+    int sm_face_xy_valid;
     int* sm_depth_offset;
     int* sm_depth_cursor;
     faceint_t* sm_faces_by_depth;
     int sm_prio_count[13];
     int* sm_prio_offset;
+    /* Thirteen slices, one per priority band, laid out by
+     * toridraw_prio_slice_base -- never `prio * max_faces`. */
     faceint_t* sm_prio_faces;
     int* sm_flex_prio11_face_to_depth;
     int* sm_flex_prio12_face_to_depth;
@@ -618,20 +1107,33 @@ struct ToriDraw_Scene
     int* tmp_face_order;
     int tmp_face_order_count;
 
-    faceint_t sparse_a[4096];
-    faceint_t sparse_b[4096];
-    faceint_t sparse_c[4096];
-
     struct ToriDraw_EventQueue event_queue;
     struct ToriDraw_Map* models_hmap;
     struct ToriDraw_Map* animation_hmap;
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
+    /** Monotonic version of model/sprite/font registry mutations. UITree uses
+     *  this instead of map cardinality so same-id replacements are visible. */
+    uint64_t ui_asset_revision;
     /** Decoded sound clips by id — see ToriDraw_SceneSoundAdd. */
     struct ToriDraw_Map* sounds_hmap;
     /** Always-resident cache fonts indexed by revconfig cache_font_id 0–3. */
     struct ToriDraw_Font* cache_fonts[TORIDRAW_CACHE_FONT_SLOT_COUNT];
     struct ToriDraw_IntrusiveList elements;
+
+    /*
+     * Models this scene's elements share between them, NULL until something
+     * asks. See toridraw_shared_model.h; reach it through
+     * ToriDraw_SceneSharedModels / ToriDraw_SceneSharedFaces, each built on
+     * the first ask.
+     *
+     * It belongs to the scene because its entries are held by the scene's
+     * elements and by nothing else: the store retains nothing of its own, so
+     * clearing the element pool empties it and freeing the scene -- after the
+     * graph shutdown that disposes those elements -- is what frees it.
+     */
+    struct ToriDraw_SharedModelStore* shared_models;
+    struct ToriDraw_SharedFacesStore* shared_faces;
 
     bool batch_building;
     int current_batch_id;
@@ -658,6 +1160,7 @@ struct ToriDraw_Scene
     int anim_list_count;
     int anim_list_cap;
     bool anim_list_dirty;
+
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

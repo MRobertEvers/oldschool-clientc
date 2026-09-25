@@ -133,7 +133,7 @@ survey(struct Tool_Dat2Cache* c)
         {
             if( ref->archives[i].children.count > 1 )
                 multi_file++;
-            total += ref->archives[i].compressed;
+            total += RSCache_ReferenceTableCompressed(ref, i);
         }
         printf(
             "table %2d %-14s: %d archives, %d multi-file, %ld compressed bytes\n",

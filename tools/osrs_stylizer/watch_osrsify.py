@@ -3327,7 +3327,7 @@ function authorPlan(p) {
     <div class="muted">Afterwards: repoint the NPC record's
       <code>model&lt;N&gt;=</code> if it does not already use
       ${ids.length > 1 ? 'those ids' : 'that id'}, then re-pack the cache with
-      <code>make -C src mock230-cache-rs2012</code>.</div></div>`;
+      <code>make -C src torirsserver-cache-rs2012</code>.</div></div>`;
 }
 function wzReview(steps) {
   const p = wzPayload(), keys = Object.keys(p);
@@ -3766,7 +3766,7 @@ const st = { wasm: null, frameCount: 0, frame: 0, playing: false,
              zoom0: 1400, speed: 1200, keys: new Set(),
              frameAcc: 0, lastT: 0, seq: '' };
 const U2R = Math.PI / 1024;       // engine angle units -> radians
-const PROJ_SCALE = 512;           // TORIDRAW_PROJ_SCALE_DEFAULT
+const PROJ_SCALE = 512;           // TORIDRAW_PROJECTION_SCALE_DEFAULT
 
 // Camera basis in world coordinates (matches the engine's rotation forms:
 // yaw is x' = x cos + z sin, z' = z cos - x sin; pitch mixes y/z).

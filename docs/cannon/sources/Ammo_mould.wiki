@@ -1,0 +1,39 @@
+{{External|rs|rsc=Cannon ammo mould}}
+{{Infobox Item
+|name = Ammo mould
+|image = [[File:Ammo mould.png]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|quest = [[Dwarf Cannon]]
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Drop
+|examine = Used to make cannon ammunition.
+|value = 5
+|weight = 4.535
+|id = 4
+}}
+[[File:Ammo mould detail.png|left|130x200px]]
+An '''ammo mould''' is a [[quest items|quest item]] used in [[Dwarf Cannon]]. It is obtained from [[Nulodion]] after speaking to [[Captain Lawgof]] after repairing his broken [[dwarf multicannon]]. Additional moulds can be purchased from Nulodion's [[Multicannon parts for sale]] store for {{NoCoins|5|c}}. 
+
+It is given to Captain Lawgof alongside [[Nulodion's notes]] to complete the quest. It is also used to smith [[cannonballs]] with [[Bar|metal bars]] at a [[furnace]] to make 4 cannonballs per bar.
+
+The [[double ammo mould]] is the upgraded version of this mould obtainable from [[Giants' Foundry]], capable of producing up to 8 cannonballs at once, using two bars at once.
+
+With 87 [[Sailing]], the [[Ancient Furnace]] can be accessed within the [[Grimstone Dungeon]] and used to smelt cannonballs at double speed.
+
+==Products==
+{{Uses tool list|Ammo mould}}
+
+==Money making==
+{{Mmgsection|Smithing steel cannonballs|Smithing cannonballs (Grimstone Dungeon)}}
+
+==Item sources==
+===Shop locations===
+{{Store locations list|Ammo mould}}
+
+{{Dwarf Cannon}}
+{{Mould}}

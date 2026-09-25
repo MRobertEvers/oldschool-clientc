@@ -1,0 +1,149 @@
+From 3738d6d281c0e80cd167f68353decfaca454ea1b Mon Sep 17 00:00:00 2001
+From: hunt r4 <mreverssci@gmail.com>
+Date: Tue, 25 Aug 2026 04:05:21 -0500
+Subject: [PATCH] ablation(r4-tiled): l2fold -- fold the framebuffer row stride
+ to move its footprint
+
+ABLATION ONLY, gated on HUNTL2_FOLD, runtime knob HUNTL2_FOLD_STRIDE.
+Retargets the world raster to a 64-byte-aligned scratch buffer with a
+settable row stride so the framebuffer's cache footprint moves between
+41 KB and 6.18 MB while screen_width/screen_height -- and therefore every
+clip test, every span, every span length and every executed instruction --
+stay identical. Measures whether the raster is L2-resident-bound.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ 3rd/toridraw/toridraw_raster.u.c | 113 +++++++++++++++++++++++++++++++
+ 1 file changed, 113 insertions(+)
+
+diff --git a/3rd/toridraw/toridraw_raster.u.c b/3rd/toridraw/toridraw_raster.u.c
+index 43197f782..0728a5f97 100644
+--- a/3rd/toridraw/toridraw_raster.u.c
++++ b/3rd/toridraw/toridraw_raster.u.c
+@@ -1289,6 +1289,115 @@ toridraw_raster_face_front_facing(
+         ctx->vertex_y[c]);
+ }
+ 
++#ifdef HUNTL2_FOLD
++/* #region hunt-r4 l2fold: L2-residency ABLATION -- never ship this ---------
++ *
++ * Redirects the world raster's pixel writes into a scratch buffer whose row
++ * stride is chosen at runtime, so the FOOTPRINT of the framebuffer moves while
++ * every clip test, every span, every span length and every executed
++ * instruction stays identical. screen_width / screen_height are untouched, and
++ * `stride` is nothing but an address multiplier, so the kernels clip against
++ * the same 765x503 rectangle and emit exactly the same spans; only the
++ * addresses those spans store to change. Rows overlap when the stride is under
++ * the width -- that is the point, it is what folds 1.54 MB down into L2 or L1.
++ *
++ *   HUNTL2_FOLD_STRIDE = 0     off, control path
++ *                      = 3060  6.15 MB   INFLATED, positive control
++ *                      = 765   1.539 MB  same footprint, scratch buffer (null)
++ *                      = 383   772 KB    fits the 1 MB L2
++ *                      = 191   387 KB
++ *                      =  95   194 KB
++ *                      =  47    97 KB
++ *                      =  19    41 KB    ~2.5x the 16 KB L1D
++ *
++ * Every stride is 3 (mod 4), like 765 itself, so a row start still walks all
++ * four 16-byte alignment phases and the aligned-span fraction the gouraud and
++ * texture kernels branch on does not move with the arm.
++ *
++ * The image is garbage at any non-zero stride. That is expected: this measures
++ * memory, not pixels.
++ */
++static int g_l2fold_stride = -1;
++static toripixel_t* g_l2fold_raw = NULL;   /* what free() gets */
++static toripixel_t* g_l2fold_buf = NULL;   /* raw, rounded up to a cache line */
++static size_t g_l2fold_px = 0;
++static long g_l2fold_retargeted = 0;
++static long g_l2fold_skipped_zbuf = 0;
++static long g_l2fold_skipped_small = 0;
++
++static void
++l2fold_report(void)
++{
++    fprintf(
++        stderr,
++        "l2fold: stride=%d retargeted=%ld skipped_zbuf=%ld skipped_small=%ld "
++        "buf_px=%lu\n",
++        g_l2fold_stride,
++        g_l2fold_retargeted,
++        g_l2fold_skipped_zbuf,
++        g_l2fold_skipped_small,
++        (unsigned long)g_l2fold_px);
++}
++
++static void
++l2fold_init(void)
++{
++    const char* s = getenv("HUNTL2_FOLD_STRIDE");
++    g_l2fold_stride = s ? atoi(s) : 0;
++    atexit(l2fold_report);
++}
++
++static void
++l2fold_retarget(struct ToriDrawModelRasterContext* ctx)
++{
++    assert(ctx);
++
++    if( g_l2fold_stride < 0 )
++        l2fold_init();
++    if( g_l2fold_stride <= 0 )
++        return;
++    /* Widget models draw into their own small viewport; only the world node is
++     * the 1.54 MB working set this arm exists to shrink. */
++    if( ctx->stride < 512 )
++    {
++        g_l2fold_skipped_small++;
++        return;
++    }
++    /* A depth-buffered model addresses its zbuffer with the same stride and was
++     * already rebased against the real framebuffer. Counted, not folded: if the
++     * count is non-zero the ablation is incomplete and the arm is void. */
++    if( ctx->zbuffered )
++    {
++        g_l2fold_skipped_zbuf++;
++        return;
++    }
++
++    {
++        size_t need = (size_t)g_l2fold_stride * (size_t)(ctx->screen_height + 2) +
++                      (size_t)ctx->screen_width + 16;
++        if( g_l2fold_px < need )
++        {
++            /* 64-byte aligned, because the real framebuffer is and the kernels
++             * branch on 16-byte span alignment: an 8-byte-aligned malloc would
++             * shift every row's alignment phase and put a second variable in
++             * the ladder. Over-allocate by a line and round up. */
++            uintptr_t a;
++            free(g_l2fold_raw);
++            g_l2fold_raw = (toripixel_t*)calloc(need + 16, sizeof(toripixel_t));
++            assert(g_l2fold_raw);
++            a = ((uintptr_t)g_l2fold_raw + 63u) & ~(uintptr_t)63u;
++            g_l2fold_buf = (toripixel_t*)a;
++            g_l2fold_px = need;
++        }
++    }
++
++    ctx->pixel_buffer = g_l2fold_buf;
++    ctx->stride = g_l2fold_stride;
++    g_l2fold_retargeted++;
++}
++/* #endregion */
++#endif
++
+ static inline void
+ ToriDraw_RasterWithFaceIndices(
+     struct ToriDraw_Scene* scene,
+@@ -1321,6 +1430,10 @@ ToriDraw_RasterWithFaceIndices(
+ #endif
+     }
+ 
++#ifdef HUNTL2_FOLD
++    l2fold_retarget(&ctx);
++#endif
++
+ #ifndef TORIDRAW_PIXEL16
+     /* Reset before the first face, not after the last: this is what confines
+      * the depth test to this model, so it has to happen even if the model turns

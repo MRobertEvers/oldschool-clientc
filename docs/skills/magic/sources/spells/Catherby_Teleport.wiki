@@ -1,0 +1,38 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Catherby teleport (tablet)}}
+{{Infobox Spell
+|name = Catherby Teleport
+|image = [[File:Catherby Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 87
+|spellbook = Lunar
+|type = Teleport
+|exp = 92
+|cost = {{RuneReq|Law=3|Water=10|Astral=3}}
+|speed = 4 ticks
+|description = Teleports you to Catherby
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Catherby Teleport icon (mobile).png|left|class=pageimage]]
+'''Catherby Teleport''' teleports the caster near the bank in [[Catherby]]. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+Casting this spell is a requirement for the elite [[Kandarin Diary|Kandarin diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 3
+|Rune2 = Astral
+|Rune2num = 3
+|Rune3 = Water
+|Rune3num = 10
+}}
+
+==Destination==
+{{Map|2799,3448|2799,3452|2804,3452|2804,3447|2801,3447|2801,3448|mtype=polygon|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

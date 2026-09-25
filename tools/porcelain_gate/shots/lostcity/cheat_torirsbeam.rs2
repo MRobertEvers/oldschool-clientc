@@ -1,0 +1,70 @@
+// ~torirsbeamdrop -- the live lane's PRICE-TABLE drop.
+//
+// INSTALL: copy this file into the LostCity checkout beside the harness's
+// other cheats and the dev thread's file watcher rebuilds the script pack on
+// its own -- no server restart, and no client-cache change, because a
+// debugproc lives in script.pack and script.pack is not a jag archive the
+// client downloads:
+//
+//     cp tools/porcelain_gate/shots/lostcity/cheat_torirsbeam.rs2 \
+//        <LostCity_Server>/content/scripts/_test/scripts/cheats/
+//
+// It is carried HERE, in the repo that owns the capture, because the drive a
+// picture depends on is part of the picture. ~skiptutorial / ~torirsdrop /
+// ~torirscoins / ~torirskit were added straight into that other checkout and
+// exist nowhere in this one, so a fresh clone of this tree can read the job
+// row that names them and cannot reproduce the shot.
+//
+// WHY THIS IS NOT ~torirsdrop WITH MORE ITEMS IN IT.
+//
+// ~torirsdrop is the CS2 lane's `::dropobj` pile said in this server's
+// vocabulary -- rune scimitar, dragon med helm, 20000 coins, 5 sharks -- and
+// grounditems-live, birdnest-live and lootbeam-live all photograph that same
+// floor so the two lanes' pictures stay comparable. Changing it would move
+// three shots to photograph one.
+//
+// It is also, measured, a floor no loot beam can ever stand on at the shipped
+// thresholds: 15,360 / 60,000 / 20,000 / 180 against `high` = 1,000,000. That
+// is the CORRECT answer for that pile and it is why lootbeam-live.png is a
+// beamless picture that is not a defect -- but it means the one thing
+// loot_beam 2.0 exists to do on a dat1 world, MATCH A PRICE ROW BY NAME, has
+// never been in front of a camera.
+//
+// WHAT THE TWO OBJS ARE FOR.
+//
+// Both are chosen so that the cache alone CANNOT light them, and prices.txt
+// alone can. That is the whole experiment: a beam here is a beam the name
+// lookup raised.
+//
+//   red_partyhat     ObjType.cost defaults to 1 and holiday.obj states no
+//                    cost, so this item's cache value is 1 and its high-alch
+//                    value is floor(1 * 0.6) = 0. `Red partyhat = 1500000000`
+//                    in the plugin's prices.txt makes it 900,000,000 alched,
+//                    which is the INSANE tier -- the pink beam the CS2 lanes
+//                    are photographed with and the live lane never had.
+//
+//   dragon_chainbody cost 250,000, so the cache alches it to 150,000: a
+//                    MEDIUM item, under the default `tier = high` floor and
+//                    therefore not beamed. `Dragon chainbody = 1800000` lifts
+//                    it to 1,080,000 alched, one rung over `high_value`, and
+//                    it beams ORANGE. The row that only moves an item's TIER
+//                    is worth a picture of its own: it is the one an id-keyed
+//                    table would have got subtly wrong rather than blankly.
+//
+// They go on two DIFFERENT tiles on purpose. loot_beam raises one beam per
+// tile coloured by the best thing on it, so a single pile would have shown
+// the pink one and hidden the orange.
+//
+// Every name here exists in this server's own obj.pack -- red_partyhat 1038,
+// dragon_chainbody 3140 -- which is the check the price table's own "pre-EoC
+// staples, for the dat1 caches" block did not get: three of its six rows
+// (Dragon 2h sword, Third age longsword, Third age platebody) name items a
+// 2004 world does not have, and a name a cache does not have never matches.
+
+[debugproc,torirsbeamdrop]
+if_close;
+if (p_finduid(uid) = true) {
+    obj_add(coord, red_partyhat, 1, 200);
+    obj_add(movecoord(coord, 1, 0, 0), dragon_chainbody, 1, 200);
+    mes("dropped a partyhat and a chainbody at your feet.");
+}

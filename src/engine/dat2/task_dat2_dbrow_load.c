@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /* DBROW config group (config kind 38). Same shape as the enum load task: read
  * the whole config group through the split-group LRU, find the file whose id is
@@ -34,7 +35,7 @@ struct Task_Dat2DbRowLoad
 static int
 Task_Dat2DbRowLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2DbRowLoad* task = (struct Task_Dat2DbRowLoad*)task_base;
     struct RSCache_Dat2ConfigDbRow* row = NULL;
@@ -48,14 +49,14 @@ Task_Dat2DbRowLoad_Run(
 
     if( !task->group )
     {
-        fprintf(stderr, "Failed to decode dat2 dbrow config group for row %d\n", task->row_id);
+        TORIRS_ERR("Failed to decode dat2 dbrow config group for row %d\n", task->row_id);
         PT_EXIT(&task->pt);
     }
 
     pos = Dat2Group_IndexOf(task->group, task->row_id);
     if( pos < 0 )
     {
-        fprintf(stderr, "Failed to find dat2 dbrow %d in config group\n", task->row_id);
+        TORIRS_ERR("Failed to find dat2 dbrow %d in config group\n", task->row_id);
         PT_EXIT(&task->pt);
     }
 

@@ -125,7 +125,7 @@ env SDL_VIDEODRIVER=dummy \
   TORIRS_SIM_WINDOW='500,1200x800' \
   TORIRS_SIM_WHEEL='650,500,350,-4,1' \
   ASAN_OPTIONS='detect_leaks=0:halt_on_error=1:abort_on_error=1' \
-  ./src/torirs --manifest manifest_osrs239_rs2012.ini \
+  ./src/torirs --manifest manifests/manifest_osrs239_rs2012.ini \
   --user qbdvisual --pass test --soft3d
 sips -s format png /tmp/qbd_full_scene.bmp \
   --out docs/rs2012_qbd_arena/images/06_qbd_head_and_both_claws.png
@@ -164,7 +164,7 @@ not transparent" slot) with alpha 0. That is correct for their own era.
 OldSchool 232+ does not read it that way. `RSCACHE_SPRITELOAD_FLAG_OPAQUE_INDEX`
 (`3rd/rscache/src/datatypes/dat2_sprites.c`) forces every pixel whose palette
 index is non-zero to alpha `0xFF` *after* the plane is decoded, and
-`manifest_osrs239_rs2012.ini` is `game=oldschool, revision=239`, so the flag is
+`manifests/manifest_osrs239_rs2012.ini` is `game=oldschool, revision=239`, so the flag is
 on. Every clear pixel came back opaque `0x000001`.
 
 **The era rule is right and stays.** Native osrs239 content is built for it: 33
@@ -206,9 +206,9 @@ python3 scripts/normalize_ported_sprite_alpha.py --check   # CI gate, non-zero i
 ### Reproduction
 
 ```sh
-make -C src mock230-cache-rs2012
-./run-live.sh manifest_osrs239_rs2012.ini qbdrepro test --opengl3
-./run-live.sh manifest_osrs239_rs2012_td.ini tdrepro test --opengl3
+make -C src torirsserver-cache-rs2012
+./run-live.sh manifests/manifest_osrs239_rs2012.ini qbdrepro test --opengl3
+./run-live.sh manifests/manifest_osrs239_rs2012_td.ini tdrepro test --opengl3
 ```
 
 The QBD manifest invokes `::rs2012qbdmanifest`; this is deliberately separate
@@ -217,12 +217,12 @@ Summoning requirement. The TD manifest invokes `::rs2012tdbypass`; production
 `::rs2012td` remains gated by While Guthix Sleeps. Neither QA command changes
 skills or quest state.
 
-## 2026-08-11 — a from-scratch `mock230-cache-rs2012` rebuild corrupts QBD's awake render
+## 2026-08-11 — a from-scratch `torirsserver-cache-rs2012` rebuild corrupts QBD's awake render
 
 Unrelated to the material/HUD work above: getting the `rs2012_qbd_session.rs2`
 wake-timing constant (see `docs/rs2012_qbd_wakeup/`) to actually take effect
-required rebuilding `mock230-scripts`, which in turn required a from-scratch
-`mock230-cache-rs2012` (delete + full repack of `cache.osrs239.rs2012`) to
+required rebuilding `torirsserver-scripts`, which in turn required a from-scratch
+`torirsserver-cache-rs2012` (delete + full repack of `cache.osrs239.rs2012`) to
 resolve an unrelated compile blocker. That repack's own `cachepack verify`
 step failed real fidelity checks on the first attempt — before any change in
 this session — flagging sprite payloads that changed length and `script 0`

@@ -511,7 +511,7 @@ The particle and billboard payloads still are not decoded, by rs-map-viewer eith
 computes `particleEffectsOffset` and never reads it. They sit past every other section,
 so the opaque tail already carries them and round-trips them byte-exactly.
 
-**The rest of 643 is not fixed**, and `manifest_rs643.ini` documents it: a 643 world does
+**The rest of 643 is not fixed**, and `manifests/manifest_rs643.ini` documents it: a 643 world does
 not render. Three gaps, none about models:
 
 1. **Config kind ids differ.** 643's table 2 lacks archives 6 (loc), 8, 9, 10, 12, 13 and
@@ -1252,7 +1252,7 @@ deep inside CS2/CS1 with nowhere to yield to a load.
 | Boot | Source | Types |
 |---|---|---|
 | `manifest_osrs230` | dat2 config group 14, one file per id | 17,605 from 17,426 records (holes zeroed to `basevar = -1`) |
-| `manifest_rs254` | dat1 `varbit.dat` in the config jagfile | 6, consuming the blob exactly |
+| `manifest_rs254lc` | dat1 `varbit.dat` in the config jagfile | 6, consuming the blob exactly |
 
 That closes the B13 consequence: `GetVarbit` returns real values, so a script branching on
 a varbit takes the branch the server intended. Both eras mattered, not just dat2 — CS1's
@@ -1403,7 +1403,7 @@ records; `headerless` is now a decoder parameter orthogonal to `kind` (region vs
 chunk), since the compositemap record always knows its own kind and destination
 regardless of which era's addressing found the file. Verified: `cache.osrs239`'s
 Lumbridge/Al Kharid area renders as real Gielinor terrain
-(`./run-worldmap.sh manifest_osrs239_worldmap.ini --headless`), all 2,101
+(`./run-worldmap.sh manifests/manifest_osrs239_worldmap.ini --headless`), all 2,101
 geography files still round-trip byte-exact through `geo_decode` (unaffected —
 separate codec), and the client's own decode goes from "decoded nothing" on
 every region to zero `archive=MISSING` / zero truncated-stream errors under
@@ -1523,7 +1523,7 @@ exception to "only add the write half".
 | D22 | **A protothread read a worklist id into a local, then used it after the await.** The procedural-texture dependency walk in `task_dat2_texture_load.c` set `dep_id` before `PT_YIELD` and used it after, but a protothread resumes at the yield with the frame's locals gone — so the decoded program was stored under whatever garbage the slot held. Every later `texture_source`/`sprite_source` lookup missed. Both worklists now keep the in-flight id on the task struct, and the program is re-read through the cache after the await rather than carried across it. | **The value was a cache key, not an index, which is why it was silent.** A corrupted index would have tripped a bounds check; a corrupted key just files the program somewhere nothing looks, and the symptom appears much later as a missing dependency. It was separable from a coverage gap only because the failure reported `unsupported=0` — no unported operation had run — and because an independent probe confirmed all 12 textures' closures were fully supported. 12 refusals became 1, the remainder being a known decode gap. |
 | D23 | **The client's default spawn square is not universally loadable, and failed as "no scenery" rather than "no keys".** `app_world_load_begin` hardcoded 50,50 with only `TORIRS_WORLD_MAP` able to override it. `cache.643` ships XTEA keys for 1,591 loc squares and 50,50 is not one of them — nor 49,49 / 50,49 / 51,49 / 51,50, a hole directly over Lumbridge. Added a `[cache:boot] spawn=<x>,<z>` manifest key (env still wins, a server REBUILD_NORMAL wins over both) and set the 643 manifest to a keyed square. | **Terrain archives are not encrypted; only `l*` loc archives are.** So an unkeyed square renders ground perfectly and then zero locs — which reads as a renderer or loc-decode fault, not as missing keys, and is indistinguishable from one without checking `world_load`'s loc count. It also hid behind every measurement taken with an explicit `TORIRS_WORLD_MAP=40,55`: the square that was verified working was never the square the client actually booted. Worth generalising — when a default is only valid for some inputs, an override existing is not the same as the default being right. |
 | D24 | **Removing the table allow-lists left a bare range walk, which probed tables the cache never had.** `init_reference_tables` iterated 0..TABLE_COUNT and printed `Failed to load referencetable N` for each absent one, so every OldSchool boot emitted ~14 spurious failures for RS2's tables 23..34. Now gated on `dat2disk_table_present` — a table exists iff its `.idxN` file does. Absence is silent; a table whose index exists but whose reference table will not load is still reported. | **The fix for D18/D21 was right but incomplete: the question was never "which ids do we know", it is "which does this cache have".** Both a name allow-list and a range walk answer it from the library's side and are wrong in opposite directions — one hides real tables, the other invents missing ones. The cache itself is authoritative and free to ask. Also a reminder that log noise is a defect: 14 lines of routine "failure" per boot is exactly what trains someone to stop reading the log that would have shown D23. |
-| D25 | **Identity fields were declared by every revision module and read by almost none.** `game` was written and never consulted; lineage was smuggled via a third `epoch` value (`EPOCH_643`) while 643 suppressed `revision` to `UNKNOWN` so it could never match a threshold — which made manifests unable to select it except by the `0 == UNKNOWN` coincidence on unset `client_version`. Collapsed to four load-bearing fields (`game`/`epoch`/`revision`/`quirks`), with `epoch` = dat1\|dat2 only, predicates `IsOsrs`/`IsRs2Dat2`/`RevisionAtLeastOsrs`/`RevisionAtLeastRs2`, and boot through required `[cache:boot]` keys → `RSCache_ProfileForIdentity`. Map XTEA is the same class of bug: presence of a key file is not the gate; OldSchool ≥ 237 stores locs plain and RS2 dat2 encrypts from 414 (`RSCache_MapLocsEncrypted`). | Latent for every multi-era boot. Symptoms looked like missing tables, blank scenery, or "works only when client_version is unset". Fixed end-to-end: manifests state identity; `manifest_osrs239.ini` is the unencrypted regression vehicle. |
+| D25 | **Identity fields were declared by every revision module and read by almost none.** `game` was written and never consulted; lineage was smuggled via a third `epoch` value (`EPOCH_643`) while 643 suppressed `revision` to `UNKNOWN` so it could never match a threshold — which made manifests unable to select it except by the `0 == UNKNOWN` coincidence on unset `client_version`. Collapsed to four load-bearing fields (`game`/`epoch`/`revision`/`quirks`), with `epoch` = dat1\|dat2 only, predicates `IsOsrs`/`IsRs2Dat2`/`RevisionAtLeastOsrs`/`RevisionAtLeastRs2`, and boot through required `[cache:boot]` keys → `RSCache_ProfileForIdentity`. Map XTEA is the same class of bug: presence of a key file is not the gate; OldSchool ≥ 237 stores locs plain and RS2 dat2 encrypts from 414 (`RSCache_MapLocsEncrypted`). | Latent for every multi-era boot. Symptoms looked like missing tables, blank scenery, or "works only when client_version is unset". Fixed end-to-end: manifests state identity; `manifests/manifest_osrs239.ini` is the unencrypted regression vehicle. |
 | D26 | **npc opcodes 100/101 read ambient and contrast as *unsigned* bytes, and did not pre-scale contrast.** The reference is `ambient = g1b()` and `contrast = g1b() * 5` (Client-TS `config/NpcType.ts`, matching obj opcode 114). `g1` turned every darkening npc into a brightening one — `cache.osrs230` decoded 113 records at `ambient=231` and 24 at `246`, which are `-25` and `-10`. `calculateNormals` then lit them at `64 + 231`, saturating every face to white. The encoder now writes `p1b` and `contrast / 5`, which is byte-identical to what it wrote before, so no round-trip number moves. | The value distribution *is* the proof: a signed field misread as unsigned has a hole in the middle and a cluster at the top, and npc ambient had exactly one — nothing between 100 and 231, then 231/241/246. obj and loc, which already used `g1b`, showed the negatives directly. Semantic round-trip stays 100% on all six caches. |
 | D27 | **npc recolour/retexture pairs were stored in `short`.** Both are unsigned 16-bit — an HSL word or a texture id — so everything from `0x8000` up came back negative, and the only reason nothing broke was that the encoder and the client-side adaptor each happened to cast back through `uint16_t`. Widened to `int`, which is what every other config struct in the library already uses for the same data, and the two compensating casts are gone. | Found by auditing the library for colour data in signed types after D26. Latent rather than live — but it is a trap that only holds while every consumer remembers to undo it, and `find_named` already printed the negatives. |
 | D28 | **loc opcode 39 pre-scaled contrast by 25 for every era, including dat1.** dat2/OldSchool is `readByte() * 25`; dat1 is `g1b() * 5` (Client-TS `config/LocType.ts`). A dat1 loc therefore came out five times as attenuated as the reference. Now gated on `RSCACHE_CONFIG_LOC_DECODE_DAT`, with the encoder dividing by the same era-dependent multiplier. | Surfaced while fixing the client's lighting, which had a compensating `* 5` on the *consumer* side (`ToriDraw_LightModelDefault`) — correct for dat1's raw byte, wrong for anything the library had already scaled. With the consumer's multiplier removed, the era gate is what keeps dat1 right. |
@@ -2222,21 +2222,20 @@ rev-239 gameframe scripts call opcode 210, which neither `Opcodes.kt` nor
 `Command.kt` lists and `src/cs2vm2` had no stack signature for. The decompiler
 refused the script for the same reason.
 
-`cs2 infer-arity` settled it without a reference client: ten call sites across the
-cache, every one solving to a six-int pop with nothing pushed, and no other
-candidate surviving at any of them. Recorded in both tables — `local_commands.py`
-for the decompiler and `gen_opcode_stack.py` for the VM — because the README's own
-rule is that there is one answer to "what is opcode N".
+The original arity inference found only the opcode's net stack change and recorded it
+as six inputs with no result. Later output exposed the ambiguity: thirteen call sites
+decompiled into impossible constant conditions such as `if (60817424 = 1)`. Raw
+bytecode shows the actual shape at every site: a component search root, three
+`(param, value)` pairs, and a boolean-like result consumed immediately afterward.
+The rev-239 client handler independently confirms that its bottom operand is passed to
+the component lookup and that it selects an active component.
 
-What it does is still unknown. The VM pops the six and does nothing, which is
-stack-correct and behaviourally a no-op; script 8489 now reads
-`_210(2372, $int0, 2373, $int1, 0, 0)`. Three more scripts decompile than before
-(5,589 of 9,725 at the time), and the client boots, logs in and renders.
-
-Worth noting what the method *did not* give: the trace made the first argument look
-like a component, which would have been a natural thing to write into the signature.
-The decompile shows the component belonged to the preceding gosub. The arity is
-evidence; the types would have been a guess, so they are plain `INT`.
+Opcode 210 is therefore fixed at seven integer inputs and one integer result, with the
+first input typed as `COMPONENT`. Script 8489 now reads
+`if (cc_find_param($int2, 2372, $int0, 2373, $int1, 0, 0) = 1)`, and the VM's
+generic stub pops the same seven values and supplies its placeholder result. The
+signature is recorded in both `local_commands.py` and `gen_opcode_stack.py` because
+the README's own rule is that there is one answer to "what is opcode N".
 
 ### G8. The DB family's stack shape is in the data, not the opcode *(Resolved)*
 
@@ -2606,10 +2605,11 @@ with RuneStar's 2021 source fixture:
   `1i/0s` arguments and independently reads array slot 0; merging them changed
   its trailer to `0i/1s`. Requiring a string-bank first argument prevents that
   false inference and fixes the same shape across rev 239.
-- The official opcode-210 handler reads its active-component flag. Its custom
-  variable-arity translator used to discard that operand, so the decompiler
-  could not print the dot form and the compiler rewrote operand 1 to 0. The
-  custom path now applies the same checked boolean rule as BASIC commands.
+- The official opcode-210 handler reads its active-component flag. Its former
+  custom translator discarded that operand, so the decompiler could not print
+  the dot form and the compiler rewrote operand 1 to 0. Opcode 210 now has its
+  fixed seven-input/one-result BASIC signature, so it uses the standard checked
+  active-form path without a special case.
 
 Together with four newly comparable scripts from the preceding rev-239 work,
 the reference measurement is now 6,491 compared, 6,271 identical and exactly
@@ -2643,6 +2643,24 @@ commands enable it. On `cache.osrs239`, 539 listings need the full snapshot.
 The final gate is **9,724/9,724 present scripts byte-exact**; numeric ID 0 is the
 only one of the scanned 9,725 IDs not decompiled because it is absent from the
 cache.
+
+### G15. Current opcode names differ from the 2021 reference *(Deviation)*
+
+The shared rev-239 VM metadata now has semantic names for 192 opcodes that the
+vendored 2021 RuneStar table still spells as numeric placeholders. The second
+96-name batch is backed by the canonical declarations in the adjacent
+`osrs-cache/data/commands` catalogue and cross-checked against the rev-239 Java
+dispatcher and rev-216 native decompile. The CS2 table
+generator previously used `setdefault`, so an older `_7000` placeholder won over
+the VM's established `HIGHLIGHT_NPC_SETUP` name. The compiler and decompiler
+therefore lagged the runtime metadata even though they read it.
+
+Current metadata now replaces only numeric placeholders; genuine vendor names
+keep their precedence. The compiler continues accepting `_1234` for any existing
+command row, while the decompiler emits the canonical semantic name. Against the
+RuneStar/cs2 fixture, 127 compared sources exercise one of the renamed rows:
+6,491 compared, 6,144 identical and exactly 347 different. This is a source-name
+difference only; the full rev-239 cache round trip remains 9,724/9,724 byte-exact.
 
 ---
 

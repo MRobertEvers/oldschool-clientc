@@ -1,0 +1,71 @@
+# Ground Items price overrides: name = price, one per line.
+#
+# The client has no Grand Exchange feed and never will -- what it knows is
+# ObjType.cost, the cache's own base value, which for most items is the shop
+# price rather than anything a player would pay. This file is where a plugin's
+# author or a user corrects the ones that matter. Anything absent here is
+# priced from the cache.
+#
+# Keyed by the item's NAME, matched case-insensitively against the name the
+# booted cache gives the ground stack -- NOT by obj id. An id is a fact about
+# one cache: this table used to be `obj_id = price` with "ids are for
+# cache.osrs239" written here, and on any other cache a row either matched
+# nothing or matched whatever item had inherited the number. Since an override
+# is the only thing that can lift a stack to the loot beam's thresholds -- a
+# shop price never reaches a million -- that made a beam structurally
+# impossible on every lane but one, and a beam over the wrong item possible on
+# the rest. The high-alchemy figure is derived from whichever price applies
+# (floor(price * 0.6), as the reference derives it).
+#
+# A name a cache does not have simply never matches, which is the right answer
+# and costs nothing. Blank lines and # comments are skipped, and so is any line
+# that does not parse -- one bad row must not cost you the rest.
+#
+# Deliberately a SECOND copy of the loot beam's table rather than a shared one:
+# api.asset_load takes a bare filename and resolves it under this plugin's own
+# directory, precisely so one plugin can never read another's files. The two
+# tables answer the same question and are expected to be edited together.
+
+# Rare drops whose cache cost is nowhere near what the item is worth.
+Abyssal whip        = 1500000
+Abyssal tentacle    = 90000000
+Armadyl godsword    = 15000000
+Bandos chestplate   = 3000000
+Bandos tassets      = 2500000
+Armadyl helmet      = 5000000
+Armadyl chestplate  = 25000000
+Armadyl chainskirt  = 25000000
+Ranger boots        = 40000000
+Amulet of fury      = 1800000
+
+# Pre-EoC staples, for the dat1 caches. They are named here for the same reason
+# as the rows above -- their shop cost is not their value -- and they are the
+# rows that make this table mean anything at all on a 2004-era world, where
+# none of the names above exist.
+#
+# THESE THREE ARE THE ONES A 2004 WORLD ACTUALLY HAS, checked against the obj
+# table of the only dat1 world this repo boots (LostCity rev 289: red_partyhat
+# 1038, santa_hat 1050, dragon_chainbody 3140). They are the rows the live
+# capture stands on -- shots/plugins/lb-priced-live.png, an insane-tier beam
+# over a hat whose cache cost is 1 and a high-tier one over a chainbody the
+# cache alches to a medium 150,000.
+Dragon chainbody    = 1800000
+Santa hat           = 100000000
+Red partyhat        = 1500000000
+
+# THESE THREE ARE NOT. They were written under the heading above as "pre-EoC
+# staples" and none of them is in a 2004 obj table: that cache's two-handers
+# stop at rune_2h_sword (1319) and third age is a 2007-and-later set. They are
+# real OSRS items and they stay, because an id-keyed row that matches nothing
+# was never the complaint -- a name a cache does not have simply never matches,
+# which costs nothing and is the whole point of keying on names.
+#
+# What they are here as a record of is that re-keying a table does not rescope
+# it. The rows above went from obj ids to names and the NAMES were still picked
+# out of the osrs239 universe; only measuring them against the booted cache's
+# own obj table tells the two apart, and nothing in the plugin can do that for
+# you -- a row that never matches and a row that is not needed are the same
+# silence.
+Dragon 2h sword     = 2500000
+Third age longsword = 250000000
+Third age platebody = 300000000

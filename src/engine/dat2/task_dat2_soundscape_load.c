@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Ambient soundscapes (config group 15), whole-group and eager at boot.
@@ -70,7 +71,7 @@ soundscape_copy(
 static int
 Task_Dat2SoundscapeLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2SoundscapeLoad* task = (struct Task_Dat2SoundscapeLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -121,9 +122,7 @@ Task_Dat2SoundscapeLoad_Run(
         RSCache_Dat2ConfigSoundscapeDecodeInplace(
             &entry, filelist->files[i], filelist->file_sizes[i]);
         if( entry._consumed != filelist->file_sizes[i] )
-            fprintf(
-                stderr,
-                "soundscape %d: decode consumed %d of %d bytes\n",
+            TORIRS_LOG("soundscape %d: decode consumed %d of %d bytes\n",
                 id,
                 entry._consumed,
                 filelist->file_sizes[i]);
@@ -140,7 +139,7 @@ Task_Dat2SoundscapeLoad_Run(
         free(entries);
         PT_EXIT(&task->pt);
     }
-    printf("soundscape load: %d ids (%d records)\n", count, decoded);
+    TORIRS_LOG("soundscape load: %d ids (%d records)\n", count, decoded);
 
     /*
      * Bring the clips into residence.
@@ -176,6 +175,7 @@ Task_Dat2SoundscapeLoad_Run(
              task->preload_sub < task->soundscapes->entries[task->preload_index].loop_count;
              task->preload_sub++ )
             TASK_AWAITEX_IF(
+                &task->task,
                 &task->pt,
                 io,
                 CreateTask_SoundLoad(

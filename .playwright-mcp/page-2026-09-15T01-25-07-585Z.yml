@@ -1,0 +1,246 @@
+- generic [active] [ref=e1]:
+  - link "Skip to content" [ref=e2] [cursor=pointer]:
+    - /url: "#content"
+  - banner [ref=e3]:
+    - generic [ref=e5]:
+      - list [ref=e9]:
+        - listitem [ref=e10]:
+          - generic [ref=e11]: Mon-Fri 7AM - 6PM
+        - listitem [ref=e12]:
+          - generic [ref=e13]: Sat 8AM - 2PM
+        - listitem [ref=e14]:
+          - generic [ref=e15]: Emergency Service Available
+      - list [ref=e19]:
+        - listitem [ref=e20]:
+          - generic [ref=e21]: Serving KC Metro -- MO & KS
+        - listitem [ref=e22]:
+          - link "(816) 455-5282" [ref=e23] [cursor=pointer]:
+            - /url: tel:(816)4555282
+    - generic [ref=e29]:
+      - generic [ref=e30]:
+        - link [ref=e33] [cursor=pointer]:
+          - /url: https://www.ableelectrickc.com
+          - img "smalllogo2 - AbleElectricKC.com" [ref=e34]
+        - link "ABLE ELECTRIC Licensed Electricians Since 1993" [ref=e38] [cursor=pointer]:
+          - /url: /
+      - navigation "Menu" [ref=e42]:
+        - list [ref=e43]:
+          - listitem [ref=e44]:
+            - link "Home" [ref=e45] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/
+          - listitem [ref=e46]:
+            - link "Services" [ref=e47] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/services/
+          - listitem [ref=e48]:
+            - link "About us" [ref=e49] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/about-us/
+          - listitem [ref=e50]:
+            - link "Testimonials" [ref=e51] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/testimonials/
+          - listitem [ref=e52]:
+            - link "Service Areas" [ref=e53] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/
+          - listitem [ref=e54]:
+            - link "Contact" [ref=e55] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/contact/
+      - link "Emergency" [ref=e60] [cursor=pointer]:
+        - /url: /contact
+  - generic [ref=e66]:
+    - heading "Contact" [level=1] [ref=e71]
+    - generic [ref=e78]:
+      - generic [ref=e79]:
+        - generic [ref=e81]:
+          - heading "Search" [level=2] [ref=e84]
+          - search [ref=e87]:
+            - generic [ref=e89]:
+              - generic [ref=e90]: Search
+              - generic [ref=e91]: Search
+              - searchbox "Search" [ref=e96]
+        - generic [ref=e98]:
+          - heading "Calendar" [level=2] [ref=e101]
+          - generic [ref=e106]:
+            - generic [ref=e107]:
+              - button [ref=e108] [cursor=pointer]
+              - generic [ref=e111]: Sep 2026
+              - button [ref=e112] [cursor=pointer]
+            - generic [ref=e115]:
+              - generic [ref=e116]:
+                - generic [ref=e117]: Mo
+                - generic [ref=e118]: Tu
+                - generic [ref=e119]: We
+                - generic [ref=e120]: Th
+                - generic [ref=e121]: Fr
+                - generic [ref=e122]: Sa
+                - generic [ref=e123]: Su
+              - generic [ref=e124]:
+                - generic [ref=e126]: "1"
+                - generic [ref=e127]: "2"
+                - generic [ref=e128]: "3"
+                - generic [ref=e129]: "4"
+                - generic [ref=e130]: "5"
+                - generic [ref=e131]: "6"
+              - generic [ref=e132]:
+                - generic [ref=e133]: "7"
+                - generic [ref=e134]: "8"
+                - generic [ref=e135]: "9"
+                - generic [ref=e136]: "10"
+                - generic [ref=e137]: "11"
+                - generic [ref=e138]: "12"
+                - generic [ref=e139]: "13"
+              - generic [ref=e140]:
+                - generic [ref=e141]: "14"
+                - generic "today" [ref=e142]: "15"
+                - generic [ref=e143]: "16"
+                - generic [ref=e144]: "17"
+                - generic [ref=e145]: "18"
+                - generic [ref=e146]: "19"
+                - generic [ref=e147]: "20"
+              - generic [ref=e148]:
+                - generic [ref=e149]: "21"
+                - generic [ref=e150]: "22"
+                - generic [ref=e151]: "23"
+                - generic [ref=e152]: "24"
+                - generic [ref=e153]: "25"
+                - generic [ref=e154]: "26"
+                - generic [ref=e155]: "27"
+              - generic [ref=e156]:
+                - generic [ref=e157]: "28"
+                - generic [ref=e158]: "29"
+                - generic [ref=e159]: "30"
+      - generic [ref=e164]:
+        - heading "Contact Us or Request A Free Estimate Below" [level=2] [ref=e167]
+        - form "New Form" [ref=e170]:
+          - generic [ref=e171]:
+            - generic [ref=e172]:
+              - generic [ref=e173] [cursor=pointer]: Name
+              - textbox "Name" [ref=e174]:
+                - /placeholder: Your name
+            - generic [ref=e175]:
+              - generic [ref=e176] [cursor=pointer]: Email
+              - textbox "Email" [ref=e177]:
+                - /placeholder: Your email
+            - generic [ref=e178]:
+              - generic [ref=e179] [cursor=pointer]: Phone niumber
+              - textbox "Phone niumber" [ref=e180]:
+                - /placeholder: Your phone
+            - generic [ref=e181]:
+              - generic [ref=e182] [cursor=pointer]: Message
+              - textbox "Message" [ref=e183]:
+                - /placeholder: Your message
+            - button "Send" [ref=e185] [cursor=pointer]
+          - alert [ref=e309]: Your submission was successful.
+        - iframe [ref=e191]:
+          - generic [ref=f1e1]:
+            - link "Get directions (opens in new tab)" [ref=f1e9] [cursor=pointer]:
+              - /url: https://www.google.com/maps/dir//''/data=!4m7!4m6!1m1!4e2!1m2!1m1!1s0x87c0f9e6b4830943:0x542362c66ae5789d!3e0?g_mp=CiVnb29nbGUubWFwcy5wbGFjZXMudjEuUGxhY2VzLkdldFBsYWNlEAMYASAF
+            - generic [ref=f1e6]:
+              - generic:
+                - button "Keyboard shortcuts"
+              - region "Map" [ref=f1e15]
+              - generic [ref=f1e16]:
+                - iframe [aria-hidden] [ref=f1e44]
+                - button "Map camera controls" [ref=f1e46] [cursor=pointer]
+                - button "Show satellite imagery" [ref=f1e49] [cursor=pointer]:
+                  - generic [ref=f1e53]:
+                    - region [ref=f1e54]
+                    - iframe [aria-hidden] [ref=f1e63]
+                - img "Google" [ref=f1e65]
+                - generic [ref=f1e66]:
+                  - button "Keyboard shortcuts" [ref=f1e72] [cursor=pointer]
+                  - generic [ref=f1e73]: Map data ©2026 Google
+                  - link "Terms (opens in new tab)" [ref=f1e82] [cursor=pointer]:
+                    - /url: https://www.google.com/intl/en-US_US/help/terms_maps.html
+                    - text: Terms
+                  - link "Report a map error (opens in new tab)" [ref=f1e87] [cursor=pointer]:
+                    - /url: https://www.google.com/maps/@39.1652637,-94.5573088,15z/data=!10m1!1e1!12b1?source=apiv3&rapsrc=apiv3
+                    - text: Report a map error
+  - contentinfo [ref=e192]:
+    - generic [ref=e194]:
+      - generic [ref=e195]:
+        - heading "ABLE ELECTRIC" [level=3] [ref=e198]
+        - paragraph [ref=e201]: Licensed electrical contractor serving the Kansas City metro area since 1993. Honest work, fair prices, guaranteed.
+        - generic [ref=e205]:
+          - heading [level=3] [ref=e206]:
+            - link "(816) 455-5282" [ref=e207] [cursor=pointer]:
+              - /url: tel:+1(816)%20455-5282
+          - paragraph [ref=e208]: 1904 NE 39 Terrace, Kansas City, MO 64116
+      - generic [ref=e209]:
+        - heading "Service Areas" [level=4] [ref=e212]
+        - list [ref=e215]:
+          - listitem [ref=e216]:
+            - link "Lee’s Summit, MO" [ref=e217] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/lees-summit-mo-electrician/
+          - listitem [ref=e219]:
+            - link "Excelsior Springs, MO" [ref=e220] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/excelsior-springs-mo-electrician/
+          - listitem [ref=e222]:
+            - link "Smithville, MO" [ref=e223] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-smithville-mo/
+          - listitem [ref=e225]:
+            - link "Shawnee, KS" [ref=e226] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-shawnee-ks/
+          - listitem [ref=e228]:
+            - link "Raytown, MO" [ref=e229] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-raytown-mo/
+          - listitem [ref=e231]:
+            - link "Parkville, MO" [ref=e232] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/parkville-mo/
+          - listitem [ref=e234]:
+            - link "Overland Park KS" [ref=e235] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-overland-park-ks/
+          - listitem [ref=e237]:
+            - link "Olathe KS" [ref=e238] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-olathe-ks/
+          - listitem [ref=e240]:
+            - link "North Kansas City" [ref=e241] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-north-kansas-city/
+          - listitem [ref=e243]:
+            - link "Liberty, MO" [ref=e244] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-liberty-mo/
+          - listitem [ref=e246]:
+            - link "Lenexa, KS" [ref=e247] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/lenexa-ks/
+          - listitem [ref=e249]:
+            - link "Independence MO" [ref=e250] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-independence-mo/
+          - listitem [ref=e252]:
+            - link "Gladstone, MO" [ref=e253] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/electrician-gladstone-mo/
+          - listitem [ref=e255]:
+            - link "Bonner Springs, KS" [ref=e256] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/service-areas/bonner-springs-ks/
+      - generic [ref=e258]:
+        - heading "Services" [level=4] [ref=e261]
+        - list [ref=e264]:
+          - listitem [ref=e265]:
+            - link "Emergency Electrical" [ref=e266] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/our-services/emergency-services/
+          - listitem [ref=e268]:
+            - link "Commercial Electrical" [ref=e269] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/our-services/commercial-electricians-in-kansas-city-mo/
+          - listitem [ref=e271]:
+            - link "Residential Electrical" [ref=e272] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/our-services/residential/
+          - listitem [ref=e274]:
+            - link "Industrial Electrical" [ref=e275] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/our-services/industrial/
+          - listitem [ref=e277]:
+            - link "Maintenance" [ref=e278] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/our-services/maintenance-works/
+      - generic [ref=e280]:
+        - heading "Company" [level=4] [ref=e283]
+        - list [ref=e286]:
+          - listitem [ref=e287]:
+            - link "About" [ref=e288] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/about-us/
+          - listitem [ref=e290]:
+            - link "Services" [ref=e291] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/services/
+          - listitem [ref=e293]:
+            - link "Testimonials" [ref=e294] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/testimonials/
+          - listitem [ref=e296]:
+            - link "Contact" [ref=e297] [cursor=pointer]:
+              - /url: https://www.ableelectrickc.com/contact/
+    - paragraph [ref=e307]: © 2026 Able Electric Inc. All rights reserved. Licensed Electrical Contractor
+  - generic [ref=e308]: desktop

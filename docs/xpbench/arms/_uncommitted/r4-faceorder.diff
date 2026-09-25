@@ -1,0 +1,110 @@
+diff --git a/3rd/toridraw/toridraw_render.u.c b/3rd/toridraw/toridraw_render.u.c
+index e1fa5cda1..11c7aeeae 100644
+--- a/3rd/toridraw/toridraw_render.u.c
++++ b/3rd/toridraw/toridraw_render.u.c
+@@ -153,6 +153,23 @@ div3_fast_fixedpoint(int z_sum)
+     return (z_sum * 21845) >> 16;
+ }
+ 
++/* Index of the highest set bit. Only ever called on a word the caller has
++ * already found non-zero -- a zero word has no highest bit and __builtin_clz
++ * is undefined on it, so that is a contract violation, not a case to handle. */
++static inline int
++toridraw_bsr32(uint32_t w)
++{
++    assert(w != 0);
++#if defined(__GNUC__) || defined(__clang__)
++    return 31 - __builtin_clz(w);
++#else
++    int b = 0;
++    while( w >>= 1 )
++        b++;
++    return b;
++#endif
++}
++
+ /*
+  * Largest projected coordinate the raster kernels can carry.
+  *
+@@ -1055,10 +1072,12 @@ static inline int
+ bucket_sort_by_average_depth_impl(
+     faceint_t* RESTRICT face_depth_buckets,
+     faceint_t* RESTRICT face_depth_bucket_counts,
++    uint32_t* RESTRICT face_depth_occ,
+     int depth_levels,
+     int depth_stride,
+     int depth_shift,
+     struct ToriDraw_FaceSortDebugStats* debug_stats,
++    bool want_stats,
+     bool near_clipped,
+     int model_min_depth,
+     int num_faces,
+@@ -1072,6 +1091,10 @@ bucket_sort_by_average_depth_impl(
+     int min_d = depth_levels;
+     int max_d = 0;
+ 
++#if HUNT_FO < 2
++    (void)face_depth_occ;
++#endif
++
+     for( int f = 0; f < num_faces; f++ )
+     {
+         const uint32_t a = face_a[f];
+@@ -1101,7 +1124,7 @@ bucket_sort_by_average_depth_impl(
+              * before. */
+             int depth_avg = (div3_fast_fixedpoint(z_sum) + model_min_depth) >> depth_shift;
+ 
+-            if( debug_stats )
++            if( want_stats && debug_stats )
+             {
+                 debug_stats->front_facing++;
+                 if( clip_candidate )
+@@ -1131,8 +1154,14 @@ bucket_sort_by_average_depth_impl(
+ 
+                     face_depth_bucket_counts[depth_avg] = count + 1;
+                     face_depth_buckets[depth_avg * depth_stride + count] = (faceint_t)f;
++#if HUNT_FO >= 2
++                    /* Unconditional: the bit is already set when this is not
++                     * the level's first face, and re-setting it is cheaper
++                     * than the branch that would find that out. */
++                    face_depth_occ[depth_avg >> 5] |= (uint32_t)1 << (depth_avg & 31);
++#endif
+ 
+-                    if( debug_stats )
++                    if( want_stats && debug_stats )
+                     {
+                         debug_stats->accepted++;
+                         if( count + 1 > debug_stats->max_bucket_occupancy )
+@@ -1144,12 +1173,12 @@ bucket_sort_by_average_depth_impl(
+                     if( depth_avg > max_d )
+                         max_d = depth_avg;
+                 }
+-                else if( debug_stats )
++                else if( want_stats && debug_stats )
+                 {
+                     debug_stats->bucket_overflow++;
+                 }
+             }
+-            else if( debug_stats )
++            else if( want_stats && debug_stats )
+             {
+                 if( depth_avg < 0 )
+                     debug_stats->depth_out_low++;
+@@ -1162,7 +1191,7 @@ bucket_sort_by_average_depth_impl(
+                 }
+             }
+         }
+-        else if( debug_stats )
++        else if( want_stats && debug_stats )
+         {
+             if( winding == 0 )
+                 debug_stats->degenerate++;
+@@ -1171,7 +1200,7 @@ bucket_sort_by_average_depth_impl(
+         }
+     }
+ 
+-    if( debug_stats )
++    if( want_stats && debug_stats )
+         assert(
+             debug_stats->front_facing ==
+             debug_stats->accepted + debug_stats->depth_out_low +

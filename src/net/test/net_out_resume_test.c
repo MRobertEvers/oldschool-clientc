@@ -13,9 +13,34 @@ main(void)
     static const uint8_t expected_obj_op[] = {
         0x00, 0x95, 0x00, 0x00, 0x00, 0x03, 0x02, 0x35, 0x07
     };
-    uint8_t packet[16] = { 0 };
+    uint8_t packet[64] = { 0 };
     struct Isaac* random = isaac_new(NULL, 0);
     struct Isaac* random230 = NULL;
+    {
+        /* Rev239 Statics.method9637/13196: native customisation passes a
+         * row id independently of its child, using signed varints. */
+        const uint8_t expected[] = {0,16, 0x87,0, 0xff,0xff,
+            0x11,0,0xab,3, 0x91,0xed,0x2e,0xcd, 0xf2,0xc0,1,13};
+        int values[16] = {12345,-7};
+        const char* strings[16] = {0};
+        int n=net_out_if_script_trigger(GameProtoRev_OSRS239(),random,packet,sizeof(packet),
+            -852562543,(939<<16)|17,7,-1,"ii",values,strings);
+        if( n != 19 || memcmp(packet+1,expected,sizeof(expected)) )
+        {
+            fprintf(stderr,"native customisation lost CRC, child, or typed DB row\n");
+            return 1;
+        }
+    }
+    for( int heading = 0; heading < 16; ++heading )
+    {
+        int n = net_out_set_heading(GameProtoRev_OSRS239(), random, packet, sizeof(packet), heading);
+        if( n != 2 || packet[1] != heading ||
+            GameProtoRev_OSRS239()->packetout_code(PKTOUT_NAME_SET_HEADING) != 44 )
+        {
+            fprintf(stderr, "SET_HEADING must encode opcode44 and raw compass byte %d\n", heading);
+            return 1;
+        }
+    }
     int length = net_out_resume_pausebutton(
         GameProtoRev_OSRS239(), random, packet, (int)sizeof(packet), 0x12345678, 7);
 

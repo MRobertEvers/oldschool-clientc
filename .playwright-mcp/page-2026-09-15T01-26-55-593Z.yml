@@ -1,0 +1,275 @@
+- generic [active] [ref=f29e1]:
+  - banner [ref=f29e2]:
+    - generic [ref=f29e4]:
+      - button "Skip to Content" [ref=f29e5]
+      - generic [ref=f29e7]:
+        - generic [ref=f29e8]:
+          - generic "Main Menu" [ref=f29e9] [cursor=pointer]
+          - link [ref=f29e10] [cursor=pointer]:
+            - /url: /
+            - img "C.M. Mose & Son" [ref=f29e11]
+          - link [ref=f29e12]:
+            - /url: tel:8163395190
+        - navigation [ref=f29e13]:
+          - list [ref=f29e14]:
+            - listitem [ref=f29e15]:
+              - generic "Close the Menu" [ref=f29e16] [cursor=pointer]: Close
+            - listitem [ref=f29e18]:
+              - generic [ref=f29e20]:
+                - generic [ref=f29e21]: Search
+                - searchbox "Search" [ref=f29e22]
+                - button "Search Our Site" [ref=f29e23] [cursor=pointer]
+          - navigation [ref=f29e25]:
+            - menu "Mobile Navigation" [ref=f29e26]:
+              - listitem [ref=f29e27]:
+                - menuitem "Electrical Services" [ref=f29e28] [cursor=pointer]
+                - generic "Open child menu of Electrical Services" [ref=f29e29] [cursor=pointer]
+              - listitem [ref=f29e30]:
+                - menuitem "Generators" [ref=f29e31] [cursor=pointer]
+                - generic "Open child menu of Generators" [ref=f29e32] [cursor=pointer]
+              - listitem [ref=f29e33]:
+                - menuitem "Cooling" [ref=f29e34] [cursor=pointer]
+                - generic "Open child menu of Cooling" [ref=f29e35] [cursor=pointer]
+              - listitem [ref=f29e36]:
+                - menuitem "Heating" [ref=f29e37] [cursor=pointer]
+                - generic "Open child menu of Heating" [ref=f29e38] [cursor=pointer]
+              - listitem [ref=f29e39]:
+                - menuitem "Plumbing" [ref=f29e40] [cursor=pointer]
+                - generic "Open child menu of Plumbing" [ref=f29e41] [cursor=pointer]
+              - listitem [ref=f29e42]:
+                - menuitem "Indoor Air Quality" [ref=f29e43] [cursor=pointer]
+                - generic "Open child menu of Indoor Air Quality" [ref=f29e44] [cursor=pointer]
+              - listitem [ref=f29e45]:
+                - menuitem "Other HVAC Services" [ref=f29e46] [cursor=pointer]
+                - generic "Open child menu of Other HVAC Services" [ref=f29e47] [cursor=pointer]
+              - listitem [ref=f29e48]:
+                - menuitem "About Us" [ref=f29e49] [cursor=pointer]
+                - generic "Open child menu of About Us" [ref=f29e50] [cursor=pointer]
+              - listitem [ref=f29e51]:
+                - menuitem "Apply For Financing" [ref=f29e52] [cursor=pointer]
+              - listitem [ref=f29e53]:
+                - menuitem "Careers" [ref=f29e54] [cursor=pointer]
+              - listitem [ref=f29e55]:
+                - menuitem "Areas We Serve" [ref=f29e56] [cursor=pointer]
+                - generic "Open child menu of Areas We Serve" [ref=f29e57] [cursor=pointer]
+              - listitem [ref=f29e58]:
+                - menuitem "Blog" [ref=f29e59] [cursor=pointer]
+                - generic "Open child menu of Blog" [ref=f29e60] [cursor=pointer]
+              - listitem [ref=f29e61]:
+                - menuitem "Coupons" [ref=f29e62] [cursor=pointer]
+              - listitem [ref=f29e63]:
+                - menuitem "Reviews" [ref=f29e64] [cursor=pointer]
+              - listitem [ref=f29e65]:
+                - menuitem "Contact" [ref=f29e66] [cursor=pointer]
+          - list [ref=f29e70]:
+            - listitem [ref=f29e71]:
+              - link "Contact Us" [ref=f29e72] [cursor=pointer]:
+                - /url: /contact/
+            - listitem [ref=f29e74]:
+              - link "Start Your Quote" [ref=f29e75] [cursor=pointer]:
+                - /url: /shop/
+          - generic [ref=f29e77]:
+            - strong [ref=f29e79]: Follow Us
+            - list [ref=f29e80]:
+              - listitem [ref=f29e81]:
+                - link "Facebook" [ref=f29e82] [cursor=pointer]:
+                  - /url: https://www.facebook.com/CMMoseAndSonInc/
+              - listitem [ref=f29e83]:
+                - link "LinkedIn" [ref=f29e84] [cursor=pointer]:
+                  - /url: https://www.linkedin.com/company/c.m.-mose-and-son/
+              - listitem [ref=f29e85]:
+                - link "YouTube" [ref=f29e86] [cursor=pointer]:
+                  - /url: https://www.youtube.com/user/CMMoseandSonInc
+              - listitem [ref=f29e87]:
+                - link "Google Business Profile" [ref=f29e88] [cursor=pointer]:
+                  - /url: https://www.google.com/maps?cid=4981014914537366212
+              - listitem [ref=f29e89]:
+                - link "Instagram" [ref=f29e90] [cursor=pointer]:
+                  - /url: https://www.instagram.com/cmmose/
+  - main [ref=f29e91]:
+    - generic [ref=f29e95]:
+      - generic [ref=f29e97]:
+        - heading [level=1] [ref=f29e98]:
+          - strong [ref=f29e99]: Request Service
+          - text: Contact C.M. Mose & Son Today!
+        - paragraph [ref=f29e100]:
+          - link "Click here for media inquiries." [ref=f29e101] [cursor=pointer]:
+            - /url: /about-us/media-enquiries/
+      - generic [ref=f29e102]:
+        - group [ref=f29e103]:
+          - list [ref=f29e104]:
+            - listitem [ref=f29e105]:
+              - generic [ref=f29e106]:
+                - generic [ref=f29e107]: First Name
+                - textbox "First Name" [ref=f29e108]
+            - listitem [ref=f29e109]:
+              - generic [ref=f29e110]:
+                - generic [ref=f29e111]: Last Name
+                - textbox "Last Name" [ref=f29e112]
+            - listitem [ref=f29e113]:
+              - generic [ref=f29e114]:
+                - generic [ref=f29e115]: Phone
+                - textbox "Phone" [ref=f29e116]
+            - listitem [ref=f29e117]:
+              - generic [ref=f29e118]:
+                - generic [ref=f29e119]: Email
+                - textbox "Email" [ref=f29e120]
+            - listitem [ref=f29e121]:
+              - list [ref=f29e123]:
+                - listitem [ref=f29e124]:
+                  - generic [ref=f29e125]:
+                    - checkbox "By checking this box, you agree C.M. Mose & Son may send phone messages, text messages or emails using automated technology or prerecorded messages to deliver marketing information to the phone number and email provided above. Consent is not a condition of purchase. Acceptable Use Policy. View Privacy Policy." [ref=f29e126]
+                    - generic [ref=f29e127]:
+                      - text: By checking this box, you agree C.M. Mose & Son may send phone messages, text messages or emails using automated technology or prerecorded messages to deliver marketing information to the phone number and email provided above. Consent is not a condition of purchase.
+                      - link "Acceptable Use Policy" [ref=f29e128] [cursor=pointer]:
+                        - /url: https://www.scorpion.co/acceptable-use-policy/
+                      - text: .
+                      - link "View Privacy Policy" [ref=f29e129] [cursor=pointer]:
+                        - /url: /privacy-policy/
+                      - text: .
+            - listitem [ref=f29e130]:
+              - generic [ref=f29e131]:
+                - generic [ref=f29e132]: Address
+                - textbox "Address" [ref=f29e133]:
+                  - /placeholder: Enter a location
+            - listitem [ref=f29e134]:
+              - generic [ref=f29e135]:
+                - generic [ref=f29e136]: Address 2
+                - textbox "Address 2" [ref=f29e137]
+            - listitem [ref=f29e138]:
+              - generic [ref=f29e139]:
+                - generic [ref=f29e140]: City
+                - textbox "City" [ref=f29e141]
+            - listitem [ref=f29e142]:
+              - generic [ref=f29e143]:
+                - generic [ref=f29e144]: State
+                - textbox "State" [ref=f29e145]
+            - listitem [ref=f29e146]:
+              - generic [ref=f29e147]:
+                - generic [ref=f29e148]: Zip Code
+                - textbox "Zip Code" [ref=f29e149]
+            - listitem [ref=f29e150]:
+              - generic [ref=f29e151]:
+                - generic [ref=f29e152]: Are you a new customer?
+                - combobox "Are you a new customer?" [ref=f29e153]:
+                  - option [selected]
+                  - option "Yes, I am a potential new customer"
+                  - option "No, I'm a current existing customer"
+                  - option "I'm neither."
+            - listitem [ref=f29e154]:
+              - generic [ref=f29e155]:
+                - generic [ref=f29e156]: Type of Service Needed
+                - combobox "Type of Service Needed" [ref=f29e157]:
+                  - option [selected]
+                  - option "Air Conditioning"
+                  - option "Heating"
+                  - option "Electric"
+                  - option "Generators"
+            - listitem [ref=f29e158]:
+              - generic [ref=f29e159]:
+                - generic [ref=f29e160]: How can we help you?
+                - textbox "How can we help you?" [ref=f29e161]
+        - button "Send Message" [ref=f29e163] [cursor=pointer]
+  - contentinfo [ref=f29e165]:
+    - generic [ref=f29e167]:
+      - generic [ref=f29e168]:
+        - generic [ref=f29e169]:
+          - link [ref=f29e170] [cursor=pointer]:
+            - /url: /
+            - img "C.M. Mose & Son" [ref=f29e171]
+          - generic [ref=f29e172]:
+            - generic [ref=f29e173]: Contact
+            - link "816-339-5190" [ref=f29e174]:
+              - /url: tel:8163395190
+          - list [ref=f29e176]:
+            - listitem [ref=f29e177]:
+              - link [ref=f29e178] [cursor=pointer]:
+                - /url: https://www.southernhomeservices.com/
+                - img "Southern logo" [ref=f29e179]
+            - listitem
+            - listitem
+            - listitem
+        - navigation [ref=f29e181]:
+          - strong [ref=f29e183]: Links
+          - list [ref=f29e185]:
+            - listitem [ref=f29e186]:
+              - link "Electrical Services" [ref=f29e187] [cursor=pointer]:
+                - /url: /electrical-services/
+            - listitem [ref=f29e188]:
+              - link "Generators" [ref=f29e189] [cursor=pointer]:
+                - /url: /generators/
+            - listitem [ref=f29e190]:
+              - link "Cooling" [ref=f29e191] [cursor=pointer]:
+                - /url: /cooling/
+            - listitem [ref=f29e192]:
+              - link "Heating" [ref=f29e193] [cursor=pointer]:
+                - /url: /heating/
+            - listitem [ref=f29e194]:
+              - link "Indoor Air Quality" [ref=f29e195] [cursor=pointer]:
+                - /url: /indoor-air-quality/
+            - listitem [ref=f29e196]:
+              - link "About Us" [ref=f29e197] [cursor=pointer]:
+                - /url: /about-us/
+            - listitem [ref=f29e198]:
+              - link "Areas We Serve" [ref=f29e199] [cursor=pointer]:
+                - /url: /areas-we-serve/
+            - listitem [ref=f29e200]:
+              - link "Reviews" [ref=f29e201] [cursor=pointer]:
+                - /url: /reviews/
+            - listitem [ref=f29e202]:
+              - link "Contact" [ref=f29e203] [cursor=pointer]:
+                - /url: /contact/
+      - generic [ref=f29e204]:
+        - generic [ref=f29e205]:
+          - strong [ref=f29e207]: Locations
+          - list [ref=f29e208]:
+            - listitem [ref=f29e209]:
+              - strong [ref=f29e210]: Pleasant Valley Location
+              - generic [ref=f29e211]: 6603-E Royal Street Pleasant Valley, MO 64068
+              - link "Map & Directions" [ref=f29e212] [cursor=pointer]:
+                - /url: https://www.google.com/maps?cid=4981014914537366212
+        - generic [ref=f29e214]:
+          - strong [ref=f29e216]: Follow Us
+          - list [ref=f29e217]:
+            - listitem [ref=f29e218]:
+              - link "Facebook" [ref=f29e219] [cursor=pointer]:
+                - /url: https://www.facebook.com/CMMoseAndSonInc/
+            - listitem [ref=f29e220]:
+              - link "LinkedIn" [ref=f29e221] [cursor=pointer]:
+                - /url: https://www.linkedin.com/company/c.m.-mose-and-son/
+            - listitem [ref=f29e222]:
+              - link "YouTube" [ref=f29e223] [cursor=pointer]:
+                - /url: https://www.youtube.com/user/CMMoseandSonInc
+            - listitem [ref=f29e224]:
+              - link "Google Business Profile" [ref=f29e225] [cursor=pointer]:
+                - /url: https://www.google.com/maps?cid=4981014914537366212
+            - listitem [ref=f29e226]:
+              - link "Instagram" [ref=f29e227] [cursor=pointer]:
+                - /url: https://www.instagram.com/cmmose/
+    - generic [ref=f29e231]:
+      - generic [ref=f29e232]: C.M. Mose & Son is locally managed & operated.
+      - generic [ref=f29e233]: "Electrical (KS): 2026-0003324 Electrical (MO): 202058 Plumbing (KS): 2026-0003324"
+      - paragraph [ref=f29e234]: © 2026 All Rights Reserved.
+      - navigation [ref=f29e235]:
+        - menu "Footer Navigation" [ref=f29e236]:
+          - menuitem [ref=f29e237]:
+            - link "Site Map" [ref=f29e238] [cursor=pointer]:
+              - /url: /site-map/
+          - menuitem [ref=f29e239]:
+            - link "Privacy Policy" [ref=f29e240] [cursor=pointer]:
+              - /url: /privacy-policy/
+          - menuitem [ref=f29e241]:
+            - link "Site Search" [ref=f29e242] [cursor=pointer]:
+              - /url: /site-search/
+          - menuitem [ref=f29e243]:
+            - link "Terms and Conditions" [ref=f29e244] [cursor=pointer]:
+              - /url: /documents/CM-Mose-2025-T-Cs.pdf
+  - navigation [ref=f29e245]:
+    - generic [ref=f29e246] [cursor=pointer]: Connect
+    - button [ref=f29e248] [cursor=pointer]:
+      - img "bubble icon" [ref=f29e249]
+      - text: Text
+    - button [ref=f29e254] [cursor=pointer]:
+      - img "call us icon" [ref=f29e255]
+      - text: Call
+    - button "Email" [ref=f29e259] [cursor=pointer]

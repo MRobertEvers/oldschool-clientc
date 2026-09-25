@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define IFACE_STATS_MAX 128
 
@@ -107,6 +108,7 @@ UITreeIfaceStats_SampleGauges(struct UITree const* tree)
     uint32_t i;
 
     assert(tree);
+    UITREE_SCAN_METER(tree);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
@@ -121,7 +123,7 @@ UITreeIfaceStats_SampleGauges(struct UITree const* tree)
             continue;
         if( c->behavior.hide )
             hidden++;
-        if( c->behavior.hide_unmounted )
+        if( c->mount_hidden )
             unmounted++;
         if( c->runtime_hooks )
             hook_blocks++;
@@ -169,6 +171,7 @@ UITreeIfaceStats_Tick(
         g_stats[g].hook_bytes = 0;
     }
 
+    UITREE_SCAN_METER(tree);
     for( i = 0; i < tree->component_count; i++ )
     {
         struct UITreeComponent const* c = &tree->components[i];
@@ -192,13 +195,11 @@ UITreeIfaceStats_Tick(
         }
     }
 
-    fprintf(stderr, "torirs_iface_stats: tick=%d groups=%d\n", tick, g_stat_count);
+    TORIRS_LOG("torirs_iface_stats: tick=%d groups=%d\n", tick, g_stat_count);
     for( g = 0; g < g_stat_count; g++ )
     {
         struct IfaceGroupStat const* s = &g_stats[g];
-        fprintf(
-            stderr,
-            "  group=%d opens=%d closes=%d bakes=%d reuse=%d "
+        TORIRS_LOG("  group=%d opens=%d closes=%d bakes=%d reuse=%d "
             "live=%u hidden=%u hooks=%u hook_bytes=%u\n",
             s->group_id,
             s->opens,

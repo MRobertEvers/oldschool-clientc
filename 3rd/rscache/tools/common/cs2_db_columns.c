@@ -30,7 +30,7 @@ tool_db_columns_load(struct RSCache_Dat2Disk* disk)
      * single-script decompile goes. */
     struct RSCache_ReferenceTable* reference = disk->tables[table];
     if( !reference || RSCACHE_DAT2_CONFIG_KIND_DBTABLE >= reference->archive_count ||
-        reference->archives[RSCACHE_DAT2_CONFIG_KIND_DBTABLE].index < 0 )
+        !RSCache_ReferenceTableHasArchive(reference, RSCACHE_DAT2_CONFIG_KIND_DBTABLE) )
         return NULL;
 
     struct RSCache_Dat2DiskArchive* archive =

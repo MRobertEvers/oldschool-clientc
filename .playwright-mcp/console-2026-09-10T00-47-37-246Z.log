@@ -1,0 +1,5 @@
+[     196ms] [LOG] CSRF: public CSRF token loaded from META: CwL8kFWv2e/AhgZ6rbAxXRlt6LzkfUJOh6tshroip0gjUr6cDjFbb+ZkVMH5tNgF94xgnqXoWnBbxow8VjVB/Q== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[     197ms] [LOG] CSRF: public CSRF token present: CwL8kFWv2e/AhgZ6rbAxXRlt6LzkfUJOh6tshroip0gjUr6cDjFbb+ZkVMH5tNgF94xgnqXoWnBbxow8VjVB/Q== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[     452ms] [LOG] CSRF: public CSRF token present: CwL8kFWv2e/AhgZ6rbAxXRlt6LzkfUJOh6tshroip0gjUr6cDjFbb+ZkVMH5tNgF94xgnqXoWnBbxow8VjVB/Q== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[     453ms] [LOG] POST https://www.artstation.com/api/v2/views_tracking/entity_views.json, PUBLIC-CSRF-TOKEN: CwL8kFWv2e/AhgZ6rbAxXRlt6LzkfUJOh6tshroip0gjUr6cDjFbb+ZkVMH5tNgF94xgnqXoWnBbxow8VjVB/Q== @ https://www.artstation.com/community/assets/vendor.92ee79efd9c34463.js:0
+[   37182ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.artstation.com/projects/Keay5x.json:0

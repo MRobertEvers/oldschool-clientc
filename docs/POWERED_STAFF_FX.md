@@ -107,7 +107,7 @@ already followed.
 
 ## Tests
 
-* `::chargesrun` (runs unconditionally in `mock230 --selftest`) —
+* `::chargesrun` (runs unconditionally in `ToriRSServer --selftest`) —
   `~chargesrun_powered_staff_attack_rates` asserts every staff's `attackrate`
   and `~sa_attackrate(eye_of_ayak) = 5`;
   `~chargesrun_powered_staff_projectiles` asserts the FX table entry by entry
@@ -118,7 +118,7 @@ already followed.
   indistinguishable at the harness player's own level);
   `~chargesrun_trident_charge_and_cast`, `~chargesrun_bone_staff_charge_and_bonus`
   and `~chargesrun_sceptre_powered_staff_reserve` cover the charge models.
-* `mock230 --selftest`, stanza *"a charged staff casts a projectile"* — the
+* `ToriRSServer --selftest`, stanza *"a charged staff casts a projectile"* — the
   other half, from the wire rather than from content's own answer: a real fight
   at six tiles, and the assertions are that a `MAP_PROJANIM` carrying spotanim
   1252 reaches the client, that the player never closes to melee, that the

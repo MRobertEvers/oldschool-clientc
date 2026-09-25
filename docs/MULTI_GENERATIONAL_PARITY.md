@@ -407,7 +407,7 @@ ever matters.
 - **Modern GPI reader correctness** — the densest new code. Mitigation: the
   server encoder is readable TypeScript we control; build a golden-stream test
   (record WS bytes from the reference client, replay through the C reader,
-  diff op-lists). The existing mock-server harness (`src/net/mock/`) extends to
+  diff op-lists). The existing mock-server harness (`src/torirsserver/`) extends to
   WS by feeding recorded frames through the command bus.
 - **Rev-233 dat2 decoder drift** — our dat2 decoders were validated on other
   OSRS-era caches; rev 233 may add config opcodes. The misalignment symptom
@@ -443,7 +443,7 @@ ever matters.
   copyable implementation of it. No code changes yet.
 
 - **2026-07-23 — Phase 0 landed (boot-manifest system + offline rev-233 boot).**
-  - Boot-manifest INI: `manifest_rs254.ini` / `manifest_xrsps.ini` at repo root;
+  - Boot-manifest INI: `manifests/manifest_rs254lc.ini` / `manifests/manifest_osrs233xrsps.ini` at repo root;
     loader `src/bootmanifest/bootmanifest.{h,c}` (`struct BootManifest`,
     `BootManifest_LoadFile` / `_ApplyToConfig`) reuses the `3rd/ini` tokenizer.
     Sections `[cache:boot]` / `[net:boot]` / `[ui:boot]`; relative path values
@@ -464,8 +464,8 @@ ever matters.
     instead of `cache_kind == DAT1`.
   - Verified: `make` links clean; `test-bootmanifest` (new) + `test-revconfig`,
     `test-net-login`, `test-net-loopback`, `test-net-exec`, `test-entity-decode`
-    all green. `--manifest manifest_rs254.ini --offline` boots the dat1 world +
-    revconfig UI as before; `--manifest manifest_xrsps.ini --offline` boots the
+    all green. `--manifest manifests/manifest_rs254lc.ini --offline` boots the dat1 world +
+    revconfig UI as before; `--manifest manifests/manifest_osrs233xrsps.ini --offline` boots the
     rev-233 dat2 cache and opens interface 161 (1116 components, 6 CS2 onloads)
     — confirming the dat2 config/component/clientscript decoders handle rev 233.
   - Known follow-up (Phase 2): the map XTEA loader (app.c:1352) reads
@@ -571,10 +571,10 @@ ever matters.
     (encCheck=1, 4 seeds, sessionId echo, authType, user/pass) → response 2 →
     GAME. ISAAC out=seed, in=seed+50. Simplified vs full RSProt (no XTEA/OTP/
     CRC/host-stats block) since the client and mock agree on the block.
-  - **Mock server** (`src/net/mock/mock230_main.c`, `make -C src mock230`): a
+  - **Mock server** (`src/torirsserver/torirs_server_main.c`, `make -C src ToriRSServer`): a
     standalone TCP listener that RSA-decrypts the login block with a fixed
     private key (client uses the matching public key via
-    `manifest_osrs230.ini` rsa_exp/rsa_mod), arms ISAAC, and sends the on-login
+    `manifests/manifest_osrs230.ini` rsa_exp/rsa_mod), arms ISAAC, and sends the on-login
     burst — REBUILD_NORMAL (Lumbridge zone 402,402) + VARP_SMALL + run
     energy/weight + a welcome MESSAGE_GAME — then idles.
   - **Map XTEA**: the client loads keys from the cache's own `xteas.json`
@@ -583,10 +583,10 @@ ever matters.
     `RSCache_MapLocsEncrypted` says keys are required** (OldSchool below 237;
     RS2 dat2 from 414). The correct cache is `cache.osrs230/` (has xteas.json), NOT the
     xrsps keys.json cache — so REBUILD_NORMAL keys are only needed for instanced
-    regions. `manifest_osrs230.ini` points at `cache.osrs230`. At OldSchool ≥ 237
-    (`manifest_osrs239.ini` / `cache.osrs239`) archives are plain and no key file
+    regions. `manifests/manifest_osrs230.ini` points at `cache.osrs230`. At OldSchool ≥ 237
+    (`manifests/manifest_osrs239.ini` / `cache.osrs239`) archives are plain and no key file
     is shipped or applied.
-  - **Verified end-to-end**: `mock230` + `torirs --manifest manifest_osrs230.ini`
+  - **Verified end-to-end**: `ToriRSServer` + `torirs --manifest manifests/manifest_osrs230.ini`
     → 230 login handshake (RSA/ISAAC) completes, client reaches GAME, parses
     REBUILD_NORMAL (zoneX=402 zoneZ=402), triggers the existing
     `CreateTask_WorldLoad`, and builds the Lumbridge scene — `world_load: 430
@@ -597,12 +597,12 @@ ever matters.
     world build); GPI/NPC decode is the natural next step.
 
 - **2026-07-23 — Expanded mock burst + RSProt-style parser folders.**
-  - The mock (`mock230_main.c`) now sends the full Kronos-order on-login burst
+  - The mock (`torirs_server_main.c`) now sends the full Kronos-order on-login burst
     with real rev-230 opcodes: REBUILD_NORMAL → IF_OPENTOP(60) → IF_OPENSUB(6)×5
     → IF_SETEVENTS(47) → VARP_SMALL(35)×2 → run energy(77)/weight(27) →
     UPDATE_INV_FULL(10)×2 → UPDATE_STAT_V2(114)×23 → MESSAGE_GAME(90) →
     PLAYER_INFO(23)/NPC_INFO(104) placeholders → SERVER_TICK_END(108). Every
-    outbound packet is logged (`mock230: -> NAME op=N fixed/var payload/framed +
+    outbound packet is logged (`torirsserver: -> NAME op=N fixed/var payload/framed +
     hex`). All 41 frame cleanly on the client (fixed sizes match the table); the
     world still builds.
   - **Packet parsers reorganized like RSProt** under `src/net/rev/packets/` (the
@@ -661,7 +661,7 @@ ever matters.
     LOOKAT V2) rather than decoding them with the 230 layout.
   - **JS5 landed** as `src/js5/server/` + `make -C src js5-server`. It is
     a login-prot branch, not a service — one socket, opcode 14 game vs 15 JS5 —
-    so it must move into `mock230_session`'s handshake; it is standalone today
+    so it must move into `ToriRSServer_Session`'s handshake; it is standalone today
     because that is the half testable against a real client now.
   - **Measured, not assumed**: the JS5 master index's layout was read off a live
     239 server with `tools/js5_probe.py` (25 archives of `p4 crc, p4 version`,
@@ -672,13 +672,13 @@ ever matters.
     every archived cache are 239.
 
 - **2026-08-04 (later) — the server-side wire adapter; JS5 folded into the
-  session.** `src/net/mock/mock230_wire.h` is the fourth vtable seam, shaped
-  like `Mock230Transport` / `NetLoginVTable` / `GameProtoRevTable`: struct of
+  session.** `src/torirsserver/torirs_server_wire.h` is the fourth vtable seam, shaped
+  like `ToriRSServerTransport` / `NetLoginVTable` / `GameProtoRevTable`: struct of
   function pointers, one instance per revision, a `_by_name` resolver, NULL
-  slots meaning classic. Selected by `--rev osrs239` or `MOCK230_REV`;
+  slots meaning classic. Selected by `--rev osrs239` or `TORIRSSERVER_REV`;
   default osrs230, so anything that says nothing is unchanged.
-  - `mock230_encode.c`'s 50-opcode enum became **canonical-name aliases**, so
-    all 140 call sites are untouched and `mock230_send` resolves per revision.
+  - `torirs_server_encode.c`'s 50-opcode enum became **canonical-name aliases**, so
+    all 140 call sites are untouched and `ToriRSServer_Send` resolves per revision.
     The packet capture records the RESOLVED opcode, which is what keeps the
     selftest's wire-number assertions meaningful — measured: the same 13
     pre-existing failures before and after, none new.
@@ -695,9 +695,9 @@ ever matters.
     found three of the first six wrong (VARP_SMALL's id order, VARP_LARGE's
     field order, UPDATE_STAT_V2 reordered entirely) — none of which has any
     downstream symptom.
-  - JS5 moved into `mock230_session`'s handshake (opcode 15 beside 14), which
+  - JS5 moved into `ToriRSServer_Session`'s handshake (opcode 15 beside 14), which
     is where it belongs since one socket carries both. That immediately exposed
-    a real latent bug: mock230 did not ignore SIGPIPE, and a cache download is
+    a real latent bug: ToriRSServer did not ignore SIGPIPE, and a cache download is
     megabytes in a tight loop, so a client closing its update connection killed
     the process mid-write (exit 141, indistinguishable from a crash).
   - RuneLite re-run against the integrated server reached `JS5 session opened at
@@ -706,7 +706,7 @@ ever matters.
     every archived cache are 239.
 
 - **2026-08-04 (later still) — the 239 handshake and PLAYER_INFO v5.**
-  - `mock230_session` reads the real 239 login block: `serverVersion`, the OTP
+  - `ToriRSServer_Session` reads the real 239 login block: `serverVersion`, the OTP
     discriminator, the XTEA body (username), and the RSA encryption-check byte.
     Verified against this repo's own 239 client — `login user='testc'` proves
     the RSA envelope, the four seeds and the XTEA decrypt all agree between two
@@ -723,7 +723,7 @@ ever matters.
     zero bytes, so the four sections are not four markers on the wire.
   - **One fact, three consumers**: the local player's wire index is used by the
     init block, PLAYER_INFO, and the login response. The pool is 0-based and the
-    client's table is 1..2047; `mock230_wire_player_index()` is the single
+    client's table is 1..2047; `ToriRSServer_WirePlayerIndex()` is the single
     definition. Found by arithmetic — REBUILD_NORMAL was 4616 bytes where 4614
     was predicted, and the gap is exactly one 18-bit entry.
   - **A bare `0x02` login response is a desync at 239**, not a short response:
@@ -759,7 +759,7 @@ ever matters.
   one encoding-independent decoder.**
   - The 12-int appearance buffer had drifted into three tellings of the same
     fact: `pkt_player_appearance.c` decoded only the classic block,
-    `mock230_encode.c` had a second, hand-duplicated classic writer plus a
+    `torirs_server_encode.c` had a second, hand-duplicated classic writer plus a
     separate 239 writer (`put_appearance_v5`), and every renderer
     (`entity_model_build.c`, the chathead build, the design preview, the
     uitree scene bridge, held-item swap) tested `>= 0x100` / `>= 0x200`
@@ -783,7 +783,7 @@ ever matters.
     `0x100 + kit` collides with the classic obj range at kit 256 — not
     reachable today, but a canonical packing that equals one encoding's wire
     tag is exactly the bug this change exists to close off.
-  - `mock230_encode.c`'s two writers now build from one `appearance_slots()`
+  - `torirs_server_encode.c`'s two writers now build from one `appearance_slots()`
     (the worn/covered/kit-fallback rule, stated once) and one
     `put_appearance_slots()` (the zero-byte-vs-two-byte framing, stated once),
     differing only in which `AppearanceEncoding` they pack against.
@@ -799,8 +799,8 @@ ever matters.
     error — the silent-failure case this module exists to prevent; malformed
     customisation flags and truncated blocks are refused; 239 transmog ends
     the equipment array early), `test-mock239-playerinfo`,
-    `test-mock230-embed`, `mock230_pack --check-only` (0 errors), and a
-    headless `torirs --manifest manifest_osrs230_embed.ini` run
+    `test-torirsserver-embed`, `ToriRSServer_Pack --check-only` (0 errors), and a
+    headless `torirs --manifest manifests/manifest_osrs230_embed.ini` run
     (`SDL_VIDEODRIVER=dummy`) with `TORIRS_NET_CHEAT="equip 0;equip 1;..."`
     confirming the local player still renders equipped gear end to end.
 

@@ -17,13 +17,14 @@
  *                                            material pre-pass and a sorted
  *                                            blended pass
  *
- * ToriRS_D3D9_Init picks one from its z_buffer_enabled argument by creating (or
+ * ToriPlatformWin32_Renderer_D3D9_Init picks one from its z_buffer_enabled argument by creating (or
  * not creating) the depth implementation's state; ::zbuffer is that state and
  * doubles as the selector.  The core calls d3d9_painter_* or d3d9_zbuffer_*
  * directly.
  */
 
 #include "platform/platform_win32_renderer_d3d9.h"
+#include "platform/client_scale.h"
 
 #include "core/trspk_atlas.h"
 #include "core/trspk_batch16.h"
@@ -68,7 +69,6 @@
 #define D3D9_UI_FONT_CAP 32
 #define D3D9_UI_BATCH_MAX_VERTS 32768u
 #define D3D9_UI_ROTMASK_INIT_CAP 8u
-#define D3D9_UI_FONT_BOX_MAX_LINES 64
 #define D3D9_WIDGET_MODEL_NEAR 50.0f
 #define D3D9_WORLD_FAR 65536.0f
 
@@ -110,12 +110,33 @@ struct D3D9RotmaskVertex
     float mask_v;
 };
 
+/*
+ * One scene sprite id's place in the UI atlas.
+ *
+ * `tiles` is kept across an invalidate, and that is the point of it. The
+ * atlas is an append-only bin-packer with no reclamation, so a sprite that
+ * is REPLACED over a live id -- the title screen's fire redraws its column
+ * every 35 ms -- would consume a fresh tile on every upload and exhaust the
+ * sheet within seconds, after which inserts fail and the sprite stops
+ * drawing altogether. Holding the tile lets a replacement of the same size
+ * overwrite the pixels where they already are.
+ */
+struct D3D9UISpriteTile
+{
+    uint32_t x;
+    uint32_t y;
+    uint32_t w; /* padded, as inserted */
+    uint32_t h;
+    uint8_t valid;
+};
+
 struct D3D9UISpriteSlot
 {
     int scene_id;
     int count;
     float* uvs;
     uint8_t* loaded;
+    struct D3D9UISpriteTile* tiles;
 };
 
 struct D3D9UISpriteVariant
@@ -168,6 +189,13 @@ struct D3D9UIRotmaskSlot
     IDirect3DTexture9* mask_texture;
     UINT mask_texture_width;
     UINT mask_texture_height;
+    /* Content hash of the sprite the texture was last uploaded from; lets a
+     * frame whose sprite pixels are byte-identical skip the MANAGED
+     * lock/convert/upload entirely. */
+    uint32_t source_hash;
+    uint32_t mask_hash;
+    bool source_hash_valid;
+    bool mask_hash_valid;
     bool used;
 };
 
@@ -220,9 +248,12 @@ struct D3D9ModelGroup
 
 struct D3D9ZBufferWorld;
 
-struct ToriRS_D3D9
+struct ToriPlatformWin32_Renderer_D3D9
 {
     struct ToriDraw_Scene* scene;
+    /* Projection + face sort; a NULL raster slot is how the table says it
+     * has no software raster stage (ToriDraw_KernelGetGpu). */
+    const struct ToriDraw_Kernel* kernel;
     HWND hwnd;
     IDirect3D9* d3d;
     IDirect3DDevice9* device;
@@ -232,7 +263,7 @@ struct ToriRS_D3D9
     bool scene_active;
 
     /* The depth renderer's private state, and the mode selector: non-NULL means
-     * ToriRS_D3D9_Init was asked for hardware depth and the d3d9_zbuffer_*
+     * ToriPlatformWin32_Renderer_D3D9_Init was asked for hardware depth and the d3d9_zbuffer_*
      * implementation owns the world path.  NULL means the painter one does, and
      * it needs no state of its own.  The type is opaque outside
      * platform_win32_renderer_d3d9_zbuffer.c. */
@@ -242,10 +273,65 @@ struct ToriRS_D3D9
     int height;
     int client_w;
     int client_h;
+    /* The frame's box in the surface being drawn into: the output rectangle in
+     * the back buffer, or all of the offscreen target. */
     int lb_x;
     int lb_y;
     int lb_w;
     int lb_h;
+    /* Size of the surface being drawn into; clamps viewports and scissors. */
+    int target_w;
+    int target_h;
+    struct ClientScaleSettings client_scale;
+    /* Where the frame lands in the back buffer (the game area). */
+    struct ClientScaleRect output;
+    /* The render size differs from the output size, so the frame is drawn
+     * into `offscreen` and StretchRect'd onto `output` after EndScene. */
+    bool offscreen_wanted;
+    bool offscreen_bound;
+    /* The last finished frame lives in `offscreen`, not the back buffer. */
+    bool frame_in_offscreen;
+    /* D3DPOOL_DEFAULT: released before every Reset, recreated lazily. */
+    IDirect3DSurface9* offscreen;
+    int offscreen_w;
+    int offscreen_h;
+    /* All Settings' interface scaling mode: 0 nearest, 1 linear, 2 bicubic.
+     * @see d3d9_ui_layer_wanted. */
+    int interface_scale_mode;
+    /*
+     * The interface layer. With a Linear or Bicubic interface filter and an
+     * interface drawn at a size other than its layout size, each 2D segment
+     * draws 1:1 into this layout-sized, premultiplied-alpha render target and
+     * END_2D filters the finished picture onto the output rect once. Filtering
+     * every sprite and glyph on its own instead bled neighbouring atlas cells
+     * into each other, showed every tile boundary as a seam, and was never
+     * bicubic at all. Interface art itself is always point sampled.
+     *
+     * ::ui_layer_supported is the device's answer, probed once at Init:
+     * separate alpha blending, a non-power-of-two A8R8G8B8 render-target
+     * texture. Without it the interface draws directly, point sampled.
+     */
+    bool ui_layer_supported;
+    /* D3DPOOL_DEFAULT: released before every Reset, recreated lazily. */
+    IDirect3DTexture9* ui_layer_texture;
+    IDirect3DSurface9* ui_layer_surface;
+    int ui_layer_w;
+    int ui_layer_h;
+    bool ui_layer_open;
+    /* What the segment redirected away from, referenced while it is open. */
+    IDirect3DSurface9* ui_layer_saved_target;
+    IDirect3DSurface9* ui_layer_saved_depth;
+    int ui_layer_saved_lb_x;
+    int ui_layer_saved_lb_y;
+    int ui_layer_saved_lb_w;
+    int ui_layer_saved_lb_h;
+    int ui_layer_saved_target_w;
+    int ui_layer_saved_target_h;
+    /* The Bicubic composite (ps_2_0; not a pool resource, survives Reset).
+     * NULL and ::ui_composite_bicubic_unavailable set when the device has no
+     * ps_2_0 or refused it; Bicubic then composites linear. */
+    IDirect3DPixelShader9* ui_composite_bicubic;
+    bool ui_composite_bicubic_unavailable;
 
     struct TRSPK_Atlas atlas;
     IDirect3DTexture9* atlas_texture;
@@ -357,18 +443,18 @@ struct D3D9ModelPlacement
 /* Fix up the projection trspk_compute_pass_matrices just produced.  The two
  * modes agree on X/Y scale and disagree only about clip Z. */
 void
-d3d9_painter_setup_projection(struct ToriRS_D3D9* renderer);
+d3d9_painter_setup_projection(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 void
 d3d9_zbuffer_setup_projection(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Begin3D* command);
 
 /* The depth-related render states, applied at the point in
  * d3d9_set_world_states where they used to be spelled inline. */
 void
-d3d9_painter_apply_world_states(struct ToriRS_D3D9* renderer);
+d3d9_painter_apply_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 void
-d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_apply_world_states(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /* Order one model's faces up front.  *out_sorted_face_count reports how many
  * entries the call left in ToriDraw_FaceOrder.  Return <= 0 to skip the model.
@@ -376,18 +462,18 @@ d3d9_zbuffer_apply_world_states(struct ToriRS_D3D9* renderer);
  * per face inside d3d9_zbuffer_emit_model instead. */
 int
 d3d9_painter_sort_faces(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     int* out_sorted_face_count);
 
 /* Append one model's indices to the frame's chains. */
 void
 d3d9_painter_emit_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct D3D9ModelPlacement* placement);
 void
 d3d9_zbuffer_emit_model(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     const struct ToriRS_RenderCommand_Model* command,
     const struct D3D9ModelPlacement* placement);
 
@@ -399,26 +485,38 @@ d3d9_zbuffer_emit_model(
 
 /** Allocate ::zbuffer, or release it and reset it to NULL. */
 bool
-d3d9_zbuffer_create(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_create(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 void
-d3d9_zbuffer_destroy(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_destroy(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Clear the depth buffer, once the pass viewport is set so the clear is
  *  scissored to it. */
 void
-d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_begin_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Per-chain depth/blend state for a single d3d9_draw_retained call. */
 void
-d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass);
+d3d9_zbuffer_apply_pass_states(struct ToriPlatformWin32_Renderer_D3D9* renderer, bool blended_pass);
+
+/** Push the frame's gathered per-page opaque indices onto the core's IBO
+ *  chain, one node per (binding, page) instead of one per model.  Must run
+ *  before the core draws that chain. */
+void
+d3d9_zbuffer_flush_opaque(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Draw the deferred blended pass, after the core has drawn the opaque chain. */
 void
-d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_end_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer);
+
+/** Print the depth path's retained CPU allocations to stdout, one
+ *  "d3d9_mem:" line per pool.  No-op in painter mode.  Part of the shutdown
+ *  memory report the core assembles in ToriPlatformWin32_Renderer_D3D9_Free. */
+void
+d3d9_zbuffer_report_memory(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /** Drop pass-scoped queues.  Runs on every end-of-3D, including early exits. */
 void
-d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer);
+d3d9_zbuffer_reset_pass(struct ToriPlatformWin32_Renderer_D3D9* renderer);
 
 /*
  * Retained-geometry notifications.  The depth path caches a per-pose material
@@ -427,28 +525,28 @@ d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer);
  */
 void
 d3d9_zbuffer_pose_baked(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle);
 void
-d3d9_zbuffer_element_dropped(struct ToriRS_D3D9* renderer, int element_id);
+d3d9_zbuffer_element_dropped(struct ToriPlatformWin32_Renderer_D3D9* renderer, int element_id);
 void
 d3d9_zbuffer_track_dropped(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index);
 void
 d3d9_zbuffer_batch_pose_baked(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     int element_id,
     int anim_index,
     int pose_id,
     struct ToriDraw_ModelHandle handle);
 void
 d3d9_zbuffer_batch_dropped(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_Batch16* cpu);
 
 /*
@@ -459,12 +557,12 @@ d3d9_zbuffer_batch_dropped(
 
 /** Grow renderer->model_indices to hold at least `needed` U16 indices. */
 bool
-d3d9_reserve_model_indices(struct ToriRS_D3D9* renderer, uint32_t needed);
+d3d9_reserve_model_indices(struct ToriPlatformWin32_Renderer_D3D9* renderer, uint32_t needed);
 
 /** Upload and draw one index chain through the retained world pipeline. */
 void
 d3d9_draw_retained(
-    struct ToriRS_D3D9* renderer,
+    struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct TRSPK_IBOChain* chain,
     bool blended_pass);
 

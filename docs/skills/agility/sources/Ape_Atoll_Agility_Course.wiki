@@ -1,0 +1,172 @@
+{{external|rs}}
+{{Infobox Location
+|name = Ape Atoll Agility Course
+|image = [[File:Ape Atoll Agility Course.png]]
+|release = [[15 March]] [[2006]]
+|update = Hundredth Quest - Recipe for Disaster!
+|members = Yes
+|location = [[Ape Atoll]]
+|map = {{Map|name=Ape Atoll Agility Course|x=2753|y=2741|height=250|zoom=2}}
+|type = agility course
+|leagueRegion = Kandarin
+}}
+The '''Ape Atoll Agility Course''' is an [[Agility]] training area located near [[Marim]], available to players with level 48 [[Agility]] (cannot be [[Temporary skill boost|boosted]]). Access to this course requires partial completion of [[Monkey Madness I]], up to Chapter 2. 
+
+To use the agility course, the player has to wear either the [[Ninja monkey greegree (small)|small]] or [[Ninja monkey greegree (medium)|medium-sized]] ninja monkey greegree or the [[Kruk monkey greegree]]. Attempting to complete any obstacle on the course without a ninja or Kruk greegree equipped will result in the player automatically failing the course and taking a small amount of damage. Because there is a [[Fairy rings|fairy ring]] on the course, some players use the ring to reach Marim and deliberately fail the [[Rope (Ape Atoll Agility Course)|rope]] obstacle near the end of the course to quickly reach the course start point.
+
+The agility course rewards 580 [[Agility]] [[experience]] per completed lap. With an average time of 38 seconds per lap (95 laps per hour), it is possible to get upwards of 55,200 [[Agility]] experience per hour from this course. At lower [[Agility]] levels, expect to get around 40,000–50,000 [[Agility]] experience per hour, depending on concentration levels. In addition to experience, players will also receive [[Mark of grace|marks of grace]] during this course, at a rate of 5-6 marks per hour with perfect laps.
+
+Completing a lap of the Ape Atoll Agility Course is a requirement for the [[Western Provinces Diary#Hard|hard Western Provinces Diary]].
+
+==Introduction==
+The Ape Atoll Agility Course requires level 48 [[Agility]] and completion of Chapter 2 of [[Monkey Madness I]] to access. The course consists of six obstacles that players can pass in return for [[Agility]] experience. If all obstacles are passed in the correct order, some bonus experience is rewarded at the end of the lap. All of the obstacles except for the [[Stepping stone (Ape Atoll Agility Course)|stepping stones]] and the last [[Tropical tree (Ape Atoll Agility Course)|tropical tree]] can be failed by the player, resulting in small amounts of damage. Failed obstacles have to be tried again before going for the next obstacle in order to become eligible for the bonus experience at the end of the lap. The chance of successfully passing the obstacles scales with the player's [[Agility]] level, where obstacles can no longer be failed after reaching level 75.
+
+It takes 20,387 laps of the course to reach level 99 [[Agility]] from level 75. This would require more than 9 complete days of non-stop training at this course.
+
+==Transportation==
+There are several different methods for travelling to the Ape Atoll Agility Course. The best options, ordered from fast to slow, are:
+* Use the fairy ring code {{Fairycode|CLR}}.
+* Casting the [[Standard spellbook|standard]] [[Ape Atoll Teleport (standard)|Ape Atoll Teleport]] spell, requiring level 64 [[Magic]] and completion of the [[Recipe for Disaster/Freeing King Awowogei|Freeing King Awowogei]] section of [[Recipe for Disaster]], and run south.
+* Casting the [[Arceuus spellbook|Arceuus]] [[Ape Atoll Teleport (Arceuus)|Ape Atoll Teleport]] spell, requiring level 90 [[Magic]]; exit the dungeon and run north-west to pass the gates.
+** Alternatively, use the [[Ape atoll teleport (tablet)|Ape Atoll teleport tablet]] to bypass the Magic level requirement.
+* Take a [[gnome glider]].
+
+==Strategies==
+===Clothing===
+* Wear a [[Ninja monkey greegree (small)|small]] or [[Ninja monkey greegree (medium)|medium-sized]] ninja monkey greegree or the [[Kruk monkey greegree]] to transform into a monkey that is able to traverse the obstacles.
+* Wear [[weight-reducing clothing]] to lower the player's [[Energy|run energy]] depletion rate.
+
+===Inventory===
+* Bring some [[food]] to restore lost [[hitpoints]] from taking damage from failing agility obstacles.
+* Bring enough [[Energy#Energy-restoring action|energy-restoring items]] for enough energy to constantly run around the course.
+* Optionally, bring a [[knife]] to cut [[pineapple]]s, which can be found at the end of the course, into four [[pineapple ring]]s, restoring 2 hitpoints each.
+* Players with 99 [[Construction]] should bring a [[Construct. cape|Construction cape]] for the free [[Construct._cape#Teleportation options|POH teleport]] option. Once your run energy is nearly depleted, teleport to your house, restore your run energy via your [[ornate rejuvenation pool]], and take your [[Fairy ring (Construction)|POH fairy ring]] back to the course. It is recommended to teleport after completing the [[Skull slope (Ape Atoll Agility Course)|skull slope]] obstacle, as you will still receive credit for a full course lap if the remainder of the course is completed after you teleport back.
+
+===Tips===
+One reasonably popular method of training on this course is to take a large number of [[summer pie]]s or [[agility potion]]s (at levels 70 and 72, respectively) to maintain a boosted [[Agility]] level of at least 75, because the player will never fail an obstacle at this level. This ensures that the player can obtain the maximum hourly experience rate starting at a level well below 75. However, if a player starts this at the minimum level, the boost will only last a minute before requiring another stat boost. Therefore, it is recommended to have at least level 72 to use summer pies and 73 for agility potions, so that each boost can last a little longer.
+
+Players with a [[Pool space|pool]] ([[Revitalisation pool|revitalisation]] and above) can quickly restore run energy, thereby saving potions, using [[Fairy ring (Construction)|fairy ring]]s on the course ({{Fairycode|CLR}}) and constructed in their [[player-owned house]] ({{Fairycode|DIQ}}). Alternatively, the [[Ape Atoll Teleport (standard)|Ape Atoll teleport]] may be used via a [[portal nexus]] or [[portal chamber]] to quickly return the player near the course.
+
+With at least 75 [[Agility]], full [[Graceful outfit|graceful]], and no potions, it would take roughly 35 laps on average before run energy is depleted.
+
+A [[ring of endurance]] reduces energy drain by 15% when equipped with 500 charges or more.
+
+==Obstacles==
+{{map|mtype=line|zoom=3|stroke=#ffff00|2755,2742|2753,2742|2753,2742|2752,2741|2747,2741|2742,2741|2742,2739|2748,2733|2750,2733|2751,2732|2752,2731|2756,2731|2757,2733|2770,2747|2766,2747|2764,2748|2758,2748|2757,2746|2757,2744|2756,2742|mtype:pin,2755:2742,desc:Start of the course|align=right|caption=The route taken to complete the course}}
+{| class="wikitable align-left-2" style="text-align:center;"
+|-
+!Image
+!Obstacle
+!Experience
+|-
+|[[File:Ape Atoll Agility Course (1).png|250px]]||[[Stepping stone (Ape Atoll Agility Course)|Stepping stone]]||{{+=|xp|40|echo=2}}
+|-
+|[[File:Ape Atoll Agility Course (2).png|250px]]||[[Tropical tree (Ape Atoll Agility Course)#Climb|Tropical tree]]||{{+=|xp|40|echo=2}}
+|-
+|[[File:Ape Atoll Agility Course (3).png|250px]]||[[Monkeybars (Ape Atoll Agility Course)|Monkeybars]]||{{+=|xp|40|echo=2}}
+|-
+|[[File:Ape Atoll Agility Course (4).png|250px]]||[[Skull slope (Ape Atoll Agility Course)|Skull slope]]||{{+=|xp|60|echo=2}}
+|-
+|[[File:Ape Atoll Agility Course (5).png|250px]]||[[Rope (Ape Atoll Agility Course)|Rope]]||{{+=|xp|100|echo=2}}
+|-
+|[[File:Ape Atoll Agility Course (6).png|250px]]||[[Tropical tree (Ape Atoll Agility Course)#Climb-down|Tropical tree]]||{{+=|xp|0|echo=2}}
+|-
+|{{NA}}||Course Completion Bonus||300
+|-
+! colspan=2 |Total
+!580
+|}
+
+{{Agility info
+|name = Ape Atoll Completion Bonus
+|level = 48
+|xp = 300
+|course = [[Ape Atoll Agility Course]]
+|type = Completion Bonus
+}}
+
+==Experience rates==
+Due to the success rate of the obstacles, the experience rates scale with the player's [[Agility]] level. At level 75 and higher, expect to be able to complete a maximum of 95 laps per hour (63 [[Game tick|ticks]] per lap), resulting in 55,100 [[Agility]] experience per hour.
+
+At lower [[Agility]] levels, expect to get around 40,000–45,000 [[Agility]] experience per hour.
+
+==Monkey backpacks==
+After completion of [[Monkey Madness II]], players can obtain a [[Monkey (Monkey Madness II)|monkey]], which they can equip on their back. The monkey can be transformed into six other variants by completing laps at the agility course. Note that laps will only begin to be tracked upon completion of  [[Monkey Madness II]]; [[Bobawu]] can tell players how many laps they've completed.
+
+'''Note:''' Laps will only count towards the backpack total if all obstacles have been passed in the lap. The most recent obstacle passed will be remembered if a player teleports mid-lap. Players looking to restore energy should teleport from the hill with the fairy ring to get credit for the half-completed lap when they return to the course.
+
+With decent efficiency and a high enough [[Agility]] level, it would take at least 21 hours to unlock all monkey backpack transformations.
+
+{| class="wikitable align-center-1 align-right-3 align-right-4"
+! colspan="2" |Monkey
+!Laps<br>required
+!Total Agility experience earned
+|-
+|{{plinkt|Karamjan monkey (item)|txt=Karamjan}}
+|100
+|58,000
+|-
+|{{plinkt|Zombie monkey (item)|txt=Zombie}}
+|250
+|145,000
+|-
+|{{plinkt|Maniacal monkey (item)|txt=Maniacal}}
+|500
+|290,000
+|-
+|{{plinkt|Skeleton monkey (item)|txt=Skeleton}}
+|1,000
+|580,000
+|-
+|{{plinkt|Kruk jr}}
+|1,500
+|870,000
+|-
+|{{plinkt|Princely monkey|txt=Princely}}
+|2,000
+|1,160,000
+|}
+
+==Treasure Trails==
+*{{SherlockChallenge|Completing a lap of Ape Atoll Agility Course|elite}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = The [[Stepping stone (Ape Atoll Agility Course)|stepping stone]] and the second [[Tropical tree (Ape Atoll Agility Course)|tropical tree]] obstacles can no longer be failed.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = Players will now receive [[Mark of grace|marks of grace]] during the course.
+}}
+{{Subject changes 
+|date = 3 August 2022
+|update = Maximum Hitsplats & Clan Hall Changes
+|change = The click-zone of the skull slope has been expanded.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 Skilling Suggestions
+|change = The click-zone has been made larger on the rope.
+}}
+{{Subject changes
+|date = 2 July 2015
+|update = Clue Scroll Step Counter
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = Added a [[Fairy rings|fairy ring]] midway through the Ape Atoll Agility Course. Using this fairy ring requires completion of [[Monkey Madness I]] and [[Daero|Daero's training]].
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Upon its release, the Ape Atoll Agility Course gave the fastest experience from level 70 to 99 [[Agility]]. This did not last long because with the release of toy mice two months later, players could get upwards of 70k+ XP/H picking them up; however, the course still remained the best agility course to train Agility. With the release of the [[Dorgesh-Kaan Agility Course]] in March 2007, the Ape Atoll Agility course lost the title for the fastest experience course from level 80 to 99 [[Agility]]. The Ape Atoll course was still a popular course for those 80+ agility due to its predictability and lack of disturbance from random events. 
+* If attempting the course whilst in human form, the player will slip off, and a message will appear in the chatbox: {{mes|...you're not monkey enough to try this!}}
+* Attempting the course while not a small or a medium ninja monkey results in the message: {{mes|Only the stealthiest and most agile monkey can use this!}}
+* Attempting to use a [[Temporary skill boost|boost]] to access the course results in the message: {{mes|Your Agility boost won't help you here.}}
+
+{{Agility courses}}
+{{Agility course obstacles}}
+{{Ape Atoll}}

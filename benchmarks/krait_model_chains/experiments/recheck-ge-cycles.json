@@ -1,0 +1,163 @@
+{
+  "serial": "T062809L3Z",
+  "scene": "grand-exchange-ground",
+  "event": "cpu-cycles",
+  "target": "complete",
+  "warmup": 600,
+  "frames": 180,
+  "live": false,
+  "manifest": null,
+  "rows": [
+    {
+      "sample": 0,
+      "arm": 0,
+      "frames": 180,
+      "draw": 2914625682,
+      "worker": 2239672892,
+      "models": 760320,
+      "worker_models": 549866,
+      "faces": 5254628
+    },
+    {
+      "sample": 1,
+      "arm": 1,
+      "frames": 180,
+      "draw": 2455477646,
+      "worker": 2206812186,
+      "models": 760320,
+      "worker_models": 525305,
+      "faces": 5038407
+    },
+    {
+      "sample": 2,
+      "arm": 1,
+      "frames": 180,
+      "draw": 2575399646,
+      "worker": 1965628495,
+      "models": 760320,
+      "worker_models": 504276,
+      "faces": 4823003
+    },
+    {
+      "sample": 3,
+      "arm": 0,
+      "frames": 180,
+      "draw": 2833828808,
+      "worker": 2337526505,
+      "models": 760320,
+      "worker_models": 561630,
+      "faces": 5432668
+    },
+    {
+      "sample": 4,
+      "arm": 0,
+      "frames": 180,
+      "draw": 2649016179,
+      "worker": 2619262831,
+      "models": 760320,
+      "worker_models": 590262,
+      "faces": 5762567
+    },
+    {
+      "sample": 5,
+      "arm": 1,
+      "frames": 180,
+      "draw": 2416131889,
+      "worker": 2286109173,
+      "models": 760320,
+      "worker_models": 535125,
+      "faces": 5166141
+    },
+    {
+      "sample": 6,
+      "arm": 1,
+      "frames": 180,
+      "draw": 2457775825,
+      "worker": 2198495997,
+      "models": 760320,
+      "worker_models": 527832,
+      "faces": 5081264
+    },
+    {
+      "sample": 7,
+      "arm": 0,
+      "frames": 180,
+      "draw": 2782845371,
+      "worker": 2427175363,
+      "models": 760320,
+      "worker_models": 566918,
+      "faces": 5470344
+    },
+    {
+      "sample": 8,
+      "arm": 0,
+      "frames": 180,
+      "draw": 2764026976,
+      "worker": 2512321991,
+      "models": 760320,
+      "worker_models": 574074,
+      "faces": 5542650
+    },
+    {
+      "sample": 9,
+      "arm": 1,
+      "frames": 180,
+      "draw": 2589261605,
+      "worker": 1996954155,
+      "models": 760320,
+      "worker_models": 506941,
+      "faces": 4890016
+    },
+    {
+      "sample": 10,
+      "arm": 1,
+      "frames": 180,
+      "draw": 2481394288,
+      "worker": 2151317041,
+      "models": 760320,
+      "worker_models": 521702,
+      "faces": 4988603
+    },
+    {
+      "sample": 11,
+      "arm": 0,
+      "frames": 180,
+      "draw": 2763807222,
+      "worker": 2523369233,
+      "models": 760320,
+      "worker_models": 572556,
+      "faces": 5555423
+    }
+  ],
+  "local_apk_sha256": "37b1927b80fa65c9d33a060868a6e445ad51a432b8eccc1f8f1aad004c59d7d1",
+  "scope": "Draw RenderFrame plus worker model pass; per-thread userspace hardware counters; ABBA x3 with six settling frames; both arms aligned.",
+  "summary": {
+    "draw": {
+      "baseline": 15407978.741666667,
+      "candidate": 13719916.980555555,
+      "percent": -10.955763824791697,
+      "mad": {
+        "0": 194504.4055555556,
+        "1": 187668.27222222183
+      }
+    },
+    "worker": {
+      "baseline": 13720825.983333334,
+      "candidate": 12082813.994444445,
+      "percent": -11.938144182271394,
+      "mad": {
+        "0": 516229.7999999998,
+        "1": 397523.1138888886
+      }
+    },
+    "total": {
+      "baseline": 29106388.17777778,
+      "candidate": 25802730.975,
+      "percent": -11.350282221894027,
+      "mad": {
+        "0": 236737.9944444429,
+        "1": 209854.84166666493
+      }
+    }
+  }
+}

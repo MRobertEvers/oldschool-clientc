@@ -1,0 +1,5 @@
+/bench_projection_neon_acceptance
+/bench_projection_neon_acceptance_sanitize
+/bench_projection_native_dispatch
+/bench_projection_baseline_dispatch
+/*.dSYM/

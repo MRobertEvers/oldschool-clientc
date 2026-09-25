@@ -137,7 +137,7 @@ entity_emits(
         struct PaintersElementCommand* c = &buf->commands[i];
         if( c->_bf_kind != PNTR_CMD_ELEMENT )
             continue;
-        if( (int)c->_entity._bf_entity != entity )
+        if( painter_command_element_id(c) != entity )
             continue;
         if( first_index && *first_index < 0 )
             *first_index = i;
@@ -697,7 +697,12 @@ test_bucket_emits_one_globally_distance_ordered_sweep(void)
  * ground running up over the platform.
  *
  * What makes the wait unnecessary: the blocking loc reaches CLOSER to the eye
- * than the tile being held, so it is drawn nearer than that tile regardless.
+ * than the tile being held, so it is drawn nearer than that tile regardless —
+ * and it lies BESIDE the seam column's line of sight, not behind it (the
+ * lateral gate, bucket_gate_blocks). The two floor tiles diagonally in front
+ * of each loc's near corner, (13,7) and (19,7), are a different case: the loc
+ * is behind them along the view ray, so the reference order (loc first, then
+ * their floor) is the right one, and the sweep is allowed to dip there.
  */
 static void
 test_seam_between_two_large_locs_keeps_the_sweep(void)
@@ -710,10 +715,9 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
     const int west_loc = 1300;
     const int east_loc = 1301;
     int east_i = -1;
-    int prev = -1;
-    int runs = 1;
     int emitted = 0;
-    int worst_after_east = -1;
+    int seam_after_east = 0;
+    int late_beside_or_behind = 0;
     int x, z;
 
     printf("a floor column on the seam of two large locs still sweeps farthest-first\n");
@@ -743,25 +747,32 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
         tx = (int)buf->commands[i]._terrain._bf_terrain_x;
         tz = (int)buf->commands[i]._terrain._bf_terrain_z;
         d = abs(tx - SEAM_CAM_X) + abs(tz - SEAM_CAM_Z);
-        if( prev >= 0 && d > prev )
-            runs++;
-        prev = d;
         emitted++;
-        if( east_i >= 0 && i > east_i && d > worst_after_east )
-            worst_after_east = d;
+        if( east_i < 0 || i < east_i )
+            continue;
+        /* The defect: the seam column's own floor, under the west loc and
+         * farther out than the east loc's release ring (5), emitted after
+         * it. The two seam tiles at rings 4 and 5 are nearer than or level
+         * with the loc and rightly follow it. */
+        if( tx == SEAM_CAM_X && tz >= 8 && tz <= 23 && d > 5 )
+            seam_after_east++;
+        /* Anything farther than the east loc's release ring (5) that is
+         * beside or behind the locs' rows. Rows south of the locs (tz < 8)
+         * are in front of them along the view ray and may legitimately wait. */
+        if( d > 5 && tz >= 8 )
+        {
+            late_beside_or_behind++;
+            printf("       (floor (%d,%d) d=%d emitted after the east loc)\n", tx, tz, d);
+        }
     }
 
     expect(emitted > 0, "the box emitted terrain at all");
-    expect(runs == 1, "terrain distance never increases across the seam");
-    if( runs != 1 )
-        printf("       (%d monotone runs over %d tiles: the seam column ran late)\n",
-               runs, emitted);
-    /* The east loc's nearest footprint tile is (17,8), five rings out. Nothing
-     * farther than that may still be waiting when it is drawn. */
-    expect(worst_after_east <= 5,
-           "no floor farther than the east loc's own ring is emitted after it");
-    if( worst_after_east > 5 )
-        printf("       (floor at distance %d emitted after the east loc)\n", worst_after_east);
+    expect(east_i >= 0, "the east loc is emitted");
+    expect(seam_after_east == 0, "the seam column's floor all precedes the east loc");
+    if( seam_after_east )
+        printf("       (%d seam tiles ran late)\n", seam_after_east);
+    expect(late_beside_or_behind == 0,
+           "no floor beside or behind the locs, farther than the east loc's ring, follows it");
 
     free(buf->commands);
     free(buf);
@@ -769,6 +780,76 @@ test_seam_between_two_large_locs_keeps_the_sweep(void)
 #undef SEAM_SCENE
 #undef SEAM_CAM_X
 #undef SEAM_CAM_Z
+}
+
+/*
+ * The other half of the seam exception's contract (2026-08-19, ToB Xarpus /
+ * Maiden): a large loc that sits BEHIND a tile along the view ray must still
+ * be emitted before that tile's ground, however near the loc's nearest corner
+ * reaches in Manhattan terms.
+ *
+ * Eye at (16,4) looking up +z. A 6x5 loc at x[10,15] z[28,32] has its nearest
+ * footprint tile (15,28) at ring 25, but the floor directly in front of its
+ * z=28 row — (10..13, 27), rings 26..29 — is nearer the eye in depth and sits
+ * under the loc on screen. Every floor tile in the loc's x band with z < 28
+ * must therefore be emitted AFTER the loc. The first seam exception relaxed
+ * those tiles' north gate (the loc "reached nearer"), painted them first, and
+ * the loc's tall far part landed on top of them.
+ */
+static void
+test_loc_behind_a_tile_in_depth_is_emitted_first(void)
+{
+#define BEHIND_SCENE 32
+#define BEHIND_CAM_X 16
+#define BEHIND_CAM_Z 4
+    struct Painter* p = painter_new(BEHIND_SCENE, BEHIND_SCENE, LEVELS, PAINTER_NEW_CTX_BUCKET);
+    struct PaintersBuffer* buf = painter_buffer_new();
+    const int ledge = 1400;
+    int ledge_i = -1;
+    int floor_before_ledge = 0;
+    int floor_in_front = 0;
+    int x, z;
+
+    printf("a loc behind a tile along the view ray is emitted before that tile's floor\n");
+    painter_set_draw_distance(p, BEHIND_SCENE);
+    for( x = 0; x < BEHIND_SCENE; x++ )
+        for( z = 0; z < BEHIND_SCENE; z++ )
+        {
+            painter_tile_set_terrain_levels(p, x, z, 0, 1u << 0);
+            painter_tile_set_terrain_levels(p, x, z, 1, 0);
+            painter_tile_set_terrain_levels(p, x, z, 2, 0);
+            painter_tile_set_terrain_levels(p, x, z, 3, 0);
+        }
+    painter_add_normal_scenery_ex(p, 10, 28, 0, ledge, 6, 5, 0, PNTR_SCENERY_STACK_BASE);
+
+    painter_paint_bucket(p, buf, BEHIND_CAM_X, BEHIND_CAM_Z, 0);
+
+    expect(entity_emits(buf, ledge, &ledge_i) == 1, "the ledge is emitted exactly once");
+    for( int i = 0; i < buf->command_count; i++ )
+    {
+        int tx, tz;
+        if( buf->commands[i]._bf_kind != PNTR_CMD_TERRAIN )
+            continue;
+        tx = (int)buf->commands[i]._terrain._bf_terrain_x;
+        tz = (int)buf->commands[i]._terrain._bf_terrain_z;
+        if( tx < 10 || tx > 15 || tz >= 28 || tz < BEHIND_CAM_Z )
+            continue;
+        floor_in_front++;
+        if( ledge_i >= 0 && i < ledge_i )
+            floor_before_ledge++;
+    }
+    expect(floor_in_front > 0, "the box emitted the floor in front of the ledge");
+    expect(floor_before_ledge == 0, "no floor in front of the ledge is emitted before it");
+    if( floor_before_ledge )
+        printf("       (%d of %d floor tiles in front of the ledge emitted before it)\n",
+               floor_before_ledge, floor_in_front);
+
+    free(buf->commands);
+    free(buf);
+    painter_free(p);
+#undef BEHIND_SCENE
+#undef BEHIND_CAM_X
+#undef BEHIND_CAM_Z
 }
 
 int
@@ -787,6 +868,7 @@ main(void)
     test_ready_batch_sorts_by_far_corner();
     test_bucket_emits_one_globally_distance_ordered_sweep();
     test_seam_between_two_large_locs_keeps_the_sweep();
+    test_loc_behind_a_tile_in_depth_is_emitted_first();
 
     if( g_failures )
     {

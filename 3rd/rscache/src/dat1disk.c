@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "rscache_log.h"
 #define CACHE_FILE_NAME_ROOT "main_file_cache"
 #define DAT1_SECTOR_SIZE 520
 
@@ -75,8 +76,8 @@ RSCache_Dat1DiskNewFromDirectory(char const* directory)
     cache->dat_file = dat1disk_fopen_dat(cache->directory);
     if( !cache->dat_file )
     {
-        printf("Failed to open dat file\n");
-        printf("Directory: %s\n", cache->directory);
+        RSCACHE_LOG("Failed to open dat file\n");
+        RSCACHE_LOG("Directory: %s\n", cache->directory);
         free(cache->directory);
         free(cache);
         return NULL;
@@ -155,7 +156,19 @@ RSCache_Dat1DiskArchiveNewLoad(
 
     struct RSCache_Dat2DiskArchive raw = { 0 };
     struct RSCache_Dat2DiskIndexRecord index_record = { 0 };
-    dat1disk_read_index(&index_record, cache->directory, table_id, archive_id);
+    /*
+     * A miss is an ANSWER, not a failure, and the caller has to be able to
+     * tell them apart.
+     *
+     * This return used to be discarded, which left index_record zeroed and
+     * sent sector 0 into the reader below -- printing "bad read, dat length 0,
+     * requested sector 0" and then "Failed to read dat archive" for every
+     * archive that simply had not been stored yet. Harmless when the only
+     * dat1 cache was a complete one; ruinous once a cache hydrates, where
+     * every archive misses until its first fetch.
+     */
+    if( dat1disk_read_index(&index_record, cache->directory, table_id, archive_id) != 0 )
+        goto error;
 
     if( RSCache_Dat2DiskDatFileReadArchive(
             cache->dat_file,
@@ -165,7 +178,7 @@ RSCache_Dat1DiskArchiveNewLoad(
             index_record.length,
             &raw) != 0 )
     {
-        printf("Failed to read dat archive for table %d\n", table_id);
+        RSCACHE_LOG("Failed to read dat archive for table %d\n", table_id);
         goto error;
     }
 
@@ -173,7 +186,7 @@ RSCache_Dat1DiskArchiveNewLoad(
     {
         if( !RSCache_ArchiveDecompressDat(&raw, format) )
         {
-            printf("Failed to decompress dat archive for table %d\n", table_id);
+            RSCACHE_LOG("Failed to decompress dat archive for table %d\n", table_id);
             goto error;
         }
     }

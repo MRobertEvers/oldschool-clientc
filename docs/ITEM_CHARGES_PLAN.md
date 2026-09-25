@@ -100,7 +100,7 @@ account-scoped ones the wiki pass will confirm.
 Declared as `[name]` blocks in `server/scripts/**/configs/*.varp` with
 `scope=perm`, allocated by `tools/ss_allocate.py` into
 `OSRS-Content/osrs239-content/pack/varp.alloc` (609 ids allocated today, no
-pressure). `mock230_save.c` persists only `scope=perm` varps — a `scope=temp`
+pressure). `torirs_server_save.c` persists only `scope=perm` varps — a `scope=temp`
 charge counter would silently reset on logout.
 
 Daily resets need `date_runeday`. **Blocked by an engine gap — see §3b.**
@@ -124,35 +124,35 @@ finding. The wiki says the scythe's charges are on the item. It moves to
 
 ### 3a. Per-item vars are destroyed by container moves — **blocker**
 
-`mock230_container_set` (`src/net/mock/mock230_container.c:388`) calls
-`item_clear_vars()` whenever `obj_id` changes, and `mock230_container_add`
+`ToriRSServer_ContainerSet` (`src/torirsserver/torirs_server_container.c:388`) calls
+`item_clear_vars()` whenever `obj_id` changes, and `ToriRSServer_ContainerAdd`
 (`:516`) never copies vars into the destination. Measured:
 
 | path | vars survive |
 |---|---|
-| `inv_movetoslot` — equip, `player/scripts/equip.rs2:189` | yes, it swaps the whole `Mock230Item` |
+| `inv_movetoslot` — equip, `player/scripts/equip.rs2:189` | yes, it swaps the whole `ToriRSServerItem` |
 | `inv_moveitem` — unequip `equip.rs2:149`, bank deposit `bank_deposit.rs2:38` | **no** |
-| `inv_movefromslot` — `mock230_ops_inv.c:207` | **no** |
+| `inv_movefromslot` — `torirs_server_ops_inv.c:207` | **no** |
 | drop → pick up | **no** (ground objs have no var storage at all) |
-| save / load | yes — `mock230_save.c:214-247` writes inv/worn/bank/named containers |
+| save / load | yes — `torirs_server_save.c:214-247` writes inv/worn/bank/named containers |
 
 So today's crystal armour loses its charges the moment it is unequipped. This is
 a live bug independent of this work, and it has to be fixed before `item_var`
 can carry anything.
 
-**Fix**: a var-carrying move in `mock230_container.c` used by the `INV_MOVEITEM`
-/ `INV_MOVEFROMSLOT` arms of `mock230_ops_inv.c`. Vars move only for unstackable
+**Fix**: a var-carrying move in `torirs_server_container.c` used by the `INV_MOVEITEM`
+/ `INV_MOVEFROMSLOT` arms of `torirs_server_ops_inv.c`. Vars move only for unstackable
 objs moved as a single unit — a merged stack has no single var to carry, and
 charged items are unstackable, so that is the whole domain.
 
-**Stated limits, not fixed**: `MOCK230_ITEM_VAR_MAX = 4` keys per slot (enough:
+**Stated limits, not fixed**: `TORIRSSERVER_ITEM_VAR_MAX = 4` keys per slot (enough:
 one charge key per obj); ground objs have no var storage, so a dropped charged
 item loses its charges. Both go in the ledger rather than being papered over.
 
 ### 3b. `date_runeday` is declared but not implemented
 
 `SS_OP_DATE_RUNEDAY` (4630) exists in `src/serverscript/ss_opcode.h:409` and in
-`ss_meta.gen.h`, but `mock230_scripts.c` has no `case` for it — only
+`ss_meta.gen.h`, but `torirs_server_scripts.c` has no `case` for it — only
 `SS_OP_DATE_MINUTES` (`:7699`). Every daily-reset item in §2c needs it. Fix is
 the same shape as `DATE_MINUTES`: real time in, runedays since the epoch out.
 
@@ -270,7 +270,7 @@ something specific, following the same split
 | # | Work | Gate |
 |---|---|---|
 | 0 | `tools/charged_items_scan.py`; curated 182-family ledger + `docs/ITEM_CHARGES.md` | ledger reviewed, every family has a status |
-| 1a | Engine: vars follow the item through `inv_moveitem` / `inv_movefromslot` (§3a) | new case in `src/net/mock/test/`; crystal armour keeps charges across unequip |
+| 1a | Engine: vars follow the item through `inv_moveitem` / `inv_movefromslot` (§3a) | new case in `src/torirsserver/test/`; crystal armour keeps charges across unequip |
 | 1b | Engine: implement `SS_OP_DATE_RUNEDAY` (§3b) | selftest asserts it advances |
 | 2 | `tools/wiki_item_charges.py` + parser; fill the ledger from the wiki (§4) | `wiki/items/` committed, manifest carries revids |
 | 3 | The shared library + generated data table (§5) | `::chargesrun` covers all four storage classes |
@@ -289,9 +289,9 @@ the progress record, so a partial wave is legible rather than looking finished.
   `skill_combat/scripts/player/gear/gear_selftest.rs2` — one FAIL line and stop,
   or `chargesrun OK — N checks passed`. Covers each storage class, each
   depletion shape, and the equip/unequip/bank round-trip that §3a fixes.
-- `make -C src mock230 && ./src/build/mock230 --selftest`, run with **no env
-  set**. The `MOCK230_REV=osrs239` lane has ~205 pre-existing failures unrelated
-  to this work (`mock230-selftest-two-lanes`); a green run means the no-env lane.
-- New engine cases get coverage in `src/net/mock/test/`.
+- `make -C src ToriRSServer && ./src/build/torirsserver --selftest`, run with **no env
+  set**. The `TORIRSSERVER_REV=osrs239` lane has ~205 pre-existing failures unrelated
+  to this work (`torirsserver-selftest-two-lanes`); a green run means the no-env lane.
+- New engine cases get coverage in `src/torirsserver/test/`.
 - A selftest leg walks the whole generated charge table and asserts the C-side
   and script-side agree, so the generated data cannot drift from the ledger.

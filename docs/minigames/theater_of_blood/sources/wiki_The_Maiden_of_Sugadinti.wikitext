@@ -1,0 +1,195 @@
+{{Redirect|Serafina|the book|Serafina (book)}}
+{{Infobox Monster
+|defver = 2
+|version1 = Entry Mode
+|version2 = Normal
+|version3 = Hard Mode
+|version4 = 70% Health
+|version5 = 50% Health
+|version6 = 30% Health
+|name = The Maiden of Sugadinti
+|image1 = [[File:The Maiden of Sugadinti.png|250px]]
+|image2 = [[File:The Maiden of Sugadinti.png|250px]]
+|image3 = [[File:The Maiden of Sugadinti.png|250px]]
+|image4 = [[File:The Maiden of Sugadinti (70% health).png|250px]]
+|image5 = [[File:The Maiden of Sugadinti (50% health).png|250px]]
+|image6 = [[File:The Maiden of Sugadinti (30% health).png|250px]]
+|release1 = [[3 June]] [[2021]]
+|release2 = [[7 June]] [[2018]]
+|release3 = [[3 June]] [[2021]]
+|release4 = [[7 June]] [[2018]]
+|release5 = [[7 June]] [[2018]]
+|release6 = [[7 June]] [[2018]]
+|update1 = Theatre of Blood: New Modes
+|update2 = The Theatre of Blood
+|update3 = Theatre of Blood: New Modes
+|update4 = The Theatre of Blood
+|update5 = The Theatre of Blood
+|update6 = The Theatre of Blood
+|members = Yes
+|combat1 = 324
+|combat2 = 940
+|combat3 = 1128
+|combat4 = 940
+|combat5 = 940
+|combat6 = 940
+|size = 6
+|examine = This is the fate of those who cross the vampyres.
+|xpbonus = 0
+|max hit1 = 18
+|max hit2 = 36
+|max hit3 = 36
+|max hit4 = 36
+|max hit5 = 36
+|max hit6 = 36
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 10
+|hitpoints1 = 2000
+|hitpoints2 = 3500
+|hitpoints3 = 3500
+|hitpoints4 = 2450
+|hitpoints5 = 1750
+|hitpoints6 = 1050
+|scaledhp = Yes
+|att1 = 140
+|att2 = 350
+|att3 = 350
+|att4 = 350
+|att5 = 350
+|att6 = 350
+|str1 = 140
+|str2 = 350
+|str3 = 350
+|str4 = 350
+|str5 = 350
+|str6 = 350
+|def1 = 80
+|def2 = 200
+|def3 = 200
+|def4 = 200
+|def5 = 200
+|def6 = 200
+|mage1 = 140
+|mage2 = 350
+|mage3 = 350
+|mage4 = 350
+|mage5 = 350
+|mage6 = 350
+|range1 = 140
+|range2 = 350
+|range3 = 350
+|range4 = 350
+|range5 = 350
+|range6 = 350
+|attbns = 0
+|strbns = 0
+|amagic1 = 150
+|amagic2 = 300
+|amagic3 = 300
+|amagic4 = 300
+|amagic5 = 300
+|amagic6 = 300
+|mbns1 = 12
+|mbns2 = 0
+|mbns3 = 0
+|mbns4 = 0
+|mbns5 = 0
+|mbns6 = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 10814
+|id2 = 8360
+|id3 = 10822
+|id4 = 8361
+|id5 = 8362
+|id6 = 8363
+|leagueRegion = Morytania
+}}
+'''The Maiden of Sugadinti''' is the first encounter in the [[Theatre of Blood]]. She was formerly a human known as '''Serafina'''. A myth was spread by the [[vampyre]]s that she had successfully completed the Theatre of Blood and was granted freedom from the vampyres; however, this was simply a ruse to instill false hope into the citizens of [[Meiyerditch]] so that they could provide entertainment for the vampyres.
+
+As Serafina, she cared deeply for her brother, and she was willing to do anything for him. A [[Ranis Drakan|vampyre]] offered to save his life in return for both of them being experimented on, which she accepted. As a result, her brother was transformed into the [[Abomination]], while she was warped into the Maiden of Sugadinti, with her mind no longer her own.
+
+She is named after [[Sugadinti Vitur]], the father of [[Verzik Vitur]].
+
+==Mechanics==
+[[File:Fighting The Maiden of Sugadinti.png|thumb|left|280px|A group of players fighting Serafina, the Maiden of Sugadinti.]]
+At 70%, 50%, and 30% hitpoints, the Maiden will spawn two [[Nylocas Matomenos]] per player in the room (up to 10) from the northern and the southern walls, which will walk straight toward her and heal her if they reach her. To stop this, players can freeze them with the help of [[Ice spells]] and then kill them while frozen. There are 10 spawn locations in which the nylocas can spawn; if there are fewer than 5 players in the party, then the spawn locations will be random. 
+
+To properly freeze all healers, only three Nylocas must be frozen early: the most western ones, two north, and one south. Then, prioritise the northern third and the second southern a few game ticks before they meet in the centre. Once there, the rest will be frozen in the same spot on the consecutive barrage, leaving a clump of five for ice/blood barrage or chinchompas and three isolated ones. Causing multiple clumps will lead to a few leaking to the boss.
+
+Every Nylocas that reaches the boss will heal her for twice their remaining health and increase the damage of her basic tornado magic attacks.
+
+Her tornado attacks are magic-based and will prioritise the closest player to her. If there are multiple players within the same distance, players are prioritised in their party's order (which correlates with the orbs on the top-left of the screen; the topmost player is prioritised first). The attack has a 50% chance to drain a player's combat stats by (damage+1)/5. The stats drained are based on the player's highest attack bonus at the moment they are targeted. Players not targeted by the Maiden, therefore, do not need to protect from Magic, although it is recommended to have active protection in case the other players move farther from her.
+
+The Maiden will also throw blood spots at each player, and three blood spots at the player standing furthest away, dealing large amounts of damage and healing her every tick if not dodged. They have a chance to become a [[blood spawn]] which will track randomly around the room, leaving a blood trail behind it as well. If a player stands on the trail, it will damage them and heal the Maiden for the same damage taken, as well as increase the chance of a blood spawn appearing. It should also be noted that taking damage from a blood spot also drains prayer.
+
+If there are multiple blood spawns, it is suggested to freeze blood spawns and communicate with the teammates to swap gear, heal, or restore magic up before progressing into the Nylocas phases.
+
+Similar to [[TzKal-Zuk]], the Maiden of Sugadinti will over-hit the player beyond their current health when damage is calculated; this makes it so you cannot tick-eat the maiden boss's magic attacks.
+
+===Hard Mode===
+In [[Theatre of Blood/Hard Mode|Hard Mode]], in addition to the previous mechanics, the Maiden will always spawn the maximum number of Nylocas Matomenos (10), regardless of the number of players in the encounter. Alongside healing and increasing the damage of her attacks, the first five Matomenos that reach her will increase her attack speed.
+
+The blood spawns that appear during the fight become invulnerable to damage (although still attackable), and the splatters they leave behind will remain for the duration of the encounter.
+
+The Maiden's damage cap is also increased, meaning she can hit faster and harder than the regular version when Nylocas Matomenos reach her and players step on blood spots during the fight. This can often make it very difficult for players to complete since her damage can ramp up very quickly depending on the number of mistakes the team makes during the fight.
+
+===Entry Mode===
+In [[Theatre of Blood/Entry Mode|Entry Mode]], the Maiden can scale down to 20% of her original [[Hitpoints]] when done in a solo party. She will spawn fewer [[Nylocas Matomenos]], and the encounter is generally less punishing for mistakes due to her lower damage. This allows players the freedom to practice against the [[Theatre of Blood]] bosses without as much risk.
+
+If a team wipes in Entry Mode, they will be taken back outside of the boss room and have unlimited attempts to fight the boss again. [[Hardcore ironmen]] will still lose their status upon death.
+
+==Drops==
+{{DropsTableHead}}
+{{DropsLine|name=Serafina's diary|quantity=1|rarity=Always|altrarity=Never|raritynotes=<ref name=book group=d>No longer dropped after reading the book.</ref>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Gallery==
+<gallery>
+Maiden of Sugadinti artwork.jpg|Artwork of the Maiden of Sugadinti
+The Maiden of Sugadinti model.gif|A work in progress model of The Maiden of Sugadinti
+The Maiden of Sugadinti model 2.gif|A work in progress model of The Maiden of Sugadinti
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 June 2021
+|update = Theatre of Blood: New Modes
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = <nowiki />
+Hard mode and entry mode versions of the Theatre of Blood encounters added.
+}}
+{{Subject changes
+|date = 9 January 2020
+|update = Eating in the Bank
+|poll = Old School Content Poll 69: Game Improvements
+|change = 
+*The chance of successfully freezing Nylocas Matomenos now scales based on the player's effective magic attack bonus (including hidden bonuses such as the Void knight set), reaching 100% at +140 and above.
+*The chance of blood spawns appearing is now halved if all players dodge the blood splat attack, and their maximum amount is capped at eight.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*"Sugadinti" means "to ruin" <sup>''(verb)''</sup> or "ruined" <sup>''(adjective)''</sup> in Lithuanian.
+*Upon release, the Maiden of Sugadinti was the tallest boss model when she performs her attack animation.{{CiteTwitter|author=Mod Ghost|url=https://twitter.com/Jagex_Ghost/status/971092264855498752|date=6 March 2018|archiveurl=https://reldo.runescape.wiki/i/27964016|archivedate=13 May 2026|quote=Today I've been working on The Maiden's animations and realised at one point she becomes our tallest OS boss model yet! [https://pbs.twimg.com/media/DXoDQd3X0AEc5_j.jpg]}}
+*The Maiden's appearance is extremely similar to that of the [[Hespori]], a rare carnivorous plant from [[Morytania]]; it's been confirmed that there may be a link between the two.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1084257292709711872|date=13 January 2019|archiveurl=https://reldo.runescape.wiki/i/107461|archivedate=29 April 2020|quote=[The Hespori bears a striking resemblance to the Maiden from TOB. It's also a plant from Morytania. Is there a possible link between the two?] Yes :)}} This link is explored in detail during the quest [[A Night at the Theatre]], in which it is revealed that the Maiden was created using Hespori bark.{{CiteNPC|npc=Ranis Drakan|quote=When we created the Maiden, we experimented heavily in that area.}}{{CiteNPC|npc=Ranis Drakan|quote=Precisely that! Specifically the hespori. Their bark has wonderful regenerative abilities.}}
+*The name "The Maiden of Sugadinti" was given to her by [[Verzik Vitur]], which [[Ranis Drakan]] found surprising.{{CiteNPC|npc=Ranis Drakan|quote=I must say, I find the name you've given her to be quite interesting. Not the kind of thing I'd have expected from you.}} Both Verzik and the [[Mysterious Stranger]] refer to the name choice as ironic.{{CiteNPC|npc=Verzik Vitur|quote=It seemed an ironically fitting role for her, given that fun little narrative you came up with. Besides, with all the work you put in, it would have felt wrong to just abandon her.}}{{CiteNPC|npc=Mysterious Stranger|quote=The Maiden of Sugadinti. Such an ironic name.}} During [[The Blood Moon Rises]], it is revealed that Sugadinti is the name of Verzik's father, whom she usurped after he refused to unite the Vitur clan with the Drakan clan.
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}
+{{Bosses}}

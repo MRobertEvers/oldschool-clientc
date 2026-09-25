@@ -34,6 +34,15 @@ struct RSCache_Dat2DiskArchive
     int revision;
     int file_count;
     int* file_ids;
+    /**
+     * How many holders the archive has beyond its creator. 0 is the ordinary
+     * archive with one owner, which RSCache_Dat2DiskArchiveFree frees; a
+     * holder added by RSCache_Dat2DiskArchiveRetain makes Free a release,
+     * and the archive is freed by the last of them. Every constructor
+     * zeroes it. An archive is shared READ-ONLY: nothing that retains one
+     * may write its data, its ids or its counts.
+     */
+    int holders;
 };
 
 /*
@@ -122,6 +131,18 @@ enum RSCache_Dat2Table
     RSCACHE_DAT2_TABLE_VARBIT,
     RSCACHE_DAT2_TABLE_MATERIALS,
     RSCACHE_DAT2_TABLE_PARTICLES,
+
+    /**
+     * Client defaults — both epochs, not RS2 only.
+     *
+     * It stays at the end of the RS2-only block so that every value above keeps
+     * the number it had, but it does not belong to it: OldSchool ships this table
+     * at idx17 and RS2 at idx28. What they share is the *role* — a group-addressed
+     * record of engine-level ids — and not the id, and not the schema either
+     * (osrs239 group 3 is 83 bytes, rs727 group 3 is 3067 and starts on a
+     * different opcode). The tables at the top of this enum share an id; this one
+     * shares only a job.
+     */
     RSCACHE_DAT2_TABLE_DEFAULTS,
 
     RSCACHE_DAT2_TABLE_COUNT,
@@ -146,6 +167,19 @@ enum RSCache_Dat2OsrsDiskTable
     RSCACHE_DAT2_OSRS_TABLE_FONTS = 13,
     RSCACHE_DAT2_OSRS_TABLE_MUSIC_SAMPLES = 14,
     RSCACHE_DAT2_OSRS_TABLE_MUSIC_PATCHES = 15,
+    /**
+     * Client defaults: the handful of ids the engine needs before it can draw.
+     *
+     * Two groups, and the cache names neither — the reference table's name bit is
+     * clear (flags = 0x4, sizes only), so "defaults" is this tree's word for the
+     * table and not a name recovered from the cache. See
+     * docs/CACHE_INDEX_16_17.md for the record schema and what rev239 stores.
+     *
+     * There is no index 16 in this branch. idx255 lists 0..15, 17..22 and 24, and
+     * the client's own index register names that same set, so the gap at 16 is the
+     * cache's own and not an omission here.
+     */
+    RSCACHE_DAT2_OSRS_TABLE_DEFAULTS = 17,
     RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GEOGRAPHY = 18,
     RSCACHE_DAT2_OSRS_TABLE_WORLDMAP = 19,
     RSCACHE_DAT2_OSRS_TABLE_WORLDMAP_GROUND = 20,
@@ -351,12 +385,40 @@ struct RSCache_Dat2Disk
     /** The file store's handle on main_file_cache.dat2, and NULL under any
      *  other backing. Nothing outside the file store may read through it. */
     FILE* dat2_file;
+    /** Read handles on main_file_cache.idxN, opened lazily and held for the life
+     *  of the disk exactly as `dat2_file` is. Every entry is NULL under a
+     *  non-file backing.
+     *
+     *  These exist because an archive read needs six bytes out of an index, and
+     *  opening a file to get them cost more than everything else in the read
+     *  put together — `dat2disk_fopen_index` was 6.85 s of a 60 s launch
+     *  capture, in fopen/CreateFileA chains. A slot is dropped when the store
+     *  writes or commits that table, so a cached handle never serves bytes from
+     *  before a write this disk made.
+     *
+     *  Indexed by `dat2disk_index_slot`, not by table id: idx255 is read on the
+     *  same path as every other index but sits outside the 0..36 range
+     *  RSCache_Dat2DiskIsValidTableId admits, so it gets the one extra slot on
+     *  the end. Keying this array on the table id instead silently loses idx255,
+     *  and idx255 is where every reference table lives. */
+    FILE* index_files[RSCACHE_DAT2_DISK_TABLE_CAPACITY + 1];
     /** Stated identity. game/revision drive table ids and the map XTEA gate.
      *  Unset (ProfileZero) until RSCache_Dat2DiskSetProfile. */
     struct RSCache profile;
     int profile_set;
     /** Non-zero when opened through NewReadOnlyFromDirectory. */
     int read_only;
+    /** Non-zero when reference tables load on first use rather than at open.
+     *  Set only by the LazyTables constructors; every other open fills
+     *  `tables` up front, which is what the callers that index it directly
+     *  rely on. */
+    int lazy_tables;
+    /** Which table ids the backing reported at open, one bit per id. Only
+     *  meaningful under lazy_tables, where it is what keeps a cache that does
+     *  not ship a table from re-asking the store for it on every lookup —
+     *  the eager path answers that question once, at open, and this is the
+     *  same answer kept for later. */
+    uint64_t tables_present;
     /** The backing. Never empty: store.get is non-NULL on every open disk. */
     struct RSCache_Dat2Store store;
 };
@@ -394,6 +456,22 @@ RSCache_Dat2DiskTableId(
     const struct RSCache_Dat2Disk* disk,
     enum RSCache_Dat2Table table);
 
+/**
+ * The reference table for `table_id`, loading it if this disk was opened
+ * lazily and has not needed it yet. Equivalent to reading disk->tables[id]
+ * on an eagerly opened disk, which is why it is safe to call from code that
+ * has to work with both.
+ *
+ * Returns NULL when the cache does not ship the table, when the decode fails,
+ * and for RSCACHE_DAT2_DISK_TABLE_ABSENT — callers routinely hold the result
+ * of RSCache_Dat2DiskTableId, and "this branch has no such table" is an answer
+ * rather than a mistake.
+ */
+struct RSCache_ReferenceTable*
+RSCache_Dat2DiskReferenceTable(
+    struct RSCache_Dat2Disk* disk,
+    int table_id);
+
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewFromDirectory(char const* directory);
 
@@ -404,6 +482,24 @@ RSCache_Dat2DiskNewFromDirectory(char const* directory);
  */
 struct RSCache_Dat2Disk*
 RSCache_Dat2DiskNewReadOnlyFromDirectory(const char* directory);
+
+/**
+ * As NewFromDirectory, but each reference table is decoded the first time
+ * something asks for it instead of all of them at open.
+ *
+ * A full cache carries 23 tables and about 12 MB of decoded reference data,
+ * and a client touches maybe two thirds of them — the rest were sharded
+ * record tables and asset kinds it never reads. Nothing about the eager pass
+ * was needed for correctness; the lazy path underneath it already existed and
+ * archive loads already went through it.
+ *
+ * The catch is `tables`: callers that index it directly see NULL for a table
+ * that has not been touched. Everything in this library and the client reads
+ * it through RSCache_Dat2DiskReferenceTable instead, but a caller that does
+ * not must use one of the eager constructors.
+ */
+struct RSCache_Dat2Disk*
+RSCache_Dat2DiskNewFromDirectoryLazyTables(char const* directory);
 
 /**
  * Open a cache directory for incremental population, creating an empty dat2
@@ -487,6 +583,16 @@ RSCache_Dat2DiskArchiveInitMetadataFromTable(
     struct RSCache_Dat2DiskArchive* archive);
 void
 RSCache_Dat2DiskArchiveFree(struct RSCache_Dat2DiskArchive* archive);
+
+/**
+ * Add a holder. The archive stays alive until every holder (the creator
+ * included) has called RSCache_Dat2DiskArchiveFree; the holders read only.
+ * This is how one loaded archive serves every request for it at once,
+ * where a copy per request cost 2.5 MB x a thousand pending loc lookups at
+ * world entry.
+ */
+void
+RSCache_Dat2DiskArchiveRetain(struct RSCache_Dat2DiskArchive* archive);
 
 uint32_t*
 RSCache_Dat2DiskArchiveXteaKey(

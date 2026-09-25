@@ -1,0 +1,45 @@
+{{External|rs=Tele-group Catherby}}
+{{Infobox Spell
+|name = Tele Group Catherby
+|image = [[File:Tele Group Catherby.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 88
+|spellbook = Lunar
+|type = Teleport
+|exp = 93
+|cost = {{RuneReq|Law=3|Water=15|Astral=3}}
+|speed = 4 ticks
+|description = Teleports players to Catherby
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Tele Group Catherby icon (mobile).png|left|class=pageimage]]
+'''Tele Group Catherby''' teleports the caster along with anyone within a 3x3 square area (including standing on the player's square) to the area near the bank in [[Catherby]]. Players must have [[Accept Aid]] turned on in order to be teleported by this spell. A window will pop for the person being teleported asking them if they wished to be teleported. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 15
+|Rune2 = Law
+|Rune2num = 3
+|Rune3 = Astral
+|Rune3num = 3
+}}
+
+==Destination==
+{{Map|2799,3448|2799,3452|2804,3452|2804,3447|2801,3447|2801,3448|mtype=polygon|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = Lunar's group teleports will no longer trigger the 10 second teleport delay timer in Deadman mode twice.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

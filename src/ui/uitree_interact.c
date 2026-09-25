@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 static int
 torirs_trace_drag(void)
@@ -21,34 +22,171 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/*
+ * TORIRS_SCROLLBAR_DEBUG=1: one line per left-press that the IF1 scrollbar path
+ * claims, naming the layer that claimed it and the strip it claimed it with.
+ *
+ * This path runs before the generic hit/drag/click machinery and, when it
+ * answers, zeroes it (UITree_InteractFrame's `sb_owns_mouse` branch) — so a
+ * layer answering for a point that is not visibly its scrollbar makes the
+ * widget actually under the cursor dead, with no menu, no hook and no hover to
+ * show for it. UITree_FindScrollbarAt deliberately applies no clip and no
+ * ancestor-visibility test, so the claimant can be a layer that is scrolled
+ * out, clipped away or behind whatever the player is looking at, which is
+ * exactly the case this line is here to name.
+ */
+static int
+torirs_trace_scrollbar(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* e = getenv("TORIRS_SCROLLBAR_DEBUG");
+        cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+static void
+scrollbar_trace_claim(
+    struct UITree const* tree,
+    struct UITreeScrollbarHitInfo const* hit,
+    int mx,
+    int my)
+{
+    struct UITreeComponent const* layer;
+
+    assert(tree);
+    assert(hit);
+    if( hit->layer_index < 0 || (uint32_t)hit->layer_index >= tree->component_count )
+        return;
+    layer = &tree->components[hit->layer_index];
+    TORIRS_LOG("scrollbardbg: press %d,%d claimed by com=0x%08x (%d|%d) kind=%d "
+        "layer=%d,%d %dx%d scroll=%dx%d\n",
+        mx,
+        my,
+        (unsigned)layer->component_id,
+        (layer->component_id >> 16) & 0xFFFF,
+        layer->component_id & 0xFFFF,
+        (int)hit->kind,
+        hit->layer_x,
+        hit->layer_y,
+        hit->layer_w,
+        hit->layer_h,
+        hit->scroll_width,
+        hit->scroll_height);
+}
+
+static int
+scrollbar_capture_live(
+    struct UITree const* tree,
+    struct UITreeScrollbarHitInfo const* hit)
+{
+    assert(tree);
+    assert(hit);
+    if( hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 ||
+        (uint32_t)hit->layer_index >= tree->component_count )
+        return 0;
+    if( tree->components[hit->layer_index].freed || hit->layer_incarnation == 0 ||
+        tree->components[hit->layer_index].incarnation != hit->layer_incarnation )
+        return 0;
+    return !UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index);
+}
+
 void
 UIInteraction_Init(struct UIInteraction* interact)
 {
     assert(interact);
     memset(interact, 0, sizeof(*interact));
+    /* After the memset, not before it: zero is a valid node index, and a
+     * swipe owner of 0 makes the first frame swallow its click. */
+    interact->ts_layer = -1;
     interact->input_state.hovered = -1;
     interact->input_state.pressed = -1;
+    interact->input_state.pressed_incarnation = 0;
+    interact->input_state.drag_source_idx = -1;
+    interact->input_state.drag_source_incarnation = 0;
+    interact->input_state.drag_source_id = -1;
+    interact->input_state.drag_target_id = -1;
+    interact->input_state.drag_target_idx = -1;
+    interact->input_state.drag_target_incarnation = 0;
     interact->hover_com_id = -1;
     interact->prev_hover_com_id = -1;
+    interact->hover_node_index = -1;
+    interact->hover_node_incarnation = 0;
+    interact->prev_hover_node_index = -1;
+    interact->prev_hover_node_incarnation = 0;
     interact->last_repeat_cycle = UINT64_MAX;
     UIMinimenu_Reset(&interact->minimenu);
 }
 
 static void
+intent_bind_node(
+    struct UITree const* tree,
+    struct UIIntent* intent,
+    int32_t node_index)
+{
+    assert(tree);
+    assert(intent);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count ||
+        tree->components[node_index].freed )
+        return;
+    intent->has_node_identity = 1;
+    intent->node_index = node_index;
+    intent->node_incarnation = tree->components[node_index].incarnation;
+}
+
+static void
+intent_bind_drag_target(
+    struct UITree const* tree,
+    struct UIIntent* intent,
+    int32_t node_index)
+{
+    assert(tree);
+    assert(intent);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count ||
+        tree->components[node_index].freed )
+        return;
+    intent->has_drag_target_identity = 1;
+    intent->drag_target_node_index = node_index;
+    intent->drag_target_node_incarnation = tree->components[node_index].incarnation;
+}
+
+static void
 intent_push(
+    struct UITree const* tree,
     struct UIInteractOut* out,
     struct UIIntent const* intent)
 {
+    struct UIIntent stamped;
+    int32_t idx;
+
     if( out->intent_count >= UI_INTENT_MAX )
         return;
-    out->intents[out->intent_count++] = *intent;
+    stamped = *intent;
+    /* Most authored components have unique ids, so callers which only know
+     * the id still receive an incarnation fence. Callers holding the exact
+     * node bind it before this fallback (important for dynamic same-id cells). */
+    if( !stamped.has_node_identity && stamped.component_id >= 0 )
+    {
+        idx = UITree_FindByComponentId(tree, stamped.component_id);
+        intent_bind_node(tree, &stamped, idx);
+    }
+    if( stamped.has_drag_target && !stamped.has_drag_target_identity &&
+        stamped.drag_target_id >= 0 )
+    {
+        idx = UITree_FindByComponentId(tree, stamped.drag_target_id);
+        intent_bind_drag_target(tree, &stamped, idx);
+    }
+    out->intents[out->intent_count++] = stamped;
 }
 
-struct UITreeRuntimeScriptHook const*
-UITree_ResolveClickHook(
+static struct UITreeRuntimeScriptHook const*
+resolve_click_hook(
     struct UITree* tree,
     int32_t leaf_index,
-    int* out_component_id)
+    int* out_component_id,
+    int32_t* out_node_index)
 {
     int32_t idx;
 
@@ -56,6 +194,8 @@ UITree_ResolveClickHook(
     assert(out_component_id);
 
     *out_component_id = -1;
+    if( out_node_index )
+        *out_node_index = -1;
 
     if( leaf_index < 0 || (uint32_t)leaf_index >= tree->component_count )
         return NULL;
@@ -67,15 +207,28 @@ UITree_ResolveClickHook(
         if( hooks->on_op.script_id > 0 )
         {
             *out_component_id = node->component_id;
+            if( out_node_index )
+                *out_node_index = idx;
             return &hooks->on_op;
         }
         if( hooks->on_click.script_id > 0 )
         {
             *out_component_id = node->component_id;
+            if( out_node_index )
+                *out_node_index = idx;
             return &hooks->on_click;
         }
     }
     return NULL;
+}
+
+struct UITreeRuntimeScriptHook const*
+UITree_ResolveClickHook(
+    struct UITree* tree,
+    int32_t leaf_index,
+    int* out_component_id)
+{
+    return resolve_click_hook(tree, leaf_index, out_component_id, NULL);
 }
 
 /* Innermost vertically-scrollable IF1 RS_LAYER whose bounds contain (mx,my), by
@@ -103,7 +256,7 @@ find_wheel_scroll_layer(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_LAYER || c->if3 || c->freed || c->component_id < 0 )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+        if( UITree_NodeOrAncestorDisplayHidden(tree, i) )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
@@ -156,7 +309,7 @@ find_wheel_hook_component(
             continue;
         if( UITree_Hooks(c)->on_scroll_wheel.script_id <= 0 )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+        if( UITree_NodeOrAncestorDisplayHidden(tree, idx) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         if( bw <= 0 || bh <= 0 )
@@ -184,8 +337,8 @@ find_wheel_hook_component(
  * still receive keys, and scripts self-gate on varcs.
  *
  * The flat array scan is equivalent to the reference's DFS for membership:
- * UITree_ComponentOrAncestorHidden encodes the same "hidden subtree is pruned"
- * rule, mounted sub-interfaces are reparented into this same array (so they need
+ * UITree_ComponentOrAncestorDisplayHidden encodes the same hidden-subtree
+ * rule; mounted sub-interfaces are reparented into this same array (so they need
  * no separate pass as they do in the reference), and an array scan cannot
  * produce the duplicates the reference has to dedupe. Only enumeration ORDER
  * differs -- build order rather than DFS pre-order, diverging once CC_CREATE
@@ -231,11 +384,13 @@ collect_key_targets(
             mask |= UI_KEY_HOOK_UP;
         if( !mask )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+        if( UITree_NodeOrAncestorDisplayHidden(tree, idx) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         UITree_AccumScrollOffset(tree, idx, &offx, &offy);
         out_targets[count].component_id = c->component_id;
+        out_targets[count].node_index = idx;
+        out_targets[count].node_incarnation = c->incarnation;
         out_targets[count].abs_x = bx - offx;
         out_targets[count].abs_y = by - offy;
         out_targets[count].hooks = mask;
@@ -247,6 +402,27 @@ collect_key_targets(
 /* Reference event ctx passes mouse coords relative to the component's drawn
  * (screen) position (OsrsClient hover dispatch, coords relative to _absX/Y). */
 static void
+hover_event_coords_node(
+    struct UITree* tree,
+    int32_t idx,
+    int mouse_x,
+    int mouse_y,
+    struct UIIntent* intent)
+{
+    int bx = 0, by = 0, bw = 0, bh = 0;
+    int offx = 0, offy = 0;
+
+    if( idx < 0 || (uint32_t)idx >= tree->component_count ||
+        tree->components[idx].freed )
+        return;
+    UITree_LayoutGetBounds(&tree->components[idx].position, &bx, &by, &bw, &bh);
+    UITree_AccumScrollOffset(tree, idx, &offx, &offy);
+    intent->has_event_mouse = 1;
+    intent->event_mouse_x = mouse_x - (bx - offx);
+    intent->event_mouse_y = mouse_y - (by - offy);
+}
+
+static void
 hover_event_coords(
     struct UITree* tree,
     int component_id,
@@ -254,18 +430,8 @@ hover_event_coords(
     int mouse_y,
     struct UIIntent* intent)
 {
-    int32_t idx;
-    int bx = 0, by = 0, bw = 0, bh = 0;
-    int offx = 0, offy = 0;
-
-    idx = UITree_FindByComponentId(tree, component_id);
-    if( idx < 0 )
-        return;
-    UITree_LayoutGetBounds(&tree->components[idx].position, &bx, &by, &bw, &bh);
-    UITree_AccumScrollOffset(tree, idx, &offx, &offy);
-    intent->has_event_mouse = 1;
-    intent->event_mouse_x = mouse_x - (bx - offx);
-    intent->event_mouse_y = mouse_y - (by - offy);
+    hover_event_coords_node(
+        tree, UITree_FindByComponentId(tree, component_id), mouse_x, mouse_y, intent);
 }
 
 static struct UITreeRuntimeScriptHook const*
@@ -279,6 +445,8 @@ hook_by_component_id(
         return NULL;
     idx = UITree_FindByComponentId(tree, component_id);
     if( idx < 0 )
+        return NULL;
+    if( UITree_NodeOrAncestorDisplayHidden(tree, idx) )
         return NULL;
     return pick(&tree->components[idx]);
 }
@@ -315,6 +483,8 @@ bridge_input_to_uitree(
     struct LibToriRS_Input* input)
 {
     struct UIInputResult last;
+    struct UIInputResult pressed;
+    int press_clicked = 0;
     struct UIInputEvent move = {
         .kind = UI_INPUT_MOVE,
         .x = input->curr.mouse_x,
@@ -333,6 +503,8 @@ bridge_input_to_uitree(
             .button = TORIRSM_LEFT,
         };
         last = UITree_InputUpdate(ui_state, tree, host, down);
+        pressed = last;
+        press_clicked = last.press_click && last.clicked >= 0;
     }
 
     if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
@@ -344,6 +516,30 @@ bridge_input_to_uitree(
             .button = TORIRSM_LEFT,
         };
         last = UITree_InputUpdate(ui_state, tree, host, up);
+        /* The press and its release in ONE frame: a finger (the touch layer
+         * pushes move, down and up together), or a mouse clicked faster
+         * than a frame. The DOWN already fired the component's press-edge
+         * click and told the UP to stay quiet about it, so the UP's result
+         * says "clicked nothing" -- and returning only the last result lost
+         * the click. Carry the press-edge click across; the release's own
+         * fields (drag end, released source) are the UP's. A mouse spread
+         * over frames never takes this branch: its DOWN result was returned
+         * on its own frame. */
+        if( press_clicked && last.clicked < 0 )
+        {
+            last.clicked = pressed.clicked;
+            last.press_click = 1;
+        }
+        /* TORIRS_LOGIN_DEBUG=1: where a click landed and what it hit.
+         *
+         * The pair of questions a dead button raises -- did the click reach
+         * the tree at all, and did the tree resolve it to a component -- and
+         * the only place both are answerable at once. `clicked` is -1 for a
+         * press the tree hit-tested to nothing, which is what a component that
+         * takes no clicks (a login field) reports too. */
+        if( getenv("TORIRS_LOGIN_DEBUG") )
+            fprintf(stderr, "ui_click: x=%d y=%d hovered=%d clicked=%d\n",
+                up.x, up.y, (int)last.hovered, (int)last.clicked);
     }
     else if( LibToriRS_Input_IsDragEnd(input, TORIRSM_LEFT) )
     {
@@ -364,10 +560,234 @@ bridge_input_to_uitree(
     return last;
 }
 
+static int
+touch_scroll_debug(void)
+{
+    static int armed = -1;
+    if( armed < 0 )
+        armed = getenv("TORIRS_TOUCH_DEBUG") ? 1 : 0;
+    return armed;
+}
+
+/*
+ * Swipe-to-scroll (UIInteraction::touch_scroll). Returns 1 while the finger
+ * owns the pointer; the caller then keeps the generic press/click/drag path
+ * from seeing it, as it does for a scrollbar grip.
+ *
+ * Only a HELD left press claims: the touch layer sends a press on its own
+ * when the finger has already travelled past its slop (a drag), and a tap
+ * as press-and-release in one frame, which IsClick tells apart. The layer
+ * is the nearest scrollable ancestor of whatever is under the finger --
+ * an item, a row, or the layer's own blank space -- so a list scrolls from
+ * anywhere inside it, which is what a phone expects. A layer that does not
+ * need to scroll claims nothing, so an inventory slot still drags.
+ */
+/*
+ * The layer a swipe scrolls: the innermost one that can scroll vertically and
+ * whose box holds the point.
+ *
+ * Deliberately NOT a hit test. The hit test answers "what is on top here",
+ * and what is on top of a finger is the touch marker -- which follows the
+ * finger by construction, so every swipe would find it and nothing else. It
+ * also answers -1 over the blank space between a list's rows, which is
+ * exactly where a thumb lands. The question here is containment, not
+ * occlusion, so it is asked directly.
+ *
+ * Innermost wins by area, so a list inside a panel takes the gesture from the
+ * panel. Hidden layers are not there to be scrolled.
+ */
+static int32_t
+touch_scroll_layer_at(
+    struct UITree* tree,
+    int x,
+    int y)
+{
+    int32_t best = -1;
+    int64_t best_area = 0;
+    int si;
+
+    assert(tree);
+    for( si = 0; si < tree->scroll_layers.count; si++ )
+    {
+        int32_t const i = tree->scroll_layers.slots[si];
+        struct UITreeComponent const* c;
+        int bx = 0, by = 0, bw = 0, bh = 0;
+        int64_t area;
+
+        assert(i >= 0 && (uint32_t)i < tree->component_count);
+        c = &tree->components[i];
+        if( c->freed || c->type != UIELEM_RS_LAYER )
+            continue;
+        if( !UITree_ScrollLayerNeedsVertical(c) )
+            continue;
+        UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+        if( bw <= 0 || bh <= 0 )
+            continue;
+        if( x < bx || x >= bx + bw || y < by || y >= by + bh )
+            continue;
+        if( UITree_NodeOrAncestorDisplayHidden(tree, (int32_t)i) )
+            continue;
+        area = (int64_t)bw * (int64_t)bh;
+        if( best < 0 || area < best_area )
+        {
+            best = (int32_t)i;
+            best_area = area;
+        }
+    }
+    return best;
+}
+
+static int
+touch_scroll_capture_live(
+    struct UIInteraction const* interact,
+    struct UITree const* tree)
+{
+    assert(interact);
+    assert(tree);
+    if( interact->ts_layer < 0 ||
+        (uint32_t)interact->ts_layer >= tree->component_count )
+        return 0;
+    return !tree->components[interact->ts_layer].freed &&
+           interact->ts_incarnation != 0 &&
+           tree->components[interact->ts_layer].incarnation ==
+               interact->ts_incarnation &&
+           !UITree_NodeOrAncestorDisplayHidden(tree, interact->ts_layer);
+}
+
+static void
+interact_cancel_hidden_touch_capture(
+    struct UIInteraction* interact,
+    struct UITree const* tree)
+{
+    assert(interact);
+    assert(tree);
+    if( interact->ts_layer < 0 || touch_scroll_capture_live(interact, tree) )
+        return;
+    interact->ts_layer = -1;
+    interact->ts_incarnation = 0;
+    interact->ts_press_cancelled = 1;
+}
+
+static int
+interact_touch_scroll(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct LibToriRS_Input* input,
+    struct UIInteractOut* out)
+{
+    int const mx = input->curr.mouse_x;
+    int const my = input->curr.mouse_y;
+
+    if( !interact->touch_scroll )
+        return 0;
+    if( interact->ts_press_cancelled )
+    {
+        out->cancelled_pointer_click = 1;
+        if( LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+            return 1;
+        interact->ts_press_cancelled = 0;
+        return 1;
+    }
+    /* TORIRS_TOUCH_DEBUG=1: why a swipe did or did not take. The press edge
+     * is the only interesting frame -- what was under the finger, and which
+     * ancestor (if any) was a layer with somewhere to scroll. */
+    if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) && touch_scroll_debug() )
+    {
+        int32_t probe = touch_scroll_layer_at(tree, mx, my);
+        TORIRS_REPORT("swipe: press at %d,%d layer=%d click=%d\n", mx, my, (int)probe,
+            (int)LibToriRS_Input_IsClick(input, TORIRSM_LEFT));
+        if( probe >= 0 )
+        {
+            struct UITreeComponent const* c = &tree->components[probe];
+            int bx = 0, by = 0, bw = 0, bh = 0;
+            UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
+            TORIRS_REPORT("swipe:   com=0x%x box=%d,%d %dx%d scroll_h=%d at %d\n",
+                (unsigned)c->component_id, bx, by, bw, bh, c->u.rs_layer.scroll_height,
+                c->scroll_y);
+        }
+    }
+    if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) &&
+        !LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
+    {
+        int32_t node = touch_scroll_layer_at(tree, mx, my);
+        interact->ts_layer = node;
+        if( node >= 0 )
+        {
+            struct UITreeComponent const* c = &tree->components[node];
+            interact->ts_incarnation = c->incarnation;
+            interact->ts_press_y = my;
+            interact->ts_start_scroll_y = c->scroll_y;
+        }
+    }
+    if( interact->ts_layer < 0 )
+        return 0;
+    if( (uint32_t)interact->ts_layer >= tree->component_count ||
+        tree->components[interact->ts_layer].incarnation != interact->ts_incarnation ||
+        !touch_scroll_capture_live(interact, tree) )
+    {
+        interact->ts_layer = -1;
+        interact->ts_incarnation = 0;
+        interact->ts_press_cancelled = 1;
+        out->cancelled_pointer_click = 1;
+        return 1;
+    }
+    if( !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+    {
+        /* The finger lifted: the release is the gesture's, not a click. */
+        interact->ts_layer = -1;
+        interact->ts_incarnation = 0;
+        out->cancelled_pointer_click = 1;
+        return 1;
+    }
+    {
+        struct UITreeComponent* layer = &tree->components[interact->ts_layer];
+        int const before = layer->scroll_y;
+        UITree_SetScrollPosAt(
+            tree, interact->ts_layer, layer->scroll_x,
+            interact->ts_start_scroll_y - (my - interact->ts_press_y));
+        /*
+         * Tell the interface its list moved, so a script-drawn scrollbar
+         * follows the finger.
+         *
+         * These scrollbars are CS2, not chrome: the bar and its dragger are
+         * components the cache builds, and the ONLY thing that repositions the
+         * dragger is `~scrollbar_vertical_setdragger`, reached through the
+         * content layer's own onScrollWheel hook. Moving `scroll_y` from here
+         * scrolled the list and left the dragger where it was.
+         *
+         * The wheel delta is ZERO on purpose. The handler is
+         * `pos + step * 45` -> `doscroll` -> reposition the dragger: a zero
+         * step re-applies the position this gesture just set (so the finger
+         * keeps its 1:1 travel, rather than the wheel's notches) and still
+         * runs the half that moves the dragger.
+         */
+        if( layer->scroll_y != before &&
+            UITree_Hooks(layer)->on_scroll_wheel.script_id > 0 )
+        {
+            int bx = 0, by = 0, bw = 0, bh = 0;
+            int offx = 0, offy = 0;
+            struct UIIntent intent = {
+                .component_id = layer->component_id,
+                .hook = &UITree_Hooks(layer)->on_scroll_wheel,
+            };
+            intent_bind_node(tree, &intent, interact->ts_layer);
+            UITree_LayoutGetBounds(&layer->position, &bx, &by, &bw, &bh);
+            UITree_AccumScrollOffset(tree, interact->ts_layer, &offx, &offy);
+            intent.has_event_mouse = 1;
+            intent.event_mouse_x = mx - (bx - offx);
+            intent.event_mouse_y = 0;
+            intent_push(tree, out, &intent);
+        }
+    }
+    out->cancelled_pointer_click = 1;
+    return 1;
+}
+
 /* IF1 scrollbars are emit-drawn (not draggable components), so they have no
  * place in the generic input path. Intercept the bar strip before the pointer
- * bridge can hand the press to the object-drag system and drive
- * component->scroll_x/y directly. Returns 1 while the bar owns the mouse. */
+ * bridge can hand the press to the object-drag system; the scrollbar helper
+ * publishes its result through the typed setter. Returns 1 while the bar owns
+ * the mouse. */
 static int
 interact_scrollbars(
     struct UIInteraction* interact,
@@ -382,9 +802,38 @@ interact_scrollbars(
     int left_down = LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT);
     int consumed = 0;
 
+    if( interact->sb_press_cancelled )
+    {
+        /* display:none cancels capture, but the press remains owned until its
+         * release.  Otherwise a housing hidden halfway through a grip drag
+         * hands the still-held button to the new control underneath. */
+        out->cancelled_pointer_click = 1;
+        if( left_held )
+            return 1;
+        interact->sb_press_cancelled = 0;
+        return 1;
+    }
+
+    if( interact->sb_arrow_held &&
+        !scrollbar_capture_live(tree, &interact->sb_drag_hit) )
+    {
+        interact->sb_arrow_held = 0;
+        interact->sb_press_cancelled = 1;
+        out->cancelled_pointer_click = 1;
+        return 1;
+    }
+
     if( interact->sb_dragging )
     {
         consumed = 1;
+        if( !scrollbar_capture_live(tree, &interact->sb_drag_hit) )
+        {
+            interact->sb_dragging = 0;
+            interact->sb_arrow_held = 0;
+            interact->sb_press_cancelled = 1;
+            out->cancelled_pointer_click = 1;
+            return 1;
+        }
         if( left_held )
         {
             if( UITree_ScrollbarHandle(
@@ -404,13 +853,25 @@ interact_scrollbars(
         struct UITreeScrollbarHitInfo hit;
         if( UITree_FindScrollbarAt(tree, ui_host, mx, my, &hit) )
         {
+            /* One physical press keeps one capture. Moving a held arrow onto
+             * another bar must not transfer the gesture, especially when the
+             * original disappeared under a plugin replacement. */
+            if( interact->sb_arrow_held &&
+                hit.layer_index != interact->sb_drag_hit.layer_index )
+                return 1;
+            if( left_down && torirs_trace_scrollbar() )
+                scrollbar_trace_claim(tree, &hit, mx, my);
             /* Never let this press become an object-drag source. */
             interact->input_state.drag_source_idx = -1;
+            interact->input_state.drag_source_incarnation = 0;
             interact->input_state.drag_source_id = -1;
             interact->input_state.pressed = -1;
+            interact->input_state.pressed_incarnation = 0;
             consumed = 1;
             if( UITree_ScrollbarIsArrowKind(hit.kind) )
             {
+                if( left_down )
+                    interact->sb_drag_hit = hit;
                 interact->sb_arrow_held = 1;
                 if( UITree_ScrollbarHandle(
                         tree, &hit, mx, my, UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0) )
@@ -450,6 +911,30 @@ interact_scrollbars(
     return interact->sb_dragging || interact->sb_arrow_held || consumed;
 }
 
+static void
+interact_cancel_hidden_scrollbar_capture(
+    struct UIInteraction* interact,
+    struct UITree const* tree,
+    struct LibToriRS_Input* input)
+{
+    (void)input;
+    assert(interact);
+    assert(tree);
+    assert(input);
+
+    if( !interact->sb_dragging && !interact->sb_arrow_held )
+        return;
+    if( scrollbar_capture_live(tree, &interact->sb_drag_hit) )
+        return;
+    interact->sb_dragging = 0;
+    interact->sb_arrow_held = 0;
+    /* Keep a one-frame cancellation token even when this is the mouse-up
+     * frame. `held` is already false then, but the release still belongs to
+     * the scrollbar that just disappeared. interact_scrollbars consumes and
+     * retires the token below. */
+    interact->sb_press_cancelled = 1;
+}
+
 /* Mouse wheel. IF1: natively step scroll_y of the layer under the cursor.
  * IF3: dispatch the innermost CS2 onScroll handler under the cursor with
  * event mouse = (mx relative to the component, +/-1 wheel step) — reference
@@ -473,10 +958,18 @@ interact_wheel(
     layer_idx = find_wheel_scroll_layer(tree, mx, my);
     if( layer_idx >= 0 )
     {
-        struct UITreeComponent* layer = &tree->components[layer_idx];
+        struct UITreeComponent const* layer = &tree->components[layer_idx];
+        int sx;
+        int sy;
+        int const max_y = UITree_ScrollMaxY(layer);
+        UITree_ScrollGetClamped(layer, &sx, &sy);
         /* Wheel up (positive) scrolls content up -> scroll_y down. */
-        layer->scroll_y -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
-        UITree_ScrollClampComponent(layer);
+        sy -= input->curr.mouse_wheel_y * UITREE_SCROLLBAR_WHEEL_STEP;
+        if( sy < 0 )
+            sy = 0;
+        if( sy > max_y )
+            sy = max_y;
+        (void)UITree_SetScrollPosAt(tree, layer_idx, sx, sy);
         out->wheel_consumed = 1;
         out->need_redraw = 1;
         return;
@@ -494,6 +987,7 @@ interact_wheel(
             .component_id = c->component_id,
             .hook = &UITree_Hooks(c)->on_scroll_wheel,
         };
+        intent_bind_node(tree, &intent, hook_idx);
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         UITree_AccumScrollOffset(tree, hook_idx, &offx, &offy);
         intent.has_event_mouse = 1;
@@ -501,7 +995,7 @@ interact_wheel(
         /* Our wheel-up is positive; reference wheelStep is +1 for wheel-down
          * (browser deltaY > 0). */
         intent.event_mouse_y = input->curr.mouse_wheel_y > 0 ? -1 : 1;
-        intent_push(out, &intent);
+        intent_push(tree, out, &intent);
         /* A targeted onScroll handler owns the wheel just like a native IF1
          * scroll layer. Letting the same notch continue to app-level gestures
          * makes an interface over the viewport scroll and zoom the world at
@@ -537,6 +1031,13 @@ interact_drag_push_ondrag(
         .has_drag_target = 1,
         .drag_target_id = st->drag_target_id,
     };
+    intent_bind_node(tree, &intent, st->drag_source_idx);
+    if( st->drag_target_idx >= 0 && st->drag_target_incarnation != 0 )
+    {
+        intent.has_drag_target_identity = 1;
+        intent.drag_target_node_index = st->drag_target_idx;
+        intent.drag_target_node_incarnation = st->drag_target_incarnation;
+    }
     if( src->drag_render_area_uid >= 0 )
     {
         int32_t area = UITree_ResolveDragRenderArea(tree, src);
@@ -565,15 +1066,18 @@ interact_drag_push_ondrag(
      * area (the track for a scrollbar dragger), folded back into
      * content space via the area's scroll. */
     intent.has_event_mouse = 1;
-    intent.event_mouse_x = src->drag_visual_x - parent_x +
-                           (parent_idx >= 0 ? tree->components[parent_idx].scroll_x : 0);
-    intent.event_mouse_y = src->drag_visual_y - parent_y +
-                           (parent_idx >= 0 ? tree->components[parent_idx].scroll_y : 0);
+    {
+        int parent_scroll_x = 0;
+        int parent_scroll_y = 0;
+        if( parent_idx >= 0 && tree->components[parent_idx].type == UIELEM_RS_LAYER )
+            UITree_ScrollGetClamped(
+                &tree->components[parent_idx], &parent_scroll_x, &parent_scroll_y);
+        intent.event_mouse_x = src->drag_visual_x - parent_x + parent_scroll_x;
+        intent.event_mouse_y = src->drag_visual_y - parent_y + parent_scroll_y;
+    }
     if( torirs_trace_drag() )
     {
-        fprintf(
-            stderr,
-            "TORIRS_TRACE_DRAG on_drag src=%d area=%d area_uid=%d area_xywh=%d,%d,%d,%d "
+        TORIRS_LOG("TORIRS_TRACE_DRAG on_drag src=%d area=%d area_uid=%d area_xywh=%d,%d,%d,%d "
             "visual_y=%d parent_y=%d event_y=%d hook=%d\n",
             st->drag_source_id,
             parent_idx >= 0 ? tree->components[parent_idx].component_id : -1,
@@ -587,7 +1091,7 @@ interact_drag_push_ondrag(
             intent.event_mouse_y,
             intent.hook ? intent.hook->script_id : -1);
     }
-    intent_push(out, &intent);
+    intent_push(tree, out, &intent);
     out->need_redraw = 1;
 }
 
@@ -607,7 +1111,6 @@ interact_drag_consume_pending(
     struct UITreeComponent* src;
     int mx;
     int my;
-    int pending_id;
     int pending_x;
     int pending_y;
 
@@ -621,7 +1124,6 @@ interact_drag_consume_pending(
 
     /* Snapshot then clear only after accept — a refuse must not drop the
      * request when a live drag blocks it (next frame may be free). */
-    pending_id = tree->pending_drag_pickup_id;
     pending_x = tree->pending_drag_pickup_x;
     pending_y = tree->pending_drag_pickup_y;
 
@@ -635,8 +1137,8 @@ interact_drag_consume_pending(
         return 0;
     }
 
-    idx = UITree_FindByComponentId(tree, pending_id);
-    if( idx < 0 )
+    idx = UITree_ResolveRef(tree, tree->pending_drag_pickup_ref);
+    if( idx < 0 || UITree_NodeOrAncestorDisplayHidden(tree, idx) )
     {
         tree->pending_drag_pickup = 0;
         return 0;
@@ -657,6 +1159,7 @@ interact_drag_consume_pending(
     my = input->curr.mouse_y;
 
     st->drag_source_idx = idx;
+    st->drag_source_incarnation = src->incarnation;
     st->drag_source_id = src->component_id;
     st->drag_pickup_x = pending_x;
     st->drag_pickup_y = pending_y;
@@ -664,6 +1167,8 @@ interact_drag_consume_pending(
     st->drag_click_y = my;
     st->drag_duration = 0;
     st->drag_target_id = -1;
+    st->drag_target_idx = -1;
+    st->drag_target_incarnation = 0;
     st->deferred_click = 0;
     /* Force active immediately: scripted pickup (scrollbar track jump) has
      * already chosen the grab offset; there is no deadzone to wait out. */
@@ -677,9 +1182,7 @@ interact_drag_consume_pending(
 
     if( torirs_trace_drag() )
     {
-        fprintf(
-            stderr,
-            "TORIRS_TRACE_DRAG pickup id=%d pickup_xy=%d,%d held=%d visual_y=%d\n",
+        TORIRS_LOG("TORIRS_TRACE_DRAG pickup id=%d pickup_xy=%d,%d held=%d visual_y=%d\n",
             src->component_id,
             pending_x,
             pending_y,
@@ -702,17 +1205,27 @@ interact_drag_consume_pending(
             .event_mouse_x = 0,
             .event_mouse_y = 0,
         };
+        intent_bind_node(tree, &complete, idx);
+        if( st->drag_target_idx >= 0 && st->drag_target_incarnation != 0 )
+        {
+            complete.has_drag_target_identity = 1;
+            complete.drag_target_node_index = st->drag_target_idx;
+            complete.drag_target_node_incarnation = st->drag_target_incarnation;
+        }
         if( out->intent_count > 0 )
         {
             complete.event_mouse_x = out->intents[out->intent_count - 1].event_mouse_x;
             complete.event_mouse_y = out->intents[out->intent_count - 1].event_mouse_y;
         }
-        intent_push(out, &complete);
+        intent_push(tree, out, &complete);
         UITree_SetComponentDragActive(tree, idx, 0);
         st->drag_active = 0;
         st->drag_source_idx = -1;
+        st->drag_source_incarnation = 0;
         st->drag_source_id = -1;
         st->drag_target_id = -1;
+        st->drag_target_idx = -1;
+        st->drag_target_incarnation = 0;
     }
     return 1;
 }
@@ -733,8 +1246,11 @@ UITree_InteractConsumePendingDragPickup(
     assert(out);
 
     memset(out, 0, sizeof(*out));
+    /* 0 is a real filter (public), so the empty state has to be stated. */
+    out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->clicked_node = -1;
     out->minimenu_select = -1;
 
     left_held = LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
@@ -788,7 +1304,25 @@ interact_drag(
                 .has_drag_target = 1,
                 .drag_target_id = ui_result->drag_target_id,
             };
-            intent_push(out, &intent);
+            if( ui_result->drag_source_idx >= 0 &&
+                ui_result->drag_source_incarnation != 0 )
+            {
+                /* Bind the historical identity even if it went stale after
+                 * InputUpdate. intent_push must not resolve a rebuilt same-id
+                 * node and transfer drag completion to it. */
+                intent.has_node_identity = 1;
+                intent.node_index = ui_result->drag_source_idx;
+                intent.node_incarnation = ui_result->drag_source_incarnation;
+            }
+            if( ui_result->drag_target_idx >= 0 &&
+                ui_result->drag_target_incarnation != 0 )
+            {
+                intent.has_drag_target_identity = 1;
+                intent.drag_target_node_index = ui_result->drag_target_idx;
+                intent.drag_target_node_incarnation =
+                    ui_result->drag_target_incarnation;
+            }
+            intent_push(tree, out, &intent);
         }
         out->need_redraw = 1;
     }
@@ -813,6 +1347,8 @@ interact_hold(
         return;
     if( st->pressed < 0 || (uint32_t)st->pressed >= tree->component_count )
         return;
+    if( UITree_NodeOrAncestorDisplayHidden(tree, st->pressed) )
+        return;
 
     {
         struct UITreeComponent* c = &tree->components[st->pressed];
@@ -830,7 +1366,8 @@ interact_hold(
                 .event_mouse_x = input->curr.mouse_x - (bx - offx),
                 .event_mouse_y = input->curr.mouse_y - (by - offy),
             };
-            intent_push(out, &intent);
+            intent_bind_node(tree, &intent, st->pressed);
+            intent_push(tree, out, &intent);
             out->need_redraw = 1;
         }
         if( hooks->on_click_repeat.script_id > 0 )
@@ -842,7 +1379,8 @@ interact_hold(
                 .event_mouse_x = input->curr.mouse_x - (bx - offx),
                 .event_mouse_y = input->curr.mouse_y - (by - offy),
             };
-            intent_push(out, &intent);
+            intent_bind_node(tree, &intent, st->pressed);
+            intent_push(tree, out, &intent);
             out->need_redraw = 1;
         }
     }
@@ -865,7 +1403,9 @@ interact_release(
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
     c = &tree->components[idx];
-    if( c->freed || c->component_id != ui_result->released_source_id )
+    if( c->freed || c->incarnation != ui_result->released_source_incarnation ||
+        c->component_id != ui_result->released_source_id ||
+        UITree_NodeOrAncestorDisplayHidden(tree, idx) )
         return;
     hook = &UITree_Hooks(c)->on_release;
     if( hook->script_id <= 0 )
@@ -873,9 +1413,10 @@ interact_release(
     memset(&intent, 0, sizeof(intent));
     intent.component_id = c->component_id;
     intent.hook = hook;
+    intent_bind_node(tree, &intent, idx);
     hover_event_coords(
         tree, c->component_id, input->curr.mouse_x, input->curr.mouse_y, &intent);
-    intent_push(out, &intent);
+    intent_push(tree, out, &intent);
     out->need_redraw = 1;
 }
 
@@ -886,10 +1427,14 @@ interact_hover(
     struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     uint64_t now_ms,
+    int pointer_owned,
     struct UIInteractOut* out)
 {
     int mx = input->curr.mouse_x;
     int my = input->curr.mouse_y;
+    int exact_changed;
+
+    (void)now_ms;
 
     /* The host is load-bearing, not optional: without it the hover walk cannot
      * ask which sidebar tab is selected, so it descends into EVERY tab's
@@ -897,32 +1442,64 @@ interact_hover(
      * addComponentOptions), components from tabs that are not even on screen
      * then override the visible ones — which showed up as stat cells having a
      * hover box a few pixels tall. */
-    interact->hover_com_id = UITree_FindHoveredComponentIdForRegion(
-        tree, ui_host, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /* An overlay above the tree owns this point, so nothing under it is
+     * hovered. Run the walk anyway -- with no hit -- rather than returning
+     * early: the component that WAS hovered has an onMouseLeave owed to it,
+     * and skipping the pass would leave it lit under the panel. */
+    interact->hover_com_id =
+        pointer_owned ? -1
+                      : UITree_FindHoveredComponentIdForRegion(
+                            tree, ui_host, -1, mx, my, 0, 0, UITREE_LAYOUT_ROOT_W,
+                            UITREE_LAYOUT_ROOT_H);
 
-    if( interact->hover_com_id != interact->prev_hover_com_id )
+    interact->hover_node_index = -1;
+    interact->hover_node_incarnation = 0;
+    if( interact->hover_com_id >= 0 )
     {
-        if( interact->prev_hover_com_id >= 0 )
+        int32_t const idx = UITree_FindByComponentId(tree, interact->hover_com_id);
+        if( idx >= 0 && (uint32_t)idx < tree->component_count &&
+            !tree->components[idx].freed &&
+            !UITree_NodeOrAncestorDisplayHidden(tree, idx) )
+        {
+            interact->hover_node_index = idx;
+            interact->hover_node_incarnation = tree->components[idx].incarnation;
+        }
+    }
+
+    exact_changed = interact->hover_com_id != interact->prev_hover_com_id ||
+                    interact->hover_node_index != interact->prev_hover_node_index ||
+                    interact->hover_node_incarnation != interact->prev_hover_node_incarnation;
+    if( exact_changed )
+    {
+        int32_t const prev = interact->prev_hover_node_index;
+        if( interact->prev_hover_com_id >= 0 && prev >= 0 &&
+            (uint32_t)prev < tree->component_count && !tree->components[prev].freed &&
+            tree->components[prev].incarnation == interact->prev_hover_node_incarnation &&
+            tree->components[prev].component_id == interact->prev_hover_com_id &&
+            !UITree_NodeOrAncestorDisplayHidden(tree, prev) )
         {
             struct UIIntent intent = {
                 .component_id = interact->prev_hover_com_id,
-                .hook = hook_by_component_id(
-                    tree, interact->prev_hover_com_id, pick_on_mouse_leave),
+                .hook = pick_on_mouse_leave(&tree->components[prev]),
             };
-            hover_event_coords(tree, interact->prev_hover_com_id, mx, my, &intent);
-            intent_push(out, &intent);
+            intent_bind_node(tree, &intent, prev);
+            hover_event_coords_node(tree, prev, mx, my, &intent);
+            intent_push(tree, out, &intent);
         }
-        if( interact->hover_com_id >= 0 )
+        if( interact->hover_com_id >= 0 && interact->hover_node_index >= 0 )
         {
+            int32_t const curr = interact->hover_node_index;
             struct UIIntent intent = {
                 .component_id = interact->hover_com_id,
-                .hook = hook_by_component_id(
-                    tree, interact->hover_com_id, pick_on_mouse_over),
+                .hook = pick_on_mouse_over(&tree->components[curr]),
             };
-            hover_event_coords(tree, interact->hover_com_id, mx, my, &intent);
-            intent_push(out, &intent);
+            intent_bind_node(tree, &intent, curr);
+            hover_event_coords_node(tree, curr, mx, my, &intent);
+            intent_push(tree, out, &intent);
         }
         interact->prev_hover_com_id = interact->hover_com_id;
+        interact->prev_hover_node_index = interact->hover_node_index;
+        interact->prev_hover_node_incarnation = interact->hover_node_incarnation;
         out->need_redraw = 1;
     }
 
@@ -930,10 +1507,12 @@ interact_hover(
      * cycle (reference gates on cycleCntr; 20ms game tick). Keyed on the cycle
      * the app is in, NOT on elapsed milliseconds — see client_cycle in the
      * header for why the difference is visible. */
-    if( interact->hover_com_id >= 0 && interact->client_cycle != interact->last_repeat_cycle )
+    if( interact->hover_com_id >= 0 && interact->hover_node_index >= 0 &&
+        interact->client_cycle != interact->last_repeat_cycle )
     {
-        struct UITreeRuntimeScriptHook const* repeat_hook = hook_by_component_id(
-            tree, interact->hover_com_id, pick_on_mouse_repeat);
+        int32_t const curr = interact->hover_node_index;
+        struct UITreeRuntimeScriptHook const* repeat_hook =
+            pick_on_mouse_repeat(&tree->components[curr]);
         interact->last_repeat_cycle = interact->client_cycle;
         if( repeat_hook && repeat_hook->script_id > 0 )
         {
@@ -941,8 +1520,9 @@ interact_hover(
                 .component_id = interact->hover_com_id,
                 .hook = repeat_hook,
             };
-            hover_event_coords(tree, interact->hover_com_id, mx, my, &intent);
-            intent_push(out, &intent);
+            intent_bind_node(tree, &intent, curr);
+            hover_event_coords_node(tree, curr, mx, my, &intent);
+            intent_push(tree, out, &intent);
         }
     }
 
@@ -960,6 +1540,7 @@ static int
 interact_minimenu(
     struct UIInteraction* interact,
     struct LibToriRS_Input* input,
+    int pointer_owned,
     struct UIInteractOut* out)
 {
     struct UIMinimenu* menu = &interact->minimenu;
@@ -971,7 +1552,9 @@ interact_minimenu(
          * loss, drag) cannot eat this click. */
         if( LibToriRS_Input_IsMouseDown(input, TORIRSM_LEFT) )
             interact->swallow_left_click = 0;
-        if( LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT) )
+        /* No menu for a right press an overlay owns: the rows would describe
+         * whatever the panel is drawn over. */
+        if( !pointer_owned && LibToriRS_Input_IsMouseDown(input, TORIRSM_RIGHT) )
         {
             out->right_click = 1;
             out->right_click_x = input->curr.mouse_x;
@@ -1045,6 +1628,7 @@ interact_click(
 {
     struct UITreeRuntimeScriptHook const* click_hook = NULL;
     int hook_com_id = -1;
+    int32_t hook_node_index = -1;
     int32_t ihit;
     int click_x;
     int click_y;
@@ -1098,11 +1682,53 @@ interact_click(
         }
         if( hit_c->type == UIELEM_BUILTIN_CHAT_BUTTON )
         {
-            struct UITreeHostRequest cycle_req = {
-                .kind = UITREE_HOST_CYCLE_CHAT_FILTER_MODE,
-                .u.chat_filter.filter = (int)hit_c->u.chat_button.filter,
+            /* Reported, not cycled. @see UITreeInteractOut::chat_button_filter
+             * -- a plugin layout may own this rectangle, and a filter cycled
+             * here is one nothing downstream can put back. */
+            out->chat_button_filter = (int)UITree_ChatButton(hit_c)->filter;
+            out->need_redraw = 1;
+            return;
+        }
+        if( hit_c->type == UIELEM_BUILTIN_LOGIN_TOGGLE )
+        {
+            /* Same dispatch as the button below -- the action is resolved on
+             * the node and the host owns what it changes. */
+            struct UITreeHostRequest action_req = {
+                .kind = UITREE_HOST_TITLE_ACTION,
+                .u.title_action.action = hit_c->u.login_toggle.action,
             };
-            UITree_Host(ui_host, &cycle_req);
+            UITree_Host(ui_host, &action_req);
+            out->need_redraw = 1;
+            return;
+        }
+        if( hit_c->type == UIELEM_BUILTIN_LOGIN_BUTTON )
+        {
+            /* Dispatched here rather than reported like the chat button: the
+             * title screen has no plugin layer that could own this rectangle,
+             * and the action is already resolved on the node. The hit box is
+             * the node's own layout box, which is what keeps click and draw
+             * from drifting -- both references compute the two from different
+             * origins and only agree by arithmetic coincidence. */
+            struct UITreeHostRequest action_req = {
+                .kind = UITREE_HOST_TITLE_ACTION,
+                .u.title_action.action = hit_c->u.login_button.action,
+            };
+            UITree_Host(ui_host, &action_req);
+            out->need_redraw = 1;
+            return;
+        }
+        if( hit_c->type == UIELEM_BUILTIN_LOGIN_INPUT )
+        {
+            /* Click-to-focus. The reference tests only the y band and never
+             * the x, so a click anywhere on the row lands -- reproduced by
+             * making the row's own box the target. */
+            struct UITreeHostRequest action_req = {
+                .kind = UITREE_HOST_TITLE_ACTION,
+                .u.title_action.action = UITree_LoginInput(hit_c)->field == 1
+                                             ? UITREE_TITLE_ACTION_FOCUS_PASSWORD
+                                             : UITREE_TITLE_ACTION_FOCUS_USERNAME,
+            };
+            UITree_Host(ui_host, &action_req);
             out->need_redraw = 1;
             return;
         }
@@ -1121,15 +1747,19 @@ interact_click(
 
     /* Prefer interactive hit so clickMask targets beat decorative overlays. */
     if( ihit >= 0 && (uint32_t)ihit < tree->component_count )
-        click_hook = UITree_ResolveClickHook(tree, ihit, &hook_com_id);
+        click_hook = resolve_click_hook(tree, ihit, &hook_com_id, &hook_node_index);
     if( !click_hook )
-        click_hook = UITree_ResolveClickHook(tree, ui_result->clicked, &hook_com_id);
+        click_hook = resolve_click_hook(
+            tree, ui_result->clicked, &hook_com_id, &hook_node_index);
 
     out->clicked_com_id =
         hook_com_id >= 0 ? hook_com_id
         : (ihit >= 0 && (uint32_t)ihit < tree->component_count
                ? tree->components[ihit].component_id
                : tree->components[ui_result->clicked].component_id);
+    out->clicked_node = hook_com_id >= 0 && hook_node_index >= 0 ? hook_node_index
+        : (ihit >= 0 && (uint32_t)ihit < tree->component_count ? ihit : ui_result->clicked);
+    out->clicked_incarnation = out->clicked_node >= 0 ? tree->components[out->clicked_node].incarnation : 0;
     out->clicked_x = click_x;
     out->clicked_y = click_y;
 
@@ -1139,6 +1769,7 @@ interact_click(
             .hook = click_hook,
             .is_click = 1,
         };
+        intent_bind_node(tree, &intent, hook_node_index);
         /* onClick event_mouse is relative to the component whose hook is
          * dispatched, just like hover/repeat. Slider tracks consume that value
          * directly to turn the click position into a percentage; leaving it
@@ -1146,7 +1777,7 @@ interact_click(
          * thumb jump somewhere unrelated to the pointer. */
         if( hook_com_id >= 0 )
             hover_event_coords(tree, hook_com_id, click_x, click_y, &intent);
-        intent_push(out, &intent);
+        intent_push(tree, out, &intent);
     }
     out->need_redraw = 1;
 }
@@ -1203,7 +1834,7 @@ interact_op_keys(
             continue;
         if( UITree_Hooks(node)->on_op.script_id <= 0 )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, node->component_id) )
+        if( UITree_ComponentOrAncestorDisplayHidden(tree, node->component_id) )
             continue;
 
         for( int ev = 0; ev < input->key_event_count; ev++ )
@@ -1218,7 +1849,8 @@ interact_op_keys(
                         .hook = &UITree_Hooks(node)->on_op,
                         .op_index = slot + 1,
                     };
-                    intent_push(out, &intent);
+                    intent_bind_node(tree, &intent, idx);
+                    intent_push(tree, out, &intent);
                     out->need_redraw = 1;
                 }
                 break; /* one op per component per event */
@@ -1283,13 +1915,63 @@ interact_keys(
     out->need_redraw = 1;
 }
 
+static void
+interact_cancel_external_left_capture(
+    struct UIInteraction* interact,
+    struct UITree* tree)
+{
+    struct UIInputState* state = &interact->input_state;
+
+    /* Retire only render state still owned by the saved exact occupant. */
+    if( state->drag_source_idx >= 0 &&
+        (uint32_t)state->drag_source_idx < tree->component_count &&
+        !tree->components[state->drag_source_idx].freed &&
+        state->drag_source_incarnation != 0 &&
+        tree->components[state->drag_source_idx].incarnation ==
+            state->drag_source_incarnation &&
+        tree->components[state->drag_source_idx].component_id == state->drag_source_id )
+    {
+        UITree_SetComponentDragActive(tree, state->drag_source_idx, 0);
+        tree->components[state->drag_source_idx].drag_visual_trans = -1;
+    }
+    state->pressed = -1;
+    state->pressed_incarnation = 0;
+    state->drag_active = 0;
+    state->drag_source_idx = -1;
+    state->drag_source_incarnation = 0;
+    state->drag_source_id = -1;
+    state->drag_target_id = -1;
+    state->drag_target_idx = -1;
+    state->drag_target_incarnation = 0;
+    state->drag_pickup_x = 0;
+    state->drag_pickup_y = 0;
+    state->drag_click_x = 0;
+    state->drag_click_y = 0;
+    state->drag_duration = 0;
+    state->deferred_click = 0;
+    state->release_click_suppressed = 0;
+    state->cancelled_press = 0;
+    state->thresholds_set = 0;
+    interact->sb_dragging = 0;
+    interact->sb_arrow_held = 0;
+    interact->sb_press_cancelled = 0;
+    interact->ts_layer = -1;
+    interact->ts_incarnation = 0;
+    interact->ts_press_cancelled = 0;
+    /* cc_dragpickup is meaningful only for the press whose native hook staged
+     * it; an externally owned press cannot inherit an older pending pickup. */
+    tree->pending_drag_pickup = 0;
+}
+
 void
-UITree_InteractFrame(
+UITree_InteractFrameWithPointerOwner(
     struct UIInteraction* interact,
     struct UITree* tree,
     struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     uint64_t now_ms,
+    int left_pointer_captured,
+    int pointer_owned,
     struct UIInteractOut* out)
 {
     struct UIInputResult ui_result;
@@ -1302,14 +1984,54 @@ UITree_InteractFrame(
     assert(out);
 
     memset(out, 0, sizeof(*out));
+    /* 0 is a real filter (public), so the empty state has to be stated. */
+    out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
+    out->clicked_node = -1;
     out->minimenu_select = -1;
+
+    /* A popup normally freezes the tree input bridge, but display:none is a
+     * structural transition rather than pointer motion. Cancel an underlying
+     * gesture even while the popup owns the frame so it cannot resume against
+     * a replacement after the popup closes. */
+    (void)UITree_InputCancelDisplayHidden(&interact->input_state, tree);
+    interact_cancel_hidden_scrollbar_capture(interact, tree, input);
+    interact_cancel_hidden_touch_capture(interact, tree);
 
     /* An open minimenu owns the whole pointer: no scrollbars, drags, hover, or
      * clicks reach the tree until it closes (reference choose-option). */
-    if( interact_minimenu(interact, input, out) )
+    if( interact_minimenu(interact, input, pointer_owned, out) )
         return;
+
+    /*
+     * An overlay drawn above the tree owns this pointer position outright --
+     * a chrome window rasterised into the same canvas, say. Stronger than the
+     * capture below: there the surface owns the PRESS and the tree still
+     * hovers and scrolls under it, here nothing about the pointer reaches the
+     * tree at all. Keys stay live; they are not aimed with the mouse.
+     */
+    if( pointer_owned )
+    {
+        interact_cancel_external_left_capture(interact, tree);
+        out->cancelled_pointer_click = 1;
+        interact_hover(interact, tree, ui_host, input, now_ms, 1, out);
+        interact_keys(tree, input, out);
+        return;
+    }
+
+    if( left_pointer_captured )
+    {
+        /* The external hit surface owns the complete physical press. Keep
+         * hover/wheel/keys (and the right-click request above) live, while no
+         * native left gesture is allowed to survive or begin underneath it. */
+        interact_cancel_external_left_capture(interact, tree);
+        out->cancelled_pointer_click = 1;
+        interact_wheel(tree, input, out);
+        interact_hover(interact, tree, ui_host, input, now_ms, 0, out);
+        interact_keys(tree, input, out);
+        return;
+    }
 
     /* The popup closed on the press edge of a click it consumed; this is the
      * matching release. Retire the latch and let nothing downstream treat it
@@ -1318,11 +2040,15 @@ UITree_InteractFrame(
         interact->swallow_left_click && LibToriRS_Input_IsClick(input, TORIRSM_LEFT);
     if( swallow_click )
         interact->swallow_left_click = 0;
+    if( swallow_click )
+        out->cancelled_pointer_click = 1;
 
     sb_owns_mouse = interact_scrollbars(interact, tree, ui_host, input, out);
+    if( !sb_owns_mouse )
+        sb_owns_mouse = interact_touch_scroll(interact, tree, input, out);
 
-    /* While a scrollbar owns the mouse, keep the generic hover/click/drag path
-     * from seeing this press at all. */
+    /* While a scrollbar (or a swiping finger) owns the mouse, keep the generic
+     * hover/click/drag path from seeing this press at all. */
     if( sb_owns_mouse )
     {
         memset(&ui_result, 0, sizeof(ui_result));
@@ -1332,24 +2058,39 @@ UITree_InteractFrame(
         ui_result.drag_source_idx = -1;
         ui_result.drag_source_id = -1;
         ui_result.drag_target_id = -1;
+        ui_result.drag_target_idx = -1;
+        ui_result.drag_target_incarnation = 0;
         ui_result.released_source_idx = -1;
         ui_result.released_source_id = -1;
     }
     else
         ui_result = bridge_input_to_uitree(&interact->input_state, tree, ui_host, input);
 
+    if( ui_result.cancelled_press )
+        out->cancelled_pointer_click = 1;
+
+    /* Keep ownership of a cancelled physical press through mouse-up. The
+     * target itself is already gone from the gesture state; this latch only
+     * prevents the exposed plugin/world layer from receiving its tail. */
+    if( ui_result.cancelled_press &&
+        LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
+        interact->swallow_left_click = 1;
+
     /* A component action may synchronously remount or close the interface on
      * its press edge.  Its matching release must remain owned by that UI
      * gesture even when the component no longer exists by then; otherwise the
-     * release falls through as a fresh world click. */
-    if( ui_result.press_click )
+     * release falls through as a fresh world click. Only while the button is
+     * still held: a release that arrived in this same frame (a finger's tap)
+     * was already the matching one, and a latch left armed would swallow the
+     * NEXT tap instead. */
+    if( ui_result.press_click && LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT) )
         interact->swallow_left_click = 1;
 
     interact_wheel(tree, input, out);
     interact_drag(interact, tree, ui_host, input, sb_owns_mouse, &ui_result, out);
     interact_release(tree, input, &ui_result, out);
     interact_hold(interact, tree, input, sb_owns_mouse, out);
-    interact_hover(interact, tree, ui_host, input, now_ms, out);
+    interact_hover(interact, tree, ui_host, input, now_ms, 0, out);
     if( !swallow_click )
         interact_click(tree, ui_host, input, &ui_result, out);
     interact_keys(tree, input, out);
@@ -1365,11 +2106,39 @@ UITree_InteractFrame(
      * must not also walk there. The input deadzone deliberately no longer
      * speaks to this (see LibToriRS_Input_PushMouseUp) — a click made while the
      * hand is still moving is a click. */
-    if( !sb_owns_mouse && !swallow_click && !ui_result.drag_ended && ui_result.clicked < 0 &&
+    if( !sb_owns_mouse && !swallow_click && !ui_result.cancelled_press &&
+        !ui_result.drag_ended && ui_result.clicked < 0 &&
         LibToriRS_Input_IsClick(input, TORIRSM_LEFT) )
     {
         out->left_click_miss = 1;
         out->left_click_miss_x = input->last_click_x[TORIRSM_LEFT];
         out->left_click_miss_y = input->last_click_y[TORIRSM_LEFT];
     }
+}
+
+void
+UITree_InteractFrameWithPointerCapture(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    int left_pointer_captured,
+    struct UIInteractOut* out)
+{
+    UITree_InteractFrameWithPointerOwner(
+        interact, tree, ui_host, input, now_ms, left_pointer_captured, 0, out);
+}
+
+void
+UITree_InteractFrame(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    struct UIInteractOut* out)
+{
+    UITree_InteractFrameWithPointerOwner(
+        interact, tree, ui_host, input, now_ms, 0, 0, out);
 }

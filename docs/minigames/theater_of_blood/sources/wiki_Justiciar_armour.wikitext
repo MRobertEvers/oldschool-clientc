@@ -1,0 +1,44 @@
+[[File:Justiciar faceguard chathead.png|left]]
+[[File:Justiciar armour equipped male.png|right|130px|]]
+[[File:Justiciar armour equipped female.png|right|130px|]]
+'''Justiciar armour''' is a set of armour requiring 75 [[Defence]] to equip. The armour belonged to the [[Saradomin]]ist [[Justiciar]]s, an elite group of warriors active during the God Wars and most notably in the defence of Hallowvale against the vampyre forces of Lord Drakan. After their defeat, their armour was claimed as trophies by the vampyres and came into the possession of Verzik Vitur.{{CiteNews|url=http://services.runescape.com/m=news/the-theatre-of-blood?oldschool=1|title=The Theatre of Blood|newsdate=7 June 2018|quote=The Justiciars were elite warriors in Saradomin's army during the God Wars. Unlike the rest of his forces, the Justiciars operated alone, often working as assassins and saboteurs. Selected from a variety of races, they were all chosen by Saradomin himself who granted them great power. When the vampyres invaded Hallowvale, some of the last remaining Justiciars fell in battle. The Justiciar armour found in Lady Verzik's vault was taken from one of these fallen warriors.}} The set can only be obtained as rare drops from the [[Theatre of Blood]]. 
+
+It is the best armour in ''Old School RuneScape'' to provide [[Melee]] and [[Ranged]] defence bonuses, far surpassing [[Torag the Corrupted's equipment|Torag's armour]] as well as having a damage-reducing [[passive effect|set effect]]. The justiciar armour also provides a significant amount of [[Prayer]] bonus. However, it penalises both magic and ranged attack bonuses more than any other melee armour and provides a negative magic defence, and it also does not provide any strength bonus.
+
+The armour can be stored in the [[armour case]] of a [[player-owned house]] [[costume room]]. The set pieces count as [[Saradomin]]ist items in both the [[God Wars Dungeon|normal]] and [[Wilderness God Wars Dungeon]]s.
+
+==Set effect==
+When the full set of Justiciar armour is equipped, the player gains a [[passive effect|set effect]] that reduces all combat damage outside of [[Player killing|PvP]] and typeless damage. The exact formula for the amount of damage reduced is <math>\frac{bonus}{3000}</math>, where bonus is the player's defence bonus for that particular style. If the enemy was using a crush-based attack and the player has a crush defence bonus of +450, then 15% of the damage (450/3,000) is reduced. The set effect always reduces incoming damage by a minimum of 1; negative defence bonuses will not increase damage taken. The set effect stacks additively with the [[elysian spirit shield]]'s passive effect as well.
+
+==Components==
+{{CostTableHead}}
+{{CostLine|Justiciar faceguard}}
+{{CostLine|Justiciar chestguard}}
+{{CostLine|Justiciar legguards}}
+{{CostTableBottom|total=y|compare=Justiciar armour set}}
+
+==Bonuses==
+{{Infotable Bonuses|Justiciar faceguard|Justiciar chestguard|Justiciar legguards}}
+
+==Gallery==
+<gallery mode="nolines" heights="180" style="text-align:left" widths="250">
+Justiciar armour design v1.png|The initial design for the armour set, based on an aged version of [[Justiciar Zachariah]]'s armour
+Justiciar armour v2 work-in-progress.png|A work-in-progress for an improved appearance after feedback concerning the first version
+Justiciar armour work-in-progress.png|Three proposed models of the armour set
+Justiciar armour poll designs.png|The final two models proposed in the [[Poll:Justiciar armour|Justiciar armour]] [[poll]].
+Justiciar armour (a).png|Design A on an [[Justiciar armour (Theatre of Blood)|armour stand]] within the [[Theatre of Blood]]
+Justiciar armour (b).png|Final design on an [[Justiciar armour (Theatre of Blood)|armour stand]] within the [[Theatre of Blood]]
+</gallery>
+
+==Trivia==
+*Design A from the design poll can be seen within [[Verzik Vitur]]'s throne room within the [[Theatre of Blood]].
+*The Justiciar design resembles the helms of the Seven Priestly Warriors, as seen in the [[Varrock Museum#/media/File:Varrock Museum display 23.png|Varrock museum]]. However, the Seven Priestly Warriors fought during the year 1200 of the Fourth Age, and based on the account of [[the turncloak]], it is doubtful that the Justiciar order survived the God Wars.
+*Based on the statues found in the [[Hallowed Sepulchre]], the Justiciar set of armour obtainable from the Theatre of Blood is most similar in appearance to the armour of the Justiciar of the Wolf, [[Phosani]]. However, her armour (after her change in allegiance to Zamorak) is the [[Inquisitor's armour]] set,{{CiteNews|url=https://secure.runescape.com/m=news/the-nightmare-of-ashihama?oldschool=1|title=The Nightmare of Ashihama|newsdate=6 February 2020|quote=The Inquisitor's Armour once belonged to The Inquisitor. She crafted it from her old Justiciar garb, altering it to better reflect her newfound ferocity.}} which suggests the armour Verzik has was either from some other Justiciar or a spare set.
+* According to some dialogue with [[Vanescula Drakan]] during [[Sins of the Father]], it is revealed that Lady Verzik and Ranis Drakan tortured one of [[Queen Efaritay]]'s Justiciars for information that would lead to a successful kidnapping of [[King Ascertes]].{{CiteNPC|npc=Vanescula Drakan|quote=I'd give [Verzik] the credit over Ranis. The two of them shared a love for playing with their food rather than eating it. They hatched all kinds of schemes together. During the war, they managed to capture a justiciar, one of Efaritay's most elite warriors. They tortured him for days, until he gave them what they needed.|loc=Sins of the Father}} After getting the information they needed, they killed the Justiciar, and it is likely that Lady Verzik kept the armour as a trophy, which could offer a canon explanation as to how she acquired the two sets of Justiciar armour present in her treasure room. Since the Design A armour described and pictured above is not depicted on any of the statues of the four known Justiciars, it is possible that more than four Justiciars exist or once existed.
+
+==References==
+{{Reflist}}
+
+{{Theatre of Blood}}
+{{Prayer items}}
+{{Equipment class}}

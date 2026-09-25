@@ -1,0 +1,62 @@
+{{external|rs=Mimic kill token}}
+{{otheruses|the item|the boss|The Mimic}}
+{{Infobox Item
+|name = Mimic
+|image = [[File:Mimic.png]]
+|release = [[11 April]] [[2019]]
+|update = Treasure Trails Expansion and Easter 2019
+|members = Yes
+|quest = No
+|tradeable = No
+|bankable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Open, Drop
+|examine = Oh great, it's a casket that's come to life.
+|value = 50
+|weight = 5.000
+|id = 23184
+}}
+[[File:Mimic detail.png|left|140px]]
+The '''Mimic''' is an item that may be obtained when attempting to open an [[Reward casket (elite)|elite]] or [[Reward casket (master)|master reward casket]]. In order to be eligible to obtain it, players must first speak to the [[strange casket]] upstairs in [[Watson's house]] in [[Hosidius]] to enable the chance of a reward casket turning into the Mimic; attempting to open an elite or master reward casket for the first time before speaking to the strange casket will direct players to the strange casket if they say they want Mimic encounters. An [[Reward casket (elite)|elite reward casket]] has a 1/35 chance of being a mimic, while [[Reward casket (master)|master reward caskets]] have a 1/15 chance.{{CiteTwitter|author=Mod Wolf|url=https://twitter.com/JagexWolf/status/1116299462870274048|date=11 April 2019|archiveurl=https://archive.is/ogJGw|archivedate=28 May 2020|quote=We will be changing the rate of The Mimic chance after a discussion with the team and your feedback that it may be a tad too rare. We will be keeping an eye on the frequency over the coming days, but these are the new rates which will be live shortly: Master: 1/15 Elite: 1/35|name=mimicodds}} There is a dry protection that guarantees your first Mimic encounter on either the 10th master reward casket or 25th elite reward casket, if you have Mimic encounters enabled. 
+
+When obtained, a message in the chatbox will state {{mes|The chest turned out to be the Mimic!}}. Attempting to open the Mimic before defeating the Mimic boss gives the message "Visit the Strange Casket, upstairs in Watson's house in Hosidius, to attempt the Mimic's challenge.".
+
+Once a player obtains the Mimic, they can return to the strange casket to challenge [[The Mimic]]. When the player defeats the Mimic, they must leave in order to open the mimic chest and receive their reward. If a player attempts to open the mimic chest while in the Mimic's fight area, the chatbox will state ''"It'd be bad taste to try opening that in here."''
+
+If a player tries to open another elite or master reward casket with a Mimic in the player's inventory, the chatbox will warn the player "You already have a Mimic, and cannot be given another one. Do you wish to open the casket anyway?" {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1625816702532435971|date=15 February 2023|archiveurl=https://archive.is/6eiuA|archivedate=14 March 2023|quote=You can only have one at a time. If you already do have one, the game warns you: “You already have a Mimic, and cannot be given another one. Do you wish to open the casket anyway?”|name=mimicwarning}} However, if the Mimic is dropped on the ground, the player may obtain more Mimics. Just like clue scrolls, Mimics can be [[Guide:Clue Juggling|juggled]], staying on the ground for an hour before despawning. As such the player may opt to juggle Mimics if opening a lot of caskets. Once done, the player can pick up all Mimics at once, since there is no restriction against carrying several Mimics.
+
+The Mimic cannot be deposited into a bank. If players try to bank it, the chatbox will state ''"A magical force prevents you from banking this item!"''
+
+When opening your first casket after defeating The Mimic you will also be given a [[Mimic scroll case]] which can be opened to let you stack 1 more [[Scroll box]] for every tier of clue scroll.
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 December 2025
+|update = Sailing XP Review & Further Fixes
+|change = Fixed a bug where players received their guaranteed Mimic on the 26th elite casket (or 11th master) instead of the intended 25th elite or 10th master.
+}}
+{{Subject changes
+|date = 9 July 2025
+|update = The New Renderer Beta is Out Today!
+|change = A Mimic encounter is now guaranteed upon opening your 10th [[Reward casket (master)|master casket]] or 25th [[Reward casket (elite)|elite casket]].
+}}
+{{Subject changes
+|date = 11 April 2019
+|type = hotfix
+|change = The chance of a reward casket being a Mimic was changed from 1/80 and 1/30 to 1/35 and 1/15 for [[Reward casket (elite)|elite]] and [[Reward casket (master)|master]] reward caskets, respectively.{{NamedRef|mimicodds}}
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*{{WP|Mimic (Dungeons & Dragons)|Mimics}} made their first appearance in the 1977 Monster Manual for the game ''{{wp|Dungeons & Dragons}}'' and have become one of the most iconic creatures from the franchise.
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

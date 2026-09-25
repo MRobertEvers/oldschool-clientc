@@ -1,0 +1,40 @@
+quest_dir	test_id	guide_steps	driven	skipped_content	skipped_cheat	skipped_other	verdict	first_gap
+quest_atailoftwocats	atailoftwocats	24	19	3	1	1	MIXED	findBob (stage 15: operate the catspeak amulet (e)); the test talks to Unferth instead
+quest_betweenarock	betweenarock	23	22	1	0	0	CONTENT GAP	useGoldBarOnDondakan (60)
+quest_biohazard	biohazard	28	24	0	4	0	TEST GAP	enterBackyardOfHeadquarters (squeeze through mournerstewfence) bypassed by ::goto
+quest_blackarmgang	blackarmgang	14	9	3	2	0	MIXED	startQuest (talk to Reldo / book / Reldo again: the port's tramp starts the Black Arm route with no Reldo gate)
+quest_blackknight	blackknight	8	4	0	4	0	TEST GAP	enter fortress through the guarded door (bkfortressdoor1) wearing the bronze med helm + iron chainbody disguise
+quest_cog	cog	14	10	0	4	0	TEST GAP	pushWall (push the secret wall in the tunnel to reach the blue cog's cell)
+quest_cook	cooks_assistant	9	1	0	8	0	TEST GAP	getBucket (buy bucket at Lumbridge General Store)
+quest_currentaffairs	currentaffairs	20	16	4	0	0	CONTENT GAP	doAudit (varp 25: answer Catherine's 8 audit questions matching form cr-4p)
+quest_doric	doric	2	2	0	0	0	FULL	-
+quest_druid	druid	9	8	0	1	0	TEST GAP	enterCauldronRoom (Prison door into the cauldron room, passed by ::goto teleport)
+quest_drunkmonk	drunkmonk	10	9	0	1	0	TEST GAP	goUpLadder (climb the cellar ladder out of the blanket cave; test teleports with goto_tile)
+quest_eadgar	eadgar	27	24	0	2	1	TEST GAP	get Berry's cell key + unlock Eadgar's cell (::setvar troll_freed_eadgar 1)
+quest_elemental_workshop	elemental_workshop	18	17	0	1	0	TEST GAP	goDownStairs (climb down the spiral staircase behind the odd wall; test teleports with goto_tile/::goto)
+quest_entertheabyss	entertheabyss	7	7	0	0	0	FULL	-
+quest_fishingcompo	fishingcompo	9	6	0	3	0	TEST GAP	getGarlic (Seers' table garlic given by ::give)
+quest_fluffs	fluffs	9	9	0	0	0	FULL	-
+quest_golem	golem	22	18	4	0	0	CONTENT GAP	talkToElissa (no Elissa trigger in the pack)
+quest_haunted	haunted	15	10	0	5	0	TEST GAP	pickupSpade (spade/compost/closet-key chain bypassed by ::goto into the closet)
+quest_hero	hero	22	18	1	3	0	MIXED	reach deeper Taverley Dungeon (jailer/Velrak/dusty-key gate or pipe bypassed by ::goto to the lava spot)
+quest_hetty	hetty	4	3	0	1	0	TEST GAP	killRat (rat's tail given by ::give)
+quest_hunt	hunt	15	14	0	1	0	TEST GAP	travel to Karamja via Port Sarim seaman (replaced by ::goto teleport to Brimhaven)
+quest_makinghistory	makinghistory	12	12	0	0	0	FULL	-
+quest_misc	misc	23	19	4	0	0	CONTENT GAP	talkBrand1 (Brand courtship dialogue, varp 10 court ladder)
+quest_mortton	mortton	22	17	4	1	0	MIXED	repairTemple (stage 50/55, ::mortton_repairtemple debugproc)
+quest_mourningsendparti	mourningsendparti	34	27	5	2	0	MIXED	killMourner + pickUpLoot (fight a mourner in the Arandar pass; port gives the loot on one click, mend1_disguise.rs2:29-37)
+quest_mourningsendpartii	mourningsendpartii	110	5	105	0	0	CONTENT GAP	stage 10-20 Mourner Caves/corpse/temple stairs/useChisel collapsed to mes() at mend2_shared.rs2:53-54; Temple of Light puzzles 1-6 + death altar collapsed to mes() at mend2_shared.rs2:97-111
+quest_murder	murder	19	14	2	0	3	MIXED	pick up the pungent pot (murderpot2)
+quest_priest	priest	7	7	0	0	0	FULL	-
+quest_prince	prince	13	12	0	1	0	TEST GAP	useKeyOnDoor (unlock prison door; ::goto into the cell)
+quest_pryingtimes	pryingtimes	10	8	2	0	0	CONTENT GAP	deliverCargo (Port Sarim -> Pandemonium port task; content soft-skips it in dialogue)
+quest_romeojuliet	romeojuliet	7	7	0	0	0	FULL	-
+quest_rovingelves	rovingelves	14	7	0	7	0	TEST GAP	enterGlarialsTombstone (use Glarial's pebble on the tombstone; replaced by ::goto into the tomb)
+quest_runemysteries	runemysteries	6	6	0	0	0	FULL	-
+quest_scorpcatcher	scorpcatcher	9	7	0	2	0	TEST GAP	get dusty key + unlock deep Taverley gate (bypassed by ::goto)
+quest_seaslug	seaslug	18	18	0	0	0	FULL	-
+quest_sheep	sheep	2	2	0	0	0	FULL	-
+quest_sheepherder	sheepherder	12	12	0	0	0	FULL	-
+quest_squire	squire	10	10	0	0	0	FULL	-
+quest_tearsofguthix	tearsofguthix	7	3	2	2	0	MIXED	enter Lumbridge Swamp caves (rope) / Juna's cave -- bypassed by ::tearsofguthix teleport

@@ -1254,6 +1254,80 @@ test_music_fade_voice(void)
     }
 }
 
+/*
+ * A jingle asks for a song with no fade-out. Until this was fixed, the loader
+ * for it started while the outgoing track was still sounding -- and the loader
+ * grows the soundbank, which moves `bank->patches` and `bank->samples` out from
+ * under the raw pointers every live `ToriRS_MidiNode` holds into them
+ * (`node->patch`, `node->sound`). The next render then read a freed array.
+ *
+ * The tick has to have retired the outgoing song before TakeLoadRequest can
+ * hand the loader anything, which is the order app_tick.c calls them in.
+ */
+static void
+test_music_jingle_retires_outgoing_before_load(void)
+{
+    struct ToriRS_MusicPlayer player;
+    struct ToriRS_AudioQueue queue;
+    uint8_t smf[256];
+    int smf_size = build_test_smf(smf);
+    struct RSCache_MusicSong* song = calloc(1, sizeof(*song));
+    int song_id = -1;
+    enum ToriRS_MusicSource source = TORIRS_MUSIC_SOURCE_TRACK;
+
+    CHECK(song != NULL);
+    if( !song )
+        return;
+    song->midi = malloc((size_t)smf_size);
+    CHECK(song->midi != NULL);
+    if( !song->midi )
+    {
+        free(song);
+        return;
+    }
+    memcpy(song->midi, smf, (size_t)smf_size);
+    song->midi_size = smf_size;
+    song->track_count = 1;
+    song->division = 96;
+
+    ToriRS_Music_Init(&player);
+    memset(&queue, 0, sizeof(queue));
+
+    /* A real track, really sounding: the synth has to be mid-song or the tick's
+     * "this song ended" branch retires it for an unrelated reason. */
+    ToriRS_Music_Request(&player, 42, TORIRS_MUSIC_SOURCE_TRACK, true, 0, 0);
+    ToriRS_Music_Installed(
+        &player, 42, TORIRS_MUSIC_SOURCE_TRACK, song, NULL, 0, &queue);
+    ToriRS_Music_Tick(&player, NULL, &queue);
+    CHECK_EQ(player.state, TORIRS_MUSIC_PLAYING);
+    CHECK(player.stream_open);
+    CHECK(!ToriRS_MidiSynth_Finished(&player.synth));
+
+    /* RS_Audio_Jingle's request, verbatim: no fade either way. */
+    memset(&queue, 0, sizeof(queue));
+    ToriRS_Music_Request(&player, 77, TORIRS_MUSIC_SOURCE_JINGLE, false, 0, 0);
+    CHECK_EQ(player.fade_ticks, 0);
+    CHECK_EQ(player.resume_song, 42);
+
+    ToriRS_Music_Tick(&player, NULL, &queue);
+
+    /* The outgoing song is gone and its asset unloaded before anything loads. */
+    CHECK_EQ(player.current_song, -1);
+    CHECK(!player.stream_open);
+    CHECK_EQ(queue.count, 1);
+    CHECK_EQ(queue.commands[0].kind, TORIRS_AUDIO_CMD_ASSET_UNLOAD);
+
+    /* Only now may the loader start, and it starts with nothing sounding. */
+    CHECK(ToriRS_Music_TakeLoadRequest(&player, &song_id, &source));
+    CHECK_EQ(song_id, 77);
+    CHECK_EQ((int)source, (int)TORIRS_MUSIC_SOURCE_JINGLE);
+
+    /* The track it interrupted is still what a finished jingle hands back to. */
+    CHECK_EQ(player.resume_song, 42);
+
+    ToriRS_Music_Free(&player);
+}
+
 static void
 test_music_swap_state(void)
 {
@@ -1352,6 +1426,7 @@ main(
     test_midi_seek();
     test_music_fade_voice();
     test_music_swap_state();
+    test_music_jingle_retires_outgoing_before_load();
 
     GROUP("render a real song");
     snprintf(path, sizeof(path), "%s/cache.osrs239", cache_root);

@@ -1,0 +1,150 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "RuneScript",
+  "scopeName": "source.runescript",
+  "comment": "The fallback colouring. Semantic tokens from runescript-lsp are what actually paint an open file — they know a name's namespace and this cannot — but they arrive one round trip late, and not at all when the server is missing. This keeps the file readable in both cases, so it deliberately colours only what is decidable from the text alone.",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#header" },
+    { "include": "#string" },
+    { "include": "#keyword" },
+    { "include": "#sigil" },
+    { "include": "#number" },
+    { "include": "#call" },
+    { "include": "#operator" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.runescript",
+          "match": "//.*$"
+        },
+        {
+          "name": "comment.block.runescript",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "header": {
+      "comment": "[trigger,subject] — the only place a bracket opens a line.",
+      "name": "meta.script-header.runescript",
+      "begin": "^\\s*(\\[)\\s*([a-z_0-9]+)\\s*(,)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.bracket.runescript" },
+        "2": { "name": "keyword.control.trigger.runescript" },
+        "3": { "name": "punctuation.separator.runescript" }
+      },
+      "end": "(\\])",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.bracket.runescript" }
+      },
+      "patterns": [
+        {
+          "name": "entity.name.function.script.runescript",
+          "match": "[^,\\]]+"
+        }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.runescript",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "comment": "<$name>, <tostring($n)>, <p,happy>, <br> — content, not syntax.",
+          "name": "meta.embedded.runescript",
+          "begin": "<",
+          "end": ">",
+          "beginCaptures": { "0": { "name": "punctuation.definition.tag.runescript" } },
+          "endCaptures": { "0": { "name": "punctuation.definition.tag.runescript" } },
+          "patterns": [
+            { "name": "variable.other.local.runescript", "match": "\\$[A-Za-z_][A-Za-z0-9_]*" },
+            { "name": "support.function.runescript", "match": "[a-z_][a-z_0-9]*(?=\\()" },
+            { "name": "entity.name.tag.runescript", "match": "[^<>()$,]+" }
+          ]
+        }
+      ]
+    },
+    "keyword": {
+      "patterns": [
+        {
+          "name": "keyword.control.runescript",
+          "match": "\\b(if|else|while|return|case|default)\\b"
+        },
+        {
+          "name": "keyword.declaration.runescript",
+          "match": "\\bdef_[a-z_0-9]+\\b"
+        },
+        {
+          "name": "keyword.control.switch.runescript",
+          "match": "\\bswitch_[a-z_0-9]+\\b"
+        },
+        {
+          "name": "support.function.calc.runescript",
+          "match": "\\bcalc\\b"
+        },
+        {
+          "name": "constant.language.runescript",
+          "match": "\\b(true|false|null)\\b"
+        }
+      ]
+    },
+    "sigil": {
+      "patterns": [
+        {
+          "comment": "$local",
+          "name": "variable.other.local.runescript",
+          "match": "\\$[.]?[A-Za-z0-9_]+(?:[+-]+[A-Za-z0-9_]+)*"
+        },
+        {
+          "comment": "%varp / %varbit / %varc / %varn / %vars",
+          "name": "variable.other.enummember.runescript",
+          "match": "%[.]?[A-Za-z0-9_]+"
+        },
+        {
+          "comment": "^constant",
+          "name": "constant.other.runescript",
+          "match": "\\^[.]?[A-Za-z0-9_]+"
+        },
+        {
+          "comment": "~proc",
+          "name": "entity.name.function.proc.runescript",
+          "match": "~[.]?[A-Za-z0-9_]+"
+        },
+        {
+          "comment": "@label",
+          "name": "entity.name.function.label.runescript",
+          "match": "@[.]?[A-Za-z0-9_]+"
+        }
+      ]
+    },
+    "number": {
+      "patterns": [
+        {
+          "comment": "A coord literal — level_mx_mz_lx_lz — before a plain integer could claim its first part.",
+          "name": "constant.numeric.coord.runescript",
+          "match": "\\b[0-9]+(_[0-9]+)+\\b"
+        },
+        {
+          "name": "constant.numeric.hex.runescript",
+          "match": "\\b0[xX][0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.runescript",
+          "match": "(?<![A-Za-z0-9_])-?[0-9]+\\b"
+        }
+      ]
+    },
+    "call": {
+      "comment": "A name immediately followed by '(' is a call. Which command it is, and whether it exists, is the server's answer.",
+      "name": "support.function.runescript",
+      "match": "\\b[.]?[a-z_][a-z_0-9]*(?=\\s*\\*?\\s*\\()"
+    },
+    "operator": {
+      "name": "keyword.operator.runescript",
+      "match": "(<=|>=|!=|[=!<>&|+\\-*/%])"
+    }
+  }
+}

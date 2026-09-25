@@ -1,4 +1,5 @@
 #include "test_harness.h"
+#include "uitree_interact.h"
 
 #include <stdlib.h>
 
@@ -235,6 +236,132 @@ test_open_close_steady(void)
     UITree_Free(tree);
 }
 
+void
+test_mounted_component_inherits_container_hidden(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t gameframe;
+    int32_t side_slot;
+    int32_t side_root;
+    int32_t account_slot;
+    int32_t account_root;
+    int32_t account_hook;
+
+    printf("TEST: mounted component inherits container hidden\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (161 << 16) | 0;
+    gameframe = UITree_Push(tree, -1, &spec);
+
+    spec.component_id = (161 << 16) | 78;
+    side_slot = UITree_Push(tree, gameframe, &spec);
+
+    spec.component_id = (629 << 16) | 0;
+    side_root = UITree_Push(tree, -1, &spec);
+
+    spec.component_id = (629 << 16) | 43;
+    account_slot = UITree_Push(tree, side_root, &spec);
+
+    spec.component_id = (712 << 16) | 0;
+    account_root = UITree_Push(tree, -1, &spec);
+
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = (712 << 16) | 2;
+    account_hook = UITree_Push(tree, account_root, &spec);
+
+    TEST_ASSERT(
+        gameframe >= 0 && side_slot >= 0 && side_root >= 0 && account_slot >= 0 &&
+            account_root >= 0 && account_hook >= 0,
+        "nested mounted fixture builds");
+    UITree_InterfaceParentSet(tree, (161 << 16) | 78, 629, 1);
+    UITree_InterfaceParentSet(tree, (629 << 16) | 43, 712, 1);
+
+    TEST_ASSERT(
+        !UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "visible mount chain leaves child visible");
+
+    tree->components[side_slot].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "hidden outer mount container hides nested interface child");
+
+    tree->components[side_slot].behavior.hide = 0;
+    tree->components[account_slot].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "hidden inner mount container hides mounted interface child");
+
+    tree->components[account_slot].behavior.hide = 0;
+    tree->components[account_root].behavior.hide = 1;
+    TEST_ASSERT(
+        UITree_ComponentOrAncestorHidden(tree, (712 << 16) | 2),
+        "pack-local hidden ancestor still hides child");
+
+    UITree_Free(tree);
+}
+
+/*
+ * A click resolves its hook UP the tree: a leaf with no onOp/onClick of its
+ * own runs the nearest ancestor's operation hook, and the row is reported
+ * under that ancestor's component id -- a dynamic child of a hooked
+ * container (an inventory cell, the compass dot's parent) fires the
+ * container's script. onOp outranks onClick on the same node; a node with no
+ * hook at all is walked through to the next ancestor that has one.
+ */
+void
+test_click_hook_inherits_nearest_parent(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t root;
+    int32_t target;
+    int32_t child;
+    int hook_component = -1;
+
+    printf("TEST: a click hook resolves to the nearest hooked ancestor\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (505 << 16) | 0;
+    root = UITree_Push(tree, -1, &spec);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (505 << 16) | 1;
+    target = UITree_Push(tree, root, &spec);
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_RECT;
+    spec.component_id = (505 << 16) | 2;
+    child = UITree_Push(tree, target, &spec);
+    TEST_ASSERT(root >= 0 && target >= 0 && child >= 0, "click hook fixture");
+    UITree_HooksMut(&tree->components[root])->on_click.script_id = 610;
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 611;
+    UITree_SyncHookMembership(tree, root);
+    UITree_SyncHookMembership(tree, target);
+
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[target])->on_op &&
+            hook_component == tree->components[target].component_id,
+        "a child normally inherits its nearest parent's operation hook");
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, root, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "a node with only an onClick answers with that");
+
+    UITree_HooksMut(&tree->components[target])->on_op.script_id = 0;
+    UITree_SyncHookMembership(tree, target);
+    TEST_ASSERT(
+        UITree_ResolveClickHook(tree, child, &hook_component) ==
+                &UITree_Hooks(&tree->components[root])->on_click &&
+            hook_component == tree->components[root].component_id,
+        "with the parent's hook gone the walk continues to the outer ancestor");
+
+    UITree_Free(tree);
+}
+
 /* Compass-shaped case: gameframe dynamic child keeps on_op when a sibling
  * pack (bank) is cleared — the live failure was menu ops without on_op. */
 void
@@ -362,10 +489,14 @@ count_live_with_component_id(
     return n;
 }
 
-/* chatmodal close/replace must reclaim dialogue packs so remount cannot
- * keep a hidden copy whose string shadows FindByComponentId / ApplyText. */
+/* Close and replace reclaim the outgoing group at EVERY mount slot (the
+ * reference client's rule: unload unless the same group is being remounted),
+ * so a remount cannot keep a hidden copy whose string shadows
+ * FindByComponentId / ApplyText. Dialogue packs alternating in the chatbox
+ * modal are where that shadowing was first seen; the slot below stands in for
+ * any of them. */
 void
-test_chatmodal_reclaim_no_shadow_text(void)
+test_mount_slot_reclaim_no_shadow_text(void)
 {
     struct UITree* tree = UITree_New(0);
     struct UITreeNodeSpec spec;
@@ -376,16 +507,18 @@ test_chatmodal_reclaim_no_shadow_text(void)
     int const group_a = 231;
     int const group_b = 217;
     int const text_cid = (group_a << 16) | 4;
+    /* Any mount slot: the rule no longer names one. */
+    int const mount_slot_uid = (162 << 16) | 567;
 
-    printf("TEST: chatmodal reclaim — no shadowed dialogue text\n");
+    printf("TEST: mount-slot reclaim — no shadowed pack text\n");
 
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_RS_LAYER;
-    spec.component_id = UITREE_CHATBOX_CHATMODAL_UID;
+    spec.component_id = mount_slot_uid;
     spec.width = 479;
     spec.height = 96;
     slot = UITree_Push(tree, -1, &spec);
-    TEST_ASSERT(slot >= 0, "chatmodal slot");
+    TEST_ASSERT(slot >= 0, "mount slot");
 
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_RS_LAYER;
@@ -411,7 +544,7 @@ test_chatmodal_reclaim_no_shadow_text(void)
         "stuck text applied");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "one live A name");
 
-    /* Replace A with B under chatmodal — reclaim A (not hide). */
+    /* Replace A with B in the slot — reclaim A (not hide). */
     UITree_ReclaimInterfaceGroup(tree, group_a);
     TEST_ASSERT(!UITree_GroupPresent(tree, group_a), "group A gone after reclaim");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 0, "no live A name");
@@ -458,6 +591,216 @@ test_chatmodal_reclaim_no_shadow_text(void)
             strcmp(tree->components[text_a].u.rs_text.text, "fresh-name") == 0,
         "ApplyText lands on remounted node");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "still one live A name");
+
+    UITree_Free(tree);
+}
+
+/*
+ * The "Please wait..." latch a clicked resume-pausebutton sets.
+ *
+ * The reference replaces that ONE component's text at draw time until the
+ * server answers (class163, reading class545.field6272), so the page it is
+ * still holding is untouched and comes back the moment the latch is dropped.
+ * The three things that have to hold:
+ *
+ *   - the latched node draws "Please wait..." in its own colour, and nothing
+ *     else in the tree changes;
+ *   - the text underneath survives, because the latch is a substitution;
+ *   - a latch on a node that has been reclaimed names nobody, so a remount
+ *     cannot leave a dialogue saying "Please wait..." at a page that arrived.
+ */
+void
+test_pause_pending_please_wait(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    struct UITreeEmitDesc desc;
+    int32_t root;
+    int32_t continue_node;
+    int32_t body_node;
+    int const group = 231;
+    int const continue_cid = (group << 16) | 5;
+    int const body_cid = (group << 16) | 6;
+
+    printf("TEST: pausebutton latch — \"Please wait...\"\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (group << 16) | 0;
+    spec.width = 479;
+    spec.height = 96;
+    root = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(root >= 0, "dialogue root");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = body_cid;
+    spec.width = 380;
+    spec.height = 67;
+    spec.u.rs_text.font_id = 1;
+    spec.u.rs_text.color = 0x000000;
+    spec.u.rs_text.text = "Hello there, adventurer!";
+    body_node = UITree_Push(tree, root, &spec);
+    TEST_ASSERT(body_node >= 0, "dialogue body");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = continue_cid;
+    spec.width = 380;
+    spec.height = 20;
+    spec.u.rs_text.font_id = 1;
+    spec.u.rs_text.color = 0x0000FF;
+    spec.u.rs_text.text = "Click here to continue";
+    continue_node = UITree_Push(tree, root, &spec);
+    TEST_ASSERT(continue_node >= 0, "continue prompt");
+    /* The prompt is a hovered one: that is when it is clicked, and the hover
+     * colour is one of the two things the substitution drops. */
+    tree->components[continue_node].behavior.over_color = 0xFFFFFF;
+
+    TEST_ASSERT(!UITree_PausePendingActive(tree), "nothing pending on a fresh tree");
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[continue_node], continue_node,
+                        continue_cid, &desc),
+        "the prompt draws before the click");
+    TEST_ASSERT(
+        strcmp(desc.text, "Click here to continue") == 0,
+        "before the click the prompt says what the server wrote");
+    TEST_ASSERT(desc.color == 0xFFFFFF, "and takes its hover colour");
+
+    UITree_SetPausePending(tree, continue_cid);
+    TEST_ASSERT(UITree_PausePendingActive(tree), "the click latches");
+    TEST_ASSERT(
+        UITree_PausePendingIndex(tree) == continue_node, "the latch names the clicked node");
+
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[continue_node], continue_node,
+                        continue_cid, &desc),
+        "the latched prompt still draws");
+    TEST_ASSERT(strcmp(desc.text, "Please wait...") == 0, "the latched prompt waits");
+    TEST_ASSERT(desc.color == 0x0000FF, "waiting drops the hover colour for its own");
+    TEST_ASSERT(
+        tree->components[continue_node].u.rs_text.text &&
+            strcmp(tree->components[continue_node].u.rs_text.text, "Click here to continue") == 0,
+        "the latch is a substitution, not a write");
+
+    /* One node, not the dialogue. */
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[body_node], body_node, -1, &desc),
+        "the body still draws");
+    TEST_ASSERT(
+        strcmp(desc.text, "Hello there, adventurer!") == 0, "the page itself does not wait");
+
+    /* Dropping the latch gives the prompt back without a remount. */
+    UITree_SetPausePending(tree, -1);
+    TEST_ASSERT(!UITree_PausePendingActive(tree), "the latch drops");
+    memset(&desc, 0, sizeof(desc));
+    TEST_ASSERT(
+        UITree_EmitFill(tree, NULL, &tree->components[continue_node], continue_node, -1, &desc),
+        "the prompt draws again");
+    TEST_ASSERT(
+        strcmp(desc.text, "Click here to continue") == 0, "and says what it said before");
+
+    /* A latched node that is reclaimed names nobody: the next page's prompt
+     * occupies the same slot and the same component id, and must not inherit
+     * the wait. */
+    UITree_SetPausePending(tree, continue_cid);
+    TEST_ASSERT(UITree_PausePendingActive(tree), "latched again");
+    UITree_ReclaimInterfaceGroup(tree, group);
+    TEST_ASSERT(!UITree_PausePendingActive(tree), "a reclaimed latch names nobody");
+
+    UITree_Free(tree);
+}
+
+/*
+ * Closing a tab takes the panel mounted INSIDE it with it — the mount record
+ * as well as the nodes.
+ *
+ * The shape is the one the gameframe login burst produces every time: the
+ * enum mounts `side_journal` (629) into the sidebar's tab slot, 629's own
+ * `[if_open]` mounts `account_summary_sidepanel` (712) into 629's
+ * `tab_container`, and a tick later the tutorial's tab table closes the slot
+ * again because a fresh account has not earned the quest tab yet.
+ *
+ * The reclaim frees 712's nodes with 629's subtree, so what is left to get
+ * wrong is the bookkeeping: a surviving `interface_parents` record for 712
+ * makes UITree_InterfaceParentIsMountedGroup answer "live", and
+ * uitree_builder_hide_unmounted_spillover then refuses to hide the copy the
+ * CS2 runtime bakes the next time a script addresses 712 — which is a tree
+ * root, so it draws at the canvas origin over whatever is there.
+ */
+void
+test_reclaim_drops_nested_mount_records(void)
+{
+    struct UITree* tree = UITree_New(0);
+    struct UITreeNodeSpec spec;
+    int32_t tab_slot;
+    int32_t journal_root;
+    int32_t tab_container;
+    int32_t summary_root;
+    int const gameframe_group = 161;
+    int const journal_group = 629;
+    int const summary_group = 712;
+    int const tab_slot_uid = (gameframe_group << 16) | 61;
+    int const tab_container_uid = (journal_group << 16) | 43;
+
+    printf("TEST: reclaim drops the mounts nested inside the closed group\n");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = tab_slot_uid;
+    spec.width = 190;
+    spec.height = 261;
+    tab_slot = UITree_Push(tree, -1, &spec);
+    TEST_ASSERT(tab_slot >= 0, "sidebar tab slot");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (journal_group << 16) | 0;
+    spec.width = 190;
+    spec.height = 261;
+    journal_root = UITree_Push(tree, tab_slot, &spec);
+    TEST_ASSERT(journal_root >= 0, "journal root");
+    (void)UITree_InterfaceParentSet(tree, tab_slot_uid, journal_group, 1);
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = tab_container_uid;
+    spec.width = 184;
+    spec.height = 233;
+    tab_container = UITree_Push(tree, journal_root, &spec);
+    TEST_ASSERT(tab_container >= 0, "journal tab container");
+
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = (summary_group << 16) | 0;
+    spec.width = 184;
+    spec.height = 233;
+    summary_root = UITree_Push(tree, tab_container, &spec);
+    TEST_ASSERT(summary_root >= 0, "summary panel root");
+    (void)UITree_InterfaceParentSet(tree, tab_container_uid, summary_group, 1);
+
+    TEST_ASSERT(
+        UITree_InterfaceParentIsMountedGroup(tree, summary_group),
+        "summary panel is mounted before the close");
+
+    /* IF_CLOSESUB on the tab slot: reclaim the group, then drop the slot's own
+     * record — the order app_boot's close path uses. */
+    UITree_ReclaimInterfaceGroup(tree, journal_group);
+    UITree_InterfaceParentClear(tree, tab_slot_uid);
+
+    TEST_ASSERT(!UITree_GroupPresent(tree, journal_group), "journal gone");
+    TEST_ASSERT(!UITree_GroupPresent(tree, summary_group), "summary nodes gone");
+    TEST_ASSERT(
+        !UITree_InterfaceParentIsMountedGroup(tree, journal_group),
+        "journal mount record gone");
+    TEST_ASSERT(
+        !UITree_InterfaceParentIsMountedGroup(tree, summary_group),
+        "summary mount record gone — nothing claims it is still on screen");
+    TEST_ASSERT(tree->interface_parent_count == 0, "no mount records left at all");
+    TEST_ASSERT(tree->components[tab_slot].freed == 0, "the slot itself survives");
 
     UITree_Free(tree);
 }

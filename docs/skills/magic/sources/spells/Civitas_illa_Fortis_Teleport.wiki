@@ -1,0 +1,38 @@
+{{Otheruses|the teleport spell|the teleport tablet|Civitas illa fortis teleport (tablet)|the teleport portal|Civitas illa Fortis Portal}}
+{{Infobox Spell
+|name = Civitas illa Fortis Teleport
+|image = [[File:Civitas illa Fortis Teleport.png]]
+|release = [[20 March]] [[2024]]
+|update = Varlamore: Part One
+|members = Yes
+|level = 54
+|spellbook = Normal
+|type = Teleport
+|exp = 64
+|cost = {{RuneReq|Law=2|Earth=1|Fire=1}}
+|speed = 4 ticks
+|quest = [[Twilight's Promise]]
+|description = Teleports you to Civitas illa Fortis
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Civitas illa Fortis Teleport icon (mobile).png|left|class=pageimage]]
+'''Civitas illa Fortis Teleport''' teleports the caster to [[Civitas illa Fortis]]. This spell can only be cast after completion of [[Twilight's Promise]].
+
+Like most teleports, this spell cannot be used past level 20 [[Wilderness]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 1
+|Rune2 = earth
+|Rune2num = 1
+|Rune3 = law
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|1679,3136|1684,3136|1684,3131|1679,3131|mtype=polygon|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

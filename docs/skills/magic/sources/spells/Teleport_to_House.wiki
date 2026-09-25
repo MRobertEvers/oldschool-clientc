@@ -1,0 +1,63 @@
+{{External|rs=House Teleport}}
+{{otheruses|the teleport spell|the teleport tablet|Teleport to house (tablet)}}
+{{Infobox Spell
+|name = Teleport to House
+|image = [[File:Teleport to House.png]]
+|release = [[31 May]] [[2006]]
+|update = PLAYER-OWNED HOUSES!
+|members = Yes
+|level = 40
+|spellbook = Normal
+|type = Teleport
+|exp = 30
+|cost = {{RuneReq|Earth=1|Law=1|Air=1}}
+|speed = 4 ticks
+|quest = No
+|lectern = [[Mahogany eagle lectern|Mahogany eagle]]
+|description = Teleports you to your house
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Teleport to House icon (mobile).png|left|class=pageimage]]
+'''Teleport to House''', also known as 'House Teleport', teleports the caster inside their [[player-owned house]], right next to the exit portal (or within the house), regardless of the 'location' of the house ([[Rimmington]], [[Taverley]], [[Brimhaven]], etc.).
+
+When adventuring, a player could bring runes or tablets for this spell to guard against [[Death|dying]] from [[poison]] and fully heal themselves instead. Dying in a player-owned house will cause the player to [[Spawning|respawn]] outside the house portal, '''NOT''' lose any items, and have all stats restored to default levels.
+
+Players can toggle their default [[player-owned house]] teleport to [[Building Mode]] via the POH [[settings]] menu.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 1
+|Rune2 = air
+|Rune2num = 1
+|Rune3 = earth
+|Rune3num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|poll = Old School Content Poll 77: Quality of Life
+|change = Players can now toggle their default [[player-owned house]] teleport to [[Building Mode]] via the POH [[settings]] menu.
+}}
+{{Subject changes
+|date = 2 March 2022
+|update = Group Ironman Improvements
+|change = A new right-click option "Group" was added, allowing Group Ironman players to teleport to their teammates house.}}
+{{Subject changes
+|date = 2 August 2018
+|update = Tournament World, Mobile Enhancements and Theatre of Blood Tweaks
+|change = The Teleport to house spell and tablet now have right-click options to teleport either inside or outside of the house.}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|poll = Old School Content Poll 35: The Max Cape
+|change = Teleport to House can be toggled between placing the player inside the house or outside by the house portal. This option can be found in the house options in the settings tab.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

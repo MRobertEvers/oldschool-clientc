@@ -1,0 +1,15 @@
+{
+  "env.txt_restored": true,
+  "extra_args.txt_restored": true,
+  "task_server_stopped": true,
+  "reverse_after": "\n",
+  "task_save_removed": true,
+  "task_manifest_removed": true,
+  "normal_apk_sha256": "48c062e9734a8b6f4925d8bc044fe50e7a279cefa2c2f3b03d572bf1e00fdfbb",
+  "positive_defaults": [
+    "compact canvas queries",
+    "direct actor encoding",
+    "P3 overlay retention",
+    "actor RGB reversal and metadata word stores"
+  ]
+}

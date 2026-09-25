@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 /*
  * Load every varplayer type into the VarPManager, once, at boot.
@@ -91,8 +92,7 @@ varp_decode_one(
     RSCache_Dat2ConfigVarplayerDecodeInplace(&entry, (uint8_t const*)data, size);
 
     if( entry._consumed != size )
-        fprintf(
-            stderr, "varp %d: decode consumed %d of %d bytes\n", id, entry._consumed, size);
+        TORIRS_LOG("varp %d: decode consumed %d of %d bytes\n", id, entry._consumed, size);
 
     task->types[id].clientcode = entry.clientcode;
     task->decoded++;
@@ -117,10 +117,9 @@ static void
 varp_install(struct Task_Dat2VarpLoad* task)
 {
     if( !VarPManager_SetVarpTypes(task->varps, task->types, task->type_count) )
-        fprintf(stderr, "varp: failed to install %d types\n", task->type_count);
+        TORIRS_ERR("varp: failed to install %d types\n", task->type_count);
     else
-        printf(
-            "varp load: %d types (%d records, ids 0..%d)\n",
+        TORIRS_LOG("varp load: %d types (%d records, ids 0..%d)\n",
             task->type_count,
             task->decoded,
             task->type_count - 1);
@@ -132,7 +131,7 @@ varp_install(struct Task_Dat2VarpLoad* task)
 static int
 Task_Dat2VarpLoad_Run(
     struct ToriRS_Task* task_base,
-    struct ToriRS_IO* io)
+    struct ToriRS_IOBatch* io)
 {
     struct Task_Dat2VarpLoad* task = (struct Task_Dat2VarpLoad*)task_base;
     struct RSCache_Dat2DiskArchive* archive = NULL;
@@ -152,11 +151,28 @@ Task_Dat2VarpLoad_Run(
         task->ref = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
         if( !task->ref )
         {
-            fprintf(
-                stderr,
-                "varp: table %d absent; every clientcode will read 0\n",
+            TORIRS_LOG("varp: table %d absent; every clientcode will read 0\n",
                 task->addr.table);
             PT_EXIT(&task->pt);
+        }
+
+        /* Every group the table names, fetched together. @see the same wave in
+         * task_dat2_varbit_load.c: the ids are all known the instant the
+         * reference table lands, so the walk below reads them out of the
+         * resident store instead of paying a round trip apiece. The table owns
+         * the id array and outlives the yield, so it is lent, not copied. */
+        if( task->ref->id_count > 1 )
+        {
+            ToriRS_IO_QueueCachePrefetch(
+                io,
+                0,
+                0,
+                task->addr.table,
+                TORIRS_IO_CACHE_DAT2,
+                task->ref->ids,
+                task->ref->id_count);
+            PT_YIELD(&task->pt);
+            ToriRS_IO_ClearItem(ToriRS_IO_TaskSlot(io, 0));
         }
 
         for( task->group_index = 0; task->group_index < task->ref->id_count;
@@ -195,7 +211,7 @@ Task_Dat2VarpLoad_Run(
         /* Not every cache carries the group. Leaving the table NULL keeps the
          * manager in untyped mode, which is the pre-existing behaviour: varps
          * still store and transmit, they just drive no client behaviour. */
-        fprintf(stderr, "varp: config group absent; every clientcode will read 0\n");
+        TORIRS_LOG("varp: config group absent; every clientcode will read 0\n");
         PT_EXIT(&task->pt);
     }
 
@@ -203,7 +219,7 @@ Task_Dat2VarpLoad_Run(
         RSCache_FileListNewFromDecode(archive->data, archive->data_size, archive->file_count);
     if( !filelist || !archive->file_ids )
     {
-        fprintf(stderr, "varp: failed to split the config group\n");
+        TORIRS_ERR("varp: failed to split the config group\n");
         RSCache_FileListFree(filelist);
         RSCache_Dat2DiskArchiveFree(archive);
         PT_EXIT(&task->pt);

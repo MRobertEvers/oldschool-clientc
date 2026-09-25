@@ -255,12 +255,9 @@ js5_server_validate_container(
         if( archive >= RSCACHE_DAT2_DISK_TABLE_CAPACITY )
             return JS5_SERVER_CACHE_NOT_FOUND;
         table = cache->disk->tables[archive];
-        if( !table || table->archive_count <= 0 ||
-            group >= (uint32_t)table->archive_count )
+        if( !table || !RSCache_ReferenceTableHasArchive(table, (int)group) )
             return JS5_SERVER_CACHE_NOT_FOUND;
         entry = &table->archives[group];
-        if( entry->index < 0 )
-            return JS5_SERVER_CACHE_NOT_FOUND;
         expected_crc = (uint32_t)entry->crc;
         expected_version = (uint32_t)entry->version;
     }

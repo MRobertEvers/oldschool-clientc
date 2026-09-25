@@ -264,7 +264,7 @@ sound effect 0 is a real clip, and a 0 default is what made all 1,083 weapons pl
 the same sound on every swing (`WEAPON_FX.md` §6.6).
 
 The three npc params are new (`npc_combat.param`, `fields/npc.ini` opcodes
-158–160, `mock230_servercodec.c`, `Mock230NpcDef`). `player_ranged.rs2` has wanted
+158–160, `torirs_server_servercodec.c`, `ToriRSServerNpcDef`). `player_ranged.rs2` has wanted
 `defend_sound` since it was ported and recorded its absence in a comment.
 
 ---
@@ -465,20 +465,20 @@ the check catching that change is the reason it is worth pinning ids at all.
 
 The three params are new: `npc_combat.param` (`type=int`, `default=-1`),
 `fields/npc.ini` opcodes 158–160 (`u4`, so -1 round-trips), `k_npc_fields` in
-`mock230_servercodec.c`, and `Mock230NpcDef` / `Mock230Npc`. `type=synth` does
+`torirs_server_servercodec.c`, and `ToriRSServerNpcDef` / `ToriRSServerNpc`. `type=synth` does
 not exist — `cp_common.c`'s `k_param_types` has no entry for it and `'P'` is
 already `param` — which is why the config carries a bare id and the ledger keeps
 the name.
 
 ## 7. Verification
 
-- `mock230_pack`: **0 errors**, 17 warnings (all pre-existing), 8,319 archives
+- `ToriRSServer_Pack`: **0 errors**, 17 warnings (all pre-existing), 8,319 archives
   verified against the text parse.
-- `mock230 --selftest`: **all checks passed**, including a new check that walks
+- `ToriRSServer --selftest`: **all checks passed**, including a new check that walks
   the whole sound chain in one assertion — `npc_combat/bat.combat` says
   `attack_sound = bat_attack`, the generator resolves that name through
   `pack/4_soundeffects.pack` to 292, the config carries the id, the param is
-  declared, and `Mock230NpcDef.attack_sound` holds 292. Five links, none of which
+  declared, and `ToriRSServerNpcDef.attack_sound` holds 292. Five links, none of which
   anything else would notice breaking, because a silent npc is the *correct*
   outcome for most of the roster. Proven by mutation: changing the expected value
   makes it fail with `got 292`.
@@ -492,7 +492,7 @@ the name.
   config and `pack/npc.server`.
 
 **Not verified, and why.** That the sound reaches a *client* is
-`test-mock230-embed`'s job and it cannot run: the suite has a pre-existing
+`test-torirsserver-embed`'s job and it cannot run: the suite has a pre-existing
 failure where nothing decodes past login — its own SYNTH_SOUND check, plus every
 PLAYER_INFO, door and friends-list check, all fail together. Confirmed
 pre-existing by checking out `4963347b` (before any of this work) and reproducing

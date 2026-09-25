@@ -1,0 +1,1182 @@
+{
+ "current": {
+  "read_this_block": "final_pair_5e34b81f_2026_09_07",
+  "src/torirs": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+  "src/build_opt/torirsserver": "6a0e7f0441c25f1249bc8342a5103744a4dbd991d721b67eaea1846db7d910d4",
+  "OSRS-Content/osrs239-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+  "note": "The top-level generated_utc / shared_binary_provenance / unit_gates / totals / failures below describe the 2026-09-06 run on the pair c7e62cce / a53899eb. final_binary_restamp_2026_09_07 describes the 08:08 pair 4854e303 / 214b43d7. final_pair_5e34b81f_2026_09_07 is current."
+ },
+ "generated_utc": "2026-09-07T02:49:13Z",
+ "generated_by": "sailing final phase, worker 'gates' (the one worker permitted to run make test targets in the shared objdirs; every make ran serially, one at a time)",
+ "shared_binary_provenance": {
+  "src/torirs": "c7e62cce180aaeb6bc4cd044818b0209ca99edb478f5280c3ebd10d6b79b1d8d",
+  "src/build_opt/torirsserver": "a53899eb8ce5d086e36df3653aaccfd2ee93c05f8e767ece05ecc40a94b9c3db",
+  "OSRS-Content/osrs239-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+  "verified_before_and_after_all_makes": true,
+  "note": "All three hashes matched the values handed to this worker, both before the first make and after the last. No make in this run relinked a shared binary; the unit gates build their own executables into the objdir."
+ },
+ "timing_caveat": "Durations are wall clock while several other workers were running clients and servers on this machine. They are NOT performance evidence; a later phase measures alone.",
+ "unit_gates": [
+  {
+   "target": "test-wev",
+   "make": "make -C src EMBED_SERVER=1 test-wev",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 2.6,
+   "log": "/tmp/sailing-final-gates/test-wev.log",
+   "pass_line": "wev_test: all passed",
+   "test_sources_sha256": {
+    "src/world/test/wev_test.c": "17706250b7c74760ef955a103bfdc2a5fbeac2106e66f0ba5b66aa3d3c295cd4"
+   },
+   "production_sources_sha256": {
+    "3rd/rscache/src/dat2disk.c": "20943bcd34311d04c9c9b923c383806955b6c3a84598e34059dab73d1d8c8310",
+    "3rd/rscache/src/filelist.c": "20aba433fa92aaee1680b89d9f216fc66c792db5baeab22bd6f05994de9218c7",
+    "3rd/rscache/src/revisions/revisions.c": "b47fa94201853f5032ca55f80fecc825a2f40d14713c549dbcb076b8241cbb30",
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27"
+   }
+  },
+  {
+   "target": "test-wev-rebuild",
+   "make": "make -C src EMBED_SERVER=1 test-wev-rebuild",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 5.8,
+   "log": "/tmp/sailing-final-gates/test-wev-rebuild.log",
+   "pass_line": "wev_rebuild_test: all passed",
+   "test_sources_sha256": {
+    "src/world/test/wev_rebuild_test.c": "fe6ffe17fffd33da4b3d54a1a18d69e82226a56085b885694a77f3402c2c6d91"
+   },
+   "production_sources_sha256": {
+    "src/app.c": "09ab5dd24504426b71e1a8d27c155f0cd72db51a2b8388c088697d88e63b645a",
+    "src/engine/cache_provider.c": "34b0b1c4ff8e8ae7ee156ca7dc7c15de95df3f36e4ab94feb68e4aab046758bc",
+    "src/engine/dat2/dat2_buildcache.c": "443eb6cacd0ae7ace88cae50fa1a8a6efb0459bbc47c8413d282242f9395ac4e",
+    "src/engine/torirs_types.c": "9fba9a458e1dafc40d5de31b0a9e52b94eae4d13c3b88ec0185f2ca89880763f",
+    "src/engine/world_builder/heightmap.c": "ac5e8c5c5b70a935d2123d4c608d45ec7026cc42e7f2ca73e317655dbff27e40",
+    "src/engine/world_builder/task_world_load.c": "1fb3eacd82affe4378f4975efe270939cb06f74d0220d768ddf2ec68dcf632b0",
+    "src/engine/world_builder/world_builder.c": "1199419e9a642800e582304d3be7a041e78bb17b65cf1c3f385f910d08026d8a",
+    "src/net/rev/gameproto_parse.c": "433d1404b82f74032848547c9f59f11b43c245eaa206d4070118f170b70f98c1",
+    "src/platform/platform_x_io.c": "e5f29aa335f8f0a80048bba414654628297d07d975096b7ec28ac9c432ca662a",
+    "src/varp/varp_manager.c": "c488eade717b192c816b85341ab1d869db194d01508228f559875d1a3f5cfcdb",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e",
+    "src/world/worldview.c": "cbee6c5f934019f6f92329a0101c8f9276497df6166655145d1aa2c4e61628e0"
+   }
+  },
+  {
+   "target": "test-net-exec",
+   "make": "make -C src EMBED_SERVER=1 test-net-exec",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 7.1,
+   "log": "/tmp/sailing-final-gates/test-net-exec.log",
+   "pass_line": "net-exec: all tests passed",
+   "test_sources_sha256": {
+    "src/game/test/rs_gameproto_exec_test.c": "e13821343923bd6fd8f20d74d86bac8e3fe090846c38daf677e232db449271af"
+   },
+   "production_sources_sha256": {
+    "src/app.c": "09ab5dd24504426b71e1a8d27c155f0cd72db51a2b8388c088697d88e63b645a",
+    "src/game/rs_chat.c": "36d0f21e9d24c6f14f2d7aa6cc47b78c60b8b8de895504cfaa499a8792f7f0e6",
+    "src/game/rs_clientcode.c": "c58cafc2640f3d1480570f6f72ff50b737ec532936e4f3815853098899a3c548",
+    "src/game/rs_gameproto_exec.c": "e3634918e5604105b28098f8ec3b0ec60a16413759f1349244f0c6488065f571",
+    "src/game/rs_player_stats.c": "de309925009d67bf062c3edf6291ac67daa138f265343a180a0f9d38ea7d3410",
+    "src/game/task_gameproto_exec.c": "750706526aed1f61eb00a91fe1512176315a667449fd0ed84460a2e56b85cd8b",
+    "src/inv/inv_manager.c": "b72c33b2e28b3f866a5b57d1c0708f7983ba1ec78040fadb0a33c33102f6ec33",
+    "src/net/rev/gameproto_parse.c": "433d1404b82f74032848547c9f59f11b43c245eaa206d4070118f170b70f98c1",
+    "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5",
+    "src/varp/varp_manager.c": "c488eade717b192c816b85341ab1d869db194d01508228f559875d1a3f5cfcdb",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e"
+   }
+  },
+  {
+   "target": "test-wev-visibility",
+   "make": "make -C src EMBED_SERVER=1 test-wev-visibility",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 0.7,
+   "log": "/tmp/sailing-final-gates/test-wev-visibility.log",
+   "pass_line": "native world-entity visibility/camera: 0 failures",
+   "test_sources_sha256": {
+    "src/world/test/wev_visibility_test.c": "2ea13b24da836be88a71c98507474f925cc9f6e1a63c98ec598426b3b318cd86"
+   },
+   "production_sources_sha256": {
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27"
+   }
+  },
+  {
+   "target": "test-wev-population",
+   "make": "make -C src EMBED_SERVER=1 test-wev-population",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 2.2,
+   "log": "/tmp/sailing-final-gates/test-wev-population.log",
+   "pass_line": "flat view population: own/borrowed actors and graphics removed; runtime scenery retained; next-frame restoration PASS",
+   "test_sources_sha256": {
+    "src/world/test/wev_population_test.c": "808e210d58e550aa21ae36410e55b76bac4f547e3f024ec1051bfbb625a108b4"
+   },
+   "production_sources_sha256": {
+    "src/engine/world_builder/collision_map.c": "b18fd644502fe4fe2ea5a41e00413519b3b1304240d5798dfa3f2e4d58ded974",
+    "src/engine/world_builder/heightmap.c": "ac5e8c5c5b70a935d2123d4c608d45ec7026cc42e7f2ca73e317655dbff27e40",
+    "src/engine/world_builder/minimap.c": "137dc3bc296e6945cf7365d5c7dc58d344d1e0edd2dc1fe0b45b10b3e564488c",
+    "src/features/features.c": "8555d8325bab11b1955dd919194ed4fc08a6cdf977c5f526523a43c916310e65",
+    "src/painters/painters.c": "b0743db585f2060fe20667a9d44a98fbf0f5003bd045cf2841c474eb0d8a51d4",
+    "src/painters/scene_occluders.c": "d47b72cfb36e6d0500b9ed2c014278dbdcef8bb40a5bf9c251bd91f9616c2d2a",
+    "src/perf/torirs_perf.c": "278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271",
+    "src/world/entity_pathing.c": "f61331cb4b1bbebc26ca6c23e98dcd4033aaff4a6f695f158762d6d4449e6370",
+    "src/world/entity_pool.c": "2e174842a6ad181ffbec8a5cbe6f2d12bb8f8263380a4670a610b3099833f121",
+    "src/world/entity_registry.c": "084b846bd19d5f1d580547254399284ebebc36fe2fca6e3758c5d173407fc322",
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e",
+    "src/world/world_cycle.c": "b9e4983d256aec7eed6cc967ec3605715b4867cda901a1025d77bf81db5e1972",
+    "src/world/world_entity.c": "f9194c6bda36632858f0eddda40d47f9994341a22263143f7c4941cdfeb13661",
+    "src/world/world_pickset.c": "1a6bfc6869a2afde214e8173b180bc9ea061a055472798f7d5477ad07fbd2fdf",
+    "src/world/worldview.c": "cbee6c5f934019f6f92329a0101c8f9276497df6166655145d1aa2c4e61628e0"
+   }
+  },
+  {
+   "target": "test-painters-world-entity",
+   "make": "make -C src EMBED_SERVER=1 test-painters-world-entity",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.4,
+   "log": "/tmp/sailing-final-gates/test-painters-world-entity.log",
+   "pass_line": "all painter world-entity tests passed",
+   "test_sources_sha256": {
+    "src/painters/test/painters_test_world_entity.c": "22445fe6c47a0af94b5232f7b0408ab95ab82cb7241d20fe84be92b54fd5c447"
+   },
+   "production_sources_sha256": {
+    "3rd/toridraw/graphics/shared_tables.c": "995ff3dcdd210d057bd8de22a19702980cd46a960a0ceb1ae79e20ecb7b600c3",
+    "src/painters/painters.c": "b0743db585f2060fe20667a9d44a98fbf0f5003bd045cf2841c474eb0d8a51d4",
+    "src/painters/painters_cull_project.c": "f350abece36e67ca8aca5c5524f29bf5285f1f9a528171704606cac00911a50c",
+    "src/painters/scene_occluders.c": "d47b72cfb36e6d0500b9ed2c014278dbdcef8bb40a5bf9c251bd91f9616c2d2a",
+    "src/perf/torirs_perf.c": "278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271",
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27",
+    "src/world/wev_deck.c": "a17c1692edc64b44f04a40c93cc02fe5cd35f60cf6af7b39275f97663912f356"
+   }
+  },
+  {
+   "target": "test-frame-flat",
+   "make": "make -C src EMBED_SERVER=1 test-frame-flat",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.1,
+   "log": "/tmp/sailing-final-gates/test-frame-flat.log",
+   "pass_line": "frame flat live geometry, scale, colour, no-pick, replay lifetime and root identity PASS",
+   "test_sources_sha256": {
+    "src/render/test/torirs_frame_flat_test.c": "ef20d65ac9196b8c246b96b1bc2dd4af0d88f144a0ffa57bcb71532e8e406dd7"
+   },
+   "production_sources_sha256": {
+    "3rd/toridraw/toridraw_model.c": "166564daf7fac5a5c2264fc563b1550aa9e2c2961aba5068d8cff5ab1aa0aff7",
+    "3rd/toridraw/toridraw_scene.c": "96b4f7c44a657b6eb820b2f00abafb71c05f0ca146a408ebc69c8520da0960c8",
+    "src/painters/painters.c": "b0743db585f2060fe20667a9d44a98fbf0f5003bd045cf2841c474eb0d8a51d4",
+    "src/perf/torirs_perf.c": "278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271",
+    "src/render/torirs_arc.c": "cc71e37bfaf0f5da25e81a1deadb33813d4b7d460df374a1681c62a733dc0a49",
+    "src/render/torirs_frame.c": "0d70d4c7b20eb8e4844b2b259edde590346d45c76c692fc584ece32394cb814f",
+    "src/render/torirs_frame_flat.u.h": "d1e914c833c96c6a52c525393d482331cac11b9cfb897290836e6cc50b7e9c03",
+    "src/ui/uitree_emit.c": "9b56475e2a654beaad6b60b92b7ad7f6dce0b4f49aba8f1e53f7f46dcb5212ac",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e"
+   }
+  },
+  {
+   "target": "test-sailing-paint-order",
+   "make": "make -C src EMBED_SERVER=1 test-sailing-paint-order",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 0.6,
+   "log": "/tmp/sailing-final-gates/test-sailing-paint-order.log",
+   "pass_line": "scene dependencies: flat before full, parent ground before boat; nested ownership, raised shore, loc order and zero-boat bytes PASS",
+   "test_sources_sha256": {
+    "src/game/test/sailing_paint_order_test.c": "0e3b3abf87372e5c93fab51f4f0c7d813be7d56c30a7c52e63bd37786b871571"
+   },
+   "production_sources_sha256": {
+    "src/game/sailing_paint_order.u.h": "6758aacc08149331fe1921fe442b8f1db77f164355436d5a62c4bf7c3da59ee4"
+   }
+  },
+  {
+   "target": "test-pick-level",
+   "make": "make -C src EMBED_SERVER=1 test-pick-level",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.6,
+   "log": "/tmp/sailing-final-gates/test-pick-level.log",
+   "pass_line": "OK: pick_level_test",
+   "test_sources_sha256": {
+    "src/render/test/pick_level_test.c": "7a24f23dd871d96f140d60ed4bfb6ccfae3d10033893e778b8d16383576e0a0a"
+   },
+   "production_sources_sha256": {
+    "src/engine/world_builder/collision_map.c": "b18fd644502fe4fe2ea5a41e00413519b3b1304240d5798dfa3f2e4d58ded974",
+    "src/engine/world_builder/heightmap.c": "ac5e8c5c5b70a935d2123d4c608d45ec7026cc42e7f2ca73e317655dbff27e40",
+    "src/engine/world_builder/minimap.c": "137dc3bc296e6945cf7365d5c7dc58d344d1e0edd2dc1fe0b45b10b3e564488c",
+    "src/features/features.c": "8555d8325bab11b1955dd919194ed4fc08a6cdf977c5f526523a43c916310e65",
+    "src/painters/painters.c": "b0743db585f2060fe20667a9d44a98fbf0f5003bd045cf2841c474eb0d8a51d4",
+    "src/painters/scene_occluders.c": "d47b72cfb36e6d0500b9ed2c014278dbdcef8bb40a5bf9c251bd91f9616c2d2a",
+    "src/render/torirs_pick.c": "d85dcc902a6b34e11c44dce0cb6a34b9b0bbe65eae424bfc1ac218b44a67234c",
+    "src/world/entity_pathing.c": "f61331cb4b1bbebc26ca6c23e98dcd4033aaff4a6f695f158762d6d4449e6370",
+    "src/world/entity_pool.c": "2e174842a6ad181ffbec8a5cbe6f2d12bb8f8263380a4670a610b3099833f121",
+    "src/world/entity_registry.c": "084b846bd19d5f1d580547254399284ebebc36fe2fca6e3758c5d173407fc322",
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e",
+    "src/world/world_cycle.c": "b9e4983d256aec7eed6cc967ec3605715b4867cda901a1025d77bf81db5e1972",
+    "src/world/world_entity.c": "f9194c6bda36632858f0eddda40d47f9994341a22263143f7c4941cdfeb13661",
+    "src/world/world_pickset.c": "1a6bfc6869a2afde214e8173b180bc9ea061a055472798f7d5477ad07fbd2fdf",
+    "src/world/worldview.c": "cbee6c5f934019f6f92329a0101c8f9276497df6166655145d1aa2c4e61628e0"
+   }
+  },
+  {
+   "target": "test-minimenu-world",
+   "make": "make -C src EMBED_SERVER=1 test-minimenu-world",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 2.4,
+   "log": "/tmp/sailing-final-gates/test-minimenu-world.log",
+   "pass_line": "All tests passed.",
+   "test_sources_sha256": {
+    "src/game/test/rs_minimenu_world_test.c": "f6afb668814545732a6184b460ddcf42a27a3a3f49d80ffe0c32c318baf8a250"
+   },
+   "production_sources_sha256": {
+    "src/engine/torirs_objtype_from_rscache.c": "7db85acb702e230859366066c177a136dd67ed5fbccdf4177477150ca0dea6aa",
+    "src/game/rs_minimenu_build.c": "fc3b54753d4f01b852fd19c624075b4678c424347d80c658268072099ce37bc5",
+    "src/game/rs_minimenu_world.c": "3f07b0c01e72d1cfd52424e8111fa4663bed8d449f915bc3f0cf065b9f284afc",
+    "src/revconfig/revconfig.c": "d7d69dd9a5a221c3a76108cb0355ed89a2710ed358f99bb995b692702e07cf0d",
+    "src/ui/uitree_layout.c": "7a77870f4bae68675af37fecbd13c5bb7a0afeb41a6a43e4ed13c9db5b04c08d",
+    "src/ui/uitree_minimenu.c": "4a45bfcd5b4cfe57e4cb2d4ddc983712ec51a3ce32a2a88740184ef3377fbf47",
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e",
+    "src/world/world_pickset.c": "1a6bfc6869a2afde214e8173b180bc9ea061a055472798f7d5477ad07fbd2fdf"
+   }
+  },
+  {
+   "target": "test-sailing-navigation",
+   "make": "make -C src EMBED_SERVER=1 test-sailing-navigation",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 2.0,
+   "log": "/tmp/sailing-final-gates/test-sailing-navigation.log",
+   "pass_line": "PASS sailing compass sectors and camera-plane ray projection",
+   "test_sources_sha256": {
+    "src/game/test/sailing_navigation_test.c": "b9f1437b41d9f085890b4fe9af8e9d8745d6b8cf3f9fdc123b7106cc99ef5ffa"
+   },
+   "production_sources_sha256": {
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27"
+   }
+  },
+  {
+   "target": "test-cs2-worldentity-limit",
+   "make": "make -C src EMBED_SERVER=1 test-cs2-worldentity-limit",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 3.4,
+   "log": "/tmp/sailing-final-gates/test-cs2-worldentity-limit.log",
+   "pass_line": "native 7900/7901 default30, setter/getter, zero and nonnegative clamp PASS",
+   "test_sources_sha256": {
+    "src/cs2vm2/test/worldentity_limit_test.c": "2339541a5e001532878ee81b0aabb039ad2b3a8a33fc3b9a6d23874d527b40dc"
+   },
+   "production_sources_sha256": {
+    "src/cs2vm2/cs2vm2.c": "0d3724e765b3851d11595bfc59feac426542beba7f0fba0438df9d58802e1bfe",
+    "src/cs2vm2/cs2vm2_script.c": "e8c53b0d3692c25abb7cc8efc65607ce1b7c12fe364e0946d5453f5ac2e316cc",
+    "src/engine/cache_provider.c": "34b0b1c4ff8e8ae7ee156ca7dc7c15de95df3f36e4ab94feb68e4aab046758bc",
+    "src/game/rs_cs2_host.c": "7851f2617b6bde35733823a7dcf0c5aeecede89d7639a4243c27c74d83c0ca89",
+    "src/game/rs_worldmap.c": "3b245d10d6051b4fa5d5dfed7f77e34e8460d5c40d98822c05037a28f46e54f3",
+    "src/inv/inv_manager.c": "b72c33b2e28b3f866a5b57d1c0708f7983ba1ec78040fadb0a33c33102f6ec33",
+    "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5"
+   }
+  },
+  {
+   "target": "test-cs2-array-fill",
+   "make": "make -C src EMBED_SERVER=1 test-cs2-array-fill",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.5,
+   "log": "/tmp/sailing-final-gates/test-cs2-array-fill.log",
+   "pass_line": "native ARRAY_FILL int/string/null, partial/clamped/overflow ranges and stack balance PASS",
+   "test_sources_sha256": {
+    "src/cs2vm2/test/array_fill_test.c": "84890a85273888aa45cf44051fce0077db2788595f6bb69bee93f7051ab72476"
+   },
+   "production_sources_sha256": {
+    "src/cs2vm2/cs2_opcode_meta.c": "1fc8565e02df8362b328784a17938aa0983977cdd45917556d6e27e57d77caed",
+    "src/cs2vm2/cs2vm2.c": "0d3724e765b3851d11595bfc59feac426542beba7f0fba0438df9d58802e1bfe",
+    "src/cs2vm2/cs2vm2_strpool.c": "0d2eff84a28268b1e5b0bc8c3dadd712238fa1431e759d251e087d781b403043",
+    "src/perf/torirs_perf.c": "278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271"
+   }
+  },
+  {
+   "target": "test-cs2-sailing-settings",
+   "make": "make -C src EMBED_SERVER=1 test-cs2-sailing-settings",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 3.3,
+   "log": "/tmp/sailing-final-gates/test-cs2-sailing-settings.log",
+   "pass_line": "PASS native cargo privacy0..2 through script3852 label writes, the8830/3967 paths, isolated script/varbit/struct scope and last-choice coalescing",
+   "test_sources_sha256": {
+    "src/cs2vm2/test/sailing_settings_test.c": "d329424e8eb4d0a2e84914e8c9d960eff4f74b114e85bf5bbd489a2381a39852"
+   },
+   "production_sources_sha256": {
+    "src/cs2vm2/cs2vm2.c": "0d3724e765b3851d11595bfc59feac426542beba7f0fba0438df9d58802e1bfe",
+    "src/cs2vm2/cs2vm2_script.c": "e8c53b0d3692c25abb7cc8efc65607ce1b7c12fe364e0946d5453f5ac2e316cc",
+    "src/engine/cache_provider.c": "34b0b1c4ff8e8ae7ee156ca7dc7c15de95df3f36e4ab94feb68e4aab046758bc",
+    "src/game/rs_cs2_host.c": "7851f2617b6bde35733823a7dcf0c5aeecede89d7639a4243c27c74d83c0ca89",
+    "src/game/rs_worldmap.c": "3b245d10d6051b4fa5d5dfed7f77e34e8460d5c40d98822c05037a28f46e54f3",
+    "src/inv/inv_manager.c": "b72c33b2e28b3f866a5b57d1c0708f7983ba1ec78040fadb0a33c33102f6ec33",
+    "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5",
+    "src/varp/varp_manager.c": "c488eade717b192c816b85341ab1d869db194d01508228f559875d1a3f5cfcdb"
+   }
+  },
+  {
+   "target": "test-cs2-host-request-kinds",
+   "make": "make -C src EMBED_SERVER=1 test-cs2-host-request-kinds",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 0.6,
+   "log": "/tmp/sailing-final-gates/test-cs2-host-request-kinds.log",
+   "pass_line": "host request kind contract: 655 exact, unique kinds in opcode order",
+   "test_sources_sha256": {
+    "src/cs2vm2/test/host_request_kinds_test.c": "91894325dc25751015b833bdd39b528e9ab92da12a29e83c283b12857e16ba2e"
+   },
+   "production_sources_sha256": {
+    "src/cs2vm2/cs2vm2_host_request_kinds.def": "42528067ef03424dbea2e1762c001f8fa50c32e56d281b9fe35dbd006a470436"
+   }
+  },
+  {
+   "target": "test-cs2-host-request-producers",
+   "make": "make -C src EMBED_SERVER=1 test-cs2-host-request-producers",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.5,
+   "log": "/tmp/sailing-final-gates/test-cs2-host-request-producers.log",
+   "pass_line": "host request producer replay: 655 exact kinds and CC/IF input payloads preserved across yield/retry",
+   "test_sources_sha256": {
+    "src/cs2vm2/test/host_request_producers_test.c": "539a98ab33a18fe99d0fd19a1ac9eaf4755456893b801e096e7e0f4436cc8d20"
+   },
+   "production_sources_sha256": {
+    "src/cs2vm2/cs2_opcode_meta.c": "1fc8565e02df8362b328784a17938aa0983977cdd45917556d6e27e57d77caed",
+    "src/cs2vm2/cs2vm2.c": "0d3724e765b3851d11595bfc59feac426542beba7f0fba0438df9d58802e1bfe",
+    "src/cs2vm2/cs2vm2_host_request_kinds.def": "42528067ef03424dbea2e1762c001f8fa50c32e56d281b9fe35dbd006a470436",
+    "src/cs2vm2/cs2vm2_strpool.c": "0d2eff84a28268b1e5b0bc8c3dadd712238fa1431e759d251e087d781b403043",
+    "src/perf/torirs_perf.c": "278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271"
+   }
+  },
+  {
+   "target": "test-mock239-playerinfo",
+   "make": "make -C src EMBED_SERVER=1 test-mock239-playerinfo",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 2.8,
+   "log": "/tmp/sailing-final-gates/test-mock239-playerinfo.log",
+   "pass_line": "mock239-playerinfo: all tests passed",
+   "test_sources_sha256": {
+    "src/torirsserver/test/mock239_playerinfo_test.c": "96dbf90349a168efead3f6b76d7bb85498fd717614f3cc587e5adefc22c390a7"
+   },
+   "production_sources_sha256": {
+    "src/net/bitbuffer.c": "9938cfda6c8442ac3e45c76d6540b6e1c1cf11b7b10565800fb90409f405d29c",
+    "src/net/rev/osrs239/osrs239_entity_info.c": "36b643f2301c13fb79669479dfe07eac87fad2799f4737fae7442e98cbe25923",
+    "src/net/rev/packets/pkt_npc_info.c": "99858d3df65183df063fddee120c6fede3814940c3fb05e56e4666f7fb022deb",
+    "src/net/rev/packets/pkt_player_info.c": "c2e38a36e4b7de47b0031177cd2c0e505d3179f9c28a65728e765c8a4bdf0855",
+    "src/torirsserver/mock239_playerinfo.c": "fa3d4d2c0707588c2cd79800eb99e047552d0ba5a92666ab5928f795d7c9a5be",
+    "src/torirsserver/torirs_server_wire.c": "eaa360b421e38250b44000292e6ef7276146b2390f3cfac7ac567002938e3250"
+   }
+  },
+  {
+   "target": "test-sailing-collision",
+   "make": "make -C src EMBED_SERVER=1 test-sailing-collision",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 6.8,
+   "log": "/tmp/sailing-final-gates/test-sailing-collision.log",
+   "pass_line": "sailing_collision_test: passed (0 failures)",
+   "test_sources_sha256": {
+    "src/torirsserver/test/sailing_collision_test.c": "68002a674cc06a385ef5618538dacd9e1f75a00da21b119cacae08e9bd84be60"
+   },
+   "production_sources_sha256": {
+    "3rd/toridraw/graphics/shared_tables.c": "995ff3dcdd210d057bd8de22a19702980cd46a960a0ceb1ae79e20ecb7b600c3",
+    "3rd/toridraw/toridraw_math.c": "5ddc930d99e535dfba7553e24fe0c4c4161f36c777638cd72f7a3176ff9eec1f",
+    "src/engine/world_builder/collision_map.c": "b18fd644502fe4fe2ea5a41e00413519b3b1304240d5798dfa3f2e4d58ded974",
+    "src/features/features.c": "8555d8325bab11b1955dd919194ed4fc08a6cdf977c5f526523a43c916310e65",
+    "src/torirsserver/torirs_server_loc_ops.c": "62fa29f0fdbd7a29b8f4596867d23180b40050726cfbade018d5944cf7eb0689",
+    "src/torirsserver/torirs_server_mapinstance.c": "211a517247c5d7e29261a0a42c352aa441528ae84ff53bb70664489bce773ed5",
+    "src/torirsserver/torirs_server_scene.c": "fd95c061654bc199287d02e85bccfde28aef1efe7a4e089ab4e544e1dcb25637",
+    "src/torirsserver/torirs_server_vessel.c": "ebf2cc79474beb0bc3da454bd822da7aff46f683d606d5932deb221803b7d68c",
+    "src/world/wev.c": "8dedfec17ce9d058b3cb685d12ebb93eaf88a0a61faea56670b4d684c5d33d27",
+    "src/world/wev_deck.c": "a17c1692edc64b44f04a40c93cc02fe5cd35f60cf6af7b39275f97663912f356"
+   }
+  },
+  {
+   "target": "test-entity-info-shrink",
+   "make": "make -C src EMBED_SERVER=1 test-entity-info-shrink",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 11.8,
+   "log": "/tmp/sailing-final-gates/test-entity-info-shrink.log",
+   "pass_line": "ALL PASS",
+   "test_sources_sha256": {
+    "src/game/test/task_exec_entity_info_test.c": "6b8fd2dda2ca23655cf014fa2bce543a56f7a97bb8270b57ab5725c7ed66acc3"
+   },
+   "production_sources_sha256": {
+    "3rd/toridraw/toridraw_scene.c": "96b4f7c44a657b6eb820b2f00abafb71c05f0ca146a408ebc69c8520da0960c8",
+    "src/app.c": "09ab5dd24504426b71e1a8d27c155f0cd72db51a2b8388c088697d88e63b645a",
+    "src/engine/cache_provider.c": "34b0b1c4ff8e8ae7ee156ca7dc7c15de95df3f36e4ab94feb68e4aab046758bc",
+    "src/engine/uitree_scene_bridge.c": "dad01dc9fc57a0d8bf8a0bc798ab4b02b70af3563fa7b5c8050884047ad294b1",
+    "src/game/rs_entity_sync.c": "85ec35de349ee1ab04ceb5e7143dff25a0ffd62b69103acb5aa120b758a87bb0",
+    "src/game/task_exec_entity_info.c": "39765d66ed3dd660cc3ffdaecd76dab57fa64a61c2818e38ccb87446a0c5f312",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e"
+   }
+  },
+  {
+   "target": "test-scanline",
+   "make": "make -C src EMBED_SERVER=1 test-scanline",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 2.7,
+   "log": "/tmp/sailing-final-gates/test-scanline.log",
+   "pass_line": "all scanline variants agree with their branching counterparts",
+   "test_sources_sha256": {
+    "3rd/toridraw/toridraw_scanline_parity_test.c": "10366c6e214d83d343c7a28bbfbf46d9ddc04e677da1f71b941c7ffe7f66e21c"
+   },
+   "production_sources_sha256": {
+    "3rd/toridraw/graphics/shared_tables.c": "995ff3dcdd210d057bd8de22a19702980cd46a960a0ceb1ae79e20ecb7b600c3",
+    "3rd/toridraw/impl/projection/projection.scalar_reference.u.c": "cd16cb292153656ac37b6c0471e7223f1974e69d4d4a9a14e72b3f63e6910456",
+    "3rd/toridraw/impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c": "f0fc8edf21314edf6a4911fc93a50800e89c4fdd4bc079702e998bdd03b42e79",
+    "3rd/toridraw/impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c": "eb5c6a0a6fabb18323e75419cd9c8898e404a8000eba275d2e8ac1b675cf020b",
+    "3rd/toridraw/impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.painter.branching.s4.scalar.c": "c8b363ce7ab730431378a3fff5b52095f0303b2ceba8535fee19cd634d391b21",
+    "3rd/toridraw/impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.painter.branching.s4.scalar.c": "2842ef88c0e6d772a935417d7618c3602e8351e6dd826cb6cc8c722823c21c24",
+    "3rd/toridraw/impl/raster/scanline/scanline.dispatch.u.c": "235885318a370fd3f1c2c973eed4e4b1bb068c275ab66856e8c690dade5fee4b",
+    "3rd/toridraw/impl/raster/span/span.tex.dispatch.u.c": "869b7b184fa558cc7c962b050e0a7b832d7c010bc3fc0cb9685c93be09487391",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeblend.affine.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c": "02e00f42569b7c7627d58aa13ef145a329ae4d81ed99cb7241f9afed8944c1c8",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c": "323390ad4585e4e89e1663d3c90f74f86608e6805cd8283c247ebc2eb1860aea",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeblend.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c": "bd773cca5394f5c9dcd33741e42e7c14c1a04959c6127c5c5f103646f1691112",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeblend.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8_v3.scalar.u.c": "f03ef8c4f0bf6f176e4578a494d65fc9bf12df0ca9009f9aba0f3e26ca20747c",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeflat.perspective.texopaque.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c": "2043787c6ab9399e0ef6f1a19819c8ea2d23ee63665ced38ab75f403c4894a8d",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeflat.perspective.texopaque.nofacealpha.nomodulate.painter.scanline.lerp8.scalar.u.c": "66ba111d6b2682c3b9389230d8eb9086f3bdd18878675c78fb867a38128e04d1",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.branching.lerp8.scalar.u.c": "2733c7fbabfe0211cdd60aa328ddfc121007277fb273425be45045ff94de52af",
+    "3rd/toridraw/impl/raster/tex/raster.texshadeflat.perspective.textrans.nofacealpha.nomodulate.painter.scanline.lerp8.scalar.u.c": "5d7f34ad017524cd86b0e355388eadc18fb7defbb42c06ba6163abe1c884d54d"
+   }
+  },
+  {
+   "target": "test-rsprot-bridge",
+   "make": "make -C src EMBED_SERVER=1 test-rsprot-bridge",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.4,
+   "log": "/tmp/sailing-final-gates/test-rsprot-bridge.log",
+   "pass_line": "rsprot-bridge: rsprot and osrs239_parse agree on every migrated packet",
+   "test_sources_sha256": {
+    "src/net/rev/test/rsprot_bridge_test.c": "66bac112f9e2a3e06b5f93aeda4320f420b52bf8e85b90230d4d66a03091f33e"
+   },
+   "production_sources_sha256": {
+    "3rd/rsprot/packets/cam_lookat_v2.c": "dd0533cb20db66747a5f0ac7c1c70acbc3b03fe3baab8d5cc26e3c4c0400f6d6",
+    "3rd/rsprot/packets/cam_moveto_v2.c": "7ebd3bdadfb5dbbaa6c11755610e1079b8549e59232be66b8fe104ac3e9e7e45",
+    "3rd/rsprot/packets/cam_shake.c": "6c01414cba816b1abecb318cfdc9310980e0ac203e09104869c2edfba84a7a63",
+    "3rd/rsprot/packets/chat_filter_settings.c": "a5e364bcc29984490331d728e85492b9f642a18b2f36ac7902c257f0175f99e6",
+    "3rd/rsprot/packets/friendlist_loaded.c": "13e0f9f4c601bc7f5a974b7989f1ffb1e9ca233bcbed04f851ae5029eac9470a",
+    "3rd/rsprot/packets/if_clearinv.c": "8bdea4d3e1a3b0edea15c059eab43c352eba7de8dfa955f2b51080e80270097f",
+    "3rd/rsprot/packets/if_closesub.c": "eb13b623d84a3a908dd87c9e3c35510dd33e992c44e3697c4712b12b64d750df",
+    "3rd/rsprot/packets/if_movesub.c": "184b55c339e513c3bb86724beb5ebc6f099e7f9871c5eac4a5a9150e1e7c4c01",
+    "3rd/rsprot/packets/if_opensub.c": "80cb26b0acc838b6e339fd4fe427645f72b6f72e204d8883240607587c51d9db",
+    "3rd/rsprot/packets/if_setangle.c": "e384ecc2ce7e9dac4f3e752794722a8dee86ce442a1d6d2a6e9b94e1ac9f7567",
+    "3rd/rsprot/packets/if_setanim.c": "3187be039a8489654cf4e76c6baba76c01c7d44f5abe4d0a622f4aeeaa7ddfcf",
+    "3rd/rsprot/packets/if_setcolour.c": "88ecebd08dc6f1e916cd5764e6f28a6f1e4b95e939388588eb5db1037fc0b7c3",
+    "3rd/rsprot/packets/if_setevents_v2.c": "cd2aace754ba4875a8741a660140990adf571d282553e9f301e48d36415fb886",
+    "3rd/rsprot/packets/if_sethide.c": "c5b488859ce560187623cf57f6c8c67bcc4ffd9aab24c2620b8e30e593ff5358",
+    "3rd/rsprot/packets/if_setmodel_v2.c": "59b0f42d136f0174b4091faa578af960061dc1df0d2f4571aa9369a16165915c",
+    "3rd/rsprot/packets/if_setnpchead.c": "b6b7ca9a1c58859dd2f08e9407f4b16ac00b667cd15aad0ec055b1a9e3235c5a",
+    "3rd/rsprot/packets/if_setnpchead_active.c": "c6e196dad95dd366a7961d8e99aca9e4f365631a212cae774120284516597580",
+    "3rd/rsprot/packets/if_setobject.c": "d3525d8f6f0ce0231e0d554b3f7ac3cdbac15c47d3e19a36a0ebb06adffdf5e0",
+    "3rd/rsprot/packets/if_setplayerhead.c": "5590cddd482dd797718f58469c6a2324921ecc9cc5808104ca58804741a21731",
+    "3rd/rsprot/packets/if_setplayermodel_basecolour.c": "8330aa315da9e6f21d46c0ea668f891729596a8cb0b787abe929efa24591b6e5",
+    "3rd/rsprot/packets/if_setplayermodel_bodytype.c": "62edca0dd415831ffdbf4d57ee19f53085be4a33569e1d3f27cde781e73e71eb",
+    "3rd/rsprot/packets/if_setplayermodel_obj.c": "92fa269a5675df836aadd47b496b89ae4704b62e272b65e0762dd72cdd74d1c0",
+    "3rd/rsprot/packets/if_setplayermodel_self.c": "7323fa4a8c94dc6a237398811b273ff67127f8c29ee666de0e1ec3659defbb86",
+    "3rd/rsprot/packets/if_setposition.c": "3c5924eebd06c54cc489bb490ff62eb6a3683563ed1b113a0ae5db936e3b1282",
+    "3rd/rsprot/packets/if_setrotatespeed.c": "d40bed68ffa16fd49cd6417a25287544e07206a4e37f52c0bddb6da55f6f3b88",
+    "3rd/rsprot/packets/if_setscrollpos.c": "e0735adbe55a350c3c5bb06e3708872542da76dab219d56811c1d1a951fa725a",
+    "3rd/rsprot/packets/if_settext.c": "ca6480511548cb2c11431c00ffcf0c42415b7ccc315c5782b41ba2b665e5b216",
+    "3rd/rsprot/packets/message_game.c": "41d11bbcd9d37c7c9ee95cf6aaba320e9484e0398580a47fa5545009edc99c27",
+    "3rd/rsprot/packets/midi_jingle.c": "426a47feac7d4acb672add0aa5b9c643949f4508e13863a287c91b60bafd987e",
+    "3rd/rsprot/packets/midi_song_v2.c": "6133b3e60dd247dcdf353c9fba99b8454aabc1c2976919f9f3b5e506c6eb4176",
+    "3rd/rsprot/packets/server_tick_end.c": "1654de3a51b927df099f6b3709b3f86f5fc53e44bc518f4aa8de93ea26d54487",
+    "3rd/rsprot/packets/set_map_flag_v2.c": "58ea9dcc5cf86831d107e52faf7f0eba4548c147b6943970c02dda16072052c3",
+    "3rd/rsprot/packets/set_npc_update_origin.c": "9f3f7952ef0b0e679df44b014b6a6cb093e56a6310cd9a785e77d5b9f2d0e723",
+    "3rd/rsprot/packets/synth_sound.c": "e932c41eb65027b32672707a386bf3e29db50d557eff7c2b2094ad727c62f3c2",
+    "3rd/rsprot/packets/update_inv_stoptransmit.c": "b89f72882c19439a3be6dcf210345d7a3e3d3d75972d0f9c123f90b446461dcd",
+    "3rd/rsprot/packets/update_runenergy.c": "37ed4525c0fd87b1b567af76292b1eda06e42135ec67dc3ff808561f39711516",
+    "3rd/rsprot/packets/update_stat_v2.c": "21a610c5269e2735ed214297f7405cfda27c1b95d19197956f65a1a4bdf4a5e3",
+    "3rd/rsprot/packets/update_zone_full_follows.c": "37ccfefcc71889b9d1005c0706a9e0247c204d159704e2c811aefb2e30081e17",
+    "3rd/rsprot/packets/update_zone_partial_follows.c": "971330a1a47b41f66e6467fb228a67d9c4458a09468cda86fdf853d7d67179d9",
+    "3rd/rsprot/packets/varp_large.c": "c6ed10c6b34345d7b8a5db4f7f0f6ea9a1b8d756ebf0d361cd4fd43be09d6323",
+    "3rd/rsprot/packets/varp_small.c": "086d1f28c2056238d8a3a9c93f7c30a784035b406c1a3db609883186877a4e4b",
+    "src/net/rev/rsprot_bridge.c": "c8813d19f14da594cfe141389132b068cf394ea132d3157caf311f236a03dfd1"
+   }
+  },
+  {
+   "target": "test-social",
+   "make": "make -C src EMBED_SERVER=1 test-social",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 6.0,
+   "log": "/tmp/sailing-final-gates/test-social.log",
+   "pass_line": "social: all checks passed",
+   "test_sources_sha256": {
+    "src/game/test/rs_social_test.c": "b2b1423c448d0dc8a513f5594be525bbc2eae4d79bfb21ed88960d19ed2c100d"
+   },
+   "production_sources_sha256": {
+    "src/cs2vm2/cs2vm2.c": "0d3724e765b3851d11595bfc59feac426542beba7f0fba0438df9d58802e1bfe",
+    "src/cs2vm2/cs2vm2_script.c": "e8c53b0d3692c25abb7cc8efc65607ce1b7c12fe364e0946d5453f5ac2e316cc",
+    "src/engine/dat2/dat2_buildcache.c": "443eb6cacd0ae7ace88cae50fa1a8a6efb0459bbc47c8413d282242f9395ac4e",
+    "src/game/rs_chat.c": "36d0f21e9d24c6f14f2d7aa6cc47b78c60b8b8de895504cfaa499a8792f7f0e6",
+    "src/game/rs_cs2_host.c": "7851f2617b6bde35733823a7dcf0c5aeecede89d7639a4243c27c74d83c0ca89",
+    "src/game/rs_social.c": "35c4ab9fdf441ec3e41b3b5e8f6804b65ca4ef8b5db59939529e58c463773487",
+    "src/game/rs_ui_slots.c": "23ecb562045772b71691595c8586bfdba4199cd778b0279692d8c6dba0ef6430",
+    "src/inv/inv_manager.c": "b72c33b2e28b3f866a5b57d1c0708f7983ba1ec78040fadb0a33c33102f6ec33",
+    "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5"
+   }
+  },
+  {
+   "target": "test-uitree",
+   "make": "make -C src EMBED_SERVER=1 test-uitree",
+   "objdir": "src/build_opt_es",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 6.9,
+   "log": "/tmp/sailing-final-gates/test-uitree.log",
+   "pass_line": "All UITree tests passed.",
+   "test_sources_sha256": {
+    "src/ui/test/uitree_test_canvas.c": "f41901ecf6a735e548262b0c58f9460b7ea4d5795487d2c7c2edad4d784b9527",
+    "src/ui/test/uitree_test_chrome_exec.c": "ba1433a355943a0e04f30b44dbece3e880e24db13e1e4fd4cb143ef440d97012",
+    "src/ui/test/uitree_test_chrome_panel_draw.c": "59f16132af91d9b4f1f8c297e61cb8ab456eb7829627d80791e56ef47e7a4e26",
+    "src/ui/test/uitree_test_chrome_shell.c": "8d8d3e1a66038e6dba94ffa1118fc4b4633f2bd18ff9d682708dd4aae580965e",
+    "src/ui/test/uitree_test_component_params.c": "69f48ddaede5eeb49b572bb45a4ef2d4432885eb163a331c3940d49b8157a1c3",
+    "src/ui/test/uitree_test_debug_overlay.c": "c3c56befb043dc048258e39f8e7b3f1a3420898c5f406bf52bcddac8b2b0b383",
+    "src/ui/test/uitree_test_dirty.c": "b2506714954e66b9fa1e42306fb4080ead88b31217a3727e1a58027a82adc478",
+    "src/ui/test/uitree_test_drag.c": "eff20497d86ab21717774a1ee122d75c5057b812a783dc1ff1ba63eb95037d1d",
+    "src/ui/test/uitree_test_drag_scrolled.c": "72239b3598fc2417a06a250592a48ebf88b516f8d3bc697cb312291eb4ce6f7e",
+    "src/ui/test/uitree_test_emit_golden.c": "abdb8386a557f7a53a05f451ff6c7e9b4762034d21fce62f79f50491ec661270",
+    "src/ui/test/uitree_test_emit_icons.c": "e107dbcea68a9baaf0aca097017553d87b7d337ede04c4c43549198869b069e5",
+    "src/ui/test/uitree_test_entity_overlay_order.c": "b8c9d8c2487e9e1c2eae69b094392931cd4e5d6622189577029a45144b9b551b",
+    "src/ui/test/uitree_test_frame.c": "5d63fc12781d115773ccfd50b46f70dd28161b8324df3ded6deac2ed64a0ffe4",
+    "src/ui/test/uitree_test_frame_depth.c": "5716dd46430ccc18739e3c9b4d1ef64514a43bc9d9db9b944084cef9ced0ce75",
+    "src/ui/test/uitree_test_frame_metadata.c": "0d10090b3d9c3e609934abeaec48954a5948ebfb940a36b25ae28d2d77eff6a3",
+    "src/ui/test/uitree_test_hover.c": "8599ed68e967f685d41333648b1f534090e1eb1a6539cf33bbd6440ef48df547",
+    "src/ui/test/uitree_test_id_index.c": "562ef92ad02bfc74d32accc63027baf712d538f2dcf4ea64580b9e55a7d63032",
+    "src/ui/test/uitree_test_input_field.c": "16c152c79de249772bf3e9d25d37b4d3999412b47eed07e13af1ef437fded587",
+    "src/ui/test/uitree_test_keys.c": "3658198d5f88df52f42ffc9416f373ebe1fff993a705e375a34339756f4e1c54",
+    "src/ui/test/uitree_test_layout_build.c": "9276a7f58aa37547dbb9d2aa78c6757e893724d0ae36b3047ab8a48b2267cdc3",
+    "src/ui/test/uitree_test_live_sets.c": "8c74a866721c0dc1abdc2c49d53afdd77f4b634f03b5b8a4ee4e27c94348a3d1",
+    "src/ui/test/uitree_test_main.c": "014b847657d83930809b34caa6f75fc699c946b8175ae82f71c7a5cf947b4ac0",
+    "src/ui/test/uitree_test_minimenu.c": "52b4b4d6b4add0bcb2f9352a2d99dae3e8f5629e6e2c33a18777482dcb670b13",
+    "src/ui/test/uitree_test_mounted_world.c": "1f01f0c253c2cc40ecfbd8bd649c0975bc6ef5d4e493ff7ca0fc2f5b15d81356",
+    "src/ui/test/uitree_test_mutate_emit.c": "0b1128ee70aa6e62324e6c10a6ee25b250bfdd454bfb9c95ebc46a629f814d2c",
+    "src/ui/test/uitree_test_open_close.c": "01109566ed1a4210629c16a4e36441ffe19321b3a46ca46cf1266b40c35eb856",
+    "src/ui/test/uitree_test_overlay_retain.c": "d260b800c350c8a46dbd1392a165d8828dec94a247c7a4d4e3bc1df95b516ca6",
+    "src/ui/test/uitree_test_roles.c": "b65e2846a8577eaab8e3c0cf38b9178a9e53130ebb2863327bb08d75d12e8104",
+    "src/ui/test/uitree_test_scripted_overlay.c": "79419faa35ac743812eb64acaf95d82df1cc3abcec7e2cfa949759b966b39f66",
+    "src/ui/test/uitree_test_scroll_hit.c": "364ab99422c5f61c0118eb1ec49a9a53c66782dc5ef8b565e37eff6d5dc7d142",
+    "src/ui/test/uitree_test_server_viewport.c": "9ca2367721b74946c2dc9b5180dc19415f276ae1683d4ec83cd11fb201a0495e",
+    "src/ui/test/uitree_test_walk.c": "0edc07d62a31f07a9f93d135398d1fe287c5ae61722743d43d6d3b4ad743f580"
+   },
+   "production_sources_sha256": {
+    "src/engine/torirs_component_hook.c": "4eaf3be71cc01f24f6f74ae7f7bf30cdb14f6a0c034f83ce8f4a28c1b6ae8f61",
+    "src/engine/torirs_types.c": "9fba9a458e1dafc40d5de31b0a9e52b94eae4d13c3b88ec0185f2ca89880763f",
+    "src/input/torirs_input.c": "3c214a45a5c84a620275af546b1f4c87179d42861b6c60b8d826ed8dc5eedd16",
+    "src/input/torirs_keymap.c": "41def734b445012d54538e8a3a3cd14734bc86f5c7164af5f9e18e031740d880",
+    "src/perf/torirs_perf.c": "278bab111e96ad1061dcfe408a9bfce91aca78e9f5cb8eeeacc492eb35ad7271",
+    "src/render/torirs_arc.c": "cc71e37bfaf0f5da25e81a1deadb33813d4b7d460df374a1681c62a733dc0a49",
+    "src/ui/torirs_chrome_exec.c": "ca9e721b14bd96c26d9fe12136f532d429f5167be8b50b9165222704c33f1692",
+    "src/ui/torirs_chrome_exec_kind.c": "495f297756b2956c82808c739ee43173026a7e3de802800f846859dd520dc31a",
+    "src/ui/torirs_chrome_inkwell.c": "2938627cc66ee91e91cabd0fec9ac746e5c668406e976d8b6b7dd246ffecefa9",
+    "src/ui/torirs_chrome_mirror.c": "d0263913ac1550fb79d8a9b2b8cfc3543bf250aee069f562fba3200433f8cb9f",
+    "src/ui/torirs_chrome_panel_draw.c": "e8dea33fd135ac0a07dbb8958f81ca2af2028b2c1592060b2bc2a728e21ccea4",
+    "src/ui/torirs_chrome_rail.c": "09ccbc4796b1fdd2e489754cb3941c269a9503485db533e6f6acf7f68dc43028",
+    "src/ui/torirs_chrome_shell.c": "cf2687791fead0445ef05421b159fe161305b81350386f501e48da9d0cc740b4",
+    "src/ui/uitree.c": "68c14a0507d9c9292dc6eb5b58a6b2c6a65b9d432164a5ec70400f47874905e5",
+    "src/ui/uitree_build.c": "3cb1ef25245690fb7b2f49561ad6fd9a771efbf2ed1353d70b3c4576a2f84e65",
+    "src/ui/uitree_component_options.c": "e6ee09c6fcdd83673cdcb0b6c9b1dfddaf9d1312270cd63ef383979938cd12d0",
+    "src/ui/uitree_cross.c": "6562fac867693d8e9e318ddf554c7ff1c24de590f1ec18c289f552c6d5293bfc",
+    "src/ui/uitree_debug_overlay.c": "6c878b949eb5890ef23a29d49d8d5bdcf7aec95c6e179c9395eeb574f939aa02",
+    "src/ui/uitree_emit.c": "9b56475e2a654beaad6b60b92b7ad7f6dce0b4f49aba8f1e53f7f46dcb5212ac",
+    "src/ui/uitree_frame.c": "0b7614b7e3d9c65b41ca1d46e5d0ed65de8766b3988cc1b1b7586762a4c3f9ee",
+    "src/ui/uitree_hook.c": "8f0b7a7e34d5ab87b3fe20865657e6c97c95b1172a472a9a98149d936d8417a1",
+    "src/ui/uitree_host.c": "4ddf6e355c58fe13a1b841f8d5fa8c96b0f03fe32eaab3eba5a2d008672aa4c9",
+    "src/ui/uitree_hover.c": "b0824be3b94ecdf23aed3fc96f87b766f6244c4e3fdd95dd8b76b72bce831651",
+    "src/ui/uitree_hovertext.c": "7bfa1cb1958473cd93d17523f6ab44886f168c48f656b35ca63fcce1ef7bd214",
+    "src/ui/uitree_ink.c": "b49f428a7cce93099de1973b31a8ca5fb8db0a75b5dd28f229d487c0e53d1dd9",
+    "src/ui/uitree_input.c": "259cc6c94bacc27ac7d2419cf221cab79ac8d86e88aeb20debd218aceae0d1dd",
+    "src/ui/uitree_interact.c": "2d7c75097067b6f34f8908330b0d9f05066275465b6358257b488c0067c4d755",
+    "src/ui/uitree_inv_view.c": "86772cdf823f3003767df3ae2069e8ab57a36001fd784b03898bd65dc5c5ed27",
+    "src/ui/uitree_layout.c": "7a77870f4bae68675af37fecbd13c5bb7a0afeb41a6a43e4ed13c9db5b04c08d",
+    "src/ui/uitree_minimenu.c": "4a45bfcd5b4cfe57e4cb2d4ddc983712ec51a3ce32a2a88740184ef3377fbf47",
+    "src/ui/uitree_obj_cell.c": "79a24815063ff7dd43e7429b349690680a02cbc2c597093644364d97f8046271",
+    "src/ui/uitree_role.c": "097659ca34378ad2f86ea52622d4ef83dbf76fbe472af045d9524913299063fd",
+    "src/ui/uitree_scroll.c": "dd857054b0b7fcbc7decb40748f6565cc71b4d8870afefcffd349315d8ca12cb"
+   }
+  },
+  {
+   "target": "test-world",
+   "make": "make -C src EMBED_SERVER=1 test-world",
+   "objdir": "src/build_opt_es",
+   "exit": 2,
+   "status": "FAIL",
+   "duration_s": 2.7,
+   "log": "/tmp/sailing-final-gates/test-world.log",
+   "pass_line": "",
+   "test_sources_sha256": {
+    "src/world/test/world_test_main.c": "71e507ae13a247b66bb5d0c3c10134625d4d7dec819093d07f31033a2746f860",
+    "src/world/test/world_test_route.c": "d84e759fd9004b66bd8f0b6ea261b881c233fd8ce7d70293aa2725a8f385eb21",
+    "src/world/test/world_test_sim.c": "b07cee5ad38826072fa88f9f8693119dd0e70f73874883c0ce551a2311a23a8c",
+    "src/world/test/world_test_unit.c": "7df9aaea14d42eea48f1ef8f4a95e3808ec041f3d5144196af8c98d05d302f42"
+   },
+   "production_sources_sha256": {
+    "src/engine/world_builder/collision_map.c": "b18fd644502fe4fe2ea5a41e00413519b3b1304240d5798dfa3f2e4d58ded974",
+    "src/engine/world_builder/heightmap.c": "ac5e8c5c5b70a935d2123d4c608d45ec7026cc42e7f2ca73e317655dbff27e40",
+    "src/engine/world_builder/minimap.c": "137dc3bc296e6945cf7365d5c7dc58d344d1e0edd2dc1fe0b45b10b3e564488c",
+    "src/features/features.c": "8555d8325bab11b1955dd919194ed4fc08a6cdf977c5f526523a43c916310e65",
+    "src/painters/painters.c": "b0743db585f2060fe20667a9d44a98fbf0f5003bd045cf2841c474eb0d8a51d4",
+    "src/painters/scene_occluders.c": "d47b72cfb36e6d0500b9ed2c014278dbdcef8bb40a5bf9c251bd91f9616c2d2a",
+    "src/world/entity_pathing.c": "f61331cb4b1bbebc26ca6c23e98dcd4033aaff4a6f695f158762d6d4449e6370",
+    "src/world/entity_pool.c": "2e174842a6ad181ffbec8a5cbe6f2d12bb8f8263380a4670a610b3099833f121",
+    "src/world/entity_registry.c": "084b846bd19d5f1d580547254399284ebebc36fe2fca6e3758c5d173407fc322",
+    "src/world/world.c": "6ca78175b23ebdaf3027b3a07975bb846765ae212ffc6daf6994ea6ecda04d4e",
+    "src/world/world_cycle.c": "b9e4983d256aec7eed6cc967ec3605715b4867cda901a1025d77bf81db5e1972",
+    "src/world/world_entity.c": "f9194c6bda36632858f0eddda40d47f9994341a22263143f7c4941cdfeb13661",
+    "src/world/world_pickset.c": "1a6bfc6869a2afde214e8173b180bc9ea061a055472798f7d5477ad07fbd2fdf"
+   },
+   "first_failure": "FAIL: sealed dest: ring3 gives up (world/test/world_test_route.c:131)",
+   "failure_summary": "SIM: scene reset midflight"
+  },
+  {
+   "target": "test-torirsserver-embed",
+   "make": "make -C src EMBED_SERVER=1 test-torirsserver-embed",
+   "objdir": "src/build_opt_es",
+   "exit": 2,
+   "status": "FAIL",
+   "duration_s": 18.2,
+   "log": "/tmp/sailing-final-gates/test-torirsserver-embed.log",
+   "pass_line": "",
+   "test_sources_sha256": {
+    "src/torirsserver/test/embed_test.c": "28b36e3ce9d9660f1de269051461aa1a1b7162282be9f8d7b66d8dd986c30e07"
+   },
+   "production_sources_sha256": {
+    "src/cmd/cmdbus.c": "042bd84b3f8c7c5ccc3de54ae2bab0433f43f6a312d3376ed6a7cf977f2768a7",
+    "src/engine/world_builder/collision_map.c": "b18fd644502fe4fe2ea5a41e00413519b3b1304240d5798dfa3f2e4d58ded974",
+    "src/net/bitbuffer.c": "9938cfda6c8442ac3e45c76d6540b6e1c1cf11b7b10565800fb90409f405d29c",
+    "src/net/jbase37.c": "a38c5128a8cef1abd681eee10b585ae0ec4a0643b79b99909ea204ba1f6ad124",
+    "src/net/net.c": "0876dfac87137a7e3ee0c63db44b09c3abd671d6c763da1a7b6f34a02c2b8c2e",
+    "src/net/net_out.c": "f18f580fc42cb257087a7e02660b2dc49ef507004a85b82fc12c17f90ba0eb10",
+    "src/net/rev/gameproto_parse.c": "433d1404b82f74032848547c9f59f11b43c245eaa206d4070118f170b70f98c1",
+    "src/net/rev/osrs239/osrs239_entity_info.c": "36b643f2301c13fb79669479dfe07eac87fad2799f4737fae7442e98cbe25923",
+    "src/net/rev/packets/pkt_npc_info.c": "99858d3df65183df063fddee120c6fede3814940c3fb05e56e4666f7fb022deb",
+    "src/net/rev/packets/pkt_player_appearance.c": "c8a597e1df9c34f37348f17d08389511da7240eeae31e78d9aee425b23fccfb3",
+    "src/net/rev/packets/pkt_player_info.c": "c2e38a36e4b7de47b0031177cd2c0e505d3179f9c28a65728e765c8a4bdf0855",
+    "src/serverscript/ssvm.c": "48453dc116fe7f6444b38c70df2dcdb97612a148ef572e5fadb5b98c7560bddf",
+    "src/torirsserver/torirs_server_content.c": "f2b913d44c556f9473a23a657abeff5dddddb9b507fce71efca5ea5ee9907074",
+    "src/torirsserver/torirs_server_embed.c": "0355d823847d70b6b4e8276e96a0d4b17ec530f036c4a3b1817cf8ef48147e7a",
+    "src/torirsserver/torirs_server_friends.c": "6903b9dbece7a3b3df36febb0424d5e64e2d31f44b8077f7751219bdeb0c97ef",
+    "src/torirsserver/torirs_server_save.c": "58ab31b0258d02df97b5a03feeb5d0f8e046345ed7cc9cc66157569930064ad6",
+    "src/torirsserver/torirs_server_scene.c": "fd95c061654bc199287d02e85bccfde28aef1efe7a4e089ab4e544e1dcb25637",
+    "src/torirsserver/torirs_server_session.c": "81d0c5a02c416c58638d07a53512c5522f1c38d7fde2a9bf1eea7ee8646e747f"
+   },
+   "first_failure": "embed: SYNTH_SOUND reached alice's stream (packetin.h:102 is no longer PKT_NAME_NONE) FAILED",
+   "failure_summary": "embed: FAILURES"
+  }
+ ],
+ "opt0_reruns": [
+  {
+   "target": "test-minimenu-world",
+   "make": "make -C src OPT=0 EMBED_SERVER=1 test-minimenu-world",
+   "objdir": "src/build_es",
+   "asserts": "live (no -DNDEBUG in the compile line)",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 17.2,
+   "log": "/tmp/sailing-final-gates/test-minimenu-world-OPT0.log",
+   "pass_line": "All tests passed."
+  },
+  {
+   "target": "test-wev-rebuild",
+   "make": "make -C src OPT=0 EMBED_SERVER=1 test-wev-rebuild",
+   "objdir": "src/build_es",
+   "asserts": "live (no -DNDEBUG in the compile line)",
+   "exit": 0,
+   "status": "PASS",
+   "duration_s": 1.1,
+   "log": "/tmp/sailing-final-gates/test-wev-rebuild-OPT0.log",
+   "pass_line": "wev_rebuild_test: all passed"
+  }
+ ],
+ "totals": {
+  "targets_requested": 25,
+  "targets_missing_from_makefile": [],
+  "pass": 23,
+  "fail": 2,
+  "opt0_pass": 2
+ },
+ "failures": [
+  {
+   "target": "test-world",
+   "exit": 2,
+   "new_failure": true,
+   "first_failure": "FAIL: sealed dest: ring3 gives up (world/test/world_test_route.c:131)",
+   "all_failures": [
+    "FAIL: sealed dest: ring3 gives up (world/test/world_test_route.c:131)",
+    "FAIL: sealed 5x5: ring3 finds nothing (world/test/world_test_route.c:186)",
+    "FAIL: far sealed dest: box10_rect declines rather than half-walking (world/test/world_test_route.c:217)",
+    "3 failure(s)"
+   ],
+   "diagnosis": "collision_nearest_opts_from_model() in src/engine/world_builder/collision_map.c fills range, max_dist and rank_by_rect_distance in every arm but never writes out->unbounded. Callers that declare `struct CollisionNearestOpts` on the stack and do not set the field themselves read indeterminate memory. All three failures are exactly the 'the click declines' cases that a non-zero unbounded flips into a route.",
+   "proof": "Private probe /tmp/sailing-final-gates/probe/probe.c (compiled against the tree's own collision_map.c + features.c, no repo source edited): poisoning the opts struct with 0xAB before the call yields unbounded=-1414812757 and len=2 for the sealed 3x3 destination; memset-zeroing the same struct yields unbounded=0 and len=-1. test-world also passes at OPT=0 (make -C src OPT=0 EMBED_SERVER=1 test-world, exit 0, 'All tests passed.') and fails at OPT=1 - the signature of an uninitialised read, not a logic change.",
+   "pre_existing": true,
+   "pre_existing_evidence": "The defect is in committed code: `git show HEAD:src/engine/world_builder/collision_map.c` has the same function with no `unbounded` write, and collision_map.c is clean in the working tree (git status reports no modification). It is NOT introduced by the uncommitted sailing work. The last commit to touch collision_map.c, d2ebd63f2 'sailing: footprint reads ops 8/9 as size, exact-angle AABB', only ADDS collision_map_set_water and does not touch this function.",
+   "production_impact": [
+    "src/world/entity_pathing.c:280 - collision_nearest_opts_from_model(TORIRS_NEAREST_RING3_STEPS, &nearest) on an uninitialised local, `unbounded` never set. This is the client's entity-pathing jump route.",
+    "src/torirsserver/torirs_server_scene.c:2434 ToriRSServer_SceneOpNearestOpts - sets range/max_dist/rank_by_rect_distance on the caller's struct and never writes unbounded.",
+    "src/app.c:20178 and src/torirsserver/torirs_server_scene.c:2451 ToriRSServer_SceneGroundNearestOpts are SAFE: both assign out->unbounded explicitly right after the call."
+   ],
+   "suggested_fix_not_applied": "Set out->unbounded = 0 in every arm of collision_nearest_opts_from_model (the header calls it THE place the numeric encoding of each model lives), and have ToriRSServer_SceneOpNearestOpts write the field too. This worker is not permitted to edit C sources; root must make the change and rebuild the shared binaries.",
+   "owner": "root"
+  },
+  {
+   "target": "test-torirsserver-embed",
+   "exit": 2,
+   "new_failure": false,
+   "first_failure": "embed: SYNTH_SOUND reached alice's stream (packetin.h:102 is no longer PKT_NAME_NONE) FAILED",
+   "changed_since_handoff": false,
+   "note": "This is the long-standing decode break named in the task. The first failure is byte-for-byte the expected one and nothing before it fails: no line before it is marked FAILED (the first FAILED in the log is line 116), and the checks immediately ahead of it pass, including 'SS_OP_SOUND_SYNTH dispatched (torirs_server_scripts.c's own case, not a stand-in)'. Counts in this run: 80 ok, 47 FAILED. The whole tail is downstream of the same broken decode - once alice's stream mis-parses, every later 'reached X's stream' check fails with it.",
+   "owner": "not this phase"
+  }
+ ],
+ "legacy_2026_09_earlier_pass": {
+  "note": "Preserved verbatim from the previous gates.json. docs/sailing_validation/plan-audit.md cites the gate names and the max-view numbers below; the unit_gates array above supersedes the per-gate result but does not restate these summary figures.",
+  "source_sha256": {
+   "src/world/test/wev_visibility_test.c": "2ea13b24da836be88a71c98507474f925cc9f6e1a63c98ec598426b3b318cd86",
+   "src/world/test/wev_rebuild_test.c": "dee4617412e6df540493ae40b22d017219d09866c98ba4c785b15e8a7bc550d7",
+   "src/world/test/wev_population_test.c": "808e210d58e550aa21ae36410e55b76bac4f547e3f024ec1051bfbb625a108b4",
+   "src/painters/test/painters_test_world_entity.c": "22445fe6c47a0af94b5232f7b0408ab95ab82cb7241d20fe84be92b54fd5c447",
+   "src/render/test/torirs_frame_flat_test.c": "ef20d65ac9196b8c246b96b1bc2dd4af0d88f144a0ffa57bcb71532e8e406dd7",
+   "src/render/test/pick_level_test.c": "7a24f23dd871d96f140d60ed4bfb6ccfae3d10033893e778b8d16383576e0a0a",
+   "src/game/test/sailing_paint_order_test.c": "0e3b3abf87372e5c93fab51f4f0c7d813be7d56c30a7c52e63bd37786b871571",
+   "src/cs2vm2/test/array_fill_test.c": "84890a85273888aa45cf44051fce0077db2788595f6bb69bee93f7051ab72476"
+  },
+  "gates": {
+   "visibility": {
+    "result": "PASS",
+    "evidence": []
+   },
+   "population": {
+    "result": "PASS",
+    "evidence": [
+     "flat view population: own/borrowed actors and graphics removed; runtime scenery retained; next-frame restoration PASS"
+    ]
+   },
+   "frame": {
+    "result": "PASS",
+    "evidence": [
+     "frame flat live geometry, scale, colour, no-pick, replay lifetime and root identity PASS"
+    ]
+   },
+   "max_views": {
+    "result": "PASS",
+    "evidence": [
+     "ok - REBUILD_WORLDENTITY parse carry + view-sized grid decode",
+     "ok - per-view scene pools are distinct and fit the element pool tag",
+     "ok - an actor's element moves between view pools without leaking or stranding",
+     "ok - maximum16 views: root +15 actual-cache decks hold 19977 static elements; one actor migrated all15 pools; isolated despawn PASS",
+     "ok - 1-zone raft deck rebuilt into the boat world against ../cache.osrs239",
+     "ok - boat and root rebuilds isolate their scene pools, despawn frees only the deck",
+     "wev_rebuild_test: all passed"
+    ]
+   },
+   "painter": {
+    "result": "PASS",
+    "evidence": [
+     "all painter world-entity tests passed"
+    ]
+   },
+   "pick": {
+    "result": "PASS",
+    "evidence": [
+     "OK: pick_level_test"
+    ]
+   },
+   "ground_flat_order": {
+    "result": "PASS",
+    "evidence": [
+     "ground dependency: parent ground before boat; nested ownership, raised shore, loc order and zero-boat bytes PASS"
+    ]
+   },
+   "array_fill": {
+    "result": "PASS",
+    "evidence": [
+     "all painter world-entity tests passed",
+     "native ARRAY_FILL int/string/null, partial/clamped/overflow ranges and stack balance PASS"
+    ]
+   }
+  },
+  "max_view_static_elements": 19977,
+  "max_registered_views": 16,
+  "cache": "cache.osrs239",
+  "native_visual_results": "client-results.json",
+  "visual_review_passed": true,
+  "native_visual_sha256": "851f8df82cae8d68b29c885e3ea1eaf53b135140f879e830890030b8ce3ca832"
+ },
+ "final_binary_restamp_2026_09_07": {
+  "generated_utc": "2026-09-07T13:20:00Z",
+  "generated_by": "sailing final phase, worker 'restamp' (the one worker permitted to run make in the shared objdirs this phase; every make ran serially, one at a time)",
+  "supersedes": "unit_gates / totals / failures above, which were run against the previous shared pair c7e62cce / a53899eb",
+  "shared_binary_provenance": {
+   "src/torirs": "4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4",
+   "src/build_opt/torirsserver": "214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186",
+   "OSRS-Content/osrs239-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+   "script_count": 30076,
+   "verified": "before the first make and again after the last; all three matched exactly"
+  },
+  "timing_caveat": "Durations are wall clock while other workers were driving clients on this machine. They are NOT performance evidence.",
+  "scope": "Only the ten targets the final phase names were re-run. The other fifteen in unit_gates above were NOT re-run on 4854e303, test-torirsserver-embed included.",
+  "unit_gates": [
+   {
+    "target": "test-world",
+    "make": "make -C src EMBED_SERVER=1 test-world",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 2.9,
+    "log": "/tmp/sailing-fin-gates/test-world.log",
+    "pass_line": "All tests passed."
+   },
+   {
+    "target": "test-wev-rebuild",
+    "make": "make -C src EMBED_SERVER=1 test-wev-rebuild",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 5.9,
+    "log": "/tmp/sailing-fin-gates/test-wev-rebuild.log",
+    "pass_line": "wev_rebuild_test: all passed"
+   },
+   {
+    "target": "test-minimenu-world",
+    "make": "make -C src EMBED_SERVER=1 test-minimenu-world",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 2.6,
+    "log": "/tmp/sailing-fin-gates/test-minimenu-world.log",
+    "pass_line": "All tests passed."
+   },
+   {
+    "target": "test-sailing-collision",
+    "make": "make -C src EMBED_SERVER=1 test-sailing-collision",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 2.0,
+    "log": "/tmp/sailing-fin-gates/test-sailing-collision.log",
+    "pass_line": "sailing_collision_test: passed (0 failures)"
+   },
+   {
+    "target": "test-mock239-playerinfo",
+    "make": "make -C src EMBED_SERVER=1 test-mock239-playerinfo",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 1.1,
+    "log": "/tmp/sailing-fin-gates/test-mock239-playerinfo.log",
+    "pass_line": "mock239-playerinfo: all tests passed"
+   },
+   {
+    "target": "test-cs2-sailing-settings",
+    "make": "make -C src EMBED_SERVER=1 test-cs2-sailing-settings",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 3.2,
+    "log": "/tmp/sailing-fin-gates/test-cs2-sailing-settings.log",
+    "pass_line": "PASS native cargo privacy0..2 through script3852 label writes, the8830/3967 paths, isolated script/varbit/struct scope and last-choice coalescing"
+   },
+   {
+    "target": "test-frame-flat",
+    "make": "make -C src EMBED_SERVER=1 test-frame-flat",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 1.0,
+    "log": "/tmp/sailing-fin-gates/test-frame-flat.log",
+    "pass_line": "frame flat live geometry, scale, colour, no-pick, replay lifetime and root identity PASS"
+   },
+   {
+    "target": "test-sailing-paint-order",
+    "make": "make -C src EMBED_SERVER=1 test-sailing-paint-order",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 0.6,
+    "log": "/tmp/sailing-fin-gates/test-sailing-paint-order.log",
+    "pass_line": "scene dependencies: flat before full, parent ground before boat; nested ownership, raised shore, loc order and zero-boat bytes PASS"
+   },
+   {
+    "target": "test-rsprot-bridge",
+    "make": "make -C src EMBED_SERVER=1 test-rsprot-bridge",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 1.2,
+    "log": "/tmp/sailing-fin-gates/test-rsprot-bridge.log",
+    "pass_line": "rsprot-bridge: rsprot and osrs239_parse agree on every migrated packet"
+   },
+   {
+    "target": "test-social",
+    "make": "make -C src EMBED_SERVER=1 test-social",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "duration_s": 5.8,
+    "log": "/tmp/sailing-fin-gates/test-social.log",
+    "pass_line": "social: all checks passed"
+   }
+  ],
+  "totals": {
+   "requested": 10,
+   "ran": 10,
+   "pass": 10,
+   "fail": 0,
+   "missing_targets": 0
+  },
+  "resolved": [
+   {
+    "target": "test-world",
+    "was": "exit 2, three failures at world_test_route.c:131/186/217 on c7e62cce",
+    "now": "exit 0, 'All tests passed.', at OPT=1 - the configuration that used to fail",
+    "cause_fixed": "collision_nearest_opts_from_model in src/engine/world_builder/collision_map.c now writes out->unbounded = 0 in every arm (lines 975, 989, 1000); git diff --stat shows 6 added lines",
+    "collision_map_c_sha256": "d3814b9e51287ba19e88d24c350e40ff79d4a234fe15597f0a1fbe1848dbc1cb",
+    "production_caller_now_safe": "src/world/entity_pathing.c:280 initialises its whole CollisionNearestOpts through that function"
+   }
+  ],
+  "still_open": [
+   {
+    "summary": "ToriRSServer_SceneOpNearestOpts never writes out->unbounded; two production callers pass it a bare uninitialised stack struct that collision_map_route_tiles then reads",
+    "site": "src/torirsserver/torirs_server_scene.c:2434 (ToriRSServer_SceneOpNearestOpts writes range, max_dist, rank_by_rect_distance only)",
+    "read_site": "src/engine/world_builder/collision_map.c:1130, `if( !opts->unbounded )`, read unconditionally",
+    "callers": [
+     "src/torirsserver/torirs_server_scene.c:2558 - `struct CollisionNearestOpts nearest_opts;` uninitialised in ToriRSServer_SceneRouteOp (server op-click routing), filled at 2591",
+     "src/torirsserver/torirs_server_world.c:3993 - `struct CollisionNearestOpts nearest;` uninitialised, filled at 3994, used for NPC routing"
+    ],
+    "safe_by_contrast": "ToriRSServer_SceneGroundNearestOpts assigns out->unbounded explicitly right after its collision_nearest_opts_from_model call",
+    "covered_by_a_gate": false,
+    "why_gates_pass": "test-world exercises collision_nearest_opts_from_model only, which is the half that was fixed",
+    "pre_existing": true,
+    "sailing_regression": false,
+    "requires": "a C edit plus a shared rebuild; this worker edited no C source",
+    "torirs_server_scene_c_sha256": "fd95c061654bc199287d02e85bccfde28aef1efe7a4e089ab4e544e1dcb25637",
+    "torirs_server_world_c_sha256": "5d1ebbe87636517faf37182082530b1dd4b61e8ba25566734b07dc16f2e77d50",
+    "owner": "root"
+   }
+  ]
+ },
+ "final_pair_5e34b81f_2026_09_07": {
+  "generated_utc": "2026-09-07T14:50:00Z",
+  "generated_by": "sailing final phase, root: rebuild at 09:35 CDT after the LIFE-1 and SRV-1 fixes and the 09:40 review edits, then twelve unit gates run serially in the shared objdir",
+  "supersedes": "final_binary_restamp_2026_09_07 (ten targets on 4854e303 / 214b43d7) and unit_gates / totals / failures (twenty-five targets on c7e62cce / a53899eb)",
+  "shared_binary_provenance": {
+   "src/torirs": "5e34b81f9d2a45eae7306e8ddf93de5c590a0b3cd475d726a7745eb0deffd03b",
+   "src/build_opt/torirsserver": "6a0e7f0441c25f1249bc8342a5103744a4dbd991d721b67eaea1846db7d910d4",
+   "OSRS-Content/osrs239-content/server/scripts/build/script.dat": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+   "script_count": 30076,
+   "script_pack_rebuilt": false,
+   "hashes_log": "/tmp/sailing-fin3/hashes.txt",
+   "build_logs": [
+    "/tmp/sailing-fin3/server-build.log",
+    "/tmp/sailing-fin3/client-build.log"
+   ],
+   "server_hash_note": "Byte-identical to the intermediate 09:34 build because the last batch of edits added only assert() calls, which the OPT=1 server compiles out. The source difference against 214b43d7 is real: SRV-1's out->unbounded = 0, the cached TORIRSSERVER_EXT_DEBUG getenv, and those asserts."
+  },
+  "timing_caveat": "Durations were not recorded for this run and none is claimed.",
+  "exit_codes_log": "/tmp/sailing-fin3/status.txt",
+  "unit_gates": [
+   {
+    "target": "test-sailing-paint-order",
+    "make": "make -C src EMBED_SERVER=1 test-sailing-paint-order",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-sailing-paint-order.log",
+    "pass_line": "scene dependencies: flat before full, parent ground before boat; nested ownership, raised shore, loc order and zero-boat bytes PASS"
+   },
+   {
+    "target": "test-painters-world-entity",
+    "make": "make -C src EMBED_SERVER=1 test-painters-world-entity",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-painters-world-entity.log",
+    "pass_line": "all painter world-entity tests passed"
+   },
+   {
+    "target": "test-frame-flat",
+    "make": "make -C src EMBED_SERVER=1 test-frame-flat",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-frame-flat.log",
+    "pass_line": "frame flat live geometry, scale, colour, no-pick, replay lifetime and root identity PASS"
+   },
+   {
+    "target": "test-world",
+    "make": "make -C src EMBED_SERVER=1 test-world",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-world.log",
+    "pass_line": "All tests passed."
+   },
+   {
+    "target": "test-minimenu-world",
+    "make": "make -C src EMBED_SERVER=1 test-minimenu-world",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-minimenu-world.log",
+    "pass_line": "All tests passed."
+   },
+   {
+    "target": "test-cs2-sailing-settings",
+    "make": "make -C src EMBED_SERVER=1 test-cs2-sailing-settings",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-cs2-sailing-settings.log",
+    "pass_line": "PASS native cargo privacy0..2 through script3852 label writes, the8830/3967 paths, isolated script/varbit/struct scope and last-choice coalescing"
+   },
+   {
+    "target": "test-sailing-collision",
+    "make": "make -C src EMBED_SERVER=1 test-sailing-collision",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-sailing-collision.log",
+    "pass_line": "sailing_collision_test: passed (0 failures)"
+   },
+   {
+    "target": "test-mock239-playerinfo",
+    "make": "make -C src EMBED_SERVER=1 test-mock239-playerinfo",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-mock239-playerinfo.log",
+    "pass_line": "mock239-playerinfo: all tests passed"
+   },
+   {
+    "target": "test-wev-rebuild",
+    "make": "make -C src EMBED_SERVER=1 test-wev-rebuild",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-wev-rebuild.log",
+    "pass_line": "wev_rebuild_test: all passed"
+   },
+   {
+    "target": "test-wev",
+    "make": "make -C src EMBED_SERVER=1 test-wev",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-wev.log",
+    "pass_line": "wev_test: all passed"
+   },
+   {
+    "target": "test-rsprot-bridge",
+    "make": "make -C src EMBED_SERVER=1 test-rsprot-bridge",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-rsprot-bridge.log",
+    "pass_line": "rsprot-bridge: rsprot and osrs239_parse agree on every migrated packet"
+   },
+   {
+    "target": "test-social",
+    "make": "make -C src EMBED_SERVER=1 test-social",
+    "objdir": "src/build_opt_es",
+    "exit": 0,
+    "status": "PASS",
+    "log": "/tmp/sailing-fin3/test-social.log",
+    "pass_line": "social: all checks passed"
+   }
+  ],
+  "totals": {
+   "requested": 12,
+   "ran": 12,
+   "pass": 12,
+   "fail": 0,
+   "missing_targets": 0
+  },
+  "resolved": [
+   {
+    "id": "LIFE-1",
+    "was": "the reconnect guard was in the tree but not in the shared binaries; 5/5 aboard logout cycles rejected on 4854e303",
+    "now": "fixed in the shared binaries; 5/5 aboard logout cycles clean on 5e34b81f",
+    "fix_site": "src/torirsserver/torirs_server_world.c:11260, ToriRSServer_WorldMarkVarp returns early while player->session->reconnect is set",
+    "evidence": "/tmp/sailing-fin3-life/client.log - five \"torirsserver: reconnect user='fin3life' session=ok\" lines, zero 'login: rejected', zero 'connection lost'",
+    "capture": "docs/sailing_validation/lifecycle-reconnect-fixed.png, re-taken on the final pair",
+    "covered_by_a_gate": false,
+    "gate_note": "No unit gate drives a reconnect; the proof is the five-cycle native run plus the 563/0 sailing suite on 6a0e7f04."
+   },
+   {
+    "id": "SRV-1",
+    "was": "ToriRSServer_SceneOpNearestOpts wrote range, max_dist and rank_by_rect_distance only; two production callers passed a bare uninitialised stack struct into collision_map_route_tiles",
+    "now": "out->unbounded = 0 written at src/torirsserver/torirs_server_scene.c:2446",
+    "callers_now_safe": [
+     "src/torirsserver/torirs_server_scene.c:2595 - ToriRSServer_SceneRouteOp, server op-click routing",
+     "src/torirsserver/torirs_server_world.c:3993 - NPC routing"
+    ],
+    "gate": "test-world exit 0 at OPT=1 on the final pair (/tmp/sailing-fin3/test-world.log)",
+    "covered_by_a_gate": false,
+    "gate_note": "test-world exercises collision_nearest_opts_from_model only. No gate exercises either server caller, so reverting the torirs_server_scene.c line would not fail a test. Verified by source inspection plus the 563/0 sailing suite.",
+    "pre_existing": true,
+    "sailing_regression": false
+   }
+  ],
+  "not_re_run": {
+   "targets": "the other thirteen in unit_gates above, test-torirsserver-embed included",
+   "full_server_suite": "250,071 checks / 0 failures was measured on 214b43d7 (server/full-selftest-final.log) and was NOT re-run on 6a0e7f04. Carried forward across three server-side source differences: SRV-1's initialiser, a cached getenv, and asserts OPT=1 removes.",
+   "performance": "harness-performance.json and render-final-results.json were measured on 4854e303 and were not re-measured. The final pair's only render-path difference removes two per-frame allocations from the sailing paint-order pass."
+  },
+  "review_items_left_open": [
+   {
+    "id": "M-3",
+    "what": "duplicated shore constants across fixtures",
+    "why_left": "consolidating them is a cross-file refactor in a tree other sessions are editing; the duplication is inert and visible"
+   },
+   {
+    "id": "M-6",
+    "what": "test-torirsserver-embed private-mode assertion",
+    "why_left": "blocked by the EMB-1 decode break; the behaviour is covered instead by lifecycle selftest rows in the 563/0 suite"
+   },
+   {
+    "id": "L-3",
+    "what": "the pre-existing !vm guard pattern",
+    "why_left": "the same shape appears throughout the CS2 host; changing it here alone buys nothing and breaks consistency"
+   },
+   {
+    "id": "L-7",
+    "what": "ContentSymbol zero fallbacks",
+    "why_left": "the house pattern for that API across the content layer"
+   }
+  ]
+ }
+}

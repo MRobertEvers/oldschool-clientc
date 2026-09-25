@@ -191,6 +191,40 @@ hd_materials_build(void)
     g_hd_mat_count = maxid + 1;
 }
 
+/*
+ * Put a wrapper in the scene's texture map — or take one out, with NULL.
+ *
+ * The map OWNS every entry it holds: ToriDraw_TextureMapSet frees the outgoing
+ * wrapper through ToriDraw_TextureFree, which frees `texels` as well as the
+ * struct. Ours never own their pixels — they are a second view of a
+ * g_textures[] buffer that the HD material table points at too, and that this
+ * file frees — so the outgoing wrapper's pointer has to come out BEFORE the map
+ * is allowed to drop it, leaving the map an empty shell to free.
+ *
+ * Without that detach every texture set change frees each texel buffer twice
+ * (once here, once under ToriDraw_TextureFree). In wasm that does not fault
+ * where it happens: it corrupts dlmalloc's free lists and the next unrelated
+ * allocation — a model adopted several npcs later — walks off the end of linear
+ * memory instead. It is a single call site either way, so both directions go
+ * through here rather than being spelled out twice.
+ */
+static void
+ev_texture_map_put(int id, struct ToriDraw_Texture* tex)
+{
+    struct ToriDraw_TextureMap* map;
+    struct ToriDraw_Texture* old;
+
+    assert(g_scene);
+    assert(id >= 0);
+    assert(id < TORIDRAW_TEXTURE_ID_CAPACITY);
+
+    map = &ToriDraw_SceneTexState(g_scene)->texture_map;
+    old = ToriDraw_TextureMapGet(map, id);
+    if( old )
+        old->texels = NULL;
+    ToriDraw_TextureMapSet(map, id, tex);
+}
+
 static void
 ev_clear_textures(void)
 {
@@ -198,13 +232,7 @@ ev_clear_textures(void)
     {
         if( g_scene && g_textures[i].id >= 0 &&
             g_textures[i].id < TORIDRAW_TEXTURE_ID_CAPACITY )
-        {
-            /* The scene's map frees whatever it holds, and it holds wrappers
-             * pointing at our texels — so drop its reference before we free
-             * the pixels underneath it. */
-            ToriDraw_TextureMapSet(
-                &ToriDraw_SceneTexState(g_scene)->texture_map, g_textures[i].id, NULL);
-        }
+            ev_texture_map_put(g_textures[i].id, NULL);
         free(g_textures[i].texels);
     }
     free(g_textures);
@@ -259,21 +287,19 @@ ev_set_textures(const uint8_t* data, int len)
 
         /*
          * The classic raster reads through the scene. The wrapper is a second
-         * view of the same pixels, not a copy — which is why ev_clear_textures
-         * has to unhook it before freeing them.
+         * view of the same pixels, not a copy — which is why the map is never
+         * allowed to own them; see ev_texture_map_put.
          */
         if( g_scene && wt.id >= 0 && wt.id < TORIDRAW_TEXTURE_ID_CAPACITY )
         {
             struct ToriDraw_Texture* tex =
                 (struct ToriDraw_Texture*)calloc(1, sizeof(*tex));
-            if( tex )
-            {
-                tex->texels = slot->texels;
-                tex->width = wt.size;
-                tex->height = wt.size;
-                tex->opaque = (wt.gate == 0);
-                ToriDraw_TextureMapSet(&ToriDraw_SceneTexState(g_scene)->texture_map, wt.id, tex);
-            }
+            assert(tex);
+            tex->texels = slot->texels;
+            tex->width = wt.size;
+            tex->height = wt.size;
+            tex->opaque = (wt.gate == 0);
+            ev_texture_map_put(wt.id, tex);
         }
     }
 
@@ -325,8 +351,16 @@ static int g_combined_frame = -2; /* neither a frame nor the detached -1 */
 static int g_combined_height = 0;
 static int g_spot_vertex_first = -1;
 
-/* The raster's own buffer, in toridraw's native pixel type. */
+/* The raster's own buffers, in toridraw's native pixel type. */
 static toripixel_t* g_pixels = NULL;
+/*
+ * A MODEL widget is not necessarily opaque.  The native client rasterises it
+ * directly over everything already drawn, while the browser receives each
+ * widget as a separate canvas layer.  A second raster over white lets the
+ * widget export recover the equivalent source-over RGBA layer instead of
+ * baking translucent faces over black (see ev_render_widget).
+ */
+static toripixel_t* g_pixels_white = NULL;
 /* What the page reads: the same image as RGBA bytes, which is what
  * ImageData wants. Kept separate rather than rasterising straight into RGBA
  * because the raster's blend maths is written against its own packing. */
@@ -371,10 +405,72 @@ static int g_frame_height = 0;
  * run: a search that rendered with --zbuffer is judged z-tested, so the
  * viewer must show the same picture. */
 static int g_zbuffer = 0;
+/*
+ * The other depth discipline, and it is NOT a stronger g_zbuffer.
+ *
+ * g_zbuffer keeps the painter's sort and adds a depth test underneath it; this
+ * one throws the sort away entirely and draws through the `zbuf` kernels in the
+ * model's own face order (ToriDraw_RenderZBuffered / ToriDraw_RenderHDZBuffered).
+ * Face priorities never enter the picture because nothing ranks the faces at
+ * all — which is the question this toggle answers: is what I am looking at a
+ * depth problem, or an ORDER problem the depth test is not allowed to overrule?
+ *
+ * Independent of "ignore priorities" for the same reason: that one still sorts,
+ * by depth, and a wrong picture under both is a wrong DEPTH, not a wrong rank.
+ */
+static int g_zbuffer_kernels = 0;
 
 /** Background behind the model. Matches the page's panel colour so the canvas
  *  does not read as a hole when the model is small. */
 #define EV_BG 0xFF141821u
+
+/*
+ * The colour ev_render clears to, so a caller can change it.
+ *
+ * ev_render fabricates alpha: it paints this behind the model and then stamps
+ * 0xFF on every pixel, so nothing downstream can separate background from a
+ * model pixel that happens to share its colour. Guessing after the fact --
+ * keying on a colour match -- deletes model pixels that resemble the
+ * background, and for a dark model against a dark panel that is most of the
+ * silhouette.
+ *
+ * Rendering one frame against two different backgrounds settles it exactly
+ * instead. A pixel the model covers is identical in both; a pixel it does not
+ * differs by the whole change. Translucent faces fall out of the same
+ * arithmetic: c1 - c2 == (1 - alpha) * (bg1 - bg2), so coverage is recoverable
+ * rather than merely detectable. ev_sheet.c does this.
+ */
+static toripixel_t g_bg = (toripixel_t)EV_BG;
+
+void
+ev_set_bg(uint32_t argb)
+{
+    g_bg = (toripixel_t)argb;
+}
+
+/*
+ * Model orientation beyond the yaw ev_render already takes.
+ *
+ * ToriDraw_Position carries pitch, yaw and roll, but ev_render only ever set
+ * yaw -- the orbit viewer had no use for the other two, so a caller wanting a
+ * model tilted or rolled had no way to ask. These fill the gap; both are in
+ * the client's 2048-per-turn units and default to 0, which is what the viewer
+ * always drew.
+ *
+ * Distinct from ev_render's `pitch` argument, which elevates the CAMERA. That
+ * one moves the eye around a level model; these turn the model itself.
+ */
+static int g_model_pitch = 0;
+static int g_model_roll = 0;
+
+void
+ev_set_orientation(
+    int pitch,
+    int roll)
+{
+    g_model_pitch = pitch & 2047;
+    g_model_roll = roll & 2047;
+}
 
 void
 ev_init(void)
@@ -506,6 +602,21 @@ ev_set_zbuffer(int on)
         else
             targets[i]->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_ZBUFFER;
     }
+}
+
+void
+ev_set_zbuffer_kernels(int on)
+{
+    /* Nothing to propagate to the models: this discipline is chosen at the
+     * render call, not carried on a model flag, which is also why it works on an
+     * adopted HD model that no flag on `g_model` would ever reach. */
+    g_zbuffer_kernels = on ? 1 : 0;
+}
+
+int
+ev_zbuffer_kernels(void)
+{
+    return g_zbuffer_kernels;
 }
 
 /** Adopt an animation. Returns its frame count, 0 when the blob did not parse. */
@@ -710,6 +821,43 @@ ev_spot_vertex_first(void)
 }
 
 int
+ev_face_screen_centroid(int face, int* out_x, int* out_y)
+{
+    struct ToriDraw_Model* m = draw_model();
+    if( !m || !g_scene || g_last_cull != TORIDRAW_CULL_VISIBLE || face < 0 ||
+        face >= m->face_count )
+        return 0;
+
+    int idx[3] = { m->face_indices_a[face], m->face_indices_b[face], m->face_indices_c[face] };
+    /*
+     * The projection of the face's 3D centroid, not the centroid of its
+     * projected corners: those differ on a face that is tilted in depth, and
+     * the difference moves as the face turns. Weighting each corner's screen
+     * position by 1/z is perspective-correct interpolation of position at the
+     * barycentric centre, which is the point on the face that stays the same
+     * point of the face from every view and every pose.
+     */
+    double sx = 0.0;
+    double sy = 0.0;
+    double sw = 0.0;
+    for( int k = 0; k < 3; k++ )
+    {
+        int z = g_scene->orthographic_vertices_z[idx[k]];
+        if( g_scene->screen_vertices_x[idx[k]] == TORIDRAW_SCREEN_X_NEAR_CLIPPED || z <= 0 )
+            return 0;
+        double w = 1.0 / (double)z;
+        sx += g_scene->screen_vertices_x[idx[k]] * w;
+        sy += g_scene->screen_vertices_y[idx[k]] * w;
+        sw += w;
+    }
+    /* Projected coordinates are relative to the canvas centre; the HD and the
+     * stock raster both add the same half-extent back. */
+    *out_x = (int)(sx / sw + 0.5) + g_pix_w / 2;
+    *out_y = (int)(sy / sw + 0.5) + g_pix_h / 2;
+    return 1;
+}
+
+int
 ev_frame_count(void)
 {
     return g_anim ? g_anim->frame_count : 0;
@@ -833,14 +981,17 @@ ensure_buffers(int w, int h)
 {
     if( w <= 0 || h <= 0 || w > EV_MAX_DIM || h > EV_MAX_DIM )
         return 0;
-    if( g_pix_w == w && g_pix_h == h && g_pixels && g_rgba )
+    if( g_pix_w == w && g_pix_h == h && g_pixels && g_pixels_white && g_rgba )
         return 1;
 
     free(g_pixels);
+    free(g_pixels_white);
     free(g_rgba);
     g_pixels = malloc((size_t)w * (size_t)h * sizeof(toripixel_t));
+    g_pixels_white = malloc((size_t)w * (size_t)h * sizeof(toripixel_t));
     g_rgba = malloc((size_t)w * (size_t)h * 4);
     assert(g_pixels);
+    assert(g_pixels_white);
     assert(g_rgba);
     g_pix_w = w;
     g_pix_h = h;
@@ -885,7 +1036,7 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     ev_pose(frame);
 
     for( int i = 0; i < width * height; i++ )
-        g_pixels[i] = (toripixel_t)EV_BG;
+        g_pixels[i] = g_bg;
 
     struct ToriDraw_ModelHandle hnd;
     memset(&hnd, 0, sizeof(hnd));
@@ -907,8 +1058,8 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     camera.pitch = pitch & 2047;
     camera.yaw = 0;
     camera.roll = 0;
-    camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
-    camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+    camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    camera.projection_scale = TORIDRAW_PROJECTION_SCALE_DEFAULT;
     /*
      * 1, not the world's 50.
      *
@@ -943,22 +1094,24 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     position.y = sin_pitch + (model_height / 2);
     position.z = cos_pitch;
     position.yaw = yaw & 2047;
+    position.pitch = g_model_pitch;
+    position.roll = g_model_roll;
 
     /*
      * Pan, as a camera-space translation of the model.
      *
-     * The projection is screen = centre + cam_coord * proj_scale / cam_z, and
+     * The projection is screen = centre + cam_coord * projection_scale / cam_z, and
      * the framing above puts the model centre at cam_z == zoom exactly
      * (cam_z = y*sin + z*cos = zoom*sin² + zoom*cos²), so a shift of
-     * pan_px * zoom / proj_scale camera units moves the image by pan_px pixels.
+     * pan_px * zoom / projection_scale camera units moves the image by pan_px pixels.
      * Camera x is world x (camera yaw is 0); camera y maps back to world through
      * the inverse pitch rotation, with the z term keeping cam_z unchanged so the
      * pan never alters depth, culling, or apparent size.
      */
     if( g_pan_x || g_pan_y )
     {
-        int dx_cam = (g_pan_x * zoom) / TORIDRAW_PROJ_SCALE_DEFAULT;
-        int dy_cam = (g_pan_y * zoom) / TORIDRAW_PROJ_SCALE_DEFAULT;
+        int dx_cam = (g_pan_x * zoom) / TORIDRAW_PROJECTION_SCALE_DEFAULT;
+        int dy_cam = (g_pan_y * zoom) / TORIDRAW_PROJECTION_SCALE_DEFAULT;
         position.x += dx_cam;
         position.y += (int)(((int64_t)dy_cam * ToriDraw_Cos(camera.pitch)) >> 16);
         position.z -= (int)(((int64_t)dy_cam * ToriDraw_Sin(camera.pitch)) >> 16);
@@ -977,10 +1130,13 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
     position.z -= g_fly_z;
 
     /*
-     * Both paths sort through ToriDraw_RenderModel2SortFaces, so hiding the
-     * priorities here covers the HD and the classic route alike.
+     * The two SORTING paths both rank through ToriDraw_RenderModel2SortFaces, so
+     * hiding the priorities here covers the HD and the classic route alike. The
+     * zbuffered-kernel paths below never sort, so this is simply inert for them
+     * — "ignore priorities" and "no order at all" are different questions and
+     * the toggles do not have to agree.
      */
-    faceint_t* saved_priorities = subject->face_priorities;
+    uint8_t* saved_priorities = subject->face_priorities;
     int saved_model_priority = subject->model_priority;
     if( g_ignore_priorities )
     {
@@ -1002,18 +1158,46 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
          */
         struct ToriDraw_ModelHandle hd_hnd = ToriDraw_ModelHandleFromHD(g_model_hd);
         struct ToriDraw_HDMaterials table = { g_hd_mats, g_hd_mat_count };
-        g_last_cull = ToriDraw_RenderHD(
-            hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
-            g_hd_mats ? &table : NULL, &g_hd_stats);
+        const struct ToriDraw_HDMaterials* mats = g_hd_mats ? &table : NULL;
+
+        /* The depth-tested twin of the same routing, so the per-face stats above
+         * stay comparable between the two disciplines — the counters say which
+         * kernel family a face reached, and that decision is unchanged. */
+        g_last_cull = g_zbuffer_kernels
+                          ? ToriDraw_RenderHDZBuffered(
+                                hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
+                                mats, &g_hd_stats)
+                          : ToriDraw_RenderHD(
+                                hd_hnd, g_scene, &position, &view_port, &camera, g_pixels,
+                                mats, &g_hd_stats);
+    }
+    else if( g_zbuffer_kernels )
+    {
+        g_last_cull = ToriDraw_RenderZBuffered(
+            hnd, g_scene, &position, &view_port, &camera, g_pixels, false);
     }
     else
     {
-        g_last_cull =
-            ToriDraw_RenderModel1Project(hnd, g_scene, &position, &view_port, &camera);
+        /*
+         * The software painter, through the table that names all three stages,
+         * rather than three entries that each resolve their own stage from the
+         * environment. Split rather than ToriDraw_RenderModelWithTable so the
+         * cull verdict stays visible: this viewer reports it.
+         *
+         * The two branches above still take library entries that predate the
+         * table -- HD has no table slot yet, and ToriDraw_RenderZBuffered is
+         * the "no face sort at all" entry rather than the depth-tested table.
+         * Both move when HD does.
+         */
+        const struct ToriDraw_Kernel* const table = ToriDraw_KernelGetStock();
+
+        g_last_cull = ToriDraw_RenderModel1ProjectWithTable(
+            hnd, g_scene, &position, &view_port, &camera, table);
         if( g_last_cull == TORIDRAW_CULL_VISIBLE )
         {
-            ToriDraw_RenderModel2SortFaces(hnd, g_scene);
-            ToriDraw_RenderModel3Raster(g_scene, &view_port, &camera, g_pixels, false);
+            ToriDraw_RenderModel2SortFacesWithTable(hnd, g_scene, table);
+            ToriDraw_RenderModel3RasterWithTable(
+                g_scene, &view_port, &camera, g_pixels, table);
         }
     }
 
@@ -1029,6 +1213,233 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
         g_rgba[i * 4 + 1] = (uint8_t)((p >> 8) & 0xFF);
         g_rgba[i * 4 + 2] = (uint8_t)(p & 0xFF);
         g_rgba[i * 4 + 3] = 0xFF;
+    }
+
+    return g_rgba;
+}
+
+/**
+ * Render a MODEL component through the same projection/raster entry point as
+ * the native client's Soft3D UI renderer.
+ *
+ * This is intentionally separate from ev_render.  ev_render is an orbiting
+ * entity viewer: it measures model bounds, invents a camera placement, applies
+ * pan/fly state, uses a near plane of 1, and paints EV_BG.  None of those are
+ * widget semantics.  Interface records already supply every transform term,
+ * and ToriDraw_RenderModelExtentsAtWidget is the native client's implementation
+ * of those terms.
+ */
+uint8_t*
+ev_render_widget(
+    int canvas_width,
+    int canvas_height,
+    int widget_x,
+    int widget_y,
+    int widget_width,
+    int widget_height,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int x_offset,
+    int y_offset,
+    int orthographic,
+    int fixed_zoom,
+    int object_composed,
+    int frame)
+{
+    if( !g_scene || (!g_model && !g_model_hd) ||
+        !ensure_buffers(canvas_width, canvas_height) )
+        return NULL;
+
+    /* Resolve before posing: draw_model() may rebuild an attached-model merge,
+     * and ev_pose() must operate on exactly the handle rasterized below. */
+    struct ToriDraw_Model* subject = draw_model();
+    if( !subject )
+        return NULL;
+
+    ev_pose(frame);
+
+    size_t const pixel_count = (size_t)canvas_width * (size_t)canvas_height;
+    bool needs_source_alpha = false;
+    if( subject->face_alphas )
+        for( int face = 0; face < subject->face_count; face++ )
+        {
+            int const transparency = subject->face_alphas[face];
+            /* 0 is opaque; 254/255 are discarded by the stock raster. */
+            if( transparency > 0 && transparency < 254 )
+            {
+                needs_source_alpha = true;
+                break;
+            }
+        }
+    memset(g_pixels, 0, pixel_count * sizeof(*g_pixels));
+    memset(g_rgba, 0, pixel_count * 4);
+
+    struct ToriDraw_ModelHandle hnd;
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = subject;
+
+    int model_zoom = zoom;
+    int model_center_y = 0;
+    if( object_composed )
+    {
+        int const box = widget_width < widget_height ? widget_width : widget_height;
+        if( box > 0 )
+            model_zoom = model_zoom * 32 / box;
+
+        struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+        if( bounds )
+            model_center_y = -bounds->min_y / 2;
+    }
+    if( model_zoom <= 0 )
+        model_zoom = 2000;
+
+    int draw_x = 0;
+    int draw_y = 0;
+    int draw_width = 0;
+    int draw_height = 0;
+    bool rendered = ToriDraw_RenderModelExtentsAtWidget(
+        g_scene,
+        hnd,
+        model_zoom,
+        xan,
+        yan,
+        zan,
+        x_offset,
+        y_offset,
+        model_center_y,
+        orthographic != 0,
+        fixed_zoom != 0,
+        g_pixels,
+        canvas_width,
+        canvas_width,
+        canvas_height,
+        widget_x,
+        widget_y,
+        widget_width,
+        widget_height,
+        0,
+        0,
+        canvas_width,
+        canvas_height,
+        &draw_x,
+        &draw_y,
+        &draw_width,
+        &draw_height);
+
+    if( !rendered )
+        return NULL;
+
+    /* Most interface models are wholly opaque.  Keep that common path
+     * byte-for-byte identical and avoid paying for a second full raster. */
+    if( !needs_source_alpha )
+    {
+        for( size_t i = 0; i < pixel_count; i++ )
+        {
+            uint32_t const rgb = (uint32_t)g_pixels[i] & 0x00FFFFFFu;
+            if( !rgb )
+                continue;
+            g_rgba[i * 4 + 0] = (uint8_t)((rgb >> 16) & 0xFF);
+            g_rgba[i * 4 + 1] = (uint8_t)((rgb >> 8) & 0xFF);
+            g_rgba[i * 4 + 2] = (uint8_t)(rgb & 0xFF);
+            g_rgba[i * 4 + 3] = 0xFF;
+        }
+        return g_rgba;
+    }
+
+    /*
+     * Raster the same projected model over white as well as black.  Every
+     * stock face-alpha operation is affine in the destination, so for each
+     * pixel
+     *
+     *   black result = source contribution
+     *   white result - black result = destination contribution
+     *
+     * This remains true when several translucent faces overlap inside one
+     * model.  Turning those two terms into straight RGBA gives the browser a
+     * layer it can source-over the preceding DOM content, which is what the C
+     * client gets by drawing the model directly into its existing framebuffer.
+     * Opaque pixels still take the exact old path (delta zero, alpha 255), and
+     * untouched pixels are black=0/white=255 (alpha zero).
+     */
+    for( size_t i = 0; i < pixel_count; i++ )
+        g_pixels_white[i] = (toripixel_t)0x00FFFFFFu;
+    rendered = ToriDraw_RenderModelExtentsAtWidget(
+        g_scene,
+        hnd,
+        model_zoom,
+        xan,
+        yan,
+        zan,
+        x_offset,
+        y_offset,
+        model_center_y,
+        orthographic != 0,
+        fixed_zoom != 0,
+        g_pixels_white,
+        canvas_width,
+        canvas_width,
+        canvas_height,
+        widget_x,
+        widget_y,
+        widget_width,
+        widget_height,
+        0,
+        0,
+        canvas_width,
+        canvas_height,
+        &draw_x,
+        &draw_y,
+        &draw_width,
+        &draw_height);
+    if( !rendered )
+        return NULL;
+
+    for( size_t i = 0; i < pixel_count; i++ )
+    {
+        uint32_t const black = (uint32_t)g_pixels[i] & 0x00FFFFFFu;
+        uint32_t const white = (uint32_t)g_pixels_white[i] & 0x00FFFFFFu;
+        int const br = (int)((black >> 16) & 0xFF);
+        int const bg = (int)((black >> 8) & 0xFF);
+        int const bb = (int)(black & 0xFF);
+        int const wr = (int)((white >> 16) & 0xFF);
+        int const wg = (int)((white >> 8) & 0xFF);
+        int const wb = (int)(white & 0xFF);
+
+        /* The destination coefficient is channel-independent.  Integer
+         * raster rounding can separate the three observations by one; their
+         * median rejects that without biasing toward a bright/dark channel. */
+        int dr = wr - br;
+        int dg = wg - bg;
+        int db = wb - bb;
+        if( dr < 0 ) dr = 0;
+        if( dg < 0 ) dg = 0;
+        if( db < 0 ) db = 0;
+        if( dr > 255 ) dr = 255;
+        if( dg > 255 ) dg = 255;
+        if( db > 255 ) db = 255;
+        int delta = dr + dg + db - (dr < dg ? (dr < db ? dr : db)
+                                            : (dg < db ? dg : db)) -
+                    (dr > dg ? (dr > db ? dr : db) : (dg > db ? dg : db));
+        int const alpha = 255 - delta;
+        if( alpha <= 0 )
+            continue;
+
+        /* ImageData takes straight (not premultiplied) RGBA.  Choose the
+         * straight colour whose premultiplied contribution rounds back to the
+         * black raster. */
+        int r = (br * 255 + alpha / 2) / alpha;
+        int g = (bg * 255 + alpha / 2) / alpha;
+        int b = (bb * 255 + alpha / 2) / alpha;
+        if( r > 255 ) r = 255;
+        if( g > 255 ) g = 255;
+        if( b > 255 ) b = 255;
+        g_rgba[i * 4 + 0] = (uint8_t)r;
+        g_rgba[i * 4 + 1] = (uint8_t)g;
+        g_rgba[i * 4 + 2] = (uint8_t)b;
+        g_rgba[i * 4 + 3] = (uint8_t)alpha;
     }
 
     return g_rgba;

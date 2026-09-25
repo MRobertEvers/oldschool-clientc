@@ -1,0 +1,36 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Khazard teleport (tablet)}}
+{{Infobox Spell
+|name = Khazard Teleport
+|image = [[File:Khazard Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 78
+|spellbook = Lunar
+|type = Teleport
+|exp = 80
+|cost = {{RuneReq|Law=2|Water=4|Astral=2}}
+|speed = 4 ticks
+|description = Teleports you to Port Khazard
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Khazard Teleport icon (mobile).png|left|class=pageimage]]
+'''Khazard Teleport''' teleports the caster to [[Port Khazard]]. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 4
+|Rune2 = Law
+|Rune2num = 2
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2636,3167|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

@@ -275,7 +275,9 @@ cp_assets_export(
 int
 cp_assets_import(
     struct CP_Ctx* ctx,
-    const char* out_cache_dir);
+    const char* out_cache_dir,
+    const char* assets_csv,
+    const char* archive_list_path);
 
 /**
  * Rename models after the configs that reference them, as LostCity's unpacker

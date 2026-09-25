@@ -1,0 +1,77 @@
+{{External|rs|rsc=Enchant lvl-4 amulet}}
+{{otheruses|the spell|the magic tablet|Enchant diamond}}
+{{Infobox Spell
+|name = Lvl-4 Enchant
+|image = [[File:Lvl-4 Enchant.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 57
+|spellbook = Normal
+|type = Utility
+|exp = 67
+|cost = {{RuneReq|Earth=10|Cosmic=1}}
+|speed = 3 ticks (7 on autocast)
+|lectern = [[Teak demon lectern|Teak demon]]
+|description = For use on diamond jewellery
+|anim = [[File:Lvl-4 Enchant.gif|300px]]
+|sound = [[File:Lvl-4 Enchant.ogg]]
+}}
+[[File:Lvl-4 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-4 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 57 [[Magic]] to cast. The spell enchants [[diamond]] [[jewellery]], granting 67 Magic experience when doing so.
+
+This spell can be transferred to a [[Enchant diamond|magic tablet]] by bringing the required runes and a piece of [[soft clay]] to a [[lectern]] in the [[study]] of a [[player-owned house]], granting the same experience as casting the spell.
+
+Like other jewellery enchantment spells, Lvl-4 Enchant will automatically re-cast every 7 ticks (4.2 seconds). While less click-intensive, it is much slower than enchanting each piece of jewellery individually. An inventory of 27 pieces of jewellery would take about one minute and fifty seconds to enchant at this rate.
+
+When cast actively, a player could theoretically achieve 2,000 casts per hour for a total of 134,000 experience. When cast passively only 857 casts can be achieved, worth 57,419 experience. In practice, both of these numbers will be slightly lower due to time spent banking.
+
+==List of items==
+[[Free-to-play]] players can only use the spell to enchant the [[diamond amulet]].
+
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs; column assumes an appropriate rune-providing item is used.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Diamond ring}} 
+|{{Coins|{{GEP|Diamond ring}}}}
+|{{plinkt|Ring of life}}
+|{{Coins|{{GEP|Ring of life}}}}
+|{{coins|{{GEP|Ring of life}} - ({{GEP|Diamond ring}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Diamond necklace}}
+|{{Coins|{{GEP|Diamond necklace}}}}
+|{{plinkt|Phoenix necklace}}
+|{{Coins|{{GEP|Phoenix necklace}}}}
+|{{coins|{{GEP|Phoenix necklace}} - ({{GEP|Diamond necklace}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Diamond bracelet}}
+|{{Coins|{{GEP|Diamond bracelet}}}}
+|{{plinkt|Abyssal bracelet}} 
+|{{Coins|{{GEP|Abyssal bracelet(5)}}}}
+|{{coins|{{GEP|Abyssal bracelet(5)}} - ({{GEP|Diamond bracelet}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Diamond amulet}}
+|{{Coins|{{GEP|Diamond amulet}}}}
+|{{plinkt|Amulet of power}}
+|{{Coins|{{GEP|Amulet of power}}}}
+|{{coins|{{GEP|Amulet of power}} - ({{GEP|Diamond amulet}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Spell costs==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 10
+|Rune2 = cosmic
+|Rune2num = 1
+}}
+
+{{Utility spells}}
+{{Standard spellbook}}

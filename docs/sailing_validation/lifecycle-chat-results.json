@@ -1,0 +1,93 @@
+{
+  "worker": "lifecycle",
+  "recorded_utc": "2026-09-07T13:50:00Z",
+  "what": "Chat-mode persistence re-proof on the SHARED 08:08 binaries. Supersedes the 2026-09-06 'chatwire' run, which proved the same behaviour on a PRIVATE client (75978a97), a private server and an isolated pack + symlinked content mirror. Everything that run measured now stands on the shared build with the content file in the tree.",
+
+  "provenance": {
+    "client": "src/torirs",
+    "client_sha256": "4854e3036abf814d07ce97649845d30206bac647b49adce560e3e9b28fa927a4",
+    "server_standalone": "src/build_opt/torirsserver",
+    "server_sha256": "214b43d7a30dd47b67b47693e1b9820d299c2154eeb2193aeb2c4ec0b7082186",
+    "script_pack": "OSRS-Content/osrs239-content/server/scripts/build/script.dat",
+    "script_sha256": "902a6b8d242bba01990b3955100e301c2a0edb6b1f18fc6ca83fd703a880df59",
+    "script_count": 30076,
+    "hashes_verified_before_the_run": true,
+    "renderer": "soft3d",
+    "headless": true,
+    "user": "finchat",
+    "fixture": "default ocean fixture, skiff at 3072,3160 (no --fixture-tile)"
+  },
+
+  "sessions": [
+    {"dir": "/tmp/sailing-fin-chat",        "pid": 51630, "mode": "fresh fixture",                 "startup_ms": 3690.816},
+    {"dir": "/tmp/sailing-fin-chat-resume", "pid": 52015, "mode": "NEW dir, save copied in, --resume-save", "startup_ms": 3251.181}
+  ],
+
+  "observations": [
+    {
+      "id": "OBS-1",
+      "png": "docs/sailing_validation/lifecycle-chat-private-menu.png",
+      "seen": "Fresh fixture, skiff 'Adamant Bane' 80/80 in the open ocean, Facilities panel open reading 'Steering'. A right-click on the Private filter (screen 220,490) opens 'Choose Option': Switch tab / Private: Show all / Private: Show friends / Private: Show none / Cancel. The bar behind it reads All | Game On | Public On | Private On | Channel On | Clan On | Trade On | Report.",
+      "verdict": "baseline + menu"
+    },
+    {
+      "id": "OBS-2",
+      "png": "docs/sailing_validation/lifecycle-chat-private-friends.png",
+      "seen": "After left-clicking 'Private: Show friends' and 60 frames, the Private button reads 'Private / Friends' in YELLOW. Game, Public, Channel, Clan and Trade all still read 'On' in green.",
+      "verdict": "PASS — the caption takes the friends wording"
+    },
+    {
+      "id": "OBS-3",
+      "save": "/tmp/sailing-fin-chat/saves/finchat.ini after `raw logout`: [chat] public = 0 / private = 1 / trade = 0",
+      "verdict": "PASS — the ordinary disconnect save records the choice"
+    },
+    {
+      "id": "OBS-4",
+      "png": "docs/sailing_validation/lifecycle-chat-relogin-friends.png",
+      "seen": "A GENUINELY FRESH client process (new session directory, that save copied in, `start --resume-save`, startup 3251 ms), aboard the skiff. The Private button reads 'Private / Friends'; Game/Public/Channel/Clan/Trade all read On.",
+      "verdict": "PASS — the caption survives a real relogin. A new process is essential: reusing the logged-out client shows a stale local value and proves nothing."
+    },
+    {
+      "id": "OBS-5",
+      "png": "docs/sailing_validation/lifecycle-chat-trade-menu.png",
+      "seen": "Right-click on Trade (screen 403,490): Switch tab / Trade: Show all / Trade: Show friends / Trade: Show none / Cancel.",
+      "verdict": "setup for the regression test"
+    },
+    {
+      "id": "OBS-6",
+      "png": "docs/sailing_validation/lifecycle-chat-trade-none.png",
+      "seen": "After 'Trade: Show none' the Trade button reads 'Trade / Off' in RED and the Private button still reads 'Private / Friends' in yellow.",
+      "verdict": "PASS — a later filter change does not clobber the private mode in the client"
+    },
+    {
+      "id": "OBS-7",
+      "save": "/tmp/sailing-fin-chat-resume/saves/finchat.ini after that trade change and `raw logout`: [chat] public = 0 / private = 1 / trade = 2",
+      "verdict": "PASS — THE DATA-LOSS REGRESSION IS GONE on the shared binary. The pre-fix behaviour was public = 1 / private = 0 / trade = 2 from the same gesture."
+    },
+    {
+      "id": "OBS-8",
+      "png": "docs/sailing_validation/lifecycle-chat-after-logout.png",
+      "seen": "The first session immediately after `raw logout`: the client shows the 'Connection lost / Please wait - attempting to reestablish' overlay, the avatar is gone from the deck and the minimap has lost its scene. The Private filter still reads 'Friends' and the hull panel still reads 80/80.",
+      "verdict": "NOT a chat defect — this is LIFE-1, the reconnect rejection. This session's log line is `osrs239 login: rejected reply=239`; the resume session's is `osrs239 login: rejected reply=195`, the exact byte the handoff named. See lifecycle-reconnect-results.json."
+    }
+  ],
+
+  "images_regenerated_today": [
+    "lifecycle-chat-private-menu.png", "lifecycle-chat-private-friends.png",
+    "lifecycle-chat-relogin-friends.png", "lifecycle-chat-trade-menu.png (new name)",
+    "lifecycle-chat-trade-none.png (new name)", "lifecycle-chat-after-logout.png (new name)"
+  ],
+  "images_kept_as_negative_controls_untouched": [
+    "lifecycle-chat-private-clobbered.png", "lifecycle-chat-public-sticks.png",
+    "lifecycle-chat-relogin-private-on.png", "lifecycle-chat-baseline.png",
+    "lifecycle-chat-after-owned-fix.png",
+    "lifecycle-chat-fixed-*.png (the 2026-09-06 private-build proof of the same six frames)"
+  ],
+
+  "not_verified_here": [
+    "The client-side chat-bar caption for the OTHER tenants of varp 1054 (Channel and Clan filters). The known_collateral recorded by the 2026-09-06 run — that transmitting varp 1054 zeroes the client's local Channel/Clan filter bits — was NOT retested: both read 'On' throughout because neither was ever moved off its default in this run.",
+    "src/torirsserver/test/embed_test.c:2259 (saw_filter_private) is still the long-standing embed_test decode break; not re-run."
+  ],
+
+  "status": "PASS — Private -> Show friends reads the friends wording, survives a raw logout and a fresh-process --resume-save, and a trade-only change afterwards leaves private = 1 in the save."
+}

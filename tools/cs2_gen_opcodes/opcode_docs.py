@@ -20,6 +20,11 @@ class OpcodeDoc:
 
 
 OPCODE_DOCS: dict[str, OpcodeDoc] = {
+    "RUNELITE_CALLBACK": OpcodeDoc(
+        summary="Invoke a synchronous named plugin callback",
+        str_in=("event_name",),
+        notes="Remaining stack slots are live callback arguments/results. The host must not yield or recursively run scripts.",
+    ),
     # --- VM core (cs2vm.c) ---
     "PUSH_CONSTANT_INT": OpcodeDoc(
         summary="Push int constant",
@@ -104,15 +109,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "POP_INT_DISCARD": OpcodeDoc(
         summary="Discard int",
-        operand="repeat count",
+        operand="unused (a byte, like RETURN's; not a repeat count)",
         int_in=("value",),
-        notes="discards operand times",
+        notes="discards exactly one value",
     ),
     "POP_STRING_DISCARD": OpcodeDoc(
         summary="Discard string",
-        operand="repeat count",
+        operand="unused (a byte, like RETURN's; not a repeat count)",
         str_in=("value",),
-        notes="discards operand times",
+        notes="discards exactly one value",
     ),
     "BRANCH": OpcodeDoc(
         summary="Unconditional branch",
@@ -120,10 +125,10 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         notes="pc += operand",
     ),
     "BRANCH_NOT": OpcodeDoc(
-        summary="Branch if false",
-        int_in=("cond",),
+        summary="Branch if not equal",
+        int_in=("a", "b"),
         operand="branch offset",
-        notes="pc += operand if cond == 0",
+        notes="pc += operand if a != b",
     ),
     "BRANCH_EQUALS": OpcodeDoc(
         summary="Branch if equal",
@@ -175,17 +180,17 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("a", "b"),
         int_out=("a * b",),
     ),
-    "DIV": OpcodeDoc(
+    "DIVIDE": OpcodeDoc(
         summary="Integer divide",
         int_in=("a", "b"),
         int_out=("a / b",),
-        notes="0 if b == 0",
+        notes="VM error if b == 0; otherwise truncates toward zero",
     ),
-    "MOD": OpcodeDoc(
+    "MODULO": OpcodeDoc(
         summary="Integer modulo",
         int_in=("a", "b"),
         int_out=("a % b",),
-        notes="0 if b == 0",
+        notes="VM error if b == 0; remainder has the dividend's sign",
     ),
     "AND": OpcodeDoc(
         summary="Bitwise and",
@@ -232,7 +237,6 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "RETURN": OpcodeDoc(
         summary="Return from script",
-        int_in=("return value (optional)",),
         notes="pops frame",
     ),
     # --- Host widget create/find (cs2_host_ui.c) ---
@@ -247,7 +251,8 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     "CC_DELETEALL": OpcodeDoc(
-        summary="Delete all dynamic children of active parent",
+        summary="Delete every dynamic child of a component",
+        int_in=("component",),
     ),
     "CC_FIND": OpcodeDoc(
         summary="Find child by sub-id",
@@ -289,6 +294,20 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set rectangle fill",
         int_in=("filled",),
     ),
+    "CC_SETARC": OpcodeDoc(
+        summary="Set the arc's start and end angle on the active child",
+        int_in=("start_angle", "end_angle"),
+        notes=(
+            "Widget type 10 only. 65536 is a full turn, 0 is straight up, and "
+            "the sweep runs clockwise. Drawn as an annulus sector; script 5480 "
+            "builds the overlay countdown pie from three of them."
+        ),
+    ),
+    "IF_SETARC": OpcodeDoc(
+        summary="Set the arc's start and end angle",
+        int_in=("start_angle", "end_angle", "component"),
+        notes="The by-id form of CC_SETARC; same angle units.",
+    ),
     "CC_SETTRANS": OpcodeDoc(
         summary="Set transparency",
         operand="0 = active component, 1 = dot component",
@@ -316,7 +335,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     "CC_SETTARGETVERB": OpcodeDoc(
-        summary="Set target verb (stub)",
+        summary="Set target verb on the active/dot component",
         str_in=("text",),
     ),
     "CC_CLEAROPS": OpcodeDoc(
@@ -326,7 +345,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set draggable parent/child",
         int_in=("parent_uid", "child_index"),
     ),
-    "CC_SETDRAGGABLEBEHAVIOR": OpcodeDoc(
+    "CC_SETDRAGRENDERBEHAVIOUR": OpcodeDoc(
         summary="Set drag behavior",
         operand="0 = active component, 1 = dot component",
         int_in=("behavior",),
@@ -343,6 +362,18 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "CC_SETGRAPHIC": OpcodeDoc(
         summary="Set sprite graphic",
         int_in=("graphic_id",),
+    ),
+    "CC_SETCLICKMASK": OpcodeDoc(
+        summary="Set secondary sprite graphic",
+        int_in=("graphic_id",),
+    ),
+    "CC_SETBLENDTRANS": OpcodeDoc(
+        summary="Set bottom transparency",
+        int_in=("trans",),
+    ),
+    "CC_SETBLENDMODE": OpcodeDoc(
+        summary="Set fill mode",
+        int_in=("fill_mode",),
     ),
     "CC_SETPOSITION": OpcodeDoc(
         summary="Set position modes",
@@ -368,20 +399,20 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set object icon on active child",
         int_in=("obj_count", "obj_id"),
     ),
-    "CC_SETOBJECT_ALWAYS_NUM": OpcodeDoc(
+    "CC_SETOBJECT_ALWAYSNUM": OpcodeDoc(
         summary="Set object icon always showing qty",
         int_in=("obj_count", "obj_id"),
     ),
     "CC_SETOBJECT_NONUM": OpcodeDoc(
-        summary="Set object icon without qty",
-        int_in=("obj_id",),
+        summary="Set the object icon, never drawing its count",
+        int_in=("obj_id", "count"),
     ),
-    "CC_SETCOMPONENTPARAM": OpcodeDoc(
+    "CC_SETPARAM": OpcodeDoc(
         summary="Write a param onto the component's runtime param table",
         operand="0 = active component, 1 = dot component",
         int_in=("param_id", "value", "kind"),
         notes=(
-            "OldSchool-era, distinct from CC_GETPARAM (1613): the table lives on "
+            "OldSchool-era, distinct from CC_GETBLENDMODE (1613): the table lives on "
             "the component at runtime and starts empty (IF3 files carry no param "
             "section). VARIABLE ARITY, so the counts above are the kind == 0 case "
             "only: `kind` names the ParamType's type, and kind == 2 means the value "
@@ -393,13 +424,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     # --- CC getters (active component) ---
-    "CC_GETCOMPONENTPARAM": OpcodeDoc(
+    "CC_PARAM": OpcodeDoc(
         summary="Read a param off the component's runtime param table",
         operand="0 = active component, 1 = dot component",
         int_in=("param_id",),
         int_out=("value",),
         notes=(
-            "Answers with what CC_SETCOMPONENTPARAM wrote, else the ParamType's "
+            "Answers with what CC_SETPARAM wrote, else the ParamType's "
             "default_int — which is what makes the scripts' `= -1` guards mean "
             "\"never tagged\"."
         ),
@@ -483,7 +514,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set draggable",
         int_in=("component", "parent_uid", "child_index"),
     ),
-    "IF_SETDRAGGABLEBEHAVIOR": OpcodeDoc(
+    "IF_SETDRAGRENDERBEHAVIOUR": OpcodeDoc(
         summary="Set drag behavior",
         int_in=("component", "behavior"),
     ),
@@ -516,6 +547,22 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set graphic",
         int_in=("graphic_id", "component"),
     ),
+    "IF_SETCLICKMASK": OpcodeDoc(
+        summary="Set secondary sprite graphic",
+        int_in=("graphic_id", "component"),
+    ),
+    "IF_SETBLENDTRANS": OpcodeDoc(
+        summary="Set bottom transparency",
+        int_in=("trans", "component"),
+    ),
+    "IF_SETBLENDMODE": OpcodeDoc(
+        summary="Set fill mode",
+        int_in=("fill_mode", "component"),
+    ),
+    "IF_SETALWAYSLEFTCLICK": OpcodeDoc(
+        summary="Set click mask",
+        int_in=("click_mask", "component"),
+    ),
     "IF_SETCOLOUR": OpcodeDoc(
         summary="Set colour",
         int_in=("component", "colour"),
@@ -547,7 +594,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set object icon",
         int_in=("obj_id", "obj_count", "component"),
     ),
-    "IF_SETOBJECT_ALWAYS_NUM": OpcodeDoc(
+    "IF_SETOBJECT_ALWAYSNUM": OpcodeDoc(
         summary="Set object icon always showing qty",
         int_in=("obj_id", "obj_count", "component"),
     ),
@@ -573,7 +620,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         ),
     ),
     "IF_SETTARGETVERB": OpcodeDoc(
-        summary="Set target verb (stub)",
+        summary="Set target verb on a named component",
         str_in=("text",),
         int_in=("component",),
     ),
@@ -581,13 +628,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Clear ops",
         int_in=("component",),
     ),
-    "IF_SETOPSUBMENU": OpcodeDoc(
+    "IF_SETSUBOP": OpcodeDoc(
         summary="Set op submenu label",
         str_in=("text",),
         int_in=("op_index", "sub_index", "component"),
         notes="op_index and sub_index are 1-based in script",
     ),
-    "IF_SETTARGETPRIORITY": OpcodeDoc(
+    "IF_SETOPPRIORITY": OpcodeDoc(
         summary="Set target priority (stub)",
         int_in=("component", "priority"),
     ),
@@ -656,8 +703,12 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "IF_GETOP": OpcodeDoc(
         summary="Get op text",
-        int_in=("component", "op_index"),
+        int_in=("op_index", "component"),
         str_out=("op text",),
+        notes=(
+            "The rev-239 handler pops the explicit component first, then the "
+            "one-based op index."
+        ),
     ),
     "IF_GETOPBASE": OpcodeDoc(
         summary="Get op base text",
@@ -825,6 +876,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("a", "b", "c", "d", "e"),
         int_out=("a + (b - a) * (e - c) / (d - c)",),
     ),
+    "RANDOM": OpcodeDoc(
+        summary="Random exclusive",
+        int_in=("max",),
+        int_out=("rand() % max",),
+        notes=(
+            "Returns 0 when max <= 0. LostCity engine.rs2 documents the range "
+            "as 0 through max - 1; the input is required for stack balance."
+        ),
+    ),
     "RANDOMINC": OpcodeDoc(
         summary="Random inclusive",
         int_in=("max",),
@@ -901,7 +961,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         str_out=("param value (string)",),
         notes="pushes int or str depending on param type",
     ),
-    "CC_CLEAROPSUBMENU": OpcodeDoc(
+    "CC_CLEARSUBOPS": OpcodeDoc(
         summary="Clear submenu entries for one op slot",
         operand="0 = active component, 1 = dot component",
         int_in=("op_index",),
@@ -912,11 +972,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("parent", "src_sub", "dst_sub"),
         notes="sets active to the copy; used by the bank tab strip builder",
     ),
-    "CC_OP1309": OpcodeDoc(
+    "CC_SETPINCH": OpcodeDoc(
         summary="Client stub that discards one int",
         int_in=("value",),
     ),
-    "CC_SETOPFORCELEFTCLICK": OpcodeDoc(
+    "CC_SETALWAYSLEFTCLICK": OpcodeDoc(
         summary="Force left-click to execute the op without opening the menu",
         operand="0 = active component, 1 = dot component",
         int_in=("flag",),
@@ -939,7 +999,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("opindex", "keyrate", "tickrate"),
         notes="tickrate == 0 disables repeat.",
     ),
-    "CC_SETOPSUBMENU": OpcodeDoc(
+    "CC_SETSUBOP": OpcodeDoc(
         summary="Set a submenu entry label",
         operand="0 = active component, 1 = dot component",
         int_in=("op_index", "sub_index"),
@@ -962,7 +1022,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "rather than \"corrected\" without a real-cache trace."
         ),
     ),
-    "CC_SETTARGETPRIORITY": OpcodeDoc(
+    "CC_SETOPPRIORITY": OpcodeDoc(
         summary="Set target priority",
         operand="0 = active component, 1 = dot component",
         int_in=("priority",),
@@ -1012,48 +1072,52 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "inject <col=...>/<img=...> formatting."
         ),
     ),
-    "GETKEYINPUTMODE": OpcodeDoc(
-        summary="Current keyboard capture mode",
-        int_out=("mode",),
-        notes="0 none, 1 keyboard, 2 interface-scoped, 3 widget-scoped.",
+    "SETKEYINPUTMODE_ACTIVECOMPONENT": OpcodeDoc(
+        summary="Route keyboard input to the active component",
+        notes="rev-239 Statics 3140 sets the key-input mode and takes the active (or dot) component; nothing on the stacks.",
+    ),
+    "IF_INPUT_SETPLACEHOLDERTEXT": OpcodeDoc(
+        summary="Set an input field's placeholder text",
+        int_in=("component",),
+        str_in=("text",),
     ),
     "IF_INPUT_SETACCEPTMODE": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCHARFILTER": OpcodeDoc(
+    "IF_INPUT_SETFOCUS": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSORCOLOUR": OpcodeDoc(
+    "IF_INPUT_SETCARET": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSORHEIGHT": OpcodeDoc(
+    "IF_INPUT_SETWRAPMODE": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSOROFFSET": OpcodeDoc(
+    "IF_INPUT_SETFOCUSABLE": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETCURSORTRANS": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
-    ),
-    "IF_INPUT_SETCURSORWIDTH": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
-    ),
-    "IF_INPUT_SETLINECOUNTLIMIT": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
+    "IF_INPUT_SETSELECTION": OpcodeDoc(
+        summary="Set an input field's selected range",
+        int_in=("start", "end", "component"),
     ),
     "IF_INPUT_SETLINEWIDTHLIMIT": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
+    "IF_INPUT_SETSUBMITMODE": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
     "IF_INPUT_SETLINEWRAPPINGWIDTH": OpcodeDoc(
+        summary="",
+        int_in=("value", "component"),
+    ),
+    "IF_INPUT_SETLINECOUNTLIMIT": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
@@ -1065,15 +1129,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETSUBMITMODE": OpcodeDoc(
+    "IF_INPUT_SETPLACEHOLDERTEXTCOLOUR": OpcodeDoc(
         summary="",
         int_in=("value", "component"),
     ),
-    "IF_INPUT_SETWRAPMODE": OpcodeDoc(
-        summary="",
-        int_in=("value", "component"),
-    ),
-    "IF_OP2309": OpcodeDoc(
+    "IF_SETPINCH": OpcodeDoc(
         summary="Client stub: pop component + one int and discard",
         int_in=("value", "component"),
     ),
@@ -1115,27 +1175,31 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_out=("pressed",),
         notes="edge-triggered; cleared each frame. OSRS internal key code.",
     ),
-    "LOCAL_NOTIFICATION": OpcodeDoc(
+    "NOTIFICATIONS_SENDLOCAL": OpcodeDoc(
         summary="Schedule a local notification",
         int_in=("id", "delay_ms"),
         str_in=("title", "body"),
         int_out=("handle",),
         notes=(
-            "pushes a handle for LOCAL_NOTIFICATION_CANCEL. script 5360\n"
+            "pushes a handle for NOTIFICATIONS_SENDGROUPEDLOCAL. script 5360\n"
             "(proc,local_notification) POP_INT_LOCALs it straight after the call, so\n"
             "the push is required or that store underflows."
         ),
     ),
-    "LOCAL_NOTIFICATION_CANCEL": OpcodeDoc(
-        summary="Cancel one scheduled notification",
+    "NOTIFICATIONS_SENDGROUPEDLOCAL": OpcodeDoc(
+        summary="Schedule a grouped mobile notification",
+        int_in=("x4", "x5", "x6"),
+        str_in=("x1", "x2", "x3"),
+        int_out=("handle (0 here: desktop has no notification centre)",),
+    ),
+    "NOTIFICATIONS_CANCELLOCAL": OpcodeDoc(
+        summary="Cancel one scheduled mobile notification",
         int_in=("handle",),
     ),
-    "LOCAL_NOTIFICATION_CANCELALL": OpcodeDoc(
-        summary="Cancel every scheduled notification",
-    ),
-    "LOCAL_NOTIFICATION_SUPPORTED": OpcodeDoc(
-        summary="Are local notifications available?",
-        int_out=("supported",),
+    "NOTIFICATIONS_ISLOCALSCHEDULED": OpcodeDoc(
+        summary="Is a mobile notification scheduled?",
+        int_in=("handle",),
+        int_out=("0 here",),
     ),
     "MAX": OpcodeDoc(
         summary="Maximum of two ints.  int in: a, b (b = top)  int out: max(a, b)",
@@ -1183,9 +1247,10 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("packed", "x", "plane", "z"),
         int_out=("packed + ((plane << 28) | (x << 14) | z)",),
     ),
-    "SETKEYINPUTENABLED": OpcodeDoc(
-        summary="Enable/disable keyboard capture (no-op here)",
-        int_in=("enabled",),
+    "SETFREECAMSPEED": OpcodeDoc(
+        summary="Set the free camera's speed",
+        int_in=("x1", "x2"),
+        notes="Not implemented here; the stack stub pops both.",
     ),
     "SETKEYINPUTMODE_ALL": OpcodeDoc(
         summary="Release keyboard capture (input dialog type 0)",
@@ -1194,7 +1259,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
             "stop the generator's \"SET* pops one\" heuristic guessing wrong."
         ),
     ),
-    "SETKEYINPUTMODE_KEYBOARD": OpcodeDoc(
+    "SETKEYINPUTMODE_NONE": OpcodeDoc(
         summary="Capture keyboard for a dialog (input dialog type 1)",
         notes="takes no args despite the SET prefix (see SETKEYINPUTMODE_ALL).",
     ),
@@ -1220,15 +1285,15 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Master switch for drawing map elements",
         int_in=("enabled",),
     ),
-    "WORLDMAP_ELEMENT": OpcodeDoc(
+    "MEL_TYPE": OpcodeDoc(
         summary="Element id of the map element event being handled",
         int_out=("elementId",),
     ),
-    "WORLDMAP_ELEMENTCOORD": OpcodeDoc(
+    "MEL_DISPLAYCOORD": OpcodeDoc(
         summary="Second coord of the map element event",
         int_out=("coord",),
     ),
-    "WORLDMAP_ELEMENTCOORD1": OpcodeDoc(
+    "MEL_SOURCECOORD": OpcodeDoc(
         summary="First coord of the map element event",
         int_out=("coord",),
     ),
@@ -1283,7 +1348,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("coord",),
         int_out=("x", "y"),
     ),
-    "WORLDMAP_GETDISPLAYCOORD_CURRENT": OpcodeDoc(
+    "WORLDMAP_GETSOURCEPOSITION": OpcodeDoc(
         summary="World coord under the view centre",
         int_out=("x", "y"),
     ),
@@ -1301,7 +1366,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         int_in=("mapId",),
         str_out=("name",),
     ),
-    "WORLDMAP_GETNEARESTICON": OpcodeDoc(
+    "WORLDMAP_FINDNEARESTELEMENT": OpcodeDoc(
         summary="Display coord of the nearest icon of an element",
         int_in=("elementId", "sourceCoord"),
         int_out=("coord",),
@@ -1319,7 +1384,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Current zoom percentage (25/37/50/75/100/200)",
         int_out=("zoom",),
     ),
-    "WORLDMAP_INIT": OpcodeDoc(
+    "WORLDMAP_JUMPTOPLAYER": OpcodeDoc(
         summary="Select the map area containing the player and centre on it",
     ),
     "WORLDMAP_ISLOADED": OpcodeDoc(
@@ -1334,11 +1399,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Snap to a display coord",
         int_in=("coord",),
     ),
-    "WORLDMAP_JUMPTOMAP": OpcodeDoc(
+    "WORLDMAP_SETMAP_COORD": OpcodeDoc(
         summary="Switch map area, panning to the player when it is in range and to the fallback coord otherwise",
         int_in=("mapId", "fallbackCoord"),
     ),
-    "WORLDMAP_JUMPTOMAP_INSTANT": OpcodeDoc(
+    "WORLDMAP_SETMAP_COORD_OVERRIDE": OpcodeDoc(
         summary="JUMPTOMAP, always using the fallback coord",
         int_in=("mapId", "fallbackCoord"),
     ),
@@ -1363,13 +1428,13 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Flash forever instead of maxFlashCount times",
         int_in=("enabled",),
     ),
-    "WORLDMAP_RESETCYCLESPERFLASH": OpcodeDoc(
+    "WORLDMAP_SETFLASHTICS_DEFAULT": OpcodeDoc(
         summary="Restore the default flash rate",
     ),
-    "WORLDMAP_RESETMAXFLASHCOUNT": OpcodeDoc(
+    "WORLDMAP_SETFLASHLOOPS_DEFAULT": OpcodeDoc(
         summary="Restore the default flash count",
     ),
-    "WORLDMAP_SETCYCLESPERFLASH": OpcodeDoc(
+    "WORLDMAP_SETFLASHTICS": OpcodeDoc(
         summary="Client cycles between flash toggles",
         int_in=("cycles",),
     ),
@@ -1377,7 +1442,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Make a map area current (resets zoom + position)",
         int_in=("mapId",),
     ),
-    "WORLDMAP_SETMAXFLASHCOUNT": OpcodeDoc(
+    "WORLDMAP_SETFLASHLOOPS": OpcodeDoc(
         summary="How many times a flashing element blinks",
         int_in=("count",),
     ),
@@ -1387,5 +1452,518 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "WORLDMAP_STOPCURRENTFLASHES": OpcodeDoc(
         summary="Clear every active flash",
+    ),
+    # --- Rev-239 component/native extensions recovered locally ---
+    "CC_CREATE_ENTITYOVERLAY": OpcodeDoc(
+        summary="Create a dynamic child in a scripted entity overlay layer",
+        int_in=("overlay", "type", "child_index"),
+        notes=(
+            "The parent is an overlay index, not a component id. Sets the active "
+            "component to the new child; dynamic layers (type 0) and child-slot "
+            "gaps are rejected. See game/rs_entity_overlay.h."
+        ),
+    ),
+    "CC_DELETEALL_ENTITYOVERLAY": OpcodeDoc(
+        summary="Delete every dynamic child from a scripted entity overlay layer",
+        int_in=("overlay",),
+    ),
+    "IF_FIND_ENTITYOVERLAY": OpcodeDoc(
+        summary="Make a scripted entity overlay layer the active component",
+        int_in=("overlay",),
+        int_out=("1 if found (active set) else 0",),
+        notes=(
+            "This is opcode 202 even though the vendored decompiler maps both "
+            "_202 and _203 to 202. Rev-239 call sites pass one argument; treating "
+            "it as the old guessed CC_FINDROOT leaks an int."
+        ),
+    ),
+    "CC_FIND_ENTITYOVERLAY": OpcodeDoc(
+        summary="Find a dynamic child inside a scripted entity overlay layer",
+        int_in=("overlay", "sub"),
+        int_out=("1 if found (active set) else 0",),
+        notes="Opcode 203; completes the reference overlay-layer family.",
+    ),
+    "IF_QUERY_NEXTID": OpcodeDoc(
+        summary="Advance the children iterator and push the next child sub-id",
+        int_out=("next collected sub-id, or -1 once the iterator is exhausted",),
+        notes=(
+            "Opcode 214. rev-239 Statics.method7953(class332): "
+            "`cursor >= count ? -1 : ids[cursor++]` over the id list that "
+            "IF_QUERY (211) and CC_QUERY (212) fill. "
+            "It shares that cursor with IF_QUERY_NEXT (213), which "
+            "resolves the same id to a component and makes it active instead "
+            "of pushing it."
+        ),
+    ),
+    "IF_PARAM": OpcodeDoc(
+        summary="Read a runtime param from a named component",
+        operand="unused",
+        int_in=("param", "component", "fallback"),
+        int_out=("component param value, or fallback on a miss",),
+        notes=(
+            "Absent from both vendored tables. All 16 rev-239 call sites push "
+            "three ints and use literal -1 as the fallback; see the derivation "
+            "in local_opcodes.py."
+        ),
+    ),
+    "IF_SETPARAM": OpcodeDoc(
+        summary="Write a runtime param onto a named component",
+        int_in=("param_id", "value", "component_uid", "child_index", "type"),
+        str_in=("value when type names a string",),
+        notes=(
+            "Variable arity: type 2/115 takes the value from the string stack, "
+            "so the integer `value` is absent. child_index -1 names the component "
+            "itself. Rev-239 call sites identify this opcode; IF_HASCHILD_MODAL is "
+            "retained only as a legacy source alias."
+        ),
+    ),
+    "IF_SCRIPT_TRIGGER": OpcodeDoc(
+        summary="Synthesize a server component click with typed arguments",
+        int_in=("crc", "component", "child_index", "typed ints"),
+        str_in=("signature (plus any typed strings it describes)",),
+        notes=(
+            "Variable arity is described by the signature. The rev-239 wire op is "
+            "IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1."
+        ),
+    ),
+    "SOUND_SYNTH": OpcodeDoc(
+        summary="Play a cache sound effect",
+        int_in=("synth", "loops", "delay"),
+        notes=(
+            "About 600 rev-239 call sites use sound_synth(synth, 1, 0); these are "
+            "the interface interaction sounds."
+        ),
+    ),
+    "SOUND_SONG": OpcodeDoc(
+        summary="Play a song with fade-out and fade-in settings",
+        int_in=(
+            "id",
+            "fade_out_delay",
+            "fade_out_speed",
+            "fade_in_delay",
+            "fade_in_speed",
+        ),
+        notes=(
+            "The CS2 twin of MIDI_SONG_V2. Script 9630 and RSProt's MidiSongV2 "
+            "agree on the default fade tuple 0/60/60/0."
+        ),
+    ),
+    "SOUND_JINGLE": OpcodeDoc(
+        summary="Play a MIDI jingle",
+        int_in=("id", "delay"),
+    ),
+    "SOUND_SONG_WITHSECONDARY": OpcodeDoc(
+        summary="Play a song with a secondary track and cross-fade settings",
+        int_in=(
+            "primary",
+            "secondary",
+            "fade_out_delay",
+            "fade_out_speed",
+            "fade_in_delay",
+            "fade_in_speed",
+        ),
+        notes=(
+            "Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its "
+            "secondary lookup returns -1, which identifies the operation."
+        ),
+    ),
+    "LOC_FIND": OpcodeDoc(
+        summary="Find a location of a given type at a tile and make it active",
+        int_in=("coord", "loc_type"),
+        int_out=("1 if found (active loc set) else 0",),
+        notes=(
+            "Static-overlay scripts use this as their scene-presence gate; later "
+            "active-loc and OVERLAY_LOC operations address the selected location."
+        ),
+    ),
+    "TILE_FIND": OpcodeDoc(
+        summary="Test whether a packed coordinate is inside the loaded scene",
+        int_in=("coord",),
+        int_out=("1 if inside the build area else 0",),
+        notes=(
+            "The coordinate-anchored twin of LOC_FIND; overlays recheck it as the "
+            "scene window moves."
+        ),
+    ),
+    "P_FINDSELF": OpcodeDoc(
+        summary="Make the local player the active player",
+        int_out=("1 if a local player exists else -1",),
+        notes=(
+            "The only setter in the 6901..6905 active-player block. The NXT "
+            "reference selects m_localPlayerIndex before pushing the result."
+        ),
+    ),
+    "ENTITYOVERLAY_CREATE_NPC": OpcodeDoc(
+        summary="Attach an overlay to the active NPC",
+        int_in=("slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "ENTITYOVERLAY_CREATE_LOC": OpcodeDoc(
+        summary="Attach an overlay to the active location",
+        int_in=("slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+        notes=(
+            "Anchored at the location coord and layer, so separate locations on "
+            "one tile retain separate overlays."
+        ),
+    ),
+    "ENTITYOVERLAY_CREATE_PLAYER": OpcodeDoc(
+        summary="Attach an overlay to the active player",
+        int_in=("slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "ENTITYOVERLAY_CREATE_COORD": OpcodeDoc(
+        summary="Attach an overlay to a bare tile",
+        int_in=("coord", "slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "ENTITYOVERLAY_GET_NPC": OpcodeDoc(
+        summary="Get one overlay attached to the active NPC",
+        int_in=("slot",),
+        int_out=("overlay index (-1 when none)",),
+        notes=(
+            "The vendored signature incorrectly recorded zero inputs; the slot "
+            "must be popped or the integer stack leaks."
+        ),
+    ),
+    "ENTITYOVERLAY_GET_LOC": OpcodeDoc(
+        summary="Get one overlay attached to the active location",
+        int_in=("slot",),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "ENTITYOVERLAY_GET_PLAYER": OpcodeDoc(
+        summary="Get one overlay attached to the active player",
+        int_in=("slot",),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "ENTITYOVERLAY_GET_COORD": OpcodeDoc(
+        summary="Get one overlay attached to a tile",
+        int_in=("coord", "slot"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "ENTITYOVERLAY_DELETE_NPC": OpcodeDoc(
+        summary="Destroy one overlay attached to the active NPC",
+        int_in=("slot",),
+    ),
+    "ENTITYOVERLAY_DELETE_LOC": OpcodeDoc(
+        summary="Destroy one overlay attached to the active location",
+        int_in=("slot",),
+    ),
+    "ENTITYOVERLAY_DELETE_PLAYER": OpcodeDoc(
+        summary="Destroy one overlay attached to the active player",
+        int_in=("slot",),
+    ),
+    "ENTITYOVERLAY_DELETE_COORD": OpcodeDoc(
+        summary="Destroy one overlay attached to a tile",
+        int_in=("coord", "slot"),
+    ),
+    "LOOTTRACKER_SOURCECOUNT": OpcodeDoc(
+        summary="Get the recorded kill count for one loot source",
+        str_in=("source_name",),
+        int_out=("kill_count",),
+        notes=(
+            "The historical name says TOTALVAL, but scripts use this as a source "
+            "kill count. GP totals are calculated from item widgets."
+        ),
+    ),
+    "LOOTTRACKER_LOOTADD": OpcodeDoc(
+        summary="Write one kill-drop row into the native loot store",
+        int_in=("obj", "qty", "event_id"),
+        str_in=("source_name",),
+        notes=(
+            "event_id batches multi-item kills so each event increments the kill "
+            "count once; rows merge by (source name, object id)."
+        ),
+    ),
+    "ARRAY_SORT": OpcodeDoc(
+        summary="Sort two paired arrays by the first array",
+        str_in=("primary handle", "secondary handle"),
+        notes=(
+            "Sorts primary ascending (lexically for strings, numerically otherwise) "
+            "and applies the same permutation to secondary. Array handles travel "
+            "on the string stack at this revision."
+        ),
+    ),
+    "ARRAY_SIZE": OpcodeDoc(
+        summary="Get the element count of an array handle",
+        str_in=("array handle",),
+        int_out=("length",),
+    ),
+    "STRING_SPLIT": OpcodeDoc(
+        summary="Split a string into a new string-array handle",
+        str_in=("text", "separator"),
+        str_out=("array handle",),
+    ),
+    "STRING_JOIN": OpcodeDoc(
+        summary="Join a string array with a separator",
+        str_in=("array handle", "separator"),
+        str_out=("joined text",),
+    ),
+    "ARRAY_CREATE": OpcodeDoc(
+        summary="Create a typed array handle",
+        int_in=("type_code", "length", "capacity"),
+        str_out=("array handle",),
+    ),
+    "ARRAY_RESIZE": OpcodeDoc(
+        summary="Resize an array handle",
+        int_in=("length",),
+        str_in=("array handle",),
+    ),
+    "ARRAY_PUSH": OpcodeDoc(
+        summary="Append a typed value to an array handle",
+        int_in=("typed value", "value_type"),
+        str_in=("array handle", "typed value when string"),
+        notes="Variable arity: value_type selects the value stack.",
+    ),
+    # --- Entity highlight (7000..7044) ---
+    #
+    # Eight subjects, five opcodes each, always in the same order: SETUP, ON,
+    # OFF, GET, CLEAR. A `group` is one highlight style: SETUP says what group N
+    # looks like, ON/OFF put a subject into or out of it, GET asks whether one is
+    # in it, CLEAR empties the group. Only the ON/OFF pair of each group is named
+    # in the vendored Opcodes.kt -- that pair is what identifies the subject, and
+    # the other three follow from the fixed order and are confirmed by their
+    # arity in the decompiler table.
+    #
+    # The SETUP arguments past the colour are read off the call sites, not off a
+    # client: script 4763 turns mouse-over entity highlight on with
+    # (6, colour, 2, 50, 90) and off with (6, -1, 0, 0, 64); script 5198 uses
+    # (5, colour, 0, 70, 10) and ORs 16 into the last for its second toggle. So a
+    # colour of -1 disables, and the last argument is a bit set rather than a
+    # count. `flags` on ON/OFF/GET is likewise only ever a small constant (0 or 1)
+    # at every call site in the rev-239 cache.
+    "HIGHLIGHT_NPC_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_NPC_ON": OpcodeDoc(
+        summary="Put one npc into a highlight group",
+        int_in=("npc_uid", "coord", "group",),
+    ),
+    "HIGHLIGHT_NPC_OFF": OpcodeDoc(
+        summary="Take one npc out of a highlight group",
+        int_in=("npc_uid", "coord", "group",),
+    ),
+    "HIGHLIGHT_NPC_GET": OpcodeDoc(
+        summary="Is this npc in the highlight group",
+        int_in=("npc_uid", "coord", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_NPC_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_NPCTYPE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_NPCTYPE_ON": OpcodeDoc(
+        summary="Put one npc type into a highlight group",
+        int_in=("npc_type", "group",),
+    ),
+    "HIGHLIGHT_NPCTYPE_OFF": OpcodeDoc(
+        summary="Take one npc type out of a highlight group",
+        int_in=("npc_type", "group",),
+    ),
+    "HIGHLIGHT_NPCTYPE_GET": OpcodeDoc(
+        summary="Is this npc type in the highlight group",
+        int_in=("npc_type", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_NPCTYPE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_LOC_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_LOC_ON": OpcodeDoc(
+        summary="Put one loc into a highlight group",
+        int_in=("loc_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_LOC_OFF": OpcodeDoc(
+        summary="Take one loc out of a highlight group",
+        int_in=("loc_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_LOC_GET": OpcodeDoc(
+        summary="Is this loc in the highlight group",
+        int_in=("loc_type", "coord", "group", "flags",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_LOC_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_LOCTYPE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_LOCTYPE_ON": OpcodeDoc(
+        summary="Put one loc type into a highlight group",
+        int_in=("loc_type", "group",),
+    ),
+    "HIGHLIGHT_LOCTYPE_OFF": OpcodeDoc(
+        summary="Take one loc type out of a highlight group",
+        int_in=("loc_type", "group",),
+    ),
+    "HIGHLIGHT_LOCTYPE_GET": OpcodeDoc(
+        summary="Is this loc type in the highlight group",
+        int_in=("loc_type", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_LOCTYPE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_OBJ_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_OBJ_ON": OpcodeDoc(
+        summary="Put one obj into a highlight group",
+        int_in=("obj_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_OBJ_OFF": OpcodeDoc(
+        summary="Take one obj out of a highlight group",
+        int_in=("obj_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_OBJ_GET": OpcodeDoc(
+        summary="Is this obj in the highlight group",
+        int_in=("obj_type", "coord", "group", "flags",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_OBJ_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_OBJTYPE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_OBJTYPE_ON": OpcodeDoc(
+        summary="Put one obj type into a highlight group",
+        int_in=("obj_type", "group",),
+    ),
+    "HIGHLIGHT_OBJTYPE_OFF": OpcodeDoc(
+        summary="Take one obj type out of a highlight group",
+        int_in=("obj_type", "group",),
+    ),
+    "HIGHLIGHT_OBJTYPE_GET": OpcodeDoc(
+        summary="Is this obj type in the highlight group",
+        int_in=("obj_type", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_OBJTYPE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_PLAYER_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_PLAYER_ON": OpcodeDoc(
+        summary="Put one player into a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "HIGHLIGHT_PLAYER_OFF": OpcodeDoc(
+        summary="Take one player out of a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "HIGHLIGHT_PLAYER_GET": OpcodeDoc(
+        summary="Is this player in the highlight group",
+        int_in=("group",),
+        str_in=("name",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_PLAYER_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_TILE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    # The player block's four route/uid getters, read out of the reference's
+    # ScriptRunnerImpl_6900To6999.cpp (its own LogAssert strings name the
+    # fields). They are NOT client-op context getters despite sitting beside
+    # _6900: they are about the ACTIVE PLAYER, which the client sets before
+    # firing a per-player trigger and MINIMENU_FINDPLAYER sets from the menu.
+    "P_ROUTELENGTH": OpcodeDoc(
+        summary="Active player's route length",
+        int_out=("m_routeLength (0..9)",),
+        notes="The queue of tiles the server has put the player on that the\n"
+        "client has not walked through yet. 0 means standing still, and\n"
+        "clientscript 5203 reads it exactly that way: with a route it marks\n"
+        "P_ROUTE(0), without one it marks `coord`.",
+    ),
+    "P_ROUTE": OpcodeDoc(
+        summary="Active player's route coord at an index",
+        int_in=("index",),
+        int_out=("coord or -1",),
+        notes="Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint\n"
+        "shifts the queue up and writes the new tile at 0 -- so it is the\n"
+        "player's server-side tile, ahead of the rendered position while\n"
+        "walking. The reference packs it as plane << 28 | x << 14 | z after\n"
+        "WorldCoordFromBuildCoord, and asserts index < m_routeLength.",
+    ),
+    "UID": OpcodeDoc(
+        summary="Active player's uid",
+        int_out=("uid or -1",),
+    ),
+    "SELF_PLAYER_UID": OpcodeDoc(
+        summary="Local player's uid",
+        int_out=("uid or -1",),
+        notes="`UID = SELF_PLAYER_UID` is how a per-player\n"
+        "trigger script asks whether the player it fired for is this client's\n"
+        "own -- clientscript 5203 (the current-tile indicator) is the cache's\n"
+        "only user of either.",
+    ),
+    "HIGHLIGHT_TILE_ON": OpcodeDoc(
+        summary="Put one tile into a highlight group",
+        int_in=("coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_TILE_OFF": OpcodeDoc(
+        summary="Take one tile out of a highlight group",
+        int_in=("coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_TILE_GET": OpcodeDoc(
+        summary="Is this tile in the highlight group",
+        int_in=("coord", "group", "flags",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_TILE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    # 7040..7044: the OpGroup highlight family, shaped exactly like the PLAYER
+    # one (SETUP, then a name-keyed ON/OFF/GET, then CLEAR). The reference calls
+    # HighlightManager's Add/Remove/IsOpGroupHighlighted methods. Arities are
+    # from the cache's own call sites and match the decompiler's table.
+    "HIGHLIGHT_GROUP_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags"),
+    ),
+    "HIGHLIGHT_GROUP_ON": OpcodeDoc(
+        summary="Put one named operation group into a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "HIGHLIGHT_GROUP_OFF": OpcodeDoc(
+        summary="Take one named operation group out of a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "HIGHLIGHT_GROUP_GET": OpcodeDoc(
+        summary="Is this named operation group in the highlight group",
+        int_in=("group",),
+        str_in=("name",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_GROUP_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
     ),
 }

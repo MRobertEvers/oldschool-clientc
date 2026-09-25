@@ -1,9 +1,12 @@
 #include "uitree_builder.h"
 
+#include "revconfig/revconfig.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 void
 UITreeBuilder_Init(
@@ -163,9 +166,7 @@ UITreeBuilder_AddOnLoad(
     e->script_id = script_id;
     if( argc > UITREE_BUILDER_ONLOAD_ARGV_MAX )
     {
-        fprintf(
-            stderr,
-            "UITreeBuilder: onload argc %d truncated to %d (component 0x%x)\n",
+        TORIRS_ERR("UITreeBuilder: onload argc %d truncated to %d (component 0x%x)\n",
             argc,
             UITREE_BUILDER_ONLOAD_ARGV_MAX,
             (unsigned)component_id);
@@ -208,7 +209,14 @@ UITreeBuilder_ResolveSpriteRef(
             nlen = sizeof(name) - 1;
         memcpy(name, ref, nlen);
         name[nlen] = '\0';
-        atlas = atoi(bracket + 1);
+        /* The index is a revconfig number like any other, so `sprite[0x0A]`
+         * reads the same as `sprite[10]`; what follows it has to be the ']'. */
+        char const* end = NULL;
+        if( !revconfig_parse_int_expr(bracket + 1, &end, &atlas) || *end != ']' )
+        {
+            TORIRS_ERR("uitree_builder: bad atlas index in sprite ref '%s'\n", ref);
+            atlas = -1;
+        }
     }
     else
     {
@@ -241,8 +249,22 @@ UITreeBuilder_ResolveFontName(
     assert(name);
     for( int i = 0; i < builder->font_count; i++ )
     {
-        if( strcmp(builder->fonts[i].name, name) == 0 )
+        if( strcmp(builder->fonts[i].name, name) != 0 )
+            continue;
+        /*
+         * The two eras address a font differently, and both spellings are a
+         * scene slot.
+         *
+         * dat1 pins its four title-jagfile fonts into fixed slots 0-3 and says
+         * so with cache_font_id. dat2 has no such table: there the fonts-table
+         * ARCHIVE id is the slot, which is why an OldSchool [font:] section
+         * carries only archive_id -- and why resolving by name has to fall
+         * through to it. Returning cache_font_id alone answered -1 for every
+         * dat2 profile, so a widget naming a font by name drew nothing.
+         */
+        if( builder->fonts[i].cache_font_id >= 0 )
             return builder->fonts[i].cache_font_id;
+        return builder->fonts[i].archive_id;
     }
     return -1;
 }

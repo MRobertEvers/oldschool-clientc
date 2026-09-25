@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate the mock server's region -> music track table.
 
-    tools/gen_music_regions.py > src/net/mock/mock230_music_regions.gen.h
+    tools/gen_music_regions.py > src/torirsserver/torirs_server_music_regions.gen.h
 
 The client cache says which music tracks exist, what they are called, where the
 game claims they unlock (as prose) and which varp bit records the unlock. It
@@ -105,12 +105,12 @@ def main():
     out.write(" * song      = js5 index 6 archive id, what MIDI_SONG names\n")
     out.write(" * varp/bit  = the unlock flag the music player reads; -1 when unknown\n")
     out.write(" */\n\n")
-    out.write("#ifndef SRC_NET_MOCK_MOCK230_MUSIC_REGIONS_GEN_H\n")
-    out.write("#define SRC_NET_MOCK_MOCK230_MUSIC_REGIONS_GEN_H\n\n")
-    out.write("struct Mock230MusicRegion\n{\n")
+    out.write("#ifndef SRC_TORIRSSERVER_TORIRS_SERVER_MUSIC_REGIONS_GEN_H\n")
+    out.write("#define SRC_TORIRSSERVER_TORIRS_SERVER_MUSIC_REGIONS_GEN_H\n\n")
+    out.write("struct ToriRSServerMusicRegion\n{\n")
     out.write("    int region;\n    int song;\n    int varp;\n    int bit;\n")
     out.write("    const char* name;\n};\n\n")
-    out.write("static const struct Mock230MusicRegion k_mock230_music_regions[] = {\n")
+    out.write("static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {\n")
     for region in sorted(seen):
         row = seen[region]
         name = row["name"].replace("\\", "\\\\").replace('"', '\\"')
@@ -120,8 +120,8 @@ def main():
         )
     out.write("};\n\n")
     out.write(
-        "static const int k_mock230_music_region_count =\n"
-        "    (int)(sizeof(k_mock230_music_regions) / sizeof(k_mock230_music_regions[0]));\n\n"
+        "static const int k_ToriRSServer_MusicRegionCount =\n"
+        "    (int)(sizeof(k_ToriRSServer_MusicRegions) / sizeof(k_ToriRSServer_MusicRegions[0]));\n\n"
     )
     out.write("#endif\n")
 

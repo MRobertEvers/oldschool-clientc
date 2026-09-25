@@ -203,6 +203,37 @@ minimap_push_down_tiles(
         minimap->tiles[minimap_coord_idx(minimap, sx, sz, level)] =
             minimap->tiles[minimap_coord_idx(minimap, sx, sz, level + 1)];
     minimap->tiles[minimap_coord_idx(minimap, sx, sz, minimap->levels - 1)] = tmp;
+
+    /*
+     * A deck that states no floor of its own keeps the underpass colour.
+     *
+     * Not every LinkBelow column carries its deck as terrain. Lumbridge's
+     * bridges do — cache level 1 names a plank overlay flo, that colour lands
+     * on level 0 above, and the shift is the whole story. Port Sarim's piers do
+     * not: their level-1 flo is the 0xFF00FF "hole" (overlay 42, no texture, no
+     * underlay), because the deck is loc geometry — the plank models — and the
+     * gaps between the planks are meant to show the sea. The shift then moves an
+     * EMPTY tile onto the paint level and the water underneath, the only colour
+     * the column ever had, wraps out of sight: every pier bakes as a black hole
+     * in the middle of the harbour.
+     *
+     * The reference does not lose it either. World.pushDown (World.ts:213) hangs
+     * the displaced square off the new one as `linkedSquare`, and the renderer
+     * draws that link's ground under the deck (World.ts:1533) — which is why the
+     * sea is visible through the planks in 3D here too. Keeping the colour is
+     * that same link, applied to the plane the map bakes from; the wall lines the
+     * shift brought down (the pier railings) stay on top of it.
+     */
+    {
+        struct MinimapTile* base = &minimap->tiles[minimap_coord_idx(minimap, sx, sz, 0)];
+        if( base->foreground_rgb == 0 && base->background_rgb == 0 )
+        {
+            base->foreground_rgb = tmp.foreground_rgb;
+            base->background_rgb = tmp.background_rgb;
+            base->shape = tmp.shape;
+            base->rotation = tmp.rotation;
+        }
+    }
 }
 
 static void
@@ -840,4 +871,83 @@ minimap_compute_camera_src_anchor(
     int const px_per_tile_z = sprite_h / map_tile_h;
     *out_src_anchor_x = (camera_world_x * px_per_tile_x) / 128;
     *out_src_anchor_y = sprite_h - (camera_world_z * px_per_tile_z) / 128;
+}
+
+bool
+minimap_mapscene_draws_at_level(
+    uint8_t const* tile_flags,
+    int scene_size,
+    int level_count,
+    int bake_level,
+    int icon_level,
+    int icon_x,
+    int icon_z)
+{
+    int plane;
+    int index;
+
+    if( icon_x < 0 || icon_x >= scene_size || icon_z < 0 || icon_z >= scene_size )
+        return false;
+
+    plane = scene_size * scene_size;
+    index = icon_x + icon_z * scene_size;
+
+    /* This level's own icon, unless the tile is showing something else. */
+    if( icon_level == bake_level )
+        return !tile_flags ||
+               (tile_flags[index + bake_level * plane] &
+                (MINIMAP_FLAG_VIS_BELOW | MINIMAP_FLAG_FORCE_HIGH_DETAIL)) == 0;
+
+    /* The storey above, seen through its own floor. */
+    if( tile_flags && icon_level == bake_level + 1 && bake_level + 1 < level_count )
+        return (tile_flags[index + (bake_level + 1) * plane] & MINIMAP_FLAG_VIS_BELOW) != 0;
+
+    return false;
+}
+
+void
+minimap_plot_mapscene(
+    uint32_t* destination,
+    int destination_w,
+    int destination_h,
+    uint32_t const* sprite_argb,
+    int sprite_w,
+    int sprite_h,
+    int sprite_crop_x,
+    int sprite_crop_y,
+    int tile_x,
+    int tile_z,
+    int map_height,
+    int loc_w,
+    int loc_l)
+{
+    int base_x;
+    int base_y;
+
+    assert(destination);
+    assert(sprite_argb);
+
+    base_x = tile_x * 4 + (loc_w * 4 - sprite_w) / 2 + sprite_crop_x;
+    base_y = (map_height - tile_z - (loc_l - 1)) * 4 + (loc_l * 4 - sprite_h) / 2 + sprite_crop_y;
+
+    for( int y = 0; y < sprite_h; y++ )
+    {
+        int destination_y = base_y + y;
+        uint32_t const* source_row;
+        uint32_t* destination_row;
+
+        if( destination_y < 0 || destination_y >= destination_h )
+            continue;
+        source_row = sprite_argb + (size_t)y * sprite_w;
+        destination_row = destination + (size_t)destination_y * destination_w;
+        for( int x = 0; x < sprite_w; x++ )
+        {
+            int destination_x = base_x + x;
+            uint32_t pixel = source_row[x];
+
+            if( destination_x < 0 || destination_x >= destination_w || (pixel >> 24) == 0 )
+                continue;
+            destination_row[destination_x] = pixel;
+        }
+    }
 }

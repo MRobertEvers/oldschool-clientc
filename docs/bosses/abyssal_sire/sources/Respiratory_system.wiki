@@ -1,0 +1,104 @@
+{{Infobox Monster
+|name = Respiratory system
+|image = [[File:Respiratory system.png|200px]]
+|release = [[1 October]] [[2015]]
+|update = The Abyssal Sire
+|members = Yes
+|combat = No
+|size = 2
+|examine = <nowiki/>
+*Provides vital gases to support a Sire in stasis.
+*Noxious gases are being exchanged.
+*It appears to be dying.
+*The vent is silent.
+|attributes = demon
+|xpbonus = 0
+|max hit = 0
+|aggressive = No
+|poisonous = No
+|attack style = None
+|attack speed = No
+|slaylvl = 85
+|slayxp = 50
+|cat = Bosses, Abyssal Demons
+|assignedby = vannaka,chaeldar,konar,nieve,duradel
+|hitpoints = 50
+|att = 0
+|str = 0
+|def = 80
+|mage = 0
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|id = 5914
+}}
+The '''respiratory system''' is encountered during the fight with the [[Abyssal Sire]].
+
+Four systems are found in each chamber. They are protected by several [[Tentacle (Abyssal Sire)|tentacles]] which will attack players if they get too close to them. The tentacles protect the systems, and as long as they are awake, damage dealt to the systems will be reduced greatly. When all four systems are destroyed, the next stage of the fight begins.
+
+Respiratory systems can only be attacked with magic, ranged or a halberd. In addition, they will heal one hitpoint every five seconds.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1192028804094595077|date=6 November 2019|archiveurl=https://reldo.runescape.wiki/i/106543|archivedate=30 May 2020|quote=Level 80 Defence, 50 HP. No other stats or defence bonuses.
+Treated as an abyssal demon for Slayer bonuses, by the way.
+Immune to poison.
+Regenerates health every 5 secs.|name=A}} The player will always hit at least 50% of their maximum hit on the respiratory systems, and [[demonbane weapons]] (other than [[holy water]]) will instantly kill the systems on a [[successful hit]].
+
+Respiratory systems are considered by the game to be [[abyssal demon]]s, allowing accuracy and damage buff of the [[slayer helm]] to be utilised against them.{{NamedRef|A}} They do not count towards the [[Slayer task|task]], but give 50 [[Slayer]] experience each, providing a total of 200 for each Abyssal Sire kill.
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Respiratory system
+|location = [[Abyssal Nexus]] (4 per [[Abyssal Sire]])
+|levels = N/A
+|members = Yes
+|mapID = 10006
+|plane = 0
+|x:3092,y:4834|x:3089,y:4844|x:2967,y:4834|x:2964,y:4844|x:2985,y:4769|x:2982,y:4779|x:3125,y:4769|x:3122,y:4779|x:3120,y:4833|x:3117,y:4843|x:3097,y:4770|x:3094,y:4780|x:2957,y:4770|x:2954,y:4780|x:2995,y:4833|x:2992,y:4843
+|mtype = pin
+|leagueRegion = General
+}}
+{{LocTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|poll = Poll 84 - PvM Improvements, Agility Shortcuts & more!
+|change = 
+* Players will now always hit at least 50% of their weapon's max hit on the respiratory systems.
+* [[Demonbane weapons]] are now able to one-shot the respiratory systems.
+}}
+{{Subject changes
+|date = 14 July 2021
+|update = Slayer Improvements - Poll 75
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Respiratory systems now provide 50 Slayer experience each, providing a total of 200 for each Abyssal Sire kill.
+}}
+{{Subject changes
+|date = 24 August 2017
+|update = Remember username, tooltips, and Wilderness Wars!
+|poll = Old School Content Poll 56: Quality of Life
+|change = Respiratory systems now act as abyssal demons so that the slayer helmet can provide accuracy and damage buffs against them, though they do not count towards the player's task.
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Abyssal Sire}}
+{{Abyssal Space}}

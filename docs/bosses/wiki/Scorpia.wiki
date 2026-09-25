@@ -1,0 +1,196 @@
+{{HasStrategy}}
+{{HasTask|Scorpions}}
+{{Infobox Monster
+|name = Scorpia
+|image = [[File:Scorpia.png|280px]]
+|release = [[13 March]] [[2014]]
+|update = Rejuvenating the Wilderness: More risk, more reward
+|members = Yes
+|combat = 225
+|size = 5
+|examine = Queen of the Scorpions.
+|xpbonus = 30
+|max hit = 16
+|aggressive = Yes
+|poisonous = Yes (20)
+|attack style = [[Stab]]
+|attack speed = 4
+|respawn = 14
+|slayxp = 260
+|cat = Bosses, Scorpions
+|assignedby = turael,spria,krystilia,mazchna,konar,nieve,duradel
+|hitpoints = 200
+|att = 250
+|str = 150
+|def = 180
+|mage = 1
+|range = 1
+|attbns = 60
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 246
+|dslash = 284
+|dcrush = 284
+|dmagic = 44
+|dlight = 284
+|dstandard = 284
+|dheavy = 284
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 35
+|poisonresistance = 0
+|venomresistance = 0
+|immunecannon = No
+|immunethrall = No
+|id = 6615
+}}
+'''Scorpia''' is a large female [[scorpion]] [[boss]] that resides in a cave beneath the [[Scorpion Pit]] located in Wilderness level 53-55.
+
+Scorpia is notable for dropping one of the three shards that form the [[malediction ward]] and [[odium ward]], with the [[Crazy archaeologist]] and [[Chaos Fanatic]] dropping the other pieces. Killing all three at least once is a hard [[Wilderness Diary]] task.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Scorpia
+|location = Cave in the [[Scorpion Pit]] (north-east Wilderness)
+|levels = 225
+|members = Yes
+|mapID = 26
+|plane = 0
+|x:3233,y:10341
+|mtype = pin
+|leagueRegion = Wilderness
+}}
+{{LocTableBottom}}
+
+==Fight overview==
+{{Main|Scorpia/Strategies}}
+The [[Scorpion Pit]] and the surrounding area is a [[multi-combat area]] in level 50+ [[Wilderness]], so player killers '''may attack you''' at any time while fighting the boss.
+
+The pit is filled with many [[Scorpia's offspring (monster)|Scorpia's offspring]], which use weak but accurate ranged attacks. Scorpia herself uses melee attacks which, whether successful or not, drain the player's prayer points by 2 if they have the [[Protect from Melee]] prayer active. Both Scorpia and her offspring are capable of inflicting [[poison]], starting at 20 and 6 damage, respectively.
+
+Once Scorpia falls below 50% health, the next attack against her, whether successful or not, will cause her to summon two [[Scorpia's guardian]]s. These guardians will rapidly heal her when within 3 tiles of her.
+
+Scorpia is weak to [[Magic]] attacks due to her low [[Magic]] offensive stats. An effective strategy is to fight her at range by [[freezing]] her, either killing the guardians once they spawn, or freezing them while luring Scorpia out of their healing range.
+
+== Money making ==
+{{Mmgsection|Killing Scorpia}}
+
+==Drops==
+{{DropLogProject|jagex=yes}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+{{Average drop value|Scorpia|mobname=Scorpia|wildernessslayer=yes}}
+
+===Pre-roll===
+{{DropsTableHead}}
+{{DropsLine|name=Odium shard 3|quantity=1|rarity=1/256|raritynotes=<ref group=d name="shard">The drop rate is 1/256 for a specific shard, or 1/128 for any shard.</ref>}}
+{{DropsLine|name=Malediction shard 3|quantity=1|rarity=1/256|raritynotes=<ref group=d name="shard"/>}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Battlestaff|quantity=5-8 (noted)|rarity=6/128}}
+{{DropsLine|name=Rune 2h sword|quantity=1|rarity=5/128}}
+{{DropsLine|name=Rune pickaxe|quantity=1|rarity=5/128}}
+{{DropsLine|name=Rune kiteshield|quantity=1|rarity=5/128}}
+{{DropsLine|name=Rune chainbody|quantity=1|rarity=4/128}}
+{{DropsLine|name=Rune platelegs|quantity=1|rarity=4/128}}
+{{DropsLine|name=Rune scimitar|quantity=1|rarity=4/128}}
+{{DropsLine|name=Rune warhammer|quantity=1|rarity=4/128}}
+{{DropsLine|name=Mystic earth staff|quantity=1|rarity=4/128}}
+{{DropsLine|name=Mystic robe top|quantity=1|rarity=1/128}}
+{{DropsLine|name=Mystic robe bottom|quantity=1|rarity=1/128}}
+{{DropsLine|name=Dragon scimitar|quantity=1|rarity=1/128}}
+{{DropsLine|name=Dragon 2h sword|quantity=1|rarity=1/128}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Death rune|quantity=100-150|rarity=8/128}}
+{{DropsLine|name=Blood rune|quantity=100-150|rarity=8/128}}
+{{DropsLine|name=Chaos rune|quantity=150-200|rarity=8/128}}
+{{DropsTableBottom}}
+
+===Herbs===
+{{DropsTableHead}}
+{{DropsLine|name=Grimy kwuarm|quantity=10-15 (noted)|rarity=5/128}}
+{{DropsLine|name=Grimy dwarf weed|quantity=10-15 (noted)|rarity=5/128}}
+{{DropsLine|name=Grimy torstol|quantity=10-15 (noted)|rarity=5/128}}
+{{DropsLine|name=Grimy snapdragon|quantity=4-7 (noted)|rarity=5/128}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Uncut ruby|quantity=15-20 (noted)|rarity=6/128}}
+{{DropsLine|name=Uncut diamond|quantity=10-15 (noted)|rarity=4/128}}
+{{DropsLine|name=Runite ore|quantity=3 (noted)|rarity=4/128}}
+{{DropsLine|name=Dragon javelin tips|quantity=30-50|rarity=4/128}}
+{{DropsLine|name=Onyx bolt tips|quantity=6-10|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=25002-34962|rarity=7/128}}
+{{DropsLine|name=Blighted anglerfish|quantity=15-25 (noted)|rarity=5/128}}
+{{DropsLine|name=Blighted super restore(4)|quantity=5 (noted)|rarity=5/128}}
+{{DropsLine|name=Wilderness crabs teleport|quantity=2|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Looting bag|quantity=1|rarity=1/3|gemw=No}}
+{{DropsLine|name=Ensouled scorpion head|quantity=1|rarity=1/18}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|225}}|raritynotes=<ref group=d>Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Wilderness&Kourend}}
+{{DropsLineClue|type=hard|rarity=1/100|altrarity=1/50|raritynotes=<ref group=d>The hard clue scroll drop rate increases to 1/50 if a [[ring of wealth (i)]] is worn.</ref>}}
+{{DropsLine|name=Scorpia's offspring|quantity=1|rarity=1/2015.75|raritynotes={{Refn|Due to the pre-rolled malediction and odium shard table, Scorpia's offspring is 1/128th rarer than its intended 1/2,000 rarity.|group=d}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+===Wilderness Slayer tertiary===
+{{WildernessSlayerDropTable|combat=225|hitpoints=200|boss=yes}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Scorpia}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|change = Scorpia now has a 35% [[elemental weakness]] to [[fire spells]].
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+}}
+{{Subject changes
+|date = 5 June 2024
+|update = Pride 2024
+|change = The [[collection Log]] entry for Scorpia now correctly lists the [[dragon 2h sword]].
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|poll = Undead Pirates Rewards & More
+|change = Scorpia's respawn time was decreased from 17 ticks (10.2 seconds) to 14 ticks (8.4 seconds).
+}}
+{{Subject changes
+|date = 7 February 2024
+|update = Poll 80 Wilderness Changes & More
+|poll = 
+|change = Scorpia has had consumables and other low priced items removed from her drop table, in favour of more profitable items such as the [[dragon 2h sword]], [[wilderness crab teleport]]s, and [[onyx bolt tips]].
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|poll = Old School Content Poll 30: Near Miss Poll
+|change = Scorpia, Venenatis, Vet'ion and Callisto now have a very slim chance of dropping a pet version of themselves when killed.
+}}
+{{Subject changes footer}}
+
+{{Wilderness bosses}}
+{{Bosses}}

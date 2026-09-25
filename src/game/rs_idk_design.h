@@ -100,6 +100,33 @@ RS_IdkDesign_Button(
 int
 RS_IdkDesign_ColourCount(int part);
 
+/**
+ * How many identity kits the provider holds: highest present id + 1. Kit ids
+ * are contiguous from 0, so this is the reference's IdkType.numDefinitions
+ * once CreateTask_PlayerAppearanceLoad has walked them.
+ */
+int
+RS_IdkDesign_KitTableCount(struct CacheProvider* provider);
+
+/**
+ * The cycling rule on its own: from `kit`, walk the kit table by `step`
+ * (-1 or +1, wrapping at both ends of `kit_count`) to the next SELECTABLE kit
+ * whose `body_part_id` matches, and return it. -1 when nothing in a full lap
+ * matches, which is what a caller with no kit to stand on gets.
+ *
+ * Walking ids and skipping the misses is the same sequence as indexing a
+ * per-part list, which is how a server that keeps the INDEX (rev 239's
+ * `player_design.rs2` and its `design_kit` enum) and a client that keeps the
+ * KIT agree about where an arrow lands without either asking the other.
+ */
+int
+RS_IdkDesign_StepKitId(
+    struct CacheProvider* provider,
+    int kit_count,
+    int body_part_id,
+    int kit,
+    int step);
+
 /** Note `model_id` as requested; returns nonzero when it was not already in
  *  the dedup window (i.e. the caller should queue the load). */
 int

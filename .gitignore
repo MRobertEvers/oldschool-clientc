@@ -28,7 +28,6 @@ symbols.txt
 public/cache/
 .cache/
 emsdk/
-/toolchain/
 android/.idea/
 
 package_build_*.zip
@@ -50,11 +49,12 @@ lib/python*
 *.out
 *.dSYM
 *.o
+.last_build
 .tmp
 out/
 
 # Generated painters cullmap blobs (see tools/gen_painters_cullmap)
-src/osrs/revconfig/configs/cullmaps/*.bin
+revconfig/cullmaps/*.bin
 
 # Browser (Emscripten) intermediate build output
 src2/programs/browser/browser_build/
@@ -67,8 +67,17 @@ tools/memtrace/bins/
 test/ui_tree/output/
 
 # Compiled editor binary + BMP snapshots (rebuilt in place)
+#
+# The binaries have no extension and the build makes several of them
+# (torirs_opt, torirs_embed, and a per-worker torirs_<name> during parallel
+# work), so the wildcard is the only way to catch them all. Source that
+# happens to share the prefix is NOT one of them -- negated by extension
+# rather than one file at a time, which is what this was doing before and is
+# a trap every new torirs_*.c walks into silently.
 /src/torirs
 /src/torirs_*
+!/src/torirs_*.c
+!/src/torirs_*.h
 /src/build_*/
 /src/torirs_mt
 /dist/win64/
@@ -82,6 +91,12 @@ poser-gl.settings
 preferences.ini
 preferences.ini.tmp
 
+# The manifest a gate rewrites for its own run: manifests/manifest_*.ini with
+# dir= pointed at this checkout's cache and transport=embed. Every quest-gate
+# run writes one (tools/quest_gate/conformance.py), and it must never be
+# committed -- the committed manifests point at the shipped cache.
+manifests/.*.ini
+
 # Python bytecode from tools/ (tools are run as scripts, never imported).
 __pycache__/
 *.pyc
@@ -93,3 +108,31 @@ src/*.exe
 # Claude Code local overrides
 .claude/settings.local.json
 .claude/worktrees/
+
+# Build-flavor stamp: records which OBJ_DIR last linked src/torirs so a
+# debug/release swap forces a relink. Purely local state (src/makefile:632).
+src/.last_flavor
+
+# Extracted toolchains. The zips in lib/ are the checked-in form -- these
+# directories are what unzipping them produces (~2 GB) and must never be
+# committed. See tools/toolchain/README.md.
+/toolchains/mingw32/
+/toolchains/mingw64/
+/toolchains/webview2-*/
+/toolchains/emsdk-win64/
+
+# Same rule for the XP profiler tooling: lib/cv2pdb-0.54-win32.zip and
+# lib/verysleepy-0.7.2-win32.zip are the checked-in form; these are the
+# unpacked trees and the installer they produce. See
+# toolchains/winxp_profiles/README.md.
+/toolchains/winxp_profiles/cv2pdb-0.54/
+/toolchains/winxp_profiles/verysleepy_0_7/
+/toolchains/winxp_profiles/verysleepy_0_7_exact/
+/toolchains/winxp_profiles/verysleepy_0_7_setup.exe
+/tmp/verysleepy-0.7.2-source/
+
+# Staged build output.
+/dist/
+
+# The NDJSON anomaly log (3rd/toridraw/toridraw_debug_log.h) default path.
+toridraw-debug.ndjson

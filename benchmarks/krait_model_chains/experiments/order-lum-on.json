@@ -1,0 +1,76 @@
+{
+  "corpus": "benchmarks/krait_model_chains/lumbridge.chain.gz",
+  "corpus_sha256": "23d5d6b81ed9d6b59eaeb8447f0e7f69d667510eab58a7483b3080ede3c6104e",
+  "serial": "T062809L3Z",
+  "cpu": 0,
+  "pinned": true,
+  "exclude_kernel": true,
+  "binary_sha256": "d507c848f64253a76f7eafa04c139109d10a2d3c2cce0808d0a9ce50d506d985",
+  "mode": "chain",
+  "env": [
+    "TORIDRAW_GPU_ORDER_DIRECT=1"
+  ],
+  "events": {
+    "cpu-cycles": {
+      "median": 2206.141,
+      "mad": 7.212999999999738,
+      "samples": [
+        {
+          "sample": 1,
+          "calls": 31812,
+          "count": 69873517,
+          "per_call": 2196.452
+        },
+        {
+          "sample": 2,
+          "calls": 31812,
+          "count": 70411218,
+          "per_call": 2213.354
+        },
+        {
+          "sample": 3,
+          "calls": 31812,
+          "count": 70181773,
+          "per_call": 2206.141
+        },
+        {
+          "sample": 4,
+          "calls": 31812,
+          "count": 70134256,
+          "per_call": 2204.648
+        },
+        {
+          "sample": 5,
+          "calls": 31812,
+          "count": 70463038,
+          "per_call": 2214.983
+        },
+        {
+          "sample": 6,
+          "calls": 31812,
+          "count": 69044756,
+          "per_call": 2170.4
+        },
+        {
+          "sample": 7,
+          "calls": 31812,
+          "count": 70549010,
+          "per_call": 2217.685
+        },
+        {
+          "sample": 8,
+          "calls": 31812,
+          "count": 70025605,
+          "per_call": 2201.232
+        },
+        {
+          "sample": 9,
+          "calls": 31812,
+          "count": 70298657,
+          "per_call": 2209.816
+        }
+      ]
+    }
+  },
+  "workload": "verified: 10604 chains, 4 passes, 2527 distinct posed assets, 2380 visible, 38481 faces, 0 clipped, 28 pick hits, 1284 prioritized, 136 animated snapshots, 0 dynamic"
+}

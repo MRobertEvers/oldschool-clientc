@@ -1,0 +1,337 @@
+{
+  "build": "OPT=1 EMBED_SERVER=1 software renderer",
+  "clock": "ordinary native logic; scenario ticks start after readiness",
+  "budgets": {
+    "ui_mean_allowance": "max(20% of baseline, 100000 ns)",
+    "ui_p95_allowance": "max(25% of baseline, 250000 ns)",
+    "scope": "same machine, fixture, compiler and scenario; repeat runs at M6",
+    "frame_mean_allowance": "max(20% of baseline, 1000000 ns)",
+    "note": "Stage sums are comparative counters, not an exclusive decomposition of frame time."
+  },
+  "cases": {
+    "lc-native-final": {
+      "csv": "/private/tmp/plugin-engine-evidence/perf-lc-native-final/r01/perf.csv",
+      "stage_ns": {
+        "frame": {
+          "mean_ns": 2843386,
+          "p50_ns": 2566000,
+          "p95_ns": 4878000,
+          "max_ns": 5955000
+        },
+        "cs2": {
+          "mean_ns": 23780,
+          "p50_ns": 14000,
+          "p95_ns": 68000,
+          "max_ns": 403000
+        },
+        "layout": {
+          "mean_ns": 55,
+          "p50_ns": 0,
+          "p95_ns": 1000,
+          "max_ns": 1000
+        },
+        "interact": {
+          "mean_ns": 11744,
+          "p50_ns": 9000,
+          "p95_ns": 27000,
+          "max_ns": 112000
+        },
+        "emit": {
+          "mean_ns": 29,
+          "p50_ns": 0,
+          "p95_ns": 0,
+          "max_ns": 23000
+        }
+      },
+      "ui_mean_ns": 35608,
+      "ui_mean_budget_ns": 135608,
+      "stage_p95_budget_ns": {
+        "cs2": 318000,
+        "layout": 251000,
+        "interact": 277000,
+        "emit": 250000
+      },
+      "frame_mean_budget_ns": 3843386,
+      "layout_and_retention_counters": {
+        "uitree_layout_resolve": 0.0,
+        "uitree_layout_skip": 0.0,
+        "uitree_layout_nodes": 0.0,
+        "uitree_layout_node_skip": 0.0,
+        "uitree_layout_depth_recompute": 0.0,
+        "uitree_ensure_layout": 1.001284,
+        "uitree_cc_create": 0.0,
+        "gate_tree_quiet": 1.0
+      }
+    },
+    "lc-mutation": {
+      "csv": "/private/tmp/plugin-engine-evidence/perf-lc-mutation/r01/perf.csv",
+      "stage_ns": {
+        "frame": {
+          "mean_ns": 3038182,
+          "p50_ns": 2616000,
+          "p95_ns": 5313000,
+          "max_ns": 7525000
+        },
+        "cs2": {
+          "mean_ns": 36197,
+          "p50_ns": 14000,
+          "p95_ns": 77000,
+          "max_ns": 4340000
+        },
+        "layout": {
+          "mean_ns": 76,
+          "p50_ns": 0,
+          "p95_ns": 1000,
+          "max_ns": 1000
+        },
+        "interact": {
+          "mean_ns": 13360,
+          "p50_ns": 10000,
+          "p95_ns": 29000,
+          "max_ns": 149000
+        },
+        "emit": {
+          "mean_ns": 2305,
+          "p50_ns": 0,
+          "p95_ns": 0,
+          "max_ns": 158000
+        }
+      },
+      "ui_mean_ns": 51938,
+      "ui_mean_budget_ns": 151938,
+      "stage_p95_budget_ns": {
+        "cs2": 327000,
+        "layout": 251000,
+        "interact": 279000,
+        "emit": 250000
+      },
+      "frame_mean_budget_ns": 4038182,
+      "layout_and_retention_counters": {
+        "uitree_layout_resolve": 0.041397,
+        "uitree_layout_skip": 0.041397,
+        "uitree_layout_nodes": 0.0,
+        "uitree_layout_node_skip": 0.0,
+        "uitree_layout_depth_recompute": 0.0,
+        "uitree_ensure_layout": 1.047865,
+        "uitree_cc_create": 0.0,
+        "gate_tree_quiet": 0.979301
+      }
+    },
+    "lc-plugins": {
+      "csv": "/private/tmp/plugin-engine-evidence/perf-lc-plugins/r01/perf.csv",
+      "stage_ns": {
+        "frame": {
+          "mean_ns": 12793523,
+          "p50_ns": 12710000,
+          "p95_ns": 13391000,
+          "max_ns": 33331000
+        },
+        "cs2": {
+          "mean_ns": 12030,
+          "p50_ns": 11000,
+          "p95_ns": 18000,
+          "max_ns": 247000
+        },
+        "layout": {
+          "mean_ns": 32,
+          "p50_ns": 0,
+          "p95_ns": 0,
+          "max_ns": 1000
+        },
+        "interact": {
+          "mean_ns": 4276,
+          "p50_ns": 4000,
+          "p95_ns": 6000,
+          "max_ns": 9000
+        },
+        "emit": {
+          "mean_ns": 62698,
+          "p50_ns": 61000,
+          "p95_ns": 84000,
+          "max_ns": 112000
+        }
+      },
+      "ui_mean_ns": 79036,
+      "ui_mean_budget_ns": 179036,
+      "stage_p95_budget_ns": {
+        "cs2": 268000,
+        "layout": 250000,
+        "interact": 256000,
+        "emit": 334000
+      },
+      "frame_mean_budget_ns": 15352227,
+      "layout_and_retention_counters": {
+        "uitree_layout_resolve": 0.0,
+        "uitree_layout_skip": 0.0,
+        "uitree_layout_nodes": 0.0,
+        "uitree_layout_node_skip": 0.0,
+        "uitree_layout_depth_recompute": 0.0,
+        "uitree_ensure_layout": 1.997131,
+        "uitree_cc_create": 0.0,
+        "gate_tree_quiet": 0.998565
+      }
+    },
+    "osrs-native-final": {
+      "csv": "/private/tmp/plugin-engine-evidence/perf-osrs-native-final/m01/perf.csv",
+      "stage_ns": {
+        "frame": {
+          "mean_ns": 4236555,
+          "p50_ns": 4118000,
+          "p95_ns": 4958000,
+          "max_ns": 56687000
+        },
+        "cs2": {
+          "mean_ns": 221145,
+          "p50_ns": 69000,
+          "p95_ns": 169000,
+          "max_ns": 53871000
+        },
+        "layout": {
+          "mean_ns": 248,
+          "p50_ns": 0,
+          "p95_ns": 1000,
+          "max_ns": 2000
+        },
+        "interact": {
+          "mean_ns": 11779,
+          "p50_ns": 11000,
+          "p95_ns": 17000,
+          "max_ns": 37000
+        },
+        "emit": {
+          "mean_ns": 68697,
+          "p50_ns": 103000,
+          "p95_ns": 136000,
+          "max_ns": 200000
+        }
+      },
+      "ui_mean_ns": 301869,
+      "ui_mean_budget_ns": 401869,
+      "stage_p95_budget_ns": {
+        "cs2": 419000,
+        "layout": 251000,
+        "interact": 267000,
+        "emit": 386000
+      },
+      "frame_mean_budget_ns": 5236555,
+      "layout_and_retention_counters": {
+        "uitree_layout_resolve": 2.799735,
+        "uitree_layout_skip": 2.082228,
+        "uitree_layout_nodes": 226.360743,
+        "uitree_layout_node_skip": 154.807692,
+        "uitree_layout_depth_recompute": 0.047745,
+        "uitree_ensure_layout": 20.473475,
+        "uitree_cc_create": 13.114058,
+        "gate_tree_quiet": 0.397878
+      }
+    },
+    "osrs-mutation-final": {
+      "csv": "/private/tmp/plugin-engine-evidence/perf-osrs-mutation-final/m01/perf.csv",
+      "stage_ns": {
+        "frame": {
+          "mean_ns": 4056159,
+          "p50_ns": 3976000,
+          "p95_ns": 4950000,
+          "max_ns": 56407000
+        },
+        "cs2": {
+          "mean_ns": 212359,
+          "p50_ns": 69000,
+          "p95_ns": 201000,
+          "max_ns": 53801000
+        },
+        "layout": {
+          "mean_ns": 316,
+          "p50_ns": 0,
+          "p95_ns": 1000,
+          "max_ns": 47000
+        },
+        "interact": {
+          "mean_ns": 12242,
+          "p50_ns": 12000,
+          "p95_ns": 18000,
+          "max_ns": 85000
+        },
+        "emit": {
+          "mean_ns": 70706,
+          "p50_ns": 101000,
+          "p95_ns": 142000,
+          "max_ns": 364000
+        }
+      },
+      "ui_mean_ns": 295623,
+      "ui_mean_budget_ns": 395623,
+      "stage_p95_budget_ns": {
+        "cs2": 451000,
+        "layout": 251000,
+        "interact": 268000,
+        "emit": 392000
+      },
+      "frame_mean_budget_ns": 5056159,
+      "layout_and_retention_counters": {
+        "uitree_layout_resolve": 2.808959,
+        "uitree_layout_skip": 2.081686,
+        "uitree_layout_nodes": 297.893281,
+        "uitree_layout_node_skip": 153.787879,
+        "uitree_layout_depth_recompute": 0.050066,
+        "uitree_ensure_layout": 20.458498,
+        "uitree_cc_create": 13.027668,
+        "gate_tree_quiet": 0.401845
+      }
+    },
+    "osrs-plugins-final": {
+      "csv": "/private/tmp/plugin-engine-evidence/perf-osrs-plugins-final/m03/perf.csv",
+      "stage_ns": {
+        "frame": {
+          "mean_ns": 14916519,
+          "p50_ns": 14693000,
+          "p95_ns": 15393000,
+          "max_ns": 74040000
+        },
+        "cs2": {
+          "mean_ns": 178321,
+          "p50_ns": 41000,
+          "p95_ns": 107000,
+          "max_ns": 55245000
+        },
+        "layout": {
+          "mean_ns": 251,
+          "p50_ns": 0,
+          "p95_ns": 1000,
+          "max_ns": 2000
+        },
+        "interact": {
+          "mean_ns": 203489,
+          "p50_ns": 203000,
+          "p95_ns": 233000,
+          "max_ns": 266000
+        },
+        "emit": {
+          "mean_ns": 144261,
+          "p50_ns": 143000,
+          "p95_ns": 175000,
+          "max_ns": 450000
+        }
+      },
+      "ui_mean_ns": 526322,
+      "ui_mean_budget_ns": 631586,
+      "stage_p95_budget_ns": {
+        "cs2": 357000,
+        "layout": 251000,
+        "interact": 483000,
+        "emit": 425000
+      },
+      "frame_mean_budget_ns": 17899822,
+      "layout_and_retention_counters": {
+        "uitree_layout_resolve": 2.789322,
+        "uitree_layout_skip": 2.090909,
+        "uitree_layout_nodes": 265.799423,
+        "uitree_layout_node_skip": 168.434343,
+        "uitree_layout_depth_recompute": 0.054834,
+        "uitree_ensure_layout": 21.050505,
+        "uitree_cc_create": 14.268398,
+        "gate_tree_quiet": 0.431457
+      }
+    }
+  }
+}

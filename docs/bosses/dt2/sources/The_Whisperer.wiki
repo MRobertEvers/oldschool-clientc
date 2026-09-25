@@ -1,0 +1,348 @@
+{{Redirect|Whisp|the pet|Wisp}}
+{{Instance}}
+{{HasStrategy}}
+{{Infobox Monster
+|version1 = Post-quest
+|version2 = Awakened
+|version3 = Quest
+|name = The Whisperer
+|image = [[File:The Whisperer.png|120px]]
+|release = [[26 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|combat1 = 791
+|combat2 = 1146
+|combat3 = 587
+|size = 3
+|examine = Dare you face the shadows?
+|xpbonus = 
+|max hit1 = 42 (x2) ([[Melee]]), 40 ([[Ranged]]), 36 ([[Magic]]), 45 (Screech), 50 (Soul Siphon)
+|max hit2 = 70+ (x2) ([[Melee]]), 53 ([[Ranged]]), 45 ([[Magic]]), 70 (Screech), 75 (Soul Siphon)
+|max hit3 = 30 (x2) ([[Melee]]), 28 ([[Ranged]]), 26 ([[Magic]]), 45 (Screech), 50 (Soul Siphon)
+|aggressive = Yes
+|poisonous = No
+|attack style = All
+|attack speed = 10
+|respawn = 30
+|slayxp1 = 900
+|slayxp2 = 2700
+|slayxp3 = 660
+|cat = Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints1 = 900
+|hitpoints2 = 2700
+|hitpoints3 = 660
+|att1 = 280
+|att2 = 378
+|att3 = 240
+|str1 = 280
+|str2 = 378
+|str3 = 250
+|def1 = 250
+|def2 = 300
+|def3 = 200
+|mage1 = 180
+|mage2 = 225
+|mage3 = 130
+|range1 = 180
+|range2 = 243
+|range3 = 130
+|attbns1 = 140
+|attbns2 = 140
+|attbns3 = 100
+|strbns1 = 30
+|strbns2 = 30
+|strbns3 = 10
+|amagic1 = 190
+|amagic2 = 190
+|amagic3 = 180
+|mbns1 = 58
+|mbns2 = 58
+|mbns3 = 54
+|arange1 = 160
+|arange2 = 160
+|arange3 = 140
+|rngbns1 = 70
+|rngbns2 = 70
+|rngbns3 = 66
+|dstab = 180
+|dslash = 300
+|dcrush = 220
+|dmagic = 10
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 60
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 12204,12205
+|id2 = 12204,12205
+|id3 = 12206,12207
+}}
+[[File:Mysterious Voice (remnant, The Whisperer) chathead.png|left]]
+'''The Whisperer''' is a [[siren]] found in the sunken cathedral of the [[Lassar Undercity]], who is encountered during [[Desert Treasure II - The Fallen Empire]]. A high-ranking assassin{{CiteGeneral|url=https://www.artstation.com/artwork/o2Dxnm|title=Desert Treasure II - Bosses|author=Mod Jerv|date=2023-07-31|accessdate=2026-07-25|publisher=|archiveurl=|archivedate=|quote=The Whisperer, a key assassin and a siren, tasked to collect rare, powerful items and bring it to the vault.}} in the [[Zarosian Empire]] whose real name was classified, the Whisperer succumbed to the darkness of the [[Ancient Pillar (Desert Treasure II)|blackstone]] and was transformed into her current state. A stronger variant of her can be fought again after the completion of the quest.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = The Whisperer
+|location = [[Lassar Undercity]] - Sunken Cathedral
+|levels = 587, 791, 1146
+|members = Yes
+|mapID = -1
+|plane = 0
+|2656,6369
+|mtype = pin
+|leagueRegion = Asgarnia
+}}
+{{LocTableBottom}}
+
+The Whisperer is initially seen as an [[Odd Figure]] just beneath the surface in the middle of the [[Lassar Undercity]]'s sunken cathedral. The undercity is accessible from the sinkhole north-west of [[Ruins of Camdozaal]], located under [[Ice Mountain]].
+
+A [[Scoreboard (The Whisperer)|scoreboard]] by the stairs leading down to the cathedral shows statistics related to the Whisperer.
+
+==History==
+[[File:Statue (The Whisperer).png|thumb|left|180px|The statue of the Whisperer in the Ancient Vault.]]
+"The Whisperer", whose true name is unknown (as it was classified), was a [[siren]] deployed to [[Lassar]] at some point during the [[Third Age]], after the [[Betrayal of Zaros]]. She was one of four individuals entrusted with a medallion - the means to open the [[Ancient Vault]] where the [[Elder Horn]] was sealed - alongside [[Perseriya]], [[Duke Sucellus]], and [[Vardorvis]], who were all high-ranking personnel in the [[Zarosian Empire]].
+
+She was stationed at Lassar and tasked by [[Sliske]] with providing her expertise with the [[Shadow Realm]] to the researchers experimenting with a [[Ancient Pillar (Desert Treasure II)|mysterious totem]] made of blackstone in the Undercity. The totem was noted by researchers as being extremely dangerous, requiring [[Sliske]] to enact protective measures on the totem.{{CiteNPC|npc=Remnant|quote=[Sliske]: I have shielded it. It will do you no harm.}} Findings on the totem showed that it strengthened the connection with the Shadow Realm in the area.{{CiteNPC|npc=Remnant|quote=The totem seems to act as a conduit between our world and the Shadow Realm.}}
+
+Eventually, The Whisperer was ordered by Sliske to remove protections on the totem and seal the Undercity off to more "thoroughly" experiment with it, allowing her to deal with the researchers in any way she desired.{{CiteNPC|npc=Remnant|quote=[Sliske]: Have the undercity sealed, then remove the protections on the totem. We require a more thorough test.<br>[The Whisperer]: And the researchers?<br>[Sliske]: Their work is complete. Do with them as you wish.}} Following his orders, she had the Undercity sealed under the pretence of being the High Magister's orders before killing him,{{CiteNPC|npc=Remnant|quote=Mysterious Voice 2: The undercity is being sealed. They say the fortress has fallen.<br>Mysterious Voice 3: Sealed? On whose orders?<br>Mysterious Voice 2: Well... yours.<br>Mysterious Voice 3: I gave no such order. Round up the centurions! We have a traitor among us.<br>[The Whisperer]: No.<br>Mysterious Voice 3: You! This was your doing!<br>[The Whisperer]: You have served your Empire well, High Magister, but that servitude is at an end. Now it is time for a new one to begin.}} and then removed the totem's protective barriers with Sliske's assistance. The removal of the totem's protective measures caused many of the city's inhabitants to become corrupted by its influence,{{CiteNPC|npc=Remnant|quote=Mysterious Voice 1: Do not be afraid, my child, for you are not alone. Your voice will be one of thousands, singing an eternal silence.[...]And so another voice joins the Silent Choir.}} including the Whisperer herself. She would submerge herself beneath the waters of the Undercity's now-sunken cathedral, and remain there undisturbed for a very long time.
+
+Eventually, an adventurer seeking her medallion would descend into the Lassar Undercity, navigate through the city via the dangerous Shadow Realm, and discover and kill her, before retrieving her medallion from her [[entrails]].
+
+==Fight overview==
+{{Main|The Whisperer/Strategies}}
+<!--normal mode only, awakened in strategies page-->
+The player must bring the [[blackstone fragment]] to initiate the fight, as parts of the fight will require the player to enter the [[Shadow Realm]]; without it, the player will refuse to fight her. She spawns as an [[Odd Figure]], which while aggressive is not able to attack; disturbing her will cause her to fully emerge and attack.
+
+During the fight, the player must maintain their [[sanity]] levels, which starts at 100%. This will decrease whenever the player is in the Shadow Realm or gets hit by her special attacks in varying amounts. This will restore slowly over time while the player is in the actual realm, at a rate of 3% every few seconds. If this value fully depletes, the player will go insane and die in a few seconds if they do not leave.
+
+[[File:Fighting the Whisperer.png|thumb|left|250px|A player fighting the Whisperer.]]
+The Whisperer's regular attack involves shooting three projectiles per attack in either [[Ranged]] or [[Magic]]. The ranged shots are purple barbs, while the magic shots are blue orbs. Protection prayers will fully block the attacks, and they will deal damage upon impact. The pattern of these projectiles will change depending on how far into the fight the player is. After each regular attack, four [[Tentacle (The Whisperer)|shadow tentacle]]s will surface four tiles from the player in an "X" formation, converging on the tile they were on when they first appeared. Getting hit by this will deal 20 damage and drain sanity by 20%, regardless of how many shadow tentacles actually hit them. If the player is standing next to or under her, she will utilise a melee attack that hits twice, with the second hit dealing the same as the first and is only partially reduced by prayer.
+
+The Whisperer will follow one of two special attack rotations each kill. She will queue up a special attack upon reaching 80%, 55% and 30% of her health on the next attack she makes, should her health fall below this threshold. These special attacks generally require the player to enter the Shadow Realm in order to stop them. Failing to deal with the special attack in time generally incurs heavy damage and drains significant sanity.
+
+Her attack patterns will also change after every special attack; after the first special attack, she will start attacking with two projectiles of one style and one of the other. After the second special attack, she will begin utilising a "+" tentacle pattern alongside the "X" pattern. Finally, after the third special attack, she will alternate between both combat styles.
+
+Upon reaching 0 health, the Whisperer will heal 140 hitpoints and pull the player into the Shadow Realm. She will always start the phase off with a ranged attack, sending out two attacks and then switching to magic. She will continue to flip combat styles every two attacks, and a single tentacle will appear for every attack she makes.
+
+==Money making==
+{{Mmgsection|Killing The Whisperer}}
+
+==Drops==
+{{DropLogProject|kills=318722}}
+
+===Average value===
+{{BossValue/The Whisperer}}
+
+===Mechanics===
+When the Whisperer is defeated, a drop will be rolled for until the roll results in a success, as described below:{{CiteNews|url=https://secure.runescape.com/m=news/desert-treasure-ii---tweaks-and-drop-rates?oldschool=1|title=Desert Treasure II - Tweaks and Drop Rates|newsdate=3 August 2023}}
+* Roll 1/64 for the tradeable unique drop table (3/64 for awakened variant).
+** If unsuccessful, roll 1/34 for the [[awakener's orb]].
+** If unsuccessful, roll 1/25 for [[sirenic tablet]].
+** If unsuccessful, roll 1/200 for [[shadow quartz]].
+** If unsuccessful, roll 1/5 for the supply drop table.
+* If all rolls above were unsuccessful, the standard drop table is rolled.
+* Once the player rolls the entire drop table, roll 1/2,000 for [[Wisp]] and 1/40 for a clue scroll.
+
+In addition, defeating the boss perfectly will earn 50% more loot from the standard drop table.{{CiteReddit|author=Mod Ayiza|url=https://www.reddit.com/r/2007scape/comments/15gzjui/desert_treasure_ii_tweaks_and_drop_rates/julpslb/|date=3 August 2023|archiveurl=https://reldo.runescape.wiki/i/27963896|archivedate=26 April 2026|quote=You have to do the fight while avoiding any avoidable damage. Essentially a perfect fight (chip damage does not count).|title=Desert Treasure II - Tweaks and Drop Rates}} This requires the player to kill the Whisperer without taking any avoidable damage, which includes:
+* Any damage from her ranged or magic attacks. 
+* Unprotected damage from her melee attacks.
+* Getting hit by her [[Tentacle (The Whisperer)|tentacles]].
+* Getting hit by her Screech attack.
+* Getting hit by her Soul Siphon attack.
+* Stepping on a [[Corrupted_seed#Dark_green|dark green corrupted seed]].
+* Any [[corrupted seed]]s being hatched.
+
+===Uniques===
+{{Listen
+|title = Unique drop [[sound effect]]
+|align = right
+|filename = Unique drop sound effect.ogg
+|desc = The sound that plays when receiving a unique drop.
+}}
+''There is a '''1/64''' chance of rolling the unique drop table per kill. After hitting the table, there is a 1/8 chance to get a piece of the [[Virtus robes]] (then a separate 1/3 roll to determine which piece), a 3/8 chance to get a single vestige roll (each roll will drop a gold ring until the final roll which guarantees the vestige), a 3/8 chance for a [[chromium ingot]], and 1/8 chance for the [[siren's staff]]. Below lists the effective drop rates.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Bellator vestige|quantity=1|rarity=1/512|raritynotes=<ref group=d>To receive the bellator vestige, the player must roll an invisible ~1/170.66 drop on the tradeable unique table. The first roll will cause a [[gold ring]] to appear and increment a hidden variable, while the second drops two gold rings; when the third such roll occurs, the vestige is dropped and the variable is reset.</ref>}}
+{{DropsLine|name=Chromium ingot|quantity=1|rarity=3/512}}
+{{DropsLine|name=Siren's staff|quantity=1|rarity=1/512}}
+{{DropsLine|name=Virtus mask|quantity=1|rarity=1/1536}}
+{{DropsLine|name=Virtus robe top|quantity=1|rarity=1/1536}}
+{{DropsLine|name=Virtus robe bottom|quantity=1|rarity=1/1536}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+===Secondary uniques===
+''The items are rolled in the following sequence: [[awakener's orb]], [[sirenic tablet]], [[shadow quartz]]. These items will replace the normal loot rolls.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Sirenic tablet|quantity=1|rarity=1/26.2|raritynotes=<ref name="secondary_uniques" group="d">The sirenic tablet will become more common at an unknown rate as kill count increases until the first drop is received. Afterwards, the item will no longer be dropped.</ref>}}
+{{DropsLine|name=Awakener's orb|quantity=1|rarity=1/34.5}}
+{{DropsLine|name=Shadow quartz|quantity=1|rarity=1/209.3|raritynotes={{refn|group=d|If the player has not yet received their first shadow quartz, its drop rate scales from 1/200 to 1/50 as the player's kill count increases, where the best rate is reached at 300 kill count. Once players obtain their first shadow quartz, the drop rate is reverted back to 1/200.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1707308397186465945|date=28 September 2023|archiveurl=https://reldo.runescape.wiki/i/108079{{^|https://archive.ph/vYnpZ}}|archivedate=28 September 2023|quote=If I'm reading my colleagues' code correctly, over your first 300 kills, the chance shifts from 1/200 to 1/50, where it stays thereafter.}}}}}}
+{{DropsTableBottom}}
+
+===Supplies===
+''These supplies are all dropped together.''
+{{DropsTableHead}}
+{{DropsLine|name=Ancient brew(2)|quantity=1|rarity=1/5.5}}
+{{DropsLine|name=Prayer potion(3)|quantity=1|rarity=1/5.5}}
+{{DropsLine|name=Manta ray|quantity=3-4|rarity=1/5.5}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Bronze longsword|quantity=16,24 (noted)|rarity=1/100}}
+{{DropsLine|name=Mithril longsword|quantity=7,10 (noted)|rarity=1/100}}
+{{DropsLine|name=Adamant longsword|quantity=9,14 (noted)|rarity=1/100}}
+{{DropsLine|name=Battlestaff|quantity=70,105 (noted)|rarity=2/100}}
+{{DropsLine|name=Dragon plateskirt|quantity=7,10|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Pure essence|quantity=280; 420 (noted)|rarity=1/100}}
+{{DropsLine|name=Iron ore|quantity=88,133 (noted)|rarity=1/100}}
+{{DropsLine|name=Coal|quantity=303,455 (noted)|rarity=8/100}}
+{{DropsLine|name=Gold ore|quantity=88,133 (noted)|rarity=1/100}}
+{{DropsLine|name=Mithril ore|quantity=88,133 (noted)|rarity=1/100}}
+{{DropsLine|name=Adamantite ore|quantity=105,157 (noted)|rarity=8/100}}
+{{DropsLine|name=Runite ore|quantity=42,63 (noted)|rarity=2/100}}
+
+{{DropsLine|name=Sapphire|quantity=39,59 (noted)|rarity=1/100}}
+{{DropsLine|name=Emerald|quantity=39,59 (noted)|rarity=1/100}}
+{{DropsLine|name=Ruby|quantity=39,59 (noted)|rarity=1/100}}
+{{DropsLine|name=Uncut ruby|quantity=58,87 (noted)|rarity=5/100}}
+{{DropsLine|name=Uncut diamond|quantity=58,87 (noted)|rarity=5/100}}
+
+{{DropsLine|name=Dragon javelin tips|quantity=84,126|rarity=8/100}}
+{{DropsLine|name=Runite bolts (unf)|quantity=84,126|rarity=8/100}}
+{{DropsLine|name=Raw monkfish|quantity=700,1050 (noted)|rarity=1/100}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Water rune|quantity=280,420|rarity=1/100}}
+{{DropsLine|name=Steam rune|quantity=466,700|rarity=8/100}}
+{{DropsLine|name=Chaos rune|quantity=140,210|rarity=1/100}}
+{{DropsLine|name=Death rune|quantity=466,700|rarity=8/100}}
+{{DropsLine|name=Soul rune|quantity=933,1400|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|791}}|raritynotes=<ref group="d">Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Asgarnia&Kourend}}
+{{DropsLineClue|type=easy|rarity=1/160}}
+{{DropsLineClue|type=medium|rarity=1/160}}
+{{DropsLineClue|type=hard|rarity=1/160}}
+{{DropsLineClue|type=elite|rarity=1/160}}
+{{DropsLine|name=Ancient blood ornament kit|rarity=Always|quantity=1|gemw=no|raritynotes=<ref group=d>Only when defeated in the awakened encounter as the '''last''' of the four.</ref>}}
+{{DropsLine|name=Wisp|quantity=1|rarity=1/2000|gemw=No}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Whisperer}}
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:left">
+The Whisperer concept art.png|Concept of the Whisperer, by [[Mod Jerv]].
+The Whisperer artwork.jpg|Official artwork of the Whisperer, by Mod Jerv.
+Sunken Cathedral concept art.png|Concept art of the Sunken Cathedral, by [[Mod Grub]].
+Sunken Cathedral (Shadow Realm) concept art.png|Concept art of the Shadow Realm version of the Sunken Cathedral.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+*Progress towards the bellator vestige is now indicated with a [[gold ring]] drop. For players who were in progress before this update, their next kill will guarantee one or two gold rings, indicating 1/3 and 2/3 vestige rolls respectively.
+*The Whisperer now has a 60% [[Elemental_weakness|Elemental weakness]] to Earth. ''(Previously none)''
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|change = Getting saved by a [[phoenix necklace]] while fighting The Whisperer will no longer restore your [[sanity]].
+}}
+{{Subject changes
+|date = 8 January 2025
+|update = Run Energy Changes
+|change = Fixed an issue where The Whisperer’s tentacles failed to spawn under certain conditions.
+}}
+{{Subject changes
+|daterange = 14 – 20 February 2024
+|type = hotfix
+|change = A bug causing Sanity to not properly drain while fighting the Whisperer was fixed. Players who killed the Awakened variant for the first time while the bug was active had their Awakened Whisperer killcount reset.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1759900419331858733|date=20 February 2024|archiveurl=https://reldo.runescape.wiki/i/109377|archivedate=20 February 2024|quote=🐞 Last week we hotfixed a bug where Sanity wasn't draining correctly at Whisperer.
+
+🩸 We're removing Awakened Whisperer killcount for any players who got their first kill while this bug was active. We know you're more than capable, but just want to make absolutely sure!}}
+}}
+{{Subject changes
+|date = 14 February 2024
+|update = Barbarian Training, Forestry Changes & More
+|change = [[Sanity]] is now fully restored when teleporting away from the Whisperer.
+}}
+{{Subject changes
+|date = 31 January 2024
+|update = Scurrius & DT2 Combat Achievements
+|change = 
+*[[Combat Achievements]] were added for the boss.
+*Readjusted perfect loot qualifications; tentacles and dark green orbs will now disqualify players from perfect kills.
+}}
+{{Subject changes
+|date = 16 August 2023
+|update = Desert Treasure II Changes & More
+|change = 
+* Disturbing the Odd Figure will no longer prompt players to use an [[awakener's orb]] if they received one as a drop in the same instance.
+* Personal best kill times for the Whisperer will now broadcast in [[clan chat]] and [[group ironman]] channels.
+}}
+{{Subject changes
+|update = Desert Treasure II - Further Changes
+|date = 9 August 2023
+|change = 
+* An issue causing perfect kills to fail has been resolved.
+* Sanity damage is now visible during the fight.
+* The Whisperer should no longer fire more attacks in a row than intended.
+* The Whisperer's [[entrails]] will spawn even if players are no longer in the fight arena when the boss is defeated.
+* The Whisperer now properly drops clue scrolls.
+* The Whisperer's respawn timer has been decreased slightly.
+}}
+{{Subject changes
+|date = 3 August 2023
+|update = Desert Treasure II - Tweaks and Drop Rates
+|change = 
+* The combat level for the quest variant was increased from 568 to 587.
+* The drop rate for the tradeable unique drop table was increased from 1/77 to 1/64.
+* The Whisperer can no longer be received as a boss slayer task prior to completing Desert Treasure II.
+* Slayer tasks no longer apply to the Awakened version.
+}}
+{{Subject changes
+|date = 28 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|change = 
+* The Whisperer should no longer fire more attacks in a row than intended.
+* An issue preventing floating columns from being destroyed has been hotfixed.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Prior to the release of Desert Treasure II, the Whisperer could be heard if players stood next to the mysterious chasm in [[Camdozaal Mines]] in the form of a strange voice, whispering {{mes|Come... Come... Come... Down into the depths... Come...}}
+* The Whisperer took design inspiration from the Norwegian mythological creature the 'Nøkken', known for lurking beneath water, with only eyes exposed, and luring victims to their doom with its eerie presence.{{CiteVideo|author=Mod Jerv|title=Mod Jerv - Concept Artist Behind ToA, Desert Treasure 2, Colosseum, & Varlamore | Sae Bae Cast 236|url=https://www.youtube.com/watch?v=X8KFRsnFJmM&t=3243s|timestamp=54:08|date=Apr 28, 2025|site=Youtube|notes="I took inspiration from my own culture actually, because I’m from Norway. We have this sea creature called Nøkken, it's basically the sea creature that lurks in the sea with its eyes poking up staring at you, that lures you in to eat you and I wanted to get that feeling through the design itself."|name=}}
+* According to [[Mod Jerv]], she has been corrupted by {{RSL|Xau-Tak}},{{CiteVideo|author=Mod Jerv|title=Mod Jerv - Concept Artist Behind ToA, Desert Treasure 2, Colosseum, & Varlamore | Sae Bae Cast 236|url=https://www.youtube.com/watch?v=X8KFRsnFJmM&t=3183s|timestamp=53:03|date=Apr 28, 2025|site=Youtube|notes="So we do have sirens in the game already, but we wanted this one to be corrupted by those... I think it's revealed to be Xau-Tak in the Lassar Undercity, the whole shadowy side of that place."|name=}} a [[Gods#Deity_of_the_Silent_Choir|powerful being]] yet to be explicitly named in ''Old School RuneScape''.
+
+==References==
+{{Reflist}}
+
+{{The Forgotten Four}}
+{{Desert Treasure II}}
+{{Bosses}}
+{{DEFAULTSORT:Whisperer, The}}
+[[Category:Zarosians]]

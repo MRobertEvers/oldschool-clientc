@@ -1,0 +1,11 @@
+{
+  "env.txt_restored": true,
+  "extra_args.txt_restored": true,
+  "normal_apk_sha256": "e66ff2e81f1c2ed82fcfaae9fd5be4189c04babd17fce7506bca33a484c7c469",
+  "normal_apk_restored": true,
+  "task_server_stop_requested": true,
+  "reverse_after": "\n",
+  "task_save_removed": true,
+  "task_device_inputs_removed": true,
+  "task_server_stopped": true
+}

@@ -57,6 +57,14 @@ UITree_PushBuildComponent(
     int scene_id = -1;
     int scene_id_active = -1;
 
+    /* The two slot-background tables the INV case fills. Declared HERE and not
+     * inside that case, because `spec` only borrows them: UITree_Push copies
+     * out of the pointers below, and it runs after the switch has closed. A
+     * `case`-local array is out of scope by then, and reading it is undefined
+     * however intact the stack happens to look. */
+    int slot_bg_scene[UI_INV_SLOT_OFFSET_MAX];
+    int slot_bg_atlas[UI_INV_SLOT_OFFSET_MAX];
+
     switch( comp->type )
     {
     case UIBUILD_LAYER:
@@ -98,12 +106,14 @@ UITree_PushBuildComponent(
 
     case UIBUILD_GRAPHIC:
         spec.type = UIELEM_RS_GRAPHIC;
-        if( resolve_sprite && comp->graphic > 0 )
+        if( comp->graphic_scene_id > 0 )
+            scene_id = comp->graphic_scene_id;
+        else if( resolve_sprite && comp->graphic > 0 )
             scene_id = resolve_sprite(resolve_ud, comp->graphic);
         if( resolve_sprite && comp->graphic_active > 0 )
             scene_id_active = resolve_sprite(resolve_ud, comp->graphic_active);
         spec.u.rs_graphic.scene_id = scene_id;
-        spec.u.rs_graphic.atlas_index = 0;
+        spec.u.rs_graphic.atlas_index = comp->graphic_atlas_index;
         spec.u.rs_graphic.scene_id_active = scene_id_active;
         spec.u.rs_graphic.atlas_index_active = 0;
         spec.u.rs_graphic.graphic_hitbox_only = comp->graphic_hitbox_only;
@@ -128,6 +138,7 @@ UITree_PushBuildComponent(
         spec.u.rs_model.orthog = comp->model_orthog;
         spec.u.rs_model.fixed_zoom = comp->model_fixed_zoom;
         spec.u.rs_model.anim_seq_id = comp->model_seq_id;
+        spec.u.rs_model.active_anim_seq_id = comp->model_active_seq_id;
         spec.u.rs_model.anim_frame = 0;
         break;
 
@@ -145,8 +156,6 @@ UITree_PushBuildComponent(
         spec.u.rs_inv.inv_slot_offset_x = comp->inv_slot_offset_x;
         spec.u.rs_inv.inv_slot_offset_y = comp->inv_slot_offset_y;
 
-        int slot_bg_scene[UI_INV_SLOT_OFFSET_MAX];
-        int slot_bg_atlas[UI_INV_SLOT_OFFSET_MAX];
         for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
         {
             if( resolve_sprite && comp->inv_slot_graphic_id[i] > 0 )
@@ -205,11 +214,6 @@ UITree_PushBuildComponent(
         spec.type = UIELEM_BUILTIN_WORLD;
         memset(&spec.u, 0, sizeof(spec.u));
         spec.u.world.level_mask = 0xF;
-        /* Cache-built viewports have no revconfig section to read mmb_rotate=
-         * / wheel_zoom= from, so they take the same default the RevConfig
-         * component path does (both on). */
-        spec.u.world.mmb_rotate = 1;
-        spec.u.world.wheel_zoom = 1;
         break;
     case UITREE_CLIENT_CODE_CONTENT_MINIMAP:
         spec.type = UIELEM_BUILTIN_MINIMAP;
@@ -265,12 +269,12 @@ UITree_PushBuildComponent(
     behavior.script_kind = comp->script_kind;
     UITree_SetBehavior(tree, idx, &behavior);
 
-    node->trans = comp->transparency;
-    node->if3 = comp->if3 ? 1 : 0;
-    node->drag_dead_zone = comp->drag_dead_zone;
-    node->drag_dead_time = comp->drag_dead_time;
+    UITree_SetTransparencyAt(tree, idx, comp->transparency);
+    UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_IF3, comp->if3);
+    UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_DRAG_DEAD_ZONE, comp->drag_dead_zone);
+    UITree_SetNativeIntAt(tree, idx, UITREE_NATIVE_DRAG_DEAD_TIME, comp->drag_dead_time);
     if( comp->drag_dead_zone || comp->drag_dead_time )
-        node->draggable = 1;
+        UITree_SetDragAreaAt(tree, idx, 1, node->drag_render_area_uid, node->drag_render_area_child_index);
 
     return idx;
 }

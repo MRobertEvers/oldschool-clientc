@@ -1,0 +1,127 @@
+{{External|rs=Make Leather}}
+{{Infobox Spell
+|name = Tan Leather
+|image = [[File:Tan Leather.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|members = Yes
+|level = 78
+|spellbook = Lunar
+|type = Utility
+|exp = 81
+|cost = {{RuneReq|Astral=2|Nature=1|Fire=5}}
+|speed = 3 ticks
+|description = Tans up to 5 hides
+|anim = [[File:Tan Leather.gif]]
+|sound = [[File:Tan Leather.ogg]]
+}}
+[[File:Tan Leather icon (mobile).png|left]]
+'''Tan Leather''' is a [[Lunar spells|Lunar spell]] which tans up to 5 hides in the player's inventory without the usual cost associated with [[tanner]]s. In order to cast the spell the player must have completed the hard tier of the [[Fremennik Diary]]. Unlike other similar Lunar Spells, like [[Plank Make]], Tan Leather is not auto-cast for the entire inventory and must be manually cast for each batch of hides.
+
+With good timing, the spell tans approximately 8000 hides per hour, awarding the player with ~130K [[Magic]] experience. It is also a good method for money making.
+
+As [[cowhide]] can be tanned into either [[leather|soft leather]] or [[hard leather]], it is possible to toggle between the two by right-clicking the spell icon.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Nature
+|Rune1num = 1
+|Rune2 = Astral
+|Rune2num = 2
+|Rune3 = Fire
+|Rune3num = 5
+}}
+
+==Money making==
+{{Mmgsection|Casting Tan Leather}}
+
+==Profitability==
+The formula below assumes you will be tanning 5 hides per spell, as well as buying the [[cowhide]], [[snake hide]], [[dragonhide]]s, [[nature rune]]s, and [[astral rune]]s while casting the spell with either a [[Staff of fire|fire]], [[Smoke battlestaff|smoke]], [[Lava battlestaff|lava]], or [[Steam battlestaff|steam staff]] or a [[tome of fire]].
+
+{| class="wikitable sortable"
+!Hide
+!Hide cost
+!Leather price
+!Profit per hide
+!Tanner profit
+!Difference
+!Profit per hide (own hide){{Refn|name=profit|Effective profit with stockpiles of hide looted by the player, relative to selling unprocessed hides as-is.}}
+|- {{#vardefine:RuneCostPerHide|{{#expr:({{GEP|Nature rune|1}}+{{GEP|Astral rune|2}})/5}}}}
+|[[Cowhide]] (Leather)
+|{{Coins|{{GEP|Cowhide|1}}}}
+|{{Coins|{{GEP|Leather|1}}}}
+|{{Coins|{{GEP|Leather|1}}-{{GEP|Cowhide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Leather|1}}-{{GEP|Cowhide|1}}-1}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-1)}}
+|{{Coins|{{GEP|Leather|1}}-{{GEPT|Cowhide|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Cowhide]] (Hard Leather)
+|{{Coins|{{GEP|Cowhide|1}}}}
+|{{Coins|{{GEP|Hard leather|1}}}}
+|{{Coins|{{GEP|Hard leather|1}}-{{GEP|Cowhide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Hard leather|1}}-{{GEP|Cowhide|1}}-3}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-3)}}
+|{{Coins|{{GEP|Hard leather|1}}-{{GEPT|Cowhide|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Snake hide]] (Snakeskin)
+|{{Coins|{{GEP|Snake hide|1}}}}
+|{{Coins|{{GEP|Snakeskin|1}}}}
+|{{Coins|{{GEP|Snakeskin|1}}-{{GEP|Snake hide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Snakeskin|1}}-{{GEP|Snake hide|1}}-1}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-1)}}
+|{{Coins|{{GEP|Snakeskin|1}}-{{GEPT|Snake hide|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Snake hide (swamp)]] (Snakeskin)
+|{{Coins|{{GEP|Snake hide (swamp)|1}}}}
+|{{Coins|{{GEP|Snakeskin|1}}}}
+|{{Coins|{{GEP|Snakeskin|1}}-{{GEP|Snake hide (swamp)|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Snakeskin|1}}-{{GEP|Snake hide (swamp)|1}}-1}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-1)}}
+|{{Coins|{{GEP|Snakeskin|1}}-{{GEPT|Snake hide (swamp)|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Green dragonhide]]
+|{{Coins|{{GEP|Green dragonhide|1}}}}
+|{{Coins|{{GEP|Green dragon leather|1}}}}
+|{{Coins|{{GEP|Green dragon leather|1}}-{{GEP|Green dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Green dragon leather|1}}-{{GEP|Green dragonhide|1}}-20}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-20)}}
+|{{Coins|{{GEP|Green dragon leather|1}}-{{GEPT|Green dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Blue dragonhide]]
+|{{Coins|{{GEP|Blue dragonhide|1}}}}
+|{{Coins|{{GEP|Blue dragon leather|1}}}}
+|{{Coins|{{GEP|Blue dragon leather|1}}-{{GEP|Blue dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Blue dragon leather|1}}-{{GEP|Blue dragonhide|1}}-20}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-20)}}
+|{{Coins|{{GEP|Blue dragon leather|1}}-{{GEPT|Blue dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Red dragonhide]]
+|{{Coins|{{GEP|Red dragonhide|1}}}}
+|{{Coins|{{GEP|Red dragon leather|1}}}}
+|{{Coins|{{GEP|Red dragon leather|1}}-{{GEP|Red dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins |{{GEP|Red dragon leather|1}}-{{GEP|Red dragonhide|1}}-20}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-20)}}
+|{{Coins|{{GEP|Red dragon leather|1}}-{{GEPT|Red dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|-
+|[[Black dragonhide]]
+|{{Coins|{{GEP|Black dragonhide|1}}}}
+|{{Coins|{{GEP|Black dragon leather|1}}}}
+|{{Coins|{{GEP|Black dragon leather|1}}-{{GEP|Black dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|{{Coins|{{GEP|Black dragon leather|1}}-{{GEP|Black dragonhide|1}}-20}}
+|{{Coins|(-{{#var:RuneCostPerHide}}) - (-20)}}
+|{{Coins|{{GEP|Black dragon leather|1}}-{{GEPT|Black dragonhide|1}}-{{#var:RuneCostPerHide}}}}
+|}
+{{Reflist}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = The tan leather spell animation has been given a [[graphical updates|graphical update]].
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

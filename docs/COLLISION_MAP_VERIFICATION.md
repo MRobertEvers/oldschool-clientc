@@ -12,7 +12,7 @@ current tree (`src/engine/world_builder/…`), not the old `src/osrs/…` layout
 - **Client-TS:** `Client-TS/src/dash3d/ClientBuild.ts` (addLoc → shape/blockwalk/active; LinkBelow → place-time collision level)
 - **C:** `src/engine/world_builder/collision_map.c` (collision_map_add_floor, _add_loc, _add_wall)
 - **C:** `src/engine/world_builder/world_collision.u.c` (loc / terrain / bridge collision apply)
-- **Server:** `src/net/mock/mock230_scene.c` (`apply_loc_collision`, terrain, bridge)
+- **Server:** `src/torirsserver/torirs_server_scene.c` (`apply_loc_collision`, terrain, bridge)
 
 ## Semantics
 

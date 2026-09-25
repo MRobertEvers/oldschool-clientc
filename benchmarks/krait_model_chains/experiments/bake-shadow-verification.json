@@ -1,0 +1,5 @@
+{
+  "matched_faces": 8000000,
+  "failures": 0,
+  "method": "live cached-world bake versus original face bake; consumed positions, colours, UVs and texture identity"
+}

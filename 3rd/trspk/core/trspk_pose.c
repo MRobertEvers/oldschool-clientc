@@ -1,4 +1,5 @@
 #include "trspk_pose.h"
+#include "toridraw_element_id.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -113,7 +114,7 @@ trspk_pose_table_set(
     assert(anim_index >= 0 && anim_index < TRSPK_POSE_TRACK_COUNT);
     assert(pose_id >= 0);
 
-    const uint32_t element_idx = (uint32_t)element_id;
+    const uint32_t element_idx = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     const uint32_t pose_idx = (uint32_t)pose_id;
 
     if( !trspk_pose_table_grow_elements(table, element_idx + 1u) )
@@ -148,7 +149,7 @@ trspk_pose_table_get(
         pose_id < 0 || !table->elements )
         return false;
 
-    const uint32_t element_idx = (uint32_t)element_id;
+    const uint32_t element_idx = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     const uint32_t pose_idx = (uint32_t)pose_id;
 
     if( element_idx >= table->element_count )
@@ -174,7 +175,7 @@ trspk_pose_table_remove_element(
     if( !table || element_id < 0 || !table->elements )
         return;
 
-    const uint32_t element_idx = (uint32_t)element_id;
+    const uint32_t element_idx = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     if( element_idx >= table->element_count )
         return;
 
@@ -192,7 +193,7 @@ trspk_pose_table_remove_track(
         anim_index >= TRSPK_POSE_TRACK_COUNT || !table->elements )
         return;
 
-    const uint32_t element_idx = (uint32_t)element_id;
+    const uint32_t element_idx = (uint32_t)ToriDraw_ElementIndexOfRaw(element_id);
     if( element_idx >= table->element_count )
         return;
 

@@ -10,9 +10,19 @@ struct WorldEntity_NPC
     int element_id;
     struct WorldEntityFacet_GridPosition grid_position;
     struct WorldEntityFacet_DrawPosition draw_position;
+    struct WorldEntityFacet_ViewPlacement view_placement;
     struct WorldEntityFacet_Orientation orientation;
     struct WorldEntityFacet_Pathing pathing;
+    /** Type named by the server. For a multiNpc this remains the wrapper while
+     *  npc_id is the child selected by this client's local varp/varbit state.
+     *  Keeping both is what lets two players see different quest forms and
+     *  lets a later varp update remorph an NPC without another NPC_INFO add. */
+    int base_npc_id;
     int npc_id;
+    /** The local multiNpc table selected -1. The entity remains registered so
+     *  subsequent NPC_INFO masks and varp-driven reappearance still work, but
+     *  every player-facing renderer/menu path treats it as absent. */
+    bool multinpc_hidden;
     int size;
     /** NpcType.alwaysontop (opcode 99). Draw-order tier: alwaysontop NPCs
      *  register with the painter before other players and normal NPCs, so
@@ -23,6 +33,10 @@ struct WorldEntity_NPC
      *  (Client.ts minimapDraw skips it). Defaults true at spawn so an npc
      *  whose type never resolved still shows, which is the old behaviour. */
     bool minimap_visible;
+    /** NpcType.interactable (opcode 107). The minimap gate is BOTH this and
+     *  `minimap_visible` — see the reference quoted on ToriRS_Npctype. Same
+     *  default-true rule and for the same reason. */
+    bool interactable;
     int combat_level;
     /* 64, matching ToriRS_Npctype.name (TORIRS_NAME_MAX) -- col-tagged names
      * like "<col=00ffff>Ancestral Glyph</col>" don't fit in 32. */

@@ -1,0 +1,36 @@
+{{External|rs|rsc=Ardougne teleport}}
+{{Otheruses|the teleport spell|the teleport tablet|Ardougne teleport (tablet)}}
+{{Infobox Spell
+|name = Ardougne Teleport
+|image = [[File:Ardougne Teleport.png]]
+|release = [[27 August]] [[2002]]
+|update = Multi-part quest
+|members = Yes
+|level = 51
+|spellbook = Normal
+|type = Teleport
+|exp = 61
+|cost = {{RuneReq|Law=2|Water=2}}
+|speed = 4 ticks
+|quest = [[Plague City]]
+|lectern = [[Teak eagle lectern|Teak eagle]]
+|description = Teleports you to Ardougne
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Ardougne Teleport icon (mobile).png|left|class=pageimage]]
+'''Ardougne Teleport''' teleports the caster to [[East Ardougne]] [[Ardougne Market|market]]. This spell can only be cast after reading the [[Ardougne teleport scroll]], which is a quest completion reward from the [[Plague City]] quest. Once the player reads the scroll they will memorise the spell Ardougne Teleport and the scroll will crumble to dust. If a player loses this scroll, they can go back to [[Edmond]] in north-west of East Ardougne to get a new one. Casting the spell is a requirement for the [[Medium Ardougne Diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 2
+|Rune2 = law
+|Rune2num = 2
+}}
+
+==Destination==
+{{Map|2662,3305|mtype=square|r=3|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

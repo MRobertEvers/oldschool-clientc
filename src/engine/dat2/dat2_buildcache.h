@@ -12,7 +12,6 @@ struct Dat2BuildCache
 {
     struct CacheProvider base;
     struct HMap* models_hmap;
-    struct HMap* componentpacks_hmap;
     struct HMap* object_hmap;
     struct HMap* npctype_hmap;
     /** RS2 BasType / render-animation configs (config group 32). */
@@ -27,6 +26,22 @@ struct Dat2BuildCache
     struct HMap* clientscripts_hmap;
     /** Indexed by enum RSCache_Dat2Table — see dat2_buildcache_reference_table_add. */
     struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_TABLE_COUNT];
+    /** Which tables a `[preload:] groups=all` step has fetched whole this
+     *  process. The boot task runs more than once per boot and creates a
+     *  preload task each time; the reference tables above are what stop the
+     *  index steps repeating, and this is what stops the fills repeating. */
+    uint8_t reference_table_filled[RSCACHE_DAT2_TABLE_COUNT];
+    /** A task has this table's container on the wire. Siblings that need
+     *  the same table wait for it rather than each fetching and decoding a
+     *  copy: a region rebuild fans out eighteen map loads, and every one of
+     *  them asked for the maps table (61 KB decoded eighteen times, and
+     *  eighteen round trips where one would do). */
+    uint8_t reference_table_loading[RSCACHE_DAT2_TABLE_COUNT];
+    /** (name hash, group id) pairs from the clientscript reference table,
+     *  sorted by hash. Built lazily by dat2_clientscript_id_by_name_hash; see
+     *  game/rs_client_trigger.h for what names them. */
+    int* clientscript_names;
+    int clientscript_name_count;
     size_t map_buffer_bytes;
 
     /** Foreign rev-727 index-14 setup copied at archive 16000. It must remain
@@ -159,24 +174,9 @@ dat2_buildcache_map_scenery_has(
 void
 dat2_buildcache_map_scenery_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
-void
-dat2_buildcache_componentpack_add(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id,
-    struct RSCache_Dat2ComponentPack* pack);
 
-struct RSCache_Dat2ComponentPack*
-dat2_buildcache_componentpack_get(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id);
 
-bool
-dat2_buildcache_componentpack_has(
-    struct Dat2BuildCache* dat2_buildcache,
-    int iface_id);
 
-void
-dat2_buildcache_componentpacks_cleanup(struct Dat2BuildCache* dat2_buildcache);
 
 void
 dat2_buildcache_object_add(

@@ -1,0 +1,637 @@
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{HasStrategy}}
+{{Infobox NPC
+|name = Konar quo Maten
+|image = [[File:Konar quo Maten.png|140px]]
+|release = [[10 January]] [[2019]]
+|update = The Kebos Lowlands
+|members = Yes
+|race = [[Kahlith]]
+|location = [[Mount Karuulm]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Female
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = She looks dangerous, and slightly crazy!
+|map = {{Map|name=Konar quo Maten|x=1309|y=3785|plane=0|r=3|mtype=square}}
+|id = 8623
+|leagueRegion = Kourend
+}}
+[[File:Konar quo Maten chathead.png|left]]
+'''Konar quo Maten''' (translated as '''Konar the Hunter''') is a [[Slayer master]] who is found in the [[Kahlith]] settlement on the summit of [[Mount Karuulm]]. Players must have a [[combat level]] of at least 75 to be assigned a [[Slayer task]] from her.
+
+Compared to other Slayer masters, Konar assigns [[wyrm]]s and [[drake]]s more frequently and in higher amounts. She and [[Mortimer]] are the only Slayer Masters who can assign [[hydra]]s as a slayer task. Additionally, she is the only Slayer master who can assign the [[Alchemical Hydra]] as a boss task.
+
+Blocking a task with Konar costs 80 [[Slayer reward point|Slayer reward points]].
+
+==Transportation==
+*[[Rada's blessing 3]] or [[Rada's blessing 4|4]]'s teleport takes players to the summit of [[Mount Karuulm]].
+*Heading north of the {{Fairycode|CIR}} [[Fairy rings|fairy ring]]
+*North of the [[Farming Guild]] teleport (found on the [[Skills necklace]]/[[Farming cape]])
+*North of the [[Battlefront Teleport|Battlefront teleport]].
+*Using the [[Astral Contact]] spell. Konar is initially unavailable using Astral Contact and must be spoken to first using Talk-to before becoming an option. The right-click "Assignment" option will '''not''' unlock her in Astral Contact.
+
+==Slayer points==
+Players can receive [[Slayer reward point]]s for completing [[Slayer task]]s—this is based on how many tasks players have accomplished in a row. Completion of a task assigned by Konar will grant players a varying amount of points, depending if they have completed the [[Kourend & Kebos Diary]]. Although she is the third highest Slayer master, she gives the second highest slayer point reward per task due to requiring players to slay in a specific area. The only Slayer master who gives more points is [[Krystilia]], who gives Slayer tasks in the [[Wilderness]].
+
+{| class="wikitable" style="text-align:center;"
+! rowspan="2" |Task interval
+! colspan="2" |Points given
+|-
+!Default
+![[Kourend & Kebos Diary#Elite|Elite Diary]]
+|-
+|Every task
+|18
+|20
+|-
+|Every 10th
+|90
+|100
+|-
+|Every 50th
+|270
+|300
+|-
+|Every 100th
+|450
+|500
+|-
+|Every 250th
+|630
+|700
+|-
+|Every 1,000th
+|900
+|1,000
+|}
+
+==Tasks==
+Unlike other Slayer masters, Konar's [[Slayer task]]s also include a specific location where players must complete the entire task. 
+
+After a task has been rolled, a second roll is made to determine the location in which Konar wants the player to complete their assignment. This second roll will check any other additional requirements if a location is locked behind a quest. If the player has not completed the quest that unlocks the respective area, then the task will never be directed there; e.g. a player who has not completed [[Song of the Elves]] would not be offered [[waterfiend]]s at the [[Iorwerth Dungeon]], whereas one who did would have that as a potential location. The chance of being assigned a specific location is equal for each eligible location,{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1621613665072910337|date=3 February 2023|archiveurl=https://reldo.runescape.wiki/i/101215|archivedate=4 February 2023|quote=Yes, it's an equal chance for each of the areas you're eligible to access.}} barring the [[Wilderness]] unless it is part of a boss task (e.g. [[Vet'ion]] task), since [[Krystilia]] specializes in that area.
+
+Bosses that are part of the slayer task area can be killed if offered. For example, being assigned [[abyssal demon]]s in the [[Abyss]] means that the [[Abyssal Sire]] may be killed instead, but if the demons were assigned at the [[Catacombs of Kourend]], the Sire would not be an eligible option. Konar will not be able to assign special locations, such as the ability to kill [[Tormented Demon]]s as part of a [[greater demon]] assignment, since greater demons aren't found in the [[Ancient Guthixian Temple]]. Due to this, players who are seeking to kill variants of monsters are recommended to use [[Duradel]] instead.
+
+In return for killing the assigned monsters at the location Konar specifies, players have a chance of receiving a [[brimstone key]], which can be used to open the [[brimstone chest]] next to her.
+
+Lastly, the [[Slayer cape]] perk gives a 10% chance to be reassigned the same monster for a player's task, including the same location.
+
+{| class="wikitable sortable lighttable qc-active"
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+!Monster
+!data-sort-value=""|Possible locations
+!Amount
+![[Slayer_Rewards#Extend|Extended amt.]]
+!class="sortable"|Unlock requirement
+!class="unsortable"|Alternative(s)
+![[Task weight|Weight]]
+|-
+|[[Aberrant spectre]]s
+|
+*[[Catacombs of Kourend]]
+*[[Slayer Tower]]
+*[[Stronghold Slayer Cave]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="6065"|{{SCP|Slayer|60}}, {{SCP|Combat|65}}
+|
+*[[Catacombs of Kourend]]: [[Deviant spectre]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Abyssal demon]]s
+|
+*[[Catacombs of Kourend]]
+*[[Abyssal Area|Abyss]]
+*[[Slayer Tower]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="8585"|{{SCP|Slayer|85}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]] or [[Fairytale II - Cure a Queen]]{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1122846921331224576|date=29 April 2019|archiveurl=https://reldo.runescape.wiki/i/108660|archivedate=4 March 2023|quote=(...) Abyssal demons will accept Fairy Tale II for abyss access.}}
+|
+*[[Abyssal Nexus|Abyss]]: [[Abyssal Sire]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Ankou]]
+|
+*[[Stronghold of Security]]
+*[[Stronghold Slayer Dungeon]]
+*[[Catacombs of Kourend]]
+|data-sort-value="50"|50
+|91-150
+|data-sort-value="40"|{{SCP|Combat|40}}
+| {{NA|None}}
+|{{+=|weight|5|echo=2}}
+|-
+|[[Aviansie]]
+|
+*[[God Wars Dungeon]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="0"|Unlocked the ''Watch the birdie'' ability via spending 80 [[Slayer reward points]]
+|
+*[[Kree'arra]], [[Flight Kilisa]], [[Flockleader Geerin]], [[Wingman Skree]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Basilisk]]s
+|
+*[[Fremennik Slayer Dungeon]]
+*[[Jormungand's Prison]]
+|data-sort-value="110"|110-170
+|200-250
+|data-sort-value="4000"|{{SCP|Slayer|40}}, unlocked the ''Basilocked'' ability via spending 80 [[Slayer reward points]]
+|
+*[[Jormungand's Prison]]: [[Basilisk Knight]]
+|{{+=|weight|5|echo=2}}
+|-
+|[[Black demon]]s
+|
+*[[Catacombs of Kourend]]
+*[[Chasm of Fire]]
+*[[Taverley Dungeon]]
+*[[Brimhaven Dungeon]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="80"|{{SCP|Combat|80}}
+|
+*[[Catacombs of Kourend]]: [[Skotizo]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Black dragon]]s
+|
+*[[Catacombs of Kourend]]
+*[[Myths' Guild Dungeon]]
+*[[Evil Chicken's Lair]]
+*[[Taverley Dungeon]]
+|data-sort-value="10"|10-15
+|40-60
+|data-sort-value="80"|{{SCP|Combat|80}}, partial completion of [[Dragon Slayer I]]
+|
+*[[Catacombs of Kourend]]: [[Brutal black dragon]] ({{SCP|Slayer|77}} and {{SCP|Combat|100}} required)
+*[[Taverley Dungeon]], [[Evil Chicken's Lair]], [[Myths' Guild Dungeon]]: [[Baby black dragon]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Bloodveld]]
+|
+*[[Catacombs of Kourend]]
+*[[God Wars Dungeon]]
+*[[Iorwerth Dungeon]]
+*[[Meiyerditch Laboratories]]
+*[[Slayer Tower]]
+*[[Stronghold Slayer Dungeon]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="5050"|{{SCP|Slayer|50}}, {{SCP|Combat|50}}
+|
+*[[Catacombs of Kourend]], [[Iorwerth Dungeon]], [[Meiyerditch Laboratories]]: [[Mutated Bloodveld]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Blue dragon]]s
+|
+*[[Catacombs of Kourend]]
+*[[Isle of Souls Dungeon]]
+*[[Myths' Guild Dungeon]]
+*[[Ogre Enclave]]
+*[[Ruins of Tapoyauik]]
+*[[Taverley Dungeon]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}, partial completion of [[Dragon Slayer I]], completion of [[Watchtower]] for access to [[Ogre Enclave]]
+|
+*[[Catacombs of Kourend]], [[Ruins of Tapoyauik]]: [[Brutal blue dragon]] ({{SCP|Combat|100}} required)
+*[[Taverley Dungeon]], [[Myths' Guild Dungeon]], [[Isle of Souls Dungeon]], [[Ruins of Tapoyauik]]: [[Baby blue dragon]]
+|{{+=|weight|4|echo=2}}
+|-
+|[[Boss#Boss_slayer|Bosses]]<ref group="n">The odds of getting a specific [[Slayer task|task]] from the [[Boss#Boss_slayer|boss]] category is much smaller than getting a normal task, since there are two rolls for that task: one roll for the boss task, and one roll for the specific task within the boss category.</ref>
+|Varies
+|data-sort-value="3"|3-35
+| {{NA}}
+|data-sort-value="0"|Unlocked the [[Like a boss]] ability via spending 200 [[Slayer reward points]], as well as various requirements for specific bosses
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Brine rat]]s
+|
+*[[Brine Rat Cavern]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="4745"|{{SCP|Slayer|47}}, {{SCP|Combat|45}}, completion of [[Olaf's Quest]]
+| {{NA|None}}
+|{{+=|weight|2|echo=2}}
+|-
+|[[Cave kraken]]
+|
+*[[Kraken Cove]]
+|data-sort-value="80"|80-100
+|150-200
+|data-sort-value="8780"|{{SCP|Slayer|87}}, {{SCP|Combat|80}}, {{SCP|Magic|50}}
+|
+*[[Kraken]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Dagannoth]]
+|
+*[[Catacombs of Kourend]]
+*[[Lighthouse]]
+*[[Waterbirth Island]]
+*[[Jormungand's Prison]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}, completion of [[Horror from the Deep]]
+|
+*[[Waterbirth Island Dungeon|Waterbirth Island]]: [[Dagannoth Kings]], [[dagannoth spawn]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Dark beast]]s
+|
+*[[Mourner Tunnels]]
+*[[Iorwerth Dungeon]]
+|data-sort-value="10"|10-15
+|110-135
+|data-sort-value="9090"|{{SCP|Slayer|90}}, {{SCP|Combat|90}}, partial completion of [[Mourning's End Part II]]
+| {{NA|None}}
+|{{+=|weight|5|echo=2}}
+|-
+|[[Drake]]s
+|
+*[[Karuulm Slayer Dungeon]]
+|data-sort-value="75"|75-140
+| {{NA}}
+|data-sort-value="8400"|{{SCP|Slayer|84}}
+| {{NA|None}}
+|{{+=|weight|10|echo=2}}
+|-
+|[[Dust devil]]s
+|
+*[[Catacombs of Kourend]]
+*[[Smoke Dungeon]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="6570"|{{SCP|Slayer|65}}, {{SCP|Combat|70}}, partial completion of [[Desert Treasure I]]
+| {{NA|None}}
+|{{+=|weight|6|echo=2}}
+|-
+|[[Fire giant]]s
+|
+*[[Brimhaven Dungeon]]
+*[[Catacombs of Kourend]]
+*[[Isle of Souls Dungeon]]
+*[[Giants' Den]]
+*[[Karuulm Slayer Dungeon]]
+*[[Stronghold Slayer Dungeon]]
+*[[Waterfall Dungeon]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}
+| {{NA|None}}
+|{{+=|weight|9|echo=2}}
+|-
+|[[Fossil Island Wyvern]]s
+|
+*[[Wyvern Cave]]
+|data-sort-value="15"|15-30
+|55-75
+|data-sort-value="6660"|{{SCP|Slayer|66}}, {{SCP|Combat|60}}, completion of [[Bone Voyage]] and [[Elemental Workshop I]]{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1298524179629838337|date=27 August 2020|archiveurl=https://reldo.runescape.wiki/i/102411|archivedate=27 August 2020|quote=They do indeed require both of those. There isn't a limit on how many distinct requirements a task may have.}}
+|
+*[[Spitting Wyvern|Spitting]], [[Taloned Wyvern|taloned]], and [[Long-tailed Wyvern|long-tailed wyvern]] ({{SCP|Slayer|66}} required)
+*[[Ancient Wyvern]] ({{SCP|Slayer|82}} required)
+|{{+=|weight|5|echo=2}}
+|-
+|[[Gargoyle]]s
+|
+*[[Slayer Tower]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="7580"|{{SCP|Slayer|75}}, {{SCP|Combat|80}}, completion of [[Priest in Peril]]
+|
+*[[Grotesque Guardians]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Greater demon]]s
+|
+*[[Catacombs of Kourend]]
+*[[Chasm of Fire]]
+*[[Isle of Souls Dungeon]]
+*[[Karuulm Slayer Dungeon]]
+*[[Brimhaven Dungeon]]
+|data-sort-value="120"|120-170
+|200-250
+|data-sort-value="75"|{{SCP|Combat|75}}
+|
+*[[Catacombs of Kourend]]: [[Skotizo]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Hellhound]]s
+|
+*[[Karuulm Slayer Dungeon]]
+*[[Catacombs of Kourend]]
+*[[Stronghold Slayer Dungeon]]
+*[[Taverley Dungeon]]
+*[[Witchaven Dungeon]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}
+|
+*[[Taverley Dungeon]]: [[Cerberus]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Hydra]]s
+|
+*[[Karuulm Slayer Dungeon]]
+|data-sort-value="125"|125-190
+| {{NA}}
+|data-sort-value="9500"|{{SCP|Slayer|95}}
+|
+*[[Alchemical Hydra]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Jelly|Jellies]]
+|
+*[[Fremennik Slayer Dungeon]]
+*[[Catacombs of Kourend]]
+*[[Ruins of Tapoyauik]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="5257"|{{SCP|Slayer|52}}, {{SCP|Combat|57}}
+|
+*[[Catacombs of Kourend]]: [[Warped Jelly]]
+*[[Ruins of Tapoyauik]]: [[Chilled jelly]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Kalphite]]
+|
+*[[Kalphite Lair]]
+*[[Kalphite Cave]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|
+*[[Kalphite Lair]]: [[Kalphite Queen]], [[Kalphite Guardian|guardian]], [[Kalphite Soldier|soldier]], [[Kalphite Worker|worker]]
+*[[Kalphite Cave]]: [[Kalphite Guardian]], [[Kalphite Soldier|soldier]], [[Kalphite Worker|worker]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Kurask]]
+|
+*[[Fremennik Slayer Dungeon]]
+*[[Iorwerth Dungeon]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="7065"|{{SCP|Slayer|70}}, {{SCP|Combat|65}}, completion of [[Song of the Elves]] for access to [[Iorwerth Dungeon]]
+| {{NA|None}}
+|{{+=|weight|3|echo=2}}
+|-
+|[[Lesser Nagua]]
+|
+*[[Neypotzli]]
+*[[Ruins of Tapoyauik]]
+*[[Crypt of Tonali]]
+|data-sort-value="55"|55-120
+| {{NA}}
+|data-sort-value="4800"|{{SCP|Slayer|48}}, completion of [[Perilous Moons]]
+|
+*[[Neypotzli]]: [[Sulphur Nagua]]
+*[[Ruins of Tapoyauik]]: [[Amoxliatl]], [[Frost Nagua]]
+*[[Crypt of Tonali]]: [[Earthen Nagua]]
+|{{+=|weight|2|echo=2}}
+|-
+|[[Lizardmen]]
+|
+*[[Battlefront]]
+*[[Lizardman Canyon]]
+*[[Lizardman Settlement]] ([[Lizardman Caves]] included)
+*[[Kebos Swamp]] (area surrounding [[Xeric's Shrine]])
+*[[Molch]] ([[Lizardman Temple]] included)
+|data-sort-value="90"|90-110
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Reptile got ripped'' ability via spending 75 [[Slayer reward points]]
+|
+*[[Molch]], [[Lizardman Canyon]], and [[Lizardman Settlement]]: [[Lizardman shaman]]
+*[[Battlefront]], [[Lizardman Canyon]], and [[Lizardman Settlement]]: [[Lizardman brute]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Metal dragon]]s
+|
+*[[Brimhaven Dungeon]]
+*[[Catacombs of Kourend]]
+*[[Isle of Souls Dungeon]]
+*[[Lithkren Vault]]
+|data-sort-value="30"|30-40
+|150-200
+|data-sort-value="85"|{{SCP|Combat|85}}, partial completion of [[Dragon Slayer I]]
+|
+*[[Brimhaven Dungeon]]: [[Bronze dragon]], [[Iron dragon]], [[Steel dragon]]
+*[[Catacombs of Kourend]]: [[Bronze dragon]], [[Iron dragon]], [[Steel dragon]]
+*[[Isle of Souls Dungeon]]: [[Iron dragon]]
+*[[Lithkren Vault]]: [[Adamant dragon]]<ref group="n" name="ds2_required>with completion of [[Dragon Slayer II]]</ref>, [[Rune dragon]]<ref group="n" name="ds2_required/>
+|{{+=|weight|15|echo=2}}
+|-
+|[[Mutated Zygomite]]s
+|
+*[[Fossil Island]]
+*[[Zanaris]]
+|data-sort-value="10"|10-25
+| {{NA}}
+|data-sort-value="5760"|{{SCP|Slayer|57}}, {{SCP|Combat|60}}, completion of [[Lost City]]
+|
+*[[Fossil Island]]: [[Ancient Zygomite]] (completion of [[Bone Voyage]] required)
+|{{+=|weight|2|echo=2}}
+|-
+|[[Nechryael]]
+|
+*[[Catacombs of Kourend]]
+*[[Iorwerth Dungeon]]
+*[[Slayer Tower]]
+|data-sort-value="110"|110
+|200-250
+|data-sort-value="8085"|{{SCP|Slayer|80}}, {{SCP|Combat|85}}
+|
+*[[Catacombs of Kourend]], [[Iorwerth Dungeon]]: [[Greater Nechryael]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Red dragon]]s
+|
+*[[Brimhaven Dungeon]]
+*[[Catacombs of Kourend]]
+*[[Forthos Dungeon]]
+*[[Myths' Guild Dungeon]]
+|data-sort-value="30"|30-50
+| {{NA}}
+|data-sort-value="68"|{{SCP|Combat|68}}, partial completion of [[Dragon Slayer I]], unlocked the ''Seeing red'' ability via spending 50 [[Slayer reward points]]
+|
+*[[Catacombs of Kourend]]: [[Brutal red dragon]] ({{SCP|Combat|100}} required)
+*[[Brimhaven Dungeon]], [[Forthos Dungeon]], [[Myths' Guild Dungeon]]: [[Baby dragon (red)|Baby red dragon]]
+|{{+=|weight|5|echo=2}}
+|-
+|[[Skeletal Wyvern]]s
+|
+*[[Asgarnian Ice Dungeon]]
+|data-sort-value="5"|5-12
+|50-70
+|data-sort-value="7270"|{{SCP|Slayer|72}}, {{SCP|Combat|70}}, completion of [[Elemental Workshop I]]
+| {{NA|None}}
+|{{+=|weight|5|echo=2}}
+|-
+|[[Smoke devil]]s
+|
+*[[Smoke Devil Dungeon]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="9385"|{{SCP|Slayer|93}}, {{SCP|Combat|85}}
+|
+*[[Thermonuclear smoke devil]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Troll]]s
+|
+*[[Troll Stronghold (location)|Troll Stronghold]]
+*[[Keldagrim]]
+*[[Death Plateau (location)|Death Plateau]]
+*South of [[Mount Quidamortem]]
+*[[Fremennik Isles]]
+*[[Wyrmscraig Cavern]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}
+|
+*[[Troll Stronghold (location)|Troll Stronghold]]: [[Troll general]]
+*[[Death Plateau (location)|Death Plateau]]: [[Pee Hat]], [[Kraka]], [[Stick]], [[Rock (Troll)|Rock]], [[Thrower troll]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Turoth]]
+|
+*[[Fremennik Slayer Dungeon]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="5560"|{{SCP|Slayer|55}}, {{SCP|Combat|60}}
+| {{NA|None}}
+|{{+=|weight|3|echo=2}}
+|-
+|[[Vampyre]]s
+|
+*[[Darkmeyer]]
+*[[Meiyerditch]]
+*[[Slepe]]
+*[[Vampyrium]]
+|data-sort-value="100" |100-160
+|200-250
+|data-sort-value="0"|Unlocked the ''Actual Vampyre Slayer'' ability via spending 80 [[Slayer reward points]]
+|
+*[[Darkmeyer]]: [[Vampyre Juvenile]], [[Vampyre Juvinate]], [[Vyrewatch]], [[Vyrewatch Sentinel]]
+*[[Meiyerditch]]: [[Vampyre Juvenile]], [[Vampyre Juvinate]], [[Vyrewatch]]
+*[[Slepe]]: [[Vampyre Juvenile]], [[Vyrewatch]]
+*[[Vampyrium]]: [[Venator]]
+|{{+=|weight|4|echo=2}}
+|-
+|[[Slayer task/Warped creature|Warped creatures]]
+|
+*[[Poison Waste Dungeon]]
+|data-sort-value="110"|110-170
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Warped Reality'' ability via spending 60 [[Slayer reward points]]
+|
+*[[Warped Terrorbird]], [[Warped Tortoise]]
+|{{+=|weight|4|echo=2}}
+|-
+|[[Waterfiend]]s
+|
+*[[Ancient Cavern]]
+*[[Iorwerth Dungeon]]
+*[[Kraken Cove]]
+|data-sort-value="120"|120-170
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}, Progressed the [[Barbarian Training]] [[miniquest]] up to the [[Barbarian Training#Pyre ships|Pyre ships]] section.
+| {{NA|None}}
+|{{+=|weight|2|echo=2}}
+|-
+|[[Wyrm]]s
+|
+*[[Karuulm Slayer Dungeon]]
+*[[Neypotzli]]
+*[[Charred Dungeon]]
+*[[Wyrmscraig]]
+|data-sort-value="125"|125-190
+| 200-250
+|data-sort-value="6200"|{{SCP|Slayer|62}}
+|
+*[[Neypotzli]]: [[Wyrmling]]
+*[[Charred Dungeon]]: [[Lava Strykewyrm]]
+*[[Wyrmscraig]]: [[Wyrmling]] and [[Lava Strykewyrm]]
+|{{+=|weight|10|echo=2}}
+|-
+!colspan="6" |Total [[task weight]]
+!{{#var:weight}}
+|}
+<references group="n" />
+
+==Dialogue==
+{{hastranscript|NPC}}
+
+==Gallery==
+<gallery captionalign="center" widths="180">
+File:Konar preview.gif|A first teaser of Konar quo Maten, created by Mod Gee
+File:Konar Loot Table Balancing (1).png|Original loot table (prior to a balancing update).
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = The [[Slayer cape]]'s perk now guarantees the same location from tasks assigned by Konar quo Maten.
+}}
+{{Subject changes
+|date = 28 February 2019
+|update = QoL and CoX Changes
+|change = 
+*Konar will no longer assign Black, Red, Blue or Green dragons within the Kourend Catacombs if the player has under 100 combat
+*Konar will no longer assign Fire giants in the Waterfall Dungeon to players who haven't yet completed the Waterfall Quest
+}}
+{{Subject changes
+|date = 7 February 2019
+|update = X Marks The Spot
+|poll = Old School Content Poll 63: Kebos - Post Launch Changes
+|change = Loot from Konar's drop table are replaced by [[brimstone key]]s; the loot has now been moved to the [[brimstone chest]] which the key accesses.
+}}
+{{Subject changes
+|date = 21 January 2019
+|update = Revised Post Kebos Poll Blog
+|type = hotfix
+|change = Konar's drop table was re-tweaked, removing [[Adamant bolts(unf)|adamant]] and [[Runite bolts (unf)|runite bolts]] and reintroducing [[dragon dart tips]] and [[magic logs]], a bug resulting in noted drops being received in unnoted form was fixed.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1087388290397794304|date=21 January 2019|archiveurl=https://reldo.runescape.wiki/i/102716|archivedate=29 May 2020|quote="A bug resulting certain drops not appearing noted as intended has been hotfixed."}}
+}}
+{{Subject changes
+|date = 17 January 2019
+|update = Kebos Graphical Changes and Other Fixes
+|change = Slayer reward unlocks that apply to Konar quo Maten now correctly say so on the Slayer Unlock menu.
+}}
+{{Subject changes
+|date = 14 January 2019
+|update = Konar Loot Table Balancing
+|type = hotfix
+|change = Konar's drop table was tweaked once again. Rune drops, [[yew logs]], and [[crystal keys]] were entirely removed from the drop table. The weighting of pure essence was reduced from 5 to 1, making it a far less likely drop. Additionally, the [[Alchemical Hydra]] gained access to Konar's drop table. The Lizardman Shaman Caves for Konar Slayer tasks have been replaced with a Molch area. The caves are now covered by the Lizardmen Settlement area.{{CiteTwitter|author=Old School RuneScape|url=https://twitter.com/OldSchoolRS/status/1084834960543043585|date=14 January 2019|archiveurl=https://reldo.runescape.wiki/i/103571|archivedate=25 May 2020}}
+}}
+{{Subject changes
+|date = 11 January 2019
+|update = Konar Loot Table Balancing
+|change = The average value of rolling Konar's drop table was reduced by 30%, removing several drops, whilst introducing pieces of the [[Mystic robes#Dusk|Mystic robes (dusk)]] set to the drop table.
+}}
+{{Subject changes
+|date = 10 January 2019
+|type = hotfix
+|change = An extremely rare drop of 2,500 [[Saradomin brew]]s was removed from Konar's drop table shortly after release.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1083515413793783809|date=11 January 2019|archiveurl=https://reldo.runescape.wiki/i/103128|archivedate=29 May 2020|quote=It was there on launch, but it was removed shortly after. It was also extremely rare.}}
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Konar is the only confirmed female [[Kahlith]] encountered in-game.
+*Konar is one of the only left-handed characters in the game.
+*Konar is implied to be a major character in the short story [[Transcript:A Curious Client|A Curious Client]] from the [[Kourend Chronicles]], in which she's involved in the hiding of the [[Ancient casket]] that [[Veos]] has player find in [[X Marks the Spot]].
+*Until [[29 July]] [[2026]], Konar was the only slayer master who exclusively assigned [[hydra]]s.
+
+==References==
+{{reflist}}
+
+{{Slayer Master}}
+{{Mount Karuulm}}
+{{Astral Contact}}

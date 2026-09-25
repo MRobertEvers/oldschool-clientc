@@ -1,0 +1,16 @@
+{
+  "pid": "23260",
+  "trace": [
+    "I/torirs  (23260): ui-retain-trace: frames=1200 quiet=0 dirty=1200 layout=1200 topology=41 hover=0 host=0 unrefreshable=0 ink=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=0 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=1 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=2 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=3 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=4 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=5 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=6 changed=0",
+    "I/torirs  (23260): ui-retain-trace: host_domain=7 changed=0"
+  ],
+  "library_sha256": "bbd1ab1dd1db3cee09b29598ca6592fa5483fc7fb6247058140af3621a24bb51",
+  "scope": "Retention dependency census; diagnostic only, no timing claim."
+}

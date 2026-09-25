@@ -18,6 +18,29 @@ RSCache_FileListNewFromDecode(
     int num_files);
 
 /**
+ * Same split, but every member's bytes land in ONE shared allocation, returned
+ * through `out_blob`; `files[i]` alias it. For a caller that keeps the whole
+ * list resident (the client's group cache), the per-member allocations of the
+ * plain decode are pure overhead — a configs group holds tens of thousands of
+ * members of a few dozen bytes each, so the headers rival the payload.
+ *
+ * The member pointers must never be freed or reseated individually. Free the
+ * result with RSCache_FileListFreeShared, not RSCache_FileListFree.
+ */
+struct RSCache_FileList*
+RSCache_FileListNewFromDecodeShared(
+    char* data,
+    int data_size,
+    int num_files,
+    char** out_blob);
+
+/** Free a list made by RSCache_FileListNewFromDecodeShared and its blob. */
+void
+RSCache_FileListFreeShared(
+    struct RSCache_FileList* filelist,
+    char* blob);
+
+/**
  * Encode a dat2 group: the member payloads followed by the size table.
  *
  * Layout mirrored from the decoder:

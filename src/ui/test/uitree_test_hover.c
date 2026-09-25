@@ -48,6 +48,75 @@ test_click_event_coords(void)
     UITree_Free(tree);
 }
 
+/*
+ * An overlay drawn over the tree in the same canvas owns the pointer: the
+ * component under it is neither hovered, clicked, nor right-clicked.
+ *
+ * The client's regression is the plugin window rasterised into the game frame
+ * (the buffer executor). Its clicks reached the chrome AND the game beneath
+ * it, because "the chrome took this" cannot be read downstream off a consumed
+ * flag the shell sets on every frame.
+ */
+void
+test_pointer_owner_blocks_tree(void)
+{
+    struct UITree* tree;
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UIInteraction interact;
+    struct LibToriRS_Input storage;
+    struct LibToriRS_Input* input;
+    struct UIInteractOut out;
+    int32_t btn;
+    int clicked = 0;
+
+    printf("TEST: an owned pointer reaches no component\n");
+    tree = UITree_New(8);
+    UITree_TestHostInit(&host, &hs);
+    btn = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 700, 100, 40, 200, 20);
+    tree->components[btn].if3 = 1;
+    UITree_HooksMut(&tree->components[btn])->on_click.script_id = 9226;
+    /* A hover hook as well, so "was it hovered" is a question with a yes: the
+     * hover walk reports components the reference would offer options for. */
+    UITree_HooksMut(&tree->components[btn])->on_mouse_over.script_id = 9227;
+    UITree_TestResolve(tree);
+
+    UIInteraction_Init(&interact);
+    input = LibToriRS_Input_Init(&storage, 0);
+    LibToriRS_Input_Begin(input, 0);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 0, 0, 1, &out);
+
+    for( int i = 0; i < out.intent_count; i++ )
+        if( out.intents[i].hook && out.intents[i].hook->script_id == 9226 )
+            clicked = 1;
+    TEST_ASSERT(!clicked, "a press under the overlay runs no onClick");
+    TEST_ASSERT(out.hover_com_id == -1, "nothing under the overlay is hovered");
+
+    /* And no Choose Option menu: its rows would describe what the overlay is
+     * drawn over. */
+    LibToriRS_Input_Begin(input, 20);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_RIGHT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 20, 0, 1, &out);
+    TEST_ASSERT(!out.right_click, "a right press under the overlay asks for no menu");
+
+    /* The same press with nobody owning the pointer is the control: this is a
+     * gate, not a component that stopped working. */
+    LibToriRS_Input_Begin(input, 40);
+    LibToriRS_Input_PushMouseMove(input, 160, 47);
+    LibToriRS_Input_PushMouseDown(input, TORIRSM_RIGHT, 160, 47);
+    LibToriRS_Input_End(input);
+    UITree_InteractFrameWithPointerOwner(&interact, tree, &host, input, 40, 0, 0, &out);
+    TEST_ASSERT(out.right_click, "the same press unowned does ask for one");
+    TEST_ASSERT(out.hover_com_id == 700, "and the component hovers again");
+
+    UITree_Free(tree);
+}
+
 void
 test_hover_input(void)
 {
@@ -289,7 +358,7 @@ test_hover_input(void)
         UITree_Free(st);
     }
 
-    /* Regression: app-pushed decorative overlays are late root siblings, and
+    /* Regression: configured decorative overlays are late root siblings, and
      * UITree_HitTestInteractive lets a later root win — so a non-passthrough
      * one shadows the entire interface, not just the world. */
     {
@@ -480,6 +549,151 @@ test_hover_input(void)
         UITree_Free(mt);
     }
 
+    /* Hover events retain an exact node incarnation. A cycle rebuild may put
+     * the same component id back into the same slot while the pointer never
+     * moves; the replacement gets a fresh over, never its own leave on behalf
+     * of the reclaimed occupant. */
+    {
+        struct UITree* ht = UITree_New(8);
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int const parent_id = (700 << 16) | 0;
+        int32_t parent =
+            UITree_TestPushXy(ht, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 200, 200);
+        int32_t old = UITree_CcCreate(ht, parent, parent_id, UIELEM_RS_RECT, 0);
+        uint64_t old_incarnation;
+        int saw_old_over = 0;
+        int saw_new_over = 0;
+        int saw_replacement_leave = 0;
+
+        printf("TEST: hover identity survives same-id/same-slot recycle\n");
+        ht->components[old].position.x = 10;
+        ht->components[old].position.y = 10;
+        ht->components[old].position.width = 100;
+        ht->components[old].position.height = 100;
+        UITree_HooksMut(&ht->components[old])->on_mouse_over.script_id = 851;
+        UITree_HooksMut(&ht->components[old])->on_mouse_leave.script_id = 852;
+        UITree_TestResolve(ht);
+        old_incarnation = ht->components[old].incarnation;
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 20, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, ht, &host, input, 0, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 851 )
+                saw_old_over = 1;
+        TEST_ASSERT(saw_old_over, "initial occupant receives mouse-over");
+
+        UITree_CcDeleteAll(ht, parent);
+        {
+            int32_t replacement = UITree_CcCreate(
+                ht, parent, parent_id, UIELEM_RS_RECT, 0);
+            TEST_ASSERT(replacement == old, "hover fixture reuses the same array slot");
+            TEST_ASSERT(
+                ht->components[replacement].incarnation != old_incarnation,
+                "replacement has a fresh incarnation");
+            ht->components[replacement].position.x = 10;
+            ht->components[replacement].position.y = 10;
+            ht->components[replacement].position.width = 100;
+            ht->components[replacement].position.height = 100;
+            UITree_HooksMut(&ht->components[replacement])->on_mouse_over.script_id = 861;
+            UITree_HooksMut(&ht->components[replacement])->on_mouse_leave.script_id = 862;
+        }
+        UITree_TestResolve(ht);
+        interact.client_cycle++;
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, ht, &host, input, 20, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 861 )
+                saw_new_over = 1;
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 862 )
+                saw_replacement_leave = 1;
+        }
+        TEST_ASSERT(saw_new_over, "same-id replacement receives a fresh mouse-over");
+        TEST_ASSERT(
+            !saw_replacement_leave,
+            "replacement never inherits reclaimed occupant's mouse-leave");
+        UITree_Free(ht);
+    }
+
     (void)graphic;
+    UITree_Free(tree);
+}
+
+/*
+ * A script-created LAYER stays pass-through, and does not eat the canvas.
+ *
+ * `cc_create` takes the cache's own widget-type numbers, where 0 is LAYER. The
+ * type switch in UITree_CcCreate had no case for it, so a layer fell through to
+ * the "unknown type" default and came back as CC_OBJ -- an item box, which is a
+ * menu target simply for being one. That is invisible while its item id is 0,
+ * so nothing on screen changes; what changes is that it becomes the topmost
+ * interactive hit over every pixel it covers.
+ *
+ * The shape below is the cache's, not an invented one: `ui_highlight_update`
+ * (script 8477) creates one of these under `toplevel_osrs_stretch:ui_highlights`
+ * and immediately sizes it `cc_setsize(0, 0, ^setsize_minus, ^setsize_minus)`,
+ * and that host is itself full-canvas -- so the mistyped node covered the whole
+ * client and every click and hover in the session resolved to it, world,
+ * sidebar, minimap and chat alike, while the frame loop went on rendering
+ * normally. Tutorial Island lights the first fire straight into it: the step
+ * sets `%flashside` to flash the Stats tab, which is the session's first UI
+ * highlight.
+ */
+void
+test_cc_create_layer_is_passthrough(void)
+{
+    struct UITree* tree = UITree_New(16);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    int32_t highlights;
+    int32_t button;
+    int32_t scripted;
+
+    printf("TEST: a cc_create'd layer is pass-through, not a canvas-wide item box\n");
+
+    UITree_TestHostInit(&host, &hs);
+
+    /* The gameframe: a clickable widget, and beside it the full-canvas layer
+     * the highlight scripts build into. Later sibling, so it is drawn -- and
+     * hit-tested -- over the button. */
+    button = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 500, 20, 20, 60, 40);
+    tree->components[button].behavior.button_type = 1;
+    highlights = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 501, 0, 0, 800, 500);
+
+    /* cc_create(ui_highlights, ^iftype_layer, sub, 0) */
+    scripted = UITree_CcCreate(tree, highlights, 501, 0, 255);
+    TEST_ASSERT(scripted >= 0, "the scripted child is created");
+    TEST_ASSERT(
+        tree->components[scripted].type == UIELEM_RS_LAYER,
+        "widget type 0 is a LAYER, not the unknown-type item box");
+
+    /* cc_setsize(0, 0, ^setsize_minus, ^setsize_minus): zero size in a mode
+     * that resolves against the parent, which here is the whole canvas. */
+    tree->components[scripted].position.width = 0;
+    tree->components[scripted].position.height = 0;
+    tree->components[scripted].position.width_mode = 1;
+    tree->components[scripted].position.height_mode = 1;
+    UITree_LayoutInvalidate(tree);
+    UITree_TestResolve(tree);
+
+    TEST_ASSERT(
+        tree->components[scripted].position.abs_w >= 800 &&
+            tree->components[scripted].position.abs_h >= 500,
+        "the scripted layer does cover the canvas -- that is the point");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 40, 40) == button,
+        "a click over the button still reaches the button through it");
+    TEST_ASSERT(
+        UITree_HitTestInteractive(tree, &host, 700, 400) < 0,
+        "and a click over nothing else still hits nothing");
+
     UITree_Free(tree);
 }

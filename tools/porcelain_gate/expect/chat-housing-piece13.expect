@@ -1,0 +1,21 @@
+# The 2004 chat housing stopped being a band and became a block.
+#
+# Before: piece.13 was `classic_base_flat`, a 536x32 picture at y=467 composed
+# to COVER the strip's four hollows -- and it did not cover them. It tiled 29
+# columns of the source starting at the first hollow's right-hand cast shadow,
+# so eighteen and a half repeats MANUFACTURED a row of empty sockets at a
+# 29-column pitch. That band is the "empty 2004 hollows under the bar" the
+# ledger ranks first, and it is retired: its only job was to hide something the
+# seated chat pack now covers outright.
+#
+# After: piece.13 is the housing itself, 553x165 at y=338 -- the whole 2004 chat
+# band, drawn OVER the pack rather than beside it. It has to be drawn again on
+# top, because the frame does not BORDER its chat hole, it TEARS it
+# (classic_backhmid2 ripped along its bottom, backleft2 down its right,
+# backvmid3 down its left), and a 519-wide pack seated at 17,338 covers the
+# board and all three rips. There is no room to give the rows back: 4 + 334 +
+# 165 = 503 exactly, the canvas's last row.
+#
+# One key, the same move, on every lane that mounts the classic-fixed housing.
+# The remount lane sees it too because it ends on a toplevel that mounts it.
+owned-move piece.13 = the 2004 chat housing, band -> block, now drawn over the seated pack

@@ -850,6 +850,23 @@ ToriRS_MidiSynth_PlayFrom(
     return true;
 }
 
+static bool
+ensure_accumulator(struct ToriRS_MidiSynth* synth, int frames);
+
+void
+ToriRS_MidiSynth_Reserve(
+    struct ToriRS_MidiSynth* synth,
+    int frames)
+{
+    assert(synth);
+    if( frames <= 0 )
+        return;
+    /* Same reason as ToriRS_Mixer_Reserve: Render is reached from a device
+     * thread on two backends, and its accumulator would otherwise be grown
+     * there on the first block of the first song. */
+    ensure_accumulator(synth, frames);
+}
+
 bool
 ToriRS_MidiSynth_Finished(const struct ToriRS_MidiSynth* synth)
 {

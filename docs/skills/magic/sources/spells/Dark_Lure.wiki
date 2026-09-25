@@ -1,0 +1,55 @@
+{{Infobox Spell
+|name = Dark Lure
+|image = [[File:Dark Lure.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 50
+|spellbook = Arceuus
+|type = Combat
+|exp = 60
+|cost = {{RuneReq|Nature=1|Death=1}}
+|speed = 
+|cooldown = 17 ticks
+|quest = [[A Kingdom Divided]]
+|description = Lures your target toward you
+|anim = [[File:Dark Lure.gif|250px]]
+|sound = [[File:Dark Lure.ogg]]
+}}
+[[File:Dark Lure icon (mobile).png|left]]
+'''Dark Lure''' is a spell within the [[Arceuus spellbook]] that requires level 50 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+Casting Dark Lure causes the targeted monster to be lured towards the player, and will also stop monsters from [[retreat]]ing during combat, such as [[unicorn]]s and [[ghoul]]s. Monsters will still retreat while under the effects of Dark Lure if they are attacked from outside of their [[wander radius]]. Note that the spell only lures monsters close enough to attack the caster, not necessarily next to them. For example, [[Lizardman shaman|lizardman shamans]] will not be lured into melee range of the player. Dark Lure remains active on monsters for 61.2 seconds, during which time the spell cannot be cast on them again. 
+
+The spell can also be cast on [[impling]]s, causing them to move towards a 2x2 area near the player for six seconds. During this time other players cannot cast Dark Lure on the same impling. The spell also has a 10.2 second cooldown time after being cast, which can create an opening for other players competing for an impling if it is not caught initially.
+
+The spell does not work on [[chompy bird]]s.
+
+Dark Lure cannot be used from the deck of a [[boat]]. Attempting to do so will cause a message to appear in the chatbox: {{mes|I can't do that from here!}}
+
+Like combat spells, Dark Lure performs an accuracy roll and can splash, making it less useful on monsters with high Magic defence.
+
+==Cost==
+{{Spell cost table
+|Rune1 = nature
+|Rune1num = 1
+|Rune2 = death
+|Rune2num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+| date = 19 June 2024
+| update = Hallowed Sepulchre Instances & More
+| change = The description for Dark Lure was updated. The previous description was: "Stops your target from fleeing".
+}}
+{{Subject changes
+|date = 23 June 2021
+|update = New Client Features: Milestone 1
+|change = Implings affected by the Dark Lure spell will now move towards the player in a 2x2 area for 6 seconds (after which they will resume wandering), rather than briefly drift towards the player and returning to their normal wandering routine.
+}}
+{{Subject changes footer}}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

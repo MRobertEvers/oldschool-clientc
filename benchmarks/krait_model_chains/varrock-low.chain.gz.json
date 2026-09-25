@@ -1,0 +1,16 @@
+{
+  "scene": "varrock-square",
+  "serial": "T062809L3Z",
+  "environment": {
+    "TORIRS_PLUGINS": "0",
+    "TORIRS_PERF": "0",
+    "TORIRS_GLES2_DUALCORE": "0",
+    "TORIRS_WORLD_MAP": "50,53;51,53;50,54;51,54",
+    "TORIRS_WEDGE_CAM": "1728,-300,4672,160,0",
+    "TORIRS_MODEL_CHAIN_CAPTURE": "/sdcard/Android/data/com.torirs.client/files/model-chain.bin",
+    "TORIRS_MODEL_CHAIN_FIRST_PASS": "120",
+    "TORIRS_MODEL_CHAIN_PASSES": "4"
+  },
+  "bytes": 9469316,
+  "sha256": "344de8e795f0c4aee18a0caf236959332bd102077d13137ea542b36bed51a1b6"
+}

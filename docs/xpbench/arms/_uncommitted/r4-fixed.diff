@@ -1,0 +1,209 @@
+diff --git a/3rd/toridraw/graphics/raster/huntfx_census.c b/3rd/toridraw/graphics/raster/huntfx_census.c
+index 4bf5b6a14..89f4ff715 100644
+--- a/3rd/toridraw/graphics/raster/huntfx_census.c
++++ b/3rd/toridraw/graphics/raster/huntfx_census.c
+@@ -42,4 +42,58 @@ HuntFx_CensusDump(void)
+     }
+ }
+ 
++
++struct HuntFx_BlkCensus g_huntfx_blk;
++int g_huntfx_path;
++
++void
++HuntFx_BlkCensusDump(void)
++{
++    struct HuntFx_BlkCensus const* c = &g_huntfx_blk;
++    char const* frames_s = getenv("TORIRS_MAX_FRAMES");
++    double frames = frames_s ? atof(frames_s) : 1.0;
++    char const* names[2] = { "opaque", "transp" };
++    int k;
++
++    if( frames <= 0.0 )
++        frames = 1.0;
++
++    fprintf(stderr, "huntfx-blk: per frame over %.0f frames\n", frames);
++    for( k = 0; k < 2; ++k )
++    {
++        double blocks = c->blk_lerp8[k] + c->blk_exact[k];
++        double px = c->pixels[k];
++        double share = blocks > 0.0 ? 100.0 * c->blk_exact[k] / blocks : 0.0;
++        double pxshare = px > 0.0 ? 100.0 * c->px_exact[k] / px : 0.0;
++        /* Two idivl per exact pixel, plus the linear path's wrapped-quotient
++         * refusals, which are one idivl each. */
++        double divs = 2.0 * c->px_exact[k] + c->wrapq_slow[k];
++
++        fprintf(
++            stderr,
++            "  %-6s spans %.0f  px %.0f  blocks %.0f (lerp8 %.0f, exact %.0f = %.2f%%)\n"
++            "         px_exact %.0f (%.2f%% of px)  px_tail %.0f  w0_blocks %.0f\n"
++            "         why: wn_zero %.0f  mag %.0f  sweep %.0f\n"
++            "         wrapq %.0f of which slow %.0f\n"
++            "         IDIVL/frame %.0f\n",
++            names[k],
++            c->spans[k] / frames,
++            px / frames,
++            blocks / frames,
++            c->blk_lerp8[k] / frames,
++            c->blk_exact[k] / frames,
++            share,
++            c->px_exact[k] / frames,
++            pxshare,
++            c->px_tail[k] / frames,
++            c->blk_wzero[k] / frames,
++            c->why_wnzero[k] / frames,
++            c->why_mag[k] / frames,
++            c->why_sweep[k] / frames,
++            c->wrapq_all[k] / frames,
++            c->wrapq_slow[k] / frames,
++            divs / frames);
++    }
++}
++
+ #endif
+diff --git a/3rd/toridraw/graphics/raster/huntfx_census.h b/3rd/toridraw/graphics/raster/huntfx_census.h
+index 93824f39c..77e1b8c6b 100644
+--- a/3rd/toridraw/graphics/raster/huntfx_census.h
++++ b/3rd/toridraw/graphics/raster/huntfx_census.h
+@@ -184,6 +184,126 @@ huntfx_census_tri(
+         g_huntfx_census.rows[k] += (double)(cy2 - cy0);
+ }
+ 
++
++/* ------------------------------------------------------------------ */
++/* Block mix of the perspective texture span, split by path.           */
++/*                                                                     */
++/* The span draws `steps >> 3` eight-pixel blocks. Each one either      */
++/* takes the SSE2 linear fit -- one reciprocal and two quotients for    */
++/* the whole block -- or falls back to tex_span_exact_block, which is   */
++/* TWO idivl PER PIXEL. Sixteen divides for eight pixels against two    */
++/* for eight is a factor of eight in the divide count, so the fallback  */
++/* rate is what decides whether division is a real cost in this frame   */
++/* or a rounding error. It has never been counted on the OPAQUE path,   */
++/* which is the 16.27 ms symbol; span_census.h counts it but pools the  */
++/* opaque and transparent spans into one set of totals.                 */
++/*                                                                     */
++/* Refusal is attributed to the FIRST test that fires, in the order the */
++/* code applies them, so the buckets sum to blk_exact.                  */
++/* ------------------------------------------------------------------ */
++struct HuntFx_BlkCensus
++{
++    double spans[2];
++    double pixels[2];
++    double blk_lerp8[2];
++    double blk_exact[2];
++    double px_exact[2];     /* includes the ragged tail's exact pixels */
++    double px_tail[2];
++    double blk_wzero[2];    /* w == 0: the block draws nothing at all  */
++    /* Why the fit was refused. */
++    double why_wnzero[2];   /* w_n == 0, so there is no far endpoint   */
++    double why_mag[2];      /* |cur_v| or |nxt_v| past 2^29            */
++    double why_sweep[2];    /* |nxt_v - cur_v| > texture_width         */
++    /* tex_span_wrapped_quotient refusing the reciprocal: a real idivl */
++    /* on the LINEAR path, at most two per block.                      */
++    double wrapq_slow[2];
++    double wrapq_all[2];
++    int registered;
++};
++
++extern struct HuntFx_BlkCensus g_huntfx_blk;
++
++/* Which span is running, so the shared uv helpers can attribute. */
++extern int g_huntfx_path;
++
++void
++HuntFx_BlkCensusDump(void);
++
++static inline void
++huntfx_blk_open(int k, int steps)
++{
++    if( !g_huntfx_blk.registered )
++    {
++        g_huntfx_blk.registered = 1;
++        atexit(HuntFx_BlkCensusDump);
++    }
++    g_huntfx_path = k;
++    g_huntfx_blk.spans[k] += 1.0;
++    g_huntfx_blk.pixels[k] += (double)steps;
++}
++
++static inline void
++huntfx_blk_lerp8(int k)
++{
++    g_huntfx_blk.blk_lerp8[k] += 1.0;
++}
++
++static inline void
++huntfx_blk_wzero(int k)
++{
++    g_huntfx_blk.blk_wzero[k] += 1.0;
++}
++
++static inline void
++huntfx_blk_tail(int k, int count)
++{
++    g_huntfx_blk.px_tail[k] += (double)count;
++}
++
++/**
++ * `count` pixels went down tex_span_exact_block. cur_v/nxt_v and w_n are the
++ * values the fit test saw, so the reason is recomputed here rather than
++ * threaded out of the test -- the test itself stays exactly as it ships.
++ */
++static inline void
++huntfx_blk_exact(int k, int count, int w_n, int cur_v, int nxt_v, int texture_width)
++{
++    int delta;
++
++    g_huntfx_blk.blk_exact[k] += 1.0;
++    g_huntfx_blk.px_exact[k] += (double)count;
++
++    if( w_n == 0 )
++    {
++        g_huntfx_blk.why_wnzero[k] += 1.0;
++        return;
++    }
++    if( cur_v < -(1 << 29) || cur_v > (1 << 29) || nxt_v < -(1 << 29) || nxt_v > (1 << 29) )
++    {
++        g_huntfx_blk.why_mag[k] += 1.0;
++        return;
++    }
++    delta = nxt_v - cur_v;
++    if( delta < -texture_width || delta > texture_width )
++        g_huntfx_blk.why_sweep[k] += 1.0;
++}
++
++static inline void
++huntfx_wrapq(int slow)
++{
++    int k = g_huntfx_path;
++    g_huntfx_blk.wrapq_all[k] += 1.0;
++    if( slow )
++        g_huntfx_blk.wrapq_slow[k] += 1.0;
++}
++
++#define HUNTFX_BLK_OPEN(k, steps) huntfx_blk_open((k), (steps))
++#define HUNTFX_BLK_LERP8(k) huntfx_blk_lerp8((k))
++#define HUNTFX_BLK_WZERO(k) huntfx_blk_wzero((k))
++#define HUNTFX_BLK_TAIL(k, n) huntfx_blk_tail((k), (n))
++#define HUNTFX_BLK_EXACT(k, n, wn, cv, nv, tw) huntfx_blk_exact((k), (n), (wn), (cv), (nv), (tw))
++#define HUNTFX_WRAPQ(slow) huntfx_wrapq((slow))
++
+ #define HUNTFX_CENSUS_TRI(k, xa, xb, xc, ya, yb, yc, sw, sh)                   \
+     huntfx_census_tri((k), (xa), (xb), (xc), (ya), (yb), (yc), (sw), (sh))
+ 
+@@ -191,6 +311,14 @@ huntfx_census_tri(
+ 
+ #define HUNTFX_CENSUS_TRI(k, xa, xb, xc, ya, yb, yc, sw, sh) ((void)0)
+ 
++#define HUNTFX_BLK_OPEN(k, steps) ((void)0)
++#define HUNTFX_BLK_LERP8(k) ((void)0)
++#define HUNTFX_BLK_WZERO(k) ((void)0)
++#define HUNTFX_BLK_TAIL(k, n) ((void)0)
++#define HUNTFX_BLK_EXACT(k, n, wn, cv, nv, tw) ((void)0)
++#define HUNTFX_WRAPQ(slow) ((void)0)
++
++
+ #endif
+ 
+ #endif

@@ -1,0 +1,14 @@
+[    1056ms] [LOG] JQMIGRATE: Migrate is installed, version 3.4.1 @ https://lightningelectricllcmo.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1:1
+[    1228ms] [WARNING] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading @ https://maps.googleapis.com/maps/api/js?v=3&key=AIzaSyATHqb2wQOFpffPXrQlQ92uQgMmy3coBHY&ver=4.27.5:328
+[    1321ms] [WARNING] google.maps.event.addDomListener() is deprecated, use the standard
+addEventListener() method instead:
+https://developer.mozilla.org/docs/Web/API/EventTarget/addEventListener
+The feature will continue to work and there is no plan to decommission
+it. @ https://maps.googleapis.com/maps/api/js?v=3&key=AIzaSyATHqb2wQOFpffPXrQlQ92uQgMmy3coBHY&ver=4.27.5:213
+[   13106ms] [LOG] JQMIGRATE: Migrate is installed, version 3.4.1 @ https://lightningelectricllcmo.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1:1
+[   13113ms] [WARNING] Google Maps JavaScript API has been loaded directly without loading=async. This can result in suboptimal performance. For best-practice loading patterns please see https://goo.gle/js-api-loading @ https://maps.googleapis.com/maps/api/js?v=3&key=AIzaSyATHqb2wQOFpffPXrQlQ92uQgMmy3coBHY&ver=4.27.5:328
+[   13130ms] [WARNING] google.maps.event.addDomListener() is deprecated, use the standard
+addEventListener() method instead:
+https://developer.mozilla.org/docs/Web/API/EventTarget/addEventListener
+The feature will continue to work and there is no plan to decommission
+it. @ https://maps.googleapis.com/maps/api/js?v=3&key=AIzaSyATHqb2wQOFpffPXrQlQ92uQgMmy3coBHY&ver=4.27.5:213

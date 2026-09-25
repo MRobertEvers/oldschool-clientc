@@ -18,6 +18,13 @@
 #define INV_MANAGER_DEFAULT_BACKPACK_SLOTS 28
 #define INV_MANAGER_DEFAULT_WORN_SLOTS 14
 
+/** Ceiling on a container widened by the wire. The osrs230 parser already
+ *  refuses an UPDATE_INV_FULL capacity above this; a partial's slot index is a
+ *  gSmart and is not otherwise bounded, so growth stops here rather than
+ *  letting one bad index size the allocation. The largest real container is the
+ *  bank at 1410 slots. */
+#define INV_MANAGER_MAX_SLOTS 4096
+
 #define INV_MANAGER_SOURCE_INVALID (-1)
 #define INV_MANAGER_SOURCE_MAX 16
 #define INV_MANAGER_SOURCE_NAME_MAX 64
@@ -36,6 +43,11 @@ struct InvSlot
     int obj_count;
     int scene_id;
     int atlas_index;
+    /** Reconcile passes that have found this slot's icon parts still in
+     *  flight. Bounds the wait so an obj whose model never resolves stops
+     *  re-arming the reconcile; reset with scene_id whenever the item
+     *  changes. */
+    int icon_attempts;
 };
 
 struct InvContainer
@@ -77,6 +89,19 @@ struct InvManager
     InvManager_ChangeFn change_fn;
     void* change_userdata;
 };
+
+/**
+ * Does any slot hold an item whose icon has not been baked yet?
+ *
+ * `obj_id > 0` with `scene_id == INV_MANAGER_NO_SCENE_ID` is an item the
+ * container knows about and the scene cannot draw. The client polls for this
+ * rather than being told, because an icon is baked asynchronously and the
+ * container is filled by a packet -- neither side knows when the other is
+ * finished, and an inventory that is silently one icon short looks like a
+ * cache problem rather than a reconcile that has not run.
+ */
+int
+InvManager_HasUnbakedIcon(struct InvManager const* mgr);
 
 void
 InvManager_Init(struct InvManager* mgr);

@@ -27,6 +27,7 @@
  */
 
 #include "net/bitbuffer.h"
+#include "torirs_env.h"
 #include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_info.h"
 
@@ -35,6 +36,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "log/torirs_log.h"
 
 #define V5_PLAYER_SLOTS 2048
 
@@ -212,6 +214,7 @@ static const int8_t k_run_dz[16] = { -2, -2, -2, -2, -2, -1, -1, 0, 0, 1, 1, 2, 
 
 struct V5PlayerReader
 {
+    uint8_t cycle_high[V5_PLAYER_SLOTS];
     struct PktPlayerInfoOp* ops;
     int cap;
     int count;
@@ -291,12 +294,13 @@ player_set_move_speed(
     if( op_index < 0 || op_index >= r->count )
         return;
 
-    /* The temporary value 127 is class174.field2477 in the official client:
-     * it applies the coordinate immediately instead of queuing locomotion. */
+    /* Temporary traversal is authoritative even for position opcode3:
+     * class174.field2477 (127) snaps, while explicit crawl/walk/run queues
+     * locomotion. Opcode3 describes the coordinate width, not a forced jump. */
     r->ops[op_index]._local_xz_level.has_move_speed = true;
     r->ops[op_index]._local_xz_level.move_speed = (int8_t)speed;
-    if( speed == PKT_PLAYER_TRAVERSAL_SNAP )
-        r->ops[op_index]._local_xz_level.jump = true;
+    if( !persistent || speed == PKT_PLAYER_TRAVERSAL_SNAP )
+        r->ops[op_index]._local_xz_level.jump = speed == PKT_PLAYER_TRAVERSAL_SNAP;
 }
 
 static void
@@ -321,13 +325,14 @@ player_low_res(
         int fine_x;
         int fine_z;
         int extended;
-        int32_t rough = g_player.low_res_pos[idx];
+        int32_t rough;
         int level;
 
         /* The recursion is the wire's, not a convenience: a promotion may be
          * preceded by one more low-resolution update for the same slot. */
         if( Net_BitBufferGbits(buf, 1) != 0 )
             player_low_res(r, buf, idx);
+        rough = g_player.low_res_pos[idx];
         fine_x = Net_BitBufferGbits(buf, 13);
         fine_z = Net_BitBufferGbits(buf, 13);
         extended = Net_BitBufferGbits(buf, 1);
@@ -414,7 +419,7 @@ player_high_res(
             /* The reference throws here, and so does a real client: opcode 0
              * with no extended info means "drop to low resolution", which the
              * local player cannot do. */
-            fprintf(stderr, "osrs239: PLAYER_INFO dropped the local index to low res\n");
+            TORIRS_LOG("osrs239: PLAYER_INFO dropped the local index to low res\n");
             return;
         }
         g_player.low_res_pos[idx] =
@@ -510,7 +515,7 @@ player_section(
     Net_BitBufferInit(&buf, data + *byte_pos, len - *byte_pos);
     for( int idx = 1; idx < V5_PLAYER_SLOTS; idx++ )
     {
-        int is_high = g_player.high_res[idx] != 0;
+        int is_high = r->cycle_high[idx] != 0;
         int inactive = (g_player.flags[idx] & V5_CUR_CYCLE_INACTIVE) != 0;
 
         if( low_res == is_high )
@@ -779,9 +784,9 @@ player_extended(
          * three candidate causes — the server never set the mask, the tail
          * decoded at the wrong offset, or the executor dropped the op — and
          * only the middle one is invisible from either end. Pairs with
-         * MOCK230_EXT_DEBUG on the server. */
-        if( getenv("TORIRS_NET_DEBUG") )
-            fprintf(stderr, "osrs239: player %d extended flag=0x%x at %d/%d\n", idx, flag,
+         * TORIRSSERVER_EXT_DEBUG on the server. */
+        if( torirs_env_net_debug() )
+            TORIRS_LOG("osrs239: player %d extended flag=0x%x at %d/%d\n", idx, flag,
                     pos, len);
 
         {
@@ -1038,6 +1043,20 @@ player_extended(
         }
         if( (flag & V5_PLAYER_HEADBARS) != 0 )
         {
+            /*
+             * The three byte transforms here are NOT the npc block's, and the
+             * two blocks do not even agree on which is which: the player reads
+             * the count alt1 and the target fill alt2, the npc reads the count
+             * alt2 and the target fill alt3.
+             *
+             * The pair was inverted -- here, in the npc block below and in
+             * both of the mock's writers -- until 2026-08-21. Four consistent
+             * mistakes round-trip perfectly, so nothing in this tree noticed;
+             * the golden client did, immediately, by reading a count of 1 as
+             * 127 and walking off the end of the packet. The authority is the
+             * deob (class109.method3804 for the player, Statics.method10109
+             * for the npc) and RSProt's Player/NpcHeadbarEncoder.
+             */
             int bars = tail_g1_alt1(data, len, &pos);
 
             for( int b = 0; b < bars; b++ )
@@ -1168,9 +1187,7 @@ player_extended(
                 V5_PLAYER_APPEARANCE;
         if( (flag & ~known) != 0 )
         {
-            fprintf(
-                stderr,
-                "osrs239: PLAYER_INFO extended flag 0x%x has undecoded blocks "
+            TORIRS_LOG("osrs239: PLAYER_INFO extended flag 0x%x has undecoded blocks "
                 "(0x%x); tail stopped\n",
                 flag,
                 flag & ~known);
@@ -1194,11 +1211,12 @@ osrs239_player_info_read(
         /* No init block means no high-resolution set and no coordinates: every
          * section below would walk the wrong slots. Dropping is the only
          * answer that cannot corrupt the table. */
-        fprintf(stderr, "osrs239: PLAYER_INFO before the GPI init block; dropped\n");
+        TORIRS_LOG("osrs239: PLAYER_INFO before the GPI init block; dropped\n");
         return 0;
     }
 
     memset(&r, 0, sizeof(r));
+    memcpy(r.cycle_high, g_player.high_res, sizeof(r.cycle_high));
     for( int idx = 0; idx < V5_PLAYER_SLOTS; idx++ )
         r.movement_op[idx] = -1;
     r.ops = ops;
@@ -1298,8 +1316,7 @@ npc_extended(
                 }
                 if( (body & (4 | 8)) != 0 )
                 {
-                    fprintf(stderr,
-                            "osrs239: NPC legacy body customisation needs NpcType array "
+                    TORIRS_LOG("osrs239: NPC legacy body customisation needs NpcType array "
                             "lengths; tail stopped\n");
                     return;
                 }
@@ -1423,6 +1440,9 @@ npc_extended(
         }
         if( (flag & V5_NPC_HEADBARS) != 0 )
         {
+            /* Count alt2 and target fill alt3 -- see the player block above
+             * for why these two are worth spelling out separately, and for
+             * what reading them the player's way cost. */
             int bars = tail_g1_alt2(data, len, &pos);
 
             for( int b = 0; b < bars; b++ )
@@ -1594,8 +1614,7 @@ npc_extended(
                      * lengths come from the current NpcType recolour/retexture
                      * arrays. This pure decoder has no cache access, so lying
                      * about a length would corrupt every later npc block. */
-                    fprintf(stderr,
-                            "osrs239: NPC head customisation needs NpcType array lengths; "
+                    TORIRS_LOG("osrs239: NPC head customisation needs NpcType array lengths; "
                             "tail stopped\n");
                     return;
                 }
@@ -1766,9 +1785,7 @@ npc_extended(
                 V5_NPC_TRANSFORMATION;
         if( (flag & ~known) != 0 )
         {
-            fprintf(
-                stderr,
-                "osrs239: NPC_INFO extended flag 0x%x has undecoded blocks (0x%x); "
+            TORIRS_LOG("osrs239: NPC_INFO extended flag 0x%x has undecoded blocks (0x%x); "
                 "tail stopped\n",
                 flag,
                 flag & ~known);
