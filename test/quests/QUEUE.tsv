@@ -151,7 +151,7 @@ quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
 quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
-quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b19	
+quest_sheepherder	sheepherder	sheepherder		1	todo	sonnet-b19	REVERTED by sampler (sonnet-b19): goto-barn ::goto lands at 2604,3357,0 INSIDE the walled enclosure (sheepherder_in_pen 2595-2609,3351-3364, whose only door is plaguesheep_gatel/r gated on the worn plague suit) to pick up the cattleprod BEFORE enterEnclosure -- the guide's ladder is enterEnclosure -> pickupCattleprod, so the gate step was teleported past (shot 37-goto-barn). Drive: equip the suit, walk to the gate, click_loc plaguesheep_gatel into the pen, THEN click_obj cattleprod; exit via the gate for the herd.
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
