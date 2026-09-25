@@ -135,6 +135,28 @@ random_range(
     return lo + (int)(next_random(srv) % (uint32_t)(hi - lo + 1));
 }
 
+/*
+ * One axis of `Npc.wander`'s offset (LostCity engine/src/engine/entity/Npc.ts:
+ * 700-701): `Math.round(Math.random() * (range * 2) - range)`.
+ *
+ * This is not `random_range(-range, range)`. Math.round rounds half up, so the
+ * two end values each get half the weight of an interior one. At range 3 the
+ * odds are 1/12 for -3 and +3 and 1/6 for each of -2..2, where a uniform draw
+ * gives 1/7 each. The draw is 24 bits of the xorshift stream, u = v / 2^24 in
+ * [0, 1) like Math.random. round(u*2r - r) = floor(u*2r + 1/2) - r, and that
+ * floor is exact in integers: (v*2r + 2^23) >> 24.
+ */
+static int
+npc_wander_offset(
+    struct ToriRSServer* srv,
+    int range)
+{
+    uint64_t v = (uint64_t)(next_random(srv) >> 8);
+
+    assert(range >= 0);
+    return (int)((v * (uint64_t)(range * 2) + (1u << 23)) >> 24) - range;
+}
+
 int
 ToriRSServer_Random(
     struct ToriRSServer* srv,
@@ -5180,38 +5202,44 @@ advance_npcs(struct ToriRSServer* srv)
             continue;
 
         /*
-         * Outside its radius, wandering means *going home* via naive pathing.
-         */
-        if( npc->x - npc->spawn_x > npc->wander_radius ||
-            npc->spawn_x - npc->x > npc->wander_radius ||
-            npc->z - npc->spawn_z > npc->wander_radius ||
-            npc->spawn_z - npc->z > npc->wander_radius )
-        {
-            ToriRSServer_WorldNpcWalkTo(npc, npc->spawn_x, npc->spawn_z);
-        }
-        /*
-         * The roam clock, and until now it was write-only.
+         * `Npc.wanderMode` (LostCity engine/src/engine/entity/Npc.ts:715-734),
+         * in its order: a 1-in-8 roll for a new destination, then the step,
+         * then the stuck clock. There is NO go-home branch.
          *
-         * `next_roam_tick` is set in four places — a fresh spawn, a respawn,
-         * and both OPNPC handlers ("idle roaming resumes only after the
-         * response has had time to show") — and was read in none, so each of
-         * those was a comment rather than a behaviour. The cost shows one test
-         * down: a goblin that respawns and wanders off its spawn tile on the
-         * same tick, so `ToriRSServer_WorldNpcRoamStagger`'s 5..30 ticks of
-         * settling never happened.
+         * The port used to have one: outside its radius an npc called
+         * `ToriRSServer_WorldNpcWalkTo(spawn)` every tick, ungated. The
+         * reference does not. A pushed npc comes back only when the same roll
+         * picks it a tile inside the box around its spawn (or after the 501
+         * tick teleport below). The difference is not cosmetic. Sheep Herder's
+         * diseased sheep are prodded out of their box with `npc_walk`, and
+         * their `[ai_timer]` puts them back in wander mode every 10..29 ticks.
+         * With the homing branch, a sheep pushed one tile walked straight back
+         * on the next tick, so the herd could never outpace it. Seam 13
+         * measured 0 of 2 sheep herded in 220 presses.
          *
-         * It gates only the choice of a NEW roam. Going home when outside the
-         * radius stays ungated above, and a walk already in progress still
-         * advances below — an earlier attempt that gated the whole block let an
-         * npc drift 50 tiles from its spawn, because the radius clamp IS the
-         * go-home branch.
+         * Drift stays bounded without that branch. Every destination the roll
+         * picks is `spawn + d` with |d| <= wander_radius on each axis, and a
+         * step never leaves the rectangle between the npc and its waypoint.
+         * So an npc inside its box never rolls itself out, and one outside it
+         * only ever walks toward it. The old comment warned that "an earlier
+         * attempt that gated the whole block let an npc drift 50 tiles". That
+         * attempt is not in the history, so its mechanism is unknown. But this
+         * roll never aims outside the box, and the selftest "a displaced
+         * wanderer drifts back only by the roll" measures the bound rather
+         * than assuming it.
+         *
+         * `next_roam_tick` has no LostCity counterpart and it stays. A spawn,
+         * a respawn (`ToriRSServer_WorldNpcRoamStagger`, 5..30 ticks) and an
+         * OPNPC/OPNPCT/OPNPCU (8 ticks, "the response has had time to show")
+         * park the ROLL only. A route already queued still advances below.
+         * Removing it would change every talk_to in the suite, because the npc
+         * could roll away while the player was still walking up to it. That
+         * is a separate parity question from this branch.
          */
-        else if( srv->tick >= npc->next_roam_tick && next_random(srv) % 8u == 0u )
+        if( srv->tick >= npc->next_roam_tick && next_random(srv) % 8u == 0u )
         {
-            int dest_x =
-                npc->spawn_x + random_range(srv, -npc->wander_radius, npc->wander_radius);
-            int dest_z =
-                npc->spawn_z + random_range(srv, -npc->wander_radius, npc->wander_radius);
+            int dest_x = npc->spawn_x + npc_wander_offset(srv, npc->wander_radius);
+            int dest_z = npc->spawn_z + npc_wander_offset(srv, npc->wander_radius);
             if( dest_x != npc->x || dest_z != npc->z )
                 ToriRSServer_WorldNpcWalkTo(npc, dest_x, dest_z);
             else if( npc->waypoint_index >= 0 )
@@ -7987,6 +8015,49 @@ ToriRSServer_RunDebugprocForTest(
 }
 
 /*
+ * What the reference's own `::tele` does before it moves anybody
+ * (LostCity_Server engine/src/network/game/client/handler/
+ * ClientCheatHandler.ts:571-591): `closeModal()`, `clearInteraction()`,
+ * `unsetMapFlag()`, THEN `teleJump`. `teleJump` itself (PathingEntity.ts:
+ * 281-285) keeps the interaction, which is right for a content `p_telejump`
+ * mid-script, and wrong for a typed teleport: the player's target is left
+ * behind at the old tile and the next tick walks him back toward it.
+ *
+ * Measured on this tree (seam15, build/seam_state/seam15/wander/haunted_probe):
+ * Ernest the Chicken's `::goto 3088 3335 0` landed on the fountain and on the
+ * SAME tick a 10-tick RUN began back toward npc slot 107, the fight the player
+ * had auto-retaliated into upstairs (combat_target=107, dest 3109,3353). The
+ * client read 3107,3334 -- the closest tile the chase reached -- after every
+ * one of three attempts, and each re-issue re-armed the same chase. The
+ * ToriRSServer_WorldTeleport path kept `combat_target` and the latched
+ * interaction because only `steps_clear` ran. (The HEAD green's goto-ladder
+ * "attempt 1: never arrived, still at 3096,3358,0" is a different shape: that
+ * ::goto lands inside the bookcase script's p_delay and its p_teleport wins.)
+ *
+ * `canAccess()` (the reference's "Please finish what you are doing first.")
+ * is not ported here: this tree's predicate is scripts.c's static
+ * `player_can_access`, and every quest test's `goto_tile` would begin
+ * refusing while a content script is delayed. That is a separate question.
+ */
+static void
+cheat_teleport_stop_action(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    assert(srv);
+    assert(player);
+    assert(srv->active_player == player);
+    /* closeModal + clearInteraction: this tree's `clearPendingAction`, where
+     * the fight is the interaction's other half (`combat_target`). */
+    ToriRSServer_WorldClearPendingAction(srv);
+    /* unsetMapFlag: the route is dropped by the teleport's steps_clear; the
+     * flag the client still draws is dropped here. */
+    player->dest_x = -1;
+    player->dest_z = -1;
+    player->clear_map_flag = 1;
+}
+
+/*
  * The C diagnostic ladder `handle_cheat` runs once content has declined the
  * line -- lifted out of it whole, and now with a verdict instead of `void`.
  *
@@ -9759,6 +9830,7 @@ ToriRSServer_RunCheatLadder(
             say(srv, "::goto - level must be 0-3, not %d.", to_level);
             return TORIRSSERVER_TRIGGER_RAN;
         }
+        cheat_teleport_stop_action(srv, player);
         ToriRSServer_WorldTeleport(srv, to_level, to_x, to_z);
         say(srv, "Teleported to %d,%d,%d.", to_x, to_z, to_level);
         return TORIRSSERVER_TRIGGER_RAN;
@@ -9792,6 +9864,7 @@ ToriRSServer_RunCheatLadder(
             say(srv, "::tele - level must be 0-3, not %d.", tile_level);
             return TORIRSSERVER_TRIGGER_RAN;
         }
+        cheat_teleport_stop_action(srv, player);
         ToriRSServer_WorldTeleport(srv, tile_level, tile_x, tile_z);
         say(srv, "Teleported to %d,%d,%d.", tile_x, tile_z, tile_level);
         return TORIRSSERVER_TRIGGER_RAN;

@@ -46,12 +46,16 @@ function QD.world.loc_near(sym, radius)
         return sym_result, sym
     end
     local id, match = QD.player._live_loc_id(symbol_id)
-    local result, rows = api_drive.locs(radius or 0)
+    -- Charged through pointer.lua's scan meter (seam15): at radius 0 this is
+    -- the whole scenery pool, and a symbol absent from it walks every row.
+    QD.drive._scan_why = "loc_near " .. tostring(sym)
+    local result, rows = QD.drive._pool_read("locs", radius or 0, QD.drive._scan_cost_near)
     if result ~= "ok" then
         return result, nil
     end
     for i = 1, #rows do
         if rows[i].loc_id == id then
+            QD.drive._scan_spend(i, QD.drive._scan_cost_near)
             return "ok", {
                 kind = "loc",
                 id = id,
@@ -64,6 +68,7 @@ function QD.world.loc_near(sym, radius)
             }
         end
     end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_near)
     -- `not_found` names the symbol AND the id that went unmatched, because
     -- after the three rules above those differ, and the difference is the
     -- whole diagnosis: the family is absent, or it resolved to something

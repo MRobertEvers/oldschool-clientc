@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 25
+-- @seam-count 27
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 111
-local SEAM_COUNT = 25
+local SEAM_COUNT = 27
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -1079,6 +1079,46 @@ return {
             return result, "yaw=0 pitch=300 zoom=400 -> " .. describe(detail)
         end)
 
+        -- setup: stand within reach of the pointer rows' subject.  The Man
+        -- WANDERS, and since seam15's npc wander parity (LostCity Npc.ts
+        -- wanderMode, no per-tick go-home) the RNG stream that places him is a
+        -- different one: at this row he stood inside Lumbridge castle at
+        -- 3213,3225, eleven tiles from the fixture's 3222,3218, and no framing
+        -- pose put him inside the viewport (build/seam_state/seam15/close/
+        -- make_conformance3.log).  These rows prove projection, framing and
+        -- the press -- not how far a pose can reach -- so the subject is
+        -- walked to first, as every talk_to/press in a quest does.
+        stage(function()
+            local walk = verb("player", "walk_near")
+            if walk and npc_target then
+                walk(npc_target)
+            end
+        end)
+
+        -- Where the pointer rows' subject stood when one of them could not
+        -- frame it: the player's tile, the tile the driver aimed the camera
+        -- at (QD.drive._target_tile), and every live copy.  The Man wanders,
+        -- so a not_visible here is only diagnosable with the tiles in the row.
+        local function subject_where()
+            local parts = {}
+            local tile_fn = verb("world", "tile")
+            if tile_fn then
+                local r, tile = tile_fn()
+                parts[#parts + 1] = "player " .. describe(r) .. " " .. describe(tile)
+            end
+            local aim_fn = verb("drive", "_target_tile")
+            if aim_fn and npc_target then
+                local r, x, z = aim_fn(npc_target)
+                parts[#parts + 1] = "aimed at " .. describe(r) .. " " .. describe(x) .. "," .. describe(z)
+            end
+            local tiles_fn = verb("npc", "tiles")
+            if tiles_fn then
+                local r, summary = tiles_fn(NPC_SYMBOL, 40)
+                parts[#parts + 1] = describe(r) .. " " .. describe(summary)
+            end
+            return table.concat(parts, "; ")
+        end
+
         step("drive.screen_position", function()
             local fn = verb("drive", "screen_position")
             if not fn then return missing("drive", "screen_position") end
@@ -1086,6 +1126,9 @@ return {
                 return "no_subject", "player.by_symbol(npc, " .. NPC_SYMBOL .. ") built no target"
             end
             local result, detail = fn(npc_target)
+            if result ~= "ok" then
+                return result, describe(detail) .. " -- " .. subject_where()
+            end
             return result, describe(detail)
         end)
 
@@ -1096,6 +1139,9 @@ return {
                 return "no_subject", "player.by_symbol(npc, " .. NPC_SYMBOL .. ") built no target"
             end
             local result, detail = fn(npc_target, 1)
+            if result ~= "ok" then
+                return result, "op slot 1 -> " .. describe(detail) .. " -- " .. subject_where()
+            end
             return result, "op slot 1 -> " .. describe(detail)
         end)
 
@@ -2536,13 +2582,55 @@ return {
             settle(4)
             local by_symbol = verb("player", "by_symbol")
             local walk_near = verb("player", "walk_near")
+            local nearest = verb("npc", "nearest")
             if by_symbol and walk_near then
                 local target, target_result = by_symbol("npc", NPC_SYMBOL)
                 if target_result == "ok" and is_table(target) then
+                    -- Walk to the copy player.attack will WATCH -- the one
+                    -- npc.nearest answers -- not the pool's first Man, which
+                    -- is what a bare by_symbol target walks to
+                    -- (QD.drive._target_tile).  With two Men about, walking
+                    -- to the first one left the player ten tiles from the
+                    -- copy the row then read (seam15, after the npc wander
+                    -- parity: player at 3215,3220 in the castle door, the
+                    -- watched slot at 3225,3222 -- build/seam_state/seam15/
+                    -- close/make_conformance6.log).  reach_element names the
+                    -- copy for _target_tile, as seam13's selector does.
+                    if nearest then
+                        local near_result, near = nearest(NPC_SYMBOL, 0)
+                        if near_result == "ok" and is_table(near) and near.element_id then
+                            target.reach_element = near.element_id
+                        end
+                    end
                     walk_near(target, 20, 1)
                 end
             end
             settle(2)
+            -- And FACE that copy.  player.attack presses the bare symbol, and
+            -- a bare npc press takes whichever copy projects closest to the
+            -- viewport centre at the camera it finds (App_NpcScreenPosition);
+            -- it yaws only when no copy is on screen.  With the camera left
+            -- facing the castle by the rows above, that was a Man in the
+            -- castle door while the row watched the one four tiles behind the
+            -- camera: combat_trace had the player run to slot 578 at
+            -- 3215,3220 and never swing (seam15, make_conformance8.log).  The
+            -- press/watch split is a driver seam of its own; this row proves
+            -- the attack verb on the copy it reads.
+            local tile = verb("world", "tile")
+            local yaw_towards = verb("drive", "_yaw_towards")
+            local camera = verb("drive", "camera")
+            if nearest and tile and yaw_towards and camera then
+                local near_result, near = nearest(NPC_SYMBOL, 0)
+                local here_result, here = tile()
+                if near_result == "ok" and is_table(near) and here_result == "ok"
+                    and is_table(here) and is_number(near.x) and is_number(here.x) then
+                    local yaw = yaw_towards(near.x - here.x, near.z - here.z)
+                    if yaw then
+                        camera(yaw, 383, 400)
+                        settle(1)
+                    end
+                end
+            end
         end)
 
         -- The slot of the npc these two rows fight, read once before the
@@ -2572,7 +2660,12 @@ return {
             local result, detail = fn(NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
             local text = NPC_SYMBOL .. " op" .. COMBAT_ATTACK_OP .. " -> " .. describe(detail)
             if result ~= "ok" then
-                return result, text
+                local shot = verb("shot")
+                if shot then
+                    shot("player.attack-FAIL", true)
+                end
+                return result, text .. " -- watched slot " .. describe(combat_slot) .. "; "
+                    .. subject_where()
             end
             -- THE BAR IS THE EVIDENCE.  A client is never told an npc's
             -- hitpoints -- the server sends a HEADBAR fill out of the
@@ -4651,6 +4744,49 @@ return {
                 .. describe(mid_why) .. "; wall support " .. describe(detail)
         end)
 
+        -- SEAM absent_loc_scan_bounded (pointer.lua's SCAN METER over
+        -- _live_loc_id / _target_tile / world.loc_near, QD.drive._scan_*;
+        -- seam15).  The quest-driver coroutine has 400000 Lua instructions per
+        -- RESUME (torirs_plugin_lua.c PLUGIN_LUA_STEP_BUDGET), and a click on a
+        -- loc ABSENT from a full 8,192-row scene walked the whole scenery pool
+        -- nine times with no yield: the second such click in the Temple of
+        -- Light ended the run `quest-driver:3489: instruction budget exhausted
+        -- (400000)` (build/quest_gate/s15b_absent_before), as did parity1g's
+        -- Mourning's End II replay at row 140.  Graded on three clicks on a
+        -- loc no Temple square carries each answering not_found (a budget
+        -- death ends the run at this row, which conformance.py reports as
+        -- `abort`), and on the meter reading wrapped=true: api_drive.await is
+        -- the meter's wrapper, so it sees every yield.
+        seam("seam.absent_loc_scan_bounded", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local meter = verb("drive", "_scan_meter")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not meter then return missing("drive", "_scan_meter") end
+            local arrived, where = goto_tile(1876, 4620, 1)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(1876,4620,1) (Temple of Light) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(2)
+            local answers = {}
+            for i = 1, 3 do
+                local result, detail = click_loc("fai_varrock_castle_door", 1)
+                if result ~= "not_found" then
+                    return (result == "ok") and "refused" or result,
+                        "click " .. i .. " on a loc absent from the Temple answered "
+                        .. describe(result) .. " " .. describe(detail)
+                end
+                answers[#answers + 1] = describe(result)
+            end
+            local reading = tostring(meter())
+            if string.find(reading, "wrapped=true", 1, true) == nil then
+                return "refused", "the scan meter is not on api_drive.await: " .. reading
+            end
+            return "ok", "3 clicks -> " .. table.concat(answers, ", ") .. "; meter " .. reading
+        end)
+
         -- SEAM press_aims_named_npc_copy (pointer.lua QD.player._npc_copy /
         -- _click_npc_copy / QD.drive._aim_at_named_npc; seam13).  press and
         -- talk_to took only a SYMBOL, and among Sheep Herder's three live
@@ -4713,6 +4849,67 @@ return {
             end
             return "ok", "pressed slots " .. table.concat(named, ", ") .. " each by name; "
                 .. describe(bogus_detail)
+        end)
+
+        -- SEAM npc_reaim_names_the_move (pointer.lua QD.drive._npc_reaim in
+        -- click_minimenu; seam15).  Under the npc wander parity an npc steps
+        -- between the frame its pixel is taken and the press: eadgar's
+        -- talk_to(troll_eadgar) answered `covered ... none of 99 pixels
+        -- hittested around the projected 349,264`, the menu offering only the
+        -- Cave Exit and Walk here (build/seam_state/seam14/fixrun/eadgar row
+        -- 18).  Now a covered press on an npc whose pool tile changed since
+        -- the aim is re-aimed ONCE on the new tile, and the note names the
+        -- move.  A real step cannot be timed from here, so the row STAGES one
+        -- through the private helpers the press calls: the aim reads the
+        -- sheep one tile east of where it stands, and the first press answers
+        -- covered without pressing.  Graded on the press answering ok and the
+        -- note carrying 'moved a,b -> c,d between aim and press; re-aimed'.
+        -- The quest is not started, so the prod answers only "The sheep looks
+        -- extremely ill".
+        seam("seam.npc_reaim_names_the_move", function()
+            local press = verb("player", "press")
+            local aim_tile = verb("drive", "_npc_aim_tile")
+            local press_row = verb("drive", "_press_row")
+            local note = verb("note")
+            if not press then return missing("player", "press") end
+            if not aim_tile then return missing("drive", "_npc_aim_tile") end
+            if not press_row then return missing("drive", "_press_row") end
+            if not note then return missing("note") end
+            local asks = 0
+            local notes = {}
+            t.drive._npc_aim_tile = function(target, element_id)
+                asks = asks + 1
+                local tile = aim_tile(target, element_id)
+                if asks == 1 and tile ~= nil then
+                    return { x = tile.x + 1, z = tile.z, element = tile.element }
+                end
+                return tile
+            end
+            t.drive._press_row = function(target, pos, action, deadline)
+                if asks < 2 then
+                    return "covered", "conformance: the staged covered press"
+                end
+                return press_row(target, pos, action, deadline)
+            end
+            t.note = function(text)
+                notes[#notes + 1] = tostring(text)
+                note(text)
+            end
+            local result, detail = press("plaguesheep_1", 1, 4)
+            t.drive._npc_aim_tile = aim_tile
+            t.drive._press_row = press_row
+            t.note = note
+            local said = table.concat(notes, " | ")
+            if result ~= "ok" then
+                return result, "press(plaguesheep_1) after a staged step: " .. describe(detail)
+                    .. " [notes: " .. said .. "]"
+            end
+            if string.find(said, " between aim and press; re-aimed at ", 1, true) == nil
+                or string.find(said, "moved ", 1, true) == nil then
+                return "hollow", "the press landed but no note named the move: " .. said
+                    .. " / " .. describe(detail)
+            end
+            return "ok", said .. " / " .. describe(detail)
         end)
 
         -- SEAM settle_modal_mount (pointer.lua QD.player._settle_after_click's

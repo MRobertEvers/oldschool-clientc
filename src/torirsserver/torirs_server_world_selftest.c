@@ -25052,6 +25052,7 @@ ToriRSServer_WorldSelftest(void)
             const int tree_shape = 10;
             struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
             int saved_level = -1;
+            int saved_xp = 0;
             int swings = 0;
 
             SELFTEST_CHECK(willow >= 0, "willowtree should be in the cache, got %d", willow);
@@ -25078,6 +25079,18 @@ ToriRSServer_WorldSelftest(void)
                 saved_level = player->stat_level[woodcutting];
                 player->stat_level[woodcutting] = 30;
                 player->stat_boosted[woodcutting] = 30;
+                /*
+                 * And the XP that level stands for. A willow log pays
+                 * woodcutting xp, and paying xp re-derives the level from
+                 * `stat_xp_tenths`. A fixture that set only the level dropped
+                 * back to the player's real level on the first log, and the
+                 * re-arm then said "You need a Woodcutting level of 30". So
+                 * this only passed while the roll at tick 3 happened to miss.
+                 * The npc wander change (Npc.ts wanderMode parity) moved the
+                 * shared RNG stream enough for the roll to land.
+                 */
+                saved_xp = player->stat_xp_tenths[woodcutting];
+                player->stat_xp_tenths[woodcutting] = ToriRSServer_CombatXpForLevel(30) * 10;
                 srv->rng = 0x5eed1234u;
 
                 placed = ToriRSServer_WorldLocSet(srv, tree_x, tree_z, 0, tree_shape, willow, 0,
@@ -25130,6 +25143,7 @@ ToriRSServer_WorldSelftest(void)
                 player->inv_dirty = 0xfffffffu;
                 player->stat_level[woodcutting] = saved_level;
                 player->stat_boosted[woodcutting] = saved_level;
+                player->stat_xp_tenths[woodcutting] = saved_xp;
             }
             if( owned )
                 ToriRSServer_ScriptsFree(srv);
@@ -35368,6 +35382,133 @@ ToriRSServer_WorldSelftest(void)
             srv->tick++;
         }
         SELFTEST_CHECK(moved > 0, "at least one npc roamed over 200 ticks");
+
+        /*
+         * A displaced wanderer drifts back only by the roll.
+         *
+         * `Npc.wanderMode` (LostCity engine/src/engine/entity/Npc.ts:715-734)
+         * has no go-home branch. Each tick it has a 1-in-8 chance to
+         * `wander(wanderrange)`, and that picks `start + round(random*2r - r)`
+         * on each axis (Npc.ts:700-709). So an npc pushed outside its box
+         * (a sheep prodded by `npc_walk`, a goblin that gave up a chase)
+         * stays where it is until a roll lands, then walks to a tile INSIDE
+         * the box. Only the stuck clock (> 500 ticks) teleports it.
+         *
+         * The port used to walk such an npc home every tick with no gate,
+         * which the first half pins: with the roll parked by
+         * `next_roam_tick`, nothing may move it. The second half proves the
+         * drift bound this branch used to be credited with. Every roll aims
+         * inside the box, so the npc never ends a tick farther from its spawn
+         * than where it was put. Once it is inside the box it stays inside,
+         * and it gets there within the stuck clock.
+         */
+        {
+            struct ToriRSServerNpc* subject = NULL;
+            int start_x = 0;
+            int start_z = 0;
+
+            for( int i = 0; i < TORIRSSERVER_NPC_MAX && !subject; i++ )
+            {
+                struct ToriRSServerNpc* npc = &srv->npcs[i];
+                static const int dirs[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+
+                if( !npc->active || npc->mode != TORIRSSERVER_NPCMODE_WANDER ||
+                    npc->wander_radius < 1 || npc->wander_radius > 8 ||
+                    (npc->size > 0 && npc->size != 1) || npc->combat_target >= 0 ||
+                    npc->combat_target_npc >= 0 || npc->death_tick >= 0 ||
+                    npc_player_range(npc, player) < 40 )
+                    continue;
+                for( int d = 0; d < 4 && !subject; d++ )
+                {
+                    for( int k = 3; k <= 8 && !subject; k++ )
+                    {
+                        int tx = npc->spawn_x + dirs[d][0] * (npc->wander_radius + k);
+                        int tz = npc->spawn_z + dirs[d][1] * (npc->wander_radius + k);
+                        int open = !ToriRSServer_SceneWalkBlocked(npc->spawn_level, tx, tz);
+
+                        /* A straight open line back to the spawn tile, so a
+                         * homing walk WOULD move it. Otherwise "it stayed put"
+                         * could mean a wall stopped it, not that nothing tried. */
+                        for( int step = 0; open && step < npc->wander_radius + k; step++ )
+                            open = ToriRSServer_SceneCanTravel(
+                                npc->spawn_level, tx - dirs[d][0] * step, tz - dirs[d][1] * step,
+                                -dirs[d][0], -dirs[d][1], 1, 0);
+                        if( !open )
+                            continue;
+                        subject = npc;
+                        start_x = tx;
+                        start_z = tz;
+                    }
+                }
+            }
+            SELFTEST_CHECK(subject != NULL,
+                           "a wandering 1x1 npc far from the player with a walkable tile "
+                           "outside its box should exist");
+            if( subject )
+            {
+                int radius = subject->wander_radius;
+                int keep_roam = subject->next_roam_tick;
+                int start_distance;
+                int worst = 0;
+                int inside_at = -1;
+                int left_box = 0;
+
+                ToriRSServer_WorldNpcTeleport(subject, start_x, start_z, subject->spawn_level);
+                subject->stuck_counter = 0;
+                start_distance = abs(start_x - subject->spawn_x) > abs(start_z - subject->spawn_z)
+                                     ? abs(start_x - subject->spawn_x)
+                                     : abs(start_z - subject->spawn_z);
+
+                subject->next_roam_tick = srv->tick + 1000;
+                for( int tick = 0; tick < 20; tick++ )
+                {
+                    advance_npcs(srv);
+                    srv->tick++;
+                }
+                SELFTEST_CHECK(subject->x == start_x && subject->z == start_z,
+                               "a wanderer outside its box with the roll parked stays put "
+                               "(Npc.ts wanderMode has no go-home walk), at %d,%d want %d,%d",
+                               subject->x, subject->z, start_x, start_z);
+
+                subject->next_roam_tick = srv->tick;
+                for( int tick = 0; tick < 600; tick++ )
+                {
+                    int dx;
+                    int dz;
+                    int distance;
+
+                    advance_npcs(srv);
+                    srv->tick++;
+                    if( subject->combat_target >= 0 || subject->combat_target_npc >= 0 ||
+                        subject->mode != TORIRSSERVER_NPCMODE_WANDER )
+                        break;
+                    dx = abs(subject->x - subject->spawn_x);
+                    dz = abs(subject->z - subject->spawn_z);
+                    distance = dx > dz ? dx : dz;
+                    if( distance > worst )
+                        worst = distance;
+                    if( distance <= radius && inside_at < 0 )
+                        inside_at = tick;
+                    else if( distance > radius && inside_at >= 0 )
+                        left_box = 1;
+                }
+                SELFTEST_CHECK(worst <= start_distance,
+                               "and never drifts farther from its spawn than it was put (%d), "
+                               "worst %d",
+                               start_distance, worst);
+                SELFTEST_CHECK(inside_at >= 0,
+                               "and is back inside its radius %d within the stuck clock, at "
+                               "%d,%d from spawn %d,%d",
+                               radius, subject->x, subject->z, subject->spawn_x,
+                               subject->spawn_z);
+                SELFTEST_CHECK(!left_box, "and once back inside its box it stays inside");
+
+                ToriRSServer_WorldNpcTeleport(subject, subject->spawn_x, subject->spawn_z,
+                                              subject->spawn_level);
+                subject->stuck_counter = 0;
+                subject->next_roam_tick = keep_roam;
+            }
+        }
 
         /*
          * Hans walks his route.

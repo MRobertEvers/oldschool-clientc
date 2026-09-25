@@ -250,10 +250,222 @@ function QD.player._loc_variants(id)
     return info
 end
 
+-- SEAM driver-lua-budget-and-npc-reaim (seam15) -- THE SCAN METER.
+--
+-- The quest-driver coroutine runs under an instruction budget PER RESUME:
+-- PLUGIN_LUA_STEP_BUDGET = 400000 VM instructions, re-armed on the coroutine
+-- at every resume (src/plugin/torirs_plugin_lua.c:38, PluginLua_ThreadResume)
+-- and blown by a count hook that ends the whole run with `instruction budget
+-- exhausted`.  Only a YIELD re-arms it, and api_drive.await yields only when
+-- its level predicate is false on the first look (torirs_plugin_drive.c's
+-- lua_drive_await: an already-true level returns in the same resume).
+--
+-- The pool walks are the cost.  api_drive.locs(0) is the whole scenery pool
+-- -- 8,192 rows (DRIVE_UI_POOL_CAP, full) in the Temple of Light -- and a loc
+-- ABSENT from the scene is the worst case: every walk runs to the end.
+-- Measured (build/quest_gate/s15b_absent_before): the second click_loc on an
+-- absent loc in the Temple died `quest-driver:3489: instruction budget
+-- exhausted` -- by_symbol (two walks: exact/base, then the multiloc slots),
+-- walk_near's _target_tile, click_loc's loc_near (a resolve plus its own
+-- walk), _step_off_for_click's _target_tile and _ensure_visible's re-resolve,
+-- nine whole walks with no yield between them.  parity1g_mend2_full died the
+-- same way at row 140, right after p4.rope.down.
+--
+-- So every whole-pool walk is METERED, in estimated instructions (rows x the
+-- walk's own per-row cost, counted off its loop body and rounded up).  The
+-- meter holds what the walks since the last yield actually walked; a walk
+-- whose worst case (every row: the absent target) would take it past
+-- QD.drive._scan_budget YIELDS ONE FRAME first (a level predicate false
+-- once, then true) and the caller re-reads its rows, a frame newer -- the
+-- answer any later read would give.
+--
+-- It sees EVERY yield: api_drive.await is the one C entry every await in this
+-- chunk reaches (core.lua's chunk-local `await`, t.ticks, t.settle, the shot,
+-- QD.await, t.await), and QD.core_bind -- wrapped below -- is where the
+-- api.drive table first exists, so the wrapper is installed on that table
+-- field there.  An await whose level predicate was asked more than once was
+-- polled on a later frame, i.e. suspended; a match-only await with a
+-- deadline always suspends.  Either resets the meter.  So a verb in an
+-- ordinary scene -- or any verb that did not walk ~250k instructions' worth
+-- of rows in ONE resume, which is to say every verb that did not already
+-- stand within reach of the budget -- never yields here and changes no
+-- timing.  Every forced yield prints one client.log line (`scan-meter:`).
+--
+-- A charge from INSIDE an await predicate never yields (the predicate is
+-- called from C's own poll, and a yield there crosses it); it only counts.
+QD.drive._scan_budget = 250000
+QD.drive._scan = {
+    spent = 0,       -- estimated instructions charged since the last yield
+    tick = -1,       -- api_drive.tick() at the last charge
+    epoch = 0,       -- bumped at every yield the meter saw
+    predicate = 0,   -- depth of await predicates running right now
+    yields = 0,      -- forced yields taken (probe reading)
+    peak = 0,        -- most charged between two yields
+    charged = 0,     -- total charged (probe reading)
+    wrapped = false, -- api_drive.await is the meter's wrapper
+}
+
+-- Per-row costs of the walks the meter charges, in VM instructions, counted
+-- off each loop body (GETI/GETFIELD/EQ/JMP/TEST/FORLOOP) and rounded up.
+QD.drive._scan_cost_resolve = 9      -- _live_loc_id's exact/base pass
+QD.drive._scan_cost_slots = 7        -- _live_loc_id's multiloc pass
+QD.drive._scan_cost_target = 18      -- _target_tile's id/base/resolved match
+QD.drive._scan_cost_near = 8         -- world.loc_near's placed-id walk
+
+-- A yield happened: the budget is fresh.
+function QD.drive._scan_resumed()
+    local scan = QD.drive._scan
+    scan.spent = 0
+    scan.epoch = scan.epoch + 1
+    scan.tick = api_drive.tick()
+end
+
+-- The epoch the current resume is in.  The tick guard is a backstop for a
+-- yield taken before the wrapper was installed (none is, today): a tick
+-- cannot move inside one resume.
+function QD.drive._scan_epoch()
+    local scan = QD.drive._scan
+    if api_drive.tick() ~= scan.tick then
+        QD.drive._scan_resumed()
+    end
+    return scan.epoch
+end
+
+-- Yield exactly one frame: false on the synchronous first look, true on the
+-- first poll.  The wrapper sees it suspend and resets the meter.
+function QD.drive._scan_yield(spent, why)
+    local first = true
+    api_drive.report(string.format("scan-meter: yield one frame (%d spent + %s) before %s",
+        spent, why, QD.drive._scan_why or "a pool walk"))
+    api_drive.await({
+        level = function()
+            if first then
+                first = false
+                return false
+            end
+            return true
+        end,
+        note = "scan meter: one frame for the instruction budget",
+    }, 2)
+    QD.drive._scan.yields = QD.drive._scan.yields + 1
+    QD.drive._scan_resumed()
+end
+
+-- Before a walk of `rows` rows at `per_row` instructions each: if the WORST
+-- case -- the walk running to the end, which is what a target absent from
+-- the pool costs -- would take what this resume has spent past the budget,
+-- YIELD first.  Answers true when it yielded; the caller's rows are then a
+-- frame old and it reads them again.  Nothing is charged here: the walk
+-- charges what it ACTUALLY walked (QD.drive._scan_spend), because a target
+-- that is in the pool stops the walk at its row, and charging every such walk
+-- its whole pool would yield in scenes that never came near the budget.
+function QD.drive._scan_ensure(rows, per_row)
+    local scan = QD.drive._scan
+    QD.drive._scan_epoch()
+    if scan.predicate == 0 and scan.spent > 0
+        and scan.spent + rows * per_row > QD.drive._scan_budget then
+        QD.drive._scan_yield(scan.spent, tostring(rows) .. " rows x " .. tostring(per_row))
+        return true
+    end
+    return false
+end
+
+-- After a walk: charge the `walked` rows it actually visited.
+function QD.drive._scan_spend(walked, per_row)
+    local scan = QD.drive._scan
+    QD.drive._scan_epoch()
+    local cost = walked * per_row
+    scan.spent = scan.spent + cost
+    scan.charged = scan.charged + cost
+    if scan.spent > scan.peak then
+        scan.peak = scan.spent
+    end
+end
+
+-- A whole-pool read through the meter: api_drive.<reader>(radius), ensured
+-- for a worst-case walk at `per_row`, and read again if that had to yield.
+-- The caller spends what it walks.
+function QD.drive._pool_read(reader, radius, per_row)
+    local result, rows = api_drive[reader](radius)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return result, rows
+    end
+    if QD.drive._scan_ensure(#rows, per_row) then
+        result, rows = api_drive[reader](radius)
+    end
+    return result, rows
+end
+
+-- The meter's reading, for a probe or the conformance closer's row:
+-- "spent=S peak=P yields=Y charged=C epoch=E wrapped=W".
+function QD.drive._scan_meter()
+    local scan = QD.drive._scan
+    return string.format("spent=%d peak=%d yields=%d charged=%d epoch=%d wrapped=%s",
+        scan.spent, scan.peak, scan.yields, scan.charged, scan.epoch, tostring(scan.wrapped))
+end
+
+-- The wrapper on api.drive.await: same arguments, same answers, the
+-- descriptor copied (never mutated) with its predicates wrapped so the meter
+-- knows when a charge runs inside one and whether the await suspended.
+function QD.drive._scan_wrap_await(drive)
+    local raw = drive.await
+    local scan = QD.drive._scan
+    drive.await = function(descriptor, deadline)
+        if type(descriptor) ~= "table" then
+            return raw(descriptor, deadline)
+        end
+        local level_calls = 0
+        local copy = {}
+        for key, value in pairs(descriptor) do
+            copy[key] = value
+        end
+        local level = descriptor.level
+        local match = descriptor.match
+        if type(level) == "function" then
+            copy.level = function(...)
+                level_calls = level_calls + 1
+                scan.predicate = scan.predicate + 1
+                local answer = level(...)
+                scan.predicate = scan.predicate - 1
+                return answer
+            end
+        end
+        if type(match) == "function" then
+            copy.match = function(...)
+                scan.predicate = scan.predicate + 1
+                local answer = match(...)
+                scan.predicate = scan.predicate - 1
+                return answer
+            end
+        end
+        local result, detail = raw(copy, deadline)
+        local suspended
+        if type(level) == "function" then
+            suspended = level_calls > 1
+        else
+            suspended = (deadline or 0) > 0
+        end
+        if suspended then
+            QD.drive._scan_resumed()
+        end
+        return result, detail
+    end
+    scan.wrapped = true
+end
+
+QD.drive._core_bind_raw = QD.core_bind
+function QD.core_bind(api)
+    QD.drive._core_bind_raw(api)
+    QD.drive._scan_wrap_await(api.drive)
+end
+
 -- (placed id, rule) for a loc symbol's id -- see the banner above.  `rule` is
 -- the word a detail string quotes, never nil.
 function QD.player._live_loc_id(id)
-    local result, rows = api_drive.locs(0)
+    -- Charged through the scan meter (seam15 banner above): a miss walks
+    -- every row here and again in the multiloc pass below.
+    QD.drive._scan_why = "a loc resolve"
+    local result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_resolve)
     if result ~= "ok" or type(rows) ~= "table" then
         return id, nil
     end
@@ -269,27 +481,42 @@ function QD.player._live_loc_id(id)
     for i = 1, #rows do
         local row = rows[i]
         if row.loc_id == id then
+            QD.drive._scan_spend(i, QD.drive._scan_cost_resolve)
             return id, "exact"
         end
         if base == nil and row.resolved_loc_id == id and row.loc_id ~= nil then
             base = row.loc_id
         end
     end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_resolve)
     if base ~= nil then
         return base, "base"
     end
     -- multiloc: a placement that is one of this symbol's own slots.
+    local epoch = QD.drive._scan_epoch()
     local info = QD.player._loc_variants(id)
     if info and type(info.slots) == "table" and #info.slots > 0 then
         local wanted = {}
         for j = 1, #info.slots do
             wanted[info.slots[j]] = true
         end
+        -- The second walk is metered too.  One that had to yield, or a
+        -- _loc_variants that waited for the def, leaves `rows` a frame or
+        -- more old: read them again rather than walk a stale pool.
+        if QD.drive._scan_ensure(#rows, QD.drive._scan_cost_slots)
+            or QD.drive._scan_epoch() ~= epoch then
+            result, rows = api_drive.locs(0)
+            if result ~= "ok" or type(rows) ~= "table" then
+                return id, nil
+            end
+        end
         for i = 1, #rows do
             if wanted[rows[i].loc_id] then
+                QD.drive._scan_spend(i, QD.drive._scan_cost_slots)
                 return rows[i].loc_id, "multiloc"
             end
         end
+        QD.drive._scan_spend(#rows, QD.drive._scan_cost_slots)
     end
     -- Nothing in the scene under any rule: the symbol keeps its own id and
     -- the rule is nil, not "exact".  A miss that claimed an exact match would
@@ -323,7 +550,11 @@ function QD.player.by_symbol(kind, name)
     end
     -- `match` rides on the target so every verb built on by_symbol can say
     -- which rule won without resolving twice; nothing reads it as an id.
-    return { kind = kind, id = id, match = rule, symbol = name }, "ok"
+    -- `resolved_epoch` is the scan meter's epoch the resolve ran in (seam15):
+    -- _ensure_visible does not walk the pool a second time for an answer it
+    -- already has from this same resume.
+    return { kind = kind, id = id, match = rule, symbol = name,
+        resolved_epoch = QD.drive._scan_epoch() }, "ok"
 end
 
 -- drive.* -------------------------------------------------------------
@@ -363,13 +594,17 @@ QD.drive._yaw_units = 2048
 -- way out) -- reading the C spelling gives nil, which is what world.loc_near
 -- was quietly doing with its tile fields.
 function QD.drive._target_tile(target)
+    -- Whole-pool reads, charged through the scan meter (seam15 banner above
+    -- QD.player._live_loc_id): a target absent from an 8,000-row scene walks
+    -- every row of it.
+    QD.drive._scan_why = "a target tile"
     local rows_result, rows
     if target.kind == "npc" then
-        rows_result, rows = api_drive.npcs(0)
+        rows_result, rows = QD.drive._pool_read("npcs", 0, QD.drive._scan_cost_target)
     elseif target.kind == "loc" then
-        rows_result, rows = api_drive.locs(0)
+        rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
     elseif target.kind == "obj" then
-        rows_result, rows = api_drive.objs(0)
+        rows_result, rows = QD.drive._pool_read("objs", 0, QD.drive._scan_cost_target)
     else
         return "unsupported", target.kind
     end
@@ -385,12 +620,15 @@ function QD.drive._target_tile(target)
     if target.kind == "npc" and target.reach_element ~= nil then
         for i = 1, #rows do
             if rows[i].element_id == target.reach_element then
+                QD.drive._scan_spend(i, QD.drive._scan_cost_target)
                 return "ok", rows[i].x, rows[i].z
             end
         end
+        QD.drive._scan_spend(#rows, QD.drive._scan_cost_target)
         return "not_found", nil
     end
     local first = nil
+    local walked = #rows
     for i = 1, #rows do
         local row = rows[i]
         local id = row.npc_id or row.loc_id or row.obj_id
@@ -401,9 +639,11 @@ function QD.drive._target_tile(target)
         if id == target.id or row.base_npc_id == target.id
             or row.resolved_loc_id == target.id then
             first = row
+            walked = i
             break
         end
     end
+    QD.drive._scan_spend(walked, QD.drive._scan_cost_target)
     if first == nil then
         return "not_found", nil
     end
@@ -555,7 +795,16 @@ function QD.drive._ensure_visible(target, deadline)
     -- a wrapper the scene never stores.  A target built by QD.player.by_symbol
     -- has already been through this and answers `exact` a second time for
     -- nothing; one built by hand is why the arm is here.
-    if result == "not_found" and target.kind == "loc" then
+    --
+    -- SEAM driver-lua-budget-and-npc-reaim (seam15): and only when the world
+    -- can have changed since.  A target by_symbol resolved in THIS resume
+    -- (no yield since: the scan meter's epoch is the one it stamped) would
+    -- walk the whole pool again to give the same answer -- for a loc absent
+    -- from the Temple of Light's 8,000 rows, two more whole walks in a resume
+    -- that had already paid for them, which is what ran click_loc out of its
+    -- instruction budget (build/quest_gate/s15b_absent_before).
+    if result == "not_found" and target.kind == "loc"
+        and target.resolved_epoch ~= QD.drive._scan_epoch() then
         local live, rule = QD.player._live_loc_id(target.id)
         if live ~= target.id then
             target.match = rule
@@ -714,6 +963,127 @@ function QD.drive.screen_position(target)
     return QD.drive._ensure_visible(target)
 end
 
+-- SEAM driver-lua-budget-and-npc-reaim (seam15) -- A WANDERING NPC IS
+-- PRESSED WHERE IT WAS.
+--
+-- click_minimenu takes its pixel from the projection and presses it a frame
+-- or more later; every pose press after a `covered` re-projects, but the last
+-- resort's hunt at the pose the camera is ALREADY at walks its ladder around
+-- the pixel recorded when that pose was framed.  An npc that took one step in
+-- between is not under any of those pixels.  Measured on the npc wander
+-- parity binary (build/seam_state/seam14/fixrun/eadgar row 18):
+-- talk_to(troll_eadgar) answered `covered ... none of 99 pixels hittested
+-- around the projected 349,264 holds it`, the menu at the press offering only
+-- the Cave Exit and Walk here, twice, 86 ticks.
+--
+-- So an npc press remembers the npc's TILE at the moment its pixel was taken
+-- (the pool row -- for a named copy, the copy's own element, never another
+-- copy's), and a press answering `covered` asks again: if the npc stands on
+-- another tile now, the press is re-aimed ONCE -- the menu the covered press
+-- left is closed, the npc is let finish its step (its projection holds still
+-- for a poll), re-projected through _ensure_visible and, for a named copy,
+-- seam13's named-copy aim, and pressed again.  The move is named in the row
+-- ("troll_eadgar moved a,b -> c,d between aim and press; re-aimed").  An npc
+-- that did not move changes nothing: its covered press goes on to the next
+-- pose exactly as before.  A named copy that left the pool is not re-aimed at
+-- anything else -- the selector never falls back.
+
+-- The tile of the npc COPY a press aimed at, as {x, z, element}, or nil (not
+-- an npc, or that copy is not in the pool).  `element_id` is the element the
+-- aim's pixel belongs to; a named copy is followed by its own reach_element.
+--
+-- By ELEMENT, never by symbol (seam15 closer): a bare symbol's first pool row
+-- is the NEAREST copy, and the pixel is the copy App_NpcScreenPosition ranks
+-- nearest the viewport centre -- two different Men in Lumbridge.  Read by
+-- symbol, the nearest copy changing identity between aim and press read as a
+-- five-tile step ('man moved 3211,3228 -> 3206,3228', build/quest_gate/cheats
+-- row 16) and re-aimed at a body nobody had pressed.
+function QD.drive._npc_aim_tile(target, element_id)
+    if target.kind ~= "npc" then
+        return nil
+    end
+    local element = target.reach_element or element_id
+    if element == nil then
+        return nil
+    end
+    local probe = target
+    if target.reach_element == nil then
+        probe = { kind = target.kind, id = target.id, symbol = target.symbol,
+            reach_element = element }
+    end
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(probe)
+    if tile_result ~= "ok" then
+        return nil
+    end
+    return { x = tile_x, z = tile_z, element = element }
+end
+
+-- How many server ticks the re-aim waits for the npc's projection to hold
+-- still -- one walk step is one tick; two covers the step the move was read
+-- in plus the next frame's draw.
+QD.drive._npc_reaim_settle_ticks = 2
+
+-- The one re-aim.  Answers nil when there is nothing to re-aim (the npc did
+-- not move, or is not in the pool); else (result, detail, moved_text) of the
+-- re-aimed press, `detail` already carrying the move.
+function QD.drive._npc_reaim(target, aim_tile, pressed_at, action, deadline, before_retry)
+    if aim_tile == nil then
+        return nil
+    end
+    local now = QD.drive._npc_aim_tile(target, aim_tile.element)
+    if now == nil or (now.x == aim_tile.x and now.z == aim_tile.z) then
+        return nil
+    end
+    -- The re-aim follows the COPY that moved, by its element, through
+    -- seam13's named-copy aim -- for a bare symbol too, where a fresh
+    -- projection would answer whichever copy is now nearest the centre.
+    local follow = target
+    if target.reach_element == nil then
+        follow = { kind = target.kind, id = target.id, symbol = target.symbol,
+            match = target.match, reach_element = aim_tile.element }
+    end
+    local moved = string.format("%s moved %d,%d -> %d,%d between aim and press",
+        tostring(target.symbol or ("npc " .. tostring(target.id))),
+        aim_tile.x, aim_tile.z, now.x, now.z)
+    if pressed_at then
+        QD.drive._dismiss_menu(pressed_at)
+    end
+    -- Let the step finish drawing: the pool row moves when NPC_INFO lands,
+    -- the model walks there over the frames after.
+    local last_x, last_y = nil, nil
+    QD.await({
+        level = function()
+            local r, p = api_drive.screen_position("npc", target.id)
+            if r ~= "ok" or type(p) ~= "table" then
+                return false
+            end
+            local still = p.x == last_x and p.y == last_y
+            last_x, last_y = p.x, p.y
+            return still
+        end,
+        note = "npc re-aim: the step to finish",
+    }, QD.drive._npc_reaim_settle_ticks)
+    local pos_result, pos = QD.drive._ensure_visible(follow, deadline)
+    if pos_result ~= "ok" then
+        return pos_result, moved .. "; re-aim found no pixel: " .. tostring(pos), moved
+    end
+    pos = QD.drive._aim_at_named_copy(follow, pos, deadline)
+    if before_retry then
+        local arm_result, arm_detail = before_retry()
+        if arm_result ~= "ok" then
+            return arm_result, arm_detail, moved
+        end
+    end
+    QD.note("click_minimenu: " .. moved .. "; re-aimed at " .. tostring(pos.x) .. ","
+        .. tostring(pos.y))
+    local result, detail = QD.drive._press_row(follow, pos, action, deadline)
+    if result == "ok" then
+        return result, detail, moved
+    end
+    return result, moved .. "; re-aimed at " .. tostring(pos.x) .. "," .. tostring(pos.y)
+        .. " and the press answered: " .. tostring(detail), moved
+end
+
 -- (1) project; (2) CmdBus move; (3) let a frame render, then confirm the
 -- pickset holds the element (else `covered` -- the pickset is stamped at the
 -- render-time hover point, so checking before the move is meaningless); (4)
@@ -773,6 +1143,10 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
     -- that name nothing, which is every target but QD.player._reach_retry's
     -- own-square candidate.
     pos = QD.drive._aim_at_named_copy(target, pos, deadline)
+    -- seam15: where the npc copy under this pixel stood when it was taken
+    -- (nil for a loc).
+    local aim_tile = QD.drive._npc_aim_tile(target, pos.element_id)
+    local reaimed = false
 
     -- Then press -- and if the menu that opens carries no row for this target,
     -- press again from a DIFFERENT camera.  A projection landing inside the
@@ -832,6 +1206,20 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
         end
         if result ~= "covered" then
             return result, detail
+        end
+        -- seam15: a covered press on an npc that has stepped since its aim is
+        -- re-aimed once on its new tile (banner over QD.drive._npc_reaim).
+        if not reaimed and aim_tile ~= nil then
+            local reaim_result, reaim_detail, moved = QD.drive._npc_reaim(
+                target, aim_tile, pressed_at, action, deadline, before_retry)
+            if moved ~= nil then
+                reaimed = true
+                if reaim_result ~= "covered" then
+                    return reaim_result, reaim_detail
+                end
+                detail = reaim_detail
+                aim_tile = QD.drive._npc_aim_tile(target, aim_tile.element)
+            end
         end
         attempt = attempt + 1
         if attempt > #QD.drive._frame_poses then
@@ -935,6 +1323,19 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                 for i = 1, #order do
                     local hunt_pos = order[i].pos
                     local framed_ok = true
+                    -- seam15: at the pose the camera is already at, an npc's
+                    -- recorded pixel is where it stood when that pose was
+                    -- framed; hunt around where it is drawn NOW.  Not for a
+                    -- named copy: its recorded pixel is the named-copy aim's
+                    -- own (hovered) answer, and a fresh projection is the
+                    -- RANKED copy's.
+                    if order[i].index == at_pose and target.kind == "npc"
+                        and target.reach_element == nil then
+                        local now_result, now_pos = api_drive.screen_position("npc", target.id)
+                        if now_result == "ok" and type(now_pos) == "table" then
+                            hunt_pos = QD.drive._named_copy_pos(target, now_pos)
+                        end
+                    end
                     if order[i].index ~= at_pose then
                         local frame_result, framed = QD.drive._frame(target, order[i].index, deadline)
                         framed_ok = frame_result == "ok"
@@ -1007,6 +1408,7 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
             -- pose it framed and would pay for a second search here.
             pos = QD.drive._named_copy_pos(target, framed)
             framed_pose = attempt
+            aim_tile = QD.drive._npc_aim_tile(target, pos.element_id)
             -- Remembered for the pose ranking in the last resort above; the
             -- press that follows is this pose's, so index and projection go in
             -- together and neither is re-read later.
