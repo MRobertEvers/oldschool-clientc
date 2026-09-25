@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 24
+-- @seam-count 25
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 111
-local SEAM_COUNT = 24
+local SEAM_COUNT = 25
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -4649,6 +4649,70 @@ return {
             end
             return "ok", "gate 100,440 -> " .. describe(chat_why) .. ", 200,200 -> "
                 .. describe(mid_why) .. "; wall support " .. describe(detail)
+        end)
+
+        -- SEAM press_aims_named_npc_copy (pointer.lua QD.player._npc_copy /
+        -- _click_npc_copy / QD.drive._aim_at_named_npc; seam13).  press and
+        -- talk_to took only a SYMBOL, and among Sheep Herder's three live
+        -- plaguesheep_1 copies (m40_52.spawn, two tiles apart in Brumty's
+        -- barnyard) the copy pressed was whichever App_NpcScreenPosition
+        -- ranked first: asked for each copy by slot, the press landed on the
+        -- wrong one three times of three (build/quest_gate/seam13_aim_before),
+        -- and batch sonnet-b20's herd loop kept pressing the copy wedged
+        -- against a boulder.  Graded on every live copy pressed by `{ slot = n }`
+        -- naming THAT slot in its detail ('aimed at slot N (' and 'pressed
+        -- slot N ('), and on a selector that matches no copy answering `no_row`
+        -- with the slot in the detail from both press and talk_to -- never a
+        -- press on the ranked copy.  The quest is not started, so each landed
+        -- prod answers only the content line "The sheep looks extremely ill".
+        seam("seam.press_aims_named_npc_copy", function()
+            local goto_tile = verb("player", "goto_tile")
+            local press = verb("player", "press")
+            local talk_to = verb("player", "talk_to")
+            local tiles = verb("npc", "tiles")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not press then return missing("player", "press") end
+            if not talk_to then return missing("player", "talk_to") end
+            if not tiles then return missing("npc", "tiles") end
+            local arrived, where = goto_tile(2612, 3342, 0)
+            if arrived ~= "ok" then
+                return "no_subject", "goto_tile(2612,3342) (Brumty's barnyard) -> "
+                    .. describe(arrived) .. " " .. describe(where)
+            end
+            settle(3)
+            local pool_result, pool_detail, rows = tiles("plaguesheep_1", 30)
+            if pool_result ~= "ok" or type(rows) ~= "table" or #rows < 2 then
+                return "no_subject", "need two or more plaguesheep_1 copies to aim between: "
+                    .. describe(pool_result) .. " " .. describe(pool_detail)
+            end
+            local named = {}
+            for i = 1, #rows do
+                local slot = rows[i].slot
+                local result, detail = press("plaguesheep_1", 1, 4, { slot = slot })
+                if result ~= "ok" then
+                    return result, "press({slot=" .. tostring(slot) .. "}): " .. describe(detail)
+                end
+                local text = tostring(detail)
+                if string.find(text, "aimed at slot " .. tostring(slot) .. " (", 1, true) == nil
+                    or string.find(text, "pressed slot " .. tostring(slot) .. " (", 1, true) == nil then
+                    return "refused", "asked for slot " .. tostring(slot)
+                        .. " and the detail names another copy: " .. text
+                end
+                named[#named + 1] = tostring(slot)
+                settle(2)
+            end
+            local bogus, bogus_detail = press("plaguesheep_1", 1, 4, { slot = 9999 })
+            if bogus ~= "no_row" or string.find(tostring(bogus_detail), "9999", 1, true) == nil then
+                return "refused", "press({slot=9999}) must be no_row naming 9999: "
+                    .. describe(bogus) .. " " .. describe(bogus_detail)
+            end
+            local talk_bogus, talk_detail = talk_to("plaguesheep_1", 1, { slot = 9999 })
+            if talk_bogus ~= "no_row" or string.find(tostring(talk_detail), "9999", 1, true) == nil then
+                return "refused", "talk_to({slot=9999}) must be no_row naming 9999: "
+                    .. describe(talk_bogus) .. " " .. describe(talk_detail)
+            end
+            return "ok", "pressed slots " .. table.concat(named, ", ") .. " each by name; "
+                .. describe(bogus_detail)
         end)
 
         -- SEAM settle_modal_mount (pointer.lua QD.player._settle_after_click's

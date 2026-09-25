@@ -376,6 +376,20 @@ function QD.drive._target_tile(target)
     if rows_result ~= "ok" then
         return rows_result, nil
     end
+    -- SEAM driver-press-cannot-aim-one-npc-copy (seam13): an npc target that
+    -- NAMES its copy (press/talk_to's `{ at = }` / `{ slot = }` selector,
+    -- QD.player._npc_copy) stands where that copy stands, never where the
+    -- nearest copy of its id does: the camera turns to it, the step-off steps
+    -- off it.  A named copy that left the pool is `not_found`, not the next
+    -- copy along -- the selector's whole contract is that it never falls back.
+    if target.kind == "npc" and target.reach_element ~= nil then
+        for i = 1, #rows do
+            if rows[i].element_id == target.reach_element then
+                return "ok", rows[i].x, rows[i].z
+            end
+        end
+        return "not_found", nil
+    end
     local first = nil
     for i = 1, #rows do
         local row = rows[i]
@@ -2585,17 +2599,27 @@ function QD.player._refusal_since(since)
     return found
 end
 
-function QD.player.talk_to(npc, op)
+function QD.player.talk_to(npc, op, opts)
     op = op or 1
     local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
     if not target then
         return sym_result, sym_name
     end
+    -- The npc selector (seam13): `{ at = {x, z} }` / `{ slot = n }` names the
+    -- copy; nil keeps the ranked copy exactly as before.
+    local copy_text = nil
+    if opts ~= nil then
+        local copy_result, copy_detail = QD.player._npc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, "talk_to " .. tostring(npc) .. ": " .. tostring(copy_detail)
+        end
+        copy_text = copy_detail
+    end
     -- BEFORE the click: the page the settle compares against has to be the
     -- one that was up when the player pressed, not the one the press has
     -- already begun to replace.  See _settle_after_click's fourth arm.
     local before_kind, before_text = QD.player._chat_page()
-    local click_result, click = QD.drive.click_minimenu(target, op)
+    local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
         return click_result, click
     end
@@ -2661,6 +2685,10 @@ function QD.player.talk_to(npc, op)
             note = "talk_to: the page the npc still owes",
         }, QD.player._talk_page_ticks)
         kind = QD.chat.kind()
+    end
+    -- A talk aimed at a named copy says which copy it talked to, first.
+    if copy_text ~= nil then
+        detail = "talked to " .. copy_text .. "; " .. tostring(detail)
     end
     if kind ~= "none" then
         return "ok", detail .. ": dialogue " .. kind .. " is up"
@@ -4933,7 +4961,138 @@ function QD.drive._named_copy_pos(target, pos)
     if pos.element_id == target.reach_element then
         return pos
     end
+    -- An NPC copy is not a tie between squares a tile apart the way a loc's
+    -- own-square copies are: the three plaguesheep_1 copies stand two tiles
+    -- from each other, and the ranked copy's pixel is a whole body away from
+    -- the named one.  So the npc rewrite also MOVES the pixel, to where the
+    -- named copy has to be drawn (QD.drive._named_npc_estimate) -- still no
+    -- frame, no probe and no packet: a pool read and the player's projection.
+    if target.kind == "npc" then
+        local estimate = QD.drive._named_npc_estimate(target, pos)
+        return estimate
+    end
     return { x = pos.x, y = pos.y, element_id = target.reach_element }
+end
+
+-- SEAM driver-press-cannot-aim-one-npc-copy (seam13) -- WHERE THE NAMED NPC
+-- COPY IS DRAWN, without a C verb that projects one element.
+--
+-- api_drive.screen_position projects ONE copy of an npc id: the one
+-- App_NpcScreenPosition ranks nearest the viewport centre.  Among three
+-- identical sheep that is whichever the camera happens to favour, so the
+-- pixel it answers is the wrong body whenever the caller named another copy.
+-- Two things are known for free, though: where the PLAYER is drawn
+-- (screen_position("player", -1), the same 60-unit mid-body height the npc
+-- projection uses), and -- because every caller has just turned the camera's
+-- YAW onto the named copy (QD.drive._frame through _target_tile, or
+-- QD.drive._face_named_npc) -- that the named copy stands straight AHEAD of
+-- the player, on the vertical screen line through him.  Its height on that
+-- line scales with how far ahead it is; the ranked copy's own projection
+-- gives the scale (screen pixels per tile of forward distance) whenever the
+-- ranked copy is itself ahead of the player by half a tile or more.  With no
+-- scale the estimate is the player's own pixel, and the hunt's ladder climbs
+-- from there (QD.drive._hover_dys: up to 192 px above it).
+--
+-- Answers { x, y, element_id = the named element } and a short how-string.
+-- Never a pixel of another element: the press that follows matches its menu
+-- row on this element id alone (_press_row), so a wrong pixel costs a
+-- `covered` that names the copy, never a press on the ranked one.
+function QD.drive._named_npc_estimate(target, pos)
+    local fallback = { x = pos.x, y = pos.y, element_id = target.reach_element }
+    local rows_result, rows = api_drive.npcs(0)
+    local player_result, player = api_drive.player_tile()
+    local drawn_result, drawn = api_drive.screen_position("player", -1)
+    if rows_result ~= "ok" or type(rows) ~= "table" or player_result ~= "ok"
+        or type(player) ~= "table" or drawn_result ~= "ok" or type(drawn) ~= "table" then
+        return fallback, "no reading (the ranked copy's pixel)"
+    end
+    local named, ranked = nil, nil
+    for i = 1, #rows do
+        if rows[i].element_id == target.reach_element then
+            named = rows[i]
+        end
+        if rows[i].element_id == pos.element_id then
+            ranked = rows[i]
+        end
+    end
+    if named == nil then
+        return fallback, "the named copy left the pool"
+    end
+    local nx = named.x - player.x
+    local nz = named.z - player.z
+    local ahead = math.sqrt(nx * nx + nz * nz)
+    if ahead == 0 then
+        return { x = drawn.x, y = drawn.y, element_id = target.reach_element },
+            "on the player's own tile"
+    end
+    if ranked ~= nil then
+        local rx = ranked.x - player.x
+        local rz = ranked.z - player.z
+        local ranked_ahead = (rx * nx + rz * nz) / ahead
+        local per_tile = (drawn.y - pos.y) / math.max(ranked_ahead, 0.5)
+        if ranked_ahead >= 0.5 and per_tile > 0 then
+            return {
+                x = drawn.x,
+                y = math.floor(drawn.y - per_tile * ahead + 0.5),
+                element_id = target.reach_element,
+            }, string.format("%.1f tile(s) ahead at %.0f px/tile", ahead, per_tile)
+        end
+    end
+    return { x = drawn.x, y = drawn.y, element_id = target.reach_element },
+        string.format("%.1f tile(s) ahead, no scale (the player's pixel)", ahead)
+end
+
+-- Turn the camera's YAW onto the named npc copy, keeping its pitch and zoom,
+-- and answer where the ranked copy projects afterwards (the estimate's scale
+-- reference), or nil when nothing could be turned.  Pitch and zoom are kept
+-- because they are what put the target on screen in the first place
+-- (_ensure_visible answered `ok` from them); the yaw is the only thing that
+-- decides whether the named copy stands on the player's vertical line.
+--
+-- Two frames are awaited, not one: drive.camera writes the orbit angles and
+-- the eye the projection subtracts is rebuilt by the follow step on the NEXT
+-- frame (QD.drive._ensure_visible's banner), so the first frame after the
+-- write can still project against the old eye.
+function QD.drive._face_named_npc(target, deadline)
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
+    if tile_result ~= "ok" then
+        return nil
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" or type(player) ~= "table" then
+        return nil
+    end
+    local yaw = QD.drive._yaw_towards(tile_x - player.x, tile_z - player.z)
+    if yaw == nil then
+        return nil
+    end
+    local pitch = QD.drive._frame_poses[1].pitch
+    local zoom = QD.drive._frame_poses[1].zoom
+    local pose_result, pose = QD.drive._camera_pose()
+    if pose_result == "ok" and type(pose) == "table" and pose.pitch and pose.zoom then
+        pitch = pose.pitch
+        zoom = pose.zoom
+    end
+    if api_drive.camera(yaw, pitch, zoom) ~= "ok" then
+        return nil
+    end
+    local polls = 0
+    QD.await({
+        level = function()
+            polls = polls + 1
+            if polls <= 2 then
+                return false
+            end
+            local r = api_drive.screen_position(target.kind, target.id)
+            return r == "ok"
+        end,
+        note = "click_minimenu: facing the named npc copy",
+    }, deadline or 3)
+    local projected_result, projected = api_drive.screen_position(target.kind, target.id)
+    if projected_result ~= "ok" then
+        return nil
+    end
+    return projected
 end
 
 -- The same rewrite, plus ONE pixel hunt for the named copy.
@@ -4949,8 +5108,14 @@ end
 -- When the hunt finds nothing the aimed pixel is pressed anyway, and it
 -- answers `covered` naming the element it was looking for -- which is the
 -- reading the next candidate needs.  `target.reach_element` is set by
--- QD.player._reach_retry alone and cleared the moment its press is taken.
+-- QD.player._reach_retry (a loc's own-square copy) and by the npc selector of
+-- press/talk_to (QD.player._npc_copy + _click_npc_copy, seam13), and cleared the moment
+-- their press is taken.
 function QD.drive._aim_at_named_copy(target, pos, deadline)
+    if target.kind == "npc" and target.reach_element ~= nil and type(pos) == "table"
+        and pos.element_id ~= target.reach_element then
+        return QD.drive._aim_at_named_npc(target, pos, deadline)
+    end
     local aimed = QD.drive._named_copy_pos(target, pos)
     if aimed == pos then
         return pos
@@ -4967,6 +5132,54 @@ function QD.drive._aim_at_named_copy(target, pos, deadline)
         .. " -- " .. tostring(why))
     return aimed
 end
+
+-- The npc half of the aim (seam13): the projection framed the RANKED copy and
+-- the caller named another.  Turn the yaw onto the named copy (which may make
+-- it the ranked one outright -- then its own projection is the pixel and
+-- nothing is hunted), estimate where it is drawn, and hunt from just below
+-- that estimate; if nothing there holds it, hunt around the ranked copy's
+-- pixel too (two copies side by side can overlap on screen).  Each hunt has
+-- its own probe budget.  When neither finds it the ESTIMATE is pressed, and
+-- _press_row answers `covered` naming the element -- never the ranked copy.
+function QD.drive._aim_at_named_npc(target, pos, deadline)
+    local faced = QD.drive._face_named_npc(target, deadline)
+    if type(faced) == "table" then
+        pos = faced
+        if pos.element_id == target.reach_element then
+            QD.note("click_minimenu: facing the named copy (element "
+                .. tostring(target.reach_element) .. ") made it the projected one")
+            return pos
+        end
+    end
+    local estimate, how = QD.drive._named_npc_estimate(target, pos)
+    local below = { x = estimate.x, y = estimate.y + QD.drive._named_npc_hunt_below,
+        element_id = estimate.element_id }
+    local hovered, why = QD.drive._hover_onto(target, below, deadline)
+    if hovered then
+        QD.note("click_minimenu: aimed at the named npc copy (element "
+            .. tostring(target.reach_element) .. ", estimate " .. tostring(how)
+            .. ") -- " .. tostring(why))
+        return hovered
+    end
+    local around = { x = pos.x, y = pos.y, element_id = target.reach_element }
+    local hovered2, why2 = QD.drive._hover_onto(target, around, deadline)
+    if hovered2 then
+        QD.note("click_minimenu: aimed at the named npc copy (element "
+            .. tostring(target.reach_element) .. ") beside the projected element "
+            .. tostring(pos.element_id) .. " -- " .. tostring(why2))
+        return hovered2
+    end
+    QD.note("click_minimenu: the projection framed element " .. tostring(pos.element_id)
+        .. " and this press must name " .. tostring(target.reach_element)
+        .. " -- estimate (" .. tostring(how) .. "): " .. tostring(why)
+        .. "; around the projected copy: " .. tostring(why2))
+    return estimate
+end
+
+-- How far below the estimated pixel the named-npc hunt starts, in px: the
+-- ladder (QD.drive._hover_dys) only climbs, and the estimate is a guess in
+-- both directions.  Two rungs.
+QD.drive._named_npc_hunt_below = 32
 
 -- Walk the loc's other approach tiles and press again, while the engine keeps
 -- saying the player cannot reach it.
@@ -5729,6 +5942,117 @@ end
 -- CLICK_REFUSAL_LINES sentence in the window answers `refused` with the
 -- server's own words, whatever the tiles did.
 
+-- ==========================================================================
+-- SEAM driver-press-cannot-aim-one-npc-copy (seam13) -- THE NPC SELECTOR.
+--
+-- press/talk_to took only a SYMBOL, and the copy a symbol presses is the one
+-- App_NpcScreenPosition ranks nearest the viewport centre.  Sheep Herder's
+-- plaguesheep_1 has three live copies two tiles apart (m40_52.spawn), and a
+-- herd loop that stood behind one copy pressed another: batch sonnet-b20's
+-- last row pressed slot 99 at 2610,3347 -- a copy wedged against a boulder --
+-- from a tile chosen to push a different one.  Measured before this seam
+-- (build/quest_gate/seam13_aim_before): asked for each of three copies by slot,
+-- the press landed on the wrong copy all three times; asked by tile, one of
+-- three by luck.
+--
+-- `{ slot = n }` names the copy by its SERVER SLOT (the `slot` of
+-- t.npc.tiles / press's own detail); `{ at = {x, z[, level]} }` (or
+-- `{ at = {x = , z = } }`) by the tile it stands on NOW.  The copy's CLIENT
+-- ELEMENT ID is what the press is aimed by (target.reach_element -- the
+-- named-copy machinery the loc reach retry already uses), so the menu row the
+-- press takes names that entity and no other (_press_row).  A selector that
+-- matches no live copy answers `no_row` naming it and every live copy; it
+-- NEVER falls back to the ranked copy, because a press on the wrong sheep is
+-- exactly the failure this exists to end.
+--
+-- A malformed selector (not a table, both keys or neither, a non-number) is
+-- the caller's bug and raises: it is not a world state, and a row that read
+-- `no_row` for it would send the author looking for a missing sheep.
+function QD.player._npc_copy(target, opts)
+    assert(type(opts) == "table", "npc selector must be a table: { at = {x, z} } or { slot = n }")
+    local at = opts.at
+    local slot = opts.slot
+    assert(at ~= nil or slot ~= nil, "npc selector names no copy: give at = {x, z} or slot = n")
+    assert(at == nil or slot == nil, "npc selector names a copy twice: give at OR slot, not both")
+    local want_x, want_z, want_level
+    if at ~= nil then
+        assert(type(at) == "table", "npc selector at must be {x, z[, level]}")
+        want_x = at.x or at[1]
+        want_z = at.z or at[2]
+        want_level = at.level or at[3]
+        assert(type(want_x) == "number", "npc selector at has no x")
+        assert(type(want_z) == "number", "npc selector at has no z")
+    else
+        assert(type(slot) == "number", "npc selector slot must be a number")
+    end
+    local rows, count = QD.player._npc_rows(target)
+    if rows == nil then
+        return count, "the npc pool did not answer"
+    end
+    local want
+    if at ~= nil then
+        want = string.format("at %d,%d", want_x, want_z)
+        if want_level ~= nil then
+            want = want .. "," .. tostring(want_level)
+        end
+    else
+        want = "slot " .. tostring(slot)
+    end
+    local matches = {}
+    for element, row in pairs(rows) do
+        local hit
+        if at ~= nil then
+            hit = row.x == want_x and row.z == want_z
+                and (want_level == nil or row.level == want_level)
+        else
+            hit = row.slot == slot
+        end
+        if hit then
+            matches[#matches + 1] = { element = element, row = row }
+        end
+    end
+    if #matches == 0 then
+        return "no_row", "no live copy of " .. tostring(target.symbol or target.id)
+            .. " " .. want .. " (live: " .. QD.player._npc_rows_text(rows)
+            .. ") -- nothing pressed; a selector never falls back to another copy"
+    end
+    -- Two copies on one tile: the lowest slot, and the detail says so.
+    table.sort(matches, function(a, b) return a.row.slot < b.row.slot end)
+    local chosen = matches[1]
+    local text = "slot " .. tostring(chosen.row.slot) .. " (element "
+        .. tostring(chosen.element) .. ") at " .. tostring(chosen.row.x) .. ","
+        .. tostring(chosen.row.z)
+    if #matches > 1 then
+        text = text .. " [" .. tostring(#matches) .. " copies " .. want
+            .. "; the lowest slot taken]"
+    end
+    target.reach_element = chosen.element
+    return "ok", text
+end
+
+-- click_minimenu for a target that may name its copy: the named element rides
+-- on the target for exactly this press (QD.drive._aim_at_named_copy, the pose
+-- loop and the hunt all read it) and is cleared the moment the press is taken,
+-- whatever it answered.  A non-ok answer is prefixed with the copy it was
+-- for, so a `covered` names the copy and not only its element id.
+function QD.player._click_npc_copy(target, op, copy_text)
+    if copy_text == nil then
+        return QD.drive.click_minimenu(target, op)
+    end
+    local click_result, click = QD.drive.click_minimenu(target, op)
+    local named = target.reach_element
+    target.reach_element = nil
+    if click_result ~= "ok" then
+        return click_result, "the copy named " .. copy_text .. ": " .. tostring(click)
+    end
+    -- _press_row matched its menu row on the pressed element and every path
+    -- above rewrites that element to the named one, so a press that answered
+    -- `ok` for any other copy is this file's bug, not the world's.
+    assert(type(click) ~= "table" or click.element_id == named,
+        "named npc press landed on another element")
+    return click_result, click
+end
+
 -- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID
 -- the press identifies a copy by.  Returns (rows, count), or (nil, result)
 -- when the pool did not answer.
@@ -5936,7 +6260,7 @@ QD.player._press_step_ticks = 8
 -- it), and only a press with a say and no step reports the say alone -- `ok`,
 -- because it is, with "did not move" in the same sentence so the caller can
 -- read the direction as walled rather than the click as lost.
-function QD.player.press(npc, op, ticks)
+function QD.player.press(npc, op, ticks, opts)
     op = op or 1
     ticks = ticks or QD.player._press_step_ticks
     local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
@@ -5951,9 +6275,21 @@ function QD.player.press(npc, op, ticks)
     if before_count == 0 then
         return "no_row", label .. "no copy of it is in the npc pool"
     end
+    -- The npc selector (seam13): `{ at = {x, z} }` / `{ slot = n }` names the
+    -- copy this press is for; a selector that matches no live copy answers
+    -- `no_row` naming it and presses NOTHING.
+    local copy_text = nil
+    if opts ~= nil then
+        local copy_result, copy_detail = QD.player._npc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, label .. tostring(copy_detail)
+        end
+        copy_text = copy_detail
+        label = label .. "aimed at " .. copy_text .. "; "
+    end
     local before_kind, before_text = QD.player._chat_page()
     local serial_result, since = api_drive.message_serial()
-    local click_result, click = QD.drive.click_minimenu(target, op)
+    local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
         return click_result, click
     end
