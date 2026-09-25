@@ -474,7 +474,7 @@ return {
             local pressed = 0
             local last_detail = "no press issued"
             local history = {}
-            local outcome_counts = { stepped = 0, walled = 0, out_of_range = 0, lost = 0, no_row = 0, other = 0 }
+            local outcome_counts = { stepped = 0, walled = 0, out_of_range = 0, lost = 0, no_row = 0, wrong_side = 0, other = 0 }
             local bit_result, bit_value = t.var.varbit(def.bitvar)
 
             -- Tracked by SERVER SLOT (seam13's selector), never a tile --
@@ -617,7 +617,74 @@ return {
                 end
 
                 local walk_result, walk_detail = t.player.walk_to(want_x, want_z, 12)
-                local press_result, press_detail = t.player.press(def.npc, 1, 8, { slot = slot })
+
+                -- RETRY after 87ec0250d (npc wander parity): with the
+                -- sheep now wandering on its own between presses, a
+                -- straight walk_to the intended stand tile can stop
+                -- short of it (a fenced row on the direct line) and
+                -- leave the player on the SAME side as the sheep instead
+                -- of the opposite one -- t.player.press then aims off the
+                -- ACTUAL player position, so the press pushes the sheep
+                -- the WRONG way. That is exactly what drove
+                -- plaguesheep_3 forty tiles off its route (2592,3383 ->
+                -- 2552,3392 over presses 86-113, this queue row's own
+                -- measurement). Check the actual landed side against the
+                -- want tile before pressing; want_x/want_z always differ
+                -- from x/z by exactly 1 on the axis in play (every
+                -- herd_plan_move/reroute arm above returns that shape).
+                local reached = true
+                do
+                    local tile_result, tile = t.world.tile()
+                    if tile_result == "ok" then
+                        if axis == "x" then
+                            reached = (want_x < x) == (tile.x < x)
+                        elseif axis == "z" then
+                            reached = (want_z < z) == (tile.z < z)
+                        end
+                    end
+                end
+                if not reached then
+                    -- Go around: step out 3 tiles on the CROSS axis
+                    -- (try both directions -- the obstacle's side is not
+                    -- known ahead of time), then back onto the want
+                    -- tile, and recheck.
+                    for _, cross_off in ipairs({ -3, 3 }) do
+                        local around_x, around_z
+                        if axis == "x" then
+                            around_x, around_z = want_x, z + cross_off
+                        else
+                            around_x, around_z = x + cross_off, want_z
+                        end
+                        t.player.walk_to(around_x, around_z, 10)
+                        walk_result, walk_detail = t.player.walk_to(want_x, want_z, 10)
+                        local tile_result2, tile2 = t.world.tile()
+                        if tile_result2 == "ok" then
+                            if axis == "x" then
+                                reached = (want_x < x) == (tile2.x < x)
+                            elseif axis == "z" then
+                                reached = (want_z < z) == (tile2.z < z)
+                            end
+                        end
+                        if reached then
+                            break
+                        end
+                    end
+                end
+
+                local press_result, press_detail
+                if not reached then
+                    -- Pressing from here would push the sheep away from
+                    -- the goal (the bug this retry fixes) -- skip the
+                    -- press this attempt instead of landing a harmful
+                    -- one; the stuck-streak machinery below still
+                    -- advances (and eventually resyncs to a fresher live
+                    -- copy) on a non-"stepped" outcome.
+                    press_result, press_detail = "wrong_side", string.format(
+                        "walk stopped short of the %s stand tile %d,%d (walk=%s(%s)) -- pressing from the wrong side would push %s away from the goal, skipped",
+                        desc, want_x, want_z, tostring(walk_result), tostring(walk_detail), def.npc)
+                else
+                    press_result, press_detail = t.player.press(def.npc, 1, 8, { slot = slot })
+                end
                 pressed = pressed + 1
 
                 local moved_x, moved_z = string.match(press_detail or "", "npc slot %d+ %d+,%d+ %-> (%d+),(%d+)")
@@ -632,6 +699,8 @@ return {
                     outcome = "lost"
                 elseif press_result == "no_row" then
                     outcome = "no_row"
+                elseif press_result == "wrong_side" then
+                    outcome = "wrong_side"
                 else
                     outcome = "other"
                 end
@@ -721,14 +790,14 @@ return {
             -- its detail either way.
             local herded = bit_result == "ok" and bit_value ~= 0
             t.check("herd.sheep" .. def.id .. "_in_pen", true,
-                string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d) -- %s",
+                string.format("herded=%s, %s=%s after %d press(es) (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d) -- %s",
                     tostring(herded), def.bitvar, tostring(bit_value), pressed,
-                    outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row,
+                    outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, outcome_counts.wrong_side,
                     table.concat(history, " || ")))
             if not herded then
                 t.blocked(string.format(
-                    "diseased_sheep.rs2 [label,prod_sheep]: %s never reached sheepherder_pen_gate (2592-2594,3360-3363) after %d presses (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d) -- last attempt: %s -- driven with the seam13 npc selector (t.player.press(..., { slot = n })), so every press named the exact live copy it aimed at; this is a real routing seam in the staged east/north/west/south plan (herd_plan_move), not the multi-copy ambiguity the previous round hit. Read the per-press ledger above (the full history) and build/author_state/sonnet-b21/sheepherder.author.progress.md for the trail.",
-                    def.npc, pressed, outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, last_detail))
+                    "diseased_sheep.rs2 [label,prod_sheep]: %s never reached sheepherder_pen_gate (2592-2594,3360-3363) after %d presses (stepped=%d walled=%d out_of_range=%d lost=%d no_row=%d wrong_side=%d) -- last attempt: %s -- driven with the seam13 npc selector (t.player.press(..., { slot = n })) plus a wrong-side check (RETRY after 87ec0250d, the npc wander-parity landing) that skips a press whenever the walk stopped short of the intended stand tile, so a wrong_side count above 0 names attempts the loop deliberately declined rather than a press that ran and did nothing; this is a real routing seam in the staged east/north/west/south plan (herd_plan_move) or the go-around retry, not the multi-copy ambiguity seam13 fixed. Read the per-press ledger above (the full history) and build/author_state/sonnet-b22/sheepherder.author.progress.md for the trail.",
+                    def.npc, pressed, outcome_counts.stepped, outcome_counts.walled, outcome_counts.out_of_range, outcome_counts.lost, outcome_counts.no_row, outcome_counts.wrong_side, last_detail))
                 return
             end
         end
