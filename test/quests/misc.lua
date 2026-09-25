@@ -365,15 +365,36 @@ return {
         -- action (oploc1 -> oploc3 resume, woodcut.rs2), and the approval
         -- read proves it actually landed before the grind cheat is called.
         t.exec("goto-leif", t.player.goto_tile, 2550, 3866, 0)
-        t.exec("chopMaple", t.player.click_loc, "mapletree", 1)
         -- Level 45 / bronze axe measures ~6% success per swing (4-tick
         -- cadence, misc_debug.rs2's own loop: 1477-1520 swings for 96
-        -- successes across two runs) -- 300 ticks (~75 rolls) has ~15%
-        -- odds of landing fewer than 3 successes on bad luck alone (run 1
-        -- hit exactly that and read 0 after the full 300-tick wait), so
-        -- 900 ticks (~225 rolls, expected ~14 successes) is the real margin
-        -- rather than a re-roll of the same coin flip.
-        t.exec("approval.real_chops", t.var.await_server, "misc_approval", 3, 900)
+        -- successes across two runs). A single click_loc starts a
+        -- repeating chop action (oploc1 -> oploc3 resume, woodcut.rs2)
+        -- that keeps swinging on its own -- but get_logs rolls a 1-in-8
+        -- deplete chance on EVERY successful swing, and a deplete stops
+        -- the resume outright (loc_change to the stump stage, no further
+        -- p_oploc(3) is issued): after the npc wander parity landing moved
+        -- the shared RNG stream (seam15, 2026-09-25), the very tree being
+        -- chopped can now fall before three approval points land -- a
+        -- single flat 900-tick await read 2 of 3 and then sat idle for the
+        -- rest of the wait, because the action had stopped, not slowed.
+        -- A longer wait cannot fix a stopped action, so re-find and
+        -- re-click "mapletree" (the symbol resolves to whichever live
+        -- copy is nearest -- Leif's grove holds a dozen within one map
+        -- square, m39_60.jl2, so a depleted tree is never the only one
+        -- left) each time the current session ends short of the target,
+        -- awaiting one more approval point than is already banked.
+        local chop_attempts = 0
+        local approval_result, approval_value = t.var.server("misc_approval")
+        while (approval_result ~= "ok" or (approval_value or 0) < 3) and chop_attempts < 10 do
+            chop_attempts = chop_attempts + 1
+            local before_result, before_value = t.var.server("misc_approval")
+            t.exec("chopMaple-" .. chop_attempts, t.player.click_loc, "mapletree", 1)
+            t.var.await_server("misc_approval", (before_value or 0) + 1, 250)
+            approval_result, approval_value = t.var.server("misc_approval")
+        end
+        t.check("approval.real_chops", approval_result == "ok" and (approval_value or 0) >= 3,
+            "var.server(misc_approval) after " .. tostring(chop_attempts) .. " chopMaple attempt(s) -> "
+                .. tostring(approval_result) .. " " .. tostring(approval_value))
 
         -- ::misc_earnapproval is the sanctioned GRIND fast-forward for
         -- exactly this loop (docs/QUEST_SERVER_CHEATS.md) -- it walks the
