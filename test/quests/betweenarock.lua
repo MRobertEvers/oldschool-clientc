@@ -20,11 +20,17 @@
 -- The four schematic pieces: Dondakan (from firing the golden cannonball),
 -- the lore book's last page (read the book a SECOND time, at stage 80 --
 -- entirely missing from the scaffold), the Dwarven Engineer, and Khorvak.
--- "Assemble" is a single opheld1 use on the held schematic1 fragment
--- (betweenarock_schematics.rs2's own documented simplification of the
--- native drag/rotate puzzle interface, not a puzzle this engine can drive) --
--- the scaffold's own unresolved PuzzleWrapperStep marker is resolved by
--- that comment, not a missing verb.
+-- "Assemble" opens the REAL per-piece 2D position puzzle (interfaces
+-- 113/114, betweenarock_schematics.rs2's parity1e rewrite -- content no
+-- longer click-solves it in one opheld1 press): each piece is scrambled
+-- off its border target on open, and dwarfrock_puzzle_dx{1,2,3}/dy{1,2,3}
+-- (pack/varp.alloc, no client copy) are read back through t.var.server's
+-- server-content fallback (landed 03947ac3a) and driven within the 4px
+-- tolerance with the dr_move_* buttons -- see the block below for the
+-- worked pattern (tools/quest_gate/_scratch/parity1e_betweenarock_puzzle
+-- .lua proved the mechanic first). The scaffold's own unresolved
+-- PuzzleWrapperStep marker is resolved by driving it, not narrating past
+-- it.
 --
 -- The Arzinian Avatar's category is chosen by the player's strongest
 -- combat stat (dwarfrock_realm.rs2's own dwarfrock_spawn_avatar) -- this
@@ -403,36 +409,128 @@ return {
             "inv.count(dwarf_rock_schematic3) -> " .. tostring(schematic3_result) .. " " .. tostring(schematic3_count))
 
         -- ============================================================
-        -- Assemble the four schematic pieces (opheld1 on schematic1 --
-        -- betweenarock_schematics.rs2's documented one-Use simplification
-        -- of the native drag/rotate puzzle interface).
+        -- Assemble the four schematic pieces: opheld1 on the held
+        -- schematic1 fragment opens the REAL per-piece 2D position
+        -- puzzle (interfaces 113/114, betweenarock_schematics.rs2's
+        -- parity1e rewrite) -- no more one-click auto-solve. Each piece
+        -- is knocked off its border target by a random 12-40px offset
+        -- per axis on open (dwarfrock_puzzle_dx{1,2,3}/dy{1,2,3},
+        -- betweenarock.varp, scope=temp, allocated in pack/varp.alloc
+        -- above the client wire's addressable ceiling), readable
+        -- through t.var.server since 03947ac3a landed the driver's
+        -- server-content fallback for that shape of varp. The move step
+        -- and the solve tolerance are both 4px (betweenarock.constant's
+        -- dwarfrock_puzzle_step/tolerance), so floor(|delta|/4) clicks
+        -- of the axis button that reduces |delta| toward zero always
+        -- lands the piece within tolerance (the remainder is always
+        -- 0-3, never >= the 4px tolerance) -- read each axis back and
+        -- react to the real value, never force it with ::setvar (trap
+        -- 16: solving the puzzle IS the quest's own work).
+        -- dwarfrock_schematics_check_solved (the .rs2's own proc)
+        -- re-checks all three pieces after every single nudge, so the
+        -- solve fires on whichever piece's last correcting click
+        -- happens to complete the set -- no separate "confirm" press.
         -- ============================================================
+        -- No t.shot/t.check (auto-shooting) rows while this modal is
+        -- open: interfaces/dwarf_rock_schematics.if's own
+        -- dwarf_rock_black_background is a literal `type=3 fill=yes`
+        -- 512x334 BLACK rectangle at the interface's own origin, so the
+        -- top-left 64x64 corner of EVERY frame this modal is mounted
+        -- reads solid black and matches gate.py's pre_login fingerprint
+        -- (measured distance 2.18, threshold 12.0) -- a real content
+        -- shape, not a boot stall, and t.drive.camera cannot change a
+        -- fully opaque 2D modal's own fill. Evidence for this section is
+        -- the real var/inv reads below (t.step, no shot) instead; the
+        -- section's one shot is taken once the modal is closed again.
         local assemble_result, assemble_detail = t.player.inv_op("dwarf_rock_schematic1", 1)
-        t.check("assembleSchematic", assemble_result == "ok", "inv_op(dwarf_rock_schematic1,1) -> " .. tostring(assemble_result) .. " " .. tostring(assemble_detail))
-        -- p_delay(1) between the two mesbox calls (betweenarock_schematics.rs2)
-        -- means the second page is not ready the instant the first is
-        -- dismissed -- same gap as the cannonball shot above; split and
-        -- let the second page actually mount before reading it.
-        t.exec("assembleSchematic-dialog-1", t.chat.play, {
-            "mesbox:You lay the four schematic fragments out",
-        })
-        t.ticks(2)
-        t.exec("assembleSchematic-dialog-2", t.chat.play, {
-            "mesbox:That's it! It all makes sense now!",
-        })
+        t.step("assembleSchematic", assemble_result == "ok" and "PASS" or "FAIL",
+            "inv_op(dwarf_rock_schematic1,1) -> " .. tostring(assemble_result) .. " " .. tostring(assemble_detail))
+        local puzzle_open_result, puzzle_open_detail = t.ui.await_open("dwarf_rock_schematics")
+        t.step("schematicPuzzle-open", puzzle_open_result == "ok" and "PASS" or "FAIL",
+            "ui.await_open(dwarf_rock_schematics) -> " .. tostring(puzzle_open_result) .. " " .. tostring(puzzle_open_detail))
+
+        local sel1_r, w_select1 = t.ui.widget("dwarf_rock_schematics_control:dr_select1")
+        local sel2_r, w_select2 = t.ui.widget("dwarf_rock_schematics_control:dr_select2")
+        local sel3_r, w_select3 = t.ui.widget("dwarf_rock_schematics_control:dr_select3")
+        local up_r, w_up = t.ui.widget("dwarf_rock_schematics_control:dr_move_up")
+        local down_r, w_down = t.ui.widget("dwarf_rock_schematics_control:dr_move_down")
+        local left_r, w_left = t.ui.widget("dwarf_rock_schematics_control:dr_move_left")
+        local right_r, w_right = t.ui.widget("dwarf_rock_schematics_control:dr_move_right")
+        t.step("schematicPuzzle-widgets",
+            (sel1_r == "ok" and sel2_r == "ok" and sel3_r == "ok"
+                and up_r == "ok" and down_r == "ok" and left_r == "ok" and right_r == "ok")
+                and "PASS" or "FAIL",
+            string.format("select1=%s select2=%s select3=%s up=%s down=%s left=%s right=%s",
+                tostring(sel1_r), tostring(sel2_r), tostring(sel3_r),
+                tostring(up_r), tostring(down_r), tostring(left_r), tostring(right_r)))
+
+        -- dr_move_left/right subtract/add ^dwarfrock_puzzle_step from dx;
+        -- dr_move_up/down subtract/add it from dy
+        -- (dwarfrock_puzzle_nudge) -- so a positive delta needs the
+        -- "decreasing" button (left / up) and a negative one needs the
+        -- "increasing" button (right / down).
+        local puzzle_pieces = {
+            { n = 1, select = w_select1, dx = "dwarfrock_puzzle_dx1", dy = "dwarfrock_puzzle_dy1" },
+            { n = 2, select = w_select2, dx = "dwarfrock_puzzle_dx2", dy = "dwarfrock_puzzle_dy2" },
+            { n = 3, select = w_select3, dx = "dwarfrock_puzzle_dx3", dy = "dwarfrock_puzzle_dy3" },
+        }
+        for _, piece in ipairs(puzzle_pieces) do
+            t.ui.invoke(piece.select, 1)
+            local before_dx_result, before_dx = t.var.server(piece.dx)
+            local before_dy_result, before_dy = t.var.server(piece.dy)
+            if before_dx_result == "ok" and before_dx ~= 0 then
+                local dx_clicks = math.floor(math.abs(before_dx) / 4)
+                local dx_widget = before_dx > 0 and w_left or w_right
+                for _ = 1, dx_clicks do
+                    t.ui.invoke(dx_widget, 1)
+                end
+            end
+            if before_dy_result == "ok" and before_dy ~= 0 then
+                local dy_clicks = math.floor(math.abs(before_dy) / 4)
+                local dy_widget = before_dy > 0 and w_up or w_down
+                for _ = 1, dy_clicks do
+                    t.ui.invoke(dy_widget, 1)
+                end
+            end
+            -- if_click queues a packet the embedded transport only
+            -- delivers on a server tick (net_transport_embed.c) --
+            -- QUEST_AUTHORING.md's own budget note and the mourningsend
+            -- parti still-minigame precedent both tick between a batch
+            -- of ui.invoke presses and the read that grades them;
+            -- reading right after the raw clicks (no tick at all)
+            -- measured as a stale before==after read on run 1.
+            t.ticks(2)
+            local after_dx_result, after_dx = t.var.server(piece.dx)
+            local after_dy_result, after_dy = t.var.server(piece.dy)
+            t.step("schematicPuzzle-piece" .. piece.n,
+                (after_dx_result == "ok" and after_dy_result == "ok"
+                    and math.abs(after_dx) <= 4 and math.abs(after_dy) <= 4)
+                    and "PASS" or "FAIL",
+                string.format("select dr_select%d, move piece %d: dx %s -> %s, dy %s -> %s (tolerance 4)",
+                    piece.n, piece.n, tostring(before_dx), tostring(after_dx), tostring(before_dy), tostring(after_dy)))
+        end
+
+        local solved_result, solved_value = t.var.server("dwarfrock_schematics_solved")
+        t.step("schematicPuzzle-solved", (solved_result == "ok" and solved_value == 1) and "PASS" or "FAIL",
+            "var.server(dwarfrock_schematics_solved) -> " .. tostring(solved_result) .. " " .. tostring(solved_value))
+
+        -- dwarf_rock_close_button (interfaces/dwarf_rock_schematics.if)
+        -- is buttontype=3 (REVCONFIG_BUTTON_TYPE_CLOSE): its if_click
+        -- answers ok every time without unmounting the interface (trap
+        -- 33), so ESCAPE is the real close -- the same
+        -- app->host.close_modal_requested path t.shop.close uses. Left
+        -- open, the schematics modal stayed mounted through every later
+        -- goto/dialogue row in run 1's ledger (110-... through
+        -- 118-goto-keldagrimSmithing2 all still showed it on screen).
+        local close_key_result = t.key("escape")
+        t.step("schematicPuzzle-closeKey", close_key_result == "ok" and "PASS" or "FAIL",
+            "key(escape) -> " .. tostring(close_key_result))
+        local closed_result, closed_detail = t.ui.await_close("dwarf_rock_schematics")
+        t.check("schematicPuzzle-closed", closed_result == "ok",
+            "ui.await_close(dwarf_rock_schematics) -> " .. tostring(closed_result) .. " " .. tostring(closed_detail))
+
         t.inv.await("dwarf_rock_schematic_assembled", 1, 10)
         local assembled_result, assembled_count = t.inv.count("dwarf_rock_schematic_assembled")
-        if not (assembled_result == "ok" and assembled_count == 1) then
-            -- inv_op's op-1 press also fires the shift-click-drop chain on
-            -- schematic1's own backpack cell (same seam as the book above);
-            -- if the assembled piece landed in that now-freed cell it went
-            -- to the ground with it, not into the backpack -- recover it.
-            local pickup2_result, pickup2_detail = t.player.click_obj("dwarf_rock_schematic_assembled", 3)
-            t.check("pickAssembledBackUp", pickup2_result == "ok", "click_obj(dwarf_rock_schematic_assembled,3) -> "
-                .. tostring(pickup2_result) .. " " .. tostring(pickup2_detail))
-            t.inv.await("dwarf_rock_schematic_assembled", 1, 10)
-            assembled_result, assembled_count = t.inv.count("dwarf_rock_schematic_assembled")
-        end
         t.check("gotAssembledSchematic", assembled_result == "ok" and assembled_count == 1,
             "inv.count(dwarf_rock_schematic_assembled) -> " .. tostring(assembled_result) .. " " .. tostring(assembled_count))
 
