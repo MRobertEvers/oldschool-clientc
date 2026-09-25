@@ -2206,6 +2206,9 @@ end
 -- distinguish "the base chat interface is up" (true for the whole session)
 -- from "component 567 just mounted inside it"; the DRIVE_STAMP event carries
 -- exactly the field this needs and nothing this group does not already own.
+-- A sub_mounted of any OTHER interface -- one absent when the settle began
+-- and not mounted inside chat -- is the modal arm (SEAM
+-- driver-settle-ignores-non-chat-modal-mount, below this function).
 -- map_flag's clear is gated behind `route_issued`, seeing the flag SET at
 -- least once, so a target that needed no walk at all cannot resolve on a
 -- flag clear left over from a PREVIOUS click.
@@ -2252,11 +2255,22 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
     -- settle began, whether he was idle then, and the last tile a poll saw.
     local jump = QD.player._settle_jump_start()
 
+    -- The modal arm's "before" (SEAM driver-settle-ignores-non-chat-modal-mount,
+    -- the banner above QD.player._mounted_groups): every group mounted when
+    -- the settle began.
+    local mounted_before = QD.player._mounted_groups()
+    local resolved_detail = nil
+
     local result, detail = QD.await({
         match = function(ev)
             if ev.kind == "sub_mounted" then
                 if chat_result == "ok" and ev.b == chat_interface_id then
                     resolved_by = "sub_mounted"
+                    return true
+                end
+                if QD.player._modal_mount_is_new(ev, mounted_before) then
+                    resolved_by = "sub_mounted"
+                    resolved_detail = "modal " .. QD.player._interface_label(ev.b)
                     return true
                 end
                 return false
@@ -2345,9 +2359,118 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         return "ok", "teleport: " .. jump.landed, "teleport", settle_line
     end
     if result == "ok" then
-        return "ok", resolved_by or "settled", resolved_by or "settled", settle_line
+        return "ok", resolved_detail or resolved_by or "settled", resolved_by or "settled", settle_line
     end
     return result, detail, "timeout", settle_line
+end
+
+-- SEAM driver-settle-ignores-non-chat-modal-mount (seam12, 2026-09-24) -- A
+-- CLICK WHOSE WHOLE ANSWER IS A NON-CHAT INTERFACE.
+--
+-- WHAT WAS WRONG.  The sub_mounted arm above resolved only on the chat
+-- interface itself, so a click that directly mounts any OTHER interface --
+-- opheld1 on dwarf_rock_schematic1 (betweenarock_schematics.rs2's
+-- if_openmain_side(dwarf_rock_schematics, dwarf_rock_schematics_control)),
+-- Two Cats' lamp picker, the Mourning's End still -- prints no line, pages
+-- no dialogue and issues no route, and the settle waited out its whole
+-- budget on a click that visibly landed: build/quest_gate/betweenarock row 75
+-- `assembleSchematic FAIL 13 ... inv_op(dwarf_rock_schematic1,1) -> timeout
+-- ... [settle_after_click]`, and schematic_puzzle_final2 row 2 the same
+-- timeout followed by row 3 `ui.await_open(dwarf_rock_schematics)` passing in
+-- ONE tick.
+--
+-- THE ARM: a sub_mounted whose group was NOT mounted when the settle began
+-- and whose slot is not inside the chat interface.  It answers `ok` with arm
+-- `sub_mounted` and detail `modal <interface>`, naming what opened.
+--
+--   * "Not mounted when the settle began" is a snapshot (below), taken on
+--     the settle's first line: the click has only just left as a packet and
+--     the server's answer is a tick away, so it photographs the world before
+--     the click's effect.  A same-group REMOUNT (app_boot.c's stamp: "a
+--     same-group remount is the normal dialogue paging case") is therefore
+--     never this arm's edge -- a side panel re-opened into its own slot by an
+--     earlier row's close does not read as this click's modal.
+--   * Anything mounted INTO the chat interface (target_uid's high half ==
+--     chat) stays the page arm's: talk_to reads the arm word and a dialogue
+--     page must keep resolving as `page <before>-><after>` exactly as before.
+--     The chat arm itself (ev.b == chat) is untouched, wording and all.
+--   * The refusal fence is untouched: a refusal line in the window still
+--     answers `refused` whichever arm resolved.
+--
+-- THE SNAPSHOT is api_drive.group_present over every interface id the pack
+-- names -- a hash lookup per id (UITree_GroupNodes), never a walk of the UI
+-- tree -- and the highest named id is probed once per session and cached.
+QD.player._interface_id_bound = nil
+QD.player._interface_probe_limit = 8192
+
+function QD.player._mounted_groups()
+    if QD.player._interface_id_bound == nil then
+        local bound = -1
+        for id = 0, QD.player._interface_probe_limit - 1 do
+            local name_result = api_drive.symbol_name("interface", id)
+            if name_result == "ok" then
+                bound = id
+            end
+        end
+        QD.player._interface_id_bound = bound
+    end
+    local mounted = {}
+    for id = 0, QD.player._interface_id_bound do
+        local present_result, present = api_drive.group_present(id)
+        if present_result == "ok" and present then
+            mounted[id] = true
+        end
+    end
+    return mounted
+end
+
+--
+-- WHICH INTERFACE IS "CHAT".  The chat arm above asks the pack for `chat`,
+-- which is revconfig's [iface:chat] (osrs239_dat2_cache.ini) and NOT a name
+-- the content pack carries -- the pack names group 162 `chatbox`
+-- (pack/3_interfaces.pack) -- so on osrs239 that lookup answers not_found
+-- and the chat arm never fires (measured: build/quest_gate/seam12_modal_diag2
+-- saw sub_mounted(10551312,113,0) and the dialogue host is 162).  The chat
+-- arm is left exactly as it was; the exclusion here resolves the host by
+-- either name, because without it a dialogue page mounting into the chatbox
+-- would resolve as a modal and change talk_to's arm word.
+QD.player._chat_host_names = { "chat", "chatbox" }
+
+function QD.player._chat_host_interface()
+    for _, name in ipairs(QD.player._chat_host_names) do
+        local result, interface_id = api_drive.symbol("interface", name)
+        if result == "ok" then
+            return interface_id
+        end
+    end
+    return nil
+end
+
+function QD.player._modal_mount_is_new(ev, mounted_before)
+    if ev.b == nil or ev.b <= 0 then
+        return false
+    end
+    if mounted_before[ev.b] then
+        return false
+    end
+    local chat_host = QD.player._chat_host_interface()
+    if chat_host == nil then
+        -- Nothing can tell a dialogue page from a modal; the page arm still
+        -- answers, as it did before this arm existed.
+        return false
+    end
+    if ev.b == chat_host or (ev.a >> 16) == chat_host then
+        return false
+    end
+    return true
+end
+
+function QD.player._interface_label(interface_id)
+    local name_result, name = api_drive.symbol_name("interface", interface_id)
+    if name_result == "ok" and name then
+        return name
+    end
+    return tostring(interface_id)
 end
 
 -- SEAM settle_teleport_landing (seam10, 2026-09-23) -- A CLICK WHOSE WHOLE
@@ -2891,6 +3014,14 @@ function QD.player.inv_op(item, op)
         .. " left"
     if settle_result ~= "ok" and settle_detail ~= nil then
         text = text .. " [" .. tostring(settle_detail) .. "]"
+    end
+    -- An op whose answer is an interface says WHICH one (SEAM
+    -- driver-settle-ignores-non-chat-modal-mount, after _settle_after_click):
+    -- `... -> 0 left [modal dwarf_rock_schematics]`.  Only the modal arm's
+    -- detail is appended to an ok row; every other ok row reads as before.
+    if settle_result == "ok" and type(settle_detail) == "string"
+        and settle_detail:sub(1, 6) == "modal " then
+        text = text .. " [" .. settle_detail .. "]"
     end
     return settle_result, text
 end

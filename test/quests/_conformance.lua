@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 22
+-- @seam-count 24
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 111
-local SEAM_COUNT = 22
+local SEAM_COUNT = 24
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -4649,6 +4649,88 @@ return {
             end
             return "ok", "gate 100,440 -> " .. describe(chat_why) .. ", 200,200 -> "
                 .. describe(mid_why) .. "; wall support " .. describe(detail)
+        end)
+
+        -- SEAM settle_modal_mount (pointer.lua QD.player._settle_after_click's
+        -- modal arm, _mounted_groups/_modal_mount_is_new; seam12).  A click
+        -- whose whole answer is a NON-chat interface -- opheld1 on
+        -- dwarf_rock_schematic1 runs betweenarock_schematics.rs2's
+        -- if_openmain_side(dwarf_rock_schematics, dwarf_rock_schematics_control)
+        -- -- prints no line, pages no dialogue and walks no route, and the
+        -- settle used to wait out its budget and answer `timeout` on a click
+        -- that visibly landed (build/quest_gate/betweenarock row 73,
+        -- schematic_puzzle_final2 row 2).  Graded on inv_op answering ok with
+        -- `[modal dwarf_rock_schematics]` in its detail.  The schematic is left
+        -- open for the next row, which reads its puzzle varps.
+        seam("seam.settle_modal_mount", function()
+            local inv_op = verb("player", "inv_op")
+            local held = verb("inv", "await")
+            local await_open = verb("ui", "await_open")
+            if not inv_op then return missing("player", "inv_op") end
+            if not held then return missing("inv", "await") end
+            if not await_open then return missing("ui", "await_open") end
+            -- setup: the quest at the assembly stage, the four fragments held.
+            setup_cheat("::clearinv")
+            setup_cheat("::setvar dwarfrock_quest ^dwarfrock_assembling_schematics")
+            setup_cheat("::give dwarf_rock_schematic1 1")
+            setup_cheat("::give dwarf_rock_base_schematic 1")
+            setup_cheat("::give dwarf_rock_schematic2 1")
+            setup_cheat("::give dwarf_rock_schematic3 1")
+            local have, have_detail = held("dwarf_rock_schematic3", 1, 10)
+            if have ~= "ok" then
+                return "no_subject", "::give dwarf_rock_schematic3 1 -> " .. describe(have) .. " "
+                    .. describe(have_detail)
+            end
+            settle(2)
+            local result, detail = inv_op("dwarf_rock_schematic1", 1)
+            if result ~= "ok" then
+                return result, "inv_op(dwarf_rock_schematic1,1): " .. describe(detail)
+            end
+            if string.find(tostring(detail), "[modal dwarf_rock_schematics]", 1, true) == nil then
+                return "hollow", "inv_op answered ok without naming the modal it opened: " .. describe(detail)
+            end
+            local opened, open_detail = await_open("dwarf_rock_schematics", 5)
+            if opened ~= "ok" then
+                return opened, "inv_op said modal but ui.await_open disagrees: " .. describe(open_detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        -- SEAM var_server_reads_varp_alloc (state.lua QD._var_server_varp over
+        -- api_drive.var_content; seam12).  A varp this tree allocates above
+        -- the cache's highest id (pack/varp.alloc: twocats_lamp_pick 7152,
+        -- dwarfrock_puzzle_* 7153-7162) has no client copy --
+        -- ToriRSServer_SendVarpSmall never sends it -- so var.server answered
+        -- `not_found/nil` for the whole run although ::setvar resolved and
+        -- wrote it (build/quest_gate/seam12_varp_before: 14 of 19 rows).
+        -- Graded on reading back what ::setvar wrote, through var.server and
+        -- var.await_server, and on a schematic puzzle varp reading a number
+        -- while the previous row's interface is up.
+        seam("seam.var_server_reads_varp_alloc", function()
+            local server = verb("var", "server")
+            local await_server = verb("var", "await_server")
+            if not server then return missing("var", "server") end
+            if not await_server then return missing("var", "await_server") end
+            setup_cheat("::setvar twocats_lamp_pick 3")
+            settle(2)
+            local result, value, source = server("twocats_lamp_pick")
+            if result ~= "ok" or value ~= 3 then
+                return (result == "ok") and "refused" or result,
+                    "var.server(twocats_lamp_pick) after ::setvar 3 -> " .. describe(result) .. "/"
+                    .. describe(value) .. " " .. describe(source)
+            end
+            local awaited, await_detail = await_server("twocats_lamp_pick", 3, 5)
+            if awaited ~= "ok" then
+                return awaited, "var.await_server(twocats_lamp_pick, 3): " .. describe(await_detail)
+            end
+            local puzzle_result, puzzle_value, puzzle_source = server("dwarfrock_puzzle_dx1")
+            if puzzle_result ~= "ok" or type(puzzle_value) ~= "number" then
+                return (puzzle_result == "ok") and "hollow" or puzzle_result,
+                    "var.server(dwarfrock_puzzle_dx1) -> " .. describe(puzzle_result) .. "/"
+                    .. describe(puzzle_value)
+            end
+            return "ok", "twocats_lamp_pick=3 (" .. describe(source) .. "); " .. describe(await_detail)
+                .. "; dwarfrock_puzzle_dx1=" .. describe(puzzle_value) .. " (" .. describe(puzzle_source) .. ")"
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

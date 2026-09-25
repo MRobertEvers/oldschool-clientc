@@ -81,7 +81,38 @@ function QD.var.varbit(name)
     return api_drive.varbit(id)
 end
 
-function QD.var.server(name)
+-- The varp with no client half.  ToriRSServer_SendVarpSmall never transmits
+-- an id the client's varp array cannot address, so a varp this tree allocates
+-- above the cache's highest id (pack/varp.alloc: twocats_lamp_pick 7152,
+-- dwarfrock_puzzle_* 7153-7162, against TORIRSSERVER_VARP_CACHE_MAX 5725)
+-- reads `not_found` from var_server for the whole run although the NAME
+-- resolved and ::setvar wrote it -- the ledger said `not_found/nil`, never
+-- `not_found/<name>` (seam12, 2026-09-24).  The embedded server's own copy
+-- (api_drive.var_content, DriveState_VarpContent, bounded by
+-- TORIRSSERVER_VARP_COUNT) is the only reader that can answer for such an id.
+-- It is one number, not a client/server pair, so every answer that came from
+-- it says so.  `unsupported` when the binary predates the reader.
+QD._VAR_CONTENT_SOURCE = "server content copy; no client copy"
+
+-- (result, value, source) for a resolved varp id: var_server first, the
+-- server's own copy only when var_server answered `not_found`.
+function QD._var_server_varp(id)
+    local result, value = api_drive.var_server(id)
+    if result ~= "not_found" then
+        return result, value, "server"
+    end
+    if type(api_drive.var_content) ~= "function" then
+        return "unsupported", "this binary has no api_drive.var_content", QD._VAR_CONTENT_SOURCE
+    end
+    local content_result, content_value = api_drive.var_content(id)
+    return content_result, content_value, QD._VAR_CONTENT_SOURCE
+end
+
+-- The client's record of the server's value ONLY -- no content fallback.
+-- quest.lua's _reading grades a client/server PAIR and reaches the server's
+-- own copy itself when both halves say `not_found`; it must see that
+-- not_found here, not a fallback answer beside a client that has none.
+function QD._var_server_pair(name)
     local kind, id, fail_result, fail_name = QD._var_resolve(name)
     if not kind then
         return fail_result, fail_name
@@ -90,6 +121,23 @@ function QD.var.server(name)
         return api_drive.varbit_server(id)
     end
     return api_drive.var_server(id)
+end
+
+-- (result, value[, source]).  source is "server" (the client's var_serv[]
+-- record) or QD._VAR_CONTENT_SOURCE; a varbit answers two values as before.
+function QD.var.server(name)
+    local kind, id, fail_result, fail_name = QD._var_resolve(name)
+    if not kind then
+        return fail_result, fail_name
+    end
+    if kind == "varbit" then
+        return api_drive.varbit_server(id)
+    end
+    local result, value, source = QD._var_server_varp(id)
+    if result == "unsupported" then
+        return result, name .. ": " .. tostring(value)
+    end
+    return result, value, source
 end
 
 -- The shared body of var.await and var.await_server. An `ok` names what was
@@ -102,8 +150,22 @@ function QD._var_await(name, value, ticks, side, verb)
         return fail_result, fail_name
     end
     local read
-    if side == "server" then
-        read = (kind == "varbit") and api_drive.varbit_server or api_drive.var_server
+    local where = side
+    if side == "server" and kind == "varp" then
+        -- One probe decides the channel for the whole poll: an id the
+        -- client cannot address never becomes addressable mid-run.
+        local probe_result, probe_value, probe_source = QD._var_server_varp(id)
+        if probe_result == "unsupported" then
+            return "unsupported", name .. ": " .. tostring(probe_value)
+        end
+        if probe_source == QD._VAR_CONTENT_SOURCE then
+            read = api_drive.var_content
+            where = QD._VAR_CONTENT_SOURCE
+        else
+            read = api_drive.var_server
+        end
+    elseif side == "server" then
+        read = api_drive.varbit_server
     else
         read = (kind == "varbit") and api_drive.varbit or api_drive.varp
     end
@@ -116,12 +178,13 @@ function QD._var_await(name, value, ticks, side, verb)
         end,
         note = verb .. " " .. name .. " == " .. tostring(value),
     }, ticks or 10)
+    local label = (where == side) and (side .. " " .. kind) or (kind .. ", " .. where)
     if awaited == "ok" then
-        return "ok", name .. " = " .. tostring(last_value) .. " (" .. side .. " " .. kind
+        return "ok", name .. " = " .. tostring(last_value) .. " (" .. label
             .. ") after " .. tostring(api_drive.tick() - started) .. " tick(s)"
     end
     local last = (last_result == "ok") and tostring(last_value) or last_result
-    return awaited, tostring(note) .. " (last " .. side .. " read: " .. last .. ")"
+    return awaited, tostring(note) .. " (last " .. where .. " read: " .. last .. ")"
 end
 
 -- var.await translates a varbit name to its base varp for event matching

@@ -133,7 +133,10 @@ end
 -- wrapper exists only so the kind travels beside the reading into the detail.
 function QD.quest._read_server(name, kind)
     kind = kind or QD.quest._kind_of(name)
-    local result, value = QD.var.server(name)
+    -- The raw pair half: QD.var.server falls back to the server's own copy
+    -- for an id the client cannot address (state.lua, seam12), and _reading
+    -- below reaches that copy itself only when BOTH halves say not_found.
+    local result, value = QD._var_server_pair(name)
     return result, value, kind or "unknown"
 end
 
