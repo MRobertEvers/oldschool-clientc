@@ -102,11 +102,22 @@ declarations, which name the pillar object ids and, for most, an explicit
   crystal; rotate a mirror east (no reset for #4).
 - **Chest #4**: swap Cyan crystal for Yellow crystal, Mirror #7 south,
   Mirror #8 down; open chest for a Blue crystal.
-- **Chest #5** (two parts, the largest): reset; Mirrors 1-3 north/west/south,
-  Yellow crystal, Mirror #4 east, cross the gap, place Blue crystal, remove
-  Mirror #4, rotate Mirror #3 up, go to the top floor; Mirror #4 south, place
-  Fractured crystal, Mirrors 5-7 positioned, reach the bottom floor, Mirrors
-  8-10 positioned; open chest for 3 mirrors + a second Fractured crystal.
+- **Chest #5** (two parts, the largest). Quick guide, fetched 2026-09-25
+  (parity1h closer), verbatim: Part 1 -- "Reset the puzzle" / "Mirror #1
+  points north" / "Mirror #2 points west" / "Mirror #3 points south" / "Place
+  the Yellow crystal. The light will turn yellow" / "Mirror #4 points east" /
+  "Cross the gap to the other side" / "Place the Blue crystal" / "Remove
+  Mirror #4" / "Rotate Mirror #3 points up" / "Use the south stairs to head
+  to the top floor". Part 2 -- "Place Mirror #4 in the new position pointing
+  south" / "Place the Fractured crystal" / "Mirror #5 makes the western light
+  point down. Long side of the mirror should be pointing east" / "Mirror #6
+  makes the southern light point east" / "Mirror #7 points down. Long side of
+  the mirror should be pointing west" / "Go to the bottom floor" / "Mirror #8
+  points south" / "Mirror #9 points east" / "Mirror #10 points north" / "Open
+  the chest to obtain 3 mirrors and a second Fractured crystal". No dispenser
+  reset between the two parts. The "second Fractured crystal" is
+  MOURNING_FRACTURED_CRYSTAL_2 (Quest Helper java:460, spent at
+  puzzle6Pillar4, java:864). Ported in mend2_puzzle5.rs2 (parity1h).
 - **Death Altar puzzle**: reset; Mirror #1 north, Mirror #2 down, Mirror #3
   west, place a vertical Fractured crystal, Mirror #4 north, place a
   horizontal Fractured crystal, Mirrors 5-6 up, place the Yellow crystal,
