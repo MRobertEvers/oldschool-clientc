@@ -544,7 +544,8 @@ drive_ledger_write_summary(int code)
      * The column is a free-text token bag that gate.py splits on whitespace
      * and reads `key=value` out of, so a new token is compatible by
      * construction -- but every ledger already published under
-     * OSRS-Content/.../quest_tests/ was written without it, and a suite whose
+     * OSRS-Content/.../selftest/quests/<quest_dir>/play/ (formerly
+     * .../selftest/quest_tests/<test_id>/) was written without it, and a suite whose
      * rows are all PASS or FAIL should keep producing byte-identical summaries
      * to the ones a human has already read. So the token appears exactly when
      * it carries information. */

@@ -44,6 +44,17 @@ confusing failure three steps downstream of where the actual mistake is:
   * a content symbol that names nothing in any `all.*.compack` -- a typo'd
     npc/obj/loc/varp/varbit name that would otherwise only surface as
     `not_found` deep into a real client run.
+  * a malformed `-- GUIDE-GAP: <step> <reason>` marker. The marker is how a
+    file declares a Quest Helper guide step the CONTENT does not implement
+    (the guide is the spec -- docs/QUEST_AUTHORING.md): <step> is the
+    guide's own step variable (`doAllPuzzles`, `getToads`), and <reason>
+    must cite the .rs2 line that writes past the leg, as
+    `<file>.rs2:<line>` naming a real line of a real script. A marker with
+    no citation, or one that does not resolve, is refused here, and
+    tools/quest_gate/helper_coverage.py would not honour it either -- it
+    would leave the step UNMATCHED and gate.py would call the run RED. When
+    the file has a QUEUE row and a guide, <step> must also be a step of that
+    guide's ladder.
 
 The test's own controls sit on the ROOT of `t` -- `t.exec`, `t.step`,
 `t.check`, `t.cheat` -- so every regex below spells one prefix, not two. The
@@ -489,6 +500,29 @@ def check_marker(text):
     return findings
 
 
+def check_max_frames(text):
+    """A quest's own `max_frames = <n>,` budget (run.py applies it to
+    TORIRS_MAX_FRAMES) must be one field, positive, and at most the ceiling
+    quest_list.MAX_FRAMES_CEILING -- run.py asserts on the same bound, and
+    the lint says so first, at authoring time."""
+    import quest_list  # the runner's own constants, so the two cannot disagree
+    findings = []
+    matches = list(quest_list.MAX_FRAMES_RE.finditer(text))
+    if len(matches) > 1:
+        findings.append((_line_of(text, matches[1].start()),
+                          "more than one max_frames field -- declare the budget once"))
+    for match in matches:
+        frames = int(match.group(1))
+        if frames <= 0 or frames > quest_list.MAX_FRAMES_CEILING:
+            findings.append((_line_of(text, match.start()),
+                              "max_frames = %d is outside 1..%d (the ceiling is 4x the "
+                              "default %d; a guide that needs more needs a harness hook, "
+                              "not a bigger clock)"
+                              % (frames, quest_list.MAX_FRAMES_CEILING,
+                                 quest_list.DEFAULT_MAX_FRAMES)))
+    return findings
+
+
 def check_duplicate_exec_names(text):
     findings = []
     seen = {}
@@ -513,7 +547,37 @@ def check_duplicate_exec_names(text):
     return findings
 
 
-def lint_text(text, allow_check=False, packs=None):
+def check_guide_gap_markers(text, test_id=None):
+    """Every `-- GUIDE-GAP:` marker must name a step and cite a real .rs2
+    line (see the module banner). Reads the RAW text: the marker is a
+    comment."""
+    import helper_coverage  # lazy: the guide/content readers live there
+    findings = []
+    steps = None
+    if test_id and helper_coverage.has_guide(test_id):
+        row = helper_coverage.queue_row(test_id)
+        guide = helper_coverage.Guide(helper_coverage.guide_path(row))
+        steps = set(guide.steps)
+    for number, line in enumerate(text.split("\n"), 1):
+        if "GUIDE-GAP" not in line or not line.lstrip().startswith("--"):
+            continue
+        match = helper_coverage.GUIDE_GAP_RE.match(line)
+        if not match:
+            findings.append((number, "GUIDE-GAP marker is not `-- GUIDE-GAP: <step> <reason "
+                                     "citing file.rs2:line>`"))
+            continue
+        step, reason = match.group(1), match.group(2)
+        if not helper_coverage.rs2_citation(reason):
+            findings.append((number, "GUIDE-GAP %s: the reason cites no .rs2 line that exists "
+                                     "(write the `<file>.rs2:<line>` that writes past the leg) -- "
+                                     "helper_coverage.py will not honour it" % step))
+        if steps is not None and step not in steps:
+            findings.append((number, "GUIDE-GAP %s: not a step of the guide %s" % (
+                step, os.path.basename(guide.path))))
+    return findings
+
+
+def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings = []
     # Every rule below that looks for a CALL gets the file with its comments
     # blanked to spaces -- `_blank_comments` preserves length, so line numbers
@@ -529,8 +593,10 @@ def lint_text(text, allow_check=False, packs=None):
     findings.extend(check_step_pass_literal(code))
     findings.extend(check_step_verdict_type(code))
     findings.extend(check_duplicate_exec_names(code))
+    findings.extend(check_max_frames(code))
     if not allow_check:
         findings.extend(check_marker(text))
+    findings.extend(check_guide_gap_markers(text, test_id))
     findings.sort(key=lambda item: item[0])
     return findings
 
@@ -539,7 +605,8 @@ def lint_file(path, allow_check=False, packs=None):
     assert path
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
         text = handle.read()
-    return lint_text(text, allow_check=allow_check, packs=packs)
+    test_id = os.path.splitext(os.path.basename(path))[0]
+    return lint_text(text, allow_check=allow_check, packs=packs, test_id=test_id)
 
 
 def main():

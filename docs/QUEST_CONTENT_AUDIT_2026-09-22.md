@@ -8,7 +8,7 @@ content edits equally wrong — did any of them change real-game behaviour
 order OSRS has) instead of fixing a genuine port bug?
 
 **Scope.** Every content change on `OSRS-Content` `lane-quest-driver` since
-`48aa6cb5c710`, excluding the `selftest/quest_tests` evidence commits, plus
+`48aa6cb5c710`, excluding the `selftest/quests/*/play` evidence commits, plus
 the four edits uncommitted on disk at the time of writing.
 
 * `4420b02611` — "quests: WIP content seams for tier 1 (UNVERIFIED as a set)"

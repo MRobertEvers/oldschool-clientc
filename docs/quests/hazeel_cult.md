@@ -689,7 +689,7 @@ PASS hazeelcult ritual_complete trigger=opnpc1,alomone_hazeel_cultist_1op state=
 PASS hazeelcult cleanup trigger=WorldNpcFree spawns reaped
 ```
 
-Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_hazeelcult/`, 18 unique MD5s):
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_hazeelcult/scenes/`, 18 unique MD5s):
 
 - `01_talk_ceril.bmp`
 - `02_choice_accept.bmp`

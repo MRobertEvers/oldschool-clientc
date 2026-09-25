@@ -27,6 +27,12 @@ return {
         "::give raw_bear_meat 1",
         "::give raw_beef 1",
         "::give raw_chicken 1",
+        -- The cauldron room's prison door (below) spawns two guard suits of
+        -- armour that retaliate on sight; the guide itself says to
+        -- spam-click past them, which this driver cannot literally do, so
+        -- hold the type passive rather than fight an obstacle npc that is
+        -- not the quest's own deliverable (docs/QUEST_SERVER_CHEATS.md sec F).
+        "::passive suit_of_armour",
     },
 
     run = function(t)
@@ -84,8 +90,36 @@ return {
             "npc:Well thank you very much!",
         })
 
-        -- Enter Taverley Dungeon and travel to the cauldron of thunder.
-        t.exec("goto-cauldron", t.player.goto_tile, 2893, 9831, 0)
+        -- Enter Taverley Dungeon at its real ladder destination (the
+        -- maplink dbrow's own 0_45_53_3_5 -> 0_45_153_3_5, the underground
+        -- counterpart of the surface ladder at 2884,3397,0 -- section 2's
+        -- "goto_tile the destination tile with ITS level" applies to this
+        -- travel leg, same as the doc's own druid-reaches-Sanfew example),
+        -- well south of the prison door (cauldrondoor/cauldrondoor_l sit at
+        -- 2889,9830-9831,0) so click_loc has real corridor to walk.
+        t.exec("goto-cauldronEntrance", t.player.goto_tile, 2883, 9797, 0)
+        -- Spam-click the prison door: prison_doors.rs2's
+        -- taverley_dungeon_open_doors spawns the north guard suit on the
+        -- first press and the south one on the second (each prints its own
+        -- "Suddenly the suit of armour comes to life!" line, so these two
+        -- settle normally), and only walks the player through on the third.
+        t.exec("cauldronDoor.press1", t.player.click_loc, "cauldrondoor")
+        t.exec("cauldronDoor.press2", t.player.click_loc, "cauldrondoor")
+        -- The third press's effect is a bare p_teleport -- no chat line, no
+        -- mesbox, no interface -- so the click's own settle reads `timeout`
+        -- on a press that landed (docs/QUEST_AUTHORING.md sec 2, "A LOC
+        -- whose [oploc<n>] body is a bare p_teleport"); grade it on the
+        -- tile instead of the click result.
+        local press3_result, press3_detail = t.player.click_loc("cauldrondoor")
+        t.ticks(1)
+        local door_tile_result, door_tile = t.world.tile()
+        local door_tile_detail = door_tile_result == "ok"
+            and (door_tile.x .. "," .. door_tile.z .. "," .. door_tile.level)
+            or tostring(door_tile)
+        t.check("cauldronDoor.press3", door_tile_result == "ok" and door_tile.z >= 9828,
+            "click_loc -> " .. tostring(press3_result) .. " (" .. tostring(press3_detail)
+            .. "); tile now " .. door_tile_detail)
+
         -- Use the chicken meat on the cauldron in Taverley dungeon.
         local cauldron = t.player.by_symbol("loc", "cauldron_of_thunder")
         t.exec("useChickenOnCauldron", t.player.use_on, "raw_chicken", cauldron)

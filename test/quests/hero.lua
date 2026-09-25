@@ -87,6 +87,7 @@ return {
         "::setlevel fishing 99", -- lava eel fishing gate is level 53 (lavafish.rs2:90)
         "::setlevel cooking 99", -- lava eel cooking gate is level 53 (cooking_generic.dbrow's cooking_generic_lava_eel row, never burns)
         "::setlevel herblore 99", -- Blamish oil mixing gate is level 25 (brew.dbrow's herblore_blamish_oil row)
+        "::setlevel firemaking 99", -- lighting the cooking fire is a roll (stat_random(firemaking,64,512), firemaking.rs2:80) -- near-certain first swing at 99, never a level GATE (logs need only level 1)
     },
 
     run = function(t)
@@ -202,26 +203,75 @@ return {
         -- ---------------------------------------------------------------
         -- Into Mr Olbors' garden (herokitchenpanel writes no state, plain
         -- p_teleport walk-through, brimhaven_restaurant.rs2:16-22).
-        -- pete_sidedoor is a walk-through loc too
-        -- (brimhaven_scarface_mansion.rs2:32-45); goto_tile onto its own
-        -- resolved tile (section 8's documented fix for a loc placed off a
-        -- short-range click's own reach) rather than click_loc it.
         -- ---------------------------------------------------------------
         t.exec("openKitchenPanel", t.player.click_loc, "herokitchenpanel")
         t.ticks(2) -- let the teleport settle
 
-        local sidedoor_near_result, sidedoor_near = t.world.loc_near("pete_sidedoor", 15)
-        local sidedoor_near_detail = "not_found"
-        if sidedoor_near_result == "ok" and sidedoor_near ~= nil then
-            sidedoor_near_detail = string.format("match=%s tile=%s,%s,%s",
-                tostring(sidedoor_near.match), tostring(sidedoor_near.tile_x),
-                tostring(sidedoor_near.tile_z), tostring(sidedoor_near.level))
-        end
-        t.check("sideDoor.locNear", sidedoor_near_result == "ok",
-            "t.world.loc_near(pete_sidedoor, 15) -> " .. tostring(sidedoor_near_result) .. " " .. sidedoor_near_detail)
-        if sidedoor_near_result == "ok" and sidedoor_near ~= nil then
-            t.exec("goto-throughSideDoor", t.player.goto_tile, sidedoor_near.tile_x, sidedoor_near.tile_z, sidedoor_near.level)
-        end
+        -- ---------------------------------------------------------------
+        -- pete_sidedoor: [oploc1] now ALWAYS refuses with "This door is
+        -- locked." (2026-09-23 content parity, c8b3e2fede) -- only
+        -- [oplocu,pete_sidedoor] with misc_key opens it
+        -- (brimhaven_scarface_mansion.rs2:12-58). misc_key is the real
+        -- two-player Black-Arm-partner hand-off (Grip's own dialogue,
+        -- grip.rs2:50-58) -- this server drives one account, so
+        -- ::hero_partner is the documented TEST AFFORDANCE standing in for
+        -- exactly that partner action (docs/QUEST_SERVER_CHEATS.md section
+        -- D, quest_hero.rs2:266-307), gated the same way the real hand-off
+        -- would be (%phoenixgang >= phoenixgang_joined, %heroquest >=
+        -- hero_phoenix_talked_charlie -- both already true here). Never a
+        -- silent grant; the real click through the door is still driven.
+        -- ---------------------------------------------------------------
+        local partner_result, partner_detail = t.cheat("::hero_partner")
+        t.step("hero_partner.cheat", partner_result == "ok" and "PASS" or "FAIL",
+            "t.cheat(::hero_partner) -> " .. tostring(partner_result) .. " " .. tostring(partner_detail))
+        -- The cheat's chat reply outruns its own inv_add by up to a tick
+        -- (the same shape trap 23 documents for a setup ::give) -- poll,
+        -- never a bare count read on the line right after.
+        local misckey_result, misckey_detail = t.inv.await("misc_key", 1, 10)
+        t.check("misc_key.granted", misckey_result == "ok",
+            "inv.await(misc_key, 1, 10) -> " .. tostring(misckey_result) .. " " .. tostring(misckey_detail))
+
+        -- pete_sidedoor is a single placement (m43_49.jl2, id 2622, rot 3)
+        -- at 2781,3197,0 -- [oploc1]'s own coordz(coord)=coordz(loc_coord)
+        -- test says it is approached along its z-row, and a bare goto onto
+        -- its own square lands one tile short at 2780,3197 (the wall side
+        -- is not walkable) -- the west approach herokitchenpanel does not
+        -- already stand us on. Position there explicitly rather than
+        -- relying on use_on's own approach-tile hunt from wherever the
+        -- panel walk-through left us (measured: every hunted side from
+        -- there answered "I can't reach that!").
+        t.exec("goto-sidedoor", t.player.goto_tile, 2780, 3197, 0)
+
+        -- trap 298: use_on's backpack-tab press is not settled before its
+        -- own arming, so an arm issued right after another action can
+        -- silently fail and the click degrades to a bare "Walk here".
+        t.check("sideDoor.tabInventory", t.ui.tab("inventory") == "ok", "t.ui.tab(inventory)")
+        t.ticks(2)
+        -- [oplocu,pete_sidedoor]'s own success path is a BARE
+        -- ~hero_pete_walk_door -> p_teleport, no chat line and no mesbox
+        -- (same shape section 3's own banner documents for a silent
+        -- [oploc<n>] teleport door) -- _settle_after_click has nothing to
+        -- resolve on, so this is graded on the tile the walk-door proc
+        -- actually moved the player to, not on the click verb's own
+        -- settle word (measured: the press lands and hunts a pixel every
+        -- time, but the settle reads a bare, uncategorised timeout).
+        local predoor_result, predoor_tile = t.world.tile()
+        local sidedoor_target = t.player.by_symbol("loc", "pete_sidedoor")
+        local sidedoor_click_result, sidedoor_click_detail = t.player.use_on("misc_key", sidedoor_target)
+        t.ticks(2)
+        local postdoor_result, postdoor_tile = t.world.tile()
+        local sidedoor_moved = predoor_result == "ok" and postdoor_result == "ok"
+            and predoor_tile ~= nil and postdoor_tile ~= nil
+            and (predoor_tile.x ~= postdoor_tile.x or predoor_tile.z ~= postdoor_tile.z)
+        local predoor_str = (predoor_result == "ok" and predoor_tile ~= nil)
+            and string.format("%s,%s,%s", tostring(predoor_tile.x), tostring(predoor_tile.z), tostring(predoor_tile.level))
+            or tostring(predoor_result)
+        local postdoor_str = (postdoor_result == "ok" and postdoor_tile ~= nil)
+            and string.format("%s,%s,%s", tostring(postdoor_tile.x), tostring(postdoor_tile.z), tostring(postdoor_tile.level))
+            or tostring(postdoor_result)
+        t.check("useKeyOnSideDoor", sidedoor_moved,
+            "use_on(misc_key, pete_sidedoor) -> " .. tostring(sidedoor_click_result) .. " (" .. tostring(sidedoor_click_detail)
+                .. "), t.world.tile() " .. predoor_str .. " -> " .. postdoor_str .. " (hero_pete_walk_door's own bare p_teleport)")
 
         -- ---------------------------------------------------------------
         -- Grip: a real fight, at his own confirmed *.spawn tile
@@ -397,13 +447,45 @@ return {
         -- rune_pickaxe/mining-50 setup above is the fallback if that reads
         -- screen_position instead.
         -- ---------------------------------------------------------------
-        local icequeen_goto_result = t.exec("goto-icequeen", t.player.goto_tile, 2866, 9956, 0)
-        if icequeen_goto_result ~= "ok" then
-            -- Fallback: mine the rockslide for real, then retry the goto.
-            t.exec("goto-rockslide", t.player.goto_tile, 2839, 3518, 0)
-            t.exec("mineRockslide", t.player.use_item_on_item, "rune_pickaxe", "rune_pickaxe")
-            t.exec("goto-icequeen-retry", t.player.goto_tile, 2866, 9956, 0)
-        end
+        -- HeroesQuest.java's own mineEntranceRocks names the rockslide as
+        -- its own step (ObjectID.HEROROCKSLIDE, 2839,3518,0), so it is
+        -- driven for real: [oploc2,herorockslide] (white_wolf_mountain.rs2:
+        -- 13-21), gated on a held pickaxe + Mining 50 (setup above). It has
+        -- no success mes() -- the tell is the loc_change chain's own
+        -- forcemove, read back off t.world.tile(). Once cleared it is a
+        -- plain forcemove, not a teleport, and the ladders on from there
+        -- (LADDER_OUTSIDE_TO_UNDERGROUND/LADDER_FROM_CELLAR) are ordinary
+        -- ladders -- QUEST_AUTHORING.md section 2's documented idiom is
+        -- goto_tile straight to the destination level for those, no
+        -- click_loc needed on any of them.
+        t.exec("goto-rockslide", t.player.goto_tile, 2839, 3518, 0)
+        local rockslide_before_result, rockslide_before = t.world.tile()
+        -- Called directly, not through t.exec: the mine sequence is TWO
+        -- loc_change calls each behind its own p_delay(1) plus a two-hop
+        -- forcemove, which does not resolve to one of click_loc's own
+        -- settle categories (measured: op2's ok read "settle_after_click"
+        -- and FAILed the row even though the click plainly landed) -- so
+        -- this is graded on the world's own evidence (the forcemove moving
+        -- the player) rather than on the click verb's settle word, the
+        -- documented shape for a verb whose ok/timeout does not describe
+        -- what its own row is named after (section 8).
+        local mine_click_result, mine_click_detail = t.player.click_loc("herorockslide", 2)
+        t.ticks(2) -- loc_change(rockslide2)->(rockslide4)->(inviswall...) + forcemove settle
+        local rockslide_after_result, rockslide_after = t.world.tile()
+        local rockslide_moved = rockslide_before_result == "ok" and rockslide_after_result == "ok"
+            and rockslide_before ~= nil and rockslide_after ~= nil
+            and (rockslide_before.x ~= rockslide_after.x or rockslide_before.z ~= rockslide_after.z)
+        local rockslide_before_str = (rockslide_before_result == "ok" and rockslide_before ~= nil)
+            and string.format("%s,%s,%s", tostring(rockslide_before.x), tostring(rockslide_before.z), tostring(rockslide_before.level))
+            or tostring(rockslide_before_result)
+        local rockslide_after_str = (rockslide_after_result == "ok" and rockslide_after ~= nil)
+            and string.format("%s,%s,%s", tostring(rockslide_after.x), tostring(rockslide_after.z), tostring(rockslide_after.level))
+            or tostring(rockslide_after_result)
+        t.check("mineRockslide", rockslide_moved,
+            "click_loc(herorockslide, 2) -> " .. tostring(mine_click_result) .. " (" .. tostring(mine_click_detail) .. "), t.world.tile() "
+                .. rockslide_before_str .. " -> " .. rockslide_after_str .. " (herorockslide op2's own forcemove after clearing)")
+
+        t.exec("goto-icequeen", t.player.goto_tile, 2866, 9956, 0)
 
         local icequeen_rounds = 0
         local icequeen_sharks_eaten = 0
@@ -439,14 +521,18 @@ return {
 
         -- ice_gloves is a real ground drop (ai_queue3,ice_queen -- obj_add
         -- at npc_coord, ice_queen.rs2:16), not a chat grant.
+        -- seam10 (RETRY after 3f6d3b65b): the teleport-settle arm resolves
+        -- mineRockslide/useKeyOnSideDoor sooner, which shifts this fight
+        -- earlier against the tick clock -- widened from 10 to 30 ticks so
+        -- the drop is still caught (queue.py show hero's own last_failure).
         local gloves_visible_result = t.await({
             level = function()
                 return t.world.obj_near("ice_gloves", 10) == "ok"
             end,
             note = "waiting for the Ice Queen's dropped ice gloves to reach the client's entity pool",
-        }, 10)
+        }, 30)
         t.step("iceGloves.visible", gloves_visible_result == "ok" and "PASS" or "FAIL",
-            "t.world.obj_near(ice_gloves, 10) polled up to 10 ticks -> " .. tostring(gloves_visible_result))
+            "t.world.obj_near(ice_gloves, 10) polled up to 30 ticks -> " .. tostring(gloves_visible_result))
 
         local gloves_before_result, gloves_before = t.inv.count("ice_gloves")
         local gloves_click_result, gloves_click_detail = t.player.click_obj("ice_gloves")
@@ -464,14 +550,47 @@ return {
         t.exec("equipIceGloves", t.player.equip, "ice_gloves")
 
         -- ---------------------------------------------------------------
+        -- Entrana: the Quest Helper guide's own goToEntrana step is the
+        -- Port Sarim monk's boat (monk_of_entrana.rs2's shipmonk_talk/
+        -- shipmonk_ready labels, *.spawn tile
+        -- areas/world/configs/m47_50.spawn:32) -- helper_coverage.py grades
+        -- a bare goto_tile straight to Entrana a CHEAT (gate.py: "the
+        -- journey ... is replaced by goto_tile"), so it is driven for
+        -- real. ~has_entrana_restricted_items (the "leave weaponry and
+        -- armour behind" search) is an orphaned/deferred call per this
+        -- file's own header comment -- it is never wired to a strip, so
+        -- gear stays worn. p_telejump(0_44_52_15_6) = 2831,3334,0 on
+        -- Entrana; the firebird itself is a further plain walk from the
+        -- dock, no lock between them.
+        -- ---------------------------------------------------------------
+        t.exec("goto-shipmonk", t.player.goto_tile, 3045, 3236, 0)
+        t.exec("talkToShipmonk", t.player.talk_to, "shipmonk")
+        t.exec("talkToShipmonk-dialog", t.chat.play, {
+            "npc:Do you seek passage to holy Entrana?",
+            "choose:Yes, okay, I'm ready to go.",
+            "player:Yes, okay, I'm ready to go.",
+            "npc:Very well. One moment please.",
+            "mesbox:The monk quickly searches you.",
+        })
+        -- shipmonk_ready's own mesbox is the list's last entry and chat.play
+        -- already closes it in matching the page -- content continues
+        -- straight to the log mes() + p_telejump with no further click
+        -- needed (measured: an explicit chat.continue_ here answers
+        -- "no dialogue is open", the page was already gone).
+        t.ticks(3) -- p_telejump to Entrana is a region jump -- await arrival, not a race
+        local entrana_tile_result, entrana_tile = t.world.tile()
+        local entrana_tile_str = (entrana_tile_result == "ok" and entrana_tile ~= nil)
+            and string.format("%s,%s,%s", tostring(entrana_tile.x), tostring(entrana_tile.z), tostring(entrana_tile.level))
+            or tostring(entrana_tile_result)
+        t.check("shipmonk.arrivedEntrana", entrana_tile_result == "ok" and entrana_tile ~= nil
+                and entrana_tile.x < 2900 and entrana_tile.z > 3300,
+            "t.world.tile() -> " .. entrana_tile_str .. " (p_telejump(0_44_52_15_6) = 2831,3334,0, west of Port Sarim's 3045,3236)")
+
         -- Entrana firebird: real fight (hp5/atk1, trivial) for hot_feather.
         -- fire_bird *.spawn tile areas/world/configs/m44_52.spawn:20. No
         -- quest-state check on the fight itself (entrana_firebird.rs2's
         -- ai_queue3 only gates the FEATHER drop on %heroquest < hero_complete,
-        -- true here). Weapons are never stripped by a goto_tile teleport
-        -- (only the monk's own boarding dialogue checks that), so no
-        -- unequip is needed.
-        -- ---------------------------------------------------------------
+        -- true here).
         t.exec("goto-firebird", t.player.goto_tile, 2847, 3386, 0)
         local firebird_attack_result, firebird_attack_detail = t.player.attack("fire_bird", 2, 20)
         t.check("attackFirebird", firebird_attack_result == "ok" or firebird_attack_result == "timeout", firebird_attack_detail)
@@ -539,12 +658,133 @@ return {
             "inv.count(oily_fishing_rod) -> " .. tostring(oilyrod_result) .. " " .. tostring(oilyrod_count))
 
         -- ---------------------------------------------------------------
-        -- Fish a lava eel at Taverley Dungeon's own lava-fishing spot
+        -- Taverley Dungeon: the deep section (where the lava-fishing spot
+        -- sits) is behind deepdungeondoor, which needs dusty_key
+        -- (jail_doors.rs2:17-24 -- HeroesQuest.java's own
+        -- killJailerForKey/getDustyFromAdventurer/enterDeeperTaverley
+        -- steps). dusty_key comes only from freeing Velrak
+        -- (velrak_the_explorer.rs2), who sits behind dungeonjail, which
+        -- needs jail_key (jail_doors.rs2:8-14) from killing the Jailer
+        -- (drop_tables/jailer.rs2:5-13, a guaranteed jail_key drop,
+        -- *.spawn tile areas/world/configs/m45_151.spawn:57). All three
+        -- locks/fights are driven for real; goto_tile is only the plain
+        -- travel between them, the same idiom as every other far goto in
+        -- this file.
+        -- ---------------------------------------------------------------
+        t.exec("goto-jailer", t.player.goto_tile, 2930, 9692, 0)
+        local jailer_attack_result, jailer_attack_detail = t.player.attack("jailer", 2, 20)
+        t.check("attackJailer", jailer_attack_result == "ok" or jailer_attack_result == "timeout", jailer_attack_detail)
+        t.exec("killJailer", t.npc.await_dead, "jailer", 60)
+
+        -- jail_key is a real ground drop (ai_queue3,jailer -- obj_add at
+        -- npc_coord), not a chat grant. Same seam as iceGloves.visible above
+        -- (run 1, 2026-09-23): the seam10 teleport-settle arm shifts this
+        -- fight earlier against the tick clock too, so the drop window is
+        -- widened from 10 to 30 ticks the same way.
+        local jailkey_visible_result = t.await({
+            level = function()
+                return t.world.obj_near("jail_key", 10) == "ok"
+            end,
+            note = "waiting for the Jailer's dropped jail_key to reach the client's entity pool",
+        }, 30)
+        t.step("jailKey.visible", jailkey_visible_result == "ok" and "PASS" or "FAIL",
+            "t.world.obj_near(jail_key, 10) polled up to 30 ticks -> " .. tostring(jailkey_visible_result))
+
+        local jailkey_before_result, jailkey_before = t.inv.count("jail_key")
+        local jailkey_click_result, jailkey_click_detail = t.player.click_obj("jail_key")
+        if jailkey_click_result ~= "ok" then
+            t.ticks(3)
+            jailkey_click_result, jailkey_click_detail = t.player.click_obj("jail_key")
+        end
+        t.inv.await("jail_key", 1, 10)
+        local jailkey_after_result, jailkey_after = t.inv.count("jail_key")
+        local jailkey_pass = jailkey_click_result == "ok" and jailkey_after_result == "ok"
+            and jailkey_after > (jailkey_before_result == "ok" and jailkey_before or 0)
+        t.step("pickUpJailKey", jailkey_pass and "PASS" or "FAIL",
+            string.format("click_obj jail_key -> %s (%s), count %s -> %s",
+                tostring(jailkey_click_result), tostring(jailkey_click_detail), tostring(jailkey_before), tostring(jailkey_after)))
+
+        local jaildoor_near_result, jaildoor_near = t.world.loc_near("dungeonjail", 15)
+        local jaildoor_near_detail = "not_found"
+        if jaildoor_near_result == "ok" and jaildoor_near ~= nil then
+            jaildoor_near_detail = string.format("match=%s tile=%s,%s,%s",
+                tostring(jaildoor_near.match), tostring(jaildoor_near.tile_x),
+                tostring(jaildoor_near.tile_z), tostring(jaildoor_near.level))
+        end
+        t.check("jaildoor.locNear", jaildoor_near_result == "ok",
+            "t.world.loc_near(dungeonjail, 15) -> " .. tostring(jaildoor_near_result) .. " " .. jaildoor_near_detail)
+        -- dungeonjail has TWO map copies (2931,9690,0 and 2931,9694,0, both
+        -- north of Velrak's jail cell 2928-2934,9683-9689) -- loc_near
+        -- (nearest-first) picked 9694 from the jailer's own tile, which
+        -- measured as the WRONG one (unlockJailDoor read ok but
+        -- talkToVelrak then answered "I can't reach that!" -- the click
+        -- landed on a copy that does not lead into the cell). Stand
+        -- explicitly one tile north of the 9690 copy, the one adjacent to
+        -- the cell, so targeting resolves to that one instead.
+        t.exec("goto-jaildoor", t.player.goto_tile, 2931, 9691, 0)
+
+        -- trap 298: settle the backpack tab before arming, or the arm can
+        -- silently fail and the press degrades to a bare "Walk here".
+        t.check("jaildoor.tabInventory", t.ui.tab("inventory") == "ok", "t.ui.tab(inventory)")
+        t.ticks(2)
+        local jaildoor_target = t.player.by_symbol("loc", "dungeonjail")
+        t.exec("unlockJailDoor", t.player.use_on, "jail_key", jaildoor_target)
+
+        t.exec("talkToVelrak", t.player.talk_to, "velrak_the_explorer")
+        t.exec("talkToVelrak-dialog", t.chat.play, {
+            "npc:Thank you for rescuing me!",
+            "choose:So... do you know anywhere good to explore?",
+            "player:So... do you know anywhere good to explore?",
+            "npc:Well, this dungeon was quite good to explore",
+            "npc:It's rather tough for me to get that far",
+            "choose:Yes please!",
+            "player:Yes please!",
+            "mesbox:Velrak reaches somewhere mysterious",
+        })
+        local dustykey_result, dustykey_detail = t.inv.await("dusty_key", 1, 10)
+        t.check("velrak.dustyKeyGranted", dustykey_result == "ok",
+            "inv.await(dusty_key, 1, 10) -> " .. tostring(dustykey_result) .. " " .. tostring(dustykey_detail))
+
+        t.exec("goto-deepdungeondoor", t.player.goto_tile, 2924, 9801, 0)
+        local deepdoor_near_result, deepdoor_near = t.world.loc_near("deepdungeondoor", 15)
+        local deepdoor_near_detail = "not_found"
+        if deepdoor_near_result == "ok" and deepdoor_near ~= nil then
+            deepdoor_near_detail = string.format("match=%s tile=%s,%s,%s",
+                tostring(deepdoor_near.match), tostring(deepdoor_near.tile_x),
+                tostring(deepdoor_near.tile_z), tostring(deepdoor_near.level))
+            t.exec("goto-deepdungeondoor-2", t.player.goto_tile, deepdoor_near.tile_x, deepdoor_near.tile_z, deepdoor_near.level)
+        end
+        t.check("deepdungeondoor.locNear", deepdoor_near_result == "ok",
+            "t.world.loc_near(deepdungeondoor, 15) -> " .. tostring(deepdoor_near_result) .. " " .. deepdoor_near_detail)
+
+        t.check("deepdoor.tabInventory", t.ui.tab("inventory") == "ok", "t.ui.tab(inventory)")
+        t.ticks(2)
+        local deepdoor_target = t.player.by_symbol("loc", "deepdungeondoor")
+        t.exec("unlockDeepDungeonDoor", t.player.use_on, "dusty_key", deepdoor_target)
+        -- unlockDeepDungeonDoor's own p_teleport is a real, long-range jump
+        -- (measured: 2924,9802 -> 2892,9786, deep into the far room) --
+        -- section 2's "await arrival before the next press" rule for a
+        -- multi-region jump, so the scene has ticks to rebuild before the
+        -- next goto races it (measured without this: three goto_tile
+        -- attempts all read "server said Teleported to 2890,9766,0" while
+        -- the client stayed at the pre-jump tile).
+        t.ticks(3)
+
+        -- ---------------------------------------------------------------
+        -- Fish a lava eel at Taverley Dungeon's own lava-fishing spot, now
+        -- inside the deep section the unlock above opened
         -- (skill_fishing/scripts/fishing_spots/lavafish.rs2, category 1313,
         -- *.spawn tile areas/world/configs/m45_152.spawn:8). op1 already
         -- resolves to `@attempt_fish_lava_eel`.
         -- ---------------------------------------------------------------
-        t.exec("goto-lavafish", t.player.goto_tile, 2890, 9766, 0)
+        -- Measured: even after the settle above, three DEFAULT-patience
+        -- goto attempts all read the server's own "Teleported to
+        -- 2890,9766,0." while the client kept reading the pre-jump tile --
+        -- the region the real door-unlock teleport just landed in is still
+        -- settling longer than the default 10-tick/3-attempt budget here.
+        -- More patience, not a different verb (section 2's goto_tile
+        -- re-issue is exactly for this shape).
+        t.exec("goto-lavafish", t.player.goto_tile, 2890, 9766, 0, 20, 6)
         t.exec("fish.lavaeel", t.player.talk_to, "0_45_152_lavafish")
         local raweel_result, raweel_detail = t.inv.await("raw_lava_eel", 1, 30)
         t.step("fish.lavaeel_caught", raweel_result == "ok" and "PASS" or "FAIL",

@@ -145,7 +145,7 @@ explained in each row's `notes`).
 - **`notes`**: flags legacy/unnumbered bmp sets living alongside numbered
   ones, TODO/UNIMPLEMENTED/stub marker counts, empty quest directories, and
   (for 4 quests: `quest_gobdip`, `quest_theslugmenace`, `quest_doric`,
-  `quest_imp`) a drift where `server/scripts/selftest/<dir>/*.bmp` fixture
+  `quest_imp`) a drift where `server/scripts/selftest/quests/<dir>/scenes/*.bmp` fixture
   images are checked in but no `bmp_` debugproc currently exists in that
   quest's scripts to reproduce them — those are stale screenshots from an
   earlier pass of the content, not evidence about the current build.
@@ -249,7 +249,7 @@ of each quest's own `*bmp*.rs2` file (e.g.
 *"At First Light — Gate D named-BMP setup. Each debugproc parks on ONE
 authored mesbox / chathead / p_choice / journal / complete scroll so
 `TORIRS_EXIT_BMP` is not a washed tele with only 'godmode on'."*) and in a
-matching `server/scripts/selftest/<quest_dir>/INTERACTIONS.txt` manifest
+matching `server/scripts/selftest/quests/<quest_dir>/scenes/INTERACTIONS.txt` manifest
 (column 1 = the `.bmp` filename stem, column 2 = the
 `TORIRS_NET_CHEAT` debugproc that produces it), plus disclosure of that
 quest's own `Allowed leftovers` list. The house *rules* for the convention
@@ -276,7 +276,7 @@ this end-to-end for a whole quest today (unlike the canoe/sailing pilots,
 which do have `tools/content_selftest.py` / `tools/sailing_harness.py`) —
 each quest's BMP set is currently produced by an agent hand-running this
 recipe once per named scene during its audit pass, and the resulting
-`.bmp` files are committed under `server/scripts/selftest/quest_<name>/`
+`.bmp` files are committed under `server/scripts/selftest/quests/quest_<name>/scenes/`
 alongside that quest's `INTERACTIONS.txt`. `docs/CONTENT_SELFTEST.md`
 describes the *sibling*, more mature pattern this should probably converge
 toward (a persistent client+embedded server on one controlled clock, driven

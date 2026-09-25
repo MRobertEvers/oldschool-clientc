@@ -11,17 +11,29 @@
 --      dead-end shop refusal that never advances the stage) sets
 --      %abyssal_miniquest = eta_varrock.
 --   2. rcu_zammy_mage1_edge (Varrock Chaos Temple, 3259,3383,0), stage
---      eta_varrock -- helping through every choice grants an empty
---      scrying orb and sets %abyssal_miniquest = eta_orb.
+--      eta_varrock -- the real Chaos Temple offer tree (Transcript:
+--      Enter_the_Abyss oldid=15263217, content parity fc44e385e0): top
+--      menu -> "Where do you get your runes from?" -> care-to-share 4-way
+--      -> "Maybe I could make it worth your while?" (mercenary branch) ->
+--      "Yes, but I can still help you as well." -> Deal/No deal/think ->
+--      "Deal." grants an empty scrying orb and sets
+--      %abyssal_miniquest = eta_orb. (The Saradomin-refusal,
+--      not-interested, loyal-branch and rat-walk options are dead ends
+--      the transcript itself marks as such; this file drives the one real
+--      path through to the deal, same as the Wilderness mage's own
+--      "Alright, I'll go." choice above.)
 --   3. Teleport to the Rune Essence from three distinct NPCs while
 --      carrying the orb (aubury 3253,3402,0; head_wizard 3103,9571,0;
 --      ardounge_wizard 2683,3326,0) -- ~eta_charge_orb marks one essence
 --      spot per distinct source and converts the orb on the third.
 --   4. rcu_zammy_mage1_edge again, stage eta_orb with a full orb carried
 --      -- hands it over, %abyssal_miniquest = eta_reward.
---   5. rcu_zammy_mage1_edge a third time, stage eta_reward -- the
---      dialogue itself calls ~eta_quest_complete (XP + items + stage ->
---      eta_complete, opens the reward scroll).
+--   5. rcu_zammy_mage1_edge a third time, stage eta_reward -- the real
+--      orb-handover/reward conversation (@eta_reward_handover), ending at
+--      a p_choice3 of two OPTIONAL lore topics (Abyss / Z.M.I., which loop
+--      back to the same menu) plus "I'd better be off."; choosing that
+--      third option is what calls ~eta_quest_complete (XP + items + stage
+--      -> eta_complete, opens the reward scroll).
 
 return {
     id = "entertheabyss",
@@ -62,15 +74,46 @@ return {
         t.exec("goto-talkToMageInVarrock", t.player.goto_tile, 3259, 3383, 0)
         t.exec("talkToMageInVarrock", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("talkToMageInVarrock-dialog", t.chat.play, {
-            "npc:Ah, you again. What was it you wanted?",
+            "npc:Ah, you again. The Wilderness is hardly the appropriate place for a conversation",
+            "player:Err... I didn't really want anything.",
+            "npc:So why did you approach me?",
+            "player:I was just wondering why you sell runes in the Wilderness?",
+            "npc:Well I can't go doing it in the middle of Varrock",
             "choose:Where do you get your runes from?",
             "player:Where do you get your runes from?",
-            "npc:The essence mine. My colleagues",
+            "npc:Well we craft them of course.",
+            "player:We?",
+            "npc:My associates and I. Despite the best attempts",
+            "player:I can't imagine they like you crafting runes much",
+            "npc:Ha! I'm sure they'd love to, but we have methods of runecrafting",
+            "player:Care to share?",
+            "npc:Why would I? You are not a member of our institute",
             "choose:Maybe I could make it worth your while?",
             "player:Maybe I could make it worth your while?",
-            "npc:Will you help us access the essence mine?",
+            "npc:How? What do you have to offer?",
+            "player:Well what is it you want?",
+            "npc:Until recently, our runecrafting secrets allowed us to produce runes",
+            "npc:From what we can gather, they've somehow rediscovered how to access the lost Rune Essence Mine.",
+            "player:Ah, well I know all about that. I was actually the one to help them do it!",
+            "npc:You did what? You helped the Order of Wizards?",
+            "player:Err...",
+            "choose:Yes, but I can still help you as well.",
+            "player:Yes, but I can still help you as well.",
+            "npc:So you're a mercenary with no allegiance?",
+            "npc:Alright, if you help us access the Rune Essence Mine, we will share our runecrafting secrets",
             "choose:Deal.",
-            "npc:Take this scrying orb.",
+            "player:Deal.",
+            "npc:Good. Now, all I need from you is the spell that will teleport me to the Rune Essence Mine.",
+            "player:Err... I don't actually know the spell.",
+            "npc:What? Then how do you get there.",
+            "player:Oh, well the people who do know the spell just teleport me there directly.",
+            "npc:Hmm... I see. That makes this slightly more complex",
+            "player:How?",
+            "npc:I'll give you a scrying orb with a standard cypher spell cast upon it.",
+            "npc:If you teleport to the Rune Essence Mine from three different locations",
+            "npc:Do you know of three different people who can teleport you there?",
+            "player:Maybe?",
+            "npc:Well if not, I'm sure one of those fools in the Order of Wizards can tell you. Now, here's the orb.",
         })
         t.ticks(1) -- let the granted orb's inv update land before reading it
         local orb_empty_result, orb_empty_count = t.inv.count("scrying_orb_empty")
@@ -220,8 +263,23 @@ return {
 
         t.exec("talkToMageToFinish", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("talkToMageToFinish-dialog", t.chat.play, {
-            "player:So... that's my end of the deal upheld",
-            "npc:The findings confirm a direct path",
+            "player:Here you go.",
+            "mesbox:You hand the orb to the Mage of Zamorak.",
+            "npc:Right, let's take a look at this orb",
+            "npc:Yes, this will do nicely. Once again, the Zamorak Magical Institute has overcome the Order of Wizards!",
+            "npc:You have done well. Now, time for us to uphold our end of the bargain.",
+            "npc:The reason we are able to craft so many runes is because we do not visit the runic altars",
+            "player:How?",
+            "npc:Via another plane known as the Abyss.",
+            "player:So can I use the Abyss?",
+            "npc:Yes. Visit me in the Wilderness whenever you wish to be teleported there.",
+            "player:How is it dangerous?",
+            "npc:There are creatures there that will hunt and attack any visitors on sight.",
+            "player:What do you mean?",
+            "npc:Just don't expect to be using any prayers in there.",
+            "npc:Anyway, you may also have this pouch as well. I'm sure you will find it useful. Now, we're done here.",
+            "choose:I'd better be off.",
+            "player:I'd better be off.",
         })
         t.ticks(3) -- completion is asynchronous -- not padding (docs sec 8)
 

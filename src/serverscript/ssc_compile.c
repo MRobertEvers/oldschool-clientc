@@ -78,6 +78,22 @@ struct SSC_Build
     uint8_t param_types[SS_MAX_PARAM_TYPES];
     int param_type_count;
 
+    /*
+     * The value each DECLARED return gets when the body falls off its end, in
+     * declaration order (enum SSC_ReturnDefault).
+     *
+     * The reference compiler ends every script with its "default returns"
+     * (RuneScript CodeGenerator.generateDefaultReturns): `int` pushes 0, every
+     * other int-stack type pushes -1, `string` pushes "". Content leans on it:
+     * `[proc,forcewalk](coord $dest)(int)` (agility.rs2) returns nothing on its
+     * last line, and `~forcewalk2` discards the int it was promised. A bare
+     * RETURN left that discard to pop the caller's stack — an int underflow
+     * that killed every agility obstacle and the Waterfall rope crossing one
+     * line after the forcewalk.
+     */
+    int8_t return_defaults[SS_MAX_PARAM_TYPES];
+    int return_count;
+
     int32_t line_pcs[SSC_MAX_OPS];
     int32_t line_numbers[SSC_MAX_OPS];
     int line_count;
@@ -384,6 +400,28 @@ static int
 type_is_string(const char* type)
 {
     return type && strcmp(type, "string") == 0;
+}
+
+/** What a declared return holds when the script falls off its end — see
+ *  SSC_Build.return_defaults. */
+enum SSC_ReturnDefault
+{
+    SSC_RETURN_DEFAULT_ZERO = 0,
+    SSC_RETURN_DEFAULT_MINUS_ONE,
+    SSC_RETURN_DEFAULT_EMPTY_STRING,
+};
+
+/* The reference's rule, not the type's own default: only the `int` primitive is
+ * 0 (`boolean` is 0 as a local but -1 here), every other int-stack type is -1. */
+static enum SSC_ReturnDefault
+return_default_for_type(const char* type)
+{
+    assert(type);
+    if( type_is_string(type) )
+        return SSC_RETURN_DEFAULT_EMPTY_STRING;
+    if( strcmp(type, "int") == 0 )
+        return SSC_RETURN_DEFAULT_ZERO;
+    return SSC_RETURN_DEFAULT_MINUS_ONE;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3158,13 +3196,24 @@ parse_header_lists(struct SSC_Compiler* compiler)
         return fail(compiler, "expected ')' to close the argument list");
     SSC_LexNext(lexer);
 
-    /* The return list is parsed and discarded: return arity is not stored in
-     * the format at all — a caller simply reads whatever RETURN left behind. */
+    /* Return arity is not stored in the format at all — a caller simply reads
+     * whatever RETURN left behind. What IS kept is each return's type, for the
+     * default values finish_script pushes when the body falls off its end. */
     if( SSC_LexIsPunct(lexer, "(") )
     {
         SSC_LexNext(lexer);
         while( !SSC_LexIsPunct(lexer, ")") && lexer->current.kind != SSC_TOK_EOF )
+        {
+            if( lexer->current.kind == SSC_TOK_IDENT )
+            {
+                if( compiler->build.return_count >= SS_MAX_PARAM_TYPES )
+                    return fail(compiler, "more than %d declared returns",
+                                SS_MAX_PARAM_TYPES);
+                compiler->build.return_defaults[compiler->build.return_count++] =
+                    (int8_t)return_default_for_type(lexer->current.text);
+            }
             SSC_LexNext(lexer);
+        }
         if( SSC_LexIsPunct(lexer, ")") )
             SSC_LexNext(lexer);
     }
@@ -3591,8 +3640,31 @@ finish_script(struct SSC_Compiler* compiler)
      * desert map square with the heat timer already off.
      *
      * The cost of always appending is one unreachable byte per script that did
-     * not need it. */
+     * not need it.
+     *
+     * Ahead of it go the declared returns' defaults (return_defaults), the
+     * reference's generateDefaultReturns: a proc that promises `(int)` and
+     * falls off its end still hands its caller one int. Without them the
+     * caller's POP/assignment underflowed — [proc,forcewalk] into every
+     * ~forcewalk2 — or, worse, took a value the caller had pushed itself. */
+    for( i = 0; i < build->return_count; i++ )
+    {
+        switch( build->return_defaults[i] )
+        {
+        case SSC_RETURN_DEFAULT_EMPTY_STRING:
+            emit_string(compiler, "");
+            break;
+        case SSC_RETURN_DEFAULT_ZERO:
+            emit(compiler, SS_OP_PUSH_CONSTANT_INT, 0);
+            break;
+        default:
+            emit(compiler, SS_OP_PUSH_CONSTANT_INT, -1);
+            break;
+        }
+    }
     emit(compiler, SS_OP_RETURN, 0);
+    if( compiler->failed )
+        return 0;
 
     index = script_id_for_name(compiler, build->name);
     if( index < 0 )

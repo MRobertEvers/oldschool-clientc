@@ -384,7 +384,17 @@ return {
 
         -- And the claim is gone with her, which is the half the quest needed:
         -- the press the engine refused four rows up now lands.
-        local freed_result, freed_detail = t.player.attack("man", 2, 10)
+        --
+        -- Forty ticks, not the verb's ten.  Since seam15's npc wander parity
+        -- (LostCity Npc.ts wanderMode) the Man this presses wanders into
+        -- Lumbridge castle, a few tiles from a player standing OUTSIDE its
+        -- north wall: the approach is a run round to the east door and back
+        -- in, twenty-odd tiles (TORIRSSERVER_MOVE_TRACE, build/quest_gate/
+        -- s15close_cheats_trace: 3207,3233 -> 3221,3220 -> 3207,3227 over
+        -- ticks 66-85, interaction armed on slot 566 the whole way), and it
+        -- timed out at 10 and at 20.  The row proves the claim is gone -- the
+        -- press is accepted and the fight happens -- not how fast a walk-up is.
+        local freed_result, freed_detail = t.player.attack("man", 2, 40)
         record("cheats.passive_frees_the_player", freed_result == "ok",
             "t.player.attack(man) after ::passive -> " .. tostring(freed_result)
                 .. " (" .. tostring(freed_detail) .. "), want ok")

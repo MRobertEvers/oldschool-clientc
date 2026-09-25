@@ -269,6 +269,41 @@ return {
         t.ticks(3) -- @biohazard_climb_ladder's own p_delay(3) before the teleport lands
         t.expect("quest.stage.climbed_ladder", t.quest.expect_stage("climbed_ladder"))
 
+        -- RETRY: guide step enterBackyardOfHeadquarters ("Squeeze through
+        -- the fence to enter the Mourner's Headquarters yard") is a real
+        -- click, ObjectID.MOURNERSTEWFENCE at WorldPoint(2541,3331,0) --
+        -- decoded from the map text itself (trap 29:
+        -- OSRS-Content/osrs239-content/maps/m39_52.jl2:2269, "0 45 3: 2068
+        -- 0 2" -> level 0, localx 45 localz 3 in mapsquare 39,52 ->
+        -- 39*64+45,52*64+3 = 2541,3331). [oploc1,mournerstewfence]
+        -- (general_use/scripts/fence.rs2:5-32) is unconditional -- no gown,
+        -- no stage check, just an agility_exactmove squeeze-through with no
+        -- chat and no mes() -- so the goto straight to the rotten apple
+        -- this file previously used was cheating past it. Approach from
+        -- outside the yard (west of the fence tile) and click it; the
+        -- squeeze's own p_teleport(end) lands inside, then the existing
+        -- goto to the apple is plain movement within the now-open yard.
+        t.exec("goto-mournerFenceApproach", t.player.goto_tile, 2538, 3331, 0)
+        t.exec("enterBackyardOfHeadquarters", t.player.click_loc, "mournerstewfence", 1)
+        -- MEASURED run 2: a bare world.tile() read right after the click
+        -- caught the squeeze mid-animation (still 2541,3331,0, the fence's
+        -- own loc_coord -- fence.rs2's agility_exactmove takes several
+        -- ticks) and FAILed on a row the very next goto's own retry detail
+        -- proved had actually landed ("still at 2542,3331,0 after 10
+        -- tick(s)" mid-flight, then arriving 2549,3332,0 on attempt 2).
+        -- Poll instead of a single read (QUEST_AUTHORING.md section 8's
+        -- "poll, not a bare read").
+        local fence_settle_result, fence_settle_detail = t.await({
+            level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile and tile.x and tile.x > 2541
+            end,
+            note = "fence.crossed_settle",
+        }, 10)
+        t.step("enterBackyardOfHeadquarters.crossed", fence_settle_result == "ok" and "PASS" or "FAIL",
+            "await(world.tile().x > 2541) after the fence squeeze -> "
+                .. tostring(fence_settle_result) .. " " .. tostring(fence_settle_detail))
+
         -- Get a rotten apple off the ground west of the wall
         -- (areas/world/configs/m39_52.spawn:56, 2549,3332,0 -- right by the
         -- mournercauldron courtyard) and poison the mourners' stew with it
@@ -347,14 +382,36 @@ return {
                 tostring(gown_await_result), tostring(gown_count_result), tostring(gown_count)))
         t.exec("equipDoctorGown", t.player.equip, "doctor_gown")
 
-        -- The mourner HQ door (mournerstewdoor, areas/area_ardougne_west/
-        -- scripts/doors.rs2:19-24,76-101) writes no state of its own --
-        -- gown-gated access control, not a deliverable -- and MEASURED run
-        -- 2/3 both FAILed its click on a driver-side settle technicality
-        -- (`settle_after_click`) even with the gown worn and the guard's
-        -- own "In you go doc." branch reachable; goto_tile is used for the
-        -- crossing itself instead, the same treatment section 2 gives a
-        -- ladder or gate with no state effect of its own.
+        -- RETRY (queue: "enterMournerHeadquarters is CHEAT -- goto_tile
+        -- lands past the door the guide names (mournerstewdoor)"): the
+        -- previous attempt's goto_tile straight to 2551,3327,1 skipped this
+        -- click outright. Biohazard.java's own enterMournerHeadquarters
+        -- step is an ObjectStep on MOURNERSTEWDOOR at WorldPoint(2551,
+        -- 3320,0) -- the SAME tile and loc test/quests/mourningsendparti.lua:
+        -- 476-477 already clicks successfully for its own (later) leg
+        -- through this door, so the earlier claim that click_loc could not
+        -- settle here does not hold. At %biohazard=poisoned_stew|
+        -- found_distillator with the gown worn (doors.rs2:19-24 ->
+        -- @west_ardougne_mourner_headquarters_doors ->
+        -- doors.rs2:76-101), the guard binds mourner_armed_guard and opens
+        -- a real chatnpc_specific_anim page ("In you go doc."), not a
+        -- silent trigger -- p_pausebutton (chat.rs2:117), so it is a
+        -- t.chat.play page, then if_close + the silent forcemove
+        -- ~west_ardy_walk_door (doors.rs2:115-131, no mes of its own, so
+        -- the crossing is confirmed by tile only, same as trap 20's
+        -- teleport-door case).
+        t.exec("goto-mournerHqDoor", t.player.goto_tile, 2551, 3320, 0)
+        t.exec("enterMournerHeadquarters", t.player.click_loc, "mournerstewdoor", 1)
+        t.exec("mournerHqDoor-dialog", t.chat.play, {
+            "npc:In you go doc.",
+            "end",
+        })
+        t.ticks(2) -- west_ardy_walk_door's own p_telejump lands a tick or two after if_close
+        local hq_tile_result, hq_tile = t.world.tile()
+        t.step("enterMournerHeadquarters.crossed",
+            (hq_tile_result == "ok" and hq_tile and (hq_tile.x ~= 2551 or hq_tile.z ~= 3320)) and "PASS" or "FAIL",
+            string.format("world.tile() -> %s %s,%s,%s (expected off the door tile 2551,3320 after west_ardy_walk_door's forcemove)",
+                tostring(hq_tile_result), tostring(hq_tile and hq_tile.x), tostring(hq_tile and hq_tile.z), tostring(hq_tile and hq_tile.level)))
 
         -- Upstairs, the sick mourner (mournerstew2, m39_51.spawn:83,
         -- 2551,3327,1 -- goto_tile climbs the stairs itself, section 2).

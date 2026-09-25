@@ -655,6 +655,95 @@ test_try_route_op_exit_strategy(void)
     TEST_ASSERT(len >= 1 && !(route_x[0] == 40 && route_z[0] == 19),
                 "forceapproach south: does not stop on the vetoed south tile");
 
+    /* Straight wall decoration (shape 5, the Hemenster garlicpipe: angle 1,
+     * wall on the north edge). On a walkable square the reference holds: only
+     * the decoration's own square reaches it, never the square in front. */
+    collision_map_reset(cm);
+    collision_map_add_wall(cm, 20, 46, 0, COLL_ANGLE_NORTH, 0);
+    collision_approach_from_shape(5, COLL_ANGLE_NORTH, 1, 1, 0, 1, &approach);
+    TEST_ASSERT(collision_map_reached(cm, 20, 46, 20, 46, &approach),
+                "straight decor: own square reaches it");
+    TEST_ASSERT(!collision_map_reached(cm, 20, 45, 20, 46, &approach),
+                "straight decor on a walkable square: the front square does not reach");
+    len = collision_map_try_route_op(
+        cm, 20, 40, 20, 46, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 20 && route_z[0] == 46,
+                "straight decor on a walkable square: the route ends on it");
+
+    /* Its square floor-blocked (OSRS 239 m41_53 'f1'): the front square
+     * (south, the side it faces) reaches it; the sides and the far side of
+     * the wall still do not. Every angle maps to its own front square. */
+    collision_map_add_floor(cm, 20, 46);
+    TEST_ASSERT(collision_map_reached(cm, 20, 45, 20, 46, &approach),
+                "straight decor on a blocked square: the front square reaches it");
+    TEST_ASSERT(!collision_map_reached(cm, 19, 46, 20, 46, &approach) &&
+                    !collision_map_reached(cm, 21, 46, 20, 46, &approach) &&
+                    !collision_map_reached(cm, 20, 47, 20, 46, &approach),
+                "straight decor on a blocked square: sides and behind the wall do not");
+    len = collision_map_try_route_op(
+        cm, 20, 40, 20, 46, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 20 && route_z[0] == 45,
+                "straight decor on a blocked square: the route ends in front of it");
+    {
+        static int const front_dx[4] = { 1, 0, -1, 0 };  /* W, N, E, S walls */
+        static int const front_dz[4] = { 0, -1, 0, 1 };
+        for( angle = 0; angle < 4; angle++ )
+        {
+            collision_map_reset(cm);
+            collision_map_add_floor(cm, 30, 30);
+            collision_approach_from_shape(4, angle, 1, 1, 0, 1, &approach);
+            TEST_ASSERT(collision_map_reached(
+                            cm, 30 + front_dx[angle], 30 + front_dz[angle], 30, 30, &approach),
+                        "straight decor shape 4: the front square of every angle reaches");
+            TEST_ASSERT(!collision_map_reached(
+                            cm, 30 - front_dx[angle], 30 - front_dz[angle], 30, 30, &approach),
+                        "straight decor shape 4: the square behind never reaches");
+        }
+    }
+
+    /* Floor-decoration island (shape 22, the Lumbridge Swamp Caves stepping
+     * stone): stone at 30,20 in a three-square chasm 29..31, banks 28 / 32.
+     * The bank two squares off reaches it; with a walkable square beside the
+     * stone the reference rect-adjacent rule is all there is. */
+    collision_map_reset(cm);
+    for( int cz = 15; cz <= 25; cz++ )
+        for( int cx = 29; cx <= 31; cx++ )
+            collision_map_add_floor(cm, cx, cz);
+    collision_approach_from_shape(22, 0, 1, 1, 0, 1, &approach);
+    TEST_ASSERT(approach.kind == COLL_APPROACH_RECT_ADJACENT, "shape 22 -> RECT_ADJACENT");
+    TEST_ASSERT(collision_map_reached(cm, 28, 20, 30, 20, &approach) &&
+                    collision_map_reached(cm, 32, 20, 30, 20, &approach),
+                "island stone: both banks across the one-square gap reach it");
+    TEST_ASSERT(!collision_map_reached(cm, 28, 21, 30, 20, &approach) &&
+                    !collision_map_reached(cm, 27, 20, 30, 20, &approach),
+                "island stone: off-line and three-off bank squares do not");
+    len = collision_map_try_route_op(
+        cm, 20, 20, 30, 20, &approach, NULL, route_x, route_z, 256, NULL);
+    TEST_ASSERT(len >= 1 && route_x[0] == 28 && route_z[0] == 20,
+                "island stone: the route ends on the west bank");
+    collision_approach_from_shape(10, 0, 1, 1, 0, 1, &approach);
+    TEST_ASSERT(!collision_map_reached(cm, 28, 20, 30, 20, &approach),
+                "island scenery (shape 10) keeps the reference rect rule");
+    collision_approach_from_shape(22, 0, 1, 1, /*west*/ 8, 1, &approach);
+    TEST_ASSERT(!collision_map_reached(cm, 28, 20, 30, 20, &approach) &&
+                    collision_map_reached(cm, 32, 20, 30, 20, &approach),
+                "island stone: forceapproach west vetoes the west bank only");
+    collision_approach_from_shape(22, 0, 1, 1, 0, 1, &approach);
+    collision_map_add_wall(cm, 28, 20, 0, COLL_ANGLE_EAST, 0);
+    TEST_ASSERT(!collision_map_reached(cm, 28, 20, 30, 20, &approach),
+                "island stone: a wall on the bank edge stops the leap");
+    {
+        /* Open one square beside the stone: no longer an island. */
+        struct CollisionMap* cm2 = collision_map_new(64, 64);
+        for( int cz = 15; cz <= 25; cz++ )
+            for( int cx = 29; cx <= 31; cx++ )
+                if( !(cx == 30 && cz == 21) )
+                    collision_map_add_floor(cm2, cx, cz);
+        TEST_ASSERT(!collision_map_reached(cm2, 28, 20, 30, 20, &approach),
+                    "stone with a walkable neighbour: the bank does not reach it");
+        collision_map_free(cm2);
+    }
+
     collision_map_free(cm);
 }
 

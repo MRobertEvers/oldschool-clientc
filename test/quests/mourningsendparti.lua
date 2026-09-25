@@ -48,6 +48,61 @@
 -- no transmit=yes, so quest.expect_complete()'s client-side stage read
 -- would never converge) and the reward rows for every reward
 -- mend1_shared.rs2:31's own ~quest_complete_rewards call lists.
+--
+-- RE-AUTHOR after OSRS-Content c8b3e2fede / aa38f602a3 (content parity
+-- [parity:parity1b]/[parity:parity1c]): three legs of this file went stale
+-- against real content changes and are rewritten below.
+--   (1) killMourner: mend1_disguise.rs2's mourning_overpass_mourner is REAL
+--       combat now (`[apnpc2,...]`/`[opnpc2,...]` both `@player_combat_start*`,
+--       op2=Attack, QUEST_AUTHORING.md point 31's shape) -- a single
+--       talk_to(sym,2) press used to read as a kill because the old content
+--       granted the loot on one click; now it only ARMS the fight, so this
+--       is `t.player.attack` + `t.npc.await_dead_engaged`, gear given in
+--       setup (a combat prerequisite, not the quest's own work).
+--   (2) fillBarrel: mend1_poison.rs2's `[oploc1,mourning_orchard_applepile]`
+--       now only says "You'll need an empty barrel..."; the real fill is
+--       `[oplocu,...]` on `last_useitem = regicide_barrel_empty`, a real
+--       ground-spawned barrel at the pickUpBarrel tile
+--       (areas/world/configs/m38_52.spawn:38, 2487,3371,0).
+--   (3) the naphtha leg: no more `::give regicide_barrel_naphtha` shortcut.
+--       mend1_poison.rs2's 2026-09-23 header wires this quest into
+--       Regicide's own real fractionalising-still chain
+--       (regicide_bombcraft.rs2's `regicide_tar_collection` +
+--       regicide_fractionalising_still.rs2), both gated open to a
+--       Mourning's End player at the poison task with the sieve via
+--       `~mend1_naphtha_allowed`. Driven for real below: a second empty
+--       barrel from the tar swamp (Tirannwn, m34_49/m34_50.spawn), coal
+--       tar collected, coal brought along (a genuine bring-along per
+--       quest-helper's own `coal20OrNaphtha` ItemRequirement -- given via
+--       `t.cheat` mid-run rather than `setup`, because 10 raw non-stackable
+--       coal held the whole quest drops killMourner's own 7-free-slot gate
+--       below the minimum, measured by an earlier pass at free=6), the
+--       still's valve/coal minigame at 2927,3212 (quest-helper's own
+--       `getNaphtha` WorldPoint) driven with `t.ui.invoke(widget, 0)` --
+--       EVERY button on interface 286 is an IF1-style graphic button
+--       (`if3=no`, a nonzero `buttontype`: 1 for the valves/coal, 3 --
+--       REVCONFIG_BUTTON_TYPE_CLOSE -- for the close icon,
+--       `src/game/rs_minimenu_build.c`'s `if_button_action_for_type`), so
+--       `op>=1` misroutes the five valve/coal buttons onto the IF3
+--       numbered-op path (`torirs_plugin_bridge.u.c`'s
+--       `app_plugin_click_node` banner) and `op=0` is their fix -- measured
+--       live, the whole minigame converges (total=26) on real button
+--       presses. The close icon is the driver seam the queue row actually
+--       named, and it SURVIVES the op=0 fix: `if_click` answers `ok` every
+--       time (`REVCONFIG_MINIMENU_CLOSE_MODAL`'s own branch,
+--       `src/game/rs_if1_buttons.c`, does call the same
+--       `close_modal`-request sink `t.shop.close` uses) but the interface
+--       never actually unmounts behind it. `t.key("escape")` reaches the
+--       identical `app->host.close_modal_requested` flag by a different
+--       path (`src/app/app_hotkeys.c:119`, the same flag
+--       `DriveChat_CloseModal` sets) and is what actually closes it -- a
+--       real player's Escape key, not a bypass.
+--   (4) the dye-bellows leg: dyeing now only produces an intermediate
+--       `mourning_ogre_bellows_<colour>` (mend1_sheep.rs2's 2026-09-23
+--       header); the finished `mourning_bloated_toad_<colour>` comes from
+--       using that dyed bellows on a real swamp toad (Big Chompy Bird
+--       Hunting's `toad`, Feldip Hills m36_47/m37_47.spawn, spliced onto
+--       `quest_chompybird/scripts/swamp_toad.rs2`'s own `[opnpcu,toad]`).
 
 return {
     id = "mourningsendparti",
@@ -79,19 +134,23 @@ return {
         "::give bluedye 1",
         "::give yellowdye 1",
         "::give empty_ogre_bellows 1",
-        -- mend1_poison.rs2's naphtha step: quest-helper's own
-        -- coal20OrNaphtha ItemRequirement is an explicit OR (10-20 coal +
-        -- a barrel of coal tar, OR a barrel of naphtha already in hand) --
-        -- neither leg flagged canBeObtainedDuringQuest(). The naphtha leg
-        -- is taken here: 10 raw (non-stackable) coal would cost 10 backpack
-        -- slots against mend1_disguise.rs2:24's killMourner gate
-        -- (inv_freespace(inv) < ^mend1_loot_slots_needed(7), checked before
-        -- ANY setup item is consumed), which a first driven pass measured
-        -- failing outright (free=6) with the coal leg loaded; the naphtha
-        -- leg is one slot and the fractionalising-still soft-skip step
-        -- becomes unnecessary (the mix/sieve/cook chain is still driven for
-        -- real from this barrel).
-        "::give regicide_barrel_naphtha 1",
+        -- Combat prerequisite for killMourner (mend1_disguise.rs2's
+        -- mourning_overpass_mourner, REAL combat since OSRS-Content
+        -- c8b3e2fede/aa38f602a3 -- see this file's header): gear and levels
+        -- are a prerequisite, not the quest's own work
+        -- (docs/QUEST_AUTHORING.md section 8's player.attack note), the
+        -- same idiom betweenarock.lua/mortton.lua already use. Coal for the
+        -- fractionalising still (quest-helper's own coal20OrNaphtha
+        -- ItemRequirement) is NOT given here -- 10 raw non-stackable coal
+        -- held the whole quest drops this gate's own free-slot check below
+        -- 7 (measured), so it is given mid-run instead, once the earlier
+        -- setup items are consumed and the slots are free again.
+        "::give rune_scimitar 1",
+        "::give shark 3",
+        "::setlevel attack 40",
+        "::setlevel strength 40",
+        "::setlevel defence 40",
+        "::setlevel hitpoints 40",
         "::setlevel ranged 60",
         "::setlevel thieving 50",
         -- Elena (elena2, configs/all.npc) is a HIDDEN multinpc shell
@@ -193,6 +252,7 @@ return {
         -- [opnpc1,roving_islwyn_2ops] share the identical trigger body
         -- (rovingelves_islwyn.rs2:24-25), so talking to the untransformed id
         -- reaches ~mend1_islwyn_start all the same) ----
+        -- GUIDE-GAP: talkToIslwyn quest-helper's steps 0 and 1 are two identical talkToIslwyn NpcStep entries with no distinguishing action; the port has one proc (mend1_shared.rs2:39) for the whole native 0->2 transition, driven once below.
         t.exec("goto-talkToIslwyn", t.player.goto_tile, 2291, 3147, 0)
         t.exec("talkToIslwyn", t.player.talk_to, "roving_bowyer", 1)
         -- mend1_islwyn_start (mend1_shared.rs2:39-59): with %rovingelves_quest
@@ -243,19 +303,84 @@ return {
         t.ui.journal_close()
 
         -- ---- Kill the overpass mourner, Arandar pass (2299,3328,0 --
-        -- m35_52.spawn:9, base symbol mourning_overpass_mourner). The
-        -- server script listens on both [opnpc1,...] and [opnpc2,...]
-        -- (mend1_disguise.rs2:11-12), but the live entity's own menu carries
-        -- NO Talk-to row at all -- op1 answers "menu has no row for it"
-        -- (confirmed live: the pressed menu lists only Attack/Examine/Walk
-        -- here, no Talk-to), so this is [opnpc2,mourning_overpass_mourner].
-        -- mend1_kill_mourner is a plain mes() chat-log chain either way, not
-        -- a dialogue page -- no chat.play here, the loot and the message
-        -- are read back directly. ----
+        -- m35_52.spawn:9, base symbol mourning_overpass_mourner). RE-AUTHOR
+        -- (this file's header): the live entity's own menu carries no
+        -- Talk-to row (op1 answers "menu has no row for it" -- confirmed
+        -- live, only Attack/Examine/Walk here), and Attack is REAL combat
+        -- now -- `[apnpc2,mourning_overpass_mourner]`/`[opnpc2,...]` both
+        -- jump `@player_combat_start[_ap]` (mend1_disguise.rs2:11-40,
+        -- QUEST_AUTHORING.md point 31's shape: a quest npc bound through the
+        -- wildcard combat entry, not a one-click narration). The mourner is
+        -- weak (all.npc: stat1..4 = 8/8/8/19) and the rune scimitar +
+        -- level-40 melee from setup make this a short fight; equip the
+        -- weapon first (it arrived in the backpack from setup). Loot is a
+        -- real death drop (mend1_disguise.rs2's [ai_queue3,...]), not a
+        -- click grant -- graded on npc.await_dead_engaged, not the press. ----
+        t.exec("equip.scimitar", t.player.equip, "rune_scimitar")
         t.exec("goto-killMourner", t.player.goto_tile, 2299, 3328, 0)
-        t.exec("killMourner", t.player.talk_to, "mourning_overpass_mourner", 2)
-        t.ticks(2)
-        t.expect("killMourner.message", t.msg.expect("You collect a set of mourner's clothes, a mask, and a letter"))
+        -- The mourner's own header names a companion
+        -- (mourning_overpass_mourner_spawner) at this same spawn row --
+        -- a spawner cycling a fresh copy in mid-fight is exactly the "kill
+        -- never proven by an empty pool" shape docs/QUEST_AUTHORING.md
+        -- trap 141/287 describe, and this pass measured it live: the first
+        -- await_dead_engaged answered `dead` with its LAST reading at
+        -- 18/30 (not 0), and the very next shot showed a mourner standing
+        -- there with a near-FULL health bar -- the slot left the pool
+        -- without ever dying. So this attacks again whenever a live copy
+        -- is still standing after "dead", up to three attempts, and only
+        -- trusts the kill once none remains.
+        local mourner_kill_confirmed = false
+        local mourner_kill_attempts = 0
+        while not mourner_kill_confirmed and mourner_kill_attempts < 3 do
+            mourner_kill_attempts = mourner_kill_attempts + 1
+            local mourner_attack_result, mourner_attack_detail =
+                t.player.attack("mourning_overpass_mourner", 2, 30)
+            t.step("killMourner.attack." .. mourner_kill_attempts,
+                (mourner_attack_result == "ok" or mourner_attack_result == "timeout") and "PASS" or "FAIL",
+                "attack(mourning_overpass_mourner,2,30) attempt " .. mourner_kill_attempts .. " -> "
+                    .. tostring(mourner_attack_result) .. " " .. tostring(mourner_attack_detail))
+            local mourner_dead_result, mourner_dead_detail = t.npc.await_dead_engaged(60)
+            t.step("killMourner.awaitDead." .. mourner_kill_attempts,
+                mourner_dead_result == "ok" and "PASS" or "FAIL",
+                "npc.await_dead_engaged(60) attempt " .. mourner_kill_attempts .. " -> "
+                    .. tostring(mourner_dead_result) .. " " .. tostring(mourner_dead_detail))
+            t.ticks(2)
+            local still_alive_r = t.npc.nearest("mourning_overpass_mourner", 10)
+            mourner_kill_confirmed = still_alive_r ~= "ok"
+        end
+        t.shot("killMourner.attack-after")
+        t.step("killMourner",
+            mourner_kill_confirmed and "PASS" or "FAIL",
+            "killed after " .. tostring(mourner_kill_attempts) .. " attempt(s), no live copy remains")
+        -- RE-AUTHOR: the death handler ([ai_queue3,mourning_overpass_mourner])
+        -- drops all seven pieces as real (private) ground items via
+        -- obj_add(npc_coord, ..., ^lootdrop_duration) and prints NO chat
+        -- line at all -- the old "You collect a set of..." grant message
+        -- this row used to assert is gone; each piece is picked up by hand,
+        -- same as quest-helper's own separate pickUpLoot step. A private
+        -- drop lags the zone packet like a backpack grant (section 8's
+        -- obj_add_private trap), so this polls presence before clicking. ----
+        local boots_near_r, boots_near = t.world.obj_near("mourning_mourner_boots", 10)
+        t.step("killMourner.lootDrop.present", boots_near_r == "ok" and "PASS" or "FAIL",
+            "world.obj_near(mourning_mourner_boots, 10) -> " .. tostring(boots_near_r) .. " "
+                .. (boots_near_r == "ok"
+                    and string.format("tile=%s,%s,%s", tostring(boots_near.tile_x), tostring(boots_near.tile_z), tostring(boots_near.level))
+                    or tostring(boots_near)))
+        local boots_pick_result = t.player.click_obj("mourning_mourner_boots", 3)
+        local gloves_pick_result = t.player.click_obj("mourning_mourner_gloves", 3)
+        local cloak_pick_result = t.player.click_obj("mourning_mourner_cloak", 3)
+        local legs_pick_result = t.player.click_obj("mourning_ripped_mourner_legs", 3)
+        local mask_pick_result = t.player.click_obj("gasmask", 3)
+        local letter_pick_result = t.player.click_obj("mourning_mourner_message", 3)
+        local top_pick_result = t.player.click_obj("mourning_bloody_mourner_top", 3)
+        t.step("killMourner.loot.picks",
+            (boots_pick_result == "ok" and gloves_pick_result == "ok" and cloak_pick_result == "ok"
+                and legs_pick_result == "ok" and mask_pick_result == "ok" and letter_pick_result == "ok"
+                and top_pick_result == "ok") and "PASS" or "FAIL",
+            string.format("click_obj results: boots=%s gloves=%s cloak=%s legs=%s mask=%s letter=%s top=%s",
+                tostring(boots_pick_result), tostring(gloves_pick_result), tostring(cloak_pick_result),
+                tostring(legs_pick_result), tostring(mask_pick_result), tostring(letter_pick_result), tostring(top_pick_result)))
+        t.shot("killMourner.loot-after")
         local boots_r, boots_n = t.inv.count("mourning_mourner_boots")
         local gloves_r, gloves_n = t.inv.count("mourning_mourner_gloves")
         local cloak_r, cloak_n = t.inv.count("mourning_mourner_cloak")
@@ -467,6 +592,7 @@ return {
 
         -- ---- Click 2: mend1_gnome_tickle (mend1_gnome.rs2:90-96) --
         -- consumes the feather -> gnome = tortured. ----
+        -- GUIDE-GAP: useFeatherOnGnome quest-helper's own step ("Use a feather on the gnome"); this port's %mourning_gnome write is on the loc's own mesbox branch (mend1_gnome.rs2:94), driven by the click_loc row right below, not a separate use_on.
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
         t.exec("gnomeCage.tickle", t.player.click_loc, "mourning_gnome_rack", 1)
         t.exec("gnomeCage.tickle-dialog", t.chat.play, {
@@ -512,6 +638,7 @@ return {
         -- (m31_72.spawn:33's mourner_hideout_gnome, standing on the same
         -- tile, [opnpc1,mourner_hideout_gnome] -> the identical
         -- mend1_gnome_rack_shared), not the loc. ----
+        -- GUIDE-GAP: giveGnomeItems mend1.constant:141 -- quest-helper's giveGnomeItems/askAboutToads assume a separate walking gnome NPC; this port has none, keeping every gnome interaction on the one mourner_hideout_gnome entity (m31_72.spawn:33, [opnpc1,...] -> mend1_gnome_rack_shared, mend1_gnome.rs2:128), driven by the row right below.
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
         t.exec("gnomeCage.giveItems", t.player.talk_to, "mourner_hideout_gnome", 1)
         t.exec("gnomeCage.giveItems-dialog", t.chat.play, {
@@ -533,6 +660,7 @@ return {
         -- a chatplayer opener plus two mesbox pages -> %mourning_dye_chat
         -- = 1, no item change. The rack is still the empty form from click
         -- 5 onward, so this is the NPC too. ----
+        -- GUIDE-GAP: askAboutToads mend1.constant:141 -- the same collapse as giveGnomeItems above: no separate walking gnome NPC, driven on the same mourner_hideout_gnome entity (mend1_gnome.rs2:141, [label,mend1_gnome_ask_toads]) by the row right below.
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
         t.exec("gnomeCage.askToads", t.player.talk_to, "mourner_hideout_gnome", 1)
         t.exec("gnomeCage.askToads-dialog", t.chat.play, {
@@ -550,17 +678,32 @@ return {
             "journal_open(Mourning's End Part I) -> " .. tostring(journal_dye_r) .. " first_line=" .. tostring(journal_dye_line))
         t.ui.journal_close()
 
-        -- ---- Dye the bellows and inflate all four toads (mend1_sheep.rs2:
-        -- 9-24 -- the bellows must be armed first: only [opheldu,
-        -- empty_ogre_bellows] is declared, not the reverse, so item_a is
-        -- the bellows. No location gate on this interaction at all; the
-        -- bellows is not consumed and is reused for every colour. One retry
-        -- on a bare arming miss, same shape as the cleanTop retry above
-        -- (use_on re-arms before every retry press per
-        -- docs/QUEST_AUTHORING.md section 6) -- measured live: the backpack
-        -- tab was not yet repainted from the journal_close() immediately
-        -- before this. ----
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
+        -- ---- Dye the bellows and catch a real swamp toad with them, one
+        -- colour at a time (mend1_sheep.rs2, RE-AUTHOR per this file's
+        -- header point (4)): only [opheldu,empty_ogre_bellows] is declared
+        -- (item_a is always the bellows), and catching a toad returns the
+        -- bellows to plain empty_ogre_bellows (mend1_catch_toad_*'s own
+        -- inv_add), so the two beats alternate dye/catch x4 rather than
+        -- dyeing all four up front. Dyeing has no location gate at all, so
+        -- this whole ladder is driven at the toad ground itself -- Big
+        -- Chompy Bird Hunting's own `toad`, Feldip Hills
+        -- (areas/world/configs/m36_47.spawn/m37_47.spawn), one goto for all
+        -- four colours and catches. One retry on the first dye's bare
+        -- arming miss, same shape as the cleanTop retry above (use_on
+        -- re-arms before every retry press per docs/QUEST_AUTHORING.md
+        -- section 6). ----
+        t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
+        t.exec("goto-toadGround", t.player.goto_tile, 2394, 3050, 0)
+        -- t.player.by_symbol resolves the SYMBOL, and click_minimenu re-picks
+        -- the live copy nearest the viewport centre at PRESS time -- not
+        -- cached -- but that copy can still be a poor pixel (run 1 measured
+        -- one catch spend its whole 99-pixel hunt budget and fail while the
+        -- next two succeeded from the same spot). t.npc.nearest + walk_near
+        -- puts the player standing next to a KNOWN live copy before every
+        -- catch instead of trusting a from-range hunt, the same idiom the
+        -- sheep-firing rows below already use.
+        local toad_target = t.player.by_symbol("npc", "toad")
+
         local dye_red_result, dye_red_detail = t.player.use_item_on_item("empty_ogre_bellows", "reddye")
         if dye_red_result ~= "ok" then
             t.ticks(3)
@@ -568,9 +711,69 @@ return {
         end
         t.step("dyeBellows.red", dye_red_result == "ok" and "PASS" or "FAIL",
             "use_item_on_item(empty_ogre_bellows, reddye) -> " .. tostring(dye_red_result) .. " " .. tostring(dye_red_detail))
-        t.exec("dyeBellows.green", t.player.use_item_on_item, "empty_ogre_bellows", "greendye")
-        t.exec("dyeBellows.blue", t.player.use_item_on_item, "empty_ogre_bellows", "bluedye")
+        local toad_red_r, toad_red = t.npc.nearest("toad", 15)
+        t.step("toadRed.locate", toad_red_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_red_r))
+        if toad_red_r == "ok" then
+            local toad_red_walk_result = t.player.walk_to(toad_red.x, toad_red.z, 10)
+            -- ok or timeout both count: a toad that wanders a tile mid-walk
+            -- makes the destination tile stale, but the player still ends up
+            -- close enough for use_on's own hunt (measured: catchToad.yellow
+            -- PASSed on a run where this exact row timed out).
+            t.step("walk-toadRed", (toad_red_walk_result == "ok" or toad_red_walk_result == "timeout") and "PASS" or "FAIL",
+                "walk_to(" .. tostring(toad_red.x) .. "," .. tostring(toad_red.z) .. ") -> " .. tostring(toad_red_walk_result))
+        end
+        t.exec("catchToad.red", t.player.use_on, "mourning_ogre_bellows_red", toad_target)
+        t.ticks(2)
+        t.expect("catchToad.red.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+
         t.exec("dyeBellows.yellow", t.player.use_item_on_item, "empty_ogre_bellows", "yellowdye")
+        local toad_yellow_r, toad_yellow = t.npc.nearest("toad", 15)
+        t.step("toadYellow.locate", toad_yellow_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_yellow_r))
+        if toad_yellow_r == "ok" then
+            local toad_yellow_walk_result = t.player.walk_to(toad_yellow.x, toad_yellow.z, 10)
+            -- ok or timeout both count: a toad that wanders a tile mid-walk
+            -- makes the destination tile stale, but the player still ends up
+            -- close enough for use_on's own hunt (measured: catchToad.yellow
+            -- PASSed on a run where this exact row timed out).
+            t.step("walk-toadYellow", (toad_yellow_walk_result == "ok" or toad_yellow_walk_result == "timeout") and "PASS" or "FAIL",
+                "walk_to(" .. tostring(toad_yellow.x) .. "," .. tostring(toad_yellow.z) .. ") -> " .. tostring(toad_yellow_walk_result))
+        end
+        t.exec("catchToad.yellow", t.player.use_on, "mourning_ogre_bellows_yellow", toad_target)
+        t.ticks(2)
+        t.expect("catchToad.yellow.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+
+        t.exec("dyeBellows.green", t.player.use_item_on_item, "empty_ogre_bellows", "greendye")
+        local toad_green_r, toad_green = t.npc.nearest("toad", 15)
+        t.step("toadGreen.locate", toad_green_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_green_r))
+        if toad_green_r == "ok" then
+            local toad_green_walk_result = t.player.walk_to(toad_green.x, toad_green.z, 10)
+            -- ok or timeout both count: a toad that wanders a tile mid-walk
+            -- makes the destination tile stale, but the player still ends up
+            -- close enough for use_on's own hunt (measured: catchToad.yellow
+            -- PASSed on a run where this exact row timed out).
+            t.step("walk-toadGreen", (toad_green_walk_result == "ok" or toad_green_walk_result == "timeout") and "PASS" or "FAIL",
+                "walk_to(" .. tostring(toad_green.x) .. "," .. tostring(toad_green.z) .. ") -> " .. tostring(toad_green_walk_result))
+        end
+        t.exec("catchToad.green", t.player.use_on, "mourning_ogre_bellows_green", toad_target)
+        t.ticks(2)
+        t.expect("catchToad.green.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+
+        t.exec("dyeBellows.blue", t.player.use_item_on_item, "empty_ogre_bellows", "bluedye")
+        local toad_blue_r, toad_blue = t.npc.nearest("toad", 15)
+        t.step("toadBlue.locate", toad_blue_r == "ok" and "PASS" or "FAIL", "npc.nearest(toad, 15) -> " .. tostring(toad_blue_r))
+        if toad_blue_r == "ok" then
+            local toad_blue_walk_result = t.player.walk_to(toad_blue.x, toad_blue.z, 10)
+            -- ok or timeout both count: a toad that wanders a tile mid-walk
+            -- makes the destination tile stale, but the player still ends up
+            -- close enough for use_on's own hunt (measured: catchToad.yellow
+            -- PASSed on a run where this exact row timed out).
+            t.step("walk-toadBlue", (toad_blue_walk_result == "ok" or toad_blue_walk_result == "timeout") and "PASS" or "FAIL",
+                "walk_to(" .. tostring(toad_blue.x) .. "," .. tostring(toad_blue.z) .. ") -> " .. tostring(toad_blue_walk_result))
+        end
+        t.exec("catchToad.blue", t.player.use_on, "mourning_ogre_bellows_blue", toad_target)
+        t.ticks(2)
+        t.expect("catchToad.blue.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+
         local redtoad_r, redtoad_n = t.inv.count("mourning_bloated_toad_red")
         local greentoad_r, greentoad_n = t.inv.count("mourning_bloated_toad_green")
         local bluetoad_r, bluetoad_n = t.inv.count("mourning_bloated_toad_blue")
@@ -588,14 +791,13 @@ return {
         -- (areas/world/configs/m40_52.spawn), which diseased_sheep.rs2's
         -- [opnpc1,plaguesheep_1] -> prod_sheep(herder_plaguesheep_1) routes
         -- into the same shared label (trap 19/20's base-symbol shape). ----
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
+        t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
         t.exec("loadToad.red", t.player.use_item_on_item, "mourning_bloated_toad_red", "mourning_paint_gun")
         t.exec("equip.paintgun", t.player.equip, "mourning_paint_gun")
         -- by_symbol/walk_near need the npc loaded into the CLIENT's nearby
-        -- region first -- we are still in the HQ basement, two whole
-        -- regions away, so goto_tile to the sheep field before either
+        -- region first -- we are still at the Feldip Hills toad ground, a
+        -- whole region away, so goto_tile to the sheep field before either
         -- (m40_52.spawn's plaguesheep_1 cluster: 2609-2610,3343-3345).
-        t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
         t.exec("goto-sheepField", t.player.goto_tile, 2610, 3344, 0)
         local sheep1, sheep1_r = t.player.by_symbol("npc", "plaguesheep_1")
         t.step("sheep1.locate", sheep1_r == "ok" and "PASS" or "FAIL", "by_symbol(npc, plaguesheep_1) -> " .. tostring(sheep1_r))
@@ -689,11 +891,23 @@ return {
         t.ui.journal_close()
 
         -- ---- Report back to Essyllt, HQ basement (mend1_essyllt_after_sheep,
-        -- mend1_disguise.rs2:178-205 -- reached the same way as the first
-        -- visit, the trap door's own p_teleport landed the player on this
-        -- tile, so goto_tile the same coordinate directly (docs/
-        -- QUEST_AUTHORING.md section 2's ladder/trapdoor bullet: the tile
-        -- IS the whole of it, no click_loc needed). ----
+        -- mend1_disguise.rs2:178-205). Quest-helper lists enterBaseAfterSheep
+        -- as its own standalone step (unlike the AfterPoison return, which
+        -- is folded as a substep of talkToEssylltAfterPoison and never
+        -- enumerated on its own -- helper_coverage.py confirmed the
+        -- difference), so this door is clicked for real a second time
+        -- rather than goto_tile past it -- doors.rs2's own
+        -- west_ardougne_mourner_headquarters_doors gate reads
+        -- %mourning_mourner_disguise (already 1 from the first pass) and
+        -- walks through SILENTLY the second time, no mes() at all, so this
+        -- row asserts no message. The trapdoor beyond it stays a direct
+        -- goto -- that one IS the ladder/trapdoor exception (section 2:
+        -- its own p_teleport already lands on this exact tile, and
+        -- quest-helper folds its own AfterSheep trapdoor return the same
+        -- way it folds AfterPoison's, so it is never independently
+        -- enumerated). ----
+        t.exec("goto-enterBaseAfterSheep", t.player.goto_tile, 2551, 3320, 0)
+        t.exec("enterBaseAfterSheep", t.player.click_loc, "mournerstewdoor", 1)
         t.exec("goto-talkToEssylltAfterSheep", t.player.goto_tile, 2043, 4631, 0)
         t.exec("talkToEssylltAfterSheep", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssylltAfterSheep-dialog", t.chat.play, {
@@ -701,9 +915,32 @@ return {
             "npc:Excellent. That confirms the signal carries. Now, one more test -- I want to see how far you'll go for us.",
             "npc:Somewhere near here is a rotten apple. Fetch it -- Elena, north-west of East Ardougne, knows what to do with it. If you can poison our food stores without being caught, you'll have earned real trust.",
         })
+        -- ---- Pick up the rotten apple, north-west of the Mourner HQ
+        -- (mend1_poison.rs2's own header: a real `rottenapples` ground item
+        -- sits at areas/world/configs/m39_52.spawn x2535/y3333, exactly
+        -- quest-helper's own pickUpRottenApple WorldPoint -- "already works
+        -- for free" via the engine's generic ground-item take, no script
+        -- needed, but driven here as its own row rather than left to
+        -- incidental pickup on some earlier walk). ----
+        t.exec("goto-pickUpRottenApple", t.player.goto_tile, 2535, 3333, 0)
+        -- RUN 4 measured this: goto_tile's own arrival on the stack's tile
+        -- already collects it (the "already works for free" header banner
+        -- is literal, not just narrative) -- an unconditional click_obj
+        -- here found a SECOND, distant rottenapples spawn instead
+        -- (m39_52.spawn:56, 2549,3332) and picked that one up too, leaving
+        -- two in the backpack where mend1_elena_talk's own inv_del(...,1)
+        -- only ever removes one. Only click if the arrival did not already
+        -- collect it.
+        local apple_precount_r, apple_precount_n = t.inv.count("rottenapples")
+        local rottenapple_pick_result = "skipped: goto's own arrival already holds "
+            .. tostring(apple_precount_n)
+        if not (apple_precount_r == "ok" and apple_precount_n >= 1) then
+            rottenapple_pick_result = t.player.click_obj("rottenapples", 3)
+        end
         local apple_wait_r, apple_wait_detail = t.inv.await("rottenapples", 1, 10)
-        t.step("talkToEssylltAfterSheep.await_apple", apple_wait_r == "ok" and "PASS" or "FAIL",
-            "inv.await(rottenapples, 1, 10) -> " .. tostring(apple_wait_r) .. " " .. tostring(apple_wait_detail))
+        t.step("pickUpRottenApple", apple_wait_r == "ok" and "PASS" or "FAIL",
+            "click_obj(rottenapples, 3) -> " .. tostring(rottenapple_pick_result)
+                .. "; inv.await(rottenapples, 1, 10) -> " .. tostring(apple_wait_r) .. " " .. tostring(apple_wait_detail))
         t.ticks(3)
         local journal_poison0_r, journal_poison0 = t.ui.journal_open("Mourning's End Part I")
         local journal_poison0_line = journal_poison0 and journal_poison0.first_line
@@ -757,12 +994,32 @@ return {
             "rottenapples=" .. tostring(apple_after_n) .. " (" .. tostring(apple_after_r) .. ")")
 
         -- ---- Barrel + apple pile, north-west of the Mourner HQ
-        -- (mourning_orchard_applepile, mend1_poison.rs2:45-58 -- collapses
-        -- pickUpBarrel + useBarrelOnPile). ----
-        t.exec("goto-fillBarrel", t.player.goto_tile, 2487, 3374, 0)
-        t.exec("fillBarrel", t.player.click_loc, "mourning_orchard_applepile", 1)
+        -- (mourning_orchard_applepile, mend1_poison.rs2:45-58, RE-AUTHOR per
+        -- this file's header point (2): pickUpBarrel is a real ground item
+        -- now (regicide_barrel_empty, areas/world/configs/m38_52.spawn:38,
+        -- exactly quest-helper's own pickUpBarrel WorldPoint) and
+        -- useBarrelOnPile is a real [oplocu,...] use-on -- the bare
+        -- [oploc1,...] only tells the player they need a barrel now. ----
+        t.exec("goto-fillBarrel", t.player.goto_tile, 2487, 3371, 0)
+        -- click_obj answers `ok` with a nil detail (hollow, trap 12/section
+        -- 8) -- graded by hand, the counts read back are the evidence.
+        local pickup_barrel_result = t.player.click_obj("regicide_barrel_empty", 3)
+        local pickup_barrel_count_r, pickup_barrel_count_n = t.inv.count("regicide_barrel_empty")
+        t.check("pickUpBarrel",
+            pickup_barrel_result == "ok" and pickup_barrel_count_r == "ok" and pickup_barrel_count_n >= 1,
+            "click_obj(regicide_barrel_empty, 3) -> " .. tostring(pickup_barrel_result)
+                .. "; regicide_barrel_empty=" .. tostring(pickup_barrel_count_n))
+        local applebarrel_target = t.player.by_symbol("loc", "mourning_orchard_applepile")
+        -- SHOW AND SETTLE THE BACKPACK BEFORE THE FIRST use_on OF THE RUN:
+        -- use_on's arming is a one-shot behind an unsettled tab press
+        -- (docs/QUEST_AUTHORING.md's "use_on's backpack tab press is not
+        -- settled before its arming" trap), and the sidebar here is
+        -- wherever talkToElena's own dialogue/journal reads left it.
+        t.ui.tab("inventory")
         t.ticks(2)
-        t.expect("fillBarrel.message", t.msg.expect("You find an empty barrel nearby and fill it with rotten apples from the pile"))
+        t.exec("fillBarrel", t.player.use_on, "regicide_barrel_empty", applebarrel_target)
+        t.ticks(2)
+        t.expect("fillBarrel.message", t.msg.expect("You fill the barrel with rotten apples from the pile"))
         local barrelfull_r, barrelfull_n = t.inv.count("applebarrel_full")
         t.check("fillBarrel.result", barrelfull_r == "ok" and barrelfull_n == 1,
             "applebarrel_full=" .. tostring(barrelfull_n) .. " (" .. tostring(barrelfull_r) .. ")")
@@ -801,24 +1058,200 @@ return {
             t.msg.expect("You press the rotten apples into a foul-smelling mash"))
         t.expect("pressApples.mash", t.inv.await("mourning_applebarrel_mush", 1, 10))
 
+        -- ---- Coal tar: a second empty barrel from Tirannwn
+        -- (areas/world/configs/m34_49.spawn:67, 2184,3139,0), carried to
+        -- Regicide's own tar collection point (regicide_bombcraft.rs2's
+        -- regicide_collect_tar label, gated open to this quest via
+        -- ~mend1_naphtha_allowed) -- RE-AUTHOR per this file's header
+        -- point (3). The barrel spawn and the loc are NOT the same tile
+        -- (trap 20 has no spawn row for a loc at all, so this was found by
+        -- decoding maps/m34_48.jl2:908 -- `0 47 51: 3975 10 1` = ABS
+        -- 34*64+47,48*64+51 = 2223,3123,0, one of three placements), so
+        -- this is two separate gotos. ----
+        t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
+        t.exec("goto-tarBarrel", t.player.goto_tile, 2184, 3139, 0)
+        local pickup_tar_barrel_result = t.player.click_obj("regicide_barrel_empty", 3)
+        local pickup_tar_barrel_count_r, pickup_tar_barrel_count_n = t.inv.count("regicide_barrel_empty")
+        t.check("pickUpTarBarrel",
+            pickup_tar_barrel_result == "ok" and pickup_tar_barrel_count_r == "ok" and pickup_tar_barrel_count_n >= 1,
+            "click_obj(regicide_barrel_empty, 3) -> " .. tostring(pickup_tar_barrel_result)
+                .. "; regicide_barrel_empty=" .. tostring(pickup_tar_barrel_count_n))
+        t.exec("goto-tarCollection", t.player.goto_tile, 2223, 3123, 0)
+        local tar_loc_result, tar_loc_row = t.world.loc_near("regicide_tar_collection", 15)
+        t.check("collectTar.present", tar_loc_result == "ok",
+            "loc_near(regicide_tar_collection, 15) -> " .. tostring(tar_loc_result) .. " "
+                .. (tar_loc_result == "ok"
+                    and (tostring(tar_loc_row.tile_x) .. "," .. tostring(tar_loc_row.tile_z)
+                        .. " L" .. tostring(tar_loc_row.level))
+                    or tostring(tar_loc_row)))
+        t.exec("collectTar", t.player.click_loc, "regicide_tar_collection", 1)
+        t.ticks(2)
+        t.expect("collectTar.message", t.msg.expect("You fill the barrel with thick coal tar"))
+        t.expect("collectTar.result", t.inv.await("regicide_barrel_tar", 1, 10))
+
+        -- ---- Coal: a genuine bring-along per quest-helper's own
+        -- coal20OrNaphtha ItemRequirement (10-20 coal alongside the tar
+        -- barrel), given here rather than in setup -- see this file's
+        -- header point (3) for why it cannot sit in the backpack for the
+        -- whole quest. t.cheat is hollow (trap 12), so it is graded by
+        -- hand, not through t.exec. ----
+        -- A setup ::give is counted and waited out by run.py's own wrapper
+        -- (trap 23); this one is mid-run, so the same wait is spelled by
+        -- hand -- the cheat's reply outruns its own backpack effect by a
+        -- tick, same as any other cheat.
+        -- 12, not 15: run 2 measured the backpack holding only 12 of a
+        -- requested 15 (the still minigame itself used just 7 of those, so
+        -- 12 is comfortable margin, not a floor found by trial).
+        local coal_cheat_result, coal_cheat_detail = t.cheat("::give coal 12")
+        local coal_wait_r, coal_wait_detail = t.inv.await("coal", 10, 10)
+        local coal_r, coal_n = t.inv.count("coal")
+        t.step("giveCoal", (coal_cheat_result == "ok" and coal_wait_r == "ok") and "PASS" or "FAIL",
+            "cheat(::give coal 12) -> " .. tostring(coal_cheat_result) .. " " .. tostring(coal_cheat_detail)
+                .. "; inv.await(coal,10,10) -> " .. tostring(coal_wait_r) .. " " .. tostring(coal_wait_detail)
+                .. "; coal=" .. tostring(coal_n))
+
+        -- ---- Fractionalising still, Rimmington chemist (2927,3212,0 --
+        -- quest-helper's own getNaphtha WorldPoint): open with the tar
+        -- barrel, then drive the valve/coal minigame
+        -- (regicide_fractionalising_still.rs2) until
+        -- %regicide_still_total>=26 and close it. EVERY button on
+        -- interface 286 is an IF1-style graphic button (if3=no, a nonzero
+        -- buttontype -- this file's header point (3)), so every invoke
+        -- below presses op=0, never op=1: op>=1 misroutes an IF1 button
+        -- onto the IF3 numbered-op path, which is the driver seam the
+        -- queue row named. t.ui.invoke answers `ok` with no detail
+        -- (hollow, trap 12's shape), so it is graded by hand throughout,
+        -- never through t.exec. Strategy mirrors the wiki's own text --
+        -- turn the tar valve fully up, let the flow gauge climb, back it
+        -- off once with the pressure valve before it pops, then add coal
+        -- reactively whenever the heat gauge (bits 13-25 of
+        -- %regicide_still_settings) reads below the green band (19-24) --
+        -- read back from the SERVER after every press, the one channel
+        -- that actually transmits (aa38f602a3: _total/_settings do, _heat
+        -- does not), so the loop reacts to the real gauge, never a fixed
+        -- schedule. ----
+        t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
+        t.exec("goto-still", t.player.goto_tile, 2927, 3212, 0)
+        t.ui.tab("inventory")
+        t.ticks(2)
+        local still_loc_target = t.player.by_symbol("loc", "regicide_fractionalizing_still")
+        t.exec("openStill", t.player.use_on, "regicide_barrel_tar", still_loc_target)
+        -- t.ui.await_open answers `ok` with a nil detail on an immediate
+        -- mount (hollow on success, trap 12's shape -- only its timeout
+        -- carries a reason) -- graded by hand.
+        local still_open_result = t.ui.await_open("regicide_still")
+        t.step("still.open", still_open_result == "ok" and "PASS" or "FAIL",
+            "ui.await_open(regicide_still) -> " .. tostring(still_open_result))
+
+        -- Symbols are the FULL "interface:component" join, one argument --
+        -- QD.read._component_of's own precedent (read.lua), never a
+        -- separate (interface, component) pair; `sub` stays unset (-1, "no
+        -- sub index"), since none of these six is a repeated template row.
+        local tar_up_widget_r, tar_up_widget = t.ui.widget("regicide_still:regicide_tar_valve_up")
+        local pressure_up_widget_r, pressure_up_widget = t.ui.widget("regicide_still:regicide_pressure_valve_up")
+        local add_coal_widget_r, add_coal_widget = t.ui.widget("regicide_still:regicide_add_coal")
+        local still_close_widget_r, still_close_widget = t.ui.widget("regicide_still:regicide_still_close")
+        t.check("still.widgets",
+            tar_up_widget_r == "ok" and pressure_up_widget_r == "ok"
+                and add_coal_widget_r == "ok" and still_close_widget_r == "ok",
+            string.format("tar_up=%s pressure_up=%s add_coal=%s close=%s",
+                tostring(tar_up_widget_r), tostring(pressure_up_widget_r),
+                tostring(add_coal_widget_r), tostring(still_close_widget_r)))
+
+        t.ui.invoke(tar_up_widget, 0)
+        t.ui.invoke(tar_up_widget, 0)
+
+        local still_coal_presses = 0
+        local still_pressure_presses = 0
+        local still_total = 0
+        local still_iterations = 0
+        while still_iterations < 40 and still_total < 26 do
+            still_iterations = still_iterations + 1
+            local settings_r, settings_v = t.var.server("regicide_still_settings")
+            if settings_r == "ok" and settings_v ~= nil then
+                if settings_v < 0 then
+                    settings_v = settings_v + 4294967296
+                end
+                local tar_at_max = math.floor(settings_v / 2147483648) % 2 == 1
+                local pressure_at_base = math.floor(settings_v / 67108864) % 2 == 1
+                local flow_high =
+                    (math.floor(settings_v / 1024) % 2 == 1)
+                    or (math.floor(settings_v / 2048) % 2 == 1)
+                    or (math.floor(settings_v / 4096) % 2 == 1)
+                local heat_below_green =
+                    (math.floor(settings_v / 8192) % 2 == 1)
+                    or (math.floor(settings_v / 16384) % 2 == 1)
+                    or (math.floor(settings_v / 32768) % 2 == 1)
+                    or (math.floor(settings_v / 65536) % 2 == 1)
+                    or (math.floor(settings_v / 131072) % 2 == 1)
+                    or (math.floor(settings_v / 262144) % 2 == 1)
+                if not tar_at_max then
+                    t.ui.invoke(tar_up_widget, 0)
+                end
+                if tar_at_max and pressure_at_base and flow_high then
+                    t.ui.invoke(pressure_up_widget, 0)
+                    still_pressure_presses = still_pressure_presses + 1
+                end
+                if heat_below_green and still_coal_presses < coal_n then
+                    t.ui.invoke(add_coal_widget, 0)
+                    still_coal_presses = still_coal_presses + 1
+                end
+            end
+            t.ticks(2)
+            local total_r, total_v = t.var.server("regicide_still_total")
+            if total_r == "ok" and total_v ~= nil then
+                still_total = total_v
+            end
+        end
+        t.step("still.minigame", still_total >= 26 and "PASS" or "FAIL",
+            string.format("regicide_still_total=%s after %d poll(s), %d coal press(es), %d pressure press(es)",
+                tostring(still_total), still_iterations, still_coal_presses, still_pressure_presses))
+        t.shot("still.minigame-after")
+
+        -- The close icon's own if_click DOES fire (measured: "ok" every
+        -- time) but the interface never actually unmounts behind it -- the
+        -- driver seam the queue row named survives the op=0 fix after all,
+        -- for this one component. ESCAPE reaches the identical
+        -- app->host.close_modal_requested flag DriveChat_CloseModal (the
+        -- verb behind t.shop.close) sets (src/app/app_hotkeys.c:119), the
+        -- same notify-the-server path a real player's Escape takes, so it
+        -- is the fix, not a workaround.
+        local still_close_result = t.key("escape")
+        t.step("still.close", still_close_result == "ok" and "PASS" or "FAIL",
+            "key(escape) -> " .. tostring(still_close_result))
+        -- t.ui.await_close is the same hollow-on-success shape as
+        -- await_open above -- graded by hand.
+        local still_closed_result = t.ui.await_close("regicide_still")
+        t.step("still.closed", still_closed_result == "ok" and "PASS" or "FAIL",
+            "ui.await_close(regicide_still) -> " .. tostring(still_closed_result))
+        t.expect("still.naphtha", t.inv.await("regicide_barrel_naphtha", 1, 10))
+
         -- ---- Naphtha + apple mash -> naphtha apple mix (mend1_poison.rs2:
         -- 135-152, an [opheldu] pair declared on both item names, so either
-        -- order arms and lands). ----
+        -- order arms and lands). Named for quest-helper's own step
+        -- (useNaphthaOnBarrel, "Use a barrel of naptha on the apple
+        -- barrel" -- appleBarrel's own ItemID is MOURNING_APPLEBARREL_MUSH,
+        -- matching mourning_applebarrel_mush here exactly). ----
         t.ui.tab("inventory")
         t.ticks(2)
-        t.exec("mixNaphtha", t.player.use_item_on_item,
+        t.exec("useNaphthaOnBarrel", t.player.use_item_on_item,
             "regicide_barrel_naphtha", "mourning_applebarrel_mush")
         t.ticks(2)
-        t.expect("mixNaphtha.result", t.inv.await("mourning_applebarrel_naphtha_mush", 1, 10))
+        t.expect("useNaphthaOnBarrel.result", t.inv.await("mourning_applebarrel_naphtha_mush", 1, 10))
 
         -- ---- Sieve the mix -> toxic naphtha (mend1_poison.rs2:156-170,
-        -- the same [opheldu]-pair shape). ----
+        -- the same [opheldu]-pair shape). Named for quest-helper's own step
+        -- (useSieveOnBarrel, "Use the sieve on the naphtha apple mix") --
+        -- the row-name match is what makes this DRIVEN rather than the
+        -- weak-word "soft-skipped ... shares appl,siev" CONTENT_GAP
+        -- helper_coverage.py's own word-overlap heuristic would otherwise
+        -- read here, since this leg genuinely is driven for real. ----
         t.ui.tab("inventory")
         t.ticks(2)
-        t.exec("sieveMix", t.player.use_item_on_item,
+        t.exec("useSieveOnBarrel", t.player.use_item_on_item,
             "mourning_sieve", "mourning_applebarrel_naphtha_mush")
         t.ticks(2)
-        t.expect("sieveMix.result", t.inv.await("mourning_toxic_naphtha", 1, 10))
+        t.expect("useSieveOnBarrel.result", t.inv.await("mourning_toxic_naphtha", 1, 10))
 
         -- ---- Cook the toxic naphtha on a range -- not a fire
         -- ([oploc1,carnilleanrange], mend1_poison.rs2:174-185).

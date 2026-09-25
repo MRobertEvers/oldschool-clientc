@@ -3,7 +3,7 @@
 Status: `in-progress` — 2026-09-09 parent reopen. gp-druid-t1 selftest
 claimed 14 PASS lines, but Gate D is not closed: the nine listed BMPs are
 absent from
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_druid/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_druid/scenes/`
 (directory empty / missing). A green selftest with missing interaction
 shots is not done. Do not double-claim; leave this row until a later
 worker writes named BMPs (`NN_<verb>_<subject>.bmp`) that actually show
@@ -542,7 +542,7 @@ pack path.
 
 Headless BMPs (`SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_SAVES=$(mktemp -d)`,
 `TORIRS_NET_CHEAT=tele 0_45_54_45_30`, `TORIRS_BMP_SERIES` + `TORIRS_EXIT_BMP`):
-9 files under `OSRS-Content/osrs239-content/server/scripts/selftest/quest_druid/`
+9 files under `OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_druid/scenes/`
 
 - `frame_00150.bmp`
 - `frame_00190.bmp`

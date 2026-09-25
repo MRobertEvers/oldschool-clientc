@@ -9,11 +9,25 @@
 -- ~npc_default_death drops the seed), not a talk_to.
 --
 -- Glarial's Tomb and the Chalice room are both z+6400 underground squares
--- (region 39,153 and 40,154) -- goto_tile reaches them directly, the same
--- way docs/QUEST_AUTHORING.md section 2 reaches the Wizards' Tower basement,
--- with no click_loc/use_on on Waterfall Quest's own tombstone or raft (that
--- mechanism belongs to quest_waterfall, already complete in setup, not to
--- quest_rovingelves's own deliverable).
+-- (region 39,153 and 40,154), but the guide's own step ladder names seven
+-- legs across quest_waterfall_locs.rs2's traversal mechanism as Roving
+-- Elves' OWN steps (enterGlarialsTombstone, boardRaft, useRopeOnRock,
+-- useRopeOnTree, enterFalls, searchFallsCrate, useKeyOnFallsDoor) --
+-- unconditional on Waterfall Quest already being complete, because there is
+-- no other entrance to either room. An earlier revision of this file
+-- goto_tile'd past all seven as "already-complete Waterfall Quest content";
+-- queue.py's reviewer correctly called that a TEST cheat (rule (b): goto_tile
+-- is for plain travel, never for a door/puzzle/mechanism the guide names as
+-- its own step), and a prior content-parity pass (build/parity_state/
+-- parity2, not this file) proved live that every one of the seven drives for
+-- real with no content changes beyond one shared-file coordinate fix already
+-- landed (quest_waterfall_locs.rs2:422). This file now drives all seven
+-- through real clicks -- use_on the pebble on the tombstone, click_loc the
+-- raft, use_on the rope on the rock then the dead tree, click_loc the ledge
+-- door and the crate, use_on the key on the west door -- reusing that proven
+-- sequence. goto_tile is used only for PLAIN TRAVEL between legs (an
+-- approach tile before a click, or crossing open floor already reached with
+-- no gate left in between), never past a mechanism itself.
 --
 -- Prerequisites (rovingelves_islwyn.rs2's opnpc1 gate): Regicide complete
 -- and Waterfall Quest complete. Regicide has no `::complete` arm in
@@ -68,6 +82,16 @@ return {
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so nothing forbidden rides along
         "::give spade 1", -- rovingelves_seed.rs2's opheld1 refuses to plant without one
+        "::give rope 1", -- guide's own getItemRequirements(): quest_waterfall_locs.rs2's
+                          -- crossing_rock/overhanging_tree1 oplocu triggers refuse without one
+        -- glarials_pebble_waterfall_quest: the guide's enterGlarialsTombstone step lists it
+        -- as its own required item (isNotConsumed -- a Waterfall Quest leftover, "you can get
+        -- another from Golrie under Tree Gnome Village" if lost), not something Roving Elves
+        -- itself grants. Setup fakes Waterfall Quest's completion below via a debugproc varp
+        -- write rather than playing it, so the pebble a genuinely-completed player would still
+        -- be carrying has to be brought along the same way (trap 16 -- a prerequisite quest's
+        -- own leftover gear, never the quest under test's own deliverable).
+        "::give glarials_pebble_waterfall_quest 1",
         -- Food prerequisite (queue.py's RETRY after b44ce7a2d, section 8's
         -- player.attack note: "carry food and EAT IT"; trap 16 -- this is a
         -- prerequisite the player brings along, not the quest's own
@@ -192,12 +216,54 @@ return {
                 .. tostring(spoken_eluned_journal and spoken_eluned_journal.first_line))
         t.ui.journal_close()
 
-        -- Glarial's Tomb: m39_153.spawn's roving_mossgiant rows (2528,9843
-        -- etc.) sit right at the z+6400 underground square the tombstone
-        -- mechanism (quest_waterfall_locs.rs2, already-complete content) would
-        -- otherwise teleport to -- goto_tile reaches it directly, same as any
-        -- other floor/instance jump (section 2).
-        t.exec("goto-tomb", t.player.goto_tile, 2528, 9843, 0)
+        -- Glarial's Tomb: entered for real through the guide's own
+        -- enterGlarialsTombstone step (glarials_tombstone_waterfall_quest,
+        -- WorldPoint 2559,3445,0) -- use Glarial's pebble on the tombstone.
+        -- quest_waterfall_locs.rs2's [oplocu,glarials_tombstone_waterfall_quest]
+        -- gates only on the forbidden-loadout check (this fixture's
+        -- bare-handed loadout already satisfies it, no %waterfall_quest
+        -- state test at all) and teleports to 0_39_153_58_52 = 2554,9844,0.
+        -- Proven live by a prior content-parity pass (not this file):
+        -- build/quest_gate/parity_rovingelves5/ledger.tsv, 10/10 PASS,
+        -- same click sequence below.
+        t.exec("goto-tombstone-approach", t.player.goto_tile, 2559, 3445, 0)
+        local tombstone, tombstone_result = t.player.by_symbol("loc", "glarials_tombstone_waterfall_quest")
+        t.step("lookup.tombstone", tombstone_result == "ok" and "PASS" or "FAIL",
+            "by_symbol loc glarials_tombstone_waterfall_quest -> " .. tostring(tombstone_result))
+        -- Trap 298: use_on's arming is a backpack-tab press with no settle
+        -- of its own, and the setup's ::setlevel cheats (five skills) can
+        -- leave the sidebar on a level-up tab instead of the inventory one
+        -- -- paint it explicitly before the first use_on of the run.
+        t.ui.tab("inventory")
+        t.ticks(2)
+        t.exec("enterGlarialsTombstone", t.player.use_on, "glarials_pebble_waterfall_quest", tombstone)
+
+        -- The teleport lands behind two more p_delay(2)'d mes() lines
+        -- ("You hear a loud creak." / "The stone slab slides back...") after
+        -- the ones use_on's own settle already waited out ("It fits
+        -- perfectly." / "You place the pebble..."), so the climb-down line
+        -- and the actual teleport can still be in flight when use_on
+        -- returns -- await it rather than reading world.tile() bare.
+        t.exec("enterGlarialsTombstone.climbedDown", t.msg.await, "climb down", 50)
+        local tomb_tile_result, tomb_tile = t.world.tile()
+        local tomb_tile_pass = tomb_tile_result == "ok" and tomb_tile ~= nil
+            and tomb_tile.z ~= nil and tomb_tile.z >= 9800
+        t.step("enterGlarialsTombstone.tile", tomb_tile_pass and "PASS" or "FAIL",
+            "world.tile() after the climb-down -> " .. tostring(tomb_tile_result) .. " "
+                .. tostring(tomb_tile and (tomb_tile.x .. "," .. tomb_tile.z .. "," .. tomb_tile.level))
+                .. " (want z>=9800, inside Glarial's Tomb; 0_39_153_58_52 = 2554,9844,0)")
+
+        -- The tombstone's own entrance tile (2554,9844) is further from the
+        -- guardian's spawn than the old goto_tile cheat landed, so the npc
+        -- pool needs a beat to populate after the teleport (docs section 3's
+        -- own advice: pair a presence precheck with await_present) --
+        -- measured live: a bare Attack right after the climb-down read
+        -- `no_row`, the guardian not loaded yet.
+        -- Hollow on success (trap 12: bare `ok`, no detail) -- call directly.
+        local guardian_present_result = t.npc.await_present("roving_mossgiant", 15, 10)
+        t.step("mossguardian.await_present", guardian_present_result == "ok" and "PASS" or "FAIL",
+            "npc.await_present(roving_mossgiant, 15, 10) -> " .. tostring(guardian_present_result))
+
         local guardian, guardian_result = t.player.by_symbol("npc", "roving_mossgiant")
         t.step("lookup.mossguardian", guardian_result == "ok" and "PASS" or "FAIL",
             "by_symbol npc roving_mossgiant -> " .. tostring(guardian_result))
@@ -379,12 +445,116 @@ return {
 
         -- Chalice of Eternity: rovingelves_chalice_coord = 0_40_154_43_54 =
         -- 2603,9910 (comment in configs/quest_rovingelves.constant), a
-        -- different z+6400 square from the tomb, reached the same
-        -- goto_tile way. The seed's own ifop1=Plant fires
+        -- different z+6400 square from the tomb. Reached for real through
+        -- the guide's own six legs (boardRaft, useRopeOnRock, useRopeOnTree,
+        -- enterFalls, searchFallsCrate, useKeyOnFallsDoor), all of it
+        -- quest_waterfall_locs.rs2's existing Waterfall Quest route --
+        -- proven live by a prior content-parity pass (not this file):
+        -- build/quest_gate/parity_rovingelves_route2d/ledger.tsv, 19/21 PASS
+        -- (the 2 FAIL rows there are that scratch script's own settle-
+        -- detection false negatives, each contradicted by the very next
+        -- tile check in the same run -- read as PASS here, matching their
+        -- own writeup). The seed's own ifop1=Plant fires
         -- [opheld1,roving_new_consecration_seed].
-        t.exec("goto-chalice", t.player.goto_tile, 2603, 9910, 0)
-        t.ticks(2) -- section 8's gap note: a goto_tile teleport can answer `covered`/no-op
-                   -- on a target that works fine two ticks later; settle before the first press
+        t.exec("goto-raft-approach", t.player.goto_tile, 2509, 3494, 0)
+        -- boardRaft's own settle resolves on the raft's first mes() line
+        -- ("You board the small raft"), one to two ticks ahead of the
+        -- p_teleport that actually moves the player downstream -- no bare
+        -- tile read right after the click (trap 24's cousin for a
+        -- teleport, not a container). The NEXT leg's own tile check
+        -- (useRopeOnRock, below) is boardRaft's real evidence.
+        t.exec("boardRaft", t.player.click_loc, "lograft_waterfall_quest")
+        t.ticks(3)
+
+        local crossing_rock, crossing_rock_result = t.player.by_symbol("loc", "crossing_rock_waterfall_quest")
+        t.step("lookup.crossingRock", crossing_rock_result == "ok" and "PASS" or "FAIL",
+            "by_symbol loc crossing_rock_waterfall_quest -> " .. tostring(crossing_rock_result))
+        -- Graded on world.tile(), not use_on's own settle word: proven live
+        -- by a prior content-parity pass (build/parity_state/parity2) that
+        -- quest_waterfall_locs.rs2's [aplocu,crossing_rock_waterfall_quest]
+        -- is a silent forced-walk+spotanim branch with no chat line at all,
+        -- so the driver's settle detector answers `settle_after_click`
+        -- (none of its own recognised conditions fired) on a press that DID
+        -- land -- trap 21's "silent oplocu/oplocu branch" cousin, and not
+        -- this file's verb to fix (script/plugins/, trap 7).
+        local rock_press_result, rock_press_detail = t.player.use_on("rope", crossing_rock)
+        local after_rock_result, after_rock = t.world.tile()
+        local rock_pass = after_rock_result == "ok" and after_rock ~= nil
+            and after_rock.x == 2513 and after_rock.z == 3468 -- seam10 pfe: graded on the island (rock+1 east), the sampler's ask
+        t.check("useRopeOnRock", rock_pass,
+            "use_on(rope, crossing_rock) -> " .. tostring(rock_press_result) .. " " .. tostring(rock_press_detail)
+                .. "; world.tile() after -> " .. tostring(after_rock_result) .. " "
+                .. tostring(after_rock and (after_rock.x .. "," .. after_rock.z .. "," .. after_rock.level))
+                .. " (want 2513,3468,0 -- the island crossing_rock's forcewalk2 lands on, not"
+                .. " 2512,3476 (the crossing_rock tile itself, the forcewalk2 START) -- graded"
+                .. " on the tile, not the press's own settle word, see above)")
+
+        local overhanging_tree, overhanging_tree_result = t.player.by_symbol("loc", "overhanging_tree1_waterfall_quest")
+        t.step("lookup.overhangingTree", overhanging_tree_result == "ok" and "PASS" or "FAIL",
+            "by_symbol loc overhanging_tree1_waterfall_quest -> " .. tostring(overhanging_tree_result))
+        t.exec("useRopeOnTree", t.player.use_on, "rope", overhanging_tree)
+        local after_tree_result, after_tree = t.world.tile()
+        t.step("useRopeOnTree.tile", after_tree_result == "ok" and after_tree ~= nil
+            and after_tree.x == 2511 and after_tree.z == 3463 and "PASS" or "FAIL",
+            "world.tile() after use_on(rope, overhanging_tree1) -> " .. tostring(after_tree_result) .. " "
+                .. tostring(after_tree and (after_tree.x .. "," .. after_tree.z .. "," .. after_tree.level))
+                .. " (want 2511,3463,0 -- p_teleport(0_39_54_15_7))")
+
+        -- waterfall_ledge_door's own oplocu is mes("The door begins to
+        -- open."); p_delay(2); mes("You walk through the door."); p_teleport(...)
+        -- -- click_loc's settle resolves on the FIRST mes(), two ticks
+        -- ahead of the teleport (trap 24's cousin again).
+        t.exec("enterFalls", t.player.click_loc, "waterfall_ledge_door")
+        t.ticks(3)
+        local falls_tile_result, falls_tile = t.world.tile()
+        local falls_tile_pass = falls_tile_result == "ok" and falls_tile ~= nil
+            and falls_tile.z ~= nil and falls_tile.z >= 9800
+        t.step("enterFalls.tile", falls_tile_pass and "PASS" or "FAIL",
+            "world.tile() after click_loc(waterfall_ledge_door) -> " .. tostring(falls_tile_result) .. " "
+                .. tostring(falls_tile and (falls_tile.x .. "," .. falls_tile.z .. "," .. falls_tile.level))
+                .. " (want z>=9800, inside the falls dungeon -- p_teleport(0_40_154_15_5))")
+
+        -- The crate room is inside the same already-reached dungeon, plain
+        -- travel with no further door/puzzle between here and there (the
+        -- content-parity pass's own proof used the identical goto).
+        t.exec("goto-crate-approach", t.player.goto_tile, 2589, 9888, 0)
+        local key_before_result, key_before = t.inv.count("baxtorian_key_waterfall_quest")
+        t.exec("searchFallsCrate", t.player.click_loc, "baxtorian_crate_waterfall_quest")
+        -- inv.await, not a bare count (trap 24): the engine writes the
+        -- inv_add into the NEXT tick's player update.
+        t.exec("searchFallsCrate.gotKey", t.inv.await, "baxtorian_key_waterfall_quest",
+            (key_before_result == "ok" and key_before or 0) + 1, 10)
+
+        t.exec("goto-door-approach", t.player.goto_tile, 2566, 9901, 0)
+        local falls_door, falls_door_result = t.player.by_symbol("loc", "baxtorian_door_2_waterfall_quest")
+        t.step("lookup.baxtorianDoor2", falls_door_result == "ok" and "PASS" or "FAIL",
+            "by_symbol loc baxtorian_door_2_waterfall_quest -> " .. tostring(falls_door_result))
+        t.exec("useKeyOnFallsDoor", t.player.use_on, "baxtorian_key_waterfall_quest", falls_door)
+        t.ticks(5) -- the door's own oplocu chains mes()+p_delay(2)+p_teleport past the
+                   -- puzzle-room shortcut fix (quest_waterfall_locs.rs2:422) before landing
+        local after_door_result, after_door = t.world.tile()
+        local after_door_pass = after_door_result == "ok" and after_door ~= nil
+            and after_door.z ~= nil and after_door.z >= 9895
+        t.step("useKeyOnFallsDoor.tile", after_door_pass and "PASS" or "FAIL",
+            "world.tile() after use_on(key, door) + 5 tick(s) -> " .. tostring(after_door_result) .. " "
+                .. tostring(after_door and (after_door.x .. "," .. after_door.z .. "," .. after_door.level))
+                .. " (want z>=9895, past the door -- ^waterfall_raised_room_door_coord)")
+
+        -- Real walk (not goto_tile -- no gate left between here and the
+        -- planting spot, just distance): the door's own landing tile
+        -- (~2604,9901) is short of rovingelves_chalice_zone's own z floor
+        -- (9906). Target 2603,9909, one tile off rovingelves_chalice_coord
+        -- itself (2603,9910) -- that exact tile is the chalice loc's own
+        -- footprint (chalice.locProbe below reads id=2014 tile=2603,9910
+        -- match=exact) and is not walkable; 2603,9909 is still inside
+        -- rovingelves_chalice_zone (z 9906-9914) and loc_find checks the
+        -- constant coordinate, not the player's tile, so standing beside it
+        -- satisfies rovingelves_seed.rs2's opheld1 guard the same way.
+        -- Hollow on success (trap 12: `ok, nil` once the tile is reached,
+        -- only a stall carries a detail) -- call directly, write the tile.
+        local chalice_walk_result, chalice_walk_detail = t.player.walk_to(2603, 9909, 20)
+        t.step("walk.chaliceRoom", chalice_walk_result == "ok" and "PASS" or "FAIL",
+            "walk_to(2603, 9909) -> " .. tostring(chalice_walk_result) .. " " .. tostring(chalice_walk_detail))
 
         -- Diagnostics before the plant attempt: rovingelves_seed.rs2's
         -- opheld1 guard is `inzone(chalice_zone_min, chalice_zone_max,
@@ -396,9 +566,10 @@ return {
         -- before trying again.
         local chalice_tile_result, chalice_tile = t.world.tile()
         t.step("chalice.tileProbe", chalice_tile_result == "ok" and "PASS" or "FAIL",
-            "world.tile() after goto-chalice -> " .. tostring(chalice_tile_result) .. " "
+            "world.tile() after walk.chaliceRoom -> " .. tostring(chalice_tile_result) .. " "
                 .. tostring(chalice_tile and (chalice_tile.x .. "," .. chalice_tile.z .. "," .. chalice_tile.level))
-                .. " (want 2603,9910,0, ^rovingelves_chalice_coord 0_40_154_43_54)")
+                .. " (want 2603,9909,0, one tile off ^rovingelves_chalice_coord 0_40_154_43_54 -- "
+                .. "that exact tile is the chalice loc's own unwalkable footprint)")
         local chalice_loc_result, chalice_loc = t.world.loc_near("baxtorian_chalice_waterfall_quest", 10)
         t.step("chalice.locProbe", chalice_loc_result == "ok" and "PASS" or "FAIL",
             "world.loc_near(baxtorian_chalice_waterfall_quest, 10) -> " .. tostring(chalice_loc_result) .. " "

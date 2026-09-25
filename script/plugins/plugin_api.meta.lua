@@ -987,6 +987,7 @@ except the plain readers marked as returning a value.
 ---@field screen_position fun(kind: string, id: integer): string, table { x, y, element_id }.
 ---@field pick_holds fun(element_id: integer): string, boolean Does this frame's pickset hold it. Meaningless before a frame rendered at the moved-to point.
 ---@field pick_point fun(): string, table { valid, x, y, view_x, view_y, view_w, view_h }: WHICH pixel the pickset above was hittested at, so a held=false is a reading of a rendered frame rather than a guess about timing. view_w 0 means there is no world rectangle to test a candidate pixel against.
+---@field world_gate fun(x: integer, y: integer): string, table { world, why, component_id }: would a frame hittest the WORLD at (x, y)? The client's own app_world_mouse_gate; `why` is world, outside, modal, menu (an open minimenu owns the whole canvas), ui (component_id names the component over it) or gate. The pixel hunt skips a refused pixel for free (seam11).
 ---@field mouse_move fun(x: integer, y: integer): string, string
 ---@field mouse_button fun(button: integer, down: boolean, x: integer, y: integer): string, string
 ---@field menu_visible fun(): string, boolean

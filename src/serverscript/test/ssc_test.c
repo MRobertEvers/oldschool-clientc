@@ -1798,6 +1798,53 @@ test_implicit_return(void)
     fixture_close(&fixture);
 }
 
+/* A script that falls off its end still hands back its DECLARED returns, the
+ * reference's defaults (RuneScript CodeGenerator.generateDefaultReturns): `int`
+ * is 0, every other int-stack type -1, `string` "". agility.rs2's
+ * [proc,forcewalk](coord)(int) returns nothing on its last line and
+ * [proc,forcewalk2] discards the int it was promised; with a bare RETURN that
+ * discard underflowed and killed every agility obstacle (seam10). */
+static void
+test_default_returns(void)
+{
+    struct Fixture fixture;
+    int32_t result = 0;
+
+    printf("default returns\n");
+
+    if( !fixture_compile(&fixture,
+                         "[proc,falls_int]()(int)\n"
+                         "def_int $x = 1;\n"
+                         "\n"
+                         "[proc,discards]()(int)\n"
+                         "~falls_int;\n"
+                         "return(7);\n"
+                         "\n"
+                         "[proc,reads_int]()(int)\n"
+                         "return(~falls_int);\n"
+                         "\n"
+                         "[proc,falls_coord]()(coord)\n"
+                         "def_int $y = 2;\n"
+                         "\n"
+                         "[proc,reads_coord]()(int)\n"
+                         "def_coord $c = ~falls_coord;\n"
+                         "if ($c = null) {\n"
+                         "    return(1);\n"
+                         "}\n"
+                         "return(0);\n",
+                         "default returns") )
+        return;
+
+    if( run_script(&fixture, "[proc,discards]", NULL, 0, &result, "discard a fallen-off int") )
+        CHECK_EQ(result, 7, "the caller's discard does not underflow (the forcewalk2 shape)");
+    if( run_script(&fixture, "[proc,reads_int]", NULL, 0, &result, "read a fallen-off int") )
+        CHECK_EQ(result, 0, "a fallen-off (int) answers 0");
+    if( run_script(&fixture, "[proc,reads_coord]", NULL, 0, &result, "read a fallen-off coord") )
+        CHECK_EQ(result, 1, "a fallen-off (coord) answers -1, which is null");
+
+    fixture_close(&fixture);
+}
+
 static void
 test_npc_runtime_primitives(void)
 {
@@ -2223,6 +2270,7 @@ main(void)
     test_stacked_headers();
     test_coord_subject();
     test_implicit_return();
+    test_default_returns();
     test_npc_runtime_primitives();
     test_player_action_lock_primitives();
     test_runclientscript_vararg();

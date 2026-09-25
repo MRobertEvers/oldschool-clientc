@@ -60,6 +60,7 @@
 #include "input/torirs_input.h"
 #include "render/torirs_world_projection.h"
 #include "revconfig/revconfig.h"
+#include "ui/uitree_input.h"
 #include "ui/uitree_minimenu.h"
 #include "world/entity_pool.h"
 #include "world/world.h"
@@ -95,6 +96,21 @@ extern int app_plugin_inv_op(
  * drive_pointer_inv_use_on to make sure a FAILED item-on-item leaves no armed
  * selection behind for the next verb's click to spend. */
 extern int app_selection_clear(struct App* app);
+
+/* app_world_click.c's "is the pointer over the world?" -- the ONE gate that
+ * decides whether the next rendered frame arms the world pick at the pointer
+ * (app_frame.c: world_mouse_in_viewport -> app_render.c's SetPick). Non-static
+ * there and declared in the layer-private app_internal.h, so declared here
+ * for the same reason the ones above are. Read by drive_pointer_world_gate. */
+extern int app_world_mouse_gate(struct App* app, int mouse_x, int mouse_y);
+
+/* app_camera.c's "which ROOT plane is the local player on" (aboard: the hull's
+ * parent level) -- the exact value app_world_pick_finish hands the pick
+ * classifier as `player_level`, which throws away every scenery hit whose
+ * paint level differs and every ground-stack hit on another level
+ * (torirs_pick.c). Declared here for the reason the others are; read by the
+ * loc and obj projectors below. */
+extern int app_cinema_level(struct App* app);
 
 /* See the file banner: core-scheduler's seam, not landed yet. */
 extern struct ToriRS_CmdBus* PluginDriveCore_CmdBus(void);
@@ -228,6 +244,8 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
     struct World_EntityPool* pool;
     int best_element = -1;
     long best_distance = 0;
+    int same_level_exists = 0;
+    int player_level;
     int centre_x;
     int centre_z;
     int found_any = 0;
@@ -262,6 +280,41 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
         centre_x *= 128;
         centre_z *= 128;
     }
+    /*
+     * SEAM driver-world-pick-hunt-in-enclosed-temple-rooms (seam11): ONLY A
+     * COPY ON THE PLAYER'S OWN PLANE CAN EVER BE PICKED. The pick classifier
+     * keeps a scenery hit only when its paint level (World_LocPaintLevel)
+     * equals the local player's root plane (torirs_pick.c, `reach_level !=
+     * player_level` -> dropped), so a copy one floor up or down is drawn, can
+     * project dead centre, and answers `covered` from every pose and every
+     * pixel a hunt tries. The ranking below is by x/z distance alone, and in a
+     * building that stacks one symbol's copies floor on floor it chose one of
+     * those: Mourning's End II's `mourning_temple_circle_stairs_top` has copies
+     * at 1887,4638,1 and 1890,4641,2 (m29_72.jl2), and from 1888,4642,1 the
+     * level-2 copy was "nearest" -- five poses, a 99-probe hunt and six
+     * approach tiles spent on a staircase no press could reach
+     * (build/quest_gate/s11_exp, circle.near).
+     *
+     * So when ANY copy stands on the player's plane, only those copies are
+     * candidates, and one that is off-screen answers not_visible (the pose
+     * loop turns toward it) rather than handing back a copy on another floor.
+     * When no copy is on this plane the old ranking stands unchanged: nothing
+     * that pressed before can press differently.
+     */
+    player_level = app_cinema_level(app);
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
+        if( !loc || (id >= 0 && loc->loc_id != id) )
+            continue;
+        if( World_LocPaintLevel(
+                app->world, loc->grid_position.x, loc->grid_position.z, loc->grid_position.level) ==
+            player_level )
+        {
+            same_level_exists = 1;
+            break;
+        }
+    }
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
@@ -280,6 +333,11 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
          * gets not_found instead of the same not_visible every off-screen
          * loc also answers. */
         found_any = 1;
+        if( same_level_exists &&
+            World_LocPaintLevel(
+                app->world, loc->grid_position.x, loc->grid_position.z, loc->grid_position.level) !=
+                player_level )
+            continue;
         /* Footprint centroid, not a corner -- U3 is open on which screen
          * point a rotated multi-tile loc should give, and a centroid is the
          * documented simplification (docs/QUEST_DRIVER_PLAN.md S7 U3). */
@@ -314,6 +372,8 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
     struct World_EntityPool* pool;
     int best_element = -1;
     long best_distance = 0;
+    int same_level_exists = 0;
+    int player_level;
     int centre_x;
     int centre_z;
     int found_any = 0;
@@ -341,6 +401,19 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
         centre_x *= 128;
         centre_z *= 128;
     }
+    /* Only a stack on the player's own plane can be picked: the classifier
+     * drops a ground-stack hit whose level differs (torirs_pick.c; stacks are
+     * not paint-shuffled) -- the loc projector's banner above has the rule. */
+    player_level = app_cinema_level(app);
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
+        if( stack && (id < 0 || stack->obj_id == id) && stack->grid_position.level == player_level )
+        {
+            same_level_exists = 1;
+            break;
+        }
+    }
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, i);
@@ -352,6 +425,8 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
         /* Existence, independent of projection (QD-17) -- see the loc case
          * above. */
         found_any = 1;
+        if( same_level_exists && stack->grid_position.level != player_level )
+            continue;
         /* stack->draw_position, never a tile centre -- the corrected reading
          * in docs/QUEST_DRIVER_PLAN.md S0 ("pointer"). */
         if( !drive_pointer_project_ground(
@@ -529,6 +604,90 @@ DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
         out_point->view_w = 0;
         out_point->view_h = 0;
     }
+    return DRIVE_OK;
+}
+
+/*
+ * SEAM driver-world-pick-hunt-in-enclosed-temple-rooms (seam11): WOULD a frame
+ * hittest the world at (x, y)?
+ *
+ * The pick is armed only where app_world_mouse_gate says the pointer is over
+ * the world (app_frame.c -> app_render.c's SetPick); everywhere else the frame
+ * RESETS the pickset and no stamp ever lands, so a probe there waits its whole
+ * deadline for nothing and pointer.lua's hunt counted it as "the world is not
+ * picking". In the resizable frame the world viewport is the whole canvas and
+ * the chatbox, the minimap's orbs and the side panel are drawn OVER it
+ * (measured: Mourning's End II's Temple of Light, projections at y 359-418
+ * under the chatbox), so the viewport rectangle pick_point answers is not the
+ * set of pixels a probe can use. This asks the gate itself -- the same
+ * function the frame asks, not a copy of its rules -- and, when it refuses,
+ * names the first layer that refuses so the row can say "under the chatbox"
+ * instead of "not picking".
+ *
+ * `why` is a fixed string: "world" (the gate passes), "outside" (outside the
+ * world widget's rectangle or clip), "modal" (a viewport interface owns it),
+ * "menu" (a minimenu is open -- it owns the whole canvas until it closes),
+ * "ui" (a component that blocks the world or takes the click; its
+ * component_id in *out_component_id), or "gate" (refused for a reason not
+ * re-derived here: chrome, the world map surface, the world not active).
+ */
+static enum DriveResult
+drive_pointer_world_gate(
+    struct App* app,
+    int x,
+    int y,
+    int* out_in_world,
+    char const** out_why,
+    int* out_component_id)
+{
+    struct UITreeEmitDesc const* desc;
+    int blocks_world = 0;
+    int32_t interactive_hit = -1;
+
+    assert(app);
+    assert(out_in_world);
+    assert(out_why);
+    assert(out_component_id);
+    *out_component_id = -1;
+    *out_in_world = app_world_mouse_gate(app, x, y) ? 1 : 0;
+    if( *out_in_world )
+    {
+        *out_why = "world";
+        return DRIVE_OK;
+    }
+    desc = &app->world_emit_desc;
+    if( !app->world_view_valid || desc->w <= 0 || desc->h <= 0 || x < desc->x || x >= desc->x + desc->w ||
+        y < desc->y || y >= desc->y + desc->h || x < desc->clip.x || x >= desc->clip.x + desc->clip.w ||
+        y < desc->clip.y || y >= desc->clip.y + desc->clip.h )
+    {
+        *out_why = "outside";
+        return DRIVE_OK;
+    }
+    if( app->slots.main_modal_id != -1 )
+    {
+        *out_why = "modal";
+        return DRIVE_OK;
+    }
+    /* Not a rule of the gate's own -- the open menu reaches it as a tree layer
+     * -- but the reason a reader needs: a covered press leaves its menu up, and
+     * while it is up no pixel anywhere is the world's. */
+    if( app->interact.minimenu.visible )
+    {
+        *out_why = "menu";
+        return DRIVE_OK;
+    }
+    if( app->tree )
+    {
+        UITree_PointQuery(app->tree, &app->ui_host, x, y, &blocks_world, &interactive_hit);
+        if( blocks_world || interactive_hit >= 0 )
+        {
+            *out_why = "ui";
+            if( interactive_hit >= 0 && (uint32_t)interactive_hit < app->tree->component_count )
+                *out_component_id = app->tree->components[interactive_hit].component_id;
+            return DRIVE_OK;
+        }
+    }
+    *out_why = "gate";
     return DRIVE_OK;
 }
 
@@ -1323,6 +1482,32 @@ lua_drive_pick_point(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.world_gate(x, y) -> ("ok", {world = bool, why = string,
+ * component_id = int}). See drive_pointer_world_gate. */
+static int
+lua_drive_world_gate(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int x = PluginDrive_ArgInt(L, 1);
+    int y = PluginDrive_ArgInt(L, 2);
+    int in_world = 0;
+    int component_id = -1;
+    char const* why = "gate";
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_world_gate(app, x, y, &in_world, &why, &component_id);
+    lua_pushstring(L, DriveResultName(result));
+    lua_createtable(L, 0, 3);
+    lua_pushboolean(L, in_world);
+    lua_setfield(L, -2, "world");
+    lua_pushstring(L, why);
+    lua_setfield(L, -2, "why");
+    lua_pushinteger(L, component_id);
+    lua_setfield(L, -2, "component_id");
+    return 2;
+}
+
 static int
 lua_drive_mouse_move(struct lua_State* L)
 {
@@ -1621,6 +1806,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"screen_position", lua_drive_screen_position},
     {"pick_holds", lua_drive_pick_holds},
     {"pick_point", lua_drive_pick_point},
+    {"world_gate", lua_drive_world_gate},
     {"mouse_move", lua_drive_mouse_move},
     {"mouse_button", lua_drive_mouse_button},
     {"menu_visible", lua_drive_menu_visible},

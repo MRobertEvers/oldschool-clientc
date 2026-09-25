@@ -605,7 +605,7 @@ accept assertion. Selftest printed
 `PASS ghostsahoy boss=giant_lobster CHEAT-SKIP`. Production Attack does not
 silently complete.
 
-Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_ghostsahoy/`, 14 unique MD5s):
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_ghostsahoy/scenes/`, 14 unique MD5s):
 
 - `01_talk_velorina.bmp`
 - `02_choice_accept.bmp`

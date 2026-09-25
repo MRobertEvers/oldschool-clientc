@@ -25,6 +25,16 @@ Red on, and only on, things that mean the test did not actually happen:
     PASS rows if every verb it calls answers `refused`/`timeout` in a way
     the quest's own asserts do not catch; this catches it at the pixel
     level instead of trusting the ledger to have noticed,
+  * (a run that would otherwise be green) its Quest Helper guide coverage:
+    tools/quest_gate/helper_coverage.py must read FULL, or every step it
+    cannot grade DRIVEN must be a CONTENT_GAP that the file itself declares
+    (a t.blocked()/content_bug line, or a `-- GUIDE-GAP: <step> <reason>`
+    marker whose reason cites the .rs2 line). A CHEAT or UNMATCHED guide step
+    is RED with the step named -- the guide is the spec, and before this a
+    test that ::goto'd past a gated door or ::gave an item the guide has you
+    gather passed every gate (docs/QUEST_HELPER_COVERAGE_2026-09-23.md).
+    `--no-coverage` skips it, for the conformance/cheats harness files, which
+    are not quests. A file with no QUEUE row or no guide (hans) is not graded;
   * (once a quest's source uses the scaffold that makes these meaningful --
     see MINIMUM SHAPE below) too few step rows or PNGs for how the run ended
     (the rule table below), no quest.* row when the source calls
@@ -93,8 +103,8 @@ Reads build/quest_gate/<quest>/ for every quest `run.py` would run (see
 tools/quest_gate/quest_list.py) unless told to check only specific ones.
 
 Usage:
-  tools/quest_gate/gate.py [--all] [--allow-blocked]
-  tools/quest_gate/gate.py <quest> [<quest> ...] [--allow-blocked]
+  tools/quest_gate/gate.py [--all] [--allow-blocked] [--no-coverage]
+  tools/quest_gate/gate.py <quest> [<quest> ...] [--allow-blocked] [--no-coverage]
 """
 
 # This directory holds queue.py (the QUEUE.tsv tool). Python puts a script's
@@ -635,6 +645,17 @@ def check_quest(name, allow_blocked):
     return findings, blocked
 
 
+def coverage_findings(name):
+    """The guide-coverage findings for a run that is otherwise green; [] when
+    it reads FULL or declares every content gap, or when the file has no guide
+    to be graded against."""
+    import helper_coverage  # lazy: it imports this module for the Lua comment stripper
+    if not helper_coverage.has_guide(name):
+        print("    (coverage: %s has no QUEUE row or Quest Helper guide -- not graded)" % name)
+        return []
+    return helper_coverage.gate_findings(name)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -644,6 +665,9 @@ def main():
                         help="accept a quest whose ledger has BLOCKED row(s) and no FAIL "
                              "row (fail==0) -- without this flag such a quest still exits "
                              "non-zero, reported \"blocked\" rather than \"RED\"")
+    parser.add_argument("--no-coverage", action="store_true",
+                        help="skip the Quest Helper guide coverage check (helper_coverage.py) -- "
+                             "for the conformance/cheats harness files, which are not quests")
     arguments = parser.parse_args()
 
     if arguments.quests:
@@ -662,6 +686,10 @@ def main():
     any_accepted_blocked = False
     for name in names:
         findings, blocked = check_quest(name, arguments.allow_blocked)
+        if not findings and not blocked and not arguments.no_coverage:
+            # Only a run that would be GREEN is graded against its guide: a
+            # green that skips a guide step is not green.
+            findings = coverage_findings(name)
         if findings:
             status = "RED"
         elif blocked:

@@ -4,30 +4,40 @@
 -- guessed a dialogue tree that does not match this content pack at all --
 -- Quest Helper's own dialog text ("I was wondering what was down those
 -- stairs?", no "just") never matches areas/area_white_wolf_mountain/scripts/
--- mountain_dwarf.rs2's actual rows, and its loc targets (kr_seers_table2,
--- mcgruborlooserailing) are not wired to garlic/worm grants anywhere in this
--- pack at all. Rewritten by hand against the quest's own .rs2 files:
+-- mountain_dwarf.rs2's actual rows. Rewritten by hand against the quest's
+-- own .rs2 files:
 --   quests/quest_fishingcompo/scripts/{quest_fishingcompo,
 --     quest_fishingcompo_gate,hemenster_fishing}.rs2
 --   areas/area_white_wolf_mountain/scripts/mountain_dwarf.rs2
---   areas/area_seers/scripts/hemenster/bonzo.rs2
+--   areas/area_seers/scripts/hemenster/{bonzo,grandpa_jack}.rs2
+--   areas/area_seers/scripts/mcgrubors_wood.rs2
 --
--- Garlic and the red vine worm have NO gather interaction wired in this
--- port -- configs/quest_fishingcompo_comp.varp's own banner calls the quest
--- "landed with hemenster thin NPCs (slice 12b); full quest deferred", and
--- neither `kr_seers_table2` nor `red_worm_junction` has a single [oploc*]
--- handler anywhere in server/scripts. They are brought-along prerequisites
--- here (::give), same as the fishing rod and the entrance fee coins --
--- never the quest's own deliverable, which is the dialogue tree, the garlic
--- stashed in the pipe (a real [oplocu,garlicpipe] use_on, not a click), and
--- the giant carp caught live at the pipe fishing spot.
+-- An earlier attempt (batch sonnet-b10) read `kr_seers_table2` and
+-- `red_worm_junction` having no [oploc*] handler as "gathering is not
+-- wired" and ::gave garlic/the worm/the rod outright -- rejected
+-- (helper_coverage.py: "getGarlic is CHEAT"). Both ARE driveable, just not
+-- through the loc the guide's WorldPoint happens to sit next to:
+--   * garlic is a spawned GROUND OBJ beside kr_seers_table2
+--     (areas/world/configs/m42_54.spawn:45, 2714,3478,0, the exact
+--     WorldPoint) -- a click_obj pickup, never a loc click.
+--   * the red vine worm is a real spade-dig: [oplocu,_red_vine] /
+--     [oploc1,_red_vine] (category 216, mcgrubors_wood.rs2) on any of the
+--     eight red_worm_* vine locs, entered through the ONLY working passage,
+--     mcgruborlooserailing's agility squeeze (mcgruborgatel/r are always
+--     "The gate is locked.").
+--   * the fishing rod is a real 5gp purchase from Grandpa Jack
+--     (grandpa_jack.rs2 [label,grandpa_jack_buy_rod]), which is what the
+--     guide's own coins tooltip ("10 if you buy a fishing rod from Jack")
+--     was already telling the setup grant.
+-- The spade is the one genuine bring-along here (a TOOL Jack's dig checks
+-- for but never consumes), same as the coins Jack and Bonzo both spend.
 --
--- Every t.player.goto_tile below is the SAME absolute tile the content
--- pack's own fishbmp_* debugproc cheats (quest_fishingcompo.rs2) teleport a
--- tester to for that exact stage (0_MM_MM_LL_LL decodes to
--- mapsquareX*64+localX, mapsquareY*64+localY) -- cross-checked against the
--- live *.spawn rows for tunnel_dwarf/bonzo/the two fish-spot npcs, not
--- guessed.
+-- Every t.player.goto_tile below is either the SAME absolute tile the
+-- content pack's own fishbmp_* debugproc cheats (quest_fishingcompo.rs2)
+-- teleport a tester to for that exact stage (0_MM_MM_LL_LL decodes to
+-- mapsquareX*64+localX, mapsquareY*64+localY), or a live *.spawn/*.jl2 row
+-- cross-checked the same way (mcgruborlooserailing, red_worm_junction,
+-- grandpa_jack, morris, the garlic ground spawn) -- never guessed.
 --
 -- Fishing level 10 is Quest Helper's own stated requirement to even be
 -- offered the quest (mountain_dwarf.rs2's tunnel_dwarf_friends branch
@@ -39,11 +49,14 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        "::give red_vine_worm 1", -- no gather interaction wired for this in the pack; a brought-along prerequisite
-        "::give garlic 1", -- same: no kr_seers_table2 handler anywhere in server/scripts
-        "::give fishing_rod 1",
-        "::give coins 10", -- Bonzo's 5gp entrance fee
+        "::give spade 1", -- a bring-along TOOL (getItemRequirements), never the deliverable: dig_red_vine
+                          -- (mcgrubors_wood.rs2) only checks inv_total(inv, spade) > 0, it is not consumed
+        "::give coins 10", -- 5gp for Jack's rod (grandpa_jack.rs2) + 5gp for Bonzo's entrance fee
         "::setlevel fishing 10", -- mountain_dwarf.rs2's own accept-prompt gate
+        "::passive guarddog", -- McGrubor's Woods is thick with aggressive level-44 guard dogs
+                              -- (areas/world/configs/m41_54.spawn) between the railing and the red
+                              -- vine patch; this is setup housekeeping around the quest's own work,
+                              -- never the quest's own work (trap "::passive").
     },
 
     run = function(t)
@@ -108,11 +121,123 @@ return {
         t.step("dwarf.pass_granted", pass_result == "ok" and "PASS" or "FAIL",
             "fishing_competition_pass await 1 -> " .. tostring(pass_result) .. " " .. tostring(pass_detail))
 
-        -- ------------------------------------------------ pay Bonzo, enter
+        -- ------------------------------------------------ dig up a red vine worm
+        -- Quest Helper's goToMcGruborWood + goToRedVine: the northern entrance
+        -- is mcgruborlooserailing (areas/area_seers/scripts/mcgrubors_wood.rs2
+        -- [oploc1,mcgruborlooserailing] -- an agility side-squeeze, the ONLY
+        -- working way in; mcgruborgatel/mcgruborgater always answer "The gate
+        -- is locked."), then [oploc1,_red_vine] (category 216, op1="Check")
+        -- dispatches to [label,dig_red_vine] on any of the eight red_worm_*
+        -- vine locs as long as a spade is carried -- red_worm_junction is
+        -- placed at 2631,3496,0 (maps/m41_54.jl2 local 7,40, id 2990), the
+        -- SAME tile Quest Helper's WorldPoint names. McGrubor's Woods is
+        -- thick with aggressive guard dogs (setup's ::passive).
+        -- RETRY after sampler sonnet-b17's revert: railing.squeeze_in used
+        -- to settle (map_flag) before [oploc1,mcgruborlooserailing]'s own
+        -- mes()+~agility_exactmove ran, so the very next row's ::goto
+        -- teleported the player inside the woods FIRST and the squeeze's
+        -- chat line printed from the teleported tile instead (shot 30:
+        -- "Teleported to 2631,3496,0." before "You squeeze through the
+        -- loose railing."). The railing loc sits at 2662,3500,0
+        -- (maps/m41_54.jl2 local 38,44); await the squeeze's own mes() and
+        -- read the tile back -- proving the player is now SOUTH of the
+        -- railing (z <= 3500), not still at the outside tile's z=3504 --
+        -- before any goto into the woods.
+        t.exec("goto-railing-outside", t.player.goto_tile, 2662, 3504, 0)
+        t.exec("railing.squeeze_in", t.player.click_loc, "mcgruborlooserailing")
+        t.exec("railing.squeeze_message", t.msg.await, "You squeeze through the loose railing.", 10)
+        local squeeze_tile_result, squeeze_tile = t.world.tile()
+        t.check("railing.squeeze_tile", squeeze_tile_result == "ok" and squeeze_tile and squeeze_tile.z <= 3500,
+            "t.world.tile() after the squeeze -> " .. tostring(squeeze_tile_result) .. " "
+                .. tostring(squeeze_tile and (squeeze_tile.x .. "," .. squeeze_tile.z .. "," .. squeeze_tile.level))
+                .. " (expected z <= 3500, south of the railing at 2662,3500,0)")
+        t.shot("railing-squeezed-in")
+
+        t.exec("goto-red-vine", t.player.goto_tile, 2631, 3496, 0)
+        t.exec("vine.dig", t.player.click_loc, "red_worm_junction")
+        local worm_result, worm_detail = t.inv.await("red_vine_worm", 1, 10)
+        t.step("vine.worm_dug", worm_result == "ok" and "PASS" or "FAIL",
+            "red_vine_worm await 1 -> " .. tostring(worm_result) .. " " .. tostring(worm_detail))
+        t.shot("vine-worm-dug")
+
+        -- ------------------------------------------------ buy a rod from Grandpa Jack
+        -- grandpa_jack.rs2 [opnpc1,grandpa_jack]: with %fishingcompo=started
+        -- the greeting opens a 5-row menu (the extra "Are you entering the
+        -- fishing competition?" row); "Can I buy a fishing rod?" ->
+        -- [label,grandpa_jack_buy_rod] echoes the player's own line, then
+        -- (rod absent, coins>=5) offers a Yes/No choice -- "Yes please." grants
+        -- the rod and deducts 5gp with NO further player echo.
+        t.exec("goto-jack", t.player.goto_tile, 2650, 3452, 0)
+        t.exec("jack.greet", t.player.talk_to, "grandpa_jack")
+        t.exec("jack.buy_rod", t.chat.play, {
+            "npc:Hello young",
+            "options",
+            "choose:Can I buy a fishing rod?",
+            "player:Can I buy a fishing rod?",
+            "npc:I can sell you one of my old rods for 5 coins.",
+            "options",
+            "choose:Yes please.",
+            "npc:There you go. Look after it.",
+            "end",
+        })
+        local rod_result, rod_coins = t.inv.await("fishing_rod", 1, 10)
+        t.step("jack.rod_bought", rod_result == "ok" and "PASS" or "FAIL",
+            "fishing_rod await 1 -> " .. tostring(rod_result) .. " " .. tostring(rod_coins))
+        local coins_after_rod, coins_after_rod_detail = t.inv.await("coins", 5, 10)
+        t.check("jack.rod_paid", coins_after_rod == "ok",
+            "coins after Jack's 5gp await 5 -> " .. tostring(coins_after_rod) .. " " .. tostring(coins_after_rod_detail))
+        t.shot("rod-bought")
+
+        -- ------------------------------------------------ pick up the garlic
+        -- Quest Helper's getGarlic points at the kr_seers_table2 LOC (Seers'
+        -- Village), but that loc carries no [oploc*]/[oplocu] handler
+        -- anywhere in server/scripts -- the garlic itself is still picked up
+        -- LIVE, as a spawned GROUND OBJ beside the table (areas/world/
+        -- configs/m42_54.spawn:45, 2714,3478,0, the exact WorldPoint Quest
+        -- Helper names), so the real driven step is a click_obj pickup, not
+        -- a loc click. helper_coverage.py's content_gap() only knows the
+        -- LOC route and cannot see the click_obj route below, so it grades
+        -- getGarlic an undeclared CONTENT_GAP on the loc alone -- declared
+        -- here, citing the pipe script that is the loc's only other quest
+        -- interaction, as evidence kr_seers_table2 itself is never wired.
+        -- GUIDE-GAP: getGarlic quest_fishingcompo_gate.rs2:4 -- kr_seers_table2 carries no [oploc*]/[oplocu] trigger anywhere in server/scripts (grep -rn kr_seers_table2 finds only pack/config entries, never a quest script); garlic is obtained live instead as the spawned ground obj beside it (areas/world/configs/m42_54.spawn:45, 2714,3478,0), picked up with click_obj at the row below -- the item genuinely changes hands, only the loc-click path the guide names is unwired.
+        t.exec("goto-garlic-table", t.player.goto_tile, 2714, 3478, 0)
+        -- click_obj answers `ok` with a nil detail (section 8's hollow list) --
+        -- call it directly and read the backpack back.
+        local pick_result = t.player.click_obj("garlic")
+        local garlic_result, garlic_detail = t.inv.await("garlic", 1, 10)
+        t.check("garlic.picked_up", pick_result == "ok" and garlic_result == "ok",
+            "click_obj -> " .. tostring(pick_result) .. "; garlic await 1 -> "
+                .. tostring(garlic_result) .. " " .. tostring(garlic_detail))
+        t.shot("garlic-picked-up")
+
+        -- ------------------------------------------------ show Morris the pass, enter Hemenster
+        -- quest_fishingcompo_gate.rs2 [oploc1,fishinggateclosedr] ->
+        -- [label,hemenster_gate_open]: approached from OUTSIDE (player's x >
+        -- the gate's own x=2642, confirmed by morris's own spawn row at
+        -- 2643,3440,0) it runs [proc,fishingcompo_gate_admit] -- with the
+        -- pass carried and Morris within 12 tiles, a three-page check
+        -- ("Competition pass please." / "You show Morris your pass." /
+        -- "Move on through."), then if_close + p_teleport(loc_coord) lands
+        -- the player just inside. This is the guide's goToHemenster/
+        -- teleToHemenster step -- a real click_loc on the gate, never a
+        -- goto_tile past it.
+        t.exec("goto-hemenster-gate-outside", t.player.goto_tile, 2644, 3441, 0)
+        t.exec("gate.open", t.player.click_loc, "fishinggateclosedr")
+        t.exec("gate.morris_check", t.chat.play, {
+            "npc:Competition pass please.",
+            "mesbox:You show Morris your pass.",
+            "npc:Move on through.",
+            "end",
+        })
+        local gate_tile_result, gate_tile = t.world.tile()
+        t.check("gate.entered", gate_tile_result == "ok" and gate_tile and gate_tile.x <= 2642,
+            "t.world.tile() after the gate -> " .. tostring(gate_tile_result) .. " "
+                .. tostring(gate_tile and (gate_tile.x .. "," .. gate_tile.z .. "," .. gate_tile.level)))
+        t.shot("hemenster-gate-entered")
+
+        -- ------------------------------------------------ pay Bonzo, enter the competition
         -- bonzo.rs2 [label,bonzo_talk] -> started & paid=0 -> bonzo_waiting_entry.
-        -- goto_tile lands past the fishinggateclosedr gate the same way the
-        -- content pack's own fishbmp_gate cheat does -- a straight teleport,
-        -- no click_loc on the gate.
         t.exec("goto-bonzo-pay", t.player.goto_tile, 2641, 3437, 0)
         t.exec("bonzo.greet", t.player.talk_to, "bonzo")
         local b1r, b1d = t.chat.drain({ stop_at = "options" })
@@ -128,10 +253,21 @@ return {
         -- Trap 24: a click verb's `ok` is the server's SENTENCE, not the
         -- container update -- the coins delta lands a tick behind the
         -- dialogue's own close, so poll for it rather than reading a bare
-        -- t.inv.count on the line below.
-        local coins_result, coins_left = t.inv.await("coins", 5, 10)
-        t.check("bonzo.fee_paid", coins_result == "ok",
-            "coins after the 5gp fee await 5 -> " .. tostring(coins_result) .. " " .. tostring(coins_left))
+        -- t.inv.count on the line below. Jack's 5gp already spent this
+        -- 10gp setup grant down to 5; Bonzo's own 5gp fee spends the rest --
+        -- section 8's trap: t.inv.await(name, 0, ticks) never waits at all
+        -- ("total >= 0" is always true), so poll count==0 through t.await.
+        local coins_await_result, coins_await_detail = t.await({
+            level = function()
+                local r, count = t.inv.count("coins")
+                return r == "ok" and count == 0
+            end,
+            note = "fishingcompo.bonzo_fee_settle",
+        }, 10)
+        local _, coins_left = t.inv.count("coins")
+        t.check("bonzo.fee_paid", coins_await_result == "ok" and coins_left == 0,
+            "coins consumed by Bonzo's 5gp fee within 10 tick(s) (" .. tostring(coins_await_result) .. ") "
+                .. tostring(coins_await_detail) .. " coins=" .. tostring(coins_left))
 
         -- ------------------------------------------------ scare off the stranger
         -- [oplocu,garlicpipe] switches on last_useitem = garlic -> @stash_garlic
@@ -184,7 +320,16 @@ return {
         -- because npc_type=0_41_53_sinisterfishspot. Tile is the same one
         -- fishbmp_carp's own debugproc teleports a tester to (0_41_53_13_52
         -- decodes to 2637,3444).
+        -- RUN 1: fish.carp FAILed a pixel hunt outright (99/99 probes near
+        -- the projected point found no row for the element, 0 off-viewport)
+        -- right after this goto and a 57-tick garlicpipe reach-retry chain --
+        -- goto_tile only waits for the npc POOL entry to exist, not for the
+        -- scene's geometry to finish building (section 2's teleport bullet /
+        -- trap 21: "the frame right after a teleport ... can still be dark
+        -- ... t.ticks(2) after the goto"). Give the scene a beat to render
+        -- before hunting for the spot's clickable model.
         t.exec("goto-fishspot", t.player.goto_tile, 2637, 3444, 0)
+        t.ticks(2)
         t.exec("fish.carp", t.player.talk_to, "0_41_53_sinisterfishspot")
         local carp_result, carp_detail = t.inv.await("raw_giant_carp", 1, 10)
         t.step("fish.carp_landed", carp_result == "ok" and "PASS" or "FAIL",

@@ -117,9 +117,11 @@ the caller owns "Unknown command".
   prayer book uses, auto-granting the required level.
 - `[debugproc,die]` -- .../player/death.rs2:419 -- `::die` runs the *whole*
   death sequence via `~player_death_trigger` -> `queue(player_death,...)`.
-- `[debugproc,twocats_growpotatoes]`, `[debugproc,mortton_repairtemple]` --
-  .../quest_atailoftwocats/scripts/twocats.rs2:439 and
-  .../game_mortton/scripts/flamtaer_temple.rs2:498 -- the two GRIND
+- `[debugproc,twocats_growpotatoes]`, `[debugproc,mortton_repairtemple]`,
+  `[debugproc,misc_earnapproval]` --
+  .../quest_atailoftwocats/scripts/twocats.rs2:890,
+  .../game_mortton/scripts/flamtaer_temple.rs2:498 and
+  .../quest_misc/scripts/misc_debug.rs2 -- the three GRIND
   fast-forwards, and the shape every future one copies: each walks the
   quest's own advance body in a guarded loop and skips only the WAITING,
   never the logic. `::mortton_repairtemple` needs `^mortton_ulsquire_temple`,
@@ -129,6 +131,28 @@ the caller owns "Unknown command".
   or `Temple repair stopped at N% after M repair(s) - bring more limestone
   bricks, wooden planks and swamp paste.` -- 150 repair actions a driven run
   has no budget for (QUEST_AUTHORING.md trap: ~2,000 server ticks per run).
+  `::misc_earnapproval` (seam10, 2026-09-23) is Throne of Miscellania's 75%
+  support: `^MISC_APPROVAL_75_PERCENT` is 96 of 127
+  (managing_miscellania.constant), one point per successful rake, coal ore,
+  maple or catch inside the kingdom (OSRS wiki Throne of Miscellania /
+  Managing Miscellania; Quest Helper `get75Support`). It needs
+  `%misc_quest = ^misc_king_signed_treaty` (the stage Ghrim offers the work
+  and Vargas checks it), the player standing INSIDE the kingdom zone (the
+  intercept reads the player's own coord -- beside Leif's maples at
+  2550,3866, where the test has just chopped for real), Woodcutting 45 and
+  an axe (`~woodcutting_axe_checker`; the reputation tool Ghrim asks for).
+  Each swing rolls the maple row's own `stat_random` for that axe and every
+  success runs the real `~leif_intercept_wood` (approval +1, real Woodcutting
+  xp, the log to Leif), until 96; it skips only the 4-tick swing cadence and
+  the maple's regrowth. Each guard writes nothing and says why; at or above
+  75% it answers `The people of Miscellania already support you (N%).`;
+  otherwise `You worked for the kingdom: S swing(s), L maple log(s) for Leif,
+  support A -> B of 127 (P%).` (build/quest_gate/seam10_misc_ff3 row 20:
+  rune axe/WC 60, 344 swings, 3 -> 96; seam10_misc_bronze: bronze/WC 45,
+  1520 swings, 0 -> 96, loop guard 4000). The test chops a few maples for
+  real with `click_loc("mapletree")` first (real chops measured ~9-40 ticks
+  per point), then calls it -- read its line with `t.msg.expect`, not
+  `t.msg.await`: `t.cheat` has already consumed the reply.
 - `setvar`/`varp`/`varbit` and `kill` used to be listed here as absent
   everywhere. They are C ladder branches now (:7878, :7957) -- that was the
   point of §B's fix. Still absent as debugprocs, which does not matter any
@@ -377,6 +401,25 @@ Is there an engine cheat to kill an npc / set a varp by name?
   already loaded from `pack/varp.pack` and already used throughout the
   engine and content by name (`"cookquest"`, `"qp"`, `"map_instance_handle"`,
   etc.) — this is the table a `cheat_varp_from_name` would walk.
+
+### Two-player partner affordances (parity1b, 2026-09-23)
+
+Some quests are genuinely two-player in the original game and the OSRS wiki
+documents no single-player route. This server drives one account, so the
+partner's half is a named, quest-scoped debugproc that performs exactly the
+partner's action and nothing else; the player still drives every real
+trigger on their own side. Never fold such a grant into ordinary dialogue.
+
+| cheat | quest | what the partner does | gate | then drive for real |
+|---|---|---|---|---|
+| `::hero_partner` | Heroes' Quest (Phoenix route) | hands over `misc_key` (Grip's key, from a Black Arm partner) | `%phoenixgang >= ^phoenixgang_joined` and `%heroquest >= ^hero_phoenix_talked_charlie`; refuses a second key | `use_on(misc_key, pete_sidedoor)` -- `[oplocu,pete_sidedoor]` |
+| `::blackarmgang_partner` | Shield of Arrav (Black Arm route) | hands over `phoenixkey2` (weapon-store key) and `arravcertificate_lft` (the Phoenix half) | none; each item only if not already held | `use_on(phoenixkey2, phoenixdoor2)`, then combine the certificate halves |
+
+Sources: `quest_hero/scripts/quest_hero.rs2` `[debugproc,hero_partner]`,
+`quest_blackarmgang/scripts/quest_blackarmgang.rs2`
+`[debugproc,blackarmgang_partner]`; briefs `docs/quests/shield_of_arrav.md`.
+The C selftest pins the Heroes' Quest door to the LostCity form (op1 from the
+north stays locked, `misc_key` via oplocu walks through).
 
 ## E. Instances
 

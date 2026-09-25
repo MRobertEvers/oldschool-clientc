@@ -203,9 +203,27 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     int pass_z;
     int loc_slot;
     const int go_wildy[] = { 2 };
+    /* Transcript:Enter_the_Abyss oldid=15263217 "Speaking to the mage in
+     * the Chaos Temple" -- the real offer tree (entertheabyss.rs2
+     * eta_varrock_offer/eta_varrock_care_menu/eta_varrock_mercenary/
+     * eta_varrock_deal_offer). refuse_varrock picks the top 2-way menu's
+     * second option ("Interesting. Thanks for the information.") and ends
+     * the conversation at stage 1 with no orb, same observable outcome the
+     * old 1-choice refuse had. accept_varrock now needs FOUR choices where
+     * it used to need three: the new top 2-way menu ("Where do you get
+     * your runes from?", 1), the 4-way "care to share?" menu ("Maybe I
+     * could make it worth your while?", 1), the mercenary 3-way submenu
+     * ("Yes, but I can still help you as well.", 1), then the shared
+     * Deal/No deal/think-about-it 3-way ("Deal.", 1). */
     const int refuse_varrock[] = { 2 };
-    const int accept_varrock[] = { 1, 1, 1 };
+    const int accept_varrock[] = { 1, 1, 1, 1 };
     const int ask_tele[] = { 1 };
+    /* eta_reward_handover's item/XP grant (~eta_quest_complete) is now
+     * deferred to "I'd better be off." at the reward-topics 3-way menu
+     * (entertheabyss.rs2 eta_reward_topics), not fired mid-speech -- see
+     * that label's own comment for why. Every reward-stage talk needs this
+     * one extra pick to actually reach the grant. */
+    const int leave_topics[] = { 3 };
 
     assert(srv);
     assert(player);
@@ -326,7 +344,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     eta_pass("varrock_refuse", "OPNPC1", "state=1 no orb");
 
     /* ---- Varrock accept 1 -> 2, one empty orb ---- */
-    eta_talk(srv, player, npc_varrock, slot_v, accept_varrock, 3);
+    eta_talk(srv, player, npc_varrock, slot_v, accept_varrock, 4);
     SELFTEST_CHECK(player->varps[varp_eta] == 2, "accept via live mage should write state 2, got %d",
                    player->varps[varp_eta]);
     SELFTEST_CHECK(selftest_count(player, obj_empty) == 1,
@@ -418,7 +436,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     selftest_clear_inv(player);
     for( i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         selftest_give(player, obj_junk >= 0 ? obj_junk : obj_empty, 1);
-    eta_talk(srv, player, npc_varrock, slot_v, NULL, 0);
+    eta_talk(srv, player, npc_varrock, slot_v, leave_topics, 1);
     SELFTEST_CHECK(player->varps[varp_eta] == 3, "full inv must not complete, got %d",
                    player->varps[varp_eta]);
     SELFTEST_CHECK(selftest_count(player, obj_book) == 0 && selftest_count(player, obj_pouch) == 0,
@@ -428,7 +446,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     /* ---- complete 3 -> 4 ---- */
     selftest_clear_inv(player);
     xp_before = player->stat_xp_tenths[stat_rc];
-    eta_talk(srv, player, npc_varrock, slot_v, NULL, 0);
+    eta_talk(srv, player, npc_varrock, slot_v, leave_topics, 1);
     eta_drain_scroll_queue(srv, player);
     SELFTEST_CHECK(player->varps[varp_eta] == 4, "reward should write state 4, got %d",
                    player->varps[varp_eta]);

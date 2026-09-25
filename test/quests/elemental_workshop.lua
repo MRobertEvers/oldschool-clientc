@@ -136,6 +136,38 @@ return {
                 wall_before_result == "ok" and string.format("%d,%d,%d", wall_before_tile.x, wall_before_tile.z, wall_before_tile.level) or tostring(wall_before_result),
                 wall_after_result == "ok" and string.format("%d,%d,%d", wall_after_tile.x, wall_after_tile.z, wall_after_tile.level) or tostring(wall_after_result)))
 
+        -- Climb down the spiral stairs (oploc1, rs2:252-254). The wall's own
+        -- walk-through (elem1_walk_wall, rs2:236-249) only crosses to the
+        -- stairwell (Quest Helper's own inStairwell zone, 2709-2711,3496-
+        -- 3498,0) -- the p_teleport into the workshop itself (0_42_154_28_32)
+        -- is the STAIRS' own click, a step the guide names separately
+        -- (goDownStairs) that a goto_tile straight into the workshop was
+        -- cheating past (helper_coverage's own finding on this file). No
+        -- *.loc placement file exists for this symbol (trap 20, same as
+        -- box_1 below) -- goto the guide's own WorldPoint(2711,3498,0) then
+        -- confirm with world.loc_near rather than trust click_loc's own
+        -- short-range walk to close any remaining gap.
+        t.exec("goto-goDownStairs", t.player.goto_tile, 2711, 3498, 0)
+        t.settle()
+        local stairs_near_result, stairs_near = t.world.loc_near("elemental_workshop_spiralstairstop", 20)
+        t.check("foundStairs", stairs_near_result == "ok",
+            "loc_near(elemental_workshop_spiralstairstop,20) -> " .. tostring(stairs_near_result) .. " " .. tostring(stairs_near))
+        if stairs_near_result == "ok" then
+            t.exec("goto-standAtStairs", t.player.goto_tile, stairs_near.tile_x, stairs_near.tile_z, stairs_near.level)
+        end
+        local stairs_before_result, stairs_before_tile = t.world.tile()
+        local stairs_result, stairs_detail = t.player.click_loc("elemental_workshop_spiralstairstop", 1)
+        local stairs_after_result, stairs_after_tile = t.world.tile()
+        local stairs_moved = stairs_before_result == "ok" and stairs_after_result == "ok"
+            and (stairs_after_tile.x ~= stairs_before_tile.x
+                or stairs_after_tile.z ~= stairs_before_tile.z
+                or stairs_after_tile.level ~= stairs_before_tile.level)
+        t.check("goDownStairs", stairs_result == "ok" or stairs_moved,
+            string.format("click_loc(elemental_workshop_spiralstairstop,1) -> %s %s; tile %s -> %s",
+                tostring(stairs_result), tostring(stairs_detail),
+                stairs_before_result == "ok" and string.format("%d,%d,%d", stairs_before_tile.x, stairs_before_tile.z, stairs_before_tile.level) or tostring(stairs_before_result),
+                stairs_after_result == "ok" and string.format("%d,%d,%d", stairs_after_tile.x, stairs_after_tile.z, stairs_after_tile.level) or tostring(stairs_after_result)))
+
         -- North room: turn the water controls. East (valve_1, gated on
         -- %elemental_workshop_gate2) must open FIRST -- rs2:48-63's own east
         -- branch refuses while gate1 (west) is already open, resetting both

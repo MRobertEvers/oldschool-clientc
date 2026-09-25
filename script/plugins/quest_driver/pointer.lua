@@ -250,38 +250,273 @@ function QD.player._loc_variants(id)
     return info
 end
 
+-- SEAM driver-lua-budget-and-npc-reaim (seam15) -- THE SCAN METER.
+--
+-- The quest-driver coroutine runs under an instruction budget PER RESUME:
+-- PLUGIN_LUA_STEP_BUDGET = 400000 VM instructions, re-armed on the coroutine
+-- at every resume (src/plugin/torirs_plugin_lua.c:38, PluginLua_ThreadResume)
+-- and blown by a count hook that ends the whole run with `instruction budget
+-- exhausted`.  Only a YIELD re-arms it, and api_drive.await yields only when
+-- its level predicate is false on the first look (torirs_plugin_drive.c's
+-- lua_drive_await: an already-true level returns in the same resume).
+--
+-- The pool walks are the cost.  api_drive.locs(0) is the whole scenery pool
+-- -- 8,192 rows (DRIVE_UI_POOL_CAP, full) in the Temple of Light -- and a loc
+-- ABSENT from the scene is the worst case: every walk runs to the end.
+-- Measured (build/quest_gate/s15b_absent_before): the second click_loc on an
+-- absent loc in the Temple died `quest-driver:3489: instruction budget
+-- exhausted` -- by_symbol (two walks: exact/base, then the multiloc slots),
+-- walk_near's _target_tile, click_loc's loc_near (a resolve plus its own
+-- walk), _step_off_for_click's _target_tile and _ensure_visible's re-resolve,
+-- nine whole walks with no yield between them.  parity1g_mend2_full died the
+-- same way at row 140, right after p4.rope.down.
+--
+-- So every whole-pool walk is METERED, in estimated instructions (rows x the
+-- walk's own per-row cost, counted off its loop body and rounded up).  The
+-- meter holds what the walks since the last yield actually walked; a walk
+-- whose worst case (every row: the absent target) would take it past
+-- QD.drive._scan_budget YIELDS ONE FRAME first (a level predicate false
+-- once, then true) and the caller re-reads its rows, a frame newer -- the
+-- answer any later read would give.
+--
+-- It sees EVERY yield: api_drive.await is the one C entry every await in this
+-- chunk reaches (core.lua's chunk-local `await`, t.ticks, t.settle, the shot,
+-- QD.await, t.await), and QD.core_bind -- wrapped below -- is where the
+-- api.drive table first exists, so the wrapper is installed on that table
+-- field there.  An await whose level predicate was asked more than once was
+-- polled on a later frame, i.e. suspended; a match-only await with a
+-- deadline always suspends.  Either resets the meter.  So a verb in an
+-- ordinary scene -- or any verb that did not walk ~250k instructions' worth
+-- of rows in ONE resume, which is to say every verb that did not already
+-- stand within reach of the budget -- never yields here and changes no
+-- timing.  Every forced yield prints one client.log line (`scan-meter:`).
+--
+-- A charge from INSIDE an await predicate never yields (the predicate is
+-- called from C's own poll, and a yield there crosses it); it only counts.
+QD.drive._scan_budget = 250000
+QD.drive._scan = {
+    spent = 0,       -- estimated instructions charged since the last yield
+    tick = -1,       -- api_drive.tick() at the last charge
+    epoch = 0,       -- bumped at every yield the meter saw
+    predicate = 0,   -- depth of await predicates running right now
+    yields = 0,      -- forced yields taken (probe reading)
+    peak = 0,        -- most charged between two yields
+    charged = 0,     -- total charged (probe reading)
+    wrapped = false, -- api_drive.await is the meter's wrapper
+}
+
+-- Per-row costs of the walks the meter charges, in VM instructions, counted
+-- off each loop body (GETI/GETFIELD/EQ/JMP/TEST/FORLOOP) and rounded up.
+QD.drive._scan_cost_resolve = 9      -- _live_loc_id's exact/base pass
+QD.drive._scan_cost_slots = 7        -- _live_loc_id's multiloc pass
+QD.drive._scan_cost_target = 18      -- _target_tile's id/base/resolved match
+QD.drive._scan_cost_near = 8         -- world.loc_near's placed-id walk
+
+-- A yield happened: the budget is fresh.
+function QD.drive._scan_resumed()
+    local scan = QD.drive._scan
+    scan.spent = 0
+    scan.epoch = scan.epoch + 1
+    scan.tick = api_drive.tick()
+end
+
+-- The epoch the current resume is in.  The tick guard is a backstop for a
+-- yield taken before the wrapper was installed (none is, today): a tick
+-- cannot move inside one resume.
+function QD.drive._scan_epoch()
+    local scan = QD.drive._scan
+    if api_drive.tick() ~= scan.tick then
+        QD.drive._scan_resumed()
+    end
+    return scan.epoch
+end
+
+-- Yield exactly one frame: false on the synchronous first look, true on the
+-- first poll.  The wrapper sees it suspend and resets the meter.
+function QD.drive._scan_yield(spent, why)
+    local first = true
+    api_drive.report(string.format("scan-meter: yield one frame (%d spent + %s) before %s",
+        spent, why, QD.drive._scan_why or "a pool walk"))
+    api_drive.await({
+        level = function()
+            if first then
+                first = false
+                return false
+            end
+            return true
+        end,
+        note = "scan meter: one frame for the instruction budget",
+    }, 2)
+    QD.drive._scan.yields = QD.drive._scan.yields + 1
+    QD.drive._scan_resumed()
+end
+
+-- Before a walk of `rows` rows at `per_row` instructions each: if the WORST
+-- case -- the walk running to the end, which is what a target absent from
+-- the pool costs -- would take what this resume has spent past the budget,
+-- YIELD first.  Answers true when it yielded; the caller's rows are then a
+-- frame old and it reads them again.  Nothing is charged here: the walk
+-- charges what it ACTUALLY walked (QD.drive._scan_spend), because a target
+-- that is in the pool stops the walk at its row, and charging every such walk
+-- its whole pool would yield in scenes that never came near the budget.
+function QD.drive._scan_ensure(rows, per_row)
+    local scan = QD.drive._scan
+    QD.drive._scan_epoch()
+    if scan.predicate == 0 and scan.spent > 0
+        and scan.spent + rows * per_row > QD.drive._scan_budget then
+        QD.drive._scan_yield(scan.spent, tostring(rows) .. " rows x " .. tostring(per_row))
+        return true
+    end
+    return false
+end
+
+-- After a walk: charge the `walked` rows it actually visited.
+function QD.drive._scan_spend(walked, per_row)
+    local scan = QD.drive._scan
+    QD.drive._scan_epoch()
+    local cost = walked * per_row
+    scan.spent = scan.spent + cost
+    scan.charged = scan.charged + cost
+    if scan.spent > scan.peak then
+        scan.peak = scan.spent
+    end
+end
+
+-- A whole-pool read through the meter: api_drive.<reader>(radius), ensured
+-- for a worst-case walk at `per_row`, and read again if that had to yield.
+-- The caller spends what it walks.
+function QD.drive._pool_read(reader, radius, per_row)
+    local result, rows = api_drive[reader](radius)
+    if result ~= "ok" or type(rows) ~= "table" then
+        return result, rows
+    end
+    if QD.drive._scan_ensure(#rows, per_row) then
+        result, rows = api_drive[reader](radius)
+    end
+    return result, rows
+end
+
+-- The meter's reading, for a probe or the conformance closer's row:
+-- "spent=S peak=P yields=Y charged=C epoch=E wrapped=W".
+function QD.drive._scan_meter()
+    local scan = QD.drive._scan
+    return string.format("spent=%d peak=%d yields=%d charged=%d epoch=%d wrapped=%s",
+        scan.spent, scan.peak, scan.yields, scan.charged, scan.epoch, tostring(scan.wrapped))
+end
+
+-- The wrapper on api.drive.await: same arguments, same answers, the
+-- descriptor copied (never mutated) with its predicates wrapped so the meter
+-- knows when a charge runs inside one and whether the await suspended.
+function QD.drive._scan_wrap_await(drive)
+    local raw = drive.await
+    local scan = QD.drive._scan
+    drive.await = function(descriptor, deadline)
+        if type(descriptor) ~= "table" then
+            return raw(descriptor, deadline)
+        end
+        local level_calls = 0
+        local copy = {}
+        for key, value in pairs(descriptor) do
+            copy[key] = value
+        end
+        local level = descriptor.level
+        local match = descriptor.match
+        if type(level) == "function" then
+            copy.level = function(...)
+                level_calls = level_calls + 1
+                scan.predicate = scan.predicate + 1
+                local answer = level(...)
+                scan.predicate = scan.predicate - 1
+                return answer
+            end
+        end
+        if type(match) == "function" then
+            copy.match = function(...)
+                scan.predicate = scan.predicate + 1
+                local answer = match(...)
+                scan.predicate = scan.predicate - 1
+                return answer
+            end
+        end
+        local result, detail = raw(copy, deadline)
+        local suspended
+        if type(level) == "function" then
+            suspended = level_calls > 1
+        else
+            suspended = (deadline or 0) > 0
+        end
+        if suspended then
+            QD.drive._scan_resumed()
+        end
+        return result, detail
+    end
+    scan.wrapped = true
+end
+
+QD.drive._core_bind_raw = QD.core_bind
+function QD.core_bind(api)
+    QD.drive._core_bind_raw(api)
+    QD.drive._scan_wrap_await(api.drive)
+end
+
 -- (placed id, rule) for a loc symbol's id -- see the banner above.  `rule` is
 -- the word a detail string quotes, never nil.
 function QD.player._live_loc_id(id)
-    local result, rows = api_drive.locs(0)
+    -- Charged through the scan meter (seam15 banner above): a miss walks
+    -- every row here and again in the multiloc pass below.
+    QD.drive._scan_why = "a loc resolve"
+    local result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_resolve)
     if result ~= "ok" or type(rows) ~= "table" then
         return id, nil
     end
+    -- exact, else base: a placement whose live multiloc child IS this symbol.
+    -- Read off the row (DriveLocRow.resolved_loc_id) rather than asked per
+    -- row.  ONE pass for both rules -- exact still wins wherever it sits in
+    -- the list, the first base row is still the base answer -- because a
+    -- symbol with no copy in the scene walks every row, and on the Temple of
+    -- Light's eight thousand locs two passes (plus the multiloc one below)
+    -- twice in one resume ran a click out of the 400k instruction budget
+    -- (build/quest_gate/s11_route_after, p3.chest.search.retry).
+    local base = nil
     for i = 1, #rows do
-        if rows[i].loc_id == id then
+        local row = rows[i]
+        if row.loc_id == id then
+            QD.drive._scan_spend(i, QD.drive._scan_cost_resolve)
             return id, "exact"
         end
-    end
-    -- base: a placement whose live multiloc child IS this symbol.  Read off
-    -- the row (DriveLocRow.resolved_loc_id) rather than asked per row, so
-    -- this costs nothing on a scene of eight thousand locs.
-    for i = 1, #rows do
-        if rows[i].resolved_loc_id == id and rows[i].loc_id ~= nil then
-            return rows[i].loc_id, "base"
+        if base == nil and row.resolved_loc_id == id and row.loc_id ~= nil then
+            base = row.loc_id
         end
     end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_resolve)
+    if base ~= nil then
+        return base, "base"
+    end
     -- multiloc: a placement that is one of this symbol's own slots.
+    local epoch = QD.drive._scan_epoch()
     local info = QD.player._loc_variants(id)
     if info and type(info.slots) == "table" and #info.slots > 0 then
         local wanted = {}
         for j = 1, #info.slots do
             wanted[info.slots[j]] = true
         end
+        -- The second walk is metered too.  One that had to yield, or a
+        -- _loc_variants that waited for the def, leaves `rows` a frame or
+        -- more old: read them again rather than walk a stale pool.
+        if QD.drive._scan_ensure(#rows, QD.drive._scan_cost_slots)
+            or QD.drive._scan_epoch() ~= epoch then
+            result, rows = api_drive.locs(0)
+            if result ~= "ok" or type(rows) ~= "table" then
+                return id, nil
+            end
+        end
         for i = 1, #rows do
             if wanted[rows[i].loc_id] then
+                QD.drive._scan_spend(i, QD.drive._scan_cost_slots)
                 return rows[i].loc_id, "multiloc"
             end
         end
+        QD.drive._scan_spend(#rows, QD.drive._scan_cost_slots)
     end
     -- Nothing in the scene under any rule: the symbol keeps its own id and
     -- the rule is nil, not "exact".  A miss that claimed an exact match would
@@ -315,7 +550,11 @@ function QD.player.by_symbol(kind, name)
     end
     -- `match` rides on the target so every verb built on by_symbol can say
     -- which rule won without resolving twice; nothing reads it as an id.
-    return { kind = kind, id = id, match = rule, symbol = name }, "ok"
+    -- `resolved_epoch` is the scan meter's epoch the resolve ran in (seam15):
+    -- _ensure_visible does not walk the pool a second time for an answer it
+    -- already has from this same resume.
+    return { kind = kind, id = id, match = rule, symbol = name,
+        resolved_epoch = QD.drive._scan_epoch() }, "ok"
 end
 
 -- drive.* -------------------------------------------------------------
@@ -355,19 +594,41 @@ QD.drive._yaw_units = 2048
 -- way out) -- reading the C spelling gives nil, which is what world.loc_near
 -- was quietly doing with its tile fields.
 function QD.drive._target_tile(target)
+    -- Whole-pool reads, charged through the scan meter (seam15 banner above
+    -- QD.player._live_loc_id): a target absent from an 8,000-row scene walks
+    -- every row of it.
+    QD.drive._scan_why = "a target tile"
     local rows_result, rows
     if target.kind == "npc" then
-        rows_result, rows = api_drive.npcs(0)
+        rows_result, rows = QD.drive._pool_read("npcs", 0, QD.drive._scan_cost_target)
     elseif target.kind == "loc" then
-        rows_result, rows = api_drive.locs(0)
+        rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
     elseif target.kind == "obj" then
-        rows_result, rows = api_drive.objs(0)
+        rows_result, rows = QD.drive._pool_read("objs", 0, QD.drive._scan_cost_target)
     else
         return "unsupported", target.kind
     end
     if rows_result ~= "ok" then
         return rows_result, nil
     end
+    -- SEAM driver-press-cannot-aim-one-npc-copy (seam13): an npc target that
+    -- NAMES its copy (press/talk_to's `{ at = }` / `{ slot = }` selector,
+    -- QD.player._npc_copy) stands where that copy stands, never where the
+    -- nearest copy of its id does: the camera turns to it, the step-off steps
+    -- off it.  A named copy that left the pool is `not_found`, not the next
+    -- copy along -- the selector's whole contract is that it never falls back.
+    if target.kind == "npc" and target.reach_element ~= nil then
+        for i = 1, #rows do
+            if rows[i].element_id == target.reach_element then
+                QD.drive._scan_spend(i, QD.drive._scan_cost_target)
+                return "ok", rows[i].x, rows[i].z
+            end
+        end
+        QD.drive._scan_spend(#rows, QD.drive._scan_cost_target)
+        return "not_found", nil
+    end
+    local first = nil
+    local walked = #rows
     for i = 1, #rows do
         local row = rows[i]
         local id = row.npc_id or row.loc_id or row.obj_id
@@ -377,10 +638,94 @@ function QD.drive._target_tile(target)
         -- hand still frames.
         if id == target.id or row.base_npc_id == target.id
             or row.resolved_loc_id == target.id then
-            return "ok", row.x, row.z
+            first = row
+            walked = i
+            break
         end
     end
-    return "not_found", nil
+    QD.drive._scan_spend(walked, QD.drive._scan_cost_target)
+    if first == nil then
+        return "not_found", nil
+    end
+    -- SEAM driver-world-pick-hunt-in-enclosed-temple-rooms (seam11): a loc or
+    -- ground stack on ANOTHER FLOOR is never the answer while a copy stands
+    -- on the player's own.  The client's pick keeps a scenery or stack hit
+    -- only on the player's plane (torirs_pick.c), and DrivePointer_ScreenPosition
+    -- now ranks the same way, so the tile the camera turns to and walk_near
+    -- walks to has to be that copy too -- the rows come nearest-first by x/z
+    -- alone, and in the Temple of Light the nearest `circle_stairs_top` from
+    -- 1888,4642,1 is the one on level 2 (1890,4641,2).
+    --
+    -- The common case costs nothing new: the nearest copy IS on this plane
+    -- and answers exactly as before.  Only a nearest copy on another floor
+    -- pays a second read, and that read is BOUNDED -- the copies within
+    -- `_same_level_reach` tiles beyond it, filtered in C -- because a full
+    -- scene is eight thousand rows and walking them all in Lua, several
+    -- times a resume, ran a click out of its instruction budget (s11_exp2).
+    -- With no copy on this plane inside that reach, the nearest copy still
+    -- answers, as before.
+    if target.kind ~= "loc" and target.kind ~= "obj" then
+        return "ok", first.x, first.z
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" or type(player) ~= "table" or first.level == nil
+        or first.level == player.level then
+        return "ok", first.x, first.z
+    end
+    local reach = QD.player._tile_distance(player.x, player.z, first.x, first.z)
+        + QD.drive._same_level_reach
+    local near_result, near
+    if target.kind == "loc" then
+        near_result, near = api_drive.locs(reach)
+    else
+        near_result, near = api_drive.objs(reach)
+    end
+    if near_result == "ok" and type(near) == "table" then
+        for i = 1, #near do
+            local row = near[i]
+            local id = row.loc_id or row.obj_id
+            if (id == target.id or row.resolved_loc_id == target.id)
+                and row.level == player.level then
+                return "ok", row.x, row.z
+            end
+        end
+    end
+    return "ok", first.x, first.z
+end
+
+-- How far past the nearest (other-floor) copy _target_tile looks for one on
+-- the player's own floor, in tiles.  A building's floors stack their copies
+-- within a room or two of each other; the Temple of Light's two circle
+-- staircases on level 1 are 3-15 tiles from the level-2 ones above them.
+QD.drive._same_level_reach = 32
+
+-- The player's plane, or nil when there is no reading (every caller then
+-- keeps its level-blind behaviour).
+function QD.drive._player_level()
+    local result, player = api_drive.player_tile()
+    if result ~= "ok" or type(player) ~= "table" then
+        return nil
+    end
+    return player.level
+end
+
+-- Of `copies` (loc pool rows), the ones on the player's plane -- or all of
+-- them when none is.  See _target_tile's seam11 banner.
+function QD.drive._same_level_rows(copies)
+    local level = QD.drive._player_level()
+    if level == nil then
+        return copies
+    end
+    local same = {}
+    for i = 1, #copies do
+        if copies[i].level == level then
+            same[#same + 1] = copies[i]
+        end
+    end
+    if #same == 0 then
+        return copies
+    end
+    return same
 end
 
 -- The yaw that puts (dx, dz) dead ahead.  ToriRS_WorldProjectPoint
@@ -450,7 +795,16 @@ function QD.drive._ensure_visible(target, deadline)
     -- a wrapper the scene never stores.  A target built by QD.player.by_symbol
     -- has already been through this and answers `exact` a second time for
     -- nothing; one built by hand is why the arm is here.
-    if result == "not_found" and target.kind == "loc" then
+    --
+    -- SEAM driver-lua-budget-and-npc-reaim (seam15): and only when the world
+    -- can have changed since.  A target by_symbol resolved in THIS resume
+    -- (no yield since: the scan meter's epoch is the one it stamped) would
+    -- walk the whole pool again to give the same answer -- for a loc absent
+    -- from the Temple of Light's 8,000 rows, two more whole walks in a resume
+    -- that had already paid for them, which is what ran click_loc out of its
+    -- instruction budget (build/quest_gate/s15b_absent_before).
+    if result == "not_found" and target.kind == "loc"
+        and target.resolved_epoch ~= QD.drive._scan_epoch() then
         local live, rule = QD.player._live_loc_id(target.id)
         if live ~= target.id then
             target.match = rule
@@ -609,6 +963,127 @@ function QD.drive.screen_position(target)
     return QD.drive._ensure_visible(target)
 end
 
+-- SEAM driver-lua-budget-and-npc-reaim (seam15) -- A WANDERING NPC IS
+-- PRESSED WHERE IT WAS.
+--
+-- click_minimenu takes its pixel from the projection and presses it a frame
+-- or more later; every pose press after a `covered` re-projects, but the last
+-- resort's hunt at the pose the camera is ALREADY at walks its ladder around
+-- the pixel recorded when that pose was framed.  An npc that took one step in
+-- between is not under any of those pixels.  Measured on the npc wander
+-- parity binary (build/seam_state/seam14/fixrun/eadgar row 18):
+-- talk_to(troll_eadgar) answered `covered ... none of 99 pixels hittested
+-- around the projected 349,264 holds it`, the menu at the press offering only
+-- the Cave Exit and Walk here, twice, 86 ticks.
+--
+-- So an npc press remembers the npc's TILE at the moment its pixel was taken
+-- (the pool row -- for a named copy, the copy's own element, never another
+-- copy's), and a press answering `covered` asks again: if the npc stands on
+-- another tile now, the press is re-aimed ONCE -- the menu the covered press
+-- left is closed, the npc is let finish its step (its projection holds still
+-- for a poll), re-projected through _ensure_visible and, for a named copy,
+-- seam13's named-copy aim, and pressed again.  The move is named in the row
+-- ("troll_eadgar moved a,b -> c,d between aim and press; re-aimed").  An npc
+-- that did not move changes nothing: its covered press goes on to the next
+-- pose exactly as before.  A named copy that left the pool is not re-aimed at
+-- anything else -- the selector never falls back.
+
+-- The tile of the npc COPY a press aimed at, as {x, z, element}, or nil (not
+-- an npc, or that copy is not in the pool).  `element_id` is the element the
+-- aim's pixel belongs to; a named copy is followed by its own reach_element.
+--
+-- By ELEMENT, never by symbol (seam15 closer): a bare symbol's first pool row
+-- is the NEAREST copy, and the pixel is the copy App_NpcScreenPosition ranks
+-- nearest the viewport centre -- two different Men in Lumbridge.  Read by
+-- symbol, the nearest copy changing identity between aim and press read as a
+-- five-tile step ('man moved 3211,3228 -> 3206,3228', build/quest_gate/cheats
+-- row 16) and re-aimed at a body nobody had pressed.
+function QD.drive._npc_aim_tile(target, element_id)
+    if target.kind ~= "npc" then
+        return nil
+    end
+    local element = target.reach_element or element_id
+    if element == nil then
+        return nil
+    end
+    local probe = target
+    if target.reach_element == nil then
+        probe = { kind = target.kind, id = target.id, symbol = target.symbol,
+            reach_element = element }
+    end
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(probe)
+    if tile_result ~= "ok" then
+        return nil
+    end
+    return { x = tile_x, z = tile_z, element = element }
+end
+
+-- How many server ticks the re-aim waits for the npc's projection to hold
+-- still -- one walk step is one tick; two covers the step the move was read
+-- in plus the next frame's draw.
+QD.drive._npc_reaim_settle_ticks = 2
+
+-- The one re-aim.  Answers nil when there is nothing to re-aim (the npc did
+-- not move, or is not in the pool); else (result, detail, moved_text) of the
+-- re-aimed press, `detail` already carrying the move.
+function QD.drive._npc_reaim(target, aim_tile, pressed_at, action, deadline, before_retry)
+    if aim_tile == nil then
+        return nil
+    end
+    local now = QD.drive._npc_aim_tile(target, aim_tile.element)
+    if now == nil or (now.x == aim_tile.x and now.z == aim_tile.z) then
+        return nil
+    end
+    -- The re-aim follows the COPY that moved, by its element, through
+    -- seam13's named-copy aim -- for a bare symbol too, where a fresh
+    -- projection would answer whichever copy is now nearest the centre.
+    local follow = target
+    if target.reach_element == nil then
+        follow = { kind = target.kind, id = target.id, symbol = target.symbol,
+            match = target.match, reach_element = aim_tile.element }
+    end
+    local moved = string.format("%s moved %d,%d -> %d,%d between aim and press",
+        tostring(target.symbol or ("npc " .. tostring(target.id))),
+        aim_tile.x, aim_tile.z, now.x, now.z)
+    if pressed_at then
+        QD.drive._dismiss_menu(pressed_at)
+    end
+    -- Let the step finish drawing: the pool row moves when NPC_INFO lands,
+    -- the model walks there over the frames after.
+    local last_x, last_y = nil, nil
+    QD.await({
+        level = function()
+            local r, p = api_drive.screen_position("npc", target.id)
+            if r ~= "ok" or type(p) ~= "table" then
+                return false
+            end
+            local still = p.x == last_x and p.y == last_y
+            last_x, last_y = p.x, p.y
+            return still
+        end,
+        note = "npc re-aim: the step to finish",
+    }, QD.drive._npc_reaim_settle_ticks)
+    local pos_result, pos = QD.drive._ensure_visible(follow, deadline)
+    if pos_result ~= "ok" then
+        return pos_result, moved .. "; re-aim found no pixel: " .. tostring(pos), moved
+    end
+    pos = QD.drive._aim_at_named_copy(follow, pos, deadline)
+    if before_retry then
+        local arm_result, arm_detail = before_retry()
+        if arm_result ~= "ok" then
+            return arm_result, arm_detail, moved
+        end
+    end
+    QD.note("click_minimenu: " .. moved .. "; re-aimed at " .. tostring(pos.x) .. ","
+        .. tostring(pos.y))
+    local result, detail = QD.drive._press_row(follow, pos, action, deadline)
+    if result == "ok" then
+        return result, detail, moved
+    end
+    return result, moved .. "; re-aimed at " .. tostring(pos.x) .. "," .. tostring(pos.y)
+        .. " and the press answered: " .. tostring(detail), moved
+end
+
 -- (1) project; (2) CmdBus move; (3) let a frame render, then confirm the
 -- pickset holds the element (else `covered` -- the pickset is stamped at the
 -- render-time hover point, so checking before the move is meaningless); (4)
@@ -668,6 +1143,10 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
     -- that name nothing, which is every target but QD.player._reach_retry's
     -- own-square candidate.
     pos = QD.drive._aim_at_named_copy(target, pos, deadline)
+    -- seam15: where the npc copy under this pixel stood when it was taken
+    -- (nil for a loc).
+    local aim_tile = QD.drive._npc_aim_tile(target, pos.element_id)
+    local reaimed = false
 
     -- Then press -- and if the menu that opens carries no row for this target,
     -- press again from a DIFFERENT camera.  A projection landing inside the
@@ -698,14 +1177,49 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
     -- _ensure_visible left it at.
     local seen = {}
     local framed_pose = 0
+    -- SEAM driver-world-pick-hunt-in-enclosed-temple-rooms (seam11): A
+    -- PROJECTION UNDER A COMPONENT IS NOT PRESSED.  In the resizable frame the
+    -- chatbox, the orbs and the side panel are drawn over the world viewport,
+    -- and a loc a tile or two from the player projects under the chatbox at
+    -- the flat poses (Temple of Light: 382,359 / 382,369 / 375,407 / 334,418).
+    -- A right press there opens the CHATBOX's menu -- the frame resets the
+    -- world pickset under any component (app_frame.c) -- so the press cannot
+    -- answer anything but `covered`, and it costs a menu and a tick.  The pose
+    -- is still recorded for the hunt below, whose ladder climbs out from under
+    -- the component for free; it is only the doomed press that is skipped.
+    local skip_detail = QD.drive._under_ui(pos)
+    -- Where the last real press was made: the menu it left open is anchored
+    -- there, and QD.drive._dismiss_menu has to move away from IT, not from
+    -- wherever the next pose projects.
+    local pressed_at = nil
     while true do
         local result
-        result, detail = QD.drive._press_row(target, pos, action, deadline)
+        if skip_detail then
+            result, detail = "covered", skip_detail
+            skip_detail = nil
+        else
+            pressed_at = pos
+            result, detail = QD.drive._press_row(target, pos, action, deadline)
+        end
         if result == "ok" then
             return "ok", detail
         end
         if result ~= "covered" then
             return result, detail
+        end
+        -- seam15: a covered press on an npc that has stepped since its aim is
+        -- re-aimed once on its new tile (banner over QD.drive._npc_reaim).
+        if not reaimed and aim_tile ~= nil then
+            local reaim_result, reaim_detail, moved = QD.drive._npc_reaim(
+                target, aim_tile, pressed_at, action, deadline, before_retry)
+            if moved ~= nil then
+                reaimed = true
+                if reaim_result ~= "covered" then
+                    return reaim_result, reaim_detail
+                end
+                detail = reaim_detail
+                aim_tile = QD.drive._npc_aim_tile(target, aim_tile.element)
+            end
         end
         attempt = attempt + 1
         if attempt > #QD.drive._frame_poses then
@@ -778,6 +1292,12 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                 -- dialogue.  The only press this can move is one that has
                 -- already failed every pose.
                 local budget = { left = QD.drive._hover_budget }
+                -- Close the covered press's menu BEFORE the ranking reads the
+                -- gate: with it up, every candidate of every pose reads as
+                -- under a component (QD.drive._dismiss_menu).
+                if pressed_at then
+                    QD.drive._dismiss_menu(pressed_at)
+                end
                 -- The viewport rectangle the ranking measures against.  A
                 -- binary without DrivePointer_PickPoint answers nothing, and
                 -- `nil` makes _hover_inside say yes to everything: every pose
@@ -803,6 +1323,19 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                 for i = 1, #order do
                     local hunt_pos = order[i].pos
                     local framed_ok = true
+                    -- seam15: at the pose the camera is already at, an npc's
+                    -- recorded pixel is where it stood when that pose was
+                    -- framed; hunt around where it is drawn NOW.  Not for a
+                    -- named copy: its recorded pixel is the named-copy aim's
+                    -- own (hovered) answer, and a fresh projection is the
+                    -- RANKED copy's.
+                    if order[i].index == at_pose and target.kind == "npc"
+                        and target.reach_element == nil then
+                        local now_result, now_pos = api_drive.screen_position("npc", target.id)
+                        if now_result == "ok" and type(now_pos) == "table" then
+                            hunt_pos = QD.drive._named_copy_pos(target, now_pos)
+                        end
+                    end
                     if order[i].index ~= at_pose then
                         local frame_result, framed = QD.drive._frame(target, order[i].index, deadline)
                         framed_ok = frame_result == "ok"
@@ -815,6 +1348,13 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                         account[#account + 1] = "pose " .. tostring(order[i].index)
                             .. " would not re-frame"
                     else
+                        -- The menu the last covered press opened is closed
+                        -- before the ladder is walked (QD.drive._dismiss_menu):
+                        -- its first rungs sit on the pressed pixel, and a
+                        -- probe inside an open menu is never stamped.
+                        if pressed_at then
+                            QD.drive._dismiss_menu(pressed_at)
+                        end
                         local hovered, hunt_detail =
                             QD.drive._hover_onto(target, hunt_pos, deadline, budget)
                         account[#account + 1] = "pose " .. tostring(order[i].index)
@@ -836,6 +1376,7 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                                     return arm_result, arm_detail
                                 end
                             end
+                            pressed_at = hovered
                             result, detail = QD.drive._press_row(target, hovered, action, deadline)
                             if result ~= "covered" then
                                 return result, detail
@@ -867,12 +1408,111 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
             -- pose it framed and would pay for a second search here.
             pos = QD.drive._named_copy_pos(target, framed)
             framed_pose = attempt
+            aim_tile = QD.drive._npc_aim_tile(target, pos.element_id)
             -- Remembered for the pose ranking in the last resort above; the
             -- press that follows is this pose's, so index and projection go in
             -- together and neither is re-read later.
             seen[#seen + 1] = { index = attempt, pos = pos }
         end
+        -- Re-asked whether or not the pose framed: a pose that would not
+        -- frame leaves `pos` where it was, and a pixel under the chatbox is
+        -- still under it.  (With the covered press's menu still up the gate
+        -- answers for the menu, so _under_ui declines and the press happens
+        -- exactly as it did before this seam.)
+        skip_detail = QD.drive._under_ui(pos)
     end
+end
+
+-- SEAM driver-world-pick-hunt-in-enclosed-temple-rooms (seam11): CLOSE THE
+-- MENU A `covered` PRESS LEFT OPEN before anything asks the world gate.
+--
+-- A covered press leaves its menu on screen (`Cancel`, `Walk here`), and
+-- while it is up the menu layer owns the WHOLE canvas: the world gate refuses
+-- every pixel (measured, build/quest_gate/s11_gate: g.visible all `W` over
+-- the world, g.clicked all `u` after one covered press).  It closes only when
+-- the pointer leaves its rectangle plus a 10px deadzone (uitree_interact.c,
+-- reference close-on-leave) -- so a hunt whose first candidates sit on or
+-- just under the pressed pixel keeps it open with its own probes, and every
+-- one of them waits out its deadline unstamped.  That is the likeliest
+-- reading of the Temple's top-edge tell in seam10_reverify (the last press at
+-- 375,13, then three unstamped probes at 372,56 read as "the world is not
+-- picking"); with the menu closed first, the same route's rows now read
+-- "none of N pixels hittested ... holds it" and never "not picking"
+-- (build/quest_gate/s11_route_proof).
+--
+-- Moving 250 px sideways from the menu's own centre -- toward the left, so
+-- the pointer stays over the world viewport rather than the minimap or side
+-- panel -- clears any menu this client draws and its deadzone; the answer is
+-- awaited so the next gate reading is about the world again.  `at` (the last
+-- press) is only the fallback when the menu reports no rows.  Nothing moves
+-- when no menu is up.
+function QD.drive._dismiss_menu(at)
+    local last = "ok"
+    for attempt = 1, 2 do
+        local visible_result, visible = api_drive.menu_visible()
+        if visible_result ~= "ok" or not visible then
+            return "ok"
+        end
+        -- Where the menu IS, from its own rows -- not where the last press
+        -- was.  A retry press that lands inside an open menu's rectangle or
+        -- deadzone is swallowed by it (uitree_interact.c: hit -1) and the menu
+        -- stays where an EARLIER press opened it.
+        local cx, cy = at.x, at.y
+        local rows_result, rows = api_drive.menu_rows()
+        if rows_result == "ok" and type(rows) == "table" and #rows > 0 then
+            local sx, sy = 0, 0
+            for i = 1, #rows do
+                sx = sx + (rows[i].centre_x or at.x)
+                sy = sy + (rows[i].centre_y or at.y)
+            end
+            cx = math.floor(sx / #rows)
+            cy = math.floor(sy / #rows)
+        end
+        local x = cx - 250
+        if x < 16 then
+            x = cx + 250
+        end
+        api_drive.mouse_move(x, cy)
+        -- TWO attempts, because the first can REOPEN the menu where it lands
+        -- (s11_ws: menu at 382,124, moved to 132,124, menu now at 132,159).
+        -- A frame App_RunOnce did not consume keeps its input (main.c's
+        -- LibToriRS_Input_Continue), press edge included, and a move drained
+        -- into it is read with the covered press's right-down still set:
+        -- "press outside the menu -> close and reopen at the pointer".  The
+        -- second move starts from the reopened menu's own rows, after that
+        -- edge is gone, and closes it (measured: ok on the second).
+        last = QD.await({
+            level = function()
+                local r, still = api_drive.menu_visible()
+                return r == "ok" and not still
+            end,
+            note = "click_minimenu.dismiss_menu",
+        }, attempt)
+        if last == "ok" then
+            return "ok"
+        end
+    end
+    return last
+end
+
+-- A projection the client's world gate refuses (click_minimenu's seam11
+-- banner): the detail a skipped press answers, or nil when the pixel is on the
+-- world (or this binary cannot say -- then every press happens, as before).
+function QD.drive._under_ui(at)
+    -- An open menu owns the whole canvas (QD.drive._dismiss_menu's banner):
+    -- the gate then says nothing about the world, and this declines rather
+    -- than spend frames closing it -- the press that follows moves the
+    -- pointer to `at`, which is what closed it before this seam.
+    local menu_result, menu_up = api_drive.menu_visible()
+    if menu_result ~= "ok" or menu_up then
+        return nil
+    end
+    local on_world, why = QD.drive._world_gate(at.x, at.y)
+    if on_world == false then
+        return "projected " .. tostring(at.x) .. "," .. tostring(at.y)
+            .. " is under " .. tostring(why) .. " -- not pressed"
+    end
+    return nil
 end
 
 -- One press at `pos`: move, let a frame render, right-press, find the row by
@@ -1982,6 +2622,9 @@ end
 -- distinguish "the base chat interface is up" (true for the whole session)
 -- from "component 567 just mounted inside it"; the DRIVE_STAMP event carries
 -- exactly the field this needs and nothing this group does not already own.
+-- A sub_mounted of any OTHER interface -- one absent when the settle began
+-- and not mounted inside chat -- is the modal arm (SEAM
+-- driver-settle-ignores-non-chat-modal-mount, below this function).
 -- map_flag's clear is gated behind `route_issued`, seeing the flag SET at
 -- least once, so a target that needed no walk at all cannot resolve on a
 -- flag clear left over from a PREVIOUS click.
@@ -2023,11 +2666,27 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         before_kind, before_text = QD.player._chat_page()
     end
 
+    -- The teleport arm's state (SEAM settle_teleport_landing, banner over
+    -- QD.player._settle_teleport_ticks): where the player stood when the
+    -- settle began, whether he was idle then, and the last tile a poll saw.
+    local jump = QD.player._settle_jump_start()
+
+    -- The modal arm's "before" (SEAM driver-settle-ignores-non-chat-modal-mount,
+    -- the banner above QD.player._mounted_groups): every group mounted when
+    -- the settle began.
+    local mounted_before = QD.player._mounted_groups()
+    local resolved_detail = nil
+
     local result, detail = QD.await({
         match = function(ev)
             if ev.kind == "sub_mounted" then
                 if chat_result == "ok" and ev.b == chat_interface_id then
                     resolved_by = "sub_mounted"
+                    return true
+                end
+                if QD.player._modal_mount_is_new(ev, mounted_before) then
+                    resolved_by = "sub_mounted"
+                    resolved_detail = "modal " .. QD.player._interface_label(ev.b)
                     return true
                 end
                 return false
@@ -2057,7 +2716,7 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
         level = function()
             local kind, text = QD.player._chat_page()
             if kind == before_kind and text == before_text then
-                return false
+                return QD.player._settle_jump_landed(jump, route_issued)
             end
             -- A PAGE THAT WENT AWAY IS NOT A PAGE THIS CLICK PUT UP.
             --
@@ -2076,7 +2735,7 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
             -- mounted sub, a chat line, a route, or a page that IS up and
             -- differs -- or time out and say so.
             if kind == "none" then
-                return false
+                return QD.player._settle_jump_landed(jump, route_issued)
             end
             resolved_by = "page " .. tostring(before_kind) .. "->" .. tostring(kind)
                 .. (text ~= before_text and " (text)" or "")
@@ -2112,10 +2771,212 @@ function QD.player._settle_after_click(ticks, before_kind, before_text)
     if refusal then
         return "refused", refusal, "refusal", refusal
     end
+    if result == "ok" and resolved_by == nil and jump.landed then
+        return "ok", "teleport: " .. jump.landed, "teleport", settle_line
+    end
     if result == "ok" then
-        return "ok", resolved_by or "settled", resolved_by or "settled", settle_line
+        return "ok", resolved_detail or resolved_by or "settled", resolved_by or "settled", settle_line
     end
     return result, detail, "timeout", settle_line
+end
+
+-- SEAM driver-settle-ignores-non-chat-modal-mount (seam12, 2026-09-24) -- A
+-- CLICK WHOSE WHOLE ANSWER IS A NON-CHAT INTERFACE.
+--
+-- WHAT WAS WRONG.  The sub_mounted arm above resolved only on the chat
+-- interface itself, so a click that directly mounts any OTHER interface --
+-- opheld1 on dwarf_rock_schematic1 (betweenarock_schematics.rs2's
+-- if_openmain_side(dwarf_rock_schematics, dwarf_rock_schematics_control)),
+-- Two Cats' lamp picker, the Mourning's End still -- prints no line, pages
+-- no dialogue and issues no route, and the settle waited out its whole
+-- budget on a click that visibly landed: build/quest_gate/betweenarock row 75
+-- `assembleSchematic FAIL 13 ... inv_op(dwarf_rock_schematic1,1) -> timeout
+-- ... [settle_after_click]`, and schematic_puzzle_final2 row 2 the same
+-- timeout followed by row 3 `ui.await_open(dwarf_rock_schematics)` passing in
+-- ONE tick.
+--
+-- THE ARM: a sub_mounted whose group was NOT mounted when the settle began
+-- and whose slot is not inside the chat interface.  It answers `ok` with arm
+-- `sub_mounted` and detail `modal <interface>`, naming what opened.
+--
+--   * "Not mounted when the settle began" is a snapshot (below), taken on
+--     the settle's first line: the click has only just left as a packet and
+--     the server's answer is a tick away, so it photographs the world before
+--     the click's effect.  A same-group REMOUNT (app_boot.c's stamp: "a
+--     same-group remount is the normal dialogue paging case") is therefore
+--     never this arm's edge -- a side panel re-opened into its own slot by an
+--     earlier row's close does not read as this click's modal.
+--   * Anything mounted INTO the chat interface (target_uid's high half ==
+--     chat) stays the page arm's: talk_to reads the arm word and a dialogue
+--     page must keep resolving as `page <before>-><after>` exactly as before.
+--     The chat arm itself (ev.b == chat) is untouched, wording and all.
+--   * The refusal fence is untouched: a refusal line in the window still
+--     answers `refused` whichever arm resolved.
+--
+-- THE SNAPSHOT is api_drive.group_present over every interface id the pack
+-- names -- a hash lookup per id (UITree_GroupNodes), never a walk of the UI
+-- tree -- and the highest named id is probed once per session and cached.
+QD.player._interface_id_bound = nil
+QD.player._interface_probe_limit = 8192
+
+function QD.player._mounted_groups()
+    if QD.player._interface_id_bound == nil then
+        local bound = -1
+        for id = 0, QD.player._interface_probe_limit - 1 do
+            local name_result = api_drive.symbol_name("interface", id)
+            if name_result == "ok" then
+                bound = id
+            end
+        end
+        QD.player._interface_id_bound = bound
+    end
+    local mounted = {}
+    for id = 0, QD.player._interface_id_bound do
+        local present_result, present = api_drive.group_present(id)
+        if present_result == "ok" and present then
+            mounted[id] = true
+        end
+    end
+    return mounted
+end
+
+--
+-- WHICH INTERFACE IS "CHAT".  The chat arm above asks the pack for `chat`,
+-- which is revconfig's [iface:chat] (osrs239_dat2_cache.ini) and NOT a name
+-- the content pack carries -- the pack names group 162 `chatbox`
+-- (pack/3_interfaces.pack) -- so on osrs239 that lookup answers not_found
+-- and the chat arm never fires (measured: build/quest_gate/seam12_modal_diag2
+-- saw sub_mounted(10551312,113,0) and the dialogue host is 162).  The chat
+-- arm is left exactly as it was; the exclusion here resolves the host by
+-- either name, because without it a dialogue page mounting into the chatbox
+-- would resolve as a modal and change talk_to's arm word.
+QD.player._chat_host_names = { "chat", "chatbox" }
+
+function QD.player._chat_host_interface()
+    for _, name in ipairs(QD.player._chat_host_names) do
+        local result, interface_id = api_drive.symbol("interface", name)
+        if result == "ok" then
+            return interface_id
+        end
+    end
+    return nil
+end
+
+function QD.player._modal_mount_is_new(ev, mounted_before)
+    if ev.b == nil or ev.b <= 0 then
+        return false
+    end
+    if mounted_before[ev.b] then
+        return false
+    end
+    local chat_host = QD.player._chat_host_interface()
+    if chat_host == nil then
+        -- Nothing can tell a dialogue page from a modal; the page arm still
+        -- answers, as it did before this arm existed.
+        return false
+    end
+    if ev.b == chat_host or (ev.a >> 16) == chat_host then
+        return false
+    end
+    return true
+end
+
+function QD.player._interface_label(interface_id)
+    local name_result, name = api_drive.symbol_name("interface", interface_id)
+    if name_result == "ok" and name then
+        return name
+    end
+    return tostring(interface_id)
+end
+
+-- SEAM settle_teleport_landing (seam10, 2026-09-23) -- A CLICK WHOSE WHOLE
+-- ANSWER IS A p_teleport.
+--
+-- WHAT WAS WRONG.  A ladder, a staircase or a Temple of Light door whose
+-- `[oploc1]` body is a bare `p_teleport` (`~climb_ladder`, or
+-- mend2_puzzle3.rs2's [oploc1,mourning_door_1_1_east]) mounts no page, prints
+-- no line and -- from a player already standing beside it -- issues no
+-- route, so none of the four arms above has an edge to resolve on and the
+-- settle ran out its whole budget on a click that visibly landed.  Measured
+-- (build/quest_gate/seam10_reach_base, the shared binary, this Lua before the
+-- arm): row 4 `door.pass FAIL 22 settle_after_click` with row 5 reading the
+-- player one tile west at 1863,4665,0, and row 7 `ladder.down FAIL 22
+-- settle_after_click` with row 8 reading 1898,4666,1 -- a floor lower.  The
+-- same rows in parity_mend2_puzzle3d (62, 64) and parity_mend2_puzzle3_tail
+-- (12), each paired with a `.tile` row that passed.
+--
+-- THE FIFTH ARM, `teleport`: the player's tile moved away from where it was
+-- when the settle began, the move was one no walk makes, and the new tile has
+-- held.  "No walk makes it" is one of three facts: the PLANE changed; one
+-- poll saw the tile jump `_settle_jump_step` tiles or more (a run moves two a
+-- tick, never three); or the player was idle when the settle began and no
+-- route was issued while it waited (api_drive.player_idle: route empty AND
+-- map flag clear) -- a one-tile door teleport is indistinguishable from a
+-- step by distance, and only the absence of any route tells them apart.
+-- "Has held" is `_settle_teleport_ticks` whole ticks on the same tile, so a
+-- two-hop door (p_teleport, p_delay(1), p_teleport) resolves on its landing
+-- and not on its first hop, and a forced walk that is still moving never
+-- resolves at all.
+--
+-- The edge arms still win: they are read first in the pump and the arm needs
+-- two quiet ticks, so a teleport that also prints a line or mounts a page
+-- resolves exactly as it did.  Only a click that would otherwise have timed
+-- out resolves here, and it answers `ok` with `teleport: <from> -> <to>` so
+-- the row says what it saw.
+QD.player._settle_teleport_ticks = 2
+QD.player._settle_jump_step = 3
+
+function QD.player._settle_jump_start()
+    local jump = { landed = nil, jumped = false }
+    local tile_result, tile = api_drive.player_tile()
+    if tile_result == "ok" and tile then
+        jump.start = { x = tile.x, z = tile.z, level = tile.level or 0 }
+        jump.last = { x = tile.x, z = tile.z, level = tile.level or 0 }
+        jump.last_tick = api_drive.tick()
+    end
+    local idle_result, idle = api_drive.player_idle()
+    jump.idle_at_start = idle_result == "ok" and idle == true
+    return jump
+end
+
+-- The level half of the teleport arm: true once the landing has held.  Reads
+-- one tile per poll and nothing else; `route_issued` is the settle's own
+-- map_flag bookkeeping, passed in because the match half owns it.
+function QD.player._settle_jump_landed(jump, route_issued)
+    if jump.start == nil then
+        return false
+    end
+    local tile_result, tile = api_drive.player_tile()
+    if tile_result ~= "ok" or not tile then
+        return false
+    end
+    local level = tile.level or 0
+    local now = api_drive.tick()
+    if tile.x ~= jump.last.x or tile.z ~= jump.last.z or level ~= jump.last.level then
+        if level ~= jump.last.level
+            or QD.player._tile_distance(jump.last.x, jump.last.z, tile.x, tile.z)
+                >= QD.player._settle_jump_step then
+            jump.jumped = true
+        end
+        jump.last = { x = tile.x, z = tile.z, level = level }
+        jump.last_tick = now
+        return false
+    end
+    if tile.x == jump.start.x and tile.z == jump.start.z and level == jump.start.level then
+        return false
+    end
+    local unrouted = jump.idle_at_start and not route_issued
+    if not jump.jumped and not unrouted then
+        return false
+    end
+    if now - jump.last_tick < QD.player._settle_teleport_ticks then
+        return false
+    end
+    jump.landed = string.format("%d,%d,%d -> %d,%d,%d (%s, held %d tick(s))",
+        jump.start.x, jump.start.z, jump.start.level, tile.x, tile.z, level,
+        jump.jumped and "a jump no walk makes" or "moved with no route issued",
+        now - jump.last_tick)
+    return true
 end
 
 -- The first refusal line newer than `since`, or nil.  Newest-first is what
@@ -2140,17 +3001,27 @@ function QD.player._refusal_since(since)
     return found
 end
 
-function QD.player.talk_to(npc, op)
+function QD.player.talk_to(npc, op, opts)
     op = op or 1
     local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
     if not target then
         return sym_result, sym_name
     end
+    -- The npc selector (seam13): `{ at = {x, z} }` / `{ slot = n }` names the
+    -- copy; nil keeps the ranked copy exactly as before.
+    local copy_text = nil
+    if opts ~= nil then
+        local copy_result, copy_detail = QD.player._npc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, "talk_to " .. tostring(npc) .. ": " .. tostring(copy_detail)
+        end
+        copy_text = copy_detail
+    end
     -- BEFORE the click: the page the settle compares against has to be the
     -- one that was up when the player pressed, not the one the press has
     -- already begun to replace.  See _settle_after_click's fourth arm.
     local before_kind, before_text = QD.player._chat_page()
-    local click_result, click = QD.drive.click_minimenu(target, op)
+    local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
         return click_result, click
     end
@@ -2217,6 +3088,10 @@ function QD.player.talk_to(npc, op)
         }, QD.player._talk_page_ticks)
         kind = QD.chat.kind()
     end
+    -- A talk aimed at a named copy says which copy it talked to, first.
+    if copy_text ~= nil then
+        detail = "talked to " .. copy_text .. "; " .. tostring(detail)
+    end
     if kind ~= "none" then
         return "ok", detail .. ": dialogue " .. kind .. " is up"
     end
@@ -2242,7 +3117,17 @@ QD.player._talk_page_ticks = 5
 -- press (the `covered` a distant tree behind the Lumbridge fountain gave).
 -- The approach is the same app_try_move_loc the engine's own click would run,
 -- so this is the click a player makes, not a shortcut around one.
-function QD.player.click_loc(loc, op)
+--
+-- `opts` (optional, last): `{ stand_on_square = true }` lets the reach retry
+-- ::goto onto the loc's own square once every walkable approach tile has
+-- refused (SEAM reach_stand_on_opt_in, inside QD.player._reach_retry).  It is
+-- off by default and a quest file that sets it owes a `-- GUIDE-GAP:` marker
+-- beside the call.  `click_loc(loc, opts)` with the op left out is op 1.
+function QD.player.click_loc(loc, op, opts)
+    if type(op) == "table" and opts == nil then
+        opts = op
+        op = nil
+    end
     op = op or 1
     local target, sym_result, sym_name = QD.player.by_symbol("loc", loc)
     if not target then
@@ -2347,7 +3232,7 @@ function QD.player.click_loc(loc, op)
             return retry_result, retry_click
         end
         return QD.player._settle_after_click(20, retry_kind, retry_text)
-    end)
+    end, opts)
     if reach_tried > 0 then
         return result, detail
     end
@@ -2559,6 +3444,14 @@ function QD.player.inv_op(item, op)
         .. " left"
     if settle_result ~= "ok" and settle_detail ~= nil then
         text = text .. " [" .. tostring(settle_detail) .. "]"
+    end
+    -- An op whose answer is an interface says WHICH one (SEAM
+    -- driver-settle-ignores-non-chat-modal-mount, after _settle_after_click):
+    -- `... -> 0 left [modal dwarf_rock_schematics]`.  Only the modal arm's
+    -- detail is appended to an ok row; every other ok row reads as before.
+    if settle_result == "ok" and type(settle_detail) == "string"
+        and settle_detail:sub(1, 6) == "modal " then
+        text = text .. " [" .. settle_detail .. "]"
     end
     return settle_result, text
 end
@@ -2826,7 +3719,10 @@ end
 -- world target -- with a selection armed, add_world_select_row collapses that
 -- target's menu to ONE row whose action is USEHELD_ON*, matched on pick
 -- identity alone (the "select" wildcard above).
-function QD.player.use_on(item, target)
+--
+-- `opts` (optional): `{ stand_on_square = true }`, the same opt-in click_loc
+-- takes -- see SEAM reach_stand_on_opt_in inside QD.player._reach_retry.
+function QD.player.use_on(item, target, opts)
     if type(target) ~= "table" or target.kind == nil then
         return "unsupported", "use_on: target must be a {kind,id} world target"
     end
@@ -2947,25 +3843,28 @@ function QD.player.use_on(item, target)
     -- press is re-taken from each one -- the arming FIRST, because the
     -- refused press spent it (the re-arm seam, 2026-09-20), then the press,
     -- then the held-row check above, which no retry may skip.
+    local reach_press = function()
+        local retry_arm_result, retry_arm_detail = QD.player._arm_held(item, cell)
+        if retry_arm_result ~= "ok" then
+            return retry_arm_result, "use_on: reach retry: " .. tostring(retry_arm_detail)
+        end
+        local retry_kind, retry_text = QD.player._chat_page()
+        local retry_result, retry_click =
+            QD.drive.click_minimenu(target, "select", nil, rearm)
+        if retry_result ~= "ok" then
+            return retry_result, retry_click
+        end
+        local retry_held, retry_why = QD.player._select_row_is_held(target, retry_click)
+        if not retry_held then
+            return "refused", "use_on " .. item .. " on " .. target.kind .. " "
+                .. tostring(target.symbol or target.id) .. ": " .. retry_why
+        end
+        return QD.player._settle_after_click(20, retry_kind, retry_text)
+    end
     settle_result, settle_detail = QD.player._reach_retry(
-        target, settle_result, settle_detail, function()
-            local retry_arm_result, retry_arm_detail = QD.player._arm_held(item, cell)
-            if retry_arm_result ~= "ok" then
-                return retry_arm_result, "use_on: reach retry: " .. tostring(retry_arm_detail)
-            end
-            local retry_kind, retry_text = QD.player._chat_page()
-            local retry_result, retry_click =
-                QD.drive.click_minimenu(target, "select", nil, rearm)
-            if retry_result ~= "ok" then
-                return retry_result, retry_click
-            end
-            local retry_held, retry_why = QD.player._select_row_is_held(target, retry_click)
-            if not retry_held then
-                return "refused", "use_on " .. item .. " on " .. target.kind .. " "
-                    .. tostring(target.symbol or target.id) .. ": " .. retry_why
-            end
-            return QD.player._settle_after_click(20, retry_kind, retry_text)
-        end)
+        target, settle_result, settle_detail, reach_press, opts)
+    settle_result, settle_detail = QD.player._npc_reach_retry(
+        target, settle_result, settle_detail, reach_press)
     -- SEAM use_on_effect_lands: an `ok` that the caller's very next line can
     -- read back.  The banner is over QD.player._await_use_on_effect.
     if settle_result == "ok" then
@@ -3685,13 +4584,46 @@ end
 -- Would a frame hittest at all at (x, y)?  `point` is a pick_point reading,
 -- and a client that has not answered one yet is given the benefit of the
 -- doubt: the probe itself then says so by never being stamped.
+--
+-- The second answer says WHY not: "outside" (the viewport rectangle and its
+-- margin) or "ui ..." -- inside that rectangle, but under a component the
+-- client's own world gate refuses the pick for (seam11: the resizable frame's
+-- chatbox, orbs and side panel are drawn OVER the world viewport, so the
+-- rectangle alone says yes to pixels no frame will ever hittest).  Both are
+-- free to skip: nothing is moved and nothing is waited for.
 function QD.drive._hover_inside(point, x, y)
-    if point == nil or point.view_w == nil or point.view_w <= 0 then
-        return true
+    if point ~= nil and point.view_w ~= nil and point.view_w > 0 then
+        local margin = QD.drive._hover_margin
+        if not (x >= point.view_x + margin and x < point.view_x + point.view_w - margin
+            and y >= point.view_y + margin and y < point.view_y + point.view_h - margin) then
+            return false, "outside"
+        end
     end
-    local margin = QD.drive._hover_margin
-    return x >= point.view_x + margin and x < point.view_x + point.view_w - margin
-        and y >= point.view_y + margin and y < point.view_y + point.view_h - margin
+    local on_world, why = QD.drive._world_gate(x, y)
+    if on_world == false then
+        return false, why
+    end
+    return true, nil
+end
+
+-- SEAM driver-world-pick-hunt-in-enclosed-temple-rooms (seam11): does the
+-- client's own world gate (app_world_mouse_gate, through
+-- api_drive.world_gate) let a frame hittest the world at (x, y)?  Answers
+-- (true|false|nil, why): nil when the verb answers anything but ok, and
+-- every caller then keeps its pre-seam behaviour (see _hover_inside above and
+-- click_minimenu's seam11 banner).  The nil-verb guard went with the closer:
+-- src/torirs_questtest carries api_drive.world_gate since seam11.
+function QD.drive._world_gate(x, y)
+    local result, gate = api_drive.world_gate(x, y)
+    if result ~= "ok" then
+        return nil, result
+    end
+    local why = gate.why
+    if gate.component_id ~= nil and gate.component_id >= 0 then
+        why = why .. " " .. tostring(gate.component_id >> 16) .. ":"
+            .. tostring(gate.component_id & 0xFFFF)
+    end
+    return gate.world, why
 end
 
 -- One probe.  `nil` means no frame ever hittested there (nothing was learnt);
@@ -3800,16 +4732,28 @@ function QD.drive._hover_onto(target, pos, deadline, budget)
 
     local tried = 0
     local skipped = 0
+    local under_ui = 0
+    local under_what = nil
     local stale = 0
     local stale_run = 0
     local capped = false
     for i = 1, #candidates do
         local x = pos.x + candidates[i][1]
         local y = pos.y + candidates[i][2]
-        if not QD.drive._hover_inside(point, x, y) then
+        local inside, why = QD.drive._hover_inside(point, x, y)
+        if not inside then
             -- Free: nothing is moved and nothing is waited for, so an
-            -- off-viewport candidate is not charged to the budget either.
-            skipped = skipped + 1
+            -- off-viewport candidate is not charged to the budget either --
+            -- and neither is one under a component (seam11): the frame
+            -- resets the pickset there instead of stamping it, so a probe
+            -- would only have waited out its deadline and been counted as
+            -- "the world stopped picking".
+            if why == "outside" then
+                skipped = skipped + 1
+            else
+                under_ui = under_ui + 1
+                under_what = under_what or why
+            end
         elseif budget.left <= 0 then
             -- THE CAP.  Stop walking rather than keep counting: the account
             -- below says the budget ran out, which is a different fact from
@@ -3823,18 +4767,23 @@ function QD.drive._hover_onto(target, pos, deadline, budget)
             if held == nil then
                 stale = stale + 1
                 stale_run = stale_run + 1
+                -- What the gate says NOW, at the pixel that went unstamped:
+                -- the gate was asked before the probe and said yes, so a "no"
+                -- here names what opened over the viewport mid-search (a
+                -- menu, a modal), and a "world" says the gate is not why.
+                local _, gate_now = QD.drive._world_gate(x, y)
                 if tried == 0 and stale >= QD.drive._hover_stale_limit then
                     return nil, string.format(
                         "no frame hittested any of %d pixels around the projected %d,%d"
-                            .. " -- the world is not picking",
-                        stale, pos.x, pos.y)
+                            .. " -- the world is not picking (gate at %d,%d: %s)",
+                        stale, pos.x, pos.y, x, y, tostring(gate_now))
                 end
                 if stale_run >= QD.drive._hover_stale_cap then
                     return nil, string.format(
                         "%d probes in a row around the projected %d,%d were never hittested"
                             .. " (%d good, %d stale so far) -- the world stopped picking"
-                            .. " mid-search",
-                        stale_run, pos.x, pos.y, tried, stale)
+                            .. " mid-search (gate at %d,%d: %s)",
+                        stale_run, pos.x, pos.y, tried, stale, x, y, tostring(gate_now))
                 end
             else
                 stale_run = 0
@@ -3849,16 +4798,20 @@ function QD.drive._hover_onto(target, pos, deadline, budget)
             end
         end
     end
+    local ui_text = ""
+    if under_ui > 0 then
+        ui_text = string.format(", %d under UI (%s)", under_ui, tostring(under_what))
+    end
     if capped then
         return nil, string.format(
             "none of %d pixels hittested around the projected %d,%d holds it"
-                .. " (%d off-viewport, %d never hittested) -- probe budget spent",
-            tried, pos.x, pos.y, skipped, stale)
+                .. " (%d off-viewport%s, %d never hittested) -- probe budget spent",
+            tried, pos.x, pos.y, skipped, ui_text, stale)
     end
     return nil, string.format(
         "none of %d pixels hittested around the projected %d,%d holds it"
-            .. " (%d off-viewport, %d never hittested)",
-        tried, pos.x, pos.y, skipped, stale)
+            .. " (%d off-viewport%s, %d never hittested)",
+        tried, pos.x, pos.y, skipped, ui_text, stale)
 end
 
 -- What the menu that just opened actually offers, as one line: the row text,
@@ -4163,6 +5116,12 @@ QD.player._reach_walk_ticks = 10
 -- SEAM use_on_own_square (2026-09-20) -- HOW MANY OF THE LOC'S OWN SQUARES THE
 -- RETRY IS ALLOWED TO STAND ON, and why standing on one is not walking to it.
 --
+-- OPT-IN ONLY SINCE seam10 (2026-09-23): the stand-on below runs only for a
+-- click_loc/use_on called with `{ stand_on_square = true }`; by default an own
+-- square is walked to and a reach nobody can walk to fails `reach_failed`.
+-- See SEAM reach_stand_on_opt_in inside QD.player._reach_retry.  The history
+-- that follows is why the opt-in exists at all.
+--
 -- WHAT WAS WRONG.  _reach_candidates already ends its list with the loc's own
 -- squares, and _step_off_for_click already suppresses the standoff for them,
 -- because a STRAIGHT WALL DECORATION (all.loc `shape1=4`, placed as loc shape
@@ -4228,8 +5187,15 @@ function QD.player._reach_candidates(target)
         -- seam.reach_retry, 2026-09-20).
         if rows[i].loc_id == target.id or rows[i].resolved_loc_id == target.id then
             copies[#copies + 1] = rows[i]
-            occupied[tostring(rows[i].x) .. "," .. tostring(rows[i].z)] = true
         end
+    end
+    -- Only the copies on the player's floor can be pressed at all (seam11,
+    -- _target_tile's banner); a neighbour of the copy one floor up is a walk
+    -- to somewhere no press can reach from, and that copy's own square is an
+    -- ordinary floor tile down here.
+    copies = QD.drive._same_level_rows(copies)
+    for i = 1, #copies do
+        occupied[tostring(copies[i].x) .. "," .. tostring(copies[i].z)] = true
     end
     if #copies == 0 then
         -- Nothing in the pool carries this id under either name.  The target
@@ -4397,7 +5363,138 @@ function QD.drive._named_copy_pos(target, pos)
     if pos.element_id == target.reach_element then
         return pos
     end
+    -- An NPC copy is not a tie between squares a tile apart the way a loc's
+    -- own-square copies are: the three plaguesheep_1 copies stand two tiles
+    -- from each other, and the ranked copy's pixel is a whole body away from
+    -- the named one.  So the npc rewrite also MOVES the pixel, to where the
+    -- named copy has to be drawn (QD.drive._named_npc_estimate) -- still no
+    -- frame, no probe and no packet: a pool read and the player's projection.
+    if target.kind == "npc" then
+        local estimate = QD.drive._named_npc_estimate(target, pos)
+        return estimate
+    end
     return { x = pos.x, y = pos.y, element_id = target.reach_element }
+end
+
+-- SEAM driver-press-cannot-aim-one-npc-copy (seam13) -- WHERE THE NAMED NPC
+-- COPY IS DRAWN, without a C verb that projects one element.
+--
+-- api_drive.screen_position projects ONE copy of an npc id: the one
+-- App_NpcScreenPosition ranks nearest the viewport centre.  Among three
+-- identical sheep that is whichever the camera happens to favour, so the
+-- pixel it answers is the wrong body whenever the caller named another copy.
+-- Two things are known for free, though: where the PLAYER is drawn
+-- (screen_position("player", -1), the same 60-unit mid-body height the npc
+-- projection uses), and -- because every caller has just turned the camera's
+-- YAW onto the named copy (QD.drive._frame through _target_tile, or
+-- QD.drive._face_named_npc) -- that the named copy stands straight AHEAD of
+-- the player, on the vertical screen line through him.  Its height on that
+-- line scales with how far ahead it is; the ranked copy's own projection
+-- gives the scale (screen pixels per tile of forward distance) whenever the
+-- ranked copy is itself ahead of the player by half a tile or more.  With no
+-- scale the estimate is the player's own pixel, and the hunt's ladder climbs
+-- from there (QD.drive._hover_dys: up to 192 px above it).
+--
+-- Answers { x, y, element_id = the named element } and a short how-string.
+-- Never a pixel of another element: the press that follows matches its menu
+-- row on this element id alone (_press_row), so a wrong pixel costs a
+-- `covered` that names the copy, never a press on the ranked one.
+function QD.drive._named_npc_estimate(target, pos)
+    local fallback = { x = pos.x, y = pos.y, element_id = target.reach_element }
+    local rows_result, rows = api_drive.npcs(0)
+    local player_result, player = api_drive.player_tile()
+    local drawn_result, drawn = api_drive.screen_position("player", -1)
+    if rows_result ~= "ok" or type(rows) ~= "table" or player_result ~= "ok"
+        or type(player) ~= "table" or drawn_result ~= "ok" or type(drawn) ~= "table" then
+        return fallback, "no reading (the ranked copy's pixel)"
+    end
+    local named, ranked = nil, nil
+    for i = 1, #rows do
+        if rows[i].element_id == target.reach_element then
+            named = rows[i]
+        end
+        if rows[i].element_id == pos.element_id then
+            ranked = rows[i]
+        end
+    end
+    if named == nil then
+        return fallback, "the named copy left the pool"
+    end
+    local nx = named.x - player.x
+    local nz = named.z - player.z
+    local ahead = math.sqrt(nx * nx + nz * nz)
+    if ahead == 0 then
+        return { x = drawn.x, y = drawn.y, element_id = target.reach_element },
+            "on the player's own tile"
+    end
+    if ranked ~= nil then
+        local rx = ranked.x - player.x
+        local rz = ranked.z - player.z
+        local ranked_ahead = (rx * nx + rz * nz) / ahead
+        local per_tile = (drawn.y - pos.y) / math.max(ranked_ahead, 0.5)
+        if ranked_ahead >= 0.5 and per_tile > 0 then
+            return {
+                x = drawn.x,
+                y = math.floor(drawn.y - per_tile * ahead + 0.5),
+                element_id = target.reach_element,
+            }, string.format("%.1f tile(s) ahead at %.0f px/tile", ahead, per_tile)
+        end
+    end
+    return { x = drawn.x, y = drawn.y, element_id = target.reach_element },
+        string.format("%.1f tile(s) ahead, no scale (the player's pixel)", ahead)
+end
+
+-- Turn the camera's YAW onto the named npc copy, keeping its pitch and zoom,
+-- and answer where the ranked copy projects afterwards (the estimate's scale
+-- reference), or nil when nothing could be turned.  Pitch and zoom are kept
+-- because they are what put the target on screen in the first place
+-- (_ensure_visible answered `ok` from them); the yaw is the only thing that
+-- decides whether the named copy stands on the player's vertical line.
+--
+-- Two frames are awaited, not one: drive.camera writes the orbit angles and
+-- the eye the projection subtracts is rebuilt by the follow step on the NEXT
+-- frame (QD.drive._ensure_visible's banner), so the first frame after the
+-- write can still project against the old eye.
+function QD.drive._face_named_npc(target, deadline)
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
+    if tile_result ~= "ok" then
+        return nil
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" or type(player) ~= "table" then
+        return nil
+    end
+    local yaw = QD.drive._yaw_towards(tile_x - player.x, tile_z - player.z)
+    if yaw == nil then
+        return nil
+    end
+    local pitch = QD.drive._frame_poses[1].pitch
+    local zoom = QD.drive._frame_poses[1].zoom
+    local pose_result, pose = QD.drive._camera_pose()
+    if pose_result == "ok" and type(pose) == "table" and pose.pitch and pose.zoom then
+        pitch = pose.pitch
+        zoom = pose.zoom
+    end
+    if api_drive.camera(yaw, pitch, zoom) ~= "ok" then
+        return nil
+    end
+    local polls = 0
+    QD.await({
+        level = function()
+            polls = polls + 1
+            if polls <= 2 then
+                return false
+            end
+            local r = api_drive.screen_position(target.kind, target.id)
+            return r == "ok"
+        end,
+        note = "click_minimenu: facing the named npc copy",
+    }, deadline or 3)
+    local projected_result, projected = api_drive.screen_position(target.kind, target.id)
+    if projected_result ~= "ok" then
+        return nil
+    end
+    return projected
 end
 
 -- The same rewrite, plus ONE pixel hunt for the named copy.
@@ -4413,8 +5510,14 @@ end
 -- When the hunt finds nothing the aimed pixel is pressed anyway, and it
 -- answers `covered` naming the element it was looking for -- which is the
 -- reading the next candidate needs.  `target.reach_element` is set by
--- QD.player._reach_retry alone and cleared the moment its press is taken.
+-- QD.player._reach_retry (a loc's own-square copy) and by the npc selector of
+-- press/talk_to (QD.player._npc_copy + _click_npc_copy, seam13), and cleared the moment
+-- their press is taken.
 function QD.drive._aim_at_named_copy(target, pos, deadline)
+    if target.kind == "npc" and target.reach_element ~= nil and type(pos) == "table"
+        and pos.element_id ~= target.reach_element then
+        return QD.drive._aim_at_named_npc(target, pos, deadline)
+    end
     local aimed = QD.drive._named_copy_pos(target, pos)
     if aimed == pos then
         return pos
@@ -4431,6 +5534,54 @@ function QD.drive._aim_at_named_copy(target, pos, deadline)
         .. " -- " .. tostring(why))
     return aimed
 end
+
+-- The npc half of the aim (seam13): the projection framed the RANKED copy and
+-- the caller named another.  Turn the yaw onto the named copy (which may make
+-- it the ranked one outright -- then its own projection is the pixel and
+-- nothing is hunted), estimate where it is drawn, and hunt from just below
+-- that estimate; if nothing there holds it, hunt around the ranked copy's
+-- pixel too (two copies side by side can overlap on screen).  Each hunt has
+-- its own probe budget.  When neither finds it the ESTIMATE is pressed, and
+-- _press_row answers `covered` naming the element -- never the ranked copy.
+function QD.drive._aim_at_named_npc(target, pos, deadline)
+    local faced = QD.drive._face_named_npc(target, deadline)
+    if type(faced) == "table" then
+        pos = faced
+        if pos.element_id == target.reach_element then
+            QD.note("click_minimenu: facing the named copy (element "
+                .. tostring(target.reach_element) .. ") made it the projected one")
+            return pos
+        end
+    end
+    local estimate, how = QD.drive._named_npc_estimate(target, pos)
+    local below = { x = estimate.x, y = estimate.y + QD.drive._named_npc_hunt_below,
+        element_id = estimate.element_id }
+    local hovered, why = QD.drive._hover_onto(target, below, deadline)
+    if hovered then
+        QD.note("click_minimenu: aimed at the named npc copy (element "
+            .. tostring(target.reach_element) .. ", estimate " .. tostring(how)
+            .. ") -- " .. tostring(why))
+        return hovered
+    end
+    local around = { x = pos.x, y = pos.y, element_id = target.reach_element }
+    local hovered2, why2 = QD.drive._hover_onto(target, around, deadline)
+    if hovered2 then
+        QD.note("click_minimenu: aimed at the named npc copy (element "
+            .. tostring(target.reach_element) .. ") beside the projected element "
+            .. tostring(pos.element_id) .. " -- " .. tostring(why2))
+        return hovered2
+    end
+    QD.note("click_minimenu: the projection framed element " .. tostring(pos.element_id)
+        .. " and this press must name " .. tostring(target.reach_element)
+        .. " -- estimate (" .. tostring(how) .. "): " .. tostring(why)
+        .. "; around the projected copy: " .. tostring(why2))
+    return estimate
+end
+
+-- How far below the estimated pixel the named-npc hunt starts, in px: the
+-- ladder (QD.drive._hover_dys) only climbs, and the estimate is a guess in
+-- both directions.  Two rungs.
+QD.drive._named_npc_hunt_below = 32
 
 -- Walk the loc's other approach tiles and press again, while the engine keeps
 -- saying the player cannot reach it.
@@ -4449,7 +5600,12 @@ end
 -- It stops at the first press that is neither another reach refusal nor
 -- `covered`: a `refused` for a different reason is content answering on the
 -- merits, and walking further cannot improve that.
-function QD.player._reach_retry(target, result, detail, press)
+--
+-- `opts` is the verb's own caller's options table (click_loc's and use_on's
+-- last argument), and ONE field of it is read here: `stand_on_square`.  See
+-- SEAM reach_stand_on_opt_in below for why the loc's own square is WALKED to
+-- by default and stood on with ::goto only when the quest file says so.
+function QD.player._reach_retry(target, result, detail, press, opts)
     if type(target) ~= "table" or target.kind ~= "loc" then
         return result, detail, 0
     end
@@ -4481,6 +5637,37 @@ function QD.player._reach_retry(target, result, detail, press)
     local tried = 0
     local walked = 0
     local stood = 0
+    -- SEAM reach_stand_on_opt_in (seam10, 2026-09-23) -- THE ::goto ONTO THE
+    -- LOC'S OWN SQUARE IS THE QUEST FILE'S DECISION, NOT THE DRIVER'S.
+    --
+    -- WHAT WAS WRONG.  Once every walkable neighbour had refused, this retry
+    -- ::goto'd the player onto the loc's own square and pressed from there,
+    -- on every click_loc and use_on in the suite, and the only trace was a
+    -- clause in the row's detail.  It hid a skipped river crossing: Roving
+    -- Elves' tree rope was pressed from a ::goto across the water (ledger row
+    -- 39, reverted by sampler sonnet-b16), and fishingcompo's garlicpipe row
+    -- 45 was green only because of it (build/quest_gate/seam10_reach_base row
+    -- 11: `reach retry 2: pressed from 2638,3446 (the loc's own square,
+    -- standoff suppressed, stood on with ::goto) -> ok`).  The audit in
+    -- 3cab65207 made helper_coverage grade such a row CHEAT after the fact;
+    -- this makes the driver refuse to produce one unasked.
+    --
+    -- NOW: an own square is WALKED to like any other candidate (a route that
+    -- really ends on it -- a floor decoration, an open square -- is a tile the
+    -- player walked to, and is pressed from), and when the walk ends
+    -- elsewhere it is NOT stood on: the row fails `refused` with a detail
+    -- that starts `reach_failed` and names every approach tile tried and what
+    -- each one answered.  `{ stand_on_square = true }` on the click_loc/use_on
+    -- call is the opt-in to the old ::goto, and the quest file must carry a
+    -- `-- GUIDE-GAP: <step> <file:line or m<x>_<z>.jm2>` marker beside it
+    -- saying why no route ends anywhere that serves the loc --
+    -- tools/quest_gate/helper_coverage.py grades an opted-in stand-on with
+    -- its marker as a declared guide gap and one without as CHEAT.
+    local stand_on = type(opts) == "table" and opts.stand_on_square == true
+    -- Every candidate this retry spent a walk or a teleport on and did NOT
+    -- press from, so the failing row names every approach tile tried, not
+    -- only the ones that answered.
+    local unpressed = {}
     for i = 1, #candidates do
         if tried >= QD.player._reach_attempts or walked >= QD.player._reach_walks then
             break
@@ -4500,12 +5687,12 @@ function QD.player._reach_retry(target, result, detail, press)
             -- a route on the first kind of tile, and for what the row then owes
             -- its reader.
             local how = "walked to"
-            if want.own then
+            if want.own and stand_on then
                 if stood >= QD.player._reach_stands then
                     break
                 end
                 stood = stood + 1
-                how = "stood on with ::goto"
+                how = "stood on with ::goto, stand_on_square opt-in"
                 QD.player._stand_on_square(want.x, want.z, level)
             else
                 walked = walked + 1
@@ -4551,10 +5738,18 @@ function QD.player._reach_retry(target, result, detail, press)
                 -- ended: the press about to be made names THIS copy (below),
                 -- and the tile that serves it is the one the candidate asked
                 -- for.  ::goto refusing it is an answer about the square.
+                local why = stand_on
+                    and string.format("::goto ended %d,%d", now.x, now.z)
+                    or string.format("the walk ended %d,%d; not stood on with ::goto"
+                        .. " -- stand_on_square not set", now.x, now.z)
+                unpressed[#unpressed + 1] = string.format("%d,%d (the loc's own square: %s)",
+                    want.x, want.z, why)
                 QD.note(string.format(
-                    "reach retry: ::goto to the loc's own square %d,%d ended %d,%d"
-                        .. " -- not pressed", want.x, want.z, now.x, now.z))
+                    "reach retry: the loc's own square %d,%d -- %s -- not pressed",
+                    want.x, want.z, why))
             elseif pressed[tostring(aim_x) .. "," .. tostring(aim_z)] then
+                unpressed[#unpressed + 1] = string.format("%d,%d (%s, already answered)",
+                    want.x, want.z, how)
                 QD.note(string.format(
                     "reach retry: %s and %d,%d has already answered this press"
                         .. " -- not pressed again", how, aim_x, aim_z))
@@ -4596,10 +5791,16 @@ function QD.player._reach_retry(target, result, detail, press)
                     -- one no route can end on (SEAM use_on_own_square), so a
                     -- reader who is not told would take this PASS for a tile a
                     -- player could have walked to.
-                    local reached = want.own
-                        and string.format("its own square %d,%d, which no route can end on"
+                    local reached = string.format("%d,%d (%s)", aim_x, aim_z, how)
+                    if want.own and stand_on then
+                        reached = string.format("its own square %d,%d, which no route can end on"
                             .. " and the harness %s", aim_x, aim_z, how)
-                        or string.format("%d,%d (%s)", aim_x, aim_z, how)
+                    elseif want.own then
+                        -- A route that ended ON the loc's square: walked, so
+                        -- nothing the grader has to see as a teleport.
+                        reached = string.format("its own square %d,%d (%s -- a route ended on it)",
+                            aim_x, aim_z, how)
+                    end
                     return "ok", tostring(detail) .. string.format(
                         " [%s reached from %s, approach tile %d of %d tried:"
                         .. " the press from the standoff tile answered '%s']",
@@ -4612,15 +5813,85 @@ function QD.player._reach_retry(target, result, detail, press)
             end
         end
     end
-    if tried == 0 then
-        return result, tostring(detail) .. " -- and no other approach tile of "
-            .. tostring(target.symbol or target.id) .. " (" .. tostring(#candidates)
-            .. " known, " .. tostring(stood)
-            .. " of them the loc's own squares) could be reached", tried
+    -- A reach refusal that survived every candidate is `reach_failed`, and
+    -- says so FIRST so a reader (and the grader) can find it without parsing
+    -- the account; any other answer is content's and passes through as it
+    -- came.  The result word stays `refused` (the fixed vocabulary).
+    local prefix = ""
+    if result == "covered" or (result == "refused" and QD.player._reach_refusal(detail)) then
+        prefix = "reach_failed: "
     end
-    return result, tostring(detail) .. " -- and from " .. tostring(tried)
+    local own_count = 0
+    for i = 1, #candidates do
+        if candidates[i].own then
+            own_count = own_count + 1
+        end
+    end
+    local tail = ""
+    if #unpressed > 0 then
+        tail = "; tried and not pressed from: " .. table.concat(unpressed, "; ")
+    end
+    if prefix ~= "" and own_count > 0 and not stand_on then
+        tail = tail .. " -- the loc's own square(s) were not stood on with ::goto: pass"
+            .. " { stand_on_square = true } beside a -- GUIDE-GAP marker only when no route"
+            .. " can end on a square that serves it"
+    end
+    if tried == 0 then
+        return result, prefix .. tostring(detail) .. " -- and no other approach tile of "
+            .. tostring(target.symbol or target.id) .. " (" .. tostring(#candidates)
+            .. " known, " .. tostring(own_count)
+            .. " of them the loc's own squares) could be pressed from" .. tail, tried
+    end
+    return result, prefix .. tostring(detail) .. " -- and from " .. tostring(tried)
         .. " of its " .. tostring(#candidates) .. " approach tiles: "
-        .. table.concat(account, "; "), tried
+        .. table.concat(account, "; ") .. tail, tried
+end
+
+-- SEAM npc_reach_repress (seam10, 2026-09-23) -- "I CAN'T REACH THAT!" FROM
+-- A WANDERING NPC IS A PRESS TO MAKE AGAIN, NOT A WALL.
+--
+-- The loc half of a reach refusal is a fact about the tile (_reach_retry,
+-- above); the npc half is usually a fact about the MOMENT: the server routed
+-- the player to where the npc stood when the press was taken, the npc
+-- wandered while he walked, and the route ran out beside an empty square.  A
+-- player clicks again.  MEASURED when the settle's teleport arm shortened
+-- sheepherder's enterEnclosure row from 21 ticks to 3 and shifted every tick
+-- after it: `poison2 FAIL 3 I can't reach that!` with the pen sheep at
+-- 2598,3361 and the player at 2605,3361 -- seven open squares of the same pen
+-- (build/quest_gate/sheepherder probe row 36), the same row the published
+-- ledger passes in 5 ticks from another moment of the same wander.
+--
+-- So an npc target's reach refusal is re-pressed, from wherever the player
+-- now stands, after the player has stopped (the route the refused press
+-- issued is spent), at most `_npc_reach_attempts` times; the row names every
+-- attempt.  Any other answer passes through untouched, and a loc target never
+-- reaches this function's body.
+QD.player._npc_reach_attempts = 2
+
+function QD.player._npc_reach_retry(target, result, detail, press)
+    if type(target) ~= "table" or target.kind ~= "npc" then
+        return result, detail
+    end
+    local account = {}
+    local attempt = 0
+    while result == "refused" and QD.player._reach_refusal(detail)
+        and attempt < QD.player._npc_reach_attempts do
+        attempt = attempt + 1
+        QD.player.idle()
+        local serial_result, since = api_drive.message_serial()
+        result, detail = press()
+        if serial_result == "ok" then
+            result, detail = QD.player._reach_verify(result, detail, since)
+        end
+        account[#account + 1] = "re-press " .. tostring(attempt) .. " -> " .. tostring(result)
+        QD.note("npc reach retry " .. tostring(attempt) .. ": " .. tostring(target.symbol or target.id)
+            .. " -> " .. tostring(result))
+    end
+    if attempt == 0 then
+        return result, detail
+    end
+    return result, tostring(detail) .. " [npc reach retry: the first press answered 'I can't reach that!'; "
+        .. table.concat(account, "; ") .. "]"
 end
 
 -- ==========================================================================
@@ -5073,6 +6344,117 @@ end
 -- CLICK_REFUSAL_LINES sentence in the window answers `refused` with the
 -- server's own words, whatever the tiles did.
 
+-- ==========================================================================
+-- SEAM driver-press-cannot-aim-one-npc-copy (seam13) -- THE NPC SELECTOR.
+--
+-- press/talk_to took only a SYMBOL, and the copy a symbol presses is the one
+-- App_NpcScreenPosition ranks nearest the viewport centre.  Sheep Herder's
+-- plaguesheep_1 has three live copies two tiles apart (m40_52.spawn), and a
+-- herd loop that stood behind one copy pressed another: batch sonnet-b20's
+-- last row pressed slot 99 at 2610,3347 -- a copy wedged against a boulder --
+-- from a tile chosen to push a different one.  Measured before this seam
+-- (build/quest_gate/seam13_aim_before): asked for each of three copies by slot,
+-- the press landed on the wrong copy all three times; asked by tile, one of
+-- three by luck.
+--
+-- `{ slot = n }` names the copy by its SERVER SLOT (the `slot` of
+-- t.npc.tiles / press's own detail); `{ at = {x, z[, level]} }` (or
+-- `{ at = {x = , z = } }`) by the tile it stands on NOW.  The copy's CLIENT
+-- ELEMENT ID is what the press is aimed by (target.reach_element -- the
+-- named-copy machinery the loc reach retry already uses), so the menu row the
+-- press takes names that entity and no other (_press_row).  A selector that
+-- matches no live copy answers `no_row` naming it and every live copy; it
+-- NEVER falls back to the ranked copy, because a press on the wrong sheep is
+-- exactly the failure this exists to end.
+--
+-- A malformed selector (not a table, both keys or neither, a non-number) is
+-- the caller's bug and raises: it is not a world state, and a row that read
+-- `no_row` for it would send the author looking for a missing sheep.
+function QD.player._npc_copy(target, opts)
+    assert(type(opts) == "table", "npc selector must be a table: { at = {x, z} } or { slot = n }")
+    local at = opts.at
+    local slot = opts.slot
+    assert(at ~= nil or slot ~= nil, "npc selector names no copy: give at = {x, z} or slot = n")
+    assert(at == nil or slot == nil, "npc selector names a copy twice: give at OR slot, not both")
+    local want_x, want_z, want_level
+    if at ~= nil then
+        assert(type(at) == "table", "npc selector at must be {x, z[, level]}")
+        want_x = at.x or at[1]
+        want_z = at.z or at[2]
+        want_level = at.level or at[3]
+        assert(type(want_x) == "number", "npc selector at has no x")
+        assert(type(want_z) == "number", "npc selector at has no z")
+    else
+        assert(type(slot) == "number", "npc selector slot must be a number")
+    end
+    local rows, count = QD.player._npc_rows(target)
+    if rows == nil then
+        return count, "the npc pool did not answer"
+    end
+    local want
+    if at ~= nil then
+        want = string.format("at %d,%d", want_x, want_z)
+        if want_level ~= nil then
+            want = want .. "," .. tostring(want_level)
+        end
+    else
+        want = "slot " .. tostring(slot)
+    end
+    local matches = {}
+    for element, row in pairs(rows) do
+        local hit
+        if at ~= nil then
+            hit = row.x == want_x and row.z == want_z
+                and (want_level == nil or row.level == want_level)
+        else
+            hit = row.slot == slot
+        end
+        if hit then
+            matches[#matches + 1] = { element = element, row = row }
+        end
+    end
+    if #matches == 0 then
+        return "no_row", "no live copy of " .. tostring(target.symbol or target.id)
+            .. " " .. want .. " (live: " .. QD.player._npc_rows_text(rows)
+            .. ") -- nothing pressed; a selector never falls back to another copy"
+    end
+    -- Two copies on one tile: the lowest slot, and the detail says so.
+    table.sort(matches, function(a, b) return a.row.slot < b.row.slot end)
+    local chosen = matches[1]
+    local text = "slot " .. tostring(chosen.row.slot) .. " (element "
+        .. tostring(chosen.element) .. ") at " .. tostring(chosen.row.x) .. ","
+        .. tostring(chosen.row.z)
+    if #matches > 1 then
+        text = text .. " [" .. tostring(#matches) .. " copies " .. want
+            .. "; the lowest slot taken]"
+    end
+    target.reach_element = chosen.element
+    return "ok", text
+end
+
+-- click_minimenu for a target that may name its copy: the named element rides
+-- on the target for exactly this press (QD.drive._aim_at_named_copy, the pose
+-- loop and the hunt all read it) and is cleared the moment the press is taken,
+-- whatever it answered.  A non-ok answer is prefixed with the copy it was
+-- for, so a `covered` names the copy and not only its element id.
+function QD.player._click_npc_copy(target, op, copy_text)
+    if copy_text == nil then
+        return QD.drive.click_minimenu(target, op)
+    end
+    local click_result, click = QD.drive.click_minimenu(target, op)
+    local named = target.reach_element
+    target.reach_element = nil
+    if click_result ~= "ok" then
+        return click_result, "the copy named " .. copy_text .. ": " .. tostring(click)
+    end
+    -- _press_row matched its menu row on the pressed element and every path
+    -- above rewrites that element to the named one, so a press that answered
+    -- `ok` for any other copy is this file's bug, not the world's.
+    assert(type(click) ~= "table" or click.element_id == named,
+        "named npc press landed on another element")
+    return click_result, click
+end
+
 -- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID
 -- the press identifies a copy by.  Returns (rows, count), or (nil, result)
 -- when the pool did not answer.
@@ -5280,7 +6662,7 @@ QD.player._press_step_ticks = 8
 -- it), and only a press with a say and no step reports the say alone -- `ok`,
 -- because it is, with "did not move" in the same sentence so the caller can
 -- read the direction as walled rather than the click as lost.
-function QD.player.press(npc, op, ticks)
+function QD.player.press(npc, op, ticks, opts)
     op = op or 1
     ticks = ticks or QD.player._press_step_ticks
     local target, sym_result, sym_name = QD.player.by_symbol("npc", npc)
@@ -5295,9 +6677,21 @@ function QD.player.press(npc, op, ticks)
     if before_count == 0 then
         return "no_row", label .. "no copy of it is in the npc pool"
     end
+    -- The npc selector (seam13): `{ at = {x, z} }` / `{ slot = n }` names the
+    -- copy this press is for; a selector that matches no live copy answers
+    -- `no_row` naming it and presses NOTHING.
+    local copy_text = nil
+    if opts ~= nil then
+        local copy_result, copy_detail = QD.player._npc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, label .. tostring(copy_detail)
+        end
+        copy_text = copy_detail
+        label = label .. "aimed at " .. copy_text .. "; "
+    end
     local before_kind, before_text = QD.player._chat_page()
     local serial_result, since = api_drive.message_serial()
-    local click_result, click = QD.drive.click_minimenu(target, op)
+    local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
         return click_result, click
     end

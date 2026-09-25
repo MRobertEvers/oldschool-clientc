@@ -495,7 +495,7 @@ PASS biohazard postquest_elena trigger=opnpc1,elena2 biohazard=16
 PASS biohazard cleanup trigger=WorldNpcFree spawns reaped
 ```
 
-Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quest_biohazard/`, 13 unique MD5s):
+Gate D BMPs (`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_biohazard/scenes/`, 13 unique MD5s):
 
 - `01_talk_elena.bmp`
 - `02_choice_accept.bmp`

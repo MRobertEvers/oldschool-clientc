@@ -1,28 +1,33 @@
 -- Cook's Assistant, end to end through the real client -- docs/
--- QUEST_SUITE_KIT.md phase 3, worker 3d, closed after review.
+-- QUEST_SUITE_KIT.md phase 3, worker 3d; ingredient gathering re-driven for
+-- real 2026-09-23 (helper_coverage.py flagged the debugproc-gathered
+-- version as a CHEAT on every "Getting the X" panel).
 --
 -- HOW THIS FILE WAS MADE, precisely. `tools/quest_gate/new_quest.py
 -- cooksassistant` emits a skeleton from the Quest Helper guide; that
 -- skeleton was READ and then discarded for this one quest, and the D2-era
 -- hand file was modernised onto the phase-2 verb kit instead (quest.bind,
--- t.exec, inv.await_all, skill.snapshot,
--- quest.expect_complete). Two reasons, both checked against content rather
--- than guessed:
+-- t.exec, inv.await, skill.snapshot, quest.expect_complete). Checked against
+-- content rather than guessed:
 --
 --   * Giving all three ingredients (`::give egg/pot_flour/bucket_milk`)
 --     BEFORE ever talking to the Cook -- which the generator used to do in
---     `setup`, and now emits as gather markers for the author instead -- is
---     wrong for this quest. quest_cook.rs2's accept branch ([label,cooks_assistant_whats_wrong]
---     case 1) checks `inv_total` for all three and jumps straight to
---     `cooks_assistant_completion` in the SAME Talk-to when they are already
---     held -- so that setup collapses the whole test into one dialogue and
---     destroys the exact re-talk this file exists to exercise
---     (QUEST_SUITE_KIT phase 2d: player.talk_to's re-talk fix, proved by
---     this file staying green with no local `talk_to_and_settle` shim).
---     `quest_cook_test_ingredients.rs2`'s own banner says as much: its
---     `cookbmp_test_give_ingredients` debugproc exists PRECISELY so a test
---     can gather AFTER accepting and drive the hand-in through a real
---     SECOND player.talk_to click.
+--     `setup` -- is wrong for this quest. quest_cook.rs2's accept branch
+--     ([label,cooks_assistant_whats_wrong] case 1) checks `inv_total` for
+--     all three and jumps straight to `cooks_assistant_completion` in the
+--     SAME Talk-to when they are already held -- so that setup collapses
+--     the whole test into one dialogue and destroys the exact re-talk this
+--     file exists to exercise (QUEST_SUITE_KIT phase 2d: player.talk_to's
+--     re-talk fix, proved by this file staying green with no local
+--     `talk_to_and_settle` shim). So the three ingredients are gathered
+--     AFTER accepting (below, by real clicks: bought, picked, milled and
+--     milked -- see the "gather the ingredients" section), and the hand-in
+--     is driven through a real SECOND player.talk_to click, exactly the
+--     shape `quest_cook_test_ingredients.rs2`'s own banner describes --
+--     just without reaching for its debugproc, which hands over the three
+--     FINISHED items and skips every step Quest Helper's guide lists for
+--     getting them (a CHEAT, CLAUDE.md/trap 16: it remains a legitimate BMP
+--     screenshot-rig adapter, just not evidence a playthrough happened).
 --   * Hans has no Quest Helper guide at all, so the "regenerated from the
 --     scaffold" half of the phase-3 proof holds for neither quest. What IS
 --     proved here is the other half: no local helper functions, the phase-2
@@ -103,33 +108,114 @@ return {
         t.expect("cooksassistant.started", t.quest.expect_stage("started"))
 
         -- ------------------------------------------- gather the ingredients
-        -- The test-only debugproc, not `::give` -- see the file banner. A
-        -- plain t.step rather than t.expect so the row's detail names the
-        -- cheat and its verdict instead of being empty: api.drive.cheat
-        -- answers (ok, nil), and an `ok` with nothing behind it is a row
-        -- that proves nothing to whoever reads the ledger later.
-        local give_result, give_detail = t.cheat("::cookbmp_test_give_ingredients")
-        t.step("cooksassistant.give_ingredients",
-            give_result == "ok" and "PASS" or "FAIL",
-            "::cookbmp_test_give_ingredients -> " .. tostring(give_result)
-                .. " " .. tostring(give_detail))
+        -- Driven for real. `::cookbmp_test_give_ingredients`
+        -- (quest_cook_test_ingredients.rs2) hands over the three FINISHED
+        -- items directly -- it is a screenshot-rig adapter (the file's own
+        -- banner: built so a headless BMP capture never has to teleport or
+        -- auto-talk), not a route this quest's own deliverable can be
+        -- skipped through (CLAUDE.md/trap 16: an item the quest makes you
+        -- gather is driven by clicks, never `::give`d or cheated). Every leg
+        -- below is one of Quest Helper's own panels -- "Starting off",
+        -- "Getting the Egg", "Getting the Flour", "Getting the Milk" -- each
+        -- driven by the real click its .rs2 trigger names. Every tile below
+        -- is a real placement: `generalshopkeeper1`'s and `fat_cow`'s own
+        -- `*.spawn`/map rows, `fai_varrock_wheat_corner`/`hopper1`/
+        -- `hopperlevers1`/`millbase`'s own `m49_51.jl2` placements (grepped
+        -- against the ids the Quest Helper WorldPoints name) -- and they all
+        -- agree with `quest_cook.rs2`'s own `cookbmp_cow`/`_egg`/`_hopper`/
+        -- `_levers`/`_mill` BMP-rig teleport targets, which decode to the
+        -- same coordinates.
 
-        -- inv.await_all is the WAIT; the counts read back after it are what
-        -- goes in the ledger, because await_all's own success answer is
-        -- (ok, nil) and would otherwise leave this row blank.
-        local have_result, have_detail = t.inv.await_all(
-            { egg = 1, bucket_milk = 1, pot_flour = 1 }, 10)
+        -- ---- getBucket / getPot: buy from the Lumbridge General Store ----
+        t.exec("cooksassistant.goto_store", t.player.goto_tile, 3209, 3247, 0) -- generalshopkeeper1's *.spawn row (m50_50.spawn)
+        t.exec("cooksassistant.shop_open", t.shop.open, "generalshopkeeper1", 3, "generalshop1")
+        t.exec("cooksassistant.buy_bucket", t.shop.buy, "bucket_empty", 1)
+        t.exec("cooksassistant.buy_pot", t.shop.buy, "pot_empty", 1)
+        -- shop.close takes no argument (trap 12's hollow-by-arity list, not
+        -- the hollow-detail one) -- t.exec would grade it bad verb/target.
+        local shop_close_result, shop_close_detail = t.shop.close()
+        t.check("cooksassistant.shop_close", shop_close_result == "ok",
+            "shop.close -> " .. tostring(shop_close_result) .. " " .. tostring(shop_close_detail))
+
+        -- ------------------------- getEgg: pick one off the ground -------------------------
+        t.exec("cooksassistant.goto_egg", t.player.goto_tile, 3172, 3301, 0) -- an egg's own OBJ spawn row (m49_51.spawn)
+        t.ticks(2) -- gap: a press right after a goto_tile teleport can read `covered`
+        -- click_obj answers ok with a nil detail (section 8's hollow list) --
+        -- call it directly and write the count read back ourselves.
+        local egg_click_result, egg_click_detail = t.player.click_obj("egg")
+        local egg_have_read, egg_have_count = t.inv.count("egg")
+        t.check("cooksassistant.take_egg", egg_click_result == "ok" and egg_have_count >= 1,
+            "click_obj(egg) -> " .. tostring(egg_click_result) .. " " .. tostring(egg_click_detail)
+                .. " egg=" .. tostring(egg_have_count) .. "(" .. tostring(egg_have_read) .. ")")
+
+        -- ------- getWheat / fillHopper / operateControls / collectFlour -------
+        -- goto_tile carries every ladder climb itself (QUEST_AUTHORING.md
+        -- section 2's floors-and-ladders bullet): no click_loc on
+        -- QIP_COOK_LADDER/_MIDDLE/_TOP, the level argument below is the
+        -- whole of climbLadderOne/TwoUp/Three/TwoDown.
+        t.exec("cooksassistant.goto_wheat", t.player.goto_tile, 3161, 3292, 0) -- fai_varrock_wheat_corner's own tile (m49_51.jl2 local 25,28)
+        t.exec("cooksassistant.pick_wheat", t.player.click_loc, "fai_varrock_wheat_corner", 2) -- op2=Pick
+        t.exec("cooksassistant.have_grain", t.inv.await, "grain", 1, 10)
+
+        t.exec("cooksassistant.goto_hopper", t.player.goto_tile, 3166, 3307, 2) -- hopper1's own tile, mill top floor
+        t.exec("cooksassistant.fill_hopper", t.player.click_loc, "hopper1", 1) -- op1=Fill, spends inv grain
+        -- inv.await(name, 0, ticks) never actually waits (total >= 0 is
+        -- always true -- section 8) -- poll the consumption with a real
+        -- level predicate instead, the same idiom the hand-in section below
+        -- uses for the ingredients the commit consumes.
+        local hopper_settle_result, hopper_settle_detail = t.await({
+            level = function()
+                local r, v = t.inv.count("grain")
+                return r == "ok" and v == 0
+            end,
+            note = "cooksassistant.hopper_settle",
+        }, 10)
+        local grain_after_read, grain_after = t.inv.count("grain")
+        t.step("cooksassistant.grain_consumed",
+            (hopper_settle_result == "ok" and grain_after == 0) and "PASS" or "FAIL",
+            "grain consumed by the hopper fill within 10 tick(s) (" .. tostring(hopper_settle_result)
+                .. ") " .. tostring(hopper_settle_detail)
+                .. " grain=" .. tostring(grain_after) .. "(" .. tostring(grain_after_read) .. ")")
+
+        t.exec("cooksassistant.operate_levers", t.player.click_loc, "hopperlevers1", 1) -- op1=Operate, grinds the hopper's grain
+
+        t.exec("cooksassistant.goto_millbase", t.player.goto_tile, 3166, 3306, 0) -- millbase's own tile, mill ground floor
+        t.ticks(2) -- gap: a press right after a goto_tile teleport can read `covered`
+        -- The multiloc WRAPPER symbol, not either child (trap 20): the
+        -- server resolves op1 on it to whichever child this player's own
+        -- %mill_showflour currently selects, so pressing the wrapper is
+        -- correct whether or not the client's own render of it has caught
+        -- up with the levers row above.
+        t.exec("cooksassistant.collect_flour", t.player.click_loc, "millbase", 1) -- op1=Empty (millbase_flour's own label), spends inv pot_empty
+        t.exec("cooksassistant.have_flour", t.inv.await, "pot_flour", 1, 10)
+
+        -- -------------------------- milkCow: milk the dairy cow --------------------------
+        t.exec("cooksassistant.goto_cow", t.player.goto_tile, 3172, 3317, 0) -- fat_cow's own tile (m49_51.jl2 local 36,53)
+        t.exec("cooksassistant.milk_cow", t.player.click_loc, "fat_cow", 1) -- op1=Milk, spends inv bucket_empty
+        t.exec("cooksassistant.have_milk", t.inv.await, "bucket_milk", 1, 10)
+
+        -- The three deliverables, read back together as the hand-in gate --
+        -- what the old cheat-based "has_ingredients" row used to assert,
+        -- now true because each was actually gathered above.
         local egg_read, egg_count = t.inv.count("egg")
         local milk_read, milk_count = t.inv.count("bucket_milk")
         local flour_read, flour_count = t.inv.count("pot_flour")
         t.check("cooksassistant.has_ingredients",
-            have_result == "ok" and egg_count == 1 and milk_count == 1 and flour_count == 1,
-            "await_all=" .. tostring(have_result) .. " " .. tostring(have_detail)
-                .. " egg=" .. tostring(egg_count) .. "(" .. tostring(egg_read) .. ")"
+            egg_count == 1 and milk_count == 1 and flour_count == 1,
+            "egg=" .. tostring(egg_count) .. "(" .. tostring(egg_read) .. ")"
                 .. " bucket_milk=" .. tostring(milk_count) .. "(" .. tostring(milk_read) .. ")"
                 .. " pot_flour=" .. tostring(flour_count) .. "(" .. tostring(flour_read) .. ")")
 
         -- ----------------------------------------------------- hand in
+        -- The gathering above (store, egg field, wheat field, mill, cow
+        -- field) walked the player clear across Lumbridge, so -- unlike the
+        -- old debugproc-gathered version, which never moved the player away
+        -- from the cook at all -- a real goto back to the kitchen is needed
+        -- before the second talk_to (^cook_coord = 0_50_50_6_14 decodes to
+        -- 3206,3214,0, the same tile Quest Helper's own finishQuest
+        -- WorldPoint names).
+        t.exec("cooksassistant.goto_handin", t.player.goto_tile, 3206, 3214, 0)
+
         -- The second, separate player.talk_to click this file exists to
         -- exercise (see the banner) -- the same npc, but the chat page now
         -- mounts a DIFFERENT kind/text than the greet above

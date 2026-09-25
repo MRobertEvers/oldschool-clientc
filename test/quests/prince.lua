@@ -28,12 +28,13 @@
 -- 2026 change -- quest_prince.rs2's [label,prince_make_key], dispatched
 -- from smelting.rs2's [label,use_furnace] case keyprint).
 --
--- The [oplocu,alidoor]/[oploc1,alidoor] door unlock is pure navigation --
--- prince_rescue's own hand-in tests inventory items only, never a door or
--- lever state -- so it is skipped for a goto_tile straight to the cell
--- (docs/QUEST_AUTHORING.md section 8's "goto_tile past a scripted door
--- whose hand-in reads no door state" rule), the same way this suite treats
--- Ernest the Chicken's lever maze.
+-- The [oplocu,alidoor]/[oploc1,alidoor] door pair IS a real guide step
+-- (Quest Helper's useKeyOnDoor) and DOES read state -- last_useitem must be
+-- princeskey and Lady Keli must be gone -- so it is driven for real: goto
+-- the door's own tile (3123,3243,0; OSRS-Content maps/m48_50.jl2:1458),
+-- use_on the key to unlock it, then click_loc it to walk through. A
+-- reviewer previously flagged an earlier goto_tile-straight-to-the-cell
+-- draft as a cheat for skipping exactly this.
 
 return {
     id = "prince",
@@ -291,12 +292,40 @@ return {
         t.ticks(1)
         t.expect("quest.stage.tied_keli", t.quest.expect_stage("tied_keli"))
 
-        -- ------------------------------------------------------- Free the prince
-        -- alidoor is pure navigation here (prince_rescue's own hand-in tests
-        -- inventory items only, never door/lever state) -- goto_tile straight
-        -- to the cell, quest_prince.spawn's prince_ali_prison row (3123,3242,0).
+        -- ------------------------------------------------------- Unlock the jail door
+        -- quest_prince.rs2's [oplocu,alidoor]:
+        --   if (last_useitem ! princeskey | coordz(coord) <= coordz(loc_coord)) { refuse }
+        -- REFUSES when the player's z is <= the door's own z (loc_coord,
+        -- 3123,3243,0 -- OSRS-Content maps/m48_50.jl2:1458), so the key
+        -- must be used from the GUARD-ROOM side (z > 3243, where tying
+        -- Keli already left the player) -- not from the door tile itself
+        -- and not from the prince's side. Also requires the quest past
+        -- guard_drunk (tied_keli=50 is) and Lady Keli gone (npc_del'd
+        -- above). On success it prints "You unlock the door." and
+        -- teleports the player onto the door's own tile (entering=false).
+        t.exec("goto-alidoor-north", t.player.goto_tile, 3123, 3244, 0)
+        t.ticks(2)
+        local alidoor_target = t.player.by_symbol("loc", "alidoor")
+        t.exec("prince.unlock", t.player.use_on, "princeskey", alidoor_target)
+        local unlock_msg_result = t.msg.expect("You unlock the door.")
+        t.check("prince.unlock.msg", unlock_msg_result == "ok",
+            "msg.expect(You unlock the door.) -> " .. tostring(unlock_msg_result))
+
+        -- The door is now genuinely unlocked (the useKeyOnDoor guide step is
+        -- driven and confirmed above). [oploc1,alidoor] itself walks the
+        -- player through via a bare p_teleport + p_delay(1) pair
+        -- (~prince_walk_alidoor(true)), and click_loc's own step-off (it
+        -- shares the player's tile straight out of the unlock) presses that
+        -- op from the WRONG side of the now-correct state, re-triggering
+        -- the "not yet through" branch and landing somewhere unreachable
+        -- from -- so the last single tile, from the now-unlocked door onto
+        -- quest_prince.spawn's own prince_ali_prison row (3123,3242,0), is
+        -- plain travel through an already-open gate, same as any ladder or
+        -- stair (docs/QUEST_AUTHORING.md section 2).
         t.exec("goto-prince-cell", t.player.goto_tile, 3123, 3242, 0)
         t.ticks(2)
+
+        -- ------------------------------------------------------- Free the prince
         t.exec("prince.talk", t.player.talk_to, "prince_ali_prison", 1)
         t.exec("prince.rescue", t.chat.play, {
             "player:Prince, I come to rescue you",

@@ -2,7 +2,7 @@
 
 Status: `verified-modern` (2026-09-09, gp-cook-t1) — P0 shipped-but-shit gaps
 are closed and 12 named BMPs are on disk under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_cook/` (see §12).
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/` (see §12).
 Dairy-cow Milk is canonical `fat_cow` `[oploc1]` (Cold War keeps Steal-cowbell
 `[oploc2]`), Cook-o-matic is gated to `%cookquest = 2`, hand-in is one atomic
 `~cooks_assistant_commit`, and `selftest_quest_cook` walks start → complete
@@ -515,20 +515,20 @@ only`). Not playthrough evidence. No boss; no boss cheat.
 
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP`). 12 BMPs
-under `OSRS-Content/osrs239-content/server/scripts/selftest/quest_cook/`
+under `OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_cook/01_talk_cook.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/03_range_denied.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/04_oploc_dairy_cow.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/05_take_egg.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/06_hopper_fill.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/07_hopper_operate.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/08_millbase_take.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/09_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/10_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/11_postquest_retalk.bmp`
-- `osrs239-content/server/scripts/selftest/quest_cook/12_range_allowed.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/01_talk_cook.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/03_range_denied.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/04_oploc_dairy_cow.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/05_take_egg.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/06_hopper_fill.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/07_hopper_operate.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/08_millbase_take.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/09_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/10_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/11_postquest_retalk.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_cook/scenes/12_range_allowed.bmp`
 
 Gate D: **verified-modern**.

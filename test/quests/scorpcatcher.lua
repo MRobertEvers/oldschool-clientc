@@ -38,7 +38,20 @@ return {
         -- top, plane 3 (areas/area_seers/scripts/thormac.rs2 [opnpc1,thormac]).
         t.exec("goto-thormac", t.player.goto_tile, 2702, 3405, 3)
         t.exec("talk.thormac1", t.player.talk_to, "thormac", 1)
-        -- [opnpc1,thormac]: not_started & prayer>=31 -> the quest-offer branch.
+        -- [opnpc1,thormac]: not_started & prayer>=31 -> @thormac_assistance.
+        -- 2026-09-23 parity2 (area_seers/scripts/thormac.rs2) restored the
+        -- p_choice3 offer ("how to catch" / "what's in it for me" / "not
+        -- interested") in place of the old linear Yes/No -- choose "So how
+        -- would I go about catching them then?" (option 1) -> @thormac_how_catch.
+        -- That label's cage-empty branch (`inv_total(inv, scorpioncageempty) = 0`,
+        -- true here: setup's ::clearinv leaves no cage) is its own reopen
+        -- boundary: the npc's "I have a scorpion cage here" page is
+        -- if_close'd for real, `mes("Thormac gives you a cage.")` lands as a
+        -- chat-log line while nothing is open, THEN a fresh npc page ("If
+        -- you go up to the village of Seers...") mounts after p_delay(4) --
+        -- one continuous chat.play list dies on that reopened page exactly
+        -- as docs/QUEST_AUTHORING.md section 8's luthas-payout/customs-pay
+        -- recipe describes, so split it in two and await the remount.
         t.exec("talk.thormac1-dialog", t.chat.play, {
             "npc:Hello I am Thormac the sorcere",
             "choose:What do you need assistance with?",
@@ -46,11 +59,32 @@ return {
             "npc:I've lost my pet scorpions. Th",
             "npc:I left their cage door open, n",
             "npc:There's three of them, and the",
-            "player:How would I go about catching ",
+            "choose:So how would I go about catching them then?",
+            "player:So how would I go about catchi",
             "npc:Well I have a scorpion cage he",
+            "end",
+        })
+        t.expect("thormac.cage_given_msg", t.msg.expect("Thormac gives you a cage."))
+
+        local reopen1_result, reopen1_detail = t.await({
+            level = function()
+                return t.chat.kind() == "npc"
+            end,
+            note = "thormac.howcatch_reopen",
+        }, 15)
+        t.step("thormac.howcatch_reopen", reopen1_result == "ok" and "PASS" or "FAIL",
+            "await(chat.kind() == npc) after if_close+mes+p_delay(4) -> "
+                .. tostring(reopen1_result) .. " " .. tostring(reopen1_detail)
+                .. " -- chat.kind() now " .. tostring(t.chat.kind()))
+
+        -- thormac_how_catch's reopened page + its own p_choice2 ("What's in
+        -- it for me?" / "Ok, I will do it then") -> choose row 2 ->
+        -- @thormac_startquest (cage already held, so its own `inv_total = 0`
+        -- add is skipped; only the varp write follows).
+        t.exec("talk.thormac1-dialog2", t.chat.play, {
             "npc:If you go up to the village of",
-            "choose:Yes.",
-            "player:Okay, I will do it then.",
+            "choose:Ok, I will do it then",
+            "player:Ok, I will do it then.",
         })
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
@@ -118,8 +152,20 @@ return {
         local cage_ac_count = select(2, t.inv.count("scorpioncageac"))
         t.check("catch.scorpionc.inv", cage_ac_count == 1, "scorpioncagea -> scorpioncageac " .. tostring(cage_ac_count))
 
-        -- Barbarian Outpost: questscorpionb, at its own *.spawn tile
-        -- (m39_55.spawn).
+        -- Barbarian Outpost: Quest Helper's own enterOutpost step is
+        -- ObjectStep(BARBARIANGATEL, WorldPoint(2545,3570,0)) -- decoded
+        -- the same way against the cache's own placement,
+        -- maps/m39_55.jl2:1051 "0 49 50: 2115 0 2" (2115 = barbariangatel,
+        -- all.loc.compack) -> abs 39*64+49,55*64+50,0 = 2545,3570,0, an
+        -- exact match. It is a plain door (category=door_selfstage,
+        -- doors/scripts/doors_selfstage.rs2 -- op1 "Open" swings the same
+        -- placement to op2 "Close", no quest check anywhere in it), but the
+        -- guide names it as its own step, so goto_tile straight to
+        -- questscorpionb's *.spawn tile (m39_55.spawn) skipped it and was
+        -- rejected as a cheat (docs/QUEST_AUTHORING.md rule (b)) -- open it
+        -- for real first, then travel on to the scorpion's own tile.
+        t.exec("goto-outpostgate", t.player.goto_tile, 2540, 3570, 0)
+        t.exec("open.barbariangate", t.player.click_loc, "barbariangatel", 1)
         t.exec("goto-scorpionb", t.player.goto_tile, 2552, 3570, 0)
         local scorpion_b, scorpion_b_result = t.player.by_symbol("npc", "questscorpionb")
         t.step("lookup.scorpionb", scorpion_b_result == "ok" and "PASS" or "FAIL",

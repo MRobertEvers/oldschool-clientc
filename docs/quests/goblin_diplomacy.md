@@ -2,7 +2,7 @@
 
 Status: `in-progress` — 2026-09-09 parent reopen. gp-gobdip-t1 claimed
 verified-modern and listed 13 BMPs, but
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_gobdip/` is
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_gobdip/scenes/` is
 empty on disk. A green selftest with missing interaction shots is not
 done. Do not double-claim. Content work stays in tree until named BMPs land.
 

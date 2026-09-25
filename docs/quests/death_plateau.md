@@ -486,21 +486,21 @@ PASS lines:
 Headless client captures (`SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_SAVES=$(mktemp -d)`, `--soft3d`, `TORIRS_EXIT_BMP` /
 `TORIRS_NET_CHEAT=deathbmp_*`). 12 named BMPs under
-`OSRS-Content/osrs239-content/server/scripts/selftest/quest_death/`
+`OSRS-Content/osrs239-content/server/scripts/selftest/quests/quest_death/scenes/`
 (paths relative to `OSRS-Content/`):
 
-- `osrs239-content/server/scripts/selftest/quest_death/01_talk_denulth.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/02_choice_accept.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/03_talk_eohric.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/04_talk_harold.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/05_give_ale.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/06_iou.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/07_place_balls.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/08_talk_saba.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/09_talk_tenzing.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/10_handin.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/11_reward_scroll.bmp`
-- `osrs239-content/server/scripts/selftest/quest_death/12_postquest.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/01_talk_denulth.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/02_choice_accept.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/03_talk_eohric.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/04_talk_harold.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/05_give_ale.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/06_iou.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/07_place_balls.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/08_talk_saba.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/09_talk_tenzing.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/10_handin.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/11_reward_scroll.bmp`
+- `osrs239-content/server/scripts/selftest/quests/quest_death/scenes/12_postquest.bmp`
 
 `ls` of that folder shows those 12 named files only (no `frame_NNNNN.bmp`).
 Unique MD5s. No boss; no named CHEAT-SKIP.
