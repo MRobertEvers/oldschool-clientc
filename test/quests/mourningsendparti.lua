@@ -103,6 +103,48 @@
 --       using that dyed bellows on a real swamp toad (Big Chompy Bird
 --       Hunting's `toad`, Feldip Hills m36_47/m37_47.spawn, spliced onto
 --       `quest_chompybird/scripts/swamp_toad.rs2`'s own `[opnpcu,toad]`).
+--
+-- RE-AUTHOR after OSRS-Content 70487ebee8 (on top of parity1m's 565711aa90):
+-- two content-parity passes landed since this file was last green, and
+-- almost every dialogue below went stale against them.
+--   parity1m (565711aa90): the quest now STARTS WITH ELUNED, not Islwyn --
+--       her cache dbrow startnpc (1116 = roving_female_woodelf) matches the
+--       wiki's own |start=; Islwyn (rovingelves_islwyn.rs2's own hook) now
+--       only ever answers "Ahh... good to see you back. Are you after more
+--       crystal equipment?" once Roving Elves is complete, and starts
+--       nothing. Arianwyn's briefing (mend1_arianwyn_briefing) is now the
+--       FULL wiki transcript with a story/skip-backstory branch (driven
+--       here via the shorter "Let's skip the backstory" choice). The caged
+--       gnome (mend1_gnome.rs2) was rebuilt onto two entities -- the rack
+--       (`mourning_gnome_rack`, states 0..6) and, once released, a second
+--       walking npc (`mourner_hideout_gnome`/`_head`, states 7..9) -- with
+--       new verbatim dialogue at every beat; critically the feather/toad
+--       crunchies are NOT consumed any more (Tarnished key page: "can be
+--       freely disposed of after the quest"), and holding leather+logs+
+--       device+crunchies all at once collapses tickle->talk_again->release->
+--       give_items into two clicks (feather use-on, then Release op2).
+--   parity1o (70487ebee8): Tegid's soap is now gated behind actually
+--       TALKING to him first (`%mourning_tegid_chat`, eadgar_druid_washing.rs2
+--       calls `~mend1_tegid_talk`); Oronwen's dialogue is the real
+--       has_all/owed-item branch tree; Essyllt's "New recruit" now reads and
+--       TAKES the letter of recommendation (`mourning_mourner_message`,
+--       inv_del'd) before the long Death-Guard/sheep-dye briefing, and the
+--       mourner-HQ door (`doors.rs2`'s `west_ardougne_mourner_headquarters_
+--       doors`) no longer prints any message at all on a disguised
+--       walk-through -- the letter is Essyllt's to read, not the guard's;
+--       Essyllt's "New orders"/poison-task briefing is one continuous
+--       dialogue naming three (not two) food supply points; Elena's "An old
+--       friend" visit is read in the FULL-DISGUISE branch (this file never
+--       takes the mourner gear off before visiting her) and the barrel-fill
+--       message changed ("You scoop up a barrel full of the rotten apples.");
+--       the toxic naphtha now cooks on ANY range (driven here at the Mourner
+--       HQ's own range, 2547,3322 -- `skill_cooking/scripts/cooking.rs2`'s
+--       `[oplocu,_cooking_oven]` hook), not Carnillean's; and Essyllt's
+--       "The mourners' plan" / Arianwyn's final report are the full verbatim
+--       Temple-of-Light closes. A third food store (`mourning_sack_full3`)
+--       exists but has no Quest Helper `ObjectStep` at all (mend1.constant's
+--       own header: "deferred, not a missed critical-path branch") -- left
+--       undriven, same as the previous author's revision.
 
 return {
     id = "mourningsendparti",
@@ -209,6 +251,7 @@ return {
         local SHOT_YAW_BASEMENT = 1536
         local SHOT_ZOOM_INDOOR = 200
         local SHOT_ZOOM_OUTDOOR = 600
+        do
         local bind_result, bind_detail = t.quest.bind({
             varp = "mourning_quest",
             constants = {
@@ -237,62 +280,100 @@ return {
         local journal0_r, journal0 = t.ui.journal_open("Mourning's End Part I")
         t.check("quest.stage.not_started", journal0_r == "ok" and journal0 ~= nil
             and journal0.first_line ~= nil
-            and journal0.first_line:find("I should talk to Islwyn in Isafdar", 1, true) ~= nil,
+            and journal0.first_line:find("I should talk to Eluned in Isafdar", 1, true) ~= nil,
             "journal_open(Mourning's End Part I) -> " .. tostring(journal0_r) .. " first_line="
                 .. tostring(journal0 and journal0.first_line))
         t.ui.journal_close()
 
-        -- ---- Islwyn, Isafdar (2291,3147,0 --
-        -- areas/world/configs/m35_49.spawn:81, spawned as base symbol
-        -- roving_bowyer; rovingelves_islwyn_login's own %roving_bowyer
-        -- multivarp transform only runs on [login,_], which fires before
-        -- this file's setup cheats complete Roving Elves, so the live
-        -- entity is still the untransformed roving_bowyer id, not
-        -- roving_islwyn_2ops. [opnpc1,roving_bowyer] and
-        -- [opnpc1,roving_islwyn_2ops] share the identical trigger body
-        -- (rovingelves_islwyn.rs2:24-25), so talking to the untransformed id
-        -- reaches ~mend1_islwyn_start all the same) ----
-        -- GUIDE-GAP: talkToIslwyn quest-helper's steps 0 and 1 are two identical talkToIslwyn NpcStep entries with no distinguishing action; the port has one proc (mend1_shared.rs2:39) for the whole native 0->2 transition, driven once below.
-        t.exec("goto-talkToIslwyn", t.player.goto_tile, 2291, 3147, 0)
-        t.exec("talkToIslwyn", t.player.talk_to, "roving_bowyer", 1)
-        -- mend1_islwyn_start (mend1_shared.rs2:39-59): with %rovingelves_quest
-        -- complete, ranged>=60 and thieving>=50 (mend1_meets_requirements
-        -- true), the branch is the "there is one more thing" one.
-        t.exec("talkToIslwyn-dialog", t.chat.play, {
-            "npc:There is one more thing, human. Arianwyn has need of someone with your particular talents -- someone who can pass unnoticed among humans.",
-            "player:What does she need?",
-            "npc:I cannot say more here. Go to her in Lletya, and she will explain.",
-            "choose:I'm ready now.",
-            "player:I'm ready now.",
-            "npc:Then go to her at once.",
+        end
+        do
+        -- ---- Eluned, Isafdar (2289,3145,0 --
+        -- areas/world/configs/m35_49.spawn:79, spawned as base symbol
+        -- roving_female_woodelf). RE-AUTHOR (this file's header, parity1m):
+        -- the quest now starts here, not at Islwyn -- the cache dbrow's own
+        -- startnpc (1116) resolves to this symbol, and Islwyn's own hook
+        -- (rovingelves_islwyn.rs2) no longer starts anything once Roving
+        -- Elves is complete ("Ahh... good to see you back. Are you after
+        -- more crystal equipment?"). rovingelves_eluned.rs2's own
+        -- [opnpc1,roving_female_woodelf] calls ~mend1_eluned_start once
+        -- %rovingelves_quest is complete and %mourning_quest < ^mend1_briefed. ----
+        -- GUIDE-GAP: talkToIslwyn quest-helper's talkToIslwyn step (steps 0/1) predates Song of the Elves' 2019 rework that moved the start to Eluned; Islwyn's own hook now only answers "Ahh... good to see you back. Are you after more crystal equipment?" and starts nothing (quests/quest_mourningsendparti/scripts/mend1_shared.rs2:103-105, mend1_islwyn_start) -- the equivalent native transition is driven below as talkToEluned instead.
+        t.exec("goto-talkToEluned", t.player.goto_tile, 2289, 3145, 0)
+        t.exec("talkToEluned", t.player.talk_to, "roving_female_woodelf", 1)
+        -- mend1_eluned_start (mend1_shared.rs2:59-92): meets_requirements is
+        -- true (ranged>=60, thieving>=50, Roving Elves/Chompy/Sheep Herder
+        -- all complete from setup), so this opens with the escort offer.
+        t.exec("talkToEluned-dialog", t.chat.play, {
+            "npc:Arianwyn, our leader in Lletya, has asked to meet you. I can take you to him now if you like.",
+            "choose:Yes, I should go see him now.",
+            "player:Yes, I should go see him now.",
         })
-        -- The script's own %mourning_quest write happens once the last page's
-        -- continue_ click (chat.play's own dismiss) lands server-side; the
-        -- CLIENT'S mirror never carries this varp at all (see the banner
-        -- above the quest.bind step) -- read server-side via the journal.
+        -- The teleport + mesbox + crystal objbox + three more chathead pages
+        -- all run in the SAME script call, past the p_choice2's own
+        -- resolve; "*" takes every continuable page (mesbox/objbox) without
+        -- checking its text (docs section 3's "* (any one continuable
+        -- page)"), so one list carries the whole exchange through to
+        -- %mourning_quest = ^mend1_briefed.
+        t.exec("talkToEluned-dialog2", t.chat.play, {
+            "*", -- mesbox: "Eluned takes you to Lletya."
+            "*", -- objbox: "Eluned hands you a tiny crystal seed."
+            "npc:Here you go... If you ever need to get back to Lletya, you can use this.",
+            "npc:Use it sparingly as it only has a few uses. If you need, I can re-enchant it, but I am not as talented as the singer who originally made this one.",
+            "player:Thanks a lot Eluned!",
+            "npc:Now, I had better get going or Islwyn will get worried.",
+        })
+        t.chat.close()
+        local crystal_r, crystal_n = t.inv.count("mourning_teleport_crystal_4")
+        t.check("talkToEluned.crystal", crystal_r == "ok" and crystal_n == 1,
+            "mourning_teleport_crystal_4=" .. tostring(crystal_n) .. " (" .. tostring(crystal_r) .. ")")
+        -- The script's own %mourning_quest write happens once the last
+        -- page's dismiss lands server-side; the CLIENT'S mirror never
+        -- carries this varp at all (see the banner above the quest.bind
+        -- step) -- read server-side via the journal.
         t.ticks(3)
         local journal_briefed_r, journal_briefed = t.ui.journal_open("Mourning's End Part I")
         t.check("quest.stage.briefed", journal_briefed_r == "ok" and journal_briefed ~= nil
             and journal_briefed.first_line ~= nil
-            and journal_briefed.first_line:find("Islwyn told me Arianwyn has a task for me", 1, true) ~= nil,
+            and journal_briefed.first_line:find("Eluned took me to Lletya, where Arianwyn has a task for me", 1, true) ~= nil,
             "journal_open(Mourning's End Part I) -> " .. tostring(journal_briefed_r) .. " first_line="
                 .. tostring(journal_briefed and journal_briefed.first_line))
         t.ui.journal_close()
 
+        end
+        do
         -- ---- Arianwyn, Lletya (2353,3172,0 -- m36_49.spawn:37, base symbol
-        -- mourning_arianwyn) ----
+        -- mourning_arianwyn). RE-AUTHOR (parity1m): mend1_arianwyn_briefing
+        -- is now the full wiki transcript, verbatim, with a story/skip
+        -- choice -- driven here via the shorter "Let's skip the backstory."
+        -- branch; both branches converge on the same tail. ----
         t.exec("goto-talkToArianwyn", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwyn", t.player.talk_to, "mourning_arianwyn", 1)
-        -- mend1_arianwyn_talk (mend1_shared.rs2:83-92), %mourning_quest =
-        -- briefed branch -- a plain npc-opened info dump, no choose.
         t.exec("talkToArianwyn-dialog", t.chat.play, {
-            "player:Islwyn said you wanted to speak to me.",
-            "npc:Indeed. Those that you know as mourners are in fact elves in service to Lord Iorwerth.",
-            "npc:They wear plague-doctor robes and patrol West Ardougne under the pretence of quarantine, but that is a lie -- the plague is their cover to move freely through the city.",
-            "player:Why are they really there?",
-            "npc:That, I do not know. Lord Iorwerth allied himself with King Lathas, and I suspect it is to reach something valuable beneath West Ardougne. We need you to infiltrate their ranks and find out.",
-            "npc:A mourner crosses the Arandar pass regularly. If you can obtain a disguise from one, you may be able to walk straight into their headquarters.",
+            "npc:Welcome to Lletya, home to the Elven Resistance.",
+            "player:Thank you. It wasn't particularly easy to get here, it took some work to convince Islwyn I could be trusted.",
+            "npc:That's not surprising, he is not particularly fond of humans. But if you've earnt his trust, it proves to me that I was right to take a chance on you.",
+            "player:I'm glad you did. I hate the thought that I might still be blindly working for King Lathas and Lord Iorwerth right now.",
+            "npc:Well you're here now and you still have a chance to right your previous wrongs.",
+            "player:I hope so. There's a lot I still don't understand though. Why are King Lathas and Lord Iorwerth working together? Where does the plague fit in?",
+            "npc:I'm afraid that a lot is still unknown to us as well. However, I will explain what I can. Be aware that this is only a brief overview. You'll find some books around the village that explain more if you wish though.",
+            "choose:Let's skip the backstory.",
+            "player:Let's skip the backstory.",
+            "npc:I'd argue that understanding is essential to what comes next. But as you wish.",
+            "npc:The bit that is relevant to you is the recent alliance between King Lathas and Lord Iorwerth.",
+            "npc:From what we can tell, it seems that Lord Iorwerth has promised to support King Lathas in reclaiming some land his family once owned.",
+            "player:But why? What's in it for Lord Iorwerth.",
+            "npc:That's what we want you to find out. According to our spies, Lord Iorwerth has used the alliance with King Lathas as an opportunity to infiltrate West Ardougne. The city must contain something he needs.",
+            "player:Infiltrate? How?",
+            "npc:Those that you know as mourners are in fact elves in service to Lord Iorwerth. We regularly see them crossing the Arandar mountain pass and into the east.",
+            "player:Mourners are elves?",
+            "npc:That they are. We assume that the plague is a cover up for them to enter the city unchallenged. We don't know why though. That's why we need you.",
+            "npc:You know the city and can freely travel there. You are the perfect person for this task. We need you to go to West Ardougne, infiltrate the mourners and find out what they are doing in the city.",
+            "player:So you want me to infiltrate the mourners? How am I supposed to achieve that?",
+            "npc:I don't have an exact plan for you I'm afraid. You know the city better than any of us so are best placed to make a plan yourself.",
+            "npc:However as I said before, there have been sightings of mourners crossing the Arandar mountain pass. I'm sure you can take advantage of that.",
+            "player:Alright, I'll see what I can do.",
         })
+        t.chat.close()
         t.ticks(3)
         local journal_gathering_r, journal_gathering = t.ui.journal_open("Mourning's End Part I")
         t.check("quest.stage.gathering", journal_gathering_r == "ok" and journal_gathering ~= nil
@@ -302,6 +383,8 @@ return {
                 .. tostring(journal_gathering and journal_gathering.first_line))
         t.ui.journal_close()
 
+        end
+        do
         -- ---- Kill the overpass mourner, Arandar pass (2299,3328,0 --
         -- m35_52.spawn:9, base symbol mourning_overpass_mourner). RE-AUTHOR
         -- (this file's header): the live entity's own menu carries no
@@ -396,17 +479,45 @@ return {
                 tostring(boots_n), tostring(gloves_n), tostring(cloak_n),
                 tostring(legs_n), tostring(mask_n), tostring(letter_n), tostring(top_n)))
 
-        -- ---- Tegid's laundry basket, south Taverley (eadgar_laundry_basket
-        -- -- op1 search, no chat.play; [oploc1,eadgar_laundry_basket]
-        -- (mend1_disguise.rs2:40-54) writes a plain mes() line too) ----
+        end
+        do
+        -- ---- Tegid, south Taverley (eadgar_druid_washing). RE-AUTHOR
+        -- (parity1o): the basket's soap is now gated on having actually
+        -- talked to Tegid first (%mourning_tegid_chat -- mend1_disguise.rs2
+        -- ~mend1_tegid_talk, called from the front of Eadgar's Ruse's own
+        -- [opnpc1,eadgar_druid_washing] after its four standard lines). ----
+        t.exec("goto-talkToTegid", t.player.goto_tile, 2912, 3418, 0)
+        t.exec("talkToTegid", t.player.talk_to, "eadgar_druid_washing", 1)
+        t.exec("talkToTegid-dialog", t.chat.play, {
+            "player:So, you're doing laundry, eh?",
+            "npc:Yes. What is it to you?",
+            "player:Nice day for it.",
+            "npc:I suppose it is.",
+            "player:Do you know any way to remove blood stains?",
+            "npc:Blood stains is it... Well, the soap I use can clean almost any stain.",
+            "player:Really?!? That sounds like just the thing I need, can I use some?",
+            "npc:No, I don't have very much soap left and I still have lots to get clean.",
+            "player:Alright can you tell me where I can buy some?",
+            "npc:You can't... I make it to my own secret recipe.",
+        })
+        t.chat.close()
+        t.expect("talkToTegid.chat_var", t.var.await_server("mourning_tegid_chat", 1, 6))
+
+        -- ---- Tegid's laundry basket (eadgar_laundry_basket, op1=Search) --
+        -- gated on the talk above; the soap is offered while the bloody top
+        -- is still held. ----
         t.exec("goto-searchLaundry", t.player.goto_tile, 2912, 3418, 0)
         t.exec("searchLaundry", t.player.click_loc, "eadgar_laundry_basket", 1)
-        t.ticks(2)
-        t.expect("searchLaundry.message", t.msg.expect("You search Tegid's laundry basket and steal a bar of soap"))
-        local soap_r, soap_n = t.inv.count("mourning_soap")
-        t.check("searchLaundry.soap", soap_r == "ok" and soap_n == 1,
-            "mourning_soap count=" .. tostring(soap_n) .. " (" .. tostring(soap_r) .. ")")
+        t.exec("searchLaundry-dialog", t.chat.play, {
+            "mesbox:It's full of dirty robes, On top you see a bar of soap.",
+            "choose:Steal the soap.",
+            "*",
+        })
+        t.chat.close()
+        t.expect("searchLaundry.soap", t.inv.await("mourning_soap", 1, 10))
 
+        end
+        do
         -- ---- Clean the bloodied top: soap on the bloody top (opheldu on
         -- either item, mend1_disguise.rs2:59-79) -- settles on the new chat
         -- (mes) line and the backpack change use_item_on_item watches for.
@@ -421,11 +532,22 @@ return {
         t.step("cleanTop", clean_result == "ok" and "PASS" or "FAIL",
             "use_item_on_item(mourning_soap, mourning_bloody_mourner_top) -> " .. tostring(clean_result) .. " " .. tostring(clean_detail))
         t.shot("cleanTop-after")
-        local clean_top_r, clean_top_n = t.inv.count("mourning_mourner_top")
+        -- The objbox settles the click a tick ahead of the inv_del/inv_add
+        -- it announces (docs/QUEST_AUTHORING.md's "a click verb's ok is the
+        -- server's sentence, not the container update") -- poll, never a
+        -- bare count on the line below. inv.await(name, 0, ticks) is never a
+        -- real wait ("total >= 0" is always true, trap 12), so the mourner
+        -- top's own arrival is the wait, and the bloody top's loss is read
+        -- (bare, safe now) off the SAME inv_del/inv_add transaction.
+        local clean_top_wait_r, clean_top_wait_detail = t.inv.await("mourning_mourner_top", 1, 6)
         local bloody_r, bloody_n = t.inv.count("mourning_bloody_mourner_top")
-        t.check("cleanTop.result", clean_top_n == 1 and bloody_n == 0,
-            "mourning_mourner_top=" .. tostring(clean_top_n) .. " mourning_bloody_mourner_top=" .. tostring(bloody_n))
+        t.check("cleanTop.result",
+            clean_top_wait_r == "ok" and bloody_r == "ok" and bloody_n == 0,
+            "mourning_mourner_top: " .. tostring(clean_top_wait_r) .. " " .. tostring(clean_top_wait_detail)
+                .. "; mourning_bloody_mourner_top=" .. tostring(bloody_n))
 
+        end
+        do
         -- ---- Oronwen, Lletya (2324,3179,0 -- m36_49.spawn:13, mourning_seamstress).
         -- We already carry 2 silk and 1 fur (setup), so mend1_oronwen_talk
         -- (mend1_disguise.rs2:86-115) runs both halves of the exchange in
@@ -435,11 +557,26 @@ return {
         -- (the talk and equip shots showed only a fence face); look down.
         t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_OUTDOOR)
         t.exec("talkToOronwen", t.player.talk_to, "mourning_seamstress", 1)
+        -- mend1_oronwen_talk (mend1_disguise.rs2:183-247): needs_trousers is
+        -- true and trousers_chat=0, so this is the first-visit branch;
+        -- has_all is ALSO already true (2 silk + 1 fur from setup), so it
+        -- falls straight through into the auto-mend tail in the same call.
         t.exec("talkToOronwen-dialog", t.chat.play, {
+            "npc:Hello, can I help?",
+            "choose:Do you mend clothes?",
             "player:Do you mend clothes?",
-            "npc:Of course -- but those trousers are in a sorry state. I'll need two lengths of silk and some bear fur to patch them properly.",
-            "player:I have all I need to mend my trousers.",
-            "npc:There -- good as new. Mind the stitching doesn't show under that cloak.",
+            "npc:I do, but human clothes are too hard to mend. They do not have the finesse of elven garments.",
+            "player:I need you to repair some elven clothing as it goes.",
+            "npc:Let me take a look at it then.",
+            "*", -- objbox: "You show the seamstress the mourner trousers."
+            "npc:There's something disturbingly familiar about the design of these trousers, they are made for an elf.",
+            "player:But can you fix them?",
+            "npc:Of course I can, but I will need two pieces of silk and some bear fur.",
+            "player:Great, I have those here.",
+            "npc:Huh, it's almost like you knew what I needed.",
+            "*", -- objbox: "Oronwen hands you the mourner trousers, they look as good as new."
+            "player:Thanks a lot.",
+            "npc:Any time.",
         })
         -- inv_del(silk)/inv_del(fur)/inv_add(mourning_mourner_legs) are the
         -- server's own reaction to the dialogue's LAST continue_ click, which
@@ -457,6 +594,8 @@ return {
             mourner_legs_n == 1 and silk_n == 0 and fur_n == 0,
             "mourning_mourner_legs=" .. tostring(mourner_legs_n) .. " silk=" .. tostring(silk_n) .. " fur=" .. tostring(fur_n))
 
+        end
+        do
         -- ---- Wear the full disguise (mend1_wearing_full_disguise,
         -- mend1_disguise.rs2:125-130 -- all six pieces WORN, the letter
         -- stays in the backpack) ----
@@ -471,12 +610,23 @@ return {
         -- ---- Mourners' HQ front door, West Ardougne (mournerstewdoor) --
         -- areas/area_ardougne_west/scripts/doors.rs2's own
         -- [oploc1,mournerstewdoor] extends into the mourning_quest branch
-        -- that this quest owns: full disguise worn + the letter in the
-        -- backpack lets the guard wave the player through. ----
+        -- that this quest owns: the full disguise alone lets the player
+        -- walk straight through. RE-AUTHOR (parity1o): the letter is no
+        -- longer checked at the door (it is Essyllt's to read, in the
+        -- basement) and west_ardy_walk_door prints no mes() line at all --
+        -- graded on the player's tile actually changing, not a message. ----
         t.exec("goto-enterMournerBase", t.player.goto_tile, 2551, 3320, 0)
+        local door_before_r, door_before = t.world.tile()
+        local door_before_x, door_before_z = door_before and door_before.x, door_before and door_before.z
         t.exec("enterMournerBase", t.player.click_loc, "mournerstewdoor", 1)
-        t.ticks(2)
-        t.expect("enterMournerBase.message", t.msg.expect("You slip past the guards in your disguise"))
+        t.ticks(4)
+        local door_after_r, door_after = t.world.tile()
+        local door_after_x, door_after_z = door_after and door_after.x, door_after and door_after.z
+        t.check("enterMournerBase.walked_through",
+            door_after_r == "ok" and (door_after_x ~= door_before_x or door_after_z ~= door_before_z),
+            "tile before=" .. tostring(door_before_x) .. "," .. tostring(door_before_z)
+                .. " after=" .. tostring(door_after_x) .. "," .. tostring(door_after_z))
+        t.expect("enterMournerBase.disguise_bit", t.var.await_server("mourning_mourner_disguise", 1, 6))
 
         -- ---- Basement trapdoor (mourning_hideout_trap_door,
         -- mend1_disguise.rs2:136-143 -- p_teleport to mend1_hq_basement_coord,
@@ -489,33 +639,57 @@ return {
         -- the basement's npcs populate the entity pool.
         t.ticks(3)
 
+        end
+        do
         -- ---- Essyllt, HQ basement (mourner_hideout_head_mourner,
         -- 2044,4628,0 -- m31_72.spawn:41, the base symbol; the trap door's
-        -- own p_teleport lands the player on this same tile). At
-        -- %mourning_quest = gathering, mend1_essyllt_talk
-        -- (mend1_disguise.rs2:164-176) opens with an npc line (chatnpc_anim),
-        -- not a player one -- this handler has no chatplayer_anim opener the
-        -- way trap 18's "almost always" case does. ----
+        -- own p_teleport lands the player on this same tile). RE-AUTHOR
+        -- (parity1o): "New recruit", verbatim -- Essyllt reads and TAKES the
+        -- letter of recommendation before the long Death-Guard briefing
+        -- (mend1_disguise.rs2:416-470). ----
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
         t.exec("talkToEssyllt", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssyllt-dialog", t.chat.play, {
-            "npc:New face. Good -- we can always use another set of hands.",
-            "player:What do you need me to do?",
-            "npc:There's a gnome chained up in the cage behind me -- an old prisoner of ours. He knows things about a device we've never managed to repair. Get it out of him.",
-            "npc:Take this key to his cage, and the broken device -- see if you can get him talking.",
+            "player:Hello, I'm...",
+            "npc:Ah... I take it you are one of the new recruits?",
+            "player:Well, I'm...",
+            "npc:I'm Essyllt and I'm in charge here. Now come on, let us have a look at your paper work.",
+            "*", -- objbox: "You hand over the letter of recommendation."
+            "npc:This seems to be all in order. Welcome to the Death Guard. Now, for your first assignment...",
+            "npc:As you may know, part of what we do here is keep the people believing in the plague...",
+            "player:Why?",
+            "npc:Did they not tell you? Hmm... I'd better fill you in.",
+            "npc:Well as you undoubtedly know, we were sent here by Lord Iorwerth to secure the city. The reason for this is so that we can access the caves below...",
+            "player:What's important about the caves?",
+            "npc:I'm afraid that information is classified until you prove your commitment to the Death Guard.",
+            "player:Oh, fair enough.",
+            "npc:Now to keep our presence in the city secret, Lord Iorwerth arranged an alliance with King Lathas, the ruler in the east.",
+            "npc:Apparently the fool thinks we will help him dispose of the Knights of Camelot once our work here is done. I expect he'll be disappointed.",
+            "npc:Anyway, the plague serves two purposes. First, it allows us to move around the city in secret thanks to our mourner disguises.",
+            "npc:Second, it means we can abduct citizens to mine the caves below with ease. We just pretend they've fallen victim to the plague.",
+            "player:Doesn't anyone suspect the truth?",
+            "npc:Well we have had a few near misses. Recently we had some girl from East Ardougne poking around asking too many questions, so we locked her up while we decided what to do with her.",
+            "npc:Annoyingly, she managed to escape with the help of some adventurer. Lucky for us, they were so stupid that we managed to use the adventurer to deal with King Tyras. It all worked out quite well in the end.",
+            "npc:Things like that is why we must ensure the people keep believing in the plague though. One of the things we do to keep up the lie is to fool old Farmer Brumty into believing his sheep are infected.",
+            "npc:The old halfwit thinks just because his sheep are an abnormal colour, that they are all ill with plague. It's amazing what a bit of dye can do.",
+            "player:You dyed them?",
+            "npc:Well you don't think they end up those ridiculous colours naturally do you?",
+            "npc:Anyway, shame of it is that we have yet to find a way to stop the dye from washing out. So we need someone, that someone being you, to go and re-dye them.",
+            "player:Simple enough, you want me to give a blue rinse to a load of old sheep?",
+            "npc:Not quite, for starters the sheep need to be dyed red, yellow, green and blue. But most important is that you are not seen doing this by anyone.",
+            "npc:Also you will need to re-dye them the colours they already are or the farmer may notice the change.",
+            "player:That sounds a little more tricky. How did you do it before?",
+            "npc:We have a gnomic device that fires fat dye parcels that rupture on impact.",
+            "npc:Unfortunately, we have run out of the parcels and the device is broken.",
+            "player:Can I take a look at it?",
+            "npc:Sure. We have a gnome inventor here too. Sadly, he is not being very helpful about fixing it, but you can talk to him if you like. Here is the key, he is in the next room. And here's the device as well.",
+            "*", -- doubleobjbox: "Essyllt hands you a strange object and a tarnished key."
         })
-        -- Same shape as the Oronwen exchange above: inv_add(mourning_gnome_key)/
-        -- inv_add(mourning_paint_gun_broken) are the server's reaction to the
-        -- dialogue's last continue_ click, so poll rather than read once.
-        local key_wait_r, key_wait_detail = t.inv.await("mourning_gnome_key", 1, 10)
-        t.step("talkToEssyllt.await_key", key_wait_r == "ok" and "PASS" or "FAIL",
-            "inv.await(mourning_gnome_key, 1, 10) -> " .. tostring(key_wait_r) .. " " .. tostring(key_wait_detail))
-        local key_r, key_n = t.inv.count("mourning_gnome_key")
-        local gun_r, gun_n = t.inv.count("mourning_paint_gun_broken")
-        t.check("talkToEssyllt.items", key_n == 1 and gun_n == 1,
-            "mourning_gnome_key=" .. tostring(key_n) .. " mourning_paint_gun_broken=" .. tostring(gun_n))
-        t.settle()
-        t.ticks(5)
+        t.chat.close()
+        t.expect("talkToEssyllt.letter_gone", t.inv.expect_absent("mourning_mourner_message"))
+        t.expect("talkToEssyllt.stage4", t.var.await_server("mourning_quest", 4, 10))
+        t.expect("talkToEssyllt.items", t.inv.await_all({mourning_gnome_key = 1, mourning_paint_gun_broken = 1}, 10))
+        t.ticks(3)
         local journal_assignment_r, journal_assignment = t.ui.journal_open("Mourning's End Part I")
         local journal_assignment_note = ""
         if journal_assignment_r ~= "ok" then
@@ -541,18 +715,14 @@ return {
                 .. journal_assignment_note)
         t.ui.journal_close()
 
-        -- ---- FIXED (RETRY after OSRS-Content 4420b02611): the caged gnome
-        -- (mourning_gnome_rack) used to gate entry on %mourning_quest >=
-        -- ^mend1_gnome_task(5), which nothing in this quest's own live
-        -- scripts ever wrote -- a genuine content bug, blocked here in this
-        -- file's earlier revision. mend1_gnome.rs2's entry gate now reads
-        -- %mourning_quest < ^mend1_assignment(4) instead (the stage
-        -- mend1_essyllt_talk actually leaves the player in), and
-        -- [label,mend1_gnome_first_talk] itself writes
-        -- %mourning_quest = ^mend1_gnome_task once the player has a feather
-        -- and toad crunchies in hand -- so the cage is reachable from a real
-        -- playthrough now. Driven onward from the exact point the old
-        -- t.blocked() stood. ----
+        end
+        do
+        -- ---- The caged gnome, rebuilt onto two entities as of parity1m
+        -- (mend1_gnome.rs2's own header): the RACK (mourning_gnome_rack,
+        -- states 0..6) answers while he is strapped down, and a WALKING
+        -- gnome npc (mourner_hideout_gnome/_head) answers from 7 on. Entry
+        -- gates on %mourning_quest < ^mend1_assignment(4), the stage
+        -- talkToEssyllt actually leaves the player in. ----
         local rack_near_result, rack_near = t.world.loc_near("mourning_gnome_rack", 15)
         t.step("mourningGnomeRack.locate",
             rack_near_result == "ok" and "PASS" or "FAIL",
@@ -565,18 +735,36 @@ return {
             t.exec("goto-mourningGnomeRack", t.player.goto_tile, rack_near.tile_x, rack_near.tile_z, rack_near.level)
         end
 
-        -- ---- Click 1: mend1_gnome_first_talk (mend1_gnome.rs2:78-88) --
-        -- feather + toad crunchies already in hand (setup), so this opens
-        -- the "weaknesses" mesbox and, on dismiss, writes
-        -- %mourning_gnome = ^mend1_gnome_weakness and
-        -- %mourning_quest = ^mend1_gnome_task. THIS is the row that proves
-        -- the RETRY fix: the cage no longer answers "Nothing interesting
-        -- happens." at ^mend1_assignment, and the quest genuinely advances
-        -- past the point the old blocked row asserted it never could. ----
+        -- ---- Click 1: mend1_gnome_bargains (mend1_gnome.rs2:112-161) --
+        -- "Bargains and bluffs", verbatim; quest-helper's talkToGnome picks
+        -- the third option ("You said about toad crunchies and being
+        -- tickled."), which is the correct one -> gnome = weakness(3),
+        -- %mourning_quest = ^mend1_gnome_task. ----
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("gnomeCage.firstTalk", t.player.click_loc, "mourning_gnome_rack", 1)
-        t.exec("gnomeCage.firstTalk-dialog", t.chat.play, {
-            "mesbox:You talk with the caged gnome about toad crunchies and being tickled.",
+        t.exec("gnomeCage.bargains", t.player.click_loc, "mourning_gnome_rack", 1)
+        t.exec("gnomeCage.bargains-dialog", t.chat.play, {
+            "player:Hello, will you help me fix this... err... thing?",
+            "npc:I'm not helping you fix that, as if it hasn't caused enough trouble as it is. Your friends have already tried every torture in the book!",
+            "npc:I'm still not telling anyone squat.",
+            "player:Have they tried... err... Stretching your eyelids yet?",
+            "npc:Yes, it didn't work.",
+            "player:How about... feeding you nail and prune stew?",
+            "npc:That's all I've been living on since I got here.",
+            "player:Set fire to your nostril hair? Let rabid rabbits nibble your toes? Given you a twisted arm?",
+            "npc:Yes, yes and yes. Tried them all, quite liked the toe nibbling.",
+            "player:Extracted your wisdom teeth?",
+            "npc:Us gnomes aren't wise so we don't get them. Face it, you'll never put me in enough pain that I'll tell you what you wanna know.",
+            "npc:I used to play gnomeball as a kid. This is a walk in the park in comparison.",
+            "player:Alright I get the picture. What will work then?",
+            "npc:Ha! You think I'm stupid enough to tell you that I've been craving toad crunchies or that I can't stand having my feet tickled!",
+            "player:Err... But you just told me?!?",
+            "npc:I did? What did I say?",
+            "choose:You said about toad crunchies and being tickled.",
+            "player:You said about toad crunchies and being tickled.",
+            "npc:Oops... I mean erm... No that must have been some other err... gnome...",
+            "player:You're not fooling me... So you'll help me in exchange for toad crunchies?",
+            "npc:If you think you can just buy my co-operation you're a bigger imbecile than I thought.",
+            "player:You will tell me, sooner or later.",
         })
         t.chat.close()
         t.ticks(3)
@@ -586,98 +774,103 @@ return {
             journal_task_r == "ok" and journal_task_line ~= nil
                 and journal_task_line:find("I'm working on the caged gnome", 1, true) ~= nil,
             "journal_open(Mourning's End Part I) -> " .. tostring(journal_task_r) .. " first_line="
-                .. tostring(journal_task_line)
-                .. " -- the cage advanced the quest past ^mend1_assignment (OSRS-Content 4420b02611's fix confirmed live)")
+                .. tostring(journal_task_line))
         t.ui.journal_close()
 
-        -- ---- Click 2: mend1_gnome_tickle (mend1_gnome.rs2:90-96) --
-        -- consumes the feather -> gnome = tortured. ----
-        -- GUIDE-GAP: useFeatherOnGnome quest-helper's own step ("Use a feather on the gnome"); this port's %mourning_gnome write is on the loc's own mesbox branch (mend1_gnome.rs2:94), driven by the click_loc row right below, not a separate use_on.
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("gnomeCage.tickle", t.player.click_loc, "mourning_gnome_rack", 1)
+        -- ---- Click 2: use FEATHER on the rack (mend1_gnome.rs2:186-233,
+        -- [oplocu,mourning_gnome_rack]). Neither the feather nor the toad
+        -- crunchies are consumed (parity1m's header: the wiki's Tarnished
+        -- key page). With magic_logs + leather ALSO already held (setup),
+        -- this single use-on collapses "tickle" and "talk again" into one
+        -- interaction -> gnome = talked_item(6) directly. ----
+        t.ui.tab("inventory")
+        t.ticks(2)
+        local gnome_rack_target = t.player.by_symbol("loc", "mourning_gnome_rack")
+        t.exec("gnomeCage.tickle", t.player.use_on, "feather", gnome_rack_target)
         t.exec("gnomeCage.tickle-dialog", t.chat.play, {
-            "mesbox:You reach through the bars and tickle the gnome mercilessly with the feather.",
+            "*", -- doubleobjbox: "You dangle the toad crunchie above the gnome's nose..."
+            "player:Now will you help me or would you prefer it if I tickle your feet?",
+            "npc:Alright... alright! I'm beaten! Bring me some soft leather and some magic logs and I'll see what I can do.",
+            "player:I have all of that here.",
+            "npc:Well let me up off of this rack and I'll get started, I can't do anything while I'm all tied up.",
         })
         t.chat.close()
-        t.ticks(2)
         local feather_r, feather_n = t.inv.count("feather")
-        t.check("gnomeCage.tickle.result", feather_r == "ok" and feather_n == 0,
-            "feather=" .. tostring(feather_n) .. " (" .. tostring(feather_r) .. ")")
+        t.check("gnomeCage.tickle.result", feather_r == "ok" and feather_n == 1,
+            "feather=" .. tostring(feather_n) .. " (" .. tostring(feather_r) .. ", not consumed)")
 
-        -- ---- Click 3: mend1_gnome_talk_again (mend1_gnome.rs2:98-104) --
-        -- toad crunchies/magic logs/leather CHECKED, not consumed yet ->
-        -- gnome = talked_item. ----
+        -- ---- Click 3: Release, op2 (mend1_gnome.rs2:247-274). The key is
+        -- checked, never consumed (wiki Tarnished key: "can be freely
+        -- disposed of after the quest"); with every item already held, the
+        -- release, the item hand-over and the device fix all land in the
+        -- same click -> gnome = repaired(9). ----
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("gnomeCage.talkAgain", t.player.click_loc, "mourning_gnome_rack", 1)
-        t.exec("gnomeCage.talkAgain-dialog", t.chat.play, {
-            "mesbox:Bring me those things and let me out of here",
+        t.exec("gnomeCage.release", t.player.click_loc, "mourning_gnome_rack", 2)
+        t.exec("gnomeCage.release-dialog", t.chat.play, {
+            "npc:What do you think you are doing? You are meant to be getting information out of him, not making friends!",
+            "player:I need to let him up if he's to fix this advice.",
+            "npc:Okay, but without the proper paperwork he stays in this room.",
+            "*", -- mesbox: "You release the gnome and hand him..."
+            "npc:Right, here you go. Now leave me to eat my crunchies in peace.",
+            "*", -- objbox: "The gnome gives you a fixed device."
         })
         t.chat.close()
-
-        -- ---- Click 4: mend1_gnome_release (mend1_gnome.rs2:106-112) --
-        -- consumes the key; a plain mes(), not a page. ----
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("gnomeCage.release", t.player.click_loc, "mourning_gnome_rack", 1)
-        t.ticks(2)
-        t.expect("gnomeCage.release.message", t.msg.expect("You unlock the cage and release the gnome."))
         local key_after_r, key_after_n = t.inv.count("mourning_gnome_key")
-        t.check("gnomeCage.release.result", key_after_r == "ok" and key_after_n == 0,
-            "mourning_gnome_key=" .. tostring(key_after_n) .. " (" .. tostring(key_after_r) .. ")")
-
-        -- ---- Click 5: mend1_gnome_give_items (mend1_gnome.rs2:114-123) --
-        -- consumes toad crunchies, magic logs, leather and the broken
-        -- device; produces the fixed device -> gnome = repaired. The
-        -- inv_del/inv_add calls run BEFORE the trailing mesbox (immediate),
-        -- so the counts are safe to read right after dismiss. Measured live:
-        -- mend1_gnome_release's own mes() transforms the rack loc's own
-        -- form the moment the gnome is released (its menu now reads only
-        -- "Examine Empty rack" / "Walk here", no Talk-to row at all) -- the
-        -- header comment's "player who clicks the now-walking gnome instead
-        -- of the rack still gets a response" is describing exactly this:
-        -- from here on the shared label is reached through the NPC
-        -- (m31_72.spawn:33's mourner_hideout_gnome, standing on the same
-        -- tile, [opnpc1,mourner_hideout_gnome] -> the identical
-        -- mend1_gnome_rack_shared), not the loc. ----
-        -- GUIDE-GAP: giveGnomeItems mend1.constant:141 -- quest-helper's giveGnomeItems/askAboutToads assume a separate walking gnome NPC; this port has none, keeping every gnome interaction on the one mourner_hideout_gnome entity (m31_72.spawn:33, [opnpc1,...] -> mend1_gnome_rack_shared, mend1_gnome.rs2:128), driven by the row right below.
-        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
-        t.exec("gnomeCage.giveItems", t.player.talk_to, "mourner_hideout_gnome", 1)
-        t.exec("gnomeCage.giveItems-dialog", t.chat.play, {
-            "mesbox:The gnome sets to work with practised hands",
-        })
-        t.chat.close()
-        t.ticks(2)
         local gun_r, gun_n = t.inv.count("mourning_paint_gun")
         local logs_r, logs_n = t.inv.count("magic_logs")
         local leather_r, leather_n = t.inv.count("leather")
         local crunchies_r, crunchies_n = t.inv.count("toad_crunchies")
-        t.check("gnomeCage.giveItems.result",
-            gun_r == "ok" and gun_n == 1 and logs_r == "ok" and logs_n == 0
+        t.check("gnomeCage.release.result",
+            key_after_r == "ok" and key_after_n == 1
+                and gun_r == "ok" and gun_n == 1 and logs_r == "ok" and logs_n == 0
                 and leather_r == "ok" and leather_n == 0 and crunchies_r == "ok" and crunchies_n == 0,
-            string.format("mourning_paint_gun=%s magic_logs=%s leather=%s toad_crunchies=%s",
-                tostring(gun_n), tostring(logs_n), tostring(leather_n), tostring(crunchies_n)))
+            string.format("mourning_gnome_key=%s (kept) mourning_paint_gun=%s magic_logs=%s leather=%s toad_crunchies=%s",
+                tostring(key_after_n), tostring(gun_n), tostring(logs_n), tostring(leather_n), tostring(crunchies_n)))
 
-        -- ---- Click 6: mend1_gnome_ask_toads (mend1_gnome.rs2:125-128) --
-        -- a chatplayer opener plus two mesbox pages -> %mourning_dye_chat
-        -- = 1, no item change. The rack is still the empty form from click
-        -- 5 onward, so this is the NPC too. ----
-        -- GUIDE-GAP: askAboutToads mend1.constant:141 -- the same collapse as giveGnomeItems above: no separate walking gnome NPC, driven on the same mourner_hideout_gnome entity (mend1_gnome.rs2:141, [label,mend1_gnome_ask_toads]) by the row right below.
+        -- ---- Ask about toads (mend1_gnome.rs2:371-392, the released
+        -- gnome's own [opnpc1,mourner_hideout_gnome]/[opnpc1,...
+        -- _head] -- gnome = repaired already, so this is
+        -- mend1_gnome_ask_toads, verbatim). ----
         t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
         t.exec("gnomeCage.askToads", t.player.talk_to, "mourner_hideout_gnome", 1)
         t.exec("gnomeCage.askToads-dialog", t.chat.play, {
-            "player:What does this thing actually do?",
-            "mesbox:'It fires toads,' the gnome explains",
-            "mesbox:Find a mourner ogre-bellows seller somewhere near Feldip Hills",
+            "npc:What are you after now?",
+            "player:Do you know where I can get the dye parcels for his thing?",
+            "npc:You mourners are really not very good at this are you? Fine, since you gave me some crunchies, the parcels are actually toads.",
+            "player:Toads?",
+            "npc:Yes, toads. Get some bellows and fill them with the dye you want. Then just find a toad and use the bellows to fill it up.",
+            "player:Poor toads.",
+            "npc:Ahh they're fine, a bit of dye never hurt anything... It's the firing them out the device that kills them.",
+            "player:Ewww... That's nasty.",
+            "npc:Oh and torturing gnomes is perfectly fine? Hypocrite.",
+            "player:You make a fair point. Where do I find the toads?",
+            "npc:You get loads of them down in the Feldip Hills, especially near the ponds.",
+            "player:Ah yes, I've used them to catch chompy birds before. I have some bellows right here as well.",
+            "npc:Catching chompy birds? You mourners are weird. Anyway, if you don't need anything else I'd like to be left in peace.",
         })
         t.chat.close()
         t.ticks(3)
+        -- Same one-off UI-queue race the journal_assignment/journal_marked
+        -- reads elsewhere in this file hit (right after a long dialogue's
+        -- own last continue_ click) -- retry once with more settle.
         local journal_dye_r, journal_dye = t.ui.journal_open("Mourning's End Part I")
-        local journal_dye_line = journal_dye and journal_dye.first_line
+        local journal_dye_note = ""
+        if journal_dye_r ~= "ok" then
+            journal_dye_note = " [retry after timeout: " .. tostring(journal_dye) .. "]"
+            t.ticks(5)
+            t.settle()
+            journal_dye_r, journal_dye = t.ui.journal_open("Mourning's End Part I")
+        end
+        local journal_dye_line = (type(journal_dye) == "table") and journal_dye.first_line or nil
         t.check("quest.stage.gnome_dye_learned",
             journal_dye_r == "ok" and journal_dye_line ~= nil
                 and journal_dye_line:find("The gnome explained that the device fires dyed, inflated toads", 1, true) ~= nil,
-            "journal_open(Mourning's End Part I) -> " .. tostring(journal_dye_r) .. " first_line=" .. tostring(journal_dye_line))
+            "journal_open(Mourning's End Part I) -> " .. tostring(journal_dye_r) .. " first_line="
+                .. tostring(journal_dye_line) .. journal_dye_note)
         t.ui.journal_close()
 
+        end
+        do
         -- ---- Dye the bellows and catch a real swamp toad with them, one
         -- colour at a time (mend1_sheep.rs2, RE-AUTHOR per this file's
         -- header point (4)): only [opheldu,empty_ogre_bellows] is declared
@@ -724,7 +917,14 @@ return {
         end
         t.exec("catchToad.red", t.player.use_on, "mourning_ogre_bellows_red", toad_target)
         t.ticks(2)
-        t.expect("catchToad.red.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+        -- The four catch messages share an identical prefix ("You catch the
+        -- toad and inflate it with your dyed bellows"), so a substring
+        -- check on that alone can PASS against a STALE line still in the
+        -- ring from a DIFFERENT colour's catch a few rows back (measured:
+        -- run 3's catchToad.blue read "You now have a green toad." this
+        -- way and PASSed on a catch that never actually landed) -- the
+        -- colour-specific tail is the only text that proves THIS catch.
+        t.expect("catchToad.red.message", t.msg.expect("You now have a red toad."))
 
         t.exec("dyeBellows.yellow", t.player.use_item_on_item, "empty_ogre_bellows", "yellowdye")
         local toad_yellow_r, toad_yellow = t.npc.nearest("toad", 15)
@@ -740,7 +940,7 @@ return {
         end
         t.exec("catchToad.yellow", t.player.use_on, "mourning_ogre_bellows_yellow", toad_target)
         t.ticks(2)
-        t.expect("catchToad.yellow.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+        t.expect("catchToad.yellow.message", t.msg.expect("You now have a yellow toad."))
 
         t.exec("dyeBellows.green", t.player.use_item_on_item, "empty_ogre_bellows", "greendye")
         local toad_green_r, toad_green = t.npc.nearest("toad", 15)
@@ -756,7 +956,7 @@ return {
         end
         t.exec("catchToad.green", t.player.use_on, "mourning_ogre_bellows_green", toad_target)
         t.ticks(2)
-        t.expect("catchToad.green.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+        t.expect("catchToad.green.message", t.msg.expect("You now have a green toad."))
 
         t.exec("dyeBellows.blue", t.player.use_item_on_item, "empty_ogre_bellows", "bluedye")
         local toad_blue_r, toad_blue = t.npc.nearest("toad", 15)
@@ -772,17 +972,48 @@ return {
         end
         t.exec("catchToad.blue", t.player.use_on, "mourning_ogre_bellows_blue", toad_target)
         t.ticks(2)
-        t.expect("catchToad.blue.message", t.msg.expect("You catch the toad and inflate it with your dyed bellows"))
+        t.expect("catchToad.blue.message", t.msg.expect("You now have a blue toad."))
 
         local redtoad_r, redtoad_n = t.inv.count("mourning_bloated_toad_red")
         local greentoad_r, greentoad_n = t.inv.count("mourning_bloated_toad_green")
         local bluetoad_r, bluetoad_n = t.inv.count("mourning_bloated_toad_blue")
         local yellowtoad_r, yellowtoad_n = t.inv.count("mourning_bloated_toad_yellow")
+        -- A crowded toad pond (docs/QUEST_AUTHORING.md: "a hunted press can
+        -- fail 100% reproducibly ... on one npc in a cramped cluster") can
+        -- leave one colour's catch pressed on a copy that never fires the
+        -- trigger, with no item change and the message check above only
+        -- catching a stale ring line -- retry a missing colour once more
+        -- against a freshly re-resolved copy before grading it a real miss.
+        local retoad_attempts = 0
+        while retoad_attempts < 2 and not (redtoad_n == 1 and greentoad_n == 1 and bluetoad_n == 1 and yellowtoad_n == 1) do
+            retoad_attempts = retoad_attempts + 1
+            local retoad_target = t.player.by_symbol("npc", "toad")
+            if redtoad_n ~= 1 then
+                t.player.use_on("mourning_ogre_bellows_red", retoad_target)
+                t.ticks(2)
+            end
+            if yellowtoad_n ~= 1 then
+                t.player.use_on("mourning_ogre_bellows_yellow", retoad_target)
+                t.ticks(2)
+            end
+            if greentoad_n ~= 1 then
+                t.player.use_on("mourning_ogre_bellows_green", retoad_target)
+                t.ticks(2)
+            end
+            if bluetoad_n ~= 1 then
+                t.player.use_on("mourning_ogre_bellows_blue", retoad_target)
+                t.ticks(2)
+            end
+            redtoad_r, redtoad_n = t.inv.count("mourning_bloated_toad_red")
+            greentoad_r, greentoad_n = t.inv.count("mourning_bloated_toad_green")
+            bluetoad_r, bluetoad_n = t.inv.count("mourning_bloated_toad_blue")
+            yellowtoad_r, yellowtoad_n = t.inv.count("mourning_bloated_toad_yellow")
+        end
         t.check("dyeBellows.result",
             redtoad_r == "ok" and redtoad_n == 1 and greentoad_r == "ok" and greentoad_n == 1
                 and bluetoad_r == "ok" and bluetoad_n == 1 and yellowtoad_r == "ok" and yellowtoad_n == 1,
-            string.format("mourning_bloated_toad_red=%s mourning_bloated_toad_green=%s mourning_bloated_toad_blue=%s mourning_bloated_toad_yellow=%s",
-                tostring(redtoad_n), tostring(greentoad_n), tostring(bluetoad_n), tostring(yellowtoad_n)))
+            string.format("mourning_bloated_toad_red=%s mourning_bloated_toad_green=%s mourning_bloated_toad_blue=%s mourning_bloated_toad_yellow=%s (retry round(s)=%d)",
+                tostring(redtoad_n), tostring(greentoad_n), tostring(bluetoad_n), tostring(yellowtoad_n), retoad_attempts))
 
         -- ---- Load the red toad (device unworn, still a backpack cell),
         -- equip the device, and fire it at the sheep herd mend1_sheep.rs2's
@@ -890,6 +1121,8 @@ return {
                 .. journal_marked_note)
         t.ui.journal_close()
 
+        end
+        do
         -- ---- Report back to Essyllt, HQ basement (mend1_essyllt_after_sheep,
         -- mend1_disguise.rs2:178-205). Quest-helper lists enterBaseAfterSheep
         -- as its own standalone step (unlike the AfterPoison return, which
@@ -910,11 +1143,31 @@ return {
         t.exec("enterBaseAfterSheep", t.player.click_loc, "mournerstewdoor", 1)
         t.exec("goto-talkToEssylltAfterSheep", t.player.goto_tile, 2043, 4631, 0)
         t.exec("talkToEssylltAfterSheep", t.player.talk_to, "mourner_hideout_head_mourner", 1)
+        -- mend1_essyllt_after_sheep (mend1_disguise.rs2:543-566): "New
+        -- orders", verbatim, falling straight into mend1_essyllt_poison_
+        -- orders in the same call (no return between them) -- one
+        -- continuous dialogue from the sheep report to the food-store task.
         t.exec("talkToEssylltAfterSheep-dialog", t.chat.play, {
-            "player:It's done -- all four sheep herds marked, just as the gnome's device intended.",
-            "npc:Excellent. That confirms the signal carries. Now, one more test -- I want to see how far you'll go for us.",
-            "npc:Somewhere near here is a rotten apple. Fetch it -- Elena, north-west of East Ardougne, knows what to do with it. If you can poison our food stores without being caught, you'll have earned real trust.",
+            "npc:Have you finished with those sheep yet?",
+            "player:Yes, it is done. What next?",
+            "npc:It is good to see your enthusiasm. I was going to get one of the others to do this job, but as you are here...",
+            "npc:It has been quite some time since anyone got ill from the plague, so I would like you to see to it that people do!",
+            "player:Err... But the plague doesn't exist, how am I meant to do that?",
+            "npc:We have never tried this before, but some joker put something in our food not too long ago that gave us all symptoms akin to those of the plague.",
+            "npc:If you can find out what it was that we were poisoned with, you could reproduce the effects. If done right the poison should not be fatal and could help restock our dwindling supply of cheap labour.",
+            "npc:We can have our men remove the 'infected' citizens and sent into the mines.",
+            "npc:Distribution should be easy enough. Because of the city walls no one can grow their own food. Instead, all the food here comes from one of three supply points.",
+            "player:Let me get this clear, you want me to find out who poisoned you, find out what they poisoned you with, find out how to make the poison and produce enough poison to affect a lot of people?",
+            "npc:Don't forget the part where you use the poison to contaminate the food supply. Two of the three supply points should be enough.",
+            "player:How am I meant to do all of that?",
+            "npc:You seem resourceful so I'm sure you will come up with something. I would help you but I am not a biologist.",
+            "player:Luckily for me I know a biologist nearby.",
+            "npc:Someone trustworthy I hope?",
+            "player:Oh yes, definitely.",
+            "npc:Very well. Perform this task and then return to me.",
         })
+        t.chat.close()
+        t.expect("talkToEssylltAfterSheep.stage6", t.var.await_server("mourning_quest", 6, 10))
         -- ---- Pick up the rotten apple, north-west of the Mourner HQ
         -- (mend1_poison.rs2's own header: a real `rottenapples` ground item
         -- sits at areas/world/configs/m39_52.spawn x2535/y3333, exactly
@@ -946,10 +1199,12 @@ return {
         local journal_poison0_line = journal_poison0 and journal_poison0.first_line
         t.check("quest.stage.poison_task",
             journal_poison0_r == "ok" and journal_poison0_line ~= nil
-                and journal_poison0_line:find("Essyllt set me one more test", 1, true) ~= nil,
+                and journal_poison0_line:find("Essyllt wants me to make people ill as if from the plague", 1, true) ~= nil,
             "journal_open(Mourning's End Part I) -> " .. tostring(journal_poison0_r) .. " first_line=" .. tostring(journal_poison0_line))
         t.ui.journal_close()
 
+        end
+        do
         -- ---- Elena, north-west East Ardougne (elena2, m40_52.spawn:22 --
         -- 2592,3336,0; mend1_elena_talk, mend1_poison.rs2:29-42 -- the
         -- rottenapples>=1 branch, opened by [opnpc1,elena2]'s own front-of-
@@ -980,19 +1235,80 @@ return {
         t.step("talkToElena", elena_talk_result == "ok" and "PASS" or "FAIL",
             "talk_to(elena2,1) -> " .. tostring(elena_talk_result) .. " " .. tostring(elena_talk_detail))
         t.shot("talkToElena-after")
+        -- mend1_elena_old_friend (mend1_poison.rs2:127-176), the FULL-
+        -- DISGUISE branch -- this file never takes the mourner gear off
+        -- before visiting her, so Elena mistakes the player for a mourner
+        -- first. Both branches converge on the same backstory tail, which
+        -- ends with "Bring me a sample of rotten apple..."; the apple is
+        -- already held (pickUpRottenApple above), so the SAME call hands it
+        -- over and falls straight into mend1_elena_tests (elena=apple_given
+        -- then =sieve, both silent) -- one continuous dialogue from "old
+        -- friend" through the sieve hand-over. ----
         t.exec("talkToElena-dialog", t.chat.play, {
-            "player:Essyllt sent me. I need to poison the mourners' food stores.",
-            "npc:Then you'll want a real batch of toxin, not a single apple. Fetch a barrel and fill it with rotten apples from the orchard north of here, then press them at the barrel there.",
-            "npc:Take the mash south to the Chemist's still near Rimmington and fill it out with naphtha, then bring it back to me to sieve.",
-            "npc:Cook what's left on a range -- not a fire -- and you'll have your toxic powder. Two of the mourners' food stores in West Ardougne should do it.",
+            "player:Hello again Elena.",
+            "npc:How dare you enter my house, Mourner! Get out!",
+            "player:Elena, it's me...",
+            "npc:I didn't recognise you in all that Mourner gear!",
+            "player:It's a long story.",
+            "npc:Well I'm not going anywhere. What's going on?",
+            "player:Well I'll start from when we found out that the plague was a hoax. When I confronted the king, he told me that he faked the plague to keep people safe from his brother, King Tyras.",
+            "player:He said that Tyras was taken by the Dark Lord while exploring the lands to the west. He claimed that the Dark Lord corrupted him by forcing him to drink from the Chalice of Eternity.",
+            "npc:But that was a lie?",
+            "player:Indeed, but I didn't find out until much later. On the kings orders, I travelled through the Underground Pass and into the western lands of Tirannwn.",
+            "player:Once there, I met up with Lord Iorwerth, the leader of some elves that had allied with the king. He helped me kill King Tyras.",
+            "player:That was when I discovered the truth. While returning to King Lathas, I was confronted by another elf named Arianwyn, the leader of a group of rebel elves opposing Lord Iorwerth.",
+            "player:At the time, I was carrying a letter from Lord Iorwerth to King Lathas. Arianwyn magically broke the seal on the letter so I could read it.",
+            "npc:What did it say?",
+            "player:It revealed that it's actually King Lathas and Lord Iorwerth who serve the Dark Lord. According to the letter, King Lathas wants to reclaim Camelot from King Arthur and believes the Dark Lord can help him.",
+            "npc:And Lord Iorwerth?",
+            "player:I'm not exactly sure yet. West Ardougne seems to be key to his plans though. I met with Arianwyn who revealed to me that the mourners are actually elves in service to Lord Iorwerth.",
+            "player:I've infiltrated the mourners and I'm trying to work out what they are doing. From what I've learnt so far, there's something important to them in the caves below West Ardougne.",
+            "player:I'm currently working with them to earn their trust. Hopefully they'll reveal their plans to me soon.",
+            "npc:I see, that's quite the reveal. If you need anything from me just ask.",
+            "player:Well, I was hoping you could help me with something.",
+            "npc:What's the problem?",
+            "player:I've been asked to produce a poison based on rotten apples.",
+            "npc:I doubt any poison based solely on apples, rotten or not, would be very effective.",
+            "player:Well I put a rotten apple in the mourners' stew, I'm told that the effect was much like the symptoms of the plague.",
+            "npc:Hmm... That sounds like they were ill from some sort of toxin, I should think it was a mould of some sort that had the effect, not the rotten apple itself. What do you need it for?",
+            "player:I need to poison a large food supply in order to get the mourners' trust.",
+            "npc:That's awful, I can't help you with that.",
+            "player:If I don't gain the trust of the mourners, then the people of West Ardougne will have a much worse time than the effects of that toxin. Elena trust me.",
+            "npc:You'd better be right about this, and I'd better make sure you get this toxin right so no one dies!",
+            "npc:Bring me a sample of rotten apple to examine. I'll also see if I can make a counteractant for the toxin.",
+            "player:I have one right here.",
+            "*", -- objbox: "You hand Elena the rotten apple."
+            "npc:Ick... Alright then let's get started.",
+            "*", -- doubleobjbox: "Elena starts some tests on the apple."
+            "npc:Right.. lets see...",
+            "npc:Okay, I've managed to isolate a small sample of the toxin. It's a byproduct of the mould that grows on these apples, it's not fatal so a counteractant shouldn't be necessary.",
+            "npc:How big is the store that you're going to affect?",
+            "player:Well I was instructed to contaminate two of the three supply points in West Ardougne.",
+            "npc:That's over half of the food in the city! You're going to need a huge amount of the toxin to do that. You're also going to need to refine it too, or people will notice rotten apples in amongst the food.",
+            "player:This is starting to sound a little tricky, can't you make it for me?",
+            "npc:I would, but I don't have the right equipment here to do anything in bulk.",
+            "player:Alright then, tell me the process and I'll get started.",
+            "npc:Right then, the first thing to do is mash up a lot of rotten apples, then you will need to dissolve the toxin into a liquid that has a very low evaporation point, some form of solvent.",
+            "npc:I don't know as much about those kinds of chemicals but I believe naphtha will be perfect for this.",
+            "player:Ah yes, I've worked with naphtha before. The chemist in Rimmington helped me make it from coal tar.",
+            "npc:Perfect. Well get yourself some naphtha and some mashed rotten apples and mix them together. Once you've done that, strain out any solids.",
+            "npc:Finally, heat the mixture to evaporate off the solvent. Be careful of naked flames as the solvent will be highly flammable.",
+            "player:And that's all is it? Why isn't anything ever easy?",
+            "npc:Sorry, I never said it would be simple. Here, you'll need this to strain out the solids.",
+            "*", -- objbox: "Elena hands you a large sieve."
+            "npc:You may want to check out the orchard just north of the city. I hear no one has tended it since the blight infected the trees there. I imagine it will have plenty of rotten apples.",
         })
+        t.chat.close()
         local sieve_wait_r, sieve_wait_detail = t.inv.await("mourning_sieve", 1, 10)
         t.step("talkToElena.await_sieve", sieve_wait_r == "ok" and "PASS" or "FAIL",
             "inv.await(mourning_sieve, 1, 10) -> " .. tostring(sieve_wait_r) .. " " .. tostring(sieve_wait_detail))
         local apple_after_r, apple_after_n = t.inv.count("rottenapples")
         t.check("talkToElena.result", apple_after_r == "ok" and apple_after_n == 0,
             "rottenapples=" .. tostring(apple_after_n) .. " (" .. tostring(apple_after_r) .. ")")
+        t.expect("talkToElena.var", t.var.await_server("mourning_elena", 4, 6))
 
+        end
+        do
         -- ---- Barrel + apple pile, north-west of the Mourner HQ
         -- (mourning_orchard_applepile, mend1_poison.rs2:45-58, RE-AUTHOR per
         -- this file's header point (2): pickUpBarrel is a real ground item
@@ -1018,8 +1334,10 @@ return {
         t.ui.tab("inventory")
         t.ticks(2)
         t.exec("fillBarrel", t.player.use_on, "regicide_barrel_empty", applebarrel_target)
-        t.ticks(2)
-        t.expect("fillBarrel.message", t.msg.expect("You fill the barrel with rotten apples from the pile"))
+        -- mend1_poison.rs2's own objbox ("You scoop up a barrel full of the
+        -- rotten apples.") -- a popup, not a chat-log line.
+        t.expect("fillBarrel.message", t.chat.expect_text("You scoop up a barrel full of the rotten apples."))
+        t.chat.close()
         local barrelfull_r, barrelfull_n = t.inv.count("applebarrel_full")
         t.check("fillBarrel.result", barrelfull_r == "ok" and barrelfull_n == 1,
             "applebarrel_full=" .. tostring(barrelfull_n) .. " (" .. tostring(barrelfull_r) .. ")")
@@ -1053,11 +1371,17 @@ return {
         t.ticks(2)
         local press_target = t.player.by_symbol("loc", "mourning_orchard_applebarrel_empty")
         t.exec("pressApples", t.player.use_on, "applebarrel_full", press_target)
-        t.ticks(2)
+        -- mend1_press_apples's own mesbox ("You use the apple press..."),
+        -- then an objbox for the mash it produces -- both popups, neither a
+        -- chat-log line t.msg.* can see (docs section 3's kind list).
         t.expect("pressApples.message",
-            t.msg.expect("You press the rotten apples into a foul-smelling mash"))
+            t.chat.expect_text("You use the apple press to crush your rotten apples."))
+        t.exec("pressApples.continue", t.chat.continue_, true)
+        t.chat.close()
         t.expect("pressApples.mash", t.inv.await("mourning_applebarrel_mush", 1, 10))
 
+        end
+        do
         -- ---- Coal tar: a second empty barrel from Tirannwn
         -- (areas/world/configs/m34_49.spawn:67, 2184,3139,0), carried to
         -- Regicide's own tar collection point (regicide_bombcraft.rs2's
@@ -1226,6 +1550,8 @@ return {
             "ui.await_close(regicide_still) -> " .. tostring(still_closed_result))
         t.expect("still.naphtha", t.inv.await("regicide_barrel_naphtha", 1, 10))
 
+        end
+        do
         -- ---- Naphtha + apple mash -> naphtha apple mix (mend1_poison.rs2:
         -- 135-152, an [opheldu] pair declared on both item names, so either
         -- order arms and lands). Named for quest-helper's own step
@@ -1253,41 +1579,38 @@ return {
         t.ticks(2)
         t.expect("useSieveOnBarrel.result", t.inv.await("mourning_toxic_naphtha", 1, 10))
 
-        -- ---- Cook the toxic naphtha on a range -- not a fire
-        -- ([oploc1,carnilleanrange], mend1_poison.rs2:174-185).
-        --
-        -- RETRY after 486398e09: this row used to t.blocked here, reading
-        -- carnilleanrange as unplaced from six SURFACE anchors around the
-        -- Carnillean Mansion (2570,3270,0 +/- 60). That premise was false:
-        -- carnilleanrange has exactly ONE placement in the whole loaded
-        -- world, maps/m39_151.jl2:537 `0 42 35: 2859 10 1`, which decodes to
-        -- ABS (2538,9699,0) -- the Carnillean kitchen room in the
-        -- UNDERGROUND band (z+6400), alongside carnilleancrate (2545,9696),
-        -- cookingshelves_search (2541,9699) and carnillean_ladder_up
-        -- (2544,9694). The old anchor was 6,400 tiles away in z from the
-        -- real room, so every one of the six surface sweeps was guaranteed
-        -- not_found and proved nothing about the loc's placement. Proved
-        -- live: build/quest_gate/seam6_range_probe/ledger.tsv, 13/13 PASS --
-        -- loc_near(carnilleanrange,10) -> ok 2538,9699 L0 match=exact, then
-        -- click_loc + inv.await(mourning_apple_toxin,2) -> ok. ----
-        t.exec("goto-cookToxin", t.player.goto_tile, 2538, 9699, 0)
-        local range_result, range_row = t.world.loc_near("carnilleanrange", 10)
+        -- ---- Cook the toxic naphtha on a range -- not a fire. RE-AUTHOR
+        -- (parity1o): any range works now (skill_cooking/scripts/
+        -- cooking.rs2's [oplocu,_cooking_oven] hook calls
+        -- ~mend1_heat_toxic_naphtha), driven here at the Mourner HQ's own
+        -- range (2547,3322 -- symbol "range", the client's cooking-range
+        -- category) instead of the underground Carnillean one. ----
+        -- GUIDE-GAP: cookNaphtha quest-helper's own step targets ONLY carnilleanrange (Hazeel Cult's kitchen -- no live [op*]/[ap*] trigger serves this quest there, only quest_hazeelcult/scripts/claus_the_chef.rs2:58, another quest's); the real content cooks on ANY range via skill_cooking/scripts/cooking.rs2:11's [oplocu,_cooking_oven] hook (mend1_poison.rs2's own ~mend1_heat_toxic_naphtha), driven below at the Mourner HQ's own range instead.
+        t.exec("goto-cookToxin", t.player.goto_tile, 2547, 3323, 0)
+        local range_result, range_row = t.world.loc_near("range", 6)
         t.check("cookToxin.range_present", range_result == "ok",
-            "loc_near(carnilleanrange, 10) -> " .. tostring(range_result) .. " "
+            "loc_near(range, 6) -> " .. tostring(range_result) .. " "
                 .. (range_result == "ok"
                     and (tostring(range_row.tile_x) .. "," .. tostring(range_row.tile_z)
                         .. " L" .. tostring(range_row.level) .. " match=" .. tostring(range_row.match))
                     or tostring(range_row)))
         t.drive.camera(SHOT_YAW, 383, SHOT_ZOOM_INDOOR)
-        t.exec("cookToxin", t.player.click_loc, "carnilleanrange", 1)
-        t.expect("cookToxin.result", t.inv.await("mourning_apple_toxin", 2, 10))
+        t.ui.tab("inventory")
+        t.ticks(2)
+        local range_target = t.player.by_symbol("loc", "range")
+        t.exec("cookToxin", t.player.use_on, "mourning_toxic_naphtha", range_target)
         t.expect("cookToxin.message",
-            t.msg.expect("You carefully cook the toxic naphtha over the range"))
+            t.chat.expect_text("You evaporate the naphtha and you're left with a powdery residue"))
+        t.chat.close()
+        t.expect("cookToxin.result", t.inv.await("mourning_apple_toxin", 2, 10))
+        t.expect("cookToxin.barrel_back", t.inv.await("regicide_barrel_empty", 1, 4))
 
         -- ---- Poison food store 1, West Ardougne (mourning_sack_full1,
         -- maps/m39_51.jl2:4218-4221 -> abs 2517,3312 / 2517,3315 / 2521,3316;
-        -- mend1_poison.rs2:197-221, an [oploc1] and an [oplocu] on the same
-        -- base). ----
+        -- mend1_poison.rs2:534-596, an [oploc1] and an [oplocu] on the same
+        -- base). RE-AUTHOR: both stores share the SAME objbox line now
+        -- ("You add the toxin to the grain, after a few seconds of mixing
+        -- you can't tell the difference."). ----
         t.exec("goto-poisonStore1", t.player.goto_tile, 2517, 3313, 0)
         local store1_result, store1_row = t.world.loc_near("mourning_sack_full1", 20)
         t.check("poisonStore1.present", store1_result == "ok",
@@ -1300,15 +1623,18 @@ return {
             "by_symbol(loc, mourning_sack_full1) -> " .. tostring(store1_target_r) .. " id="
                 .. tostring(store1_target and store1_target.id) .. " match="
                 .. tostring(store1_target and store1_target.match))
-        t.exec("poisonStore1", t.player.use_on, "mourning_apple_toxin", store1_target)
+        t.ui.tab("inventory")
         t.ticks(2)
+        t.exec("poisonStore1", t.player.use_on, "mourning_apple_toxin", store1_target)
         t.expect("poisonStore1.message",
-            t.msg.expect("You dust the grain sacks with toxic powder"))
+            t.chat.expect_text("You add the toxin to the grain"))
+        t.chat.close()
         t.expect("poisonStore1.var", t.var.await_server("mourning_food_poison1", 1, 6))
 
         -- ---- Poison food store 2, the church stores (mourning_sack_full2,
         -- maps/m39_51.jl2:4222-4224 -> abs 2524,3285 / 2524,3288 / 2525,3288;
-        -- mend1_poison.rs2:223-247). ----
+        -- mend1_poison.rs2:534-596). The second store poisoned writes
+        -- ^mend1_learn_secret. ----
         t.exec("goto-poisonStore2", t.player.goto_tile, 2524, 3286, 0)
         local store2_result, store2_row = t.world.loc_near("mourning_sack_full2", 20)
         t.check("poisonStore2.present", store2_result == "ok",
@@ -1321,21 +1647,46 @@ return {
             "by_symbol(loc, mourning_sack_full2) -> " .. tostring(store2_target_r) .. " id="
                 .. tostring(store2_target and store2_target.id) .. " match="
                 .. tostring(store2_target and store2_target.match))
-        t.exec("poisonStore2", t.player.use_on, "mourning_apple_toxin", store2_target)
+        t.ui.tab("inventory")
         t.ticks(2)
+        t.exec("poisonStore2", t.player.use_on, "mourning_apple_toxin", store2_target)
         t.expect("poisonStore2.message",
-            t.msg.expect("You dust the sacks in the church stores with toxic powder"))
+            t.chat.expect_text("You add the toxin to the grain"))
+        t.chat.close()
         t.expect("poisonStore2.var", t.var.await_server("mourning_food_poison2", 1, 6))
+        t.expect("poisonStore2.stage7", t.var.await_server("mourning_quest", 7, 6))
 
+        end
+        do
         -- ---- Report to Essyllt (mend1_essyllt_after_poison,
-        -- mend1_disguise.rs2:207-211 -> %mourning_quest = ^mend1_report). ----
+        -- mend1_disguise.rs2:570-592 -> %mourning_quest = ^mend1_report).
+        -- "The mourners' plan", verbatim. ----
         t.exec("goto-talkToEssylltAfterPoison", t.player.goto_tile, 2043, 4631, 0)
         t.exec("talkToEssylltAfterPoison", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssylltAfterPoison-dialog", t.chat.play, {
-            "player:It's done. Both food stores are poisoned -- nobody suspects a thing.",
-            "npc:Then you truly are one of us now. Listen closely, recruit -- the mourners you see in this city are not what they seem. We are elves, servants of Lord Iorwerth, and this quarantine is a lie.",
-            "npc:There is more happening beneath West Ardougne than even I fully understand. You've proven yourself -- take word of what you've learned back to whoever sent you.",
+            "npc:You are back already? How is the epidemic going?",
+            "player:The epidemic? Oh, you mean the poisoning?",
+            "npc:Subtle as a brick... Yes that, how is it going?",
+            "player:It's all done.",
+            "npc:This is good news, give it a few days and the slave pens will be full again.",
+            "player:So have I proved my commitment now?",
+            "npc:Yes I think you have. I guess you want to know what we're doing in the mines?",
+            "player:Yes please.",
+            "npc:A long time ago, Seren herself ordered the construction of a great temple deep beneath the earth. This temple guards a great power, one that is key to our plans.",
+            "npc:We believe the temple lies beneath this city. That is why we are here.",
+            "npc:Unfortunately, progress has been slower than we'd have liked. The slaves accidentally mined into some old caverns infested with beasts. They have caused us significant issues.",
+            "player:I see. But how close are we to finding it?",
+            "npc:It shouldn't be long now. We have started to see signs that we are near.",
+            "npc:Anyway, now that you know about the temple, I have a new task for you to perform, deep within the mines.",
+            "npc:Alas, one of the guards has taken the key to the mines to be copied. Report in regularly and I will see that you get a copy as soon as he gets back.",
+            "player:Will do.",
+            "npc:Now be on your way, I have other things to attend to.",
+            "player:I should probably report this to Arianwyn.",
+            "npc:What was that?",
+            "player:Oh nothing.",
+            "npc:Hmm, fair enough.",
         })
+        t.chat.close()
         t.ticks(2)
         -- configs/all.varp's [mourning_quest] body is empty (no transmit=yes,
         -- see the bind banner at the top of this file), so every stage read
@@ -1360,11 +1711,13 @@ return {
         local journal_report_line = journal_report and journal_report.first_line
         t.check("talkToEssylltAfterPoison.journal",
             journal_report_r == "ok" and journal_report_line ~= nil
-                and journal_report_line:find("Essyllt revealed the truth", 1, true) ~= nil,
+                and journal_report_line:find("Essyllt revealed that the mourners are searching for a temple", 1, true) ~= nil,
             "journal_open(Mourning's End Part I) -> " .. tostring(journal_report_r)
                 .. " first_line=" .. tostring(journal_report_line))
         t.ui.journal_close()
 
+        end
+        do
         -- ---- Arianwyn, Lletya -- the hand-in (mend1_shared.rs2:101-108,
         -- ~mend1_quest_complete). skill.snapshot() before the hand-in for
         -- the two documented xp rewards (mend1_shared.rs2:31:
@@ -1376,11 +1729,19 @@ return {
             "skill.snapshot() -> " .. tostring(skill_snapshot_r))
         t.exec("goto-talkToArianwynFinal", t.player.goto_tile, 2353, 3172, 0)
         t.exec("talkToArianwynFinal", t.player.talk_to, "mourning_arianwyn", 1)
+        -- mend1_arianwyn_talk's ^mend1_report branch (mend1_shared.rs2:
+        -- 143-156), "Reporting back to Arianwyn", verbatim -> ~mend1_quest_
+        -- complete (the reward scroll/xp/crystal, no chat line of its own).
         t.exec("talkToArianwynFinal-dialog", t.chat.play, {
-            "player:Arianwyn -- the mourners really are Iorwerth elves. I tortured their gnome for the truth about a signalling device, dyed sheep to test it, and poisoned their food stores to prove myself to Essyllt.",
-            "npc:You have done more than I asked. This confirms everything we feared -- and gives us a foothold inside their operation.",
-            "npc:Thank you. Take this teleport crystal -- it will bring you straight back to Lletya whenever you need it.",
+            "npc:How goes it",
+            "player:I think I have the information you're after. It seems Iorwerth elves are searching for an ancient temple of some sort deep beneath West Ardougne.",
+            "npc:Temple? That must be the Temple of Light!",
+            "player:Temple of Light? What's the Temple of Light?",
+            "npc:It was built by Seren herself to guard a dark and ancient power. This is not good friend, I fear Lord Iorwerth intends to use that power to summon the Dark Lord!",
+            "player:I don't think they've found this temple yet, but they know it's down there.",
+            "npc:Well then we still have time. Thank you for your help so far, we would never have discovered this without you. Now we must prepare for what comes next.",
         })
+        t.chat.close()
         t.ticks(3)
 
         -- Completion is graded the same way makinghistory.lua/rovingelves.lua
@@ -1445,6 +1806,7 @@ return {
         t.exec("reward.hitpoints_xp", t.skill.expect_gain, "hitpoints", 25000, skill_snapshot)
         t.exec("reward.teleport_crystal", t.inv.expect_has, "mourning_teleport_crystal_4", 1)
 
+        end
         t.finish(0)
         return
     end,
