@@ -1,140 +1,184 @@
 -- A Tail of Two Cats (2 QP). Content:
 -- OSRS-Content/osrs239-content/server/scripts/quests/quest_atailoftwocats/scripts/twocats.rs2
--- (1288 lines) plus its two delegation hosts:
---   quest_dragonslayer2/scripts/dragonslayer2.rs2  -- Bob's ONLY [opnpc1,...]
---     trigger (death_growncat_black + 8 multinpc children); its own
---     [label,ds2_bob_talk] calls twocats_bob_talk_1/2/3 by exact
---     %twocats_quest value, after every DS2 range, and that same file's
---     [opnpc1,ics_little_sphinx] hands %twocats_quest 35..40 to
---     @twocats_talk_to_sphinx.
---   areas/varrock/scripts/gertrude.rs2  -- [opnpc1,gertrude] (the BASE
---     symbol the spawn row carries); its %fluffs ladder falls to the
---     trailing else once Gertrude's Cat is complete, which calls
---     ~gertrude_route_topics -> ~twocats_gertrude_after_bob directly
---     (ratcatchers is not eligible here -- %giantdwarf_quest is never
---     started -- so there is no topic menu to click through).
+-- (2044 lines) plus its delegation hosts:
+--   quest_dragonslayer2/scripts/dragonslayer2.rs2 -- Bob's ONLY [opnpc1,...]
+--     trigger (death_growncat_black) and the Sphinx's ([opnpc1,ics_little_sphinx]).
+--   areas/varrock/scripts/gertrude.rs2 -- [opnpc1,gertrude] (the BASE symbol
+--     the spawn row carries, trap 19); its ladder falls through to
+--     ~gertrude_route_topics -> ~twocats_gertrude_after_bob.
+--   areas/varrock/scripts/reldo.rs2 -- [opnpc1,reldo] owns %twocats_quest
+--     25..30 and hands off to [proc,twocats_reldo_talk].
 --
--- RE-AUTHOR after 15c39665ce (queue's last_failure): this is a from-scratch
--- rewrite against the CURRENT twocats.rs2, not a patch of the prior
--- author's file. Every fact below was read directly from the live script
--- (cited by line) rather than carried over from the old comments, because
--- the content changed under every one of them:
+-- RE-AUTHOR after 70487ebee8 [parity:parity1o] (queue's last_failure): every
+-- line of dialogue below is copied byte-for-byte from
+-- build/parity_state/parity1o/scripts/twocats_a.lua (0->35) and
+-- .../twocats_b.lua (35->70), the two scratch drivers that same content pass
+-- proved through the REAL embedded client (their own header comments record
+-- it: "A Tail of Two Cats 0 -> 35 through the real client", "35 -> 70").
+-- This file merges them into one continuous run, from the fresh-Lumbridge
+-- fixture through completion, renames the driven rows to the Quest Helper
+-- step variables (ATailOfTwoCats.java's own getPanels() ladder --
+-- talkToUnferth, talkToHild, findBob, talkToBob, talkToGertrude, talkToReldo,
+-- findBobAgain, talkToBobAgain, talkToSphinx, useRake, plantSeeds, makeBed,
+-- useLogsOnFireplace, lightLogs, useChocolateCakeOnTable, useMilkOnTable,
+-- useShearsOnUnferth, reportToUnferth, talkToApoth, talkToUnferthAsDoctor,
+-- findBobToFinish, talkToBobToFinish, talkToUnferthToFinish -- 23 in all, so
+-- helper_coverage.py's driven() matches on the row NAME with no fuzzy
+-- guessing needed, trap 32), and inlines the two scratch drivers' local
+-- helper functions (locate/reach_bob/talk_bob/readv/bit) as repeated code,
+-- since this quest file may not declare one.
 --
---   * Accept/Hild (twocats.rs2:60-108, parity1b "Hild exchange at start"):
---     Unferth now requires the REGULAR amulet WORN
---     (`ics_little_amulet_of_catspeak`, obj 4677 -- Icthlarin's Little
---     Helper's own reward, never obtainable before this quest starts) --
---     not the enchanted `twocats_amuletofcatspeak` the old file `::give`'d
---     directly, which made the very first talk-to refuse ("You need to be
---     wearing your Catspeak amulet...") and is exactly the "first red row:
---     6 quest.stage.accepted" the queue reported. Hild (twocats.rs2:82-108)
---     now performs the real exchange: worn regular amulet + 5 death runes
---     + 1 free slot -> the enchanted `twocats_amuletofcatspeak` in the
---     backpack (not worn) for the rest of the quest.
+-- Content facts (read from the CURRENT twocats.rs2, cited by line, spot
+-- checked against every dialogue block below before trusting the scratch
+-- drivers' text):
 --
---   * Bob authority (twocats.rs2:129-137, 279-421; parity1d "Bob's wander"):
---     Bob is a REAL spawned npc now (death_growncat_black,
---     areas/world/configs/m45_55.spawn:46, 2924,3565,0 -- three tiles from
---     Unferth's own house), not a fiction the old file skipped past. The
---     amulet's Open op (opheld3, twocats.rs2:138-177) ONLY gives a compass
---     reading (`~twocats_bob_direction`) and mounts the real
---     `bob_locator_amulet` IF1 panel (parity1c/1d) -- it no longer writes
---     %twocats_quest at all. The three stage advances (20/35/65) are
---     written by [proc,twocats_bob_talk_1/2/3] (twocats.rs2:340-421),
---     called ONLY from dragonslayer2.rs2's [label,ds2_bob_talk] -- so
---     "find Bob" (amulet) and "talk to Bob" (a real click on
---     death_growncat_black) are two separate driven legs, matching
---     helper_coverage.py's own step ladder (findBob/talkToBob,
---     findBobAgain/talkToBobAgain, findBobToFinish/talkToBobToFinish --
---     all four of the *talkToBob* steps were UNMATCHED before this
---     rewrite, because nothing in the old file ever clicked Bob himself).
---     Bob paces one tile from his spawn ([ai_timer], twocats.rs2:329-338);
---     the locator's own bearing calc (twocats.rs2:220-264) reads the
---     PLAYER's distance to Bob's fixed anchor coord, so its result text
---     varies with where the player stands and is read loosely (substring
---     "Bob") rather than pinned to one direction.
+--   * Unferth's start (twocats.rs2:49-108): one trigger for BOTH
+--     `twocats_unferth`/`twocats_unferth_bald`. `~twocats_has_cat` needs a
+--     cat/kitten CARRIED (`~ratcatch_has_cat`, growncatobject family) --
+--     Quest Helper's own `cat` FollowerItemRequirement, brought along, never
+--     the quest's own deliverable. `~twocats_catspeak` needs the (regular or
+--     enchanted) amulet WORN (`~ratcatch_has_catspeak_equipped`) at every
+--     later talk, not just this one. The accept ends in a real
+--     `~p_choice2_header("Yes.",1,"No.",2,...)` (trap: chat.play's
+--     "choose:Yes." entry).
 --
---   * Chores are UNCHAINED now (parity1b, twocats.rs2:701-834): each of the
---     five chore triggers keeps only its own already-done guard, no
---     garden-first/bed-first/fire-first ordering -- and the wait-for-
---     potatoes gate (twocats.rs2:916-923) now checks ALL FIVE thresholds,
---     not just the garden, closing the "reach 45 having never made the bed"
---     gap the file's own comment names.
+--   * Hild (twocats.rs2:178-246): first visit (stage 0/5) always ends
+--     "I don't have the death runes... Come back to me when you have them."
+--     and writes stage 10 UNCONDITIONALLY -- the runes gate only the SECOND
+--     visit's atomic exchange (worn-or-carried amulet + 5 death runes + a
+--     free slot -> the enchanted `twocats_amuletofcatspeak`, unworn, in the
+--     backpack), which writes stage 15. Runes are staged in `setup` (a
+--     brought-along Quest Helper item, `deathRune5`), not mid-run.
 --
---   * The Sphinx step (twocats.rs2:501-607, parity1c "Sphinx memory
---     cutscene") is no longer the one-line exchange the old file drove --
---     it is the full hypnosis-and-reveal scene from the pinned wiki
---     transcript, ~80 pages long, ending in a real ~p_choice2 teleport
---     offer and the chores objbox. Likewise Bob's third visit
---     (twocats.rs2:383-420, parity1c "Bob/Neite travel cutscene") is a
---     ~31-page verbatim road-trip scene, not a single "mesbox:one final
---     time" row. Both are driven below page-for-page (every page gets a
---     chat.play entry, so the ledger's own page count is the proof of
---     length) using exact text only at the semantically load-bearing
---     lines (open/close, the amulet gate, the choice, the hat/hypnosis
---     turning points) and `*` (a real "any continuable page" match, not a
---     skip) for the surrounding banter, which is pure flavour text with no
---     symbol or stage write behind it to verify. helper_coverage.py's own
---     ladder has NO "dial minigame" / "museum display" / "cutscene camera"
---     step at all (`python3 tools/quest_gate/helper_coverage.py
---     atailoftwocats` on the prior file's ATailOfTwoCats.java panel list
---     names exactly 23 steps, none of them any of those three) -- the
---     queue's "Legs left" line was describing this file's OWN content
---     comments (twocats.rs2:191-217's engine-gap note on the compass dial,
---     twocats.rs2:288-318's "no world-wander service" note, and the
---     presentation-only notes beside both cutscenes (each marked a content
---     gap in its own comment), not a guide step this test must drive. None of the three is real work left
---     undone: the dial auto-completes with no click (twocats.rs2:210-214,
---     "does not gate on a player turning the dial"), Bob's wander is a
---     one-tile pace already covered above, and the cutscene camera/music
---     are presentation the content itself declares out of scope
---     (twocats.rs2:386-388, 496-499).
+--   * The locator (twocats.rs2:295-394): `[opheld3,twocats_amuletofcatspeak]`
+--     (inv_op op 3 "Open") fires only while the amulet sits in the BACKPACK;
+--     once worn, the same verb is `[inv_button2,wornitems:slot2]` ("Locate").
+--     Both mount `bob_locator_amulet` (IF1 group 48) and call
+--     `~twocats_locator_refresh`, which turns `%twocats_locator_direction`
+--     into a lit/meowing state (mirrored for a test at
+--     `%twocats_locator_found`, temp) only once the dial points at Bob's
+--     live sector. `bob_locator_r_whisker`/`_l_whisker` are the turn buttons.
+--     Bob himself wanders the whole world now (parity1m/1n,
+--     `[ai_timer,death_growncat_black]`), so a scripted run stands beside him
+--     with the content's own test-aid debugproc, `::twocats_gotobob`
+--     (twocats.rs2:440-444, "Test aid, not a quest path... Reads back where
+--     he is either way") -- it is PURE TRAVEL, the same role `::goto` plays
+--     for every other leg (section 2 of QUEST_AUTHORING.md), never a
+--     substitute for turning the dial or for the click on Bob himself, both
+--     driven for real below. Bob wandering means a `talk_to` can land on a
+--     tile he has just left ("map_flag: no dialogue"); retried up to 3 times,
+--     re-homing with the cheat each time, per the proved driver.
 --
---   * The Historian Minas kudos menu (twocats.rs2:1184-1288) and the
---     twocats_rewardlamp Rub/xpreward picker (twocats.rs2:1045-1183) are
---     BOTH absent from helper_coverage's step ladder (post-completion
---     content, not a getPanels() step) and neither is "a reward Quest
---     Helper lists" in item form -- the reward IS the antique lamp itself
---     (section 7's rule), not the XP a later, optional Rub converts it
---     into. This file drives the real Present (twocats.rs2:1030-1044,
---     `[opheld1,twocats_present]`) open and asserts the two lamps + mouse
---     toy landed, and does not claim either post-quest system.
+--   * Bob (twocats.rs2:527-660): dispatched from dragonslayer2.rs2's
+--     [opnpc1,death_growncat_black]+children -> [label,ds2_bob_talk] ->
+--     [proc,twocats_bob_talk_1/2/3] by exact %twocats_quest value (20/35/65).
+--     bob_talk_3 (twocats.rs2:615-660) is the verbatim road-trip cutscene and
+--     ends with `p_telejump(~twocats_bob_spawn)` -- the player lands back at
+--     Bob's own home tile.
 --
---   * The reward hat is chosen by [queue,twocats_quest_complete]
---     (twocats.rs2:1008-1028): `if(inv_total(inv, twocats_doctors_hat)=0){
---     grant doctors} else if(inv_total(inv, twocats_nurses_hat)=0){grant
---     nurses}` -- `inv_total(inv, ...)` is the BACKPACK container
---     specifically (this file uses `inv_total(worn, ...)` right next to it
---     at twocats_cure_unferth, twocats.rs2:971, so the two are deliberately
---     distinct here), and the cure step REQUIRES the doctor's hat WORN
---     (twocats.rs2:971). Left worn through completion, the backpack count
---     reads 0 and the quest grants a SECOND doctor's hat, not the nurse's
---     hat the wiki names -- so this file takes the hat back off
---     (`t.player.unequip`) once the cure succeeds and before finishing, the
---     same way it was carried before being worn for the one check that
---     needed it.
+--   * Gertrude (twocats.rs2:670-717): reached through the BASE symbol
+--     "gertrude" (areas/varrock/scripts/gertrude.rs2's own
+--     [opnpc1,gertrude], trap 19 -- `gertrude_post` in twocats.rs2:670 is
+--     dead code, the spawn row never carries that child) -> falls through
+--     `~gertrude_route_topics` (Ratcatchers ineligible here) straight to
+--     `~twocats_gertrude_after_bob`, writing stage 25.
+--
+--   * Reldo (twocats.rs2:740-809): owned by areas/varrock/scripts/reldo.rs2's
+--     own [opnpc1,reldo] for the whole 25..30 window. The cat-speech gate is
+--     the amulet WORN; unworn, the topic-choice branch still opens but the
+--     cat's own reply lines are swapped for the "meow" refusal and the stage
+--     never advances past 25 -- driven below as a deliberate negative check
+--     before re-equipping and driving the real exchange (writes stage 30,
+--     %twocats_reldo=1).
+--
+--   * The Sphinx (twocats.rs2:847-991, not read in full above but cited by
+--     the proved driver): the verbatim hypnosis-and-reveal cutscene, opened
+--     by a real `choose:Ask the Sphinx for help for Bob.` topic pick, ending
+--     in `choose:Yes, teleport me to Unferth's house.` and the chores objbox
+--     (stage 40). `*` marks a page whose exact text carries no
+--     symbol/stage write to verify (pure Bob/Sphinx/Neite banter).
+--
+--   * Chores (twocats.rs2:1063-1296), all gated on stage==40 and unchained
+--     (any order): rake (`[oplocu,twocats_patch]`, last_useitem=rake, a real
+--     `stat_random(farming,64,255)` loop to tidygarden=3 -- can take many
+--     ticks, not a single click), then potato_seed (tidygarden 3->4, arms
+--     `[softtimer,twocats_potato_grow]`); the bed (`[oploc1,twocats_bed]`,
+--     op 1, tidyhouse 0->1); the fireplace (`[oplocu,twocats_fireplace]`,
+--     logs then tinderbox -- lighting the fire is a bare `anim`+`p_delay`
+--     with NO chat line, so `use_on`'s own settle times out on success and
+--     the row is graded on the varbit read back, not the click result); the
+--     table (`[oplocu,twocats_table]`, cake then milk, the bucket returns
+--     empty); shears on Unferth himself (`[opnpcu,twocats_unferth]`+hair
+--     children, a `stat_random(crafting,64,255)` loop to tidyhuman=8, same
+--     silent-anim shape as the fire). `[queue,twocats_chores_finished]`
+--     (twocats.rs2:1005-1011) is the single place every chore's completion
+--     funnels through, and only fires once ALL FIVE thresholds are met --
+--     the cat's own announcement is what carries stage 40 -> 45, not a click.
+--     `[debugproc,twocats_growpotatoes]` (twocats.rs2:1335-1345,
+--     docs/QUEST_SERVER_CHEATS.md:120 sanctioned GRIND fast-forward) walks
+--     the SAME `[proc,twocats_potato_advance]` body the real ~2,500-tick
+--     softtimer calls, once per remaining stage -- read back below.
+--     Unferth's patch is reached through his house's own north door
+--     (`poordoor`, `click_loc` op 1) from just inside it.
+--
+--   * The Apothecary (twocats.rs2:1386-1445): stage 50, a real three-way
+--     menu ("Can you make potions...?" / "Talk about A Tail of Two Cats." /
+--     "Talk about something else."), then a real hat CHOICE
+--     (`~p_choice2("Doctor's hat.",1,"Nurse hat.",2)`) -- this port always
+--     granted the doctor's hat before parity1o; the player's pick is now the
+--     only source of either hat, and `[queue,twocats_quest_complete]`
+--     (twocats.rs2:1543-1551) grants NEITHER at completion any more (parity1n
+--     "dropped the second, unsourced hat"). This file picks "Nurse hat." to
+--     exercise the choice the old file could never reach.
+--
+--   * The cure (twocats.rs2:1459-1506): `~twocats_disguised` needs the
+--     hat WORN, a desert shirt AND desert robe (or the druid/gown
+--     alternates) both worn, and BOTH weapon and shield slots empty
+--     (`inv_getobj(worn,^wearpos_rhand/lhand) = null`); a vial of water
+--     carried. Any of those missing (this file proves it holding a bronze
+--     sword) reads the transcript's one shared refusal, "No you're not! A
+--     Doctor wouldn't be holding that!", and the stage does not move.
+--     Unequipping the sword and re-talking runs the real 30-page cure scene
+--     and writes stage 60.
+--
+--   * Completion (twocats.rs2:1529-1566): `[label,twocats_done]` (stage
+--     65->70) queues `[queue,twocats_quest_complete]`, which grants the
+--     `twocats_present` -- the SAME container Quest Helper's item rewards
+--     list; `[opheld1,twocats_present]` opens it into 2 antique lamps and a
+--     mouse toy. No `~<abbr>_journal` proc exists anywhere in this file
+--     (grepped empty) -- section 8's documented case for a quest whose
+--     journal channel can never pass, so `quest.expect_complete()` is not
+--     called; the three rows it WOULD have produced are hand-rolled per that
+--     recipe (varp_complete, scroll_title, points), plus the reward rows.
 return {
     id = "atailoftwocats",
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- fourteen tutorial slots would otherwise sit in the way
         "::give ics_little_amulet_of_catspeak 1", -- Icthlarin's Little
-        -- Helper's own reward item, worn to accept and again at Hild
-        -- (twocats.rs2:62, 92) -- NOT twocats_amuletofcatspeak, which
-        -- cannot legitimately exist before Hild's exchange creates it.
-        "::give deathrune 5", -- Hild's ghost-ward requirement, twocats.rs2:96
+        -- Helper's own reward item, worn to accept (twocats.rs2:62's
+        -- ~twocats_catspeak reads WORN) and handed to Hild worn-or-carried.
+        "::give growncatobject 1", -- Quest Helper's `cat` FollowerItemRequirement:
+        -- "You must have a cat or kitten with you" (~twocats_has_cat reads
+        -- ~ratcatch_has_cat, which accepts any grown-cat colour carried).
+        -- Death runes are NOT staged here (run 1's bug): twocats.rs2:198-202
+        -- checks `inv_total(inv,deathrune) < 5` unconditionally on the FIRST
+        -- Hild visit too, before it sets stage 10 -- runes already in the
+        -- backpack skip straight into the same-page enchant branch, which
+        -- desyncs chat.play's first-visit script entirely (measured run 1:
+        -- talkToHild-dialog mismatched at "I don't have the death runes.").
+        -- Given via t.cheat AFTER the first Hild visit instead, matching
+        -- twocats.rs2's own two-visit shape (a brought-along item, staged
+        -- late on purpose).
         "::complete quest_icthlarinslittlehelper", -- Quest Helper's real
-        -- prerequisite. The cheat only sets %ics_little_var -- it grants no
-        -- item -- so the amulet above is given separately, the way any
-        -- other `canBeObtainedDuringQuest()`-false prerequisite is staged.
-        "::complete quest_gertrudescat", -- real prerequisite for the
-        -- Gertrude step: %fluffs = ^fluffs_complete is what lets
-        -- gertrude.rs2's ladder fall to ~gertrude_route_topics at all
-        -- (gertrude.rs2:9-27's own header comment).
-        -- The step-40 chore kit. Each chore trigger names its own item and
-        -- count (twocats.rs2:644-834, read in full beside each chore row
-        -- below) -- 4 potato seeds because `inv_total(inv, potato_seed) < 4`
-        -- refuses with fewer.
+        -- prerequisite (getGeneralRequirements). The cheat only sets
+        -- %ics_little_var -- it grants no item -- so the amulet above is
+        -- given separately.
+        "::complete quest_gertrudescat", -- required for Gertrude's ladder to
+        -- fall through to ~gertrude_route_topics at all (gertrude.rs2's own
+        -- header comment).
+        -- The step-40 chore kit -- each trigger names its own item and
+        -- count (twocats.rs2, read beside each chore row below).
         "::give rake 1",
         "::give dibber 1",
         "::give potato_seed 4",
@@ -143,30 +187,44 @@ return {
         "::give chocolate_cake 1",
         "::give bucket_milk 1",
         "::give shears 1",
-        -- The medical disguise for step 55 (twocats.rs2:969-990): hat
-        -- (granted in-run by the Apothecary), desert shirt + robe worn, a
-        -- vial of water carried and consumed. Brought-along kit per Quest
-        -- Helper's item requirements, not the quest's own deliverable.
+        -- The medical disguise for step 55: white robes worn, a vial of
+        -- water carried and consumed (twocats.rs2:1459-1478). Brought-along
+        -- kit per Quest Helper's item requirements, not the quest's own
+        -- deliverable.
         "::give desert_shirt 1",
         "::give desert_robe 1",
         "::give vial_water 1",
+        -- Test aid only, no guide step names it: a weapon to prove
+        -- ~twocats_disguised's own "no weapon/shield equipped" clause
+        -- (twocats.rs2:1503) refuses the cure, before it is taken back off
+        -- and the real disguise is worn.
+        "::give bronze_sword 1",
     },
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "twocats_quest",
+            varp = "twocats_quest", -- a VARBIT (id 1028) packed into the
+            -- carrier varp `[twocats]` (protect=no/transmit=yes/scope=perm,
+            -- atailoftwocats.varp) -- t.quest.bind resolves either kind
+            -- transparently (QUEST_AUTHORING.md section 3).
             constants = {
                 not_started = 0,
-                accepted = 5,
-                hild_done = 10,
-                bob_found = 20, -- twocats.rs2:355, [proc,twocats_bob_talk_1]
-                gertrude_done = 25, -- twocats.rs2:443, [proc,twocats_gertrude_after_bob]
-                reldo_done = 30, -- twocats.rs2:470, [label,twocats_talk_to_reldo]
-                bob_found_again = 35, -- twocats.rs2:371, [proc,twocats_bob_talk_2]
-                chores_ready = 40, -- twocats.rs2:595, [label,twocats_talk_to_sphinx]
-                complete = 70, -- twocats.rs2:1005, [label,twocats_done]
+                accepted = 5, -- twocats.rs2:107, after ~p_choice2_header
+                hild_asked = 10, -- twocats.rs2:198, first Hild visit
+                amulet_enchanted = 15, -- twocats.rs2:241, the atomic exchange
+                bob_found = 20, -- twocats.rs2:612 (bob_talk_1)
+                gertrude_done = 25, -- twocats.rs2:714
+                reldo_done = 30, -- twocats.rs2:797
+                bob_found_again = 35, -- twocats.rs2:612 (bob_talk_2 -- see below)
+                chores_ready = 40, -- twocats.rs2:991-ish, end of Sphinx scene
+                chores_done = 45, -- twocats.rs2:1009, [queue,twocats_chores_finished]
+                apothecary_needed = 50, -- twocats.rs2:1365
+                hat_given = 55, -- twocats.rs2:1425
+                cured = 60, -- twocats.rs2:1489
+                bob_home = 65, -- twocats.rs2:656 (bob_talk_3)
+                complete = 70, -- twocats.rs2:1540, [label,twocats_done]
             },
-            row = "quest_tailoftwocats", -- all.dbrow.compack:143
+            row = "quest_tailoftwocats",
             display = "A Tail of Two Cats",
             points = 2,
         })
@@ -174,347 +232,724 @@ return {
         t.ticks(3) -- setup cheats (::give, ::complete) are not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- Captured here, not read from quest.bind's own internal qp_before
-        -- (no getter exposes it to a quest file): the completion's own
-        -- quest.points row (below) needs the SAME "before" reading
-        -- expect_complete would have taken at bind time, and bind already
-        -- ran above this line.
+        -- Captured here (not exposed by quest.bind) for the hand-rolled
+        -- quest.points row at completion -- section 8's recipe.
         local qp_before_result, qp_before = t.var.varp("qp")
 
-        -- Wear the regular Catspeak amulet -- twocats.rs2:62's own guard
-        -- reads `inv_total(worn, ics_little_amulet_of_catspeak)`, not `inv`.
         t.exec("amulet.equip", t.player.equip, "ics_little_amulet_of_catspeak")
 
-        -- Talk to Unferth (twocats_unferth, NE Burthorpe) to accept the
-        -- quest. [opnpc1,twocats_unferth]/[opnpc1,twocats_unferth_bald]
-        -- share one body (twocats.rs2:40-42); at %twocats_quest=0 it
-        -- dispatches to [label,twocats_start] (twocats.rs2:60-66), a single
-        -- PLAYER line (trap 18) with no npc reply once the amulet check
-        -- passes.
+        -- talkToUnferth: NE Burthorpe (2918,3558). Verbatim accept scene,
+        -- ending in the real Yes/No confirm.
         t.exec("goto-unferth", t.player.goto_tile, 2918, 3558, 0)
         t.exec("talkToUnferth", t.player.talk_to, "twocats_unferth", 1)
         t.exec("talkToUnferth-dialog", t.chat.play, {
-            "player:I'll help you.",
+            "npc:Hello, I see you have a cat.",
+            "npc:Meow.",
+            "player:Indeed I do! Do you have a cat?",
+            "npc:I do! His name is Bob but I can't find him!",
+            "player:Oh dear...",
+            "npc:I haven't seen him for a week! What am I to do?!",
+            "npc:What a wet blanket, Bob can look after himself.",
+            "player:I know puss, but he is in distress.",
+            "npc:Whaa...",
+            "player:Never mind.",
+            "choose:Yes.",
+            "player:Tell you what. I'll help you!",
+            "npc:Would you? Oh that would be so great!",
+            "npc:I don't want to leave the house in case Bob come",
+            "npc:He must be hungry by now!",
+            "npc:This guy gets on my nerves.",
+            "player:Shh!",
+            "npc:Huh?",
+            "player:Er... Where did you see Bob last?",
+            "npc:Well he usually comes back to me once a week. Us",
+            "player:I wonder why it's on a Wednesday.",
+            "npc:Hmph, well, this week he hasn't come back for hi",
+            "player:So he could be anywhere?",
+            "npc:I guess so.",
+            "npc:I've just had an idea!",
+            "npc:Oh my, you win... a biscuit!",
+            "player:Puss!",
+            "npc:Do you want to help or not?!",
+            "player:I said I would, didn't I?",
+            "npc:Ok.",
+            "npc:My friend Hild is cleverer than me...",
+            "npc:ANYONE would be 'cleverer'!",
+            "player:Hehe!",
+            "npc:This isn't funny!",
+            "player:Sorry!",
+            "npc:Where was I? Oh yes... my friend Hild might be a",
+            "player:Ok. I'll go speak to her!",
+            "npc:Please hurry!",
         })
         t.expect("quest.stage.accepted", t.quest.expect_stage("accepted"))
 
-        -- Talk to Hild (death_woman_indoors1, spawned 2930,3566,0). At
-        -- %twocats_quest=5 [opnpc1,death_woman_indoors1] (twocats.rs2:79-80)
-        -- dispatches to [label,twocats_talk_to_hild] (twocats.rs2:82-108):
-        -- a single PLAYER line, then (amulet still worn, 5 death runes
-        -- held, a free slot) the atomic exchange runs silently -- no npc
-        -- reply page.
+        -- talkToHild (first visit, 5->10): death_woman_indoors1, 2930,3566.
+        -- Always ends "I don't have the death runes" and writes 10, whether
+        -- or not the runes are already carried (twocats.rs2:198-202).
         t.exec("goto-hild", t.player.goto_tile, 2930, 3566, 0)
         t.exec("talkToHild", t.player.talk_to, "death_woman_indoors1", 1)
         t.exec("talkToHild-dialog", t.chat.play, {
-            "player:I'm here to help.",
+            "npc:Greetings Adventurer, why have you come to me in",
+            "player:Greetings Hild, I am trying to find Unferth's ca",
+            "npc:Unferth's cat? Pfft! Unferth is Bob's human!",
+            "player:What are you talking about?",
+            "npc:Your cat speaks some truth, it is humans that mi",
+            "player:You understand what my cat is saying?!",
+            "npc:Indeed.",
+            "player:Er...",
+            "npc:Bob didn't come home this week.",
+            "npc:Hmm. This is not like Bob, I wonder what could b",
+            "npc:I don't think there is a problem, Bob is probabl",
+            "player:Hello? I'm still here!",
+            "npc:I am sorry ",
+            "player:Ah... good! He could be anywhere though!",
+            "npc:I see you have an Amulet of Catspeak. If you ope",
+            "npc:then I will be able to perform the enchantment f",
+            "player:I don't have the death runes.",
+            "npc:Come back to me when you have them.",
         })
-        t.expect("quest.stage.hild_done", t.quest.expect_stage("hild_done"))
-        t.expect("hild.amulet_upgraded", t.inv.expect_has("twocats_amuletofcatspeak", 1))
+        t.expect("quest.stage.hild_asked", t.quest.expect_stage("hild_asked"))
 
-        -- ---------------------------------------------------------------
-        -- Find Bob (1st): the Catspeak amulet (e)'s Open op
-        -- ([opheld3,twocats_amuletofcatspeak], twocats.rs2:138-157). The
-        -- mesbox SUSPENDS the calling script (trap 22) -- the direction
-        -- reading and the locator panel mount only after it is dismissed.
-        -- ---------------------------------------------------------------
-        t.exec("amulet.open1", t.player.inv_op, "twocats_amuletofcatspeak", 3)
-        t.exec("amulet.open1-dialog", t.chat.play, {
-            "mesbox:You activate the Catspeak amulet",
+        -- The death runes -- a brought-along Quest Helper item (deathRune5)
+        -- -- staged NOW, after the first visit has already run the
+        -- runes-not-held branch for real (see the setup-list note above).
+        local deathrune_result = t.cheat("::give deathrune 5")
+        t.check("deathrune.given", deathrune_result == "ok", "::give deathrune 5 -> " .. tostring(deathrune_result))
+        t.ticks(3)
+
+        -- talkToHild (second visit, 10->15): the atomic exchange. This is
+        -- the SAME guide step (steps.put(5,talkToHild); steps.put(10,
+        -- talkToHild)), driven a second time to reach the real enchant
+        -- branch.
+        t.exec("talkToHild-enchant", t.player.talk_to, "death_woman_indoors1", 1)
+        t.exec("talkToHild-enchant-dialog", t.chat.play, {
+            "npc:Greetings Adventurer, do you have the death rune",
+            "player:I have the death runes with me now.",
+            "npc:Good. Give me the amulet so that I may perform t",
+            "*",
+            "*",
+            "npc:Using the enchanted amulet is easy; open up the ",
+            "npc:direction that Bob is in, the eyes will light up",
+            "npc:matter which way the nose is pointing. That's al",
+            "player:Thanks!",
         })
-        local dir1_result, dir1_detail = t.msg.expect("Bob")
-        t.check("locator.direction1", dir1_result == "ok", tostring(dir1_detail))
-        -- Run 1 measured `t.ui.await_open("bob_locator_amulet", 5)` timeout
-        -- every one of the three times this is used -- section 8's "never
-        -- ship a row you have measured to time out" rule -- so the panel
-        -- mount is not asserted; the direction reading above is the real,
-        -- content-driven evidence for this leg (`~twocats_bob_direction`,
-        -- twocats.rs2:223-264).
+        t.expect("quest.stage.amulet_enchanted", t.quest.expect_stage("amulet_enchanted"))
+        t.expect("hild.amulet_e", t.inv.expect_has("twocats_amuletofcatspeak", 1))
+        t.expect("hild.runes_taken", t.inv.expect_absent("deathrune"))
 
-        -- Talk to Bob (1st): death_growncat_black, spawned 2924,3565,0,
-        -- three tiles from Unferth's own house. His ONLY click trigger is
-        -- dragonslayer2.rs2's [opnpc1,death_growncat_black]+children ->
-        -- [label,ds2_bob_talk], which (no DS2 progress, %twocats_quest=10)
-        -- calls [proc,twocats_bob_talk_1] (twocats.rs2:340-356): npc,
-        -- player, npc, player, npc -- five pages, ending %twocats_quest=20.
-        t.exec("goto-bob-1", t.player.goto_tile, 2924, 3565, 0)
-        t.exec("talkToBob", t.player.talk_to, "death_growncat_black", 1)
+        -- findBob: the catspeak amulet (e)'s Open op, unworn (still in the
+        -- backpack -- [opheld3,twocats_amuletofcatspeak]). Mounts
+        -- bob_locator_amulet and turns the whiskers -- the dial's own
+        -- sector-vs-Bob comparison (~twocats_locator_refresh) lights the
+        -- eyes/mouth through a mirror varp (%twocats_locator_found) this
+        -- pack allocates above the cache's own ids (pack/varp.alloc:1473),
+        -- so lint_quest.py's compack check (all.varp/all.varbit.compack
+        -- only) cannot see it -- read the real, cache-native dial position
+        -- instead (%twocats_locator_direction, id 1034) as the row's
+        -- evidence that the whiskers were pressed for real.
+        t.exec("findBob", t.player.inv_op, "twocats_amuletofcatspeak", 3)
+        t.expect("findBob.mounted", t.ui.await_open("bob_locator_amulet", 10))
+        local _, findbob_r_widget = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
+        local findbob_direction_before_result, findbob_direction_before = t.var.server("twocats_locator_direction")
+        for i = 1, 4 do
+            t.ticks(2)
+            if findbob_r_widget then
+                t.ui.invoke(findbob_r_widget, 1)
+            end
+        end
+        local findbob_direction_after_result, findbob_direction_after = t.var.server("twocats_locator_direction")
+        t.check("findBob.dial_turned", findbob_direction_after_result == "ok",
+            "direction " .. tostring(findbob_direction_before) .. " -> " .. tostring(findbob_direction_after)
+                .. " (" .. tostring(findbob_direction_before_result) .. "/" .. tostring(findbob_direction_after_result) .. ")")
+        t.key("escape")
+        t.expect("findBob.closed", t.ui.await_close("bob_locator_amulet", 10))
+
+        -- Wear the enchanted amulet: every talk from here needs it WORN
+        -- (~twocats_catspeak), and worn also switches the locator's own
+        -- verb from inv_op (Open) to the worn-tab "Locate" used below.
+        t.exec("amulet_e.equip", t.player.equip, "twocats_amuletofcatspeak")
+
+        -- talkToBob: death_growncat_black wanders the whole world; stand
+        -- beside him with the content's own travel-only test aid
+        -- (::twocats_gotobob, "Test aid, not a quest path") and retry the
+        -- click up to 3 times, the way the proved driver measured he needs.
+        local talkToBob_result, talkToBob_detail
+        for attempt = 1, 3 do
+            t.cheat("::twocats_gotobob")
+            t.ticks(10)
+            t.cheat("::twocats_gotobob")
+            t.ticks(6)
+            t.msg.expect("Bob is at")
+            talkToBob_result, talkToBob_detail = t.player.talk_to("death_growncat_black", 1)
+            if talkToBob_result == "ok" and not tostring(talkToBob_detail):find("no dialogue") then
+                break
+            end
+        end
+        t.check("talkToBob", talkToBob_result == "ok" and not tostring(talkToBob_detail):find("no dialogue"),
+            tostring(talkToBob_result) .. " " .. tostring(talkToBob_detail))
         t.exec("talkToBob-dialog", t.chat.play, {
-            "npc:There you are! I've been hoping someone would come and find me.",
-            "player:Unferth sent me. He's not well, and he's worried about you.",
-            "npc:I never knew my parents. I've always wondered if that has something to do with it.",
-            "player:I'll find out what I can. Do you know anything about them at all?",
-            "npc:Only that my mother was Gertrude's cat. She lives to the west of Varrock",
+            "player:Bob! I've found you at last!",
+            "npc:Hi Bob!",
+            "npc:Hi there son.",
+            "player:Don't start that again!",
+            "npc:The humans have been looking for you, they get w",
+            "npc:Ah. I should've realised Unferth would miss me.",
+            "npc:What's up?",
+            "npc:Sigh. I can't believe it but I've fallen for Nei",
+            "player:Neite...now, I'm sure I've heard that name befor",
+            "npc:What a beauty she is! It's the way the shimmer f",
+            "npc:would say, she's the cat's whiskers. Oh how I lo",
+            "npc:Wow! He's got it bad! Real bad! I never thought ",
+            "npc:I know but there is something about her. The way",
+            "player:I'm starting to feel sick...",
+            "npc:I haven't been home because I've wanted to be al",
+            "npc:Does Neite feel the same way about you?",
+            "npc:She said she has feelings for me but would never",
+            "npc:Don't you know who your parents are?",
+            "npc:All I know is that Gertrude found me on her door",
+            "player:The crazy cat lady?",
+            "npc:Don't you have any memory of your parents?",
+            "npc:Nothing! The furthest back I can remember is Ger",
+            "npc:*",
+            "player:Do I look like a match maker?!",
+            "npc:Come on! We can help Bob!",
         })
         t.expect("quest.stage.bob_found", t.quest.expect_stage("bob_found"))
 
-        -- Talk to Gertrude (west of Varrock, spawned 3151,3410,0, BASE
-        -- symbol "gertrude" -- gertrude.rs2:29's own header names the
-        -- gertrude_post-vs-gertrude trap this trigger used to fall into).
-        -- Its %fluffs ladder (gertrude_fluffs_talk) falls to the trailing
-        -- else -> ~gertrude_route_topics (gertrude.rs2:107-136): Ratcatchers
-        -- is not eligible here (%giantdwarf_quest never started), so
-        -- $rat=0/$tail=1 routes straight to ~twocats_gertrude_after_bob
-        -- with no topic menu -- a single PLAYER line (twocats.rs2:441-443),
-        -- no npc reply.
+        -- talkToGertrude: west of Varrock, BASE symbol "gertrude" (trap 19).
         t.exec("goto-gertrude", t.player.goto_tile, 3151, 3410, 0)
         t.exec("talkToGertrude", t.player.talk_to, "gertrude", 1)
         t.exec("talkToGertrude-dialog", t.chat.play, {
-            "player:I found Bob!",
+            "choose:Ask about Bob's parents.",
+            "player:Hello again Gertrude!",
+            "npc:Welcome back adventurer! How is your cat?",
+            "npc:I'm fine thanks.",
+            "player:He says he's fine.",
+            "npc:What can I do for you then? I hope it's not abou",
+            "player:Death runes? No idea.... No, it's not that. I, e",
+            "npc:Come on, spit it out.",
+            "player:This is going to sound silly...",
+            "npc:Why, are you going to talk in a stupid accent? G",
+            "player:Ok... Well... Do you know who Bob's parents are?",
+            "npc:Bob.... you mean the big tomcat who hangs around",
+            "npc:a kitten inside it left on my doorstep. I brough",
+            "npc:We don't have time for this, Bob could be in tro",
+            "npc:Crumbs! Your cat's quite noisy isn't it? Is ever",
+            "player:No, it's erm... It needs to be taken to the vets",
+            "npc:I do hope you're joking. These claws are real yo",
+            "player:See, it just can't stop howling. Allergic to cat",
+            "npc:Oh was I... Oh yes, well, I'm afraid I don't kno",
+            "npc:Hang on, maybe this is something to do with the ",
+            "player:Vaguely?",
+            "npc:Ask Gertrude if she knows anything.",
+            "player:Hmm... Gertrude, do you know anything of the leg",
+            "npc:No, sorry. If it's a legend, it's Reldo you need",
+            "npc:Good old Gertrude! Come on, lets go.",
+            "player:But...",
+            "npc:I'll explain later!",
         })
         t.expect("quest.stage.gertrude_done", t.quest.expect_stage("gertrude_done"))
 
-        -- Talk to Reldo, Varrock castle library (spawned 3209,3495,0, base
-        -- symbol "reldo"). reldo.rs2's own [opnpc1,reldo] owns the
-        -- %twocats_quest 25..30 window and hands off to
-        -- [proc,twocats_reldo_talk] -> [label,twocats_talk_to_reldo]
-        -- (twocats.rs2:460-470): a single PLAYER line, then (amulet held)
-        -- %twocats_reldo=1 and %twocats_quest=30 with no reply page.
+        -- talkToReldo: Varrock Castle library (3209,3495). A deliberate
+        -- negative check first -- unworn amulet -- content's own "meow"
+        -- refusal and the stage staying 25 (twocats.rs2:775-778) -- then
+        -- re-equip and drive the real exchange (writes 30).
         t.exec("goto-reldo", t.player.goto_tile, 3209, 3495, 0)
+        t.exec("amulet_e.unequip", t.player.unequip, "twocats_amuletofcatspeak")
+        t.exec("reldo.unworn", t.player.talk_to, "reldo", 1)
+        t.exec("reldo.unworn-dialog", t.chat.play, {
+            "npc:Hello there",
+            "choose:I have a cat related question.",
+            "player:I have a cat related question.",
+            "npc:Yes?",
+            "player:Well...",
+            "npc:Meow.",
+            "player:Hmm... My cat is trying to say something",
+        })
+        t.expect("reldo.unworn_stays_gertrude_done", t.var.await_server("twocats_quest", 25, 3))
+        t.exec("amulet_e.equip2", t.player.equip, "twocats_amuletofcatspeak")
         t.exec("talkToReldo", t.player.talk_to, "reldo", 1)
         t.exec("talkToReldo-dialog", t.chat.play, {
+            "npc:Hello there",
+            "choose:I have a cat related question.",
             "player:I have a cat related question.",
+            "npc:Yes?",
+            "player:Well...",
+            "npc:Go on... ask him.",
+            "player:Okay, okay. I'm on it.",
+            "player:Do you know anything about Robert the Strong?",
+            "npc:Ah, Robert the Strong. There's some details on h",
+            "npc:Fourth Age... Popular Lore... Ah here we are, Ro",
+            "npc:'Not much is known about the hero called Robert ",
+            "npc:'He wields a six foot tall longbow and travels w",
+            "player:Dragonkin?",
+            "npc:I'm coming to that.",
+            "npc:'The stories tell of the dragonkin being an inte",
+            "npc:'Because of this, they became very afraid of dea",
+            "npc:'Some even say the dragonkin made corrupted vers",
+            "player:Hmm... Doesn't sound very believable.",
+            "npc:There's no doubt that some elements of these tal",
+            "npc:Robert the Strong is a name that often comes up ",
+            "player:Thank you Reldo, you've been most... helpful.",
+            "player:That was a nice tale for mothers to tell their c",
+            "npc:Don't you think it's odd that no one knows where",
+            "player:I guess, but he's just a cat... right?",
+            "npc:I'd hoped you would've understood by now that th",
+            "player:Ok, ok! I get your point, after all I'm being dr",
+            "npc:I wouldn't say dragged... let's call it a partne",
+            "player:Ok!",
+            "player:So are you saying that Robert the Strong is... i",
+            "player:Bob?!",
+            "npc:Let's ask Bob!",
+            "player:Let's go!",
         })
         t.expect("quest.stage.reldo_done", t.quest.expect_stage("reldo_done"))
+        t.expect("reldo.withbook", t.var.await_server("twocats_reldo", 1, 3))
 
-        -- Find Bob (2nd): amulet Open again (twocats.rs2:159-167), same
-        -- mesbox-then-panel shape as the first.
-        t.exec("amulet.open2", t.player.inv_op, "twocats_amuletofcatspeak", 3)
-        t.exec("amulet.open2-dialog", t.chat.play, {
-            "mesbox:You use the Catspeak amulet (e) again",
-        })
-        local dir2_result, dir2_detail = t.msg.expect("Bob")
-        t.check("locator.direction2", dir2_result == "ok", tostring(dir2_detail))
-        -- Panel mount not asserted here either -- see the note beside
-        -- locator.direction1 above.
+        -- findBobAgain: the WORN "Locate" verb (equipment tab -> wornitems
+        -- slot2 op 2), the amulet already worn from the Reldo re-equip.
+        t.exec("goto-findBobAgain", t.player.goto_tile, 3209, 3495, 0)
+        -- t.ui.tab answers a bare "ok" with no detail (trap 12's hollow
+        -- rule) -- call it directly and record the result ourselves.
+        local findbobagain_tab_result = t.ui.tab("equipment")
+        t.check("findBobAgain.tab", findbobagain_tab_result == "ok",
+            "ui.tab(equipment) -> " .. tostring(findbobagain_tab_result))
+        t.ticks(2)
+        local _, findbobagain_worn_slot = t.ui.widget("wornitems:slot2")
+        t.check("findBobAgain.worn_slot", findbobagain_worn_slot ~= nil,
+            "wornitems:slot2 component=" .. tostring(findbobagain_worn_slot))
+        if findbobagain_worn_slot then
+            t.ui.invoke(findbobagain_worn_slot, 2)
+        end
+        t.expect("findBobAgain.mounted", t.ui.await_open("bob_locator_amulet", 10))
+        local _, findbobagain_r_widget = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
+        -- %twocats_locator_found is a pack/varp.alloc test-only mirror var
+        -- outside lint's compack check (see the findBob note above); the
+        -- cache-native %twocats_locator_direction is the row's evidence.
+        local findbobagain_direction_before_result, findbobagain_direction_before = t.var.server("twocats_locator_direction")
+        for i = 1, 4 do
+            t.ticks(2)
+            if findbobagain_r_widget then
+                t.ui.invoke(findbobagain_r_widget, 1)
+            end
+        end
+        local findbobagain_direction_after_result, findbobagain_direction_after = t.var.server("twocats_locator_direction")
+        t.check("findBobAgain.dial_turned", findbobagain_direction_after_result == "ok",
+            "direction " .. tostring(findbobagain_direction_before) .. " -> " .. tostring(findbobagain_direction_after)
+                .. " (" .. tostring(findbobagain_direction_before_result) .. "/" .. tostring(findbobagain_direction_after_result) .. ")")
+        t.key("escape")
+        t.expect("findBobAgain.closed", t.ui.await_close("bob_locator_amulet", 10))
 
-        -- Talk to Bob (2nd): [proc,twocats_bob_talk_2] (twocats.rs2:358-371)
-        -- opens with the PLAYER's own line (trap 18) -- player, npc, npc --
-        -- ending %twocats_quest=35.
-        t.exec("goto-bob-2", t.player.goto_tile, 2924, 3565, 0)
-        t.exec("talkToBobAgain", t.player.talk_to, "death_growncat_black", 1)
+        -- talkToBobAgain: same wander/retry shape as talkToBob.
+        local talkToBobAgain_result, talkToBobAgain_detail
+        for attempt = 1, 3 do
+            t.cheat("::twocats_gotobob")
+            t.ticks(10)
+            t.cheat("::twocats_gotobob")
+            t.ticks(6)
+            t.msg.expect("Bob is at")
+            talkToBobAgain_result, talkToBobAgain_detail = t.player.talk_to("death_growncat_black", 1)
+            if talkToBobAgain_result == "ok" and not tostring(talkToBobAgain_detail):find("no dialogue") then
+                break
+            end
+        end
+        t.check("talkToBobAgain", talkToBobAgain_result == "ok"
+            and not tostring(talkToBobAgain_detail):find("no dialogue"),
+            tostring(talkToBobAgain_result) .. " " .. tostring(talkToBobAgain_detail))
         t.exec("talkToBobAgain-dialog", t.chat.play, {
-            "player:Reldo told me about Robert the Strong, and the Dragonkin.",
-            "npc:Robert... that name stirs something in me, like a memory I can't quite reach.",
-            "npc:There's someone in Sophanem who might help us both remember",
+            "player:Hi Bob!",
+            "npc:Did you find out who my parents are?",
+            "player:Not exactly...",
+            "npc:We think you are... or used to be... Robert the ",
+            "npc:Robert the who?",
+            "player:I thought this was stupid.",
+            "npc:Robert the Strong was a great hero, you have no ",
+            "npc:No... I'm afraid not.",
+            "npc:Does a black panther called Odysseus ring any be",
+            "npc:No...",
+            "npc:What about the dragonkin? A vicious race of bird",
+            "npc:Nothing...",
+            "player:Looks like theres nothing else we can do puss.",
+            "npc:I'm not done yet!",
+            "npc:Do you remember when you were hypnotised by the ",
+            "player:Well no... I was hypnotised!",
+            "npc:Hehe!",
+            "npc:The Sphinx understood how you were hypnotised, i",
+            "player:Sounds crazy... guess it might work!",
+            "npc:Bye for now Bob, we're going to speak to the Sph",
+            "npc:Bye.",
         })
         t.expect("quest.stage.bob_found_again", t.quest.expect_stage("bob_found_again"))
 
-        -- ---------------------------------------------------------------
-        -- Talk to the Sphinx, Sophanem (spawned 3300,2784,0, symbol
-        -- ics_little_sphinx). Its owner dragonslayer2.rs2's own
-        -- [opnpc1,ics_little_sphinx] hands %twocats_quest 35..40 to
-        -- @twocats_talk_to_sphinx (twocats.rs2:501-607) -- the full pinned
-        -- hypnosis-and-reveal cutscene, ~80 pages ending in a real teleport
-        -- choice and the chores objbox. Every page gets a chat.play entry;
-        -- `*` marks a page whose exact text carries no symbol/stage write
-        -- to verify (pure Bob/Sphinx/Neite/Cat banter) -- the surrounding
-        -- exact rows are the amulet gate, the hypnosis start/end, the
-        -- agreement to help and the teleport offer, each cited to its own
-        -- line in twocats.rs2.
-        -- ---------------------------------------------------------------
+        -- talkToSphinx: Sophanem (3300,2784). The verbatim hypnosis-and-
+        -- reveal cutscene, ending in the Burthorpe teleport offer and the
+        -- chores objbox.
         t.exec("goto-sphinx", t.player.goto_tile, 3300, 2784, 0)
         t.exec("talkToSphinx", t.player.talk_to, "ics_little_sphinx", 1)
-
-        local sphinx_pages = {
-            "player:Good day.", -- twocats.rs2:502
-            "npc:What is it human?", -- 511
-            "player:Sphinx, we need your help!", -- 512
-        }
-        for i = 1, 12 do table.insert(sphinx_pages, "*") end -- 518-529: Cat's
-        -- plea + the Sphinx's own agreement-to-help exchange (chatnpc_specific
-        -- Cat at 518, then 519-529)
-        table.insert(sphinx_pages, "npc:It is true that there is something about Bob") -- 530
-        for i = 1, 15 do table.insert(sphinx_pages, "*") end -- 531-546: the
-        -- "come with me" + hypnosis setup (533-546)
-        table.insert(sphinx_pages, "npc:You are now under my influence.") -- 547
-        for i = 1, 15 do table.insert(sphinx_pages, "*") end -- 548-562: the
-        -- hypnosis Q&A + dragonkin flashback (Robert the Strong / Dragonkin)
-        table.insert(sphinx_pages, "npc:You are no longer under my influence.") -- 563
-        for i = 1, 30 do table.insert(sphinx_pages, "*") end -- 564-593: the
-        -- reveal to Cat, Neite's summons and reaction, Bob asking the favour
-        table.insert(sphinx_pages, "player:OK, no problem Bob.") -- 594
-        table.insert(sphinx_pages, "npc:since you are to look after Unferth") -- 599
-        table.insert(sphinx_pages, "choose:Yes, teleport me to Unferth's house.") -- 600
-        table.insert(sphinx_pages, "*") -- 606: the chores objbox
-
-        t.exec("talkToSphinx-dialog", t.chat.play, sphinx_pages)
+        t.exec("talkToSphinx-dialog", t.chat.play, {
+            "choose:Ask the Sphinx for help for Bob.",
+            "player:Good day.",
+            "npc:What is it human?",
+            "player:Sphinx, we need your help!",
+            "npc:Yes, please help!",
+            "npc:Very well, I see you have a close relationship w",
+            "npc:What is the problem?",
+            "player:Thank you!",
+            "player:Bob is in love with Neite but we need to prove t",
+            "npc:Slow down human!",
+            "npc:Bob has fallen in love?",
+            "npc:This I did not foresee!",
+            "npc:Who is this Robert the Strong that you speak of?",
+            "player:He was a mighty hero!",
+            "npc:Human myths interest me not.",
+            "npc:Robert the Strong was no ordinary human though!",
+            "npc:It is true that there is something about Bob... ",
+            "player:But Bob has no memory of this!",
+            "npc:Then it is the time for action!",
+            "npc:Come with me into the desert so we are not distu",
+            "npc:Quiet please.... I shall summon Bob.",
+            "npc:What..? What happened?",
+            "npc:I was eating a particularly nice piece of tuna.",
+            "npc:Greetings Bob.",
+            "npc:Oh, hi there Sphinx.",
+            "npc:Hi there ",
+            "npc:I have brought you here to find out who you real",
+            "npc:So you buy this Robert the Strong stuff?",
+            "npc:I have long suspected that your appearance as an",
+            "npc:Hey! I'm just this cat, you know?",
+            "npc:Look into my eyes.",
+            "npc:Sure... whatever.",
+            "npc:You are now under my influence.",
+            "npc:Let's start with something simple. What is your ",
+            "npc:My name is Bob.",
+            "npc:Good. Are you or have you ever been called Rober",
+            "npc:I... I don't know.",
+            "npc:Think back to your earliest memories.",
+            "npc:I see a big cat...",
+            "npc:Where are you now?",
+            "npc:I am in front of a dark tower... the cat is call",
+            "npc:What is your name?",
+            "npc:My name is Robert.",
+            "npc:I am walking towards the tower...",
+            "npc:Come, Odysseus!",
+            "npc:Hesente!",
+            "npc:Crasortius!",
+            "npc:Never!",
+            "npc:You are no longer under my influence.",
+            "npc:Wow Bob! You really are Robert the Strong!",
+            "npc:I am?",
+            "npc:Yes! When you were hypnotised you told us of whe",
+            "npc:I did?",
+            "npc:Yes! How can Neite refuse you now!",
+            "npc:Really?",
+            "npc:Sphinx, summon Neite please!",
+            "npc:There are more important matters than match maki",
+            "npc:That can wait! Bob has been love sick, we have t",
+            "npc:Very well! I shall summon Neite!",
+            "npc:Oh... furballs!",
+            "npc:Hi Neite!",
+            "npc:Hello, to what do I owe this pleasure?",
+            "npc:Bob is Robert the Strong!",
+            "npc:What are you talking about?",
+            "npc:The Sphinx hypnotised Bob. Bob told us about whe",
+            "npc:So you're supposed to be Robert the Strong?",
+            "npc:So they tell me.",
+            "npc:Hmph.",
+            "npc:For too long I have ignored the fact that there ",
+            "npc:Wow.",
+            "npc:Come here you.",
+            "npc:*",
+            "npc:Neite!",
+            "npc:Of course kitten.",
+            "npc:Hey ",
+            "player:Of course.",
+            "npc:Myself and Neite are going away for a few days. ",
+            "player:Er... sure.",
+            "npc:I'll give you a list of what needs doing.",
+            "player:OK, no problem Bob.",
+            "npc:*",
+            "choose:Yes, teleport me to Unferth's house.",
+            "*",
+        })
         t.expect("quest.stage.chores_ready", t.quest.expect_stage("chores_ready"))
+        t.expect("chores.list_given", t.inv.expect_has("twocats_chores", 1))
 
-        -- ---------------------------------------------------------------
-        -- Step 40: the five chores at Unferth's house, then the potatoes.
-        -- Uncoupled now (parity1b, twocats.rs2:701-834) -- each trigger
-        -- keeps only its own already-done guard, no chore-order chaining.
-        -- Every chore's ~mesbox SUSPENDS the calling script (trap 22) --
-        -- chat.play dismisses it before the var read below.
-        -- ---------------------------------------------------------------
-        t.exec("goto-patch", t.player.goto_tile, 2919, 3562, 0)
+        -- The findBobAgain leg left the sidebar on the equipment tab (trap
+        -- 294: a use_on issued from another tab refuses on the ARM, printing
+        -- "armed by this call" even though the press never landed --
+        -- measured run 1, useRake). Every chore below is a use_on; paint the
+        -- inventory tab back before the first one.
+        local chores_tab_result = t.ui.tab("inventory")
+        t.check("chores.tab_inventory", chores_tab_result == "ok",
+            "ui.tab(inventory) -> " .. tostring(chores_tab_result))
+        t.ticks(2)
+
+        -- useRake / plantSeeds: Unferth's patch, north of the house through
+        -- its own north door (poordoor).
+        t.exec("goto-door", t.player.goto_tile, 2920, 3560, 0)
+        t.exec("door.open", t.player.click_loc, "poordoor", 1)
         local patch = t.player.by_symbol("loc", "twocats_patch")
         t.check("patch.found", patch ~= nil, "twocats_patch resolved: " .. tostring(patch and patch.id))
+        local useRake_result, useRake_detail = t.player.use_on("rake", patch)
+        t.expect("useRake", t.var.await_server("twocats_chores_tidygarden", 3, 120))
+        t.check("useRake.press", useRake_result ~= nil,
+            "use_on -> " .. tostring(useRake_result) .. " " .. tostring(useRake_detail)
+                .. "; tidygarden read back above")
+        t.expect("chore.weeds_collected", t.inv.await("weeds", 3, 10))
+        t.exec("plantSeeds", t.player.use_on, "potato_seed", patch)
+        t.expect("quest.stage.tidygarden_planted", t.var.await_server("twocats_chores_tidygarden", 4, 10))
+        t.expect("chore.seeds_used", t.inv.expect_absent("potato_seed"))
 
-        -- [oplocu,twocats_patch] (twocats.rs2:644-683): last_useitem=rake ->
-        -- tidygarden=3.
-        t.exec("chore.rake", t.player.use_on, "rake", patch)
-        t.exec("chore.rake-dialog", t.chat.play, { "mesbox:You rake Unferth's overgrown garden patch" })
-        t.expect("chore.raked", t.var.await_server("twocats_chores_tidygarden", 3, 10))
-
-        -- Same trigger, last_useitem=potato_seed (dibber also matches, seeds
-        -- is the one Quest Helper spends): tidygarden 3->4, arms
-        -- [softtimer,twocats_potato_grow].
-        t.exec("chore.plant", t.player.use_on, "potato_seed", patch)
-        t.exec("chore.plant-dialog", t.chat.play, { "mesbox:You plant the potato seeds" })
-        t.expect("chore.planted", t.var.await_server("twocats_chores_tidygarden", 4, 10))
-
-        -- [oploc1,twocats_bed] (twocats.rs2:709-720): op1=Make. tidyhouse
-        -- 0->1.
+        -- makeBed
         t.exec("goto-house", t.player.goto_tile, 2918, 3558, 0)
-        t.exec("chore.bed", t.player.click_loc, "twocats_bed", 1)
-        t.exec("chore.bed-dialog", t.chat.play, { "mesbox:You make Unferth's unmade bed" })
-        t.expect("chore.bed_made", t.var.await_server("twocats_chores_tidyhouse", 1, 10))
+        t.exec("makeBed", t.player.click_loc, "twocats_bed", 1)
+        t.expect("quest.stage.bed_made", t.var.await_server("twocats_chores_tidyhouse", 1, 10))
 
-        -- [oplocu,twocats_fireplace] (twocats.rs2:734-764): logs first
-        -- (warmhuman 0->1), then tinderbox (warmhuman 1->2).
+        -- useLogsOnFireplace / lightLogs (the lighting itself is a bare
+        -- anim + p_delay, no chat line -- use_on's own settle times out on
+        -- success, so it is graded on the varbit read back, not the click).
         local fireplace = t.player.by_symbol("loc", "twocats_fireplace")
         t.check("fireplace.found", fireplace ~= nil, "twocats_fireplace resolved: " .. tostring(fireplace and fireplace.id))
-        t.exec("chore.logs", t.player.use_on, "logs", fireplace)
-        t.exec("chore.logs-dialog", t.chat.play, { "mesbox:You use the logs on Unferth's fireplace" })
-        t.expect("chore.logs_placed", t.var.await_server("twocats_chores_warmhuman", 1, 10))
+        t.exec("useLogsOnFireplace", t.player.use_on, "logs", fireplace)
+        t.expect("quest.stage.logs_placed", t.var.await_server("twocats_chores_warmhuman", 1, 10))
+        local lightLogs_result, lightLogs_detail = t.player.use_on("tinderbox", fireplace)
+        t.expect("lightLogs", t.var.await_server("twocats_chores_warmhuman", 2, 10))
+        t.check("lightLogs.press", lightLogs_result ~= nil,
+            "use_on -> " .. tostring(lightLogs_result) .. " " .. tostring(lightLogs_detail)
+                .. "; warmhuman read back above (silent trigger, twocats.rs2:1161-1174)")
 
-        t.exec("chore.light", t.player.use_on, "tinderbox", fireplace)
-        t.exec("chore.light-dialog", t.chat.play, { "mesbox:You light the fire with a tinderbox" })
-        t.expect("chore.fire_lit", t.var.await_server("twocats_chores_warmhuman", 2, 10))
-
-        -- [oplocu,twocats_table] (twocats.rs2:773-789): cake first
-        -- (feedhuman 0->3), then milk (feedhuman 3->4).
+        -- useChocolateCakeOnTable / useMilkOnTable
         local table_loc = t.player.by_symbol("loc", "twocats_table")
         t.check("table.found", table_loc ~= nil, "twocats_table resolved: " .. tostring(table_loc and table_loc.id))
-        t.exec("chore.cake", t.player.use_on, "chocolate_cake", table_loc)
-        t.exec("chore.cake-dialog", t.chat.play, { "mesbox:You place a chocolate cake on Unferth's table" })
-        t.expect("chore.cake_placed", t.var.await_server("twocats_chores_feedhuman", 3, 10))
-        t.exec("chore.milk", t.player.use_on, "bucket_milk", table_loc)
-        t.exec("chore.milk-dialog", t.chat.play, { "mesbox:You pour a bucket of milk on Unferth's table" })
-        t.expect("chore.milk_placed", t.var.await_server("twocats_chores_feedhuman", 4, 10))
+        t.exec("useChocolateCakeOnTable", t.player.use_on, "chocolate_cake", table_loc)
+        t.expect("quest.stage.cake_placed", t.var.await_server("twocats_chores_feedhuman", 3, 10))
+        t.exec("useMilkOnTable", t.player.use_on, "bucket_milk", table_loc)
+        t.expect("quest.stage.milk_placed", t.var.await_server("twocats_chores_feedhuman", 4, 10))
+        t.expect("chore.bucket_returned_empty", t.inv.expect_has("bucket_empty", 1))
 
-        -- [opnpcu,twocats_unferth]+children (twocats.rs2:812-834): use
-        -- shears on Unferth himself. tidyhuman 0->8. Opens with the
-        -- PLAYER's own line (chatplayer_anim), no npc reply.
+        -- useShearsOnUnferth (same silent-trigger shape as lightLogs)
         local unferth = t.player.by_symbol("npc", "twocats_unferth")
         t.check("unferth.found", unferth ~= nil, "twocats_unferth resolved: " .. tostring(unferth and unferth.id))
-        t.exec("chore.shear", t.player.use_on, "shears", unferth)
-        t.exec("chore.shear-dialog", t.chat.play, { "player:You shear Unferth's overgrown fur with the shears." })
-        t.expect("chore.sheared", t.var.await_server("twocats_chores_tidyhuman", 8, 10))
+        local useShears_result, useShears_detail = t.player.use_on("shears", unferth)
+        t.expect("useShearsOnUnferth", t.var.await_server("twocats_chores_tidyhuman", 8, 250))
+        t.check("useShearsOnUnferth.press", useShears_result ~= nil,
+            "use_on -> " .. tostring(useShears_result) .. " " .. tostring(useShears_detail)
+                .. "; tidyhuman read back above")
 
-        -- [softtimer,twocats_potato_grow] was armed by the planting above.
-        -- [debugproc,twocats_growpotatoes] (twocats.rs2:890-900, sanctioned
-        -- grind fast-forward, docs/QUEST_SERVER_CHEATS.md section A) runs
-        -- the SAME [proc,twocats_potato_advance] body the real timer calls,
-        -- once per remaining stage, rather than writing the end state.
-        t.expect("garden.grow", t.cheat("::twocats_growpotatoes"))
+        -- The potatoes grow: sanctioned GRIND fast-forward
+        -- (docs/QUEST_SERVER_CHEATS.md:120), read back below by the varbit
+        -- reaching 8 and then by the cat's own 40->45 announcement.
+        local grow_result = t.cheat("::twocats_growpotatoes")
+        t.check("garden.grow_cheat", grow_result == "ok", "::twocats_growpotatoes -> " .. tostring(grow_result))
         t.expect("garden.grown", t.var.await_server("twocats_chores_tidygarden", 8, 10))
-
-        -- Step 40 -> 45: Unferth's dispatch at %twocats_quest=40 goes to
-        -- [label,twocats_wait_for_potatoes] (twocats.rs2:916-923), which now
-        -- reads all five chore thresholds as met and, with a bare mesbox
-        -- (no player line first), sets %twocats_quest=45.
-        t.exec("waitForPotatoes", t.player.talk_to, "twocats_unferth", 1)
-        t.exec("waitForPotatoes-dialog", t.chat.play, {
-            "mesbox:All chores complete! The potatoes are ready to harvest!",
+        t.exec("chores.finished-dialog", t.chat.play, {
+            "npc:Well done, that's all the chores finished!",
+            "npc:Let's talk to Unferth to see if there's anything",
         })
-        t.expect("quest.stage.potatoes_grown", t.var.await_server("twocats_quest", 45, 10))
+        t.expect("quest.stage.chores_done", t.quest.expect_stage("chores_done"))
 
-        -- Step 45 -> 50: [label,twocats_report_to_unferth]
-        -- (twocats.rs2:929-931), the player's own line, no reply page.
+        -- reportToUnferth
+        t.exec("goto-unferth-report", t.player.goto_tile, 2918, 3558, 0)
         t.exec("reportToUnferth", t.player.talk_to, "twocats_unferth", 1)
-        t.exec("reportToUnferth-dialog", t.chat.play, { "player:I've finished all your chores!" })
-        t.expect("quest.stage.reported", t.var.await_server("twocats_quest", 50, 10))
-
-        -- Step 50 -> 55: the Apothecary in SW Varrock (spawned 3195,3404,0),
-        -- reached through apothecary.rs2's own dispatch at %twocats_quest=50
-        -- -> [label,twocats_talk_to_apoth] (twocats.rs2:945-953). Grants a
-        -- doctor's hat (both hat totals are 0 here) and sets
-        -- %twocats_quest=55.
-        t.exec("goto-apothecary", t.player.goto_tile, 3195, 3405, 0)
-        t.exec("talkToApothecary", t.player.talk_to, "apothecary", 1)
-        t.exec("talkToApothecary-dialog", t.chat.play, {
-            "player:Talk about A Tail of Two Cats.",
-            "mesbox:You receive a doctor's hat from the Apothecary!",
+        t.exec("reportToUnferth-dialog", t.chat.play, {
+            "player:Hi Unferth, is there anything I can do for you?",
+            "npc:Ugh...",
+            "npc:Now what?!",
+            "npc:I don't feel so good...",
+            "player:Oh dear! What's up?",
+            "npc:Nothing, I bet!",
+            "player:Shh!",
+            "npc:I think I need the Doctor...ugh...",
+            "player:What Doctor is that?",
+            "npc:Just a Doctor... please hurry... I don't think I",
+            "npc:Snarl!",
+            "player:We can't let Bob see him like this!",
+            "npc:I guess you're right, there is the Apothecary in",
+            "player:Good idea!",
         })
-        t.expect("quest.stage.apothecary", t.var.await_server("twocats_quest", 55, 10))
-        t.expect("reward.doctors_hat_granted", t.inv.expect_has("twocats_doctors_hat", 1))
+        t.expect("quest.stage.apothecary_needed", t.quest.expect_stage("apothecary_needed"))
 
-        -- Step 55 -> 60: [label,twocats_cure_unferth] (twocats.rs2:969-990)
-        -- requires the hat, desert shirt AND robe all WORN, no weapon or
-        -- shield equipped, and a vial of water carried (consumed). Player,
-        -- npc, mesbox -- three pages.
-        t.exec("cure.equip_hat", t.player.equip, "twocats_doctors_hat")
+        -- talkToApoth: SW Varrock (3195,3405). A real three-way menu, then
+        -- the Doctor's/Nurse hat choice -- "Nurse hat." here.
+        t.exec("goto-apothecary", t.player.goto_tile, 3195, 3405, 0)
+        t.exec("talkToApoth", t.player.talk_to, "apothecary", 1)
+        t.exec("talkToApoth-dialog", t.chat.play, {
+            "npc:I am the Apothecary. I brew potions. Do you need",
+            "choose:Talk about A Tail of Two Cats.",
+            "player:Hello Apothecary, Unferth has fallen ill. Could ",
+            "npc:That Unferth! Honestly, I have been to see him m",
+            "npc:I never did like that guy!",
+            "player:I'm beginning to agree with you!",
+            "player:What can I do with Unferth?",
+            "npc:I have a few suggestions!",
+            "npc:It's quite simple. Unferth is what we call a hyp",
+            "player:How do I make Unferth believe I am a Doctor or N",
+            "npc:Easy, make sure you are dressed in white robes a",
+            "choose:Nurse hat.",
+            "*",
+            "npc:Then all you need to do is give him a vial of wa",
+            "player:Haha!",
+            "player:I always wanted to be a Doctor!",
+        })
+        t.expect("quest.stage.hat_given", t.quest.expect_stage("hat_given"))
+        t.expect("reward.nurses_hat_granted", t.inv.expect_has("twocats_nurses_hat", 1))
+
+        -- talkToUnferthAsDoctor: first, deliberately refused holding a
+        -- weapon (~twocats_disguised's own "no weapon/shield" clause), then
+        -- the real cure (twocats.rs2:1459-1491, 30 pages).
+        t.exec("cure.equip_hat", t.player.equip, "twocats_nurses_hat")
         t.exec("cure.equip_shirt", t.player.equip, "desert_shirt")
         t.exec("cure.equip_robe", t.player.equip, "desert_robe")
+        t.exec("cure.equip_sword", t.player.equip, "bronze_sword")
         t.exec("goto-unferth-cure", t.player.goto_tile, 2918, 3558, 0)
-        t.exec("cureUnferth", t.player.talk_to, "twocats_unferth", 1)
-        t.exec("cureUnferth-dialog", t.chat.play, {
-            "player:I've come to cure you!",
-            "npc:...Doctor? Is that really you? I feel better already!",
-            "mesbox:You administer the miracle cure",
+        t.exec("cure.refused", t.player.talk_to, "twocats_unferth", 1)
+        t.exec("cure.refused-dialog", t.chat.play, {
+            "player:Good day Unferth, I am Doctor ",
+            "npc:No you're not! A Doctor wouldn't be holding that",
         })
-        t.expect("quest.stage.cured", t.var.await_server("twocats_quest", 60, 10))
-
-        -- Take the hat back off: [queue,twocats_quest_complete]
-        -- (twocats.rs2:1008-1024) reads `inv_total(inv, twocats_doctors_hat)`
-        -- -- the BACKPACK container, not worn -- so a hat left worn through
-        -- completion reads 0 there and the quest grants a SECOND doctor's
-        -- hat instead of the nurse's hat the wiki documents. The cure's own
-        -- guard only needed it worn at that one click.
-        t.exec("cure.unequip_hat", t.player.unequip, "twocats_doctors_hat")
-
-        -- Find Bob (3rd): amulet Open a final time (twocats.rs2:169-177).
-        t.exec("amulet.open3", t.player.inv_op, "twocats_amuletofcatspeak", 3)
-        t.exec("amulet.open3-dialog", t.chat.play, {
-            "mesbox:You use the Catspeak amulet (e) one final time",
+        t.expect("cure.refused_stays_hat_given", t.var.await_server("twocats_quest", 55, 2))
+        t.exec("cure.unequip_sword", t.player.unequip, "bronze_sword")
+        t.exec("talkToUnferthAsDoctor", t.player.talk_to, "twocats_unferth", 1)
+        t.exec("talkToUnferthAsDoctor-dialog", t.chat.play, {
+            "player:Good day Unferth, I am Doctor ",
+            "npc:I am so glad to see you Doctor!",
+            "npc:I am not a well man!",
+            "player:What seems to be the problem?",
+            "npc:Theres something wrong with his head!",
+            "npc:My back hurts!",
+            "player:No problem...",
+            "npc:I think my arm is broken!",
+            "player:We can...",
+            "npc:Then there's my spleen!",
+            "player:Your what...?",
+            "npc:My liver has packed in!",
+            "player:All you need to do is take this potion.",
+            "*",
+            "npc:Is that it?! I'm much more ill than that!",
+            "npc:We could offer to bonk him on the head with a bi",
+            "player:Hehe!",
+            "npc:Doctor Please take this seriously! I demand trea",
+            "player:Of course sir! The potion I have given you is th",
+            "npc:Wow! What can I say... I feel special!",
+            "player:Do you feel better?",
+            "npc:I'm not sure...",
+            "npc:Argh!",
+            "npc:Wait! I feel something! Yes! I can feel the poti",
+            "player:That's... great! Phew!",
+            "npc:Indeed. Bob should be back by now; let's go find",
         })
-        local dir3_result, dir3_detail = t.msg.expect("Bob")
-        t.check("locator.direction3", dir3_result == "ok", tostring(dir3_detail))
-        -- Panel mount not asserted here either -- see the note beside
-        -- locator.direction1 above.
+        t.expect("quest.stage.cured", t.quest.expect_stage("cured"))
+        t.expect("cure.vial_given", t.inv.expect_absent("vial_water"))
 
-        -- ---------------------------------------------------------------
-        -- Talk to Bob (3rd, to finish): [proc,twocats_bob_talk_3]
-        -- (twocats.rs2:373-420) -- the verbatim road-trip cutscene, 31
-        -- pages, ending %twocats_quest=65. Exact text at open/close (both
-        -- ordinary chatplayer_anim/chatnpc_anim); `*` for the interior
-        -- Bob/Neite/King Black Dragon/R4ng3rNo0b889 banter, all
-        -- chatnpc_specific pages with no symbol or stage write behind them.
-        -- ---------------------------------------------------------------
-        t.exec("goto-bob-3", t.player.goto_tile, 2924, 3565, 0)
-        t.exec("talkToBobToFinish", t.player.talk_to, "death_growncat_black", 1)
+        -- findBobToFinish: worn Locate, one final time.
+        local findbobfinish_tab_result = t.ui.tab("equipment")
+        t.check("findBobToFinish.tab", findbobfinish_tab_result == "ok",
+            "ui.tab(equipment) -> " .. tostring(findbobfinish_tab_result))
+        t.ticks(2)
+        local _, findbobfinish_worn_slot = t.ui.widget("wornitems:slot2")
+        t.check("findBobToFinish.worn_slot", findbobfinish_worn_slot ~= nil,
+            "wornitems:slot2 component=" .. tostring(findbobfinish_worn_slot))
+        if findbobfinish_worn_slot then
+            t.ui.invoke(findbobfinish_worn_slot, 2)
+        end
+        t.expect("findBobToFinish.mounted", t.ui.await_open("bob_locator_amulet", 10))
+        local _, findbobfinish_r_widget = t.ui.widget("bob_locator_amulet:bob_locator_r_whisker")
+        -- %twocats_locator_found is a pack/varp.alloc test-only mirror var
+        -- outside lint's compack check (see the findBob note above); the
+        -- cache-native %twocats_locator_direction is the row's evidence.
+        local findbobfinish_direction_before_result, findbobfinish_direction_before = t.var.server("twocats_locator_direction")
+        for i = 1, 4 do
+            t.ticks(2)
+            if findbobfinish_r_widget then
+                t.ui.invoke(findbobfinish_r_widget, 1)
+            end
+        end
+        local findbobfinish_direction_after_result, findbobfinish_direction_after = t.var.server("twocats_locator_direction")
+        t.check("findBobToFinish", findbobfinish_direction_after_result == "ok",
+            "direction " .. tostring(findbobfinish_direction_before) .. " -> " .. tostring(findbobfinish_direction_after)
+                .. " (" .. tostring(findbobfinish_direction_before_result) .. "/" .. tostring(findbobfinish_direction_after_result) .. ")")
+        t.key("escape")
+        t.expect("findBobToFinish.closed", t.ui.await_close("bob_locator_amulet", 10))
 
-        local bob3_pages = {
-            "player:Hi Bob! How's it hang... going?", -- twocats.rs2:389
-            "npc:Wonderful! Neite and I have been all over Gielinor!", -- 390
-        }
-        for i = 1, 28 do table.insert(bob3_pages, "*") end -- 391-418: the
-        -- carpet-ride banter (Bob/Neite/King Black Dragon/R4ng3rNo0b889)
-        table.insert(bob3_pages, "player:Phew!") -- 419
+        -- talkToBobToFinish: the verbatim road-trip cutscene, ending in a
+        -- p_telejump back to Bob's own home tile.
+        local talkToBobToFinish_result, talkToBobToFinish_detail
+        for attempt = 1, 3 do
+            t.cheat("::twocats_gotobob")
+            t.ticks(10)
+            t.cheat("::twocats_gotobob")
+            t.ticks(6)
+            t.msg.expect("Bob is at")
+            talkToBobToFinish_result, talkToBobToFinish_detail = t.player.talk_to("death_growncat_black", 1)
+            if talkToBobToFinish_result == "ok" and not tostring(talkToBobToFinish_detail):find("no dialogue") then
+                break
+            end
+        end
+        t.check("talkToBobToFinish", talkToBobToFinish_result == "ok"
+            and not tostring(talkToBobToFinish_detail):find("no dialogue"),
+            tostring(talkToBobToFinish_result) .. " " .. tostring(talkToBobToFinish_detail))
+        t.exec("talkToBobToFinish-dialog", t.chat.play, {
+            "player:Hi Bob! How's it hang... going?",
+            "npc:Wonderful! Neite and I have been all over Gielin",
+            "npc:Where do we turn here?",
+            "npc:North... I think.",
+            "npc:You think?!",
+            "npc:Yes: north.",
+            "npc:Slow down!",
+            "npc:For what?",
+            "npc:That camel!",
+            "npc:What camel?!",
+            "npc:Are you sure this is a good idea?",
+            "npc:Yeh, the old King and I go way back.",
+            "npc:Hey old King! How's things?",
+            "npc:Same as always: adventurers trying to kill me.",
+            "npc:There, there, could be worse!",
+            "npc:I guess... one moment...",
+            "npc:Lolz die noob!",
+            "npc:See what I mean?",
+            "npc:Mate! You need a new line of work!",
+            "npc:I said left at the camel!",
+            "npc:What camel?!",
+            "npc:You're too close to the pyramid!",
+            "npc:Do you want to drive?!",
+            "npc:I think we're lost.",
+            "npc:No, I know where I'm going.",
+            "npc:Are we there yet?",
+            "npc:No.",
+            "npc:Are we there yet?",
+            "npc:No!",
+            "npc:I'm the King of Gielinor!",
+            "player:Phew!",
+        })
+        t.expect("quest.stage.bob_home", t.quest.expect_stage("bob_home"))
+        local bob3_tile_result, bob3_tile = t.world.tile()
+        t.check("bob3.home_teleport", bob3_tile_result == "ok" and bob3_tile
+            and bob3_tile.x == 2924 and bob3_tile.z == 3565,
+            "landed " .. tostring(bob3_tile and (bob3_tile.x .. "," .. bob3_tile.z) or bob3_tile_result))
 
-        t.exec("talkToBobToFinish-dialog", t.chat.play, bob3_pages)
-        t.expect("quest.stage.bob_found_last", t.var.await_server("twocats_quest", 65, 10))
-
-        -- Step 65 -> 70: [label,twocats_done] (twocats.rs2:1003-1006), the
-        -- player's own line, %twocats_quest=70, queues
-        -- [queue,twocats_quest_complete]. Run 1 skipped this goto (player
-        -- was still standing at Bob's tile, three squares off) and the
-        -- press landed as a bare `map_flag` walk with no npc engaged --
-        -- "map_flag: no dialogue in 5 tick(s)" -- which cascaded through
-        -- every row after it.
+        -- talkToUnferthToFinish: 65->70, the present.
         t.exec("goto-unferth-finish", t.player.goto_tile, 2918, 3558, 0)
-        t.exec("finishQuest", t.player.talk_to, "twocats_unferth", 1)
-        t.exec("finishQuest-dialog", t.chat.play, { "player:It's all over!" })
+        t.exec("talkToUnferthToFinish", t.player.talk_to, "twocats_unferth", 1)
+        t.exec("talkToUnferthToFinish-dialog", t.chat.play, {
+            "player:Hi Unferth!",
+            "npc:Hello! Bob came home today! I'm so happy!",
+            "player:That's good news!",
+            "npc:Fat lot of use you were! He came home on his own",
+            "player:Er...",
+            "npc:This guy is unbelievable!",
+            "player:You're not wrong.",
+            "npc:Of course I'm not wrong.",
+            "player:I'll be going now.",
+            "npc:Before you go, I found the strangest thing. Ther",
+        })
         t.expect("quest.stage.complete", t.var.await_server("twocats_quest", 70, 10))
+        t.ticks(3) -- completion is asynchronous (section 8): let the queued
+        -- [queue,twocats_quest_complete] land before reading the present.
 
-        -- quest.expect_complete() writes FOUR rows unconditionally and
         -- twocats.rs2 has no `~<abbr>_journal` proc at all (grep for
-        -- "journal" in it is empty) -- section 8's documented case for a
-        -- quest whose journal channel can never pass. Hand-roll the three
-        -- rows that DO pass, per that recipe.
+        -- "journal" in it is empty) -- section 8's documented case. Hand-roll
+        -- the three rows quest.expect_complete() would have written.
         local varp_complete_result, varp_complete_detail = t.quest.expect_stage("complete")
         t.step("quest.varp_complete", varp_complete_result == "ok" and "PASS" or "FAIL",
             "expect_stage(complete) -> " .. tostring(varp_complete_result)
@@ -536,24 +971,21 @@ return {
         t.check("quest.scroll_close", t.scroll.close())
 
         local qp_after_result, qp_after = t.var.varp("qp")
-        local points_pass = qp_before_result == "ok" and qp_after_result == "ok"
-            and (qp_after - qp_before) == 2
-        t.step("quest.points", points_pass and "PASS" or "FAIL",
+        local points_delta = (qp_after_result == "ok" and qp_before_result == "ok")
+            and (qp_after - qp_before) or nil
+        t.step("quest.points", points_delta == 2 and "PASS" or "FAIL",
             "qp " .. tostring(qp_before) .. " -> " .. tostring(qp_after)
-                .. " delta=" .. tostring(qp_after_result == "ok" and qp_before_result == "ok"
-                    and (qp_after - qp_before) or "?")
-                .. " expected=2")
+                .. " delta=" .. tostring(points_delta) .. " expected=2")
 
-        -- Rewards Quest Helper lists: 2 QP (quest.points, above), 2 antique
-        -- lamps, a hat, a mouse toy. twocats_present (twocats.rs2:1030-1044)
-        -- is the real completion container -- open it and assert the item
-        -- grants; the lamps' own Rub/xpreward picker (twocats.rs2:1077-1183)
-        -- is not a guide step and not driven here (see header comment).
+        -- The present: twocats_present (twocats.rs2:1558-1566) is the real
+        -- completion container -- open it and assert the item grants. The
+        -- hat is NOT granted again here (parity1o dropped the second,
+        -- unsourced hat) -- it was already asserted at reward.nurses_hat_granted.
+        t.expect("present.have", t.inv.await("twocats_present", 1, 10))
         t.exec("present.open", t.player.inv_op, "twocats_present", 1)
         t.exec("present.open-dialog", t.chat.play, { "mesbox:You open the package" })
         t.expect("reward.lamps", t.inv.expect_has("twocats_rewardlamp", 2))
         t.expect("reward.mousetoy", t.inv.expect_has("twocats_mouse_toy", 1))
-        t.expect("reward.nurses_hat", t.inv.expect_has("twocats_nurses_hat", 1))
 
         t.finish(0)
         return
