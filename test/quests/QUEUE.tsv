@@ -4,15 +4,15 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	parity1o	RE-AUTHOR after 70487ebee8: content now has Transcript-verbatim Unferth/Hild/Bob/Gertrude/Reldo/Sphinx/Apothecary, Hild's first talk writing 10 and the enchantment 15, WORN catspeak at Bob/Reldo/Sphinx, real chore loops (rake x3 stat_random + weeds, dibber seeds + potato timer, bed, logs+tinderbox, cake+milk, shears x8), the cat's 40->45 announcement, Doctor's/Nurse hat choice, one present -> 2 lamps + mouse toy; drive it per the guide (first failing row 6 talkToUnferth-dialog: Unferth now opens 'Hello, do you have a cat?'). Proved drive: build/parity_state/parity1o/scripts/twocats_a.lua (0->35) + twocats_b.lua (35->70); the patch is reached through the house's north door (click_loc poordoor from 2920,3560); lightLogs/shears are silent (grade the varbit); clear the fixture inventory AFTER t.ticks(3); Bob wanders -- retry talk_to beside him
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b25	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	todo	parity1n	RE-AUTHOR after 7223d7c4dd: content now has the schematic puzzle's ROTATION and per-piece multi-select (first failing row 79 schematicPuzzle-solved: var.server(dwarfrock_schematics_solved) -> 0). Drive it per the guide: each piece opens turned %dwarfrock_puzzle_rot1..3 = random(4) quarter turns; toggle dr_select1/2/3 (bits of %dwarfrock_puzzle_select; nothing starts selected), press dr_rotate_button until each piece's rot is 0 (t.ui.model_pose reads yan = baked 6/2043/2039 + rot*512), then the move buttons slide every selected piece together until each dx/dy is within 4; realm entry now deletes carried gold ore/bars. Worked pattern: build/parity_state/parity1n/betweenarock_scratch/puzzle.lua (build/quest_gate/parity1n_betweenarock_puzzle 22/22).
+quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25	
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16	
-quest_blackarmgang	blackarmgang	shieldofarrav		1	todo	parity1n	RE-AUTHOR after 7223d7c4dd: content now has Reldo's low-combat advisory box (combat < 10 -> mesbox 'Before starting this quest, be aware that your combat level is lower than the recommended level of 10.' before the 'Start the Shield of Arrav quest?' select); drive it on the fresh character (proof pattern build/quest_gate/parity1n_blackarmgang_reldo 13/13). || RE-AUTHOR after 565711aa90: content now has Reldo's OSRS start confirm and the both-routes offer gate; drive Reldo for real on the fresh character BEFORE Charlie: talk_to reldo_normal -> 'I'm in search of a quest.' -> 'Yes.' (page 'Start the Shield of Arrav quest?') -> click_loc questbookcase -> read the_shield_of_arrav (opheld1) -> Reldo again -> then Charlie/Katrine as now; replace the three GUIDE-GAP markers at blackarmgang.lua:127-129 with driven rows (Reldo is not a gate on Charlie -- no claimed gate). getWeaponStoreKey/tradeCertificateHalf stay on ::blackarmgang_partner (verified exact hand-over)
+quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25	
 quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16	
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
@@ -25,7 +25,7 @@ quest_contact	contact	contact		4	todo
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	todo	parity1o	RE-AUTHOR after 70487ebee8: content now has the SAILED sea leg (no ferry/p_telejump: own boat from the Catherby gangplank, ripple zone [zone,0_44_53_16_24] on hull entry, hull-gated Track-current, the owned duck swims to 2802,3322, [apnpc1] Collect from the boat) and Arhein's verbatim 'Hello again!' menu; drive it per the guide (first failing row 52 talkToArheinNews-dialog: got npc 'Hello again!'). Proved route: build/parity_state/parity1o/ca_scripts/ca_sea_leg.lua (sail 2800,3400 -> 2835,3402 -> 2835,3412 -> 2835,3417, furl on the ripple, t.ui.tab(0) after the inventory press, press heading 4 before re-setting sails, follow 2826,3417 -> 2801,3401 -> 2792,3380 -> 2792,3342 -> 2795,3329 -> 2809,3328 -> 2809,3323, furl, t.sail._press_deck_row('Collect','Current duck',16,12)); msg.expect for lines printed before the call
+quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b25	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
 quest_druidspirit	druidspirit	naturespirit		3	todo		
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
-quest_eadgar	eadgar	eadgarsruse		1	todo	parity1m	RE-AUTHOR after 565711aa90: content now has LostCity's patrolling storeroom guards, the queued knockout with the fade_overlay fade and the crate's objbox; drive it per the guide (first failing row 123 crate.ejected): t.chat.close() the goutweed objbox, then await fade_overlay open/close (~4 ticks) before reading world.tile()==2865,10088; the guards catch only on their tile or 1-2 ahead now, so the drive.op-only crate workaround's radius-3 reason no longer holds -- try click_loc on the crate; name the new legs (8 patrol routes, fade on every knockout, crate objbox)
+quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	todo	parity1m	RE-AUTHOR after 565711aa90: marker text only, no content gap: replace the getGarlic GUIDE-GAP at fishingcompo.lua:203 with a plain citation -- kr_seers_table2 has no op in configs/all.loc (nor in LostCity), the garlic is the map ground spawn on the table tile (areas/world/configs/m42_54.spawn:45) and click_obj is the real interaction (wiki: 'pick up a piece off the table')
+quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -101,13 +101,13 @@ quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
-quest_misc	misc_astrid	throneofmiscellania		1	todo	parity1m	AUTHOR: a second Miscellania test that courts Astrid (talkAstrid1..useRingOnAstrid, misc_princess_astrid.rs2 + misc_courting_emotes.rs2), the mutually exclusive branch misc.lua leaves undriven; same setup as misc.lua; if run.py/new_quest.py cannot map a second test_id to quest_misc, report the exact refusal
+quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	todo	parity1o	RE-AUTHOR after 70487ebee8: content now has (on top of parity1m's Eluned start) Essyllt New recruit taking the letter (stage 4), Lost items, New orders with NO apple (pick it up at 2535,3333), Tegid soap + laundry basket, Oronwen, Elena old friend -> sample -> sieve verbatim, press/mix lines, toxic naphtha heated on any range (HQ range 2547,3322), the THIRD food store (2467,3287), Arianwyn's verbatim final report; drive it per the guide (first failing row 2 quest.stage.not_started, row 5 talkToIslwyn-dialog). Proved legs: build/parity_state/parity1o/mep1/legs{A,B,C,D}.lua
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b25	
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24	
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
@@ -121,7 +121,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
-quest_pryingtimes	pryingtimes	pryingtimes		1	todo	parity1o	RE-AUTHOR after 70487ebee8: content now has Steve spawned behind his bar (talk across the counter, no ::spawn), his verbatim start box, port task 600 written into the Captain's log and delivered by OWN boat to the Pandemonium ledger (no Tobias courier branch, no ground crate, no p_teleports), Thurgo's crowbar, the sealed crate pried from the own boat, stout only aboard; drive it per the guide (first failing row 5 startQuest-dialog: no dialogue open). Proved drive: build/parity_state/parity1o/pry_scripts/e_full.lua 100/100 (camera t.drive.camera(0,383,900) northbound / (1024,383,900) southbound for sail_to; t.sail._press_deck_row('Pry-open','Sealed crate',16,14) with camera (1024,383,1100) after stepping off the helm; press heading 8 before re-setting sails at the crate; open pandemonium_door_reverse before pry_crate_sealed; walk to 3050,2968 before talking to Steve). Port masters are not spawned (parked)
+quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b25	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
