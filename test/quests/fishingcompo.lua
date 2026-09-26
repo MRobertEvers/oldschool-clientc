@@ -189,18 +189,7 @@ return {
         t.shot("rod-bought")
 
         -- ------------------------------------------------ pick up the garlic
-        -- Quest Helper's getGarlic points at the kr_seers_table2 LOC (Seers'
-        -- Village), but that loc carries no [oploc*]/[oplocu] handler
-        -- anywhere in server/scripts -- the garlic itself is still picked up
-        -- LIVE, as a spawned GROUND OBJ beside the table (areas/world/
-        -- configs/m42_54.spawn:45, 2714,3478,0, the exact WorldPoint Quest
-        -- Helper names), so the real driven step is a click_obj pickup, not
-        -- a loc click. helper_coverage.py's content_gap() only knows the
-        -- LOC route and cannot see the click_obj route below, so it grades
-        -- getGarlic an undeclared CONTENT_GAP on the loc alone -- declared
-        -- here, citing the pipe script that is the loc's only other quest
-        -- interaction, as evidence kr_seers_table2 itself is never wired.
-        -- GUIDE-GAP: getGarlic quest_fishingcompo_gate.rs2:4 -- kr_seers_table2 carries no [oploc*]/[oplocu] trigger anywhere in server/scripts (grep -rn kr_seers_table2 finds only pack/config entries, never a quest script); garlic is obtained live instead as the spawned ground obj beside it (areas/world/configs/m42_54.spawn:45, 2714,3478,0), picked up with click_obj at the row below -- the item genuinely changes hands, only the loc-click path the guide names is unwired.
+        -- GUIDE-GAP: getGarlic grandpa_jack.rs2:34 -- kr_seers_table2 (Seers' Village, configs/all.loc:286189) has no op line at all, in this cache or in LostCity's own kr_seers.rs2; Jack's own hint here ("You can pick some in Seers' Village or Ardougne") confirms the garlic is PICKED UP, not clicked as a loc. It is the map ground spawn on the table's own tile (areas/world/configs/m42_54.spawn:45, 2714,3478,0, the exact WorldPoint Quest Helper names), obtained live with click_obj at the row below (wiki Fishing Contest: "pick up a piece off the table").
         t.exec("goto-garlic-table", t.player.goto_tile, 2714, 3478, 0)
         -- click_obj answers `ok` with a nil detail (section 8's hollow list) --
         -- call it directly and read the backpack back.
