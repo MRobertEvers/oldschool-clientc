@@ -1508,6 +1508,67 @@ test_deck_scenery_pick_resolves_through_view_world(void)
     World_Free(root);
 }
 
+/*
+ * seam18 C: a deck GROUND ITEM (a rider's drop, a deck npc's loot) lives in
+ * its VIEW's world with deck-local tiles, exactly like a deck loc. The
+ * OBJSTACK pick used to scan ctx->world (the root) at those tiles, so the
+ * rider saw the item and never got a Take row. It must resolve through
+ * ctx.view_world_fn and stamp the view id + deck-local tile on every row, so
+ * the dispatcher adds the view's staging base. No resolver -> nothing.
+ */
+static void
+test_deck_objstack_pick_resolves_through_view_world(void)
+{
+    printf("TEST: a deck ground item's OBJSTACK pick resolves through the view world\n");
+
+    struct World* root = World_TestMakeReady(104);
+    struct World* deck = World_TestMakeReady(64);
+    char actions[5][32] = { { 0 } };
+    struct World_PickSet picks;
+    struct UIMinimenu menu;
+    int obj_rows = 0;
+
+    g_deck_world = deck;
+    World_ObjStackAdd(deck, 910, 4, 3, 1, 1917, 1, "Beer", actions);
+    /* A root pile on the SAME scene tile: the deck pick must not list it. */
+    World_ObjStackAdd(root, 911, 4, 3, 1, 526, 1, "Bones", actions);
+
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 910, WORLD_PICK_OBJSTACK, 4, 3, 1, /* view */ 3);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = root,
+        .world_pickset = &picks,
+        .click_in_world = true,
+        .view_world_fn = test_deck_world_resolver,
+    };
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    TEST_ASSERT(menu_has_substr(&menu, "Take @lre@Beer"), "the deck item's Take row is built");
+    TEST_ASSERT(menu_has_substr(&menu, "Examine @lre@Beer"), "and its Examine row");
+    TEST_ASSERT(!menu_has_substr(&menu, "Bones"), "the root's pile on the same tile is not listed");
+    for( int i = 0; i < menu.option_count; i++ )
+        if( menu.options[i].pick.kind == UI_MINIMENU_PICK_OBJ )
+        {
+            obj_rows++;
+            TEST_ASSERT(menu.options[i].pick.view_id == 3, "every obj row's pick carries the view id");
+            TEST_ASSERT(
+                menu.options[i].pick.tertiary_id == 4 && menu.options[i].pick.quaternary_id == 3,
+                "and the DECK-LOCAL tile, for the dispatcher's base add");
+        }
+    TEST_ASSERT(obj_rows >= 2, "Take + Examine rows both landed");
+
+    ctx.view_world_fn = NULL;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    TEST_ASSERT(!menu_has_substr(&menu, "Beer"), "without a resolver the deck pick builds nothing");
+
+    World_Free(deck);
+    World_Free(root);
+}
+
 static void test_checked_widget_native_actions(void)
 {
     struct RS_UISlots slots;RS_UISlots_Init(&slots);
@@ -1780,6 +1841,7 @@ main(void)
     test_player_attack_option_clan();
     test_dat2_obj_team_decodes();
     test_deck_scenery_pick_resolves_through_view_world();
+    test_deck_objstack_pick_resolves_through_view_world();
 
     if( g_failures )
     {

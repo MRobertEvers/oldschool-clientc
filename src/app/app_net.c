@@ -123,6 +123,12 @@ App_NetSessionReset(struct App* app)
 {
     assert(app);
     RS_EntitySync_Clear(&app->esync, app->world);
+    /* The next session's first REBUILD is the server's whole world arriving
+     * again, and its MAP_BUILD_COMPLETE is what releases the login burst: it
+     * must run even when it names the zone the client is already standing in
+     * (task_gameproto_exec.c). A reconnect and a logout-then-login both end
+     * here. */
+    app->net_force_rebuild = 1;
     /* The reference's game-state reset puts both Attack options back to their
      * boot value rather than recomputing them from the varp table it is about
      * to clear (rs_attack_option.h): a re-established session onto an account

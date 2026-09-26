@@ -1730,7 +1730,17 @@ World_CycleRegisterPainterDynamics(struct World* world)
         struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, oi);
         if( !stack || stack->element_id < 0 )
             continue;
-        if( stack->grid_position.level != local_level )
+        /* A DECK world (its actors are borrowed from the carrier: the only
+         * worlds with a foreign-actor hook) has no minusedlevel of its own —
+         * world_local_level answers 0 there, while a drop lands on the plane
+         * the rider walks, the deck's config plane (1 on the Pandemonium).
+         * The deck painter draws every plane (level mask 0xF, like its locs
+         * and its borrowed actors, each at their own plane), so its ground
+         * items register at their own plane too. Filtering them against 0
+         * made every deck drop invisible and so unpickable (seam18 C). */
+        int obj_level = world->foreign_actor_register_fn ? stack->grid_position.level
+                                                          : local_level;
+        if( stack->grid_position.level != obj_level )
             continue;
         int grid_x = stack->grid_position.x;
         int grid_z = stack->grid_position.z;
@@ -1741,13 +1751,13 @@ World_CycleRegisterPainterDynamics(struct World* world)
             world->painter,
             grid_x,
             grid_z,
-            local_level,
+            obj_level,
             stack->element_id,
             1,
             1,
             (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, stack->element_id) : 0),
-            World_ObjRaiseGet(world, grid_x, grid_z, local_level) > 0 ? (uint8_t)PNTR_SCENERY_RAISED
-                                                                     : 0);
+            World_ObjRaiseGet(world, grid_x, grid_z, obj_level) > 0 ? (uint8_t)PNTR_SCENERY_RAISED
+                                                                   : 0);
     }
 
     world_dyn_register_players(world, /*only_local=*/true, local_level);

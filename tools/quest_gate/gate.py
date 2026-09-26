@@ -29,7 +29,11 @@ Red on, and only on, things that mean the test did not actually happen:
     tools/quest_gate/helper_coverage.py must read FULL, or every step it
     cannot grade DRIVEN must be a CONTENT_GAP that the file itself declares
     (a t.blocked()/content_bug line, or a `-- GUIDE-GAP: <step> <reason>`
-    marker whose reason cites the .rs2 line). A CHEAT or UNMATCHED guide step
+    marker whose reason cites the .rs2 line). A step that is not a gap -- a
+    sibling test's branch, a two-player partner cheat, a plugin sync step, an
+    obsolete step, one done another way -- grades EQUIVALENT (neutral) under a
+    BRANCH-IN/PARTNER/NOT-A-STEP/OBSOLETE/ANY-OF marker whose evidence
+    checks out; one that does not check out is RED. A CHEAT or UNMATCHED guide step
     is RED with the step named -- the guide is the spec, and before this a
     test that ::goto'd past a gated door or ::gave an item the guide has you
     gather passed every gate (docs/QUEST_HELPER_COVERAGE_2026-09-23.md).

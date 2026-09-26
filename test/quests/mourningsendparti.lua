@@ -297,7 +297,7 @@ return {
         -- more crystal equipment?"). rovingelves_eluned.rs2's own
         -- [opnpc1,roving_female_woodelf] calls ~mend1_eluned_start once
         -- %rovingelves_quest is complete and %mourning_quest < ^mend1_briefed. ----
-        -- GUIDE-GAP: talkToIslwyn quest-helper's talkToIslwyn step (steps 0/1) predates Song of the Elves' 2019 rework that moved the start to Eluned; Islwyn's own hook now only answers "Ahh... good to see you back. Are you after more crystal equipment?" and starts nothing (quests/quest_mourningsendparti/scripts/mend1_shared.rs2:103-105, mend1_islwyn_start) -- the equivalent native transition is driven below as talkToEluned instead.
+        -- OBSOLETE: talkToIslwyn the live game starts Mourning's End Part I at Eluned (https://oldschool.runescape.wiki/w/Mourning%27s_End_Part_I?oldid=15292327#Starting_the_quest: "Start point: Talk to Eluned inside the elven woods of Isafdar"); quest-helper's Islwyn start predates Song of the Elves' 2019 rework, and Islwyn's hook starts nothing (quests/quest_mourningsendparti/scripts/mend1_shared.rs2:103-105) -- driven below as talkToEluned.
         t.exec("goto-talkToEluned", t.player.goto_tile, 2289, 3145, 0)
         t.exec("talkToEluned", t.player.talk_to, "roving_female_woodelf", 1)
         -- mend1_eluned_start (mend1_shared.rs2:59-92): meets_requirements is
@@ -1585,7 +1585,7 @@ return {
         -- ~mend1_heat_toxic_naphtha), driven here at the Mourner HQ's own
         -- range (2547,3322 -- symbol "range", the client's cooking-range
         -- category) instead of the underground Carnillean one. ----
-        -- GUIDE-GAP: cookNaphtha quest-helper's own step targets ONLY carnilleanrange (Hazeel Cult's kitchen -- no live [op*]/[ap*] trigger serves this quest there, only quest_hazeelcult/scripts/claus_the_chef.rs2:58, another quest's); the real content cooks on ANY range via skill_cooking/scripts/cooking.rs2:11's [oplocu,_cooking_oven] hook (mend1_poison.rs2's own ~mend1_heat_toxic_naphtha), driven below at the Mourner HQ's own range instead.
+        -- ANY-OF: cookNaphtha cookToxin the guide targets only carnilleanrange, but the content cooks the naphtha on ANY range via skill_cooking/scripts/cooking.rs2:11's [oplocu,_cooking_oven] hook (mend1_poison.rs2's ~mend1_heat_toxic_naphtha) -- cooked below at the Mourner HQ range as cookToxin.
         t.exec("goto-cookToxin", t.player.goto_tile, 2547, 3323, 0)
         local range_result, range_row = t.world.loc_near("range", 6)
         t.check("cookToxin.range_present", range_result == "ok",

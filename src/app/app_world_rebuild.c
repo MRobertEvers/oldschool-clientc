@@ -218,7 +218,9 @@ App_WorldObjStackAdd(
 
     /* LocType.raiseobject: world Y is negative-up, so subtracting raise lifts
      * the stack onto the table (Client-TS objs.y - objs.height). */
-    world_y = app_world_height(app, world_x, world_z, level) -
+    /* The heightmap of the world the stack lives in: app_world_height reads
+     * the ROOT, and a deck stack's tile is deck-local (seam18 C). */
+    world_y = World_HeightAt(world, world_x, world_z, level) -
               World_ObjRaiseGet(world, scene_x, scene_z, level);
     element_id = app_world_scene_element_create(
         app, TORIDRAW_ELEMENT_KIND_OBJSTACK, model, world_x, world_y, world_z);
@@ -276,7 +278,7 @@ app_obj_stack_land(
     world_x = stack->grid_position.x * 128 + 64;
     world_z = stack->grid_position.z * 128 + 64;
     /* LocType.raiseobject, as in App_WorldObjStackAdd. */
-    world_y = app_world_height(app, world_x, world_z, stack->grid_position.level) -
+    world_y = World_HeightAt(world, world_x, world_z, stack->grid_position.level) -
               World_ObjRaiseGet(
                   world, stack->grid_position.x, stack->grid_position.z, stack->grid_position.level);
     element_id = app_world_scene_element_create(

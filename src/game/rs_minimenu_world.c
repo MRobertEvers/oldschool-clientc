@@ -636,6 +636,9 @@ add_obj_rows(
         .secondary_id = stack->obj_id,
         .tertiary_id = picked->tile_x,
         .quaternary_id = picked->tile_z,
+        /* A deck stack's tiles are its VIEW's own; dispatch adds the view's
+         * staging base, exactly as for a deck loc. */
+        .view_id = picked->view_id,
     };
 
     if( add_world_select_row(
@@ -683,12 +686,15 @@ menu_has_obj_on_tile(
 
 /* Client-TS entityType 3: one ground-obj pick lists every obj on the tile.
  * Entity models often occlude the item pick here, so NPC/player stack expansion
- * also pulls in every ObjStack on the same grid tile (deduped). */
+ * also pulls in every ObjStack on the same grid tile (deduped). `world` is the
+ * world that OWNS the stacks and `view_id` names it (0 = root; a deck's stacks
+ * live in its view's world, with deck-local tiles). */
 static void
 add_objs_on_tile(
     struct UIMinimenu* menu,
     struct RS_MinimenuSelection const* sel,
     struct World* world,
+    int view_id,
     int tile_x,
     int tile_z,
     int tile_level)
@@ -714,6 +720,7 @@ add_objs_on_tile(
             .tile_x = tile_x,
             .tile_z = tile_z,
             .tile_level = tile_level,
+            .view_id = view_id,
         };
         add_obj_rows(menu, sel, stack, &other_picked);
     }
@@ -762,7 +769,7 @@ add_npc_stack_rows(
     /* Ground items sit under entities and are often occluded from the pick
      * pass — always list every ObjStack on this grid tile. */
     add_objs_on_tile(
-        menu, sel, world, picked->tile_x, picked->tile_z, picked->tile_level);
+        menu, sel, world, 0, picked->tile_x, picked->tile_z, picked->tile_level);
 
     if( npc->size == 1 && ((int)npc->draw_position.x & 0x7f) == 64 &&
         ((int)npc->draw_position.z & 0x7f) == 64 )
@@ -931,7 +938,7 @@ add_player_stack_rows(
     assert(menu && ctx && world && player && picked);
 
     add_objs_on_tile(
-        menu, &ctx->selection, world, picked->tile_x, picked->tile_z, picked->tile_level);
+        menu, &ctx->selection, world, 0, picked->tile_x, picked->tile_z, picked->tile_level);
 
     if( ((int)player->draw_position.x & 0x7f) == 64 &&
         ((int)player->draw_position.z & 0x7f) == 64 )
@@ -1225,14 +1232,25 @@ RS_Minimenu_AddWorldRows(
         }
         case WORLD_PICK_OBJSTACK:
         {
-            /* Client-TS entityType 3: one pick lists every obj on the tile. */
-            add_objs_on_tile(
-                menu,
-                sel,
-                ctx->world,
-                picked->tile_x,
-                picked->tile_z,
-                picked->tile_level);
+            /* Client-TS entityType 3: one pick lists every obj on the tile.
+             * A DECK stack (a rider's drop, a deck npc's loot) lives in its
+             * VIEW's world with deck-local tiles, like a deck loc — scanning
+             * the root at those tiles found nothing, so a rider could see
+             * the item and never Take it (seam18 C). */
+            struct World* pick_world = ctx->world;
+            if( picked->view_id != 0 )
+                pick_world = ctx->view_world_fn
+                                 ? ctx->view_world_fn(ctx->view_world_user, picked->view_id)
+                                 : NULL;
+            if( pick_world )
+                add_objs_on_tile(
+                    menu,
+                    sel,
+                    pick_world,
+                    picked->view_id,
+                    picked->tile_x,
+                    picked->tile_z,
+                    picked->tile_level);
             break;
         }
         case WORLD_PICK_TERRAIN:    /* Walk here only (above). */

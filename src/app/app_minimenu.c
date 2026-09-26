@@ -2239,8 +2239,11 @@ app_minimenu_run_option(
         }
         else if( app->world && opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
         {
+            /* A deck stack's record is in its view's world, like a deck loc. */
+            struct World* obj_world =
+                opt.pick.view_id != 0 ? app_minimenu_view_world(app, opt.pick.view_id) : app->world;
             struct WorldEntity_ObjStack* stack =
-                World_ObjStackGetByElementId(app->world, opt.pick.id);
+                obj_world ? World_ObjStackGetByElementId(obj_world, opt.pick.id) : NULL;
             if( stack )
             {
                 struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, stack->obj_id);
@@ -3168,10 +3171,29 @@ app_minimenu_run_option(
         int abs_x = opt.pick.tertiary_id + app->world->_base_tile_x;
         int abs_z = opt.pick.quaternary_id + app->world->_base_tile_z;
         int obj_id = opt.pick.secondary_id;
-        /* Reference obj doAction: pathfind to the exact tile (tryMove type 2),
-         * and on failure retry a 1x1 approach so an adjacent tile still arrives;
-         * the OP is sent below on the same click either way. */
-        app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
+        /* A DECK stack: the pick's tiles are the VIEW's own, and the wire wants
+         * the view's staging base added — the deck loc's shape; the server
+         * finds the pile at those absolute pool coordinates. No client-side
+         * route (the deck collision is the server's). A dead view makes the
+         * row a no-op, never a root reinterpretation. */
+        if( opt.pick.view_id != 0 )
+        {
+            struct Worldview const* pview;
+
+            if( !WorldviewRegistry_IsLive(&app->worldviews, opt.pick.view_id) || !app->net )
+                return 0;
+            pview = WorldviewRegistry_Get(&app->worldviews, opt.pick.view_id);
+            abs_x = opt.pick.tertiary_id + pview->base_x;
+            abs_z = opt.pick.quaternary_id + pview->base_z;
+        }
+        else
+        {
+            /* Reference obj doAction: pathfind to the exact tile (tryMove type
+             * 2), and on failure retry a 1x1 approach so an adjacent tile
+             * still arrives; the OP is sent below on the same click either
+             * way. */
+            app_try_move_obj(app, opt.pick.tertiary_id, opt.pick.quaternary_id, app->ctrl_held);
+        }
         if( app->objsel.active )
         {
             APP_NET_SEND(

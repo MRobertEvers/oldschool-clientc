@@ -122,14 +122,14 @@ return {
         -- separate bard duty, which fires for either partner
         -- (misc_prince_brand.rs2:23's own guard runs before the
         -- toldking/partner check).
-        -- GUIDE-GAP: talkBrand1 not driven -- Astrid was courted instead, the mutually exclusive choice (misc_prince_brand.rs2:51)
-        -- GUIDE-GAP: giveFlowersToBrand not driven -- Astrid was courted instead, the mutually exclusive choice (misc_prince_brand.rs2:112)
-        -- GUIDE-GAP: clapForBrand not driven -- Astrid was courted instead, the mutually exclusive choice (misc_courting_emotes.rs2:32)
-        -- GUIDE-GAP: talkBrand2 not driven -- Astrid was courted instead, the mutually exclusive choice (misc_prince_brand.rs2:72)
-        -- GUIDE-GAP: giveCakeToBrand not driven -- Astrid was courted instead, the mutually exclusive choice (misc_prince_brand.rs2:123)
-        -- GUIDE-GAP: talkBrand3 not driven -- Astrid was courted instead, the mutually exclusive choice (misc_prince_brand.rs2:85)
-        -- GUIDE-GAP: blowKissToBrand not driven -- Astrid was courted instead, the mutually exclusive choice (misc_courting_emotes.rs2:39)
-        -- GUIDE-GAP: useRingOnBrand not driven -- Astrid was courted instead, the mutually exclusive choice (misc_prince_brand.rs2:132)
+        -- BRANCH-IN: misc talkBrand1 Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:51)
+        -- BRANCH-IN: misc giveFlowersToBrand Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:112)
+        -- BRANCH-IN: misc clapForBrand Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_courting_emotes.rs2:32)
+        -- BRANCH-IN: misc talkBrand2 Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:72)
+        -- BRANCH-IN: misc giveCakeToBrand Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:123)
+        -- BRANCH-IN: misc talkBrand3 Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:85)
+        -- BRANCH-IN: misc blowKissToBrand Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_courting_emotes.rs2:39)
+        -- BRANCH-IN: misc useRingOnBrand Astrid was courted here, the mutually exclusive choice; misc.lua drives the Brand branch (misc_prince_brand.rs2:132)
 
         -- ---------------------------------------------------- courting Astrid
         t.exec("goto-astrid1", t.player.goto_tile, 2502, 3868, 1)

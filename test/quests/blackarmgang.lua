@@ -294,7 +294,7 @@ return {
         -- performs exactly that hand-off (docs/QUEST_SERVER_CHEATS.md's
         -- two-player partner affordances table) -- same idiom as
         -- tradeCertificateHalf below.
-        -- GUIDE-GAP: getWeaponStoreKey a two-player step (get the key from another player); phoenixkey2 is granted only on the Phoenix route (areas/varrock/scripts/straven.rs2:88) with no single-client path -- ::blackarmgang_partner performs exactly that hand-off
+        -- PARTNER: getWeaponStoreKey ::blackarmgang_partner a two-player step (get the key from another player); phoenixkey2 is granted only on the Phoenix route (areas/varrock/scripts/straven.rs2:88) with no single-client path -- ::blackarmgang_partner performs exactly that hand-off
         local partner_result, partner_detail = t.cheat("::blackarmgang_partner")
         local partner_key_await = t.inv.await("phoenixkey2", 1, 10)
         local partner_key_result, partner_key_count = t.inv.count("phoenixkey2")
@@ -466,7 +466,7 @@ return {
         -- Already handed over by `::blackarmgang_partner` before the weapon
         -- store (this file's header) -- confirm it is still carried, rather
         -- than cheating it in a second time here.
-        -- GUIDE-GAP: tradeCertificateHalf a two-player step (trade one certificate half for the other with another player); arravcertificate_lft is granted only on the Phoenix route by curator_take_phoenix_half (areas/varrock/scripts/curator.rs2:183) with no single-client path -- ::blackarmgang_partner performs exactly that hand-off, driven above before the weapon store
+        -- PARTNER: tradeCertificateHalf ::blackarmgang_partner a two-player step (trade one certificate half for the other with another player); arravcertificate_lft is granted only on the Phoenix route by curator_take_phoenix_half (areas/varrock/scripts/curator.rs2:183) with no single-client path -- ::blackarmgang_partner performs exactly that hand-off, driven above before the weapon store
         local partner_count_result, partner_count = t.inv.count("arravcertificate_lft")
         t.check("stage.partnerHalfHeld",
             partner_count_result == "ok" and (partner_count or 0) >= 1,

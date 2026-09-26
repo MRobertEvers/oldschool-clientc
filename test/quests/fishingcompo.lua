@@ -189,7 +189,7 @@ return {
         t.shot("rod-bought")
 
         -- ------------------------------------------------ pick up the garlic
-        -- GUIDE-GAP: getGarlic grandpa_jack.rs2:34 -- kr_seers_table2 (Seers' Village, configs/all.loc:286189) has no op line at all, in this cache or in LostCity's own kr_seers.rs2; Jack's own hint here ("You can pick some in Seers' Village or Ardougne") confirms the garlic is PICKED UP, not clicked as a loc. It is the map ground spawn on the table's own tile (areas/world/configs/m42_54.spawn:45, 2714,3478,0, the exact WorldPoint Quest Helper names), obtained live with click_obj at the row below (wiki Fishing Contest: "pick up a piece off the table").
+        -- OBSOLETE: getGarlic the guide's kr_seers_table2 has no op in the real game (configs/all.loc:286189, LostCity kr_seers.rs2); the wiki has you "pick up a piece off the table" (https://oldschool.runescape.wiki/w/Fishing_Contest?oldid=15302643#Help_from_the_champion) -- the ground spawn on the table's tile (areas/world/configs/m42_54.spawn:45, grandpa_jack.rs2:34), taken below with click_obj.
         t.exec("goto-garlic-table", t.player.goto_tile, 2714, 3478, 0)
         -- click_obj answers `ok` with a nil detail (section 8's hollow list) --
         -- call it directly and read the backpack back.

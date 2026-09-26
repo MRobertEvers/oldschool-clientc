@@ -136,14 +136,14 @@ return {
         -- 1 vs 0) -- Quest Helper's courtAstrid ladder can never run in the
         -- same playthrough as courtBrand, so its eight steps are declared
         -- here rather than driven.
-        -- GUIDE-GAP: talkAstrid1 not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:46)
-        -- GUIDE-GAP: giveFlowersToAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:103)
-        -- GUIDE-GAP: danceForAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_courting_emotes.rs2:50)
-        -- GUIDE-GAP: talkAstrid2 not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:64)
-        -- GUIDE-GAP: giveBowToAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:114)
-        -- GUIDE-GAP: talkAstrid3 not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:77)
-        -- GUIDE-GAP: blowKissToAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_courting_emotes.rs2:57)
-        -- GUIDE-GAP: useRingOnAstrid not driven -- Brand was courted instead, the mutually exclusive choice (misc_princess_astrid.rs2:122)
+        -- BRANCH-IN: misc_astrid talkAstrid1 Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_princess_astrid.rs2:46)
+        -- BRANCH-IN: misc_astrid giveFlowersToAstrid Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_princess_astrid.rs2:103)
+        -- BRANCH-IN: misc_astrid danceForAstrid Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_courting_emotes.rs2:50)
+        -- BRANCH-IN: misc_astrid talkAstrid2 Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_princess_astrid.rs2:64)
+        -- BRANCH-IN: misc_astrid giveBowToAstrid Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_princess_astrid.rs2:114)
+        -- BRANCH-IN: misc_astrid talkAstrid3 Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_princess_astrid.rs2:77)
+        -- BRANCH-IN: misc_astrid blowKissToAstrid Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_courting_emotes.rs2:57)
+        -- BRANCH-IN: misc_astrid useRingOnAstrid Brand was courted here, the mutually exclusive choice; misc_astrid.lua drives the Astrid branch (misc_princess_astrid.rs2:122)
 
         -- ---------------------------------------------------- courting Brand
         t.exec("goto-brand1", t.player.goto_tile, 2502, 3852, 1)

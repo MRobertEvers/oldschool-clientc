@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 126 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 130 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 126
+-- @verb-count 130
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 27
+-- @seam-count 28
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 126
-local SEAM_COUNT = 27
+local VERB_COUNT = 130
+local SEAM_COUNT = 28
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5102,6 +5102,7 @@ return {
         end)
 
         local CATHERBY_GANGPLANK = "sailing_gangplank_catherby"
+        local SEAM_SHORE_OBJ = "cosmicrune"
         local CATHERBY_BOARD = "port_task_board_catherby"
         local CATHERBY_LEDGER = "dock_loading_bay_ledger_table_catherby"
         -- The Catherby board's first offer: port_task_catherby_courier_0,
@@ -5167,6 +5168,10 @@ return {
             if walk then
                 walk(2797, 3413, 30)                           -- setup: by the gangplank
             end
+            -- seam.aboard_pool_radius_from_hull's subject: a ROOT ground obj
+            -- on the shore beside the moored hull (::dropobj spawns it at the
+            -- player's tile, general/scripts/misc/cheat_obj.rs2:15).
+            setup_cheat("::dropobj " .. SEAM_SHORE_OBJ .. " 1") -- setup
             settle(2)
         end)
 
@@ -5176,6 +5181,35 @@ return {
             local result, detail = fn(CATHERBY_GANGPLANK)
             return names_reading(result, detail, "", { "hull", "client=true" },
                 "the hull boarded, live on the client")
+        end)
+
+        -- seam18 B.  ABOARD, the npc/obj pool reads measure radius and
+        -- "nearest" from the rider's HULL-PROJECTED root tile
+        -- (torirs_plugin_drive_ui.c drive_ui_search_origin ->
+        -- app_wev_actor_root_fine).  A rider's grid position is view-LOCAL, so
+        -- before the fix the origin was base + deck grid, a tile near the
+        -- scene's corner, and every radius>0 read aboard missed what stood
+        -- beside the hull: obj_near answered not_found, await_gone passed
+        -- hollowly (build/quest_gate/seam18b_radius_before: 'obj.aboard.r15
+        -- FAIL not_found beer'; _after 11/11).  The subject is the rune the
+        -- stage above dropped on the shore by the gangplank.
+        seam("seam.aboard_pool_radius_from_hull", function()
+            local state = verb("sail", "state")
+            local obj_near = verb("world", "obj_near")
+            if not state then return missing("sail", "state") end
+            if not obj_near then return missing("world", "obj_near") end
+            local state_result, reading = state()
+            if state_result ~= "ok" or type(reading) ~= "table" or reading.aboard ~= true then
+                return "no_subject", "not aboard: " .. describe(reading)
+            end
+            local result, row = obj_near(SEAM_SHORE_OBJ, 15)
+            if result ~= "ok" or type(row) ~= "table" then
+                return result, "aboard (hull " .. describe(reading.hull_x) .. "," .. describe(reading.hull_z)
+                    .. "): obj_near(" .. SEAM_SHORE_OBJ .. ", 15) -> " .. describe(row)
+            end
+            return "ok", "aboard (hull " .. describe(reading.hull_x) .. "," .. describe(reading.hull_z)
+                .. "): the shore's " .. SEAM_SHORE_OBJ .. " at " .. describe(row.tile_x) .. "," .. describe(row.tile_z)
+                .. " within 15 of the hull-projected rider"
         end)
 
         step("sail.cargo_load", function()
@@ -5351,6 +5385,111 @@ return {
             -- Every other row in this ledger was written by t.expect; a row
             -- named t.expect, in a ledger with a header, IS the evidence.
             return "ok", "wrote every other row in this ledger"
+        end)
+
+        -- ---------------------------- phase 9: leave and come back (session.*)
+        --
+        -- seam18 D.  LAST of the world rows: a relog RE-BOOTS the embedded
+        -- server from the save (net_transport_embed.c), so nothing after it
+        -- may need unsaved world state.  logout presses the logout tab's own
+        -- button; login types the run's account through the title screen;
+        -- the same tile and the same backpack prove the session came back.
+        -- Proven first as build/quest_gate/s18d_relog7 (14/14).
+        step("session.screen", function()
+            local fn = verb("session", "screen")
+            if not fn then return missing("session", "screen") end
+            local result, name, number = fn()
+            if result == "ok" and name ~= "game" then
+                return "hollow", "in the world but the screen reads " .. describe(name) .. " (" .. describe(number) .. ")"
+            end
+            return result, describe(name) .. " (" .. describe(number) .. ")"
+        end)
+
+        -- The account: tools/quest_gate/conformance.py launches this harness
+        -- as USER "qdconform", and its session directory is attempt-NN, so
+        -- the verbs' default (the session dir's name, which IS the account
+        -- for every run.py quest) would log a fresh character in.
+        local SESSION_USER = "qdconform"
+        local session_before_tile, session_before_runes
+
+        local function session_reading()
+            local tile = verb("world", "tile")
+            local count = verb("inv", "count")
+            if not (tile and count) then
+                return nil, nil
+            end
+            local _, here = tile()
+            local _, runes = count(OBJ_SYMBOL)
+            return here, runes
+        end
+
+        -- The same tile and the same backpack after a login: the session that
+        -- came back is this character's, loaded from the save its logout wrote.
+        local function same_session(here, runes)
+            if type(here) ~= "table" or type(session_before_tile) ~= "table"
+                or here.x ~= session_before_tile.x or here.z ~= session_before_tile.z then
+                return false, "in the world at " .. describe(here) .. ", left it at "
+                    .. describe(session_before_tile)
+            end
+            if type(runes) ~= "number" or runes ~= session_before_runes then
+                return false, "the backpack came back with " .. OBJ_SYMBOL .. " " .. describe(runes)
+                    .. ", not " .. describe(session_before_runes)
+            end
+            return true, "same tile " .. here.x .. "," .. here.z .. ", " .. OBJ_SYMBOL .. " " .. runes
+        end
+
+        step("session.logout", function()
+            local fn = verb("session", "logout")
+            local screen = verb("session", "screen")
+            if not fn then return missing("session", "logout") end
+            if not screen then return missing("session", "screen") end
+            session_before_tile, session_before_runes = session_reading()
+            local result, detail = fn()
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local _, name = screen()
+            if name ~= "title" then
+                return "hollow", "answered ok but the screen reads " .. describe(name) .. " -- " .. describe(detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        step("session.login", function()
+            local fn = verb("session", "login")
+            if not fn then return missing("session", "login") end
+            local result, detail = fn(SESSION_USER)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local same, why = same_session(session_reading())
+            if not same then
+                return "hollow", why .. " -- " .. describe(detail)
+            end
+            return "ok", describe(detail) .. "; " .. why
+        end)
+
+        step("session.relog", function()
+            local fn = verb("session", "relog")
+            local cheat = verb("cheat")
+            if not fn then return missing("session", "relog") end
+            if not cheat then return missing("cheat") end
+            session_before_tile, session_before_runes = session_reading()
+            local result, detail = fn(SESSION_USER)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local same, why = same_session(session_reading())
+            if not same then
+                return "hollow", why .. " -- " .. describe(detail)
+            end
+            -- The RE-BOOTED server must answer a script: a debugproc's reply.
+            local answered_result, answered = cheat("::dropobj " .. OBJ_SYMBOL .. " 1")
+            if answered_result ~= "ok" then
+                return "hollow", "relogged (" .. why .. ") but ::dropobj answered "
+                    .. describe(answered_result) .. " " .. describe(answered)
+            end
+            return "ok", describe(detail) .. "; " .. why .. "; the server answers ::dropobj"
         end)
 
         step("finish", function()
