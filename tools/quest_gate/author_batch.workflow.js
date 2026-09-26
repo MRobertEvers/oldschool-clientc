@@ -26,7 +26,7 @@ export const meta = {
 // 2026-09-22: Haiku is no longer used anywhere in the loop); an author that
 // compacts or returns no report is re-run once, still Sonnet, at medium effort.
 
-const WT = '/Users/matthewevers/Documents/git_repos/3draster-quest-driver'
+const WT = '/Users/matthewevers/Documents/git_repos/3draster'
 const batch = args && args.batch
 const tests = (args && args.tests) || []
 const authorModel = 'sonnet'
@@ -35,7 +35,7 @@ if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
 const STATE = `${WT}/build/author_state/${batch}`
 
-const COMMON = `Work ONLY inside ${WT} (git worktree, branch lane-quest-driver). NEVER cd into, build in, or touch /Users/matthewevers/Documents/git_repos/3draster. Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.`
+const COMMON = `Work ONLY inside ${WT} (branch lane-quest-driver). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths under ${WT} for every command. Never git stash/checkout/reset/clean/amend, never git add -A or -u. Never commit saves/, build*, cache*, manifests/.*.ini, preferences.ini, plugin_prefs.ini. Run every run.py in the FOREGROUND and wait for it; never background it or wait on a monitor/notification. run.py refuses a second concurrent run of one quest id. BATCH STATE DIR: ${STATE} (mkdir -p it); every worker persists its result there so a paused or killed batch resumes from disk.`
 
 const AUTHOR_SCHEMA = { type: 'object', properties: {
   test_id: { type: 'string' }, outcome: { type: 'string', enum: ['green', 'blocked', 'content_bug', 'gave_up'] }, runs: { type: 'integer' },
