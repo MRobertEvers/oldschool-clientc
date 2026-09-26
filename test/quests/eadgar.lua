@@ -605,71 +605,109 @@ return {
         t.exec("unlockStoreroom", t.player.click_loc, "eadgar_storeroomdoor", 1)
         t.expect("quest.stage.unlocked_storeroom", t.quest.expect_stage("unlocked_storeroom"))
 
-        -- 15c39665ce/aa38f602a3: the crate's own posted guard
-        -- (eadgar_storeroom_guard, npc_find radius 8 in
-        -- eadgar_troll_chief_cook.rs2's [oploc1,eadgar_crate_goutweed])
-        -- ALWAYS fires on a successful search -- the goutweed is granted
-        -- FIRST (inv_add runs before the guard check, the source's own
-        -- ordering), then the player takes 0-6 unblockable damage and is
-        -- knocked out and p_teleported to 2865,10088. Quest Helper's own
-        -- step text says so plainly: "You'll need to avoid the troll
-        -- guards or you'll be kicked out and take damage" -- this is
-        -- documented canonical content, not a driver seam, so the row
-        -- below expects the ejection rather than treating it as a FAIL.
+        -- 15c39665ce/aa38f602a3/565711aa90: the crate's own POSTED guard
+        -- (eadgar_storeroom_guard, a stationary npc_findexact check in
+        -- eadgar_troll_chief_cook.rs2's [queue,eadgar_take_goutweed] --
+        -- moverestrict=nomove, so he is always at his own tile) ALWAYS
+        -- catches a successful search: the goutweed is granted FIRST
+        -- (inv_add runs before the guard check), then an objbox announces
+        -- it ("You've found some goutweed!"), then the queued check throws
+        -- a club, opens the fade_overlay interface, deals 0-6 unblockable
+        -- damage and p_teleports the player to 2865,10088
+        -- (eadgar_troll_sguard.rs2's shared [queue,troll_guard_knockout] /
+        -- [queue,troll_guard_teleport], reached from the crate's own
+        -- [oploc1,eadgar_crate_goutweed] via eadgar_take_goutweed). Quest
+        -- Helper's own step text says so plainly: "You'll need to avoid
+        -- the troll guards or you'll be kicked out and take damage" --
+        -- this is documented canonical content, not a driver seam.
         --
-        -- MEASURED (run 1, build/author_state/sonnet-b17/eadgar.author.progress.md):
-        -- click_loc's own real-click approach is lethal here, not just
-        -- risky. Eight troll_sguard patrol/posted guards
-        -- (eadgar_troll_sguard.rs2) independently huntall(npc_coord, 3, 0)
-        -- EVERY TICK, and troll_sguard7 (2858,10076) sits within 3 tiles
-        -- of EVERY tile adjacent to the crate (2857,10074) -- there is no
-        -- approach tile outside its radius. click_loc's own "walk the
-        -- loc's other approach tiles on 'I can't reach that!'" retry
-        -- (doc section 3) therefore re-triggers a fresh guard catch on
-        -- EACH tile it tries, and the ejection tile (2865,10088) itself
-        -- sits within 3 tiles of troll_sguard8 (2864,10085) -- run 1's own
-        -- 185-player.died.png shows FOUR consecutive "You're knocked out
-        -- and bundled away..." lines from one single click_loc call,
-        -- which killed a 99-hp character. `t.drive.op` sends the op
-        -- packet with no pixel and no route (doc section 3: "no pixel and
-        -- no route"), so it cannot trigger that walking-retry chain --
-        -- used here as the PRIMARY method for this one interaction,
-        -- narrowly, on measured evidence that the real-click path kills
-        -- the run, not as a general substitute for click_loc. The
-        -- interaction is still the quest's own real [oploc1,
-        -- eadgar_crate_goutweed] trigger; only the driver's own approach
-        -- differs. Re-heals (::setlevel hitpoints, the same armour the
-        -- setup line already uses) and evacuates to the kitchen (no
-        -- patrol AI there) before any retry.
-        local goutweed_result, goutweed_count = t.inv.count("eadgar_goutweed_herb")
-        local crate_attempts = 0
-        local crate_last_op, crate_last_detail = "n/a", "n/a"
-        while (goutweed_result ~= "ok" or goutweed_count == 0) and crate_attempts < 2 do
-            crate_attempts = crate_attempts + 1
-            if crate_attempts > 1 then
-                t.cheat("::setlevel hitpoints 99") -- re-heal: armour against the guard nest, not quest state
-                t.player.goto_tile(2853, 10050, 1) -- kitchen upstairs: no patrol AI, safe staging tile
-                t.ticks(2)
-            end
-            t.player.goto_tile(2857, 10074, 0)
-            local crate_target = t.player.by_symbol("loc", "eadgar_crate_goutweed")
-            crate_last_op, crate_last_detail = t.drive.op(crate_target, 1)
-            t.ticks(2) -- the crate's own mes()/p_delay(1)/guard tail lands a tick or two behind the op
-            goutweed_result, goutweed_count = t.inv.count("eadgar_goutweed_herb")
-        end
-        t.check("searchCrate", goutweed_result == "ok" and goutweed_count > 0,
-            "drive.op(eadgar_crate_goutweed, 1) after " .. crate_attempts .. " attempt(s) -- last op "
-                .. tostring(crate_last_op) .. " " .. tostring(crate_last_detail)
-                .. "; inv.count(eadgar_goutweed_herb) -> " .. tostring(goutweed_result) .. " " .. tostring(goutweed_count)
-                .. " -- drive.op used here (not click_loc) because click_loc's own approach-tile retry is lethal in "
-                .. "this guard nest, measured run 1 (see notebook)")
+        -- 565711aa90 narrowed the EIGHT PATROLLING troll_sguard guards
+        -- (separate from the crate's own posted one above) from
+        -- huntall(npc_coord, 3, 0) every tick to huntall(npc_coord, 0, 0)
+        -- on their own tile plus one/two tiles ahead along their last-step
+        -- heading (eadgar_troll_sguard.rs2's eadgar_troll_sguard_hunt) --
+        -- radius 0, not radius 3, so a single approach tile is no longer
+        -- inside every patrol guard's blast zone the way run 1's notebook
+        -- (sonnet-b17, superseded) measured, and the drive.op bypass this
+        -- file used to reach for is no longer the only safe way in. A real
+        -- click_loc is the quest's own trigger and the guide's own
+        -- evidence (doc trap 16), so it replaces the drive.op workaround
+        -- here; the crate's OWN posted guard still (correctly, by design)
+        -- knocks the player out on the very search that grants the item,
+        -- so this row expects the ejection rather than treating it as a
+        -- FAIL, same as before.
+        --
+        -- RUN 1 (see notebook): click_loc's own walk-into-range failed
+        -- `reach_failed` from every one of its five approach tiles, each
+        -- one's walk ending back at the storeroom door (2869,10085) rather
+        -- than reaching any tile near the crate -- the unlocked storeroom
+        -- door does not carry the player through it on its own the way a
+        -- ladder/stairs goto_tile does (doc section 2), so an explicit
+        -- goto_tile onto the crate's own approach tile is needed first,
+        -- same as every other click_loc/talk_to leg in this file already
+        -- does (and as this row's own predecessor did, straight to
+        -- 2857,10074 before its drive.op call).
+        --
+        -- RUN 3 (see notebook, TORIRSSERVER_VERBOSE=1): the crate
+        -- (eadgar_crate_goutweed, id 3822) is at 2856,10074, not 2857,10074
+        -- -- `areas/world/configs/m44_157.spawn` places its own posted
+        -- guard (eadgar_storeroom_guard, blockwalk=all/moverestrict=nomove)
+        -- at 2857,10075, diagonally SE of the crate. Standing at
+        -- 2857,10074 (east of the crate, one tile north of the guard) put
+        -- click_loc's own step-off-before-press logic within whatever the
+        -- loc counts as "on top of it", so it stepped the player FURTHER
+        -- east to 2858,10074 before pressing -- and the route back to the
+        -- crate from there has to pass the guard's blocking tile, which
+        -- the pathfinder can never resolve: client.log shows the identical
+        -- route recomputed dozens of times with the player never moving,
+        -- until the click's settle times out with nothing ever having run
+        -- server-side (no inv_add, no objbox -- confirmed by
+        -- inv.await(eadgar_goutweed_herb) reading 0 -> 0). Approaching from
+        -- the WEST instead clears both the crate's own guard and
+        -- troll_sguard7 (2858,10076) entirely.
+        t.exec("goto-crate", t.player.goto_tile, 2855, 10074, 0)
+
+        -- RUN 2 (see notebook): click_loc's own click_minimenu press landed
+        -- (no "covered"/"reach_failed" in the detail), but `_settle_after_click`
+        -- itself then read `timeout` -- no chat-kind edge, no route -- for a
+        -- branch whose only IMMEDIATE, SYNCHRONOUS effect is `inv_add` plus
+        -- an `~objbox`, with the guard-knockout fade/teleport chain arriving
+        -- several ticks later off a SEPARATE queue. Called directly (not
+        -- t.exec) and graded on the real evidence -- the goutweed landing --
+        -- same as trap 24/26's "an ok click verb is not the thing the row is
+        -- named after" pattern this file already uses elsewhere (dryThistle,
+        -- thistle.dried).
+        local crate_click_result, crate_click_detail = t.player.click_loc("eadgar_crate_goutweed", 1)
+        local goutweed_result, goutweed_detail = t.inv.await("eadgar_goutweed_herb", 1, 10)
+        t.check("searchCrate", goutweed_result == "ok",
+            "click_loc(eadgar_crate_goutweed) -> " .. tostring(crate_click_result) .. " " .. tostring(crate_click_detail)
+                .. "; inv.await(eadgar_goutweed_herb) -> " .. tostring(goutweed_result) .. " " .. tostring(goutweed_detail))
+        t.chat.close() -- dismiss the "You've found some goutweed!" objbox (~objbox, eadgar_troll_chief_cook.rs2:218)
+
+        -- The crate's guard check (eadgar_take_goutweed, queued at delay 0
+        -- off the click above) opens fade_overlay when it catches the
+        -- search (troll_guard_knockout, delay 2), p_teleports one tick
+        -- after that (troll_guard_teleport), then ramps the fade back and
+        -- closes it (eadgar_fade_clear -> eadgar_fade_close, two more
+        -- ticks each) -- so the teleport has always landed by the time
+        -- fade_overlay CLOSES, and awaiting the open first is what proves
+        -- the cycle actually started (a bare await_close with nothing yet
+        -- open would read "already closed" instantly and prove nothing).
+        local fade_open_result, fade_open_detail = t.ui.await_open("fade_overlay", 10)
+        t.check("crate.knockoutFade", fade_open_result == "ok",
+            "ui.await_open(fade_overlay) -> " .. tostring(fade_open_result) .. " " .. tostring(fade_open_detail)
+                .. " -- the crate's own posted guard (eadgar_storeroom_guard) always catches this search and opens "
+                .. "the knockout fade (eadgar_troll_sguard.rs2's [queue,troll_guard_knockout])")
+        t.ui.await_close("fade_overlay", 10)
 
         local ejected_result, ejected_tile = t.world.tile()
+        local ejected_str = ejected_tile and (tostring(ejected_tile.x) .. "," .. tostring(ejected_tile.z)
+            .. ",L" .. tostring(ejected_tile.level)) or "nil"
         t.check("crate.ejected", ejected_result == "ok" and ejected_tile ~= nil
                 and ejected_tile.x == 2865 and ejected_tile.z == 10088,
-            "world.tile() -> " .. tostring(ejected_result) .. " " .. tostring(ejected_tile)
+            "world.tile() after fade_overlay close -> " .. tostring(ejected_result) .. " " .. ejected_str
                 .. " -- the crate's own posted guard always knocks the player out and teleports them here on a "
-                .. "successful search (eadgar_troll_chief_cook.rs2's [oploc1,eadgar_crate_goutweed])")
+                .. "successful search ([queue,troll_guard_teleport] p_teleport(0_44_157_49_40))")
         t.expect("player.alive_after_ejection", t.player.alive())
 
         -- ---------------------------------------------------------------
