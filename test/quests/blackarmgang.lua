@@ -8,9 +8,15 @@
 -- werewolf/Morytania line -- king_roald.rs2 has no such branch anywhere
 -- near `%phoenixgang`/`%blackarmgang`). This file was rebuilt from scratch
 -- by reading quest_blackarmgang.rs2 and every NPC script it calls into
--- (tramp.rs2, katrine.rs2, weaponsmaster.rs2), and drives ONLY the Black
--- Arm Gang half -- the tramp/Katrine/weapon-stash chain -- the Phoenix Gang
--- start (Reldo/book/Baraek/Straven) is never touched, because katrine.rs2's
+-- (reldo.rs2, tramp.rs2, katrine.rs2, weaponsmaster.rs2). Reldo and the
+-- shared "Shield of Arrav" book ARE driven for real below (RE-AUTHOR after
+-- parity1n/1m, 2026-09-25/26: Reldo is not a gate on Charlie -- tramp.rs2
+-- starts `%blackarmgang` unconditionally, no claimed gate -- but Quest
+-- Helper's `startQuest`/`searchBookcase`/`talkToReldoAgain` steps are real
+-- content this route can reach without ever joining the Phoenix Gang, since
+-- `%phoenixgang` only reaches `spoken_reldo`, nowhere near
+-- `phoenixgang_joined`). What this file still never touches is the actual
+-- Phoenix Gang RECRUITMENT (Baraek/Straven/Jonny the Beard) -- katrine.rs2's
 -- `[opnpc1,katrine]` refuses outright once `%phoenixgang >= ^phoenixgang_joined`
 -- and the reverse is equally true on straven.rs2's `[opnpc1,straven]`
 -- (`%blackarmgang >= ^blackarmgang_joined` -> `@straven_blackarmdog`) --
@@ -116,17 +122,107 @@ return {
         t.ticks(3)
         t.expect("quest.stage.not_started_reset", t.quest.expect_stage("not_started"))
 
+        -- ------------------------------------------------------- Reldo x2
         -- Quest Helper's stage-0 steps (startQuest/searchBookcase/
-        -- talkToReldoAgain) are the guide's shared fallback for "not
-        -- started at all", not a Black Arm gate: `[opnpc1,reldo]`
-        -- (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang,
-        -- and `[oploc1,questbookcase]` (quest_blackarmgang.rs2:6) requires
-        -- %phoenixgang = phoenixgang_started -- both are Phoenix Gang
-        -- content this route never reaches (docs/quests/shield_of_arrav.md
-        -- finding); tramp.rs2 starts the Black Arm route unconditionally.
-        -- GUIDE-GAP: startQuest [opnpc1,reldo] (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang -- Reldo cannot start or advance the Black Arm route, tramp.rs2 does that unconditionally
-        -- GUIDE-GAP: talkToReldoAgain same as startQuest -- [opnpc1,reldo] (areas/varrock/scripts/reldo.rs2:21) never reads %blackarmgang
-        -- GUIDE-GAP: searchBookcase [oploc1,questbookcase] (quest_blackarmgang.rs2:6) requires %phoenixgang = phoenixgang_started -- the book is Phoenix Gang content; the Black Arm shield half comes from blackarmcupboardshut instead
+        -- talkToReldoAgain) are the guide's SHARED start for both routes --
+        -- Reldo never writes %blackarmgang (tramp.rs2 starts that route
+        -- unconditionally, on its own, below), so he is not a gate on
+        -- Charlie, but he IS real content this route passes through on a
+        -- fresh character, and RE-AUTHOR after parity1n/1m says drive him
+        -- for real rather than declare the shared start a gap.
+        --
+        -- `[opnpc1,reldo]` (areas/varrock/scripts/reldo.rs2:21) is keyed on
+        -- the SPAWNED symbol -- m50_54.spawn:13 places the BASE "reldo",
+        -- never the multinpc child `reldo_normal` Quest Helper's own
+        -- NpcStep targets (trap 19) -- and `same_thing`'s multinpc-family
+        -- walk credits either name against the guide step, so "reldo" is
+        -- both the real click target and the one that satisfies coverage.
+        -- Fresh character (%phoenixgang/%blackarmgang/%squire all
+        -- not_started, no lost_tribe_brooch): the p_choice3 branch offers
+        -- "I'm in search of a quest." as option 1 -> @reldo_phoenixstart.
+        t.exec("goto-startQuest", t.player.goto_tile, 3209, 3495, 0)
+        t.exec("startQuest", t.player.talk_to, "reldo", 1)
+        t.exec("startQuest-dialog", t.chat.play, {
+            "npc:Hello stranger.",
+            "choose:I'm in search of a quest.",
+            "player:I'm in search of a quest.",
+            "npc:Hmmm. I don't",
+            "npc:Let me think actually",
+            "npc:Ah, yes. I think I have something",
+            -- OSRS low-combat advisory (parity1n, 2026-09-25) is a plain
+            -- ~mesbox ahead of the p_choice2_header confirm, gated on
+            -- `~player_combat_level < 10` (reldo.rs2's own idiom, matching
+            -- kaqemeex.rs2's, driven the same way in druid.lua) -- but THIS
+            -- file's `setup` raises attack/strength/defence/hitpoints to 99
+            -- before `run()` ever starts (needed to one-side the
+            -- Weaponsmaster fight below), so by the time Reldo is talked to
+            -- the character's combat level is already far past 10 and the
+            -- advisory never fires. Measured run 1: entry here expecting
+            -- `mesbox` read `options rows=Yes.|No.` instead -- the box was
+            -- never shown, straight to the confirm.
+            "choose:Yes.",
+            "player:Of course.",
+            "npc:Ah yes. I know.",
+        })
+        local phoenix_started_result, phoenix_started_value = t.var.server("phoenixgang")
+        t.check("reldo.phoenixgangStarted",
+            phoenix_started_result == "ok" and phoenix_started_value == 1,
+            string.format("t.var.server(phoenixgang) -> %s %s, expected 1 (phoenixgang_started) after reldo_phoenixstart's Yes.",
+                tostring(phoenix_started_result), tostring(phoenix_started_value)))
+
+        -- `[oploc1,questbookcase]` (quest_blackarmgang.rs2:6) grants
+        -- the_shield_of_arrav only while %phoenixgang = phoenixgang_started
+        -- exactly, which the Reldo conversation above just set. Map decode
+        -- (trap 29): m50_54.jl2 "0 12 37: 2402 10 3" -> 50*64+12,54*64+37 =
+        -- 3212,3493,0, a few tiles from Reldo's own spawn.
+        t.exec("goto-searchBookcase", t.player.goto_tile, 3212, 3493, 0)
+        t.exec("searchBookcase", t.player.click_loc, "questbookcase", 1)
+        t.exec("searchBookcase-dialog", t.chat.play, {
+            "player:Aha!",
+            "mesbox:You take the book from the bookcase.",
+        })
+        t.expect("shieldOfArravBook.taken", t.inv.await("the_shield_of_arrav", 1, 10))
+
+        -- arrav_book.rs2's `[opheld1,the_shield_of_arrav]`: reading it while
+        -- %phoenixgang = started advances it to read_book and plays three
+        -- lore mesboxes. inv_op names its own press/detail (not the nil-
+        -- detail hollow shape) but never which branch ran (section 8) --
+        -- t.exec through the click, grade the STATE on the var read below,
+        -- same idiom betweenarock.lua's/atailoftwocats.lua's own book/item
+        -- opheld rows use.
+        t.exec("readShieldOfArravBook", t.player.inv_op, "the_shield_of_arrav", 1)
+        t.exec("readShieldOfArravBook-dialog", t.chat.play, {
+            "mesbox:The Shield of Arrav by A. R. Wright.",
+            "mesbox:In the year 143 of the fifth age",
+            "mesbox:The thieves became Varrock's most powerful crime gang.",
+        })
+        local phoenix_read_result, phoenix_read_value = t.var.server("phoenixgang")
+        t.check("reldo.phoenixgangReadBook",
+            phoenix_read_result == "ok" and phoenix_read_value == 2,
+            string.format("t.var.server(phoenixgang) -> %s %s, expected 2 (phoenixgang_read_book) after reading the book",
+                tostring(phoenix_read_result), tostring(phoenix_read_value)))
+
+        -- Back to Reldo: the top-of-script guard
+        -- `%phoenixgang = ^phoenixgang_read_book -> @reldo_read_book` fires
+        -- before the ordinary menu this time, naming Baraek (Phoenix Gang)
+        -- and Charlie the Tramp (Black Arm Gang) -- no "Hello stranger."
+        -- opener, the guard short-circuits ahead of it.
+        t.exec("goto-talkToReldoAgain", t.player.goto_tile, 3209, 3495, 0)
+        t.exec("talkToReldoAgain", t.player.talk_to, "reldo", 1)
+        t.exec("talkToReldoAgain-dialog", t.chat.play, {
+            "npc:Then perhaps you now have your quest?",
+            "player:I think I do.",
+            "npc:No, I don't. However, I hear Baraek",
+            "player:And the Black Arm Gang?",
+            "npc:There are rumours that they are based in the south west corner",
+            "player:Thanks! I'll get to it!",
+            "npc:Good luck.",
+        })
+        local phoenix_spoken_result, phoenix_spoken_value = t.var.server("phoenixgang")
+        t.check("reldo.phoenixgangSpokenReldo",
+            phoenix_spoken_result == "ok" and phoenix_spoken_value == 3,
+            string.format("t.var.server(phoenixgang) -> %s %s, expected 3 (phoenixgang_spoken_reldo) -- Reldo named both Baraek and Charlie the Tramp",
+                tostring(phoenix_spoken_result), tostring(phoenix_spoken_value)))
 
         -- ------------------------------------------------ Charlie the tramp
         -- tramp.rs2's `[opnpc1,tramppg]` (south Varrock, by the alleyway):
