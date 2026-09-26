@@ -155,8 +155,8 @@ wikitext this time (`?action=raw`, fetched 2026-09-25):
      definitely interested?" -> "Start the Shield of Arrav quest?" Yes./No.
      (Quest Helper's `startQuest.addDialogSteps("I'm in search of a
      quest.", "Yes.")` agrees). No. writes nothing.
-  Not ported: the transcript's "combat level is less than 10" warning box
-  (no pack idiom for it; cosmetic).
+  The transcript's "combat level is less than 10" warning box was left
+  unported by parity1m; parity1n (below) ports it.
 
 So the Quest Helper `startQuest`/`searchBookcase`/`talkToReldoAgain` steps
 are the SHARED opener (the walkthrough's "Choosing a gang" section) and stay
@@ -172,3 +172,23 @@ single grant) and one `arravcertificate_lft` (one of the two
 `curator_take_phoenix_half` gives the Phoenix player), each guarded, nothing
 else. `questbookcase` stays Phoenix-only (`%phoenixgang =
 ^phoenixgang_started`, LostCity `[oploc2,questbookcase]` has the same gate).
+
+## Content parity pass parity1n (2026-09-25): Reldo's low-combat box
+
+Transcript:Reldo, inside "I'm in search of a quest." after "Ah, yes. I think
+I have something, if you're definitely interested?":
+`{{tcond|If the player's combat level is less than 10.}}` ->
+`{{tbox|Before starting this quest, be aware that you combat level is lower
+than the recommended level of 10.}}`, then the "Start the Shield of Arrav
+quest?" select. An OSRS-era detail (LostCity's reldo.rs2 has no box and no
+confirm). Ported in `areas/varrock/scripts/reldo.rs2` `[label,
+reldo_phoenixstart]` as `if (~player_combat_level < 10) ~mesbox(...)` -- the
+pack's idiom for a recommended-level advisory (`kaqemeex.rs2:103`, Druidic
+Ritual). The box has no choice of its own (unlike Kaqemeex's, the transcript
+shows the start select straight after it), writes nothing and blocks nothing;
+the text reads "your" -- the transcript's "you" is its own typo.
+
+Proved (`build/quest_gate/parity1n_blackarmgang_reldo`, 13/13 PASS): a fresh
+character (combat 3) sees the box then the select; "No." leaves
+`%phoenixgang` 0; "Yes." writes 1; at combat >= 10 (40 att/str/def/hp) the
+select follows Reldo's line with no box and "Yes." writes 1.
