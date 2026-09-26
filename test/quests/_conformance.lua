@@ -3009,6 +3009,17 @@ return {
             -- `_hover_onto` that ignored its fourth argument would leave it
             -- untouched, and the whole reason the sweep may visit five poses
             -- is that together they cost one ladder.
+            --
+            -- AND EVERY POSE IS READ SETTLED (`_frame`'s fourth argument,
+            -- seam17).  The default read answers the first frame that
+            -- projects -- the new angles against the old eye, the orbit
+            -- anchor still easing after walk_near's step -- so the pixel was
+            -- a function of what ran BEFORE this row: two port-master spawns
+            -- 300 tiles away shifted the world's random stream and pose 1
+            -- read 422,382 where it had read 659,414, and the row went
+            -- `covered` (parity1o's bisect, 153 -> 152).  Settled, pose 1 from
+            -- 3217,3240 is 415,248 with the spawns and without them
+            -- (build/quest_gate/_conf_s17cp_c, s17cp_probe3).
             local poses = is_table(t.drive) and t.drive._frame_poses or nil
             local limit = is_table(poses) and #poses or 1
             local budget = { left = cap }
@@ -3016,7 +3027,7 @@ return {
             local tried = {}
             local index = 1
             while index <= limit and not is_table(hovered) do
-                local pos_result, framed = frame(seam_target, index, 4)
+                local pos_result, framed = frame(seam_target, index, 4, true)
                 if pos_result == "ok" and is_table(framed) then
                     pos = framed
                     hovered, account = hunt(seam_target, framed, 4, budget)
