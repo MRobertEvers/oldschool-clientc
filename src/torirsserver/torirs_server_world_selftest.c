@@ -12879,8 +12879,9 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &owner_script, slot) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
-                                           player->pid,
-                                   "NPC_OWNER returns the bound pid");
+                                           player->pid + 1,
+                                   "NPC_OWNER returns the bound player's uid (pid + 1, "
+                                   "what `uid` pushes and `p_finduid` takes)");
 
                     /*
                      * Owning is not following, and that is the whole point of
@@ -12911,7 +12912,7 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(
                                        srv, &find_script, NULL, 0) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
-                                           player->pid,
+                                           player->pid + 1,
                                    "NPC_FINDOWNED finds and activates the familiar");
                 }
 

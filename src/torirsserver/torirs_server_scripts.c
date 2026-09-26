@@ -5840,7 +5840,11 @@ ToriRSServer_ScriptCommand(
             return 1;
         }
         owner = ToriRSServer_WorldNpcOwner(srv, npc);
-        SSVM_PushInt(state, owner ? owner->pid : -1);
+        /* A player uid, the same number `uid` pushes and `p_finduid` takes
+         * (pid + 1), so `npc_owner = uid` and `p_finduid(npc_owner)` mean
+         * what they say; the bare pid matched neither (Current Affairs'
+         * owned current duck, 2026-09-26). -1 names nobody. */
+        SSVM_PushInt(state, owner ? owner->pid + 1 : -1);
         return 1;
     }
 
