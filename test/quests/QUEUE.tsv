@@ -4,7 +4,7 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b25	
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b25	REVERTED by sampler (sonnet-b25): findBob/findBobAgain/findBobToFinish never show the locator finding Bob (rows grade only an ok var read; eyes dark in shots 76/77/185/390) and Bob is reached by the ::twocats_gotobob debugproc teleport, so the locate leg is handed over by a debugproc -- drive the dial until %twocats_locator_found/lit eyes and walk the bearing (goto toward the sector is fine) before talk_to; also 7 PASS rows with empty detail (ui.await_open/await_close via t.expect, quest.scroll_close)
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
