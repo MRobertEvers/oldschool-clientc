@@ -121,7 +121,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
-quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b25	RE-AUTHOR after 3b41349334: content now has killTheTroll (Drink troll opnpc2 -> @player_combat_start, wiki drop table); the GUIDE-GAP at pryingtimes.lua:410 is false -- drive t.player.attack + await_dead per build/parity_state/parity1p/pry_scripts/troll.lua (25/25; read the troll with radius 0 aboard: DriveUi_Npcs measures from the deck-frame tile)
+quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b25	RETRY after 7376a8fa0: seam18 lands deck radius from the hull (t.npc.* radius 30 aboard now finds the Drink troll), deck floor objs visible+takeable (Take the troll's drink via t.sail._press_deck_row({drink names}, 'Take', 8, 16), s18c_troll1 27/27) and t.session.relog (the guide's 'or log out', ashore only -- aboard login refused reply=173); rewrite killTheTroll (pryingtimes.lua:410's false GUIDE-GAP) as a real kill + take of the drop (proof copy build/seam_state/seam18/C_scripts/pryingtimes_copy.lua 108/108)
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
