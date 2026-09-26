@@ -35,6 +35,17 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 DEFAULT_REF = HERE.parent.parent.parent / "LostCity_Server"
 
+# Commands this tree added itself (gen_opcode_meta.py EXTRA_OPCODES) whose
+# arguments name a namespace a bare word must resolve in. engine.rs2 cannot
+# declare them -- the reference has no such command -- so the declaration is
+# stated here, in engine.rs2's own spelling, and merged as if it had been read
+# from that file. Only commands whose argument TYPES matter belong here; an
+# extra with no row keeps parse_command's hand-written hints.
+EXTRA_DECLARATIONS = [
+    "[command,if_setangle](component $component, int $xan, int $yan, int $zoom)",
+    "[command,if_setrotatespeed](component $component, int $xspeed, int $yspeed)",
+]
+
 DECL = re.compile(r"^\[command,(\.?)([A-Za-z0-9_]+)\]\s*(\([^)]*\))?\s*(\([^)]*\))?")
 
 
@@ -73,7 +84,7 @@ def main() -> int:
 
     rows = {}
     missing = []
-    for line in engine.read_text().splitlines():
+    for line in engine.read_text().splitlines() + EXTRA_DECLARATIONS:
         line = line.strip()
         match = DECL.match(line)
         if not match:

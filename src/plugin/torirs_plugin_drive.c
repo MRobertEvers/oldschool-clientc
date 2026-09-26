@@ -94,6 +94,9 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     "plugins/quest_driver/ui.lua",
     "plugins/quest_driver/quest.lua",
     "plugins/quest_driver/combat.lua",
+    /* After combat.lua, which only needs to follow pointer.lua and state.lua:
+     * sail.lua wraps nothing, it adds QD.sail (docs/QUEST_SUITE_KIT.md). */
+    "plugins/quest_driver/sail.lua",
 };
 
 /* The manifest identity, not a file name: the loader asks by plugin name so a

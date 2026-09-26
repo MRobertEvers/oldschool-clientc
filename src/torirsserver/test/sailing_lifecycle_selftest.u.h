@@ -72,6 +72,59 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     player->navigating_vessel = handle;
     player->navigating_vessel_serial = boat->serial;
     SELFTEST_CHECK(!ToriRSServer_VesselDisembarkPlayer(srv, player), "an open sea has no gangplank landing");
+    /*
+     * ARRIVAL: a hull crossing into a bound map square queues that square's
+     * [mapzone] script on its RIDER's engine queue (torirs_server_vessel.c
+     * vessel_update_zones), although the rider's own feet stand on a deck pool
+     * tile that is nowhere near it. [mapzone,0_43_54] is real content
+     * (skill_farming/scripts/farming_transmit.rs2:324, Catherby's herb patch
+     * sync), used here only because it is a bound square; the mover is not
+     * involved -- the latch reads the hull's root tile however it got there.
+     */
+    {
+        const struct SSVM_Script* bound = SSVM_ProviderGetByName(srv->scripts, "[mapzone,0_43_54]");
+        int home_fx = boat->fine_x;
+        int home_fz = boat->fine_z;
+        int arrivals_before;
+        int queued = 0;
+        int stray = 0;
+
+        SELFTEST_CHECK(bound != NULL, "arrival fixture: [mapzone,0_43_54] is bound in the pack");
+        for( int q = 0; q < TORIRSSERVER_ENGINE_QUEUE_MAX; q++ )
+            player->engine_queue[q].active = 0;
+        ToriRSServer_VesselTickAll(srv);
+        for( int q = 0; q < TORIRSSERVER_ENGINE_QUEUE_MAX; q++ )
+            player->engine_queue[q].active = 0;
+        arrivals_before = boat->arrivals;
+        ToriRSServer_VesselTickAll(srv);
+        for( int q = 0; q < TORIRSSERVER_ENGINE_QUEUE_MAX; q++ )
+            stray += player->engine_queue[q].active;
+        SELFTEST_CHECK(stray == 0 && boat->arrivals == arrivals_before,
+                       "a hull that stays in its square queues nothing (%d queued)", stray);
+        boat->fine_x = (43 * 64 + 20) * 128 + 64;
+        boat->fine_z = (54 * 64 + 20) * 128 + 64;
+        ToriRSServer_VesselTickAll(srv);
+        for( int q = 0; q < TORIRSSERVER_ENGINE_QUEUE_MAX; q++ )
+            if( bound && player->engine_queue[q].active &&
+                player->engine_queue[q].script_id == bound->id &&
+                player->engine_queue[q].kind == TORIRSSERVER_QUEUE_ENGINE )
+                queued++;
+        SELFTEST_CHECK(queued == 1, "the rider's engine queue holds the hull's [mapzone,0_43_54] (%d)",
+                       queued);
+        SELFTEST_CHECK(boat->arrivals == arrivals_before + 1 &&
+                       strcmp(boat->arrival_last, "[mapzone,0_43_54]") == 0,
+                       "the hull records the bound arrival (%d, %s)", boat->arrivals,
+                       boat->arrival_last);
+        SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, player->x, player->z) == boat,
+                       "the rider is still standing on the deck, not in the square");
+        /* Put the hull back, and drop what the crossings queued: the rest of
+         * this section saves and reloads the rider and must not run them. */
+        boat->fine_x = home_fx;
+        boat->fine_z = home_fz;
+        ToriRSServer_VesselTickAll(srv);
+        for( int q = 0; q < TORIRSSERVER_ENGINE_QUEUE_MAX; q++ )
+            player->engine_queue[q].active = 0;
+    }
     int old_serial = boat->serial;
     int old_instance = boat->instance;
     int fx = boat->fine_x, fz = boat->fine_z, angle = boat->angle;

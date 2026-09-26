@@ -306,6 +306,32 @@ struct ToriRSServerVessel
      * vessel.
      */
     int deck_window;
+
+    /**
+     * The ARRIVAL latch: which 8-tile zone and 64-tile map square the hull's
+     * ROOT tile (fine >> 7) was last reported in. -1 until the first tick.
+     *
+     * A rider's own latch (`last_zone_*` / `last_map_*` on the player,
+     * ToriRSServer_WorldUpdateMap) is keyed on the tile under their FEET, and
+     * aboard that is a deck pool square hundreds of tiles off the map -- so
+     * a quest that binds `[zone,...]` / `[mapzone,...]` on open water (the
+     * Current Affairs ripple, the Prying Times floating crate) would never
+     * see the player arrive however far they sailed. This latch is the
+     * hull's, and ToriRSServer_VesselTickAll queues the same four triggers
+     * walking queues, in the same order (map square before zone, exit before
+     * enter), onto every rider's engine queue when the hull crosses one.
+     */
+    int zone_level;
+    int zone_x;
+    int zone_z;
+    int map_x;
+    int map_z;
+    /** How many ENTER triggers the hull has queued that content actually
+     *  binds (a bound script found for at least one rider), and the last
+     *  one's subject, e.g. "[mapzone,0_43_52]". Read-only diagnostics for
+     *  the quest driver's vessel read; nothing in the mover consults them. */
+    int arrivals;
+    char arrival_last[64];
 };
 
 /* ------------------------------------------------------------------ */

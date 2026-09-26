@@ -14263,6 +14263,111 @@ ToriRSServer_WorldSelftest(void)
                         }
                     }
 
+
+                    /*
+                     * if_setangle / if_setrotatespeed reach the wire in the
+                     * script's own argument order.
+                     *
+                     * Between a Rock's schematic pieces are type-6 model
+                     * components (interfaces/dwarf_rock_schematics.if), and
+                     * the rotation half of that puzzle needs a script to pose
+                     * them. The packets and the client apply existed long
+                     * before any script could send them; this pins the torirs
+                     * extension opcodes (gen_opcode_meta.py 11114/11115)
+                     * through the host VM. The script says (component, xan,
+                     * yan, zoom); SendIfSetangle takes (uid, zoom, xan, yan),
+                     * so a swapped pop is exactly the silent failure this row
+                     * exists for — every value is distinct.
+                     */
+                    {
+                        int angle_opcode = ToriRSServer_WireOpcode(wire239, PKT_NAME_IF_SETANGLE);
+                        int spin_opcode =
+                            ToriRSServer_WireOpcode(wire239, PKT_NAME_IF_SETROTATESPEED);
+                        int piece = ToriRSServer_ContentSymbol(
+                            TORIRSSERVER_PACK_COMPONENT,
+                            "dwarf_rock_schematics:dwarf_rock_schematic_1");
+                        uint16_t pose_ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_IF_SETANGLE,       SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_IF_SETROTATESPEED, SS_OP_RETURN,
+                        };
+                        int32_t pose_operands[] = {
+                            piece, 1024, 1536, 600, 0, piece, 12, 34, 0, 0,
+                        };
+                        char* pose_strings[10] = { NULL };
+                        struct SSVM_Script pose_script = {
+                            .id = -1,
+                            .name = "[selftest,if_setangle]",
+                            .source_path = "<selftest>",
+                            .lookup_key = -1,
+                            .op_count = 10,
+                            .opcodes = pose_ops,
+                            .int_operands = pose_operands,
+                            .string_operands = pose_strings,
+                        };
+
+                        SELFTEST_CHECK(piece >= 0,
+                                       "dwarf_rock_schematics:dwarf_rock_schematic_1 resolves");
+                        SELFTEST_CHECK(angle_opcode >= 0 && spin_opcode >= 0,
+                                       "osrs239 carries IF_SETANGLE and IF_SETROTATESPEED");
+                        ToriRSServer_CaptureBegin(srv, &iface_capture);
+                        SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(srv, &pose_script, NULL, 0),
+                                       "if_setangle/if_setrotatespeed execute through the host VM");
+                        ToriRSServer_CaptureEnd(srv);
+
+                        at = ToriRSServer_CaptureFind(&iface_capture, angle_opcode, 0);
+                        SELFTEST_CHECK(at >= 0, "if_setangle emits IF_SETANGLE");
+                        if( at >= 0 )
+                        {
+                            struct RSAreaBuf body;
+                            int uid;
+                            int zoom;
+                            int xan;
+                            int yan;
+
+                            SELFTEST_CHECK(iface_capture.packets[at].len == 10,
+                                           "IF_SETANGLE has ten bytes, got %d",
+                                           iface_capture.packets[at].len);
+                            rsab_wrap(&body, (void*)iface_capture.packets[at].data,
+                                      (size_t)iface_capture.packets[at].len);
+                            /* encoders_239.h IfSetAngleEncoder:
+                             * p4Alt3(uid) p2(zoom) p2(angleX) p2Alt3(angleY). */
+                            uid = rsab_g4_alt3(&body);
+                            zoom = rsab_g2(&body);
+                            xan = rsab_g2(&body);
+                            yan = rsab_g2_alt3(&body);
+                            SELFTEST_CHECK(uid == piece,
+                                           "IF_SETANGLE targets the piece (got 0x%x, want 0x%x)",
+                                           uid, piece);
+                            SELFTEST_CHECK(xan == 1024 && yan == 1536 && zoom == 600,
+                                           "IF_SETANGLE keeps xan/yan/zoom 1024/1536/600, got "
+                                           "%d/%d/%d",
+                                           xan, yan, zoom);
+                        }
+                        at = ToriRSServer_CaptureFind(&iface_capture, spin_opcode, 0);
+                        SELFTEST_CHECK(at >= 0, "if_setrotatespeed emits IF_SETROTATESPEED");
+                        if( at >= 0 )
+                        {
+                            struct RSAreaBuf body;
+                            int uid;
+                            int x_speed;
+                            int y_speed;
+
+                            rsab_wrap(&body, (void*)iface_capture.packets[at].data,
+                                      (size_t)iface_capture.packets[at].len);
+                            /* IfSetRotateSpeedEncoder:
+                             * p2(ySpeed) p2Alt2(xSpeed) p4Alt3(uid). */
+                            y_speed = rsab_g2(&body);
+                            x_speed = rsab_g2_alt2(&body);
+                            uid = rsab_g4_alt3(&body);
+                            SELFTEST_CHECK(uid == piece && x_speed == 12 && y_speed == 34,
+                                           "IF_SETROTATESPEED keeps piece/x/y, got 0x%x/%d/%d",
+                                           uid, x_speed, y_speed);
+                        }
+                    }
+
                     srv->wire = saved_wire;
                 }
                 else

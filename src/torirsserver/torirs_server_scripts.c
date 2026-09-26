@@ -8284,6 +8284,43 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * if_setangle(component, xan, yan, zoom) and
+     * if_setrotatespeed(component, xspeed, yspeed) — the rev-230 model-pose
+     * packets, torirs extensions (gen_opcode_meta.py EXTRA_OPCODES; LostCity's
+     * 2004 IF1 has neither). The client applies them to a type-6 model
+     * component through UITree_ApplyModelAngle / _ApplyModelRotateSpeed.
+     */
+    case SS_OP_IF_SETANGLE:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        /* Send order is (uid, zoom, angle_x, angle_y); the script's is
+         * (component, xan, yan, zoom). */
+        ToriRSServer_SendIfSetangle(
+            srv->active_player, values[0], values[3], values[1], values[2]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETROTATESPEED:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_SendIfSetrotatespeed(
+            srv->active_player, values[0], values[1], values[2]);
+        return 1;
+    }
+
     case SS_OP_IF_SETSCROLLPOS:
     {
         int32_t values[2];

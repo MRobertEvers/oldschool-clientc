@@ -32,6 +32,7 @@
 #include "torirs_server_content.h"
 #include "torirs_server_mapinstance.h"
 #include "torirs_server_scene.h"
+#include "ss_trigger.h"
 #include "world/wev.h"
 
 #include <rscache.h>
@@ -561,6 +562,13 @@ ToriRSServer_VesselSpawn(
     vessel->base_speed_fine = 64;
     vessel->speed_cap_fine = 256;
     vessel->turn_rate = TORIRSSERVER_VESSEL_TURN_RATE_DEFAULT;
+    /* No square reported yet: the first tick latches the spawn berth and
+     * queues its ENTER for whoever is aboard by then (at spawn, nobody). */
+    vessel->zone_level = -1;
+    vessel->zone_x = -1;
+    vessel->zone_z = -1;
+    vessel->map_x = -1;
+    vessel->map_z = -1;
 
     srv->vessel_count++;
     return vessel->index;
@@ -1098,6 +1106,112 @@ ToriRSServer_VesselTakeBlocked(struct ToriRSServerVessel* vessel)
     return blocked;
 }
 
+/*
+ * Queue one coordinate trigger on every rider of `vessel`.
+ *
+ * The rider is bound as the active player for the queue call, because
+ * ToriRSServer_ScriptsQueueTriggerAt enqueues onto `srv->active_player`'s
+ * engine queue -- the same queue, and the same delay-0 "due at phase 5 of the
+ * next tick" rule, a walking player's zone crossing uses. The caller's
+ * binding is restored before returning.
+ *
+ * Returns 1 when content binds the trigger (it was queued for at least one
+ * rider), 0 when nothing is bound or nobody is aboard.
+ */
+static int
+vessel_queue_for_riders(
+    struct ToriRSServer* srv,
+    struct ToriRSServerVessel* vessel,
+    int trigger,
+    int level,
+    int tile_x,
+    int tile_z)
+{
+    struct ToriRSServerPlayer* was_active;
+    int queued = 0;
+
+    assert(srv);
+    assert(vessel);
+    was_active = srv->active_player;
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        if( ToriRSServer_VesselAtTile(srv, player->x, player->z) != vessel )
+            continue;
+        ToriRSServer_WorldSetActive(srv, player);
+        if( ToriRSServer_ScriptsQueueTriggerAt(srv, trigger, level, tile_x, tile_z) ==
+            TORIRSSERVER_TRIGGER_RAN )
+            queued = 1;
+    }
+    ToriRSServer_WorldSetActive(srv, was_active);
+    return queued;
+}
+
+/*
+ * The hull's half of `NetworkPlayer.updateMap` (ToriRSServer_WorldUpdateMap):
+ * the same two latches at the same two granularities, fired in the same
+ * order -- map square before zone, exit before enter -- but keyed on the
+ * hull's ROOT tile instead of the rider's deck tile. See the latch fields'
+ * comment in torirs_server_vessel.h for why a rider needs this at all.
+ *
+ * Run after the mover, so a hull that crossed a boundary this tick reports it
+ * this tick, and its scripts drain at the next tick's phase 5 exactly as a
+ * walker's do. A hull with nobody aboard still advances its latch: arriving
+ * is something that happens to the people on the boat, and a boarder does not
+ * re-fire the square the hull was already floating in.
+ */
+static void
+vessel_update_zones(
+    struct ToriRSServer* srv,
+    struct ToriRSServerVessel* vessel)
+{
+    int tile_x = vessel->fine_x >> 7;
+    int tile_z = vessel->fine_z >> 7;
+    int mx = tile_x >> 6;
+    int mz = tile_z >> 6;
+    int zx = tile_x >> 3;
+    int zz = tile_z >> 3;
+
+    assert(srv);
+    assert(vessel);
+    if( vessel->map_x != mx || vessel->map_z != mz )
+    {
+        if( vessel->map_x >= 0 )
+            vessel_queue_for_riders(srv, vessel, SS_TRIGGER_MAPZONEEXIT, 0, vessel->map_x << 6,
+                                    vessel->map_z << 6);
+        if( vessel_queue_for_riders(srv, vessel, SS_TRIGGER_MAPZONE, 0, tile_x, tile_z) )
+        {
+            vessel->arrivals++;
+            snprintf(vessel->arrival_last, sizeof(vessel->arrival_last), "[mapzone,0_%d_%d]", mx,
+                     mz);
+        }
+        vessel->map_x = mx;
+        vessel->map_z = mz;
+    }
+    if( vessel->zone_level != vessel->level || vessel->zone_x != zx || vessel->zone_z != zz )
+    {
+        if( vessel->zone_level >= 0 )
+            vessel_queue_for_riders(srv, vessel, SS_TRIGGER_ZONEEXIT, vessel->zone_level,
+                                    vessel->zone_x << 3, vessel->zone_z << 3);
+        if( vessel_queue_for_riders(srv, vessel, SS_TRIGGER_ZONE, vessel->level, tile_x, tile_z) )
+        {
+            vessel->arrivals++;
+            snprintf(vessel->arrival_last, sizeof(vessel->arrival_last), "[zone,%d_%d_%d_%d_%d]",
+                     vessel->level, mx, mz, ((tile_x & 0x3f) >> 3) << 3,
+                     ((tile_z & 0x3f) >> 3) << 3);
+        }
+        vessel->zone_level = vessel->level;
+        vessel->zone_x = zx;
+        vessel->zone_z = zz;
+    }
+    if( vessel_debug_enabled() )
+        fprintf(stderr, "vessel: %d hull tile %d,%d arrivals=%d last=%s\n", vessel->index,
+                tile_x, tile_z, vessel->arrivals, vessel->arrival_last);
+}
+
 void
 ToriRSServer_VesselTickAll(struct ToriRSServer* srv)
 {
@@ -1108,7 +1222,10 @@ ToriRSServer_VesselTickAll(struct ToriRSServer* srv)
         return;
     for( i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
         if( srv->vessels[i].in_use )
+        {
             vessel_tick(&srv->vessels[i]);
+            vessel_update_zones(srv, &srv->vessels[i]);
+        }
 }
 
 /* ------------------------------------------------------------------ */

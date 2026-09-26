@@ -962,6 +962,27 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # 1 engaged, 0 released.
     "VESSEL_HELM": (11096, 1, 0, 1, 0),
 
+    # ---- interface model pose (11114..11115) ------------------------------
+    # The rev-230 IF_SETANGLE / IF_SETROTATESPEED packets. LostCity speaks
+    # the 2004 IF1 protocol and has neither command (engine.rs2 and
+    # ScriptOpcode.ts carry no angle/rotate op), so the wire half already
+    # existed -- ToriRSServer_SendIfSetangle / _SendIfSetrotatespeed,
+    # mock239_encode_if_setangle (encoders_239.h IfSetAngleEncoder) and the
+    # client's UITree_ApplyModelAngle -- with no script able to send it.
+    # Argument order follows this dialect's if_setposition: the component
+    # first, then the values in the order the client's IF_SETANGLE handler
+    # applies them.
+    #
+    # if_setangle(component, xan, yan, zoom)
+    # Pose a type-6 model component: pitch, yaw (0..2047 client angle units)
+    # and zoom. Between a Rock's schematic pieces are such models
+    # (interfaces/dwarf_rock_schematics.if modelxan/modelyan/modelzoom).
+    "IF_SETANGLE": (11114, 4, 0, 0, 0),
+
+    # if_setrotatespeed(component, xspeed, yspeed)
+    # Spin a model component continuously; 0,0 stops it.
+    "IF_SETROTATESPEED": (11115, 3, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1209,6 +1230,11 @@ POINTER_BITS = {
 # judgement. The other four extras are deliberately left alone — giving them
 # masks is a decision about opcodes this change does not touch.
 EXTRA_POINTERS: dict[str, tuple[int, int]] = {
+    # Same mask as their IF_SETPOSITION / IF_SETMODEL twins (ActivePlayer):
+    # the packet goes to the active player, and without one it has nowhere
+    # to go.
+    "IF_SETANGLE": (1 << POINTER_BITS["active_player"], 0),
+    "IF_SETROTATESPEED": (1 << POINTER_BITS["active_player"], 0),
     "P_COUNTDIALOG_NOPROMPT": (1 << POINTER_BITS["p_active_player"], 0),
     "NPC_SETRESPAWN": (1 << POINTER_BITS["active_npc"], 0),
     # Freezing needs an npc to freeze; without the mask `npc_freeze` in a script

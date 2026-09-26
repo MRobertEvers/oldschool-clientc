@@ -84,6 +84,67 @@ DriveUi_Component(struct App* app, char const* symbol, int sub, int* out_compone
     return DRIVE_OK;
 }
 
+/*
+ * The pose a MODEL component is drawn with right now: the three angles, the
+ * zoom and the spin speeds IF_SETANGLE / IF_SETROTATESPEED (and the cache's
+ * modelxan/modelyan/modelzoom before them) left in the tree.
+ *
+ * The read the server's if_setangle needed a witness for: the packet reaching
+ * the wire proves the server half, and only the client's own component proves
+ * the apply (rs_gameproto_exec.c -> UITree_ApplyModelAngle). A component that
+ * is not a model has no pose, and says so -- REFUSED, not a row of zeroes.
+ */
+struct DriveUiModelPose
+{
+    int component_id;
+    int model;
+    int xan;
+    int yan;
+    int zan;
+    int zoom;
+    int rotate_x_speed;
+    int rotate_y_speed;
+};
+
+static enum DriveResult
+drive_ui_model_pose(
+    struct App* app,
+    char const* symbol,
+    int sub,
+    struct DriveUiModelPose* out)
+{
+    struct UITreeComponent const* c;
+    int component_id;
+    int32_t idx;
+
+    assert(app);
+    assert(symbol);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    if( DriveSymbol_Lookup(DRIVE_SYMBOL_COMPONENT, symbol, &component_id) != DRIVE_OK )
+        return DRIVE_NO_ROW;
+    if( !app->tree )
+        return DRIVE_NOT_VISIBLE;
+    idx = UITree_FindByComponentId(app->tree, component_id);
+    if( idx >= 0 && sub >= 0 )
+        idx = UITree_FindChildBySubid(app->tree, idx, component_id, sub);
+    if( idx < 0 )
+        return DRIVE_NOT_VISIBLE;
+    c = &app->tree->components[idx];
+    if( c->type != UIELEM_RS_MODEL )
+        return DRIVE_REFUSED;
+    out->component_id = c->component_id;
+    out->model = c->u.rs_model.gamecache_model_id;
+    out->xan = c->u.rs_model.xan;
+    out->yan = c->u.rs_model.yan;
+    out->zan = c->u.rs_model.zan;
+    out->zoom = c->u.rs_model.zoom;
+    out->rotate_x_speed = c->u.rs_model.rotate_x_speed;
+    out->rotate_y_speed = c->u.rs_model.rotate_y_speed;
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DriveUi_IfClick(struct App* app, int component_id, int op)
 {
@@ -1040,6 +1101,45 @@ lua_drive_component(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.model_pose(symbol [, sub]) -> result, {component, model, xan,
+ * yan, zan, zoom, x_speed, y_speed} | nil. */
+static int
+lua_drive_model_pose(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* symbol = PluginDrive_ArgString(L, 1);
+    int sub = PluginDrive_ArgOptInt(L, 2, -1);
+    struct DriveUiModelPose pose;
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_ui_model_pose(app, symbol, sub, &pose);
+    lua_pushstring(L, DriveResultName(result));
+    if( result != DRIVE_OK )
+    {
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_createtable(L, 0, 8);
+    lua_pushinteger(L, pose.component_id);
+    lua_setfield(L, -2, "component");
+    lua_pushinteger(L, pose.model);
+    lua_setfield(L, -2, "model");
+    lua_pushinteger(L, pose.xan);
+    lua_setfield(L, -2, "xan");
+    lua_pushinteger(L, pose.yan);
+    lua_setfield(L, -2, "yan");
+    lua_pushinteger(L, pose.zan);
+    lua_setfield(L, -2, "zan");
+    lua_pushinteger(L, pose.zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushinteger(L, pose.rotate_x_speed);
+    lua_setfield(L, -2, "x_speed");
+    lua_pushinteger(L, pose.rotate_y_speed);
+    lua_setfield(L, -2, "y_speed");
+    return 2;
+}
+
 static int
 lua_drive_if_click(struct lua_State* L)
 {
@@ -1412,6 +1512,7 @@ lua_drive_shot(struct lua_State* L)
 static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"group_present", lua_drive_group_present},
     {"component", lua_drive_component},
+    {"model_pose", lua_drive_model_pose},
     {"if_click", lua_drive_if_click},
     {"tab", lua_drive_tab},
     {"tab_by_name", lua_drive_tab_by_name},

@@ -15,7 +15,7 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
   6 CONTENT_GAP, and every gap comes from a sourced `-- GUIDE-GAP:` marker:
   blackarmgang 5 (two-player and Phoenix-route steps), cog 1, currentaffairs
   1, fishingcompo 1, misc 8 (the Astrid courting branch; Brand was courted)
-  and mourningsendparti 1. Conformance is 138/138. `tools/quest_gate/PARITY.tsv`
+  and mourningsendparti 1. Conformance is 153/153 after seam pass 16 (126 verbs incl. `ui.model_pose` and thirteen `sail.*`, 27 seam rows). `tools/quest_gate/PARITY.tsv`
   has 33 done and 6 partial; the partial rows name their legs_left.
 - **PR #95** (https://github.com/MRobertEvers/oldschool-clientc/pull/95)
   opened into v3 on 2026-09-25. The owner merges it.

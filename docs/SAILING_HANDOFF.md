@@ -60,6 +60,10 @@ Nothing under `src/` is newer than the build.
   (`/tmp/sailing-fin3/status.txt`, one `<target>.log` each).
 - **Sailing-only server suite: 563 checks, 0 failures**
   (`/tmp/sailing-fin3/sailing-selftest.log`, `.tsv`).
+  Seam pass 16 (2026-09-25) added the five ARRIVAL-hook checks
+  (`sailing_lifecycle_selftest.u.h`: a hull crossing into a bound
+  `[mapzone]` queues it on its rider): **568 checks, 0 failures**
+  (`build/seam_state/seam16/close/st_sail.log`).
 - **All nine acceptance tools `ok: true`** — facility, crew, extractor,
   multiplayer, social (12/12), collision, cargo, deck, client (9 captures).
   Logs `/tmp/sailing-fin3/accept/*.log`; sessions `/tmp/sailing-fin3-*`; the
