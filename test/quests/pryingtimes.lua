@@ -37,22 +37,25 @@
 -- Proved end to end (0 -> 35 in one run, no quest-stage cheat) at
 -- build/parity_state/parity1o/pry_scripts/e_full.lua, SUMMARY 100 PASS
 -- pass=100 fail=0, twice (parity1o steps 6 and 9). This file follows that
--- proof's own route/camera/press choices; the two departures from it are
+-- proof's own route/camera/press choices; the departures from it are
 -- QUEST_AUTHORING.md's own rules the scratch proof was not bound by:
 --   1. The drink troll (`killTheTroll`, Quest Helper's own optional NpcStep
 --      -- "Kill the Drink Troll, or log out", not in loadSteps()'s stage
---      map at all) is declared a content gap rather than fought, on TWO
---      independent content-side findings measured across this file's own
---      runs 4-8 (see the comment beside the marker below): its own
---      `[opnpc2,...]` binding is `~npc_retaliate(0);` alone with no
---      `@player_combat_start` jump (trap 31's exact shape -- a real Attack
---      press lands but never damages it, confirmed live), and its own
---      `npc_add` spawn was unreliable in the client's pool independent of
---      that. Confirmed from the .rs2: killing the troll writes no varp and
---      gates no stage -- `[label,pry_steve_talk]`'s 25 branch advances to
---      `open_crate` on the DIALOGUE alone
---      (`%sailing_charting_drink_crate_prying_times_complete = 1` from
---      drinking), so the guide's own "or log out" alternative costs nothing.
+--      map at all) IS fought here (see the comment beside killTheTroll
+--      below): content parity1p (OSRS-Content
+--      3b413493347fd8354462be678f06dc431c4091ed, landed the same day as
+--      this file, before its own seam18 pass) fixed the `[opnpc2,...]`
+--      binding an earlier attempt at this file found dead
+--      (`~npc_retaliate(0);` alone, trap 31's exact shape, confirmed live
+--      in that attempt's runs 4-8) -- it now reads `~npc_retaliate(0);
+--      @player_combat_start;`, so a real Attack lands real damage and the
+--      "or log out" alternative is no longer the only option. Killing the
+--      troll still writes no varp and gates no stage
+--      (`[label,pry_steve_talk]`'s 25 branch advances to `open_crate` on
+--      the DIALOGUE alone, drinking's own
+--      `%sailing_charting_drink_crate_prying_times_complete = 1`, checked
+--      above regardless), so the fight is purely the guide's own optional
+--      step, driven for its own sake.
 --   2. Reward rows: `skill.snapshot()` immediately before the hand-in click
 --      (`pry_open_bar_crate` grants the stat/item rewards in the SAME
 --      script pass as the click, before any of its own dialogue is even
@@ -77,9 +80,11 @@ return {
         -- `~player_combat_level < 10` warning mesbox is part of the
         -- transcript's own startQuest dialogue (measured run 1 -- a
         -- combat level raised in setup skips that mesbox outright and the
-        -- chat.play list mismatches on it). The optional drink troll is
-        -- declared a content gap rather than fought (see killTheTroll below),
-        -- so no combat gear is needed at all.
+        -- chat.play list mismatches on it). The optional drink troll IS
+        -- fought (see killTheTroll below), but its own combat stat cheats
+        -- run mid-run, after startQuest-dialog has already matched the
+        -- low-combat-level mesbox -- no weapon is given either way (rule
+        -- (c): not in the guide's item requirements).
         "::give coins 100", -- Captain Tobias's own return-trip fare (30gp) is a prerequisite too
         -- The player's own skiff, moored at the Pandemonium -- the same
         -- sailing setup e_full.lua and the conformance harness use.
@@ -382,32 +387,86 @@ return {
         t.exec("drinkTheStout.charted", t.var.await_server, "sailing_charting_drink_crate_prying_times_complete", 1, 10)
         t.exec("drinkTheStout.mes", t.msg.expect, "Charting complete: Find a sealed crate near the Pandemonium")
 
-        -- killTheTroll -- QuestHelper's own step is explicitly optional
-        -- ("Kill the Drink Troll, or log out") and is not in loadSteps()'s
-        -- stage map at all, only in the panel listing: nothing past this
-        -- point depends on the troll's death -- confirmed from the .rs2,
-        -- pry_steve_talk's test_key branch advances to open_crate on the
-        -- drink alone (%sailing_charting_drink_crate_prying_times_complete
-        -- = 1, already checked above). The "or log out" alternative is
-        -- taken here rather than attempted live, for two independent
-        -- reasons measured across runs 4-8 of this file, both content-side:
-        --  1. [opnpc2,sailing_charting_drink_crate_prying_times_effect_troll]
-        --     (pryingtimes_locs.rs2:172-173) is `~npc_retaliate(0);` alone
-        --     with no `@player_combat_start` jump after it --
-        --     QUEST_AUTHORING.md trap 31's exact shape (an opnpc2 binding
-        --     that replaces the engine's own combat wildcard and never
-        --     re-enters it) -- CONFIRMED live (run 4): a real Attack press
-        --     lands ("ok Attack ..." six re-engagements over 60 ticks) but
-        --     the troll's own health bar never appears; no player Attack
-        --     can ever land a hit on this npc.
-        --  2. Its own `npc_add(coord, ..., 200)` spawn (the opheld1 drink
-        --     branch) was unreliable in the client's pool on this run's own
-        --     machine independent of (1): run 7 saw `npc.nearest` answer
-        --     `no_row` right after drinking, and run 8's `npc.await_present`
-        --     TIMED OUT at 10 ticks -- so even locating it to press cannot
-        --     be made deterministic without a real hit ever landing to make
-        --     the wait meaningful.
-        -- GUIDE-GAP: killTheTroll pryingtimes_locs.rs2:172 -- opnpc2 is `~npc_retaliate(0);` alone with no @player_combat_start jump, so no Attack can ever land a hit (trap 31's exact shape); the guide's own "or log out" alternative is taken
+        -- killTheTroll -- QuestHelper's own optional NpcStep ("Kill the
+        -- Drink Troll, or log out"), not in loadSteps()'s stage map at all
+        -- (nothing past this point depends on the troll's death --
+        -- pry_steve_talk's test_key branch already advanced to open_crate
+        -- on the drink alone, checked above). DRIVEN FOR REAL as of content
+        -- parity1p (OSRS-Content 3b413493347fd8354462be678f06dc431c4091ed,
+        -- landed BEFORE this file's own seam18 pass): an earlier attempt at
+        -- this file marked this step a declared content gap, naming
+        -- [opnpc2,sailing_charting_drink_crate_prying_times_effect_troll]
+        -- (pryingtimes_locs.rs2:172-173) as `~npc_retaliate(0);` alone with
+        -- no `@player_combat_start` jump (trap 31's exact shape, confirmed
+        -- live in that attempt's runs 4-8) -- that content bug is fixed
+        -- now, the binding reads `~npc_retaliate(0); @player_combat_start;`,
+        -- so the old gap marker no longer matches the .rs2 and the step is
+        -- a real Attack + kill + take here instead.
+        --
+        -- Combat stats are cheated mid-run, never in `setup`: a `setup`
+        -- combat level skips [label,pry_steve_start]'s own
+        -- `~player_combat_level < 10` warning mesbox, which
+        -- startQuest-dialog above already played and matched against a low
+        -- combat level. No weapon `::give` -- rule (c): the guide's own
+        -- getItemRequirements lists no combat gear for this optional fight
+        -- (docs/quests/prying_times.md section 2, "a drink troll appears
+        -- (optional fight)"), and rovingelves.lua's own precedent fights
+        -- its Moss Guardian bare-handed for the identical reason. Wiki
+        -- Drink troll (oldid 15200619): combat 14, 9/9/9/25
+        -- atk/str/def/hp, max hit 2, 4-tick crush -- defence+hitpoints
+        -- alone make this safe fought unarmed.
+        t.cheat("::setlevel attack 99")
+        t.cheat("::setlevel strength 99")
+        t.cheat("::setlevel defence 99")
+        t.cheat("::setlevel hitpoints 99")
+        t.ticks(3) -- a cheat's effect is not client-side yet (section 3)
+
+        -- t.npc.await_present is hollow (bare ok, trap 12) -- call it
+        -- directly and write the read-back ourselves, not through t.exec.
+        local present_result = t.npc.await_present(
+            "sailing_charting_drink_crate_prying_times_effect_troll", 30, 15)
+        t.check("killTheTroll.present", present_result == "ok",
+            "npc.await_present(radius 30, seam18's own measured aboard radius) -> "
+                .. tostring(present_result))
+        t.exec("killTheTroll.attack", t.player.attack,
+            "sailing_charting_drink_crate_prying_times_effect_troll", 2, 20)
+        t.exec("killTheTroll", t.npc.await_dead_engaged, 60, 6)
+
+        -- The drop is a FLOOR OBJ ON THE DECK (seam18's DECK FLOOR OBJS
+        -- fact): the server already sends it inside the deck sandwich, and
+        -- the client paints/picks it through the deck's own minimenu, never
+        -- t.world.obj_near/t.player.click_obj (both read only the root
+        -- pool). One of ten drinks at random (wiki drop table, 1/10 each,
+        -- pryingtimes_locs.rs2's own ai_queue3) -- press whichever landed.
+        local troll_drink_names = {
+            "Asgarnian ale", "Beer", "Brandy", "Dwarven stout", "Gin",
+            "Kebab", "Rum", "Vodka", "Whisky", "Wizard's mind bomb",
+        }
+        local troll_drink_symbols = {
+            "asgarnian_ale", "beer", "brandy", "dwarven_stout", "gin",
+            "kebab", "rum", "vodka", "whisky", "wizards_mind_bomb",
+        }
+        t.drive.camera(1024, 383, 1100)
+        t.ticks(2)
+        t.exec("killTheTroll.take", t.sail._press_deck_row,
+            troll_drink_names, "Take", 8, 16)
+        -- The click's own `ok` is the server's sentence, not the container
+        -- update (trap 24) -- `_press_deck_row` is a raw minimenu click with
+        -- no built-in settle (unlike `t.player.click_obj`), so the pickup
+        -- needs its own tick before the backpack read below.
+        t.ticks(2)
+
+        local troll_drink_found, troll_drink_count = nil, 0
+        for troll_drink_i = 1, #troll_drink_symbols do
+            local count_result, count_value = t.inv.count(troll_drink_symbols[troll_drink_i])
+            if count_result == "ok" and count_value and count_value > 0 then
+                troll_drink_found = troll_drink_symbols[troll_drink_i]
+                troll_drink_count = count_value
+            end
+        end
+        t.check("killTheTroll.drop", troll_drink_found ~= nil,
+            "backpack holds " .. tostring(troll_drink_count) .. " " .. tostring(troll_drink_found)
+                .. " (one of the troll's ten-way drop table, oldid 15200619)")
 
         -- Back to the Pandemonium (the guide's "or log out" alternative taken above).
         t.drive.camera(0, 128, 600)
