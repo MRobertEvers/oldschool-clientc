@@ -4,7 +4,7 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b25	REVERTED by sampler (sonnet-b25): findBob/findBobAgain/findBobToFinish never show the locator finding Bob (rows grade only an ok var read; eyes dark in shots 76/77/185/390) and Bob is reached by the ::twocats_gotobob debugproc teleport, so the locate leg is handed over by a debugproc -- drive the dial until %twocats_locator_found/lit eyes and walk the bearing (goto toward the sector is fine) before talk_to; also 7 PASS rows with empty detail (ui.await_open/await_close via t.expect, quest.scroll_close)
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	todo	sonnet-b25	RE-AUTHOR after 3b41349334: Bob without a worn amulet now only overheads 'Miaoww' (no page); drive the locator for real per build/parity_state/parity1p/scripts/twocats_locate.lua (157/157): turn whiskers until %twocats_locator_found=1 read BEFORE any extra turn, travel along %twocats_locator_direction until Bob in view, then talk -- never ::twocats_gotobob. PRIOR: REVERTED by sampler (sonnet-b25): findBob/findBobAgain/findBobToFinish never show the locator finding Bob (rows grade only an ok var read; eyes dark in shots 76/77/185/390) and Bob is reached by the ::twocats_gotobob debugproc teleport, so the locate leg is handed over by a debugproc -- drive the dial until %twocats_locator_found/lit eyes and walk the bearing (goto toward the sector is fine) before talk_to; also 7 PASS rows with empty detail (ui.await_open/await_close via t.expect, quest.scroll_close)
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
@@ -25,7 +25,7 @@ quest_contact	contact	contact		4	todo
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b25	
+quest_currentaffairs	currentaffairs	currentaffairs		1	todo	sonnet-b25	RE-AUTHOR after 3b41349334: content now has Starting off / Red Tape / Long live the Mayor verbatim (Arhein 'Hello again!' 4-row menu + Yes/No start header, one-conversation cr-4p hand-in, audit read aloud with retry, signed hand-in + stamp objbox) and item ops (duck Inspect/Dismiss, Mayor Consult/Feed/Destroy); first failing row startQuest-dialog 'got npc Hello again!'; drive it per the guide from build/parity_state/parity1p/ca_scripts/ca_early.lua (120/120) + ca_items.lua (98/98)
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -121,7 +121,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
-quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b25	
+quest_pryingtimes	pryingtimes	pryingtimes		1	todo	sonnet-b25	RE-AUTHOR after 3b41349334: content now has killTheTroll (Drink troll opnpc2 -> @player_combat_start, wiki drop table); the GUIDE-GAP at pryingtimes.lua:410 is false -- drive t.player.attack + await_dead per build/parity_state/parity1p/pry_scripts/troll.lua (25/25; read the troll with radius 0 aboard: DriveUi_Npcs measures from the deck-frame tile)
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
