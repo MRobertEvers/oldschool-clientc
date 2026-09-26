@@ -83,6 +83,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 CONFIGS_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "configs")
+PACK_ALLOC_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "pack")
 
 PACK_NPC = "npc"
 PACK_OBJ = "obj"
@@ -254,12 +255,33 @@ def load_compack(name):
     return symbols
 
 
+def load_alloc(name):
+    """The symbol set of OSRS-Content/osrs239-content/pack/<name>.alloc --
+    the ids this server allocated ABOVE the cache's own (`7166=
+    twocats_locator_found`), `id=symbol` lines under `//` comments. A var
+    content allocates there is as real as a compack one, so the symbol
+    check must not call it a typo."""
+    path = os.path.join(PACK_ALLOC_DIR, "%s.alloc" % name)
+    symbols = set()
+    if not os.path.isfile(path):
+        return symbols
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("//"):
+                continue
+            _, _, symbol = line.partition("=")
+            if symbol:
+                symbols.add(symbol.strip())
+    return symbols
+
+
 def load_packs():
     return {
         PACK_NPC: load_compack("npc"),
         PACK_OBJ: load_compack("obj"),
         PACK_LOC: load_compack("loc"),
-        PACK_VARP: load_compack("varp") | load_compack("varbit"),
+        PACK_VARP: load_compack("varp") | load_compack("varbit") | load_alloc("varp"),
     }
 
 
