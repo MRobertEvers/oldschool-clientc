@@ -33,8 +33,16 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
   itself. The `3draster-quest-driver` worktree was deleted in the
   2026-09-25 disk cleanup. Never delete build or cache directories there;
   several sessions build from that checkout at once.
-- **Tier 2 (19 quests) is waiting on `tools/quest_gate/skipboss.workflow.js`
-  phase 4**, which has never been run. No tier 2 quest has been authored.
+- **Tier 2 (19 quests) IS UNDER WAY** since 2026-09-27: the owner delegated the
+  readiness call ("I trust your judgement") and the decision was to start, with
+  every boss fight DRIVEN FOR REAL (`t.player.attack` + `t.npc.await_dead_engaged`,
+  as tier 1's Prying Times troll and Roving Elves' Moss Guardian were). The
+  `::skipboss` arm (`tools/quest_gate/skipboss.workflow.js`, never run) is only
+  the sanctioned fallback for an encounter that turns out to be a cutscene; it is
+  NOT a precondition, and a worker must never refuse tier 2 work over it. Passes
+  run in batches of ~6 quests: parity2a (vampire tree ball grail crest
+  desertrescue) landed as 1180a23f7 -- grail and tree at parity, the other four
+  partial with their legs named in `tools/quest_gate/PARITY.tsv`.
   The sailing tier 4 quests (pandemonium, troubledtortugans) now have the
   hull arrival hook, the `t.sail.*` verbs and the courier tasks to build on.
 
