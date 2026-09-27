@@ -29,6 +29,8 @@
 #include "game/rs_player_stats.h"
 #include "inv/inv_manager.h"
 #include "torirsserver/torirs_server.h"
+#include "torirsserver/torirs_server_vessel.h"
+#include "world/wev.h"
 #include "varp/varp_manager.h"
 
 #include "lauxlib.h"
@@ -565,6 +567,124 @@ lua_drive_message_serial(struct lua_State* L)
     return 2;
 }
 
+
+/* ------------------------------------------------------------- sail.* */
+
+/*
+ * api_drive.vessel() -> ("ok", reading) | ("unsupported", nil).
+ *
+ * The quest driver's one vessel read (script/plugins/quest_driver/sail.lua).
+ * Two halves, labelled as such, and neither stands in for the other:
+ *
+ *   - SERVER: the embedded server's hull under the bound player's feet
+ *     (ToriRSServer_VesselAtTile -- a rider stands on the deck's pool
+ *     tiles, so "aboard" is a question about the tile, exactly as every
+ *     server seam asks it). Hull tile, yaw, command state, sails, anchor,
+ *     helm, and the arrival latch's counters (torirs_server_vessel.c
+ *     vessel_update_zones), which is what a test awaits to know a sea leg
+ *     reached a square content binds.
+ *   - CLIENT: whether this client has the hull's world entity live under the
+ *     same view id, and where it draws it. A server hull the client never
+ *     heard of is a wire failure, and a sail verb must be able to say so.
+ *
+ * Like DriveState_VarpContent this is a read of the server's own state for
+ * the socket-less embed only; a socket run answers `unsupported`.
+ */
+static char const*
+drive_state_vessel_state_name(enum ToriRSServerVesselState state)
+{
+    switch( state )
+    {
+    case TORIRSSERVER_VESSEL_IDLE:
+        return "idle";
+    case TORIRSSERVER_VESSEL_HEADING:
+        return "heading";
+    case TORIRSSERVER_VESSEL_TARGET:
+        return "target";
+    }
+    return "?";
+}
+
+static void
+drive_state_set_int(struct lua_State* L, char const* key, int value)
+{
+    assert(L);
+    assert(key);
+    lua_pushinteger(L, value);
+    lua_setfield(L, -2, key);
+}
+
+static int
+lua_drive_vessel(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct ToriRSServer* srv;
+    struct ToriRSServerPlayer* player;
+    struct ToriRSServerVessel* vessel;
+
+    assert(app);
+    srv = PluginDrive_EmbedWorld();
+    if( !srv )
+        return PluginDrive_PushResult(L, DRIVE_UNSUPPORTED, NULL);
+    player = srv->active_player;
+    if( !player )
+        return PluginDrive_PushResult(L, DRIVE_NOT_FOUND, NULL);
+
+    vessel = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_createtable(L, 0, 24);
+    lua_pushboolean(L, vessel != NULL);
+    lua_setfield(L, -2, "aboard");
+    drive_state_set_int(L, "player_x", player->x);
+    drive_state_set_int(L, "player_z", player->z);
+    drive_state_set_int(L, "player_level", player->level);
+    if( !vessel )
+        return 2;
+
+    drive_state_set_int(L, "handle", vessel->index);
+    drive_state_set_int(L, "serial", vessel->serial);
+    drive_state_set_int(L, "view_id", vessel->view_id);
+    drive_state_set_int(L, "config_id", vessel->config_id);
+    drive_state_set_int(L, "level", vessel->level);
+    drive_state_set_int(L, "hull_x", vessel->fine_x >> 7);
+    drive_state_set_int(L, "hull_z", vessel->fine_z >> 7);
+    drive_state_set_int(L, "fine_x", vessel->fine_x);
+    drive_state_set_int(L, "fine_z", vessel->fine_z);
+    drive_state_set_int(L, "angle", vessel->angle);
+    drive_state_set_int(L, "heading", vessel->heading);
+    drive_state_set_int(L, "speed_tier", vessel->speed_tier);
+    lua_pushstring(L, drive_state_vessel_state_name(vessel->state));
+    lua_setfield(L, -2, "state");
+    lua_pushboolean(L, vessel->sails_set != 0);
+    lua_setfield(L, -2, "sails_set");
+    lua_pushboolean(L, vessel->anchored != 0);
+    lua_setfield(L, -2, "anchored");
+    lua_pushboolean(L, player->navigating_vessel == vessel->index &&
+                           player->navigating_vessel_serial == vessel->serial);
+    lua_setfield(L, -2, "at_helm");
+    drive_state_set_int(L, "arrivals", vessel->arrivals);
+    lua_pushstring(L, vessel->arrival_last);
+    lua_setfield(L, -2, "arrival_last");
+
+    /* The client's half: the same view id, live, and where it is drawn. */
+    if( vessel->view_id > 0 && Wevs_IsLive(&app->wevs, vessel->view_id) )
+    {
+        struct Wev* wev = Wevs_Get(&app->wevs, vessel->view_id);
+
+        lua_pushboolean(L, 1);
+        lua_setfield(L, -2, "client_live");
+        drive_state_set_int(L, "client_hull_x", wev->x >> 7);
+        drive_state_set_int(L, "client_hull_z", wev->z >> 7);
+        drive_state_set_int(L, "client_angle", wev->angle);
+    }
+    else
+    {
+        lua_pushboolean(L, 0);
+        lua_setfield(L, -2, "client_live");
+    }
+    return 2;
+}
+
 static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"varp", lua_drive_varp},
     {"varbit", lua_drive_varbit},
@@ -578,6 +698,7 @@ static struct LuaFn const LUA_DRIVE_STATE_FNS[] = {
     {"skill", lua_drive_skill},
     {"messages", lua_drive_messages},
     {"message_serial", lua_drive_message_serial},
+    {"vessel", lua_drive_vessel},
     {NULL, NULL},
 };
 

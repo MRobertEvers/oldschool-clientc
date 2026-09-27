@@ -7,20 +7,36 @@ Haiku loop, gates): the Claude Doc "Quest Suite Plan: Haiku-Scale Quest Tests",
 2026-09-19. Inventory: `tools/quest_gate/quest_inventory.tsv` (179 quests).
 Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
 
-## Status (2026-09-25)
+## Status (2026-09-27)
 
-- **Tier 1: 39/39 green with the whole Quest Helper guide driven.** On lane
-  bcb2f7c76 / OSRS-Content 1214a41b70, `gate.py --all` says 40 green (39
-  tier 1 + hans). `helper_coverage.py --all-green --tier 1` gives 33 FULL and
-  6 CONTENT_GAP, and every gap comes from a sourced `-- GUIDE-GAP:` marker:
-  blackarmgang 5 (two-player and Phoenix-route steps), cog 1, currentaffairs
-  1, fishingcompo 1, misc 8 (the Astrid courting branch; Brand was courted)
-  and mourningsendparti 1. Conformance is 138/138. `tools/quest_gate/PARITY.tsv`
-  has 33 done and 6 partial; the partial rows name their legs_left.
-- **PR #95** (https://github.com/MRobertEvers/oldschool-clientc/pull/95)
-  opened into v3 on 2026-09-25. The owner merges it.
-- **Tier 2 is waiting on `tools/quest_gate/skipboss.workflow.js` phase 4**,
-  which has never been run. No tier 2 quest has been authored.
+- **Tier 1 is complete: 40/40 green, 40/40 FULL, zero GUIDE-GAP.** The 40
+  rows are the 39 quests plus `misc_astrid`, Throne of Miscellania's Astrid
+  branch. The final run was on lane 2979f119c / OSRS-Content 2691c903fd:
+  - `gate.py --all` says 41 green (40 tier 1 plus hans).
+  - `helper_coverage.py --all-green --tier 1` grades 40/40 FULL. Steps by
+    class: DRIVEN 638, TRAVEL 88, ALTERNATIVE 18, EQUIVALENT 17,
+    BRING_ALONG 6.
+  - `grep -c GUIDE-GAP` is 0 in every tier 1 test. The markers left are the
+    verified EQUIVALENT kinds (BRANCH-IN, PARTNER, NOT-A-STEP, OBSOLETE,
+    ANY-OF), and `lint_quest` and `gate.py` check each one's evidence.
+  - Conformance is 158/158 (130 verbs, 28 seam rows).
+  - Sailing selftest is 575/0. The full selftest shows the same 14 failures
+    as the HEAD baseline (goblin x9, same-script loc x1, junglepotion x4).
+  - `tools/quest_gate/PARITY.tsv` has 37 done and 2 partial. The two partial
+    rows are atailoftwocats (the follower-cat chores hint menu) and
+    currentaffairs (post-quest currents, cargo-hold recovery refusal,
+    confirmdestroy, POH menagerie). Neither row has a leg in the guide.
+- **PR #96** (https://github.com/MRobertEvers/oldschool-clientc/pull/96)
+  was opened into v3 on 2026-09-27; the owner merges it. **PR #95**, the
+  39/39 green run with 6 CONTENT_GAP, was merged as 510c37a74.
+- **Where the work runs.** The quest workflows run in the 3draster checkout
+  itself. The `3draster-quest-driver` worktree was deleted in the
+  2026-09-25 disk cleanup. Never delete build or cache directories there;
+  several sessions build from that checkout at once.
+- **Tier 2 (19 quests) is waiting on `tools/quest_gate/skipboss.workflow.js`
+  phase 4**, which has never been run. No tier 2 quest has been authored.
+  The sailing tier 4 quests (pandemonium, troubledtortugans) now have the
+  hull arrival hook, the `t.sail.*` verbs and the courier tasks to build on.
 
 ## Working rules for every worker
 

@@ -25,6 +25,8 @@ local QD = {
     drive = {},     -- verbs-pointer: the raw pointer verbs
     quest = {},     -- quest.lua (docs/QUEST_SUITE_KIT.md phase 2, owner 2a):
                      -- bind/stage/expect_stage/expect_complete
+    session = {},   -- session.lua (seam 18 D): logout/login/relog through
+                     -- the client's own logout button and title screen
 }
 
 -- The one global this chunk exports. QD itself stays `local` -- a register,
@@ -52,8 +54,14 @@ end
 -- in scope, and every closure below (and in every other part: they all run
 -- inside the SAME chunk) shares this one upvalue.
 local api_drive
+-- api.core, for the one reading api.drive does not carry: which SCREEN the
+-- client is on (api.core.screen(), enum AppScreen -- 10 title, 20
+-- connecting, 30 game). session.lua's logout/login settle on it; every
+-- other verb assumes the gameframe and never needs it.
+local api_core
 function QD.core_bind(api)
     api_drive = api.drive
+    api_core = api.core
 end
 
 -- ------------------------------------------------------------ terminal finish

@@ -927,11 +927,134 @@ end
 -- target that projects perfectly well can still be behind the player's own
 -- body or a nearer model, and the only way to find out is to press and read
 -- the menu -- from a different camera each time.
-function QD.drive._frame(target, index, deadline)
+--
+-- SEAM conformance-press-pixel-camera-settle (seam17) -- A SETTLED READ, ON
+-- REQUEST.
+--
+-- The default read below writes the pose and returns the first
+-- screen_position that answers `ok` -- and since drive_await resolves an
+-- already-true level predicate without yielding (EDGE + LEVEL,
+-- torirs_plugin_drive.c), that is routinely the reading in the SAME pump as
+-- the camera write: the new angles (DrivePointer_Camera writes
+-- world_camera.yaw/pitch at once) against the OLD eye (world_camera_pos is
+-- only rebuilt by the next follow step), and, right after a walk, an orbit
+-- anchor still easing 1/16 a cycle towards a player still walking
+-- (Wev_SmoothCameraFocus, app_camera.c).  Measured beside Lumbridge's tree
+-- 3217,3241 from 3217,3240 (build/quest_gate/s17cp_probe1): pose 2 answered
+-- 417,37 and held 409,225 for the 120 frames after it; pose 3 410,30 ->
+-- 399,222; pose 1 straight after walk_near 416,331, then 30 frames of walking
+-- and 40 of anchor ease down to 415,247.  How far the ease had got depended
+-- on what ran before, so seam.press_pixel went red when two npc spawns 300
+-- tiles away shifted the world's random stream (parity1o).
+--
+-- `settle` = true asks for the pixel the projection HOLDS instead: the yaw
+-- taken once the player is idle (from the tile he stopped on), then the
+-- player idle and the reading still -- within 1 px, a settled tree jitters
+-- 246/247 for ever -- across _settle_frames consecutive frames, the pump that
+-- wrote the camera never counted.  From the same tile it answers the same
+-- pixel whatever ran before (s17cp_probe3 with no port-master spawn and the
+-- conformance run with it: pose 1 at 415,248 both).
+--
+-- WHY IT IS NOT THE DEFAULT, measured: the suite's presses were tuned on the
+-- unsettled read, and settling every click_minimenu pose moved them
+-- (build/seam_state/seam17/fix.conformance-press-pixel-camera-settle.
+-- progress.md step 8):
+--   * the pixel hunt's ladder climbs UP only (_hover_dys), and a stairs-down
+--     model hangs BELOW its settled centroid -- Mourning's End II's
+--     mourning_temple_stairs_top projects settled at 382,206 and no rung
+--     above it holds it; the unsettled read had put it at 382,385 and the
+--     climb found it at 382,257 (s17cp_stairs_head vs s17cp_stairs_fix);
+--   * honest poses tie where garbage ones did not, so the ranked sweep hunts
+--     another pose and leaves another camera behind (Sheep Herder's
+--     enterEnclosure1: pose 5, not pose 1), which every later press
+--     inherits -- the herd, a tick-phase random walk, then loses sheep 3;
+--   * settled poses one tile off project 16 px apart, so a retry press lands
+--     ON the covered press's still-open menu and a right press on a row
+--     SELECTS it (uitree_interact.c hit >= 0) -- Port Sarim's ledger table:
+--     pose 2 chose pose 1's Walk here (s17cp_sarimtake_dbg).  click_minimenu
+--     must _dismiss_menu before a retry press before its poses are settled.
+-- Settling the presses is those three changes together, A/B'd over the
+-- whole suite; until then only a caller that grades a pixel asks for it.
+QD.drive._settle_frames = 10
+QD.drive._settle_jitter = 1
+
+-- Await a settled projection of `target`: (result, pos, frames) -- the
+-- reading that held and how many frames it took.  A projection that never
+-- holds still inside `deadline` (server ticks) still answers the last
+-- reading, exactly as the unsettled read did, with `frames` negative so a
+-- caller can say it never settled.
+function QD.drive._await_settled(target, deadline, note)
+    local need = QD.drive._settle_frames
+    local jitter = QD.drive._settle_jitter
+    local window = {}
+    local polls = 0
+    local await_result = QD.await({
+        level = function()
+            polls = polls + 1
+            -- The first poll is the pump that called us (EDGE + LEVEL): the
+            -- camera it would read was written in this same breath.
+            if polls == 1 then
+                return false
+            end
+            local idle_result, idle = api_drive.player_idle()
+            if idle_result ~= "ok" or not idle then
+                window = {}
+                return false
+            end
+            -- Only an `ok` reading can hold still: a `not_visible` carries no
+            -- pixel, so ten of them in a row say nothing about the camera
+            -- having stopped (measured: sail.cargo_deliver's ledger table,
+            -- off-frame while the anchor eased, answered "framed nothing in
+            -- 5 poses" when a run of not_visible was taken as settled).  A
+            -- pose that never projects waits its deadline out, as it did.
+            local result, pos = api_drive.screen_position(target.kind, target.id)
+            if result ~= "ok" or pos == nil then
+                window = {}
+                return false
+            end
+            window[#window + 1] = { x = pos.x, y = pos.y }
+            if #window > need then
+                table.remove(window, 1)
+            end
+            if #window < need then
+                return false
+            end
+            local first = window[1]
+            for i = 2, #window do
+                local r = window[i]
+                if math.abs(r.x - first.x) > jitter or math.abs(r.y - first.y) > jitter then
+                    return false
+                end
+            end
+            return true
+        end,
+        note = note,
+    }, deadline)
+    local result, pos = api_drive.screen_position(target.kind, target.id)
+    if await_result ~= "ok" then
+        return result, pos, -(polls - 1)
+    end
+    return result, pos, polls - 1
+end
+
+function QD.drive._frame(target, index, deadline, settle)
     deadline = deadline or 3
     local pose = QD.drive._frame_poses[index]
     if pose == nil then
         return "unsupported", "no pose " .. tostring(index)
+    end
+    if settle then
+        -- The yaw is measured from the tile the player STOPS on: a walk_near
+        -- that returned while its step is still being walked
+        -- (build/quest_gate/s17cp_probe1: idle=false on return) would aim
+        -- from where he was.
+        QD.await({
+            level = function()
+                local idle_result, idle = api_drive.player_idle()
+                return idle_result == "ok" and idle
+            end,
+            note = "frame.idle" .. tostring(index),
+        }, deadline)
     end
     local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
     if tile_result ~= "ok" then
@@ -949,6 +1072,11 @@ function QD.drive._frame(target, index, deadline)
     if camera_result ~= "ok" then
         return camera_result, "camera"
     end
+    if settle then
+        local result, pos = QD.drive._await_settled(target, deadline,
+            "frame.settle" .. tostring(index))
+        return result, pos
+    end
     QD.await({
         level = function()
             local r = api_drive.screen_position(target.kind, target.id)
@@ -961,6 +1089,17 @@ end
 
 function QD.drive.screen_position(target)
     return QD.drive._ensure_visible(target)
+end
+
+-- The raw projection and the raw movement-idle reading, with no camera move
+-- and no await: what _await_settled polls once per frame.  Private readers
+-- (a scratch script reaches them through `t.drive`, which is QD.drive).
+function QD.drive._projection(target)
+    return api_drive.screen_position(target.kind, target.id)
+end
+
+function QD.drive._player_idle()
+    return api_drive.player_idle()
 end
 
 -- SEAM driver-lua-budget-and-npc-reaim (seam15) -- A WANDERING NPC IS

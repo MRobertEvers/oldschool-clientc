@@ -5840,7 +5840,11 @@ ToriRSServer_ScriptCommand(
             return 1;
         }
         owner = ToriRSServer_WorldNpcOwner(srv, npc);
-        SSVM_PushInt(state, owner ? owner->pid : -1);
+        /* A player uid, the same number `uid` pushes and `p_finduid` takes
+         * (pid + 1), so `npc_owner = uid` and `p_finduid(npc_owner)` mean
+         * what they say; the bare pid matched neither (Current Affairs'
+         * owned current duck, 2026-09-26). -1 names nobody. */
+        SSVM_PushInt(state, owner ? owner->pid + 1 : -1);
         return 1;
     }
 
@@ -8280,6 +8284,43 @@ ToriRSServer_ScriptCommand(
                 return 1;
         }
         ToriRSServer_SendIfSetposition(
+            srv->active_player, values[0], values[1], values[2]);
+        return 1;
+    }
+
+    /*
+     * if_setangle(component, xan, yan, zoom) and
+     * if_setrotatespeed(component, xspeed, yspeed) — the rev-230 model-pose
+     * packets, torirs extensions (gen_opcode_meta.py EXTRA_OPCODES; LostCity's
+     * 2004 IF1 has neither). The client applies them to a type-6 model
+     * component through UITree_ApplyModelAngle / _ApplyModelRotateSpeed.
+     */
+    case SS_OP_IF_SETANGLE:
+    {
+        int32_t values[4];
+
+        for( int i = 3; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        /* Send order is (uid, zoom, angle_x, angle_y); the script's is
+         * (component, xan, yan, zoom). */
+        ToriRSServer_SendIfSetangle(
+            srv->active_player, values[0], values[3], values[1], values[2]);
+        return 1;
+    }
+
+    case SS_OP_IF_SETROTATESPEED:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_SendIfSetrotatespeed(
             srv->active_player, values[0], values[1], values[2]);
         return 1;
     }

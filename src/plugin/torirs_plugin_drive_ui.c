@@ -84,6 +84,67 @@ DriveUi_Component(struct App* app, char const* symbol, int sub, int* out_compone
     return DRIVE_OK;
 }
 
+/*
+ * The pose a MODEL component is drawn with right now: the three angles, the
+ * zoom and the spin speeds IF_SETANGLE / IF_SETROTATESPEED (and the cache's
+ * modelxan/modelyan/modelzoom before them) left in the tree.
+ *
+ * The read the server's if_setangle needed a witness for: the packet reaching
+ * the wire proves the server half, and only the client's own component proves
+ * the apply (rs_gameproto_exec.c -> UITree_ApplyModelAngle). A component that
+ * is not a model has no pose, and says so -- REFUSED, not a row of zeroes.
+ */
+struct DriveUiModelPose
+{
+    int component_id;
+    int model;
+    int xan;
+    int yan;
+    int zan;
+    int zoom;
+    int rotate_x_speed;
+    int rotate_y_speed;
+};
+
+static enum DriveResult
+drive_ui_model_pose(
+    struct App* app,
+    char const* symbol,
+    int sub,
+    struct DriveUiModelPose* out)
+{
+    struct UITreeComponent const* c;
+    int component_id;
+    int32_t idx;
+
+    assert(app);
+    assert(symbol);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    if( DriveSymbol_Lookup(DRIVE_SYMBOL_COMPONENT, symbol, &component_id) != DRIVE_OK )
+        return DRIVE_NO_ROW;
+    if( !app->tree )
+        return DRIVE_NOT_VISIBLE;
+    idx = UITree_FindByComponentId(app->tree, component_id);
+    if( idx >= 0 && sub >= 0 )
+        idx = UITree_FindChildBySubid(app->tree, idx, component_id, sub);
+    if( idx < 0 )
+        return DRIVE_NOT_VISIBLE;
+    c = &app->tree->components[idx];
+    if( c->type != UIELEM_RS_MODEL )
+        return DRIVE_REFUSED;
+    out->component_id = c->component_id;
+    out->model = c->u.rs_model.gamecache_model_id;
+    out->xan = c->u.rs_model.xan;
+    out->yan = c->u.rs_model.yan;
+    out->zan = c->u.rs_model.zan;
+    out->zoom = c->u.rs_model.zoom;
+    out->rotate_x_speed = c->u.rs_model.rotate_x_speed;
+    out->rotate_y_speed = c->u.rs_model.rotate_y_speed;
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DriveUi_IfClick(struct App* app, int component_id, int op)
 {
@@ -205,6 +266,84 @@ drive_ui_distance2(int ax, int az, int bx, int bz)
     return dx * dx + dz * dz;
 }
 
+/* app_wev.c's "an aboard actor pushed out through its hull" -- the one
+ * transform the client itself applies before anything main-world reads an
+ * aboard actor's position (the minimap centre, app_minimap.c; the camera
+ * focus, app_camera.c). Non-static there and declared only in the
+ * layer-private app_internal.h, so declared here the way
+ * torirs_plugin_drive_pointer.c declares its app-layer seams. */
+extern int app_wev_actor_root_fine(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int* out_fx,
+    int* out_fz);
+
+/*
+ * The ROOT tile the npc and obj pool reads measure their radius from, and
+ * rank "nearest" by.
+ *
+ * Ashore that is App_LocalPlayerTiles' own tile. ABOARD it is not: a rider's
+ * grid position is VIEW-LOCAL (entity_facets.h, WorldEntityFacet_ViewPlacement
+ * home_view -- the route arrays cannot carry deck staging tiles), so base +
+ * grid is a tile near the scene's corner that no pool entry is anywhere near,
+ * while the npcs and ground stacks the rider can see sit in the root pool at
+ * root tiles round the hull. Measured (build/quest_gate/
+ * parity1p_pryingtimes_probe): hull 3073,2984, the Prying Times drink troll at
+ * 3074,2984 on the rider's own deck, rider origin read as 3027,2939 -> "outside
+ * radius 30". So aboard, the origin is the rider pushed out through the hull
+ * with the client's own transform (app_wev_actor_root_fine); it answers 0 --
+ * origin untouched -- whenever the player is not in a live root-parented
+ * view, which is every ashore frame.
+ *
+ * The placement is the rider's DRAW point, not route[0]'s whole tile; a radius
+ * filter and a nearest-first ranking cannot tell the difference, and the
+ * alternative is a second copy of the deck-box math.
+ */
+static struct WorldEntity_Player*
+drive_ui_local_player(struct App* app)
+{
+    int world_idx;
+
+    assert(app);
+    assert(app->world);
+    /* Mirrors app_world_query.c's app_local_player (app-layer-private), as
+     * torirs_plugin_drive_pointer.c's drive_pointer_local_player does. */
+    if( !RS_EntitySync_FindPlayer(
+            &app->esync, app->esync.local_pid >= 0 ? app->esync.local_pid : 2047, &world_idx, NULL) )
+        return NULL;
+    return World_EntityPoolGet(&app->world->entities.player, world_idx);
+}
+
+static int
+drive_ui_search_origin(struct App* app, int* out_x, int* out_z, int* out_aboard)
+{
+    int level, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+    struct WorldEntity_Player* player;
+    int fine_x, fine_z;
+
+    assert(app);
+    assert(app->world);
+    assert(out_x);
+    assert(out_z);
+    assert(out_aboard);
+
+    *out_aboard = 0;
+    if( !App_LocalPlayerTiles(
+            app, out_x, out_z, &level, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z) )
+        return 0;
+    player = drive_ui_local_player(app);
+    if( !player )
+        return 1;
+    fine_x = draw_x;
+    fine_z = draw_z;
+    if( !app_wev_actor_root_fine(app, &player->view_placement, &fine_x, &fine_z) )
+        return 1;
+    *out_x = app->world->_base_tile_x + (fine_x >> 7);
+    *out_z = app->world->_base_tile_z + (fine_z >> 7);
+    *out_aboard = 1;
+    return 1;
+}
+
 /*
  * The combat half of a row: the overhead health bar and the newest live
  * hitsplat.  See struct DriveNpcRow for why a RATIO is the only hitpoints
@@ -265,8 +404,9 @@ drive_ui_fill_npc_combat(
 enum DriveResult
 DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int* out_count)
 {
-    int px = 0, pz = 0, plevel, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+    int px = 0, pz = 0;
     int have_player;
+    int aboard;
     int base_x, base_z;
     int count = 0;
     struct World_EntityPool* pool;
@@ -281,8 +421,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
     if( !app->world )
         return DRIVE_OK;
 
-    have_player = App_LocalPlayerTiles(
-        app, &px, &pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
+    have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
     base_x = app->world->_base_tile_x;
     base_z = app->world->_base_tile_z;
 
@@ -290,10 +429,11 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
     if( getenv("TORIRS_DRIVE_DEBUG") )
         fprintf(stderr,
             "drive_npcs: world=%p npc_pool=%d head=%d player_pool=%d scenery_pool=%d "
-            "load_complete=%d have_player=%d at %d,%d base=%d,%d radius=%d\n",
+            "load_complete=%d have_player=%d at %d,%d%s base=%d,%d radius=%d\n",
             (void*)app->world, pool->count, World_EntityPoolHead(pool),
             app->world->entities.player.count, app->world->entities.scenery.count,
-            app->world->load_complete, have_player, px, pz, base_x, base_z, radius);
+            app->world->load_complete, have_player, px, pz, aboard ? " (aboard, via hull)" : "",
+            base_x, base_z, radius);
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_NPC const* npc = World_EntityPoolGet(pool, i);
@@ -594,8 +734,9 @@ DriveUi_LocVariants(
 enum DriveResult
 DriveUi_Objs(struct App* app, int radius, struct DriveObjRow* out, int cap, int* out_count)
 {
-    int px = 0, pz = 0, plevel, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+    int px = 0, pz = 0;
     int have_player;
+    int aboard;
     int base_x, base_z;
     int count = 0;
     struct World_EntityPool* pool;
@@ -610,12 +751,16 @@ DriveUi_Objs(struct App* app, int radius, struct DriveObjRow* out, int cap, int*
     if( !app->world )
         return DRIVE_OK;
 
-    have_player = App_LocalPlayerTiles(
-        app, &px, &pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
+    have_player = drive_ui_search_origin(app, &px, &pz, &aboard);
     base_x = app->world->_base_tile_x;
     base_z = app->world->_base_tile_z;
 
     pool = &app->world->entities.obj_stack;
+    if( getenv("TORIRS_DRIVE_DEBUG") )
+        fprintf(stderr,
+            "drive_objs: obj_pool=%d have_player=%d at %d,%d%s base=%d,%d radius=%d\n",
+            pool->count, have_player, px, pz, aboard ? " (aboard, via hull)" : "", base_x,
+            base_z, radius);
     for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
     {
         struct WorldEntity_ObjStack const* stack = World_EntityPoolGet(pool, i);
@@ -1040,6 +1185,45 @@ lua_drive_component(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.model_pose(symbol [, sub]) -> result, {component, model, xan,
+ * yan, zan, zoom, x_speed, y_speed} | nil. */
+static int
+lua_drive_model_pose(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    char const* symbol = PluginDrive_ArgString(L, 1);
+    int sub = PluginDrive_ArgOptInt(L, 2, -1);
+    struct DriveUiModelPose pose;
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_ui_model_pose(app, symbol, sub, &pose);
+    lua_pushstring(L, DriveResultName(result));
+    if( result != DRIVE_OK )
+    {
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_createtable(L, 0, 8);
+    lua_pushinteger(L, pose.component_id);
+    lua_setfield(L, -2, "component");
+    lua_pushinteger(L, pose.model);
+    lua_setfield(L, -2, "model");
+    lua_pushinteger(L, pose.xan);
+    lua_setfield(L, -2, "xan");
+    lua_pushinteger(L, pose.yan);
+    lua_setfield(L, -2, "yan");
+    lua_pushinteger(L, pose.zan);
+    lua_setfield(L, -2, "zan");
+    lua_pushinteger(L, pose.zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushinteger(L, pose.rotate_x_speed);
+    lua_setfield(L, -2, "x_speed");
+    lua_pushinteger(L, pose.rotate_y_speed);
+    lua_setfield(L, -2, "y_speed");
+    return 2;
+}
+
 static int
 lua_drive_if_click(struct lua_State* L)
 {
@@ -1412,6 +1596,7 @@ lua_drive_shot(struct lua_State* L)
 static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"group_present", lua_drive_group_present},
     {"component", lua_drive_component},
+    {"model_pose", lua_drive_model_pose},
     {"if_click", lua_drive_if_click},
     {"tab", lua_drive_tab},
     {"tab_by_name", lua_drive_tab_by_name},

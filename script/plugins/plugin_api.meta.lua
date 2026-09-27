@@ -969,6 +969,7 @@ except the plain readers marked as returning a value.
 ---@field skill fun(stat_index: integer): string, table { level, base_level, experience, stated }.
 ---@field messages fun(count: integer): string, table Chat lines newest first, including clan chat and the logout line.
 ---@field message_serial fun(): string, integer The serial an await must be scoped above.
+---@field vessel fun(): string, table The EMBEDDED SERVER's hull under the bound player's feet plus the client's wev for it: { aboard, player_x/z/level, and aboard: handle, serial, view_id, config_id, level, hull_x/z, fine_x/z, angle, heading, speed_tier, state, sails_set, anchored, at_helm, arrivals, arrival_last, client_live, client_hull_x/z, client_angle }. Ask it, never world.tile(), where a sea leg is: a rider stands on a deck staging square. unsupported on a socket-server run (seam16).
 --- verbs-chat
 ---@field modal_group fun(): string, integer The interface mounted under chat_modal_host.
 ---@field resume fun(component_id: integer): string, string Arm the resume-pausebutton seam: the only way a dialogue row is clicked.
@@ -1007,6 +1008,7 @@ except the plain readers marked as returning a value.
 --- verbs-ui
 ---@field group_present fun(interface_id: integer): string, boolean Mount liveness, both lanes.
 ---@field component fun(symbol: string, sub: integer): string, integer Qualified "<iface>:<child>" symbol to a component id.
+---@field model_pose fun(symbol: string, sub: integer?): string, table|nil A type-6 MODEL component's pose now: { component, model, xan, yan, zan, zoom, x_speed, y_speed } -- the cache's baked angles until IF_SETANGLE / IF_SETROTATESPEED (server if_setangle / if_setrotatespeed) change them; refused for a component that is not a model (seam16).
 ---@field if_click fun(component_id: integer, op: integer): string, string One path for IF1 button types and IF3 numbered ops.
 ---@field tab fun(tab_number: integer): string, string
 ---@field tab_by_name fun(name: string): string, integer|nil Tab NAME through app->revconfig_refs' "tab" kind (the [tabs] map, else a panel_<name> role); no_row for a name neither source declares.

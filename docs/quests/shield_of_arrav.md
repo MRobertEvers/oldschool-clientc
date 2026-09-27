@@ -131,3 +131,64 @@ real. Both are one-line swaps for whoever next owns that file (replace
 curator visit, and route `goto-weaponStore` through a real
 `click_loc`/`use_on` sequence on `phoenixdoor2` once `phoenixkey2` is
 carried) -- left as `legs_left` in the parity JSON, not attempted here.
+
+## Content parity pass parity1m (2026-09-25): Reldo reads both routes
+
+The fourteenth pass was ordered to "make Reldo start and advance BOTH
+routes exactly as LostCity does". Re-checked against the sources, raw
+wikitext this time (`?action=raw`, fetched 2026-09-25):
+
+- **LostCity** `areas/area_varrock/scripts/reldo.rs2` reads and writes
+  `%phoenixgang` only (`reldo_phoenixstart` -> `^phoenixgang_started`,
+  `reldo_read_book` -> `^phoenixgang_spoken_reldo`). It never starts or
+  advances `%blackarmgang`; `tramp.rs2` does. The port already matched.
+- **Transcript:Charlie_the_Tramp**: Charlie's only condition on "Do you
+  think they would let me join?" is "If the player has not yet joined
+  either gang" -- no Reldo/book gate. Unchanged.
+- **Transcript:Reldo** is where the OSRS form DIFFERS from LostCity, in two
+  details, both now ported (`areas/varrock/scripts/reldo.rs2`):
+  1. `{{topt|cond=If Shield of Arrav has not been started:|I'm in search of
+     a quest.}}` -- the offer is withdrawn once EITHER route has started, so
+     Reldo's four menus now read `%blackarmgang` as well as `%phoenixgang`.
+     A player Charlie has already sent to Katrine is not offered the book.
+  2. The OSRS start confirm: "Ah, yes. I think I have something, if you're
+     definitely interested?" -> "Start the Shield of Arrav quest?" Yes./No.
+     (Quest Helper's `startQuest.addDialogSteps("I'm in search of a
+     quest.", "Yes.")` agrees). No. writes nothing.
+  The transcript's "combat level is less than 10" warning box was left
+  unported by parity1m; parity1n (below) ports it.
+
+So the Quest Helper `startQuest`/`searchBookcase`/`talkToReldoAgain` steps
+are the SHARED opener (the walkthrough's "Choosing a gang" section) and stay
+optional for the Black Arm route: Reldo, the book and Reldo again are real
+and drivable on a fresh character, and Reldo's `reldo_read_book` (OSRS
+text) points at both Baraek and Charlie -- but nothing in any source makes
+them a gate on Charlie. A Black Arm test may drive them first (fresh
+character: Reldo -> Yes. -> questbookcase -> read the book -> Reldo again ->
+Charlie), which exercises all three guide steps for real.
+
+`::blackarmgang_partner` re-verified: one `phoenixkey2` (= `straven.rs2`'s
+single grant) and one `arravcertificate_lft` (one of the two
+`curator_take_phoenix_half` gives the Phoenix player), each guarded, nothing
+else. `questbookcase` stays Phoenix-only (`%phoenixgang =
+^phoenixgang_started`, LostCity `[oploc2,questbookcase]` has the same gate).
+
+## Content parity pass parity1n (2026-09-25): Reldo's low-combat box
+
+Transcript:Reldo, inside "I'm in search of a quest." after "Ah, yes. I think
+I have something, if you're definitely interested?":
+`{{tcond|If the player's combat level is less than 10.}}` ->
+`{{tbox|Before starting this quest, be aware that you combat level is lower
+than the recommended level of 10.}}`, then the "Start the Shield of Arrav
+quest?" select. An OSRS-era detail (LostCity's reldo.rs2 has no box and no
+confirm). Ported in `areas/varrock/scripts/reldo.rs2` `[label,
+reldo_phoenixstart]` as `if (~player_combat_level < 10) ~mesbox(...)` -- the
+pack's idiom for a recommended-level advisory (`kaqemeex.rs2:103`, Druidic
+Ritual). The box has no choice of its own (unlike Kaqemeex's, the transcript
+shows the start select straight after it), writes nothing and blocks nothing;
+the text reads "your" -- the transcript's "you" is its own typo.
+
+Proved (`build/quest_gate/parity1n_blackarmgang_reldo`, 13/13 PASS): a fresh
+character (combat 3) sees the box then the select; "No." leaves
+`%phoenixgang` 0; "Yes." writes 1; at combat >= 10 (40 att/str/def/hp) the
+select follows Reldo's line with no box and "Yes." writes 1.

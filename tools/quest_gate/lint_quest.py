@@ -55,6 +55,13 @@ confusing failure three steps downstream of where the actual mistake is:
     would leave the step UNMATCHED and gate.py would call the run RED. When
     the file has a QUEUE row and a guide, <step> must also be a step of that
     guide's ladder.
+  * a `-- BRANCH-IN:` / `-- PARTNER:` / `-- NOT-A-STEP:` / `-- OBSOLETE:` /
+    `-- ANY-OF:` marker (a guide step that is not a gap -- the vocabulary is
+    in helper_coverage.py's "equivalent markers" banner and trap 32) that is
+    malformed, bare, uncited, or whose evidence does not check out: a sibling
+    that does not drive the step, a cheat missing from the partner table, a
+    NOT-A-STEP on anything but a plugin sync step, an OBSOLETE with no pinned
+    wiki `?oldid=`/`#Section`, an ANY-OF with no citation or no such row.
 
 The test's own controls sit on the ROOT of `t` -- `t.exec`, `t.step`,
 `t.check`, `t.cheat` -- so every regex below spells one prefix, not two. The
@@ -83,6 +90,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 CONFIGS_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "configs")
+PACK_ALLOC_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "pack")
 
 PACK_NPC = "npc"
 PACK_OBJ = "obj"
@@ -254,12 +262,33 @@ def load_compack(name):
     return symbols
 
 
+def load_alloc(name):
+    """The symbol set of OSRS-Content/osrs239-content/pack/<name>.alloc --
+    the ids this server allocated ABOVE the cache's own (`7166=
+    twocats_locator_found`), `id=symbol` lines under `//` comments. A var
+    content allocates there is as real as a compack one, so the symbol
+    check must not call it a typo."""
+    path = os.path.join(PACK_ALLOC_DIR, "%s.alloc" % name)
+    symbols = set()
+    if not os.path.isfile(path):
+        return symbols
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("//"):
+                continue
+            _, _, symbol = line.partition("=")
+            if symbol:
+                symbols.add(symbol.strip())
+    return symbols
+
+
 def load_packs():
     return {
         PACK_NPC: load_compack("npc"),
         PACK_OBJ: load_compack("obj"),
         PACK_LOC: load_compack("loc"),
-        PACK_VARP: load_compack("varp") | load_compack("varbit"),
+        PACK_VARP: load_compack("varp") | load_compack("varbit") | load_alloc("varp"),
     }
 
 
@@ -574,6 +603,39 @@ def check_guide_gap_markers(text, test_id=None):
         if steps is not None and step not in steps:
             findings.append((number, "GUIDE-GAP %s: not a step of the guide %s" % (
                 step, os.path.basename(guide.path))))
+    findings.extend(check_equivalent_markers(text, test_id))
+    return findings
+
+
+def check_equivalent_markers(text, test_id=None):
+    """Every `-- BRANCH-IN:` / `-- PARTNER:` / `-- NOT-A-STEP:` / `-- OBSOLETE:`
+    / `-- ANY-OF:` marker must be well formed and its evidence must check out
+    (helper_coverage.Grader.verify_equivalent, before any run: the ledger
+    checks wait for gate.py). A bare or uncited one is refused, and
+    helper_coverage.py grades its step as if it were not there."""
+    import helper_coverage  # lazy: the guide/content readers live there
+    findings = []
+    markers = []
+    for number, line in enumerate(text.split("\n"), 1):
+        parsed = helper_coverage.parse_equivalent_marker(line)
+        if parsed:
+            markers.append((number, parsed))
+        elif re.match(r"^\s*--\s*(BRANCH-IN|PARTNER|NOT-A-STEP|OBSOLETE|ANY-OF)\b", line):
+            findings.append((number, "marker is missing its colon: `-- <KIND>: <step> ...`"))
+    if not markers:
+        return findings
+    if not (test_id and helper_coverage.has_guide(test_id)):
+        for number, parsed in markers:
+            findings.append((number, "%s marker in a file with no QUEUE row / Quest Helper guide -- "
+                                     "nothing to verify it against" % parsed["kind"]))
+        return findings
+    grader = helper_coverage.Grader(test_id, test_text=text)
+    for number, parsed in markers:
+        parsed["line"] = number
+        ok, why = grader.verify_equivalent(parsed, static=True)
+        if not ok:
+            findings.append((number, "%s %s: %s -- helper_coverage.py will not honour it" % (
+                parsed["kind"], parsed["step"] or "(no step)", why)))
     return findings
 
 

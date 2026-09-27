@@ -4,15 +4,15 @@ quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
-quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b17	
+quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
 quest_ball	ball	witchshouse		2	todo		
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
-quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b19	
+quest_betweenarock	betweenarock	betweenarock		1	green	sonnet-b25	
 quest_biohazard	biohazard	biohazard		1	green	sonnet-b16	
-quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b15	
+quest_blackarmgang	blackarmgang	shieldofarrav		1	green	sonnet-b25	
 quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16	
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
@@ -25,7 +25,7 @@ quest_contact	contact	contact		4	todo
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
 quest_crest	crest	familycrest		2	todo		
-quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b17	
+quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
 quest_death	death	deathplateau		3	todo		
@@ -45,7 +45,7 @@ quest_dreammentor	dreammentor	dreammentor		4	todo
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
 quest_druidspirit	druidspirit	naturespirit		3	todo		
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
-quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b17	
+quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
@@ -56,7 +56,7 @@ quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
 quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
-quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b18	
+quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
 quest_forgettabletale	forgettabletale	forgettabletale		3	todo		
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
@@ -101,12 +101,13 @@ quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10
 quest_mcannon	mcannon	dwarfcannon		3	todo		
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
+quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
-quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b15	
+quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b25	
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24	
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
@@ -120,7 +121,7 @@ quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
 quest_priestperil	priestperil	priestinperil		3	todo		
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
-quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b17	
+quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
 quest_ratcatchers	ratcatchers	ratcatchers		3	todo		

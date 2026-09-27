@@ -519,13 +519,22 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
     return environment
 
 
+# The account every quest client logs in as is the run's own name -- the
+# same name as its session directory, build/quest_gate/<name>/ -- and this
+# password. script/plugins/quest_driver/session.lua's t.session.login() (the
+# relog half of the guide's "or log out" steps) types exactly these two into
+# the title screen: the name as the last component of api_drive.session().dir,
+# the password as QD.session.PASSWORD. Change one, change the other.
+QUEST_PASSWORD = "test"
+
+
 def launch_client(binary, manifest_path, user, directory, saves, script, log_path, timeout,
                   max_frames=int(DEFAULT_MAX_FRAMES)):
     """One client process, killed (whole process group) if it outlives
     `timeout` seconds of WALL-CLOCK time -- independent of
     TORIRS_MAX_FRAMES, which only bounds the virtual clock and cannot catch
     a real hang. Returns (exit_code_or_None, timed_out)."""
-    command = [binary, "--manifest", manifest_path, "--user", user, "--pass", "test",
+    command = [binary, "--manifest", manifest_path, "--user", user, "--pass", QUEST_PASSWORD,
                "--soft3d", "--window", "765x503"]
     environment = client_env(directory, saves, script, max_frames)
     print("+ " + " ".join(command), flush=True)

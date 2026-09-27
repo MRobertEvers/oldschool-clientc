@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 111 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 130 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 111
+-- @verb-count 130
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 27
+-- @seam-count 28
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 111
-local SEAM_COUNT = 27
+local VERB_COUNT = 130
+local SEAM_COUNT = 28
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -3009,6 +3009,17 @@ return {
             -- `_hover_onto` that ignored its fourth argument would leave it
             -- untouched, and the whole reason the sweep may visit five poses
             -- is that together they cost one ladder.
+            --
+            -- AND EVERY POSE IS READ SETTLED (`_frame`'s fourth argument,
+            -- seam17).  The default read answers the first frame that
+            -- projects -- the new angles against the old eye, the orbit
+            -- anchor still easing after walk_near's step -- so the pixel was
+            -- a function of what ran BEFORE this row: two port-master spawns
+            -- 300 tiles away shifted the world's random stream and pose 1
+            -- read 422,382 where it had read 659,414, and the row went
+            -- `covered` (parity1o's bisect, 153 -> 152).  Settled, pose 1 from
+            -- 3217,3240 is 415,248 with the spawns and without them
+            -- (build/quest_gate/_conf_s17cp_c, s17cp_probe3).
             local poses = is_table(t.drive) and t.drive._frame_poses or nil
             local limit = is_table(poses) and #poses or 1
             local budget = { left = cap }
@@ -3016,7 +3027,7 @@ return {
             local tried = {}
             local index = 1
             while index <= limit and not is_table(hovered) do
-                local pos_result, framed = frame(seam_target, index, 4)
+                local pos_result, framed = frame(seam_target, index, 4, true)
                 if pos_result == "ok" and is_table(framed) then
                     pos = framed
                     hovered, account = hunt(seam_target, framed, 4, budget)
@@ -4994,6 +5005,292 @@ return {
                 .. "; dwarfrock_puzzle_dx1=" .. describe(puzzle_value) .. " (" .. describe(puzzle_source) .. ")"
         end)
 
+        -- ------------------------ phase 7c: a model component's pose
+        --
+        -- ui.model_pose / ui.await_model_pose (seam16 engine-if-model-angle).
+        -- AFTER every Lumbridge seam row, not beside the objectbox rows of
+        -- phase 5 where they first sat: their few ticks there moved the
+        -- camera seam.press_pixel inherits, and it went `covered` twice
+        -- running (the same binary under HEAD's harness pressed its tree).
+        -- The objectbox's `item` is a type-6 MODEL component
+        -- (interfaces/objectbox.if [item] type=6) and ::objbox puts an obj on
+        -- it, so the reading is knowable: a pose on that component, and
+        -- REFUSED on the box's `text` (type 4) -- a reader that answered a row
+        -- of zeroes for a non-model would pass the first half and not this.
+        -- The if_setangle half is pinned by the server selftest (IF_SETANGLE
+        -- keeps xan/yan/zoom) and build/quest_gate/s16_angle_probe2.
+        stage(function()
+            local close = verb("chat", "close")
+            if close then
+                close()
+            end
+            setup_cheat("::objbox " .. SEAM_OBJ_SYMBOL .. " 250")   -- setup
+            settle(3)
+        end)
+
+        local objbox_pose = nil
+        step("ui.model_pose", function()
+            local fn = verb("ui", "model_pose")
+            if not fn then return missing("ui", "model_pose") end
+            local result, detail, pose = fn(OBJECTBOX_INTERFACE .. ":item")
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            if type(pose) ~= "table" or type(pose.zoom) ~= "number" or pose.zoom <= 0 then
+                return "hollow", "answered ok but the pose carries no zoom -- " .. describe(detail)
+            end
+            objbox_pose = pose
+            local text_result, text_detail = fn(OBJECTBOX_INTERFACE .. ":text")
+            if text_result ~= "refused" then
+                return "hollow", "objectbox:text is type 4, not a model, and answered "
+                    .. describe(text_result) .. " -- " .. describe(text_detail)
+            end
+            return "ok", describe(detail) .. "; objectbox:text -> refused"
+        end)
+
+        step("ui.await_model_pose", function()
+            local fn = verb("ui", "await_model_pose")
+            if not fn then return missing("ui", "await_model_pose") end
+            if objbox_pose == nil then
+                return "no_subject", "ui.model_pose read no pose to await"
+            end
+            local result, detail = fn(OBJECTBOX_INTERFACE .. ":item",
+                { xan = objbox_pose.xan, yan = objbox_pose.yan, zoom = objbox_pose.zoom }, 4)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            -- And a pose nobody set must time out, naming the last reading.
+            local never, never_detail = fn(OBJECTBOX_INTERFACE .. ":item",
+                { zoom = objbox_pose.zoom + 1 }, 2)
+            if never ~= "timeout" then
+                return "hollow", "a zoom nobody set (" .. (objbox_pose.zoom + 1) .. ") answered "
+                    .. describe(never) .. " -- " .. describe(never_detail)
+            end
+            return "ok", describe(detail) .. "; zoom+1 -> timeout (" .. describe(never_detail) .. ")"
+        end)
+
+        stage(function()
+            local close = verb("chat", "close")
+            if close then
+                close()                                        -- setup: the box
+            end
+            settle(2)
+        end)
+
+        -- ------------------------------- phase 7d: a sea leg (sail.*)
+        --
+        -- seam16 engine-sailing-for-quests.  The last world rows, because they
+        -- leave Lumbridge: Catherby, the player's own skiff at its berth, a
+        -- courier task off the Catherby board (OSRS wiki "Courier tasks":
+        -- choose it on the notice board, take the crate at the ledger table,
+        -- load it into the boat's hold), then a real sea leg whose hull crosses
+        -- into a map square content binds ([mapzone,0_43_52],
+        -- skill_farming/scripts/farming_hops.rs2) -- which is what the arrival
+        -- hook (torirs_server_vessel.c vessel_update_zones) exists to report.
+        -- Proven first as build/quest_gate/s16b_sea_leg and s16b_port_task.
+        stage(function()
+            setup_cheat("::setlevel sailing 20")               -- setup
+            setup_cheat("::setvar sailing_boat_1_owned 1")     -- setup
+            setup_cheat("::setvar sailing_boat_1_type 1")      -- setup: a skiff
+            setup_cheat("::setvar sailing_boat_1_port 6")      -- setup: Catherby's dock_id
+            setup_cheat("::setvar sailing_last_personal_boat_boarded 1") -- setup
+            setup_cheat("::setvar sailing_boat_1_hotspot_6 1") -- setup: a cargo hold
+            -- Catherby's shore, not the pier: a ::goto onto the pier strands
+            -- the player (the seam's own finding).
+            setup_cheat("::goto 2803 3430 0")                  -- setup
+            settle(6)
+        end)
+
+        local CATHERBY_GANGPLANK = "sailing_gangplank_catherby"
+        local SEAM_SHORE_OBJ = "cosmicrune"
+        local CATHERBY_BOARD = "port_task_board_catherby"
+        local CATHERBY_LEDGER = "dock_loading_bay_ledger_table_catherby"
+        -- The Catherby board's first offer: port_task_catherby_courier_0,
+        -- task_id 58, "Port Sarim flax delivery" (configs/all.dbrow), its
+        -- cargo at Catherby and its destination Port Sarim.
+        local FIRST_TASK_ID = 58
+
+        step("sail.state", function()
+            local fn = verb("sail", "state")
+            if not fn then return missing("sail", "state") end
+            local result, reading = fn()
+            if result ~= "ok" then
+                return result, describe(reading)
+            end
+            if type(reading) ~= "table" or reading.aboard ~= false
+                or reading.player_x ~= 2803 or reading.player_z ~= 3430 then
+                return "hollow", "answered ok but not the ashore reading at 2803,3430 -- "
+                    .. describe(reading)
+            end
+            return "ok", "ashore at " .. reading.player_x .. "," .. reading.player_z
+        end)
+
+        step("sail.task_board", function()
+            local fn = verb("sail", "task_board")
+            if not fn then return missing("sail", "task_board") end
+            local result, detail = fn(CATHERBY_BOARD)
+            return names_reading(result, detail, "", { "open", "slots" },
+                "the board it opened and the slots it read")
+        end)
+
+        step("sail.task_accept", function()
+            local fn = verb("sail", "task_accept")
+            if not fn then return missing("sail", "task_accept") end
+            local result, detail = fn(0)
+            return names_reading(result, detail, "", { "0:" .. FIRST_TASK_ID .. "/0/0" },
+                "slot 0 holding task " .. FIRST_TASK_ID .. " with nothing taken")
+        end)
+
+        step("sail.tasks", function()
+            local fn = verb("sail", "tasks")
+            if not fn then return missing("sail", "tasks") end
+            local result, slots, text = fn()
+            if result ~= "ok" then
+                return result, describe(text)
+            end
+            if type(slots) ~= "table" or type(slots[1]) ~= "table" or slots[1].id ~= FIRST_TASK_ID then
+                return "hollow", "answered ok but slot 0 is not task " .. FIRST_TASK_ID .. " -- "
+                    .. describe(text)
+            end
+            return "ok", describe(text)
+        end)
+
+        step("sail.cargo_take", function()
+            local fn = verb("sail", "cargo_take")
+            if not fn then return missing("sail", "cargo_take") end
+            local result, detail = fn(CATHERBY_LEDGER, 3)
+            return names_reading(result, detail, "", { "carrying", "0:" .. FIRST_TASK_ID .. "/1/0" },
+                "the crate in hand and slot 0's taken count at 1")
+        end)
+
+        stage(function()
+            local walk = verb("player", "walk_to")
+            if walk then
+                walk(2797, 3413, 30)                           -- setup: by the gangplank
+            end
+            -- seam.aboard_pool_radius_from_hull's subject: a ROOT ground obj
+            -- on the shore beside the moored hull (::dropobj spawns it at the
+            -- player's tile, general/scripts/misc/cheat_obj.rs2:15).
+            setup_cheat("::dropobj " .. SEAM_SHORE_OBJ .. " 1") -- setup
+            settle(2)
+        end)
+
+        step("sail.board", function()
+            local fn = verb("sail", "board")
+            if not fn then return missing("sail", "board") end
+            local result, detail = fn(CATHERBY_GANGPLANK)
+            return names_reading(result, detail, "", { "hull", "client=true" },
+                "the hull boarded, live on the client")
+        end)
+
+        -- seam18 B.  ABOARD, the npc/obj pool reads measure radius and
+        -- "nearest" from the rider's HULL-PROJECTED root tile
+        -- (torirs_plugin_drive_ui.c drive_ui_search_origin ->
+        -- app_wev_actor_root_fine).  A rider's grid position is view-LOCAL, so
+        -- before the fix the origin was base + deck grid, a tile near the
+        -- scene's corner, and every radius>0 read aboard missed what stood
+        -- beside the hull: obj_near answered not_found, await_gone passed
+        -- hollowly (build/quest_gate/seam18b_radius_before: 'obj.aboard.r15
+        -- FAIL not_found beer'; _after 11/11).  The subject is the rune the
+        -- stage above dropped on the shore by the gangplank.
+        seam("seam.aboard_pool_radius_from_hull", function()
+            local state = verb("sail", "state")
+            local obj_near = verb("world", "obj_near")
+            if not state then return missing("sail", "state") end
+            if not obj_near then return missing("world", "obj_near") end
+            local state_result, reading = state()
+            if state_result ~= "ok" or type(reading) ~= "table" or reading.aboard ~= true then
+                return "no_subject", "not aboard: " .. describe(reading)
+            end
+            local result, row = obj_near(SEAM_SHORE_OBJ, 15)
+            if result ~= "ok" or type(row) ~= "table" then
+                return result, "aboard (hull " .. describe(reading.hull_x) .. "," .. describe(reading.hull_z)
+                    .. "): obj_near(" .. SEAM_SHORE_OBJ .. ", 15) -> " .. describe(row)
+            end
+            return "ok", "aboard (hull " .. describe(reading.hull_x) .. "," .. describe(reading.hull_z)
+                .. "): the shore's " .. SEAM_SHORE_OBJ .. " at " .. describe(row.tile_x) .. "," .. describe(row.tile_z)
+                .. " within 15 of the hull-projected rider"
+        end)
+
+        step("sail.cargo_load", function()
+            local fn = verb("sail", "cargo_load")
+            if not fn then return missing("sail", "cargo_load") end
+            local result, detail = fn("cargo hold")
+            return names_reading(result, detail, "", { "into the cargo hold" },
+                "content's own load line")
+        end)
+
+        step("sail.helm", function()
+            local fn = verb("sail", "helm")
+            if not fn then return missing("sail", "helm") end
+            local result, detail = fn("Helm")
+            return names_reading(result, detail, "", { "helm=true" }, "the rider at the helm")
+        end)
+
+        step("sail.sails", function()
+            local fn = verb("sail", "sails")
+            if not fn then return missing("sail", "sails") end
+            local result, detail = fn(true)
+            return names_reading(result, detail, "", { "sails=true" }, "the sails reading set")
+        end)
+
+        -- The berth is in map square 0_43_53 (z 3392..3455).  Sail to 2791,3398
+        -- -- still inside it -- and the hull, still heading south, crosses
+        -- z 3391 into the bound 0_43_52 a few ticks later: the arrival
+        -- await_arrival has to SEE happen, not one that happened before it.
+        step("sail.sail_to", function()
+            local fn = verb("sail", "sail_to")
+            if not fn then return missing("sail", "sail_to") end
+            local result, detail = fn(2791, 3398, 2)
+            return names_reading(result, detail, "", { "heading press", "hull" },
+                "the presses it made and where the hull reads")
+        end)
+
+        step("sail.await_arrival", function()
+            local fn = verb("sail", "await_arrival")
+            if not fn then return missing("sail", "await_arrival") end
+            local result, detail = fn("[mapzone,0_43_52]", 40)
+            return names_reading(result, detail, "", { "last=[mapzone,0_43_52]" },
+                "the bound square the hull crossed into")
+        end)
+
+        stage(function()
+            local sail_to = verb("sail", "sail_to")
+            local sails = verb("sail", "sails")
+            if sail_to then
+                sail_to(2793, 3407, 1)                         -- setup: back to the berth
+            end
+            if sails then
+                sails(false)                                   -- setup: furl
+            end
+        end)
+
+        step("sail.disembark", function()
+            local fn = verb("sail", "disembark")
+            if not fn then return missing("sail", "disembark") end
+            local result, detail = fn(CATHERBY_GANGPLANK)
+            return names_reading(result, detail, "", { "ashore at" }, "the player ashore")
+        end)
+
+        -- Delivery is the honest negative here: the crate is in the hold, and
+        -- this is its CARGO port, not its destination (Port Sarim).  The
+        -- verb must not report a delivery that did not happen -- slot 0
+        -- still holds task 58 with one crate taken and none delivered.  (A
+        -- positive delivery needs quest_pandemonium's ledger op1 to fall
+        -- through to port_tasks.rs2; recorded as open in seam16's close.)
+        step("sail.cargo_deliver", function()
+            local fn = verb("sail", "cargo_deliver")
+            if not fn then return missing("sail", "cargo_deliver") end
+            local result, detail = fn(CATHERBY_LEDGER, 6)
+            if result == "timeout" and string.find(tostring(detail), "0:" .. FIRST_TASK_ID .. "/1/0", 1, true) then
+                return "ok", "no delivery at the cargo port, slots unchanged: " .. describe(detail)
+            end
+            if result == "ok" then
+                return "refused", "reported a delivery at the cargo port -- " .. describe(detail)
+            end
+            return result, describe(detail)
+        end)
+
         -- ------------------------- phase 8: the scheduler's own controls
 
         step("await", function()
@@ -5088,6 +5385,111 @@ return {
             -- Every other row in this ledger was written by t.expect; a row
             -- named t.expect, in a ledger with a header, IS the evidence.
             return "ok", "wrote every other row in this ledger"
+        end)
+
+        -- ---------------------------- phase 9: leave and come back (session.*)
+        --
+        -- seam18 D.  LAST of the world rows: a relog RE-BOOTS the embedded
+        -- server from the save (net_transport_embed.c), so nothing after it
+        -- may need unsaved world state.  logout presses the logout tab's own
+        -- button; login types the run's account through the title screen;
+        -- the same tile and the same backpack prove the session came back.
+        -- Proven first as build/quest_gate/s18d_relog7 (14/14).
+        step("session.screen", function()
+            local fn = verb("session", "screen")
+            if not fn then return missing("session", "screen") end
+            local result, name, number = fn()
+            if result == "ok" and name ~= "game" then
+                return "hollow", "in the world but the screen reads " .. describe(name) .. " (" .. describe(number) .. ")"
+            end
+            return result, describe(name) .. " (" .. describe(number) .. ")"
+        end)
+
+        -- The account: tools/quest_gate/conformance.py launches this harness
+        -- as USER "qdconform", and its session directory is attempt-NN, so
+        -- the verbs' default (the session dir's name, which IS the account
+        -- for every run.py quest) would log a fresh character in.
+        local SESSION_USER = "qdconform"
+        local session_before_tile, session_before_runes
+
+        local function session_reading()
+            local tile = verb("world", "tile")
+            local count = verb("inv", "count")
+            if not (tile and count) then
+                return nil, nil
+            end
+            local _, here = tile()
+            local _, runes = count(OBJ_SYMBOL)
+            return here, runes
+        end
+
+        -- The same tile and the same backpack after a login: the session that
+        -- came back is this character's, loaded from the save its logout wrote.
+        local function same_session(here, runes)
+            if type(here) ~= "table" or type(session_before_tile) ~= "table"
+                or here.x ~= session_before_tile.x or here.z ~= session_before_tile.z then
+                return false, "in the world at " .. describe(here) .. ", left it at "
+                    .. describe(session_before_tile)
+            end
+            if type(runes) ~= "number" or runes ~= session_before_runes then
+                return false, "the backpack came back with " .. OBJ_SYMBOL .. " " .. describe(runes)
+                    .. ", not " .. describe(session_before_runes)
+            end
+            return true, "same tile " .. here.x .. "," .. here.z .. ", " .. OBJ_SYMBOL .. " " .. runes
+        end
+
+        step("session.logout", function()
+            local fn = verb("session", "logout")
+            local screen = verb("session", "screen")
+            if not fn then return missing("session", "logout") end
+            if not screen then return missing("session", "screen") end
+            session_before_tile, session_before_runes = session_reading()
+            local result, detail = fn()
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local _, name = screen()
+            if name ~= "title" then
+                return "hollow", "answered ok but the screen reads " .. describe(name) .. " -- " .. describe(detail)
+            end
+            return "ok", describe(detail)
+        end)
+
+        step("session.login", function()
+            local fn = verb("session", "login")
+            if not fn then return missing("session", "login") end
+            local result, detail = fn(SESSION_USER)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local same, why = same_session(session_reading())
+            if not same then
+                return "hollow", why .. " -- " .. describe(detail)
+            end
+            return "ok", describe(detail) .. "; " .. why
+        end)
+
+        step("session.relog", function()
+            local fn = verb("session", "relog")
+            local cheat = verb("cheat")
+            if not fn then return missing("session", "relog") end
+            if not cheat then return missing("cheat") end
+            session_before_tile, session_before_runes = session_reading()
+            local result, detail = fn(SESSION_USER)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local same, why = same_session(session_reading())
+            if not same then
+                return "hollow", why .. " -- " .. describe(detail)
+            end
+            -- The RE-BOOTED server must answer a script: a debugproc's reply.
+            local answered_result, answered = cheat("::dropobj " .. OBJ_SYMBOL .. " 1")
+            if answered_result ~= "ok" then
+                return "hollow", "relogged (" .. why .. ") but ::dropobj answered "
+                    .. describe(answered_result) .. " " .. describe(answered)
+            end
+            return "ok", describe(detail) .. "; " .. why .. "; the server answers ::dropobj"
         end)
 
         step("finish", function()

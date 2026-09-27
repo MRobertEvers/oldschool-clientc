@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Grade a quest test against its Quest Helper guide -- the guide is the spec.
 
-    python3 tools/quest_gate/helper_coverage.py <test_id> [--json]
+    python3 tools/quest_gate/helper_coverage.py <test_id> [--json] [--lua <copy.lua>]
     python3 tools/quest_gate/helper_coverage.py --all-green [--tier N] [--json]
 
 WHY. gate.py checks a ledger's shape and every author/reviewer card checks a
@@ -63,6 +63,11 @@ CLASSES (first rule that fires wins, in this order).
                multinpc parent, or its display name; a "use X on Y" step
                needs a use of X on Y, a pick-up step may be done by another
                route (buy-rum), and a door clicked once is one step, not two.
+  EQUIVALENT   a VERIFIED `-- BRANCH-IN:` / `-- PARTNER:` / `-- NOT-A-STEP:` /
+               `-- OBSOLETE:` / `-- ANY-OF:` marker names the step: not a gap
+               (the sibling drives it, a partner cheat does it, it is a plugin
+               sync, the live game removed it, it was done another way). See
+               the "equivalent markers" banner below; neutral, like DRIVEN.
   CONTENT_GAP  a t.blocked()/content_bug line or a `-- GUIDE-GAP:` marker
                names the step (or a ConditionalStep above it); the marker
                counts only when its reason cites a real `<file>.rs2:<line>`.
@@ -93,7 +98,7 @@ CLASSES (first rule that fires wins, in this order).
   UNMATCHED    nothing above -- reported, never guessed. In a stage most of
                whose steps are narrated, it joins them as CONTENT_GAP.
 
-VERDICT. FULL (every step DRIVEN/TRAVEL/BRING_ALONG/ALTERNATIVE), CONTENT_GAP (the only
+VERDICT. FULL (every step DRIVEN/EQUIVALENT/TRAVEL/BRING_ALONG/ALTERNATIVE), CONTENT_GAP (the only
 gaps are CONTENT_GAP), TEST_GAP (the only gaps are CHEAT/UNMATCHED), MIXED
 (both). gate.py grades a green run with `gate_findings()`: FULL, or every gap
 a CONTENT_GAP that the file itself declares (t.blocked/content_bug/GUIDE-GAP).
@@ -138,7 +143,7 @@ GUIDES_DIR = os.path.join(QUEST_HELPER_ROOT, "src", "main", "java", "com", "ques
                           "helpers", "quests")
 
 GAP_CLASSES_TEST = ("CHEAT", "UNMATCHED")
-NEUTRAL_CLASSES = ("DRIVEN", "TRAVEL", "BRING_ALONG", "ALTERNATIVE")
+NEUTRAL_CLASSES = ("DRIVEN", "EQUIVALENT", "TRAVEL", "BRING_ALONG", "ALTERNATIVE")
 
 # ------------------------------------------------------------------ words
 
@@ -900,11 +905,15 @@ ACTION_VERB = re.compile(
 
 
 class Test:
-    def __init__(self, test_id, path):
+    def __init__(self, test_id, path, text=None):
+        """`text` grades a copy (lint_quest's text, `--lua <file>`) in place of
+        the file at `path`."""
         self.test_id = test_id
         self.path = path
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            self.raw = handle.read()
+        if text is None:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read()
+        self.raw = text
         self.code = strip_lua_comments(self.raw)
         self.raw_lines = self.raw.split("\n")
         self.code_lines = self.code.split("\n")
@@ -913,6 +922,9 @@ class Test:
         self.gotos = []        # (line, x, y, z)
         self.blocked_text = []  # (line, text)
         self.guide_gaps = []   # (line, step, reason)
+        # BRANCH-IN / PARTNER / NOT-A-STEP / OBSOLETE / ANY-OF markers:
+        # [{line, kind, step, ..., error}] (parse_equivalent_marker).
+        self.equivalents = []
         for number, line in enumerate(self.code_lines, 1):
             for literal in re.findall(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'', line):
                 text = literal[0] or literal[1]
@@ -939,6 +951,10 @@ class Test:
             match = GUIDE_GAP_RE.match(line)
             if match:
                 self.guide_gaps.append((number, match.group(1), match.group(2).strip()))
+            parsed = parse_equivalent_marker(line)
+            if parsed:
+                parsed["line"] = number
+                self.equivalents.append(parsed)
         # The strings an ACTION names: a literal on a line that calls an
         # action verb, or a local assigned a literal and later passed to one.
         # An inv.count("egg") read is not a pickup.
@@ -1080,6 +1096,140 @@ def sanctioned_grind_cheats():
     return _SANCTIONED
 
 
+# ------------------------------------------------------------------ equivalent markers
+#
+# A GUIDE-GAP marker declares a leg the CONTENT lacks. Some guide steps are
+# not gaps at all, and the marker vocabulary below says so, each kind with
+# evidence this tool checks (Grader.verify_equivalent) -- a marker that does
+# not verify is ignored here, refused by lint_quest.py and a gate finding:
+#
+#   -- BRANCH-IN: <sibling test_id> <step> [reason]
+#        a mutually exclusive guide branch (Throne of Miscellania's Astrid /
+#        Brand courting) driven by a SIBLING test of the same guide: the
+#        sibling is a committed, green QUEUE row with the same Quest Helper
+#        file, and its own grading (with its BRANCH-IN markers switched off,
+#        so two siblings cannot vouch for each other) reads <step> DRIVEN.
+#   -- PARTNER: <step> ::<cheat> [reason]
+#        a two-player step whose guide text names another player, performed
+#        by a cheat listed in docs/QUEST_SERVER_CHEATS.md's "Two-player
+#        partner affordances" table, which the test calls and (once a
+#        ledger exists) a PASS row reports.
+#   -- NOT-A-STEP: <step> <reason>
+#        a Quest Helper plugin-state step: a QuestSyncStep, or a target-less
+#        DetailedQuestStep whose text asks the player to open the journal to
+#        sync the plugin's state (Clock Tower's syncStep). Nothing else.
+#   -- OBSOLETE: <step> <reason citing the wiki with ?oldid=N or #Section>
+#        a guide step the live game removed, or one naming an object with no
+#        interaction in the real game.
+#   -- ANY-OF: <step> <driven step> <reason citing .rs2:line / map / wiki>
+#        a guide step one of several ways satisfy, done another way: <driven
+#        step> is a PASS action row of this run (named exactly, or as
+#        `<name>.<check>` / `<name>-<n>`) or a guide step graded DRIVEN.
+#
+# Such a step grades EQUIVALENT, a neutral class: the verdict can read FULL.
+
+EQUIVALENT_KINDS = ("BRANCH-IN", "PARTNER", "NOT-A-STEP", "OBSOLETE", "ANY-OF")
+EQUIVALENT_RE = re.compile(r"^\s*--\s*(BRANCH-IN|PARTNER|NOT-A-STEP|OBSOLETE|ANY-OF):\s*(.*?)\s*$")
+# oldschool.runescape.wiki/w/<Page>?oldid=<n>[#Section] or .../w/<Page>#<Section>
+WIKI_CITE_RE = re.compile(r"oldschool\.runescape\.wiki/w/[^\s?#)\]`\"']+"
+                          r"(?:\?oldid=\d+(?:#[^\s)\]`\"']+)?|#[^\s)\]`\"']+)")
+TWO_PLAYER_TEXT = re.compile(r"\b(?:another|other) player\b|\bpartner\b", re.I)
+SYNC_TEXT = re.compile(r"\bsync\b", re.I)
+SYNC_TEXT_OBJECT = re.compile(r"\bjournal\b|\bstate\b", re.I)
+
+
+def parse_equivalent_marker(line):
+    """{kind, step, sibling|cheat|other, reason, error} for one raw Lua line
+    carrying an equivalent marker, else None. `error` names a malformed one."""
+    match = EQUIVALENT_RE.match(line)
+    if not match:
+        return None
+    kind, body = match.group(1), match.group(2)
+    out = {"kind": kind, "step": None, "reason": "", "error": None, "text": body}
+    if kind == "BRANCH-IN":
+        found = re.match(r"^(\w+)\s+(\w+)(?:\s+(.*))?$", body)
+        if found:
+            out.update(sibling=found.group(1), step=found.group(2), reason=(found.group(3) or "").strip())
+        else:
+            out["error"] = "not `-- BRANCH-IN: <sibling test_id> <step> [reason]`"
+    elif kind == "PARTNER":
+        found = re.match(r"^(\w+)\s+::(\w+)(?:\s+(.*))?$", body)
+        if found:
+            out.update(step=found.group(1), cheat=found.group(2), reason=(found.group(3) or "").strip())
+        else:
+            out["error"] = "not `-- PARTNER: <step> ::<cheat> [reason]`"
+    elif kind == "ANY-OF":
+        found = re.match(r"^(\w+)\s+([\w.-]+)\s+(\S.*)$", body)
+        if found:
+            out.update(step=found.group(1), other=found.group(2), reason=found.group(3).strip())
+        else:
+            out["error"] = "not `-- ANY-OF: <step> <driven step> <reason citing .rs2:line or the wiki>`"
+    else:  # NOT-A-STEP, OBSOLETE
+        found = re.match(r"^(\w+)\s+(\S.*)$", body)
+        if found:
+            out.update(step=found.group(1), reason=found.group(2).strip())
+        else:
+            out["error"] = "not `-- %s: <step> <reason>`" % kind
+    return out
+
+
+def wiki_citation(reason):
+    """The first pinned OSRS wiki citation in `reason` -- a page URL carrying
+    `?oldid=<n>` or a `#Section` anchor -- else None. A bare page URL is not a
+    citation: the page moves under it."""
+    match = WIKI_CITE_RE.search(reason or "")
+    return match.group(0).rstrip(".,;:") if match else None
+
+
+_PARTNERS = None
+
+
+def partner_cheats():
+    """{cheat name: doc line} -- the two-player partner affordances
+    docs/QUEST_SERVER_CHEATS.md lists in its "Two-player partner affordances"
+    table (a row's first cell is the `::<cheat>`)."""
+    global _PARTNERS
+    if _PARTNERS is not None:
+        return _PARTNERS
+    _PARTNERS = {}
+    if not os.path.isfile(CHEATS_DOC):
+        return _PARTNERS
+    with open(CHEATS_DOC, "r", encoding="utf-8", errors="replace") as handle:
+        lines = handle.read().split("\n")
+    inside = False
+    for number, line in enumerate(lines, 1):
+        if line.startswith("#"):
+            inside = bool(re.search(r"two-player partner", line, re.I))
+            continue
+        if not inside:
+            continue
+        found = re.match(r"^\|\s*`::(\w+)`\s*\|", line)
+        if found:
+            _PARTNERS.setdefault(found.group(1), number)
+    return _PARTNERS
+
+
+def git_tracked(path):
+    """Is `path` committed (known to git's index) in this checkout?"""
+    import subprocess
+    result = subprocess.run(["git", "-C", REPO_ROOT, "ls-files", "--error-unmatch",
+                             os.path.relpath(path, REPO_ROOT)],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return result.returncode == 0
+
+
+_SIBLING_GRADES = {}
+
+
+def sibling_grade(test_id):
+    """The sibling's own per-step classes, graded WITHOUT its BRANCH-IN
+    markers (a sibling may vouch for a step only by driving it itself)."""
+    if test_id not in _SIBLING_GRADES:
+        grader = Grader(test_id, follow_branch_in=False)
+        _SIBLING_GRADES[test_id] = grader.grade()
+    return _SIBLING_GRADES[test_id]
+
+
 # A read of a cheat's effect: a named check, an expect, a var/inv/stage read.
 READBACK = re.compile(r"\bt\.(check|expect\w*|msg\.expect\w*|var\.\w+|inv\.\w+|quest\.(stage|expect\w*)|"
                       r"stat\.\w+)\s*\(|\binv\.count\s*\(|await_server")
@@ -1200,15 +1350,22 @@ def _distance(point, goto):
 
 
 class Grader:
-    def __init__(self, test_id):
+    def __init__(self, test_id, test_path=None, test_text=None, follow_branch_in=True):
+        """`test_path`/`test_text` grade another copy of the test (a proof copy
+        under build/, lint_quest's text) against this test_id's QUEUE row,
+        guide and ledger. `follow_branch_in=False` ignores BRANCH-IN markers
+        (a sibling graded to verify one)."""
         self.test_id = test_id
+        self.follow_branch_in = follow_branch_in
+        self._driven = {}
         self.row = queue_row(test_id)
         assert self.row, "test_id %r is not in %s" % (test_id, QUEUE_PATH)
         self.quest_dir = self.row["quest_dir"]
         path = guide_path(self.row)
         assert path and os.path.isfile(path), "no Quest Helper guide for %r (%s)" % (test_id, path)
         self.guide = Guide(path)
-        self.test = Test(test_id, os.path.join(REPO_ROOT, "test", "quests", test_id + ".lua"))
+        self.test = Test(test_id, test_path or os.path.join(REPO_ROOT, "test", "quests", test_id + ".lua"),
+                         text=test_text)
         self.ledger_path = ledger_path(test_id, self.quest_dir)
         rows, _ = ledger.read(self.ledger_path) if self.ledger_path else (None, None)
         self.rows = rows or []
@@ -1465,11 +1622,132 @@ class Grader:
                 cite = rs2_citation(reason)
                 if cite:
                     return "GUIDE-GAP marker line %d cites %s" % (number, cite)
+        # An equivalent marker that did not verify (equivalent() found no
+        # evidence) still declares the step like a GUIDE-GAP when its reason
+        # cites a real .rs2 line -- the grading it had before the vocabulary.
+        for found in self.test.equivalents:
+            if found["error"] or not found["step"] or not self._marker_names(found["step"], step):
+                continue
+            cite = rs2_citation(found["reason"])
+            if cite:
+                ok, why = self.verify_equivalent(found)
+                if not ok:
+                    return "GUIDE-GAP marker line %d (a %s marker that does not verify: %s) cites %s" % (
+                        found["line"], found["kind"], why, cite)
         for number, text in self.test.blocked_text:
             low = text.lower()
             if re.search(r"\b%s\b" % re.escape(name), low) or any(
                     re.search(r"\b%s\b" % re.escape(s), low) for s in symbols):
                 return "t.blocked/content_bug line %d names it" % number
+        return None
+
+    def _marker_names(self, marked, step):
+        """Does a marker naming `marked` stand for `step` -- the step itself,
+        or a ConditionalStep above it?"""
+        if marked == step.name:
+            return True
+        return marked in self.guide.steps and step.name in self.guide.leaves(marked)
+
+    def verify_equivalent(self, found, static=False):
+        """(True, evidence) when an equivalent marker's claim checks out, else
+        (False, why). `static` (lint_quest, before any run) skips the checks
+        that need this run's ledger."""
+        if found["error"]:
+            return False, found["error"]
+        kind, marked = found["kind"], found["step"]
+        step = self.guide.steps.get(marked)
+        if step is None:
+            return False, "%s is not a step of the guide %s" % (marked, os.path.basename(self.guide.path))
+        if kind == "BRANCH-IN":
+            sibling = found["sibling"]
+            if sibling == self.test_id:
+                return False, "a test cannot be its own sibling"
+            row = queue_row(sibling)
+            if row is None:
+                return False, "sibling %s has no QUEUE row" % sibling
+            if guide_path(row) != guide_path(self.row):
+                return False, "sibling %s is graded against another guide (%s)" % (
+                    sibling, os.path.basename(guide_path(row) or "") or "none")
+            if row.get("status") != "green":
+                return False, "sibling %s is %s, not green" % (sibling, row.get("status"))
+            path = os.path.join(REPO_ROOT, "test", "quests", sibling + ".lua")
+            if not os.path.isfile(path) or not git_tracked(path):
+                return False, "sibling test/quests/%s.lua is not a committed file" % sibling
+            if not self.follow_branch_in:
+                return False, "BRANCH-IN not followed while grading a sibling"
+            for result in sibling_grade(sibling):
+                if result["step"] == marked or result["reason"].startswith(marked + ":"):
+                    if result["class"] == "DRIVEN":
+                        return True, "sibling %s drives %s (%s)" % (sibling, marked, result["reason"])
+                    return False, "sibling %s grades %s %s, not DRIVEN (%s)" % (
+                        sibling, marked, result["class"], result["reason"])
+            return False, "sibling %s's grading has no step %s" % (sibling, marked)
+        if kind == "PARTNER":
+            cheat = found["cheat"]
+            partners = partner_cheats()
+            if cheat not in partners:
+                return False, "::%s is not in %s's two-player partner table" % (
+                    cheat, os.path.relpath(CHEATS_DOC, REPO_ROOT))
+            text = step.text or ""
+            if not TWO_PLAYER_TEXT.search(text):
+                return False, "the guide's %s text names no other player (%r)" % (marked, text[:80])
+            called = [n for n, c in self.test.cheats if re.match(r"::%s\b" % re.escape(cheat), c)]
+            if not called:
+                return False, "the test never calls ::%s" % cheat
+            if not static:
+                row = next((r for r in self.pass_rows if "::" + cheat in r["detail"] or cheat in r["step"]), None)
+                if row is None:
+                    return False, "no PASS ledger row reports ::%s" % cheat
+                return True, "::%s (%s:%d) at line %d, ledger row %s %r PASS" % (
+                    cheat, os.path.basename(CHEATS_DOC), partners[cheat], called[0], row["index"], row["step"])
+            return True, "::%s (%s:%d) at line %d" % (cheat, os.path.basename(CHEATS_DOC), partners[cheat], called[0])
+        if kind == "NOT-A-STEP":
+            if step.kind == "QuestSyncStep":
+                return True, "%s is a QuestSyncStep (guide line %d)" % (marked, step.line)
+            if step.kind == "DetailedQuestStep" and not step.targets and step.point is None and \
+                    SYNC_TEXT.search(step.text or "") and SYNC_TEXT_OBJECT.search(step.text or ""):
+                return True, "%s is a target-less DetailedQuestStep asking for a plugin sync (guide line %d: %r)" % (
+                    marked, step.line, (step.text or "")[:70])
+            return False, "%s is a %s with targets %s / text %r -- not a plugin-state sync step" % (
+                marked, step.kind, step.targets or "none", (step.text or "")[:60])
+        if kind == "OBSOLETE":
+            cite = wiki_citation(found["reason"])
+            if not cite:
+                return False, "the reason cites no pinned wiki page (`oldschool.runescape.wiki/w/<Page>?oldid=<n>` " \
+                    "or `...#<Section>`)"
+            return True, "cites %s" % cite
+        if kind == "ANY-OF":
+            other = found["other"]
+            if other == marked:
+                return False, "a step cannot be satisfied by itself"
+            cite = rs2_citation(found["reason"]) or wiki_citation(found["reason"])
+            if not cite:
+                return False, "the reason cites no .rs2 line, map square or pinned wiki page saying any way serves"
+            if static:
+                if other in self.guide.steps or other in self.test.strings:
+                    return True, "cites %s; %s is named in the file" % (cite, other)
+                return False, "%s is neither a guide step nor a row name in the file" % other
+            if self._driven.get(other):
+                return True, "cites %s; guide step %s is DRIVEN (%s)" % (cite, other, self._driven[other])
+            pattern = re.compile(r"^%s(?:$|[.-])" % re.escape(other))
+            row = next((r for r in self.action_rows if r["step"] == other), None) or \
+                next((r for r in self.action_rows if pattern.match(r["step"])), None)
+            if row is None:
+                return False, "no PASS action row %s (nor a DRIVEN guide step of that name)" % other
+            return True, "cites %s; ledger row %s %r PASS" % (cite, row["index"], row["step"])
+        return False, "unknown marker kind %s" % kind
+
+    def equivalent(self, step):
+        """The verified equivalent marker that stands for this step, as a
+        reason, else None."""
+        for found in self.test.equivalents:
+            if found["error"] or not found["step"] or not self._marker_names(found["step"], step):
+                continue
+            if found["kind"] == "BRANCH-IN" and not self.follow_branch_in:
+                continue
+            ok, why = self.verify_equivalent(found)
+            if ok:
+                return "%s marker line %d: %s" % (found["kind"], found["line"], why)
         return None
 
     def cheat(self, step, driven_symbols):
@@ -1813,6 +2091,11 @@ class Grader:
         # came first (mourningsendparti's talkToIslwyn, pickUpRottenApple).
         if driven_reason:
             return "DRIVEN", driven_reason
+        # A verified BRANCH-IN / PARTNER / NOT-A-STEP / OBSOLETE / ANY-OF
+        # marker: not a gap at all.
+        equivalent = self.equivalent(step)
+        if equivalent:
+            return "EQUIVALENT", equivalent
         declared = self.marker(step)
         if declared:
             return "CONTENT_GAP", declared
@@ -1879,6 +2162,7 @@ class Grader:
                     for kind, symbol in leaf.targets:
                         if kind == "loc":
                             self.loc_uses[symbol] = self.loc_uses.get(symbol, 0) + 1
+        self._driven = driven
         results = []
         for step in steps:
             graded = [(leaf,) + self.classify(leaf, driven[leaf.name], driven_symbols)
@@ -1889,7 +2173,7 @@ class Grader:
                 klass, reason = graded[0][1], graded[0][2]
             else:
                 # One guide step, several ways to do it: any leaf done is done.
-                order = ("DRIVEN", "BRING_ALONG", "CHEAT", "CONTENT_GAP", "UNMATCHED", "TRAVEL")
+                order = ("DRIVEN", "EQUIVALENT", "BRING_ALONG", "CHEAT", "CONTENT_GAP", "UNMATCHED", "TRAVEL")
                 best = min(graded, key=lambda g: order.index(g[1]))
                 klass, reason = best[1], "%s: %s" % (best[0].name, best[2])
             results.append({
@@ -1944,6 +2228,16 @@ class Grader:
                     result["class"] = "ALTERNATIVE"
                     result["reason"] = "the other branch of the guide's %s panel; the test took panel %d" % (var, taken)
 
+    def equivalent_report(self):
+        out = []
+        for found in self.test.equivalents:
+            if found["kind"] == "BRANCH-IN" and not self.follow_branch_in:
+                continue
+            ok, why = self.verify_equivalent(found)
+            out.append({"line": found["line"], "kind": found["kind"], "step": found["step"],
+                        "verified": ok, "evidence": why})
+        return out
+
     def report(self):
         results = self.grade()
         counts = {}
@@ -1979,6 +2273,10 @@ class Grader:
             "first_test_gap": first_test, "first_content_gap": first_content,
             "content_sites": content_sites,
             "guide_gap_markers": [{"line": l, "step": s, "reason": r} for l, s, r in self.test.guide_gaps],
+            # Every BRANCH-IN / PARTNER / NOT-A-STEP / OBSOLETE / ANY-OF marker
+            # and whether its evidence checked out: one that does not is a
+            # false claim in the file, and gate_findings reports it.
+            "equivalent_markers": self.equivalent_report(),
             # A reach-retry ::goto stand-on no guide step claimed is still a
             # leg nobody walked: gate_findings reports it.
             "unclaimed_stand_ons": [f for f in self.stand_ons if f["row"] not in self.claimed_stand_ons],
@@ -1988,8 +2286,8 @@ class Grader:
         }
 
 
-def grade(test_id):
-    return Grader(test_id).report()
+def grade(test_id, test_path=None):
+    return Grader(test_id, test_path=test_path).report()
 
 
 def has_guide(test_id):
@@ -2005,9 +2303,15 @@ def has_guide(test_id):
 def gate_findings(test_id):
     """RED findings for gate.py: a green run must read FULL, or have only
     CONTENT_GAP steps that the file itself declares (t.blocked/content_bug/
-    GUIDE-GAP with .rs2 evidence). [] means the coverage check passes."""
+    GUIDE-GAP with .rs2 evidence). A BRANCH-IN / PARTNER / NOT-A-STEP /
+    OBSOLETE / ANY-OF marker whose evidence does not check out is a finding
+    of its own. [] means the coverage check passes."""
     report = grade(test_id)
     findings = []
+    for found in report["equivalent_markers"]:
+        if not found["verified"]:
+            findings.append("line %d: `-- %s: %s` does not verify: %s" % (
+                found["line"], found["kind"], found["step"], found["evidence"]))
     for result in report["steps"]:
         if result["class"] in GAP_CLASSES_TEST:
             findings.append("guide step %s (%s) is %s: %s" % (
@@ -2047,6 +2351,10 @@ def print_report(report):
     for key in ("first_test_gap", "first_content_gap"):
         if report[key]:
             print("  %s: %s -- %s" % (key, report[key]["step"], report[key]["reason"]))
+    for found in report["equivalent_markers"]:
+        if not found["verified"]:
+            print("  UNVERIFIED %s marker at line %d (%s): %s" % (
+                found["kind"], found["line"], found["step"], found["evidence"]))
     for number in report["bare_stand_on_optins"]:
         print("  bare stand_on_square opt-in at line %d (no GUIDE-GAP marker within %d lines above)" % (
             number, STAND_ON_MARKER_SPAN))
@@ -2085,6 +2393,9 @@ def main():
                         help="grade every row of helper_coverage.tsv and print the agreement")
     parser.add_argument("--all-green", action="store_true", help="grade every green queue row")
     parser.add_argument("--tier", type=int, default=None)
+    parser.add_argument("--lua", default=None,
+                        help="grade this copy of the ONE named test's Lua (a proof copy under build/) "
+                             "against its QUEUE row, guide and ledger")
     args = parser.parse_args()
 
     if args.calibrate:
@@ -2106,7 +2417,9 @@ def main():
         ids.extend(green_ids(args.tier))
     if not ids:
         parser.error("name a test_id (or --all-green / --calibrate)")
-    reports = [grade(test_id) for test_id in ids]
+    if args.lua and len(ids) != 1:
+        parser.error("--lua grades one named test_id")
+    reports = [grade(test_id, test_path=args.lua) for test_id in ids]
     if args.json:
         print(json.dumps(reports if len(reports) > 1 else reports[0], indent=1))
     else:

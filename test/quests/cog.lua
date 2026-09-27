@@ -160,7 +160,7 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        -- GUIDE-GAP: syncStep quest-helper's own plugin-state refresh, not a player action -- the real sync (~cog_sync_progress) runs automatically inside every opnpc1,brother_kojo click, already exercised by talkToKojo-finish below, brother_kojo.rs2:9
+        -- NOT-A-STEP: syncStep quest-helper's own plugin-state refresh, not a player action -- the real sync (~cog_sync_progress) runs automatically inside every opnpc1,brother_kojo click, already exercised by talkToKojo-finish below, brother_kojo.rs2:9
 
         -- ==== Talk to Brother Kojo, start the quest ====
         t.exec("goto-kojo-start", t.player.goto_tile, 2569, 3249, 0) -- brother_kojo's own *.spawn row

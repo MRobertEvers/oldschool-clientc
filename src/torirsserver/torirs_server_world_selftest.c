@@ -3083,6 +3083,123 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 /* Before the lifecycle header, which is its only caller: the stale-callback
  * fixture needs the reconstructed hull that roundtrip has just produced. */
 #include "test/sailing_stale_queues_selftest.u.h"
+
+/*
+ * seam18 C: a RIDER's drop on the deck is a deck floor obj, and it has to
+ * reach the deck's own view -- an OBJ_ADD inside a SET_ACTIVE_WORLD sandwich
+ * naming that view, addressed at the deck-local tile -- and never the root.
+ * The server half was already right when the seam was found (the client
+ * dropped the stack: world_cycle.c painted it against plane 0 and the
+ * minimenu scanned the root for it); this pins the half a later change to
+ * deck_zone_flush_one or the drop path could silently break. Proof of the
+ * whole path is build/quest_gate/s18c_take3 (drop and Take a beer on deck)
+ * and s18c_troll1 (the Drink troll's drink taken off the deck).
+ */
+static int
+selftest_deck_obj_record(
+    const struct ToriRSServerCapture* capture,
+    int pid,
+    int view,
+    int obj_id,
+    int* out_pos)
+{
+    int found = 0;
+    int active = 0;
+
+    for( int i = 0; i < capture->count; ++i )
+    {
+        const struct ToriRSServerCapturedPacket* packet = &capture->packets[i];
+        int at = 3; /* p1Alt2 level, p1Alt1 zoneZ, p1Alt1 zoneX */
+
+        if( packet->recipient_pid != pid )
+            continue;
+        if( packet->name == PKT_NAME_SET_ACTIVE_WORLD && packet->len == 3 )
+        {
+            active = (packet->data[0] << 8) | packet->data[1];
+            continue;
+        }
+        if( active != view || packet->opcode != 105 || packet->len < 3 )
+            continue;
+        while( at < packet->len )
+        {
+            int ordinal = packet->data[at++];
+            if( ordinal == 8 ) /* OBJ_ADD: p1Alt1 pos, p2, p1, p2Alt2 id, ... */
+            {
+                if( at + 14 > packet->len )
+                    break;
+                if( ((packet->data[at + 4] << 8) | ((packet->data[at + 5] - 128) & 0xff)) == obj_id )
+                {
+                    found++;
+                    if( out_pos )
+                        *out_pos = (packet->data[at] - 128) & 0xff;
+                }
+                at += 14;
+                continue;
+            }
+            break; /* only the drop's own record is read here */
+        }
+    }
+    return found;
+}
+
+static void
+selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
+{
+    static struct ToriRSServerCapture capture;
+    enum { BEER = 1917 }; /* cache obj 1917 "Beer" -- the parity1p control run's drop */
+    int saved_x = player->x, saved_z = player->z, saved_level = player->level;
+    int handle;
+    struct ToriRSServerVessel* boat;
+    int bx = 0, bz = 0;
+    int slot;
+    int pos = -1;
+
+    if( srv->wire->revision < 239 )
+        return;
+    fprintf(stderr, "ToriRSServer selftest: a rider's drop reaches the deck's own view\n");
+    ToriRSServer_WorldSetActive(srv, player);
+    ToriRSServer_WorldTeleport(srv, 0, 3080, 3160);
+    handle = ToriRSServer_VesselSpawn(srv, 9, 6, 12, 0, 3072, 3160, 0);
+    boat = ToriRSServer_VesselGet(srv, handle);
+    SELFTEST_CHECK(boat != NULL, "deck drop: an actual ocean hull");
+    if( !boat )
+        return;
+    ToriRSServer_MapInstanceBase(boat->instance, &bx, &bz);
+    for( int zz = 0; zz < 2; ++zz )
+        ToriRSServer_MapInstanceSetchunk(boat->instance, 0, 0, zz, 3216, 3216, 0, 0);
+    ToriRSServer_MapInstanceBuild(boat->instance);
+    ToriRSServer_WorldMapInstanceBuilt(srv, boat->instance);
+    SELFTEST_CHECK(ToriRSServer_VesselBoardPlayer(srv, player, boat), "deck drop: the rider boards");
+    selftest_tick(srv);
+    selftest_tick(srv);
+    SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, player->x, player->z) == boat,
+                   "deck drop: the rider stands on the deck (%d,%d, deck base %d,%d)",
+                   player->x, player->z, bx, bz);
+
+    slot = ToriRSServer_WorldObjAdd(srv, BEER, 1, player->x, player->z, player->level, 100);
+    SELFTEST_CHECK(slot >= 0, "deck drop: the beer lands at the rider's deck tile");
+    ToriRSServer_CaptureBegin(srv, &capture);
+    selftest_tick(srv);
+    ToriRSServer_CaptureEnd(srv);
+    SELFTEST_CHECK(!capture.overflow &&
+                       selftest_deck_obj_record(&capture, player->pid, boat->view_id, BEER, &pos) == 1,
+                   "deck drop: ONE OBJ_ADD for the beer inside the deck view's (%d) sandwich",
+                   boat->view_id);
+    SELFTEST_CHECK(pos == (((player->x & 7) << 4) | (player->z & 7)),
+                   "deck drop: addressed at the rider's deck-local tile (pos 0x%02x, want 0x%02x)",
+                   pos, ((player->x & 7) << 4) | (player->z & 7));
+    SELFTEST_CHECK(selftest_deck_obj_record(&capture, player->pid, 0, BEER, NULL) == 0,
+                   "deck drop: the root world never hears of a deck floor obj");
+
+    if( slot >= 0 )
+        ToriRSServer_WorldGroundTake(srv, slot);
+    selftest_tick(srv);
+    ToriRSServer_WorldSetActive(srv, player);
+    ToriRSServer_VesselFree(srv, handle);
+    ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
+    selftest_tick(srv);
+}
+
 #include "test/sailing_lifecycle_selftest.u.h"
 #include "test/tutorial_island_selftest.u.h"
 #include "test/quest_doric_selftest.u.h"
@@ -3236,6 +3353,7 @@ ToriRSServer_WorldSelftest(void)
         selftest_sailing_multiplayer(srv, player);
         selftest_sailing_capacity(srv, player);
         selftest_sailing_lifecycle(srv, player);
+        selftest_sailing_deck_drop(srv, player);
         fprintf(stderr, "ToriRSServer sailing selftest: %lu checks, %d failures\n",
                 g_selftest_checks, g_selftest_failures);
         selftest_evidence_end("sailing");
@@ -12879,8 +12997,9 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &owner_script, slot) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
-                                           player->pid,
-                                   "NPC_OWNER returns the bound pid");
+                                           player->pid + 1,
+                                   "NPC_OWNER returns the bound player's uid (pid + 1, "
+                                   "what `uid` pushes and `p_finduid` takes)");
 
                     /*
                      * Owning is not following, and that is the whole point of
@@ -12911,7 +13030,7 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(
                                        srv, &find_script, NULL, 0) &&
                                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
-                                           player->pid,
+                                           player->pid + 1,
                                    "NPC_FINDOWNED finds and activates the familiar");
                 }
 
@@ -14260,6 +14379,111 @@ ToriRSServer_WorldSelftest(void)
                             SELFTEST_CHECK(ToriRSServer_CaptureFind(
                                                &iface_capture, stop_opcode, at + 1) < 0,
                                            "bankside backpack close does not clear backpack");
+                        }
+                    }
+
+
+                    /*
+                     * if_setangle / if_setrotatespeed reach the wire in the
+                     * script's own argument order.
+                     *
+                     * Between a Rock's schematic pieces are type-6 model
+                     * components (interfaces/dwarf_rock_schematics.if), and
+                     * the rotation half of that puzzle needs a script to pose
+                     * them. The packets and the client apply existed long
+                     * before any script could send them; this pins the torirs
+                     * extension opcodes (gen_opcode_meta.py 11114/11115)
+                     * through the host VM. The script says (component, xan,
+                     * yan, zoom); SendIfSetangle takes (uid, zoom, xan, yan),
+                     * so a swapped pop is exactly the silent failure this row
+                     * exists for — every value is distinct.
+                     */
+                    {
+                        int angle_opcode = ToriRSServer_WireOpcode(wire239, PKT_NAME_IF_SETANGLE);
+                        int spin_opcode =
+                            ToriRSServer_WireOpcode(wire239, PKT_NAME_IF_SETROTATESPEED);
+                        int piece = ToriRSServer_ContentSymbol(
+                            TORIRSSERVER_PACK_COMPONENT,
+                            "dwarf_rock_schematics:dwarf_rock_schematic_1");
+                        uint16_t pose_ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_IF_SETANGLE,       SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_IF_SETROTATESPEED, SS_OP_RETURN,
+                        };
+                        int32_t pose_operands[] = {
+                            piece, 1024, 1536, 600, 0, piece, 12, 34, 0, 0,
+                        };
+                        char* pose_strings[10] = { NULL };
+                        struct SSVM_Script pose_script = {
+                            .id = -1,
+                            .name = "[selftest,if_setangle]",
+                            .source_path = "<selftest>",
+                            .lookup_key = -1,
+                            .op_count = 10,
+                            .opcodes = pose_ops,
+                            .int_operands = pose_operands,
+                            .string_operands = pose_strings,
+                        };
+
+                        SELFTEST_CHECK(piece >= 0,
+                                       "dwarf_rock_schematics:dwarf_rock_schematic_1 resolves");
+                        SELFTEST_CHECK(angle_opcode >= 0 && spin_opcode >= 0,
+                                       "osrs239 carries IF_SETANGLE and IF_SETROTATESPEED");
+                        ToriRSServer_CaptureBegin(srv, &iface_capture);
+                        SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(srv, &pose_script, NULL, 0),
+                                       "if_setangle/if_setrotatespeed execute through the host VM");
+                        ToriRSServer_CaptureEnd(srv);
+
+                        at = ToriRSServer_CaptureFind(&iface_capture, angle_opcode, 0);
+                        SELFTEST_CHECK(at >= 0, "if_setangle emits IF_SETANGLE");
+                        if( at >= 0 )
+                        {
+                            struct RSAreaBuf body;
+                            int uid;
+                            int zoom;
+                            int xan;
+                            int yan;
+
+                            SELFTEST_CHECK(iface_capture.packets[at].len == 10,
+                                           "IF_SETANGLE has ten bytes, got %d",
+                                           iface_capture.packets[at].len);
+                            rsab_wrap(&body, (void*)iface_capture.packets[at].data,
+                                      (size_t)iface_capture.packets[at].len);
+                            /* encoders_239.h IfSetAngleEncoder:
+                             * p4Alt3(uid) p2(zoom) p2(angleX) p2Alt3(angleY). */
+                            uid = rsab_g4_alt3(&body);
+                            zoom = rsab_g2(&body);
+                            xan = rsab_g2(&body);
+                            yan = rsab_g2_alt3(&body);
+                            SELFTEST_CHECK(uid == piece,
+                                           "IF_SETANGLE targets the piece (got 0x%x, want 0x%x)",
+                                           uid, piece);
+                            SELFTEST_CHECK(xan == 1024 && yan == 1536 && zoom == 600,
+                                           "IF_SETANGLE keeps xan/yan/zoom 1024/1536/600, got "
+                                           "%d/%d/%d",
+                                           xan, yan, zoom);
+                        }
+                        at = ToriRSServer_CaptureFind(&iface_capture, spin_opcode, 0);
+                        SELFTEST_CHECK(at >= 0, "if_setrotatespeed emits IF_SETROTATESPEED");
+                        if( at >= 0 )
+                        {
+                            struct RSAreaBuf body;
+                            int uid;
+                            int x_speed;
+                            int y_speed;
+
+                            rsab_wrap(&body, (void*)iface_capture.packets[at].data,
+                                      (size_t)iface_capture.packets[at].len);
+                            /* IfSetRotateSpeedEncoder:
+                             * p2(ySpeed) p2Alt2(xSpeed) p4Alt3(uid). */
+                            y_speed = rsab_g2(&body);
+                            x_speed = rsab_g2_alt2(&body);
+                            uid = rsab_g4_alt3(&body);
+                            SELFTEST_CHECK(uid == piece && x_speed == 12 && y_speed == 34,
+                                           "IF_SETROTATESPEED keeps piece/x/y, got 0x%x/%d/%d",
+                                           uid, x_speed, y_speed);
                         }
                     }
 
@@ -39022,6 +39246,7 @@ ToriRSServer_WorldSelftest(void)
     selftest_sailing_multiplayer(srv, player);
     selftest_sailing_capacity(srv, player);
     selftest_sailing_lifecycle(srv, player);
+    selftest_sailing_deck_drop(srv, player);
 
     fprintf(stderr, "ToriRSServer selftest: NPC_INFO measures view range to the footprint\n");
     {

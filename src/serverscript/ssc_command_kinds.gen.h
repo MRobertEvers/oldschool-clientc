@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 362 commands.
+ * 364 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -388,6 +388,8 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 10001, "error", "string", "" },
     { 10002, "gettimespent", "int", "int" },
     { 10003, "timespent", "", "" },
+    { 11114, "if_setangle", "component int int int", "" },
+    { 11115, "if_setrotatespeed", "component int int", "" },
 };
 
 #endif

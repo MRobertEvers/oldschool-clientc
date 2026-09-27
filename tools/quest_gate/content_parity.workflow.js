@@ -22,7 +22,7 @@ export const meta = {
 // relaunch with the SAME args to continue from disk. Never resumeFromRunId.
 // Never run it alongside an author batch, a seam pass, or a content move.
 
-const WT = '/Users/matthewevers/Documents/git_repos/3draster-quest-driver'
+const WT = '/Users/matthewevers/Documents/git_repos/3draster'
 const CONTENT = `${WT}/OSRS-Content/osrs239-content`
 const LC = '/Users/matthewevers/Documents/git_repos/LostCity_Content2'
 const LCS = '/Users/matthewevers/Documents/git_repos/LostCity_Server'
@@ -34,7 +34,7 @@ if (!quests.length) throw new Error('args.quests is empty: test_ids from test/qu
 const STATE = `${WT}/build/parity_state/${pass}`
 const extraContext = (args && args.context) ? `\n\nCURRENT PICTURE: ${args.context}` : ''
 
-const COMMON = `You are one worker in a multi-agent build. Work ONLY inside ${WT} (branch lane-quest-driver; the content is the OSRS-Content submodule at ${CONTENT}) and, READ-ONLY, the reference repos ${LC} (LostCity content: scripts/quests/<quest_dir>/, maps/*.jm2 spawns, the .npc/.loc/.obj configs), ${LCS} (LostCity engine + content/scripts) and ${QH} (Quest Helper guides under src/main/java/com/questhelper/helpers/quests/). NEVER cd into, build in, or touch /Users/matthewevers/Documents/git_repos/3draster. Absolute paths. Never git stash/checkout/reset/clean/amend, never git add -A. Never touch test/quests/*.lua or QUEUE.tsv. Do NOT commit or push (the closer does). After ANY content edit: make -C ${WT}/src torirsserver-scripts (the embedded server refuses a stale pack). run.py refuses a second concurrent run of one quest id: give every scratch run its own --name; run everything in the FOREGROUND. Read ${WT}/docs/QUEST_SUITE_KIT.md's working rules and ${WT}/docs/QUEST_CONTENT_AUDIT_2026-09-22.md (how earlier content edits were judged) first.
+const COMMON = `You are one worker in a multi-agent build. Work ONLY inside ${WT} (branch lane-quest-driver; the content is the OSRS-Content submodule at ${CONTENT}) and, READ-ONLY, the reference repos ${LC} (LostCity content: scripts/quests/<quest_dir>/, maps/*.jm2 spawns, the .npc/.loc/.obj configs), ${LCS} (LostCity engine + content/scripts) and ${QH} (Quest Helper guides under src/main/java/com/questhelper/helpers/quests/). (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths. Never git stash/checkout/reset/clean/amend, never git add -A. Never touch test/quests/*.lua or QUEUE.tsv. Do NOT commit or push (the closer does). After ANY content edit: make -C ${WT}/src torirsserver-scripts (the embedded server refuses a stale pack). run.py refuses a second concurrent run of one quest id: give every scratch run its own --name; run everything in the FOREGROUND. Read ${WT}/docs/QUEST_SUITE_KIT.md's working rules and ${WT}/docs/QUEST_CONTENT_AUDIT_2026-09-22.md (how earlier content edits were judged) first.
 
 PASS STATE DIR: ${STATE} (mkdir -p it). Every worker persists its result there and keeps a notebook so a paused or killed pass resumes from disk with nothing redone.
 

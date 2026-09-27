@@ -456,26 +456,56 @@ return {
         local down_r, w_down = t.ui.widget("dwarf_rock_schematics_control:dr_move_down")
         local left_r, w_left = t.ui.widget("dwarf_rock_schematics_control:dr_move_left")
         local right_r, w_right = t.ui.widget("dwarf_rock_schematics_control:dr_move_right")
+        local rot_r, w_rotate = t.ui.widget("dwarf_rock_schematics_control:dr_rotate_button")
         t.step("schematicPuzzle-widgets",
             (sel1_r == "ok" and sel2_r == "ok" and sel3_r == "ok"
-                and up_r == "ok" and down_r == "ok" and left_r == "ok" and right_r == "ok")
+                and up_r == "ok" and down_r == "ok" and left_r == "ok" and right_r == "ok"
+                and rot_r == "ok")
                 and "PASS" or "FAIL",
-            string.format("select1=%s select2=%s select3=%s up=%s down=%s left=%s right=%s",
+            string.format("select1=%s select2=%s select3=%s up=%s down=%s left=%s right=%s rotate=%s",
                 tostring(sel1_r), tostring(sel2_r), tostring(sel3_r),
-                tostring(up_r), tostring(down_r), tostring(left_r), tostring(right_r)))
+                tostring(up_r), tostring(down_r), tostring(left_r), tostring(right_r), tostring(rot_r)))
 
         -- dr_move_left/right subtract/add ^dwarfrock_puzzle_step from dx;
         -- dr_move_up/down subtract/add it from dy
         -- (dwarfrock_puzzle_nudge) -- so a positive delta needs the
         -- "decreasing" button (left / up) and a negative one needs the
-        -- "increasing" button (right / down).
+        -- "increasing" button (right / down). dr_rotate_button adds 1
+        -- (mod 4) to rot for every SELECTED piece (dwarfrock_puzzle_rotate,
+        -- betweenarock_schematics.rs2:309-326) -- rotation must reach 0
+        -- BEFORE the position matters, since dwarfrock_schematics_check_
+        -- solved (:332) refuses on any nonzero rot before it even looks at
+        -- dx/dy. Both nudge and rotate act on EVERY currently-selected
+        -- piece at once (testbit loops over the whole %dwarfrock_puzzle_
+        -- select bitmask), so a piece already finished MUST be deselected
+        -- (dr_selectN toggles, it does not just set) before the next
+        -- piece is selected, or moving/rotating piece 2 also drags piece
+        -- 1's already-correct rot/dx/dy back off zero.
         local puzzle_pieces = {
-            { n = 1, select = w_select1, dx = "dwarfrock_puzzle_dx1", dy = "dwarfrock_puzzle_dy1" },
-            { n = 2, select = w_select2, dx = "dwarfrock_puzzle_dx2", dy = "dwarfrock_puzzle_dy2" },
-            { n = 3, select = w_select3, dx = "dwarfrock_puzzle_dx3", dy = "dwarfrock_puzzle_dy3" },
+            { n = 1, select = w_select1, dx = "dwarfrock_puzzle_dx1", dy = "dwarfrock_puzzle_dy1", rot = "dwarfrock_puzzle_rot1" },
+            { n = 2, select = w_select2, dx = "dwarfrock_puzzle_dx2", dy = "dwarfrock_puzzle_dy2", rot = "dwarfrock_puzzle_rot2" },
+            { n = 3, select = w_select3, dx = "dwarfrock_puzzle_dx3", dy = "dwarfrock_puzzle_dy3", rot = "dwarfrock_puzzle_rot3" },
         }
         for _, piece in ipairs(puzzle_pieces) do
-            t.ui.invoke(piece.select, 1)
+            t.ui.invoke(piece.select, 1) -- select ON (togglebit)
+
+            local before_rot_result, before_rot = t.var.server(piece.rot)
+            if before_rot_result == "ok" and before_rot ~= 0 then
+                local rot_clicks = (4 - before_rot) % 4
+                for _ = 1, rot_clicks do
+                    t.ui.invoke(w_rotate, 1)
+                end
+            end
+            -- if_click queues a packet the embedded transport only
+            -- delivers on a server tick (net_transport_embed.c) --
+            -- QUEST_AUTHORING.md's own budget note and the mourningsend
+            -- parti still-minigame precedent both tick between a batch
+            -- of ui.invoke presses and the read that grades them;
+            -- reading right after the raw clicks (no tick at all)
+            -- measured as a stale before==after read on run 1.
+            t.ticks(2)
+            local after_rot_result, after_rot = t.var.server(piece.rot)
+
             local before_dx_result, before_dx = t.var.server(piece.dx)
             local before_dy_result, before_dy = t.var.server(piece.dy)
             if before_dx_result == "ok" and before_dx ~= 0 then
@@ -492,22 +522,19 @@ return {
                     t.ui.invoke(dy_widget, 1)
                 end
             end
-            -- if_click queues a packet the embedded transport only
-            -- delivers on a server tick (net_transport_embed.c) --
-            -- QUEST_AUTHORING.md's own budget note and the mourningsend
-            -- parti still-minigame precedent both tick between a batch
-            -- of ui.invoke presses and the read that grades them;
-            -- reading right after the raw clicks (no tick at all)
-            -- measured as a stale before==after read on run 1.
             t.ticks(2)
             local after_dx_result, after_dx = t.var.server(piece.dx)
             local after_dy_result, after_dy = t.var.server(piece.dy)
             t.step("schematicPuzzle-piece" .. piece.n,
-                (after_dx_result == "ok" and after_dy_result == "ok"
+                (after_rot_result == "ok" and after_rot == 0
+                    and after_dx_result == "ok" and after_dy_result == "ok"
                     and math.abs(after_dx) <= 4 and math.abs(after_dy) <= 4)
                     and "PASS" or "FAIL",
-                string.format("select dr_select%d, move piece %d: dx %s -> %s, dy %s -> %s (tolerance 4)",
-                    piece.n, piece.n, tostring(before_dx), tostring(after_dx), tostring(before_dy), tostring(after_dy)))
+                string.format("select dr_select%d, rotate piece %d: rot %s -> %s, move dx %s -> %s, dy %s -> %s (tolerance 4)",
+                    piece.n, piece.n, tostring(before_rot), tostring(after_rot),
+                    tostring(before_dx), tostring(after_dx), tostring(before_dy), tostring(after_dy)))
+
+            t.ui.invoke(piece.select, 1) -- select OFF (toggle back) before the next piece
         end
 
         local solved_result, solved_value = t.var.server("dwarfrock_schematics_solved")

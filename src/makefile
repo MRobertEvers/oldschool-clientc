@@ -3496,6 +3496,19 @@ test-pick-level: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 		$(TORIDRAW_UNITY_LINK_OBJS)
 	./$(OBJ_DIR)/pick_level_test
 
+.PHONY: test-wev-deck-objstack
+test-wev-deck-objstack: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
+	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/wev_deck_objstack_test \
+		world/test/wev_deck_objstack_test.c \
+		world/entity_pool.c world/world_entity.c world/entity_pathing.c \
+		world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+		world/worldview.c world/wev.c \
+		engine/world_builder/heightmap.c engine/world_builder/collision_map.c \
+		engine/world_builder/minimap.c painters/painters.c painters/scene_occluders.c \
+		features/features.c perf/torirs_perf.c \
+		$(TORIDRAW_UNITY_LINK_OBJS)
+	./$(OBJ_DIR)/wev_deck_objstack_test
+
 .PHONY: test-wev-population
 test-wev-population: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 	$(CC) $(filter-out -DNDEBUG,$(CFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/wev_population_test \

@@ -23,7 +23,7 @@ export const meta = {
 // Rules carried over: fixers never touch test/quests/<quest>.lua or
 // QUEUE.tsv; only the closer commits; no author batch runs alongside.
 
-const WT = '/Users/matthewevers/Documents/git_repos/3draster-quest-driver'
+const WT = '/Users/matthewevers/Documents/git_repos/3draster'
 const CONTENT = `${WT}/OSRS-Content/osrs239-content`
 const pass = args && args.pass
 if (!pass) throw new Error('args.pass is required (e.g. "seam6"): it names build/seam_state/<pass>/')
@@ -32,7 +32,7 @@ const extraContext = (args && args.context) ? `\n\nCURRENT PICTURE: ${args.conte
 const extraReopen = (args && Array.isArray(args.reopen)) ? args.reopen : []
 const reuse = args && args.reuse_triage
 
-const COMMON = `You are one worker in a multi-agent build. Work ONLY inside ${WT} (branch lane-quest-driver; the content is the OSRS-Content submodule at ${CONTENT}). No author batch is running. NEVER cd into, build in, or touch /Users/matthewevers/Documents/git_repos/3draster. Absolute paths. FIRST read ${WT}/docs/QUEST_SUITE_KIT.md and ${WT}/docs/QUEST_AUTHORING.md; then the last seam pass's commit (git log --oneline -40 | grep 'quest-driver: seams') --stat and message. Edit ONLY the files assigned to you. Never git stash/checkout/reset/clean/amend, never git add -A. Never touch test/quests/<quest>.lua or QUEUE.tsv unless your brief says so. After ANY content edit: make -C ${WT}/src torirsserver-scripts (the embedded server refuses a stale pack). run.py refuses a second concurrent run of one quest id: give every scratch run its own --name, run it in the FOREGROUND and wait for it (never background a run or wait on a monitor). CLAUDE.md rules for C. The gate is behaviour: quote proving ledger rows and Read the PNGs. Report honestly.
+const COMMON = `You are one worker in a multi-agent build. Work ONLY inside ${WT} (branch lane-quest-driver; the content is the OSRS-Content submodule at ${CONTENT}). No author batch is running. (the owner's checkout; the 2026-09-25 disk cleanup deleted the old worktree, so this checkout IS the working tree now -- never delete build or cache directories, never run git clean/checkout/reset on paths you did not change). Absolute paths. FIRST read ${WT}/docs/QUEST_SUITE_KIT.md and ${WT}/docs/QUEST_AUTHORING.md; then the last seam pass's commit (git log --oneline -40 | grep 'quest-driver: seams') --stat and message. Edit ONLY the files assigned to you. Never git stash/checkout/reset/clean/amend, never git add -A. Never touch test/quests/<quest>.lua or QUEUE.tsv unless your brief says so. After ANY content edit: make -C ${WT}/src torirsserver-scripts (the embedded server refuses a stale pack). run.py refuses a second concurrent run of one quest id: give every scratch run its own --name, run it in the FOREGROUND and wait for it (never background a run or wait on a monitor). CLAUDE.md rules for C. The gate is behaviour: quote proving ledger rows and Read the PNGs. Report honestly.
 
 PASS STATE DIR: ${STATE} (mkdir -p it). Every worker persists its result there so a paused or killed pass resumes from disk with nothing redone. Uncommitted test/quests/<quest>.lua files in the tree are author attempts: read-only for everyone in this pass.
 

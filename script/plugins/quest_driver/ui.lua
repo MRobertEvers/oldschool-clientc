@@ -75,6 +75,49 @@ function QD.ui.widget(sym, sub)
     return result, component_id
 end
 
+-- ui.model_pose(sym, sub) -> result, detail, pose
+-- The pose a MODEL component (type 6) is drawn with now: pose.xan, .yan,
+-- .zan, .zoom, .x_speed, .y_speed, .model, .component -- what the cache's
+-- modelxan/modelyan/modelzoom baked and IF_SETANGLE / IF_SETROTATESPEED
+-- (server if_setangle / if_setrotatespeed) last applied. `detail` spells the
+-- reading for the ledger. Results: ok, no_row (unknown symbol), not_visible
+-- (not mounted), refused (not a model component).
+function QD.ui.model_pose(sym, sub)
+    local result, pose = api_drive.model_pose(sym, sub or -1)
+    if result ~= "ok" then
+        return result, "ui.model_pose " .. tostring(sym) .. ": " .. tostring(result)
+    end
+    return "ok", string.format("%s xan=%d yan=%d zan=%d zoom=%d spin=%d,%d",
+        tostring(sym), pose.xan, pose.yan, pose.zan, pose.zoom,
+        pose.x_speed, pose.y_speed), pose
+end
+
+-- ui.await_model_pose(sym, want, ticks) -> result, detail, pose
+-- Waits until every field named in `want` (e.g. {xan = 1024, zoom = 600})
+-- reads that value; the detail names the last reading on timeout.
+function QD.ui.await_model_pose(sym, want, ticks, sub)
+    QD.ui._model_pose_last = nil
+    QD.ui._model_pose_detail = nil
+    local result = await({
+        level = function()
+            local read_result, detail, pose = QD.ui.model_pose(sym, sub)
+            QD.ui._model_pose_detail = detail
+            if read_result ~= "ok" then
+                return false
+            end
+            QD.ui._model_pose_last = pose
+            for field, value in pairs(want) do
+                if pose[field] ~= value then
+                    return false
+                end
+            end
+            return true
+        end,
+        note = "ui.await_model_pose " .. tostring(sym),
+    }, ticks or 20)
+    return result, QD.ui._model_pose_detail, QD.ui._model_pose_last
+end
+
 function QD.ui.invoke(widget, op)
     return api_drive.if_click(widget, op)
 end
