@@ -6,7 +6,7 @@ quest_arthur	arthur	merlinscrystal		3	todo
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
-quest_ball	ball	witchshouse		2	todo		
+quest_ball	ball	witchshouse		2	todo		PARITY partial after 75a0cc01fe: _ball_irongate shock gate unported (loc id orphaned, do-not-mint); fight proved live
 quest_bearyoursoul	bearyoursoul	bearyoursoul		4	todo		
 quest_belowicemountain	belowicemountain	belowicemountain		4	todo		
 quest_beneathcursedsands	beneathcursedsands	beneathcursedsands		4	todo		
@@ -24,7 +24,7 @@ quest_coldwar	coldwar	coldwar		4	todo
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo		
+quest_crest	crest	familycrest		2	todo		PARITY partial after 75a0cc01fe: leg table not built; Chronozon needs a cast-on-npc driver verb (weaken rule proved by CRESTRUN selftest)
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
@@ -34,7 +34,7 @@ quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo		
 quest_demon	demon	demonslayer		3	todo		
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
-quest_desertrescue	desertrescue	thetouristtrap		2	todo		
+quest_desertrescue	desertrescue	thetouristtrap		2	todo		PARITY partial after 75a0cc01fe: stages 6-30 unported (ana, camp_guard, captain_siad, mine_cart_driver, mining_slave, mercenary, escape machine); not authorable yet
 quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	todo		
@@ -68,7 +68,7 @@ quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
 quest_golem	golem	thegolem		1	green	sonnet-b15	
-quest_grail	grail	holygrail		2	todo		
+quest_grail	grail	holygrail		2	todo		PARITY done 75a0cc01fe: ready to author
 quest_grandtree	grandtree	thegrandtree		3	todo		
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
@@ -172,13 +172,13 @@ quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
 quest_totem	totem	tribaltotem		3	todo		
 quest_toweroflife	toweroflife	toweroflife		4	todo		
-quest_tree	tree	treegnomevillage		2	todo		
+quest_tree	tree	treegnomevillage		2	todo		PARITY done 75a0cc01fe: ready to author; await_dead_engaged false-dead on crowded m38_51 (driver seam)
 quest_troll	troll	trollstronghold		3	todo		
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
 quest_upass	upass	undergroundpass		3	todo		
-quest_vampire	vampire	vampyreslayer		2	todo		
+quest_vampire	vampire	vampyreslayer		2	todo		PARITY partial after 75a0cc01fe: Count Draynor stake+hammer finish never reached live ([ai_queue3] npc_findhero falls through); engine seam first
 quest_viking	viking	thefremenniktrials		3	todo		
 quest_wanted	wanted	wanted		2	todo		
 quest_waterfall	waterfall	waterfallquest		3	todo		
