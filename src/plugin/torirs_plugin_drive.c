@@ -98,6 +98,9 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
      * sail.lua wraps nothing, it adds QD.sail (docs/QUEST_SUITE_KIT.md). */
     "plugins/quest_driver/sail.lua",
     "plugins/quest_driver/session.lua",
+    /* After combat.lua: t.player.cast stamps QD._combat_last, the record
+     * npc.await_dead_engaged holds (seam cast_spell_on_npc, 2026-09-27). */
+    "plugins/quest_driver/spell.lua",
 };
 
 /* The manifest identity, not a file name: the loader asks by plugin name so a

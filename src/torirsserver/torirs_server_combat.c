@@ -44,6 +44,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* `ToriRSServerNpc.death_credit_players[pid]` for the player who landed the
+ * killing blow; 1 marks the others still fighting it then. Every reader except
+ * `death_hero_pid` (and SS_OP_NPC_FINDHERO, which spells the same 2) treats the
+ * array as flags. */
+#define TORIRSSERVER_DEATH_CREDIT_HITTER 2
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -1427,10 +1433,16 @@ ToriRSServer_CombatHitNpc(
          * combat_target was already cleared or moved to another npc before a
          * delayed projectile/poison splat landed. The scan below additionally
          * retains everybody still fighting this npc. */
+        /* Marked `TORIRSSERVER_DEATH_CREDIT_HITTER` rather than 1: every
+         * reader of the array is a truth test, and the CORPSE stage needs to
+         * tell the player who landed the blow from the ones merely still
+         * fighting, because that player is who `[ai_queue3]` runs as
+         * (`death_hero_pid`). */
         if( srv->active_player && srv->active_player->active &&
             srv->active_player->pid >= 0 &&
             srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
-            npc->death_credit_players[srv->active_player->pid] = 1;
+            npc->death_credit_players[srv->active_player->pid] =
+                TORIRSSERVER_DEATH_CREDIT_HITTER;
         ToriRSServer_CombatStopNpc(srv, slot);
         /*
          * And the *other* half of a target: the mode.
@@ -1461,7 +1473,8 @@ ToriRSServer_CombatHitNpc(
         {
             if( srv->players[i].active && srv->players[i].combat_target == slot )
             {
-                npc->death_credit_players[i] = 1;
+                if( !npc->death_credit_players[i] )
+                    npc->death_credit_players[i] = 1;
                 ToriRSServer_CombatStopPlayerAt(&srv->players[i]);
             }
         }
@@ -2628,6 +2641,33 @@ maybe_aggress(
  * ours, and the split is the one PORTING_GUIDE §2.3 already documents for
  * hitpoints, the animation, the delay and the despawn.
  */
+/*
+ * The player an `[ai_queue3]` should run as: the one whose hit killed the npc,
+ * else the lowest-pid player still fighting it at the blow; -1 when the death
+ * credits nobody or the credited player has since logged out. Same rule as
+ * SS_OP_NPC_FINDHERO in torirs_server_scripts.c, which reads the same array.
+ */
+static int
+death_hero_pid(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc)
+{
+    int fallback = -1;
+
+    assert(srv);
+    assert(npc);
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
+        if( !npc->death_credit_players[i] || !srv->players[i].active )
+            continue;
+        if( npc->death_credit_players[i] == TORIRSSERVER_DEATH_CREDIT_HITTER )
+            return i;
+        if( fallback < 0 )
+            fallback = i;
+    }
+    return fallback;
+}
+
 static void
 npc_death_step(
     struct ToriRSServer* srv,
@@ -2743,7 +2783,37 @@ npc_death_step(
         srv->loot_credit_event_id = npc->loot_credit_event_id;
         memcpy(srv->loot_credit_players, npc->death_credit_players,
                sizeof(srv->loot_credit_players));
-        ToriRSServer_WorldNpcDied(srv, slot);
+        /*
+         * `[ai_queue3]` runs AS THE KILLER.
+         *
+         * This stage is reached from the npc phase, several ticks after the
+         * blow, and nothing there binds a player: `srv->active_player` is
+         * whatever `phase_clients_in` last pointed it at -- the last pid in the
+         * pool, not the one who fought. `run_trigger_impl` hands that leftover
+         * to the script as its primary player, and `npc_findhero` used to read
+         * it too, so with one player logged in at pid 0 everything looked
+         * right and with anybody else online a boss's finishing check
+         * (`[ai_queue3,count_draynor]`'s stake, `[ai_queue3,khazard_warlord]`'s
+         * orbs) asked the wrong player -- or, for pid > 0, got `pid + 1 != ^true`
+         * and fell through to `npc_default_death`. The reference runs this
+         * trigger with no player and lets `npc_findhero` bind the one with the
+         * most hero points (NpcOps.ts:129); binding the blow's owner here is
+         * that answer taken from what this npc recorded
+         * (`death_credit_players`), and it is also who `[proc,slayer_on_npc_kill]`
+         * inside `ToriRSServer_WorldNpcDied` has to credit.
+         *
+         * Nobody credited (an npc killed by an npc, or by a script with no
+         * player) leaves the binding as it was.
+         */
+        {
+            struct ToriRSServerPlayer* const saved_active = srv->active_player;
+            int const hero_pid = death_hero_pid(srv, npc);
+
+            if( hero_pid >= 0 )
+                ToriRSServer_WorldSetActive(srv, &srv->players[hero_pid]);
+            ToriRSServer_WorldNpcDied(srv, slot);
+            ToriRSServer_WorldSetActive(srv, saved_active);
+        }
         srv->loot_credit_armed = 0;
         memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
         /* A drop script may npc_delay before it reaches obj_add. Keep the

@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 130 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 131 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 130
+-- @verb-count 131
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 28
+-- @seam-count 29
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 130
-local SEAM_COUNT = 28
+local VERB_COUNT = 131
+local SEAM_COUNT = 29
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -330,6 +330,27 @@ local SHOP_TILE_Z = 3247
 local SHOP_OBJ_SYMBOL = "pot_empty"
 local SHOP_OBJ_COUNT = 5
 local SHOP_COINS = 5000
+
+-- player.cast's subject (seam cast_spell_on_npc, seam19): Wind Strike on a
+-- Lumbridge goblin east of the river -- m50_50.spawn:102
+-- `goblin_unarmed_melee_1 3244 3247`, three tiles from CAST_TILE.  Wind
+-- Strike is Magic level 1 and one air + one mind rune (magic.rs2's own
+-- refusal names the rune it lacks), so a fixture character casts it as he
+-- stands.  The field is SINGLE-WAY and the goblins and the giant spider by the
+-- river aggress, so every type that can claim the player there is made
+-- ::passive first: one aggressor and the cast is refused "I'm already under
+-- attack." (measured build/quest_gate/s19cast_c, a giantspider1 claim).
+-- Fire Wave at the fixture's Magic 1 is the refusal row's subject: the
+-- level check runs before the rune check (magic.rs2 check_spell_requirements).
+local CAST_SPELL = "wind_strike"
+local CAST_REFUSED_SPELL = "fire_wave"
+local CAST_NPC_SYMBOL = "goblin_unarmed_melee_1"
+local CAST_TILE_X = 3241
+local CAST_TILE_Z = 3247
+local CAST_PASSIVE = {
+    "goblin_unarmed_melee_1", "goblin_unarmed_melee_2", "goblin_unarmed_melee_3",
+    "goblin_unarmed_melee_4", "goblin_unarmed_melee_5", "giantspider1",
+}
 
 -- A detail column is a string or the ledger's luaL_optstring raises.  Tables
 -- (a verb that answers with a row, a tile, an options list) are summarised
@@ -5289,6 +5310,119 @@ return {
                 return "refused", "reported a delivery at the cargo port -- " .. describe(detail)
             end
             return result, describe(detail)
+        end)
+
+        -- ----------------------- phase 7c: a spell cast on an npc (seam19)
+        --
+        -- After the sail block, which ends ashore in Catherby, and before the
+        -- scheduler's own controls: these rows move the player, and nothing
+        -- after them but the session rows reads the world -- which compare a
+        -- reading before a logout with one after it, wherever that is.  The
+        -- closing stage puts the player back on `::tele lumbridge`'s landing.
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+            for i = 1, #CAST_PASSIVE do
+                setup_cheat("::passive " .. CAST_PASSIVE[i])      -- setup
+            end
+            setup_cheat("::give airrune 5")                        -- setup
+            setup_cheat("::give mindrune 5")                       -- setup
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(CAST_TILE_X, CAST_TILE_Z, 0)
+            end
+            settle(2)
+            -- The subject is SPAWNED beside the player (::spawn lands at the
+            -- player's tile + 1), then made passive: the field's own goblins
+            -- wander, and the nearest one can stand where the player cannot
+            -- path -- the seam19 closer's conformance run pressed a goblin
+            -- behind the house at CAST_TILE and read "I can't reach that!"
+            -- (build/quest_gate/s19close_probe3), while the same rows run
+            -- alone passed.  ::passive is per instance, so it follows the spawn.
+            setup_cheat("::spawn " .. CAST_NPC_SYMBOL)             -- setup
+            setup_cheat("::passive " .. CAST_NPC_SYMBOL)           -- setup
+            settle(2)
+        end)
+
+        -- THE REFUSAL IS ITS OWN ANSWER.  A cast the server declines prints a
+        -- sentence and nothing else: no runes spent, no XP, no projectile --
+        -- so without reading the sentence the verb could only time out, and a
+        -- timeout reads as "cast again".  Fire Wave at Magic 1 is declined by
+        -- magic.rs2's level check word for word; the row requires `refused`,
+        -- that sentence, and Magic XP unmoved.
+        seam("seam.cast_names_its_refusal", function()
+            local fn = verb("player", "cast")
+            if not fn then return missing("player", "cast") end
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if not read then return missing("skill", "read") end
+            local _, before = read("magic")
+            local result, detail = fn(CAST_REFUSED_SPELL, CAST_NPC_SYMBOL, 10)
+            local _, after = read("magic")
+            local text = CAST_REFUSED_SPELL .. " -> " .. describe(detail)
+            if result ~= "refused" then
+                return result == "ok" and "hollow" or result,
+                    "a Magic-1 Fire Wave answered " .. describe(result) .. ", not refused -- " .. text
+            end
+            if not string.find(tostring(detail), "Your Magic level is not high enough", 1, true) then
+                return "hollow", "refused without naming the server's sentence -- " .. text
+            end
+            if not (is_table(before) and is_table(after)) or after.experience ~= before.experience then
+                return "hollow", "refused, but Magic XP moved " .. describe(before) .. " -> "
+                    .. describe(after) .. " -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- The cast itself, graded on what the SERVER did, never on the verb's
+        -- word: one air rune and one mind rune gone from the backpack
+        -- (~pvm_spell_cast's ~delete_spell_runes) and Magic XP up
+        -- (~give_spell_xp) -- both paid whether the spell lands or splashes,
+        -- which is why they are the proof of a cast and a splat is not (the
+        -- verb's banner in spell.lua: a melee auto-retaliation splats too).
+        step("player.cast", function()
+            local fn = verb("player", "cast")
+            if not fn then return missing("player", "cast") end
+            local count = verb("inv", "count")
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if not (count and read) then
+                return "no_subject", "t.inv.count / t.skill.read missing, so the cast cannot be graded"
+            end
+            local _, air_before = count("airrune")
+            local _, mind_before = count("mindrune")
+            local _, xp_before = read("magic")
+            if type(air_before) ~= "number" or air_before < 1
+                or type(mind_before) ~= "number" or mind_before < 1 then
+                return "no_subject", "the stage left airrune " .. describe(air_before)
+                    .. ", mindrune " .. describe(mind_before) .. " -- nothing to cast with"
+            end
+            local result, detail = fn(CAST_SPELL, CAST_NPC_SYMBOL, 15)
+            local text = CAST_SPELL .. " on " .. CAST_NPC_SYMBOL .. " -> " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            local _, air_after = count("airrune")
+            local _, mind_after = count("mindrune")
+            local _, xp_after = read("magic")
+            if air_after ~= air_before - 1 or mind_after ~= mind_before - 1 then
+                return "hollow", "answered ok but the runes read airrune " .. describe(air_before)
+                    .. " -> " .. describe(air_after) .. ", mindrune " .. describe(mind_before)
+                    .. " -> " .. describe(mind_after) .. " (one of each is the cast) -- " .. text
+            end
+            if not (is_table(xp_before) and is_table(xp_after))
+                or not (xp_after.experience > xp_before.experience) then
+                return "hollow", "answered ok but Magic XP did not rise -- " .. text
+            end
+            return "ok", text .. " [runes " .. air_before .. "->" .. air_after .. " air, "
+                .. mind_before .. "->" .. mind_after .. " mind; magic xp "
+                .. xp_before.experience .. "->" .. xp_after.experience .. "]"
+        end)
+
+        stage(function()
+            setup_cheat("::passive off")
+            setup_cheat("::tele lumbridge")
+            settle(4)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

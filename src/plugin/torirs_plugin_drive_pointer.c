@@ -60,6 +60,7 @@
 #include "input/torirs_input.h"
 #include "render/torirs_world_projection.h"
 #include "revconfig/revconfig.h"
+#include "ui/uitree_component_options.h"
 #include "ui/uitree_input.h"
 #include "ui/uitree_minimenu.h"
 #include "world/entity_pool.h"
@@ -70,6 +71,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 /* See the file banner: defined in torirs_plugin_bridge.u.c (this group's
@@ -96,6 +98,20 @@ extern int app_plugin_inv_op(
  * drive_pointer_inv_use_on to make sure a FAILED item-on-item leaves no armed
  * selection behind for the next verb's click to spend. */
 extern int app_selection_clear(struct App* app);
+
+/* The three app_minimenu.c / app_if_events.c entry points the spell arming
+ * below needs (drive_pointer_spell_arm).  Non-static there, declared in the
+ * layer-private app_internal.h, so declared here for the same reason
+ * app_selection_clear is: app_minimenu_pick_refusal is the "would the
+ * dispatcher drop this pick?" question asked out loud, app_minimenu_run_option
+ * is the ONE dispatcher a real menu click reaches, and
+ * app_component_target_mask is the effective target mask the real menu
+ * builder gates the "Cast <spell>" row on. */
+extern char const* app_minimenu_pick_refusal(
+    struct App const* app,
+    struct UIMinimenuPick const* pick);
+extern int app_minimenu_run_option(struct App* app, int option_index, int click_x, int click_y);
+extern int app_component_target_mask(struct App const* app, int com_id);
 
 /* app_world_click.c's "is the pointer over the world?" -- the ONE gate that
  * decides whether the next rendered frame arms the world pick at the pointer
@@ -1284,6 +1300,133 @@ drive_pointer_inv_use_on(struct App* app, int component_id, int slot, int obj_id
     return DRIVE_OK;
 }
 
+/*
+ * ARM A SPELL FROM ITS SPELLBOOK COMPONENT -- api_drive.spell_arm, the
+ * app->targetsel twin of DrivePointer_InvArm (seam cast_spell_on_npc,
+ * 2026-09-27).
+ *
+ * WHY THE DRIVER NEEDED ITS OWN ENTRY POINT.  A player casts Wind Strike on a
+ * goblin in two clicks: the spell's own "Cast <spell>" row in the magic tab
+ * (REVCONFIG_MINIMENU_TGT_BUTTON, which app_minimenu_run_option turns into
+ * app->targetsel -- app_minimenu.c's "Arm target mode from a spell/prayer
+ * button" branch), then the one collapsed "Cast <spell> -> <npc>" row on the
+ * target (add_world_select_row, TGT_NPC), which is what sends OPNPCT.  The
+ * second click is an ordinary click_minimenu "select" press, exactly as
+ * use_on's second phase is.  The FIRST click had no way in:
+ * api_drive.if_click reaches app_plugin_click_node, which builds IF_BUTTON
+ * for op >= 1 and if_button_action_for_type(button_type) for op 0 -- and an
+ * IF3 spellbook component decodes button_type 0, so every press of a rev-239
+ * spell through it sent a plain IF_BUTTON and armed nothing.  No driver read
+ * gives a component's screen rectangle either, so a real right-click on the
+ * spell was not reachable from Lua.
+ *
+ * WHAT THIS DOES, and why it is the same press and not a second one.  It
+ * builds the ONE row the real menu builder would put on this component and
+ * runs it through app_minimenu_run_option, the dispatcher a real click on
+ * that row reaches -- the scratch-menu shape app_plugin_inv_op and
+ * app_plugin_click_node already use.  It refuses, rather than arms, whenever
+ * the real menu would NOT have offered the row:
+ *
+ *   - the component is not in the tree (DRIVE_NOT_FOUND);
+ *   - it offers no Cast row: an IF1 BUTTON_TARGET with an empty target verb,
+ *     or an IF3 component whose EFFECTIVE target mask (the server's
+ *     IF_SETEVENTS bits, app_component_target_mask -- the number
+ *     rs_minimenu_build's component_offers_if3_target reads) is 0 or whose
+ *     target verb is empty (DRIVE_REFUSED);
+ *   - the dispatcher would drop the pick in silence -- display-hidden, the
+ *     magic tab not the shown one (app_minimenu_pick_refusal, DRIVE_REFUSED
+ *     with its sentence);
+ *   - the row ran and targetsel did not come back holding THIS component
+ *     (DRIVE_REFUSED): "the dispatcher ran" is never mistaken for "the spell
+ *     is armed".
+ *
+ * Idempotent like InvArm: a live arming of THIS component sends nothing and
+ * says so, so the Lua verb can re-arm before every retry press for free.  A
+ * different live selection (a held item, another spell) is dropped first
+ * through app_selection_clear, the reference's own doAction tail -- objsel
+ * and targetsel are mutually exclusive.
+ */
+static enum DriveResult
+drive_pointer_spell_arm(
+    struct App* app,
+    int component_id,
+    int* out_was_armed,
+    char const** out_reason)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    struct UITreeComponent const* c;
+    char const* verb;
+    int32_t node;
+    int offers;
+
+    assert(app);
+    assert(out_was_armed);
+    assert(out_reason);
+    *out_was_armed = 0;
+    *out_reason = NULL;
+    if( !app->tree )
+    {
+        *out_reason = "no interface tree yet";
+        return DRIVE_NOT_VISIBLE;
+    }
+    node = UITree_FindByComponentId(app->tree, component_id);
+    if( node < 0 )
+    {
+        *out_reason = "that component id is not in the interface tree";
+        return DRIVE_NOT_FOUND;
+    }
+    if( app->targetsel.active && app->targetsel.component_id == component_id )
+    {
+        *out_was_armed = 1;
+        return DRIVE_OK;
+    }
+    c = &app->tree->components[node];
+    verb = UITree_MenuOptions(c)->target_verb;
+    if( c->behavior.button_type == REVCONFIG_BUTTON_TYPE_TARGET )
+        offers = verb[0] != '\0';
+    else
+        offers = verb[0] != '\0' && app_component_target_mask(app, component_id) != 0;
+    if( !offers )
+    {
+        *out_reason = "the component offers no Cast row (no target verb, or a target mask of 0)";
+        return DRIVE_REFUSED;
+    }
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_UI;
+    pick.id = component_id;
+    pick.has_node_identity = 1;
+    pick.node_index = node;
+    pick.node_incarnation = c->incarnation;
+    *out_reason = app_minimenu_pick_refusal(app, &pick);
+    if( *out_reason )
+        return DRIVE_REFUSED;
+
+    if( app->objsel.active || app->targetsel.active )
+        app_selection_clear(app);
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick) )
+    {
+        *out_reason = "the scratch minimenu would not take the row";
+        return DRIVE_REFUSED;
+    }
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+
+    if( !app->targetsel.active || app->targetsel.component_id != component_id )
+    {
+        *out_reason = "the Cast row ran and targetsel did not come back armed with it";
+        return DRIVE_REFUSED;
+    }
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z)
 {
@@ -1701,6 +1844,29 @@ lua_drive_inv_use_on(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api_drive.spell_arm(component_id) -> (result, detail).  detail is
+ * "already armed, nothing sent", "armed by this call: <the client's own
+ * targetsel prompt>", or the refusal sentence.  See drive_pointer_spell_arm. */
+static int
+lua_drive_spell_arm(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int was_armed = 0;
+    char const* reason = NULL;
+    char detail[160];
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_spell_arm(app, component_id, &was_armed, &reason);
+    if( result != DRIVE_OK )
+        return PluginDrive_PushResult(L, result, reason);
+    if( was_armed )
+        return PluginDrive_PushResult(L, result, "already armed, nothing sent");
+    snprintf(detail, sizeof(detail), "armed by this call: %s", app->targetsel.op);
+    return PluginDrive_PushResult(L, result, detail);
+}
+
 static int
 lua_drive_op_available(struct lua_State* L)
 {
@@ -1818,6 +1984,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"inv_op", lua_drive_inv_op},
     {"inv_arm", lua_drive_inv_arm},
     {"inv_use_on", lua_drive_inv_use_on},
+    {"spell_arm", lua_drive_spell_arm},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},

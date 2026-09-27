@@ -45,7 +45,8 @@ Usage:
   tools/quest_gate/run.py <quest> [--timeout SECONDS]
   tools/quest_gate/run.py --script test/quests/_conformance.lua --name proof
       (advanced: drives an arbitrary standalone driver script -- no quest
-      table, no setup cheats -- through this same build/env/launch path.
+      table; a non-empty `setup` list is run by the same wrapper loop, an
+      empty or absent one is not wrapped) -- through this same build/env/launch path.
       This is how the verb-conformance harness (test/quests/_conformance.lua)
       can be run THROUGH this runner as a cross-check against `make
       test-quest-conformance`'s own answer, rather than only ever through
@@ -236,7 +237,7 @@ def write_session_fixture(fixture_name, saves_dir, user):
         handle.write(text)
 
 
-def write_wrapper_script(quest_file, out_path):
+def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False):
     """A copy of the quest file wrapped so its `setup` cheats run before
     `run(t)` does, matching test/quests/README.md's
     `{ id, fixture, setup = {cheats}, run = function(t) ... end }` shape.
@@ -291,6 +292,25 @@ def write_wrapper_script(quest_file, out_path):
     run()'s first row used to read a backpack the setup had not reached --
     trap 23, "::give from setup lands nothing". The generated Lua's own banner
     carries the measurement.
+
+    A ::setlevel is not believed either: the loop waits for the CLIENT's
+    reading of that stat to say `stated` with base_level == the level asked
+    for. The engine's setlevel branch (src/torirsserver/torirs_server_world.c,
+    `strncmp(text, "setlevel", 8)`) returns RAN -- `ok` -- having done nothing
+    for a stat name the stat pack does not know or a level outside 1..99, so
+    `ok` alone could hand run() a character at level 1 in a quest that
+    assumed 60 (seam setlevel_in_setup_noop, seam pass 19).
+
+    `pass_through_without_setup` is the --script mode (run_script_direct):
+    a scratch file whose table declares no setup, or `setup = {}` (the
+    conformance and cheat harnesses), runs exactly as it did before --
+    straight into its own run(), no login-grant wait -- while one that DOES
+    declare a setup list gets it run by this same loop. Before seam pass 19
+    --script ignored the list outright, so every setup line of a scratch
+    copy was a silent no-op: parity2a measured `::setlevel` in setup "not
+    landing" three times (build/quest_gate/diag_setlevel*, diag_setup3 --
+    hitpoints still `stated=false level=10`, the client had not even been
+    sent stats) when no setup line had been issued at all.
     """
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
@@ -302,6 +322,16 @@ def write_wrapper_script(quest_file, out_path):
         "    error(\"quest file did not return { run = function(t) ... end }\")\n"
         "end\n"
         "local quest_setup = QUEST.setup\n"
+        "-- A setup that is not a list of cheat lines is a setup nobody reads:\n"
+        "-- refuse it rather than run the quest against an unstated world.\n"
+        "if quest_setup ~= nil and type(quest_setup) ~= \"table\" then\n"
+        "    error(\"quest file's setup is a \" .. type(quest_setup)\n"
+        "        .. \", not a table of cheat lines\")\n"
+        "end\n"
+        + ("-- --script mode: no setup list, nothing to wrap.\n"
+           "if quest_setup == nil or next(quest_setup) == nil then\n"
+           "    return QUEST\n"
+           "end\n" if pass_through_without_setup else "") +
         "local quest_run = QUEST.run\n"
         "QUEST.run = function(t)\n"
         "    -- WAIT FOR THE LOGIN GRANT before the first setup cheat.\n"
@@ -393,6 +423,20 @@ def write_wrapper_script(quest_file, out_path):
         "        end\n"
         "        return true\n"
         "    end\n"
+        "    -- `::setlevel <stat> <level>` -> stat, level; nil for any other line.\n"
+        "    -- A line that STARTS as a setlevel (the engine's own strncmp prefix)\n"
+        "    -- but does not parse is (\"\", nil): the engine answers ok to it\n"
+        "    -- and sets nothing.\n"
+        "    local function setup_setlevel(text)\n"
+        "        if not string.match(text, \"^%s*:*setlevel\") then\n"
+        "            return nil\n"
+        "        end\n"
+        "        local stat, level = string.match(text, \"^%s*:*setlevel%s+(%a[%w_]*)%s+(%d+)%s*$\")\n"
+        "        if not stat then\n"
+        "            return \"\", nil\n"
+        "        end\n"
+        "        return stat, tonumber(level)\n"
+        "    end\n"
         "    local function setup_failed(cheat, why)\n"
         "        t.step(\"setup.\" .. cheat, \"FAIL\",\n"
         "            why .. \" -- the world this quest assumes was never stated\")\n"
@@ -420,6 +464,13 @@ def write_wrapper_script(quest_file, out_path):
         "                    -- taking the cheat at its word.\n"
         "                    before_mark = setup_backpack_mark()\n"
         "                end\n"
+        "            end\n"
+        "            local level_stat, level_wanted = setup_setlevel(cheat)\n"
+        "            if level_stat == \"\" then\n"
+        "                setup_failed(cheat, \"not `::setlevel <stat name> <level>`: the\"\n"
+        "                    .. \" engine answers ok to it and sets nothing, and a numeric\"\n"
+        "                    .. \" stat id cannot be read back to prove it landed\")\n"
+        "                return\n"
         "            end\n"
         "            local setup_result, setup_detail = t.cheat(cheat)\n"
         "            if setup_result ~= \"ok\" then\n"
@@ -456,6 +507,25 @@ def write_wrapper_script(quest_file, out_path):
         "                        .. \" slot was watched instead)\")\n"
         "                    return\n"
         "                end\n"
+        "            elseif level_stat ~= nil then\n"
+        "                -- ok is not a level: wait for the client's reading.\n"
+        "                local level_last = \"unread\"\n"
+        "                local level_landed = t.await({ level = function()\n"
+        "                    local read_result, reading = t.skill.read(level_stat)\n"
+        "                    if read_result ~= \"ok\" then\n"
+        "                        level_last = tostring(read_result) .. \" \" .. tostring(reading)\n"
+        "                        return false\n"
+        "                    end\n"
+        "                    level_last = \"stated=\" .. tostring(reading.stated)\n"
+        "                        .. \" base_level=\" .. tostring(reading.base_level)\n"
+        "                    return reading.stated and reading.base_level == level_wanted\n"
+        "                end, note = \"setup: ::setlevel reaching the client\" }, 10)\n"
+        "                if level_landed ~= \"ok\" then\n"
+        "                    setup_failed(cheat, \"the cheat answered ok and \" .. level_stat\n"
+        "                        .. \" never read base_level \" .. tostring(level_wanted)\n"
+        "                        .. \" within 10 ticks (last reading: \" .. level_last .. \")\")\n"
+        "                    return\n"
+        "                end\n"
         "            elseif string.match(cheat, \"^%s*:*clearinv\") then\n"
         "                -- The same race, and the one cheat every generated\n"
         "                -- setup list opens with: an unfinished ::clearinv also\n"
@@ -469,7 +539,7 @@ def write_wrapper_script(quest_file, out_path):
         "                end\n"
         "            end\n"
         "        end\n"
-        "        -- Every OTHER cheat (::setvar, ::setlevel, a quest's own reset\n"
+        "        -- Every OTHER cheat (::setvar, a quest's own reset\n"
         "        -- debugproc) has the same one-tick reply/effect gap with no\n"
         "        -- single reading to wait on, so the loop ends on the tick\n"
         "        -- boundary its last reply outran.  run()'s first row reads a\n"
@@ -778,8 +848,14 @@ def run_quest(name, binary, manifest_path, timeout):
 
 
 def run_script_direct(name, script_path, fixture_name, binary, manifest_path, timeout):
-    """The --script escape hatch: runs `script_path` as-is -- no setup-cheat
-    wrapping -- under build/quest_gate/<name>/. test/quests/_conformance.lua
+    """The --script escape hatch: runs `script_path` under
+    build/quest_gate/<name>/. A file whose table declares a NON-EMPTY `setup`
+    list gets it run by the same generated loop a quest run uses
+    (write_wrapper_script, pass_through_without_setup=True): before seam
+    pass 19 this path ran the file as-is and silently ignored the list, so a
+    scratch copy of a quest issued none of its setup lines and parity2a read
+    that as "::setlevel in setup is a no-op". A file with no setup, or
+    `setup = {}`, runs exactly as written. test/quests/_conformance.lua
     is ALSO a `{ run = function(t) ... end }` table (its own `setup = {}` is
     empty, and its comment says it re-issues any cheats itself through
     t.cheat "so it can also run standalone"), so it loads through the same
@@ -794,7 +870,14 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
         return locked_result(name, refusal)
     try:
         directory, saves = prepare_session(name, fixture_name)
-        return launch_and_report(name, binary, manifest_path, directory, saves, script_path,
+        # Same basename as the source, in a subdirectory: the driver names
+        # the run after the script file (`QUEST <basename> ...` lines), and
+        # that name must not change because the file is now generated.
+        wrapped_dir = os.path.join(directory, "script")
+        os.makedirs(wrapped_dir, exist_ok=True)
+        script = os.path.join(wrapped_dir, os.path.basename(script_path))
+        write_wrapper_script(script_path, script, pass_through_without_setup=True)
+        return launch_and_report(name, binary, manifest_path, directory, saves, script,
                                  timeout, max_frames)
     finally:
         release_session_lock(name)
@@ -1005,7 +1088,7 @@ def main():
                              % os.path.relpath(PUBLISH_DIR, REPO_ROOT))
     parser.add_argument("--script", default=None,
                         help="advanced: run this .lua file directly as a single session "
-                             "(no quest-table wrapping, no setup cheats) -- see the module "
+                             "(a non-empty setup list is run first, as for a quest) -- see the module "
                              "docstring")
     parser.add_argument("--name", default=None,
                         help="artefact directory name for --script (default: its basename)")

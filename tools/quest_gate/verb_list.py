@@ -29,7 +29,10 @@ Excluded, because they are not a test's verbs:
     the whole QD.read namespace, which is only helpers),
   - QD.core_* (the plugin/scheduler seam: core_bind is called from on_start
     with an `api` a test never has, core_next_shot is t.shot's own bookkeeping),
-  - a namespace table constructor (`QD.read = {}`).
+  - a namespace table constructor (`QD.read = {}`),
+  - an UPPER_CASE top-level assignment (`QD.COMBAT_CORPSE_GRACE = 12`): a
+    tuning constant a part reads, never something a test calls (seam pass 19
+    added three to combat.lua and they read as verbs with no row).
 
 SEAM ROWS.  The harness also carries `seam("seam.<name>", ...)` rows, which are
 not verbs: each one proves a BEHAVIOUR under the verb layer, in the C the
@@ -75,6 +78,11 @@ def private(segment):
     return segment.startswith("_") or segment.startswith("core_")
 
 
+def constant(segment):
+    """`QD.COMBAT_POOL_CAP = 64`: a constant, not a verb."""
+    return segment.isupper()
+
+
 def verbs_from_sources(driver_dir=DRIVER_DIR):
     """Every verb name, with the file:line it is defined at."""
     found = {}
@@ -100,7 +108,7 @@ def verbs_from_sources(driver_dir=DRIVER_DIR):
                 match = ASSIGN_TOP.match(line)
                 if match:
                     verb, rhs = match.group(1), match.group(2).strip()
-                    if private(verb) or rhs.startswith("{"):
+                    if private(verb) or rhs.startswith("{") or constant(verb):
                         continue
                     found[verb] = where
     return found

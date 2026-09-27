@@ -57,17 +57,22 @@
 -- inside the loaded scene from the Falador Park dig tile.  Polling by symbol
 -- would find that one the moment the one we are fighting dies and the fight
 -- would never be over.
+--
+-- The third and fourth returns are the pool read itself -- its row count and
+-- its rows, nearest first -- because "the slot is not in the pool" means
+-- nothing until you know whether the pool was FULL (QD._combat_watch_read).
+-- Callers that take two returns are unaffected.
 function QD._combat_row_by_slot(slot)
     local result, rows = api_drive.npcs(0)
-    if result ~= "ok" then
-        return result, nil
+    if result ~= "ok" or type(rows) ~= "table" then
+        return result, nil, 0, nil
     end
     for i = 1, #rows do
         if rows[i].slot == slot then
-            return "ok", rows[i]
+            return "ok", rows[i], #rows, rows
         end
     end
-    return "no_row", nil
+    return "no_row", nil, #rows, rows
 end
 
 -- "<ratio>/<scale>", or "no bar" before the first landed hit.  One spelling,
@@ -117,6 +122,32 @@ end
 -- It is applied at the four places that turn a reading into an answer rather
 -- than inside this function, because this function is handed a reading and a
 -- row and has nothing to ask the world with.
+--
+-- ---------------------------------------------------------------------------
+-- AND A BAR AT 0 IS NOT A KILL EITHER -- SEAM
+-- await_dead_engaged_false_death_crowded_pool (2026-09-27).  THIS FUNCTION IS
+-- NO LONGER THE VERDICT; QD._combat_watch_read below is.
+--
+-- The server writes an npc's bar as `floor(hitpoints * width / max)`
+-- (torirs_server_encode.c, the npc HEADBAR block), so an npc whose maximum is
+-- larger than its bar's width reads 0 while it is still ALIVE: the Khazard
+-- warlord (hitpoints=170, quest_tree.npc) on the standard 30-wide bar reads
+-- 0/30 at every hitpoint from 1 to 5.  Measured on Tree Gnome Village's
+-- warlord fight (build/quest_gate/s19c_orig1, s19c_orig2, identical, and the
+-- five parity2a runs before them): `await_dead_engaged: slot 33 dead after 37
+-- tick(s) ... last hp 2/30` at server tick ~209, while
+-- TORIRSSERVER_COMBAT_TRACE held the player's interaction latch on the
+-- warlord until tick 212, `[ai_queue3,khazard_warlord_combat]` ran at ~215
+-- and TORIRSSERVER_NPC_TRACE released his slot ("npc inactive") at 216.  The
+-- very next `t.player.attack` read `hp 0/30 -> 0/30, hitsplat 5` -- the real
+-- killing blow, landed on an npc this function had already buried.  The
+-- parity notes blamed the npc pool's 64-row cap; TORIRS_DRIVE_DEBUG=1 read
+-- `npc_pool=74 have_player=1` on every poll with the warlord one tile away,
+-- so he was never ranked out -- the `== 0` arm below answered, and the
+-- `last hp 2/30` in the detail was the reading BEFORE the one it judged.
+--
+-- Kept, with its old meaning ("no longer reads as alive"), for any caller
+-- that wants the READING.  Nothing in this file calls a kill on it.
 function QD._combat_is_dead(result, row)
     if result == "no_row" then
         return true
@@ -125,6 +156,190 @@ function QD._combat_is_dead(result, row)
         return false
     end
     return row.health_ratio == 0
+end
+
+-- ---------------------------------------------------------------------------
+-- THE KILL VERDICT: THE SLOT LEAVES THE POOL, AND SOMETHING SAYS WHY
+-- ---------------------------------------------------------------------------
+--
+-- A dead npc does one thing no living one does: the server releases its slot
+-- once the death has run (the corpse stays a few ticks with its bar at 0,
+-- then goes).  So the verdict is ABSENCE -- never a zero bar alone, above --
+-- and an absence is credited only with a corroboration, named in the detail:
+--
+--   * "zero bar": the slot's bar read 0 on an earlier poll of this same wait
+--     (or the attack's own settle read it), and nothing has read it above 0
+--     since.  Floor or not, a slot that read 0 and then left the pool was at
+--     no more than max/width hitpoints and is gone: that is the corpse.
+--   * "absent N polls": the slot has been missing for
+--     QD.COMBAT_ABSENT_POLLS consecutive server-tick polls and never came
+--     back, AND on every one of them the pool's reach COVERED the slot's last
+--     known tile -- the pool held fewer than its 64 rows (so nothing at all
+--     was ranked out of it), or its farthest row stood further away than that
+--     tile by more than the tiles the npc could have walked since.  That is
+--     what makes an absence on a crowded map (Mort'ton's shade street holds
+--     more than 64) different from a death, rather than a guess.
+--
+-- The npc's death animation would be a third, and is not here: the pool row
+-- (struct DriveNpcRow) carries no sequence id, and a new api_drive field is a
+-- C change this Lua-only seam does not take.
+--
+-- A read that answered neither `ok` nor `no_row` resets nothing and counts
+-- nothing -- it learned nothing (the trap-5 rule the loops already keep).
+--
+-- TWO polls, a server tick apart, and not more: every one of them must be one
+-- the pool VOUCHES for, so the count is not guarding against the 64-row cap
+-- (the cover test is) but against a single-read transient.  The false death
+-- this seam was filed for was never an absence at all (the zero bar, above);
+-- two consecutive vouched absences is also the most the conformance harness's
+-- `seam.no_row_is_not_a_kill` row can see inside its one-tick wait (the head
+-- read plus one loop poll), so it grades this rule rather than a looser one.
+QD.COMBAT_ABSENT_POLLS = 2
+QD.COMBAT_POOL_CAP = 64 -- lua_drive_npcs's DRIVE_UI_POOL_CAP
+
+-- THE CORPSE GRACE.  A zero bar read inside the caller's deadline is a fight
+-- that may already be won and has not been RELEASED yet: the death sequence
+-- runs first, and only then does the slot leave the pool.  Measured: the
+-- Khazard warlord read 0/30 at server tick 209 and was released at 216
+-- (TORIRSSERVER_NPC_TRACE); goblins at m50_50 are released 4-7 ticks after
+-- their zero bar (build/quest_gate/s19c_goblin1).  So a wait whose watch has
+-- read a zero bar keeps polling until QD.COMBAT_CORPSE_GRACE ticks after that
+-- reading even past its own deadline, and the detail says it did.  Without
+-- it, Roving Elves' guardian (bar 0 one tick before a 30-tick round's end)
+-- was answered `timeout`, the quest's loop re-resolved its symbol, engaged
+-- the NEXT guardian and the character died (build/quest_gate/
+-- s19r_rov_instr_new).  A LIVE npc at <= max/width hitpoints also reads 0,
+-- so the grace is bounded, and past it the answer is `timeout` naming the
+-- zero bar -- never a kill.
+QD.COMBAT_CORPSE_GRACE = 12
+
+function QD._combat_in_grace(watch)
+    return watch.zero_tick ~= nil
+        and api_drive.tick() - watch.zero_tick < QD.COMBAT_CORPSE_GRACE
+end
+
+-- ", N tick(s) past the deadline for the corpse release" or "".
+function QD._combat_grace_text(elapsed, ticks)
+    if elapsed <= ticks then
+        return ""
+    end
+    return ", " .. tostring(elapsed - ticks) .. " of them past the " .. tostring(ticks)
+        .. "-tick deadline (the corpse grace: a zero bar was read inside it)"
+end
+
+function QD._combat_watch_new(stamp_health)
+    local watch = {
+        absent = 0,          -- consecutive polls with the slot missing
+        zero_tick = nil,     -- tick the bar first read 0 (nil: not at 0 now)
+        zero_text = nil,     -- that reading, spelled "0/30"
+        last_tile = nil,     -- {x, z} the slot last stood on
+        uncovered = 0,       -- absent polls on which the pool could NOT vouch
+        pool_text = "",      -- the latest "the pool held N rows" sentence
+    }
+    -- The attack's own settle may already have read the zero bar (a
+    -- re-press on a dying npc reads "hp 0/30 -> 0/30"): that reading is this
+    -- fight's, so it counts.
+    if type(stamp_health) == "string" and string.match(stamp_health, "^0/") then
+        watch.zero_tick = api_drive.tick()
+        watch.zero_text = stamp_health .. " (the attack's own reading)"
+    end
+    return watch
+end
+
+-- Whether the pool as read this poll could have hidden a live slot.
+-- Returns (covered, sentence).
+function QD._combat_pool_covers(watch, count, rows)
+    if count < QD.COMBAT_POOL_CAP then
+        return true, "the pool held " .. tostring(count) .. " of its "
+            .. tostring(QD.COMBAT_POOL_CAP) .. " rows, so no live npc was ranked out of it"
+    end
+    if not watch.last_tile or type(rows) ~= "table" or #rows == 0 then
+        return false, "the pool was FULL (" .. tostring(count) .. " rows) and the slot's last"
+            .. " tile is unknown"
+    end
+    local tile_result, tile = api_drive.player_tile()
+    if tile_result ~= "ok" or type(tile) ~= "table" then
+        return false, "the pool was FULL and the player's tile did not read ("
+            .. tostring(tile_result) .. ")"
+    end
+    local far = rows[#rows]
+    local fx, fz = far.x - tile.x, far.z - tile.z
+    local lx, lz = watch.last_tile.x - tile.x, watch.last_tile.z - tile.z
+    local far_distance = math.sqrt(fx * fx + fz * fz)
+    -- Two tiles a tick (a running npc) for every poll it has been missing.
+    local reach = math.sqrt(lx * lx + lz * lz) + 2 * watch.absent
+    if reach < far_distance then
+        return true, string.format("the pool was full but its farthest row stood %.1f tiles"
+            .. " off and the slot's last tile %.1f (plus %d it could have walked)",
+            far_distance, reach - 2 * watch.absent, 2 * watch.absent)
+    end
+    return false, string.format("the pool was FULL (%d rows, farthest %.1f tiles) and the"
+        .. " slot's last tile (%.1f + %d walked) is past it, so it may only have been ranked out",
+        count, far_distance, reach - 2 * watch.absent, 2 * watch.absent)
+end
+
+-- One poll of `slot` through `watch`.  Returns (result, row, verdict):
+-- `verdict` is nil while the fight is not over, else the corroboration
+-- sentence a kill detail must carry.  `result`/`row` are the pool read's own,
+-- so the caller's health/hitsplat/re-engagement logic is unchanged.
+function QD._combat_watch_read(watch, slot)
+    local result, row, count, rows = QD._combat_row_by_slot(slot)
+    if result == "ok" and row then
+        watch.absent = 0
+        watch.uncovered = 0
+        watch.last_tile = { x = row.x, z = row.z }
+        if row.health_ratio == 0 then
+            if not watch.zero_tick then
+                watch.zero_tick = api_drive.tick()
+                watch.zero_text = QD._combat_health_text(row)
+            end
+        elseif row.health_ratio > 0 then
+            -- Back above 0 (healed, or a stale reading replaced): whatever
+            -- read 0 before is not this npc's corpse.
+            watch.zero_tick = nil
+            watch.zero_text = nil
+        end
+        return result, row, nil
+    end
+    if result ~= "no_row" then
+        return result, row, nil
+    end
+
+    watch.absent = watch.absent + 1
+    if watch.zero_tick then
+        return result, nil, "corroborated by the ZERO BAR: slot " .. tostring(slot)
+            .. " read " .. tostring(watch.zero_text) .. " at tick " .. tostring(watch.zero_tick)
+            .. " and then left the npc pool (the corpse was released)"
+    end
+    local covered, sentence = QD._combat_pool_covers(watch, count, rows)
+    watch.pool_text = sentence
+    if not covered then
+        watch.uncovered = watch.uncovered + 1
+        return result, nil, nil
+    end
+    if watch.absent - watch.uncovered >= QD.COMBAT_ABSENT_POLLS then
+        return result, nil, "corroborated by ABSENCE: slot " .. tostring(slot)
+            .. " missing from the npc pool for " .. tostring(watch.absent)
+            .. " consecutive poll(s) and never back, with no zero bar read -- " .. sentence
+    end
+    return result, nil, nil
+end
+
+-- The sentence a timeout adds when the watch saw something that is NOT a
+-- kill, so "still alive" never hides a zero bar or a missing slot.
+function QD._combat_watch_text(watch)
+    local text = ""
+    if watch.zero_tick then
+        text = text .. "; its bar has read " .. tostring(watch.zero_text) .. " since tick "
+            .. tostring(watch.zero_tick) .. " but the slot never left the pool -- the bar is"
+            .. " floor(hitpoints x width / max), so 0 is also a LIVE npc at low hitpoints"
+    end
+    if watch.absent > 0 then
+        text = text .. "; the slot is missing from the pool (" .. tostring(watch.absent)
+            .. " poll(s), " .. tostring(watch.uncovered) .. " the pool could not vouch for: "
+            .. tostring(watch.pool_text) .. ")"
+    end
+    return text
 end
 
 -- THE FIGHT THIS DRIVER LAST STARTED, and it exists for exactly one reading.
@@ -451,10 +666,14 @@ end
 -- t.npc.await_dead(npc_symbol, ticks, radius, attempts) -> `ok` `timeout`
 -- `not_found`.
 --
--- Resolves when the npc we started fighting has left the pool or its bar
--- reads 0 -- including when both were already true before the first tick of
--- the wait (the `no_row` arm below, `ok` with a detail that names it) --
--- and RE-ISSUES Attack when the fight has stopped: the npc's health
+-- Resolves when the npc we started fighting has LEFT THE POOL with a
+-- corroboration the detail names (QD._combat_watch_read: its bar read 0 first,
+-- or it stayed missing for QD.COMBAT_ABSENT_POLLS polls the pool could vouch
+-- for) -- including when it was already gone before the first tick of the
+-- wait (the `no_row` arm below, `ok` with a detail that names it).  A bar
+-- reading 0 is NOT the answer on its own: the fill is floored, so a 170-hp
+-- warlord reads 0/30 alive (seam await_dead_engaged_false_death_crowded_pool,
+-- on QD._combat_is_dead) -- and RE-ISSUES Attack when the fight has stopped: the npc's health
 -- reading has not moved for five server ticks, no new hitsplat has landed in
 -- that window, and the player is idle.  All three, because any one alone is
 -- normal mid-fight -- a miss streak moves no health, and a player in melee is
@@ -529,8 +748,17 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
     local last = health
     local started = api_drive.tick()
     local elapsed = 0
+    -- The kill verdict (QD._combat_watch_read): absence with a named
+    -- corroboration, never a zero bar on its own.  The start row is this
+    -- watch's first reading.
+    local watch = QD._combat_watch_new(nil)
+    watch.last_tile = { x = start_row.x, z = start_row.z }
+    if start_row.health_ratio == 0 then
+        watch.zero_tick = started
+        watch.zero_text = health
+    end
 
-    while elapsed < ticks do
+    while elapsed < ticks or QD._combat_in_grace(watch) do
         -- One SERVER tick per turn of the loop, counted the way QD.ticks
         -- counts (api_drive.tick() is the server tick, never a client cycle).
         local next_tick = api_drive.tick() + 1
@@ -550,21 +778,21 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
             return "refused", QD.player._death_text(QD._death)
         end
 
-        local result, row = QD._combat_row_by_slot(slot)
-        if QD._combat_is_dead(result, row) then
-            -- The slot left the POOL rather than reading 0: ask whether the
-            -- character is still alive before calling that a kill (the
-            -- no-row-is-not-a-kill banner on QD._combat_is_dead).  The fence
-            -- ends the run itself when it answers yes.
-            if result == "no_row"
-                and QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)
+        local result, row, verdict = QD._combat_watch_read(watch, slot)
+        if verdict then
+            -- The slot left the POOL: ask whether the character is still
+            -- alive before calling that a kill (the no-row-is-not-a-kill
+            -- banner on QD._combat_is_dead).  The fence ends the run itself
+            -- when it answers yes.
+            if QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)
                     .. ", when slot " .. tostring(slot) .. " left the npc pool "
                     .. tostring(elapsed) .. " tick(s) in") then
                 return "refused", QD.player._death_text(QD._death)
             end
-            return "ok", "await_dead " .. tostring(npc_symbol) .. ": dead after "
-                .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
-                .. " re-engagement(s), last hp " .. last
+            return "ok", "await_dead " .. tostring(npc_symbol) .. ": slot " .. tostring(slot)
+                .. " dead after " .. tostring(elapsed) .. " tick(s)"
+                .. QD._combat_grace_text(elapsed, ticks) .. ", " .. tostring(reengaged)
+                .. " re-engagement(s), last hp " .. last .. " -- " .. verdict
         end
 
         if result ~= "ok" or not row then
@@ -607,8 +835,8 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
     end
 
     return "timeout", "await_dead " .. tostring(npc_symbol) .. ": still alive after "
-        .. tostring(ticks) .. " tick(s), " .. tostring(reengaged)
-        .. " re-engagement(s), hp " .. last
+        .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
+        .. " re-engagement(s), hp " .. last .. QD._combat_watch_text(watch)
 end
 
 -- ===========================================================================
@@ -902,8 +1130,13 @@ function QD.npc.await_dead_engaged(ticks, attempts)
     local started = api_drive.tick()
     local elapsed = 0
 
-    local entry_result, entry_row = QD._combat_row_by_slot(slot)
-    if QD._combat_is_dead(entry_result, entry_row) then
+    -- The kill verdict (QD._combat_watch_read): absence with a named
+    -- corroboration.  A zero bar at the head of the wait is NOT the answer
+    -- any more -- it is recorded, and the loop waits for the corpse to leave.
+    local watch = QD._combat_watch_new(engaged.health)
+    local entry_result, entry_row, entry_verdict = QD._combat_watch_read(watch, slot)
+    local absent_at_entry = entry_result == "no_row"
+    if absent_at_entry then
         -- A SLOT THAT IS SIMPLY NOT IN THE POOL IS NOT A CORPSE, and this is
         -- the arm a hunt loop is wrecked by.  `no_row` here means the pool
         -- read succeeded and held no row for this slot, which is true of a
@@ -911,33 +1144,37 @@ function QD.npc.await_dead_engaged(ticks, attempts)
         -- and of an npc that merely ranked past DRIVE_UI_POOL_CAP's 64th
         -- nearest -- and Mort'ton's shade street holds more than 64.
         --
-        -- The stamp already carries the one fact that separates them:
-        -- `bar_seen` is "the server sent this npc a health bar while we were
-        -- engaged with it", and a bar is only ever sent once something has
-        -- HIT it.  Gone-after-a-bar is a kill (Pirate's Treasure's
-        -- `gardener-dead`, and the conformance harness's own
-        -- `npc.await_dead_engaged` row, which waits on a Man `npc.await_dead`
-        -- killed one row earlier).  Gone with no bar ever sent is a target
-        -- nothing ever fought, so this answers `no_row` and does NOT consume
-        -- the stamp -- the caller's loop presses Attack again instead of
-        -- crediting a kill it never made (build/quest_gate/mortton
-        -- ledger.tsv row 23: twenty rounds, 1,643 ticks, 2 of 5 remains).
-        if entry_result == "no_row" and not engaged.bar_seen then
+        -- The stamp carries the first fact that separates them: `bar_seen`
+        -- is "the server sent this npc a health bar while we were engaged
+        -- with it", and a bar is only ever sent once something has HIT it.
+        -- Gone with no bar ever sent is a target nothing ever fought, so this
+        -- answers `no_row` and does NOT consume the stamp -- the caller's loop
+        -- presses Attack again instead of crediting a kill it never made
+        -- (build/quest_gate/mortton ledger.tsv row 23: twenty rounds, 1,643
+        -- ticks, 2 of 5 remains).
+        if not engaged.bar_seen then
             return "no_row", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
                 .. ") is not in the npc pool and no health bar was ever sent for it while"
                 .. " t.player.attack was engaged with it, so nothing ever hit it -- this is"
                 .. " a target that left the readable pool, not a kill; press Attack again"
                 .. QD._combat_prior_text(engaged.symbol)
         end
-        if entry_result == "no_row"
-            and QD.player._death_fence("t.npc.await_dead_engaged, with slot "
-                .. tostring(slot) .. " absent from the npc pool at the head of the wait") then
-            return "refused", QD.player._death_text(QD._death)
+        -- Gone-after-a-bar is a kill ONLY WITH A CORROBORATION (seam
+        -- await_dead_engaged_false_death_crowded_pool): the attack's own
+        -- settle read the zero bar, or -- below, in the loop -- the slot stays
+        -- missing for QD.COMBAT_ABSENT_POLLS polls the pool can vouch for.
+        -- The conformance harness's `npc.await_dead_engaged` row (a Man
+        -- `npc.await_dead` killed one row earlier) resolves on the second.
+        if entry_verdict then
+            if QD.player._death_fence("t.npc.await_dead_engaged, with slot "
+                    .. tostring(slot) .. " absent from the npc pool at the head of the wait") then
+                return "refused", QD.player._death_text(QD._death)
+            end
+            engaged.consumed = true
+            return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
+                .. ") was already dead when the wait started -- " .. entry_verdict
+                .. QD._combat_prior_text(engaged.symbol)
         end
-        engaged.consumed = true
-        return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
-            .. ") was already dead when the wait started -- "
-            .. QD._combat_health_text(entry_row) .. QD._combat_prior_text(engaged.symbol)
     end
     if entry_result == "ok" and entry_row then
         health = QD._combat_health_text(entry_row)
@@ -949,7 +1186,7 @@ function QD.npc.await_dead_engaged(ticks, attempts)
         end
     end
 
-    while elapsed < ticks do
+    while elapsed < ticks or QD._combat_in_grace(watch) do
         local next_tick = api_drive.tick() + 1
         QD.await({
             level = function() return api_drive.tick() >= next_tick end,
@@ -962,18 +1199,20 @@ function QD.npc.await_dead_engaged(ticks, attempts)
             return "refused", QD.player._death_text(QD._death)
         end
 
-        local result, row = QD._combat_row_by_slot(slot)
-        if QD._combat_is_dead(result, row) then
-            if result == "no_row"
-                and QD.player._death_fence("t.npc.await_dead_engaged, when slot "
+        local result, row, verdict = QD._combat_watch_read(watch, slot)
+        if verdict then
+            if QD.player._death_fence("t.npc.await_dead_engaged, when slot "
                     .. tostring(slot) .. " left the npc pool " .. tostring(elapsed)
                     .. " tick(s) in") then
                 return "refused", QD.player._death_text(QD._death)
             end
             engaged.consumed = true
             return "ok", "await_dead_engaged: slot " .. tostring(slot) .. " dead after "
-                .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
+                .. tostring(elapsed) .. " tick(s)" .. QD._combat_grace_text(elapsed, ticks)
+                .. ", " .. tostring(reengaged)
                 .. " re-engagement(s), last hp " .. last .. "; held " .. forms
+                .. (absent_at_entry and "; already absent at the head of the wait" or "")
+                .. " -- " .. verdict
         end
 
         if result ~= "ok" or not row then
@@ -1016,6 +1255,6 @@ function QD.npc.await_dead_engaged(ticks, attempts)
     end
 
     return "timeout", "await_dead_engaged: slot " .. tostring(slot) .. " still alive after "
-        .. tostring(ticks) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
-        .. last .. "; held " .. forms
+        .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
+        .. last .. "; held " .. forms .. QD._combat_watch_text(watch)
 end

@@ -239,6 +239,7 @@ surfaces them one build at a time. Sweep first:
 | Comparison as an argument `~p($x = 4)` | "expected ')'" | Resolve to a `def_int` flag first |
 | Boolean expr in `return(a >= 1 & b >= 2)` | "expected ')' after return values" | Branch in an `if`, `return(true)` |
 | `queue` arity | — | `queue(script, delay, arg)` — 3 args |
+| `obj_add_private` / `damage` arity when an argument is a COMMAND (`npc_coord`, a proc call) | Compiles (the arity check is suppressed once any argument is a command, `ssc_compile.c`), then **aborts at runtime** with `int stack underflow at [ai_queue3,<npc>] ... op OBJ_ADD_PRIVATE` in client.log — the drop AND everything after it (Gorad's `queue(defeat_gorad)`) never happen | `obj_add_private(coord, obj, count, duration, private_ticks)` — 5 args, `private_ticks` 100 (LostCity `Obj.REVEAL`); `damage(uid, type, amount)` — 3. Grep client.log for `stack underflow` when a kill's quest item never arrives (seam19; `trail_hotcold.rs2:48` is still a 2-arg `damage`) |
 | Duplicate script name anywhere in the tree | **hard compile error** | Declare once; branch into a `[label,...]` from the other file. The shared-tool pattern is one owner file + obj categories (see `docs/TOOL_TRIGGER_ORGANISATION.md`) |
 | Non-ASCII in a string literal | **silently drops the whole `mes`** — a passing check becomes indistinguishable from one that never ran | ASCII only in literals (comments are fine). `-` not `—` |
 | Bare `<`, `>`, `<=` inside a `mes()` string | Lexer desync: "no proc named X" pointing at a proc that exists ~100 lines later | Rephrase ("10 or fewer"); `<...>` is tag syntax |
@@ -340,9 +341,35 @@ reading as "it got harder at 70%"):
 6. **`maxrange` defaults to 7, measured from the SPAWN tile.** Any chase
    across a bigger room silently freezes. State it (CoX rooms are 32);
    also state it when `wanderrange` exceeds ~7.
-7. **`npc_findhero` is not a proximity test** (reports the active player
-   unconditionally) and `npc_attackplayer` **aborts the script** without an
-   active player. Do everything player-shaped inside a `huntall` loop.
+7. **`npc_findhero` names the KILLER, not whoever is near** — and
+   `npc_attackplayer` **aborts the script** without an active player. Do
+   everything player-shaped for a crowd inside a `huntall` loop.
+   - Since seam19 (2026-09-27) it is LostCity's (NpcOps.ts:129): pushes
+     **1/0** and **binds** the hero as active player, so `npc_findhero =
+     ^true` then `p_finduid(uid)` is the reference idiom and works for any
+     pid. Hero = the player whose hit killed the npc
+     (`death_credit_players`, marked 2 at the blow), else one still fighting
+     it then, else one who ever damaged it, else the script's bound player
+     (only a direct `ToriRSServer_WorldNpcDied`/debugproc reaches that; the
+     reference answers false there). It used to push `pid + 1`, which equals
+     `^true` for pid 0 only — every single-player run passed and any second
+     login broke every `[ai_queue3]` finishing check.
+   - The CORPSE stage (`npc_death_step`, torirs_server_combat.c) now runs
+     `[ai_queue3]` with the killer bound as active player; before, it ran as
+     `phase_npcs`' leftover (the last pid in the pool). Pinned only by a
+     worktree probe so far (two players, pid 1 kills Count Draynor: HEAD
+     leaves the stake, fixed hammers it in).
+   - **A test cannot read an `[ai_queue3]` outcome on the tick
+     `t.npc.await_dead_engaged` answers.** That verb answers on the zero
+     health bar (the killing hitsplat); `[ai_queue3]` fires at CORPSE,
+     `death_delay` + up to three ticks later, and a completion it queues lands
+     later still. Wait for the outcome (`t.msg.await`, or `t.ticks(10)`)
+     before reading the stage, the inventory or xp. parity2a's
+     `fight_with_stake.lua` read at ticks=0 and filed a working stake kill as
+     an engine bug (`build/quest_gate/s19fh_stake_fixed`: the same kill with
+     a wait reads vampire=3, stake gone, +4825 attack xp). Likewise a
+     "regenerating" boss still shows a zero bar before its `[ai_queue3]`
+     heals it.
 8. **One shared search iterator.** `huntall`/`npc_findall*` share it;
    nesting a sweep inside a sweep eats the outer one. `npc_find*uid/exact`
    are safe (lookup, not sweep). A sweeping helper should save
@@ -504,6 +531,12 @@ reading as "it got harder at 70%"):
   quest's cited wiki rewards table verbatim; xp numbers drift between eras.
 - **Locked doors, quest locs:** ops are per-placement; multiloc rungs off
   the quest varbit are usually already in the cache — wire, don't author.
+- **An `orphan` LostCity loc category may still have members that resolve
+  by NAME** (Witch's House's `_ball_irongate` = `shockgatel`/`shockgater`,
+  ids 2865/2866, category `door_selfstage`). Bind `[oploc1,<member>]` per
+  member — no category allocation, no id minted — and when the members are
+  selfstage doors, finish with `~door_selfstage_open` (a name binding
+  shadows only op1; quest_grail's merlinworkshop precedent). seam19.
 
 ---
 

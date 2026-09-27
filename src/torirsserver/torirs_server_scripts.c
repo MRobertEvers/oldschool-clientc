@@ -9368,9 +9368,74 @@ ToriRSServer_ScriptCommand(
         return 1;
 
     case SS_OP_NPC_FINDHERO:
-        /* Combat currently retains the hitter as the active world player. */
-        SSVM_PushInt(state, srv->active_player ? srv->active_player->pid + 1 : 0);
+    {
+        /*
+         * `npc_findhero` -- NpcOps.ts:129: find the player this npc owes its
+         * death (or its damage) to, make them the active player, and answer
+         * true; answer false and bind nobody when there is none.
+         *
+         * It used to push `srv->active_player->pid + 1` and bind nothing.
+         * Every one of content's 364 files compares the result with
+         * `true`/`^true` (1), so the check could only ever pass for pid 0,
+         * and the player it did pass for was not a hero at all: at the CORPSE
+         * stage `[ai_queue3]` runs from the npc phase, where
+         * `srv->active_player` is the phase's leftover, not the fighter.
+         *
+         * The reference ranks by hero points (damage per player). This npc
+         * records who landed the killing blow and who was still fighting at it
+         * (`death_credit_players`, live from the blow until the drop script
+         * finishes) and who has hit it at all (`damaged_by_players`), not how
+         * hard -- so the hero is the blow's owner, else the lowest pid that
+         * was fighting at the blow, else the lowest pid that ever hit it, else
+         * (below) the bound player. With one fighter, which is every quest
+         * boss, that is the reference's answer exactly. `2` is TORIRSSERVER_DEATH_CREDIT_HITTER in
+         * torirs_server_combat.c, which writes it.
+         */
+        struct ToriRSServerNpc* npc = active_npc(state);
+        struct ToriRSServerPlayer* hero = NULL;
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_findhero with no active npc");
+            return 1;
+        }
+        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        {
+            if( !npc->death_credit_players[i] || !srv->players[i].active )
+                continue;
+            if( npc->death_credit_players[i] == 2 )
+            {
+                hero = &srv->players[i];
+                break;
+            }
+            if( !hero )
+                hero = &srv->players[i];
+        }
+        for( int i = 0; !hero && i < TORIRSSERVER_PLAYER_MAX; i++ )
+        {
+            if( npc->damaged_by_players[i] && srv->players[i].active )
+                hero = &srv->players[i];
+        }
+        /* An npc that records no fighter at all: the player this script is
+         * already running for, as before. The reference answers false here;
+         * this engine keeps the bound player because a death it is asked to
+         * run with nobody's damage on the npc is a caller naming its player
+         * directly (the selftest's `ToriRSServer_WorldNpcDied` stanzas, a
+         * content debugproc), and every live kill records its killer at the
+         * blow (`death_credit_players`), so that is the only path this
+         * reaches from a fight. */
+        if( !hero && player && player->active )
+            hero = player;
+        if( !hero )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, hero);
+        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+        SSVM_PushInt(state, 1);
         return 1;
+    }
 
     case SS_OP_NPC_ATTACKRANGE:
     {
