@@ -48297,18 +48297,21 @@ ToriRSServer_WorldSelftest(void)
             int obj_bell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grail_bell");
             int loc_whistledoor = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "whistledoor");
             int npc_maiden = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "grail_maiden");
+            int loc_merlinworkshop = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "merlinworkshop");
+            int npc_merlin2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "merlin2");
 
             SELFTEST_CHECK(varp_grail >= 0 && obj_napkin >= 0 && obj_whistle >= 0 &&
                            obj_grail >= 0 && obj_bell >= 0 && loc_whistledoor >= 0 &&
-                           npc_maiden >= 0,
+                           npc_maiden >= 0 && loc_merlinworkshop >= 0 && npc_merlin2 >= 0,
                            "the ::grailrun C-side names should all resolve: grail=%d "
                            "napkin=%d whistle=%d grail_obj=%d bell=%d whistledoor=%d "
-                           "maiden=%d",
+                           "maiden=%d merlinworkshop=%d merlin2=%d",
                            varp_grail, obj_napkin, obj_whistle, obj_grail, obj_bell,
-                           loc_whistledoor, npc_maiden);
+                           loc_whistledoor, npc_maiden, loc_merlinworkshop, npc_merlin2);
 
             if( varp_grail >= 0 && obj_napkin >= 0 && obj_whistle >= 0 && obj_grail >= 0 &&
-                obj_bell >= 0 && loc_whistledoor >= 0 && npc_maiden >= 0 )
+                obj_bell >= 0 && loc_whistledoor >= 0 && npc_maiden >= 0 &&
+                loc_merlinworkshop >= 0 && npc_merlin2 >= 0 )
             {
                 int x, z;
                 int door_slot;
@@ -48514,6 +48517,151 @@ ToriRSServer_WorldSelftest(void)
                                    "ringing the bell beside the maiden should open the "
                                    "messagebox greeting, want %d got chatmodal_group=%d",
                                    if_messagebox, player->chatmodal_group);
+                }
+
+                for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+
+                /*
+                 * --- merlinworkshop: the hard blocker (tier 2 audit,
+                 * 2026-09-27). `merlin2` (configs/all.npc: vislevel=hide)
+                 * had NOTHING anywhere in the tree that ever called
+                 * npc_add on it (grep-confirmed) -- Quest Helper step 2
+                 * ("go upstairs and talk to Merlin") was unreachable, so
+                 * the whole quest was unplayable past King Arthur's "go
+                 * speak to Merlin" line. Fixed in quest_grail.rs2:
+                 * `[oploc1,merlinworkshop]` now ports LostCity's own
+                 * npc_add/npc_del(merlin2) dance (same landing coord
+                 * 1_43_54_15_44), swapped to `~door_selfstage_open` since
+                 * merlinworkshop is category=door_selfstage like
+                 * whistledoor above (a name binding shadows only opcode 1
+                 * of the category trigger).
+                 */
+                {
+                    int door_slot;
+                    int door_x, door_z;
+                    int x, z;
+                    int merlin_count;
+
+                    /* Clear any merlin2 left over from an earlier section. */
+                    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                        if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                            ToriRSServer_WorldNpcFree(srv, i);
+
+                    /* Force the Camelot-upstairs zone to build before
+                     * scanning it -- SceneFindLocId only sees a zone the
+                     * player has actually been near (same reason
+                     * whistledoor's own check teleports first). */
+                    ToriRSServer_WorldTeleport(srv, 1, 2767, 3500);
+                    selftest_tick(srv);
+
+                    /* Scan for the door and capture the EXACT (x,z) it
+                     * resolved at -- not just "found", since check_axis
+                     * (`~check_axis(coord, loc_coord, loc_angle)`) compares
+                     * the player's own tile against the door's, and the
+                     * scan loops' own post-match increments leave x/z one
+                     * past the hit. The player must stand ON the door's own
+                     * tile for `~check_axis` to read $entering = true, the
+                     * same way a player who has just walked through it
+                     * would. */
+                    door_slot = -1;
+                    door_x = -1;
+                    door_z = -1;
+                    for( x = 2748; x <= 2768 && door_slot < 0; x++ )
+                        for( z = 3496; z <= 3517 && door_slot < 0; z++ )
+                        {
+                            int slot = ToriRSServer_SceneFindLocId(x, z, 1, loc_merlinworkshop);
+                            if( slot >= 0 )
+                            {
+                                door_slot = slot;
+                                door_x = x;
+                                door_z = z;
+                            }
+                        }
+                    SELFTEST_CHECK(door_slot >= 0,
+                                   "merlinworkshop should be placed upstairs by the "
+                                   "Camelot library (plane 1), got slot %d", door_slot);
+
+                    if( door_slot >= 0 )
+                    {
+                        ToriRSServer_WorldTeleport(srv, 1, door_x, door_z);
+                        selftest_tick(srv);
+
+                        /* Quest not started: the door must not spawn merlin2. */
+                        player->varps[varp_grail] = 0; /* grail_not_started */
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
+                                                           ToriRSServer_LocCategory(loc_merlinworkshop),
+                                                           door_slot);
+                        selftest_tick(srv);
+                        merlin_count = 0;
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                                merlin_count++;
+                        SELFTEST_CHECK(merlin_count == 0,
+                                       "opening merlinworkshop before the quest starts "
+                                       "should not spawn merlin2, got %d",
+                                       merlin_count);
+
+                        /* Not-started never reaches ~door_selfstage_open (it
+                         * returns at "The door won't open."), so the door
+                         * has not swung and door_slot/door_x/door_z are
+                         * still valid. Quest started: opening now must
+                         * spawn exactly one merlin2. */
+                        player->varps[varp_grail] = 2; /* grail_started */
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
+                                                           ToriRSServer_LocCategory(loc_merlinworkshop),
+                                                           door_slot);
+                        selftest_tick(srv);
+                        merlin_count = 0;
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                                merlin_count++;
+                        SELFTEST_CHECK(merlin_count == 1,
+                                       "opening merlinworkshop once the quest has "
+                                       "started should spawn exactly one merlin2, got %d",
+                                       merlin_count);
+
+                        /* Re-opening (walking in again) must not stack a
+                         * second merlin2 -- the script deletes any nearby
+                         * one first. The door swung on the call above
+                         * (loc_del/loc_add to $open_coord), so re-scan and
+                         * re-stand on whatever tile it resolves to now. */
+                        door_slot = -1;
+                        door_x = -1;
+                        door_z = -1;
+                        for( x = 2748; x <= 2768 && door_slot < 0; x++ )
+                            for( z = 3496; z <= 3517 && door_slot < 0; z++ )
+                            {
+                                int slot = ToriRSServer_SceneFindLocId(x, z, 1, loc_merlinworkshop);
+                                if( slot >= 0 )
+                                {
+                                    door_slot = slot;
+                                    door_x = x;
+                                    door_z = z;
+                                }
+                            }
+                        if( door_slot >= 0 )
+                        {
+                            ToriRSServer_WorldTeleport(srv, 1, door_x, door_z);
+                            selftest_tick(srv);
+                            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
+                                                               ToriRSServer_LocCategory(loc_merlinworkshop),
+                                                               door_slot);
+                            selftest_tick(srv);
+                        }
+                        merlin_count = 0;
+                        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                            if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                                merlin_count++;
+                        SELFTEST_CHECK(door_slot >= 0 && merlin_count == 1,
+                                       "re-opening merlinworkshop should not stack a "
+                                       "second merlin2 (door_slot=%d), got %d",
+                                       door_slot, merlin_count);
+                    }
+
+                    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                        if( srv->npcs[i].active && srv->npcs[i].type == npc_merlin2 )
+                            ToriRSServer_WorldNpcFree(srv, i);
                 }
 
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
