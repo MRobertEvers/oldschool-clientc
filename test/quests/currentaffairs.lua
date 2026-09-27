@@ -5,42 +5,34 @@
 -- opnpc1 delegates to `ca_harry_talk` the same way, only inside the
 -- quest's ^ca_get_mayor..^ca_show_mayor window (harry.rs2).
 --
--- RE-AUTHOR (queue last_failure, after OSRS-Content 70487ebee8 /
--- [parity:parity1o]): the sea leg is SAILED for real now, not narrated or
--- telejumped, and the committed file this replaces pre-dates that pass --
--- it broke at row 52 talkToArheinNews-dialog (content opens with Arhein's
--- verbatim "Hello again!" four-row menu now, not the old two-line stub).
--- Three shapes changed, all in currentaffairs.rs2:
---   * `ca_arhein_talk` wraps every Going-with-the-Flow visit (news/duck/
---     charted) in `ca_arhein_hello` (currentaffairs.rs2:238): "Hello
---     again!" then a p_choice4 ("What do you have for sale?" / the quest
---     row / "Where abouts do you make deliveries to?" / "I'd best be
---     off.") -- choose the quest row (its text depends on stage: "The
---     by-law has been changed!" at ^ca_news, "I've charted the currents!"
---     once the chart bit is set) to fall into the branch below.
---   * No `ca_board_ship`/p_telejump at all any more. Boarding is a REAL
---     sail: the player's own boat (setup's sailing_boat_1_* vars, the
---     Catherby gangplank, doc section 3's sail recipe), helmed east, and
---     the ripple is the sea zone [zone,0_44_53_16_24] (currentaffairs.rs2:
---     634) the engine queues on every rider when the HULL (never the
---     rider's feet) crosses in -- `ca_own_boat_here`/`ca_boat_on_ripple`
---     (currentaffairs.rs2:127-146) gate release and collection on the hull
---     alone, so a `t.world.tile()` read of the RIDER means nothing here;
---     `t.sail.state()` is the channel.
---   * Releasing the duck ([opheld1,sailing_charting_current_duck],
---     currentaffairs.rs2:154, only once the hull is on the ripple) spawns a
---     REAL moving npc (sailing_charting_current_duck_moving) that swims
---     five ocean-checked current legs to the wiki's shore pin near Holgart
---     (^ca_duck_end, 2802,3322) over an [ai_timer], then becomes the
---     stopped collectible form and prints the wiki's blue stop message.
---     Collection is an [apnpc1] press from the OWNER's own boat
---     (currentaffairs.rs2:654, "The duck recognises your boat and climbs
---     aboard...") -- the guide's own "collect the duck" step, driven for
---     real through the sailing side panel's deck-row press
---     (`t.sail._press_deck_row`), never a goto/talk_to.
--- Proved route (sail legs, furl points, the heading press before
--- re-setting sail, the deck-row press coordinates):
--- build/parity_state/parity1o/ca_scripts/ca_sea_leg.lua.
+-- RE-AUTHOR (queue last_failure, after OSRS-Content 3b41349334
+-- [parity:parity1p]): "Starting off" / "Red Tape" / "Long live the Mayor"
+-- are verbatim from Transcript:Current_Affairs now, not the old two-line
+-- stubs this file used to drive -- it broke at row 5 startQuest-dialog
+-- ("got npc 'Hello again!'"), because EVERY Arhein visit now opens with
+-- `ca_arhein_hello` (currentaffairs.rs2:316): "Hello again!" then a
+-- p_choice4 menu (shop / the stage's own quest row / deliveries / "I'd
+-- best be off.") -- choose the quest row to fall into the stage's branch.
+-- Two shapes changed beyond the wrapper, both in currentaffairs.rs2:
+--   * Catherine, Harry and the mayor chain are fully voiced (~line 597 on):
+--     Catherine's first visit, the form hand-in (one continuous
+--     conversation all the way to ^ca_arhein_mayor, no second click),
+--     Harry's kit sale, and -- new -- showing the freshly-caught mayor to
+--     ARHEIN FIRST (ca_arhein_chain_mayor, :510) is what chains him and
+--     advances the stage to ^ca_show_mayor; only THEN does Catherine's
+--     audit (ca_councillor_audit, :733) accept him. Every answer given to
+--     form cr-4p's 8 questions is repeated verbatim for the audit, so the
+--     audit passes on its first pass with no retry.
+--   * The quest items now carry the wiki's own ops (Inspect/Dismiss on the
+--     duck, Consult/Feed/Destroy on the mayor, Destroy on both forms and
+--     the fishbowl) -- none of them a guide step, so this file drives none
+--     of them; proved standalone in build/parity_state/parity1p/ca_scripts/
+--     ca_items.lua (98/98).
+-- Proved route for the dialogue rewrite (every page, every choose text, in
+-- order, including the requirement refusal and the audit):
+-- build/parity_state/parity1p/ca_scripts/ca_early.lua (120/120). The sea
+-- leg (sail recipe, furl points, deck-row presses) is untouched by this
+-- parity pass -- kept from the previously-green post-parity1o file.
 --
 -- Rewards actually granted (section 8's "what THIS pack grants" rule): both
 -- stat_advance calls are real -- ^ca_fish_xp (10000 tenths = 1000
@@ -96,96 +88,190 @@ return {
         t.ticks(3) -- the ::currentaffairs debug reset's effect is not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
-        -- ---- Arhein: start the quest ----
+        -- ---- Arhein: start the quest. ca_arhein_talk's hello wrapper
+        -- (currentaffairs.rs2:316-318): "Hello again!" then a p_choice4 menu
+        -- whose row 2 is the stage's own quest row -- here
+        -- "What's with the duck?" (^ca_arhein_start, :453). Levels/
+        -- Pandemonium are already met (setup), so this is the meets-
+        -- requirements=true / Yes branch straight through to ^ca_councillor. ----
         t.exec("goto-startQuest", t.player.goto_tile, 2803, 3430, 0) -- arhein.spawn (m43_53.spawn)
         t.exec("startQuest", t.player.talk_to, "arhein", 1)
-        -- ca_arhein_talk, ^ca_not_started branch: chatplayer, chatnpc, p_choice2(Yes/No), chatnpc.
         t.exec("startQuest-dialog", t.chat.play, {
+            "npc:Hello again!",
+            "choose:What's with the duck?",
             "player:What's with the duck?",
-            "npc:Red tape. Councillor Catherine won't let me use my Current duck until the by-laws change.",
+            "npc:Oh, it's part of a little test",
+            "npc:My plan is to track the currents around Catherby",
+            "player:What is it?",
+            "npc:The local council have a by-law forbidding non-human workers",
             "choose:Yes.",
-            "npc:Talk to Councillor Catherine in north-east Catherby. Tell her you're my new employee.",
+            "player:Anything I can do to help?",
+            "npc:Well, you're welcome to try talking to Councillor Catherine",
+            "player:Thanks for the warning. I'll head over and see what I can do.",
         })
         t.expect("quest.stage.councillor", t.quest.expect_stage("councillor"))
 
-        -- ---- Councillor Catherine: receive form cr-4p ----
+        -- ---- Councillor Catherine: "Red Tape" verbatim, ending with form
+        -- cr-4p handed over (ca_councillor_first, currentaffairs.rs2:641). ----
         t.exec("goto-talkToCouncillor", t.player.goto_tile, 2825, 3454, 0) -- currentaffairs.spawn row
         t.exec("talkToCouncillor", t.player.talk_to, "current_affairs_councillor", 1)
-        -- ca_councillor_talk, ^ca_councillor branch: a single chatnpc page (no chatplayer first).
         t.exec("talkToCouncillor-dialog", t.chat.play, {
-            "npc:Arhein's employee? Fill form cr-4p. Charcoal is in the cabinet.",
+            "player:Hello there. Are you Councillor Catherine?",
+            "npc:Thank you for enquiring at the Catherby Council Office.",
+            "player:I had a question about one of the local by-laws.",
+            "npc:That is correct.",
+            "player:Doesn't that strike you as a bit... wrong?",
+            "npc:If you are referring to the rumours of Humans Against Monsters",
+            "player:Impartial?",
+            "npc:Completely.",
+            "player:I see... So you wouldn't even be willing to let Arhein's duck",
+            "npc:Are you a sailor yourself?",
+            "player:Well, yes, I suppose you could say that.",
+            "npc:All sailors doing business in Catherby must first be registered",
+            "player:Wait... What?",
+            "*", -- objbox: Councillor Catherine hands you a form.
+            "npc:Please ensure when filling in the form that all answers are clearly legible.",
+            "player:But why do I need to...",
+            "npc:Thanks to recent budget changes",
+            "player:Right...",
+            "npc:Upon completion, please return the form",
         })
         t.expect("quest.stage.form", t.quest.expect_stage("form"))
+        local form_result, form_detail = t.inv.await("current_affairs_form", 1, 10)
+        t.check("form.received", form_result == "ok",
+            "inv.await(current_affairs_form,1,10) -> " .. tostring(form_result) .. " " .. tostring(form_detail))
 
-        -- ---- Charcoal from the cabinet ----
+        -- ---- Charcoal from the cabinet ([oploc1,current_affairs_cabinet],
+        -- currentaffairs.rs2:792) ----
         t.exec("goto-cabinet", t.player.goto_tile, 2827, 3453, 0)
         t.exec("getCharcoal", t.player.click_loc, "current_affairs_cabinet", 1)
+        -- A left-open objbox is a suspended [proc,objbox_scaled]; calling
+        -- ~objbox again before this one is dismissed makes the engine drop
+        -- one of the two suspended procs outright (measured: run 2 dropped
+        -- ca_fill_form's own "You start looking through the questions..."
+        -- box this way, and nothing chat.play could read ever mounted).
+        -- Dismiss every objbox immediately, never leave one hanging.
+        t.exec("getCharcoal-box", t.chat.play, { "*" }) -- objbox: You search the cabinet and find some charcoal.
         local charcoal_result, charcoal_detail = t.inv.await("charcoal", 1, 10)
         t.check("charcoal.received", charcoal_result == "ok",
             "inv.await(charcoal,1,10) -> " .. tostring(charcoal_result) .. " " .. tostring(charcoal_detail))
 
-        -- ---- Fill form cr-4p: a REAL 8-question chatmenu (opheld1,
-        -- current_affairs_form -> ~ca_fill_form, currentaffairs.rs2:56-65).
-        -- Each ~p_choice3_header opens directly as chat kind "options" with
-        -- no preceding npc/player line -- eight back-to-back option pages,
-        -- one per question, in the fixed order docs/quests/current_affairs.md
-        -- 5.2 gives. Any of the 3 answers is valid ("the answers you
-        -- provide do not matter" -- the wiki, quoted in the content's own
-        -- header comment), so every question is answered by its first row;
-        -- the audit below answers the same first row again, so every answer
-        -- matches on the first pass. The closing "You fill out form cr-4p"
-        -- line is a bare mes() (only chatnpc/chatplayer/mesbox/objbox/
-        -- p_choice* open a PAGE), so the chat.play list ends at the eighth
-        -- choose and the mes() is read back with t.msg.expect.
+        -- ---- Fill form cr-4p: a real 8-question chatmenu (opheld1,
+        -- current_affairs_form -> ~ca_fill_form, currentaffairs.rs2:84-94),
+        -- fixed question order, option rows exactly as ca_ask_question
+        -- spells them (trailing full stop, except the hull counts). Any
+        -- answer is valid; the FIRST row of every question is chosen here
+        -- so the audit -- which re-asks the same eight through the same
+        -- procs -- matches on its first pass with no retry. ----
         t.exec("fillForm", t.player.inv_op, "current_affairs_form", 1)
+        -- The objbox->options transition (leaving ~objbox's interface to
+        -- mount the first p_choice3_header) cannot be crossed within one
+        -- chat.play list -- ca_early.lua's own proof (ob() called separately
+        -- from the questions list) splits here for the same reason
+        -- documented in hunt.lua/biohazard.lua/seaslug.lua: a fresh options
+        -- page needs its own call boundary right after an objbox.
+        t.exec("fillForm-start", t.chat.play, { "*" }) -- objbox: You start looking through the questions on the form...
         t.exec("fillForm-questions", t.chat.play, {
-            "choose:Pleasure", -- Q1 "Main reason for making port at Catherby?"
-            "choose:0", -- Q2 "How many hulls does the ship have?"
-            "choose:Cargo spillage", -- Q3 "Insured against cargo spillage and theft?"
-            "choose:No", -- Q4 "Does the first mate have first aid training?"
-            "choose:Partial", -- Q5 "Does the second mate have second aid training?"
-            "choose:Yes", -- Q6 "Any plague symptoms in the last two weeks?"
-            "choose:Less than a month", -- Q7 "Sailing experience?"
-            "choose:Varrock", -- Q8 "Home port?"
+            "choose:Pleasure.", -- Q1 "Main reason for making port at Catherby?"
+            "choose:0", -- Q2 "How many hulls does your ship have?"
+            "choose:Cargo spillage.", -- Q3 "Insured against cargo spillage and theft?"
+            "choose:No.", -- Q4 "Does the first mate have first aid training?"
+            "choose:Partial.", -- Q5 "Does the second mate have second aid training?"
+            "choose:Yes.", -- Q6 "Any plague symptoms in the last two weeks?"
+            "choose:Less than a month.", -- Q7 "Sailing experience?"
+            "choose:Varrock.", -- Q8 "Home port?"
         })
-        local fillform_msg_result, fillform_msg_detail = t.msg.expect("You fill out form cr-4p, answering Catherine's eight questions.")
-        t.check("fillForm.message", fillform_msg_result == "ok",
-            "msg.expect(...) -> " .. tostring(fillform_msg_result) .. " " .. tostring(fillform_msg_detail))
+        t.exec("fillForm-done", t.chat.play, { "*" }) -- objbox: Mercifully, it looks like the form is finished.
         local q1r, q1v = t.var.varbit("current_affairs_form_q1")
         local q8r, q8v = t.var.varbit("current_affairs_form_q8")
         t.check("form.filled", q1r == "ok" and q1v == 1 and q8r == "ok" and q8v == 1,
             string.format("q1: %s %s, q8: %s %s", tostring(q1r), tostring(q1v), tostring(q8r), tostring(q8v)))
 
-        -- ---- Hand the filled form back, then re-talk to advance ----
+        -- ---- Hand the filled form back: one continuous conversation, no
+        -- second click, straight through to Arhein-mayor (ca_councillor_
+        -- form -> ca_councillor_form_taken, currentaffairs.rs2:671-727). The
+        -- transcript's "Yes, I have it here." line is printed twice. ----
         t.exec("goto-handInForm", t.player.goto_tile, 2825, 3454, 0)
         t.exec("handInForm", t.player.talk_to, "current_affairs_councillor", 1)
         t.exec("handInForm-dialog", t.chat.play, {
+            "player:Hello again.",
+            "npc:Have you fully filled in that form?",
+            "choose:Yes, I have it here.",
             "player:Yes, I have it here.",
-            "npc:Thank you. Speak with me again once I've filed it.",
-        })
-        t.exec("confirmForm", t.player.talk_to, "current_affairs_councillor", 1)
-        t.exec("confirmForm-dialog", t.chat.play, {
-            "npc:Good. Now find Arhein — he needs a mayor for the by-law change.",
+            "*", -- objbox: Councillor Catherine looks over the form.
+            "player:Yes, I have it here.",
+            "*", -- objbox: Councillor Catherine takes the completed form.
+            "npc:Thank you very much. However, I must inform you",
+            "player:Okay... I don't actually really care about the form though.",
+            "npc:Then what is it I can help you with?",
+            "player:That by-law about non-humans... I want to get it changed.",
+            "npc:Any change to the by-laws can only occur with approval from the Mayor of Catherby.",
+            "player:Right, we're getting somewhere. Where can I find the mayor?",
+            "npc:I'm afraid that due to the Catherby Data Protection Regulation",
+            "player:Are you serious?",
+            "npc:Very serious. Now, if that's all",
+            "npc:We hope your experience was a positive one",
+            "player:Yeah... I think I'll pass on that.",
+            "npc:Then I wish you a very good day.",
         })
         t.expect("quest.stage.arhein_mayor", t.quest.expect_stage("arhein_mayor"))
 
-        -- ---- Arhein sends the player after a mayor ----
+        -- ---- Arhein: "Long live the Mayor" verbatim story, sends the
+        -- player to Harry (ca_arhein_mayor_story, currentaffairs.rs2:476). ----
         t.exec("goto-talkToArheinMayor", t.player.goto_tile, 2803, 3430, 0)
         t.exec("talkToArheinMayor", t.player.talk_to, "arhein", 1)
         t.exec("talkToArheinMayor-dialog", t.chat.play, {
+            "npc:Hello again!",
+            "choose:I need to find the Mayor of Catherby.",
             "player:I need to find the Mayor of Catherby.",
-            "npc:Funny story... ask Harry about a new mayor.",
+            "npc:The mayor? Oh no...",
+            "player:What?",
+            "npc:I'm afraid to say that the mayor died a few days ago.",
+            "player:Oh... I'm sorry to hear that.",
+            "npc:Don't worry, it happens all the time.",
+            "player:It does?",
+            "npc:Why do you need the mayor anyway?",
+            "player:Apparently only the mayor can approve",
+            "npc:Really? I don't recall that ever stopping Catherine before",
+            "player:Meaning?",
+            "npc:We're going to need another mayor",
+            "player:Where on Gielinor will we get another mayor?",
+            "npc:Well, the Mayor of Catherby has been, for a long time now, a fish.",
+            "player:A fish?",
+            "npc:Actually, to be precise, it has been 26 different fish",
+            "player:I'm not sure this democracy thing",
+            "npc:Well, unfortunately no one in Catherby really wanted the job.",
+            "player:Councillor Catherine?",
+            "npc:Councillor Catherine.",
+            "player:So the answer was a fish?",
+            "npc:It seemed like a good idea at the time.",
+            "npc:We were lucky that a different by-law",
+            "player:Of course. And as a result",
+            "npc:Exactly!",
+            "player:Right...",
+            "player:I'll help you replace the fish.",
+            "npc:A wise choice. Go and see Harry at the fishing shop.",
         })
         t.expect("quest.stage.get_mayor", t.quest.expect_stage("get_mayor"))
 
-        -- ---- Harry: buy the election kit ----
+        -- ---- Harry: buy the mayoral election kit (ca_harry_talk,
+        -- currentaffairs.rs2:878-932). ----
         t.exec("goto-talkToHarry", t.player.goto_tile, 2834, 3445, 0) -- harry.spawn (m44_53.spawn)
         t.exec("talkToHarry", t.player.talk_to, "harry", 1)
         t.exec("talkToHarry-dialog", t.chat.play, {
+            "npc:Welcome! If you're looking for fishing equipment, you're in the right place.",
+            "choose:I'm here about the mayor.",
             "player:I'm here about the mayor.",
-            "npc:I can sell you a mayoral fishbowl and tiny net for 50 coins.",
+            "npc:What about the mayor?",
+            "player:Arhein said you could help me get a replacement.",
+            "npc:Oh, we've lost another one have we?",
+            "player:Afraid so.",
+            "npc:Well, it's easy to fix. You just need a special mayoral fishbowl and a tiny net.",
+            "player:Where can I get the fishbowl and net?",
+            "npc:I can sell you the whole kit for 50 coins.",
             "choose:Yes.",
-            "npc:Fish in the aquarium for a mayorfish.",
+            "*", -- doubleobjbox: You buy a mayoral election kit from Harry for 50 coins.
+            "npc:There you go. Once you've caught the mayor, be sure to take him to Arhein",
         })
         local coins_result, coins_count = t.inv.count("coins")
         local bowl_result, bowl_count = t.inv.count("current_affairs_mayoral_fishbowl")
@@ -196,73 +282,111 @@ return {
                 tostring(bowl_count), tostring(bowl_result),
                 tostring(net_count), tostring(net_result)))
 
-        -- ---- Catch the Mayor of Catherby from the aquarium ----
+        -- ---- Catch the Mayor of Catherby from the aquarium
+        -- ([oploc1,aquarium], currentaffairs.rs2:955) ----
         t.exec("catchMayor", t.player.click_loc, "aquarium", 1)
+        t.exec("catchMayor-box", t.chat.play, { "*" }) -- objbox: You wave the net around and you catch a tiny mayorfish!
         local mayor_result, mayor_detail = t.inv.await("current_affairs_mayor_of_catherby", 1, 10)
         t.check("mayor.received", mayor_result == "ok",
             "inv.await(current_affairs_mayor_of_catherby,1,10) -> " .. tostring(mayor_result) .. " " .. tostring(mayor_detail))
 
-        -- ---- Show the mayor to Arhein ----
-        t.exec("goto-talkToArheinShowMayor", t.player.goto_tile, 2803, 3430, 0)
-        t.exec("talkToArheinShowMayor", t.player.talk_to, "arhein", 1)
-        t.exec("talkToArheinShowMayor-dialog", t.chat.play, {
+        -- ---- Show the mayor to ARHEIN FIRST: this is what chains him and
+        -- advances the stage to ^ca_show_mayor (ca_arhein_chain_mayor,
+        -- currentaffairs.rs2:510-524) -- Catherine's audit refuses an
+        -- unchained mayor, so this leg is not optional. ----
+        t.exec("goto-showArheinMayor", t.player.goto_tile, 2803, 3430, 0)
+        t.exec("showArheinMayor", t.player.talk_to, "arhein", 1)
+        t.exec("showArheinMayor-dialog", t.chat.play, {
+            "npc:Hello again!",
+            "choose:About the mayor...",
             "player:About the mayor...",
-            "npc:He's a fine specimen. Show him to the councillor.",
+            "npc:Yes?",
+            "*", -- objbox: You show Arhein the mayor.
+            "player:The mayor has returned.",
+            "npc:Long live the mayor.",
+            "player:So what now?",
+            "npc:Well, I think I'll start keeping a stock of mayors on standby",
+            "player:That seems like a good idea, but I meant about the by-law.",
+            "npc:Ah, of course. Let me just give him his mayoral chain...",
+            "*", -- objbox: Arhein places a small chain in the bowl.
+            "npc:There! Catherine shouldn't be able to stop us getting the by-law changed now.",
+            "player:I'll head over there right away.",
         })
         t.expect("quest.stage.show_mayor", t.quest.expect_stage("show_mayor"))
 
-        -- ---- Catherine's audit: re-asks all 8 questions (same "options"
-        -- shape, no preceding line, ca_audit_ask_unmatched) and compares
-        -- each answer to the saved %current_affairs_form_qN -- answering the
-        -- same first-row text again matches every one of them, so
-        -- ~ca_audit_all_correct is true on this first pass and Catherine's
-        -- closing line lands in the SAME press. ----
-        t.exec("goto-talkToCouncillorAudit", t.player.goto_tile, 2825, 3454, 0)
-        t.exec("talkToCouncillorAudit", t.player.talk_to, "current_affairs_councillor", 1)
-        t.exec("talkToCouncillorAudit-dialog", t.chat.play, {
-            "player:Yes, I have it here.",
-            "npc:A fish? Very well",
-            "choose:Pleasure", -- audit Q1 (must match the saved answer)
-            "choose:0", -- audit Q2
-            "choose:Cargo spillage", -- audit Q3
-            "choose:No", -- audit Q4
-            "choose:Partial", -- audit Q5
-            "choose:Yes", -- audit Q6
-            "choose:Less than a month", -- audit Q7
-            "choose:Varrock", -- audit Q8
-            "npc:Audit complete. Now take form 7r4-5h for the mayor's signature.",
+        -- ---- Catherine's audit: the generic "How can I help you today?"
+        -- greeting first (currentaffairs.rs2:618, reached for every stage in
+        -- [arhein_mayor..sign]), then ca_councillor_audit (:733) re-asks all
+        -- 8 questions through the SAME two procs the form used -- answering
+        -- the same first row again matches every one, so
+        -- ~ca_audit_all_correct is true on this pass and Catherine's
+        -- ^ca_sign / form-7r4-5h hand-over lands in the same conversation. ----
+        t.exec("goto-doAudit", t.player.goto_tile, 2825, 3454, 0)
+        t.exec("doAudit", t.player.talk_to, "current_affairs_councillor", 1)
+        t.exec("doAudit-dialog", t.chat.play, {
+            "npc:Welcome to the Catherby Council Office. Your views are important to us. How can I help",
+            "player:I have the mayor!",
+            "*", -- objbox: You show Councillor Catherine the mayor.
+            "npc:Oh, how wonderful.",
+            "player:So, shall we get to work on getting that by-law changed?",
+            "npc:I'm afraid a recent audit has exposed irregularities",
+            "player:Here we go...",
+            "npc:Unfortunately, as you yourself have recently filed a form",
+            "player:What if I've forgotten what I put down?",
+            "npc:That seems unlikely.",
+            "player:I am shocked that you would suggest otherwise.",
+            "npc:Very good. In that case, let us begin.",
+            "npc:What is your main reason for making port at Catherby?",
+            "choose:Pleasure.",
+            "npc:How many hulls does your ship have?",
+            "choose:0",
+            "npc:Is your ship insured against cargo spillage and theft?",
+            "choose:Cargo spillage.",
+            "npc:Does your first mate have first aid training?",
+            "choose:No.",
+            "npc:Does your second mate have second aid training?",
+            "choose:Partial.",
+            "npc:Have you experienced symptoms of plague in the last two weeks?",
+            "choose:Yes.",
+            "npc:How much experience do you have sailing?",
+            "choose:Less than a month.",
+            "npc:Where would you say your home port is?",
+            "choose:Varrock.",
+            "npc:Hmm, that all seems to be right...",
+            "player:Can we finally get on with this by-law change now?",
+            "npc:*sigh* Yes, I suppose everything is in order. I just need this form signing by the mayor.",
+            "*", -- objbox: Councillor Catherine hands you a form.
+            "player:Right... How does the mayor sign forms usually, given his lack of hands?",
+            "npc:Simply dip the form into his bowl and he will give it a nibble.",
+            "player:Fair enough.",
         })
         t.expect("quest.stage.sign", t.quest.expect_stage("sign"))
-
-        -- ---- A second Catherine talk actually grants unsigned form 7r4-5h ----
-        t.exec("talkToCouncillorGetForm2", t.player.talk_to, "current_affairs_councillor", 1)
-        t.exec("talkToCouncillorGetForm2-dialog", t.chat.play, {
-            "npc:Take form 7r4-5h and have the mayor sign it.",
-        })
         local form2_result, form2_detail = t.inv.await("current_affairs_form_2", 1, 10)
         t.check("form2.received", form2_result == "ok",
             "inv.await(current_affairs_form_2,1,10) -> " .. tostring(form2_result) .. " " .. tostring(form2_detail))
 
-        -- ---- The mayor signs form 7r4-5h ----
+        -- ---- The mayor signs form 7r4-5h ([opheldu,current_affairs_form_2]
+        -- -> ca_sign_form, currentaffairs.rs2:856-869) ----
         t.exec("signForm", t.player.use_item_on_item, "current_affairs_form_2", "current_affairs_mayor_of_catherby")
+        t.exec("signForm-box", t.chat.play, { "*" }) -- doubleobjbox: The mayor eagerly signs the form for you...
         local signed_result, signed_detail = t.inv.await("current_affairs_form_2_signed", 1, 10)
         t.check("form.signed", signed_result == "ok",
             "inv.await(current_affairs_form_2_signed,1,10) -> " .. tostring(signed_result) .. " " .. tostring(signed_detail))
 
-        -- ---- Hand the signed form back to Catherine ----
-        t.exec("talkToCouncillorSigned", t.player.talk_to, "current_affairs_councillor", 1)
-        t.exec("talkToCouncillorSigned-dialog", t.chat.play, {
-            "player:Here's the signed form.",
-            "npc:Everything appears to be in order. The by-law is changed.",
+        -- ---- Hand the signed form back to Catherine: the by-law is
+        -- amended (ca_councillor_sign, currentaffairs.rs2:760-767). ----
+        t.exec("showCatherineForm", t.player.talk_to, "current_affairs_councillor", 1)
+        t.exec("showCatherineForm-dialog", t.chat.play, {
+            "npc:Welcome to the Catherby Council Office. Your views are important to us. How can I help",
+            "player:I have that signed form.",
+            "*", -- objbox: Councillor Catherine takes the completed form and stamps it.
+            "npc:The by-law has now been amended. Good day.",
         })
         t.expect("quest.stage.news", t.quest.expect_stage("news"))
 
-        -- ---- Tell Arhein the by-law changed, receive the Current duck.
-        -- ca_arhein_talk wraps every ^ca_news/^ca_duck visit in
-        -- ca_arhein_hello's "Hello again!" + p_choice4 menu; choose the
-        -- quest row ("The by-law has been changed!" at this stage) to fall
-        -- into the ^ca_news branch, verbatim Transcript:Current_Affairs
-        -- "Going with the Flow" / "Talking to Arhein". ----
+        -- ---- Tell Arhein the by-law changed, receive the Current duck
+        -- (^ca_news branch, currentaffairs.rs2:429-449 -- unchanged by this
+        -- parity pass, already verbatim). ----
         t.exec("goto-talkToArheinNews", t.player.goto_tile, 2803, 3430, 0)
         t.exec("talkToArheinNews", t.player.talk_to, "arhein", 1)
         t.exec("talkToArheinNews-dialog", t.chat.play, {
@@ -286,14 +410,13 @@ return {
             "inv.await(sailing_charting_current_duck,1,10) -> " .. tostring(duck_result) .. " " .. tostring(duck_detail))
 
         -- ---- Board the player's own boat at the Catherby gangplank and
-        -- sail east: since OSRS-Content 70487ebee8 there is no ca_board_ship
-        -- dialogue/p_telejump at all -- the ripple is the hull-queued sea
-        -- zone [zone,0_44_53_16_24] (currentaffairs.rs2:634), gated on the
-        -- player's OWN hull (ca_own_boat_here/ca_boat_on_ripple,
-        -- currentaffairs.rs2:127-146), never the rider's tile. Proved route:
-        -- build/parity_state/parity1o/ca_scripts/ca_sea_leg.lua. ----
+        -- sail east: no ca_board_ship dialogue/p_telejump at all -- the
+        -- ripple is the hull-queued sea zone [zone,0_44_53_16_24]
+        -- (currentaffairs.rs2:982), gated on the player's OWN hull
+        -- (ca_own_boat_here/ca_boat_on_ripple, currentaffairs.rs2:206-223),
+        -- never the rider's tile. Untouched by this parity pass. ----
         t.exec("goto-gangplank", t.player.goto_tile, 2797, 3413, 0)
-        t.exec("board", t.sail.board, "sailing_gangplank_catherby")
+        t.exec("boardShip", t.sail.board, "sailing_gangplank_catherby")
         t.exec("helm", t.sail.helm, "Helm")
         t.exec("sails", t.sail.sails, true)
         t.exec("sail.leg1", t.sail.sail_to, 2800, 3400, 2, 200)
@@ -310,12 +433,12 @@ return {
             "msg.expect(...) -> " .. tostring(ripple_msg_result) .. " " .. tostring(ripple_msg_detail))
 
         -- ---- Release the duck on the ripple: ca_release_duck
-        -- (currentaffairs.rs2:154-179) spawns a REAL moving npc
+        -- (currentaffairs.rs2:232-251) spawns a REAL moving npc
         -- (sailing_charting_current_duck_moving) that swims five
         -- ocean-checked current legs to the wiki's shore pin near Holgart
         -- (^ca_duck_end, 2802,3322) over an [ai_timer], then becomes the
         -- stopped collectible form with the wiki's blue stop message --
-        -- the guide's own followThatDuck step, driven for real. (Quest
+        -- the guide's own releaseDuck step, driven for real. (Quest
         -- Helper's own DetailedQuestStep, "releaseDuck" -- named
         -- verbatim, trap 32.) ----
         t.exec("releaseDuck", t.player.inv_op, "sailing_charting_current_duck", 1)
@@ -353,13 +476,13 @@ return {
             "msg.expect(...) -> " .. tostring(stop_msg_result) .. " " .. tostring(stop_msg_detail))
 
         -- ---- Collect: an [apnpc1] press from the own boat's deck menu
-        -- (currentaffairs.rs2:654), gated on npc_owner/ca_duck_released/
+        -- (currentaffairs.rs2:1101), gated on npc_owner/ca_duck_released/
         -- stage -- the guide's own "collect the duck" step, driven through
         -- the sailing side panel's deck-row press. ----
         t.exec("collect.helm_off", t.sail._press_deck_row, "Navigate", "Helm")
         t.ticks(2)
-        t.exec("collect", t.sail._press_deck_row, "Collect", "Current duck", 16, 12)
-        t.exec("collect.box", t.chat.play, { "*" }) -- ~objbox(duck, "The duck recognises your boat...")
+        t.exec("collectDuck", t.sail._press_deck_row, "Collect", "Current duck", 16, 12)
+        t.exec("collectDuck.box", t.chat.play, { "*" }) -- ~objbox(duck, "The duck recognises your boat...")
         local chart_bit_result, chart_bit_value = t.var.varbit("sailing_charting_current_duck_catherby_bay_complete")
         t.check("duck.charted", chart_bit_result == "ok" and chart_bit_value == 1,
             "var.varbit(sailing_charting_current_duck_catherby_bay_complete) -> " .. tostring(chart_bit_result) .. " " .. tostring(chart_bit_value))
@@ -399,10 +522,10 @@ return {
         -- being set), falling to [label,ca_charted_currents]: a mesbox, then
         -- verbatim Transcript:Current_Affairs "Talking to Arhein after
         -- charting the current" -- the mayor is already held, so its
-        -- lost-mayor branch never fires. ----
-        t.exec("goto-talkToArheinComplete", t.player.goto_tile, 2803, 3430, 0)
-        t.exec("talkToArheinComplete", t.player.talk_to, "arhein", 1)
-        t.exec("talkToArheinComplete-dialog", t.chat.play, {
+        -- lost-mayor branch never fires. Unchanged by this parity pass. ----
+        t.exec("goto-showCurrentsArhein", t.player.goto_tile, 2803, 3430, 0)
+        t.exec("showCurrentsArhein", t.player.talk_to, "arhein", 1)
+        t.exec("showCurrentsArhein-dialog", t.chat.play, {
             "npc:Hello again!",
             "choose:I've charted the currents!",
             "player:I've charted the currents!",
