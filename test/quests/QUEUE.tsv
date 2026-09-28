@@ -24,7 +24,7 @@ quest_coldwar	coldwar	coldwar		4	todo
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo	sonnet-b29	RE-AUTHOR after 39e774122 (content d761e8e238): the Al Kharid gem trader's Family Crest branch is ported (gem_trader.rs2 [label,gem_trader_crest], option 'I'm in search of a man named Avan Fitzharmon.' at crest_caleb_where -> spoken_gem_trader); a copy with t.blocked removed ran 53/53 through Avan (spoken_avan 6) and Boot (spoken_boot 7), build/quest_gate/s24cg_crestcopy. Rewrite the gem-trader decline/Avan-busy rows as the crest branch; next leg is the perfect gold at goldrock2, then the Falador ring/necklace, Witchaven levers, Johnathon and the Chronozon fight
+quest_crest	crest	familycrest		2	content_bug	sonnet-b30	content_bug: slugmenace_witchaven.rs2:151-154 ruin entrance gated on The Slug Menace progress; smelting.rs2:44-67 lacks perfect_gold_ore
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
@@ -81,14 +81,14 @@ quest_hetty	hetty	witchspotion		1	green	sonnet-b15
 quest_horror	horror	horrorfromthedeep		3	todo		
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
-quest_idesofmilk	idesofmilk	theidesofmilk		2	todo	sonnet-b29	RE-AUTHOR after 39e774122 (content d761e8e238): Brutus [cowboss] now carries the wiki's 58 hp / 12-25-10 stat block (quest_idesofmilk/configs/idesofmilk.npc); the reverted file (git show df1402b4a^:test/quests/idesofmilk.lua) drives the fight for real, 72/72 in build/quest_gate/s24_brutus_after2 (hitsplat 16 -> bar 21/30, dead in 28 ticks); re-run it under the real id and commit if run/gate/lint are green
+quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
 quest_ikov	ikov	templeofikov		3	todo		
 quest_imp	imp	impcatcher		3	todo		
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
 quest_itexam	itexam	thedigsite		3	todo		
 quest_itgronigen	itgronigen	observatoryquest		3	todo		
-quest_itwatchtower	itwatchtower	watchtower		2	todo	sonnet-b27	RETRY after 39e774122 (content d761e8e238): the wizard's made_potion branch does the crystal hand-over (stage 11 before the first page, wiki Transcript:Watchtower oldid 15263268); the author copy runs the whole tail to the completion scroll (s24wt_copy 214/9). Still to fix in the test: stealRockCake/inv.rockcake/talkToGuardWithRockCake, jumpGap-dialog, ogreguardgate1/enclavecave/nightshade rows (not in the entity pool)
+quest_itwatchtower	itwatchtower	watchtower		2	content_bug	sonnet-b30	content_bug: OSRS-Content/osrs239-content/server/scripts/areas/area_yanille/scripts/yanille_shop_stubs.rs2:85 [oploc1,rockcounter_withcakes] vs cache loc op2 only (all.loc:24228); fix: rename trigger to [oploc2,rockcounter_withcakes]
 quest_junglepotion	junglepotion	junglepotion		3	todo		
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
@@ -113,7 +113,7 @@ quest_murder	murder	murdermystery		1	green	sonnet-b15
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo	sonnet-b29	RE-AUTHOR after 39e774122 (content d761e8e238): gnome_glider.rs2 [opnpc1,pilot_white_wolf] now hands onesmallfavour 75..86 and 190 to osf_bleemadge_talk; a copy with t.blocked removed ran 70/70 to phantuwti_told (90), build/quest_gate/s24osf_unblocked1. Replace the GUIDE-GAP lines 288-310 with real drives, add 'hammer' to setup (QH getItemRequirements), stand at 2847,3499 and t.ticks(3) before talking to Bleemadge; next leg enterGoblinCave/searchWall
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo	sonnet-b30	REJECTED (sonnet-b30): author gave_up (context compacted twice, runs=0, no edits). The committed file (55b93c493) still stops at t.blocked content_bug on the Bleemadge multinpc, but that seam is FIXED (gnome_glider.rs2 [opnpc1,pilot_white_wolf] hands 75..86 and 190 to osf_bleemadge_talk, content d761e8e238); the block is a stale claim and 21 GUIDE-GAP lines cite dead code. RE-AUTHOR: add ::give hammer 1, stand 2847,3499 + t.ticks(3) before Bleemadge, replace lines ~271-326 with real drives for stages 80..285 (tea, Arhein, Phantuwti, lady_in_wall, Cromperty, Tindel, Rantz, Gnormadium, animate rock/Slagilith/Petra, weathervane+anvil, Hammerspike gang, pot lid, Apothecary, Horvik cages, Seth, Johanhus, Aggie, Brian, Forester, Yanni); genuine content gaps remain to declare/block: gnome lamps collapsed (onesmallfavour.constant:117, :7) and vane narrated (onesmallfavour_puzzles.rs2:118).
 quest_pandemonium	pandemonium	pandemonium		4	todo		
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
@@ -166,7 +166,7 @@ quest_tbwt	tbwt	taibwowannaitrio		3	todo
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
-quest_thefeud	thefeud	thefeud		2	todo	sonnet-b29	RE-AUTHOR after 39e774122: the barman was never unclickable -- line 158's blind t.ticks(20) let ::goto run mid carpet ride (52 ticks Shantay -> 3349,3003), which flew the rider back out of the npc pool. Await the landing tile + t.player.idle(), then goto 3360,2956 and t.shop.open('feud_ali_the_barman',3,'feud_alispub') / t.shop.buy('beer',3); drop the t.blocked. Proof copy build/seam_state/seam24/barman_scratch/thefeud_unblocked.lua 31/31 through drunken_ali_done (s24_fu1)
+quest_thefeud	thefeud	thefeud		2	content_bug	sonnet-b30	feud_heist.rs2 [oploc1,feud_closed_door_left]/[oploc1,feud_closed_door_right] (lines 45-70) narrates 'You slip inside' and sets feud_var=11 but never loc_changes the door to feud_open_door_*; the quest trigger replaces the generic door_left_closed opener, so the mansion interior (desk, bed, picture, safe) is unreachable on foot
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
@@ -186,5 +186,5 @@ quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
 quest_zanaris	zanaris	lostcity		3	todo		
-quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo	sonnet-b28	RETRY after 39e774122 (content d761e8e238): Sithik's bed/ogre/search/item lines name their speaker (zogre_finish.rs2 ~chatnpc_specific), so talkToSith passes (zogre=4; copy s24zogre1 41/41 to the file's end). Re-author from talkToSith onward, seeding rows 1-89 from build/seam_state/seam24/scratch/zogreflesheaters_s24.lua; recipe in QUEST_AUTHORING trap 22
+quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	content_bug	sonnet-b30	content_bug: zogre_finish.rs2:341-346 [oploc1,yanillestairsup] is the only script that moves %zogre from zfe_potion_tea to zfe_sithik_ogre, but loc yanillestairsup (15657) is placed only at maps/m40_149.jl2:2018 (2620,9562), while Sithik's upstairs stair (^zfe_sithik_ladder = 2597,3107) is loc 16683 `ladder` (maps/m40_48.jl2:4088); live click of the ladder climbs to level 1 and the stage stays potion_tea, so sithik_ogre (7) is unreachable.
 quest_zombiequeen	zombiequeen	shilovillage		3	todo		
