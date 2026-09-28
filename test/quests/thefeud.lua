@@ -155,56 +155,154 @@ return {
             "choose:I want to travel to Pollnivneach.",
             "player:I want to travel to Pollnivneach.",
         })
-        t.ticks(20) -- the carpet ride itself (board + glide + land), no further pages
+        -- seam24: the flight is ~110 tiles at 3 tiles/tick plus boarding and
+        -- banks (magic_carpet.rs2 ~carpet_ride, magic_carpet.constant route 1
+        -- ends on ^carpet_pad_npoll 3349,3003) -- t.ticks(20) ended mid-air and
+        -- the ::goto that followed teleported a player_lock'd rider whose
+        -- ~carpet_glide then flew him back to the pad. Await the landing.
+        local landed_r, landed_d = t.await({
+            level = function()
+                local r, tl = t.world.tile()
+                return r == "ok" and tl.x == 3349 and tl.z == 3003 and select(2, t.drive._player_idle()) == true
+            end,
+            note = "carpet landed on the north Pollnivneach pad 3349,3003",
+        }, 80)
+        t.check("carpet-landed", landed_r, landed_d)
+        t.ticks(3) -- ~carpet_ride's carpet_land + p_delay(1) + player_unlock
+        t.exec("goto-buyBeers", t.player.goto_tile, 3360, 2956, 0)
+        t.exec("buyBeers-open", t.shop.open, "feud_ali_the_barman", 3, "feud_alispub")
+        t.exec("buyBeers", t.shop.buy, "beer", 3)
+        t.check("buyBeers-close", t.shop.close())
+        local br, bn = t.inv.count("beer")
+        t.check("buyBeers-verify", br == "ok" and bn == 3, "beer count=" .. tostring(bn))
+        local ali = t.player.by_symbol("npc", "feud_drunken_ali")
+        for i = 1, 3 do
+            t.exec("drunkenAli-beer" .. i, t.player.use_on, "beer", ali)
+            local pages = { "player:*", "npc:*" }
+            if i == 3 then pages[3] = "npc:*" end
+            t.exec("drunkenAli-beer" .. i .. "-dialog", t.chat.play, pages)
+        end
+        t.expect("quest.stage.drunken_ali_done", t.quest.expect_stage("drunken_ali_done"))
+        -- ==================== talkToThug / talkToBandit: question both gangs
+        -- feud_recruitment.rs2 [opnpc1,feud_egyptian_doorman_multi] and
+        -- [opnpc1,feud_arabian_guard_multi]; feud_var_talk_gangs 1 + 2 -> 3.
+        t.exec("goto-talkToThug", t.player.goto_tile, 3333, 2954, 0)
+        t.exec("talkToThug", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
+        t.exec("talkToThug-dialog", t.chat.play, { "npc:Those thieving bandits accused us" })
+        t.exec("goto-talkToBandit", t.player.goto_tile, 3355, 2989, 0)
+        t.exec("talkToBandit", t.player.talk_to, "feud_arabian_guard_multi", 1)
+        t.exec("talkToBandit-dialog", t.chat.play, { "npc:Those Menaphite dogs stole" })
+        t.expect("quest.stage.gangs_questioned", t.quest.expect_stage("gangs_questioned"))
 
-        -- ==================== goToPollnivneach / findBeef: three beers on ======
-        -- Drunken Ali (feud_recruitment.rs2:13-45). This must happen before
-        -- ANY other Pollnivneach content: the trigger only answers while
-        -- feud_var is still < feud_drunken_ali_done(2), i.e. still exactly
-        -- feud_accepted(1) -- doing the gang-questioning etc first would
-        -- leave feud_var past 2 and turn every beer into a no-op "Cheers,
-        -- friend, but I've said all I know."
-        --
-        -- DRIVER SEAM, confirmed six different ways across five runs: the
-        -- only source of a "beer" item in this port is feud_ali_the_barman's
-        -- shop (feud_alispub, the_asp_snake_bar.rs2:8), reached with op3
-        -- (Trade). Every click path to him (t.shop.open, t.player.talk_to
-        -- with a bare symbol, with a {at=tile} selector, with and without
-        -- an extra t.ticks(5-10) settle after the goto, standing on his own
-        -- spawn tile 3361,2955 and standing one tile clear at 3360,2955)
-        -- answers the SAME "screen_position: no npc 3535
-        -- (feud_ali_the_barman) in the client's entity pool" -- yet
-        -- t.npc.await_present("feud_ali_the_barman", 15, 15) and
-        -- t.npc.tiles("feud_ali_the_barman", 20) BOTH find exactly one live
-        -- copy at 3361,2955 (slot 144, element 1073756760) on the very same
-        -- tick. QD.drive._ensure_visible's own not_found re-ask
-        -- (script/plugins/quest_driver/pointer.lua:783-789,
-        -- QD.player._live_npc_id) walks the live pool matching npc_id OR
-        -- base_npc_id against the symbol's id and still comes up empty, so
-        -- this is not the documented multinpc base/child gap (trap 19) --
-        -- the live pool itself is visibly populated by every OTHER reader,
-        -- just not by the screen-position projector this one npc needs for
-        -- ANY click (there is no dialogue-only or item-only path to a
-        -- Trade shop). No further row in this file can be driven without
-        -- buying beer here first (drunkenAliDone gates every later
-        -- Pollnivneach stage). See the notebook
-        -- (build/author_state/sonnet-b29/thefeud.author.progress.md) for
-        -- the full run-by-run diagnostic trail.
-        t.exec("goto-buyBeers", t.player.goto_tile, 3361, 2955, 0)
-        local barman_present_r = t.npc.await_present("feud_ali_the_barman", 15, 15)
-        t.step("buyBeers-present", barman_present_r == "ok" and "PASS" or "FAIL", "await_present -> " .. tostring(barman_present_r))
-        local tiles_r, tiles_summary = t.npc.tiles("feud_ali_the_barman", 20)
-        t.step("buyBeers-tiles", tiles_r == "ok" and "PASS" or "FAIL", tostring(tiles_summary))
-        -- Not re-attempted here: shop.open/talk_to on this npc were proven
-        -- across runs 4-7 (this file's own notebook,
-        -- build/author_state/sonnet-b29/thefeud.author.progress.md) to
-        -- answer "screen_position: no npc 3535 (feud_ali_the_barman) in
-        -- the client's entity pool" every time, from every selector and
-        -- settle-tick combination tried, despite the two PASS rows just
-        -- above proving the live pool holds exactly one co-located copy on
-        -- the same tick. Re-running the same broken click here would only
-        -- add a FAIL row without new evidence.
-        t.blocked("shop.open/talk_to screen-position resolution for feud_ali_the_barman (id 3535) answers 'not in the client's entity pool' from every approach tried (default symbol resolve, {at=tile} selector, 0/5/10-tick settles, standing on and one tile off his spawn tile), while npc.await_present/npc.tiles both confirm a single live copy at 3361,2955 on the same tick -- no click path reaches his op3 Trade shop, the only source of the beer feud_recruitment.rs2:13-45 needs, so goToPollnivneach/findBeef and every later Pollnivneach stage cannot be driven")
+        -- ==================== talkToCamelman: two camels for 500 coins
+        t.exec("goto-talkToCamelman", t.player.goto_tile, 3350, 2965, 0)
+        t.exec("talkToCamelman", t.player.talk_to, "feud_ali_the_discount_camel_seller", 1)
+        t.exec("talkToCamelman-dialog", t.chat.play, {
+            "player:Are those camels around the side",
+            "npc:They certainly are",
+            "player:What price do you want",
+            "npc:For the pair?",
+            "choose:Would 500 gold coins for the pair of them do?",
+            "player:Would 500 gold coins for the pair",
+            "npc:Pleasure doing business",
+        })
+        t.expect("quest.stage.camels_bought", t.quest.expect_stage("camels_bought"))
+        local receipt_r, receipt_n = t.inv.count("feud_camel_receipt")
+        t.check("returnCamels-receipts", receipt_r == "ok" and receipt_n == 2, "feud_camel_receipt count=" .. tostring(receipt_n) .. " (want 2)")
+
+        -- ==================== returnCamels: one receipt to each gang
+        t.exec("goto-returnCamelsMenaphite", t.player.goto_tile, 3333, 2954, 0)
+        t.exec("talkToMenaphiteReturnedCamel", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
+        t.exec("talkToMenaphiteReturnedCamel-dialog", t.chat.play, { "npc:A receipt?" })
+        t.exec("goto-returnCamelsBandit", t.player.goto_tile, 3355, 2989, 0)
+        t.exec("talkToBanditReturnedCamel", t.player.talk_to, "feud_arabian_guard_multi", 1)
+        t.exec("talkToBanditReturnedCamel-dialog", t.chat.play, { "npc:Pfft." })
+        t.expect("quest.stage.receipts_given", t.quest.expect_stage("receipts_given"))
+
+        -- ==================== talkToAliTheOperator: ask to join
+        t.exec("goto-talkToAliTheOperator", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("talkToAliTheOperator", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("talkToAliTheOperator-dialog", t.chat.play, {
+            "player:Yes, of course, those bandits",
+            "npc:Would you now.",
+            "choose:I can prove myself.",
+            "player:I can prove myself.",
+            "npc:Very well.",
+        })
+        t.expect("quest.stage.operator_joined", t.quest.expect_stage("operator_joined"))
+
+        -- ==================== pickpocketVillager (task 1): Pickpocket = op 3
+        t.exec("goto-pickpocketVillager1", t.player.goto_tile, 3356, 2951, 0)
+        t.exec("pickpocketVillager1", t.player.talk_to, "feud_villager_multi_1", 3)
+        t.expect("quest.stage.pickpocket1_done", t.quest.expect_stage("pickpocket1_done"))
+
+        -- ==================== task 2: Operator, then the street urchin's distraction
+        t.exec("goto-operatorTask2", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("operatorTask2", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("operatorTask2-dialog", t.chat.play, { "npc:Not bad. Now try again" })
+        t.exec("goto-urchin", t.player.goto_tile, 3353, 2960, 0)
+        t.exec("urchin", t.player.talk_to, "feud_street_urchin", 1)
+        t.exec("urchin-dialog", t.chat.play, {
+            "npc:Need a distraction?",
+            "choose:Wow, a street urchin. Can I have a go? Please?",
+            "player:Wow, a street urchin.",
+            "npc:Right you are!",
+        })
+        t.exec("goto-pickpocketVillager2", t.player.goto_tile, 3356, 2951, 0)
+        t.exec("pickpocketVillagerWithUrchin", t.player.talk_to, "feud_villager_multi_1", 3)
+        t.expect("quest.stage.pickpocket2_done", t.quest.expect_stage("pickpocket2_done"))
+
+        -- ==================== task 3: the oak blackjack
+        t.exec("goto-operatorTask3", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("operatorTask3", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("operatorTask3-dialog", t.chat.play, {
+            "npc:Good work. One more test.",
+            "npc:Take this blackjack.",
+        })
+        t.expect("operatorTask3-blackjack", t.inv.await("blackjack_oak", 1, 10))
+        t.exec("equipBlackjack", t.player.equip, "blackjack_oak")
+        t.exec("goto-blackjackVillager", t.player.goto_tile, 3356, 2951, 0)
+        t.exec("blackjackVillager", t.player.talk_to, "feud_villager_multi_1", 3)
+        t.expect("quest.stage.pickpocket3_done", t.quest.expect_stage("pickpocket3_done"))
+
+        -- ==================== talkToAliToGetSecondJob: the heist briefing
+        t.exec("goto-heistBriefing", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("heistBriefing", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("heistBriefing-dialog", t.chat.play, {
+            "npc:Excellent. You've proven yourself.",
+            "npc:Now, for your first real job",
+            "npc:Take this disguise",
+        })
+        t.expect("quest.stage.heist_briefed", t.quest.expect_stage("heist_briefed"))
+        t.expect("heistBriefing-disguise", t.inv.await("feud_desert_disguise", 1, 10))
+        t.expect("heistBriefing-keys", t.inv.await("feud_mayors_house_keys", 1, 10))
+
+        -- ==================== hideBehindCactus: disguise + gloves worn
+        t.exec("equipDisguise", t.player.equip, "feud_desert_disguise")
+        t.exec("equipGloves", t.player.equip, "leather_gloves")
+        t.exec("goto-hideBehindCactus", t.player.goto_tile, 3364, 2968, 0)
+        t.exec("hideBehindCactus", t.player.click_loc, "feud_cactus_row", 1)
+        t.expect("hideBehindCactus-msg", t.msg.expect("coast is clear"))
+
+        -- ==================== openTheDoor: the villa door, key in the pack
+        t.exec("openTheDoor", t.player.click_loc, "feud_closed_door_right", 1)
+        t.expect("openTheDoor-msg", t.msg.expect("You slip inside, disguised"))
+        t.expect("quest.stage.house_entered", t.quest.expect_stage("house_entered"))
+        local door_tile_r, door_tile = t.world.tile()
+        t.check("openTheDoor-tile", door_tile_r == "ok", "after the door click the player stands at " .. tostring(door_tile and door_tile.x) .. "," .. tostring(door_tile and door_tile.z) .. "," .. tostring(door_tile and door_tile.level))
+        -- content_bug: feud_heist.rs2 [oploc1,feud_closed_door_left/right] REPLACES the generic
+        -- double-door opener (doors/configs/doubledoors.loc: category door_left_closed) and only
+        -- narrates + writes feud_var=11; it never loc_changes the door, so the wall at
+        -- x=3370 (locs 6238/6240 at 3370,2971/2970, wall on the east face) stays shut.
+        -- The desk room's only doorway (open door 1534 at 3370,2966, east face) is reached from
+        -- 3371,2966, i.e. from INSIDE the mansion; the desk/bed/picture/stairs (3373,2978) are all east of the door line.
+        local walk_r, walk_d = t.player.walk_to(3372, 2970, 14)
+        local walk_tile_r, walk_tile = t.world.tile()
+        t.check("openTheDoor-walkin-recorded", walk_tile_r == "ok",
+            "walk_to 3372,2970 (through the door line at x=3370) -> " .. tostring(walk_r) .. " " .. tostring(walk_d)
+            .. "; player at " .. tostring(walk_tile and walk_tile.x) .. "," .. tostring(walk_tile and walk_tile.z)
+            .. " -- the door never opened, so the mansion interior (desk, bed, picture, safe) is unreachable on foot")
+        t.blocked("content_bug: feud_heist.rs2 [oploc1,feud_closed_door_left]/[oploc1,feud_closed_door_right] narrates 'You slip inside' and sets feud_var=11 but never opens the door loc (no loc_change to feud_open_door_*; the quest trigger replaces the generic door_left_closed opener), so the player stays outside the wall at x=3370 and searchDesk/searchBed/crackTheSafe (guide steps heist) cannot be reached without a goto_tile teleport past the door, which is a cheat")
         return
     end,
 }
