@@ -166,7 +166,7 @@ quest_tbwt	tbwt	taibwowannaitrio		3	todo
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
-quest_thefeud	thefeud	thefeud		2	green	sonnet-b31	
+quest_thefeud	thefeud	thefeud		2	todo	sonnet-b31	REVERTED by sampler (sonnet-b31): ledger rows 19 carpet-landed and 102 safe-open PASS with EMPTY detail (t.check over t.await's nil detail; t.expect over ui.await_open's bare ok) -- give each its own detail; also the guide's talkToAVillager and talkToAVillagerToSpawnMayor (FEUD_TALK_VILLAGER, stages 25/26) are absent from the port (docs/quests/the_feud.md:142) yet carry no GUIDE-GAP marker -- helper_coverage only calls them DRIVEN because the pickpocket line names feud_villager_multi_1
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
