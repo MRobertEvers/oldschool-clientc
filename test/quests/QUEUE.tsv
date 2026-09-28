@@ -24,7 +24,7 @@ quest_coldwar	coldwar	coldwar		4	todo
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo	sonnet-b30	RE-AUTHOR after 200d127cb: Witchaven ruin open to everyone and lands at 2696,9683; perfect gold ore smelts at a furnace; famcrest_doori2h1 really opens. Rewrite from row enterWitchavenDungeon on (drop the t.blocked); build/seam_state/seam25/crest_proof/crest.lua reaches smeltGold (s25crest_proof7 63/0/1, uses ::passive) and stops next at makeNecklace/makeRing.
+quest_crest	crest	familycrest		2	todo	sonnet-b31	REJECTED (sonnet-b31): author gave up with 0 runs (context compacted twice); crest.lua is unmodified and still ends at t.blocked content_bug for enterWitchavenDungeon, which seam25 (200d127cb) fixed: the live re-run shows the player at 2696,9683,0 (inside the dungeon) after clicking slug2_ruin_entrance, so the blocker is stale. RE-AUTHOR from row enterWitchavenDungeon on (adapt build/seam_state/seam25/crest_proof/crest.lua, inline door/lever helpers): levers, mine goldrock2, smelt, craft perfect ruby necklace/ring, Avan, Johnathon, Chronozon, Dimintheis, expect_complete.
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
@@ -113,7 +113,7 @@ quest_murder	murder	murdermystery		1	green	sonnet-b15
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo	sonnet-b30	REJECTED (sonnet-b30): author gave_up (context compacted twice, runs=0, no edits). The committed file (55b93c493) still stops at t.blocked content_bug on the Bleemadge multinpc, but that seam is FIXED (gnome_glider.rs2 [opnpc1,pilot_white_wolf] hands 75..86 and 190 to osf_bleemadge_talk, content d761e8e238); the block is a stale claim and 21 GUIDE-GAP lines cite dead code. RE-AUTHOR: add ::give hammer 1, stand 2847,3499 + t.ticks(3) before Bleemadge, replace lines ~271-326 with real drives for stages 80..285 (tea, Arhein, Phantuwti, lady_in_wall, Cromperty, Tindel, Rantz, Gnormadium, animate rock/Slagilith/Petra, weathervane+anvil, Hammerspike gang, pot lid, Apothecary, Horvik cages, Seth, Johanhus, Aggie, Brian, Forester, Yanni); genuine content gaps remain to declare/block: gnome lamps collapsed (onesmallfavour.constant:117, :7) and vane narrated (onesmallfavour_puzzles.rs2:118).
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo	sonnet-b31	REJECTED (sonnet-b31): author gave_up (compacted, runs=0, no edits). The committed file (55b93c493) still ends at a STALE t.blocked content_bug claiming Bleemadge's pilot_white_wolf trigger is dead code; verified live this review: gnome_glider.rs2:28 ([opnpc1,pilot_white_wolf] -> osf_bleemadge_talk) is in HEAD (d761e8e238) and the click reaches onesmallfavour_relay.rs2:173 ('Right-o, Captain Bleemadge?'); the file simply stands wrong (needs stand 2847,3499 + t.ticks and the tea brewed first) and misreports it. Stages 80..285 (tea, Arhein, Phantuwti, goblin cave wall, Cromperty, Tindel, Rantz, Gnormadium, Slagilith, Petra, weathervane/anvil, Hammerspike gang, pot lid, Apothecary, Horvik, Seth, Johanhus, Aggie, Brian, Forester, Yanni) are undriven, plus 21 stale GUIDE-GAP lines citing dead relay.rs2:165, missing ::give hammer 1. RE-AUTHOR from stage 75 per the author notes in build/author_state/sonnet-b31/onesmallfavour.author.progress.md.
 quest_pandemonium	pandemonium	pandemonium		4	todo		
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
@@ -135,7 +135,7 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo		
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo	sonnet-b29	RE-AUTHOR after 200d127cb: completion no longer opens the armoury over the scroll (seam24) and the journal carries the QUEST COMPLETE! banner (seam25); sonnet-b29's file (build/seam_state/seam25/jb_recruitmentdrive.lua) ran 101/101 -- the reviewer must confirm helper_coverage, lint, and that the 'Teleported to' lines are the quest's own portals, not cheats.
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo	sonnet-b31	REJECTED (sonnet-b31): run 101/101, gate green, lint clean, helper_coverage FULL, but 2+ findings: (1) Miss Cheevers leg is not driven by the guide's ladder: the port grants every chemical/tool from the intro dialogue (recruitmentdrive_cheevers.rs2 'Soft: stock the table chemicals into inv' + mes 'You gather chemicals and tools from the benches.'), so MissCheeversStep's shelf/crate/bookshelf gather chain is absent -- content gap; (2) reward.coins_after asserts (delta >= 3000), not the literal 3000; (3) Initiate Helm (ItemReward BASIC_TK_HELM) is a documented reward neither granted by the content nor asserted; port also fixes 7 rooms in fixed order and solves Sir Leye bare-handed. Fix: coins delta == 3000; either content adds the Cheevers gather leg + helm, or file stops at t.blocked content_bug naming the Cheevers gather leg.
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
@@ -150,7 +150,7 @@ quest_scrambled	scrambled	scrambled		4	todo
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
-quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo	sonnet-b29	RE-AUTHOR after 200d127cb: throne-room cast (seam24) and the post-Golem Uzer portal (seam25, golem_demon_door_always_open -> ^sots_throne) are fixed; remove the ::goto after enterPortal and the stale t.blocked. build/seam_state/seam25/shadowstorm_unblocked.lua drives 0->90 with real portal crossings; the recruit leg (QH prepareForSecondRitual) onward is unauthored; replace in-room gotos with walks.
+quest_shadowstorm	shadowstorm	shadowofthestorm		2	content_bug	sonnet-b31	leavePortal: agrith_portal_closing (10251) is placed by no map/loc_add; the placed exit golem_demon_portal (2719,4883,2) runs golem_portal.rs2:227-240 to the Golem demon lair with no SotS branch. Dead legs: agrith_dave_at_portal (hidden above quest value 70), agrith_dave_in_passage (needs %agrith_convinced_dave=1, never written), agrith_reen_uzer (needs %agrith_reen_uzer=1, never written).
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
 quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b22	
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
@@ -166,7 +166,7 @@ quest_tbwt	tbwt	taibwowannaitrio		3	todo
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
-quest_thefeud	thefeud	thefeud		2	todo	sonnet-b30	RE-AUTHOR after 200d127cb: the mayor's front door now swings (feud_heist.rs2 ~feud_mayors_door -> ~open_double_door_*); rewrite from openTheDoor on: click feud_closed_door_right, walk_to 3372,2970, desk, stairs, bed, picture, safe dial 1,1,2,3,5,8 via t.ui.invoke. build/seam_state/seam25/thefeud.lua is a 124/124 start to traitor_briefed 16; findTraitor onward unauthored.
+quest_thefeud	thefeud	thefeud		2	green	sonnet-b31	
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
