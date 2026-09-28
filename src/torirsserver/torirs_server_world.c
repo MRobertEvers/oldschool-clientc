@@ -361,6 +361,36 @@ steps_clear(struct ToriRSServerPlayer* player)
 }
 
 /*
+ * The interaction fired (or was given up) and the walk toward it is over:
+ * drop the route AND the destination flag that named it.
+ *
+ * LostCity `Player.tryInteract` clears the waypoints when an op or ap trigger
+ * runs, `processInteraction` calls `unsetMapFlag()` (clearWaypoints + the
+ * UnsetMapFlag packet) when the target no longer validates, and again at the
+ * end of the tick whenever the route is empty after a step (Player.ts
+ * 1258-1262, 1310-1313, 2249). The reference never routes at click time --
+ * `OpNpcTHandler` / `P_OPNPCT` only latch the interaction, and a route exists
+ * only once `pathToPathingTarget` ran because the interaction could NOT fire --
+ * so an interaction that resolves in range leaves no flag behind. This server
+ * sends SET_MAP_FLAG the moment a route is queued (the click, and every
+ * `p_opnpc`/`p_opnpct` re-arm), so a cast or a bow that fires from range
+ * before a step is taken used to leave that flag standing on the far tile:
+ * the arrival block in advance_player only takes it down after a step or on
+ * the flag's own tile, and api_drive.player_idle read "not idle" for a whole
+ * magic fight (seam22, build/quest_gate/s22cast_after4).
+ */
+static void
+route_abandoned(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    steps_clear(player);
+    if( player->dest_x >= 0 || player->dest_z >= 0 )
+        player->clear_map_flag = 1;
+    player->dest_x = -1;
+    player->dest_z = -1;
+}
+
+/*
  * The part of player_lock that is about the actor, not the packet stream.
  *
  * Keep this separate from clear_pending_action: that function closes modals
@@ -1771,9 +1801,7 @@ interaction_attack_refused(struct ToriRSServer* srv)
      * same "the click did nothing" this whole seam exists to remove.
      */
     ToriRSServer_PlayerSetFaceEntity(player);
-    steps_clear(player);
-    player->dest_x = -1;
-    player->dest_z = -1;
+    route_abandoned(player);
     ToriRSServer_WorldInteractionClear(srv);
     return 1;
 }
@@ -1819,8 +1847,11 @@ interaction_try(
          * anything, and nothing else on this path would stop it: with the
          * interaction cleared, next tick's gate on `interaction.kind` is
          * false and advance_player keeps draining the queue regardless,
-         * walking the player onto the corpse over the following ticks. */
-        steps_clear(player);
+         * walking the player onto the corpse over the following ticks.
+         * LostCity's invalid-target arm is `clearInteraction()` +
+         * `unsetMapFlag()` (Player.ts processInteraction), so the flag goes
+         * with the route. */
+        route_abandoned(player);
         ToriRSServer_WorldInteractionClear(srv);
         return 1;
     }
@@ -1921,12 +1952,12 @@ interaction_try(
                  * of the restore — only the walk has to go. */
                 if( player->interaction_serial != serial )
                 {
-                    steps_clear(player);
+                    route_abandoned(player);
                     return 1;
                 }
                 if( ran && !interaction->ap_range_called )
                 {
-                    steps_clear(player);
+                    route_abandoned(player);
                     ToriRSServer_WorldInteractionClear(srv);
                     return 1;
                 }
@@ -2023,9 +2054,7 @@ interaction_try(
          * one it just asked for.
          */
         ToriRSServer_WorldInteractionClear(srv);
-        steps_clear(player);
-        player->dest_x = -1;
-        player->dest_z = -1;
+        route_abandoned(player);
 
         /*
          * A use-on takes its own arm and leaves before the switch below, rather
@@ -4523,6 +4552,44 @@ npc_player_distance(
 }
 
 /*
+ * Must this npc's mode-path swing (`opplayer2`) at `player` be given up,
+ * single-way? The mode is already cleared by the caller, which is the
+ * reference's npc_setmode(null).
+ *
+ * The same question torirs_server_combat.c's npc_single_way_swing_refused asks
+ * of a clock-owned swing -- LostCity [proc,npc_check_notcombat]
+ * (skill_combat/scripts/npc/npc_combat.rs2:343-352): outside multi, measured
+ * at the SWINGING npc's tile, a live claim on the player by a different npc
+ * refuses. The claim fields are read the way player_claimed_npc reads them:
+ * expired by tick, and naming nothing once that npc died or its slot was
+ * reused (generation).
+ */
+static int
+npc_mode_swing_refused(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int slot)
+{
+    int claimed;
+    const struct ToriRSServerNpc* holder;
+
+    assert(srv);
+    assert(player);
+    if( ToriRSServer_CombatMultiway(&srv->npcs[slot]) )
+        return 0;
+    if( srv->tick >= player->combat_claim_tick )
+        return 0;
+    claimed = player->combat_claim_npc;
+    if( claimed < 0 || claimed >= TORIRSSERVER_NPC_MAX || claimed == slot )
+        return 0;
+    holder = &srv->npcs[claimed];
+    if( !holder->active || holder->death_tick >= 0 ||
+        holder->generation != player->combat_claim_npc_gen )
+        return 0;
+    return 1;
+}
+
+/*
  * Is the player in this npc's MELEE reach -- the footprints flush on a
  * cardinal side (never a corner, never overlapping) and no wall on the shared
  * edge? The reference's reachExclusiveRectangle, which is what LostCity asks
@@ -4913,6 +4980,25 @@ npc_run_mode(
          * and for the same reason. Continuous combat does not use this path:
          * combat_npc_tick fires AI_OPPLAYER2 on the attack clock instead. */
         npc->mode = TORIRSSERVER_NPCMODE_NONE;
+        /* `opplayer2` is a SWING, whoever set the mode (npc_retaliate's
+         * npc_setmode(opplayer2) is the common one), so it answers to the same
+         * single-way rule as combat_npc_tick's clock-owned swing: LostCity
+         * `[ai_opplayer2,_] gosub(npc_default_attack)` gives the player up
+         * with npc_setmode(null) when a DIFFERENT npc hit him in the last
+         * eight ticks, and otherwise stamps %lastcombat / %aggressive_npc
+         * through [proc,npc_set_attack_vars] (LostCity_Content2
+         * skill_combat/scripts/npc/npc_combat.rs2:1-4, 40-55, 338-352).
+         * This path used to fire the trigger and stamp nothing, so the first
+         * swing of a retaliating npc left the player unclaimed and a second
+         * monster free to engage him (seam22 passive_cheat_rows_regressed:
+         * combat_trace read claim=-1/0 after the prison-door suit's first
+         * swing). */
+        if( op == 1 )
+        {
+            if( npc_mode_swing_refused(srv, player, slot) )
+                return 1;
+            ToriRSServer_CombatClaim(srv, player, slot);
+        }
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_OPPLAYER1 + op, npc->type, -1, slot);
         return 1;
     }

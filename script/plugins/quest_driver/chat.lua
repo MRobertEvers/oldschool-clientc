@@ -830,7 +830,9 @@ end
 -- "kind:fragment" per entry matched, in order, the fragment being the first
 -- ~30 characters of the page's own text where an entry read one (npc/
 -- player/mesbox, tags stripped) or the entry itself otherwise (choose/
--- count/name/end/any), the whole joined string capped at ~200 characters.
+-- count/name/end), or for "*" the page it actually continued past
+-- ("*=npc 'Hello Effendi!'"), the whole joined string capped at ~480
+-- characters.
 -- Never ("ok", nil) -- chat.play used to be the hollow rule's own textbook
 -- case (QUEST_AUTHORING.md trap 12): a verb whose successful answer IS
 -- legitimately informative cannot go through t.exec unless it says so.
@@ -926,6 +928,85 @@ function QD.chat._play_describe(kind)
     return kind
 end
 
+-- A page named for a person: its kind plus the first words of its text
+-- (npc/player/mesbox/objbox), or its rows (options).  Read raw, like
+-- _play_describe, and short: it goes into every "*" entry's summary.
+function QD.chat._play_page_name(kind)
+    if kind == "options" then
+        local result, options = api_drive.options()
+        if result == "ok" then
+            return "options[" .. table.concat(options.rows, "|"):sub(1, 40) .. "]"
+        end
+        return "options"
+    end
+    local text = QD.read._presented_text(QD.read._text_symbols)
+    if text == nil then
+        return kind
+    end
+    return kind .. " '" .. QD.read._strip_tags(tostring(text)):sub(1, 24) .. "'"
+end
+
+-- Before entry `index` is graded: the click the previous entry made must have
+-- been ANSWERED.  nil when it was (or when nothing was clicked yet and no
+-- resume is outstanding); otherwise (result, detail) for chat.play to return.
+--
+-- The answer to a continue is the server's next mount or close, and the
+-- client's pause_pending latch (_resume_outstanding) is up until it lands.
+-- A page the server follows with a p_delay and no if_close keeps the latch
+-- up for that whole delay, which is legitimate -- so a latch still up when
+-- the first 8-tick readiness wait runs out gets a second 8 ticks of its own.
+--
+-- A latch still up after that is not a race this verb can win by waiting:
+-- the server has taken the click and nothing it runs will ever answer it.
+-- desertrescue, seam23 (build/quest_gate/s23cr_full1, TORIRSSERVER_VERBOSE):
+-- Al Shabim's [opnpc1] opened "Hello Effendi!" and was then DROPPED by the
+-- one-parked-script rule ("dropping [proc,chatnpc_anim], which suspended
+-- while [proc,mercenary_attack] waits"), and the click on it answered "no
+-- trigger for [if_button0,chat_left:continue]".  chat.play used to walk
+-- straight into continue_ there and report its double-submit refusal, "a
+-- resume is already outstanding" -- which named the driver as the culprit
+-- for a page no script owned.  The row now says what happened: which
+-- entry's click, on which page, went unanswered, and where to look.
+--
+-- Third answer, (nil, note): the latch DID clear, but only in the second
+-- wait.  A page nobody owns is also cleared by whatever script closes the
+-- chatbox next (Al Shabim's orphan was closed ~10 ticks later by the parked
+-- ~mercenary_attack), and the entry that follows then reads "the dialogue
+-- closed" -- true, and useless without the note that the click before it
+-- went unanswered all that time.  chat.play appends the note to that entry's
+-- failure detail; on success it is dropped (a long legitimate p_delay).
+function QD.chat._play_await_answer(index, entry, acted_kind, acted_identity, acted_page)
+    local started = api_drive.tick()
+    QD.chat._await_page_ready(acted_kind, acted_identity, 8)
+    if not QD.chat._resume_outstanding() then
+        return nil
+    end
+    local clicked
+    if acted_kind == nil then
+        clicked = "a click made before this chat.play (the page up is "
+            .. QD.chat._play_page_name(QD.chat.kind()) .. ")"
+    else
+        clicked = "entry " .. (index - 1) .. "'s click on " .. tostring(acted_page)
+    end
+    await({
+        level = function()
+            return not QD.chat._resume_outstanding()
+        end,
+        note = "chat.play: answer to the last click",
+    }, 8)
+    if not QD.chat._resume_outstanding() then
+        return nil, " [" .. clicked .. " was unanswered ('Please wait...') for "
+            .. (api_drive.tick() - started) .. " ticks before the page changed -- a long p_delay "
+            .. "after the page, or a page no script was parked on (TORIRSSERVER_VERBOSE=1 prints the "
+            .. "server's 'dropping [...]' line)]"
+    end
+    return "timeout", "chat.play: entry " .. index .. " ('" .. entry .. "'): the server never answered "
+        .. clicked .. " in " .. (api_drive.tick() - started) .. " ticks -- the page still says "
+        .. "'Please wait...' and no script took the resume (an orphaned page: the script that "
+        .. "opened it was dropped or is not parked on it; TORIRSSERVER_VERBOSE=1 prints the "
+        .. "server's 'dropping [...]' line)"
+end
+
 function QD.chat.play(list)
     local summary = {}
     -- The page THIS call's last SUBMITTING entry acted on (continue_/
@@ -936,6 +1017,10 @@ function QD.chat.play(list)
     -- (QD.chat._await_page_ready's banner).
     local acted_kind = nil
     local acted_identity = nil
+    -- The same page, described for a person (kind plus the first words of
+    -- its text, or its rows): what a detail names when the answer to the
+    -- click on it never came.
+    local acted_page = nil
 
     for index, entry in ipairs(list) do
         local parsed, parse_detail = QD.chat._play_parse(entry)
@@ -960,7 +1045,13 @@ function QD.chat.play(list)
         -- so neither chat.kind() nor the t.ticks(5) in haunted.lua could
         -- tell them apart.  The next chat.play read the old page's sentence
         -- and failed on it, and five rows behind it failed too.
-        QD.chat._await_page_ready(acted_kind, acted_identity, 8)
+        local ready_res, ready_detail = QD.chat._play_await_answer(index, entry, acted_kind,
+            acted_identity, acted_page)
+        if ready_res ~= nil then
+            return ready_res, ready_detail
+        end
+        -- ready_detail with a nil result is the slow-answer note (above).
+        local answer_note = ready_detail or ""
 
         -- Same race chat.drain's own banner documents (measured 2026-09-19:
         -- the cook's Talk-to page lands its reply during exactly this
@@ -989,7 +1080,7 @@ function QD.chat.play(list)
                     .. QD.chat._no_dialogue
             end
             return "not_visible", "chat.play: entry " .. index .. " ('" .. entry
-                .. "'): the dialogue closed after " .. (index - 1) .. " page(s)"
+                .. "'): the dialogue closed after " .. (index - 1) .. " page(s)" .. answer_note
         end
         -- Overridden below for a "text" action that actually reads one;
         -- everything else summarises as the LIST entry it matched, capped
@@ -999,7 +1090,7 @@ function QD.chat.play(list)
         if parsed.action == "expect" or parsed.action == "text" then
             if actual_kind ~= parsed.kind then
                 return "mismatch", "chat.play: entry " .. index .. " ('" .. entry
-                    .. "') expected kind=" .. parsed.kind .. ", got " .. QD.chat._play_describe(actual_kind)
+                    .. "') expected kind=" .. parsed.kind .. ", got " .. QD.chat._play_describe(actual_kind) .. answer_note
             end
             if parsed.action == "text" then
                 local text_res, text = QD.chat.text()
@@ -1021,6 +1112,7 @@ function QD.chat.play(list)
                 -- Read BEFORE the click: this is the page the NEXT entry's
                 -- readiness wait must see the back of.
                 acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+                acted_page = QD.chat._play_page_name(actual_kind)
                 local r, d = QD.chat.continue_()
                 if r ~= "ok" then
                     return r, "chat.play: entry " .. index .. " continue_ -- " .. tostring(d)
@@ -1033,6 +1125,7 @@ function QD.chat.play(list)
                     .. "') expected options, got " .. QD.chat._play_describe(actual_kind)
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
             local r, d = QD.chat.choose(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') choose -- " .. tostring(d)
@@ -1044,6 +1137,7 @@ function QD.chat.play(list)
                     .. "') expected count, got " .. QD.chat._play_describe(actual_kind)
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
             local r, d = QD.chat.count(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') count -- " .. tostring(d)
@@ -1055,6 +1149,7 @@ function QD.chat.play(list)
                     .. "') expected name, got " .. QD.chat._play_describe(actual_kind)
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
             local r, d = QD.chat.name_entry(parsed.arg)
             if r ~= "ok" then
                 return r, "chat.play: entry " .. index .. " ('" .. entry .. "') name_entry -- " .. tostring(d)
@@ -1070,12 +1165,17 @@ function QD.chat.play(list)
             if actual_kind == "options" or actual_kind == "count" or actual_kind == "name"
                 or actual_kind == "none" then
                 return "mismatch", "chat.play: entry " .. index
-                    .. " ('*') cannot blindly continue past " .. QD.chat._play_describe(actual_kind)
+                    .. " ('*') cannot blindly continue past " .. QD.chat._play_describe(actual_kind) .. answer_note
             end
             acted_kind, acted_identity = actual_kind, QD.chat._page_identity(actual_kind)
+            acted_page = QD.chat._play_page_name(actual_kind)
+            -- "*" matched whatever was up; the summary names THAT page, so a
+            -- reader can see which page each wildcard graded.
+            fragment = "*=" .. acted_page
             local r, d = QD.chat.continue_()
             if r ~= "ok" then
-                return r, "chat.play: entry " .. index .. " ('*') continue_ -- " .. tostring(d)
+                return r, "chat.play: entry " .. index .. " ('*') on " .. acted_page
+                    .. " continue_ -- " .. tostring(d)
             end
         end
 
@@ -1125,8 +1225,8 @@ function QD.chat.play(list)
     end
 
     local joined = table.concat(summary, ", ")
-    if #joined > 200 then
-        joined = joined:sub(1, 200)
+    if #joined > 480 then
+        joined = joined:sub(1, 480)
     end
     return "ok", #summary .. " page(s): " .. joined
 end

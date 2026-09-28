@@ -3806,11 +3806,22 @@ end
 -- test/quests/_conformance.lua's `seam.use_on_rearm` row requires the second
 -- arming to answer "already armed, nothing sent", so a binary without the
 -- verb is a red gate rather than a quiet detour.
+--
+-- SEAM first_use_on_after_unequip (seam23): the retry covers `refused` too,
+-- and waits for the backpack to be PAINTED before it arms again.  A cell on a
+-- tab that is not painted yet is dropped by app_minimenu_ui_pick_live without
+-- a word, so DrivePointer_InvOp finds objsel empty and answers REFUSED, not
+-- not_found -- which this retry used to pass straight out as `refused ...
+-- armed by this call (tab nil nil)`: The Tourist Trap's cell door key, first
+-- use_on after player.unequip left the equipment tab up
+-- (build/quest_gate/parity_desertrescue_d2/_d4 row celldoor.unlock,
+-- build/quest_gate/s23b_base1).  inv_arm is idempotent, so a second call
+-- after a refusal that DID arm costs nothing.
 function QD.player._arm_held(item, cell)
     local result, detail = api_drive.inv_arm(cell.component_id, cell.slot, cell.obj_id, cell.count)
     local tab_result, tab_detail = nil, nil
-    if result == "not_found" then
-        tab_result, tab_detail = QD.player._show_backpack()
+    if result == "not_found" or result == "refused" then
+        tab_result, tab_detail = QD.player._show_backpack_painted()
         result, detail = api_drive.inv_arm(cell.component_id, cell.slot, cell.obj_id, cell.count)
     end
     if result ~= "ok" then
@@ -3909,7 +3920,12 @@ function QD.player.use_on(item, target, opts)
         local standoff = QD.player._standoff_for_kind(target.kind) or 0
         QD.player.walk_near(target, nil, standoff)
     end
-    QD.player._show_backpack()
+    -- PAINTED, not just pressed (SEAM first_use_on_after_unequip, seam23):
+    -- the arming below is a click on a backpack cell, and a tab press paints
+    -- on a later frame -- after player.unequip, a worn-item op or an emote the
+    -- sidebar is still another tab and the first arming was refused
+    -- (_arm_held's banner).  Already showing costs one read.
+    QD.player._show_backpack_painted()
     local cell_result, cell = QD.player._inv_cell(item)
     if cell_result ~= "ok" then
         return cell_result, cell

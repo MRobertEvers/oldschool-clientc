@@ -1437,8 +1437,19 @@ def check_tourist_trap() -> None:
             "[opnpc2,desertminingcaptain]",
             "[apnpc2,desertminingcaptain]",
             "[label,desertrescue_captain_attack_warning]",
-            "[label,desertrescue_captain_arrest]",
+            "npc_setmode(playerescape);",
+            "[label,desertrescue_captain_randompunish]",
+            "getbit_range(%desertrescue_map_mechanisms, 0, 1)",
+            "setbit_range_toint(%desertrescue_map_mechanisms, $next_stage, 0, 1);",
+            "~desertrescue_find_camp_merc(coord, 7, 0)",
+            "pretends to start hitting you.",
+            "gives you a sharp kick.",
             "damage(uid, hitsplat_damage, 1);",
+            "~objbox(bronze_scimitar,",
+            "Okay men, we need to teach this person a thing or two",
+            "~desertrescue_dump_in_desert;",
+            "~mercenary_attack;",
+            "[label,desertrescue_captain_you_there]",
             "[opnpc3,desertminingcaptain]",
             "[ai_queue3,desertminingcaptain]",
             "if (npc_findhero = ^false)",
@@ -1450,8 +1461,19 @@ def check_tourist_trap() -> None:
         ),
         "The Tourist Trap captain",
     )
-    require(captain.count("damage(uid, hitsplat_damage, 1);") == 4,
-            "The Tourist Trap: direct-attack arrest must apply four guard hits")
+    # seam23: LostCity [label,mercenary_capt_randompunish] -- four escalating
+    # responses keyed on map_mechanisms bits 0-1, one kick of damage (stage 1),
+    # the desert dump only at stage 3 -- replaced the port's single
+    # four-hit arrest. Every insult reaches it; a direct Attack is
+    # ~mercenary_capt_attack's ~mercenary_attack, never the ladder.
+    require("[label,desertrescue_captain_arrest]" not in captain,
+            "The Tourist Trap: the four-hit arrest replaced every insult response again")
+    require(captain.count("damage(uid, hitsplat_damage, 1);") == 1,
+            "The Tourist Trap: randompunish deals exactly one kick (stage 1)")
+    require(captain.count("@desertrescue_captain_randompunish;") == 4,
+            "The Tourist Trap: ugly, sand-in-ears, scare and the fist/sorry pair must each reach randompunish")
+    require(captain.count("~desertrescue_dump_in_desert;") == 1,
+            "The Tourist Trap: only randompunish stage 3 dumps the player in the desert")
     require("inv_total(worn" not in captain,
             "The Tourist Trap: equipment restriction restored to the duel")
     require("gosub(npc_death)" not in captain,

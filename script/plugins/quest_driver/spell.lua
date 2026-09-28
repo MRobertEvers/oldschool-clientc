@@ -109,6 +109,25 @@ QD.player.SPELL_REFUSAL_LINES = {
     "You can't attack this npc.",
     "Crumble Undead has no effect on the Draugen.",
     "This spell only affects skeletons, zombies, ghosts and shades.",
+    -- A cast on a GROUND OBJ or a LOC (seam23, QD.player._cast_on_world):
+    -- Telekinetic Grab's own sentences (skill_magic/scripts/spells/
+    -- telegrab.rs2 [label,magic_spell_telegrab]: the telegrab_disabled param,
+    -- a stack that left before the grab landed -- runes and XP already
+    -- paid, nothing gained -- and ~pickup_obj_check_for_space's
+    -- ~inv_no_space_message, player/messages.rs2), the Charge Orb family's
+    -- (skill_magic/scripts/spells/charge_orb.rs2 [label,
+    -- magic_spell_charge_orb]) and the Lunar farming spells'
+    -- (skill_magic/scripts/spells/farming_spells.rs2).
+    "You can't cast this spell on that object.",
+    "Too late - it's gone!",
+    "You don't have enough inventory space.",
+    "You must be holding an orb to enchant it.",
+    "This spell needs to be cast on an air obelisk.",
+    "This spell needs to be cast on a water obelisk.",
+    "This spell needs to be cast on an earth obelisk.",
+    "This spell needs to be cast on a fire obelisk.",
+    "This spell needs to be cast on an obelisk.",
+    "This patch is not diseased.",
 }
 
 -- Ticks after the Magic XP lands that the verb keeps watching the npc: the
@@ -298,6 +317,22 @@ end
 function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     ticks = ticks or 10
     attack_op = attack_op or 2
+    -- SEAM cast_on_ground_obj_and_loc (seam23): a `{kind=, id=}` world
+    -- target -- a ground obj or a loc -- goes to QD.player._cast_on_world
+    -- (the section after this function); a `{kind="npc", id="<symbol>"}`
+    -- table is the npc path below, as if the symbol had been passed bare.
+    if type(npc_symbol) == "table" then
+        if npc_symbol.kind == "obj" or npc_symbol.kind == "loc" then
+            return QD.player._cast_on_world(spell, npc_symbol, ticks)
+        end
+        if npc_symbol.kind == "npc" and type(npc_symbol.symbol or npc_symbol.id) == "string" then
+            npc_symbol = npc_symbol.symbol or npc_symbol.id
+        else
+            return "unsupported", "cast " .. tostring(spell) .. ": a table target must be"
+                .. " {kind='obj'|'loc', id=<symbol or id>} or {kind='npc', id=<symbol>}, got kind "
+                .. tostring(npc_symbol.kind) .. " id " .. tostring(npc_symbol.id)
+        end
+    end
     local symbol = QD.player._spell_symbol(spell)
     local label = "cast " .. symbol .. " on " .. tostring(npc_symbol)
 
@@ -581,4 +616,405 @@ function QD.player._recast_press(spell, target, label, element)
         return result, fail_detail, nil, presses
     end
     return "ok", nil, type(click) == "table" and click.row_text or "", presses
+end
+
+-- ------------------------------------ a cast on a GROUND OBJ or a LOC
+--
+-- SEAM cast_on_ground_obj_and_loc (seam23, 2026-09-28).  t.player.cast
+-- only ever targeted npcs, so a guide step whose whole point is a spell on
+-- something that is not an npc could only be hand-driven another way:
+-- Spirits of the Elid's `telegrabKey` ("You should Telekinetic Grab the
+-- ancestral key from the table", elid_house.rs2:117) was a click_obj Take,
+-- and the sampler reverted the quest for it (sonnet-b27).  The same verb now
+-- takes the `{kind=, id=}` world target use_on takes:
+--
+--   t.player.cast("telegrab", { kind = "obj", id = "elid_key" })
+--   t.player.cast("charge_water_orb", { kind = "loc", id = "obelisk_water" })
+--
+-- `id` is the content symbol (resolved through player.by_symbol, so a loc
+-- gets its live-id rule) or the numeric id a t.world.obj_near/loc_near/
+-- player.by_symbol table already carries.
+--
+-- THE PRESS is the npc cast's, for the other two target kinds the client's
+-- target mode knows: the magic tab, the spell's own "Cast" row
+-- (api_drive.spell_arm, TGT_BUTTON), then the obj's or loc's collapsed
+-- "<Cast> <spell> -> <name>" row -- add_world_select_row with mask bit 0x1
+-- (obj, REVCONFIG_MINIMENU_TGT_OBJ) or 0x4 (loc, TGT_LOC)
+-- (src/game/rs_minimenu_world.c) -- through click_minimenu's "select"
+-- wildcard, re-armed before every re-press, and the pressed row checked to
+-- be the held one.  A spell whose target mask excludes the kind gets NO row
+-- from the client ("mode active but this kind is not a valid target"), so
+-- that press answers click_minimenu's own no-row word and nothing is sent.
+-- The client sends OPOBJT / OPLOCT (app_minimenu.c); the server runs
+-- `[opobjt,magic_spellbook:<spell>]` / `[oploct,...]` or their ap twins.
+--
+-- NO WALK BEFORE THE PRESS.  The point of a spell on a ground obj is that
+-- the player does not walk onto it (the ancestral key sits on a table), so
+-- the cast is pressed from where the caller stands -- the server paths into
+-- spell range itself for the ap trigger.  Only a press that answered
+-- `covered` walks, once, to QD.player._click_obj_standoff tiles (obj) or the
+-- loc standoff (loc), exactly as the npc cast's press loop does.
+--
+-- WHAT `ok` MEANS -- the server's EFFECT, never the press:
+--   obj  the obj ARRIVED in the backpack (Telekinetic Grab's
+--        obj_takeitem(inv), telegrab.rs2) -- the stack's count in the
+--        backpack rose.  The detail names the Magic XP delta and the
+--        backpack diff (the runes that left) beside it.
+--   loc  Magic XP was paid (every loc spell in the pack pays ~give_spell_xp
+--        on the cast: charge_orb.rs2, farming_spells.rs2), plus the
+--        backpack diff and the chat lines the cast printed, which are the
+--        loc's effect as far as the client can see it.
+-- `refused` / `no_runes` = the SERVER declined it in words
+-- (QD.player._spell_refusal_since: SPELL_REFUSAL_LINES, the rune pattern,
+-- the engine's click refusals such as "Nothing interesting happens." for a
+-- spell with no trigger on that target).  A chat line the cast printed
+-- that is none of those, with nothing paid and nothing arriving, is also
+-- `refused` naming the line: the server answered and did not cast.
+-- `timeout` = none of the above inside `ticks` (default 10).
+--
+-- No combat stamp: nothing here is a fight for npc.await_dead_engaged.
+-- ---------------------------------------------------------------------------
+
+-- Ticks a cast on an obj/loc keeps watching after its effect first shows:
+-- telegrab pays its XP and takes the obj on the same tick, then
+-- p_delay(1)s; charge orb pays and swaps, then p_delay(2)s.  Two ticks
+-- lets the XP (or the swap) that trails the first edge reach the client.
+QD.player.SPELL_WORLD_TRAIL_TICKS = 2
+
+-- The chat lines newer than `since`, oldest first, trimmed.
+function QD.player._spell_lines_since(since)
+    local lines = {}
+    if type(since) ~= "number" then
+        return lines
+    end
+    local result, rows = api_drive.messages()
+    if result ~= "ok" or type(rows) ~= "table" then
+        return lines
+    end
+    for i = #rows, 1, -1 do
+        if rows[i].serial > since and type(rows[i].text) == "string" then
+            local trimmed = string.match(rows[i].text, "^%s*(.-)%s*$") or rows[i].text
+            if trimmed ~= "" then
+                lines[#lines + 1] = trimmed
+            end
+        end
+    end
+    return lines
+end
+
+-- The world target a cast names, resolved: (target) or (nil, result, detail).
+function QD.player._cast_world_target(spell_symbol, target)
+    local kind = target.kind
+    if type(target.id) == "string" then
+        local resolved, sym_result = QD.player.by_symbol(kind, target.id)
+        if not resolved then
+            return nil, sym_result, "cast " .. spell_symbol .. ": no " .. kind .. " symbol "
+                .. target.id .. " (" .. tostring(sym_result) .. ")"
+        end
+        return resolved
+    end
+    if type(target.id) ~= "number" then
+        return nil, "unsupported", "cast " .. spell_symbol .. ": " .. kind
+            .. " target carries no id (a symbol string or a numeric id)"
+    end
+    if target.symbol == nil then
+        local name_result, name = api_drive.symbol_name(kind, target.id)
+        if name_result == "ok" then
+            target.symbol = name
+        end
+    end
+    return target
+end
+
+-- The one walk a covered cast press takes.  A loc: walk_near at the loc
+-- standoff (click_loc's).  A ground obj, which walk_near does not take:
+-- click_obj's rule -- within QD.player._click_obj_standoff and no closer --
+-- plus one step OFF the stack when the player stands on it, since a
+-- square at the player's feet is under his own model.
+function QD.player._cast_approach(world, tile_x, tile_z)
+    if world.kind == "loc" then
+        return QD.player.walk_near(world, nil, QD.player._standoff_for_kind("loc") or 1)
+    end
+    local here_result, here = api_drive.player_tile()
+    if here_result ~= "ok" or type(here) ~= "table" then
+        return here_result, "player_tile"
+    end
+    local distance = QD.player._tile_distance(here.x, here.z, tile_x, tile_z)
+    if distance < 1 then
+        return QD.player._step_off_tile(world, tile_x, tile_z, 1)
+    end
+    if distance <= QD.player._click_obj_standoff then
+        return "ok", "stack " .. tostring(distance) .. " tile(s) off already; no walk"
+    end
+    local step_x = QD.player._step_off(tile_x, here.x, QD.player._click_obj_standoff)
+    local step_z = QD.player._step_off(tile_z, here.z, QD.player._click_obj_standoff)
+    local walk_result, walk_detail = QD.player.walk_to(step_x, step_z)
+    return walk_result, "walk_to " .. tostring(step_x) .. "," .. tostring(step_z)
+        .. (walk_detail and (" " .. tostring(walk_detail)) or "")
+end
+
+-- True when a covered press's detail lists a menu of Cancel alone
+-- (_press_row's "menu rows: <text|kind|id|act>..." list).
+function QD.player._cast_menu_only_cancel(click)
+    local text = tostring(click)
+    local rows = string.match(text, "menu rows: (.*)$")
+    if rows == nil then
+        return false
+    end
+    local count = 0
+    for _ in string.gmatch(rows, "<[^>]*>") do
+        count = count + 1
+    end
+    return count == 1 and string.find(rows, "<Cancel|", 1, true) ~= nil
+end
+
+-- The obj's count in the backpack, or nil when it could not be read.
+function QD.player._cast_obj_held(obj_id)
+    local container_result, container_id = QD._inv_container()
+    if container_result ~= "ok" then
+        return nil
+    end
+    local count_result, total = api_drive.inv_count(container_id, obj_id)
+    if count_result ~= "ok" then
+        return nil
+    end
+    return total
+end
+
+-- t.player.cast(spell, {kind="obj"|"loc", id=...}, ticks) -- the banner
+-- above.  Called by QD.player.cast for a table target of those two kinds.
+function QD.player._cast_on_world(spell, target, ticks)
+    ticks = ticks or 10
+    local symbol = QD.player._spell_symbol(spell)
+    local kind = target.kind
+    local named = tostring(target.symbol or target.id)
+    local label = "cast " .. symbol .. " on " .. kind .. " " .. named
+
+    if QD.player._death_fence("t.player.cast " .. symbol .. " " .. kind .. " " .. named) then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    if api_drive.spell_arm == nil then
+        return "unsupported", label .. ": this binary predates api_drive.spell_arm"
+            .. " (torirs_plugin_drive_pointer.c) -- rebuild it; no cast was attempted"
+    end
+    local world, resolve_result, resolve_detail = QD.player._cast_world_target(symbol, target)
+    if not world then
+        return resolve_result, resolve_detail
+    end
+    named = tostring(world.symbol or world.id)
+    label = "cast " .. symbol .. " on " .. kind .. " " .. named
+    if kind == "loc" and world.symbol then
+        local note = QD.player._loc_match_note(world.symbol, world.id, world.match)
+        if note then
+            QD.note("player.cast " .. note)
+        end
+    end
+    -- Where the target stands, for the detail and the covered walk: an obj
+    -- or loc absent from the pool is `not_found` before anything is armed.
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(world)
+    if tile_result ~= "ok" then
+        return tile_result, label .. ": no " .. kind .. " " .. named .. " in the scene ("
+            .. tostring(tile_result) .. ") -- nothing was cast"
+    end
+    local here_result, here = api_drive.player_tile()
+    local where = kind .. " at " .. tostring(tile_x) .. "," .. tostring(tile_z)
+    if here_result == "ok" and type(here) == "table" then
+        where = where .. ", cast from " .. tostring(here.x) .. "," .. tostring(here.z)
+            .. " (" .. tostring(QD.player._tile_distance(here.x, here.z, tile_x, tile_z))
+            .. " tile(s))"
+    end
+
+    local held_before = nil
+    if kind == "obj" then
+        held_before = QD.player._cast_obj_held(world.id)
+        if held_before == nil then
+            return "unsupported", label .. ": the backpack count of " .. named
+                .. " could not be read, so the grab could not be graded -- nothing was cast"
+        end
+    end
+    local inv_result, inv_before = QD.player._inv_contents()
+    if inv_result ~= "ok" then
+        inv_before = nil
+    end
+
+    local component_result, component_id = QD.player._spell_component(symbol)
+    if component_result ~= "ok" then
+        QD.player._show_backpack()
+        return component_result, component_id
+    end
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" or type(since) ~= "number" then
+        since = nil
+    end
+    local xp_before = QD.player._magic_xp()
+
+    local arm = function()
+        local arm_result, arm_detail = api_drive.spell_arm(component_id)
+        if arm_result ~= "ok" then
+            return arm_result, label .. ": arming the spell -- " .. tostring(arm_detail)
+        end
+        return "ok", arm_detail
+    end
+    local arm_result, arm_detail = arm()
+    if arm_result ~= "ok" then
+        QD.player._show_backpack()
+        return arm_result, arm_detail
+    end
+
+    -- The press: up to three, a tick apart, re-armed before each re-press
+    -- (a covered press leaves a menu open and dismissing it clears the
+    -- arming); one walk toward a target that answered covered.
+    local click_result, click
+    local presses = 0
+    local walked = nil
+    local only_cancel = 0
+    while true do
+        presses = presses + 1
+        click_result, click = QD.drive.click_minimenu(world, "select", nil, arm)
+        if click_result == "covered" and QD.player._cast_menu_only_cancel(click) then
+            only_cancel = only_cancel + 1
+        end
+        if click_result == "covered" and walked == nil then
+            local walk_result, walk_detail = QD.player._cast_approach(world, tile_x, tile_z)
+            walked = tostring(walk_result) .. " " .. tostring(walk_detail)
+            QD.note("player.cast: the " .. kind .. " press answered covered; walked -> "
+                .. walked)
+        end
+        if click_result == "ok" or presses >= 3 then
+            break
+        end
+        local next_tick = api_drive.tick() + 1
+        QD.await({
+            level = function() return api_drive.tick() >= next_tick end,
+            note = "player.cast re-press",
+        }, 3)
+        local rearm_result, rearm_detail = arm()
+        if rearm_result ~= "ok" then
+            QD.player._show_backpack()
+            return rearm_result, rearm_detail
+        end
+    end
+    if click_result ~= "ok" then
+        QD.player._show_backpack()
+        local hint = ""
+        if only_cancel == presses then
+            -- With a spell armed the client offers ONLY rows whose kind the
+            -- spell's target mask accepts (add_world_select_row), so a menu
+            -- of Cancel alone on every press is what a mask without this
+            -- kind's bit looks like -- or a pixel on something else the
+            -- spell does not target.  Said, not decided: the mask is not a
+            -- driver read.
+            hint = " [every press's menu held only Cancel: nothing under the pixel takes "
+                .. symbol .. " -- the spell's target mask may exclude a " .. kind
+                .. " (Wind Strike's is npc/player)]"
+        end
+        return click_result, label .. ": " .. tostring(click) .. " (" .. tostring(presses)
+            .. " press(es)" .. (walked and ("; walked after a covered press: " .. walked) or "")
+            .. ") -- " .. where .. hint
+    end
+    local held_ok, held_why = QD.player._select_row_is_held(world, click)
+    if not held_ok then
+        QD.player._show_backpack()
+        return "refused", label .. ": " .. tostring(held_why) .. " -- " .. where
+    end
+    local row_text = type(click) == "table" and tostring(click.row_text) or ""
+
+    -- The settle: the server's refusal, or the effect (banner above).
+    local refusal_word, refusal_line = nil, nil
+    local effect_tick = nil
+    local answered_tick = nil
+    local settle_result = QD.await({
+        level = function()
+            refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+            if refusal_word then
+                return true
+            end
+            local now = api_drive.tick()
+            if effect_tick == nil then
+                if kind == "obj" then
+                    local held = QD.player._cast_obj_held(world.id)
+                    if held ~= nil and held > held_before then
+                        effect_tick = now
+                    end
+                else
+                    local xp_now = QD.player._magic_xp()
+                    if xp_now ~= nil and xp_before ~= nil and xp_now > xp_before then
+                        effect_tick = now
+                    end
+                end
+            end
+            if effect_tick ~= nil then
+                return now >= effect_tick + QD.player.SPELL_WORLD_TRAIL_TICKS
+            end
+            -- A LOC cast's line that is no refusal and no effect: give the
+            -- effect the trail window to follow it (a script can mes before
+            -- it pays), then stop -- the caller reads it as the server's
+            -- answer.  An OBJ cast waits for the obj or a refusal only: a
+            -- grab is silent on success, and an unrelated line landing
+            -- while the server walks into spell range must not cut the
+            -- wait short.
+            if kind == "loc" and answered_tick == nil
+                and #QD.player._spell_lines_since(since) > 0 then
+                answered_tick = now
+            end
+            return answered_tick ~= nil
+                and now >= answered_tick + QD.player.SPELL_WORLD_TRAIL_TICKS + 1
+        end,
+        note = "player.cast " .. symbol .. " " .. kind .. " " .. named,
+    }, ticks)
+
+    local xp_after = QD.player._magic_xp()
+    local held_after = kind == "obj" and QD.player._cast_obj_held(world.id) or nil
+    local diff = ""
+    if inv_before ~= nil then
+        local after_result, inv_after = QD.player._inv_contents()
+        if after_result == "ok" then
+            diff = QD.player._inv_contents_diff(inv_before, inv_after)
+        end
+    end
+    local lines = QD.player._spell_lines_since(since)
+    QD.player._show_backpack()
+
+    local detail = label .. " [" .. row_text .. "] (" .. tostring(arm_detail) .. ") in "
+        .. tostring(presses) .. " press(es), " .. where
+        .. (walked and ("; walked after a covered press: " .. walked) or "")
+        .. ": magic xp " .. tostring(xp_before) .. " -> " .. tostring(xp_after)
+    if kind == "obj" then
+        detail = detail .. ", " .. named .. " held " .. tostring(held_before) .. " -> "
+            .. tostring(held_after)
+    end
+    detail = detail .. ", backpack " .. (diff ~= "" and diff or "unchanged")
+    if #lines > 0 then
+        detail = detail .. ", chat '" .. table.concat(lines, "' '") .. "'"
+    end
+
+    if QD.player._death_fence("t.player.cast " .. symbol .. ", after the settle") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    if not refusal_word then
+        refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+    end
+    if refusal_word then
+        return refusal_word, detail .. " -- the SERVER refused the cast: '"
+            .. tostring(refusal_line) .. "'"
+    end
+    local xp_paid = xp_before ~= nil and xp_after ~= nil and xp_after > xp_before
+    if kind == "obj" and held_after ~= nil and held_after > held_before then
+        return "ok", detail .. " -- GRABBED (" .. named .. " arrived in the backpack"
+            .. (xp_paid and "; Magic XP paid" or "; no Magic XP seen") .. ")"
+    end
+    if kind == "loc" and xp_paid then
+        return "ok", detail .. " -- CAST (Magic XP paid)"
+    end
+    if #lines > 0 then
+        return "refused", detail .. " -- the server answered '" .. lines[#lines]
+            .. "' and " .. (kind == "obj" and ("no " .. named .. " arrived")
+            or "paid no Magic XP") .. ": it did not cast"
+    end
+    if kind == "obj" and xp_paid then
+        return "timeout", detail .. " -- Magic XP paid but " .. named
+            .. " never arrived in the backpack inside " .. tostring(ticks) .. " ticks"
+    end
+    return "timeout", detail .. " -- " .. (settle_result == "ok" and "" or "no refusal, ")
+        .. "no effect inside " .. tostring(ticks) .. " ticks: the cast never ran"
 end

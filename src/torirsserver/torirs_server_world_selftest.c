@@ -3223,6 +3223,7 @@ selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 #include "test/quest_entertheabyss_selftest.u.h"
 #include "test/quest_eaglepeak_selftest.u.h"
 #include "test/quest_ghostsahoy_selftest.u.h"
+#include "test/combat_reach_flag_selftest.u.h"
 
 int
 ToriRSServer_WorldSelftest(void)
@@ -36840,6 +36841,7 @@ ToriRSServer_WorldSelftest(void)
     selftest_quest_doric(srv, player);
     selftest_quest_cook(srv, player);
     selftest_quest_druid(srv, player);
+    selftest_combat_reach_flag(srv, player);
     selftest_quest_gobdip(srv, player);
     selftest_quest_blackknight(srv, player);
     selftest_quest_haunted(srv, player);

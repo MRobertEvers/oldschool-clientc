@@ -224,6 +224,33 @@ player_weapon_attackrange(const struct ToriRSServerPlayer* player)
     return range;
 }
 
+/*
+ * The player is within his weapon's reach of the fight's target, so the walk
+ * toward it is over: drop the route and take down the destination flag that
+ * named it.
+ *
+ * Every swing re-arms through `p_opnpc(2)`, and that walks toward MELEE
+ * adjacency and sends SET_MAP_FLAG for it (torirs_server_scripts.c), so a bow
+ * or a staff standing at range had a flag on the monster's side for the whole
+ * fight -- the route was dropped here but the flag never was, because
+ * advance_player takes it down only after a step or on its own tile (seam22:
+ * api_drive.player_idle stayed false under a stale flag). LostCity never
+ * routes for an interaction that fires in range (`P_OPNPC` only latches it;
+ * `pathToPathingTarget` runs only when `tryInteract` did not fire), and its
+ * `unsetMapFlag()` is clearWaypoints + the UnsetMapFlag packet (Player.ts
+ * 1258-1262, 1310-1313, 2249) -- so the route and the flag go together.
+ */
+static void
+player_route_ends_in_range(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    ToriRSServer_WorldStepsClear(player);
+    if( player->dest_x >= 0 || player->dest_z >= 0 )
+        player->clear_map_flag = 1;
+    player->dest_x = -1;
+    player->dest_z = -1;
+}
+
 static int
 in_player_attack_range(
     struct ToriRSServer* srv,
@@ -278,6 +305,59 @@ npc_npc_gap(
     *out_dz = dz;
 }
 
+/*
+ * Melee between two npcs whose footprints are already flush on a cardinal
+ * side: is there a square on that shared edge with no wall across it?
+ *
+ * The same rule the player's melee reads (in_attack_range_with ->
+ * ToriRSServer_SceneMeleeReached): LostCity decides an npc's op on another
+ * pathing entity with PathingEntity.inOperableDistance -> reachedEntity ->
+ * ReachStrategy.reachExclusiveRectangle, whose N-sized arm (RectangleBoundary
+ * reachRectangleN) walks the overlap of the two edges and answers yes on the
+ * first square whose wall flag toward the target is open. Walking the
+ * attacker's own squares on that edge and asking the 1x1 question of each is
+ * that loop: for a flush 1x1 source SceneMeleeReached reads exactly the wall
+ * bit on the shared edge. Without it an npc-vs-npc fight (a quest's guard
+ * against its prisoner, a pet against a monster) swung straight through a
+ * closed door or a fence, which the player's half stopped doing in seam22.
+ */
+static int
+npc_npc_melee_edge_open(
+    const struct ToriRSServerNpc* attacker,
+    const struct ToriRSServerNpc* target)
+{
+    int a_size;
+    int t_size;
+
+    assert(attacker);
+    assert(target);
+    a_size = attacker->size > 0 ? attacker->size : 1;
+    t_size = target->size > 0 ? target->size : 1;
+    for( int ax = attacker->x; ax < attacker->x + a_size; ax++ )
+    {
+        for( int az = attacker->z; az < attacker->z + a_size; az++ )
+        {
+            int gx = 0;
+            int gz = 0;
+
+            if( ax < target->x )
+                gx = target->x - ax;
+            else if( ax > target->x + t_size - 1 )
+                gx = ax - (target->x + t_size - 1);
+            if( az < target->z )
+                gz = target->z - az;
+            else if( az > target->z + t_size - 1 )
+                gz = az - (target->z + t_size - 1);
+            if( gx + gz != 1 )
+                continue;
+            if( ToriRSServer_SceneMeleeReached(
+                    attacker->level, ax, az, target->x, target->z, t_size) )
+                return 1;
+        }
+    }
+    return 0;
+}
+
 static int
 in_npc_attack_range_npc(
     const struct ToriRSServerNpc* attacker,
@@ -291,7 +371,11 @@ in_npc_attack_range_npc(
         return 0;
     npc_npc_gap(attacker, target, &dx, &dz);
     if( range <= 1 )
-        return (dx + dz) == 1;
+    {
+        if( (dx + dz) != 1 )
+            return 0;
+        return npc_npc_melee_edge_open(attacker, target);
+    }
     return (dx > dz ? dx : dz) <= range;
 }
 
@@ -2241,7 +2325,7 @@ ToriRSServer_CombatEngage(
          * rather than the tick that continues it.
          */
         if( in_player_attack_range(srv, player, npc) )
-            ToriRSServer_WorldStepsClear(player);
+            player_route_ends_in_range(player);
         else
         {
             ToriRSServer_SceneNpcApproach(size, &approach);
@@ -2294,7 +2378,7 @@ ToriRSServer_CombatPlayerApproach(struct ToriRSServer* srv)
 
     if( in_player_attack_range(srv, player, npc) )
     {
-        ToriRSServer_WorldStepsClear(player);
+        player_route_ends_in_range(player);
         return;
     }
     /* Nothing else is walking the player while a combat target is set: every

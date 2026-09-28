@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 32
+-- @seam-count 36
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 131
-local SEAM_COUNT = 32
+local SEAM_COUNT = 36
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5782,6 +5782,212 @@ return {
                 return "hollow", "the backpack moved after an op that consumes nothing -- " .. text
             end
             return "ok", text
+        end)
+
+        -- ---------------------------------------------- seam23's four rows
+        --
+        -- THE FIRST use_on AFTER AN UNEQUIP ARMS.  player.unequip leaves the
+        -- equipment tab up; use_on pressed the backpack tab and armed on the
+        -- same frame, the cell was not painted yet, DrivePointer_InvArm
+        -- answered REFUSED (not not_found) and _arm_held passed it straight
+        -- out: `refused ... armed by this call (tab nil nil)` (The Tourist
+        -- Trap's cell door key, build/quest_gate/s23b_base1).  use_on now
+        -- waits for the backpack to PAINT and _arm_held retries a refusal
+        -- (seam23, s23b_rows_fix2 3/3).  Graded on the verb's own word: the
+        -- arming refusal is exactly what the old code answered.
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            setup_cheat("::give bronze_scimitar")
+            setup_cheat("::give pot_empty")
+            settle(3)
+        end)
+        seam("seam.use_on_after_unequip", function()
+            local equip = verb("player", "equip")
+            local unequip = verb("player", "unequip")
+            local use_on = verb("player", "use_on")
+            local by_symbol = verb("player", "by_symbol")
+            if not equip then return missing("player", "equip") end
+            if not unequip then return missing("player", "unequip") end
+            if not use_on then return missing("player", "use_on") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            local equip_result, equip_detail = equip("bronze_scimitar")
+            if equip_result ~= "ok" then
+                return "no_subject", "equip bronze_scimitar -> " .. describe(equip_result) .. " "
+                    .. describe(equip_detail)
+            end
+            local off_result, off_detail = unequip("bronze_scimitar")
+            if off_result ~= "ok" then
+                return "no_subject", "unequip bronze_scimitar -> " .. describe(off_result) .. " "
+                    .. describe(off_detail)
+            end
+            local target, target_result = by_symbol("npc", "hans")
+            if target_result ~= "ok" or type(target) ~= "table" then
+                return "no_subject", "no hans to use the pot on (" .. describe(target_result) .. ")"
+            end
+            local result, detail = use_on("pot_empty", target)
+            local text = "unequip -> " .. describe(off_detail) .. "; use_on pot_empty hans -> "
+                .. describe(result) .. " " .. describe(detail)
+            if string.find(tostring(detail), "armed by this call", 1, true) then
+                return "hollow", "the first arming after the unequip was refused -- " .. text
+            end
+            return result, text
+        end)
+
+        -- A CAST ON A GROUND OBJ.  t.player.cast took npcs only, so Spirits of
+        -- the Elid's Telekinetic Grab was hand-Taken and the sampler reverted
+        -- the quest (sonnet-b27).  cast now takes use_on's {kind=, id=} world
+        -- target and grades an obj cast on the obj ARRIVING in the backpack
+        -- (seam23, build/quest_gate/s23cw_rows3).  Graded here on the backpack
+        -- and the law rune, not on the verb's word.
+        stage(function()
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give lawrune 1")
+            setup_cheat("::give bronze_dagger 1")
+            settle(2)
+        end)
+        seam("seam.cast_on_ground_obj", function()
+            local fn = verb("player", "cast")
+            local goto_tile = verb("player", "goto_tile")
+            local drop = verb("player", "drop")
+            local walk_to = verb("player", "walk_to")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "cast") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not drop then return missing("player", "drop") end
+            if not walk_to then return missing("player", "walk_to") end
+            if not count then return missing("inv", "count") end
+            goto_tile(CAST_TILE_X, CAST_TILE_Z, 0)
+            local drop_result, drop_detail = drop("bronze_dagger")
+            if drop_result ~= "ok" then
+                return "no_subject", "drop bronze_dagger -> " .. describe(drop_result) .. " "
+                    .. describe(drop_detail)
+            end
+            walk_to(CAST_TILE_X + 4, CAST_TILE_Z + 2)
+            local _, dagger_before = count("bronze_dagger")
+            local _, law_before = count("lawrune")
+            local result, detail = fn("telegrab", { kind = "obj", id = "bronze_dagger" })
+            settle(1)
+            local _, dagger_after = count("bronze_dagger")
+            local _, law_after = count("lawrune")
+            local text = "telegrab bronze_dagger from 4 tiles -> " .. describe(result) .. " "
+                .. describe(detail) .. "; dagger " .. describe(dagger_before) .. " -> "
+                .. describe(dagger_after) .. ", law " .. describe(law_before) .. " -> "
+                .. describe(law_after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if dagger_after ~= (dagger_before or 0) + 1 or law_after ~= (law_before or 0) - 1 then
+                return "hollow", "cast answered ok but the backpack does not show the grab -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A "*" ENTRY NAMES THE PAGE IT CONTINUED PAST, AND A PAGE FOLLOWED BY
+        -- A p_delay IS WAITED OUT.  Professor Oddenstein's "Let's get this
+        -- fixed then." is followed by mes / p_delay(2) / mes / p_delay(2) and
+        -- no if_close (professor_oddenstein.rs2) before Ernest's page.  chat.play
+        -- now awaits the ANSWER to each entry's click (a second 8-tick wait for
+        -- a latch still up) and every "*" summarises the page it graded, so a
+        -- reader can see which page each wildcard took (seam23,
+        -- build/quest_gate/s23cr_odd1 4/4).  Hollow when the summary carries
+        -- no page for the wildcard.
+        stage(function()
+            setup_cheat("::haunted")
+            setup_cheat("::setvar haunted 2")
+            setup_cheat("::give pressure_gauge")
+            setup_cheat("::give oil_can")
+            setup_cheat("::give rubber_tube")
+            settle(2)
+        end)
+        seam("seam.chat_play_names_the_wildcard_page", function()
+            local play = verb("chat", "play")
+            local goto_tile = verb("player", "goto_tile")
+            local talk_to = verb("player", "talk_to")
+            if not play then return missing("chat", "play") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not talk_to then return missing("player", "talk_to") end
+            local goto_result, goto_detail = goto_tile(3110, 3367, 2)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto Oddenstein's floor -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local talk_result, talk_detail = talk_to("professor_oddenstein", 1)
+            if talk_result ~= "ok" then
+                return "no_subject", "talk_to professor_oddenstein -> " .. describe(talk_result)
+                    .. " " .. describe(talk_detail)
+            end
+            local result, detail = play({
+                "npc:Have you found anything yet?",
+                "player:I have everything!",
+                "npc:Give 'em here then.",
+                "*",
+                "npc:It was dreadfully irritating being a chicken. How can I ever thank you?",
+                "player:Well a cash reward is always nice...",
+                "npc:Of course, of course.",
+            })
+            local text = "chat.play over the hand-in -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "*=npc 'Let's get this fixed", 1, true) then
+                return "hollow", "the wildcard's summary does not name the page it continued past -- "
+                    .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CAST ON A LOC.  The same world target, the loc half: Charge Air
+        -- Orb on the Obelisk of Water is refused in content's own sentence
+        -- (charge_orb.rs2), then Charge Water Orb charges the orb and pays
+        -- Magic XP (seam23, build/quest_gate/s23cw_rows3).  Graded on the
+        -- sentence, the orb swap and the XP.
+        stage(function()
+            setup_cheat("::give stafforb 1")
+            setup_cheat("::give waterrune 30")
+            setup_cheat("::give cosmicrune 6")
+            setup_cheat("::give airrune 30")
+            settle(2)
+        end)
+        seam("seam.cast_on_loc", function()
+            local fn = verb("player", "cast")
+            local goto_tile = verb("player", "goto_tile")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "cast") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not count then return missing("inv", "count") end
+            local goto_result, goto_detail = goto_tile(2843, 3420, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto the Obelisk of Water -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            local _, orb_before = count("stafforb")
+            local refused, refused_detail = fn("charge_air_orb", { kind = "loc", id = "obelisk_water" })
+            local _, orb_mid = count("stafforb")
+            local text = "charge_air_orb -> " .. describe(refused) .. " " .. describe(refused_detail)
+            if refused ~= "refused" or orb_mid ~= orb_before
+                or not string.find(tostring(refused_detail), "This spell needs to be cast on an air obelisk.", 1, true) then
+                return "hollow", "the wrong obelisk was not refused in content's words -- " .. text
+            end
+            local _, water_before = count("water_orb")
+            local result, detail = fn("charge_water_orb", { kind = "loc", id = "obelisk_water" })
+            settle(1)
+            local _, water_after = count("water_orb")
+            local _, orb_after = count("stafforb")
+            text = text .. " || charge_water_orb -> " .. describe(result) .. " " .. describe(detail)
+                .. "; water_orb " .. describe(water_before) .. " -> " .. describe(water_after)
+                .. ", stafforb " .. describe(orb_mid) .. " -> " .. describe(orb_after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if water_after ~= (water_before or 0) + 1 or orb_after ~= (orb_mid or 0) - 1 then
+                return "hollow", "cast answered ok but no orb was charged -- " .. text
+            end
+            return "ok", text
+        end)
+
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

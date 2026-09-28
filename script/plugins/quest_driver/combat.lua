@@ -1219,11 +1219,17 @@ function QD.npc.await_dead_engaged(ticks, attempts)
         return "no_row", "await_dead_engaged: nothing is engaged -- no t.player.attack in"
             .. " this run has pressed an Attack row, so there is no slot to hold"
     end
+    -- A stamp a CAST opened (spell.lua's t.player.cast sets engaged.spell) is
+    -- re-opened by casting again, never by an Attack press: the message names
+    -- the verb that opened it (seam23).
+    local opener = engaged.spell and "t.player.cast" or "t.player.attack"
+    local again = engaged.spell and ("cast " .. tostring(engaged.spell) .. " again (t.player.cast)")
+        or "press Attack again"
     if engaged.consumed then
-        return "no_row", "await_dead_engaged: the fight t.player.attack engaged (slot "
+        return "no_row", "await_dead_engaged: the fight " .. opener .. " engaged (slot "
             .. tostring(engaged.slot) .. ", " .. tostring(engaged.symbol)
             .. ", tick " .. tostring(engaged.tick) .. ") has already been waited out once"
-            .. " -- press Attack again before waiting again"
+            .. " -- " .. again .. " before waiting again"
     end
 
     local slot = engaged.slot
@@ -1265,8 +1271,8 @@ function QD.npc.await_dead_engaged(ticks, attempts)
         if not engaged.bar_seen then
             return "no_row", "await_dead_engaged: slot " .. tostring(slot) .. " (" .. opened
                 .. ") is not in the npc pool and no health bar was ever sent for it while"
-                .. " t.player.attack was engaged with it, so nothing ever hit it -- this is"
-                .. " a target that left the readable pool, not a kill; press Attack again"
+                .. " " .. opener .. " was engaged with it, so nothing ever hit it -- this is"
+                .. " a target that left the readable pool, not a kill; " .. again
                 .. QD._combat_prior_text(engaged.symbol)
         end
         -- Gone-after-a-bar is a kill ONLY WITH A CORROBORATION (seam
