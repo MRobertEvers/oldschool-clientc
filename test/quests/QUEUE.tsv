@@ -34,7 +34,7 @@ quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo		
 quest_demon	demon	demonslayer		3	todo		
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
-quest_desertrescue	desertrescue	thetouristtrap		2	todo		PARITY partial after 75a0cc01fe: stages 6-30 unported (ana, camp_guard, captain_siad, mine_cart_driver, mining_slave, mercenary, escape machine); not authorable yet
+quest_desertrescue	desertrescue	thetouristtrap		2	todo		PARITY partial after 22a4b22342: stages 6-30 ported from LostCity and the quest is authorable end to end -- follow build/parity_state/parity2d/desertrescue_scratch/leg_a..e.lua (gate, slave trade, mine, Shabim/Siad plans, anvil+dart, pineapple, cart/Ana/winch/flatback cart/driver, Irena rewards; captain duel via t.player.attack + await_dead_engaged); open leg: Mercenary Captain randompunish insult ladder (content)
 quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	todo		
