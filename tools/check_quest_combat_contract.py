@@ -1496,7 +1496,7 @@ def check_tourist_trap() -> None:
             "[proc,desertrescue_open_camp_gate](int $side)",
             "inv_total(inv, metal_key) < 1",
             "%desertrescue = ^desertrescue_entered_camp;",
-            "~door_selfstage_open;",
+            "~desertrescue_cross_wall($gate_coord, $gate_angle);",
             "[timer,desertrescue_mercenary_check]",
             "[label,desertrescue_camp_jail]",
         ),
