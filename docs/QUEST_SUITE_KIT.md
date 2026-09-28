@@ -42,7 +42,11 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
   NOT a precondition, and a worker must never refuse tier 2 work over it. Passes
   run in batches of ~6 quests: parity2a (vampire tree ball grail crest
   desertrescue) landed as 1180a23f7 -- grail and tree at parity, the other four
-  partial with their legs named in `tools/quest_gate/PARITY.tsv`.
+  partial with their legs named in `tools/quest_gate/PARITY.tsv`. parity2b
+  (crest fenkenstrain ghostsahoy itwatchtower mountaindaughter onesmallfavour
+  recruitmentdrive) landed content 7e91c06fe3: mountaindaughter at parity, the
+  other six partial with their legs named. Only crest and itwatchtower are
+  LostCity quests; the other five post-date LostCity and are wiki-sourced.
   The sailing tier 4 quests (pandemonium, troubledtortugans) now have the
   hull arrival hook, the `t.sail.*` verbs and the courier tasks to build on.
 
