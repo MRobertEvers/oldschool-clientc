@@ -19,6 +19,21 @@
 --    lands mdq_shore_return_coord -- the "without a plank" return leg the
 --    guide calls noPlankRocksReturn/plankRocksReturn is simplified in the
 --    port to the same outcome either way (constant file, section 7).
+--  * seam23: Asleif's spirit has no npc and no chathead -- her every line is
+--    ~mesbox (the wiki Transcript's {{tbox|'...'}} form), never
+--    ~chatnpc/~chatnpc_anim (mountaindaughter_spirit.rs2's own header note).
+--    listenToSpirit-dialog/returnToSpirit-dialog below are read off that
+--    file's [label,mdq_spirit_first_listen]/[label,mdq_spirit_check_progress]
+--    branches directly (trap 17: rebuilt from the .rs2, not the wiki prose).
+--  * The 5-muddy-rock requirement (mdaughter_burial.rs2's
+--    [opheld3,mdaughter_daughter_corpse]... [oplocu,mdaughter_burialmound])
+--    only has FOUR ground spawns in areas/world/configs/m43_57.spawn, so a
+--    fifth needs one of the four to respawn -- collectRocks below loops
+--    passes over the four spots with a wait between them.
+--  * mdaughter_burialmound (5862) is a multiloc CHILD with no map placement
+--    of its own; the scene holds its base wrapper mdaughter_multimound
+--    (5861, maps/m43_57.jl2:1001) -- click_loc's "base" resolve rule
+--    (docs/QUEST_AUTHORING.md trap 20) reaches it through the child symbol.
 
 return {
     id = "mountaindaughter",
@@ -115,56 +130,286 @@ return {
         t.exec("rubMudIntoTree", t.player.use_on, "mdaughter_mud", loc_lake_tree)
         t.exec("climbTree", t.player.click_loc, "mdaughter_lake_tree", 3)
 
-        -- poleVaultRocks / plankRocks: run 1 proved these two islet crossings
-        -- are not reachable by any walked approach tile (reach_failed against
-        -- all 5 candidates -- build/quest_gate/mountaindaughter ledger rows
-        -- 21/22, 2026-09-28) -- the small rocky outcrop's walkable tiles end
-        -- short of the gap by design (that IS the "gap is too wide" flavour
-        -- text), so the loc's own square is the only tile that serves it.
+        -- poleVaultRocks / plankRocks: run 1 (the pre-seam23 attempt) proved
+        -- these two islet crossings are not reachable by any walked approach
+        -- tile (reach_failed against all 5 candidates -- build/quest_gate/
+        -- mountaindaughter ledger rows 21/22, 2026-09-28) -- the small rocky
+        -- outcrop's walkable tiles end short of the gap by design (that IS
+        -- the "gap is too wide" flavour text), so the loc's own square is
+        -- the only tile that serves it. Same two locs are crossed three
+        -- times in this file (first visit, returnToSpirit, burial); each
+        -- occurrence gets its own marker within lint's 8-line span.
         -- GUIDE-GAP: poleVaultRocks no walked approach reaches the gap (maps/m43_57.jl2:997, island1's own tiles end at maps/m43_57.jm2 local 21-23,~33-38)
         t.exec("poleVaultRocks", t.player.use_on, "mdaughter_stick", loc_polerocks, { stand_on_square = true })
         -- GUIDE-GAP: plankRocks no walked approach reaches the gap (maps/m43_57.jl2:998)
         t.exec("plankRocks", t.player.use_on, "woodplank", loc_flatstone1, { stand_on_square = true })
 
+        -- listenToSpirit: seam23 rewrote Asleif's spirit as pure ~mesbox +
+        -- ~p_choice2, verbatim from mountaindaughter_spirit.rs2
+        -- [label,mdq_spirit_first_listen] (no chathead, no npc -- see the
+        -- header note).
         t.exec("listenToSpirit", t.player.click_loc, "mdaughter_sulphar_gas", 1)
-
-        -- CONTENT BUG (not a driver seam -- see the t.blocked reason below):
-        -- [label,mdq_spirit_first_listen] (mountaindaughter_spirit.rs2:16-26)
-        -- opens `~chatplayer_anim` fine (page 1, "Hello! Who are you?"), but
-        -- the very next line, `~chatnpc_anim` (line 19), runs with NO active
-        -- npc bound -- this trigger is a bare [oploc1,mdaughter_sulphar_gas]
-        -- (line 5), and nothing in this file ever calls npc_find. Every
-        -- other oploc-triggered ~chatnpc_anim in this codebase binds one
-        -- first (quest_priestperil/scripts/trapped_drezel.rs2:47
-        -- [oploc2,pip_prisondoor]: `npc_find(coord, priestperiltrappedmonk,
-        -- 15, 0)` before `~chatnpc_anim` -- the exact fix
-        -- docs/QUEST_AUTHORING.md trap 22 names for this shape), and there
-        -- is in any case no "Asleif spirit" npc symbol anywhere in
-        -- configs/all.npc.compack for a npc_find to locate -- she has no
-        -- world entity at all. Clicking "Click here to continue" on page 1
-        -- closes the dialogue outright instead of opening Asleif's reply.
-        -- Reproduced twice: build/quest_gate/mountaindaughter run 1 ledger
-        -- row 24 and run 2 row 24 (both "the dialogue closed after 1
-        -- page(s)"), shots 30-player-p1.png (page 1 open, correct) and
-        -- 31-npc-p2.png / 33-listenToSpirit-dialog-FAIL.png (dialogue gone,
-        -- only the message log remains). The same shape recurs verbatim at
-        -- [label,mdq_spirit_check_progress] (mountaindaughter_spirit.rs2:
-        -- 33-35). Nothing past %mdaughter_quest_var=^mdq_started is
-        -- reachable without an OSRS-Content fix, so this test cannot drive
-        -- the diplomacy/food/Kendal/burial legs at all right now.
-        local dialog_result, dialog_detail = t.chat.play({
+        t.exec("listenToSpirit-dialog", t.chat.play, {
+            "mesbox:clearly hear the voice",
+            "mesbox:",
+            "player:Er... yes, hello?",
+            "mesbox:Listen to me",
+            "options",
+            "choose:Hello! Who are you?",
             "player:Hello! Who are you?",
+            "mesbox:I am all around you",
+            "player:answered both questions",
+            "mesbox:I am the voice of Asleif",
+            "player:Wait, you're Asleif?",
+            "mesbox:no longer in your world",
+            "player:But I thought you said",
+            "mesbox:echo of the past",
+            "options",
+            "choose:So what exactly do you want from me?",
+            "player:So what exactly do you want from me?",
+            "mesbox:greatly concerned",
+            "player:Er, I don't think they like",
+            "mesbox:judge then",
+            "mesbox:isolated themselves",
+            "mesbox:children of the Fremennik",
+            "mesbox:closer together again",
+            "options",
+            "choose:That sounds like something I can do.",
+            "player:All right, that sounds like",
+            "mesbox:There is another thing",
+            "player:Yes?",
+            "mesbox:new supply of food",
+            "options",
+            "choose:I'll get right on it.",
+            "player:I'll get right on it.",
+            "player:peace with Rellekka",
+            "mesbox:may the gods bless you",
         })
-        t.check("listenToSpirit-dialog", true,
-            "content bug reproduced: chat.play(" .. tostring(dialog_result) .. "): "
-                .. tostring(dialog_detail) .. " -- page 1 opened and closed on continue"
-                .. " instead of advancing to Asleif's npc reply")
-        t.blocked("content_bug mountaindaughter_spirit.rs2:19 (~chatnpc_anim) and "
-            .. ":21-22 (~chatnpc) run inside [oploc1,mdaughter_sulphar_gas] -> "
-            .. "[label,mdq_spirit_first_listen] with no active npc bound (no "
-            .. "npc_find in this file, no Asleif npc symbol in the pack to find) "
-            .. "-- the dialogue closes after page 1 instead of opening Asleif's "
-            .. "reply; same shape at mdq_spirit_check_progress (mountaindaughter_spirit.rs2:33-35)")
-        return
+        t.expect("quest.stage.spirit_heard", t.quest.expect_stage("spirit_heard"))
+
+        -- plankRocksReturn: cross back to the north shore (guide step name
+        -- per MountainDaughter.java's helpTheCamp.addStep(onIsland3,
+        -- plankRocksReturn)); mdaughter_flatstone2's oploc1 always succeeds
+        -- (header note) but the islet's own square is still the only tile
+        -- that reaches it.
+        -- GUIDE-GAP: plankRocksReturn no walked approach reaches the gap (maps/m43_57.jl2:999)
+        t.exec("returnToShore", t.player.click_loc, "mdaughter_flatstone2", 1, { stand_on_square = true })
+
+        -- helpTheCamp: diplomacy.
+        t.exec("goto-hamal2", t.player.goto_tile, 2811, 3673, 0)
+        t.exec("talkToHamalAfterSpirit", t.player.talk_to, "mdaughter_hamal")
+        t.exec("talkToHamalAfterSpirit-dialog", t.chat.play, {
+            "player:About the people of Rellekka",
+            "npc:Jokul",
+        })
+        t.exec("goto-jokul", t.player.goto_tile, 2811, 3679, 0)
+        t.exec("talkToJokul", t.player.talk_to, "mdaughter_jokul")
+        t.exec("talkToJokul-dialog", t.chat.play, {
+            "player:relations with Rellekka",
+            "npc:short on food",
+            "player:Do you know where to find more food?",
+            "npc:White Pearl",
+            "npc:Svidi",
+        })
+        t.exec("goto-svidi", t.player.goto_tile, 2717, 3667, 0)
+        t.exec("talkToSvidi", t.player.talk_to, "mdaughter_svidi")
+        t.exec("talkToSvidi-dialog", t.chat.play, {
+            "player:Hamal sent me",
+            "npc:I won't go in there",
+            "player:Can't I persuade you",
+            "npc:safety guarantee",
+        })
+
+        -- speakToBrundt: the shared npc's SPAWNED (base) symbol is
+        -- "viking_brundt" (areas/world/configs/m41_57.spawn:54) --
+        -- quest_viking/scripts/viking_brundt.rs2's own [opnpc1,viking_brundt]
+        -- checks ~mdq_brundt_relevant first (trap 19's owner-checks-first
+        -- fix), so this is the correct symbol to press, never the
+        -- "_child" variant mountaindaughter_camp.rs2's header comment names
+        -- (that trigger belongs to quest_fremennikexiles and is reached only
+        -- through the base's hand-over).
+        t.exec("goto-brundt", t.player.goto_tile, 2659, 3671, 0)
+        t.exec("speakToBrundt", t.player.talk_to, "viking_brundt")
+        t.exec("speakToBrundt-dialog", t.chat.play, {
+            "player:Svidi sent me",
+            "npc:Ancient Rock",
+        })
+        t.exec("goto-rock", t.player.goto_tile, 2799, 3662, 0)
+        local loc_ancient = t.player.by_symbol("loc", "mdaughter_ancient_rock")
+        t.exec("getRockFragment", t.player.use_on, "bronze_pickaxe", loc_ancient)
+        t.ticks(1)
+        t.exec("inv.half_rock", t.inv.expect_has, "mdaughter_half_rock", 1)
+        t.exec("goto-brundt2", t.player.goto_tile, 2659, 3671, 0)
+        t.exec("returnToBrundt", t.player.talk_to, "viking_brundt")
+        t.exec("returnToBrundt-dialog", t.chat.play, {
+            "player:piece of the Ancient Rock",
+            "npc:just that, a rock",
+            "npc:safety guarantee",
+        })
+        t.exec("inv.guarantee", t.inv.expect_has, "mdaughter_safety_guarantee", 1)
+        t.exec("goto-svidi2", t.player.goto_tile, 2717, 3667, 0)
+        t.exec("returnToSvidi", t.player.talk_to, "mdaughter_svidi")
+        t.exec("returnToSvidi-dialog", t.chat.play, {
+            "player:safety guarantee from Brundt",
+            "npc:head in today",
+        })
+        t.exec("goto-hamal3", t.player.goto_tile, 2811, 3673, 0)
+        t.exec("returnToHamalAboutDiplomacy", t.player.talk_to, "mdaughter_hamal")
+        t.exec("returnToHamalAboutDiplomacy-dialog", t.chat.play, {
+            "options",
+            "choose:About the people of Rellekka...",
+            "player:About the people of Rellekka",
+            "npc:never been better",
+        })
+        t.exec("returnToHamalAboutFood", t.player.talk_to, "mdaughter_hamal")
+        t.exec("returnToHamalAboutFood-dialog", t.chat.play, {
+            "player:About your food supplies",
+            "npc:Our stores are running low",
+            "npc:White Pearl",
+        })
+
+        -- food: the White Pearl on White Wolf Mountain (gloves worn).
+        t.exec("goto-fruit", t.player.goto_tile, 2849, 3499, 0)
+        t.exec("getFruit", t.player.click_loc, "mdaughter_white_pearl_bush", 3)
+        t.ticks(1)
+        t.exec("inv.fruit", t.inv.expect_has, "mdaughter_white_pearl_fruit", 1)
+        t.exec("eatFruit", t.player.inv_op, "mdaughter_white_pearl_fruit", 3)
+        t.ticks(1)
+        t.exec("inv.seed", t.inv.expect_has, "mdaughter_white_pearl_seed", 1)
+        t.exec("goto-hamal4", t.player.goto_tile, 2811, 3673, 0)
+        t.exec("giveSeed", t.player.talk_to, "mdaughter_hamal")
+        t.exec("giveSeed-dialog", t.chat.play, {
+            "player:About your food supplies",
+            "npc:White Pearl seed",
+        })
+
+        -- returnToSpirit (the second visit): tree, pole, plank, listen.
+        t.exec("goto-tree2", t.player.goto_tile, 2772, 3679, 0)
+        t.exec("climbTree2", t.player.click_loc, "mdaughter_lake_tree", 3)
+        -- GUIDE-GAP: poleVaultRocks no walked approach reaches the gap (maps/m43_57.jl2:997)
+        t.exec("poleVaultRocks2", t.player.use_on, "mdaughter_stick", loc_polerocks, { stand_on_square = true })
+        -- GUIDE-GAP: plankRocks no walked approach reaches the gap (maps/m43_57.jl2:998)
+        t.exec("plankRocks2", t.player.use_on, "woodplank", loc_flatstone1, { stand_on_square = true })
+        t.exec("returnToSpirit", t.player.click_loc, "mdaughter_sulphar_gas", 1)
+        t.exec("returnToSpirit-dialog", t.chat.play, {
+            "player:Asleif spirit thing",
+            "mesbox:Yes,",
+            "player:I did what you asked me to",
+            "mesbox:I can sense that this is so",
+            "player:any other quests for me",
+            "mesbox:one more task",
+            "mesbox:does not believe that I am dead",
+            "mesbox:You must convince him",
+            "player:How do I do that, exactly?",
+            "mesbox:attacked by some creature",
+            "mesbox:cannot provide further assistance",
+        })
+        t.expect("quest.stage.ready_for_kendal", t.quest.expect_stage("ready_for_kendal"))
+        -- GUIDE-GAP: noPlankRocksReturn no walked approach reaches the gap (maps/m43_57.jl2:999)
+        t.exec("returnToShore2", t.player.click_loc, "mdaughter_flatstone2", 1, { stand_on_square = true })
+
+        -- the Kendal (mountaindaughter_kendal.rs2): caveentrance needs an
+        -- axe (setup's bronze_axe) and teleports into the cave, where the
+        -- multi_bear (mdaughter_bearman while %mdaughter_bear_multi_state=0)
+        -- is talked to first, revealing itself and spawning the real
+        -- fighter npc.
+        -- GUIDE-GAP: enterCave no walked approach reaches the cave mouth past the fallen trees (maps/m43_57.jl2:1000)
+        t.exec("goto-cave", t.player.goto_tile, 2803, 3703, 0)
+        local cave_r, cave_d = t.player.click_loc("mdaughter_caveentrance", 1, { stand_on_square = true })
+        if cave_r ~= "ok" then
+            t.note("enterCave first press: " .. tostring(cave_r) .. " " .. tostring(cave_d))
+            t.player.goto_tile(2806, 3703, 0)
+            t.ticks(2)
+            cave_r, cave_d = t.player.click_loc("mdaughter_caveentrance", 1, { stand_on_square = true })
+        end
+        t.check("enterCave", cave_r == "ok", tostring(cave_r) .. " " .. tostring(cave_d))
+        local multibear_present = t.npc.await_present("mdaughter_multi_bear", 20, 15)
+        t.check("talkToKendal.present", multibear_present == "ok", "npc.await_present -> " .. tostring(multibear_present))
+        t.exec("talkToKendal", t.player.talk_to, "mdaughter_multi_bear")
+        t.exec("talkToKendal-dialog", t.chat.play, {
+            "npc:Who dares enter the domain of a god?",
+            "player:It's just me, no one special.",
+            "npc:do you bring an offering",
+            "player:You mean a sacrifice?",
+            "npc:fed me well over the years",
+            "player:You look like a man in a bearsuit!",
+            "npc:Perceptive of you",
+            "npc:I am no god, true.",
+            "player:Can I see that corpse?",
+            "npc:Never did find out who she was.",
+            "player:I humbly request to be given the remains.",
+            "npc:You'll get nothing from me",
+            "player:I will kill you myself!",
+            "npc:Then die like the rest of them!",
+        })
+        t.expect("quest.stage.kendal_found", t.quest.expect_stage("kendal_found"))
+        local present_result = t.npc.await_present("mdaughter_bearman_fighter", 20, 15)
+        t.check("killKendal.present", present_result == "ok", "npc.await_present -> " .. tostring(present_result))
+        t.exec("killKendal.attack", t.player.attack, "mdaughter_bearman_fighter", 2, 30)
+        t.exec("killKendal", t.npc.await_dead_engaged, 80, 8)
+        t.ticks(10)
+        t.expect("quest.stage.kendal_killed", t.quest.expect_stage("kendal_killed"))
+        t.exec("inv.bearhead", t.inv.expect_has, "mdaughter_bear_helmet", 1)
+        local corpse_r, corpse_d = t.player.click_obj("mdaughter_daughter_corpse")
+        t.check("grabCorpse", corpse_r == "ok", tostring(corpse_r) .. " " .. tostring(corpse_d))
+        t.exec("inv.corpse", t.inv.expect_has, "mdaughter_daughter_corpse", 1)
+        t.exec("leaveCave", t.player.click_loc, "mdaughter_caveexit", 1)
+
+        -- bringCorpseToHamal
+        t.exec("goto-hamal5", t.player.goto_tile, 2811, 3673, 0)
+        t.exec("bringCorpseToHamal", t.player.talk_to, "mdaughter_hamal")
+        t.exec("bringCorpseToHamal-dialog", t.chat.play, {
+            "player:But he's not a god!",
+            "npc:man in a bearsuit",
+            "player:I will.",
+            "npc:muddy rocks",
+        })
+        t.expect("quest.stage.corpse_given", t.quest.expect_stage("corpse_given"))
+
+        -- collectRocks: five muddy rocks, but areas/world/configs/m43_57.spawn
+        -- only carries FOUR mdaughter_rock ground spawns -- one has to
+        -- respawn, so this loops the four spots across up to four passes.
+        local function rocks()
+            local r, n = t.inv.count("mdaughter_rock")
+            return tonumber(n) or 0
+        end
+        local rock_spots = { {2804, 3660}, {2809, 3679}, {2812, 3680}, {2812, 3687} }
+        local pass = 0
+        while rocks() < 5 and pass < 4 do
+            pass = pass + 1
+            for i, spot in ipairs(rock_spots) do
+                if rocks() >= 5 then break end
+                t.player.goto_tile(spot[1], spot[2], 0)
+                local r, d = t.player.click_obj("mdaughter_rock")
+                t.note("rock pass " .. pass .. " spot " .. i .. ": " .. tostring(r) .. " " .. tostring(d))
+            end
+            if rocks() < 5 then t.ticks(60) end
+        end
+        t.exec("inv.rocks", t.inv.expect_has, "mdaughter_rock", 5)
+
+        t.exec("goto-ragnar", t.player.goto_tile, 2766, 3677, 0)
+        t.exec("speakRagnar", t.player.talk_to, "mdaughter_ragnar")
+        t.exec("speakRagnar-dialog", t.chat.play, {
+            "npc:I feared as much",
+            "npc:bury it with her",
+        })
+        t.exec("inv.necklace", t.inv.expect_has, "mdaughter_necklace", 1)
+
+        -- buryCorpseOnIsland + createCairn: back across the lake a third
+        -- time to bury Asleif and raise the cairn on the burial mound.
+        t.exec("goto-tree3", t.player.goto_tile, 2772, 3679, 0)
+        t.exec("climbTree3", t.player.click_loc, "mdaughter_lake_tree", 3)
+        -- GUIDE-GAP: poleVaultRocks no walked approach reaches the gap (maps/m43_57.jl2:997)
+        t.exec("poleVaultRocks3", t.player.use_on, "mdaughter_stick", loc_polerocks, { stand_on_square = true })
+        -- GUIDE-GAP: plankRocks no walked approach reaches the gap (maps/m43_57.jl2:998)
+        t.exec("plankRocks3", t.player.use_on, "woodplank", loc_flatstone1, { stand_on_square = true })
+        t.exec("buryCorpse", t.player.inv_op, "mdaughter_daughter_corpse", 3)
+        t.ticks(2)
+        t.exec("inv.corpse_gone", t.inv.expect_absent, "mdaughter_daughter_corpse")
+        local loc_mound = t.player.by_symbol("loc", "mdaughter_burialmound")
+        -- GUIDE-GAP: createCairn the burial mound (mdaughter_burialmound, a multiloc child with no map placement of its own) resolves through its base wrapper mdaughter_multimound at maps/m43_57.jl2:1001, whose walkable approach tiles do not reach the lake-centre square
+        t.exec("createCairn", t.player.use_on, "mdaughter_rock", loc_mound, { stand_on_square = true })
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }

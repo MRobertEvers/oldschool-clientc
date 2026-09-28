@@ -19002,6 +19002,16 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->hitpoints == 10,
                            "eating at full health should not overheal, got %d",
                            player->hitpoints);
+            /* That bite parked `~eat_food` on its p_delay again, and a delayed
+             * player's OPHELD is refused and his OPNPC only latches (LostCity's
+             * `player.delayed`, OpHeldHandler.ts:16; seam24). Run it out so the
+             * sections below are asked of an idle player. */
+            for( int i = 0; i < 4 && player->active_script; i++ )
+                selftest_tick(srv);
+            SELFTEST_CHECK(player->active_script == NULL,
+                           "the second bite's eat delay should have run out");
+            for( int i = 0; i < 8 && srv->tick < player->delayed_until; i++ )
+                selftest_tick(srv);
 
             /* An obj with no [opheld] script must still reach the engine's own
              * verb table — the fallback that keeps the mock usable without a

@@ -391,6 +391,58 @@ route_abandoned(struct ToriRSServerPlayer* player)
 }
 
 /*
+ * LostCity's `player.delayed`: a script of this player's own is parked on
+ * `p_delay`/`p_arrivedelay` and has not resumed yet.
+ *
+ * Two halves, because the reference's flag outlives the tick count by the
+ * width of one phase. `P_DELAY` sets `delayed = true` (PlayerOps.ts:376-380)
+ * and only `World.processPlayers` clears it, right before it resumes the
+ * script (World.ts:693) -- AFTER `processClientsIn` has read the tick's
+ * packets. So a click that arrives on the tick the delay ends is still
+ * refused there. `srv->tick < delayed_until` alone would accept it and start
+ * a trigger on top of the parked script one phase early; the parked SUSPENDED
+ * state is what says "not resumed yet". A dialogue wait (PAUSEBUTTON,
+ * COUNTDIALOG, NAMEDIALOG) is not a delay: the reference answers a click
+ * during one by closing the dialogue (`clearPendingAction` -> `closeModal`),
+ * which this engine already does.
+ */
+static int
+player_delayed(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    assert(srv);
+    assert(player);
+    if( srv->tick < player->delayed_until )
+        return 1;
+    return player->active_script && player->active_script->execution == SSVM_SUSPENDED;
+}
+
+/*
+ * An interface click that would START a content script, arriving while the
+ * player is delayed: refuse it, and say so in the verbose log.
+ *
+ * LostCity's IfButtonHandler runs the `[if_button]` script with protected
+ * access (`root.overlay == false`), and `Player.runScript` returns -1 without
+ * running it when `this.delayed` (Player.ts:2174-2178). A resume button is
+ * forced through and is not asked here -- nothing can be waiting on one while
+ * the only parked script is the delayed one. Returns 1 when refused.
+ */
+static int
+if_button_refused_while_delayed(
+    struct ToriRSServer* srv,
+    int uid,
+    const char* what)
+{
+    if( !player_delayed(srv, srv->active_player) )
+        return 0;
+    if( srv->verbose )
+        fprintf(stderr, "torirsserver: <- %s %d:%d refused: player is delayed (p_delay)\n", what,
+                uid >> 16, uid & 0xffff);
+    return 1;
+}
+
+/*
  * The part of player_lock that is about the actor, not the packet stream.
  *
  * Keep this separate from clear_pending_action: that function closes modals
@@ -2456,6 +2508,18 @@ interaction_continue_or_give_up(struct ToriRSServer* srv)
 void
 ToriRSServer_WorldProcessInteraction(struct ToriRSServer* srv)
 {
+    /* A click that arrives while the player is delayed only latches: the
+     * trigger must not start on top of the parked script (Player.ts:1257,
+     * tryInteract behind canAccess). phase_player tries it once the delay is
+     * over -- see `player_delayed_blocks_packet` for why it is not refused. */
+    if( player_delayed(srv, srv->active_player) )
+    {
+        if( srv->verbose )
+            fprintf(stderr, "torirsserver: interaction latched: player is delayed "
+                            "(p_delay until tick %d)\n",
+                    srv->active_player->delayed_until);
+        return;
+    }
     if( interaction_try(srv, 1) )
         return;
     interaction_continue_or_give_up(srv);
@@ -8201,7 +8265,15 @@ ToriRSServer_RunDebugprocForTest(
  * `canAccess()` (the reference's "Please finish what you are doing first.")
  * is not ported here: this tree's predicate is scripts.c's static
  * `player_can_access`, and every quest test's `goto_tile` would begin
- * refusing while a content script is delayed. That is a separate question.
+ * refusing while a content script is delayed. Measured in seam24 with the
+ * refusal in place (closeModal, then refuse a `player_delayed` player):
+ * Ernest the Chicken went 67/67 -> 60/67 -- thirteen goto_tile rows needed a
+ * second attempt behind a lever's or a door's p_delay, and the retried
+ * landing left `pickup.rubber_tube` covered (build/quest_gate/haunted,
+ * against s24_haunted_head on the HEAD binary). The orphaned-page half of
+ * that seam is closed without it: no trigger STARTS while the player is
+ * delayed (`player_delayed`). A goto that lands inside a script's p_delay
+ * still moves the player under that script.
  */
 static void
 cheat_teleport_stop_action(
@@ -10568,6 +10640,8 @@ handle_resume_pausebutton(
      */
     if( ToriRSServer_WorldMapHandleButton(srv, uid, 1) )
         return;
+    if( if_button_refused_while_delayed(srv, uid, "RESUME_PAUSEBUTTON") )
+        return;
     srv->active_player->last_com = uid;
     if( !ToriRSServer_ScriptsFallback(srv, TORIRSSERVER_FALLBACK_IF_BUTTON,
                                   ToriRSServer_ScriptsRunIfButton(srv, uid, 0)) )
@@ -10613,6 +10687,8 @@ handle_if_button(
     /* The world map's close buttons carry no cache op, so a click on the
      * red X arrives here rather than as IF_BUTTON1. */
     if( ToriRSServer_WorldMapHandleButton(srv, uid, 1) )
+        return;
+    if( if_button_refused_while_delayed(srv, uid, "IF_BUTTON") )
         return;
 
     /* Content bound to the component wins. The bank's router is what is left,
@@ -10729,6 +10805,8 @@ handle_if_button_op(
     }
     if( ToriRSServer_ScriptsResumeButton(srv, uid) )
         return;
+    if( if_button_refused_while_delayed(srv, uid, "IF_BUTTONN") )
+        return;
     /*
      * The component uid is the trigger's subject; an interface button has
      * neither a category nor an npc. `sub` reaches content through last_slot,
@@ -10793,6 +10871,17 @@ handle_if_buttonx_packet(
      * selects content's [inv_buttonN,wornitems:slotN] binding. Routing only
      * the sentinel variant made the C client's item-backed leaf click fall
      * through as IF_BUTTONN, where no Remove binding exists. */
+    /* A worn slot's op and a backpack cell's op are rev 239's INV_BUTTON and
+     * OPHELD, which LostCity refuses outright while delayed
+     * (InvButtonHandler.ts:14, OpHeldHandler.ts:16): an unequip inside another
+     * script's p_delay used to run. A plain widget op goes on to
+     * handle_if_button_op, whose content dispatch asks the same question. */
+    if( (ToriRSServer_EquipmentWornSlot(button.component_id) >= 0 ||
+         button.component_id == ToriRSServer_Ids()->com_inventory_items) &&
+        if_button_refused_while_delayed(srv, button.component_id,
+                                        has_subop ? "IF_SUBOP" : "IF_BUTTONX") )
+        return;
+
     if( ToriRSServer_EquipmentWornSlot(button.component_id) >= 0 )
     {
         handle_worn_inv_button(srv, button.component_id, button.op);
@@ -12048,6 +12137,46 @@ player_stun_blocks_packet(int name)
 }
 
 /*
+ * The packets a DELAYED player's client may not act with (see
+ * `player_delayed`): the held-item and inventory-button families, whose
+ * handlers start a script on the spot.
+ *
+ * LostCity refuses these outright while delayed (OpHeldHandler.ts:16,
+ * OpHeldTHandler.ts:16, OpHeldUHandler.ts:16, InvButtonHandler.ts:14,
+ * InvButtonDHandler.ts:40), and so does this.
+ *
+ * The WORLD ops (OPNPC/OPLOC/OPOBJ/OPPLAYER and their T/U forms) and the
+ * move clicks are a stated divergence. The reference refuses them too (the
+ * same `if (player.delayed)` opening in each handler, and World.ts:618-623);
+ * here they are accepted and the op only LATCHES the interaction, which
+ * `player_delayed` then keeps from firing until the delay is over
+ * (`ToriRSServer_WorldProcessInteraction`, `phase_player`). What the
+ * reference's refusal protects -- no trigger starting on top of a parked
+ * script -- holds either way; refusing as well broke committed quest tests
+ * that press a loc while the door they just walked through is still in its
+ * p_delay (desertrescue useAnvil, seam24 build/quest_gate/desertrescue), and
+ * content here walks during a p_delay on purpose (home_teleport.rs2's
+ * cancel-by-walk: "p_delay does not stop movement in this engine").
+ *
+ * Before any of this an OPNPC1 clicked beside Al Shabim while
+ * [proc,mercenary_attack] sat in its p_delay ran [opnpc1,al_shabim] at once
+ * from the handler; its first ~chatnpc then lost the one-parked-script race
+ * ("dropping [proc,chatnpc_anim], which suspended while
+ * [proc,mercenary_attack] waits") and left 'Hello Effendi!' mounted with
+ * nothing to resume it (seam23, desertrescue).
+ *
+ * The interface family is not here: rev 239 carries world, inventory and
+ * plain widget ops in the same IF_BUTTONX, so those are asked at the point
+ * each would start a script (`if_button_refused_while_delayed`).
+ */
+static int
+player_delayed_blocks_packet(int name)
+{
+    return (name >= PKTOUT_NAME_OPHELD1 && name <= PKTOUT_NAME_OPHELDU) ||
+           (name >= PKTOUT_NAME_INV_BUTTON1 && name <= PKTOUT_NAME_INV_BUTTOND);
+}
+
+/*
  * The routing table. Adding a packet is a line here plus a handler; nothing
  * else in the file has to change, which is the whole point of it being a table.
  */
@@ -12186,6 +12315,16 @@ ToriRSServer_WorldHandle(
         if( srv->verbose )
             fprintf(stderr, "torirsserver: <- player packet name %d dropped while stunned (%d)\n",
                     name, player->stun_ticks);
+        return;
+    }
+
+    if( player_delayed_blocks_packet(name) && player_delayed(srv, player) )
+    {
+        if( srv->verbose )
+            fprintf(stderr,
+                    "torirsserver: <- player packet name %d refused: player is delayed "
+                    "(p_delay until tick %d)\n",
+                    name, player->delayed_until);
         return;
     }
 
@@ -14633,6 +14772,7 @@ phase_player(struct ToriRSServerPlayer* player)
     struct ToriRSServer* srv = player->world;
     int bd_on = tick_bd_on();
     uint64_t bd_t = bd_on ? tick_bd_now_us() : 0;
+    int delayed;
 
     ToriRSServer_WorldSetActive(srv, player);
 
@@ -14714,9 +14854,21 @@ phase_player(struct ToriRSServerPlayer* player)
      * adjacent this tick before a stale walk carries the player past them;
      * last-waypoint full repath aims the step at where they are now.
      */
+    /*
+     * Both tries are gated on the delayed half of `canAccess()`
+     * (Player.ts:1257 and :1289): an interaction latched before a queue or a
+     * timer p_delayed the player waits the delay out -- still walking -- and
+     * fires once it is over. Without the gate the npc's [opnpc1] started on
+     * top of the parked script and the one-parked-script rule dropped
+     * whichever suspended second, dialogue page and all. The post-move
+     * give-up is inside the same gate in the reference, so a delayed player
+     * standing still does not lose the target to "I can't reach that!".
+     * (The modal half of canAccess is not ported here.)
+     */
+    delayed = player_delayed(srv, player);
     if( player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
     {
-        if( !interaction_try(srv, 0) )
+        if( delayed || !interaction_try(srv, 0) )
             interaction_path_to_pathing_target(srv);
     }
     PP_MARK(bd_on, bd_t, PP_INTERACT_PRE);
@@ -14732,7 +14884,7 @@ phase_player(struct ToriRSServerPlayer* player)
     PP_MARK(bd_on, bd_t, PP_ADVANCE);
     player_process_locstep(srv);
 
-    if( player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
+    if( !delayed && player->interaction.kind != TORIRSSERVER_INTERACT_NONE )
     {
         if( !interaction_try(srv, player->steps_taken == 0) )
             interaction_continue_or_give_up(srv);

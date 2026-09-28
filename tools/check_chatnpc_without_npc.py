@@ -27,7 +27,7 @@ The fix for a hit is one of:
   - ~mesbox, when the game shows the line with no speaker (Asleif's spirit).
 
 Exit status: 0 always unless --strict, then 1 when any hit is not listed in
-KNOWN_OPEN (the hits seam23 found in files it did not own). --all-strict fails
+KNOWN_OPEN (empty since seam24, so any hit fails). --all-strict fails
 on any hit. [debugproc] entries are skipped unless --debugproc.
 
   python3 tools/check_chatnpc_without_npc.py [--strict|--all-strict] [--brief]
@@ -46,20 +46,14 @@ DEFAULT_CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content", "server"
 # reached through the walk; naming both keeps the chain short in the report.
 TARGET_PROCS = {"chatnpc", "chatnpc_anim"}
 
-# Known open hits, found by the seam23 sweep, each in a file another worker
-# owned during that pass. --strict does not fail on these; it fails on any NEW
-# hit, and names an entry here that no longer hits so it can be deleted.
+# Known open hits a pass could not fix in files another worker owned. --strict
+# does not fail on these; it fails on any NEW hit, and names an entry here that
+# no longer hits so it can be deleted. Keep it empty.
 KNOWN_OPEN = {
-    "[oploc1,ogre_bedman_loc]": "Zogre Flesh Eaters: Sithik in his bed is a loc; zogre_finish.rs2 [proc,zfe_sithik_man_talk]",
-    "[oplocu,ogre_bedman_loc]": "Zogre Flesh Eaters: zogre_finish.rs2 item-on-Sithik branch",
-    "[oploc1,ogre_bedogre_loc]": "Zogre Flesh Eaters: zogre_finish.rs2 [proc,zfe_sithik_ogre_talk]",
-    "[oploc1,sithiks_cupboard]": "Zogre Flesh Eaters: Sithik talks while you search his cupboard (zogre_finish.rs2)",
-    "[oploc1,sithiks_drawers]": "Zogre Flesh Eaters: Sithik talks while you search his drawers (zogre_finish.rs2)",
-    "[oploc1,sithiks_wardrobe]": "Zogre Flesh Eaters: Sithik talks while you search his wardrobe (zogre_finish.rs2)",
-    "[oploc1,pog_spirit_tree_multi]": "Path of Glouphrie: pog_longramble.rs2:90 spirit tree line",
-    "[oploc1,viking_warrior_ladder_down]": "Fremennik Trials: viking_thorvald.rs2:44 Thorvald from the ladder",
-    "[oploc1,tob_male_orator]": "Theatre of Blood: tob.rs2:34 orator loc",
-    "[oploc3,fossil_mermaid_driftnets]": "Drift net fishing: drift_net_fishing.rs2:273 Annette from the nets",
+    # Emptied by seam24: the ten seam23 hits (Zogre Flesh Eaters' Sithik x6, Path
+    # of Glouphrie's spirit tree, Fremennik Trials' ladder, Theatre of Blood's
+    # orator, drift net Annette) now name their speaker with
+    # ~chatnpc_specific(_anim). Any hit is NEW and fails --strict.
 }
 
 NPC_BOUND_TRIGGER = re.compile(r"^(opnpc[0-9ut]|apnpc[0-9ut]|ai_[a-z0-9_]+)$")

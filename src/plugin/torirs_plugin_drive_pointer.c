@@ -361,7 +361,27 @@ drive_pointer_screen_position_loc(struct App* app, int id, int* out_x, int* out_
         size_z = loc->size_z > 0 ? loc->size_z : 1;
         fine_x = loc->grid_position.x * 128 + size_x * 64;
         fine_z = loc->grid_position.z * 128 + size_z * 64;
-        if( !drive_pointer_project_ground(app, fine_x, fine_z, loc->grid_position.level, 0, &x, &y) )
+        /*
+         * SEAM bridge_deck_loc_hittest (seam23): the ground under a loc is the
+         * height the SCENE drew it at, heightmap[cache level]
+         * (world_scenery.u.c scenery_element_position_init). World_HeightAt
+         * takes a WIRE level and samples one plane up on a LINK_BELOW column,
+         * so handing it the pool's cache level projected a bridge-deck loc
+         * (cache 1) at heightmap[2]: The Tourist Trap's clifftop climbs, at
+         * 382,99 with 45 of 54 hunt pixels off the top of the viewport
+         * (build/quest_gate/parity_desertrescue_d4, s23b_base1). Cache ->
+         * wire first; a non-bridge column is unchanged.
+         */
+        if( !drive_pointer_project_ground(
+                app,
+                fine_x,
+                fine_z,
+                World_TerrainWalkLevel(
+                    app->world, loc->grid_position.x, loc->grid_position.z,
+                    loc->grid_position.level),
+                0,
+                &x,
+                &y) )
             continue;
         if( !drive_pointer_in_viewport(app, x, y) )
             continue;

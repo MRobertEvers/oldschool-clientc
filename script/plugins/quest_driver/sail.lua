@@ -94,6 +94,51 @@ function QD.sail._await(predicate, ticks, note)
     return result, last
 end
 
+-- EVERY PRESS HERE TAKES ITS OWN CAMERA POSE (seam24
+-- bridge_deck_projection_with_sail_camera).  board, helm and _press_heading
+-- used to press from whatever pose the previous verb left: board inherited
+-- the last click_loc's framing, helm and the heading ring inherited board's.
+-- So a change to how click_loc frames a loc (seam23's bridge-deck
+-- projection, drive_pointer_screen_position_loc) moved the pose board left,
+-- the hull then filled the heading ring, and currentaffairs' sail.leg2 found
+-- no 'Set heading' row for 60 ticks and ran aground
+-- (build/seam_state/seam23/close.progress.md).  The heading row's compass
+-- point is measured from the HULL's centre, where the pointer ray meets the
+-- boat's plane (app_wev.c app_sailing_heading_at), so a ring centred on the
+-- player reaches every heading only when the hull's centre is drawn well
+-- inside it: a steep, distant pose.  So board, helm, _press_heading and
+-- disembark each write the pose they press from (a ROOT npc a deck-row
+-- hunt names is framed by _frame_beside); the camera is written, and one
+-- frame waited so the eye is rebuilt before a pick reads it, only when the
+-- live pose differs.  _press_deck_row itself keeps the caller's pose.
+QD.sail._poses = {
+    board = { pitch = 300, zoom = 600 },
+    deck = { pitch = 300, zoom = 600 },
+    heading = { pitch = 383, zoom = 1000 },
+    -- A ROOT-world target several tiles off the hull (the dock's gangplank,
+    -- a duck stopped on the current), framed by _frame_beside.
+    reach = { pitch = 383, zoom = 1400 },
+}
+
+-- Put the camera at the named pose.  `yaw` nil keeps the live yaw: the ring
+-- and the deck spiral cover every bearing, so only pitch and distance decide
+-- what they reach.  Answers a detail naming the pose, for the verb's row.
+function QD.sail._take_pose(name, yaw)
+    local want = QD.sail._poses[name]
+    local pose_result, pose = QD.drive._camera_pose()
+    if pose_result ~= "ok" or type(pose) ~= "table" then
+        return "pose " .. name .. " unread (" .. tostring(pose_result) .. ")"
+    end
+    local target_yaw = yaw or pose.yaw
+    if pose.yaw == target_yaw and pose.pitch == want.pitch and pose.zoom == want.zoom then
+        return string.format("pose %s yaw %d pitch %d zoom %d (held)", name, target_yaw,
+            want.pitch, want.zoom)
+    end
+    QD.drive.camera(target_yaw, want.pitch, want.zoom)
+    QD.sail._frame()
+    return string.format("pose %s yaw %d pitch %d zoom %d", name, target_yaw, want.pitch, want.zoom)
+end
+
 -- Board the hull moored at `gangplank` (a loc symbol such as
 -- "sailing_gangplank_catherby") through its native op (a NUMBER, as
 -- click_loc takes it).  "Board-previous" is
@@ -108,9 +153,21 @@ function QD.sail.board(gangplank, op, ticks)
     if before.aboard then
         return "refused", "sail.board: already aboard -- " .. QD.sail._describe(before)
     end
+    -- Faced from the player toward the plank, so click_loc frames it from
+    -- the same start whatever the previous verb left.
+    local yaw = nil
+    local target = QD.player.by_symbol("loc", gangplank)
+    if target then
+        local tile_result, tx, tz = QD.drive._target_tile(target)
+        local here_result, here = QD.world.tile()
+        if tile_result == "ok" and tx and here_result == "ok" and type(here) == "table" then
+            yaw = QD.drive._yaw_towards(tx - here.x, tz - here.z)
+        end
+    end
+    local aim = QD.sail._take_pose("board", yaw)
     local click_result, click_detail = QD.player.click_loc(gangplank, op or 2)
     if click_result ~= "ok" then
-        return click_result, "sail.board: click " .. tostring(gangplank) .. " "
+        return click_result, "sail.board (" .. aim .. "): click " .. tostring(gangplank) .. " "
             .. "op " .. tostring(op or 2) .. " -> " .. tostring(click_detail)
     end
     local result, reading = QD.sail._await(function(r) return r.aboard end, ticks or 15,
@@ -119,7 +176,7 @@ function QD.sail.board(gangplank, op, ticks)
         return result, "sail.board: clicked " .. tostring(gangplank) .. " but still "
             .. QD.sail._describe(reading) .. " -- last line: " .. tostring(QD.player._last_line())
     end
-    return "ok", "sail.board: " .. QD.sail._describe(reading)
+    return "ok", "sail.board (" .. aim .. "): " .. QD.sail._describe(reading)
 end
 
 -- The viewport points a deck-loc hunt right-clicks, nearest the player's own
@@ -239,13 +296,88 @@ function QD.sail._press_row_at(points, option, name)
         .. " probes; rows seen: " .. table.concat(seen, " | ")
 end
 
--- The deck-loc hunt: a spiral around the viewport centre (the player).
-function QD.sail._press_deck_row(option, name, step, rings)
-    local points = QD.sail._hunt_points(step or 24, rings or 5)
-    if not points then
-        return "not_visible", "no viewport pick point"
+-- The pool row of the npc whose display name is `name` (a ROOT npc beside
+-- the hull, such as a stopped current duck), or nil: a deck loc (the helm,
+-- a cargo hold) has none.
+function QD.sail._npc_named(name)
+    local npc_result, row = QD.npc.by_name(name)
+    if npc_result ~= "ok" or type(row) ~= "table" or row.x == nil then
+        return nil
     end
-    return QD.sail._press_row_at(points, option, name)
+    return row
+end
+
+-- Frame a ROOT-world target beside the hull (kind "npc" or "loc", its type
+-- id, its tile) and answer the pixels around where the client draws it,
+-- plus the pose detail.  The reach pose draws ~19 px a tile around the
+-- player at ~382,251, and the open world between the side panel, the chat
+-- box and the canvas edge runs ~380 px to his left but only ~250 above and
+-- ~140 right of him.  So a target eight tiles off, framed straight ahead,
+-- sits past the top edge's margin (measured 2026-09-28, s24b_ca_dbg2: the
+-- stopped current duck at 355,15), and framed to the right it is drawn
+-- under the side panel (s24b_ca_dbg4: 684,225).  This tries both side yaws
+-- and straight ahead, and keeps the first pose whose projection answers ok
+-- on open world (api_drive.screen_position reads the drawn position, which
+-- holds aboard; only click_loc's framing, aimed from the rider's deck
+-- tile, does not).
+function QD.sail._frame_beside(kind, id, tx, tz, label)
+    local state_result, reading = QD.sail.state()
+    if state_result ~= "ok" or not reading.aboard then
+        return {}, "not aboard"
+    end
+    local face = QD.drive._yaw_towards(tx - reading.hull_x, tz - reading.hull_z)
+    if not face then
+        return {}, "target on the hull's own tile"
+    end
+    local where = string.format("%s at %d,%d from hull %d,%d", label, tx, tz,
+        reading.hull_x, reading.hull_z)
+    local yaws = { (face + 512) % 2048, (face + 1536) % 2048, face }
+    local aim = ""
+    for i = 1, #yaws do
+        aim = QD.sail._take_pose("reach", yaws[i])
+        -- The eye is rebuilt by the follow step of the frame after the
+        -- write; a held pose needs no wait.
+        QD.sail._frame()
+        local result, pos = api_drive.screen_position(kind, id)
+        if result == "ok" and type(pos) == "table" and not QD.drive._under_ui(pos) then
+            local out = {}
+            local offsets = { { 0, 0 }, { 0, -4 }, { 0, 4 }, { -4, 0 }, { 4, 0 }, { 0, -8 },
+                { -4, -4 }, { 4, -4 }, { 0, 8 } }
+            for k = 1, #offsets do
+                out[#out + 1] = { x = pos.x + offsets[k][1], y = pos.y + offsets[k][2] }
+            end
+            return out, aim .. " framing " .. where .. string.format(" drawn at %d,%d", pos.x, pos.y)
+        end
+    end
+    return {}, aim .. " framing " .. where .. " (no pose drew it)"
+end
+
+-- The deck-row hunt: a spiral around the viewport centre (the player),
+-- from the CALLER's pose -- a quest that aims the camera at a sea crate or a
+-- troll's drop before this (pryingtimes testKey, killTheTroll.take) keeps
+-- its aim, and helm takes the deck pose itself.  A ROOT npc beside the hull
+-- (a stopped current duck) is the exception: it is framed by _frame_beside
+-- and pressed at its projected pixels first, because no one pose reaches it
+-- wherever the hull stopped (currentaffairs collectDuck).
+function QD.sail._press_deck_row(option, name, step, rings)
+    local npc_row = QD.sail._npc_named(name)
+    local aim
+    local points
+    if npc_row then
+        points, aim = QD.sail._frame_beside("npc", npc_row.npc_id, npc_row.x, npc_row.z, name)
+    else
+        aim = "caller's pose"
+        points = {}
+    end
+    local spiral = QD.sail._hunt_points(step or 24, rings or 5)
+    if not spiral then
+        return "not_visible", "no viewport pick point (" .. aim .. ")"
+    end
+    for i = 1, #spiral do
+        points[#points + 1] = spiral[i]
+    end
+    local result, detail = QD.sail._press_row_at(points, option, name)
+    return result, tostring(detail) .. " (" .. aim .. ")"
 end
 
 -- Take the helm: the deck's Helm loc, op "Navigate" (configs/all.loc
@@ -262,10 +394,12 @@ function QD.sail.helm(name, ticks)
     if before.at_helm then
         return "ok", "sail.helm: already at the helm -- " .. QD.sail._describe(before)
     end
+    local aim = QD.sail._take_pose("deck")
     local press_result, press_detail = QD.sail._press_deck_row("Navigate", name or "Helm")
     if press_result ~= "ok" then
-        return press_result, "sail.helm: " .. tostring(press_detail)
+        return press_result, "sail.helm (" .. aim .. "): " .. tostring(press_detail)
     end
+    press_detail = press_detail .. " [" .. aim .. "]"
     local result, reading = QD.sail._await(function(r) return r.at_helm end, ticks or 15,
         "sail.helm")
     if result ~= "ok" then
@@ -346,6 +480,7 @@ end
 QD.sail._heading_radius = 110
 
 function QD.sail._press_heading(heading)
+    local aim = QD.sail._take_pose("heading")
     local pick_result, point = api_drive.pick_point()
     if pick_result ~= "ok" or type(point) ~= "table" or (point.view_w or 0) <= 0 then
         return "not_visible", "no viewport pick point"
@@ -396,8 +531,8 @@ function QD.sail._press_heading(heading)
             end
         end
     end
-    return "not_found", "no 'Set heading' row for heading " .. heading .. " on the ring; headings seen: "
-        .. table.concat(seen, ",")
+    return "not_found", "no 'Set heading' row for heading " .. heading .. " on the ring (" .. aim
+        .. "); headings seen: " .. table.concat(seen, ",")
 end
 
 -- Sail the HULL to within `radius` tiles (Chebyshev) of x,z: at the helm with
@@ -501,34 +636,32 @@ function QD.sail.disembark(gangplank, ticks)
         return sym_result, "sail.disembark: " .. tostring(sym_name)
     end
     local tile_result, tx, tz = QD.drive._target_tile(target)
-    local aim = "camera left as it was"
-    if tile_result == "ok" and tx then
-        local yaw = QD.drive._yaw_towards(tx - before.hull_x, tz - before.hull_z)
-        if yaw then
-            local pitch, zoom = 300, 600
-            local pose_result, pose = QD.drive._camera_pose()
-            if pose_result == "ok" and type(pose) == "table" and pose.zoom then
-                zoom = pose.zoom
-            end
-            QD.drive.camera(yaw, pitch, zoom)
-            QD.sail._frame()
-            aim = string.format("camera yaw %d toward %d,%d from hull %d,%d", yaw, tx, tz,
-                before.hull_x, before.hull_z)
-        end
-    end
     -- Off the helm first: at the helm a click is a steering order
     -- (torirs_server_world.c handle_move), and the Navigate op toggles
     -- (~sailing_op_helm: "You step away from the helm").
     if before.at_helm then
+        QD.sail._take_pose("deck")
         local off_result, off_detail = QD.sail._press_deck_row("Navigate", "Helm")
         if off_result ~= "ok" then
             return off_result, "sail.disembark: stepping off the helm: " .. tostring(off_detail)
         end
         QD.sail._await(function(r) return not r.at_helm end, 5, "sail.disembark off helm")
     end
-    local points = QD.sail._ahead_points(16, 6)
-    if not points then
+    -- The pose is taken AFTER the off-helm press (a deck row, pressed from
+    -- the deck pose): the plank framed beside the hull from the reach pose,
+    -- never the live pose, which is whatever the last verb left (seam24).
+    -- Its projected pixels go first, then a spiral over the whole frame.
+    local points = {}
+    local aim = "plank tile unread (" .. tostring(tile_result) .. "); camera left as it was"
+    if tile_result == "ok" and tx then
+        points, aim = QD.sail._frame_beside("loc", target.id, tx, tz, gangplank)
+    end
+    local spiral = QD.sail._hunt_points(16, 12)
+    if not spiral then
         return "not_visible", "sail.disembark: no viewport pick point"
+    end
+    for i = 1, #spiral do
+        points[#points + 1] = spiral[i]
     end
     local press_result, press_detail = QD.sail._press_row_at(points, "Disembark", "Gangplank")
     if press_result ~= "ok" then
@@ -540,8 +673,28 @@ function QD.sail.disembark(gangplank, ticks)
         return result, "sail.disembark: pressed " .. press_detail .. " but " .. QD.sail._describe(reading)
             .. " -- last line: " .. tostring(QD.player._last_line())
     end
+    -- "Ashore" is the SERVER's word first; the client lands the rider off
+    -- the deck instance and rebuilds its scene after it.  Answer once the
+    -- client stands on the server's ashore tile with its scene settled, so
+    -- the caller's next verb reads the shore, not the deck.  seam24: once
+    -- the plank was pressed on its first probe, a disembark that answered
+    -- on the server's reading alone handed currentaffairs' next goto_tile a
+    -- pool still holding the dock's two npcs, its settle took them for the
+    -- destination's, and Arhein landed three ticks after talk_to had looked
+    -- (s24b_ca_dbg6; s24b_ca_fix4 FAIL without this wait, s24b_ca_fix5
+    -- 110/110 with it).
+    -- Advisory: the verdict is the server's.
+    local landed = QD.await({
+        level = function()
+            local tile_result, tile = QD.world.tile()
+            return tile_result == "ok" and type(tile) == "table"
+                and tile.x == reading.player_x and tile.z == reading.player_z
+                and api_drive.settled()
+        end,
+        note = "sail.disembark client ashore",
+    }, 10)
     return "ok", "sail.disembark: pressed " .. press_detail .. " (" .. aim .. "); "
-        .. QD.sail._describe(reading)
+        .. QD.sail._describe(reading) .. (landed == "ok" and "" or " (client not settled ashore in 10 ticks)")
 end
 
 -- ---------------------------------------------------------------- port tasks

@@ -53,7 +53,11 @@ CLASSES (first rule that fires wins, in this order).
                declared guide gap, which gate.py accepts); a bare opt-in, or
                a stand-on with no opt-in in the Lua at all, is CHEAT. A
                stand-on no step claims, and an opt-in with no marker beside
-               it, are gate findings of their own.
+               it, are gate findings of their own. A loc crossed more than
+               once (Mountain Daughter's lake rocks) claims each later
+               crossing by that call's own cited marker naming the guide
+               step -- panel or ConditionalStep-only -- on the same loc
+               (Grader.claim_marked_crossings).
   CONTENT_GAP  the content's own soft-skip comment names the step as
                collapsed (mend1_sheep.rs2's `getToads`), even when the test
                drove the stand-in.
@@ -1890,13 +1894,53 @@ class Grader:
         if not self.test.stand_on_optins:
             return None
         name = re.sub(r"-\d+$", "", stood["step"])
+        # The call named after the row first, across every opt-in: a loc
+        # crossed three times has three opt-ins, and the symbol test alone
+        # would hand every repeat the first crossing's call.
         for number, marker in self.test.stand_on_optins:
             window = "\n".join(self.test.raw_lines[max(0, number - 4):number])
-            if ('"%s"' % name) in window or (stood["symbol"] and stood["symbol"] in window):
+            if ('"%s"' % name) in window:
+                return number, marker
+        for number, marker in self.test.stand_on_optins:
+            window = "\n".join(self.test.raw_lines[max(0, number - 4):number])
+            if stood["symbol"] and stood["symbol"] in window:
                 return number, marker
         if len(self.test.stand_on_optins) == 1:
             return self.test.stand_on_optins[0]
         return None
+
+    def claim_marked_crossings(self):
+        """A loc the quest's own stage gates make the player cross more than
+        once (Mountain Daughter's pole-vault and plank rocks to the lake
+        island, three trips) leaves a stand-on row per crossing, and
+        stand_on() hands a graded step only the first. Every other crossing
+        is claimed here, by its OWN call's evidence and nothing looser: the
+        row's `stand_on_square = true` call (stand_on_optin_for, named after
+        the row) carries a `-- GUIDE-GAP:` marker whose citation resolves,
+        and that marker names a step the guide DEFINES -- a panel step or a
+        ConditionalStep-only one such as plankRocksReturn -- one of whose loc
+        targets is the loc the row stood on. A repeat under a bare opt-in, a
+        marker naming no guide step or another loc, or no opt-in at all stays
+        an unclaimed stand-on (a gate finding). Returns
+        [{row, step, symbol, tile, marker_line, marker_step, cite, optin_line}]."""
+        claimed = []
+        for found in self.stand_ons:
+            if found["row"] in self.claimed_stand_ons:
+                continue
+            optin = self.stand_on_optin_for(found)
+            if optin is None or optin[1] is None:
+                continue
+            number, (marker_line, marker_step, _, cite) = optin
+            guide_step = self.guide.steps.get(marker_step)
+            if guide_step is None:
+                continue
+            if not any(kind == "loc" and same_thing("loc", symbol, found["symbol"])
+                       for kind, symbol in guide_step.targets):
+                continue
+            self.claimed_stand_ons.add(found["row"])
+            claimed.append(dict(found, marker_line=marker_line, marker_step=marker_step,
+                                cite=cite, optin_line=number))
+        return claimed
 
     def is_travel(self, step):
         lowered = (step.text + " " + " ".join(s for _, s in step.targets)).lower()
@@ -2240,6 +2284,7 @@ class Grader:
 
     def report(self):
         results = self.grade()
+        marked_crossings = self.claim_marked_crossings()
         counts = {}
         for result in results:
             counts[result["class"]] = counts.get(result["class"], 0) + 1
@@ -2280,6 +2325,10 @@ class Grader:
             # A reach-retry ::goto stand-on no guide step claimed is still a
             # leg nobody walked: gate_findings reports it.
             "unclaimed_stand_ons": [f for f in self.stand_ons if f["row"] not in self.claimed_stand_ons],
+            # The other crossings of a loc crossed more than once, each
+            # claimed by its own call's cited GUIDE-GAP marker naming the
+            # guide step on that loc (claim_marked_crossings).
+            "marked_crossings": marked_crossings,
             # A `stand_on_square = true` with no GUIDE-GAP marker beside it is
             # a finding whether or not this run's retry ever used it.
             "bare_stand_on_optins": [number for number, marker in self.test.stand_on_optins if marker is None],
@@ -2361,6 +2410,11 @@ def print_report(report):
     for found in report["unclaimed_stand_ons"]:
         print("  unclaimed stand-on: ledger row %s %r stood on %s with ::goto (%s)" % (
             found["row"], found["step"], found["tile"], found["symbol"]))
+    for found in report.get("marked_crossings", []):
+        print("  declared crossing: ledger row %s %r stood on %s with ::goto (%s) -- GUIDE-GAP marker line %d "
+              "(%s, cites %s) above stand_on_square opt-in at line %d" % (
+                  found["row"], found["step"], found["tile"], found["symbol"], found["marker_line"],
+                  found["marker_step"], found["cite"], found["optin_line"]))
     for site in report["content_sites"]:
         print("  content gap at %s (%d step%s, first %s): %s" % (
             site["site"], len(site["steps"]), "" if len(site["steps"]) == 1 else "s",

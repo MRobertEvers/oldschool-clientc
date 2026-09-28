@@ -3679,22 +3679,51 @@ function QD.player.equip(item)
     if before_result ~= "ok" then
         return before_result, "worn count"
     end
-    local dispatch_result, detail = QD.player._inv_dispatch(item, 2, "equip")
-    if dispatch_result ~= "ok" then
-        return dispatch_result, detail
+    -- Up to three presses, as a person clicks again when nothing happened.
+    -- Since seam24 the server refuses a held-item op outright while another
+    -- script of the player's sits in its p_delay (LostCity `player.delayed`,
+    -- OpHeldHandler.ts:16; torirs_server_world.c player_delayed), silently,
+    -- with nothing on screen: Spirits of the Elid's robe top, pressed on the
+    -- tick Telekinetic Grab's closing p_delay(1) still held the player
+    -- (telegrab.rs2:51), stayed in the backpack (seam24 closer,
+    -- build/quest_gate/spiritsoftheelid row 23).  A press is repeated only
+    -- while the item is still in the backpack and still not worn.
+    local presses = 0
+    local worn = "timeout"
+    while presses < 3 do
+        local dispatch_result, detail = QD.player._inv_dispatch(item, 2, "equip")
+        if dispatch_result ~= "ok" then
+            -- A slow first press can land between the check below and this
+            -- re-press, taking the item out of the backpack under it.
+            local late_result, late = api_drive.inv_count(worn_id, obj_id)
+            if presses > 0 and late_result == "ok" and late > before then
+                worn = "ok"
+                break
+            end
+            return dispatch_result, detail
+        end
+        presses = presses + 1
+        worn = QD.await({
+            level = function()
+                local count_result, total = api_drive.inv_count(worn_id, obj_id)
+                return count_result == "ok" and total > before
+            end,
+            note = "equip " .. item,
+        }, presses == 3 and 10 or 4)
+        if worn == "ok" then
+            break
+        end
+        local held_result, held = QD.inv.count(item)
+        if held_result ~= "ok" or (held or 0) <= 0 then
+            break
+        end
     end
-    local worn = QD.await({
-        level = function()
-            local count_result, total = api_drive.inv_count(worn_id, obj_id)
-            return count_result == "ok" and total > before
-        end,
-        note = "equip " .. item,
-    }, 10)
     if worn == "ok" then
         return "ok", "equip " .. item .. ": worn " .. tostring(before) .. " -> more"
+            .. (presses > 1 and (" (press " .. presses .. ")") or "")
     end
     return "refused", "equip " .. item .. ": worn stayed " .. tostring(before)
-        .. " -- '" .. QD.player._last_line() .. "'"
+        .. " after " .. presses .. " press(es) -- '" .. QD.player._last_line() .. "'"
 end
 
 -- DROPPED means the backpack lost it AND a stack of it is on the ground where

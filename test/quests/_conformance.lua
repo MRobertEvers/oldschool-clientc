@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 131 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 132 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 131
+-- @verb-count 132
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 36
+-- @seam-count 37
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 131
-local SEAM_COUNT = 36
+local VERB_COUNT = 132
+local SEAM_COUNT = 37
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5794,11 +5794,17 @@ return {
         -- Trap's cell door key, build/quest_gate/s23b_base1).  use_on now
         -- waits for the backpack to PAINT and _arm_held retries a refusal
         -- (seam23, s23b_rows_fix2 3/3).  Graded on the verb's own word: the
-        -- arming refusal is exactly what the old code answered.
+        -- arming refusal is exactly what the old code answered.  The subject
+        -- is a Hans SPAWNED beside the player: the castle's own Hans wanders
+        -- (seam21, LostCity wander), and a shift in the world's random stream
+        -- walked him out of the client's pool (seam24 closer: 'no npc 3105
+        -- (hans) in the client's entity pool' on HEAD C and HEAD Lua alike,
+        -- after which the armed pot turned the next row's drop into a use).
         stage(function()
             setup_cheat("::tele lumbridge")
             setup_cheat("::give bronze_scimitar")
             setup_cheat("::give pot_empty")
+            setup_cheat("::spawn hans")
             settle(3)
         end)
         seam("seam.use_on_after_unequip", function()
@@ -5983,6 +5989,121 @@ return {
                 return "hollow", "cast answered ok but no orb was charged -- " .. text
             end
             return "ok", text
+        end)
+
+        -- ONE GAME OF RUNE-DRAW, played for real (seam24 rune_draw_strategy).
+        -- Ghosts Ahoy's bow branch is stated by cheats -- the quest at
+        -- gathering_items, Ak-Haranu's bow handed over -- and Robin is asked
+        -- for a game.  game.runedraw plays it from his options page to the
+        -- settlement, every Draw/Hold from the pages it read.  Graded against
+        -- the server: a win must move ahoy_robin_debt 0 -> 25, a loss must
+        -- cost the 25-coin stake (he owes nothing yet), a level game neither.
+        stage(function()
+            setup_cheat("::ghostsahoy")
+            setup_cheat("::give oak_longbow 1")
+            setup_cheat("::give coins 100")
+            setup_cheat("::setvar ahoy_questvar 4")
+            setup_cheat("::setvar ahoy_subquest_bow 1")
+            settle(2)
+        end)
+        step("game.runedraw", function()
+            local fn = verb("game", "runedraw")
+            local goto_tile = verb("player", "goto_tile")
+            local talk_to = verb("player", "talk_to")
+            local count = verb("inv", "count")
+            local read_content = t.quest and t.quest._read_content
+            if not fn then return missing("game", "runedraw") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not talk_to then return missing("player", "talk_to") end
+            if not count then return missing("inv", "count") end
+            if type(read_content) ~= "function" then return missing("quest", "_read_content") end
+            local goto_result, goto_detail = goto_tile(3672, 3491, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto Robin's pub -> " .. describe(goto_result) .. " " .. describe(goto_detail)
+            end
+            local talk_result, talk_detail = talk_to("ahoy_robin", 1)
+            if talk_result ~= "ok" then
+                return "no_subject", "talk_to ahoy_robin -> " .. describe(talk_result) .. " " .. describe(talk_detail)
+            end
+            local _, coins_before = count("coins")
+            local result, game = fn()
+            if result ~= "ok" then
+                return result, describe(game)
+            end
+            settle(1)
+            local _, coins_after = count("coins")
+            local debt_result, debt = read_content("ahoy_robin_debt")
+            local text = describe(game.text) .. "; ahoy_robin_debt " .. describe(debt_result) .. " "
+                .. describe(debt) .. ", coins " .. describe(coins_before) .. " -> " .. describe(coins_after)
+            local want_debt, want_coins = 0, coins_before
+            if game.outcome == "won" then
+                want_debt = 25
+            elseif game.outcome == "lost" then
+                want_coins = (coins_before or 0) - 25
+            end
+            if debt_result ~= "ok" or debt ~= want_debt or coins_after ~= want_coins or game.draws < 1 then
+                return "hollow", "the settlement the verb read is not the server's -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A LOC ON A LINK_BELOW BRIDGE-DECK COLUMN, pressed first try.  The
+        -- Tourist Trap's clifftop climbs sit at cache level 1 over a bridged
+        -- column; drive_pointer_screen_position_loc handed that cache level to
+        -- World_HeightAt, which reads a WIRE level, so the hunt projected the
+        -- loc one plane up (382,99, 45 of 54 pixels off the viewport top:
+        -- build/quest_gate/parity_desertrescue_d4).  It projects at
+        -- World_TerrainWalkLevel now (seam23 landed it, seam24 re-landed it
+        -- beside the sail poses; s24b_rows_fix 8/8, desertrescue leg_d 10/10).
+        -- Graded on where the player ends up, not on click_loc's word: the
+        -- climbs are stateless oploc1s (quest_desertrescue.rs2:205-208).
+        stage(function()
+            setup_cheat("::setlevel agility 99")
+            settle(2)
+        end)
+        seam("seam.bridge_deck_loc_press", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local tile_of = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not tile_of then return missing("world", "tile") end
+            local goto_result, goto_detail = goto_tile(3280, 3037, 0)
+            if goto_result ~= "ok" then
+                return "no_subject", "goto the clifftop foot -> " .. describe(goto_result) .. " "
+                    .. describe(goto_detail)
+            end
+            settle(2)
+            local function wait_x(test)
+                for _ = 1, 8 do
+                    local read, tile = tile_of()
+                    if read == "ok" and is_table(tile) and test(tile.x) then
+                        return tile
+                    end
+                    settle(1)
+                end
+                return nil
+            end
+            local up_result, up_detail = click_loc("tourtrap_qip_clifftop_climbup", 1)
+            local text = "climbup -> " .. describe(up_result) .. " " .. describe(up_detail)
+            if up_result ~= "ok" then
+                return up_result, text
+            end
+            local top = wait_x(function(x) return x >= 3273 and x <= 3278 end)
+            if not top then
+                return "hollow", "climbup answered ok but the player never reached the second cliff -- " .. text
+            end
+            local down_result, down_detail = click_loc("tourtrap_qip_clifftop_climbdown", 1)
+            text = text .. "; on the cliff at " .. top.x .. "," .. top.z .. "; climbdown -> "
+                .. describe(down_result) .. " " .. describe(down_detail)
+            if down_result ~= "ok" then
+                return down_result, text
+            end
+            local below = wait_x(function(x) return x < 3273 end)
+            if not below then
+                return "hollow", "climbdown answered ok but the player is still on the cliff -- " .. text
+            end
+            return "ok", text .. "; below at " .. below.x .. "," .. below.z
         end)
 
         stage(function()
