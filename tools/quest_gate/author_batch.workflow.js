@@ -29,7 +29,7 @@ export const meta = {
 const WT = '/Users/matthewevers/Documents/git_repos/3draster'
 const batch = args && args.batch
 const tests = (args && args.tests) || []
-const authorModel = 'claude-sonnet-5-5'
+const authorModel = (args && args.author_model) || 'claude-sonnet-5-5'
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
 if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
