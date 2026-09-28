@@ -157,7 +157,7 @@ quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
 quest_soulsbane	soulsbane	asoulsbane		4	todo		
-quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	green	sonnet-b27	
+quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	todo	sonnet-b27	REVERTED by sampler (sonnet-b27): the guide's telegrabKey step was not driven -- goto_tile 3432,2929 beside the wooden table and a hand Take of elid_key; the ::given airrune/lawrune are never cast (still in the pack on the completion scroll, shot 116) although the content's own line says 'You should Telekinetic Grab the ancestral key'. Cast Telekinetic Grab (magic_spellbook:telegrab on the ground obj) from where the guide stands. Rest of the ladder (golems by weakness, channels, genie, 8000 Prayer/1000 Thieving/1000 Magic, journal-branch content bug routed by unequip) was sound.
 quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, batch haiku-b2): the author never returned a report; its file 'fixed' the sampler's cheated-hand-in finding by adding MORE cheats -- ::setvar squire 3/4/5 for the pie, Thurgo and portrait stages and ::give knights_portrait -- so every quest objective after the accept was cheated. Drive the Squire/Reldo/Thurgo/Vyvin/mining steps through clicks; ::give only for redberry_pie and the two iron bars.
 quest_swansong	swansong	swansong		4	todo		
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
@@ -178,7 +178,7 @@ quest_troll_love	troll_love	trollromance		3	todo
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
 quest_upass	upass	undergroundpass		3	todo		
-quest_vampire	vampire	vampyreslayer		2	green	sonnet-b27	
+quest_vampire	vampire	vampyreslayer		2	todo	sonnet-b27	REVERTED by sampler (sonnet-b27): ledger row 26 draynor.present is a PASS with an EMPTY detail -- t.check over the hollow t.npc.await_present, which answers no detail; read the npc back (t.npc.nearest slot/coord) and write it into the row (QUEST_AUTHORING rule 12). Also row 33 attack.snapshot detail is a bare 'ok' -- write the snapshot's attack xp. Everything else (routing, dialogue, combat, 4825 Attack XP/3 QP, PNGs) was sound.
 quest_viking	viking	thefremenniktrials		3	todo		
 quest_wanted	wanted	wanted		2	todo		RETRY after b2b3fc229 [seam22]: hunt random positions 2/4/6 ported (Camelot teleport, Flames of Zamorak 111/121 hp never lethal -> wake 2970,3345, summoned Black Knight whose death resolves the stop) and every stop's clue item handed over; spawned shells DO draw (seam21's probe tile was a parapet); scratch build/seam_state/seam22/wanted_events/wanted_events.lua 51/51 is the drive; chat.play has no objbox: entry (use *); open: hat still from Commorb Contact
 quest_waterfall	waterfall	waterfallquest		3	todo		
