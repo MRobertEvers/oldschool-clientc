@@ -85,25 +85,16 @@ return {
 
         -- Read it (opheld1, rs2:10-17) -- two mesbox pages, and the read is
         -- what sets %elemental_workshop_book = 1 that the spine cut needs.
-        -- inv_op's OWN op-1 dispatch ALSO fires this backpack cell's on_op
-        -- flash unconditionally (app_minimenu.c:1241's app_inv_cell_op_flash,
-        -- called for every OPHELD1..5 press) and that hook is the shift-
-        -- click-drop chain for op_index 1 specifically (app_minimenu.c:1176-
-        -- 1182's own comment, confirmed independently by
-        -- test/quests/_conformance.lua's player.inv_op probe) -- so the read
-        -- itself lands (the mesbox pages below are its proof) but the same
-        -- click also drops the book at the player's feet. Pick it back up.
+        -- The read keeps the book (seam pass 20: inv_op's op-1 press no
+        -- longer runs the backpack cell's shift-click-drop chain, see
+        -- src/app/app_minimenu.c's OPHELD flash); gotBookBack below proves
+        -- it is still held for the knife.
         t.exec("readBook", t.player.inv_op, "elemental_workshop_shield_book", 1)
         t.exec("readBook.dismiss", t.chat.drain, {})
-        -- click_obj answers `ok` with a nil detail (QUEST_AUTHORING.md
-        -- section 8's fourth hollow verb) -- called directly, graded by hand.
-        local pickup_result, pickup_detail = t.player.click_obj("elemental_workshop_shield_book", 3)
-        t.check("pickBookBackUp", pickup_result == "ok", "click_obj(elemental_workshop_shield_book,3) -> "
-            .. tostring(pickup_result) .. " " .. tostring(pickup_detail))
         local book2_await_result, book2_await_detail = t.inv.await("elemental_workshop_shield_book", 1, 10)
         local book2_count_result, book2_count = t.inv.count("elemental_workshop_shield_book")
-        t.check("gotBookBack", book2_await_result == "ok",
-            "inv.await(elemental_workshop_shield_book,1) after pickup -> " .. tostring(book2_await_result) .. " " .. tostring(book2_await_detail)
+        t.check("gotBookBack", book2_await_result == "ok" and book2_count == 1,
+            "inv.await(elemental_workshop_shield_book,1) after the read -> " .. tostring(book2_await_result) .. " " .. tostring(book2_await_detail)
                 .. "; count=" .. tostring(book2_count_result == "ok" and book2_count or book2_count_result))
 
         -- Cut the spine with the knife (opheldu, rs2:19-34) -- item-on-item,

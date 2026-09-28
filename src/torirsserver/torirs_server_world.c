@@ -8627,25 +8627,42 @@ ToriRSServer_RunCheatLadder(
          * stat pack keeps game-facing names and ids out of this engine seam.
          * XP is set to the threshold for that level so base survives logout
          * (LostCity setLevel). */
+        /*
+         * A refusal is TRIGGER_FAILED with a message, as `::setvar`'s are.
+         * Before, a misspelt stat (`strenght`), a level outside 1..99 or a
+         * missing level set nothing, said nothing and answered RAN, so a
+         * `t.cheat("::setlevel ...")` inside a quest's run() reported ok and
+         * the fight that followed ran at level 1 (seam19 made only the setup
+         * loop read the stat back; this makes every caller hear it).
+         */
         char stat_arg[64] = { 0 };
         int stat = -1;
-        int level = 1;
+        int level = 0;
+        char* end = NULL;
+        long numeric;
 
-        if( sscanf(text, "setlevel %63s %d", stat_arg, &level) == 2 )
+        if( sscanf(text, "setlevel %63s %d", stat_arg, &level) != 2 )
         {
-            char* end = NULL;
-            long numeric = strtol(stat_arg, &end, 10);
-
-            if( end && end != stat_arg && *end == '\0' )
-                stat = (int)numeric;
-            else
-                stat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, stat_arg);
+            say(srv, "Usage: ::setlevel <stat> <level 1-99>");
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
-        if( stat >= 0 && stat < TORIRSSERVER_STAT_COUNT && level >= 1 && level <= 99 )
+        numeric = strtol(stat_arg, &end, 10);
+        if( end && end != stat_arg && *end == '\0' )
+            stat = (int)numeric;
+        else
+            stat = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, stat_arg);
+        if( stat < 0 || stat >= TORIRSSERVER_STAT_COUNT )
         {
-            ToriRSServer_CombatSetLevel(player, stat, level);
-            say(srv, "Set stat %d to %d.", stat, level);
+            say(srv, "::setlevel: no stat is named '%s'.", stat_arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
+        if( level < 1 || level > 99 )
+        {
+            say(srv, "::setlevel: level %d is outside 1-99.", level);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        ToriRSServer_CombatSetLevel(player, stat, level);
+        say(srv, "Set stat %d to %d.", stat, level);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 

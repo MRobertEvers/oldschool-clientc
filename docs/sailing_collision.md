@@ -38,7 +38,9 @@ The boat maps start blocked and admit verified full ocean tiles; partial
 shoreline overlays remain blocked. Missing terrain and out-of-window queries
 remain blocked. Above-ground empty planes never become ocean.
 
-The terrain pass also blocks walking on full sea tiles. Bridge level handling
+The terrain pass also blocks walking on full sea tiles, except roofed
+(REMOVE_ROOF) ones -- the inside of a structure standing in water, such as the
+Ghosts Ahoy wreck lower hull (seam20); the boat map is unaffected. Bridge level handling
 must preserve a walkable raised pier while retaining the sea beneath it for
 the boat domain. Locs stamp their wall and footprint blockers into each map
 independently. Runtime loc removal restores overlapping loc and terrain flags

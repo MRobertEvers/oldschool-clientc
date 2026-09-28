@@ -1169,10 +1169,24 @@ apply_terrain_column(
         /* Unknown, inland, partial shore and empty upper planes all block
          * boats. Ocean itself blocks walking even where the cache omits BLOCK.
          * Player bridge shifts still apply: water below a raised pier must not
-         * replace the pier's walkable deck with blocked floor. */
+         * replace the pier's walkable deck with blocked floor.
+         *
+         * A ROOFED sea tile is not open ocean: it is the inside of something
+         * standing in the water, and the cache left it walkable on purpose.
+         * The Ghosts Ahoy wreck's lower hull (3613..3621,3542..3544,0: jm2
+         * `o507;0;0 f4`, REMOVE_ROOF and no BLOCK) is flooded floor under a
+         * deck; blocking it walled the player in on the chest square, and the
+         * lobster and both chests answered "I can't reach that!" (seam20
+         * wreck_lower_hull_reach). The reference stamps FLOOR from BLOCK alone
+         * (LostCity GameMap.ts:225); the ocean rule is this port's own, for
+         * open sea that carries no BLOCK, and open sea is never roofed. The
+         * boat domain above is unchanged: a hull still sails the tile. */
+        int ocean_blocks_walk = g_ocean[level][scene_x][scene_z] &&
+                                (settings & RSCACHE_FLOFLAG_REMOVE_ROOF) == 0;
+
         if( level != 0 || !g_ocean[level][scene_x][scene_z] )
             collision_map_add_floor(g_boat_collision[level], scene_x, scene_z);
-        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 || g_ocean[level][scene_x][scene_z] )
+        if( (settings & RSCACHE_FLOFLAG_BLOCK) != 0 || ocean_blocks_walk )
         {
             if( link_below )
                 true_level--;

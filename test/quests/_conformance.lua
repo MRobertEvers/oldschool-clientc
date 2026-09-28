@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 29
+-- @seam-count 30
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 131
-local SEAM_COUNT = 29
+local SEAM_COUNT = 30
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -195,14 +195,16 @@ local OBJ_SYMBOL = "airrune"        -- ::runes puts 25 in the backpack
 -- refused, with the server's own sentence, not as success").
 local WEARABLE_OBJ_SYMBOL = "bronze_platebody"
 local ABSENT_OBJ_SYMBOL = "knife"   -- nothing here puts one in the backpack
--- The held op these rows press, and it is NOT op 1: on rev-239 the backpack's
--- IF3 cell carries a client-side on_op hook at op index 1 that is the
--- shift-click-drop chain, so `inv_op(airrune, 1)` drops the stack whatever op
--- 1 is supposed to mean for the obj.  Op 3 carries no such binding, and --
--- being unbound -- is claimed by no script either, so the world's honest
--- answer to it is the engine's "Nothing interesting happens."  The long form
--- of that measurement is on the player.inv_op row below.
+-- The held op these rows press: op 3, which no script claims, so the world's
+-- honest answer to it is the engine's "Nothing interesting happens."  (Until
+-- seam pass 20 op 1 was also off limits: the client flashed the backpack
+-- cell's on_op hook with the OPHELD index, and index 1 there is rev-239's
+-- shift-click-drop chain, so every op-1 press dropped the stack.  That is
+-- fixed in src/app/app_minimenu.c and guarded by seam.held_op1_keeps_the_item.)
 local INV_OP_UNCLAIMED = 3
+-- seam.held_op1_keeps_the_item's subject: `ifop1=Dig`, op 5 Drop, and its
+-- [opheld1] consumes nothing off a dig site.
+local HELD_OP1_OBJ_SYMBOL = "spade"
 -- Any tab that is not the backpack.  The seam row below needs the backpack's
 -- cells NOT painted when it presses, which is the state `ui.tab("inventory")`
 -- itself leaves behind for a frame -- see its own banner.
@@ -1439,21 +1441,11 @@ return {
         step("player.inv_op", function()
             local fn = verb("player", "inv_op")
             if not fn then return missing("player", "inv_op") end
-            -- NOT op 1. On rev-239 the backpack's IF3 cell carries a
-            -- CLIENT-SIDE on_op hook at op index 1 that is the shift-click-
-            -- drop chain (script 6014 -- app_minimenu.c's own comment on
-            -- app_inv_cell_op_flash, "the inventory slot builder puts the
-            -- shift-click-drop handler there"): app_inv_cell_op_flash fires
-            -- that hook for EVERY OPHELD1..5 dispatch, keyed on the SLOT,
-            -- not the item, so `inv_op(airrune, 1)` silently drops the whole
-            -- stack no matter what op 1 is "supposed" to mean for this obj.
-            -- Measured: the stack goes 26 -> 0 within the same tick this
-            -- verb's own settle resolves, and every verb after it that
-            -- needs the item (player.equip, player.drop) then answers
-            -- not_found. Op 3 carries no such client-side binding and is a
-            -- clean probe of the OPHELD dispatch path -- and, being clean, one
-            -- no script claims either, so the answer this row expects is the
-            -- engine's "Nothing interesting happens." (no_script_probe above).
+            -- Op 3: a clean probe of the OPHELD dispatch path that no script
+            -- claims, so the answer this row expects is the engine's "Nothing
+            -- interesting happens." (no_script_probe above).  Op 1 used to
+            -- drop the stack (the cell flash, fixed seam pass 20); that is
+            -- seam.held_op1_keeps_the_item's subject, not this row's.
             local result, detail = fn(OBJ_SYMBOL, INV_OP_UNCLAIMED)
             return no_script_probe(result, detail, "")
         end)
@@ -5423,6 +5415,46 @@ return {
             setup_cheat("::passive off")
             setup_cheat("::tele lumbridge")
             settle(4)
+        end)
+
+        -- AN OP-1 PRESS KEEPS THE ITEM.  inv_op's OPHELD press was followed by
+        -- a "flash" of the backpack cell's own on_op hook, handed the OPHELD
+        -- INDEX; on rev-239 that hook is clientscript 6014, whose op-1 branch
+        -- is the shift-click-drop chain, so every inv_op(x, 1) ran the item's
+        -- [opheld1] and then dropped it (Holy Grail's golden feather, the
+        -- spade, both tier 1 books: build/seam_state/seam20/s20inv_before,
+        -- `-> 0 left [STRAY DROP ...]`).  app_minimenu.c now flashes the
+        -- cell's own op number.  The verb answers the same word either way --
+        -- "Nothing interesting happens." off a dig site -- so the row is
+        -- graded on the backpack five ticks later and on the absence of
+        -- inv_op's STRAY DROP tag, never on the verb's result.
+        stage(function()
+            setup_cheat("::give " .. HELD_OP1_OBJ_SYMBOL)
+            settle(2)
+        end)
+        seam("seam.held_op1_keeps_the_item", function()
+            local fn = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            local before_result, before = count(HELD_OP1_OBJ_SYMBOL)
+            if before_result ~= "ok" or type(before) ~= "number" or before < 1 then
+                return "no_subject", "::give " .. HELD_OP1_OBJ_SYMBOL .. " left "
+                    .. describe(before) .. " in the backpack (" .. describe(before_result) .. ")"
+            end
+            local result, detail = fn(HELD_OP1_OBJ_SYMBOL, 1)
+            settle(5)
+            local after_result, after = count(HELD_OP1_OBJ_SYMBOL)
+            local text = "inv_op(" .. HELD_OP1_OBJ_SYMBOL .. ",1) -> " .. describe(result)
+                .. " " .. describe(detail) .. "; count " .. describe(before) .. " -> "
+                .. describe(after)
+            if string.find(tostring(detail), "STRAY DROP", 1, true) then
+                return "hollow", "the press put the item on the ground -- " .. text
+            end
+            if after_result ~= "ok" or after ~= before then
+                return "hollow", "the backpack moved after an op that consumes nothing -- " .. text
+            end
+            return "ok", text
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

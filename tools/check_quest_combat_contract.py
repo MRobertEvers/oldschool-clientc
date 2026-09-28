@@ -3,7 +3,10 @@
 
 from __future__ import annotations
 
+import csv
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -3965,8 +3968,275 @@ def check_one_small_favour() -> None:
     require_text(PLAYER_LOGOUT.read_text(), ("~osf_on_logout;",),
                  "One Small Favour logout cleanup")
 
+# ---------------------------------------------------------------------------
+# Repo-wide sweeps (seam20, 2026-09-27).
+#
+# Everything above checks named encounters, so a quest nobody had written a
+# check for yet could not fail it: parity2b found the giant lobster, The
+# Kendal, Slagilith and the Hammerspike gang by driving them, and the Giant Sea
+# Snake was still sitting there. These two sweeps walk the whole pack instead.
+# ---------------------------------------------------------------------------
+
+SCRIPT_HEADER = re.compile(r"^\[([a-z0-9_]+),([^\]]+)\]")
+SCRIPT_CALL = re.compile(r"([~@])([a-z0-9_]+)")
+
+# Reaching any of these IS the player's half of an attack. The first two are
+# the wildcard's own jumps (LostCity player_combat.rs2:1-2); the other three
+# are the style entry points [label,player_combat_start] dispatches to, which
+# LostCity's lathastrainingogre binding (combat_training_camp.rs2) calls
+# directly. They are terminals: the sweep does not descend into them, since
+# they call ~npc_retaliate themselves on every hit.
+COMBAT_START_TERMINALS = frozenset((
+    "player_combat_start", "player_combat_start_ap",
+    "player_melee_attack", "player_ranged_attack", "player_magic_attack",
+))
+
+# A binding that retaliates without starting the fight ON PURPOSE, each with the
+# reason. Nothing else may: the default for an Attack binding is to attack.
+COMBAT_START_EXEMPT = {
+    # Another Slice of H.A.M.: Sigmund's protection prayer turns every style
+    # away (the label switches his prayer and says so) until the ancient mace
+    # special changes him to slice_sigmund_noprayer, whose binding attacks.
+    ("opnpc2", "slice_sigmund_showdown"): "prayer blocks every style until the mace special",
+    ("opnpc2", "slice_sigmund_melee"): "prayer blocks every style until the mace special",
+    ("opnpc2", "slice_sigmund_ranged"): "prayer blocks every style until the mace special",
+    ("opnpc2", "slice_sigmund_magic"): "prayer blocks every style until the mace special",
+}
+
+
+def _strip_comment(line: str) -> str:
+    return line.split("//", 1)[0]
+
+
+def load_script_blocks() -> dict[tuple[str, str], list[tuple[str, int, str]]]:
+    """Every `[trigger,name]` script in the pack's source, keyed by both halves."""
+    blocks: dict[tuple[str, str], list[tuple[str, int, str]]] = {}
+    for path in sorted(CONTENT.rglob("*.rs2")):
+        relative = path.relative_to(CONTENT)
+        if relative.parts and relative.parts[0].startswith("build"):
+            continue
+        current: list | None = None
+        for number, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            match = SCRIPT_HEADER.match(line)
+            if match:
+                name = match.group(2).split("(", 1)[0]
+                current = [str(relative), number, [_strip_comment(line[match.end():])]]
+                blocks.setdefault((match.group(1), name), []).append(current)
+            elif current is not None:
+                current[2].append(_strip_comment(line))
+    return {key: [(f, n, "\n".join(body)) for f, n, body in value]
+            for key, value in blocks.items()}
+
+
+def opnpc2_combat_start_sweep() -> tuple[list[tuple], list[tuple], int]:
+    """(misses, exempt, handler count) over every name-specific op/apnpc2."""
+    blocks = load_script_blocks()
+    memo: dict[tuple[str, str], tuple[bool, bool]] = {}
+
+    def reach(kind: str, name: str, stack: frozenset) -> tuple[bool, bool]:
+        # (reaches a combat-start terminal, reaches ~npc_retaliate)
+        if name in COMBAT_START_TERMINALS:
+            return True, False
+        if kind == "~" and name == "npc_retaliate":
+            return False, True
+        key = (kind, name)
+        if key in memo:
+            return memo[key]
+        if key in stack:
+            return False, False
+        trigger = "proc" if kind == "~" else "label"
+        result = (False, False)
+        for _, _, body in blocks.get((trigger, name), []):
+            got = scan(body, stack | {key})
+            result = (result[0] or got[0], result[1] or got[1])
+        memo[key] = result
+        return result
+
+    def scan(text: str, stack: frozenset) -> tuple[bool, bool]:
+        starts = retaliates = False
+        for kind, name in SCRIPT_CALL.findall(text):
+            got = reach(kind, name, stack)
+            starts |= got[0]
+            retaliates |= got[1]
+        return starts, retaliates
+
+    misses = []
+    exempt = []
+    count = 0
+    for (trigger, name), found in sorted(blocks.items()):
+        if trigger not in ("opnpc2", "apnpc2") or name == "_":
+            continue
+        for path, line, body in found:
+            count += 1
+            starts, retaliates = scan(body, frozenset())
+            if retaliates and not starts:
+                row = (trigger, name, path, line)
+                if (trigger, name) in COMBAT_START_EXEMPT:
+                    exempt.append(row + (COMBAT_START_EXEMPT[(trigger, name)],))
+                else:
+                    misses.append(row)
+    return misses, exempt, count
+
+
+def check_opnpc2_combat_start() -> None:
+    """QUEST_AUTHORING.md trap 31, over the whole pack.
+
+    A name-specific `[opnpc2,<npc>]`/`[apnpc2,<npc>]` replaces the wildcard
+    `[opnpc2,_] @player_combat_start;` / `[apnpc2,_] @player_combat_start_ap;`
+    (skill_combat/combat.rs2; LostCity player_combat.rs2:1-2) entirely. A
+    binding that reaches `~npc_retaliate` (the NPC's half: fight back) but no
+    combat start (the PLAYER's half) is an Attack that never swings -- no
+    hitsplat, no health bar, a boss nobody can kill. Every LostCity binding
+    that attacks ends in the jump (grandtree_black_demon.rs2, irvig_senay.rs2,
+    tut_giant_rat.rs2).
+    """
+    misses, _, _ = opnpc2_combat_start_sweep()
+    require(not misses,
+            "trap 31: [op/apnpc2] bindings reach ~npc_retaliate but never "
+            "@player_combat_start/_ap (add the jump, or an exemption with its "
+            "reason):\n  " + "\n  ".join(f"[{t},{n}] {p}:{l}" for t, n, p, l in misses))
+
+
+# The inventory's `varp` column names an AUXILIARY varp for these rows, not the
+# one the quest's completion is written to. The replacement is the var the
+# quest assigns its own `^<const_complete>` to (or, for a tier 1 row, the varp
+# its test's `quest.bind` reads).
+# needs: tools/quest_gate/quest_inventory.tsv -- correct these rows at source.
+PROGRESS_VARP_OVERRIDES = {
+    "quest_chompybird": ("chompybird",),                    # was chompybird_kills
+    "quest_cog": ("cogquest",),                             # was cog_bits; cog.lua binds cogquest
+    "quest_crest": ("crestquest",),                         # was crest_spells_levers_gauntlets
+    "quest_desertrescue": ("desertrescue",),                # was desertrescue_map_mechanisms
+    "quest_eadgar": ("eadgar_quest",),                      # was eadgar_bits; eadgar.lua binds it
+    "quest_elemental_workshop": ("elemental_workshop_finished",),  # elemental_workshop.lua binds it
+    "quest_horror": ("horrorquest",),                       # was horror_boss_active
+    "quest_onesmallfavour": ("onesmallfavour",),            # was osf_gang_kills (temp by design)
+    "quest_routequest": ("routequest",),                    # was routequest_myreque_bits
+    "quest_totem": ("totemquest",),                         # was handelmort_traps_disabled
+    "quest_zombiequeen": ("zombiequeen",),                  # was zq_map_mechanisms
+}
+QUEST_INVENTORY = ROOT / "tools/quest_gate/quest_inventory.tsv"
+ALL_VARP = ROOT / "OSRS-Content/osrs239-content/configs/all.varp"
+ALL_VARBIT = ROOT / "OSRS-Content/osrs239-content/configs/all.varbit"
+VARP_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/varp.alloc"
+
+
+def load_content_varp_defs() -> dict[str, dict]:
+    """What load_varp_config (torirs_server_content.c) ends up answering.
+
+    walk_configs visits server/scripts in sorted name order and
+    ToriRSServer_ContentVarp returns the FIRST def for an id, so a later
+    duplicate section is ignored here too. A varp no .varp file declares has
+    no def at all: never transmitted, never saved.
+    """
+    defs: dict[str, dict] = {}
+
+    def walk(directory: Path) -> None:
+        for name in sorted(os.listdir(directory)):
+            if name.startswith("."):
+                continue
+            path = directory / name
+            if path.is_dir():
+                walk(path)
+            elif name.endswith(".varp"):
+                current = None
+                for raw in path.read_text(errors="replace").splitlines():
+                    line = _strip_comment(raw).strip()
+                    if not line:
+                        continue
+                    header = re.match(r"^\[([^\]]+)\]$", line)
+                    if header:
+                        symbol = header.group(1)
+                        current = None
+                        if symbol not in defs:
+                            current = defs[symbol] = {
+                                "file": str(path.relative_to(CONTENT)),
+                                "transmit": False, "perm": False}
+                        continue
+                    if current is None or "=" not in line:
+                        continue
+                    key, value = (part.strip() for part in line.split("=", 1))
+                    if key == "transmit":
+                        current["transmit"] = value == "yes"
+                    elif key == "scope":
+                        current["perm"] = value == "perm"
+
+    walk(CONTENT)
+    return defs
+
+
+def quest_progress_varp_sweep() -> tuple[list[tuple], int]:
+    """(misses, vars checked): each quest's progress varp must transmit and persist."""
+    basevar: dict[str, str] = {}
+    current = None
+    for raw in ALL_VARBIT.read_text(errors="replace").splitlines():
+        line = raw.strip()
+        header = re.match(r"^\[([^\]]+)\]$", line)
+        if header:
+            current = header.group(1)
+        elif line.startswith("basevar=") and current:
+            basevar[current] = line.split("=", 1)[1].strip()
+    known = set(re.findall(r"^\[([^\]]+)\]", ALL_VARP.read_text(errors="replace"), re.M))
+    known |= set(re.findall(r"^\d+=([a-z0-9_]+)", VARP_ALLOC.read_text(errors="replace"), re.M))
+    defs = load_content_varp_defs()
+    misses = []
+    checked = 0
+    with QUEST_INVENTORY.open() as handle:
+        for row in csv.DictReader(handle, delimiter="\t"):
+            quest = row["dir"]
+            names = PROGRESS_VARP_OVERRIDES.get(quest) or tuple(
+                re.findall(r"%([a-z0-9_]+)", row["varp"]))
+            require(bool(names), f"{quest}: quest_inventory.tsv names no progress varp")
+            for name in names:
+                carrier = basevar.get(name, name)
+                require(carrier in known,
+                        f"{quest}: progress var %{name} is neither a varbit nor a varp")
+                checked += 1
+                found = defs.get(carrier)
+                if not found or not found["transmit"] or not found["perm"]:
+                    via = f" (varbit on [{carrier}])" if carrier != name else ""
+                    state = ("undeclared in server/scripts/**/*.varp" if not found else
+                             f"{found['file']}: transmit={'yes' if found['transmit'] else 'no'}"
+                             f" scope={'perm' if found['perm'] else 'temp'}")
+                    misses.append((quest, name, via, state))
+    return misses, checked
+
+
+def check_quest_progress_varps() -> None:
+    """A quest's progress varp (or its varbit's carrier) is transmit=yes scope=perm.
+
+    ToriRSServer_WorldMarkVarp sends only `transmit=yes` varps and
+    torirs_server_save.c saves only `scope=perm` ones, and an undeclared varp is
+    neither -- the quest list, the journal and `t.var.server` read a confident
+    0 and every logout resets the quest (One Small Favour, parity2b).
+    QUEST_AUTHORING.md: declare the carrier protect=no / transmit=yes /
+    scope=perm in the quest's own configs/*.varp; LostCity declares every
+    quest progress varp scope=perm (quest_cook.varp `[cookquest]`).
+    """
+    misses, _ = quest_progress_varp_sweep()
+    require(not misses,
+            "quest progress varps must be transmit=yes scope=perm:\n  " +
+            "\n  ".join(f"{q}: %{n}{via}: {state}" for q, n, via, state in misses))
+
+
+def print_sweeps() -> int:
+    misses, exempt, count = opnpc2_combat_start_sweep()
+    print(f"trap 31 sweep: {count} name-specific [opnpc2]/[apnpc2] bindings, "
+          f"{len(misses)} miss(es), {len(exempt)} exempt")
+    for trigger, name, path, line in misses:
+        print(f"  MISS [{trigger},{name}] {path}:{line}")
+    for trigger, name, path, line, reason in exempt:
+        print(f"  exempt [{trigger},{name}] {path}:{line} -- {reason}")
+    varp_misses, checked = quest_progress_varp_sweep()
+    print(f"progress varp sweep: {checked} progress var(s), {len(varp_misses)} miss(es)")
+    for quest, name, via, state in varp_misses:
+        print(f"  MISS {quest}: %{name}{via}: {state}")
+    return 1 if misses or varp_misses else 0
+
 
 def main() -> int:
+    if "--sweeps" in sys.argv[1:]:
+        return print_sweeps()
     try:
         check_manifest()
         check_delrith()
@@ -3998,10 +4268,12 @@ def main() -> int:
         check_roving_elves()
         check_ghosts_ahoy()
         check_one_small_favour()
+        check_opnpc2_combat_start()
+        check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

@@ -21,7 +21,8 @@
 --     ::give      an item reaches the BACKPACK, not just the server struct
 --     ::clearinv  the backpack is empty AT THE CLIENT afterwards -- every
 --                 slot, not only the one the row above filled
---     ::setlevel  a stat level lands, and is still there ten ticks later
+--     ::setlevel  a stat level lands, and is still there ten ticks later;
+--                 an unknown stat or a level outside 1..99 is refused
 --     ::setvar    a named varp takes a ^constant, seen by the CLIENT's mirror
 --     ::spawn     an npc appears in the client's own npc pool
 --     ::kill      it dies through the ordinary death path and leaves the pool
@@ -207,6 +208,30 @@ return {
                 .. " level=" .. tostring(kept_result == "ok" and kept.level or kept)
                 .. " base=" .. tostring(kept_result == "ok" and kept.base_level or "-")
                 .. " (both want 40)")
+
+        -- A stat nothing names, and a level outside 1..99, must be refused --
+        -- loud to a t.cheat inside run(), as a misspelled `::setvar` is. The
+        -- engine used to set nothing, say nothing and answer ok, so a fight
+        -- after `::setlevel strenght 60` ran at level 1 and the ledger blamed
+        -- the fight (seam20). Cooking must still read 40 afterwards: a refusal
+        -- that wrote anything would be worse than the silence it replaced.
+        local badstat_result, badstat_detail = t.cheat("::setlevel no_such_stat_here 40")
+        local badlevel_result, badlevel_detail = t.cheat("::setlevel cooking 120")
+        local zerolevel_result, zerolevel_detail = t.cheat("::setlevel cooking 0")
+        t.ticks(3)
+        local after_result, after = t.skill.read("cooking")
+        record("cheats.setlevel_refused",
+            badstat_result == "refused" and badlevel_result == "refused"
+                and zerolevel_result == "refused"
+                and after_result == "ok" and after.base_level == 40,
+            "::setlevel no_such_stat_here 40 -> " .. tostring(badstat_result)
+                .. " (" .. tostring(badstat_detail) .. ")"
+                .. "; ::setlevel cooking 120 -> " .. tostring(badlevel_result)
+                .. " (" .. tostring(badlevel_detail) .. ")"
+                .. "; ::setlevel cooking 0 -> " .. tostring(zerolevel_result)
+                .. " (" .. tostring(zerolevel_detail) .. ")"
+                .. "; cooking base after " .. tostring(after_result == "ok" and after.base_level or after)
+                .. " (want refused x3, base 40)")
 
         -- --------------------------------------------------------- ::setvar
         -- `^cook_started`, never `1`: the stage numbering belongs to

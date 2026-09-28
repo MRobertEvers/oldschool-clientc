@@ -3515,7 +3515,8 @@ function QD.player._inv_cell(item)
         end
     end
     -- Named plainly: this is the answer a caller gets after an earlier verb
-    -- consumed the stack (rev-239's backpack op 1 drops it), and "not_found"
+    -- consumed the stack (an item op that uses it up, a drop -- and, until
+    -- seam pass 19, every op-1 press, see QD.player._inv_stray_drop), and "not_found"
     -- alone reads like a bad symbol.  And "not in the backpack" was the
     -- sentence four verbs printed for an item the player is WEARING -- the
     -- state a load/fire mechanic alternates with, and the one a test author
@@ -3548,6 +3549,9 @@ function QD.player.inv_op(item, op)
     if op < 0 then
         return "unsupported", "inv_op: a negative op is use_on's arming half"
     end
+    -- What was on the floor before the press, so a stack the press itself
+    -- put there can be named (QD.player._inv_stray_drop, seam pass 19).
+    local ground_before = QD.player._inv_ground_count(item)
     -- The press itself, and the tab-not-painted-yet retry behind it, are
     -- QD.player._inv_press's (the SEAM banner at the end of this file).
     local result, cell, where, refusal = QD.player._inv_press(item, op)
@@ -3562,11 +3566,12 @@ function QD.player.inv_op(item, op)
     local settle_result, settle_detail = QD.player._settle_after_click(10)
     -- And then wait for the BACKPACK to stop moving.  A held op's effect is
     -- the server's answer plus, on rev-239's backpack, whatever the cell's own
-    -- on_op hook did -- op 1 there is the shift-click-drop chain, and its drop
-    -- lands several ticks after the first event _settle_after_click resolves
-    -- on.  A verb that returns before its own effect has landed hands that
-    -- effect to the NEXT verb's assertion, which is how a following equip
-    -- came to report this drop as its own success.
+    -- on_op hook did -- op 1 there is the shift-click-drop chain, which every
+    -- OPHELD1 press used to run until seam pass 19 (QD.player._inv_stray_drop),
+    -- and an effect of that kind lands several ticks after the first event
+    -- _settle_after_click resolves on.  A verb that returns before its own
+    -- effect has landed hands that effect to the NEXT verb's assertion, which
+    -- is how a following equip came to report a drop as its own success.
     QD.settle()
     QD.player._inv_quiet(item)
     local count_result, after = QD.inv.count(item)
@@ -3581,6 +3586,11 @@ function QD.player.inv_op(item, op)
     -- and an `ok` row's detail is unchanged by this.
     local text = where .. " -> " .. tostring(count_result == "ok" and after or count_result)
         .. " left"
+    -- A detail tag, never a verdict of its own: see _inv_stray_drop's banner.
+    local stray = QD.player._inv_stray_drop(item, op, ground_before)
+    if stray ~= nil then
+        text = text .. " [" .. stray .. "]"
+    end
     if settle_result ~= "ok" and settle_detail ~= nil then
         text = text .. " [" .. tostring(settle_detail) .. "]"
     end
@@ -3596,11 +3606,11 @@ function QD.player.inv_op(item, op)
 end
 
 -- Neither of these settles for "the dispatcher ran", and neither settles for
--- the weaker "the item left the backpack" either: on rev-239's backpack op 1
--- is the shift-click-drop chain, its drop lands a tick or two AFTER the verb
--- that sent it returns, and a following equip that only watched the backpack
--- count fall would report that drop as its own success.  Each asserts the
--- thing only it can be true of.
+-- the weaker "the item left the backpack" either: a stray drop (rev-239's
+-- shift-click-drop chain, which every OPHELD1 press ran until seam pass 19)
+-- lands a tick or two AFTER the verb that sent it returns, and a following
+-- equip that only watched the backpack count fall would report that drop as
+-- its own success.  Each asserts the thing only it can be true of.
 
 function QD.player._inv_dispatch(item, op, note)
     -- Same press, same retry, same named refusal as inv_op's: equip and drop
@@ -6953,4 +6963,81 @@ function QD.player.press(npc, op, ticks, opts)
     return "timeout", label .. pressed .. " did not move in " .. tostring(ticks)
         .. " tick(s) (you at " .. where .. "), " .. silence
         .. " and no dialogue opened"
+end
+
+-- ==========================================================================
+-- SEAM inv_op_shift_drop_without_iop -- seam pass 19, 2026-09-27, APPENDED
+--
+-- Nothing above this banner is touched except QD.player.inv_op (it reads the
+-- floor before the press and appends _inv_stray_drop's tag to its detail)
+-- and three comments that described the old drop as current behaviour.
+--
+-- WHAT WAS WRONG.  `inv_op(item, 1)` pressed OPHELD1 and the server ran the
+-- item's [opheld1] -- and then the item was on the floor.  The Holy Grail's
+-- magic_golden_feather (`ifop1=Blow-on`, configs/all.obj:271) printed "The
+-- feather points to the north." and went `-> 0 left`, though
+-- [opheld1,magic_golden_feather] (quest_grail.rs2:170) never calls inv_del
+-- (build/quest_gate/parity_grail5 rows 8 and 14).  The parity pass read it as
+-- "an item with no iopN= configured"; it is not -- rev 239's obj configs spell
+-- the op `ifop1=`, the feather has one exactly like the spade's `ifop1=Dig`,
+-- and the spade dropped too (build/quest_gate/seam19_invop1_before rows 3-10:
+-- feather 1 -> 0 and on the floor, spade 1 -> 0).  Every op-1 press whose
+-- item has the default "Drop" as op 5 did it: spade, books, pirate_casket,
+-- golem_notes, dwarf_rock_schematic1 all read `-> 0 left` in the tier 1
+-- ledgers.
+--
+-- WHY.  Not the packet: net_out_opheld collapses OPHELD1 onto IF_BUTTONX op
+-- 2, the backpack cell's own number for the first ObjType op, and the server
+-- ran the right trigger.  The client then "flashed" the cell by re-entering
+-- its cc_setonop handler with the OPHELD INDEX, 1, and on rev 239 that handler
+-- is clientscript 6014 (torirs_inv_shiftclick_op.cs2), whose op-1 branch is
+-- the shift-click-drop chain: cc_triggerop(Drop) -> IF_BUTTONX 149:0 op=7 ->
+-- OPHELD5.  A player's real "Blow-on" row is an IF_BUTTON op 2 on the same
+-- cell and flashes op 2, so no player ever hit this; only this driver's
+-- OPHELD bypass (app_plugin_inv_op) did.
+--
+-- THE FIX IS C, NOT HERE: app_minimenu_inv_action's OPHELD case now flashes
+-- net_out_opheld_component_op(op) (src/app/app_minimenu.c -- the one-line
+-- fix the 2026-09-20 KNOWN DEFECT comment there named and held back).  Lua
+-- cannot reach it: api_drive.inv_op always dispatches through that case, and
+-- there is no cell-pixel read to press the real row instead.  Proved on the
+-- private binary (build/quest_gate/seam19_invop1_after): feather `-> 1 left`,
+-- the direction message printed, nothing on the floor, a second press works;
+-- spade still held after its dig; player.drop (op 5) still drops.
+--
+-- WHAT THIS FILE ADDS: a tag, so the drop can never again pass as the item's
+-- own effect.  A backpack that fell while a stack of the same item appeared
+-- at the player's feet, after an op that is not Drop, is named in the detail.
+-- It is a tag and not a verdict on purpose: the Lua is read live by every
+-- worker while the C is not, and a binary built before this seam still drops
+-- on every op 1 -- turning that into `refused` would redden green runs on the
+-- shared binary for a defect the run did not introduce.  Content that really
+-- does put its own item on the ground from a non-drop op would carry the tag
+-- too; read it, then, as "check which it was".
+-- ==========================================================================
+
+-- The total of `item` stacked within one tile of the player, 0 when none.
+function QD.player._inv_ground_count(item)
+    local result, ground = QD.world.obj_near(item, 1)
+    if result == "ok" and type(ground) == "table" then
+        return ground.count or 0
+    end
+    return 0
+end
+
+-- The tag inv_op appends when its press put the item on the ground, or nil.
+-- Op 5 is Drop itself (QD.player.drop presses it), so it is never a stray.
+QD.player.INV_OP_DROP = 5
+function QD.player._inv_stray_drop(item, op, ground_before)
+    if op == QD.player.INV_OP_DROP then
+        return nil
+    end
+    local ground_after = QD.player._inv_ground_count(item)
+    if ground_after <= ground_before then
+        return nil
+    end
+    return "STRAY DROP: op " .. tostring(op) .. " left " .. item .. " on the ground ("
+        .. tostring(ground_before) .. " -> " .. tostring(ground_after)
+        .. ") -- a client built before seam pass 20 runs the backpack's shift-click-drop"
+        .. " chain after every op-1 press (src/app/app_minimenu.c OPHELD flash)"
 end

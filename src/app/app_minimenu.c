@@ -1246,25 +1246,28 @@ app_minimenu_inv_action(
         /*
          * selectedArea / cc_settrans_temporarily — not for Use (below).
          *
-         * KNOWN DEFECT, NOT FIXED HERE (seam pass 2026-09-20).  `op_index` is
+         * The flash speaks the CELL's op space, not OPHELD's.  `op_index` is
          * handed to the cell's own cc_setonop handler, and on rev-239's
-         * backpack that handler is script 6014, the shift-click-drop chain,
-         * whose op 1 answers by naming the real Drop op through cc_triggerop.
-         * The OPHELD index is NOT the cell's op number (the cell's are 2, 3,
-         * 4, 6, 7 -- net_out_opheld_component_op), so every OPHELD1 press
-         * runs the drop chain one tick later and puts the item on the floor:
-         * `<- OPHELD1 obj=952 (Spade)` followed every time by `<- IF_BUTTONX
-         * 149:0 op=7` and `<- OPHELD5`, at three separate dig tiles
-         * (build/quest_gate/seam_heldop1_probe2/client.log), and in the GREEN
-         * Pirate's Treasure run too (build/quest_gate/hunt/ledger.tsv row 61,
-         * "spade slot 1 op 1 -> 0 left").  The one-line fix is to translate
-         * through net_out_opheld_component_op here; it is held back because
-         * hunt's `quest.varp_complete` row currently depends on the extra
-         * settle ticks the stray drop buys it (measured twice: 70/71 with the
-         * translation in, 71/71 with it out), and that race is
-         * quest.expect_complete's to fix first.
+         * backpack that handler is clientscript 6014
+         * (torirs_inv_shiftclick_op.cs2), whose `$int3 = 1` branch is the
+         * shift-click-drop chain: it names the real Drop op through
+         * cc_triggerop.  The cell's own ops for the five ObjType actions are
+         * 2, 3, 4, 6, 7 (net_out_opheld_component_op, the same table the
+         * packet above goes out with), so a real "Dig" / "Blow-on" / "Read"
+         * row is an IF_BUTTON op 2 and its flash is op 2.  Handing it the
+         * OPHELD index 1 instead ran the drop chain a tick after every
+         * OPHELD1 press and put the item on the floor -- `<- OPHELD1 obj=952
+         * (Spade)` then `<- IF_BUTTONX 149:0 op=7` and `<- OPHELD5`
+         * (build/quest_gate/seam_heldop1_probe2/client.log), and the Holy
+         * Grail's magic_golden_feather (`ifop1=Blow-on`) went `-> 0 left`
+         * after `[opheld1,magic_golden_feather]`, which never inv_dels
+         * (build/quest_gate/seam19_invop1_before, seam pass 19).  The only
+         * OPHELD rows a rev-239 backpack ever dispatches are the quest
+         * driver's (app_plugin_inv_op); the menu builder gives a scripted
+         * cell IF_BUTTON rows, which already flash in the cell's own space.
          */
-        app_inv_cell_op_flash(app, com_id, slot, opt->action_index + 1);
+        app_inv_cell_op_flash(
+            app, com_id, slot, net_out_opheld_component_op(opt->action_index + 1));
         return 1;
     case REVCONFIG_MINIMENU_INV_BUTTON1:
     case REVCONFIG_MINIMENU_INV_BUTTON2:
