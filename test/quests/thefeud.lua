@@ -290,19 +290,224 @@ return {
         t.expect("quest.stage.house_entered", t.quest.expect_stage("house_entered"))
         local door_tile_r, door_tile = t.world.tile()
         t.check("openTheDoor-tile", door_tile_r == "ok", "after the door click the player stands at " .. tostring(door_tile and door_tile.x) .. "," .. tostring(door_tile and door_tile.z) .. "," .. tostring(door_tile and door_tile.level))
-        -- content_bug: feud_heist.rs2 [oploc1,feud_closed_door_left/right] REPLACES the generic
-        -- double-door opener (doors/configs/doubledoors.loc: category door_left_closed) and only
-        -- narrates + writes feud_var=11; it never loc_changes the door, so the wall at
-        -- x=3370 (locs 6238/6240 at 3370,2971/2970, wall on the east face) stays shut.
-        -- The desk room's only doorway (open door 1534 at 3370,2966, east face) is reached from
-        -- 3371,2966, i.e. from INSIDE the mansion; the desk/bed/picture/stairs (3373,2978) are all east of the door line.
-        local walk_r, walk_d = t.player.walk_to(3372, 2970, 14)
-        local walk_tile_r, walk_tile = t.world.tile()
-        t.check("openTheDoor-walkin-recorded", walk_tile_r == "ok",
-            "walk_to 3372,2970 (through the door line at x=3370) -> " .. tostring(walk_r) .. " " .. tostring(walk_d)
-            .. "; player at " .. tostring(walk_tile and walk_tile.x) .. "," .. tostring(walk_tile and walk_tile.z)
-            .. " -- the door never opened, so the mansion interior (desk, bed, picture, safe) is unreachable on foot")
-        t.blocked("content_bug: feud_heist.rs2 [oploc1,feud_closed_door_left]/[oploc1,feud_closed_door_right] narrates 'You slip inside' and sets feud_var=11 but never opens the door loc (no loc_change to feud_open_door_*; the quest trigger replaces the generic door_left_closed opener), so the player stays outside the wall at x=3370 and searchDesk/searchBed/crackTheSafe (guide steps heist) cannot be reached without a goto_tile teleport past the door, which is a cheat")
+        -- The door is a real two-leaf door since seam25 (feud_heist.rs2 ~feud_mayors_door calls
+        -- doors/scripts/doubledoors.rs2 ~open_double_door_right): both leaves swing to
+        -- feud_open_door_* (maps/m52_46.jl2: 6238/6240 at 3370,2971/2970, rot 2) and the
+        -- courtyard behind the door line opens up. Wiki Transcript:The_Feud "Using the keys on
+        -- the Mayor's house door": "You hear a satisfying click as the door unlocks."
+        t.expect("openTheDoor-unlock", t.msg.expect("satisfying click as the door unlocks"))
+        local swung_r, swung = t.world.loc_near("feud_open_door_right", 8)
+        t.check("openTheDoor-swung", swung_r == "ok", "feud_open_door_right " .. tostring(swung_r) .. " at " .. tostring(swung and swung.tile_x) .. "," .. tostring(swung and swung.tile_z))
+        local walkin_r, walkin_d = t.player.walk_to(3372, 2970, 14)
+        local walkin_tile_r, walkin_tile = t.world.tile()
+        t.check("openTheDoor-walkin", walkin_tile_r == "ok" and walkin_tile.x == 3372 and walkin_tile.z == 2970,
+            "walk_to 3372,2970 through the swung door -> " .. tostring(walkin_r) .. " " .. tostring(walkin_d)
+            .. "; player at " .. tostring(walkin_tile and walkin_tile.x) .. "," .. tostring(walkin_tile and walkin_tile.z))
+
+        -- ==================== heist: the study desk (3367,2966,0) -- the numbers note
+        t.exec("searchDesk", t.player.click_loc, "feud_mayors_desk", 1)
+        t.expect("searchDesk-note", t.inv.await("feud_nos_note", 1, 10))
+        t.expect("quest.stage.note_numbers", t.quest.expect_stage("note_numbers"))
+
+        -- ==================== heist: upstairs (feud_insidestairs_base 3373,2978,0), the bed
+        t.exec("climbStairs", t.player.click_loc, "feud_insidestairs_base", 1)
+        t.ticks(2)
+        local lvl_r, lvl = t.world.level()
+        t.check("climbStairs-upstairs", lvl_r == "ok" and lvl == 1, "level after Climb-up = " .. tostring(lvl))
+        t.exec("searchBed", t.player.click_loc, "feud_mayors_bed", 1)
+        t.expect("searchBed-note", t.inv.await("feud_fib_hint", 1, 10))
+        t.expect("quest.stage.note_fib", t.quest.expect_stage("note_fib"))
+
+        -- ==================== crackTheSafe: the landscape picture (3374,2974,1) hides interface 330
+        -- QH TheFeud.java:390 "Enter the code 1, 1, 2, 3, 5, 8."
+        t.exec("searchPicture", t.player.click_loc, "feud_mayors_picture", 1)
+        t.expect("safe-open", t.ui.await_open("the_feud_safe", 10))
+        t.expect("searchPicture-msg", t.msg.expect("covering something: a safe"))
+        local SAFE = { "feud_over_model1", "feud_overstate_model2", "feud_overstate_model3",
+            "feud_overstate_model4", "feud_overstate_model5", "feud_overstate_model6",
+            "feud_overstate_model7", "feud_overstate_model8", "feud_overstate_model9" }
+        local code = { 1, 1, 2, 3, 5, 8 }
+        for i = 1, #code do
+            local wr, w = t.ui.widget("the_feud_safe:" .. SAFE[code[i]])
+            t.expect("safe-dial" .. i .. "-widget", wr, "Set to " .. code[i])
+            local ir, id = t.ui.invoke(w, 1)
+            t.ticks(1)
+            t.check("safe-dial" .. i, ir == "ok", "invoke Set to " .. code[i] .. " -> " .. tostring(ir) .. " " .. tostring(id))
+        end
+        t.expect("safe-jewels", t.inv.await("feud_mayors_jewels", 1, 10))
+        t.expect("safe-msg", t.msg.expect("You remove the jewels from the safe."))
+        t.expect("quest.stage.safe_opened", t.quest.expect_stage("safe_opened"))
+
+        -- ==================== leave the house: down the stairs and out through the door
+        t.exec("climbDown", t.player.click_loc, "feud_insidestairs_top", 1)
+        t.ticks(2)
+        local lvl2_r, lvl2 = t.world.level()
+        t.check("climbDown-ground", lvl2_r == "ok" and lvl2 == 0, "level after Climb-down = " .. tostring(lvl2))
+
+        -- ==================== returnTheJewels: the Operator's traitor briefing
+        t.exec("goto-returnJewels", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("returnJewels", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("returnJewels-dialog", t.chat.play, {
+            "player:Here are the mayor's wife's jewels",
+            "npc:Excellent work!",
+            "npc:Someone in this camp is drinking",
+        })
+        t.expect("quest.stage.traitor_briefed", t.quest.expect_stage("traitor_briefed"))
+
+        -- ==================== findTraitor: talkMenaphiteToFindTraitor
+        -- feud_recruitment.rs2 [label,feud_thug_questioning]
+        t.exec("goto-talkMenaphiteToFindTraitor", t.player.goto_tile, 3333, 2954, 0)
+        t.exec("talkMenaphiteToFindTraitor", t.player.talk_to, "feud_egyptian_doorman_multi", 1)
+        t.exec("talkMenaphiteToFindTraitor-dialog", t.chat.play, {
+            "player:There's a traitor among the gang",
+            "npc:A traitor?",
+            "npc:If I were you, I'd ask Ali the Barman",
+        })
+        t.expect("quest.stage.thug_questioned", t.quest.expect_stage("thug_questioned"))
+
+        -- tellAliYouFoundTraitor: the Operator's stage 16..22 line
+        t.exec("goto-tellAliYouFoundTraitor", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("tellAliYouFoundTraitor", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("tellAliYouFoundTraitor-dialog", t.chat.play, { "npc:Find that traitor and deal with them" })
+
+        -- ==================== talkToAliTheBarman: whose drink is it
+        t.exec("goto-talkToAliTheBarman", t.player.goto_tile, 3360, 2956, 0)
+        t.exec("talkToAliTheBarman", t.player.talk_to, "feud_ali_the_barman", 1)
+        t.exec("talkToAliTheBarman-dialog", t.chat.play, {
+            "player:I'm looking for Traitorous Ali",
+            "npc:Now that you mention it",
+            "choose:Thanks, that's useful.",
+            "player:Thanks, that's useful.",
+        })
+        t.expect("quest.stage.barman_done", t.quest.expect_stage("barman_done"))
+
+        -- ==================== talkToAliTheHag: ask for poison (guide stage 17)
+        t.exec("goto-talkToAliTheHag", t.player.goto_tile, 3346, 2985, 0)
+        t.exec("talkToAliTheHag", t.player.talk_to, "feud_hag", 1)
+        t.exec("talkToAliTheHag-dialog", t.chat.play, { "npc:Ssss... what do you want, dearie?" })
+
+        -- ==================== talkToAliTheKebabSalesman: the special sauce
+        t.exec("goto-talkToAliTheKebabSalesman", t.player.goto_tile, 3352, 2973, 0)
+        t.exec("talkToAliTheKebabSalesman", t.player.talk_to, "feud_kebabman", 1)
+        t.exec("talkToAliTheKebabSalesman-dialog", t.chat.play, {
+            "player:Would you sell me that bottle of special kebab sauce?",
+            "npc:This old thing?",
+            "choose:Thanks.",
+            "player:Thanks.",
+        })
+        t.expect("quest.stage.sauce_bought", t.quest.expect_stage("sauce_bought"))
+        t.expect("talkToAliTheKebabSalesman-sauce", t.inv.await("superhot_kebab_sauce", 1, 10))
+
+        -- ==================== getDung: sauce on the trough, the camel leaves dung in the bucket
+        t.exec("goto-getDung", t.player.goto_tile, 3345, 2960, 0)
+        local trough = t.player.by_symbol("loc", "feud_foodtrough2")
+        t.exec("getDung", t.player.use_on, "superhot_kebab_sauce", trough)
+        t.expect("getDung-bucket", t.inv.await("feud_camel_pooh_bucket", 1, 10))
+        t.expect("quest.stage.dung_bucketed", t.quest.expect_stage("dung_bucketed"))
+
+        -- ==================== giveCoinToSnakeCharmer: coins on the money pot
+        t.exec("goto-giveCoinToSnakeCharmer", t.player.goto_tile, 3356, 2951, 0)
+        local pot = t.player.by_symbol("loc", "feud_money_bowl")
+        t.exec("giveCoinToSnakeCharmer", t.player.use_on, "coins", pot)
+        t.expect("giveCoinToSnakeCharmer-charm", t.inv.await("snake_flute", 1, 10))
+        t.expect("giveCoinToSnakeCharmer-basket", t.inv.await("basket_for_snake", 1, 10))
+
+        -- ==================== catchSnake: the charm on a desert snake
+        t.exec("goto-catchSnake", t.player.goto_tile, 3334, 2960, 0)
+        local snake = t.player.by_symbol("npc", "feud_desert_snake")
+        t.exec("catchSnake", t.player.use_on, "snake_flute", snake)
+        t.expect("catchSnake-basket", t.inv.await("basket_with_snake", 1, 10))
+        t.expect("quest.stage.snake_done", t.quest.expect_stage("snake_done"))
+
+        -- ==================== giveSnakeToHag / givenDungToHag: the poison
+        t.exec("goto-giveSnakeToHag", t.player.goto_tile, 3346, 2985, 0)
+        t.exec("giveSnakeToHag", t.player.talk_to, "feud_hag", 1)
+        t.exec("giveSnakeToHag-dialog", t.chat.play, {
+            "player:I've a charmed snake and a bucket of fresh dung",
+            "npc:Ssss, excellent ingredients!",
+        })
+        t.expect("giveSnakeToHag-poison", t.inv.await("feud_camel_poison_pooh_bucket", 1, 10))
+        t.expect("quest.stage.poison_made", t.quest.expect_stage("poison_made"))
+
+        -- ==================== poisonTheDrink: poison on the traitor's beer
+        t.exec("goto-poisonTheDrink", t.player.goto_tile, 3356, 2956, 0)
+        local beer_table = t.player.by_symbol("loc", "feud_poison_beer_table")
+        t.exec("poisonTheDrink", t.player.use_on, "feud_camel_poison_pooh_bucket", beer_table)
+        t.expect("quest.stage.beer_poisoned", t.quest.expect_stage("beer_poisoned"))
+
+        -- ==================== tellAliOperatorPoisoned: final orders
+        t.exec("goto-tellAliOperatorPoisoned", t.player.goto_tile, 3334, 2951, 0)
+        t.exec("tellAliOperatorPoisoned", t.player.talk_to, "feud_egyptian_minder", 1)
+        t.exec("tellAliOperatorPoisoned-dialog", t.chat.play, {
+            "npc:The traitor's dealt with",
+            "npc:Confront the Menaphite Leader",
+        })
+        t.expect("quest.stage.ready_confront", t.quest.expect_stage("ready_confront"))
+
+        -- ==================== talkToMenaphiteLeader / killMenaphiteThug
+        -- the blackjack took the weapon slot in task 3; the scimitar goes back on
+        t.exec("equipScimitarForFights", t.player.equip, "rune_scimitar")
+        t.exec("goto-talkToMenaphiteLeader", t.player.goto_tile, 3334, 2954, 0)
+        t.exec("talkToMenaphiteLeader", t.player.talk_to, "feud_menap_boss", 1)
+        t.exec("talkToMenaphiteLeader-dialog", t.chat.play, {
+            "npc:So, the outsider who's been sniffing around",
+            "choose:I know you started this feud over a stolen camel. It ends now.",
+            "player:I know you started this feud",
+            "npc:You think you can just walk in here",
+        })
+        t.exec("killMenaphiteThug", t.player.attack, "feud_menap_toughguy", 2, 15)
+        t.exec("killMenaphiteThug-dead", t.npc.await_dead_engaged, 80)
+        t.ticks(5) -- the [ai_queue3] outcome lands after the release
+        t.expect("quest.stage.menaphite_beaten", t.quest.expect_stage("menaphite_beaten"))
+
+        -- ==================== talkToBanditLeader / killBanditChampion
+        t.exec("goto-talkToBanditLeader", t.player.goto_tile, 3353, 3000, 0)
+        t.exec("talkToBanditLeader", t.player.talk_to, "feud_bandit_boss", 1)
+        t.exec("talkToBanditLeader-dialog", t.chat.play, {
+            "npc:You've already caused enough trouble",
+            "choose:I know about the stolen camel. This feud ends now.",
+            "player:I know about the stolen camel",
+            "npc:Ha! You'll have to go through me first",
+        })
+        t.exec("killBanditChampion", t.player.attack, "feud_bandit_toughguy", 2, 15)
+        t.exec("killBanditChampion-dead", t.npc.await_dead_engaged, 80)
+        t.ticks(5)
+        t.expect("quest.stage.bandit_beaten", t.quest.expect_stage("bandit_beaten"))
+
+        -- ==================== talkToMayor: Ali the Mayor's reveal
+        t.exec("goto-talkToMayor", t.player.goto_tile, 3360, 2972, 0)
+        t.exec("talkToMayor", t.player.talk_to, "feud_mayor", 1)
+        t.exec("talkToMayor-dialog", t.chat.play, {
+            "player:This whole feud started over a stolen camel",
+            "npc:Ha! I do indeed.",
+            "npc:Now that the gangs have had the fight",
+        })
+        t.expect("quest.stage.mayor_talked", t.quest.expect_stage("mayor_talked"))
+
+        -- ==================== finishQuest: Ali Morrisane's reward
+        local reward_snap_r, reward_snap = t.skill.snapshot()
+        t.check("reward.snapshot", reward_snap_r == "ok" and reward_snap.thieving ~= nil, "thieving experience before hand-in = " .. tostring(reward_snap and reward_snap.thieving and reward_snap.thieving.experience))
+        local coins_before_r, coins_before = t.inv.count("coins")
+        t.check("reward.coinsBefore", coins_before_r == "ok", "coins before hand-in = " .. tostring(coins_before))
+        t.exec("goto-finishQuest", t.player.goto_tile, 3304, 3211, 0)
+        t.exec("finishQuest", t.player.talk_to, "feud_ali_m", 1)
+        t.exec("finishQuest-dialog", t.chat.play, {
+            "player:Your nephew's safe",
+            "npc:A stolen... camel?",
+            "npc:No, I'm really too busy",
+        })
+        t.ticks(3)
+        t.quest.expect_complete()
+
+        t.check("reward.thievingXp", t.skill.expect_gain("thieving", 15000, reward_snap) == "ok",
+            "t.skill.expect_gain(thieving, 15000) -- dbrow stat_xp_awarded 150000 tenths")
+        local coins_after_r, coins_after = t.inv.count("coins")
+        t.check("reward.coins", coins_after_r == "ok" and coins_after - coins_before == 500,
+            "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. " (+500 documented)")
+        t.expect("reward.willowBlackjack", t.inv.expect_has("blackjack_willow", 1))
+        t.expect("reward.adamantScimitar", t.inv.expect_has("adamant_scimitar", 1))
+        t.expect("reward.desertDisguise", t.inv.expect_has("feud_desert_disguise", 1))
+        t.finish(0)
         return
     end,
 }
