@@ -24,7 +24,7 @@ quest_coldwar	coldwar	coldwar		4	todo
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo		PARITY after 7e91c06fe3 [parity2b]: combine/gauntlet-drop/re-offer/complete now LostCity; open: live 4-blast Chronozon kill blocked on content seam skill_combat/combat_stats.rs2:656 (magic rolled vs npc DEFENCE, LostCity npc_combat.rs2:286-291 uses MAGIC); crest_witchaven lever puzzle diverges from LostCity bits
+quest_crest	crest	familycrest		2	todo		RETRY after 23fd3961e [seam20]: magic accuracy is LostCity's (content 89f20b1b2f combat_stats.rs2: npc defends magic with MAGIC, player rolls Magic+9) -- the live four-element Chronozon kill drives honestly with t.player.cast (s20chron_live 10/10, 18/20 blasts land at 99 Magic); still open: crest_witchaven lever puzzle diverges from LostCity bits
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
@@ -54,7 +54,7 @@ quest_enakhraslament	enakhraslament	enakhraslament		4	todo
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15	
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
-quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		PARITY after 7e91c06fe3 [parity2b]: %fenk_quest tracks the stages (corpse on the table); open: plane-2 tower door/ladder topology, ring completion freespace guard -- ready to author the sign->hire->parts->lightning route
+quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		RETRY after 23fd3961e [seam20]: tower is the map's route (content 89f20b1b2f: Tower key opens fenk_tower_door 3548,3551,1 once and sets fenk_unlocked_tower, ladder 3548,3554 to plane 2, talk_to fenk_creature -- NO fight, the real game has none; both Ring of Charos pickpockets check inv_freespace; s20fenk_after3 26/26); ready to author sign->hire->parts->lightning->tower; open: completion not atomic across p_delay(1), Werewolf course gate, ring reclaim
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
@@ -64,11 +64,11 @@ quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		
 quest_gettingahead	gettingahead	gettingahead		4	todo		
-quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		PARITY after 7e91c06fe3 [parity2b]: lobster attackable, Rune-Draw is a real game (drive draw/hold rounds until debt 100); open: DRIVER seam -- lower-hull Attack/chest answer 'I can't reach that!' from the pathfinder's own tile (lobster.lua repro under build/parity_state/parity2b/ghostsahoy_scripts)
+quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		RETRY after 23fd3961e [seam20]: lower-hull reach fixed (torirs_server_scene.c: roofed sea tiles walkable; seam20_wreck_fix3 12/12, lobster killed with t.player.attack + await_dead_engaged, chest scrap 3); Ectofuntus pays 5 tokens/worship (1,000 cap); Rune-Draw is real (drive draw/hold until debt 100); ready to author
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
 quest_golem	golem	thegolem		1	green	sonnet-b15	
-quest_grail	grail	holygrail		2	todo		PARITY done 75a0cc01fe: ready to author. seam19 inv_op_shift_drop proved but HELD BACK (patch build/seam_state/seam19/held_back/): inv_op(magic_golden_feather,1) still drops the feather on the shared binary -- re-give it before the sack until the C fix lands
+quest_grail	grail	holygrail		2	todo		RETRY after 23fd3961e [seam20]: inv_op op 1 keeps the item now (app_minimenu.c OPHELD flash; s20inv_after feather.op1 '-> 1 left', feather.still_held 1) -- no re-give of the golden feather before the sack; ready to author
 quest_grandtree	grandtree	thegrandtree		3	todo		
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
@@ -88,7 +88,7 @@ quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
 quest_itexam	itexam	thedigsite		3	todo		
 quest_itgronigen	itgronigen	observatoryquest		3	todo		
-quest_itwatchtower	itwatchtower	watchtower		2	todo		PARITY after 7e91c06fe3 [parity2b]: Gu'Tanoth gate guard + rope swing ported from LostCity; open: loc_2299 wall climb (cache id unresolved) -- ready to author (gate at 2550,3025; swing approach 2499,3089)
+quest_itwatchtower	itwatchtower	watchtower		2	todo		RETRY after 23fd3961e [seam20]: loc_2299 wall climb = qip_watchtower_trellis_base (20056), LostCity climb ported (Agility 18, 31 xp, lands 2548,3117,1; s20_trellis2 12/12); Gu'Tanoth gate guard + rope swing from parity2b; ready to author (gate at 2550,3025; swing approach 2499,3089)
 quest_junglepotion	junglepotion	junglepotion		3	todo		
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
@@ -135,14 +135,14 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo		
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		PARITY after 7e91c06fe3 [parity2b]: Lady Table 17-tick window, Sir Leye blade/unarmed proved; open: Lady Table statue-symbol routing unproved, Sir Ren combo lock is a menu not the dial interface
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		RETRY after 23fd3961e [seam20]: Sir Ren combo lock FIXED (interface 285 rd_combolock bound, arrows+ENTER driven by t.ui.invoke; s20ren_lock3 31/31); Lady Table content fixed (verdict lines no longer abort, wrong statue sends to rd_park) but OPEN ENGINE seam: the client never re-places a multiloc child hidden (-1) by rd_room_order until the scene rebuilds, so the answer statue is not clickable after memorising (s20lt_wrong2 answerBackForTouch) -- blocked on that engine fix
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	
 quest_routequest	routequest	insearchofthemyreque		3	todo		
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17	
-quest_royaltrouble	royaltrouble	royaltrouble		4	todo		
+quest_royaltrouble	royaltrouble	royaltrouble		4	todo		RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)
 quest_rumdeal	rumdeal	rumdeal		2	todo		
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15	
