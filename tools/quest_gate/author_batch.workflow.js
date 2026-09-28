@@ -29,7 +29,7 @@ export const meta = {
 const WT = '/Users/matthewevers/Documents/git_repos/3draster'
 const batch = args && args.batch
 const tests = (args && args.tests) || []
-const authorModel = 'sonnet'
+const authorModel = 'claude-sonnet-5-5'
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
 if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
@@ -102,7 +102,7 @@ Do NOT edit QUEUE.tsv (the Queue phase writes every row once from the review fil
 phase('State')
 const state = (await attempt('state', 3, () => agent(`${COMMON}
 
-YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; queue_written_ids = its "written" list (or []); sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or its "checked" list, or []); sample_sent_back = its "sent_back" list (or []); sheet_built = ${STATE}/sheet.json exists. Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'sonnet', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false, queue_written_ids: [], sample_considered: [], sample_sent_back: [] }
+YOUR JOB: read this batch's persisted state, no edits, no summarising. mkdir -p ${STATE}. reviewed = the content of every ${STATE}/<id>.review.json that parses, copied verbatim; authored = every ${STATE}/<id>.author.json, verbatim; queue_written = ${STATE}/queue.json exists; queue_written_ids = its "written" list (or []); sampled = ${STATE}/sample.json exists and says pushed; sample_considered = its "considered" list (or its "checked" list, or []); sample_sent_back = its "sent_back" list (or []); sheet_built = ${STATE}/sheet.json exists. Never invent an entry. Return exactly the schema.`, { label: 'state', model: 'claude-sonnet-5-5', effort: 'low', schema: STATE_SCHEMA }))) || { reviewed: [], authored: [], queue_written: false, sampled: false, sheet_built: false, queue_written_ids: [], sample_considered: [], sample_sent_back: [] }
 // A quest the sampler sent back is authored again: its old author/review files are ignored (the author removes them).
 const sentBack = new Set(state.sample_sent_back || [])
 const keptReviews = state.reviewed.filter(r => !sentBack.has(r.test_id))
@@ -125,7 +125,7 @@ const results = await pipeline(
   },
   async (a, id) => {
     const report = a || { test_id: id, outcome: 'gave_up', runs: 0, checks_resolved: [], last_failure: '', blocker: 'the author returned no report; review whatever file it left', doc_gaps: [], compacted: true }
-    return attempt(`review:${id}`, 2, () => agent(reviewCard(id, report), { label: `review:${id}`, phase: 'Review', model: 'sonnet', schema: REVIEW_SCHEMA }))
+    return attempt(`review:${id}`, 2, () => agent(reviewCard(id, report), { label: `review:${id}`, phase: 'Review', model: 'claude-sonnet-5-5', schema: REVIEW_SCHEMA }))
   },
 )
 const reviewed = [...keptReviews, ...results.filter(Boolean)]
@@ -139,7 +139,7 @@ const toWrite = reviewed.filter(r => !writtenIds.has(r.test_id))
 if (toWrite.length) {
   await attempt('queue', 3, () => agent(`${COMMON}
 
-YOUR JOB: write this batch's queue rows ONCE, from the review files, commit, no push. Rows to write now: ${toWrite.map(r => r.test_id).join(', ')} (read each ${STATE}/<id>.review.json); rows already written by an earlier launch and left alone: ${[...writtenIds].join(', ') || 'none'}. For each: python3 tools/quest_gate/queue.py set <id> --status <queue_status> --owner ${batch} --failure "<queue_failure>" (green rows get --failure ""). If queue.py refuses green because the file carries a t.blocked( that a guard makes unreachable (the ledger has no BLOCKED row), write that row through queue.py's own loader/writer and say so. Quests with no review file (${missing.join(', ') || 'none'}) are left untouched. Then git add test/quests/QUEUE.tsv; git commit -m "quests: queue after batch ${batch}" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>". FINISH: write {"written": [every id written by any launch: ${[...writtenIds].map(x => '"' + x + '"').join(', ')}${writtenIds.size ? ', ' : ''}plus the ids you wrote now]} to ${STATE}/queue.json. Return a one-line summary per row.`, { label: 'queue', model: 'sonnet' }))
+YOUR JOB: write this batch's queue rows ONCE, from the review files, commit, no push. Rows to write now: ${toWrite.map(r => r.test_id).join(', ')} (read each ${STATE}/<id>.review.json); rows already written by an earlier launch and left alone: ${[...writtenIds].join(', ') || 'none'}. For each: python3 tools/quest_gate/queue.py set <id> --status <queue_status> --owner ${batch} --failure "<queue_failure>" (green rows get --failure ""). If queue.py refuses green because the file carries a t.blocked( that a guard makes unreachable (the ledger has no BLOCKED row), write that row through queue.py's own loader/writer and say so. Quests with no review file (${missing.join(', ') || 'none'}) are left untouched. Then git add test/quests/QUEUE.tsv; git commit -m "quests: queue after batch ${batch}" with the trailer "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>". FINISH: write {"written": [every id written by any launch: ${[...writtenIds].map(x => '"' + x + '"').join(', ')}${writtenIds.size ? ', ' : ''}plus the ids you wrote now]} to ${STATE}/queue.json. Return a one-line summary per row.`, { label: 'queue', model: 'claude-sonnet-5-5' }))
 } else log('queue: every reviewed row already written by a previous launch')
 
 phase('Sample')
@@ -161,7 +161,7 @@ let sheet = null
 if (!state.sheet_built || freshReviews.length) {
   sheet = await attempt('sheet', 2, () => agent(`${COMMON}
 
-YOUR JOB: build the contact-sheet page for batch ${batch} (quests: ${tests.join(' ')}) with /usr/bin/python3 tools/quest_gate/batch_sheet/build_sheet.py . ${sheetDir} ${tests.join(' ')} [--quality N] then /usr/bin/python3 tools/quest_gate/batch_sheet/render_page.py ${sheetDir} ${batch} "Quest Batch ${batch}". The published total (all .webp + index.html) must be under 58 MB: build at the default quality first; if over, rebuild with --quality lowered until under. Do not publish; do not edit BATCHES.tsv; never commit. FINISH: write the schema JSON to ${STATE}/sheet.json, then return it (index_html = the absolute path, files = the .webp names, bytes = total published bytes, quality used, quests included).`, { label: 'sheet', model: 'sonnet', schema: SHEET_SCHEMA }))
+YOUR JOB: build the contact-sheet page for batch ${batch} (quests: ${tests.join(' ')}) with /usr/bin/python3 tools/quest_gate/batch_sheet/build_sheet.py . ${sheetDir} ${tests.join(' ')} [--quality N] then /usr/bin/python3 tools/quest_gate/batch_sheet/render_page.py ${sheetDir} ${batch} "Quest Batch ${batch}". The published total (all .webp + index.html) must be under 58 MB: build at the default quality first; if over, rebuild with --quality lowered until under. Do not publish; do not edit BATCHES.tsv; never commit. FINISH: write the schema JSON to ${STATE}/sheet.json, then return it (index_html = the absolute path, files = the .webp names, bytes = total published bytes, quality used, quests included).`, { label: 'sheet', model: 'claude-sonnet-5-5', schema: SHEET_SCHEMA }))
 } else log('sheet: already built by a previous launch (read build/author_state/' + batch + '/sheet.json)')
 
 return { batch, reviewed, missing, sample, sheet }

@@ -246,7 +246,7 @@ word in this tree's Lua (3rd/lua/llex.c) and does not parse.
 
 ## Phase 5 run book rules (owner, 2026-09-20)
 
-- **Authors are Sonnet 5, always (owner, 2026-09-22): Haiku is not used
+- **Authors are Sonnet 5.5, always (owner, 2026-09-22 Sonnet 5; 2026-09-28 "Sonnet 5.5 is out. Use that as the sub agent in place of sonnet 5" -- the workflows pass the id claude-sonnet-5-5 because the sonnet alias still resolves to Sonnet 5): Haiku is not used
   anywhere in the loop.** `author_batch.workflow.js` no longer takes an
   `author_model` argument. History: four Haiku batches landed 4 of 24 and the
   first Sonnet batch 5 of 8 on the same quests.
