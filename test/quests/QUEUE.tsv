@@ -1,6 +1,6 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo		
-quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		
+quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup
 quest_arena	arena	fightarena		3	todo		
 quest_arthur	arthur	merlinscrystal		3	todo		
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
@@ -40,10 +40,10 @@ quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo
 quest_deviousminds	deviousminds	deviousminds		3	todo		
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
 quest_dragon	dragon	dragonslayer		3	todo		
-quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		
+quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
-quest_druidspirit	druidspirit	naturespirit		3	todo		
+quest_druidspirit	druidspirit	naturespirit		3	todo		seam22 [b2b3fc229]: ghast [apnpc2] ends @player_combat_start_ap (LostCity ghast.rs2) -- melee walks in, ranged/magic from range
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
@@ -143,14 +143,14 @@ quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2
 quest_routequest	routequest	insearchofthemyreque		3	todo		
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17	
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)
-quest_rumdeal	rumdeal	rumdeal		2	todo		RETRY after 57b4ff6a1 [seam21]: t.player.attack fights ONE copy (pressed slot = watched slot, opts {slot}/{at}); the zero-hitsplat spider leg was content -- fever spiders take no player damage unless deal_slayer_gloves are WORN (slayer_specials.rs2, open content seam), so wear them; brief pinned at docs/quests/rum_deal.md; rewrite the spider rows around gloves + attack/await_dead_engaged
+quest_rumdeal	rumdeal	rumdeal		2	todo		"RETRY after b2b3fc229 [seam22]: fever spiders now take the player's damage with or without gloves (content 6cb3edee68, wiki Fever_spider); without deal_slayer_gloves each spider attack is a forced 12-hp hit + disease, so still wear the gloves or eat; rewrite the spider rows (attack + await_dead_engaged) and fix the stale finish substring -- the real line is ""Donnie's had his taste of the swill.""; parity copy completed the quest (s22fs_rumdeal3)"
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15	
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
-quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		RETRY after 57b4ff6a1 [seam21]: Agrith-Naar's death handler binds the hero and queue()s the weapon-gate mesbox / completion onto the player (engine now errors on an unbound npc-script dialogue); ::setvar agrith_quest ^sots_X writes the varbit; brief docs/quests/shadow_of_the_storm.md; drive the fight bare-handed once (revive line) then with Silverlight
+quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		RETRY after b2b3fc229 [seam22]: first ritual is real content (70 -> 80 Matthew's book talk with dyed Silverlight, 80 -> 90 sigil Chant on 2718,4902,2 in Denath's order, pick up his sigil at 2719,4900,2); lamp pays 10,000 XP; scratch build/seam_state/seam22/sots_first_ritual/scratch_ritual.lua; open: Tanya's sigil drop, throne-room spawns (Denath only via ::shadowstormritual)
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
 quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b22	
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
@@ -180,11 +180,11 @@ quest_twilightspromise	twilightspromise	twilightspromise		4	todo
 quest_upass	upass	undergroundpass		3	todo		
 quest_vampire	vampire	vampyreslayer		2	todo		RETRY after c5a2329b0: seam19 findhero_in_ai_queue3 fixed (npc_findhero 1/0 + killer bound at CORPSE): stake kill completes (s19close_stake 10/10), no stake regenerates (s19fh_nostake_fixed 8/8); wait for the [ai_queue3] line after await_dead_engaged before reading stage/inv/xp (use build/seam_state/seam19/fh_scripts/)
 quest_viking	viking	thefremenniktrials		3	todo		
-quest_wanted	wanted	wanted		2	todo		RETRY after 57b4ff6a1 [seam21]: Champions' Guild stop plays Solus's Smoke Barrage (7 pages) and Dorgesh-Kaan the hostage Woman -> Solus (11 pages); Lumbridge Swamp Caves stop reached only by the real descent (rope, stepping stone 3221,9552); brief docs/quests/wanted.md; open: random-position events 2/4/6 unported, spawned shells not drawn
+quest_wanted	wanted	wanted		2	todo		RETRY after b2b3fc229 [seam22]: hunt random positions 2/4/6 ported (Camelot teleport, Flames of Zamorak 111/121 hp never lethal -> wake 2970,3345, summoned Black Knight whose death resolves the stop) and every stop's clue item handed over; spawned shells DO draw (seam21's probe tile was a parapet); scratch build/seam_state/seam22/wanted_events/wanted_events.lua 51/51 is the drive; chat.play has no objbox: entry (use *); open: hat still from Commorb Contact
 quest_waterfall	waterfall	waterfallquest		3	todo		
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
 quest_zanaris	zanaris	lostcity		3	todo		
-quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo		RETRY after 57b4ff6a1 [seam21]: Relicym's balm gated on Sithik's disease answer (%thzfe_makecuredisease) or completion -- ask Sithik option 3 before brewing, never ::setvar; brief docs/quests/zogre_flesh_eaters.md; open: t.player.cast still presses the centre-ranked copy (spell.lua needs attack's one-copy pick) for Crumble Undead
+quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo		RETRY after b2b3fc229 [seam22]: t.player.cast fights ONE copy (opts {slot}/{at}) and await_dead_engaged re-CASTS; open CONTENT: zogre_slash_bash has no param=undead so Crumble Undead is refused ('This spell only affects skeletons, zombies, ghosts and shades.'), and Uglug Nar's store is not gated on selling a balm (wiki)
 quest_zombiequeen	zombiequeen	shilovillage		3	todo		
