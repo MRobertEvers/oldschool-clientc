@@ -24,7 +24,7 @@ quest_coldwar	coldwar	coldwar		4	todo
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo		RETRY after c5a2329b0: seam19 cast_spell_on_npc fixed (t.player.cast); Chronozon's blasts still land ~1 in 10: open content seam skill_combat/combat_stats.rs2:656 npc_defence_roll rolls magic vs npc DEFENCE (LostCity npc_combat.rs2:286-291 uses npc MAGIC); leg table not built
+quest_crest	crest	familycrest		2	todo		PARITY after 7e91c06fe3 [parity2b]: combine/gauntlet-drop/re-offer/complete now LostCity; open: live 4-blast Chronozon kill blocked on content seam skill_combat/combat_stats.rs2:656 (magic rolled vs npc DEFENCE, LostCity npc_combat.rs2:286-291 uses MAGIC); crest_witchaven lever puzzle diverges from LostCity bits
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
@@ -54,7 +54,7 @@ quest_enakhraslament	enakhraslament	enakhraslament		4	todo
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15	
 quest_ethicallyacquiredantiquities	ethicallyacquiredantiquities	ethicallyacquiredantiquities		4	todo		
-quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		
+quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	todo		PARITY after 7e91c06fe3 [parity2b]: %fenk_quest tracks the stages (corpse on the table); open: plane-2 tower door/ladder topology, ring completion freespace guard -- ready to author the sign->hire->parts->lightning route
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
@@ -64,7 +64,7 @@ quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		
 quest_gettingahead	gettingahead	gettingahead		4	todo		
-quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		
+quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo		PARITY after 7e91c06fe3 [parity2b]: lobster attackable, Rune-Draw is a real game (drive draw/hold rounds until debt 100); open: DRIVER seam -- lower-hull Attack/chest answer 'I can't reach that!' from the pathfinder's own tile (lobster.lua repro under build/parity_state/parity2b/ghostsahoy_scripts)
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
 quest_golem	golem	thegolem		1	green	sonnet-b15	
@@ -88,7 +88,7 @@ quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
 quest_itexam	itexam	thedigsite		3	todo		
 quest_itgronigen	itgronigen	observatoryquest		3	todo		
-quest_itwatchtower	itwatchtower	watchtower		2	todo		RETRY after c5a2329b0: seam19 obj_add_private_arity fixed (content 98153365dc): Gorad's drops and the defeat_gorad ogre tooth land on a real kill (s19oap_gorad_tooth); rest of the quest not yet parity-checked
+quest_itwatchtower	itwatchtower	watchtower		2	todo		PARITY after 7e91c06fe3 [parity2b]: Gu'Tanoth gate guard + rope swing ported from LostCity; open: loc_2299 wall climb (cache id unresolved) -- ready to author (gate at 2550,3025; swing approach 2499,3089)
 quest_junglepotion	junglepotion	junglepotion		3	todo		
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
@@ -106,14 +106,14 @@ quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
-quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		
+quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		PARITY done at 7e91c06fe3 [parity2b]: The Kendal attackable (trap 31), killKendal driven 14/14 -- ready to author
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b25	
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24	
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo		
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo		PARITY after 7e91c06fe3 [parity2b]: Slagilith + gang attackable, progress varp now transmits; open: weathervane and 8-lamp landing-light puzzles collapsed to single actions (must be expanded per QH), glider unlock narrated
 quest_pandemonium	pandemonium	pandemonium		4	todo		
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
@@ -135,7 +135,7 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo		
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		PARITY after 7e91c06fe3 [parity2b]: Lady Table 17-tick window, Sir Leye blade/unarmed proved; open: Lady Table statue-symbol routing unproved, Sir Ren combo lock is a menu not the dial interface
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
