@@ -398,25 +398,6 @@ app_loc_transform_depends_on_varp(
 }
 
 /*
- * Placements a multiloc currently hides (-1), kept by the world builder
- * (world_builder.c, WorldBuilderHiddenLoc). Declared here, by the one caller,
- * until world_builder.h carries them.
- */
-int
-WorldBuilder_HiddenLocCount(struct WorldBuilder* builder);
-
-int
-WorldBuilder_HiddenLocGet(
-    struct WorldBuilder* builder,
-    int index,
-    int* out_scene_x,
-    int* out_scene_z,
-    int* out_level,
-    int* out_loc_id,
-    int* out_shape,
-    int* out_angle);
-
-/*
  * Whether `varp_id` drives any link of `loc`'s transform chain, and -- through
  * `out_hidden` -- whether that chain resolves to -1 right now. A link whose
  * config is not resident yet counts as shown: the loc-change task that follows
@@ -565,10 +546,13 @@ app_varp_refresh_loc_transforms(
         int hidden_count = builder ? WorldBuilder_HiddenLocCount(builder) : 0;
         for( int i = 0; i < hidden_count && n < MAX_REFRESH; ++i )
         {
-            int x, z, level, loc_id, shape, angle;
+            struct WorldBuilderHiddenLoc const* hidden = WorldBuilder_HiddenLocGet(builder, i);
+            int const x = hidden->scene_x;
+            int const z = hidden->scene_z;
+            int const level = hidden->level;
+            int const shape = hidden->shape;
             int still_hidden = 0;
-            WorldBuilder_HiddenLocGet(builder, i, &x, &z, &level, &loc_id, &shape, &angle);
-            struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, loc_id);
+            struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, hidden->loc_id);
             if( !loc || !app_loc_chain_depends_on_varp(app, loc, varp_id, &still_hidden) )
                 continue;
             if( still_hidden )
@@ -590,11 +574,15 @@ app_varp_refresh_loc_transforms(
             pending[n].x = x;
             pending[n].z = z;
             pending[n].level = level;
-            pending[n].loc_id = loc_id;
+            pending[n].loc_id = hidden->loc_id;
             pending[n].shape = shape;
-            pending[n].angle = angle;
-            pending[n].op_flags = 0x1f;
-            memset(pending[n].ops, 0, sizeof(pending[n].ops));
+            pending[n].angle = hidden->angle;
+            /* The placement's own menu came through the hide with it: a zone
+             * LOC_ADD with door-script ops that landed while its multiloc was
+             * -1 is re-placed with those ops, not the loctype's. */
+            pending[n].op_flags = hidden->op_flags;
+            for( int op = 0; op < 5; ++op )
+                snprintf(pending[n].ops[op], sizeof(pending[n].ops[op]), "%s", hidden->ops[op]);
             ++n;
         }
         app->active_world = view;

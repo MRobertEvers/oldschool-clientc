@@ -371,7 +371,10 @@ reading as "it got harder at 70%"):
      "regenerating" boss still shows a zero bar before its `[ai_queue3]`
      heals it.
    - **An npc script may not talk until it binds a player** (seam21,
-     2026-09-27). Every `[ai_*]` trigger (`ai_queue<n>`, `ai_timer`,
+     2026-09-27; since seam22 `make -C src check-npc-script-player-suspend`,
+     a prerequisite of `torirsserver-scripts`, refuses one at 0 hits, and a
+     death handler's WHOLE player half -- dialogue, teleport, instance free --
+     goes on the player's queue: `pest_waves.rs2 [queue,pest_game_end_queued]`). Every `[ai_*]` trigger (`ai_queue<n>`, `ai_timer`,
      `ai_spawn`, `ai_ap/opnpc<n>`, `ai_ap/opplayer<n>`, ...) runs with the npc
      phase's player BORROWED; a player suspend from it -- `~mesbox`,
      `~chatnpc`, `~chatplayer`, `~objbox`, a `~p_choice`, `p_delay`,

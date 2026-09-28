@@ -4523,6 +4523,37 @@ npc_player_distance(
 }
 
 /*
+ * Is the player in this npc's MELEE reach -- the footprints flush on a
+ * cardinal side (never a corner, never overlapping) and no wall on the shared
+ * edge? The reference's reachExclusiveRectangle, which is what LostCity asks
+ * before an npc's op on a player fires (see the opplayer arrival below);
+ * torirs_server_combat.c in_attack_range_with asks the same of a melee swing.
+ */
+static int
+npc_player_melee_reached(
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player)
+{
+    int size = npc->size > 0 ? npc->size : 1;
+    int dx = 0;
+    int dz = 0;
+
+    assert(npc);
+    assert(player);
+    if( npc->x > player->x )
+        dx = npc->x - player->x;
+    else if( player->x > npc->x + size - 1 )
+        dx = player->x - (npc->x + size - 1);
+    if( npc->z > player->z )
+        dz = npc->z - player->z;
+    else if( player->z > npc->z + size - 1 )
+        dz = player->z - (npc->z + size - 1);
+    if( dx + dz != 1 )
+        return 0;
+    return ToriRSServer_SceneMeleeReached(npc->level, player->x, player->z, npc->x, npc->z, size);
+}
+
+/*
  * One step toward the player, for every player-facing npc mode including
  * `playerfollow`. Naive destination handles the perimeter, so the npc ends up
  * beside the player rather than on them.
@@ -4865,7 +4896,14 @@ npc_run_mode(
     {
         int op = npc->mode - TORIRSSERVER_NPCMODE_OPPLAYER1;
 
-        if( range > 1 )
+        /* Arrival is the reference's operable distance for an entity target
+         * (PathingEntity.inOperableDistance -> ReachStrategy.reached, shape
+         * -2): the footprints flush on a cardinal side with no wall on the
+         * shared edge. `range` is the corner Chebyshev distance, which called
+         * a DIAGONAL arrival and read no wall: Druidic Ritual's prison-door
+         * suit ran [ai_opplayer2] on a player standing diagonally across the
+         * closed door from it (seam22, build/quest_gate/s22pc_druid_probe). */
+        if( !npc_player_melee_reached(npc, player) )
         {
             npc_walk_to_player(npc, player);
             return 1;

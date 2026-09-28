@@ -2631,6 +2631,43 @@ ToriRSServer_SceneRouteOp(
     return steps;
 }
 
+/*
+ * Melee reach between a 1x1 attacker square and an entity's footprint: the
+ * reference's reachRectangle for an entity target (shape -2, exclusive -- never
+ * on the footprint, never across a corner) with the SHARED EDGE's wall bit
+ * read. LostCity decides every melee op this way (PathingEntity
+ * inOperableDistance -> ReachStrategy.reached, rsmod reachExclusiveRectangle):
+ * a monster behind a closed door or a fence is not in reach of the player on
+ * the other side, and neither is the player in reach of it.
+ *
+ * Where no collision window covers the two squares there is no wall to read,
+ * and the caller's own footprint test (flush and cardinal) is the whole answer,
+ * so this answers yes.
+ */
+int
+ToriRSServer_SceneMeleeReached(
+    int level,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    int dst_size)
+{
+    struct ToriRSServerSceneWindow* window = window_containing2(x, z, dst_x, dst_z);
+    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    struct CollisionApproach approach = {
+        .kind = COLL_APPROACH_RECT_EXCLUSIVE,
+        .loc_width = dst_size > 0 ? dst_size : 1,
+        .loc_length = dst_size > 0 ? dst_size : 1,
+        .mover_size = 1,
+    };
+
+    if( !map )
+        return 1;
+    return collision_map_reached(map, x - window->base_x, z - window->base_z,
+                                 dst_x - window->base_x, dst_z - window->base_z, &approach);
+}
+
 int
 ToriRSServer_SceneReached(
     int level,

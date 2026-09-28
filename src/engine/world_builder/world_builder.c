@@ -23,6 +23,7 @@
 #include <rscache.h>
 
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -141,69 +142,44 @@ static int g_wb_env_no_face_clone = -1;
 // clang-format on
 
 /*
- * Placements a multiloc hid (-1), remembered so a varp change can bring them back.
+ * Placements a multiloc hid (-1): struct WorldBuilderHiddenLoc
+ * (world_builder.h) says why they are kept. The live remorph
+ * (app_varp_transforms.c) walks the scenery pool, and a placement a -1 rung
+ * skipped is not in it, so without this list a statue hidden once stayed gone
+ * until the scene rebuilt -- Recruitment Drive's Lady Table room hides one of
+ * its twelve while you memorise, and the answer statue never came back.
  *
- * The reference never drops such a placement. A loc with a transform table is a
- * DynamicObject that stays in the scene with its BASE id, and its model is
- * re-resolved on every draw: `method4108` walks the transform table and answers
- * null for a -1 rung, `method4109` then draws nothing -- and draws the child again
- * the frame the varbit changes (Deobfuscator/src_osrs239/deob/class123.java,
- * runelite's DynamicObject). This port resolves a multiloc ONCE, when it places
- * it, and a -1 rung makes `world_builder_resolve_loc_for_place` answer NULL, so
- * the static build, the instance build and `WorldBuilder_ApplyLocChange` all skip
- * the entity. The live remorph (app_varp_transforms.c) walks only the scenery
- * pool, so a placement that was hidden once stayed gone until the scene rebuilt
- * -- Recruitment Drive's Lady Table room hides one of its twelve statues while you
- * memorise, and the answer statue never came back for you to touch.
- *
- * So every placement skipped that way is written down here, keyed on the tile,
- * the level and the loc LAYER (the same key `World_SceneryFindAt` uses), with the
- * base id the map or zone packet named. The varp refresh re-places the ones whose
- * table now resolves to a real child through the ordinary loc-change path.
  * A rebuild forgets them all (the build records its own again), and any loc
- * change on the same tile and layer forgets that one -- a LOC_DEL or a different
- * loc there means the hidden placement is no longer what the scene holds.
- *
- * Kept beside the builder rather than in it only because world_builder.h is
- * outside this change; one small list per builder, looked up by pointer.
+ * change on the same tile and layer forgets that one -- a LOC_DEL or a
+ * different loc there means the hidden placement is no longer what the scene
+ * holds.
  */
-struct WorldBuilderHiddenLoc
+static int
+world_builder_hidden_find_at(
+    struct WorldBuilder const* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int shape)
 {
-    int scene_x;
-    int scene_z;
-    int level;
-    int loc_id;
-    int shape;
-    int angle;
-};
+    int layer = World_LocShapeToLayer(shape);
 
-struct WorldBuilderHiddenLocs
-{
-    struct WorldBuilder* builder;
-    struct WorldBuilderHiddenLoc* items;
-    int count;
-    int capacity;
-    struct WorldBuilderHiddenLocs* next;
-};
-
-static struct WorldBuilderHiddenLocs* g_wb_hidden_locs = NULL;
-
-static struct WorldBuilderHiddenLocs*
-world_builder_hidden_find(struct WorldBuilder* builder)
-{
     assert(builder);
-    for( struct WorldBuilderHiddenLocs* h = g_wb_hidden_locs; h; h = h->next )
-        if( h->builder == builder )
-            return h;
-    return NULL;
+    for( int i = 0; i < builder->hidden_loc_count; i++ )
+    {
+        struct WorldBuilderHiddenLoc const* r = &builder->hidden_locs[i];
+        if( r->scene_x == scene_x && r->scene_z == scene_z && r->level == level &&
+            World_LocShapeToLayer(r->shape) == layer )
+            return i;
+    }
+    return -1;
 }
 
 static void
 world_builder_hidden_clear(struct WorldBuilder* builder)
 {
-    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
-    if( h )
-        h->count = 0;
+    assert(builder);
+    builder->hidden_loc_count = 0;
 }
 
 static void
@@ -214,21 +190,19 @@ world_builder_hidden_forget_at(
     int level,
     int shape)
 {
-    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
     int layer = World_LocShapeToLayer(shape);
     int kept = 0;
 
-    if( !h )
-        return;
-    for( int i = 0; i < h->count; i++ )
+    assert(builder);
+    for( int i = 0; i < builder->hidden_loc_count; i++ )
     {
-        struct WorldBuilderHiddenLoc* r = &h->items[i];
+        struct WorldBuilderHiddenLoc* r = &builder->hidden_locs[i];
         if( r->scene_x == scene_x && r->scene_z == scene_z && r->level == level &&
             World_LocShapeToLayer(r->shape) == layer )
             continue;
-        h->items[kept++] = *r;
+        builder->hidden_locs[kept++] = *r;
     }
-    h->count = kept;
+    builder->hidden_loc_count = kept;
 }
 
 static void
@@ -241,111 +215,81 @@ world_builder_hidden_note(
     int shape,
     int angle)
 {
-    struct WorldBuilderHiddenLocs* h;
+    struct WorldBuilderHiddenLoc* r;
 
     assert(builder);
     world_builder_hidden_forget_at(builder, scene_x, scene_z, level, shape);
-    h = world_builder_hidden_find(builder);
-    if( !h )
+    if( builder->hidden_loc_count == builder->hidden_loc_capacity )
     {
-        h = calloc(1, sizeof(*h));
-        assert(h);
-        h->builder = builder;
-        h->next = g_wb_hidden_locs;
-        g_wb_hidden_locs = h;
-    }
-    if( h->count == h->capacity )
-    {
-        int capacity = h->capacity ? h->capacity * 2 : 32;
-        struct WorldBuilderHiddenLoc* items = realloc(h->items, capacity * sizeof(*items));
+        int capacity = builder->hidden_loc_capacity ? builder->hidden_loc_capacity * 2 : 32;
+        struct WorldBuilderHiddenLoc* items =
+            realloc(builder->hidden_locs, (size_t)capacity * sizeof(*items));
         assert(items);
-        h->items = items;
-        h->capacity = capacity;
+        builder->hidden_locs = items;
+        builder->hidden_loc_capacity = capacity;
     }
-    h->items[h->count].scene_x = scene_x;
-    h->items[h->count].scene_z = scene_z;
-    h->items[h->count].level = level;
-    h->items[h->count].loc_id = loc_id;
-    h->items[h->count].shape = shape;
-    h->items[h->count].angle = angle;
-    h->count++;
+    r = &builder->hidden_locs[builder->hidden_loc_count++];
+    memset(r, 0, sizeof(*r));
+    r->scene_x = scene_x;
+    r->scene_z = scene_z;
+    r->level = level;
+    r->loc_id = loc_id;
+    r->shape = shape;
+    r->angle = angle;
+    /* The loctype's own menu until a zone change stamps its pair on it. */
+    r->op_flags = 0x1f;
 }
 
 static void
 world_builder_hidden_release(struct WorldBuilder* builder)
 {
-    struct WorldBuilderHiddenLocs** link = &g_wb_hidden_locs;
-
     assert(builder);
-    while( *link )
-    {
-        struct WorldBuilderHiddenLocs* h = *link;
-        if( h->builder == builder )
-        {
-            *link = h->next;
-            free(h->items);
-            free(h);
-            return;
-        }
-        link = &h->next;
-    }
-}
-
-/*
- * The varp refresh's view of the list. Declared by its one caller
- * (app_varp_transforms.c) until world_builder.h carries it.
- */
-int
-WorldBuilder_HiddenLocCount(struct WorldBuilder* builder);
-
-int
-WorldBuilder_HiddenLocGet(
-    struct WorldBuilder* builder,
-    int index,
-    int* out_scene_x,
-    int* out_scene_z,
-    int* out_level,
-    int* out_loc_id,
-    int* out_shape,
-    int* out_angle);
-
-int
-WorldBuilder_HiddenLocCount(struct WorldBuilder* builder)
-{
-    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
-    return h ? h->count : 0;
+    free(builder->hidden_locs);
+    builder->hidden_locs = NULL;
+    builder->hidden_loc_count = 0;
+    builder->hidden_loc_capacity = 0;
 }
 
 int
-WorldBuilder_HiddenLocGet(
-    struct WorldBuilder* builder,
-    int index,
-    int* out_scene_x,
-    int* out_scene_z,
-    int* out_level,
-    int* out_loc_id,
-    int* out_shape,
-    int* out_angle)
+WorldBuilder_HiddenLocCount(struct WorldBuilder const* builder)
 {
-    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
+    assert(builder);
+    return builder->hidden_loc_count;
+}
+
+struct WorldBuilderHiddenLoc const*
+WorldBuilder_HiddenLocGet(
+    struct WorldBuilder const* builder,
+    int index)
+{
+    assert(builder);
+    assert(index >= 0);
+    assert(index < builder->hidden_loc_count);
+    return &builder->hidden_locs[index];
+}
+
+int
+WorldBuilder_HiddenLocSetOps(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int shape,
+    int op_flags,
+    char const ops[5][WORLD_BUILDER_HIDDEN_LOC_OP_LEN])
+{
+    int i;
     struct WorldBuilderHiddenLoc* r;
 
-    assert(h);
-    assert(index >= 0);
-    assert(index < h->count);
-    assert(out_scene_x);
-    assert(out_scene_z);
-    assert(out_level);
-    assert(out_loc_id);
-    assert(out_shape);
-    assert(out_angle);
-    r = &h->items[index];
-    *out_scene_x = r->scene_x;
-    *out_scene_z = r->scene_z;
-    *out_level = r->level;
-    *out_loc_id = r->loc_id;
-    *out_shape = r->shape;
-    *out_angle = r->angle;
+    assert(builder);
+    assert(ops);
+    i = world_builder_hidden_find_at(builder, scene_x, scene_z, level, shape);
+    if( i < 0 )
+        return 0;
+    r = &builder->hidden_locs[i];
+    r->op_flags = op_flags & 0x1f;
+    for( int op = 0; op < 5; op++ )
+        snprintf(r->ops[op], sizeof(r->ops[op]), "%s", ops[op]);
     return 1;
 }
 
@@ -1635,7 +1579,7 @@ WorldBuilder_ApplyLocChange(
         {
             /* The multiloc resolves to -1 right now: nothing to draw, but the
              * placement stands, exactly as the reference keeps its
-             * DynamicObject (see WorldBuilderHiddenLoc above). */
+             * DynamicObject (see WorldBuilderHiddenLoc, world_builder.h). */
             world_builder_hidden_note(builder, scene_x, scene_z, level, loc_id, shape, angle);
         }
     }

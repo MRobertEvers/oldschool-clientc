@@ -127,10 +127,13 @@ before the fix.
   talking to Lord Daquarius, if you leave the room after the kill, or if you
   get interrupted during the ensuing conversation." The port enforces the
   first condition but not the room or the interruption.
-- **The hunt gives no clue items.** The Walkthrough's item table says each
-  stop leaves an item (blue cape, bone spear, 20 noted essence, and the
-  random-stop items). At pinning time, no `inv_add` exists in
-  `wanted_hunt.rs2`.
+- **The hunt gives no clue items.** FIXED seam22 (`wanted_hunt.rs2`): every
+  stop hands over its item with Savant's transcript lines (blue cape, bone
+  spear, 20 noted essence after the Black Knight, and the wiki item table's
+  random-stop items), and positions 2/4/6 play Camelot / Flames of Zamorak
+  (111/121 of current HP, never lethal, wake at 2970,3345) / a summoned
+  level-32 Black Knight whose death resolves the stop (scratch
+  `build/quest_gate/s22_wanted_events2`, 51/51).
 - **The essence is kept.** The Mage of Zamorak `inv_del`s the 20 essence.
   The wiki says you get them back as the final clue.
 - **The hat comes from Contact, not the kill.** The Walkthrough says

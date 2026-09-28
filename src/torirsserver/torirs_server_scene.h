@@ -509,6 +509,19 @@ ToriRSServer_SceneOpNearestOpts(struct CollisionNearestOpts* out);
 void
 ToriRSServer_SceneGroundNearestOpts(struct CollisionNearestOpts* out);
 
+/** Melee reach from the 1x1 square (x,z) to an entity footprint of `dst_size`
+ *  at (dst_x,dst_z): flush and cardinal (never a corner, never overlapping)
+ *  with no wall on the shared edge -- the reference's reachExclusiveRectangle.
+ *  True where no collision window covers both squares. */
+int
+ToriRSServer_SceneMeleeReached(
+    int level,
+    int x,
+    int z,
+    int dst_x,
+    int dst_z,
+    int dst_size);
+
 /** Is (x,z) an arrival for approach at (dst_x,dst_z)? */
 int
 ToriRSServer_SceneReached(

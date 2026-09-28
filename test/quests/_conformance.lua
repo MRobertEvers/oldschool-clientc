@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 31
+-- @seam-count 32
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 131
-local SEAM_COUNT = 31
+local SEAM_COUNT = 32
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5443,6 +5443,15 @@ return {
         -- centre and the two never differ (s21as_gob2..gob6).
         stage(function()
             setup_cheat("::give " .. COMBAT_WEAPON .. " 1")
+            -- Magic 99 for seam.cast_presses_the_named_copy (put back to 1
+            -- after it), set HERE, before this stage's equip and the melee row
+            -- below: the player's accuracy rolls are the %com_* varps
+            -- [proc,player_combat_stat] computes (skill_combat/combat_stats.rs2),
+            -- which a melee start reruns ([label,player_combat_start]) and
+            -- ::setlevel does not (ToriRSServer_CombatSetLevel).  Set after the
+            -- melee, eight Wind Strikes on the named goblin all splashed at
+            -- "Magic 99" (build/quest_gate/s22cast_conf2..conf5, row 155).
+            setup_cheat("::setlevel magic 99")                     -- setup
             settle(2)
             local equip = verb("player", "equip")
             if equip then
@@ -5567,7 +5576,169 @@ return {
             return "ok", text .. " || " .. text2
         end)
 
+        -- ONE COPY, CAST ON (seam22, cast_picks_one_copy).  player.cast took
+        -- npc.nearest's slot for its settle and pressed a bare-id row, which
+        -- lands on the copy App_NpcScreenPosition ranks nearest the VIEWPORT
+        -- CENTRE, and took no selector at all: measured
+        -- build/quest_gate/s22cast_before1 row cast.named_slot -- `{slot=72}`
+        -- ignored, the verb read slot 125 and slot 72 was never hit.  The row
+        -- casts on a FRESH pair's far copy, named by slot with the camera on
+        -- the nearest copy, and grades on which copy the SERVER hit (every
+        -- copy's hit cycle and bar before, and three ticks after each cast; a
+        -- splash shows nothing, so up to eight casts) -- never on the verb's
+        -- word.  Then the stamp's fight is waited out and its row must carry
+        -- the re-CAST tag: a cast fight is re-engaged by casting, not by an
+        -- Attack press (spell.lua's await_dead_engaged wrap).
+        --
+        -- The stage first waits out whatever fight the attack row above left
+        -- live (single-way: a second copy is refused "I'm already under
+        -- attack." while it holds the claim -- s22cast_after1 row 5), then
+        -- spawns the pair afresh on the attack row's tiles.
         stage(function()
+            local dead = verb("npc", "await_dead_engaged")
+            if dead then
+                dead(60)
+            end
+            setup_cheat("::give airrune 30")                       -- setup
+            setup_cheat("::give mindrune 30")                      -- setup
+            -- The phase 3 platebody is still worn (-30 magic attack), and it
+            -- is a prerequisite of nothing here: off, so the casts below can
+            -- land.  `not_found` when an earlier row left it off is fine.
+            local unequip = verb("player", "unequip")
+            if unequip then
+                unequip(WEARABLE_OBJ_SYMBOL)
+            end
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(ATTACK_PAIR_SPAWN_N_X, ATTACK_PAIR_SPAWN_N_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                goto_tile(ATTACK_PAIR_SPAWN_F_X, ATTACK_PAIR_SPAWN_F_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                setup_cheat("::passive " .. CAST_NPC_SYMBOL)       -- setup
+                goto_tile(ATTACK_PAIR_STAND_X, ATTACK_PAIR_STAND_Z, 0)
+            end
+            settle(3)
+        end)
+
+        seam("seam.cast_presses_the_named_copy", function()
+            local fn = verb("player", "cast")
+            local tiles = verb("npc", "tiles")
+            local tile = verb("world", "tile")
+            local dead = verb("npc", "await_dead_engaged")
+            if not fn then return missing("player", "cast") end
+            if not tiles then return missing("npc", "tiles") end
+            if not tile then return missing("world", "tile") end
+            if not dead then return missing("npc", "await_dead_engaged") end
+            local function copies()
+                local r, _, found = tiles(CAST_NPC_SYMBOL, 0)
+                return (r == "ok" and is_table(found)) and found or {}
+            end
+            local function reading()
+                local by_slot = {}
+                local found = copies()
+                for i = 1, #found do
+                    by_slot[found[i].slot] = { found[i].hit_cycle, found[i].health_ratio }
+                end
+                return by_slot
+            end
+            -- A copy counts as hit when its hit cycle or bar moved -- or, for
+            -- the NAMED copy only, when it left the pool: Wind Strike one-shots
+            -- a goblin (s22cast_conf6 row 155, "hp no bar -> 0/30 ... newest
+            -- splat 5", then no_row).  Any other copy leaving is a field goblin
+            -- wandering out of the pool (s22cast_conf7: slot 118), not a hit.
+            local function hit_since(before, named_slot)
+                local now = reading()
+                local hit = {}
+                for slot, was in pairs(before) do
+                    local is = now[slot]
+                    if (is == nil and slot == named_slot)
+                        or (is ~= nil and (is[1] > was[1] or is[2] ~= was[2])) then
+                        hit[#hit + 1] = slot
+                    end
+                end
+                table.sort(hit)
+                return hit
+            end
+            local found = copies()
+            local _, here = tile()
+            if #found < 2 or not is_table(here) then
+                return "no_subject", "fewer than two " .. CAST_NPC_SYMBOL .. " copies ("
+                    .. describe(#found) .. ") or no player tile"
+            end
+            local near = found[1]
+            -- The spawned far copy by its landing tile; else the copy nearest
+            -- that tile that is not the nearest copy.
+            local named = nil
+            local best = nil
+            for i = 2, #found do
+                local row = found[i]
+                local d = (row.x - ATTACK_PAIR_F_X) * (row.x - ATTACK_PAIR_F_X)
+                    + (row.z - ATTACK_PAIR_F_Z) * (row.z - ATTACK_PAIR_F_Z)
+                if best == nil or d < best then
+                    named = row
+                    best = d
+                end
+            end
+            local yaw = t.drive._yaw_towards(near.x - here.x, near.z - here.z)
+            if yaw then
+                t.drive.camera(yaw, 128, 400)
+                settle(2)
+            end
+            local condition = "named slot " .. describe(named.slot) .. " at " .. describe(named.x) .. ","
+                .. describe(named.z) .. ", nearest slot " .. describe(near.slot)
+                .. " (camera on the nearest)"
+            local skill = t.skill
+            local read = is_table(skill) and type(skill.read) == "function" and skill.read or nil
+            if read then
+                local _, magic = read("magic")
+                condition = condition .. ", magic level " .. describe(is_table(magic) and magic.level)
+            end
+            local result, detail, hit
+            local casts = 0
+            local seen = {}
+            for _ = 1, 8 do
+                casts = casts + 1
+                local before = reading()
+                result, detail = fn(CAST_SPELL, CAST_NPC_SYMBOL, 15, nil, { slot = named.slot })
+                settle(3)
+                hit = hit_since(before, named.slot)
+                -- What each cast read on its own copy (the harness's describe()
+                -- truncates the verb's detail before this part).
+                seen[#seen + 1] = describe(result) .. " "
+                    .. (string.match(tostring(detail), "(watching slot .-) %-%- ") or "?")
+                if result ~= "ok" or #hit > 0 then
+                    break
+                end
+            end
+            local text = condition .. "; " .. describe(casts) .. " cast(s) [" .. table.concat(seen, " | ")
+                .. "], copies hit: " .. (#hit == 0 and "none" or table.concat(hit, ",")) .. "; cast -> "
+                .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "pressed slot " .. tostring(named.slot) .. " ", 1, true)
+                or not string.find(tostring(detail), "watching slot " .. tostring(named.slot) .. ":", 1, true) then
+                return "hollow", "the detail does not name the named slot as both pressed and watched -- "
+                    .. text
+            end
+            if #hit ~= 1 or hit[1] ~= named.slot then
+                return "hollow", "the server hit " .. (#hit == 0 and "no copy in eight casts"
+                    or "another copy") .. " -- " .. text
+            end
+            local dead_result, dead_detail = dead(90, 12)
+            text = text .. " || await_dead_engaged -> " .. describe(dead_result) .. " " .. describe(dead_detail)
+            if dead_result ~= "ok" then
+                return dead_result, text
+            end
+            if not string.find(tostring(dead_detail), "slot " .. tostring(named.slot) .. " ", 1, true)
+                or not string.find(tostring(dead_detail), "[re-engagements re-CAST " .. CAST_SPELL, 1, true) then
+                return "hollow", "the wait did not hold the named slot as a CAST fight -- " .. text
+            end
+            return "ok", text
+        end)
+
+        stage(function()
+            setup_cheat("::setlevel magic 1")
             setup_cheat("::passive off")
             setup_cheat("::tele lumbridge")
             settle(4)

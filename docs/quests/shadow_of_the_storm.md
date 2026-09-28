@@ -107,12 +107,15 @@ Verbatim:
 
 ## 7. Found while pinning (NOT in PARITY.tsv; for the next parity pass)
 
-- **The lamp pays one tenth.** `stat_advance` takes XP x10: Rum Deal's
+- **The lamp pays one tenth.** FIXED seam22: `^sots_agrith_lamp_xp = 100000`. `stat_advance` takes XP x10: Rum Deal's
   70000 is 7,000 XP and The Feud's 150000 is 15,000 XP. So
   `stat_advance(hitpoints, ^sots_agrith_lamp_xp)` with
   `^sots_agrith_lamp_xp = 10000` gives **1,000** Hitpoints XP. The wiki's
   reward is 10,000.
-- **The first ritual is narrated.** At 70 -> 90, `sots_matthew_talk` plays
+- **The first ritual is narrated.** FIXED seam22: 70 -> 80 in
+  `[label,sots_matthew_talk]` (book read and handed back, dyed Silverlight
+  shown) -> 90 on the sigil's Chant on 2718,4902,2 in Denath's order; Tanya's
+  sigil drop is still missing. Before the fix: at 70 -> 90, `sots_matthew_talk` plays
   four `~mesbox` lines ("Denath leads the chant ... bolts for the portal")
   and drops one sigil at the throne. In the Walkthrough, the player chants
   Denath's order with their own sigil. Tanya's sigil and Eric's sigil (from

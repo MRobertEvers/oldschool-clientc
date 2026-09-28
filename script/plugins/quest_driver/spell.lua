@@ -62,10 +62,27 @@
 -- p_stopaction, and only autocast continues), so one call is one cast.
 --
 -- THE STAMP.  A cast that reached the npc stamps QD._combat_last with the
--- same fields player.attack writes, plus `spell`, so npc.await_dead_engaged
--- can hold the slot.  Its re-engagement presses an ATTACK row (op 2 unless
--- the caller passed one) -- it does not re-cast; a pure magic fight loops
--- this verb instead.  No stamp is written for a refused or rune-less cast.
+-- same fields player.attack writes (slot, element, op), plus `spell`, so
+-- npc.await_dead_engaged holds the slot -- and, since seam22, RE-CASTS that
+-- spell on the slot's own copy when the fight stalls, instead of pressing an
+-- Attack row (the wrap at the end of this file).  No stamp is written for a
+-- refused or rune-less cast.
+--
+-- ONE COPY -- SEAM cast_picks_one_copy (seam22).  The seam21 rule
+-- t.player.attack keeps (combat.lua, QD._combat_pick_copy) holds here too:
+-- the cast fights ONE copy -- the nearest by default, or `opts` `{slot=n}` /
+-- `{at={x,z[,level]}}` exactly as talk_to and attack take it -- and the press
+-- is aimed by that copy's client element, re-aimed as itself, and asserted to
+-- have landed on it; the settle, the stamp and the re-casts all watch its
+-- slot.  Before this seam the settle watched npc.nearest's slot while the
+-- bare-id press landed on whichever copy App_NpcScreenPosition ranked nearest
+-- the VIEWPORT CENTRE, and a selector was not an argument at all: measured
+-- build/quest_gate/s22cast_before1 (a Lumbridge goblin pair, Magic 99), row
+-- cast.named_slot -- `{slot=72}` ignored, the verb read slot 125 "hp 30/30 ->
+-- 24/30" and slot 72 was never hit; row cast.at_empty -- `{at={1,1}}` pressed
+-- a goblin anyway instead of answering no_row.  Zogre Flesh Eaters' Crumble
+-- Undead on Slash Bash (three spawned copies, parity2c) and every tier 2 magic
+-- fight among several copies were blocked on it.
 -- ---------------------------------------------------------------------------
 
 -- The rune refusal, as a pattern over the trimmed line: the rune's name is
@@ -79,11 +96,19 @@ QD.player.SPELL_NO_RUNES_PATTERN = "^You do not have enough (.-) Runes to cast t
 -- [proc,pvm_freeze_allowed]).  The engine's own single-way refusals are
 -- QD.ATTACK_REFUSAL_LINES (combat.lua) and its unreachable-target line is
 -- QD.player.CLICK_REFUSAL_LINES (pointer.lua); both are checked beside these.
+-- The last three are Crumble Undead's own (skill_combat/scripts/player/
+-- spells/crumble_undead.rs2 [proc,pvm_crumble_undead]); the "only affects"
+-- line read as `timeout` "the cast never ran" on Slash Bash, four casts in a
+-- row, until seam22 read the chat pane in the -FAIL shot
+-- (build/quest_gate/s22zogre1 row bash.magic.cast).
 QD.player.SPELL_REFUSAL_LINES = {
     "You need to be on a members' server to use this spell.",
     "Your Magic level is not high enough for this spell.",
     "Your spells do not seem to affect it.",
     "That target is already frozen.",
+    "You can't attack this npc.",
+    "Crumble Undead has no effect on the Draugen.",
+    "This spell only affects skeletons, zombies, ghosts and shades.",
 }
 
 -- Ticks after the Magic XP lands that the verb keeps watching the npc: the
@@ -195,18 +220,82 @@ function QD.player._spell_component(symbol)
     return "ok", component_id, tab_detail
 end
 
--- t.player.cast(spell, npc_symbol, ticks, attack_op) -> `ok` `timeout`
+
+-- The press half of a cast on ONE copy: the npc's "Cast <spell> -> <npc>"
+-- row, aimed by `element` (the copy's client element, seam13's
+-- reach_element), up to three presses a tick apart with one walk toward a
+-- copy that answered `covered` -- QD._combat_press_attack's loop and its
+-- reasons (combat.lua), for the select row instead of an op row.  `arm` is
+-- the spell's arming: click_minimenu takes it as the hook before each of ITS
+-- retry presses, and it is re-taken here before each of this loop's own
+-- re-presses, because a covered press leaves a menu whose dismissal (and a
+-- walk's ground click) clears the selection.  Free when it survived
+-- ("already armed, nothing sent").
+--
+-- Returns (result, fail_detail, click, presses): on `ok`, fail_detail is nil
+-- and `click` is _press_row's answer (row_text, row_action, element_id).
+function QD.player._cast_press(target, label, element, arm)
+    assert(element ~= nil, "cast press names no npc copy")
+    local click_result, click
+    local presses = 0
+    local walked = false
+    while true do
+        presses = presses + 1
+        target.reach_element = element
+        click_result, click = QD.drive.click_minimenu(target, "select", nil, arm)
+        if click_result == "covered" and not walked then
+            walked = true
+            local walk_result, walk_detail = QD.player.walk_near(target, nil, 1)
+            QD.note("player.cast: the copy's press answered covered; walk_near it -> "
+                .. tostring(walk_result) .. " " .. tostring(walk_detail))
+        end
+        target.reach_element = nil
+        if click_result == "ok" or presses >= 3 then
+            break
+        end
+        local next_tick = api_drive.tick() + 1
+        QD.await({
+            level = function() return api_drive.tick() >= next_tick end,
+            note = "player.cast re-press",
+        }, 3)
+        local arm_result, arm_detail = arm()
+        if arm_result ~= "ok" then
+            return arm_result, arm_detail, nil, presses
+        end
+    end
+    if click_result ~= "ok" then
+        return click_result, label .. ": " .. tostring(click) .. " (" .. tostring(presses)
+            .. " press(es))", nil, presses
+    end
+    -- _press_row matched its row on the named element, so an `ok` for any
+    -- other copy is this file's bug, not the world's (the attack press's
+    -- own check, combat.lua).
+    assert(type(click) ~= "table" or click.element_id == element,
+        "cast press landed on another npc copy")
+    local held_ok, held_why = QD.player._select_row_is_held(target, click)
+    if not held_ok then
+        return "refused", label .. ": " .. tostring(held_why), click, presses
+    end
+    return "ok", nil, click, presses
+end
+
+-- t.player.cast(spell, npc_symbol, ticks, attack_op, opts) -> `ok` `timeout`
 -- `refused` `no_runes` / `no_row` `not_visible` `unsupported` /
 -- click_minimenu's own results.
 --
 -- `spell` is the spellbook component's name ("wind_strike"; "Wind Strike"
 -- folds to it).  `ticks` (default 10) is the settle deadline after the press.
--- `attack_op` (default 2) only goes into the stamp, for the Attack row
--- npc.await_dead_engaged re-engages with.  `ok` = the cast was paid (Magic XP
--- rose) and the flight window passed, or the npc left the pool.  The detail
--- names the press row, the Magic XP delta, the npc's health before and after
+-- `attack_op` (default 2) only goes into the stamp, as the op a melee
+-- re-engagement would use; since seam22 npc.await_dead_engaged re-CASTS a
+-- stamp that carries a spell, so it is kept for the record only.  `opts` is
+-- the one-copy selector (banner above): nil = the nearest copy, `{slot=n}`,
+-- `{at={x,z[,level]}}`; a selector that matches no live copy is `no_row`
+-- naming every live copy, and nothing is pressed.  `ok` = the cast was paid
+-- (Magic XP rose) and the flight window passed, or the npc left the pool.
+-- The detail names the press row, `pressed slot N (element E) at x,z,
+-- watching slot N`, the Magic XP delta, the copy's health before and after
 -- and the newest splat inside the window -- never "landed" (banner above).
-function QD.player.cast(spell, npc_symbol, ticks, attack_op)
+function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     ticks = ticks or 10
     attack_op = attack_op or 2
     local symbol = QD.player._spell_symbol(spell)
@@ -226,11 +315,14 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op)
     if not target then
         return target_result, label .. ": " .. tostring(target_result)
     end
-    local before_result, before = QD.npc.nearest(npc_symbol, 0)
+    -- The ONE copy (seam22): attack's picker, so the two verbs choose a copy
+    -- by the same rule and a selector means the same thing to both.
+    local before_result, before, copy_text = QD._combat_pick_copy(target, npc_symbol, opts)
     if before_result ~= "ok" then
-        return before_result, label .. ": no npc row to cast on (" .. tostring(before_result) .. ")"
+        return before_result, label .. ": " .. tostring(before)
     end
     local slot = before.slot
+    local element = before.element_id
     local before_health = QD._combat_health_text(before)
     local before_hit = before.hit_cycle
 
@@ -257,20 +349,14 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op)
         return arm_result, arm_detail
     end
 
-    -- Phase 2: the npc's one "Cast ... ->" row.  `arm` is handed in as the
-    -- retry hook for the reason use_on hands in its own: a covered press
-    -- leaves its menu up and the next press cancels it, which clears a live
-    -- selection (app_selection_clear), so every retry re-takes the arming --
-    -- free when it survived ("already armed, nothing sent").
-    local click_result, click = QD.drive.click_minimenu(target, "select", nil, arm)
-    if click_result ~= "ok" then
-        return click_result, label .. ": " .. tostring(click)
+    -- Phase 2: the named copy's one "Cast ... ->" row.
+    local press_result, press_detail, click, presses = QD.player._cast_press(target, label,
+        element, arm)
+    if press_result ~= "ok" then
+        QD.player._show_backpack()
+        return press_result, tostring(press_detail) .. " -- the copy named " .. tostring(copy_text)
     end
-    local held_ok, held_why = QD.player._select_row_is_held(target, click)
     local row_text = type(click) == "table" and tostring(click.row_text) or ""
-    if not held_ok then
-        return "refused", label .. ": " .. tostring(held_why)
-    end
 
     local refusal_word, refusal_line = nil, nil
     local xp_tick = nil
@@ -299,7 +385,9 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op)
 
     local after_result, after = QD._combat_row_by_slot(slot)
     local xp_after = QD.player._magic_xp()
-    local detail = label .. " [" .. row_text .. "] (" .. tostring(arm_detail) .. "): hp " .. before_health .. " -> "
+    local detail = label .. " [" .. row_text .. "] (" .. tostring(arm_detail) .. ") in "
+        .. tostring(presses) .. " press(es), pressed " .. tostring(copy_text)
+        .. ", watching slot " .. tostring(slot) .. ": hp " .. before_health .. " -> "
         .. QD._combat_health_text(after) .. ", magic xp " .. tostring(xp_before)
         .. " -> " .. tostring(xp_after)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
@@ -329,7 +417,11 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op)
         QD._combat_last = {
             symbol = tostring(npc_symbol),
             slot = slot,
+            -- The copy's client element the press was aimed by (seam22), as
+            -- player.attack stamps it.
+            element = element,
             op = attack_op,
+            -- What npc.await_dead_engaged re-casts (the wrap below).
             spell = symbol,
             npc_id = before.npc_id,
             name = before.name,
@@ -354,4 +446,139 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op)
     end
     return "timeout", detail .. " -- no Magic XP, no refusal and the npc still there after "
         .. tostring(ticks) .. " ticks: the cast never ran"
+end
+
+-- ------------------------------------------- await_dead_engaged re-CASTS
+--
+-- SEAM cast_picks_one_copy (seam22): a fight a CAST opened is re-engaged by
+-- casting that spell again on the slot's own copy, never by pressing Attack.
+-- A melee press on Slash Bash is the 25% weapon (Zogre Flesh Eaters, the
+-- weakness parity2c drove), and on Chronozon it is no damage at all, so the
+-- old re-engagement turned a magic fight into the wrong fight the moment it
+-- stalled.
+--
+-- The wrap lives HERE, the way combat.lua wraps pointer.lua's settle
+-- (QD.player._settle_after_click): spell.lua is after combat.lua in
+-- DRIVE_SCRIPT_PARTS, and combat.lua is not this seam's file.  For a stamp
+-- that carries a spell the wrap swaps QD._combat_press_attack -- the one press
+-- npc.await_dead_engaged's re-engagement calls, with the slot's CURRENT id and
+-- element -- for a re-cast with the same four returns, for exactly the length
+-- of the call.  Everything else the verb does (the kill verdict, the
+-- three-signal stall rule, the attempts cap, the death fence) is unchanged,
+-- and a stamp with no spell goes straight through.  Each re-cast re-opens the
+-- magic tab, re-arms, presses the copy's select row, checks the row is the
+-- held one and puts the backpack back; the row's detail gains
+-- `[re-engagements re-CAST <spell>: N press(es) ok, M not]` and the first
+-- server refusal a re-cast provoked (out of runes reads here).
+QD.npc._await_dead_engaged_by_attack = QD.npc.await_dead_engaged
+
+function QD.npc.await_dead_engaged(ticks, attempts)
+    local engaged = QD._combat_last
+    if not engaged or engaged.spell == nil or engaged.consumed then
+        return QD.npc._await_dead_engaged_by_attack(ticks, attempts)
+    end
+    local spell = engaged.spell
+    local since_result, since = api_drive.message_serial()
+    if since_result ~= "ok" or type(since) ~= "number" then
+        since = nil
+    end
+    local recast_ok, recast_not = 0, 0
+    local last_not = nil
+    local press_by_attack = QD._combat_press_attack
+    -- The stall rule's "player idle" half, for a CAST fight.  api_drive.
+    -- player_idle is movement idleness -- route_length 0 AND no minimap flag
+    -- -- and a cast pressed on a copy several tiles off leaves the server's map
+    -- flag up with no route to clear it: the player is in spell range, never
+    -- walks, and the flag stays on the copy's old tile for the whole fight.
+    -- Measured build/quest_gate/s22cast_after4 row cast.dead_named: Wind
+    -- Strike on a goblin 7.8 tiles away, 150 ticks, hp 24/30 stale, ZERO
+    -- re-engagements, the red flag on the minimap in its -FAIL shot; the
+    -- adjacent copy (row cast.dead_default) was re-cast 8 times.  So while a
+    -- cast fight is waited out, "not idle" from that read is taken as idle
+    -- when the player's TILE has not changed since the previous read (the
+    -- stall rule reads it at most once per five still ticks, so that is five
+    -- ticks of standing on one tile: a walking player changes tile every
+    -- tick).  Swapped for exactly the length of the call, like the press.
+    local idle_by_route = api_drive.player_idle
+    local idle_moving, idle_stale_flag = 0, 0
+    local tile_result, last_tile = QD.world.tile()
+    if tile_result ~= "ok" then
+        last_tile = nil
+    end
+    api_drive.player_idle = function()
+        local result, idle = idle_by_route()
+        local now_result, now = QD.world.tile()
+        local was = last_tile
+        last_tile = now_result == "ok" and now or nil
+        if result ~= "ok" or idle then
+            return result, idle
+        end
+        if was ~= nil and last_tile ~= nil and was.x == last_tile.x and was.z == last_tile.z
+            and was.level == last_tile.level then
+            idle_stale_flag = idle_stale_flag + 1
+            return "ok", true
+        end
+        idle_moving = idle_moving + 1
+        return result, idle
+    end
+    QD._combat_press_attack = function(target, label, op, element)
+        local result, fail_detail, row_text, presses = QD.player._recast_press(spell, target,
+            label, element)
+        if result == "ok" then
+            recast_ok = recast_ok + 1
+        else
+            recast_not = recast_not + 1
+            last_not = tostring(result) .. " " .. tostring(fail_detail)
+        end
+        return result, fail_detail, row_text, presses
+    end
+    local result, detail = QD.npc._await_dead_engaged_by_attack(ticks, attempts)
+    QD._combat_press_attack = press_by_attack
+    api_drive.player_idle = idle_by_route
+    local tag = " [re-engagements re-CAST " .. spell .. ": " .. tostring(recast_ok)
+        .. " press(es) ok, " .. tostring(recast_not) .. " not"
+    if idle_stale_flag > 0 or idle_moving > 0 then
+        tag = tag .. "; idle read " .. tostring(idle_stale_flag)
+            .. "x standing still under a map flag, " .. tostring(idle_moving) .. "x moving"
+    end
+    if last_not then
+        tag = tag .. "; last: " .. last_not
+    end
+    local refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+    if refusal_word then
+        tag = tag .. "; the server refused a re-cast: '" .. tostring(refusal_line) .. "'"
+    end
+    return result, tostring(detail) .. tag .. "]"
+end
+
+-- One re-cast of `spell` on the copy whose client element is `element` --
+-- the stand-in for QD._combat_press_attack while a cast fight is waited out.
+-- Returns that function's four values: (result, fail_detail, row_text,
+-- presses).
+function QD.player._recast_press(spell, target, label, element)
+    local cast_label = "re-cast " .. spell .. " on " .. tostring(label)
+    local component_result, component_id = QD.player._spell_component(spell)
+    if component_result ~= "ok" then
+        QD.player._show_backpack()
+        return component_result, cast_label .. ": " .. tostring(component_id), nil, 0
+    end
+    local arm = function()
+        local arm_result, arm_detail = api_drive.spell_arm(component_id)
+        if arm_result ~= "ok" then
+            return arm_result, cast_label .. ": arming the spell -- " .. tostring(arm_detail)
+        end
+        return "ok", arm_detail
+    end
+    local arm_result, arm_detail = arm()
+    if arm_result ~= "ok" then
+        QD.player._show_backpack()
+        return arm_result, arm_detail, nil, 0
+    end
+    local result, fail_detail, click, presses = QD.player._cast_press(target, cast_label,
+        element, arm)
+    QD.player._show_backpack()
+    if result ~= "ok" then
+        return result, fail_detail, nil, presses
+    end
+    return "ok", nil, type(click) == "table" and click.row_text or "", presses
 end

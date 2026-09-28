@@ -179,7 +179,24 @@ in_attack_range_with(
     npc_player_gap(px, pz, npc, &dx, &dz);
 
     if( range <= 1 )
-        return (dx + dz) == 1;
+    {
+        if( (dx + dz) != 1 )
+            return 0;
+        /* ...and no wall on the shared edge. Flush and cardinal is the
+         * footprint half of the reference's reachExclusiveRectangle; the wall
+         * bit is the other half, and without it a closed door was no barrier
+         * to melee: Druidic Ritual's prison-door suit hit the player standing
+         * on the far side of the door, his auto-retaliate hit it back through
+         * the door, and the fight's "I can't reach that!" arrived after the
+         * door press that had walked him in (seam22, build/quest_gate/
+         * s22pc_druid_probe). A rider's projected square is off his deck, in
+         * a world whose walls are not his, so only an unprojected square is
+         * read. */
+        if( px != player->x || pz != player->z )
+            return 1;
+        return ToriRSServer_SceneMeleeReached(
+            npc->level, px, pz, npc->x, npc->z, npc->size > 0 ? npc->size : 1);
+    }
 
     return (dx > dz ? dx : dz) <= range;
 }
@@ -1909,29 +1926,30 @@ npc_claimed_by_other(
     return 1;
 }
 
-/** Is some npc other than `slot` in combat with this player, single-way? The
- *  "I'm already under attack" half, and the one the player actually feels:
- *  being hit by a monster is what stops you picking a different one. */
-static int
-other_npc_engaged_with(
-    const struct ToriRSServer* srv,
-    const struct ToriRSServerPlayer* player,
-    int slot)
-{
-    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
-    {
-        const struct ToriRSServerNpc* npc = &srv->npcs[i];
-
-        if( i == slot || !claimable_npc(srv, i) )
-            continue;
-        if( npc->combat_target != player->pid )
-            continue;
-        if( ToriRSServer_CombatMultiway(npc) )
-            continue;
-        return 1;
-    }
-    return 0;
-}
+/*
+ * There is deliberately no "is some npc pointed at this player" sweep here.
+ *
+ * One existed -- `other_npc_engaged_with`, a walk of the pool for any npc whose
+ * `combat_target` was this player -- and it answered a question the reference
+ * never asks. LostCity's single-way rule is `%lastcombat` + 8 ticks
+ * (`[proc,player_in_combat_check]`, skill_combat/scripts/player/
+ * player_combat.rs2:89-110, and `[proc,npc_check_notcombat]`,
+ * skill_combat/scripts/npc/npc_combat.rs2:343-352), and `%lastcombat` is
+ * written in one place: `[proc,npc_set_attack_vars]` (npc_combat.rs2:338-341),
+ * i.e. when an npc SWINGS. An npc that has noticed a player and not yet swung
+ * has put him in no fight at all -- he may still attack something else, and a
+ * second monster may still notice him (LostCity_Server Npc.ts huntPlayers,
+ * the checkNotCombat test). Which of two walking monsters gets him is decided
+ * at the swing, by `npc_single_way_swing_refused` below, exactly as
+ * `[proc,npc_default_attack]` decides it (npc_combat.rs2:47-50).
+ *
+ * The sweep's cost was not theoretical. A Lumbridge giant spider that noticed
+ * the player across a fence and could never reach him held a `combat_target`
+ * for as long as he stood there, and for all of that time every Attack click
+ * said "I'm already under attack." and no other monster could engage, though
+ * nothing had ever hit him (make test-quest-cheats, cheats.passive_setup,
+ * seam22).
+ */
 
 /*
  * Stamp the claim — called from both ends of every swing.
@@ -2013,11 +2031,11 @@ ToriRSServer_CombatSinglewayRefuses(
         return 1;
     }
 
-    /* Already in a fight of our own with something else. Two questions, not
-     * one: the claim answers "was I just swinging at something", the sweep
-     * answers "is something swinging at me". Either alone leaves a hole — a
-     * monster that aggressed and has not yet swung has stamped no claim, and a
-     * monster we attacked that does not fight back sets no `combat_target`. */
+    /* Already in a fight of our own with something else: the claim, which a
+     * swing from either end stamps -- the reference's `%lastcombat` +
+     * `%aggressive_npc` (player_combat.rs2:103). A monster that has only
+     * noticed us has stamped nothing and refuses nothing; see the note above
+     * `ToriRSServer_CombatClaim`. */
     claimed = player_claimed_npc(srv, player);
     if( claimed >= 0 && claimed != slot &&
         !ToriRSServer_CombatMultiway(&srv->npcs[claimed]) )
@@ -2027,13 +2045,6 @@ ToriRSServer_CombatSinglewayRefuses(
             fprintf(stderr,
                     "torirsserver: single-way refuses slot=%d: still claimed by slot %d\n",
                     slot, claimed);
-        return 1;
-    }
-    if( other_npc_engaged_with(srv, player, slot) )
-    {
-        ToriRSServer_ScriptsRunProc(srv, "[proc,combat_singles_self_busy]", NULL, 0);
-        if( srv->verbose )
-            fprintf(stderr, "torirsserver: single-way refuses slot=%d: under attack\n", slot);
         return 1;
     }
     return 0;
@@ -2067,8 +2078,6 @@ ToriRSServer_CombatSinglewayNpcMayEngage(
     claimed = player_claimed_npc(srv, player);
     if( claimed >= 0 && claimed != slot &&
         !ToriRSServer_CombatMultiway(&srv->npcs[claimed]) )
-        return 0;
-    if( other_npc_engaged_with(srv, player, slot) )
         return 0;
     return 1;
 }
@@ -3001,6 +3010,38 @@ npc_vs_npc_tick(
     return 1;
 }
 
+/*
+ * Must this npc's swing at `player` be abandoned, single-way?
+ *
+ * The reference's `[proc,npc_default_attack]` (LostCity_Content2
+ * skill_combat/scripts/npc/npc_combat.rs2:47-50) asks `~npc_check_notcombat`
+ * on every swing and, when the player was hit by a DIFFERENT npc in the last
+ * eight ticks, does `npc_setmode(null)` instead of attacking. That is how two
+ * monsters that both noticed a player sort themselves out: the first to swing
+ * has him, the second gives up on arrival. The zone that decides is the
+ * swinging npc's own tile (`map_multiway(npc_coord)`, "checks npc coord
+ * ALWAYS"), and the claim stands in for `%lastcombat` + `%aggressive_npc`.
+ * It is a little wider than the reference's: the claim is stamped by the
+ * player's swings too, so a monster the player is hitting that never swings
+ * back still keeps a second one off him -- the same width
+ * `ToriRSServer_CombatSinglewayRefuses` already gives the player's end.
+ */
+static int
+npc_single_way_swing_refused(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int slot)
+{
+    int claimed;
+
+    assert(srv);
+    assert(player);
+    if( ToriRSServer_CombatMultiway(&srv->npcs[slot]) )
+        return 0;
+    claimed = player_claimed_npc(srv, player);
+    return claimed >= 0 && claimed != slot;
+}
+
 void
 ToriRSServer_CombatNpcTick(
     struct ToriRSServer* srv,
@@ -3170,6 +3211,14 @@ ToriRSServer_CombatNpcTick(
 
     if( srv->tick < npc->attack_clock )
         return;
+    /* Somebody else hit this player first: give him up, as the reference's
+     * `npc_setmode(null)` does. Before the clock and the claim, so a refused
+     * swing stamps nothing. */
+    if( npc_single_way_swing_refused(srv, player, slot) )
+    {
+        ToriRSServer_CombatStopNpc(srv, slot);
+        return;
+    }
     npc->attack_clock = srv->tick + npc_def(npc)->attackrate;
     /* The npc's half of the single-way claim, on the swing rather than on the
      * hit: a monster that misses you has still put you in combat, and the
