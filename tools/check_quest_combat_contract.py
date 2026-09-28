@@ -4001,6 +4001,11 @@ COMBAT_START_EXEMPT = {
     ("opnpc2", "slice_sigmund_melee"): "prayer blocks every style until the mace special",
     ("opnpc2", "slice_sigmund_ranged"): "prayer blocks every style until the mace special",
     ("opnpc2", "slice_sigmund_magic"): "prayer blocks every style until the mace special",
+    # ... and their AP halves (seam21), or a bow or staff skips the prayer.
+    ("apnpc2", "slice_sigmund_showdown"): "prayer blocks every style until the mace special",
+    ("apnpc2", "slice_sigmund_melee"): "prayer blocks every style until the mace special",
+    ("apnpc2", "slice_sigmund_ranged"): "prayer blocks every style until the mace special",
+    ("apnpc2", "slice_sigmund_magic"): "prayer blocks every style until the mace special",
 }
 
 
@@ -4095,6 +4100,134 @@ def check_opnpc2_combat_start() -> None:
             "trap 31: [op/apnpc2] bindings reach ~npc_retaliate but never "
             "@player_combat_start/_ap (add the jump, or an exemption with its "
             "reason):\n  " + "\n  ".join(f"[{t},{n}] {p}:{l}" for t, n, p, l in misses))
+
+
+# ---------------------------------------------------------------------------
+# The AP twin (seam21, 2026-09-27).
+#
+# `[apnpc2,_] @player_combat_start_ap;` (skill_combat/combat.rs2; LostCity
+# player_combat.rs2:2) claims every Attack made from range: a bow, a staff or a
+# reach weapon fires from `apRange` tiles away and the `[opnpc2,<npc>]` binding
+# never runs. So an op binding that REFUSES -- "Doomion is no longer hostile
+# towards you", "Deal with my guards first!", Sigmund's protection prayer -- is
+# only a melee gate unless the npc has its own `[apnpc2,<npc>]` carrying the
+# same gate. LostCity pairs every gated attack binding that way:
+# grandtree_black_demon.rs2:1-13, game_trail/hard/zamorak_wizard.rs2:1-13 (the
+# same `if` in both, then @player_combat_start / @player_combat_start_ap) and
+# druidspirit/ghast.rs2:47-60. A melee weapon never takes the AP path (its
+# `weapon_attackrange` is 0, so player_combat_start_ap hands it to the op), so
+# a gate that only refuses melee is not bypassed -- those are the exemptions.
+# ---------------------------------------------------------------------------
+
+SCRIPT_IF = re.compile(r"\bif\s*\((.*?)\)\s*\{", re.S)
+
+# Gated op bindings whose AP half is the wildcard ON PURPOSE, each with its reason.
+APNPC2_TWIN_EXEMPT = {
+    "lathastrainingogre": "melee-only refusal; ranged is the path the gate lets "
+                          "through, and LostCity combat_training_camp.rs2:62 has "
+                          "no [apnpc2] twin either",
+    "monkey": "melee-only refusal (Tai Bwo Wannai Trio: 'Adjacent melee attacks "
+              "are dodged ... ranged, Magic, and reach weapons can kill one', "
+              "tbwt_monkey.rs2:1-3); the wildcard AP half is the intended kill",
+}
+
+
+def _label_closure(blocks, text: str) -> str:
+    """`text` plus the body of every @label it reaches (not procs: a proc's
+    `return` is its own), stopping at the combat-start terminals."""
+    parts = [text]
+    seen: set[str] = set()
+    pending = [text]
+    while pending:
+        for kind, name in SCRIPT_CALL.findall(pending.pop()):
+            if kind != "@" or name in seen or name in COMBAT_START_TERMINALS:
+                continue
+            seen.add(name)
+            for _, _, body in blocks.get(("label", name), []):
+                parts.append(body)
+                pending.append(body)
+    return "\n".join(parts)
+
+
+def _gate_conditions(text: str) -> list[str]:
+    return [" ".join(cond.split()) for cond in SCRIPT_IF.findall(text)]
+
+
+def apnpc2_twin_sweep() -> tuple[list[tuple], list[tuple], int]:
+    """(misses, exempt, gated count): every GATED name-specific [opnpc2,X] --
+    an attack binding (it reaches a combat start or ~npc_retaliate) that can
+    refuse (a `return` in it or a label it jumps to, or no combat start at all)
+    -- needs an [apnpc2,X] whose own text (labels followed) carries every one
+    of its `if (...)` conditions."""
+    blocks = load_script_blocks()
+    memo: dict[tuple[str, str], tuple[bool, bool]] = {}
+
+    def reach(kind: str, name: str, stack: frozenset) -> tuple[bool, bool]:
+        if name in COMBAT_START_TERMINALS:
+            return True, False
+        if kind == "~" and name == "npc_retaliate":
+            return False, True
+        key = (kind, name)
+        if key in memo:
+            return memo[key]
+        if key in stack:
+            return False, False
+        trigger = "proc" if kind == "~" else "label"
+        result = (False, False)
+        for _, _, body in blocks.get((trigger, name), []):
+            got = scan(body, stack | {key})
+            result = (result[0] or got[0], result[1] or got[1])
+        memo[key] = result
+        return result
+
+    def scan(text: str, stack: frozenset) -> tuple[bool, bool]:
+        starts = retaliates = False
+        for kind, name in SCRIPT_CALL.findall(text):
+            got = reach(kind, name, stack)
+            starts |= got[0]
+            retaliates |= got[1]
+        return starts, retaliates
+
+    misses = []
+    exempt = []
+    gated = 0
+    for (trigger, name), found in sorted(blocks.items()):
+        if trigger != "opnpc2" or name == "_":
+            continue
+        for path, line, body in found:
+            starts, retaliates = scan(body, frozenset())
+            if not (starts or retaliates):
+                continue  # op 2 is not Attack here (Bank, Talk-to, ...)
+            closure = _label_closure(blocks, body)
+            if starts and not re.search(r"\breturn\b", closure):
+                continue  # always attacks: the wildcard AP half is the same fight
+            gated += 1
+            row = (name, path, line)
+            if name in APNPC2_TWIN_EXEMPT:
+                exempt.append(row + (APNPC2_TWIN_EXEMPT[name],))
+                continue
+            twins = blocks.get(("apnpc2", name))
+            if not twins:
+                misses.append(row + ("no [apnpc2] twin",))
+                continue
+            twin_text = "\n".join(_label_closure(blocks, b) for _, _, b in twins)
+            twin_conditions = set(_gate_conditions(twin_text))
+            lost = [c for c in _gate_conditions(closure) if c not in twin_conditions]
+            if lost:
+                misses.append(row + ("[apnpc2] twin lacks the gate: if (" +
+                                     ") / if (".join(lost) + ")",))
+    return misses, exempt, gated
+
+
+def check_apnpc2_twins() -> None:
+    """QUEST_AUTHORING.md trap 31, the AP half: a gated [opnpc2,X] needs a
+    gated [apnpc2,X], or a ranged/magic attacker skips the gate."""
+    misses, _, _ = apnpc2_twin_sweep()
+    require(not misses,
+            "trap 31 (AP half): gated [opnpc2] bindings a ranged or magic attack "
+            "bypasses through the wildcard [apnpc2,_] (add an [apnpc2] twin with "
+            "the same gate, or an APNPC2_TWIN_EXEMPT entry with its reason):\n  " +
+            "\n  ".join(f"[opnpc2,{n}] {p}:{l}: {why}" for n, p, l, why in misses))
 
 
 # The inventory's `varp` column names an AUXILIARY varp for these rows, not the
@@ -4227,11 +4360,18 @@ def print_sweeps() -> int:
         print(f"  MISS [{trigger},{name}] {path}:{line}")
     for trigger, name, path, line, reason in exempt:
         print(f"  exempt [{trigger},{name}] {path}:{line} -- {reason}")
+    twin_misses, twin_exempt, gated = apnpc2_twin_sweep()
+    print(f"apnpc2 twin sweep: {gated} gated [opnpc2] attack bindings, "
+          f"{len(twin_misses)} miss(es), {len(twin_exempt)} exempt")
+    for name, path, line, why in twin_misses:
+        print(f"  MISS [opnpc2,{name}] {path}:{line} -- {why}")
+    for name, path, line, reason in twin_exempt:
+        print(f"  exempt [opnpc2,{name}] {path}:{line} -- {reason}")
     varp_misses, checked = quest_progress_varp_sweep()
     print(f"progress varp sweep: {checked} progress var(s), {len(varp_misses)} miss(es)")
     for quest, name, via, state in varp_misses:
         print(f"  MISS {quest}: %{name}{via}: {state}")
-    return 1 if misses or varp_misses else 0
+    return 1 if misses or twin_misses or varp_misses else 0
 
 
 def main() -> int:
@@ -4269,11 +4409,12 @@ def main() -> int:
         check_ghosts_ahoy()
         check_one_small_favour()
         check_opnpc2_combat_start()
+        check_apnpc2_twins()
         check_quest_progress_varps()
     except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
         print(f"quest combat contract: {error}", file=sys.stderr)
         return 1
-    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep and the quest progress-varp transmit/perm sweep (ok)")
+    print("quest combat contract: 145-unit ledger, ownership runtime, Delrith, Witch's experiment, Fight Arena, Hazeel Cult, The Grand Tree, Underground Pass, Observatory Quest, The Tourist Trap, Watchtower, Legends' Quest, Big Chompy Bird Hunting, Elemental Workshops I/II, Nature Spirit, Priest in Peril, Regicide, Tai Bwo Wannai Trio, Troll Stronghold, Shades of Mort'ton, The Fremennik Trials, Horror from the Deep, Monkey Madness I, Haunted Mine, Troll Romance, In Search of the Myreque, Creature of Fenkenstrain, Roving Elves, Ghosts Ahoy and One Small Favour, plus the repo-wide trap 31 [opnpc2]/[apnpc2] combat-start sweep, the gated-[opnpc2] [apnpc2]-twin sweep and the quest progress-varp transmit/perm sweep (ok)")
     return 0
 
 

@@ -5236,23 +5236,32 @@ advance_npcs(struct ToriRSServer* srv)
          * could roll away while the player was still walking up to it. That
          * is a separate parity question from this branch.
          */
-        if( srv->tick >= npc->next_roam_tick && next_random(srv) % 8u == 0u )
+        /*
+         * The roll QUEUES THE ROLLED TILE, and the step below walks it -- the
+         * reference's `wander()` is `queueWaypoint(destX, destZ)` and
+         * `wanderMode()` then calls `updateMovement()` on the same tick
+         * (Npc.ts:700-721).
+         *
+         * This used to hand the roll to `ToriRSServer_WorldNpcWalkTo`, which
+         * is the CHASE mover: it asks `SceneNaivePath` for a tile ADJACENT to
+         * the target (the approach an npc wants toward a player), so a roll of
+         * 3199,3175 from 3198,3175 queued 3197,3175 -- a tile beside or past
+         * the one rolled, and sometimes outside the box. The parity2c pass
+         * measured it walking the giant frog (spawn 3203,3174, radius 5) to
+         * 3197,3175 once an unrelated spawn row reshuffled the world's RNG,
+         * and seam21 reproduced that on HEAD (selftest 14 -> 21 FAIL; 14
+         * with this change). The waypoint is the rolled
+         * tile itself, so a wanderer can never leave the box the roll draws.
+         */
+        if( srv->tick >= npc->next_roam_tick && (!npc->def || npc->def->moverestrict != 5) &&
+            next_random(srv) % 8u == 0u )
         {
             int dest_x = npc->spawn_x + npc_wander_offset(srv, npc->wander_radius);
             int dest_z = npc->spawn_z + npc_wander_offset(srv, npc->wander_radius);
             if( dest_x != npc->x || dest_z != npc->z )
-                ToriRSServer_WorldNpcWalkTo(npc, dest_x, dest_z);
-            else if( npc->waypoint_index >= 0 )
-            {
-                if( npc_take_step(npc) )
-                    npc->stuck_counter = 0;
-                else
-                    npc->stuck_counter++;
-            }
-            else
-                npc->stuck_counter++;
+                npc_queue_waypoint(npc, dest_x, dest_z);
         }
-        else if( npc->waypoint_index >= 0 )
+        if( npc->waypoint_index >= 0 )
         {
             if( npc_take_step(npc) )
                 npc->stuck_counter = 0;
@@ -7746,6 +7755,37 @@ cheat_varbit_from_name(
 }
 
 /*
+ * The id `arg` names EXACTLY in one var pack (rung 2 of `cheat_id_from_name`
+ * alone), or -1. A bare number is not a name and answers -1 here, so it still
+ * reaches the varp resolver's rung 1.
+ *
+ * `::setvar` asks this of both packs before it lets either one guess, because
+ * `cheat_id_from_name` is a whole ladder per pack: asking the varp pack first
+ * let its substring rung answer for a name the varbit pack holds exactly.
+ * `::setvar agrith_quest` found the carrier varp `agrith_quest_varp` and
+ * `::setvar cowquest` found `cowquest_main` -- each the unique varp containing
+ * the typed name -- and both were then refused as carriers, while the varbits
+ * actually named `agrith_quest` (1372) and `cowquest` (20106) were never asked.
+ */
+static int
+cheat_var_exact(
+    enum ToriRSServerPackKind kind,
+    const char* arg)
+{
+    char wanted[128];
+    char* end = NULL;
+
+    assert(arg);
+    (void)strtol(arg, &end, 10);
+    if( end && end != arg && *end == '\0' )
+        return -1;
+    obj_name_underscore(wanted, sizeof(wanted), arg);
+    if( !wanted[0] )
+        return -1;
+    return ToriRSServer_ContentSymbol(kind, wanted);
+}
+
+/*
  * A `::setvar` value: a decimal literal, or a `^constant` this tree declares.
  *
  * `^name` rather than a number is the point. A quest's stages are named --
@@ -8127,17 +8167,24 @@ ToriRSServer_RunCheatLadder(
          * those, and every one of them would be a second copy of the stage
          * numbering the quest already declares.
          *
-         * The varp namespace is tried before the varbit one, which is the
-         * order every caller already means: a quest's own progress variable is
-         * a varp, and a varbit's name only ever collides with a varp's by
-         * accident. `^constant` is what makes the command writable in a test —
-         * `::setvar cookquest ^cook_started`, never `::setvar cookquest 1`.
+         * An EXACT name wins in either pack before any pack may guess: the
+         * varbit pack's exact name first, then the varp pack's, and only then
+         * the substring rungs (varp, then varbit). A quest's progress variable
+         * is as often a varbit (`agrith_quest`, `cowquest`) as a varp
+         * (`cookquest`), and a substring guess in the varp pack used to
+         * answer before the varbit pack was asked at all -- see
+         * `cheat_var_exact`. The two packs share no name today; if they ever
+         * do, the varbit is the narrower write and wins. `^constant` is what
+         * makes the command writable in a test -- `::setvar cookquest
+         * ^cook_started`, never `::setvar cookquest 1`.
          */
         char name[64] = { 0 };
         char value_text[64] = { 0 };
         char suggest[256] = { 0 };
         int value = 0;
         int id;
+        int exact_varbit;
+        int exact_varp;
 
         if( sscanf(text, "setvar %63s %63s", name, value_text) != 2 )
         {
@@ -8151,7 +8198,14 @@ ToriRSServer_RunCheatLadder(
             return TORIRSSERVER_TRIGGER_FAILED;
         }
 
-        id = cheat_varp_from_name(name, suggest, sizeof(suggest));
+        exact_varbit = cheat_var_exact(TORIRSSERVER_PACK_VARBIT, name);
+        exact_varp = exact_varbit >= 0 ? -1 : cheat_var_exact(TORIRSSERVER_PACK_VARP, name);
+        if( exact_varbit >= 0 )
+            id = -1;
+        else if( exact_varp >= 0 )
+            id = exact_varp;
+        else
+            id = cheat_varp_from_name(name, suggest, sizeof(suggest));
         if( id >= 0 )
         {
             /*
@@ -8171,7 +8225,18 @@ ToriRSServer_RunCheatLadder(
             return TORIRSSERVER_TRIGGER_RAN;
         }
 
-        id = cheat_varbit_from_name(name, suggest, sizeof(suggest));
+        if( exact_varbit >= 0 )
+            id = exact_varbit;
+        else
+        {
+            char varbit_suggest[256] = { 0 };
+
+            /* A varp miss's candidates are kept when the varbit pack has
+             * none of its own, so an ambiguous name still lists them. */
+            id = cheat_varbit_from_name(name, varbit_suggest, sizeof(varbit_suggest));
+            if( varbit_suggest[0] )
+                snprintf(suggest, sizeof(suggest), "%s", varbit_suggest);
+        }
         if( id >= 0 )
         {
             if( ToriRSServer_VarbitSetOn(srv, player, id, value) < 0 )

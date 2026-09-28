@@ -427,6 +427,14 @@ end
 QD.ATTACK_REFUSAL_LINES = {
     "I'm already under attack.",
     "Someone else is fighting that.",
+    -- The route to the copy does not exist (seam21): the engine's pathing
+    -- answers the interaction with this and drops it, so no swing is coming
+    -- either.  Measured on a goblin pressed from a tile in the Lumbridge river
+    -- (build/quest_gate/s21as_gob1): six re-engagements, sixty ticks, a chat
+    -- pane of this sentence and the row said only "no hit landed".  The same
+    -- two sentences pointer.lua's CLICK_REFUSAL_LINES reads for a reach.
+    "I can't reach that!",
+    "You can't reach that.",
 }
 
 function QD._combat_refusal_line(text)
@@ -464,6 +472,48 @@ function QD._combat_refusal_since(since)
         end
     end
     return found
+end
+
+-- ------------------------------------------------------------ the one copy
+--
+-- SEAM attack_press_and_watch_same_slot (seam21): which copy of `target` an
+-- attack fights.  nil `opts` is the NEAREST copy (api_drive.npcs answers
+-- nearest first, QD.npc.nearest); `{ slot = n }` / `{ at = {x, z[, level]} }`
+-- is talk_to's selector and goes through the same QD.player._npc_copy, so a
+-- malformed selector raises there and a selector that matches no live copy
+-- answers `no_row` naming every live copy -- never the next copy along.
+--
+-- Returns ("ok", row, copy_text) -- the pool row of the chosen copy (its
+-- `slot`, `element_id`, health) and "slot N (element E) at x,z" -- or
+-- (result, detail).  target.reach_element is left nil: the press sets it for
+-- itself, press by press (QD._combat_press_attack).
+function QD._combat_pick_copy(target, npc_symbol, opts)
+    if opts == nil then
+        local near_result, near = QD.npc.nearest(npc_symbol, 0)
+        if near_result ~= "ok" then
+            return near_result, "no npc row to fight (" .. tostring(near_result) .. ": "
+                .. tostring(near) .. ")"
+        end
+        opts = { slot = near.slot }
+    end
+    local copy_result, copy_text = QD.player._npc_copy(target, opts)
+    local element = target.reach_element
+    target.reach_element = nil
+    if copy_result ~= "ok" then
+        return copy_result, copy_text
+    end
+    local rows_result, rows = api_drive.npcs(0)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return rows_result, "the npc pool did not answer after the copy was chosen"
+    end
+    for i = 1, #rows do
+        if rows[i].element_id == element then
+            return "ok", rows[i], copy_text
+        end
+    end
+    -- Chosen from the pool one read ago and gone from the next: left the pool
+    -- between two reads of one Lua resume, which is `no_row`, not a fallback.
+    return "no_row", "the copy named " .. tostring(copy_text) .. " left the pool before the press"
 end
 
 -- ---------------------------------------------------------------------- attack
@@ -511,7 +561,26 @@ end
 -- whatever holds the claim keeps swinging.  No stamp is written for a refused
 -- attack, so `npc.await_dead_engaged` after one answers `no_row` rather than
 -- watching a slot nobody is fighting.
-function QD.player.attack(npc_symbol, op, ticks)
+--
+-- ONE COPY, PRESSED AND WATCHED -- SEAM attack_press_and_watch_same_slot
+-- (seam21).  `opts` is talk_to's npc selector (QD.player._npc_copy, seam13):
+-- `{ slot = n }` names the copy by its server slot, `{ at = {x, z[, level]} }`
+-- by the tile it stands on now; nil takes the NEAREST copy.  Whichever it is,
+-- that one copy is the whole of this verb: the camera turns to IT, the press
+-- is aimed by its client element and must land on a menu row for that
+-- element, a copy that steps between aim and press is re-aimed as itself, and
+-- the settle, the stamp and npc.await_dead_engaged all watch its slot.  The
+-- detail says `pressed slot N ... watching slot N` -- the two are one number
+-- by construction, and printed twice so a reader never has to trust that.
+--
+-- Before this seam the press took the copy App_NpcScreenPosition ranks
+-- nearest the VIEWPORT CENTRE while the settle watched the NEAREST copy's
+-- slot.  With one npc about those are the same; with eleven world-spawned
+-- fever spiders in Rum Deal's basement (m33_79.spawn) they were not, and a
+-- 99-melee character read zero hitsplats over 180 ticks with no refusal
+-- (build/parity_state/parity2c/rumdeal.parity.progress.md, parity_rumdeal4):
+-- whatever the press hit, the watched slot was never it.
+function QD.player.attack(npc_symbol, op, ticks, opts)
     op = op or 2
     ticks = ticks or 10
 
@@ -530,12 +599,12 @@ function QD.player.attack(npc_symbol, op, ticks)
         return target_result, "attack " .. tostring(npc_symbol) .. ": " .. tostring(target_result)
     end
 
-    local before_result, before = QD.npc.nearest(npc_symbol, 0)
+    local before_result, before, copy_text = QD._combat_pick_copy(target, npc_symbol, opts)
     if before_result ~= "ok" then
-        return before_result, "attack " .. tostring(npc_symbol)
-            .. ": no npc row to fight (" .. tostring(before_result) .. ")"
+        return before_result, "attack " .. tostring(npc_symbol) .. ": " .. tostring(before)
     end
     local slot = before.slot
+    local element = before.element_id
     local before_health = QD._combat_health_text(before)
     local before_hit = before.hit_cycle
     -- The chat-ring watermark the refusal fence below reads from.  Taken
@@ -571,9 +640,9 @@ function QD.player.attack(npc_symbol, op, ticks)
     -- lookup cannot build, and one press loop answering for both keeps the
     -- retry count, the row check and their two sentences in one place.
     local press_result, press_detail, row_text, presses =
-        QD._combat_press_attack(target, tostring(npc_symbol), op)
+        QD._combat_press_attack(target, tostring(npc_symbol), op, element)
     if press_result ~= "ok" then
-        return press_result, press_detail
+        return press_result, press_detail .. " -- the copy named " .. copy_text
     end
 
     local refusal = nil
@@ -601,6 +670,7 @@ function QD.player.attack(npc_symbol, op, ticks)
     local after_result, after = QD._combat_row_by_slot(slot)
     local detail = "attack " .. tostring(npc_symbol) .. " op" .. tostring(op)
         .. " [" .. tostring(row_text) .. "] in " .. tostring(presses) .. " press(es)"
+        .. ", pressed " .. copy_text .. ", watching slot " .. tostring(slot)
         .. ": hp " .. before_health .. " -> " .. QD._combat_health_text(after)
     if after_result == "ok" and after and after.hit_damage >= 0 and after.hit_cycle > before_hit then
         detail = detail .. ", hitsplat " .. tostring(after.hit_damage)
@@ -616,9 +686,13 @@ function QD.player.attack(npc_symbol, op, ticks)
     -- file's hunt loop can act on.
     refusal = refusal or QD._combat_refusal_since(since)
     if refusal then
-        return "refused", detail .. " -- the SERVER refused the swing: '" .. refusal
-            .. "' (single-way combat; the Attack row was pressed and p_opnpc took"
+        local why = " (single-way combat; the Attack row was pressed and p_opnpc took"
             .. " its silent return, so no swing was ever made)"
+        if string.find(refusal, "reach", 1, true) then
+            why = " (no route to the copy pressed; the interaction was dropped, so no"
+                .. " swing was ever made -- stand where the copy can be reached)"
+        end
+        return "refused", detail .. " -- the SERVER refused the swing: '" .. refusal .. "'" .. why
     end
 
     -- Stamped on the timeout path too: "an Attack row was pressed on this
@@ -629,6 +703,10 @@ function QD.player.attack(npc_symbol, op, ticks)
     QD._combat_last = {
         symbol = tostring(npc_symbol),
         slot = slot,
+        -- The client element the press was aimed by (seam21), so a
+        -- re-engagement presses THIS copy and not whichever one the camera
+        -- happens to centre (npc.await_dead_engaged).
+        element = element,
         -- The op the Attack row was found under, so a re-engagement on this
         -- same slot presses the row this press already proved exists rather
         -- than re-guessing op 2 (npc.await_dead_engaged).
@@ -826,7 +904,11 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
                     -- that lands on the wrong row is caught here too; its
                     -- own answer is folded into this row's detail rather
                     -- than a row of its own, which is what QD.note is for.
-                    local attack_result, attack_detail = QD.player.attack(npc_symbol)
+                    -- By SLOT (seam21): a bare symbol would re-resolve the
+                    -- nearest copy, which with two about is not the one this
+                    -- wait is holding.
+                    local attack_result, attack_detail = QD.player.attack(npc_symbol, nil, nil,
+                        { slot = slot })
                     QD.note("await_dead re-engage " .. tostring(reengaged) .. ": "
                         .. tostring(attack_result) .. " " .. tostring(attack_detail))
                 end
@@ -879,12 +961,35 @@ end
 -- Returns (result, fail_detail, row_text, presses): on `ok`, fail_detail is
 -- nil and row_text is the menu row that was pressed; otherwise fail_detail is
 -- the sentence the caller returns unchanged.
-function QD._combat_press_attack(target, label, op)
+--
+-- `element` is the client element of the ONE copy every press is aimed by
+-- (seam21): it rides on the target as seam13's `reach_element` for each press
+-- -- the camera turns to that copy, _press_row takes only a row naming it, and
+-- a step between aim and press re-aims that copy (QD.drive._npc_reaim) -- and
+-- is taken off again after each, whatever it answered, so the caller's target
+-- is left as it was handed in.
+function QD._combat_press_attack(target, label, op, element)
+    assert(element ~= nil, "attack press names no npc copy")
     local click_result, click
     local presses = 0
+    local walked = false
     while true do
         presses = presses + 1
+        target.reach_element = element
         click_result, click = QD.drive.click_minimenu(target, op)
+        if click_result == "covered" and not walked then
+            -- A named copy the pose loop and the hunt could not find a pixel
+            -- for is, measured, a FAR one: the eleventh fever spider fifteen
+            -- tiles off, whose estimated pixel sits above the viewport's top
+            -- edge at every pose (seam21, build/quest_gate/s21as_spider2 row
+            -- far.attack).  A player walks toward the spider he means and
+            -- clicks it again; so does this, once, and the row says so.
+            walked = true
+            local walk_result, walk_detail = QD.player.walk_near(target, nil, 1)
+            QD.note("player.attack: the copy's press answered covered; walk_near it -> "
+                .. tostring(walk_result) .. " " .. tostring(walk_detail))
+        end
+        target.reach_element = nil
         if click_result == "ok" or presses >= 3 then
             break
         end
@@ -899,6 +1004,11 @@ function QD._combat_press_attack(target, label, op)
             .. ": " .. tostring(click) .. " (" .. tostring(presses) .. " press(es))", nil, presses
     end
 
+    -- _press_row matched its row on the named element (the banner above), so
+    -- an `ok` for any other copy is this file's bug, not the world's
+    -- (QD.player._click_npc_copy's own check).
+    assert(type(click) ~= "table" or click.element_id == element,
+        "attack press landed on another npc copy")
     -- The row that was pressed, checked rather than assumed.
     local row_text = type(click) == "table" and click.row_text or ""
     if string.find(row_text, "Attack", 1, true) ~= 1 then
@@ -1244,8 +1354,11 @@ function QD.npc.await_dead_engaged(ticks, attempts)
                 local idle_result, idle = api_drive.player_idle()
                 if idle_result == "ok" and idle and reengaged < attempts then
                     reengaged = reengaged + 1
+                    -- The copy the slot IS, by the element this row reads
+                    -- now (seam21) -- never the id's centre-ranked copy.
                     local press_result, press_detail, press_row = QD._combat_press_attack(
-                        { kind = "npc", id = row.npc_id, symbol = row.name }, form, op)
+                        { kind = "npc", id = row.npc_id, symbol = row.name }, form, op,
+                        row.element_id)
                     QD.note("await_dead_engaged re-engage " .. tostring(reengaged) .. " on "
                         .. form .. ": " .. tostring(press_result) .. " "
                         .. tostring(press_detail or press_row))

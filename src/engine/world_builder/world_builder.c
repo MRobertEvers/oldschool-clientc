@@ -140,6 +140,215 @@ static int g_wb_env_no_face_clone = -1;
 #include "log/torirs_log.h"
 // clang-format on
 
+/*
+ * Placements a multiloc hid (-1), remembered so a varp change can bring them back.
+ *
+ * The reference never drops such a placement. A loc with a transform table is a
+ * DynamicObject that stays in the scene with its BASE id, and its model is
+ * re-resolved on every draw: `method4108` walks the transform table and answers
+ * null for a -1 rung, `method4109` then draws nothing -- and draws the child again
+ * the frame the varbit changes (Deobfuscator/src_osrs239/deob/class123.java,
+ * runelite's DynamicObject). This port resolves a multiloc ONCE, when it places
+ * it, and a -1 rung makes `world_builder_resolve_loc_for_place` answer NULL, so
+ * the static build, the instance build and `WorldBuilder_ApplyLocChange` all skip
+ * the entity. The live remorph (app_varp_transforms.c) walks only the scenery
+ * pool, so a placement that was hidden once stayed gone until the scene rebuilt
+ * -- Recruitment Drive's Lady Table room hides one of its twelve statues while you
+ * memorise, and the answer statue never came back for you to touch.
+ *
+ * So every placement skipped that way is written down here, keyed on the tile,
+ * the level and the loc LAYER (the same key `World_SceneryFindAt` uses), with the
+ * base id the map or zone packet named. The varp refresh re-places the ones whose
+ * table now resolves to a real child through the ordinary loc-change path.
+ * A rebuild forgets them all (the build records its own again), and any loc
+ * change on the same tile and layer forgets that one -- a LOC_DEL or a different
+ * loc there means the hidden placement is no longer what the scene holds.
+ *
+ * Kept beside the builder rather than in it only because world_builder.h is
+ * outside this change; one small list per builder, looked up by pointer.
+ */
+struct WorldBuilderHiddenLoc
+{
+    int scene_x;
+    int scene_z;
+    int level;
+    int loc_id;
+    int shape;
+    int angle;
+};
+
+struct WorldBuilderHiddenLocs
+{
+    struct WorldBuilder* builder;
+    struct WorldBuilderHiddenLoc* items;
+    int count;
+    int capacity;
+    struct WorldBuilderHiddenLocs* next;
+};
+
+static struct WorldBuilderHiddenLocs* g_wb_hidden_locs = NULL;
+
+static struct WorldBuilderHiddenLocs*
+world_builder_hidden_find(struct WorldBuilder* builder)
+{
+    assert(builder);
+    for( struct WorldBuilderHiddenLocs* h = g_wb_hidden_locs; h; h = h->next )
+        if( h->builder == builder )
+            return h;
+    return NULL;
+}
+
+static void
+world_builder_hidden_clear(struct WorldBuilder* builder)
+{
+    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
+    if( h )
+        h->count = 0;
+}
+
+static void
+world_builder_hidden_forget_at(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int shape)
+{
+    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
+    int layer = World_LocShapeToLayer(shape);
+    int kept = 0;
+
+    if( !h )
+        return;
+    for( int i = 0; i < h->count; i++ )
+    {
+        struct WorldBuilderHiddenLoc* r = &h->items[i];
+        if( r->scene_x == scene_x && r->scene_z == scene_z && r->level == level &&
+            World_LocShapeToLayer(r->shape) == layer )
+            continue;
+        h->items[kept++] = *r;
+    }
+    h->count = kept;
+}
+
+static void
+world_builder_hidden_note(
+    struct WorldBuilder* builder,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    struct WorldBuilderHiddenLocs* h;
+
+    assert(builder);
+    world_builder_hidden_forget_at(builder, scene_x, scene_z, level, shape);
+    h = world_builder_hidden_find(builder);
+    if( !h )
+    {
+        h = calloc(1, sizeof(*h));
+        assert(h);
+        h->builder = builder;
+        h->next = g_wb_hidden_locs;
+        g_wb_hidden_locs = h;
+    }
+    if( h->count == h->capacity )
+    {
+        int capacity = h->capacity ? h->capacity * 2 : 32;
+        struct WorldBuilderHiddenLoc* items = realloc(h->items, capacity * sizeof(*items));
+        assert(items);
+        h->items = items;
+        h->capacity = capacity;
+    }
+    h->items[h->count].scene_x = scene_x;
+    h->items[h->count].scene_z = scene_z;
+    h->items[h->count].level = level;
+    h->items[h->count].loc_id = loc_id;
+    h->items[h->count].shape = shape;
+    h->items[h->count].angle = angle;
+    h->count++;
+}
+
+static void
+world_builder_hidden_release(struct WorldBuilder* builder)
+{
+    struct WorldBuilderHiddenLocs** link = &g_wb_hidden_locs;
+
+    assert(builder);
+    while( *link )
+    {
+        struct WorldBuilderHiddenLocs* h = *link;
+        if( h->builder == builder )
+        {
+            *link = h->next;
+            free(h->items);
+            free(h);
+            return;
+        }
+        link = &h->next;
+    }
+}
+
+/*
+ * The varp refresh's view of the list. Declared by its one caller
+ * (app_varp_transforms.c) until world_builder.h carries it.
+ */
+int
+WorldBuilder_HiddenLocCount(struct WorldBuilder* builder);
+
+int
+WorldBuilder_HiddenLocGet(
+    struct WorldBuilder* builder,
+    int index,
+    int* out_scene_x,
+    int* out_scene_z,
+    int* out_level,
+    int* out_loc_id,
+    int* out_shape,
+    int* out_angle);
+
+int
+WorldBuilder_HiddenLocCount(struct WorldBuilder* builder)
+{
+    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
+    return h ? h->count : 0;
+}
+
+int
+WorldBuilder_HiddenLocGet(
+    struct WorldBuilder* builder,
+    int index,
+    int* out_scene_x,
+    int* out_scene_z,
+    int* out_level,
+    int* out_loc_id,
+    int* out_shape,
+    int* out_angle)
+{
+    struct WorldBuilderHiddenLocs* h = world_builder_hidden_find(builder);
+    struct WorldBuilderHiddenLoc* r;
+
+    assert(h);
+    assert(index >= 0);
+    assert(index < h->count);
+    assert(out_scene_x);
+    assert(out_scene_z);
+    assert(out_level);
+    assert(out_loc_id);
+    assert(out_shape);
+    assert(out_angle);
+    r = &h->items[index];
+    *out_scene_x = r->scene_x;
+    *out_scene_z = r->scene_z;
+    *out_level = r->level;
+    *out_loc_id = r->loc_id;
+    *out_shape = r->shape;
+    *out_angle = r->angle;
+    return 1;
+}
+
 static void
 world_builder_free_transient_maps(struct WorldBuilder* builder)
 {
@@ -391,6 +600,7 @@ WorldBuilder_Free(struct WorldBuilder* builder)
     if( !builder )
         return;
     world_builder_free_transient_maps(builder);
+    world_builder_hidden_release(builder);
     free(builder);
 }
 
@@ -470,6 +680,8 @@ WorldBuilder_RebuildCenterzoneBegin(
      * needs no explicit clear for that: it retains nothing on its own, so the
      * ClearPool below is what empties it. */
     world_builder_free_transient_maps(builder);
+    /* Every hidden placement is re-derived by the build that follows. */
+    world_builder_hidden_clear(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
 
     /* Static pool only: entity elements (players/npcs/objs) keep their ids
@@ -547,14 +759,23 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
 
         struct ToriRS_Location resolved_loc;
         config_loc = world_builder_resolve_loc_for_place(builder, config_loc, &resolved_loc);
+        int scene_x = World_ToSceneX(world, mapx, map_loc->chunk_pos_x);
+        int scene_z = World_ToSceneZ(world, mapz, map_loc->chunk_pos_z);
         if( !config_loc )
         {
+            /* Hidden by its multiloc, not gone: a varp change re-places it. */
+            if( scene_in_bounds(builder, scene_x, scene_z) )
+                world_builder_hidden_note(
+                    builder,
+                    scene_x,
+                    scene_z,
+                    map_loc->chunk_pos_level,
+                    map_loc->loc_id,
+                    map_loc->shape_select,
+                    map_loc->orientation);
             dbg_no_resolve++;
             continue;
         }
-
-        int scene_x = World_ToSceneX(world, mapx, map_loc->chunk_pos_x);
-        int scene_z = World_ToSceneZ(world, mapz, map_loc->chunk_pos_z);
 
         if( !scene_in_bounds(builder, scene_x, scene_z) )
         {
@@ -665,9 +886,34 @@ WorldBuilder_RebuildInstanceZoneScenery(
         config_loc = CacheProvider_LocationGet(builder->cache, placed.loc_id);
         if( !config_loc )
             continue;
+        struct ToriRS_Location* base_loc = config_loc;
         config_loc = world_builder_resolve_loc_for_place(builder, config_loc, &resolved_loc);
         if( !config_loc )
+        {
+            /* Hidden by its multiloc: remember it where the copied zone puts
+             * it. The footprint is the BASE's, as for a resolved placement. */
+            size_x = base_loc->size_x > 0 ? base_loc->size_x : 1;
+            size_z = base_loc->size_z > 0 ? base_loc->size_z : 1;
+            if( (placed.orientation & 1) != 0 )
+            {
+                int tmp = size_x;
+                size_x = size_z;
+                size_z = tmp;
+            }
+            world_instance_rotate_to_dst(rotation, sx, sz, size_x, size_z, &dx, &dz);
+            scene_x = dst_zone_x * 8 + dx;
+            scene_z = dst_zone_z * 8 + dz;
+            if( scene_in_bounds(builder, scene_x, scene_z) )
+                world_builder_hidden_note(
+                    builder,
+                    scene_x,
+                    scene_z,
+                    dst_level,
+                    placed.loc_id,
+                    placed.shape_select,
+                    (placed.orientation + rotation) & 3);
             continue;
+        }
 
         /* Footprint as placed in the source, which is what the corner correction
          * needs — an odd angle has already swapped the config's own extents. */
@@ -1159,6 +1405,7 @@ WorldBuilder_RebuildChunklistBegin(
     assert(world && "WorldBuilder_RebuildChunklistBegin: world is NULL");
 
     world_builder_free_transient_maps(builder);
+    world_builder_hidden_clear(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);
 
     ToriDraw_SceneClearPool(builder->scene, builder->static_pool);
@@ -1230,6 +1477,10 @@ WorldBuilder_ApplyLocChange(
     int idx;
 
     assert(builder);
+
+    /* 0. Whatever was hidden in this layer is replaced too (re-noted below
+     * when the new loc is itself hidden). */
+    world_builder_hidden_forget_at(builder, scene_x, scene_z, level, shape);
 
     /* 1. Remove the existing loc in this shape's layer (collision + scene).
      * Loop: an L-shaped wall (WALL_TWO_SIDES) and a double diagonal wall decor
@@ -1379,6 +1630,13 @@ WorldBuilder_ApplyLocChange(
                 }
             }
             world_builder_batch_end(builder);
+        }
+        else
+        {
+            /* The multiloc resolves to -1 right now: nothing to draw, but the
+             * placement stands, exactly as the reference keeps its
+             * DynamicObject (see WorldBuilderHiddenLoc above). */
+            world_builder_hidden_note(builder, scene_x, scene_z, level, loc_id, shape, angle);
         }
     }
 }

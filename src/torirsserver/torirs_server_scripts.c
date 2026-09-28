@@ -1001,6 +1001,83 @@ report_abort(struct SSVM_State* state)
     fputs(report, stderr);
 }
 
+/*
+ * An npc script's player is borrowed, not protected.
+ *
+ * LostCity starts an npc trigger with the npc alone (`ScriptRunner.init(script,
+ * npc)`; an `[ai_ap/opplayer<n>]` adds its target as ActivePlayer only), and
+ * every player suspend -- `p_pausebutton` (so `~mesbox`, `~chatnpc`,
+ * `~chatplayer`, `~objbox`, the `~p_choice` menus), `p_delay`,
+ * `p_arrivedelay`, `p_countdialog`, `p_namedialog` -- is
+ * `checkedHandler(ProtectedActivePlayer, ...)` (Engine-TS PlayerOps.ts:427), so
+ * the reference throws "NPC script error" at it. Only `p_finduid` (and its two
+ * friend-list siblings) grants protected access from an npc script; content
+ * that talks from a death handler either does that or `queue`s the dialogue on
+ * the player (quest_zanaris tree_spirit.rs2, quest_troll troll_champion.rs2).
+ *
+ * This engine hands every trigger the phase's player with protected access, so
+ * an `[ai_queue3]` that reached `~mesbox` without binding anybody parked on
+ * whichever player the npc phase left bound -- or, with nobody bound, was
+ * dropped with one easily-missed line -- and the quest stalled with its stage
+ * written and its completion never reached (Agrith-Naar's death handler,
+ * Shadow of the Storm, parity2c). The bit marks that borrowed context:
+ * `run_trigger_script_inner` sets it on every ai_* trigger, the commands that
+ * bind a player on purpose clear it (`p_finduid`, `p_findmutualfriend`,
+ * `p_findvisibleplayer`, and `npc_findhero` -- the port's documented stand-in
+ * for LostCity's `npc_findhero` + `p_finduid` pair, see
+ * QUEST_PORTING_FIELD_GUIDE.md), and `run_or_park` turns a player suspend
+ * while it is still set into a script error naming the trigger.
+ *
+ * Host-private: above every SSVM_PTR_* bit, so no command's require mask can
+ * ever ask for it.
+ */
+#define SCRIPT_PTR_BORROWED_PLAYER (1u << 30)
+
+static const char*
+trigger_label(
+    int trigger,
+    int type,
+    char* buffer,
+    size_t capacity);
+
+static const char*
+player_suspend_name(enum SSVM_Exec status)
+{
+    switch( status )
+    {
+    case SSVM_PAUSEBUTTON:
+        return "p_pausebutton (a dialogue)";
+    case SSVM_COUNTDIALOG:
+        return "p_countdialog";
+    case SSVM_NAMEDIALOG:
+        return "p_namedialog";
+    default:
+        return "p_delay/p_arrivedelay";
+    }
+}
+
+/* `[ai_queue3,agrith_naar]`: the entry trigger plus the npc the state runs
+ * for, whichever proc or label the state is in now. */
+static const char*
+state_trigger_label(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state,
+    char* buffer,
+    size_t capacity)
+{
+    int slot = (int)state->host_tag - 1;
+    int type = -1;
+
+    if( state->trigger < 0 )
+    {
+        snprintf(buffer, capacity, "%s", state->script ? state->script->name : "?");
+        return buffer;
+    }
+    if( slot >= 0 && slot < TORIRSSERVER_NPC_MAX && srv->npcs[slot].active )
+        type = srv->npcs[slot].type;
+    return trigger_label(state->trigger, type, buffer, capacity);
+}
+
 /**
  * Run a state, and park it wherever its suspend status says it belongs.
  *
@@ -1070,16 +1147,35 @@ run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
     case SSVM_PAUSEBUTTON:
     case SSVM_COUNTDIALOG:
     case SSVM_NAMEDIALOG:
-        /* A player suspend with nobody to suspend on. Reachable on a world
-         * that is ticking with no one logged in: an `[ai_*]` script whose
-         * subject is an npc may still reach a `p_delay`, and there is no slot
-         * to park it in. Dropped and said, the same as the collision below. */
-        if( !active )
+        /*
+         * A player suspend from a script that holds no player of its own: an
+         * npc trigger that never bound one (SCRIPT_PTR_BORROWED_PLAYER, above),
+         * or any script on a world with nobody to park it on. The reference
+         * throws at the suspend; so does this -- a script error naming the
+         * trigger, never a parked or quietly dropped state. What the script
+         * already opened on the player it borrowed (a `~mesbox`'s chat
+         * interface) is closed again when that player has no conversation of
+         * its own parked, or the dialogue would sit there with nothing to
+         * resume and hold every queue and timer behind `canAccess` forever.
+         */
+        if( !active || (state->pointers & SCRIPT_PTR_BORROWED_PLAYER) )
         {
-            fprintf(stderr,
-                    "torirsserver: dropping %s, which suspended with no player to park it on\n",
-                    state->script ? state->script->name : "?");
-            SSVM_StateRelease(state);
+            char label[192];
+
+            state_trigger_label(srv, state, label, sizeof(label));
+            /* err.message is 192 bytes: say it in one line that fits. */
+            SSVM_Abort(state, "%s suspended on %s with %s; bind one (npc_findhero/p_finduid) "
+                              "or queue() it on the player",
+                       label, player_suspend_name(status),
+                       active ? "a borrowed player" : "no player");
+            report_abort(state);
+            if( active && !active->active_script && active->mainmodal_group <= 0 &&
+                active->chatmodal_group > 0 )
+            {
+                active->resume_button_count = 0;
+                ToriRSServer_WorldCloseModalEx(srv, 0);
+            }
+            release_parked(srv, state);
             return 0;
         }
         /* One parked script per player. A second would need somewhere to live
@@ -2226,6 +2322,15 @@ run_trigger_script_inner(
      * response to player input. */
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+
+    /* ...except an npc's own turn, which is not player input: its player is
+     * the npc phase's, borrowed, and may not be suspended on until the script
+     * binds one itself (see SCRIPT_PTR_BORROWED_PLAYER). An owned npc (a
+     * familiar) runs in its owner's context on purpose -- run_trigger_impl
+     * resolved that owner by generation -- so it is not borrowed. */
+    if( trigger_is_ai_npc(state->trigger) &&
+        !(npc_slot >= 0 && npc_slot < TORIRSSERVER_NPC_MAX && srv->npcs[npc_slot].owner_gen != 0) )
+        SSVM_PointerAdd(state, SCRIPT_PTR_BORROWED_PLAYER);
 
     /* Targeted player casts keep their owner as active_player so a script's
      * common post-operation commit cannot debit the recipient. The selected
@@ -6262,7 +6367,11 @@ ToriRSServer_ScriptCommand(
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         if( opcode == SS_OP_P_FINDUID )
+        {
             SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+            /* The reference's one way for an npc script to earn a dialogue. */
+            SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
+        }
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -6286,6 +6395,7 @@ ToriRSServer_ScriptCommand(
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -6308,6 +6418,7 @@ ToriRSServer_ScriptCommand(
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, found);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
         SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+        SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -9433,6 +9544,12 @@ ToriRSServer_ScriptCommand(
         }
         SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, hero);
         SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
+        /* A deliberate binding: the port's stand-in for LostCity's
+         * `npc_findhero` + `p_finduid` pair (the reference's npc_findhero adds
+         * ActivePlayer only). Content ported that pair to this call alone
+         * (quest_zanaris tree_spirit.rs2, 90-odd death handlers), so it is
+         * what lifts SCRIPT_PTR_BORROWED_PLAYER here. */
+        SSVM_PointerRemove(state, SCRIPT_PTR_BORROWED_PLAYER);
         SSVM_PushInt(state, 1);
         return 1;
     }

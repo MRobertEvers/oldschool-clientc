@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 30
+-- @seam-count 31
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 131
-local SEAM_COUNT = 30
+local SEAM_COUNT = 31
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -353,6 +353,23 @@ local CAST_PASSIVE = {
     "goblin_unarmed_melee_1", "goblin_unarmed_melee_2", "goblin_unarmed_melee_3",
     "goblin_unarmed_melee_4", "goblin_unarmed_melee_5", "giantspider1",
 }
+
+-- seam.attack_presses_the_watched_slot's goblin pair (seam21): ::spawn lands at
+-- the player's tile +1,+1, so these stand tiles put N at 3241,3245 (two south
+-- of CAST_TILE) and F at 3242,3250 (north-east of it).  Both are open field:
+-- 3243,3247 is inside the goblin house and 3237,3247 is the river
+-- (build/quest_gate/s21as_gob3, s21as_gob1: "I can't reach that!").
+local ATTACK_PAIR_SPAWN_N_X = 3240
+local ATTACK_PAIR_SPAWN_N_Z = 3244
+local ATTACK_PAIR_SPAWN_F_X = 3241
+local ATTACK_PAIR_SPAWN_F_Z = 3249
+-- Where F lands, and where the row stands: one tile south-west of CAST_TILE so
+-- player.cast's own goblin (spawned at 3242,3248) is not the nearest copy --
+-- it was, from CAST_TILE, in build/quest_gate/s21as_conf1 row 154.
+local ATTACK_PAIR_F_X = 3242
+local ATTACK_PAIR_F_Z = 3250
+local ATTACK_PAIR_STAND_X = 3240
+local ATTACK_PAIR_STAND_Z = 3246
 
 -- A detail column is a string or the ledger's luaL_optstring raises.  Tables
 -- (a verb that answers with a row, a tile, an options list) are summarised
@@ -5409,6 +5426,145 @@ return {
             return "ok", text .. " [runes " .. air_before .. "->" .. air_after .. " air, "
                 .. mind_before .. "->" .. mind_after .. " mind; magic xp "
                 .. xp_before.experience .. "->" .. xp_after.experience .. "]"
+        end)
+
+        -- ONE COPY, PRESSED AND WATCHED (seam21, attack_press_and_watch_same_slot).
+        -- player.attack pressed the copy App_NpcScreenPosition ranks nearest
+        -- the VIEWPORT CENTRE and watched npc.nearest's slot; with two copies
+        -- about those differ, and the row timed out on a fight it was not
+        -- watching (Rum Deal's eleven fever spiders, Zogre's slash bash).
+        -- The subject is a goblin PAIR placed so they DO differ: ::spawn lands
+        -- at the player's tile +1,+1, so N stands two tiles south of the stand
+        -- tile and F north-east of it, and a camera yawed at F at pitch 128
+        -- puts N behind the eye.  Measured with the pre-seam21 press
+        -- (build/quest_gate/s21as_gob7 and s21as_gob8, row old.press_vs_watch):
+        -- "bare press landed on slot 141 ... watched nearest slot 132 (hp -1)
+        -- -> DIFFERENT copy".  At pitch 383 the player sits at the viewport
+        -- centre and the two never differ (s21as_gob2..gob6).
+        stage(function()
+            setup_cheat("::give " .. COMBAT_WEAPON .. " 1")
+            settle(2)
+            local equip = verb("player", "equip")
+            if equip then
+                equip(COMBAT_WEAPON)
+            end
+            local goto_tile = verb("player", "goto_tile")
+            if goto_tile then
+                goto_tile(ATTACK_PAIR_SPAWN_N_X, ATTACK_PAIR_SPAWN_N_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                goto_tile(ATTACK_PAIR_SPAWN_F_X, ATTACK_PAIR_SPAWN_F_Z, 0)
+                setup_cheat("::spawn " .. CAST_NPC_SYMBOL)         -- setup
+                setup_cheat("::passive " .. CAST_NPC_SYMBOL)       -- setup
+                goto_tile(ATTACK_PAIR_STAND_X, ATTACK_PAIR_STAND_Z, 0)
+            end
+            settle(3)
+        end)
+
+        seam("seam.attack_presses_the_watched_slot", function()
+            local fn = verb("player", "attack")
+            local tiles = verb("npc", "tiles")
+            local tile = verb("world", "tile")
+            if not fn then return missing("player", "attack") end
+            if not tiles then return missing("npc", "tiles") end
+            if not tile then return missing("world", "tile") end
+            local function copies()
+                local r, _, found = tiles(CAST_NPC_SYMBOL, 0)
+                return (r == "ok" and is_table(found)) and found or {}
+            end
+            local function slot_of(element, found)
+                for i = 1, #found do
+                    if found[i].element_id == element then return found[i].slot end
+                end
+                return nil
+            end
+            local found = copies()
+            local _, here = tile()
+            if #found < 2 or not is_table(here) then
+                return "no_subject", "fewer than two " .. CAST_NPC_SYMBOL .. " copies ("
+                    .. describe(#found) .. ") or no player tile"
+            end
+            local near = found[1]
+            -- A copy on the OTHER side of the player from the nearest one,
+            -- the one standing closest to where F landed: facing it puts the
+            -- nearest behind the camera, and it is the open-field copy the
+            -- {slot} press below names (the field's own goblins wander into
+            -- the house east of here, where "I can't reach that!" answers --
+            -- s21as_conf1 row 154, slot 6).
+            local away = nil
+            local best = nil
+            local nx, nz = near.x - here.x, near.z - here.z
+            for i = 2, #found do
+                local row = found[i]
+                if (row.x - here.x) * nx + (row.z - here.z) * nz < 0 then
+                    local d = (row.x - ATTACK_PAIR_F_X) * (row.x - ATTACK_PAIR_F_X)
+                        + (row.z - ATTACK_PAIR_F_Z) * (row.z - ATTACK_PAIR_F_Z)
+                    if best == nil or d < best then
+                        away = row
+                        best = d
+                    end
+                end
+            end
+            away = away or found[2]
+            local yaw = t.drive._yaw_towards(away.x - here.x, away.z - here.z)
+            if yaw then
+                t.drive.camera(yaw, 128, 400)
+                settle(2)
+            end
+            local target = t.player.by_symbol("npc", CAST_NPC_SYMBOL)
+            local _, projected = t.drive._projection(target)
+            local ranked = is_table(projected) and slot_of(projected.element_id, copies()) or nil
+            local condition = "nearest slot " .. describe(near.slot) .. ", the viewport centre ranks slot "
+                .. describe(ranked) .. (ranked ~= near.slot and " (they DIFFER -- the pre-seam21 shape)"
+                    or " (they agree this run)")
+            local result, detail = fn(CAST_NPC_SYMBOL, COMBAT_ATTACK_OP, 20)
+            local text = condition .. "; attack -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            if not string.find(tostring(detail), "pressed slot " .. tostring(near.slot) .. " ", 1, true)
+                or not string.find(tostring(detail), "watching slot " .. tostring(near.slot) .. ":", 1, true) then
+                return "hollow", "the detail does not name the nearest slot as both pressed and watched -- "
+                    .. text
+            end
+            -- The fight on the nearest copy is finished before the next press,
+            -- by the slot the press stamped: a second Attack while the first
+            -- fight is live is a single-way question, not this row's.
+            local dead = verb("npc", "await_dead_engaged")
+            if dead then
+                local dead_result, dead_detail = dead(40)
+                text = text .. "; await_dead_engaged -> " .. describe(dead_result)
+                if dead_result ~= "ok" then
+                    return dead_result, text .. " " .. describe(dead_detail)
+                end
+            end
+            -- And a NAMED copy: the one the camera was turned to, by slot.
+            local other = nil
+            found = copies()
+            for i = 1, #found do
+                if found[i].slot == away.slot and away.slot ~= near.slot then
+                    other = found[i]
+                end
+            end
+            if other == nil then
+                return "ok", text .. " [slot " .. describe(away.slot)
+                    .. " left the pool before the {slot} press]"
+            end
+            local result2, detail2 = fn(CAST_NPC_SYMBOL, COMBAT_ATTACK_OP, 20, { slot = other.slot })
+            local text2 = "{slot=" .. describe(other.slot) .. "} -> " .. describe(result2) .. " "
+                .. describe(detail2)
+            local said = string.match(tostring(detail2), "the SERVER refused the swing: '[^']*'")
+            if said then
+                text2 = said .. " -- " .. text2
+            end
+            if result2 ~= "ok" then
+                return result2, text .. " || " .. text2
+            end
+            if not string.find(tostring(detail2), "pressed slot " .. tostring(other.slot) .. " ", 1, true)
+                or not string.find(tostring(detail2), "watching slot " .. tostring(other.slot) .. ":", 1, true) then
+                return "hollow", "the named press does not name slot " .. describe(other.slot)
+                    .. " as both pressed and watched -- " .. text2
+            end
+            return "ok", text .. " || " .. text2
         end)
 
         stage(function()

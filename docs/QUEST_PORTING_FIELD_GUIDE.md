@@ -370,6 +370,42 @@ reading as "it got harder at 70%"):
      a wait reads vampire=3, stake gone, +4825 attack xp). Likewise a
      "regenerating" boss still shows a zero bar before its `[ai_queue3]`
      heals it.
+   - **An npc script may not talk until it binds a player** (seam21,
+     2026-09-27). Every `[ai_*]` trigger (`ai_queue<n>`, `ai_timer`,
+     `ai_spawn`, `ai_ap/opnpc<n>`, `ai_ap/opplayer<n>`, ...) runs with the npc
+     phase's player BORROWED; a player suspend from it -- `~mesbox`,
+     `~chatnpc`, `~chatplayer`, `~objbox`, a `~p_choice`, `p_delay`,
+     `p_countdialog` -- before `npc_findhero = ^true` or `p_finduid(...) =
+     true` is a script error in client.log naming the trigger:
+     `torirsserver: [ai_queue3,agrith_naar] suspended on p_pausebutton (a
+     dialogue) with a borrowed player; bind one (npc_findhero/p_finduid) or
+     queue() it on the player`, then the `at [proc,mesbox]` / `from
+     [ai_queue3,...] - file:line` backtrace. The script ENDS there (nothing
+     after the dialogue runs) and the chatbox it opened is closed again. This
+     is the reference: an npc script holds no protected player access
+     (`ScriptRunner.init(script, npc)`; LostCity's `npc_findhero` adds
+     ActivePlayer only) and `p_pausebutton`/`p_delay` are
+     `checkedHandler(ProtectedActivePlayer)` (Engine-TS PlayerOps.ts:427).
+     Before, the dialogue parked on whichever player the npc phase had left
+     bound: Agrith-Naar's weapon-gate `~mesbox` sat on screen and the
+     `npc_statheal` after it never ran, so a bare-handed kill killed him
+     (`build/quest_gate/s21dlg_before` vs `s21dlg_after3`). Divergence kept:
+     `npc_findhero` alone lifts the rule here (the port ported LostCity's
+     `npc_findhero` + `p_finduid(uid)` pair as `npc_findhero` alone in ~90
+     death handlers), and an owned npc (a familiar) runs in its owner's
+     context unrestricted. The shape to write, LostCity's own
+     (quest_zanaris `tree_spirit.rs2`, quest_troll `troll_champion.rs2`):
+     bind the hero, do the NPC's half in the npc script (`npc_statheal`,
+     `npc_setmode`), and `queue(<label>, 0, 0)` the player's half -- the
+     dialogue, the items, the stage -- where it is an ordinary player script
+     (quest_shadowstorm `[ai_queue3,agrith_naar]` ->
+     `[queue,sots_agrith_revived]` / `[queue,sots_agrith_slain]`).
+     `python3 tools/check_npc_script_player_suspend.py` lists every npc
+     script that reaches a player suspend with no bind before it, with the
+     call chain (`--brief` for dialogues only, `--only <npc>`); 9 remain,
+     none a quest death handler: `[ai_opplayer2,galvek_fire|water|wind]`'s
+     phase `~mesbox` (Dragon Slayer II) and Pest Control's portal/knight
+     `[ai_queue3]` -> `~pest_game_end` -> the Squire's `~chatnpc_specific`.
 8. **One shared search iterator.** `huntall`/`npc_findall*` share it;
    nesting a sweep inside a sweep eats the outer one. `npc_find*uid/exact`
    are safe (lookup, not sweep). A sweeping helper should save

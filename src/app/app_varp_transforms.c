@@ -397,6 +397,67 @@ app_loc_transform_depends_on_varp(
                : 0;
 }
 
+/*
+ * Placements a multiloc currently hides (-1), kept by the world builder
+ * (world_builder.c, WorldBuilderHiddenLoc). Declared here, by the one caller,
+ * until world_builder.h carries them.
+ */
+int
+WorldBuilder_HiddenLocCount(struct WorldBuilder* builder);
+
+int
+WorldBuilder_HiddenLocGet(
+    struct WorldBuilder* builder,
+    int index,
+    int* out_scene_x,
+    int* out_scene_z,
+    int* out_level,
+    int* out_loc_id,
+    int* out_shape,
+    int* out_angle);
+
+/*
+ * Whether `varp_id` drives any link of `loc`'s transform chain, and -- through
+ * `out_hidden` -- whether that chain resolves to -1 right now. A link whose
+ * config is not resident yet counts as shown: the loc-change task that follows
+ * awaits it and resolves again.
+ */
+static int
+app_loc_chain_depends_on_varp(
+    struct App* app,
+    struct ToriRS_Location* loc,
+    int varp_id,
+    int* out_hidden)
+{
+    int depends = 0;
+
+    assert(app);
+    assert(out_hidden);
+    *out_hidden = 0;
+    for( int depth = 0; loc && depth < 16; ++depth )
+    {
+        if( !depends && app_loc_transform_depends_on_varp(app, loc, varp_id) )
+            depends = 1;
+        if( loc->transform_count <= 0 || !loc->transforms )
+            break;
+        int next = VarPManager_ResolveTransform(
+            &app->varps,
+            loc->transforms,
+            loc->transform_count,
+            loc->transform_varbit,
+            loc->transform_varp);
+        if( next < 0 )
+        {
+            *out_hidden = 1;
+            break;
+        }
+        if( next == loc->id )
+            break;
+        loc = CacheProvider_LocationGet(app->provider, next);
+    }
+    return depends;
+}
+
 static void
 app_varp_refresh_loc_transforms(
     struct App* app,
@@ -488,6 +549,52 @@ app_varp_refresh_loc_transforms(
                             "%s",
                             sc->info->actions[op].name);
                 }
+            ++n;
+        }
+        /*
+         * And the placements that are not in the pool because their multiloc
+         * hid them. The reference keeps a hidden multiloc in its scene and
+         * re-resolves its model every draw (Deobfuscator/src_osrs239/deob/
+         * class123.java method4108/method4109, runelite's DynamicObject), so
+         * it reappears on the frame the varbit changes; here the loc-change
+         * path re-places it from the base id the map named. Recruitment
+         * Drive's Lady Table room hides its answer statue while you memorise
+         * and must show it again when rd_room_order returns to 0.
+         */
+        struct WorldBuilder* builder = WorldviewRegistry_Get(&app->worldviews, view)->builder;
+        int hidden_count = builder ? WorldBuilder_HiddenLocCount(builder) : 0;
+        for( int i = 0; i < hidden_count && n < MAX_REFRESH; ++i )
+        {
+            int x, z, level, loc_id, shape, angle;
+            int still_hidden = 0;
+            WorldBuilder_HiddenLocGet(builder, i, &x, &z, &level, &loc_id, &shape, &angle);
+            struct ToriRS_Location* loc = CacheProvider_LocationGet(app->provider, loc_id);
+            if( !loc || !app_loc_chain_depends_on_varp(app, loc, varp_id, &still_hidden) )
+                continue;
+            if( still_hidden )
+                continue;
+            /* Something else stands in that layer now: re-placing would
+             * replace it, which no varbit asked for. */
+            if( World_SceneryFindAt(world, x, z, level, shape) >= 0 )
+                continue;
+            int duplicate = 0;
+            for( int j = 0; j < n; ++j )
+                if( pending[j].x == x && pending[j].z == z && pending[j].level == level &&
+                    pending[j].shape == shape )
+                {
+                    duplicate = 1;
+                    break;
+                }
+            if( duplicate )
+                continue;
+            pending[n].x = x;
+            pending[n].z = z;
+            pending[n].level = level;
+            pending[n].loc_id = loc_id;
+            pending[n].shape = shape;
+            pending[n].angle = angle;
+            pending[n].op_flags = 0x1f;
+            memset(pending[n].ops, 0, sizeof(pending[n].ops));
             ++n;
         }
         app->active_world = view;

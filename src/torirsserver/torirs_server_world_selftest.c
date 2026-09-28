@@ -48048,54 +48048,60 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(!said_fail, "::totemrun should report no failures");
             SELFTEST_CHECK(said_ok, "::totemrun should reach its OK line");
 
-            /* C-side: the combination-lock door's real [if_button] dispatch. */
+            /*
+             * C-side: the combination-lock door's real [if_button] dispatch.
+             * The wheels are the lock's own varbits (totemquest_combodoor_code1..4,
+             * quest_totem/configs/totem_combodoor.varp), stepped by the real
+             * arrow buttons -- never %if1..%if4, which carry the Slayer
+             * assignment (seam21 tribal_totem_lock_clobbers_slayer). ::totemrun
+             * leaves the lock open with every wheel at A.
+             */
             {
-                int varp_if1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if1");
-                int varp_if2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if2");
-                int varp_if3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if3");
-                int varp_if4 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "if4");
+                static char const* const arrow_names[4] = {
+                    "tribal_door:tribala_right", /* A -> K: right x10 */
+                    "tribal_door:tribalb_left",  /* A -> U: left x6 */
+                    "tribal_door:tribalc_left",  /* A -> R: left x9 */
+                    "tribal_door:tribald_left",  /* A -> T: left x7 */
+                };
+                static int const arrow_presses[4] = { 10, 6, 9, 7 };
+                int arrows[4];
                 int varp_traps = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "handelmort_traps_disabled");
                 int com_enter = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "tribal_door:tribalenter");
+                int resolved = varp_traps >= 0 && com_enter >= 0;
 
-                SELFTEST_CHECK(varp_if1 >= 0 && varp_if2 >= 0 && varp_if3 >= 0 && varp_if4 >= 0 &&
-                               varp_traps >= 0 && com_enter >= 0,
-                               "the ::totemrun C-side names should all resolve: if1=%d if2=%d "
-                               "if3=%d if4=%d traps=%d enter=%d",
-                               varp_if1, varp_if2, varp_if3, varp_if4, varp_traps, com_enter);
-                if( varp_if1 >= 0 && varp_if2 >= 0 && varp_if3 >= 0 && varp_if4 >= 0 &&
-                    varp_traps >= 0 && com_enter >= 0 )
+                for( int w = 0; w < 4; w++ )
+                {
+                    arrows[w] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, arrow_names[w]);
+                    if( arrows[w] < 0 )
+                        resolved = 0;
+                }
+                SELFTEST_CHECK(resolved,
+                               "the ::totemrun C-side names should all resolve: traps=%d enter=%d "
+                               "arrows=%d/%d/%d/%d",
+                               varp_traps, com_enter, arrows[0], arrows[1], arrows[2], arrows[3]);
+                if( resolved )
                 {
                     /*
                      * `~mesbox`'s text does not surface as a plain
-                     * MESSAGE_GAME (opcode 90) packet the way `mes()` does
-                     * -- confirmed by this stanza's own first attempt,
-                     * where a `strstr` scan for "This combination is
-                     * incorrect" never matched despite the wrong branch
-                     * genuinely running (the door-solved bit correctly
-                     * stayed clear). State, not chat text, is the
-                     * observable signal here.
+                     * MESSAGE_GAME (opcode 90) packet the way `mes()` does,
+                     * so state, not chat text, is the observable signal.
                      */
                     player->varps[varp_traps] = 0;
-                    player->varps[varp_if1] = 0;
-                    player->varps[varp_if2] = 0;
-                    player->varps[varp_if3] = 0;
-                    player->varps[varp_if4] = 0;
 
                     ToriRSServer_ScriptsRunIfButton(srv, com_enter, 1);
 
                     SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) == 0,
-                                   "a wrong combination should not set the door-solved bit, got %d",
+                                   "A/A/A/A should not set the door-solved bit, got %d",
                                    player->varps[varp_traps]);
 
-                    player->varps[varp_if1] = 10; /* K */
-                    player->varps[varp_if2] = 20; /* U */
-                    player->varps[varp_if3] = 17; /* R */
-                    player->varps[varp_if4] = 19; /* T */
+                    for( int w = 0; w < 4; w++ )
+                        for( int k = 0; k < arrow_presses[w]; k++ )
+                            ToriRSServer_ScriptsRunIfButton(srv, arrows[w], 1);
 
                     ToriRSServer_ScriptsRunIfButton(srv, com_enter, 1);
 
                     SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) != 0,
-                                   "K/U/R/T should set the door-solved bit, got %d",
+                                   "K/U/R/T dialled on the arrows should set the door-solved bit, got %d",
                                    player->varps[varp_traps]);
                 }
             }
@@ -54598,6 +54604,95 @@ ToriRSServer_WorldSelftest(void)
 
                 ToriRSServer_VarbitSet(srv, vb_show, 0);
                 selftest_clear_inv(player);
+            }
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    /*
+     * A multiloc hidden by a -1 rung comes back when its varbit returns.
+     *
+     * Recruitment Drive's Lady Table room is twelve placed wrappers,
+     * rd_statue_multi_1..12, on one varbit, rd_room_order (configs/all.loc):
+     * value 0 is the canonical twelve and each value 1..12 is a scrambled
+     * eleven with exactly one slot -1 -- the statue you must name by touching
+     * it once the room is back at 0. That hide-then-return round trip is the
+     * premise the CLIENT's re-placement rests on (seam21
+     * multiloc_minus_one_replacement: world_builder.c remembers a placement
+     * its multiloc hid and app_varp_transforms.c re-places it on the varbit
+     * change, as the reference's DynamicObject re-resolves its model every
+     * draw). This pins it on the server's own resolver, so a cache or
+     * content change that stops a hidden statue from resolving again, or
+     * hides zero or two at once, reads red here and not as a statue the
+     * quest driver cannot find.
+     *
+     * Mutation: make ToriRSServer_LocResolveTransform answer -1 once hidden
+     * (or read the value-0 rung for every value) and the counts below fail.
+     */
+    fprintf(stderr, "ToriRSServer selftest: Lady Table's hidden statue returns at rd_room_order 0\n");
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int vb_order = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rd_room_order");
+            int wrappers[12];
+            int canonical[12];
+            int all_symbols = vb_order > 0;
+
+            for( int k = 0; k < 12; k++ )
+            {
+                char name[32];
+                snprintf(name, sizeof(name), "rd_statue_multi_%d", k + 1);
+                wrappers[k] = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, name);
+                if( wrappers[k] <= 0 )
+                    all_symbols = 0;
+            }
+            SELFTEST_CHECK(all_symbols,
+                           "rd_room_order and all twelve rd_statue_multi_N should resolve");
+            if( all_symbols )
+            {
+                ToriRSServer_VarbitSet(srv, vb_order, 0);
+                for( int k = 0; k < 12; k++ )
+                {
+                    canonical[k] = ToriRSServer_LocResolveTransform(player, wrappers[k]);
+                    SELFTEST_CHECK(canonical[k] >= 0,
+                                   "at rd_room_order 0 statue %d should be shown, resolves %d",
+                                   k + 1, canonical[k]);
+                }
+                for( int value = 1; value <= 12; value++ )
+                {
+                    int hidden = 0;
+                    int hidden_k = -1;
+
+                    ToriRSServer_VarbitSet(srv, vb_order, value);
+                    for( int k = 0; k < 12; k++ )
+                        if( ToriRSServer_LocResolveTransform(player, wrappers[k]) < 0 )
+                        {
+                            hidden++;
+                            hidden_k = k;
+                        }
+                    SELFTEST_CHECK(hidden == 1,
+                                   "rd_room_order %d should hide exactly one statue, hides %d",
+                                   value, hidden);
+
+                    ToriRSServer_VarbitSet(srv, vb_order, 0);
+                    if( hidden_k >= 0 )
+                        SELFTEST_CHECK(
+                            ToriRSServer_LocResolveTransform(player, wrappers[hidden_k]) ==
+                                canonical[hidden_k],
+                            "back at 0 the statue rd_room_order %d hid (rd_statue_multi_%d) "
+                            "should resolve to %d again, resolves %d",
+                            value, hidden_k + 1, canonical[hidden_k],
+                            ToriRSServer_LocResolveTransform(player, wrappers[hidden_k]));
+                }
+                ToriRSServer_VarbitSet(srv, vb_order, 0);
             }
             ToriRSServer_ScriptsFree(srv);
         }

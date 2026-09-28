@@ -256,6 +256,31 @@ return {
             "::setvar no_such_variable_here 1 -> " .. tostring(badvar_result)
                 .. " (" .. tostring(badvar_detail) .. "), want refused")
 
+        -- An EXACT varbit name wins over a varp that merely contains it
+        -- (seam21 wander_roll_and_cheat_varbit_lookup). agrith_quest is varbit
+        -- 1372 on carrier varp agrith_quest_varp; cowquest is varbit 20106 on
+        -- carrier varp cowquest_main. Before the fix each name substring-
+        -- matched its carrier varp first and was refused as a carrier.
+        local function varbit_row(row, name, const, want)
+            local vr, vd = t.cheat("::setvar " .. name .. " " .. const)
+            t.ticks(3)
+            local sr, sv = t.var.server(name)
+            local cr, cv = t.var.varbit(name)
+            record(row, vr == "ok" and sr == "ok" and sv == want and cr == "ok" and cv == want,
+                "::setvar " .. name .. " " .. const .. " -> " .. tostring(vr) .. " (" .. tostring(vd)
+                    .. "); server " .. tostring(sr) .. "=" .. tostring(sv)
+                    .. ", client varbit " .. tostring(cr) .. "=" .. tostring(cv)
+                    .. " (want " .. want .. ")")
+        end
+        varbit_row("cheats.setvar_varbit_agrith_quest", "agrith_quest", "^sots_fight", 120)
+        varbit_row("cheats.setvar_varbit_cowquest", "cowquest", "^iom_fight", 18)
+
+        -- The carrier itself, named exactly, is still refused whole.
+        local carrier_result, carrier_detail = t.cheat("::setvar agrith_quest_varp 5")
+        record("cheats.setvar_carrier_refused", carrier_result == "refused",
+            "::setvar agrith_quest_varp 5 -> " .. tostring(carrier_result)
+                .. " (" .. tostring(carrier_detail) .. "), want refused")
+
         -- ----------------------------------------------------------- ::spawn
         -- The kill below needs something it certainly made itself. Recorded
         -- either way: if Lumbridge already has a `man` inside SPAWN_RADIUS the
