@@ -81,7 +81,7 @@ quest_hetty	hetty	witchspotion		1	green	sonnet-b15
 quest_horror	horror	horrorfromthedeep		3	todo		
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
-quest_idesofmilk	idesofmilk	theidesofmilk		2	todo		parity2c 340c190aae: BLOCKED ON SPAWN -- Cassius (cowboss_farmer) has no world spawn; the row is parked in build/parity_state/parity2c/parked/idesofmilk.spawn until an engine pass lands LostCity Npc.wander (see PARITY.tsv). Brutus's specials and safe swing are real
+quest_idesofmilk	idesofmilk	theidesofmilk		2	todo		RETRY after 57b4ff6a1 [seam21]: BLOCKED ON SPAWN cleared -- Cassius's spawn row landed with the LostCity wander roll (selftest 14 = HEAD set); talk_to cowboss_farmer at 3171,3277 starts it (s21_ides_start2 8/8); ::setvar cowquest ^iom_X writes the progress varbit
 quest_ikov	ikov	templeofikov		3	todo		
 quest_imp	imp	impcatcher		3	todo		
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
@@ -106,7 +106,7 @@ quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo
 quest_mm	mm	monkeymadnessi		3	todo		
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
-quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		PARITY done at 7e91c06fe3 [parity2b]: The Kendal attackable (trap 31), killKendal driven 14/14 -- ready to author
+quest_mountaindaughter	mountaindaughter	mountaindaughter		2	todo		RETRY after 57b4ff6a1 [seam21]: brief pinned at docs/quests/mountain_daughter.md (wiki oldids + QH ladder + divergences found while pinning); PARITY done at 7e91c06fe3 -- ready to author
 quest_mourningsendparti	mourningsendparti	mourningsendparti		1	green	sonnet-b25	
 quest_mourningsendpartii	mourningsendpartii	mourningsendpartii		1	green	sonnet-b24	
 quest_murder	murder	murdermystery		1	green	sonnet-b15	
@@ -135,7 +135,7 @@ quest_recipefordisaster_monkey	rfd_monkey	recipefordisaster	RFDAwowogei.java	5	t
 quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5	todo		
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
-quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		RETRY after 23fd3961e [seam20]: Sir Ren combo lock FIXED (interface 285 rd_combolock bound, arrows+ENTER driven by t.ui.invoke; s20ren_lock3 31/31); Lady Table content fixed (verdict lines no longer abort, wrong statue sends to rd_park) but OPEN ENGINE seam: the client never re-places a multiloc child hidden (-1) by rd_room_order until the scene rebuilds, so the answer statue is not clickable after memorising (s20lt_wrong2 answerBackForTouch) -- blocked on that engine fix
+quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	todo		RETRY after 57b4ff6a1 [seam21]: multiloc -1 engine seam FIXED -- Lady Table's answer statue is re-placed when rd_room_order returns to 0 with no ::goto rebuild (s21ml_after2 13/13, s21ml_static_after2 15/15); Sir Ren lock fixed at 23fd3961e; next legs per PARITY.tsv (Gaze of Saradomin respawn, Initiate title)
 quest_redreef	redreef	theredreef		3	todo		
 quest_regicide	regicide	regicide		3	todo		
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
@@ -143,21 +143,21 @@ quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2
 quest_routequest	routequest	insearchofthemyreque		3	todo		
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17	
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)
-quest_rumdeal	rumdeal	rumdeal		2	todo		parity2c 340c190aae: ready to author from build/parity_state/parity2c/rumdeal_scripts/parity_rumdeal.lua (evil spirit driven to deal_quest=11); open: fever spiders' disease/Slayer gloves unmodelled, the spider kill needs a camera aim at one copy (seam 15)
+quest_rumdeal	rumdeal	rumdeal		2	todo		RETRY after 57b4ff6a1 [seam21]: t.player.attack fights ONE copy (pressed slot = watched slot, opts {slot}/{at}); the zero-hitsplat spider leg was content -- fever spiders take no player damage unless deal_slayer_gloves are WORN (slayer_specials.rs2, open content seam), so wear them; brief pinned at docs/quests/rum_deal.md; rewrite the spider rows around gloves + attack/await_dead_engaged
 quest_runemysteries	runemysteries	runemysteries		1	green	sonnet-b1	
 quest_scorpcatcher	scorpcatcher	scorpioncatcher		1	green	sonnet-b15	
 quest_scrambled	scrambled	scrambled		4	todo		
 quest_seaslug	seaslug	seaslug		1	green	sonnet-b11	
 quest_secretsofthenorth	secretsofthenorth	secretsofthenorth		4	todo		
 quest_shadowsofcustodia	shadowsofcustodia	shadowsofcustodia		4	todo		
-quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		parity2c 340c190aae: ready to author -- completion on Agrith-Naar's death, priests take a sigil each; open: incantation not per-account random, circle tile not enforced, lamp skill picker
+quest_shadowstorm	shadowstorm	shadowofthestorm		2	todo		RETRY after 57b4ff6a1 [seam21]: Agrith-Naar's death handler binds the hero and queue()s the weapon-gate mesbox / completion onto the player (engine now errors on an unbound npc-script dialogue); ::setvar agrith_quest ^sots_X writes the varbit; brief docs/quests/shadow_of_the_storm.md; drive the fight bare-handed once (revive line) then with Silverlight
 quest_sheep	sheep	sheepshearer		1	green	haiku-b1	
 quest_sheepherder	sheepherder	sheepherder		1	green	sonnet-b22	
 quest_sinsofthefather	sinsofthefather	sinsofthefather		4	todo		
 quest_sleepinggiants	sleepinggiants	sleepinggiants		4	todo		
 quest_songoftheelves	songoftheelves	songoftheelves		4	todo		
 quest_soulsbane	soulsbane	asoulsbane		4	todo		
-quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	todo		parity2c 340c190aae: ready to author -- ranging target needs Ranged/Magic ([apnpc2]), crevice needs rope + lit light; golems not re-driven
+quest_spiritsoftheelid	spiritsoftheelid	spiritsoftheelid		2	todo		RETRY after 57b4ff6a1 [seam21]: brief pinned at docs/quests/spirits_of_the_elid.md (wiki oldids + QH ladder + leftovers); ready to author -- ranging target needs Ranged/Magic ([apnpc2]), crevice needs rope + lit light
 quest_squire	squire	theknightssword		1	green	sonnet-b2	REJECTED (orchestrator, batch haiku-b2): the author never returned a report; its file 'fixed' the sampler's cheated-hand-in finding by adding MORE cheats -- ::setvar squire 3/4/5 for the pie, Thurgo and portrait stages and ::give knights_portrait -- so every quest objective after the accept was cheated. Drive the Squire/Reldo/Thurgo/Vyvin/mining steps through clicks; ::give only for redberry_pie and the two iron bars.
 quest_swansong	swansong	swansong		4	todo		
 quest_taleoftherighteous	taleoftherighteous	taleoftherighteous		4	todo		
@@ -166,7 +166,7 @@ quest_tbwt	tbwt	taibwowannaitrio		3	todo
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
-quest_thefeud	thefeud	thefeud		2	todo		parity2c 340c190aae: snake charming, cactus hide and the blackjack/scimitar rewards are real; open: safe combination lock narrated (a puzzle collapsed), cactus not a door gate, cowardly bandit, lookalike villagers; drive the tough-guy fights
+quest_thefeud	thefeud	thefeud		2	todo		RETRY after 57b4ff6a1 [seam21]: the safe is the cache dial (interface 330): t.ui.invoke 1,1,2,3,5,8 on the_feud_safe:feud_over_model1/feud_overstate_model2..9 from 3373,2974,1 -> jewels + feud_var 14 (s21feud_safe5 29/29); attack takes {slot}/{at} for the lookalike villagers; brief docs/quests/the_feud.md; rewrite the heist rows around the dial
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
@@ -180,11 +180,11 @@ quest_twilightspromise	twilightspromise	twilightspromise		4	todo
 quest_upass	upass	undergroundpass		3	todo		
 quest_vampire	vampire	vampyreslayer		2	todo		RETRY after c5a2329b0: seam19 findhero_in_ai_queue3 fixed (npc_findhero 1/0 + killer bound at CORPSE): stake kill completes (s19close_stake 10/10), no stake regenerates (s19fh_nostake_fixed 8/8); wait for the [ai_queue3] line after await_dead_engaged before reading stage/inv/xp (use build/seam_state/seam19/fh_scripts/)
 quest_viking	viking	thefremenniktrials		3	todo		
-quest_wanted	wanted	wanted		2	todo		parity2c 340c190aae: hunt order + random pool real, Solus killable at the mine to wanted_main=10; open: Champions' Guild (Smoke Barrage) and Dorgesh-Kaan (hostage woman) stops narrate the wrong event, Lumbridge Swamp Caves descent absent
+quest_wanted	wanted	wanted		2	todo		RETRY after 57b4ff6a1 [seam21]: Champions' Guild stop plays Solus's Smoke Barrage (7 pages) and Dorgesh-Kaan the hostage Woman -> Solus (11 pages); Lumbridge Swamp Caves stop reached only by the real descent (rope, stepping stone 3221,9552); brief docs/quests/wanted.md; open: random-position events 2/4/6 unported, spawned shells not drawn
 quest_waterfall	waterfall	waterfallquest		3	todo		
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
 quest_zanaris	zanaris	lostcity		3	todo		
-quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo		parity2c 340c190aae: ready to author -- Grish's easier-way talk unlocks the comp bow + brutal arrows before Slash Bash, who takes 25% from anything else; open: Crumble Undead leg not driven (seam 15), Slash Bash disease, Relicym's balm gate
+quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	todo		RETRY after 57b4ff6a1 [seam21]: Relicym's balm gated on Sithik's disease answer (%thzfe_makecuredisease) or completion -- ask Sithik option 3 before brewing, never ::setvar; brief docs/quests/zogre_flesh_eaters.md; open: t.player.cast still presses the centre-ranked copy (spell.lua needs attack's one-copy pick) for Crumble Undead
 quest_zombiequeen	zombiequeen	shilovillage		3	todo		
