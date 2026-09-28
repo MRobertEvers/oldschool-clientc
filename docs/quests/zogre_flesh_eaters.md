@@ -52,7 +52,7 @@ port's constants (`zogreflesheaters.constant`).
 | 4 (item-tracked) | 3 explore | Drawers / cupboard / wardrobe -> portraiture book, necromancy book, papyrus + charcoal, H.A.M. book; papyrus on Sithik -> portrait ("honesty" = good); good portrait signed by the bartender | `[oploc1,sithiks_drawers/cupboard/wardrobe]`, `[oplocu,ogre_bedman_loc]`, `[opnpcu,dragon_bartender]` |
 | 4 -> 5 `zfe_potion` | 4 poisonSith | Show all evidence to Zavistic; he takes it and gives the strange potion | `zogre_finish.rs2 [proc,zfe_zavistic_talk]` |
 | 5 -> 6 `zfe_potion_tea` | 5 poisonSith | Potion on the cup of tea on Sithik's dresser | `zogre_finish.rs2 [opobju,zogre_cup_of_tea_sithix]` |
-| 6 -> 7 `zfe_sithik_ogre` | 6 askSithQuestions | Go down the ladder and back up; Sithik is an ogre (`%thzfe_sithik_transformed` = 1) | `zogre_finish.rs2 [oploc1,yanillestairsup]` (within 8 tiles of `^zfe_sithik_ladder`) |
+| 6 -> 7 `zfe_sithik_ogre` | 6 askSithQuestions | Go down the ladder and back up; Sithik is an ogre (`%thzfe_sithik_transformed` = 1) | `zogre_finish.rs2 [oploc1,ladder]` (guarded on `loc_coord = ^zfe_sithik_ladder`; every other ladder falls through to `~climb_ladder(1)`, seam25) |
 | 7 (answers) | 8 askAboutDiseaseAndOgres | Ask all three questions: undead ogres -> `%thzfe_makebrutalarrow`, disease -> `%thzfe_makecuredisease` | `zogre_finish.rs2 [proc,zfe_sithik_ogre_talk]` |
 | 7 -> 8 `zfe_grish_key` | 8 -> 10 | Tell Grish; he gives the ogre gate key (`zogre_tomb_artefact_key`); "There must be an easier way to kill these zogres!" -> `%thzfe_makecompozogrebow` | `zogreflesheaters.rs2 [opnpc1,zogre_ogre_shaman]` |
 | 8 (fight) | 10 goKillBash | Two locked doors, stairs down, search the stand -> Slash Bash | `zogre_finish.rs2 [oploc1,ogre_cavedoorr/l]` -> `[proc,zfe_tomb_door]`; `[oploc1,zogre_stand]` |
@@ -109,7 +109,8 @@ capped at 7, and everything else is divided by 4. Proof `parity_zogreflesheaters
 Verbatim:
 
 > Crumble Undead's half-damage cap-7 branch on Slash Bash is not driven live
-> (cast never landed, driver seam 15); Slash Bash's disease attack unwired;
+> (cast never landed, driver seam 15; STALE since seam25: s25sithik2/4 landed
+> 67-68 re-casts, 30/30 -> 3/30, but not a kill inside his 500-tick stay); Slash Bash's disease attack unwired;
 > barricade smash animation; Sithik bad-portrait branch; transformed Sithik
 > keeps the human chathead; Relicym's balm has no quest gate
 
@@ -119,7 +120,7 @@ this pass.
 
 ## 7. Found while pinning (NOT in PARITY.tsv; for the next parity pass)
 
-- **The artefact goes straight to the backpack.** The wiki has Slash Bash
+- **FIXED in seam25** (`[ai_queue3,zogre_slash_bash]` now `obj_add`s it at `npc_coord`; the test picks it up). Was: **The artefact goes straight to the backpack.** The wiki has Slash Bash
   DROP the ogre artefact, and Quest Helper has a `pickUpOgreArtefact` step
   gated on `ogreRelicNearby`. The port's `[ai_queue3,zogre_slash_bash]`
   `inv_add`s it and prints "You take an ogre artefact.". The 3 ourg bones

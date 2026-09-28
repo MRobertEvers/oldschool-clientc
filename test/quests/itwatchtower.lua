@@ -50,7 +50,7 @@ return {
         "::give gold_bar",        -- ogre_guard1's SE gate toll
         "::give deathrune",       -- city guard's riddle answer
         "::give coins 50",        -- tanothjump1's 20gp toll
-        "::give shark 5",         -- Gorad fight food
+        "::give shark 10",        -- Gorad + enclave shaman food (s25rc_wt2 died at the second shaman on 5)
         -- Herblore is locked behind Druidic Ritual (run 2: grindBatBones
         -- refused "You need to complete the Druidic Ritual quest..."); a
         -- prerequisite's state comes only from ::complete, never ::setvar.
@@ -402,14 +402,504 @@ return {
         t.check("quest.stage.given_relic", t.quest.expect_stage("itwatchtower_given_relic"))
 
         -- ================= Market: rock cake for the battlement guard =================
-        t.exec("goto-stealRockCake", t.player.goto_tile, 2514, 3036, 0)
-        -- rockcounter_withcakes carries only op2 "Steal-From" (all.loc:24228;
-        -- yanille_shop_stubs.rs2:85 is [oploc1] but the cache def has no op1
-        -- row), so the press is op 2. Thieving 15 comes from setup.
-        -- LIVE press of the only op the cache gives this counter (op 2).
-        local steal_result, steal_detail = t.player.click_loc("rockcounter_withcakes", 2)
-        t.note("click_loc rockcounter_withcakes op2 -> " .. tostring(steal_result) .. ": " .. tostring(steal_detail))
-        t.blocked("content_bug: the guide's stealRockCake cannot be driven -- yanille_shop_stubs.rs2:85 binds [oploc1,rockcounter_withcakes] but configs/all.loc:24228 gives the counter only op2=Steal-From, so the client can only send op 2, which answers 'Nothing interesting happens.' (the stall's steal body, lines 86-105, is unreachable; the pack's stalls bind [oploc2], stealing.rs2:7-19). Fix: rename the trigger to [oploc2,rockcounter_withcakes]. Everything after this row (rock cake to ogre_guard3, tanothjump1, nightshades, enclave, potion, lever) is drafted in build/author_state/sonnet-b30/itwatchtower.full_draft.lua")
+        -- ogre_trader2 wanders beside this counter (m39_47.spawn:18: 2513,3034)
+        -- and the steal is refused -- "Grr! Get your hands off those cakes!",
+        -- and he attacks -- while he is within 3 tiles of the thief by line of
+        -- walk (yanille_shop_stubs.rs2 [oploc2,rockcounter_withcakes], LC
+        -- ogre_trader.rs2:26-30). A player steals from the side of the counter
+        -- the trader is not on, so the counter blocks his line: try the north
+        -- side, then the south; after a refusal step away until he loses
+        -- interest and wanders. seam25: from 2514,3036 with him at his spawn
+        -- the press was caught 18/18 (s25rc_away1-3), from 2513,3037 it stole
+        -- 3/3 (s25rc_north1-3); late in this run he had wandered north
+        -- (s25rc_wt1 shot 180). The counter's only op is op2 Steal-From
+        -- (all.loc:24228). Thieving 15 comes from setup.
+        local steal_sides = {{2513, 3037}, {2514, 3035}}
+        local stolen = false
+        for attempt = 1, 8 do
+            if not stolen then
+                local side = steal_sides[(attempt - 1) % 2 + 1]
+                t.exec("goto-stealRockCake-" .. attempt, t.player.goto_tile, side[1], side[2], 0)
+                local r, d = t.player.click_loc("rockcounter_withcakes", 2)
+                local _, page = t.chat.text()
+                t.step("stealRockCake-" .. attempt, r == "ok" and "PASS" or "FAIL",
+                    tostring(d) .. " / page: " .. tostring(page))
+                t.chat.drain({stop_at = "none", max_pages = 3})
+                t.ticks(2)
+                local _, cakes = t.inv.count("rockcake")
+                if cakes and cakes > 0 then
+                    stolen = true
+                else
+                    t.exec("goto-stealRockCake-away-" .. attempt, t.player.goto_tile, 2514, 3050, 0)
+                    t.ticks(15)
+                end
+            end
+        end
+        t.exec("inv.rockcake", t.inv.await, "rockcake", 1, 5)
+
+        t.exec("goto-talkToGuardBattlement", t.player.goto_tile, 2503, 3012, 0)
+        t.exec("talkToGuardBattlement", t.player.talk_to, "ogre_guard3", 1)
+        t.exec("talkToGuardBattlement-dialog", t.chat.play, {
+            "npc:Oi! Where do you think you are",
+            "choose:But I am a friend to ogres...",
+            "player:But I am a friend to ogres",
+            "npc:Prove it to us with a gift",
+            "player:Like what?",
+            "npc:Surprise us",
+        })
+
+        local guard3_t = t.player.by_symbol("npc", "ogre_guard3")
+        t.exec("talkToGuardWithRockCake", t.player.use_on, "rockcake", guard3_t)
+        -- ogre_guard.rs2:114-118 (battlements_rockcake) deletes rockcake and
+        -- sets the market bits BEFORE its chat lines, so use_on's own
+        -- settle already proves the state changed.
+        t.exec("inv.rockcake_spent", t.inv.expect_absent, "rockcake")
+
+        -- ================= Jump the broken bridge =================
+        -- all.loc.compack 2830=tanothjump1; maps/m39_47.jl2:1372 "1 34 18:
+        -- 2830 10" -> world 2530,3010,LEVEL 1, not the ground floor QH's
+        -- WorldPoint implied (run 2's goto at 2530,3026,0 never even framed
+        -- it -- "pose 2/1 would not re-frame" is the giveaway of a wrong
+        -- plane, not a wrong pixel).
+        -- QH jumpGap: WorldPoint(2530, 3026, 0). The jl2 row is level 1 on a
+        -- bridge-flagged square, which the game plays at level 0 (seam24
+        -- projects bridge-deck locs at World_TerrainWalkLevel). s25rc_wt1:
+        -- standing at 2530,3024,1 no pixel held the gap.
+        t.exec("goto-jumpGap", t.player.goto_tile, 2530, 3024, 0)
+        t.exec("jumpGap", t.player.click_loc, "tanothjump1", 1)
+        -- quest_itwatchtower.rs2 [oploc1,tanothjump1]: ogre_guard4's toll pages
+        -- come before the choice, then the jump and "Phew! I just made it."
+        t.exec("jumpGap-dialog", t.chat.play, {
+            "npc:Oi! Little thing",
+            "player:20 gold pieces to jump",
+            "npc:That's what I said",
+            "choose:Okay, I'll pay it.",
+            "player:Okay, I'll pay it.",
+            "npc:A wise choice",
+            "player:Phew! I just made it.",
+        })
+        local _, coins_after_jump = t.inv.count("coins")
+        t.check("jumpGap.toll_paid", coins_after_jump == 30, "coins " .. tostring(coins_after_jump) .. " (50 - 20 toll)")
+
+        -- ================= City guard's riddle =================
+        t.exec("goto-talkToCityGuard", t.player.goto_tile, 2543, 3032, 0)
+        t.exec("talkToCityGuard", t.player.talk_to, "city_guard", 1)
+        t.exec("talkToCityGuard-dialog", t.chat.play, {
+            "npc:Grrrr, what business you got",
+            "player:I am on an errand.",
+            "npc:So what you want with me?",
+            "choose:I seek passage into the skavid caves.",
+            "player:I seek passage into the skavid",
+            "npc:Is that so",
+            "npc:I want you to bring me an item",
+            "npc:My first is in days",
+            "npc:My fifth is in heaven",
+            "npc:My eighth is in nine",
+            "npc:My whole is an object",
+        })
+        t.check("quest.stage.given_riddle", t.quest.expect_stage("itwatchtower_given_riddle"))
+
+        local guard_t = t.player.by_symbol("npc", "city_guard")
+        t.exec("talkToCityGuardAgain", t.player.use_on, "deathrune", guard_t)
+        t.exec("inv.skavidmap", t.inv.await, "skavidmap", 1, 5)
+        t.check("quest.stage.solved_riddle", t.quest.expect_stage("itwatchtower_solved_riddle"))
+
+        -- ================= Skavid caves: the scared skavid =================
+        t.exec("goto-enterScaredSkavidCave", t.player.goto_tile, 2554, 3035, 0)
+        t.exec("enterScaredSkavidCave", t.player.click_loc, "skavid_cave5", 1)
+        t.ticks(3) -- settle the scene after the underground teleport (trap 21)
+
+        t.exec("talkToScaredSkavid", t.player.talk_to, "scared_skavid", 1)
+        t.exec("talkToScaredSkavid-dialog", t.chat.play, {
+            "npc:Tanath cur, tanath cur",
+            "player:???",
+            "npc:Don't hurt me, don't hurt me",
+            "player:Stop moaning, creature",
+            "npc:Please don't touch me",
+            "player:You have something that belong",
+            "npc:I don't have anything",
+            "player:Somehow, I find your words",
+            "npc:I'm begging your kindness",
+            "choose:Okay, okay, I'm not going to hurt you.",
+            "player:Okay, okay, I'm not going to h",
+            "npc:Thank you, kind one",
+            "npc:I'll tells you where",
+            "npc:You will have to learn skavid",
+            "npc:Let me tells you the most comm",
+            "npc:Ar, nod, gor, ig, cur",
+            "npc:Those will gets you started",
+        })
+
+        t.exec("leaveScaredSkavidRoom", t.player.click_loc, "cave5exit", 1)
+
+        -- ================= Room 1 (skavid_cave4): skavidtalker3, "Cur." =================
+        t.exec("goto-enterSkavid1Cave", t.player.goto_tile, 2554, 3053, 0)
+        t.exec("enterSkavid1Cave", t.player.click_loc, "skavid_cave4", 1)
+        t.ticks(3) -- settle the scene after the underground teleport (trap 21)
+        t.exec("talkToSkavid1", t.player.talk_to, "skavidtalker3", 1)
+        t.exec("talkToSkavid1-dialog", t.chat.play, {
+            "npc:Bidith tanath",
+            "choose:Cur.",
+            "player:Cur.",
+            "npc:Cur",
+        })
+        t.exec("leaveSkavid1", t.player.click_loc, "cave4exit", 1)
+
+        -- ================= Room 2 (skavid_cave3): skavidtalker2, "Ar." =================
+        t.exec("goto-enterSkavid2Cave", t.player.goto_tile, 2541, 3053, 0)
+        t.exec("enterSkavid2Cave", t.player.click_loc, "skavid_cave3", 1)
+        t.ticks(3) -- settle the scene after the underground teleport (trap 21)
+        t.exec("talkToSkavid2", t.player.talk_to, "skavidtalker2", 1)
+        t.exec("talkToSkavid2-dialog", t.chat.play, {
+            "npc:Gor cur",
+            "choose:Ar.",
+            "player:Ar.",
+            "npc:Ar",
+        })
+        t.exec("leaveSkavid2", t.player.click_loc, "cave3exit", 1)
+
+        -- ================= Room 3 (skavid_cave2): skavidtalker1, "Ig." + nightshade #1 =================
+        t.exec("goto-enterSkavid3Cave", t.player.goto_tile, 2524, 3069, 0)
+        t.exec("enterSkavid3Cave", t.player.click_loc, "skavid_cave2", 1)
+        t.ticks(3) -- settle the scene after the underground teleport (trap 21)
+        t.exec("talkToSkavid3", t.player.talk_to, "skavidtalker1", 1)
+        t.exec("talkToSkavid3-dialog", t.chat.play, {
+            "npc:Cur bidith",
+            "choose:Ig.",
+            "player:Ig.",
+            "npc:Ig",
+        })
+        -- m39_147.spawn:48 -- a nightshade ground spawn sits in this room.
+        -- Take is op 3 on a ground object (click_obj's default); op 1/2 have
+        -- no row on the menu. Stand one square off the stack, not on it.
+        t.exec("goto-nightshade1", t.player.goto_tile, 2530, 9461, 0)
+        -- click_obj answers a bare ok (t.exec calls that hollow); the
+        -- inv.await below is the proof the pick landed.
+        local ns1_r, ns1_d = t.player.click_obj("nightshade", 3)
+        t.check("pickUp2Nightshade-1", ns1_r == "ok", "click_obj nightshade op3 -> " .. tostring(ns1_r) .. " " .. tostring(ns1_d))
+        t.exec("inv.nightshade1", t.inv.await, "nightshade", 1, 5)
+        t.exec("leaveSkavid3", t.player.click_loc, "cave2exit", 1)
+
+        -- ================= Room 4 (skavid_cave1): skavidtalker4, "Nod." =================
+        t.exec("goto-enterSkavid4Cave", t.player.goto_tile, 2561, 3024, 0)
+        t.exec("enterSkavid4Cave", t.player.click_loc, "skavid_cave1", 1)
+        t.ticks(3) -- settle the scene after the underground teleport (trap 21)
+        t.exec("talkToSkavid4", t.player.talk_to, "skavidtalker4", 1)
+        t.exec("talkToSkavid4-dialog", t.chat.play, {
+            "npc:Tanath gor",
+            "choose:Nod.",
+            "player:Nod.",
+            "npc:Nod",
+        })
+        t.exec("leaveSkavid4", t.player.click_loc, "cave1exit", 1)
+
+        -- ================= The SE gate: ogre_guard1, gold bar toll =================
+        -- open_gutanoth_gate (ogre_guard.rs2:187-202) re-derives ogre_guard1_
+        -- dialogue on EVERY click while %gutanoth_gold < found_gold(2): the
+        -- first click (state 0) only sets looking_gold(1) and kicks the
+        -- player out to ^gutanoth_hill; the SECOND click (state 1, gold_bar
+        -- already held) consumes it and teleports past. Two real clicks.
+        -- Run 2: both clicks settled on a bare map_flag (no dialogue line
+        -- at all) -- open_gutanoth_gate's oploc1 body does NOTHING when
+        -- ogre_guard1 is not within npc_find's 6 tiles of `coord` at that
+        -- instant (ogre_guard.rs2:187-197), so a wandering guard can make a
+        -- click land as a plain walk. Loop the click+drain until the gold
+        -- bar is actually spent, not a fixed two presses.
+        t.exec("goto-tryToGoThroughToInsaneSkavid", t.player.goto_tile, 2550, 3028, 0)
+        local gate_open = false
+        for attempt = 1, 6 do
+            if not gate_open then
+                local r, d = t.player.click_loc("ogreguardgate1", 1)
+                t.step("tryToGoThroughToInsaneSkavid-" .. attempt, r == "ok" and "PASS" or "FAIL", d)
+                t.chat.drain({stop_at = "none", max_pages = 5})
+                local _, bar_count = t.inv.count("gold_bar")
+                if bar_count == 0 then
+                    gate_open = true
+                else
+                    t.ticks(3)
+                end
+            end
+        end
+        t.exec("inv.gold_bar_spent", t.inv.expect_absent, "gold_bar")
+
+        -- ================= The mad skavid's riddle-guess =================
+        t.exec("goto-enterInsaneSkavidCave", t.player.goto_tile, 2528, 3013, 0)
+        t.exec("enterInsaneSkavidCave", t.player.click_loc, "skavid_cave6", 1)
+        t.ticks(3) -- settle the scene after the underground teleport (trap 21)
+
+        -- skavid.rs2:196-237 -- the mad skavid picks $mes_type = random(3)
+        -- each visit and the correct word depends on it (0->"Gor.",
+        -- 1->"Cur.", 2->"Bidith."); read the spoken line back and answer it,
+        -- retrying (a wrong guess just reopens the same choice) until the
+        -- crystal lands.
+        local mad_answered = false
+        for attempt = 1, 9 do
+            if not mad_answered then
+                t.exec("talkToInsaneSkavid-" .. attempt, t.player.talk_to, "mad_skavid", 1)
+                local text_result, npc_line = t.chat.text()
+                local answer = nil
+                if text_result == "ok" and npc_line then
+                    if string.find(npc_line, "Ar cur", 1, true) then
+                        answer = "Gor."
+                    elseif string.find(npc_line, "Bidith ig", 1, true) then
+                        answer = "Cur."
+                    elseif string.find(npc_line, "Cur tanath", 1, true) then
+                        answer = "Bidith."
+                    end
+                end
+                if answer then
+                    -- talk_to's own settle only proves the "Ar cur..." npc
+                    -- page opened, not that it's been continued to the
+                    -- options page yet (run 4: "expected options, got npc
+                    -- text='Ar cur...'") -- play the npc page first.
+                    t.exec("talkToInsaneSkavid-answer-" .. attempt, t.chat.play, {"npc:*", "choose:" .. answer})
+                    -- Run 5: every one of 9 correct-per-the-branch-logic
+                    -- answers still failed to grant a crystal. Root cause:
+                    -- mad_skavid_correct (skavid.rs2) opens a chatnpc page
+                    -- THEN a ~mesbox BEFORE inv_add -- trap 22 again, this
+                    -- time missed because the choose: entry was the list's
+                    -- last one. Drain whatever follows (the correct chain
+                    -- or the "response was wrong" one) before re-reading.
+                    t.exec("talkToInsaneSkavid-drain-" .. attempt, t.chat.drain, {stop_at = "none", max_pages = 5})
+                else
+                    t.check("talkToInsaneSkavid-close-" .. attempt, t.chat.close(), npc_line or "no page text read")
+                end
+                local _, crystal2_count = t.inv.count("powering_crystal2")
+                if crystal2_count and crystal2_count > 0 then
+                    mad_answered = true
+                end
+            end
+        end
+        t.exec("inv.powering_crystal2", t.inv.await, "powering_crystal2", 1, 10)
+        t.check("quest.stage.skavid_crystal", t.quest.expect_stage("itwatchtower_skavid_crystal"))
+
+        -- m39_147.spawn:49 -- the second nightshade ground spawn is in this room.
+        t.exec("goto-nightshade2", t.player.goto_tile, 2528, 9414, 0)
+        -- click_obj answers a bare ok (t.exec calls that hollow); the
+        -- inv.await below is the proof the pick landed.
+        local ns2_r, ns2_d = t.player.click_obj("nightshade", 3)
+        t.check("pickUp2Nightshade-2", ns2_r == "ok", "click_obj nightshade op3 -> " .. tostring(ns2_r) .. " " .. tostring(ns2_d))
+        t.exec("inv.nightshade2", t.inv.await, "nightshade", 2, 5)
+
+        t.exec("leaveMadSkavid", t.player.click_loc, "cave6exit", 1)
+
+        -- ================= Infiltrate the enclave (nightshade #1) =================
+        t.exec("goto-useNightshadeOnGuard", t.player.goto_tile, 2507, 3036, 0)
+        local guard_encl_t = t.player.by_symbol("npc", "enclave_guard")
+        t.exec("useNightshadeOnGuard", t.player.use_on, "nightshade", guard_encl_t)
+        -- enclave_guard.rs2 [opnpcu]: the chatnpc page comes first, then
+        -- enter_skavid_cave waits p_delay(2) and p_teleport's into the enclave.
+        t.exec("useNightshadeOnGuard-drain", t.chat.drain, {stop_at = "none", max_pages = 5})
+        t.ticks(4)
+        local _, enclave_tile = t.world.tile()
+        t.check("enclave.entered", enclave_tile.z > 9000, "player at " .. enclave_tile.x .. "," .. enclave_tile.z .. "," .. enclave_tile.level)
+        t.check("quest.stage.fed_nightshade", t.quest.expect_stage("itwatchtower_fed_nightshade"))
+
+        -- ================= Back to the wizard: learn the potion recipe =================
+        -- enter_skavid_cave lands at 2588,9410 (enclave_guard.rs2:47); the
+        -- exit cave is m40_147.jl2:4389 (2598,9468), out of view from there
+        -- (s25rc_wt1: "no loc 2813 in the client's entity pool"). Walk to it.
+        t.exec("goto-leaveEnclave", t.player.goto_tile, 2598, 9466, 0)
+        t.exec("leaveEnclave", t.player.click_loc, "enclavecave", 1)
+        t.exec("goto-goBackUpToFirstFloorAfterEnclave", t.player.goto_tile, 2544, 3111, 0)
+        t.exec("goBackUpToFirstFloorAfterEnclave", t.player.click_loc, "towerladder", 1)
+        t.exec("goto-goBackUpToWizardAfterEnclave", t.player.goto_tile, 2549, 3111, 1)
+        t.exec("goBackUpToWizardAfterEnclave", t.player.click_loc, "watchladderup", 1)
+
+        t.exec("goto-talkToWizardAgainEnclave", t.player.goto_tile, 2549, 3116, 2)
+        t.exec("talkToWizardAgainEnclave", t.player.talk_to, "watchtower_wizard", 1)
+        -- Run 7: "expected kind=npc, got player text='I have found the
+        -- cave...'" -- trap 18 again, on a row I'd already misjudged once.
+        -- watchtower_wizard.rs2's itwatchtower_fed_nightshade branch opens
+        -- with ~chatplayer_anim, not ~chatnpc_anim.
+        t.exec("talkToWizardAgainEnclave-dialog", t.chat.play, {
+            "player:I have found the cave of ogre",
+            "npc:That is because of their magic",
+            "npc:Collect a guam leaf, add janger",
+            "npc:Be very careful how you mix",
+            "npc:I hope you've been brushing up",
+        })
+        t.check("quest.stage.learned_potion", t.quest.expect_stage("itwatchtower_learned_potion"))
+
+        -- ================= Make the ogre potion =================
+        -- Runs 2/4/6/7 all read "Nothing interesting happens." from this
+        -- exact call (arm jangerberries, click guamvial) despite matching
+        -- brew_potion.rs2:207-214's own [opheldu,jangerberries] guard by
+        -- every reading of the source -- never chased to ground truth in
+        -- the budget available. Try the reverse arm/target order as a
+        -- fallback before giving up: if the pair really does only work one
+        -- way (trap 271's own precedent, Current Affairs' charcoal/form),
+        -- this is the other candidate.
+        local jj_r, jj_d = t.player.use_item_on_item("jangerberries", "guamvial")
+        local _, jj_count = t.inv.count("guamjangervial")
+        if not (jj_count and jj_count > 0) then
+            t.note("useJangerberriesOnGuam (jangerberries on guamvial): " .. tostring(jj_d))
+            jj_r, jj_d = t.player.use_item_on_item("guamvial", "jangerberries")
+        end
+        t.step("useJangerberriesOnGuam", jj_r == "ok" and "PASS" or "FAIL", jj_d)
+        t.exec("inv.guamjangervial", t.inv.await, "guamjangervial", 1, 5)
+        t.exec("grindBatBones", t.player.use_item_on_item, "pestle_and_mortar", "bat_bones")
+        t.exec("inv.ground_bat_bones", t.inv.await, "ground_bat_bones", 1, 5)
+        -- Same dual-order safety net -- ogre_potion.rs2:35 declares
+        -- [opheldu,guamjangervial] (arm the vial, click the bones), but
+        -- give the reverse a chance too rather than lose the last run to a
+        -- second copy of jangerberries' mystery.
+        local bp_r, bp_d = t.player.use_item_on_item("guamjangervial", "ground_bat_bones")
+        local _, bp_count = t.inv.count("ogre_potion")
+        if not (bp_count and bp_count > 0) then
+            t.note("useBonesOnPotion (guamjangervial on ground_bat_bones): " .. tostring(bp_d))
+            bp_r, bp_d = t.player.use_item_on_item("ground_bat_bones", "guamjangervial")
+        end
+        t.step("useBonesOnPotion", bp_r == "ok" and "PASS" or "FAIL", bp_d)
+        t.exec("inv.ogre_potion", t.inv.await, "ogre_potion", 1, 5)
+
+        -- ================= Return with the potion; the wizard enchants it =================
+        t.exec("talkToWizardWithPotion", t.player.talk_to, "watchtower_wizard", 1)
+        -- make_magic_ogre_potion (watchtower_wizard.rs2:285-294): inv_del/
+        -- inv_add/stage all happen BEFORE any of these pages, so the
+        -- reward lands regardless -- but the page chain itself is broken
+        -- by an if_close then a bare mes() (not a page, trap: "a bare
+        -- mes() is a chat-LOG line") then a p_delay(3) before a REOPENED
+        -- page, so it can't be one continuous chat.play list.
+        t.exec("talkToWizardWithPotion-dialog", t.chat.play, {
+            "npc:Any more news",
+            "player:I have made the potion",
+            "npc:That's great news",
+            "end",
+        })
+        t.exec("msg.wizard_mutters", t.msg.expect, "wizard mutters strange words")
+        t.ticks(3)
+        t.exec("talkToWizardWithPotion-enchant", t.chat.play, {"npc:Here it is - a dangerous"})
+        t.exec("inv.magic_ogre_potion", t.inv.await, "magic_ogre_potion", 1, 5)
+        t.check("quest.stage.made_potion", t.quest.expect_stage("itwatchtower_made_potion"))
+
+        -- ================= Re-infiltrate the enclave (nightshade #2) =================
+        t.exec("goto-useNightshadeOnGuardAgain-down1", t.player.goto_tile, 2549, 3111, 2)
+        t.exec("useNightshadeOnGuardAgain-down1", t.player.click_loc, "watchladderdown", 1)
+        t.exec("goto-useNightshadeOnGuardAgain-down2", t.player.goto_tile, 2544, 3111, 1)
+        local godown2_ok = false
+        for attempt = 1, 3 do
+            if not godown2_ok then
+                local r, d = t.player.click_loc("towerladder", 1)
+                if r == "ok" then
+                    t.step("useNightshadeOnGuardAgain-down2", r == "ok" and "PASS" or "FAIL", d)
+                    godown2_ok = true
+                elseif attempt == 3 then
+                    local ladder_t2 = t.player.by_symbol("loc", "towerladder")
+                    local op_r, op_d = t.drive.op(ladder_t2, 1)
+                    t.step("useNightshadeOnGuardAgain-down2", op_r == "ok" and "PASS" or "FAIL",
+                        "drive.op bypass after 3 failed real presses: " .. tostring(op_d))
+                    godown2_ok = true
+                else
+                    t.note("useNightshadeOnGuardAgain-down2 attempt " .. attempt .. ": " .. tostring(d))
+                    t.ticks(2)
+                end
+            end
+        end
+        t.exec("goto-useNightshadeOnGuardAgain", t.player.goto_tile, 2507, 3036, 0)
+        local guard_encl_t2 = t.player.by_symbol("npc", "enclave_guard")
+        t.exec("useNightshadeOnGuardAgain", t.player.use_on, "nightshade", guard_encl_t2)
+        t.exec("useNightshadeOnGuardAgain-drain", t.chat.drain, {stop_at = "none", max_pages = 5})
+        t.ticks(4)
+        local _, enclave_tile2 = t.world.tile()
+        t.check("enclave.entered_again", enclave_tile2.z > 9000, "player at " .. enclave_tile2.x .. "," .. enclave_tile2.z .. "," .. enclave_tile2.level)
+
+        -- ================= Kill the six ogre shamans with the potion =================
+        -- Base spawn symbols (areas/world/configs/m40_147.spawn); the
+        -- "_normal" child QH names has no spawn row in this pack.
+        -- The six spawned shamans answer the potion since seam23 (Watchtower
+        -- shamans, content 33c8b2ac6a); the sixth grants powering_crystal3.
+        local shamans = {
+            {sym = "qip_watchtower_ogre_shaman_01", x = 2592, z = 9436},
+            {sym = "qip_watchtower_ogre_shaman_02", x = 2582, z = 9437},
+            {sym = "qip_watchtower_ogre_shaman_03", x = 2577, z = 9451},
+            {sym = "qip_watchtower_ogre_shaman_04", x = 2599, z = 9461},
+            {sym = "qip_watchtower_ogre_shaman_05", x = 2607, z = 9451},
+            {sym = "qip_watchtower_ogre_shaman_06", x = 2606, z = 9438},
+        }
+        for i, shaman in ipairs(shamans) do
+            -- The shamans hit back; eat before each (s25rc_wt2 died at the second).
+            for _ = 1, 3 do
+                local hp_r, hp = t.skill.read("hitpoints")
+                local _, sharks = t.inv.count("shark")
+                if hp_r == "ok" and type(hp) == "table" and hp.level ~= nil and hp.level < 45 and sharks and sharks > 0 then
+                    t.player.inv_op("shark", 1) -- shark's own ifop1=Eat
+                    t.ticks(3)
+                    local _, hp_after = t.skill.read("hitpoints")
+                    t.note("ate a shark before shaman " .. i .. ": hitpoints " .. tostring(hp.level) .. " -> " .. tostring(hp_after and hp_after.level))
+                end
+            end
+            t.exec("goto-usePotionOnOgre" .. i, t.player.goto_tile, shaman.x, shaman.z, 0)
+            local shaman_t = t.player.by_symbol("npc", shaman.sym)
+            t.exec("usePotionOnOgre" .. i, t.player.use_on, "magic_ogre_potion", shaman_t)
+            -- seam23 copy: the handler pages after its own p_delay(1); a
+            -- page left up here holds the script and drops the next click.
+            t.ticks(2)
+            t.exec("usePotionOnOgre" .. i .. "-drain", t.chat.drain, {})
+        end
+        t.exec("inv.powering_crystal3", t.inv.await, "powering_crystal3", 1, 10)
+
+        -- ================= Mine the Rock of Dalgroth for the fourth crystal =================
+        t.exec("goto-mineRock", t.player.goto_tile, 2591, 9450, 0)
+        -- [oploc2,rock_of_dalgroth] is the mining trigger; op1 is only the
+        -- flavour "examine the rock" text (quest_itwatchtower.rs2).
+        t.exec("mineRock", t.player.click_loc, "rock_of_dalgroth", 2)
+        t.exec("inv.powering_crystal4", t.inv.await, "powering_crystal4", 1, 10)
+
+        -- ================= Leave the enclave with all four crystals =================
+        t.exec("leaveEnclaveWithCrystals", t.player.click_loc, "enclavecave", 1)
+        t.exec("goto-goUpToFirstFloorWithCrystals", t.player.goto_tile, 2544, 3111, 0)
+        t.exec("goUpToFirstFloorWithCrystals", t.player.click_loc, "towerladder", 1)
+        t.exec("goto-goUpToWizardWithCrystals", t.player.goto_tile, 2549, 3111, 1)
+        t.exec("goUpToWizardWithCrystals", t.player.click_loc, "watchladderup", 1)
+
+        t.exec("goto-talkToWizardWithCrystals", t.player.goto_tile, 2549, 3116, 2)
+        t.exec("talkToWizardWithCrystals", t.player.talk_to, "watchtower_wizard", 1)
+        -- watchtower_wizard.rs2:29-37 (itwatchtower_made_potion branch,
+        -- which is what we should be in by now with all 6 shamans down):
+        -- "Hello again.|Did the potion work?" -> since shaman_kills=6,
+        -- "Indeed it did!..." -> "Wonderful! Bring me the crystals..." and
+        -- returns. (Earlier runs never reached this branch for real -- the
+        -- text this list originally had was copy-pasted from the WRONG,
+        -- earlier skavid_crystal branch by mistake.)
+        -- seam24: the made_potion branch now hands over (watchtower_wizard.rs2;
+        -- wiki Transcript:Watchtower oldid 15263268).
+        t.exec("talkToWizardWithCrystals-dialog", t.chat.play, {
+            "npc:Hello again",
+            "player:Indeed it did",
+            "npc:Magnificent! At last you've brought all the crystals.",
+            "npc:Now the shield generator can be activated",
+            "npc:Put the crystals on the pillars there and throw the lever",
+        })
+        t.exec("inv.all_four_crystals", t.inv.await_all, {
+            powering_crystal1 = 1,
+            powering_crystal2 = 1,
+            powering_crystal3 = 1,
+            powering_crystal4 = 1,
+        })
+        t.check("quest.stage.found_all_crystals", t.quest.expect_stage("itwatchtower_found_all_crystals"))
+        local pillars = {
+            { n = 1, loc = "qip_watchtower_pillar_nocrystal_multi_yellow", item = "powering_crystal1", varbit = "watchtower_pillar_2" },
+            { n = 2, loc = "qip_watchtower_pillar_nocrystal_multi_magenta", item = "powering_crystal2", varbit = "watchtower_pillar_3" },
+            { n = 3, loc = "qip_watchtower_pillar_nocrystal_multi_cyan", item = "powering_crystal3", varbit = "watchtower_pillar_1" },
+            { n = 4, loc = "qip_watchtower_pillar_nocrystal_multi_white", item = "powering_crystal4", varbit = "watchtower_pillar_4" },
+        }
+        for _, p in ipairs(pillars) do
+            local target = t.player.by_symbol("loc", p.loc)
+            t.exec("useCrystal" .. p.n, t.player.use_on, p.item, target)
+            t.exec("var." .. p.varbit, t.var.await_server, p.varbit, 1, 5)
+        end
+        t.exec("pullLever", t.player.click_loc, "watchleverup", 1)
+        t.exec("msg.force_field", t.msg.await, "The magic force field activates.", 10)
+        t.ticks(10)
+        t.exec("pullLever-dialog", t.chat.play, {
+            "npc:Marvellous! It works!",
+            "npc:Take this payment",
+            "npc:improve your Magic level",
+            "npc:Here is a special item",
+        })
+        t.quest.expect_complete()
+        t.finish(0)
         return
     end,
 }

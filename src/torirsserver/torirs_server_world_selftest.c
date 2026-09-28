@@ -26896,7 +26896,12 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_gate,
                                                     ToriRSServer_LocCategory(loc_gate), slot);
             selftest_tick(srv);
-            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2727, 9690, 0, loc_gate_open) < 0,
+            /*
+             * The gate swings like the pack's other doors (~door_open_active,
+             * seam25): the open record lands one tile east, 2728,9690, not on
+             * the closed record's own edge (which left the wall standing).
+             */
+            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2728, 9690, 0, loc_gate_open) < 0,
                            "the gate must not open on the wrong combination");
 
             /* Pull leverh again: up -> down. Combination is now correct. */
@@ -26915,7 +26920,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_gate,
                                                     ToriRSServer_LocCategory(loc_gate), slot);
             selftest_tick(srv);
-            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2727, 9690, 0, loc_gate_open) >= 0,
+            SELFTEST_CHECK(ToriRSServer_SceneFindLocId(2728, 9690, 0, loc_gate_open) >= 0,
                            "the gate should open once leverh reads down and leveri2 reads up");
 
             /*

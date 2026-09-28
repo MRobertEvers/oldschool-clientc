@@ -6,13 +6,14 @@
 -- %thzfe_prismsearch (coffin 0 locked/1 unlocked/3 open),
 -- %thzfe_sithik_transformed, %thzfe_makecompozogrebow.
 --
--- Slash Bash (npc 882) takes 25% damage from ordinary attacks and 50%
--- (capped 7) from Crumble Undead (zogreflesheaters.npc's param=undead,
--- seam23); the only other full-damage route is brutal arrows from a comp
--- ogre bow, which this file does not craft. Crumble Undead is a long,
--- capped-damage grind by design -- the fight loop below re-casts and eats
--- until either the boss dies or the run genuinely cannot land enough casts,
--- in which case it reports the seam rather than pretending.
+-- Slash Bash (npc 882) takes 25% damage from ordinary attacks, 50% (capped
+-- 7) from Crumble Undead, and full damage from brutal arrows fired from a
+-- comp ogre bow (zogre_finish.rs2 zfe_slash_bash_prepare_hit; wiki). Crumble
+-- Undead alone drove him 30/30 -> 3/30 in 490 ticks and he left at his
+-- 500-tick stay (seam25 runs s25sithik2/s25sithik4), so this file fletches
+-- the bow and brutal arrows live after Grish's "easier way" unlock, from
+-- pre-quest materials given in setup (Quest Helper combatGear: "Either
+-- brutal arrows or Crumble Undead for fighting Slash Bash").
 
 return {
     id = "zogreflesheaters",
@@ -21,7 +22,8 @@ return {
         "::clearinv", -- fourteen tutorial slots, so the quest's own drops fit
         "::setlevel smithing 4", -- getGeneralRequirements()
         "::setlevel herblore 8",
-        "::setlevel ranged 30",
+        "::setlevel ranged 75", -- 30 is the quest's; the comp ogre bow fight (seam25)
+        "::setlevel fletching 30", -- comp ogre bow (ogre_arrows.rs2 make_unstrung_comp_bow)
         "::setlevel magic 70", -- Crumble Undead needs 39; Yanille guild gate needs 66 to enter
         "::setlevel hitpoints 99", -- Slash Bash: wiki infobox atk100/str120 -- survive the grind
         "::setlevel defence 75",
@@ -38,6 +40,18 @@ return {
         "::complete quest_junglepotion",
         "::give rune_scimitar 1", -- combat prerequisite for the Brentle zombie fight
         "::give shark 6", -- combat prerequisite: food for the Slash Bash grind (few: the backpack must also hold the quest's clue items)
+        -- seam25: Crumble Undead alone drove Slash Bash to 3/30 in 490 ticks and
+        -- he left at his 500-tick stay (s25sithik2/4). The wiki's full-damage
+        -- weapon is the comp ogre bow + brutal arrows, which the player may
+        -- only fletch after Grish's "easier way" line (%thzfe_makecompozogrebow).
+        -- These are its pre-quest materials (achey logs + wolf bones + bow
+        -- string; headless ogre arrows from Big Chompy Bird Hunting; iron nails);
+        -- the bow and the arrows are fletched live below.
+        "::give achey_tree_logs 1",
+        "::give wolf_bones 1",
+        "::give bow_string 1",
+        "::give ogre_headless_arrow 60",
+        "::give nails_iron 60",
         "::give chaosrune 300", -- Crumble Undead: 1 chaos + 2 air + 2 earth per cast
         "::give airrune 300",
         "::give earthrune 300",
@@ -342,26 +356,164 @@ return {
         t.exec("usePotionOnTea-dialog", t.chat.play, { "mesbox:You pour some of the potion into the cup", "end" })
         t.check("quest.stage.potion_tea", t.quest.expect_stage("potion_tea"))
 
-        t.exec("goto-goDownstairsFromSith", t.player.goto_tile, 2597, 3106, 0)
+        -- seam25 sithik_ladder_stage: the guide's "go down the ladder and
+        -- back up" (docs/quests/zogre_flesh_eaters.md stage 6 -> 7), both
+        -- climbs real clicks. Down: laddertop2 (16681, m40_48.jl2:4087
+        -- "1 37 35"); up: ladder (16683, m40_48.jl2:4088 "0 37 35").
+        -- Sithik's room opens north onto the ladder landing through a
+        -- poordoor (1535, m40_48.jl2:1938 "1 31 33" = 2591,3105).
+        t.exec("openSithDoor", t.player.click_loc, "poordoor", 1)
         t.ticks(2)
-        -- yanillestairsup is the ONLY writer of sithik_ogre (zogre_finish.rs2:341-346),
-        -- and maps/*.jl2 places it exactly once: m40_149.jl2:2018 "0 60 26: 15657"
-        -- = 2620,9562 (underground band, z-6400 = 3162), ~23 tiles east of
-        -- Sithik's stair. The stair at ^zfe_sithik_ladder 2597,3107 is m40_48.jl2:4088
-        -- "0 37 35: 16683 10 2" = `ladder`, whose trigger never touches %zogre.
-        local _, up_tile = t.world.tile()
-        t.check("goUpToOgreSith.tile", up_tile.x == 2597 and up_tile.z == 3106,
-            "player at " .. up_tile.x .. "," .. up_tile.z .. "," .. up_tile.level)
-        -- LIVE PROOF (reviewer, sonnet-b30): press the stair that IS there. It is
-        -- `ladder` (16683), not yanillestairsup, so it climbs (level 1) and the
-        -- stage stays potion_tea (6) -- the transform never fires.
+        local down_r, down_d = t.player.click_loc("laddertop2", 1)
+        t.ticks(3)
+        local _, down_tile = t.world.tile()
+        t.check("goDownstairsFromSith", down_tile.level == 0,
+            tostring(down_r) .. " " .. tostring(down_d) .. " -- tile " .. down_tile.x .. "," .. down_tile.z .. "," .. down_tile.level)
+        t.check("goDownstairsFromSith.stage_still_potion_tea", t.quest.expect_stage("potion_tea"))
         local lad_r, lad_d = t.player.click_loc("ladder", 1)
         t.ticks(3)
         local _, lad_tile = t.world.tile()
-        t.check("climbLadderToSith.climbed", lad_tile.level == 1,
+        t.check("goUpToOgreSith.climbed", lad_tile.level == 1,
             tostring(lad_r) .. " " .. tostring(lad_d) .. " -- tile " .. lad_tile.x .. "," .. lad_tile.z .. "," .. lad_tile.level)
-        t.check("climbLadderToSith.stage_still_potion_tea", t.quest.expect_stage("potion_tea"))
-        t.blocked("content_bug: zogre_finish.rs2:341-346 [oploc1,yanillestairsup] is the only script that moves %zogre from zfe_potion_tea to zfe_sithik_ogre, but loc yanillestairsup (15657) is placed only at maps/m40_149.jl2:2018 (2620,9562), while Sithik's upstairs stair (^zfe_sithik_ladder, zogreflesheaters.constant:52 = 2597,3107) is loc 16683 `ladder` (maps/m40_48.jl2:4088), so the stage sithik_ogre (7) is unreachable and every later step (talkToSithForAnswers onward) cannot be driven.")
+        t.check("quest.stage.sithik_ogre", t.quest.expect_stage("sithik_ogre"))
+        local tr_r, tr_v = t.var.server("thzfe_sithik_transformed")
+        t.check("goUpToOgreSith.transformed", tr_r == "ok" and tr_v == 1, "thzfe_sithik_transformed=" .. tostring(tr_v))
+
+        -- ---- askSithQuestions / askAboutDiseaseAndOgres -----------------
+        t.exec("talkToOgreSith.press", t.player.click_loc, "zogre_sithik_bed_entity", 1)
+        t.exec("talkToOgreSith", t.chat.play, {
+            "npc:what's happened to me? You must help me!",
+            "player:The potion won't wear off",
+            "npc:Alright! Alright!",
+            "options",
+            "choose:How do I remove the effects of the spell from the area?",
+            "player:How do I remove the effects",
+            "npc:The spell is permanent",
+            "options",
+            "choose:How do I get rid of the undead ogres?",
+            "player:How do I get rid of the undead ogres?",
+            "npc:Brutal arrows work well against zogres.",
+            "options",
+            "choose:How do I get rid of the disease?",
+            "player:How do I get rid of the disease?",
+            "npc:Two jungle based herbs",
+            "options",
+            "choose:Sorry, I have to go.",
+            "player:Sorry, I have to go.",
+            "player:I'll tell Grish.",
+            "end",
+        })
+        local ba_r, ba_v = t.var.server("thzfe_makebrutalarrow")
+        local cd_r, cd_v = t.var.server("thzfe_makecuredisease")
+        t.check("askAboutDiseaseAndOgres.bits", ba_v == 1 and cd_v == 1,
+            "thzfe_makebrutalarrow=" .. tostring(ba_v) .. " thzfe_makecuredisease=" .. tostring(cd_v))
+
+        -- ---- Tell Grish; the key; the easier way -------------------------
+        t.exec("goto-talkToGrishAgain", t.player.goto_tile, 2447, 3049, 0)
+        t.exec("talkToGrishAgain", t.player.talk_to, "zogre_ogre_shaman", 1)
+        t.exec("talkToGrishAgain-dialog", t.chat.play, {
+            "npc:Yous creature dun da fing yet?",
+            "player:I found who's responsible",
+            "npc:Where is da creature?",
+            "player:The person responsible is a wizard",
+            "player:I'm sorry to say",
+            "npc:Dat is da bad fing creature",
+            "player:Yes, that's right",
+            "npc:Urghhh...not good fing creature",
+            "mesbox:Grish gives you a crudely crafted key.",
+            "player:Oh, so you want me to go back in there",
+            "npc:Yeah creature",
+            "end",
+        })
+        t.exec("talkToGrishAgain.key", t.inv.await, "zogre_tomb_artefact_key", 1, 10)
+        t.check("quest.stage.grish_key", t.quest.expect_stage("grish_key"))
+        t.exec("talkToGrishForBow", t.player.talk_to, "zogre_ogre_shaman", 1)
+        t.exec("talkToGrishForBow-dialog", t.chat.play, {
+            "npc:Hey, you's creature got da old fings?",
+            "choose:There must be an easier way to kill these zogres!",
+            "player:There must be an easier way to kill these zogres!",
+            "npc:Yeah creature, yous needs da comp'zit bow",
+            "mesbox:You can now fletch composite ogre bows and brutal arrows.",
+            "end",
+        })
+        local bow_r, bow_v = t.var.server("thzfe_makecompozogrebow")
+        t.check("talkToGrishForBow.bit", bow_v == 1, "thzfe_makecompozogrebow=" .. tostring(bow_v))
+
+        -- ---- Fletch the comp ogre bow + brutal arrows (now unlocked) -----
+        t.exec("fletchBow", t.player.use_item_on_item, "achey_tree_logs", "wolf_bones")
+        t.exec("fletchBow.inv", t.inv.await, "unstrung_zogre_bow", 1, 5)
+        t.exec("stringBow", t.player.use_item_on_item, "bow_string", "unstrung_zogre_bow")
+        t.exec("stringBow.inv", t.inv.await, "zogre_bow", 1, 5)
+        for i = 1, 10 do
+            t.exec("fletchBrutal." .. i, t.player.use_item_on_item, "ogre_headless_arrow", "nails_iron")
+            t.ticks(2)
+        end
+        local br_r, br_c = t.inv.count("zogre_brutal_iron")
+        t.check("fletchBrutal.count", br_r == "ok" and (br_c or 0) >= 30, "zogre_brutal_iron=" .. tostring(br_c))
+        t.exec("equip.bow", t.player.equip, "zogre_bow")
+        t.exec("equip.brutal", t.player.equip, "zogre_brutal_iron")
+
+        -- ---- goKillBash: the locked tomb door, the stand, Slash Bash -----
+        -- The barricade is already down (%thzfe_blocking_barricade); plain
+        -- travel back to the crypt floor, then the real door click.
+        -- climbBarricadeForBoss: back over the crushed barricade, a real
+        -- click graded on the tile move exactly as the first crossing above.
+        t.exec("goto-climbBarricadeForBoss", t.player.goto_tile, 2454, 3048, 0)
+        local _, bb_before = t.world.tile()
+        local bb_r, bb_d = t.player.click_loc("zogre_multi_blocking_barricade_l", 1)
+        t.ticks(1)
+        local _, bb_after = t.world.tile()
+        t.check("climbBarricadeForBoss", bb_after.x ~= bb_before.x or bb_after.z ~= bb_before.z,
+            tostring(bb_r) .. " " .. tostring(bb_d) .. " -- tile " .. bb_before.x .. "," .. bb_before.z
+                .. " -> " .. bb_after.x .. "," .. bb_after.z)
+        -- North of the first pair of tomb doors (m38_147.jl2:6408/6410,
+        -- ogre_cavedoorr/l at 2441/2442,9433 level 2): the key opens them.
+        t.exec("goto-goDownStairsForBoss", t.player.goto_tile, 2441, 9435, 2)
+        t.ticks(2)
+        local door_r, door_d = t.player.click_loc("ogre_cavedoorl", 1)
+        t.ticks(3)
+        local _, door_tile = t.world.tile()
+        t.check("enterDoors", door_tile.level == 0 and door_tile.x == 2480 and door_tile.z == 9446,
+            tostring(door_r) .. " " .. tostring(door_d) .. " -- tile " .. door_tile.x .. "," .. door_tile.z .. "," .. door_tile.level)
+        t.exec("openTombDoor.mes", t.msg.expect, "You use the Ogre Tomb Key to unlock the door.")
+
+        t.exec("searchStand", t.player.click_loc, "zogre_stand", 1)
+        t.exec("searchStand.mes", t.msg.expect, "Something stirs behind you!")
+        local sb_r, sb_d = t.npc.await_present("zogre_slash_bash", 5, 10)
+        t.check("slashBash.present", sb_r == "ok", "zogre_slash_bash within 5: " .. tostring(sb_r) .. " " .. tostring(sb_d))
+        local atk_r, atk_d
+        for _ = 1, 6 do
+            atk_r, atk_d = t.player.attack("zogre_slash_bash", 2, 15)
+            if atk_r == "ok" then break end
+            t.ticks(5)
+        end
+        t.check("slashBash.attack", atk_r == "ok", "comp ogre bow + brutal: " .. tostring(atk_r) .. " " .. tostring(atk_d))
+        t.exec("slashBash.dead", t.npc.await_dead_engaged, 480, 60)
+        t.check("quest.stage.slash_bash", t.quest.expect_stage("slash_bash"))
+        -- He drops the artefact (zogre_finish.rs2 [ai_queue3,zogre_slash_bash],
+        -- Quest Helper pickUpOgreArtefact): take it off the floor.
+        t.ticks(2)
+        local art0 = select(2, t.inv.count("zogre_artifacts")) or 0
+        local pk_r, pk_d = t.player.click_obj("zogre_artifacts")
+        t.ticks(1)
+        local art1 = select(2, t.inv.count("zogre_artifacts")) or 0
+        t.check("pickUpOgreArtefact", pk_r == "ok" and art0 == 0 and art1 == 1,
+            string.format("click_obj(zogre_artifacts) -> %s (%s); zogre_artifacts %d -> %d",
+                tostring(pk_r), tostring(pk_d), art0, art1))
+
+        -- ---- returnRelic ------------------------------------------------
+        t.exec("goto-returnRelic", t.player.goto_tile, 2447, 3049, 0)
+        t.exec("returnRelic", t.player.talk_to, "zogre_ogre_shaman", 1)
+        t.exec("returnRelic-dialog", t.chat.play, {
+            "npc:Hey, you's creature got da old fings?",
+            "player:Yeah, I have them here!",
+            "npc:Dat is da goodly fing",
+            "player:Thanks, that's very nice of you!",
+            "end",
+        })
+        t.ticks(3)
+        t.quest.expect_complete()
+        t.finish(0)
         return
     end,
 }

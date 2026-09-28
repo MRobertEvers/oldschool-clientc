@@ -86,10 +86,10 @@ Wilderness level 20; a nearby cow/calf says "Moo?"/"M-Moo?" on arrival).
   selftest at HEAD's set but turns sheepherder's herding BLOCKED (A/B:
   67/67 on the HEAD engine). Land the row with that engine fix and a
   re-tuned herd, in one engine pass.
-- Deferred, same as every other reward lamp in this pack
-  (clientofkourend.rs2, insearchofknowledge.rs2, nightatthetheatre.rs2, all
-  "Leftover (fixed/done)"): the lamp's Rub-to-pick-a-skill UI. Completion
-  still grants the raw lamp item.
+- DONE in seam25: the magic lamp (`cowboss_reward_lamp`) Rubs through A Tail
+  of Two Cats' shared xpreward picker (twocats.rs2, kind
+  `^twocats_lampkind_cowboss`): 1,000 XP to one of the seven combat skills
+  including Prayer, no level floor (wiki Magic_lamp_(The_Ides_of_Milk)).
 - Deferred, out of scope for the quest's own completion (a post-quest reward
   feature involving the charge/teleport/travel-network systems): the cowbell
   amulet's charges, teleport and Ring-to-hasten-respawn.
