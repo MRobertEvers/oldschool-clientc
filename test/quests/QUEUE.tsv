@@ -81,7 +81,7 @@ quest_hetty	hetty	witchspotion		1	green	sonnet-b15
 quest_horror	horror	horrorfromthedeep		3	todo		
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
-quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b29	
+quest_idesofmilk	idesofmilk	theidesofmilk		2	todo	sonnet-b29	REVERTED by sampler (sonnet-b29): Brutus fight is not real -- [cowboss] has no hitpoints= block anywhere in server/scripts, so it spawns at the engine default 10 hp (torirs_server_content.c g_npc_default.hitpoints = 10); 68-killBrutus.engage.png shows ONE 10 hitsplat emptying the bar and he dies in 5 ticks, while the killBrutus row claims '58 hp' (cache stat4). Content fix first (hitpoints=58 on cowboss), then re-run and grade the fight's tick count.
 quest_ikov	ikov	templeofikov		3	todo		
 quest_imp	imp	impcatcher		3	todo		
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
