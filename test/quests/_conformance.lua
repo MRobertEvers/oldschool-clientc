@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 37
+-- @seam-count 39
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 132
-local SEAM_COUNT = 37
+local SEAM_COUNT = 39
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6104,6 +6104,123 @@ return {
                 return "hollow", "climbdown answered ok but the player is still on the cliff -- " .. text
             end
             return "ok", text .. "; below at " .. below.x .. "," .. below.z
+        end)
+
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- SEAM ghostsahoy_harbour_door_and_lobster (seam26): click_loc's
+        -- `{ at = {x, z[, level]} }` LOC SELECTOR (pointer.lua
+        -- QD.player._loc_copy).  Without it a symbol presses the copy nearest
+        -- the player, and on Ghosts Ahoy's rock route that is the rock
+        -- underfoot: eleven `ok` jumps that never left 3604,3550
+        -- (build/seam_state/seam25/wreck, run s25wk_door1 rows 6-16).  The
+        -- subject is Lumbridge's `tree`, planted 58 times around the castle:
+        -- the row names a copy that is NOT the nearest (the second pool row,
+        -- the pool comes nearest-first), presses Chop down on it, and the
+        -- player must end beside THAT copy (a tree's footprint is 2x2, so
+        -- within 2 of its SW tile) and nearer it than the nearest copy.  Then
+        -- a tile with no copy must answer `no_row` and press nothing.
+        -- Measured on the scratch twin (build/quest_gate/s26gh_sel1):
+        -- `pressed the copy at 3196,3214,0`, player 3197,3216, nearest copy
+        -- 3217,3241; the no-copy tile `no_row ... nothing pressed`.
+        seam("seam.click_loc_names_the_copy", function()
+            local click_loc = verb("player", "click_loc")
+            local by_symbol = verb("player", "by_symbol")
+            local pool_read = verb("drive", "_pool_read")
+            local tile_of = verb("world", "tile")
+            if not click_loc then return missing("player", "click_loc") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not pool_read then return missing("drive", "_pool_read") end
+            if not tile_of then return missing("world", "tile") end
+            local tree, tree_result = by_symbol("loc", "tree")
+            if tree_result ~= "ok" or not is_table(tree) then
+                return "no_subject", "player.by_symbol(loc, tree) -> " .. describe(tree_result)
+            end
+            local here_result, here = tile_of()
+            if here_result ~= "ok" or not is_table(here) then
+                return "no_subject", "world.tile -> " .. describe(here_result)
+            end
+            local rows_result, rows = pool_read("locs", 0, 18)
+            if rows_result ~= "ok" or not is_table(rows) then
+                return "no_subject", "the loc pool -> " .. describe(rows_result)
+            end
+            local copies = {}
+            for index = 1, #rows do
+                local row = rows[index]
+                if (row.loc_id == tree.id or row.resolved_loc_id == tree.id)
+                    and row.level == here.level then
+                    copies[#copies + 1] = row
+                end
+            end
+            if #copies < 2 then
+                return "no_subject", #copies .. " copy/copies of tree on this floor from "
+                    .. here.x .. "," .. here.z .. " -- the row needs two"
+            end
+            local nearest, named = copies[1], copies[2]
+            local result, detail = click_loc("tree", 1, { at = { named.x, named.z } })
+            local text = "named " .. named.x .. "," .. named.z .. " (nearest " .. nearest.x .. ","
+                .. nearest.z .. ") -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" then
+                return result, text
+            end
+            settle(2)
+            local after_result, after = tile_of()
+            if after_result ~= "ok" or not is_table(after) then
+                return "hollow", "no tile after the press -- " .. text
+            end
+            local to_named = math.max(math.abs(after.x - named.x), math.abs(after.z - named.z))
+            local to_nearest = math.max(math.abs(after.x - nearest.x), math.abs(after.z - nearest.z))
+            text = text .. "; player " .. after.x .. "," .. after.z .. ", " .. to_named
+                .. " from the named copy, " .. to_nearest .. " from the nearest"
+            if to_named > 2 or to_nearest <= to_named then
+                return "refused", "the press did not land on the named copy -- " .. text
+            end
+            local none_result, none_detail = click_loc("tree", 1, { at = { here.x + 200, here.z + 200 } })
+            if none_result ~= "no_row" then
+                return "refused", "a tile with no copy answered " .. describe(none_result) .. " "
+                    .. describe(none_detail) .. " -- a selector must never fall back; " .. text
+            end
+            return "ok", text .. "; no copy at " .. (here.x + 200) .. "," .. (here.z + 200)
+                .. " -> no_row"
+        end)
+
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- SEAM towerladder_press (seam26): A LOC ONLY ON A LOWER FLOOR IS NO
+        -- TARGET (pointer.lua QD.player._loc_other_floor).  The Watchtower's
+        -- `towerladder` (2833) is the GROUND floor's Climb-up (maps/m39_48.jl2
+        -- `0 48 39: 2833 10`); from the first floor (2544,3111,1) the client
+        -- pick can never keep it, and click_loc used to hunt 119 ticks and
+        -- answer "menu has no row for it" (build/quest_gate/s26tl_before row
+        -- 2).  It must answer not_visible "other_floor", naming the loc that
+        -- IS on this floor there, qip_watchtower_ladder_top (17122, `1 48 39:
+        -- 17122 10`) -- measured s26tl_p2a row 2, 28 ticks.
+        stage(function()
+            setup_cheat("::goto 2544 3111 1")                  -- setup
+            settle(6)
+        end)
+
+        seam("seam.click_loc_names_the_other_floor", function()
+            local click_loc = verb("player", "click_loc")
+            if not click_loc then return missing("player", "click_loc") end
+            local result, detail = click_loc("towerladder", 1)
+            local text = "click_loc(towerladder) from 2544,3111,1 -> " .. describe(result) .. " "
+                .. describe(detail)
+            if result ~= "not_visible" then
+                return "refused", "a loc with no copy on this floor must answer not_visible -- " .. text
+            end
+            if not string.find(tostring(detail), "other_floor", 1, true)
+                or not string.find(tostring(detail), "qip_watchtower_ladder_top", 1, true) then
+                return "refused", "the answer must say other_floor and name the loc on this floor -- "
+                    .. text
+            end
+            return "ok", text
         end)
 
         stage(function()

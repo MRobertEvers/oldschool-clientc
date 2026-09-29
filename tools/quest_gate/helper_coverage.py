@@ -28,7 +28,13 @@ WHAT IT READS.
     every [op*,<symbol>] trigger in the tree, and each debugproc a test calls.
 
 THE LADDER. The guide's getPanels() entries in order (a sibling helper's
-`x.panelDetails()` spliced in), sub-steps folded into their parent. A panel
+`x.panelDetails()` spliced in), sub-steps folded into their parent. A custom
+step class beside the guide is graded by its parts: `x.getPanelSteps()` /
+`x.getDisplaySteps()` splice its own list (Recruitment Drive's Miss Cheevers
+gather chain), a ConditionalStep subclass stands for its addStep children, an
+NpcStep/ObjectStep subclass takes its super(...) target; lists grown with
+`.add/.addAll` and `panel.addSteps(...)` count, puzzle-wrapper aliases
+(`pw = step.puzzleWrapStep()`) resolve, and a leaf is graded once. A panel
 entry that is a ConditionalStep stands for its leaves, each its own step,
 except leaves that differ from a sibling in one name word (compareAnna /
 compareDavid: one step, done any way) and *Fallback leaves (optional).
@@ -61,12 +67,22 @@ CLASSES (first rule that fires wins, in this order).
   CONTENT_GAP  the content's own soft-skip comment names the step as
                collapsed (mend1_sheep.rs2's `getToads`), even when the test
                drove the stand-in.
-  DRIVEN       a PASS row named after the step (never a goto-/quest.* row),
-               or an action (talk_to/click_loc/use_on/...) or action row
-               naming one of its npc/loc/obj symbols -- rev 239's name, a
-               multinpc parent, or its display name; a "use X on Y" step
-               needs a use of X on Y, a pick-up step may be done by another
-               route (buy-rum), and a door clicked once is one step, not two.
+  DRIVEN       a PASS row named after the step (never a goto-/quest.* row;
+               its puzzle-wrapper alias counts), or an action (talk_to/
+               click_loc/use_on/...) or action row naming one of its npc/loc/
+               obj symbols -- rev 239's name, a multinpc parent, or its display
+               name; a "use X on Y" step needs a use of X on Y, a pick-up step
+               may be done by another route (buy-rum), and a door clicked once
+               is one step, not two. Since seam26 a mention counts only when
+               (i) its line/row is not ANOTHER guide step's own row (the first
+               row named after that step and its non-pressing same-visit rows:
+               The Feud's `pickpocketVillager1` press does not drive
+               `talkToAVillager`), and (ii) it presses the step's own op when
+               the step's leading verb is one of the target's menu ops
+               (all.npc/all.loc opN=; op3 Pickpocket is not "Talk to"). A named
+               row pressing the wrong op does not count either. An Open/Close/
+               Lock/Unlock ConditionalStep leaf on a loc already in that state
+               is met by the earlier press (state_already_set).
   EQUIVALENT   a VERIFIED `-- BRANCH-IN:` / `-- PARTNER:` / `-- NOT-A-STEP:` /
                `-- OBSOLETE:` / `-- ANY-OF:` marker names the step: not a gap
                (the sibling drives it, a partner cheat does it, it is a plugin
@@ -481,7 +497,122 @@ class Guide:
                 step.text = string_text(body)
         for match in re.finditer(r"\bsteps\s*\.\s*put\s*\(\s*(-?\d+)\s*,\s*(\w+)\s*\)", code):
             self.stage_puts.append((int(match.group(1)), match.group(2)))
+        # `pwGetMagnet = getMagnet.puzzleWrapStep(true)`: the panel lists the
+        # wrapper, the step is the wrapped one (resolve()).
+        self.step_alias = {}
+        for match in re.finditer(r"\b(\w+)\s*=\s*(\w+)\s*\.\s*puzzleWrapStep\w*\s*\(", code):
+            if match.group(1) not in self.steps and match.group(2) != "this":
+                self.step_alias[match.group(1)] = match.group(2)
+        # A custom step CLASS's own `addStep(cond, x)` / `this.addStep(...)`
+        # children (MissCheeversStep extends ConditionalStep): read when this
+        # file is parsed as a sibling (Guide.sibling).
+        self.class_children = []
+        for match in re.finditer(r"(?<![\w.])(?:this\s*\.\s*)?addStep\s*\(", code):
+            open_index = match.end() - 1
+            args = split_top(code[open_index + 1:matching_close(code, open_index)])
+            child = re.match(r"\s*(\w+)", args[-1]) if args else None
+            if child and self.resolve(child.group(1)) not in self.class_children:
+                self.class_children.append(self.resolve(child.group(1)))
+        self.extends = ""
+        extends = re.search(r"\bclass\s+\w+\s+extends\s+(\w+)", code)
+        if extends:
+            self.extends = extends.group(1)
+        self._siblings = {}
         self._parse_panels()
+
+    def resolve(self, ident):
+        """A puzzle-wrapper alias's wrapped step (pwGetMagnet -> getMagnet)."""
+        seen = set()
+        while ident in getattr(self, "step_alias", {}) and ident not in seen:
+            seen.add(ident)
+            ident = self.step_alias[ident]
+        return ident
+
+    def sibling(self, owner):
+        """The Guide parsed from the sibling .java of step `owner`'s custom
+        class (MissCheeversStep.java beside RecruitmentDrive.java), or None."""
+        step = self.steps.get(owner)
+        if step is None or self._nested:
+            return None
+        kind = step.kind
+        kind = getattr(step, "class_kind", kind)
+        if kind in self._siblings:
+            return self._siblings[kind]
+        path = os.path.join(os.path.dirname(self.path), kind + ".java")
+        sub = Guide(path, nested=True) if os.path.isfile(path) and path != self.path else None
+        if sub is not None:
+            # A sibling step named like one of ours (SlugSteps' own
+            # talkToPete) stays the sibling's: our step keeps the name, and no
+            # sibling step folds or nests ours by it.
+            collided = {name for name, sub_step in sub.steps.items()
+                        if name in self.steps and self.steps[name] is not sub_step}
+            for name, sub_step in sub.steps.items():
+                if name in collided:
+                    continue
+                sub_step.substeps = [n for n in sub_step.substeps if n not in collided]
+                sub_step.children = [n for n in sub_step.children if n not in collided]
+                self.steps[name] = sub_step
+            self.items.update({k: v for k, v in sub.items.items() if k not in self.items})
+            self.aliases.update({k: v for k, v in sub.aliases.items() if k not in self.aliases})
+            for alias, target in sub.step_alias.items():
+                self.step_alias.setdefault(alias, target)
+            # A custom ConditionalStep class is a composite of its own
+            # addStep children: grade them, not the class (grade()).
+            if "Conditional" in sub.extends and sub.class_children:
+                step.children = [c for c in sub.class_children if c in self.steps]
+                step.class_kind = kind
+                step.kind = "ConditionalStep:" + kind
+            elif sub.extends in ("NpcStep", "ObjectStep", "ItemStep") and not step.targets:
+                # `class MsHynnAnswerDialogQuizStep extends NpcStep` names its
+                # npc in its own `super(questHelper, NpcID.X, "text")`.
+                call = re.search(r"\bsuper\s*\(", sub.code)
+                if call:
+                    open_index = call.end() - 1
+                    args = split_top(sub.code[open_index + 1:matching_close(sub.code, open_index)])
+                    step.class_kind = kind
+                    step.kind = sub.extends
+                    sub._fill_leaf(step, args)
+        self._siblings[kind] = sub
+        return sub
+
+    def spliced(self, owner):
+        """`owner.getPanelSteps()` / `owner.getDisplaySteps()`: the step names
+        the custom class lists for the sidebar, each graded as its own guide
+        step (Recruitment Drive's Miss Cheevers gather chain, Rum Deal's
+        sluglings, Biohazard's three chemical hand-overs)."""
+        sub = self.sibling(owner)
+        if sub is None:
+            return []
+        for method in ("getPanelSteps", "getDisplaySteps"):
+            match = re.search(r"\b%s\s*\(\s*\)\s*\{" % method, sub.code)
+            if not match:
+                continue
+            start = match.end() - 1
+            body = sub.code[start:matching_close(sub.code, start)]
+            return [self.resolve(i) for i in re.findall(r"\b([a-z]\w*)\b", body)
+                    if self.resolve(i) in self.steps]
+        return []
+
+    def step_idents(self, text, list_vars=None):
+        """The step names an argument/body names, in order: a
+        `x.getPanelSteps()` / `x.getDisplaySteps()` spliced, a list variable
+        expanded, a puzzle-wrapper alias resolved."""
+        out = []
+        for match in re.finditer(r"\b([a-z]\w*)\b(\s*\.\s*get(?:Panel|Display)Steps\s*\(\s*\))?", text):
+            ident = match.group(1)
+            if match.group(2):
+                out.extend(i for i in self.spliced(ident) if i not in out)
+                continue
+            if ident in ("getPanelSteps", "getDisplaySteps"):
+                continue
+            ident = self.resolve(ident)
+            if ident in self.steps:
+                self.sibling(ident)  # a custom class: its targets / children
+                if ident not in out:
+                    out.append(ident)
+            elif list_vars and ident in list_vars:
+                out.extend(i for i in list_vars[ident] if i not in out)
+        return out
 
     def item_base(self, var):
         seen = set()
@@ -527,9 +658,22 @@ class Guide:
         for match in re.finditer(r"\b(\w+)\s*=\s*(?:new\s+ArrayList<>\s*\()?\s*(?:Arrays\.asList|List\.of|QuestUtil\.toArrayList|Collections\.singletonList)\s*\(", code):
             open_index = match.end() - 1
             body = code[open_index + 1:matching_close(code, open_index)]
-            idents = [i for i in re.findall(r"\b([a-z]\w*)\b", body) if i in self.steps]
+            idents = self.step_idents(body)
             if idents:
                 list_vars[match.group(1)] = idents
+        # `testingSteps.addAll(giveChemicals.getDisplaySteps())`,
+        # `mapSteps.addAll(Arrays.asList(useKeyOnChest, ...))`: a list built
+        # up after its declaration.
+        for match in re.finditer(r"\b(\w+)\s*\.\s*(?:addAll|add)\s*\(", code):
+            if match.group(1) not in list_vars:
+                continue
+            open_index = match.end() - 1
+            body = code[open_index + 1:matching_close(code, open_index)]
+            if "PanelDetails" in body:
+                continue
+            for ident in self.step_idents(body, list_vars):
+                if ident not in list_vars[match.group(1)]:
+                    list_vars[match.group(1)].append(ident)
         for match in re.finditer(r"\bnew\s+PanelDetails\s*\(|\b(\w+)\s*\.\s*panelDetails\s*\(\s*\)", code):
             if match.group(1):
                 # `sections.addAll(smuggleRum.panelDetails())`: a custom step
@@ -553,15 +697,22 @@ class Guide:
             if len(args) < 2:
                 continue
             title = string_text(args[0])
-            idents = []
-            for ident in re.findall(r"\b([a-z]\w*)\b", args[1]):
-                if ident in self.steps:
-                    idents.append(ident)
-                elif ident in list_vars:
-                    idents.extend(list_vars[ident])
+            idents = self.step_idents(args[1], list_vars)
             # `thirdPanel = new PanelDetails(...)` twice, in an if/else on
             # the player's gang: the branches are alternatives.
             assigned = re.search(r"\b(\w+)\s*=\s*$", code[max(0, match.start() - 80):match.start()])
+            # `missCheeversSection.addSteps(missCheeversStep.getPanelSteps())`
+            # after `var missCheeversSection = new PanelDetails("...", pw)`.
+            if assigned:
+                for add in re.finditer(r"\b%s\s*\.\s*addSteps?\s*\(" % re.escape(assigned.group(1)), code):
+                    open_add = add.end() - 1
+                    for ident in self.step_idents(code[open_add + 1:matching_close(code, open_add)], list_vars):
+                        if ident not in idents:
+                            idents.append(ident)
+            # A custom class step listed beside its own spliced sub-steps is
+            # their wrapper, not a step of its own.
+            owners = {owner for owner in idents if self.spliced(owner)}
+            idents = [i for i in idents if i not in owners]
             self.panels.append((title, idents, assigned.group(1) if assigned else None))
 
     def leaves(self, name, seen=None):
@@ -633,6 +784,8 @@ _CONTENT_INDEX = None
 DISPLAY = {}      # (kind, symbol) -> display name, lowercased
 BY_DISPLAY = {}   # (kind, display name) -> {symbol}
 PARENTS = {}      # multinpc/multiloc child -> {parent}
+CHILDREN = {}     # multinpc/multiloc parent -> [child]
+OPS = {}          # (kind, symbol) -> {op number: op name, lowercased}
 SCRIPTS = {}      # (trigger kind, subject) -> (relpath, line): labels, procs, triggers
 _BODIES = {}
 
@@ -688,6 +841,34 @@ def family(symbol):
                 out.add(parent)
                 frontier.append(parent)
     return out
+
+
+def ops_of(kind, symbol):
+    """{op number: op name} the client's menu shows for `symbol` (all.npc /
+    all.loc `opN=`); a multinpc/multiloc parent with none of its own shows
+    its children's."""
+    content_index()
+    ops = dict(OPS.get((kind, symbol), {}))
+    for child in CHILDREN.get(symbol, ()):
+        for number, name in OPS.get((kind, child), {}).items():
+            ops.setdefault(number, name)
+    return ops
+
+
+# A guide step's leading verb -> the op word it presses ("Talk to Ali" is a
+# Talk-to; "Kill the troll" an Attack).
+STEP_VERB_ALIAS = {"speak": "talk", "ask": "talk", "tell": "talk", "chat": "talk",
+                   "kill": "attack", "fight": "attack", "defeat": "attack", "slay": "attack"}
+
+
+# Loc ops whose effect persists, so a guide step re-asking for the state
+# (a ConditionalStep leaf) is met by the earlier press (state_already_set).
+STATE_OPS = ("open", "close", "unlock", "lock")
+
+
+def op_word(op_name):
+    """`Talk-to` -> 'talk', `Pick-up` -> 'pick', `Climb up` -> 'climb'."""
+    return re.split(r"[-\s]", (op_name or "").strip().lower())[0]
 
 
 def same_thing(kind, guide_symbol, test_string, loose=True):
@@ -787,6 +968,9 @@ def content_index():
             for child in re.findall(r"^multi(?:npc|loc)\d+=(\w+)", body, re.M):
                 if child != symbol:
                     PARENTS.setdefault(child, set()).add(symbol)
+                    CHILDREN.setdefault(symbol, []).append(child)
+            for number, op in re.findall(r"^op([1-5])=(.+)$", body, re.M):
+                OPS.setdefault((kind, symbol), {})[int(number)] = op.strip().lower()
     _CONTENT_INDEX = (triggers, categories, debugprocs)
     return _CONTENT_INDEX
 
@@ -991,6 +1175,17 @@ class Test:
             for text in named:
                 self.action_strings.setdefault(text, number)
             self.action_lines.append((number, named))
+        # Which ledger row each line writes: `t.exec("name", ...)` /
+        # `t.check("name", ...)` / `t.expect("name", ...)` spans every line of
+        # its call, so a target named on the call's second line still knows
+        # the row it drives (row_name_at).
+        self.row_spans = []  # (first line, last line, row name)
+        for match in re.finditer(r"\bt\.(?:exec|check|expect)\s*\(\s*\"([^\"]*)\"", self.code):
+            open_index = self.code.index("(", match.start())
+            close = matching_close(self.code, open_index)
+            first = self.code.count("\n", 0, match.start()) + 1
+            last = min(self.code.count("\n", 0, close) + 1, first + 30)
+            self.row_spans.append((first, last, match.group(1)))
         for index, (number, _) in enumerate(self.stand_on_optins):
             for above in range(number, max(0, number - STAND_ON_MARKER_SPAN - 1), -1):
                 match = GUIDE_GAP_RE.match(self.raw_lines[above - 1])
@@ -1005,6 +1200,36 @@ class Test:
             match = re.match(r"::(?:goto|tele)\s+(\d+)[\s,]+(\d+)[\s,]+(\d+)", text)
             if match:
                 self.gotos.append((number,) + tuple(int(v) for v in match.groups()))
+
+
+    def row_name_at(self, number):
+        """The literal name of the ledger row line `number` writes, or None
+        (a helper's `t.exec(name, ...)` with a variable name)."""
+        for first, last, name in self.row_spans:
+            if first <= number <= last:
+                return name
+        return None
+
+    def pressed_op(self, number, kind):
+        """What the action on line `number` presses on a `kind` target: an op
+        number (talk_to/click_npc/click_loc's argument after the target,
+        default 1), 'attack' or 'use'; None when the line does not say."""
+        first, last = number, number
+        for span_first, span_last, _ in self.row_spans:
+            if span_first <= number <= span_last:
+                first, last = span_first, span_last
+                break
+        text = " ".join(self.code_lines[first - 1:last])
+        verbs = {"npc": r"talk_to|click_npc|npc_op", "loc": r"click_loc|loc_op"}.get(kind)
+        if verbs:
+            match = re.search(r"\b(?:%s)\s*[,(]\s*[^,()]+?\s*(?:,\s*(\d+)\s*)?[,)]" % verbs, text)
+            if match:
+                return int(match.group(1)) if match.group(1) else 1
+        if kind == "npc" and re.search(r"\b(attack|await_dead\w*)\b", text):
+            return "attack"
+        if re.search(r"\b(use_on|use_item_on_item)\b", text):
+            return "use"
+        return None
 
 
 GUIDE_GAP_RE = re.compile(r"^\s*--\s*GUIDE-GAP:\s*(\S+)\s+(.*)$")
@@ -1362,6 +1587,12 @@ class Grader:
         self.test_id = test_id
         self.follow_branch_in = follow_branch_in
         self._driven = {}
+        self._related = {}
+        self._reserved = None
+        self.line_credits = {}  # action line -> the step a mention credited it to
+        # step name -> why each mention that named its target did not count
+        # (another step's row, the wrong op): the reason an UNMATCHED shows.
+        self.refusals = {}
         self.row = queue_row(test_id)
         assert self.row, "test_id %r is not in %s" % (test_id, QUEUE_PATH)
         self.quest_dir = self.row["quest_dir"]
@@ -1505,19 +1736,161 @@ class Grader:
             found.update(words(symbol.replace("_", " ")))
         return found
 
+    @staticmethod
+    def row_names_step(row_step, step_name):
+        """Is a ledger row called `row_step` named after guide step `step_name`
+        (talkToUnferth, talkToUnferth-dialog, drunkenAli-beer1 for drunkenAli,
+        pickpocketVillager1 for pickpocketVillager)?"""
+        name = norm(step_name)
+        row_name = norm(row_step)
+        if not name or not row_name:
+            return False
+        segments = [norm(part) for part in re.split(r"[.\-:/ ]", row_step)]
+        return row_name == name or row_name.startswith(name) or \
+            (len(name) > 6 and any(seg.startswith(name) for seg in segments)) or \
+            (len(row_name) >= 6 and name.startswith(row_name) and
+             (re.search(r"\d", name[len(row_name):]) is not None or len(row_name) / len(name) >= 0.75))
+
+    def related_steps(self, step):
+        """`step`, its sub-steps and leaves, and every step it is a sub-step or
+        leaf of: a row named after any of them is not ANOTHER step's row."""
+        if step.name in self._related:
+            return self._related[step.name]
+        out = {step.name}
+        out.update(step.substeps)
+        out.update(self.guide.leaves(step.name))
+        for other in self.guide.steps.values():
+            if step.name in other.substeps or step.name in self.guide.leaves(other.name) or \
+                    step.name in other.children:
+                out.add(other.name)
+        self._related[step.name] = out
+        return out
+
+    def reservations(self):
+        """{row name: {guide step}} for every row that IS some guide step's own
+        evidence: the first PASS action row named after the step, plus the
+        rows of that same visit that press nothing (`talkToRolad-dialog`
+        after `talkToRolad`). A later row that presses again, whatever the
+        author named it (`talkToRoladWithPages`, `talkToJorral-handin`), is
+        another visit and is not reserved."""
+        if self._reserved is not None:
+            return self._reserved
+        reserved = {}
+        for name in self.guide.steps:
+            if len(norm(name)) < 6:
+                continue
+            first = next((row for row in self.action_rows if self.row_names_step(row["step"], name)), None)
+            if first is None:
+                continue
+            reserved.setdefault(first["step"], set()).add(name)
+            for row in self.action_rows:
+                rest = row["step"][len(first["step"]):]
+                if not (row["step"].startswith(first["step"]) and rest[:1] in ("-", ".", ":", "/", "_", " ")):
+                    continue
+                line = self.row_line(row["step"])
+                if line is not None and (self.test.pressed_op(line, "npc") is not None or
+                                         self.test.pressed_op(line, "loc") is not None):
+                    continue  # `talkToJorral-handin` presses again: a visit of its own
+                reserved.setdefault(row["step"], set()).add(name)
+        self._reserved = reserved
+        return reserved
+
+    def claimed_by_other(self, row_step, step):
+        """The OTHER guide step whose own evidence the row called `row_step`
+        is, or None. A row the author named for one guide step drives that
+        step; the target it presses does not also drive every other step on
+        the same npc or loc (The Feud's `pickpocketVillager1` press on
+        feud_villager_multi_1 is not `talkToAVillager`)."""
+        if not row_step or self.row_names_step(row_step, step.name):
+            return None
+        related = self.related_steps(step)
+        for other in sorted(self.reservations().get(row_step, ())):
+            if other not in related:
+                return other
+        return None
+
+    def step_verb(self, step):
+        """The op word a step's own text (else its name) starts with."""
+        first = re.match(r"\s*([A-Za-z]+)", step.text or "")
+        if not first:
+            first = re.match(r"([a-z]+)", step.name or "")
+        verb = first.group(1).lower() if first else ""
+        return STEP_VERB_ALIAS.get(verb, verb)
+
+    def op_conflict(self, step, line, kind, symbol, text):
+        """Why the action on `line` is not this step's own op on its target, or
+        None. Only a step whose leading verb IS one of the target's menu ops
+        is held to it (Talk-to on a villager whose op3 is Pickpocket): a
+        "Return to"/"Bring" step, or a target with no such op, is not."""
+        verb = self.step_verb(step)
+        if not verb:
+            return None
+        menu = dict(ops_of(kind, symbol))
+        for number, op in ops_of(kind, text).items():
+            menu.setdefault(number, op)
+        if kind == "npc" and verb == "attack":
+            menu.setdefault(0, "attack")
+        if not any(op_word(op) == verb for op in menu.values()):
+            return None
+        pressed = self.test.pressed_op(line, kind)
+        if pressed is None:
+            return None
+        if pressed == "use" and step.req_vars:
+            return None  # the item the step lists, used on its target: the content's own trigger
+        pressed_name = pressed if isinstance(pressed, str) else ops_of(kind, text).get(pressed) or menu.get(pressed)
+        if pressed_name is None or op_word(pressed_name) == verb:
+            return None
+        return "line %d presses %r on %s, not the step's %r" % (
+            line, pressed_name if isinstance(pressed, str) else "op%d %s" % (pressed, pressed_name), text, verb)
+
+    def line_refused(self, step, line, kind=None, symbol=None, text=None):
+        """Why action line `line` cannot drive `step` (claimed by another
+        step's row, or the wrong op on the step's target), or None."""
+        other = self.claimed_by_other(self.test.row_name_at(line), step)
+        if other:
+            return "line %d writes row %r, guide step %s's own row" % (
+                line, self.test.row_name_at(line), other)
+        if kind and text:
+            return self.op_conflict(step, line, kind, symbol, text)
+        return None
+
+    def row_line(self, row_step):
+        """The source line that writes the ledger row `row_step`, or None."""
+        for first, _last, name in self.test.row_spans:
+            if name == row_step:
+                return first
+        return None
+
     def driven(self, step):
-        name = norm(step.name)
+        self.refusals.pop(step.name, None)
+        conflicted = []
+        # The author may name the row after the panel's puzzle wrapper
+        # (`pwMsHynnTerprett` for msHynnDialogQuiz).
+        names = [step.name] + [alias for alias, target in self.guide.step_alias.items()
+                               if self.guide.resolve(alias) == step.name]
         for row in self.action_rows:
-            row_name = norm(row["step"])
-            segments = [norm(part) for part in re.split(r"[.\-:/ ]", row["step"])]
-            if row_name == name or row_name.startswith(name) or \
-                    (len(name) > 6 and any(seg.startswith(name) for seg in segments)) or \
-                    (len(row_name) >= 6 and name.startswith(row_name) and
-                     (re.search(r"\d", name[len(row_name):]) or len(row_name) / len(name) >= 0.75)):
+            if any(self.row_names_step(row["step"], name) for name in names):
+                if any(row["step"].startswith(bad) and row["step"][len(bad):][:1] in ("-", ".", ":", "/", "_", " ")
+                       for bad in conflicted):
+                    continue  # `x-dialog` of a press that was the wrong op
+                line = self.row_line(row["step"])
+                conflict = None
+                if line is not None:
+                    for kind, symbol in step.targets:
+                        named = next((named for number, named in self.test.action_lines if number == line), ())
+                        for text in named:
+                            if same_thing(kind, symbol, text):
+                                conflict = conflict or self.op_conflict(step, line, kind, symbol, text)
+                if conflict:
+                    conflicted.append(row["step"])
+                    self.refusals.setdefault(step.name, []).append(
+                        "ledger row %s %r: %s" % (row["index"], row["step"], conflict))
+                    continue
                 return "ledger row %s %r PASS" % (row["index"], row["step"])
         if not self.pass_rows:
             return None
         use_items = [sym for var in step.req_vars for sym in self.guide.items[var]["ids"]]
+        refused = self.refusals.setdefault(step.name, [])
         if re.match(r"^use", step.name) and use_items and step.targets:
             # "Use serum 208 on Razmire" is not done by the line that uses
             # serum 207 on him: when every action on the target names a
@@ -1532,6 +1905,10 @@ class Grader:
             for line, named in on_target:
                 item = next((t for t in named for s in use_items if same_thing("obj", s, t)), None)
                 if item:
+                    why = self.line_refused(step, line)
+                    if why:
+                        refused.append(why)
+                        continue
                     return "an action at line %d uses %r on the target" % (line, item)
             if all(any(t in all_items for t in named) for _, named in on_target):
                 return None  # no use at all, or only uses of other items
@@ -1539,9 +1916,29 @@ class Grader:
             if kind == "loc" and any(w in symbol for w in GATE_WORDS) and \
                     self.loc_uses.get(symbol, 0) >= self.loc_evidence(symbol):
                 continue  # every pass through this door already did an earlier step
-            for text, line in self.test.action_strings.items():
-                if same_thing(kind, symbol, text):
-                    return "an action at line %d names %r (%s)" % (line, text, symbol)
+            # EVERY action line naming the target, not the first: the first
+            # may be another step's row (pickpocket) and a later one this
+            # step's own press (talk).
+            # A line no other step has been credited from first: the talk
+            # to Da Vinci in Varrock, not the one in Rimmington that already
+            # drove giveVinciEthenea.
+            candidates = []
+            for line, named in self.test.action_lines:
+                for text in sorted(named):
+                    if not same_thing(kind, symbol, text):
+                        continue
+                    why = self.line_refused(step, line, kind, symbol, text)
+                    if why:
+                        held = self.state_already_set(step, line, kind, symbol, text)
+                        if held:
+                            return held
+                        refused.append(why)
+                        continue
+                    candidates.append((line in self.line_credits, text == symbol and 0 or 1, line, text))
+            if candidates:
+                _, _, line, text = min(candidates)
+                self.line_credits.setdefault(line, step.name)
+                return "an action at line %d names %r (%s)" % (line, text, symbol)
         text_words = set(words(step.text))
         if not step.targets:
             for var in step.req_vars:
@@ -1551,15 +1948,24 @@ class Grader:
                             continue  # one action does one step (findBob / findBobAgain)
                         text = next((t for t in named if same_thing("obj", symbol, t)), None)
                         if text:
+                            why = self.line_refused(step, line)
+                            if why:
+                                refused.append(why)
+                                continue
                             self.consumed.add((line, symbol))
                             return "an action at line %d uses %r, the step's item" % (line, text)
-            for text, line in self.test.action_strings.items():
-                if re.match(r"^[a-z][a-z0-9_]+$", text):
-                    own = set(words(text.replace("_", " ")))
-                    distinct = self.weak_filter(own)
-                    strong = len(distinct) >= 2 or any(len(w) >= 5 for w in distinct)
-                    if own and own <= text_words and strong:
-                        return "an action at line %d names %r, which the step's text names" % (line, text)
+            for line, named in self.test.action_lines:
+                for text in sorted(named):
+                    if re.match(r"^[a-z][a-z0-9_]+$", text):
+                        own = set(words(text.replace("_", " ")))
+                        distinct = self.weak_filter(own)
+                        strong = len(distinct) >= 2 or any(len(w) >= 5 for w in distinct)
+                        if own and own <= text_words and strong:
+                            why = self.line_refused(step, line)
+                            if why:
+                                refused.append(why)
+                                continue
+                            return "an action at line %d names %r, which the step's text names" % (line, text)
         if re.search(r"\b(buy|purchase|pick up|pickup|take|grab)\b", step.text, re.I) or \
                 OBTAIN_VERB.match((camel_words(step.name) or [""])[0]):
             # "Buy a Karamjan rum from Zembo": any buy/pickup of the rum is
@@ -1578,6 +1984,19 @@ class Grader:
                 parts = [p for p in parts if p]
                 if parts and OBTAIN_VERB.match(parts[0]) and set(words(" ".join(parts[1:]))) & wanted:
                     return "ledger row %s %r obtains it by another route" % (row["index"], row["step"])
+                # `slugling.fish3` for "Fish 5 sluglings": the step's own
+                # obtain verb and its item, in either order (a step whose
+                # npc ids the guide takes from a RuneLite enum, FishingSpot).
+                own_verb = OBTAIN_VERB.match((camel_words(step.name) or [""])[0])
+                for index, part in enumerate(parts):
+                    verb = OBTAIN_VERB.match(part)
+                    item_words = words(" ".join(parts[:index] + parts[index + 1:]))
+                    if index and verb and own_verb and verb.group(1).lower() == own_verb.group(1).lower() and \
+                            any(a.startswith(b) or b.startswith(a) for a in item_words for b in wanted
+                                if min(len(a), len(b)) >= 4) and \
+                            not self.claimed_by_other(row["step"], step):
+                        return "ledger row %s %r does the step's own %r on its item" % (
+                            row["index"], row["step"], verb.group(1).lower())
         if step.kind in ("NpcStep", "NpcEmoteStep"):
             nouns = [w.lower() for w in re.findall(r"(?<!^)(?<![.!?] )\b([A-Z][a-z]{3,})", step.text)]
             nouns = [n for n in nouns if n not in STOPWORDS]
@@ -1592,15 +2011,62 @@ class Grader:
                 row_words |= {re.sub(r"\d+$", "", w) for w in row_words}
                 hit = [n for n in nouns if n in row_words]
                 if hit:
+                    why = self.row_refused(step, row)
+                    if why:
+                        refused.append(why)
+                        continue
                     return "ledger row %s %r names %s" % (row["index"], row["step"], hit[0])
         for row in self.action_rows:
             tokens = set(re.findall(r"[a-z][a-z0-9_]+", (row["detail"] + " " + row["step"]).lower()))
             for kind, symbol in step.targets:
                 if kind == "obj" and not ROW_ACTION.search(row["detail"] + " " + row["step"]):
                     continue  # an inventory read names items too
-                hit = next((t for t in tokens if same_thing(kind, symbol, t, loose=False)), None)
+                hit = next((t for t in sorted(tokens) if same_thing(kind, symbol, t, loose=False)), None)
                 if hit:
+                    why = self.row_refused(step, row, kind, symbol, hit)
+                    if why:
+                        refused.append(why)
+                        continue
                     return "ledger row %s %r names %s" % (row["index"], row["step"], hit)
+        return None
+
+    def state_already_set(self, step, line, kind, symbol, text):
+        """A loc STATE step the guide shows only while the state is missing
+        (The Restless Ghost's openCoffinToPutSkullIn, a ConditionalStep leaf:
+        "Open the ghost's coffin" when it is shut) is satisfied by an earlier
+        press of the same op on the same loc that another step owns -- the
+        coffin opened for `openCoffin` is still open. Only open/close/lock/
+        unlock, and only a loc: a conversation or a search does not persist."""
+        if kind != "loc" or self.step_verb(step) not in STATE_OPS:
+            return None
+        if not any(step.name in other.children for other in self.guide.steps.values()):
+            return None
+        if self.test.row_name_at(line) is None or self.op_conflict(step, line, kind, symbol, text):
+            return None
+        pressed = self.test.pressed_op(line, kind)
+        pressed_name = ops_of(kind, text).get(pressed) if isinstance(pressed, int) else None
+        if op_word(pressed_name) != self.step_verb(step):
+            return None
+        return "state already set: line %d (row %r) pressed %r on %s, and the guide's ConditionalStep " \
+            "shows this step only while it is not" % (line, self.test.row_name_at(line), pressed_name, text)
+
+    def row_refused(self, step, row, kind=None, symbol=None, text=None):
+        """line_refused for a ledger row found by what it mentions: named after
+        another guide step, or its source line presses the wrong op."""
+        other = self.claimed_by_other(row["step"], step)
+        if other:
+            return "ledger row %s %r is guide step %s's own row" % (row["index"], row["step"], other)
+        line = self.row_line(row["step"])
+        if line is not None:
+            for number, named in self.test.action_lines:
+                if number != line:
+                    continue
+                for kind2, symbol2 in step.targets:
+                    for candidate in named:
+                        if same_thing(kind2, symbol2, candidate):
+                            conflict = self.op_conflict(step, line, kind2, symbol2, candidate)
+                            if conflict:
+                                return "ledger row %s %r: %s" % (row["index"], row["step"], conflict)
         return None
 
     def loc_evidence(self, symbol):
@@ -2081,7 +2547,10 @@ class Grader:
             for var in step.req_vars:
                 if symbol not in self.guide.items[var]["ids"]:
                     req_words |= set(words(self.guide.items[var]["name"]))
-            precursor = (req_words & item) if not step.targets or step.kind == "NpcStep" else set()
+            # An ItemStep that fetches the empty precursor (Clock Tower's
+            # getBucket, "fill it up on the well") when the test gives the
+            # filled item the guide's own condition skips it for.
+            precursor = (req_words & item) if not step.targets or step.kind in ("NpcStep", "ItemStep") else set()
             hit = (item if item and item <= own else set()) | precursor
             if hit:
                 return "works toward bring-along %s, which the test gives (shares %s)" % (
@@ -2156,9 +2625,21 @@ class Grader:
                              ("CHEAT", lambda: self.goto_cheat(step, driven_symbols))):
             reason = check()
             if reason:
+                if klass == "CONTENT_GAP" and re.match(r"(narrated|soft-skipped) at", reason) and \
+                        step.kind == "ObjectStep" and step.targets and \
+                        all(k == "loc" and any(w in sym for w in TRAVEL_WORDS) for k, sym in step.targets) and \
+                        not self.writes_quest_var([s for k, s in step.targets if k == "loc"]):
+                    # A ladder climb whose words happen to meet a narrating
+                    # branch (Ghosts Ahoy's goDownToMan vs "The chest is
+                    # locked.") is travel, not a narrated leg.
+                    return "TRAVEL", "travel, merged into the step it leads to (%s)" % reason
                 return klass, reason
         if self.is_travel(step):
             return "TRAVEL", "travel, merged into the step it leads to"
+        refused = self.refusals.get(step.name)
+        if refused:
+            return "UNMATCHED", "no row of its own drives it; the lines naming its target do not count: %s" % (
+                "; ".join(sorted(set(refused))[:3]))
         return "UNMATCHED", "no row, cheat or content evidence found"
 
     def grade(self):
@@ -2169,11 +2650,22 @@ class Grader:
         # (compareAnna/compareDavid: whichever suspect it is), which are one
         # step done any way, and *Fallback leaves, which are optional.
         expanded = []
+        # A leaf is graded once, where it first appears: a composite panel
+        # entry (Recruitment Drive's pwSirSpishyusStep) and the same leaves
+        # listed after it in the panel are one set of steps.
+        graded_leaves = set()
         for step in steps:
+            if step.name in graded_leaves:
+                continue
             if not step.is_composite():
+                graded_leaves.add(step.name)
                 expanded.append([step])
                 continue
-            leaves = [self.guide.steps[l] for l in self.guide.leaves(step.name)] or [step]
+            leaves = [self.guide.steps[l] for l in self.guide.leaves(step.name)
+                      if l not in graded_leaves] or ([step] if step.name not in graded_leaves else [])
+            if not leaves:
+                continue
+            graded_leaves.update(leaf.name for leaf in leaves)
             for leaf in leaves:
                 leaf.stage = leaf.stage if leaf.stage is not None else step.stage
                 leaf.panel = step.panel
@@ -2197,6 +2689,7 @@ class Grader:
         driven = {}
         driven_symbols = set()
         self.loc_uses = {}
+        self.line_credits = {}
         for step in steps:
             for leaf in members[step.name]:
                 reason = self.driven(leaf)

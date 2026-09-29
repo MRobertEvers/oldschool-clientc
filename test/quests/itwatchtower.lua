@@ -156,28 +156,13 @@ return {
         t.exec("goto-goDownFromWizard", t.player.goto_tile, 2549, 3111, 2)
         t.exec("goDownFromWizard", t.player.click_loc, "watchladderdown", 1)
         t.exec("goto-goDownFromFirstFloor", t.player.goto_tile, 2544, 3111, 1)
-        -- towerladder's floor1->ground direction read a pure pixel-hunt
-        -- FAIL in run 1 (menu plainly listed the row; poses never hit it) --
-        -- a fresh press after a short wait clears it.
-        local godown1_ok = false
-        for attempt = 1, 3 do
-            if not godown1_ok then
-                local r, d = t.player.click_loc("towerladder", 1)
-                if r == "ok" then
-                    t.step("goDownFromFirstFloor", r == "ok" and "PASS" or "FAIL", d)
-                    godown1_ok = true
-                elseif attempt == 3 then
-                    local ladder_t = t.player.by_symbol("loc", "towerladder")
-                    local op_r, op_d = t.drive.op(ladder_t, 1)
-                    t.step("goDownFromFirstFloor", op_r == "ok" and "PASS" or "FAIL",
-                        "drive.op bypass after 3 failed real presses: " .. tostring(op_d))
-                    godown1_ok = true
-                else
-                    t.note("goDownFromFirstFloor attempt " .. attempt .. ": " .. tostring(d))
-                    t.ticks(2)
-                end
-            end
-        end
+        -- The first floor's Climb-down is qip_watchtower_ladder_top (17122,
+        -- maps/m39_48.jl2 `1 48 39: 17122 10`; ladders.loc category
+        -- climb_down_ladder, maplink.dbrow maplink_1_39_48_*_down), NOT
+        -- towerladder -- that is the ground floor's Climb-up on the same
+        -- square (`0 48 39: 2833 10`), under the floor and unpickable from
+        -- here (seam26 towerladder_press, build/quest_gate/s26tl_before).
+        t.exec("goDownFromFirstFloor", t.player.click_loc, "qip_watchtower_ladder_top", 1)
         t.exec("goto-searchBush", t.player.goto_tile, 2544, 3134, 0)
         t.exec("searchBush", t.player.click_loc, "watchtowerbushnail", 1)
         t.exec("inv.fingernails", t.inv.await, "fingernails", 1, 5)
@@ -258,6 +243,12 @@ return {
         -- ================= Leave Grew's island, enter the hole south of Gu'Tanoth =================
         t.exec("goto-leaveGrewIsland", t.player.goto_tile, 2511, 3093, 0)
         t.exec("leaveGrewIsland", t.player.click_loc, "tree_ropeswing3", 1)
+        -- Let the swing's exact-move finish before the goto: a ::goto on the
+        -- swing's own ticks left the client drawing an empty (gray) scene and
+        -- the hole press projecting off it (seam26 build/quest_gate/s26tl_p3a,
+        -- the goto_clears_exactmove engine seam); four ticks later the same
+        -- goto and press land first time (s26tl_p4a).
+        t.ticks(4)
 
         -- all.loc.compack 2811=tobancave; maps/m39_46.jl2:1442 "0 3 45: 2811
         -- 10" -> world 2499,2989,0. goto ITS own tile and let click_loc's
@@ -267,25 +258,7 @@ return {
         -- player's tile and the step off it did not land" (walled in on
         -- every side but one). Approach from a neighbour instead.
         t.exec("goto-enterHoleSouthOfGuTanoth", t.player.goto_tile, 2499, 2990, 0)
-        local hole_ok = false
-        for attempt = 1, 3 do
-            if not hole_ok then
-                local r, d = t.player.click_loc("tobancave", 1)
-                if r == "ok" then
-                    t.step("enterHoleSouthOfGuTanoth", r == "ok" and "PASS" or "FAIL", d)
-                    hole_ok = true
-                elseif attempt == 3 then
-                    local hole_t = t.player.by_symbol("loc", "tobancave")
-                    local op_r, op_d = t.drive.op(hole_t, 1)
-                    t.step("enterHoleSouthOfGuTanoth", op_r == "ok" and "PASS" or "FAIL",
-                        "drive.op bypass after 3 failed real presses: " .. tostring(op_d))
-                    hole_ok = true
-                else
-                    t.note("enterHoleSouthOfGuTanoth attempt " .. attempt .. ": " .. tostring(d))
-                    t.ticks(2)
-                end
-            end
-        end
+        t.exec("enterHoleSouthOfGuTanoth", t.player.click_loc, "tobancave", 1)
 
         -- ================= Kill Gorad, pick up his tooth =================
         -- Run 1: one Attack press keeps swinging on its own, but 60 ticks
@@ -777,25 +750,8 @@ return {
         t.exec("goto-useNightshadeOnGuardAgain-down1", t.player.goto_tile, 2549, 3111, 2)
         t.exec("useNightshadeOnGuardAgain-down1", t.player.click_loc, "watchladderdown", 1)
         t.exec("goto-useNightshadeOnGuardAgain-down2", t.player.goto_tile, 2544, 3111, 1)
-        local godown2_ok = false
-        for attempt = 1, 3 do
-            if not godown2_ok then
-                local r, d = t.player.click_loc("towerladder", 1)
-                if r == "ok" then
-                    t.step("useNightshadeOnGuardAgain-down2", r == "ok" and "PASS" or "FAIL", d)
-                    godown2_ok = true
-                elseif attempt == 3 then
-                    local ladder_t2 = t.player.by_symbol("loc", "towerladder")
-                    local op_r, op_d = t.drive.op(ladder_t2, 1)
-                    t.step("useNightshadeOnGuardAgain-down2", op_r == "ok" and "PASS" or "FAIL",
-                        "drive.op bypass after 3 failed real presses: " .. tostring(op_d))
-                    godown2_ok = true
-                else
-                    t.note("useNightshadeOnGuardAgain-down2 attempt " .. attempt .. ": " .. tostring(d))
-                    t.ticks(2)
-                end
-            end
-        end
+        -- The first floor's Climb-down, as goDownFromFirstFloor above.
+        t.exec("useNightshadeOnGuardAgain-down2", t.player.click_loc, "qip_watchtower_ladder_top", 1)
         t.exec("goto-useNightshadeOnGuardAgain", t.player.goto_tile, 2507, 3036, 0)
         local guard_encl_t2 = t.player.by_symbol("npc", "enclave_guard")
         t.exec("useNightshadeOnGuardAgain", t.player.use_on, "nightshade", guard_encl_t2)

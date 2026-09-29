@@ -617,7 +617,13 @@ function QD.drive._target_tile(target)
     -- nearest copy of its id does: the camera turns to it, the step-off steps
     -- off it.  A named copy that left the pool is `not_found`, not the next
     -- copy along -- the selector's whole contract is that it never falls back.
-    if target.kind == "npc" and target.reach_element ~= nil then
+    -- SEAM ghostsahoy_harbour_door_and_lobster (seam26): and a LOC target
+    -- whose caller named its copy (click_loc/use_on's `{ at = }`,
+    -- QD.player._loc_copy) the same way.  Only `reach_named`: the reach
+    -- retry's own-square element is a press-only aim and keeps the nearest-copy
+    -- tile it was written against.
+    if target.reach_element ~= nil
+        and (target.kind == "npc" or target.reach_named ~= nil) then
         for i = 1, #rows do
             if rows[i].element_id == target.reach_element then
                 QD.drive._scan_spend(i, QD.drive._scan_cost_target)
@@ -3262,6 +3268,74 @@ QD.player._talk_page_ticks = 5
 -- refused (SEAM reach_stand_on_opt_in, inside QD.player._reach_retry).  It is
 -- off by default and a quest file that sets it owes a `-- GUIDE-GAP:` marker
 -- beside the call.  `click_loc(loc, opts)` with the op left out is op 1.
+--
+-- SEAM towerladder_press (seam26): A LOC ONLY ON A LOWER FLOOR IS NO TARGET.
+-- Measured 2026-09-28 (build/quest_gate/s26tl_before, row 2): Watchtower's
+-- `click_loc("towerladder")` from 2544,3111,1 hunted five poses, 99 pixels
+-- and three far sides for 119 ticks and failed "menu has no row for it" --
+-- every time, in three committed rows that then fell back to t.drive.op.
+-- `towerladder` (2833) is the GROUND-floor Climb-up ladder
+-- (maps/m39_48.jl2 `0 48 39: 2833 10`); the Climb-down on the first floor is
+-- a different loc on the same square, `qip_watchtower_ladder_top` (17122,
+-- `1 48 39: 17122 10`), which pressed first time (row 5).  The pool keeps
+-- every plane, so the projector found the level-0 copy under the floor, and
+-- the pick keeps a scenery hit only when its PAINT level equals the
+-- player's plane (torirs_pick.c, `reach_level != player_level`).  A paint
+-- level is the cache level except on a LinkBelow column, where it is one
+-- LOWER (cache 0 parks at 3; World_LocPaintLevel) -- so a copy on the
+-- player's plane, one plane above it (a bridge deck), or cache 0 under a
+-- level-3 player can be pickable, and nothing else can.  When no copy in the
+-- pool is one of those, this answers (not_visible, "other_floor: ...")
+-- naming the floor the copies are on and the locs on the player's floor at
+-- the nearest copy's square; otherwise nil, and click_loc goes on as before.
+-- Asked only after the first press failed, so a press that works pays nothing.
+function QD.player._loc_other_floor(target, loc)
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" or type(player) ~= "table" or player.level == nil then
+        return nil
+    end
+    QD.drive._scan_why = "click_loc other-floor check " .. tostring(loc)
+    local rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_near)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_near)
+    local nearest = nil
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.loc_id == target.id or row.resolved_loc_id == target.id then
+            local level = row.level
+            if level == player.level or level == player.level + 1
+                or (level == 0 and player.level == 3) then
+                return nil
+            end
+            if nearest == nil then
+                nearest = row
+            end
+        end
+    end
+    if nearest == nil then
+        return nil
+    end
+    local here = {}
+    local seen = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.x == nearest.x and row.z == nearest.z and row.level == player.level
+            and not seen[row.loc_id] then
+            seen[row.loc_id] = true
+            local name_result, name = api_drive.symbol_name("loc", row.loc_id)
+            here[#here + 1] = name_result == "ok" and name or ("loc " .. tostring(row.loc_id))
+        end
+    end
+    local on_square = #here > 0 and table.concat(here, ", ") or "nothing"
+    return "not_visible", string.format(
+        "other_floor: %s has no copy a press on level %d can pick -- nearest %d,%d is on level %d"
+            .. " (torirs_pick.c keeps scenery only on the player's paint level); on level %d at %d,%d: %s",
+        tostring(loc), player.level, nearest.x, nearest.z, nearest.level,
+        player.level, nearest.x, nearest.z, on_square)
+end
+
 function QD.player.click_loc(loc, op, opts)
     if type(op) == "table" and opts == nil then
         opts = op
@@ -3271,6 +3345,16 @@ function QD.player.click_loc(loc, op, opts)
     local target, sym_result, sym_name = QD.player.by_symbol("loc", loc)
     if not target then
         return sym_result, sym_name
+    end
+    -- The loc selector (seam26): `{ at = {x, z[, level]} }` names the copy;
+    -- without it the nearest copy answers exactly as before.  The target is
+    -- this verb's own table, so nothing has to be cleared off it after.
+    if type(opts) == "table" and opts.at ~= nil then
+        local copy_result, copy_detail = QD.player._loc_copy(target, opts)
+        if copy_result ~= "ok" then
+            return copy_result, "click_loc " .. tostring(loc) .. ": " .. tostring(copy_detail)
+        end
+        QD.note("click_loc " .. tostring(loc) .. ": pressed " .. copy_detail)
     end
     -- A multiloc resolution is a fact about the click, so it goes in the row:
     -- the reader has to be able to tell "Search on the coffin" from "Search on
@@ -3326,6 +3410,15 @@ function QD.player.click_loc(loc, op, opts)
     -- nothing older (QD.player._reach_verify).
     local before_serial_result, before_serial = api_drive.message_serial()
     local click_result, click = QD.drive.click_minimenu(target, op)
+    -- SEAM towerladder_press (seam26): a loc whose every copy is BELOW the
+    -- player's floor is never pickable -- say so, and name what IS on this
+    -- floor, before the far-side walks spend another sixty ticks on it.
+    if click_result ~= "ok" then
+        local floor_result, floor_detail = QD.player._loc_other_floor(target, loc)
+        if floor_result ~= nil then
+            return floor_result, floor_detail .. " -- first press: " .. tostring(click)
+        end
+    end
     local side = 1
     while click_result == "covered" and side <= QD.player._far_side_attempts do
         -- Five camera poses found no row for it and the player is within a
@@ -3373,6 +3466,15 @@ function QD.player.click_loc(loc, op, opts)
         return QD.player._settle_after_click(20, retry_kind, retry_text)
     end, opts)
     if reach_tried > 0 then
+        return result, detail
+    end
+    -- A NAMED copy's evidence is that copy, not the nearest one (seam26).
+    if result == "timeout" and target.reach_named ~= nil then
+        local named_result = QD.drive._target_tile(target)
+        if named_result ~= "ok" then
+            return "ok", tostring(loc) .. " element " .. tostring(target.reach_named)
+                .. " left the pool (no event; the named copy changed)"
+        end
         return result, detail
     end
     if result ~= "timeout" or before_result ~= "ok" or before_tile_result ~= "ok" then
@@ -4071,6 +4173,30 @@ function QD.player.use_on(item, target, opts)
             QD.player._use_on_silent_effect(inv_before, settle_detail)
     end
     return settle_result, settle_detail
+end
+
+-- The loc selector on use_on (seam26, QD.player._loc_copy): `{ at = {x, z
+-- [, level]} }` names the copy of a LOC target the item is used on.  The
+-- target is the caller's table, so the name is cleared the moment the verb
+-- answers, whatever it answered.  An npc target keeps its own path unchanged;
+-- `at` on one is the caller's bug (use_on has no npc selector) and raises.
+QD.player._use_on_any_copy = QD.player.use_on
+function QD.player.use_on(item, target, opts)
+    if type(opts) ~= "table" or opts.at == nil then
+        return QD.player._use_on_any_copy(item, target, opts)
+    end
+    assert(type(target) == "table" and target.kind == "loc",
+        "use_on: the { at = } selector names a LOC copy; this target is not a loc")
+    local copy_result, copy_detail = QD.player._loc_copy(target, opts)
+    if copy_result ~= "ok" then
+        QD.player._loc_copy_clear(target)
+        return copy_result, "use_on " .. tostring(target.symbol or target.id) .. ": "
+            .. tostring(copy_detail)
+    end
+    QD.note("use_on " .. tostring(target.symbol or target.id) .. ": pressed " .. copy_detail)
+    local result, detail = QD.player._use_on_any_copy(item, target, opts)
+    QD.player._loc_copy_clear(target)
+    return result, detail
 end
 
 -- SEAM use_on_silent_effect (2026-09-21) -- A PRESS WHOSE ONLY EFFECT IS IN
@@ -5388,8 +5514,21 @@ function QD.player._reach_candidates(target)
     -- to somewhere no press can reach from, and that copy's own square is an
     -- ordinary floor tile down here.
     copies = QD.drive._same_level_rows(copies)
+    -- A named copy (seam26, QD.player._loc_copy): its own approach tiles
+    -- only -- the neighbours of another copy are a press on that copy.  The
+    -- other copies still mark their squares occupied.
+    local named_copies = nil
+    if target.reach_named ~= nil then
+        named_copies = {}
+    end
     for i = 1, #copies do
+        if named_copies ~= nil and copies[i].element_id == target.reach_named then
+            named_copies[#named_copies + 1] = copies[i]
+        end
         occupied[tostring(copies[i].x) .. "," .. tostring(copies[i].z)] = true
+    end
+    if named_copies ~= nil then
+        copies = named_copies
     end
     if #copies == 0 then
         -- Nothing in the pool carries this id under either name.  The target
@@ -5595,7 +5734,14 @@ end
 -- `covered` that names the copy, never a press on the ranked one.
 function QD.drive._named_npc_estimate(target, pos)
     local fallback = { x = pos.x, y = pos.y, element_id = target.reach_element }
-    local rows_result, rows = api_drive.npcs(0)
+    local rows_result, rows
+    if target.kind == "loc" then
+        -- A named loc copy (seam26): the scenery pool, metered.
+        QD.drive._scan_why = "a named loc copy's estimate"
+        rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
+    else
+        rows_result, rows = api_drive.npcs(0)
+    end
     local player_result, player = api_drive.player_tile()
     local drawn_result, drawn = api_drive.screen_position("player", -1)
     if rows_result ~= "ok" or type(rows) ~= "table" or player_result ~= "ok"
@@ -5708,8 +5854,13 @@ end
 -- press/talk_to (QD.player._npc_copy + _click_npc_copy, seam13), and cleared the moment
 -- their press is taken.
 function QD.drive._aim_at_named_copy(target, pos, deadline)
-    if target.kind == "npc" and target.reach_element ~= nil and type(pos) == "table"
+    if (target.kind == "npc" or target.reach_named ~= nil)
+        and target.reach_element ~= nil and type(pos) == "table"
         and pos.element_id ~= target.reach_element then
+        -- A named LOC copy (seam26, QD.player._loc_copy) is the npc case too:
+        -- the projector frames the copy nearest the PLAYER (often the one
+        -- underfoot, on stepping stones), so the named one has to be faced
+        -- and hunted for, not assumed to share the ranked copy's pixel.
         return QD.drive._aim_at_named_npc(target, pos, deadline)
     end
     local aimed = QD.drive._named_copy_pos(target, pos)
@@ -5752,7 +5903,7 @@ function QD.drive._aim_at_named_npc(target, pos, deadline)
         element_id = estimate.element_id }
     local hovered, why = QD.drive._hover_onto(target, below, deadline)
     if hovered then
-        QD.note("click_minimenu: aimed at the named npc copy (element "
+        QD.note("click_minimenu: aimed at the named " .. tostring(target.kind) .. " copy (element "
             .. tostring(target.reach_element) .. ", estimate " .. tostring(how)
             .. ") -- " .. tostring(why))
         return hovered
@@ -5760,7 +5911,7 @@ function QD.drive._aim_at_named_npc(target, pos, deadline)
     local around = { x = pos.x, y = pos.y, element_id = target.reach_element }
     local hovered2, why2 = QD.drive._hover_onto(target, around, deadline)
     if hovered2 then
-        QD.note("click_minimenu: aimed at the named npc copy (element "
+        QD.note("click_minimenu: aimed at the named " .. tostring(target.kind) .. " copy (element "
             .. tostring(target.reach_element) .. ") beside the projected element "
             .. tostring(pos.element_id) .. " -- " .. tostring(why2))
         return hovered2
@@ -5964,10 +6115,13 @@ function QD.player._reach_retry(target, result, detail, press, opts)
                 -- standing on.  nil for every other candidate: a neighbour
                 -- tile has no copy to name and the projection's own answer is
                 -- the right one there.
-                target.reach_element = want.own and want.element_id or nil
+                -- A copy the CALLER named (seam26, QD.player._loc_copy) stays
+                -- named on every retry press: `reach_named` is nil otherwise,
+                -- and this is the line it always was.
+                target.reach_element = want.own and want.element_id or target.reach_named
                 result, detail = press()
                 target.reach_no_standoff = nil
-                target.reach_element = nil
+                target.reach_element = target.reach_named
                 if serial_result == "ok" then
                     result, detail = QD.player._reach_verify(result, detail, since)
                 end
@@ -6647,6 +6801,83 @@ function QD.player._click_npc_copy(target, op, copy_text)
     assert(type(click) ~= "table" or click.element_id == named,
         "named npc press landed on another element")
     return click_result, click
+end
+
+-- ==========================================================================
+-- SEAM ghostsahoy_harbour_door_and_lobster (seam26) -- THE LOC SELECTOR.
+--
+-- click_loc/use_on took only a SYMBOL, and the copy a symbol presses is the
+-- one DrivePointer_ScreenPosition ranks nearest the PLAYER.  On stepping
+-- stones that is the stone underfoot: Ghosts Ahoy's rock route off the
+-- shipwreck is ten copies of `ahoy_rock_invisible` two or three tiles apart
+-- (maps/m56_55.jl2, loc 16115), and every Jump-to re-landed the player where
+-- he stood -- eleven `ok` jumps and no progress
+-- (build/seam_state/seam25/wreck, run s25wk_door1 rows 6-16).
+--
+-- `{ at = {x, z[, level]} }` (or `{ at = {x = , z = [, level = ]} }`) names
+-- the copy by its TILE, the way talk_to's npc selector does.  The copy's
+-- client element id rides on the target as `reach_element` (the press aims
+-- by it and _press_row matches its menu row on it) and `reach_named` (the
+-- tile _target_tile answers, the approach tiles _reach_candidates walks, and
+-- the element every reach-retry press keeps naming).  A selector matching no
+-- live copy answers `no_row` naming the copies it did see; it NEVER falls
+-- back to the nearest copy.  A malformed selector is the caller's bug and
+-- raises (_npc_copy's rule).
+function QD.player._loc_copy(target, opts)
+    assert(type(opts) == "table", "loc selector must be a table: { at = {x, z[, level]} }")
+    local at = opts.at
+    assert(at ~= nil, "loc selector names no copy: give at = {x, z[, level]}")
+    assert(opts.slot == nil, "loc selector: a loc has no slot, give at = {x, z[, level]}")
+    assert(type(at) == "table", "loc selector at must be {x, z[, level]}")
+    local want_x = at.x or at[1]
+    local want_z = at.z or at[2]
+    local want_level = at.level or at[3]
+    assert(type(want_x) == "number", "loc selector at has no x")
+    assert(type(want_z) == "number", "loc selector at has no z")
+    local want = string.format("at %d,%d", want_x, want_z)
+    if want_level ~= nil then
+        want = want .. "," .. tostring(want_level)
+    end
+    QD.drive._scan_why = "a named loc copy"
+    local rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return rows_result, "the loc pool did not answer"
+    end
+    QD.drive._scan_spend(#rows, QD.drive._scan_cost_target)
+    local chosen = nil
+    local seen = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.loc_id == target.id or row.resolved_loc_id == target.id then
+            if row.x == want_x and row.z == want_z
+                and (want_level == nil or row.level == want_level) then
+                chosen = chosen or row
+            elseif #seen < QD.player._loc_copy_listed then
+                seen[#seen + 1] = string.format("%d,%d,%d", row.x, row.z, row.level or -1)
+            end
+        end
+    end
+    if chosen == nil then
+        return "no_row", "no copy of " .. tostring(target.symbol or target.id) .. " " .. want
+            .. " (nearest copies: " .. (#seen > 0 and table.concat(seen, "; ") or "none")
+            .. ") -- nothing pressed; a selector never falls back to another copy"
+    end
+    target.reach_element = chosen.element_id
+    target.reach_named = chosen.element_id
+    return "ok", string.format("the copy at %d,%d,%d (element %s)",
+        chosen.x, chosen.z, chosen.level or -1, tostring(chosen.element_id))
+end
+
+-- How many other copies a `no_row` from the loc selector lists (nearest
+-- first -- the pool comes nearest-first).
+QD.player._loc_copy_listed = 6
+
+-- Clears what QD.player._loc_copy put on a target.  use_on's target is the
+-- caller's own table and is reused across verbs, so the name must not outlive
+-- the press it was given for.
+function QD.player._loc_copy_clear(target)
+    target.reach_element = nil
+    target.reach_named = nil
 end
 
 -- Every npc-pool row carrying `target`'s id, keyed by the CLIENT ELEMENT ID

@@ -4909,11 +4909,39 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * The name the CLIENT shows for this npc, which for a multinpc shell is its
+     * resolved child's: a spawn row names the shell (`[pilot_white_wolf]`,
+     * `[avan]`), every shell is nameless in the cache, and the gated accessor
+     * answers "Someone" for it -- so every chat header a shell spoke read
+     * "Someone" while the menu said "Captain Bleemadge". The same child-first
+     * read `npc_menu_verb` makes for the verb, and just as narrow: it picks a
+     * STRING, never the script. A child that is hidden (-1) or nameless falls
+     * back to the base row, placeholder and all.
+     *
+     * The reference client names a multinpc the same way: Client.createNpcMenu
+     * (rs317client/src/com/jagex/Client.java:1132) calls
+     * `definition.morph()` -- the varbit/varp transform walk,
+     * NpcDefinition.java:282 -- before `getName()`. Selftest: "a multinpc
+     * speaker's chat header is its child's name".
+     */
     case SS_OP_NPC_NAME:
     {
         struct ToriRSServerNpc* npc = active_npc_readable(state);
+        const char* name = "";
 
-        SSVM_PushStr(state, npc ? ToriRSServer_NpcInfo(npc->type)->name : "");
+        if( npc )
+        {
+            /* An npc-only script (an [ai_*] with no player bound) has no
+             * varps to resolve against, so it names the spawned row. */
+            int child = player ? ToriRSServer_NpcResolveTransform(player, npc->type) : npc->type;
+
+            if( child >= 0 && child != npc->type && ToriRSServer_NpcInfoKnown(child) )
+                name = ToriRSServer_NpcInfo(child)->name;
+            else
+                name = ToriRSServer_NpcInfo(npc->type)->name;
+        }
+        SSVM_PushStr(state, name);
         return 1;
     }
 

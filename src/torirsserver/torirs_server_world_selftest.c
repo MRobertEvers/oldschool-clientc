@@ -15926,6 +15926,128 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a multinpc speaker's chat header is its child's name\n");
+    {
+        /*
+         * `npc_name` names the record the CLIENT drew, which for a multinpc
+         * shell is the child the player's varps pick (rs317client
+         * Client.createNpcMenu: `definition = definition.morph()` before
+         * `getName()`). Every shell is nameless in the cache, so reading the
+         * spawned record put "Someone" in the header of 318 multinpc speakers
+         * while the menu over the same npc said "Talk-to Avan".
+         *
+         * Avan is the subject because his two children disagree: `crestquest`
+         * 0..5 picks avan_fitzharmon_man ("Man"), 6..11 an
+         * avan_fitzharmon_avan_* child ("Avan"). A static name on the shell
+         * could satisfy one stage, never both. Stage 0 and stage 6 both open on
+         * a `~chatnpc_anim` page (crest_avan.rs2 `avan_talk`, `avan_gold`), so
+         * the first page's IF_SETTEXTs carry the header either way.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct ToriRSServerCapture capture;
+            static const struct
+            {
+                int stage;
+                const char* want;
+            } k_stages[] = {
+                { 0, "Man" },
+                { 6, "Avan" },
+            };
+            int avan_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "avan");
+            int crestquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "crestquest");
+            int settext = ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_SETTEXT);
+            /* Both random streams go back where they were found: a spawn and a
+             * dialogue draw from them, and the combat section's goblin fight
+             * is a seeded walk that fails eight rows when this stanza shifts
+             * its stream (measured: 6 -> 13 failures without the restore). */
+            uint32_t saved_rng = srv->rng;
+            uint64_t saved_script_rng = srv->script_env->rng;
+
+            SELFTEST_CHECK(avan_type > 0, "npc avan should resolve by name");
+            SELFTEST_CHECK(crestquest >= 0, "varp crestquest should resolve by name");
+            if( avan_type > 0 && crestquest >= 0 )
+            {
+                int32_t saved = player->varps[crestquest];
+
+                SELFTEST_CHECK(!ToriRSServer_NpcInfoKnown(avan_type),
+                               "the avan shell is nameless in the cache, which is "
+                               "the whole bug");
+                for( size_t i = 0; i < sizeof(k_stages) / sizeof(k_stages[0]); i++ )
+                {
+                    int slot;
+                    int child;
+                    int saw_want = 0;
+                    int saw_someone = 0;
+
+                    selftest_clear_pending(srv, player);
+                    player->varps[crestquest] = k_stages[i].stage;
+                    child = ToriRSServer_NpcResolveTransform(player, avan_type);
+                    SELFTEST_CHECK(child >= 0 && child != avan_type &&
+                                       ToriRSServer_NpcInfoKnown(child) &&
+                                       strcmp(ToriRSServer_NpcInfo(child)->name,
+                                              k_stages[i].want) == 0,
+                                   "crestquest %d should resolve avan to a child "
+                                   "named '%s', got %d '%s'",
+                                   k_stages[i].stage, k_stages[i].want, child,
+                                   child >= 0 ? ToriRSServer_NpcInfo(child)->name : "");
+
+                    slot = ToriRSServer_WorldNpcSpawn(
+                        srv, avan_type, player->x + 1, player->z, player->level);
+                    SELFTEST_CHECK(slot >= 0, "avan spawns beside the player");
+                    if( slot < 0 )
+                        continue;
+                    srv->npcs[slot].spawn_pending = 0;
+
+                    ToriRSServer_CaptureBegin(srv, &capture);
+                    SELFTEST_CHECK(
+                        ToriRSServer_ScriptsRunTrigger(
+                            srv, SS_TRIGGER_OPNPC1, avan_type, -1, slot) ==
+                            TORIRSSERVER_TRIGGER_RAN,
+                        "[opnpc1,avan] should run at crestquest %d", k_stages[i].stage);
+                    ToriRSServer_CaptureEnd(srv);
+
+                    for( int p = 0; p < capture.count; p++ )
+                    {
+                        const char* text;
+
+                        if( capture.packets[p].opcode != settext )
+                            continue;
+                        text = selftest_settext_text(srv, &capture.packets[p]);
+                        if( !text )
+                            continue;
+                        if( strcmp(text, k_stages[i].want) == 0 )
+                            saw_want = 1;
+                        if( strcmp(text, "Someone") == 0 )
+                            saw_someone = 1;
+                    }
+                    SELFTEST_CHECK(saw_want,
+                                   "at crestquest %d the chat header should read '%s'",
+                                   k_stages[i].stage, k_stages[i].want);
+                    SELFTEST_CHECK(!saw_someone,
+                                   "at crestquest %d no header may read 'Someone'",
+                                   k_stages[i].stage);
+
+                    selftest_clear_pending(srv, player);
+                    ToriRSServer_WorldNpcFree(srv, slot);
+                }
+                player->varps[crestquest] = saved;
+            }
+            srv->rng = saved_rng;
+            srv->script_env->rng = saved_script_rng;
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: a talking npc holds still until you walk away\n");
     {
         /*
