@@ -24,7 +24,7 @@ quest_coldwar	coldwar	coldwar		4	todo
 quest_contact	contact	contact		4	todo		
 quest_cook	cooks_assistant	cooksassistant		1	green	sonnet-b15	
 quest_corsaircurse	corsaircurse	thecorsaircurse		4	todo		
-quest_crest	crest	familycrest		2	todo	sonnet-b31	REJECTED (sonnet-b31): author gave up with 0 runs (context compacted twice); crest.lua is unmodified and still ends at t.blocked content_bug for enterWitchavenDungeon, which seam25 (200d127cb) fixed: the live re-run shows the player at 2696,9683,0 (inside the dungeon) after clicking slug2_ruin_entrance, so the blocker is stale. RE-AUTHOR from row enterWitchavenDungeon on (adapt build/seam_state/seam25/crest_proof/crest.lua, inline door/lever helpers): levers, mine goldrock2, smelt, craft perfect ruby necklace/ring, Avan, Johnathon, Chronozon, Dimintheis, expect_complete.
+quest_crest	crest	familycrest		2	green	sonnet-b32	
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
@@ -113,7 +113,7 @@ quest_murder	murder	murdermystery		1	green	sonnet-b15
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo	sonnet-b31	REJECTED (sonnet-b31): author gave_up (compacted, runs=0, no edits). The committed file (55b93c493) still ends at a STALE t.blocked content_bug claiming Bleemadge's pilot_white_wolf trigger is dead code; verified live this review: gnome_glider.rs2:28 ([opnpc1,pilot_white_wolf] -> osf_bleemadge_talk) is in HEAD (d761e8e238) and the click reaches onesmallfavour_relay.rs2:173 ('Right-o, Captain Bleemadge?'); the file simply stands wrong (needs stand 2847,3499 + t.ticks and the tea brewed first) and misreports it. Stages 80..285 (tea, Arhein, Phantuwti, goblin cave wall, Cromperty, Tindel, Rantz, Gnormadium, Slagilith, Petra, weathervane/anvil, Hammerspike gang, pot lid, Apothecary, Horvik, Seth, Johanhus, Aggie, Brian, Forester, Yanni) are undriven, plus 21 stale GUIDE-GAP lines citing dead relay.rs2:165, missing ::give hammer 1. RE-AUTHOR from stage 75 per the author notes in build/author_state/sonnet-b31/onesmallfavour.author.progress.md.
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	content_bug	sonnet-b32	fixAllLamps is a narrated stage: the Gnormadium lamp branch (onesmallfavour_relay.rs2:~333) narrates via ~mesbox and sets all light bits, %fixedlandinglights=255 and %all_lights_fixed itself instead of the player fixing the lamps; the lua drives it through dialogue under a GUIDE-GAP marker.
 quest_pandemonium	pandemonium	pandemonium		4	todo		
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
@@ -166,7 +166,7 @@ quest_tbwt	tbwt	taibwowannaitrio		3	todo
 quest_tearsofguthix	tearsofguthix	tearsofguthix		1	green	sonnet-b17	
 quest_templeoftheeye	templeoftheeye	templeoftheeye		4	todo		
 quest_theeyesofglouphrie	theeyesofglouphrie	theeyesofglouphrie		4	todo		
-quest_thefeud	thefeud	thefeud		2	todo	sonnet-b31	RE-AUTHOR after 75a234743: the guide's two villager talks (stages 25/26, feud_villagers.rs2) are ported and now GATE the Bandit Leader, and helper_coverage no longer credits them off the pickpocket row -- start from build/seam_state/seam26/feud_villager_talks/thefeud.lua (208/208 on the seam26 content); still to fix before it can commit: empty-detail PASS rows carpet-landed and safe-open (give each its own detail), buyDisguiseGear/createDisguise GUIDE-GAP markers (feud_recruitment.rs2:218), blackjackVillager must press Lure/Knock-out or carry a GUIDE-GAP (feud_recruitment.rs2:292), givenDungToHag GUIDE-GAP (feud_traitor.rs2:166); the committed file's heist-door t.blocked stands | START FROM build/seam_state/seam26/feud_villager_talks/thefeud.lua (208/208 on the seam26 pack): give carpet-landed and safe-open their own details, add GUIDE-GAP markers for buyDisguiseGear/createDisguise, blackjackVillager and givenDungToHag, keep everything else
+quest_thefeud	thefeud	thefeud		2	green	sonnet-b32	
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
