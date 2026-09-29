@@ -221,6 +221,10 @@ enum
      * stream's own TORIRSSERVER_TRACKED_NPC_MAX.
      */
     TORIRSSERVER_NPC_MAX = 4096,
+    /* Spawn keys `npc_seed_lives` remembers. A full probe window recycles its
+     * home entry, so a key that ages out seeds as a first life again: a
+     * repeated stream, never a crash. */
+    TORIRSSERVER_NPC_SEED_LIVES = 1024,
     TORIRSSERVER_TRACKED_NPC_MAX = 255,
 
     /*
@@ -4360,6 +4364,21 @@ struct ToriRSServer
      *  right now, or NULL between scripts. Lets a script that runs another
      *  script synchronously hand the VM register back intact. */
     struct ToriRSServerRandomStream* script_random_loaded;
+
+    /** How many npcs have LEFT each spawn key (tile, plane, type): the
+     *  `life` `npc_random_seed` mixes in. Without it every npc allocated on a
+     *  key whose last holder was freed (a `::spawn`, a content `npc_add`, a
+     *  boss re-spawned for a second attempt) replayed the identical stream,
+     *  so its drop was a function of how many draws the fight used: 40
+     *  `::spawn imp` kills at one tile gave 14 beads and never a yellow one
+     *  (seam29). Counted at free, so a key that never loses an npc (every
+     *  boot spawn; a respawn keeps its struct) seeds exactly as before. Open
+     *  addressing; key 0 is empty (every spawn key has bit 62 set). */
+    struct
+    {
+        uint64_t key;
+        uint32_t lives;
+    } npc_seed_lives[TORIRSSERVER_NPC_SEED_LIVES];
 
     /** Selftest affordance: nonzero means scripts draw straight from
      *  `script_env->rng` as the test seeded it (`SSVM_EnvSeed`), with no

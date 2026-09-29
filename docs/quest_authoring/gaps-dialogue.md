@@ -324,6 +324,11 @@ run. Do not rely on the floor: the linter is the rule.
 
 ## A `|` in a page's text: a manual line break that the client draws as a glyph
 
+FIXED seam29: `~chat_layout` (chat.rs2) turns every `|` into a real row break and pages text longer
+than the box; the page text now carries `<br>` where the `|` was, and the stripped text chat.play
+matches has NO separator there (`'here,but'`), so an entry must stop inside one row. See
+verbs-chat: A long line is more than one page. The rest of this section is the pre-seam29 behaviour.
+
 *Origin: sample sonnet-b34 (2026-09-29): elena, grandtree, hazeelcult.*
 
 Ported LostCity content writes a manual line break as `|` inside `~chatnpc`/`~chatplayer`/`~mesbox`

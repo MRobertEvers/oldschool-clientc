@@ -313,7 +313,7 @@ return {
         t.exec("talkToKingAfterFight-dialog-4", t.chat.play, {
             "npc:We found Glough", "player:That's what I've been trying to tell you", "npc:I..I don't know what to say",
             "npc:Guard! Call off", "npc:The humans are not attacking", "npc:Yes sir", "npc:You have my full apologies",
-            "npc:And my gratitude", "npc:A reward will have to wait", "end" })
+            "npc:And my gratitude", "npc:A reward will have to wait", "npc:Help us search, we have little time!", "end" })
         t.ticks(2)
         t.expect("quest.stage.searching_daconia", t.quest.expect_stage("searching_daconia"))
 

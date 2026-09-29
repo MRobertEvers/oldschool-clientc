@@ -154,7 +154,15 @@ return {
         })
         t.expect("quest.stage.entered_ogre_fight", t.quest.expect_stage("entered_ogre_fight"))
 
-        -- GUIDE-GAP: talkToSammy the arena Sammy draws as sammy_servil_vis_noop (no Talk-to op in the cache), so [opnpc1,sammy_servil_arena] is unreachable at sammy_servil.rs2:36
+        -- talkToSammy: the arena Sammy (an owner-private sammy_servil_vis with the cache's
+        -- Talk-to, placed by ~arena_spawn_sammy) -- [opnpc1,sammy_servil_vis] at stage 6
+        -- (sammy_servil.rs2; LostCity jeremy_servil.rs2:26) asks where Justin is and resumes the round
+        t.exec("talkToSammy", t.player.talk_to, "sammy_servil_vis")
+        t.exec("talkToSammy-dialog", t.chat.play, {
+            "player:Sammy, where's your father?",
+            "npc:Quick, help him!",
+        })
+        t.expect("quest.stage.entered_ogre_fight-2", t.quest.expect_stage("entered_ogre_fight"))
         -- killOgre: the round already began when the gate opened (the ogre is private to the player)
         t.exec("killOgre", t.player.attack, "arena_ogre", 2, 20)
         t.exec("killOgre.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 50 } })

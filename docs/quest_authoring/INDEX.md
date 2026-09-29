@@ -7,6 +7,7 @@ topic file with one line added here.
 
 ## Travel and finding things
 
+- Ikov: `walk_to` times out at x=2644 going east from the lever; thrown back west on the lava bridge -> gaps-world: Temple of Ikov
 - `screen_position`/`not_visible`/`no_row` from `talk_to`; `goto` does not parse; where an npc is -> start-and-travel: `goto_tile` before; traps-13-22: Trap 13
 - `screen_position: <reason>`, `not_found` one tile from an npc -> traps-13-22: Trap 19
 - where is this LOC placed (`loc_add`); a `loc_near -> not_found` sweep -> traps-23-33: Trap 29; gaps-world: A LOC's tile
@@ -33,6 +34,8 @@ topic file with one line added here.
 
 ## Pressing and clicking
 
+- `click_obj` op 5 answers covered/no row on a knife; picking one obj from a drop pile -> verbs-pointer: `t.player.click_obj`
+- `talk_to` `refused -- the client said 'I can't reach that!'` -> traps-23-33: Trap 26 (FIXED seam29)
 - `covered` -> traps-13-22: Trap 21; gaps-dialogue: `covered`: step-off and other sides
 - `none of 83 pixels hittested`, `hunted pose 1 (reach 99)` -> traps-13-22: Trap 21
 - `the world is not picking`, `(gate at x,y: why)`, `yaw N framed nothing in 5 poses` -> traps-13-22: `the world is not picking`
@@ -65,6 +68,8 @@ topic file with one line added here.
 
 ## Dialogue and chat
 
+- a `|` drawn inside a line (`find the|helmet`); `chat.play` meets an extra page (`npc:together.`) -> verbs-chat: A long line is more than one page
+- a Talk-to missing on a multinpc shell drawn as a `*_noop` form (Fight Arena's Sammy) -> gaps-world: A multinpc shell whose every visible child
 - `expected kind=npc, got player` -> traps-13-22: Trap 18
 - `no_row` from `choose:` -> traps-01-12: Trap 3
 - `mismatch` on an em dash; no `player:` echo -> gaps-dialogue: A `choose:` is not always followed
@@ -89,11 +94,13 @@ topic file with one line added here.
 - an overhead `npc_say` -> gaps-world: A fight is a wait; verbs-pointer: Four outcomes
 - a book -> verbs-ui-and-npc: Readable books
 - `msg.await` FAILs on a line already in chat -> gaps-dialogue: `t.msg.await` never sees
-- a `|` glyph mid-line in a dialogue shot; an entry spanning a line break fails -> gaps-dialogue: A `|` in a page's text
+- a `|` glyph mid-line in a dialogue shot; an entry spanning a line break fails -> gaps-dialogue: A `|` in a page's text (FIXED seam29)
 - page count before a menu unknown; an answer-any-dialogue row; a `conv()` helper to unroll -> verbs-chat: A page count you do not know
 
 ## Items, held ops and shops
 
+- a bucket on a sink/pump answers "Nothing interesting happens." -> gaps-world: A sink or water pump (FIXED seam29)
+- a book page, journal line or dial letter proved only by a PNG -> verbs-ui-and-npc: `t.ui.text` / `t.ui.expect_text`
 - `inv.count` reads the OLD count -> traps-23-33: Trap 24; Trap 25; gaps-dialogue: `t.settle()` does not
 - `setup.::give ...` FAIL -> traps-23-33: Trap 23
 - fourteen slots of tutorial kit -> start-and-travel: Inventory
@@ -131,6 +138,8 @@ topic file with one line added here.
 
 ## Fights
 
+- player hits missing on an npc for several ticks mid-attack (Melzar, trolls, KBD) -> seam-facts: Seam pass 29 (b)
+- every `::spawn`/`npc_add` of one npc on one tile drops the same loot -> seam-facts: Seam pass 29 (a)
 - `hp no bar -> no bar`, splats only on the player -> traps-23-33: Trap 31
 - `I'm already under attack.` -> verbs-combat: `refused`, meaning two; gaps-combat: `::passive`; seam-facts: Seam pass 22, (g)
 - attack `refused` `I can't reach that!` -> verbs-combat: Attack fights ONE copy
@@ -195,6 +204,8 @@ topic file with one line added here.
 
 ## Harness and runs
 
+- `setup.::wield <item> FAIL`; a `::wield` that printed Usage -> seam-facts: Seam pass 29 (e)
+- prove content against HEAD without editing the shared tree -> seam-facts: Seam pass 29 (c)
 - a second `run.py` refuses -> running: The failure block
 - `sscompile` takes minutes -> running: `--no-build` still pays; gaps-combat: `sscompile` contention
 - `setup.::setlevel ...` FAIL -> running: `run.py --script` runs setup
@@ -218,6 +229,8 @@ topic file with one line added here.
 
 ## Content-side facts (content_bug reports, reviewers)
 
+- `multinpc_shells.csv` rung labels (`0=` is multinpc1, `N+=`) -> traps-23-33: Trap 28
+- a garbled note text ("bncket of nnilk") that is the real game's -> seam-facts: Seam pass 29 (f)
 - a child-symbol `[opnpc1]` is dead code -> traps-13-22: Trap 19; The fix idiom
 - `mes()` over 252/199 chars; `cannot be declared in a var-u8 length` -> traps-23-33: Trap 27
 - `.loc_find` + `.loc_change` aborts -> traps-23-33: `.loc_find` does not exist
@@ -246,6 +259,6 @@ topic file with one line added here.
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
-- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-28); a seam number in a verb or trap dates that behaviour
+- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-29); a seam number in a verb or trap dates that behaviour
 - samplers: b31, b32, b34 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`

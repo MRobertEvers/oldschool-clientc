@@ -175,6 +175,7 @@ return {
             "choose:Ask about the outpost.",
             "player:Ask about the outpost.",
             "npc:My great-grandfather lived there",
+            "npc:opens.",
             "npc:Perhaps you'll have better luck",
         })
         t.expect("haveKey", t.inv.await("makinghistory_key", 1, 10))
@@ -338,6 +339,7 @@ return {
         t.exec("talkToJorral-handin-dialog", t.chat.play, {
             "player:I've learned everything I can about the outpost's history.",
             "npc:This is remarkable!",
+            "npc:Guthix.",
             "npc:One of them went on to found Ardougne's monarchy.",
             "npc:This building isn't just old stone",
             "npc:I've written it all down for King Lathas.",

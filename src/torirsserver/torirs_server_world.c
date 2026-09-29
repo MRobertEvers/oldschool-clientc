@@ -180,19 +180,73 @@ random_seed(
 }
 
 /*
+ * What an npc IS, as a spawn key: its spawn tile and plane and its type. The
+ * slot is deliberately not in it -- a spawn row added anywhere shifts every
+ * later slot. Bit 62 keeps every key nonzero (0 is `npc_seed_lives`' empty).
+ */
+static uint64_t
+npc_spawn_key(const struct ToriRSServerNpc* npc)
+{
+    return ((uint64_t)(uint32_t)npc->spawn_x & 0x3fffu) |
+           (((uint64_t)(uint32_t)npc->spawn_z & 0x3fffu) << 14) |
+           (((uint64_t)(uint32_t)npc->spawn_level & 0x3u) << 28) |
+           (((uint64_t)(uint32_t)npc->spawn_type & 0xffffu) << 30) | (1ull << 62);
+}
+
+/* The `npc_seed_lives` entry for `key`, or NULL when it has none and `add` is
+ * false. With `add`, a key with no entry takes the first empty one in its probe
+ * window, or recycles its home entry when the window is full. */
+static uint32_t*
+npc_seed_lives_find(
+    struct ToriRSServer* srv,
+    uint64_t key,
+    int add)
+{
+    enum
+    {
+        PROBE = 16
+    };
+    uint32_t home = (uint32_t)(random_mix(key) % TORIRSSERVER_NPC_SEED_LIVES);
+
+    for( uint32_t i = 0; i < PROBE; i++ )
+    {
+        uint32_t at = (home + i) % TORIRSSERVER_NPC_SEED_LIVES;
+
+        if( srv->npc_seed_lives[at].key == key )
+            return &srv->npc_seed_lives[at].lives;
+        if( srv->npc_seed_lives[at].key == 0 )
+        {
+            if( !add )
+                return NULL;
+            srv->npc_seed_lives[at].key = key;
+            srv->npc_seed_lives[at].lives = 0;
+            return &srv->npc_seed_lives[at].lives;
+        }
+    }
+    if( !add )
+        return NULL;
+    srv->npc_seed_lives[home].key = key;
+    srv->npc_seed_lives[home].lives = 0;
+    return &srv->npc_seed_lives[home].lives;
+}
+
+/*
  * An npc's stream, from what the npc IS rather than where it sits in the pool:
- * its spawn tile and plane, its type, and how many live npcs already stand on
- * that same key (two identical rows on one tile, or a boss spawning three adds
- * on its own tile, must not walk in lockstep). The slot is deliberately not in
- * it -- a spawn row added anywhere shifts every later slot.
+ * its spawn key, how many live npcs already stand on that same key (two
+ * identical rows on one tile, or a boss spawning three adds on its own tile,
+ * must not walk in lockstep), and how many have LEFT it (its life): the fifth
+ * `::spawn imp` on a tile is not the first one again. A first life on a key
+ * seeds exactly as it did before lives were counted.
  */
 static void
 npc_random_seed(
     struct ToriRSServer* srv,
     struct ToriRSServerNpc* npc)
 {
+    uint64_t spawn_key = npc_spawn_key(npc);
     uint64_t key;
     uint64_t ordinal = 0;
+    uint32_t* lives;
 
     /* One pass over the npc pool per spawn -- not per tick. */
     for( int slot = 0; slot < srv->npc_slot_max; slot++ )
@@ -205,11 +259,10 @@ npc_random_seed(
             other->spawn_level == npc->spawn_level && other->spawn_type == npc->spawn_type )
             ordinal++;
     }
-    key = ((uint64_t)(uint32_t)npc->spawn_x & 0x3fffu) |
-          (((uint64_t)(uint32_t)npc->spawn_z & 0x3fffu) << 14) |
-          (((uint64_t)(uint32_t)npc->spawn_level & 0x3u) << 28) |
-          (((uint64_t)(uint32_t)npc->spawn_type & 0xffffu) << 30) |
-          ((ordinal & 0xffffu) << 46) | (1ull << 62);
+    key = spawn_key | ((ordinal & 0xffffu) << 46);
+    lives = npc_seed_lives_find(srv, spawn_key, 0);
+    if( lives && *lives > 0 )
+        key = random_mix(key) + (uint64_t)*lives * 0x9e3779b97f4a7c15ull;
     random_seed(&npc->random, key);
 }
 
@@ -4083,6 +4136,10 @@ ToriRSServer_WorldNpcFree(
     npc = &srv->npcs[slot];
     if( !npc->active )
         return; /* already dead (or already queued) — do not double-queue */
+
+    /* The key's next npc is a new life (`npc_random_seed`), counted here
+     * because `active` makes this once per npc. */
+    (*npc_seed_lives_find(srv, npc_spawn_key(npc), 1))++;
 
     /*
      * A CORPSE THAT WAS NEVER SEEN TO DIE.
@@ -9043,20 +9100,42 @@ ToriRSServer_RunCheatLadder(
     if( strncmp(text, "wield ", 6) == 0 )
     {
         /*
-         * `::wield <objid>` — harness shortcut: find the obj in the backpack
-         * and run the SAME synthesized-OPHELD path an inventory Wield click
-         * takes, so equip requirements, the two-handed swap and the worn
+         * `::wield <item_name|objid>` — harness shortcut: find the obj in the
+         * backpack and run the SAME synthesized-OPHELD path an inventory Wield
+         * click takes, so equip requirements, the two-handed swap and the worn
          * mirror all behave exactly as a real click. Exists because a capture
          * harness cannot reliably aim a pixel click at whichever inventory
          * cell the item landed in.
+         *
+         * The argument is resolved exactly like `::give`'s
+         * (cheat_obj_from_name: a gameval symbol, a display name, or a bare
+         * number). Seam pass 29 (setup_wield_text_read_and_reach_honesty):
+         * arthur's setup said `::wield rune_scimitar`, this branch took only
+         * a number, printed its Usage line and returned RAN -- so the setup
+         * loop heard `ok` and the quest fought its boss unarmed. Every miss
+         * now returns FAILED (t.cheat -> refused), and the sentence names
+         * what was wrong. The wield itself is still content's to refuse
+         * (`~equip`'s level check); whether the item ended up WORN is the
+         * caller's reading (run.py's setup loop reads the worn container).
          */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
         int obj_id = -1;
         int slot = -1;
 
-        if( sscanf(text, "wield %d", &obj_id) != 1 || obj_id < 0 )
+        if( sscanf(text, "wield %63s", arg) != 1 )
         {
-            say(srv, "Usage: ::wield <objid> (must be in the backpack)");
-            return TORIRSSERVER_TRIGGER_RAN;
+            say(srv, "Usage: ::wield <item_name|objid> (must be in the backpack)");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        obj_id = cheat_obj_from_name(arg, suggest, sizeof(suggest));
+        if( obj_id < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "::wield: which %s? %s", arg, suggest);
+            else
+                say(srv, "::wield: no item named '%s'.", arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
             if( player->inv[i].obj_id == obj_id )
@@ -9066,8 +9145,8 @@ ToriRSServer_RunCheatLadder(
             }
         if( slot < 0 )
         {
-            say(srv, "No obj %d in the backpack.", obj_id);
-            return TORIRSSERVER_TRIGGER_RAN;
+            say(srv, "::wield: no %s (%d) in the backpack.", arg, obj_id);
+            return TORIRSSERVER_TRIGGER_FAILED;
         }
         {
             uint8_t held[8];
@@ -9079,7 +9158,8 @@ ToriRSServer_RunCheatLadder(
             rsab_p4(&out, ToriRSServer_Ids()->com_inventory_items);
             handle_opheld(srv, 2, held, (int)rsab_len(&out));
         }
-        say(srv, "Wielded %d from slot %d.", obj_id, slot);
+        /* "Sent", not "Wielded": content may refuse it (level, quest). */
+        say(srv, "::wield: sent Wield for %s (%d) from slot %d.", arg, obj_id, slot);
         return TORIRSSERVER_TRIGGER_RAN;
     }
 

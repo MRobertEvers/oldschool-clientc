@@ -312,3 +312,36 @@ A guide step that says "go down the hole" can point at a loc whose only op is Ex
 `climbMudPile` is the spade used on the patch a second time (`t.player.use_on("spade", patch)`).
 Past `quest_elena_mud_patch4` the dig label drops you in the sewer again, and the row is the guide's
 `goDownHole`. Before you call a loc unreachable, read its script's trigger list (`grep -n "^\["`).
+
+## Temple of Ikov: the walk back east from the lever stops at x=2644 (seam29)
+
+The lever room is behind a CLOSED castle double door (`castledoubledoorl`, west edge of 2645,9828;
+LostCity maps/m41_153.jm2 has its doors on the same tiles) between the lava bridge's west landing
+(2647,9828) and the lever (2637,9819). Open it with `click_loc` and walk; a `goto_tile` past it
+leaves the walk back east facing it shut ("walk_to times out at x=2644"). The bridge itself tracks
+which side you are on with `%ikov_dungeon` bit `^ikov_bridge` (LostCity ikov_dungeon.rs2):
+teleporting onto the west side leaves the bit at 0 and the next crossing throws you back WEST.
+Cross it for real, wearing the boots, both ways (s29lava_ikovcopy 38/38, `pickUpLever-recross`
+'now at 2651,9828').
+
+## A sink or water pump answers "Nothing interesting happens." to a bucket (FIXED seam29)
+
+A loc whose cache category is an unnamed id (not in pack/category.pack) never reaches a
+`_<category>` head. Sinks are cache category 175 and water pumps 177 in osrs239, so the Varrock
+palace kitchen sink (Demon Slayer's fillBucket) did nothing; 21 of them are now bound by name heads
+stacked on `[oplocu,_watersource]` (general_use/scripts/water_sources.rs2; source LostCity
+water_sources.loc `category=watersource` on its sinks and the wiki Water source page). Still
+unbound, no per-record source: uncategorised sinks/wells/pumps (rimmington_sink,
+dwarf_keldagrim_well, elf_village_well, burgh_well, ...), the Farming Guild tap (vials only), and
+LostCity's own `sink`/`sink2`/`fountain` answer skill_farming's bucket/watering-can label for a
+jug, bowl or vial.
+
+## A multinpc shell whose every visible child is a `*_noop` form cannot be talked to (seam29)
+
+The client builds the menu from the cache, so a shell whose visible rungs all resolve to a form with
+no ops is never clickable; server-side `.npc` overrides and `[opnpc1,<shell>]` do not help. The fix
+pattern is an owner-private `npc_add` of the op-carrying child, placed by the quest's own
+round/scene procs, with the trigger on that child's symbol: Fight Arena's arena Sammy is
+`sammy_servil_vis` placed by `~arena_spawn_sammy` for stages 6..11 and removed at freed_servils
+(LostCity jeremy_servil_arena op1=Talk-to). Drive it with `talk_to('sammy_servil_vis')`.
+

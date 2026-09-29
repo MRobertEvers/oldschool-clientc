@@ -3166,6 +3166,9 @@ function QD.player.talk_to(npc, op, opts)
     -- one that was up when the player pressed, not the one the press has
     -- already begun to replace.  See _settle_after_click's fourth arm.
     local before_kind, before_text = QD.player._chat_page()
+    -- The chat ring's serial BEFORE the click (seam29): every refusal line
+    -- newer than it is this press's, read again after the page wait below.
+    local click_serial_result, click_since = api_drive.message_serial()
     local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
         -- SEAM self_cast_and_moving_multinpc_press (seam28): a press that
@@ -3234,12 +3237,74 @@ function QD.player.talk_to(npc, op, opts)
     -- ends with no dialogue at all -- which is a real shape (a bare `mes`
     -- npc), and which now SAYS so in its detail with the deadline named.
     local kind = QD.chat.kind()
+    local refusal = nil
+    local function refused_since_click()
+        if click_serial_result ~= "ok" then
+            return nil
+        end
+        return QD.player._refusal_since(click_since)
+    end
     if kind == "none" then
         QD.await({
-            level = function() return QD.chat.kind() ~= "none" end,
+            level = function()
+                return QD.chat.kind() ~= "none" or refused_since_click() ~= nil
+            end,
             note = "talk_to: the page the npc still owes",
         }, QD.player._talk_page_ticks)
         kind = QD.chat.kind()
+    end
+    -- SEAM setup_wield_text_read_and_reach_honesty (seam29, 2026-09-29) --
+    -- A TALK WITH NO PAGE IS NOT ANSWERED BY WHATEVER LINE CAME FIRST.
+    --
+    -- Measured: build/quest_gate/s28sm_proof1 row 3 `man.talk_slot PASS ...
+    -- chat_message: no dialogue in 5 tick(s), content line 'You step into the
+    -- zone east of Lumbridge.'` -- the walk to the Man crossed
+    -- selftest_zone.rs2's [zone,0_50_50_32_16], whose `mes` resolved the
+    -- settle's chat_message arm, and shot 03 shows the client's next line: "I
+    -- can't reach that!".  The settle's refusal fence had already run (the
+    -- sentence lands the tick AFTER the route runs out -- SEAM
+    -- loc_approach_reach), so the verb graded a refused press `ok` on a line
+    -- the npc never said.  Now, when no dialogue is up: the walk is let
+    -- finish (up to _talk_walk_ticks while the player is still moving), the
+    -- page is waited for again, and any refusal line newer than the click
+    -- answers `refused` quoting the client's own sentence.  A talk with a
+    -- page up is untouched, and so is a no-page talk the client did not
+    -- refuse.
+    if kind == "none" then
+        refusal = refused_since_click()
+        local idle_result, idle = api_drive.player_idle()
+        if refusal == nil and idle_result == "ok" and not idle then
+            QD.await({
+                level = function()
+                    if QD.chat.kind() ~= "none" or refused_since_click() ~= nil then
+                        return true
+                    end
+                    local now_result, now_idle = api_drive.player_idle()
+                    return now_result == "ok" and now_idle == true
+                end,
+                note = "talk_to: the walk to the npc finishing",
+            }, QD.player._talk_walk_ticks)
+            kind = QD.chat.kind()
+            if kind == "none" and refused_since_click() == nil then
+                QD.await({
+                    level = function()
+                        return QD.chat.kind() ~= "none" or refused_since_click() ~= nil
+                    end,
+                    note = "talk_to: the page the npc owes once the walk is done",
+                }, QD.player._talk_page_ticks)
+                kind = QD.chat.kind()
+            end
+        end
+        if kind == "none" then
+            refusal = refused_since_click()
+        end
+    end
+    if kind == "none" and refusal ~= nil then
+        return "refused", "talk_to " .. tostring(npc) .. ": the client said '" .. refusal
+            .. "' and no dialogue opened"
+            .. (copy_text ~= nil and (" (aimed at " .. copy_text .. ")") or "")
+            .. " -- the settle had answered " .. tostring(detail)
+            .. (arm == "chat_message" and (" on the line '" .. tostring(line) .. "'") or "")
     end
     -- A talk aimed at a named copy says which copy it talked to, first.
     if copy_text ~= nil then
@@ -3312,6 +3377,12 @@ end
 -- deliberately not the settle's own twenty: this wait is paid in full by
 -- every npc that genuinely answers with nothing, and those are common.
 QD.player._talk_page_ticks = 5
+
+-- How long a talk that ended with no page and the player STILL MOVING lets
+-- the walk finish before it reads the refusal lines (seam29).  Fifteen: the
+-- settle has already spent up to twenty, and a route the server truncated
+-- runs out within a few tiles; only a no-page talk with a live route pays it.
+QD.player._talk_walk_ticks = 15
 
 -- Walks into range BEFORE the click, which a world click on scenery needs and
 -- a click on an npc does not: a loc type is planted dozens of times across a

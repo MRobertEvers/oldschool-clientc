@@ -107,6 +107,7 @@ return {
             "choose:I'd like to help you find your nephew.",
             "player:I'd like to help you find your",
             "npc:Thank you! Head south to Polln",
+            "npc:town's in such an uproar.",
             "choose:Yes, I'll head there now.",
             "player:Yes, I'll head there now.",
             "npc:Take this -- a Kharidian headp",

@@ -350,6 +350,7 @@ return {
             "player:What did you find on the other side?",
             "npc:A whole realm, hidden behind the rock!",
             "npc:Head back to the Engineer, and see if Rolad's book",
+            "npc:together.",
         })
         t.expect("quest.stage.assembling_schematics", t.quest.expect_stage("assembling_schematics"))
         t.inv.await("dwarf_rock_schematic1", 1, 10)

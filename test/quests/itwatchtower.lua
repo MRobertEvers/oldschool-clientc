@@ -134,6 +134,7 @@ return {
             "player:What do you mean it isn't work",
             "npc:The Watchtower here works",
             "npc:The exact knowledge of the spe",
+            "npc:Feldips.",
             "choose:So how come the spell doesn't work?",
             "player:So how come the spell doesn't",
             "npc:The crystals! The crystals hav",

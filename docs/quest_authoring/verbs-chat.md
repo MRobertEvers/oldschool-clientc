@@ -37,6 +37,17 @@ detail names what was entered.
 `t.chat.choose(selector)` -> `ok` `no_row` `refused`. `selector` is a 1-based index, exact row text,
 or `/lua pattern/`.
 
+#### A long line is more than one page; `|` is a hard break (seam29)
+
+LostCity content's `|` is a HARD line break. Since seam pass 29 `~chatnpc`/`~chatplayer`/`~objbox`
+show 4 rows per page (380px) and `~mesbox` 5 rows (479px), each `|` drawn as a real row break; a
+line that needs more rows is MORE THAN ONE PAGE, each with its own continue (the reference's
+`split_init` paging, `~chat_layout` in chat.rs2). `chat.play` needs one entry per page: the second
+page starts with the words that wrapped past row 4 (`'npc:together.'`). Before, the pipe was drawn
+as a glyph (`find the|helmet`) and text past row 4 was clipped. `t.chat.text` and `chat.play`
+fragments see the page's text with each break stripped to nothing (`'through......you land'`), so
+match a substring inside one row. 145 content texts page (build/seam_state/seam29/mesbox_multipage_texts.txt).
+
 ### `t.chat.play(list)` -- also `t.game.runedraw`
 
 `t.chat.play(list)` -> `ok` `mismatch` `unsupported`, or a wrapped verb's own result.

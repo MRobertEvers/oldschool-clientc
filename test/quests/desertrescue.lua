@@ -210,6 +210,7 @@ return {
             "choose:I'd like to mine in a different area.",
             "*",
             "*",
+            "npc:rest they say.",
             "choose:Yes sir, you're quite right sir.",
             "*",
             "*",

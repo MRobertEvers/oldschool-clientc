@@ -147,9 +147,121 @@ return {
         -- fillBucket: the sink beside the kitchen (goDownFromBucket is the stairs)
         t.exec("goto-fillBucket", t.player.goto_tile, 3224, 3494, 0)
         t.exec("fillBucket", t.player.use_on, "bucket_empty", t.player.by_symbol("loc", "fai_varrock_posh_sink"))
-        -- The pack has no [oplocu,...] for fai_varrock_posh_sink (category 175 is not `watersource`
-        -- 244, so general_use/scripts/water_sources.rs2:17 never fires): "Nothing interesting happens."
-        t.blocked("content_bug: fillBucket -- using bucket_empty on fai_varrock_posh_sink (Quest Helper FAI_VARROCK_POSH_SINK, 3224,3495) does nothing; no [oplocu,fai_varrock_posh_sink] exists and its category 175 is not watersource (general_use/scripts/water_sources.rs2:17), so bucket_water, the drain key and the rest of the quest are unreachable without a cheat")
-        return
+        t.exec("fillBucket-inv", t.inv.await, "bucket_water", 1, 8)
+
+        -- drain: examine (Search), then pour the bucket
+        t.exec("goto-drain", t.player.goto_tile, 3224, 3496, 0)
+        local dr = t.player.by_symbol("loc", "questdrain")
+        t.exec("drain.use_bucket", t.player.use_on, "bucket_water", dr)
+        t.exec("drain.var", t.var.await_server, "delrith_drain_key", 1, 8)
+
+        -- sewer key
+        -- goDownManhole: the manhole south east of the palace (Quest Helper WorldPoint 3237,3458)
+        t.exec("goto-goDownManhole", t.player.goto_tile, 3237, 3457, 0)
+        t.exec("goDownManhole-open", t.player.click_loc, "manholeclosed", 1)
+        t.ticks(3)
+        t.exec("goDownManhole", t.player.click_loc, "manholeopen", 1)
+        t.ticks(4)
+        local _, sewer_tile = t.world.tile()
+        t.check("goDownManhole.landing", sewer_tile ~= nil and sewer_tile.z > 9000, "in the sewer at " .. tostring(sewer_tile and sewer_tile.x) .. "," .. tostring(sewer_tile and sewer_tile.z))
+        t.exec("sewer.key", t.player.click_loc, "qip_ds_sewer_key", 1)
+        t.exec("sewer.key.inv", t.inv.await, "silverlight_key_3", 1, 8)
+
+        -- Traiborn
+        t.exec("goto-traiborn", t.player.goto_tile, 3114, 3163, 1)
+        t.exec("traiborn.talk", t.player.talk_to, "traiborn", 1)
+        t.exec("traiborn.dialog", t.chat.play, {
+            "npc:Ello young thingummywut.",
+            "choose:I need to get a key given to you by Sir Prysin.",
+            "player:I need to get a key",
+            "npc:Sir Prysin? Who's that?",
+            "choose:Well, have you got any keys knocking around?",
+            "player:Well, have you got any keys knocking around?",
+            "npc:Now you come to mention it",
+            "npc:I sealed it using one of my magic rituals",
+            "player:So do you know what ritual to use?",
+            "npc:Let me think a second.",
+            "npc:Yes a simple drazier",
+            "choose:I'll get the bones for you.",
+            "player:I'll help get the bones",
+            "npc:Ooh that would be very good",
+            "player:Okay, I'll speak to you",
+        })
+        t.chat.close()
+        t.exec("traiborn.talk2", t.player.talk_to, "traiborn", 1)
+        t.exec("traiborn.dialog2", t.chat.play, {
+            "npc:How are you doing finding bones?",
+            "player:I have some bones.",
+            "npc:Give 'em here then.",
+        })
+        t.exec("traiborn.bones", t.var.await_server, "demon_bones_given", 25, 60)
+        t.exec("traiborn.ritual", t.chat.play, {
+            "npc:Hurrah! That's all 25 sets of bones.",
+            "mesbox:Traiborn places the bones in a circle",
+            "mesbox:Traiborn waves his arms about",
+            "npc:Wings of dark and colour too",
+            "mesbox:The wizard waves his arms some more",
+        })
+        t.exec("traiborn.key", t.inv.await, "silverlight_key_1", 1, 12)
+        t.ticks(4)
+        t.exec("traiborn.thanks", t.chat.play, {
+            "player:Thank you very much.",
+            "npc:Not a problem for a friend",
+        })
+        t.chat.close()
+        t.expect("bones.consumed", t.inv.expect_absent("bones"))
+
+        -- Prysin: hand in the three keys
+        t.exec("goto-prysin2", t.player.goto_tile, 3204, 3471, 0)
+        t.exec("prysin2.talk", t.player.talk_to, "sir_prysin", 1)
+        t.exec("prysin2.dialog", t.chat.play, {
+            "npc:So how are you doing with getting the keys?",
+            "player:I've got all three keys!",
+            "npc:Excellent! Now I can give you Silverlight.",
+        })
+        t.exec("silverlight.got", t.inv.await, "silverlight", 1, 12)
+        t.expect("keys.gone", t.inv.expect_absent("silverlight_key_1"))
+        t.exec("case.var", t.var.await_server, "delrith_silverlight_case", 1, 5)
+
+        -- ================= BOSS =================
+        t.exec("equip.silverlight", t.player.equip, "silverlight")
+        t.exec("goto-circle-edge", t.player.goto_tile, 3221, 3366, 0)
+        t.player.walk_to(3226, 3366)
+        t.ticks(4)
+        t.exec("summon.mesbox", t.chat.play, { "mesbox:The dark wizards complete their ritual" })
+        t.chat.close()
+        t.exec("delrith.present", t.npc.await_present, "delrith", 12, 12)
+                t.exec("delrith.attack", t.player.attack, "delrith", 2, 15)
+        t.exec("delrith.weakened", t.npc.await_present, "delrith_weakened", 20, 60)
+        t.ticks(2)
+        t.exec("banish.press", t.player.press, "delrith_weakened", 1, 8)
+        -- wrong incantation first: fixed alphabetical order, unless it happens to be the real one
+        local wrong = { "Aber", "Camerinthum", "Carlem", "Gabindo", "Purchai" }
+        local same = true
+        for i = 1, 5 do if wrong[i] ~= chant_words[i] then same = false end end
+        if same then wrong = { "Purchai", "Gabindo", "Carlem", "Camerinthum", "Aber" } end
+        local pages = { "player:Now what was that incantation again?" }
+        for i = 1, 5 do pages[#pages + 1] = "choose:" .. wrong[i] end
+        pages[#pages + 1] = "player:" .. table.concat(wrong, " ")
+        pages[#pages + 1] = "mesbox:As you chant, Delrith is sucked"
+        pages[#pages + 1] = "mesbox:The vortex collapses"
+        t.exec("chant.wrong", t.chat.play, pages)
+        t.chat.close()
+        t.expect("wrong.stage_unchanged", t.quest.expect_stage("key_hunt"))
+        t.exec("delrith.restored", t.npc.await_present, "delrith", 12, 12)
+                t.exec("delrith2.attack", t.player.attack, "delrith", 2, 15)
+        t.exec("delrith2.weakened", t.npc.await_present, "delrith_weakened", 20, 60)
+        t.ticks(2)
+        t.exec("banish2.press", t.player.press, "delrith_weakened", 1, 8)
+        local rpages = { "player:Now what was that incantation again?" }
+        for i = 1, 5 do rpages[#rpages + 1] = "choose:" .. chant_words[i] end
+        rpages[#rpages + 1] = "player:" .. table.concat(chant_words, " ")
+        rpages[#rpages + 1] = "mesbox:Delrith is sucked into the vortex"
+        rpages[#rpages + 1] = "mesbox:back into the dark dimension"
+        t.exec("chant.right", t.chat.play, rpages)
+        t.chat.close()
+        t.ticks(6)
+        t.quest.expect_complete()
+        t.finish(0)
     end,
 }

@@ -116,8 +116,10 @@ return {
             "player:Who are you",
             "npc:Pirate Pete",
             "npc:Now here's my plan",
+            "npc:myself.",
             "player:And you want me",
             "npc:That's the spirit",
+            "npc:your trouble.",
             "options",
             "choose:Keep your money -- I'll help for free.",
             "player:Keep it. I'll help you out for free.",
@@ -337,6 +339,7 @@ return {
         t.exec("braindeath.finish.dialogue", t.chat.play, {
             "player:taste of the swill",
             "npc:Then it's done",
+            "npc:work fixing that control.",
         })
         t.quest.expect_complete()
 

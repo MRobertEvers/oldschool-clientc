@@ -36205,6 +36205,13 @@ ToriRSServer_WorldSelftest(void)
          * tiles are identical. The subject is chosen with no other npc's box
          * near its own, so what could differ between the runs is the draws,
          * not a body in the way.
+         *
+         * Both of those stand-ups are the key's FIRST life (its lives are
+         * forgotten before each): what they pin is the unrelated npc. A third
+         * stand-up that keeps the count is the key's next life and must NOT
+         * replay the stream -- every `::spawn imp` on one tile used to be the
+         * same imp, so a kill's drop was a function of the fight's length and
+         * a yellow bead never fell (seam29).
          */
         struct ToriRSServerNpc* subject = NULL;
         struct ToriRSServerNpc* far_npc = NULL;
@@ -36251,12 +36258,12 @@ ToriRSServer_WorldSelftest(void)
             int spawn_x = subject->spawn_x;
             int spawn_z = subject->spawn_z;
             int spawn_level = subject->spawn_level;
-            int tiles[2][50][2];
-            int counted[2] = { 0, 0 };
-            int took[2] = { 0, 0 };
+            int tiles[3][50][2];
+            int counted[3] = { 0, 0, 0 };
+            int took[3] = { 0, 0, 0 };
             int far_slot = -1;
 
-            for( int run = 0; run < 2; run++ )
+            for( int run = 0; run < 3; run++ )
             {
                 int slot;
                 struct ToriRSServerNpc* walker;
@@ -36308,6 +36315,8 @@ ToriRSServer_WorldSelftest(void)
                         far_npc = &srv->npcs[far_slot];
                 }
 
+                if( run < 2 )
+                    memset(srv->npc_seed_lives, 0, sizeof(srv->npc_seed_lives));
                 slot = npc_spawn(srv, type, spawn_x, spawn_z, spawn_level);
                 SELFTEST_CHECK(slot >= 0, "the subject should stand up again on its spawn");
                 if( slot < 0 )
@@ -36355,6 +36364,22 @@ ToriRSServer_WorldSelftest(void)
                                first_diff >= 0 ? tiles[0][first_diff][1] : 0,
                                first_diff >= 0 ? tiles[1][first_diff][0] : 0,
                                first_diff >= 0 ? tiles[1][first_diff][1] : 0);
+            }
+            SELFTEST_CHECK(counted[2] == 50,
+                           "the subject's next life should take 50 steps too, took %d",
+                           counted[2]);
+            fprintf(stderr, "  its next life: 50 tiles in %d ticks\n", took[2]);
+            if( counted[0] == 50 && counted[2] == 50 )
+            {
+                int same = 1;
+
+                for( int k = 0; k < 50 && same; k++ )
+                    if( tiles[0][k][0] != tiles[2][k][0] || tiles[0][k][1] != tiles[2][k][1] )
+                        same = 0;
+                SELFTEST_CHECK(!same,
+                               "a second life on the same spawn key should not replay the "
+                               "first life's stream (the ::spawn imp that never dropped a "
+                               "yellow bead)");
             }
             if( far_slot >= 0 )
             {

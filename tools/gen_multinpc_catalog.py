@@ -19,7 +19,8 @@ shows one placement and hides another.
 Output, under `--out-dir`:
 
   - `multinpc_shells.csv`   one row per shell record (2.4k+): base id, switch,
-                            variant chain, whether it's in the world spawn
+                            variant chain keyed by switch VALUE (`0=` is
+                            multinpc1 -- see variant_summary), whether it's in the world spawn
                             roster, its value-0 target/visibility, and how many
                             places in `server/scripts/` reference the switch.
   - `multinpc_switches.csv` one row per *unique* varp/varbit (~600): how many
@@ -148,12 +149,31 @@ def scan_content_refs(scripts_root):
 
 
 def variant_summary(variants):
+    """`<value>=<target>` for every rung, keyed by the switch VALUE that
+    selects it: `multinpc1` is value 0, `multinpcN` is value N-1.
+
+    The client resolves a shell by indexing its multinpc table with the
+    varp/varbit value (VarPManager_ResolveTransform; rev-239 class393), so
+    the number a quest constant must hold is the value, never the N in the
+    config key. This column used to print the config key's N, which is how
+    Goblin Diplomacy's catwalk_goblin constants came out one too high (blue
+    Grubfoot = 3 selected the -1 rung and was never drawn; seam28, measured
+    in build/quest_gate/s28gv_probe2). Seam pass 29 relabels by value.
+
+    The LAST rung is also every value past the table (and any negative
+    value): `transform_index < transform_count - 1` picks a rung, anything
+    else takes `transforms[transform_count - 1]` (varp_manager.c,
+    VarPManager_ResolveTransform). It is printed `<value>+=` so a constant
+    one past the end reads as the default it really selects.
+    """
     parts = []
-    for idx, target, display in variants:
+    last = len(variants) - 1
+    for position, (idx, target, display) in enumerate(variants):
+        value = f"{idx - 1}+" if position == last else f"{idx - 1}"
         if target is None:
-            parts.append(f"{idx}=(hidden)")
+            parts.append(f"{value}=(hidden)")
         else:
-            parts.append(f"{idx}={target}" + (f" ({display})" if display else ""))
+            parts.append(f"{value}={target}" + (f" ({display})" if display else ""))
     return "; ".join(parts)
 
 
@@ -194,7 +214,7 @@ def main():
                 "default_target",
                 "default_visible",
                 "variant_count",
-                "variants",
+                "variants_by_value",
                 "content_ref_count",
             ]
         )

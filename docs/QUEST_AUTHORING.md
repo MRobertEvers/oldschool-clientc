@@ -185,6 +185,7 @@ banners: the topic file named in each group heading.
 - `t.ui.open(interface, cheat)`; `t.ui.await_open(interface, ticks)` -> `ok timeout no_row`; `await_close` answers a bare `ok` (hollow).
 - `t.ui.widget(sym, sub)` -> `(ok, id)`; `t.ui.invoke(widget, op)` (hollow; `op=0` for an IF1 button, trap 33); `t.ui.tab(name)`; `t.ui.is_modal()`.
 - `t.ui.model_pose(sym, sub)` / `await_model_pose(...)` -> a type-6 model component's angles.
+- `t.ui.text(component|list, sub)` -> `(ok, text)` `not_found` `not_visible`; `t.ui.expect_text(component, want, ticks=5)` asserts a page's text (seam29).
 - `t.ui.journal_open(display)` / `journal_read()` / `journal_close()` -> the quest journal.
 - `t.npc.by_name` / `by_symbol` / `nearest(sym, r)` -> `(ok, row) not_found no_row`; `t.npc.tiles(sym, r)` -> every copy, three returns.
 - `t.npc.await_present(sym, r, ticks)` / `await_gone(...)` -> `ok timeout`, detail on `ok`.

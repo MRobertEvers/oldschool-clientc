@@ -212,3 +212,10 @@ rows for your plane.
 ### `t.player.click_obj(obj, op=3)`
 
 `t.player.click_obj(obj, op=3)` -> same, waits for the backpack count to rise.
+
+Take is op 3 (the default). An op the obj does not have (op 5 on a knife) answers `covered`/"menu
+has no row for it" even though the menu dump lists a Take row -- pass 3. A tile holding a STACK of
+ground objs is fine: each obj is its own element with its own Take row, picked by name
+(seam29: black bead, red bead and ashes taken by name from a 6-obj imp drop pile, s29lava_stack),
+and so is an obj on a table tile that also holds a loc (Carnillean kitchen knife and bread,
+s29lava_hazeel).

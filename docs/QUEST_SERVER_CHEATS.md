@@ -67,7 +67,7 @@ every line below shifted with it.
 | `layout ` | 8171 | `::layout <0\|1\|2>` Fixed/Resizable Classic/Modern, via a synthesized IF_BUTTON |
 | `style` | 8219 | `::style <0-3>` sets attack style (accurate/aggressive/defensive/controlled) |
 | `setlevel` | 8244 | `::setlevel <stat> <level>` sets a stat's level (base + xp to threshold) |
-| `wield ` | 8273 | `::wield <objid>` runs the real OPHELD-equip path on a backpack item |
+| `wield ` | 8273 | `::wield <item_name\|objid>` (resolved like `::give`) runs the real OPHELD-equip path on a backpack item; every miss answers FAILED naming it (seam29), and run.py's setup loop reads the worn container back |
 | `equipstats` | 8316 | `::equipstats` opens the equipment bonus screen |
 | `run` | 8324 | `::run [0\|1]` toggles the run-energy option |
 | `god` | 8338 | `::god [0\|1]` player invulnerability; heals to full on enable |

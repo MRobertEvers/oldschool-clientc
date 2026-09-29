@@ -39,8 +39,20 @@ the ids up with `t.ui.widget` AFTER await_open, they are nil before the mount), 
 
 Never `chat.play` a converted book (Grand Tree translation book and Glough's journal, the Dig Site
 book on chemicals so far; the other ~mesbox books -- witches_diary, arrav_book, ... -- move as their
-quests' parity passes convert them, and their tests move to await_open then). There is no page-text
-read yet: the PNG is the evidence.
+quests' parity passes convert them, and their tests move to await_open then). Assert the page text
+with `t.ui.expect_text` (below, seam29) -- the PNG alone is not the evidence any more.
+
+### `t.ui.text(component, sub)` / `t.ui.expect_text(component, want, ticks=5, sub)` (seam29)
+
+`t.ui.text(component|id|list[, sub])` -> `(ok, plain_text)` `not_found` (the symbol does not resolve
+or its interface is not open) `not_visible` (in the tree but hidden; the detail quotes the text). A
+LIST reads a page spread over several rows as one string, rows joined by a space, empty rows skipped.
+Markup comes off and a `|`/`<br>` break reads as a space. An empty reading is `ok ""`, which t.exec
+grades hollow. `t.ui.expect_text(component, want[, ticks[, sub]])` -> `ok` `not_found`
+`not_visible`: PASS when the text contains `want` (plain substring, or a Lua pattern written
+`/.../`), waiting up to `ticks` for IF_SETTEXT to land; a miss quotes the last reading. Book pages,
+journal lines and dial letters are asserted with it (s29w_after reads the Grand Tree translation
+book's title and left page).
 
 ### `t.ui.widget(sym, sub)` -- also `t.ui.invoke`, `t.ui.tab`, `t.ui.is_modal`, `t.ui.model_pose`, `t.ui.await_model_pose`
 

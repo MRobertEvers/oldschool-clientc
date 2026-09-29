@@ -142,6 +142,7 @@ return {
             "npc:Forgive my people. Strangers have brought us nothing",
             "player:So what are you doing up here?",
             "npc:We are the Mountain Tribe",
+            "npc:went to investigate.",
             "options",
             "choose:I will search for her!",
             "player:I will search for her!",

@@ -317,6 +317,7 @@ return {
             "player:Do you accept dwarves?",
             "player:A dwarf I know wants to become an initiate.",
             "npc:Hmm. Tell you what",
+            "npc:- brew him a cup of Guthix rest",
             "player:Yep, it's a deal.",
         })
         t.expect("quest.stage.sanfew_told", t.quest.expect_stage("sanfew_told"))

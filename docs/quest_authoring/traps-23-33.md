@@ -51,6 +51,11 @@ run 6, shot `58-returnToBoy`), the row reads PASS and the failure surfaces one r
 dialogue is open". Read the chat log in the talk's shot before trusting a bare ok, and goto the
 npc's LIVE tile (`t.npc.nearest`) after a long leg.
 
+FIXED seam29 for the reach case: when no page opened, `talk_to` lets a still-running walk finish
+(up to 15 ticks), waits for the page again, and answers `refused` quoting "I can't reach that!" --
+even when a zone or ambient `mes` resolved the settle first (s29t_reach1). A no-page talk the
+client did NOT refuse still answers `ok` with the line quoted.
+
 ## Trap 27. A single `mes()` string has two hard byte budgets, and both fail silently.
 
 `mes()` rides MESSAGE_GAME, which is a var-u8 packet at rev 239 (payload = `strlen` + 3), so a
@@ -83,8 +88,11 @@ polarity bug arrive in the same run.
 shell whose value selects a -1 rung is NOT DRAWN, and `talk_to` now answers `not_visible` naming it
 (`resolved to NO child`, seam28: Goblin Diplomacy's constants were 1-based, so blue Grubfoot was
 undrawn -- fixed to brown 0 / orange 1 / blue 2 / hidden 3). Read the table before blaming a wander
-or the camera; `tools/data/multinpc_shells.csv` numbers variants 1-based from the config text, not
-by value.
+or the camera. `tools/data/multinpc_shells.csv` labels rungs by VALUE since seam pass 29 (column
+`variants_by_value`: `0=` is multinpc1, and the last rung prints `N+=` because every out-of-range
+value falls to it); before that it numbered them 1-based from the config text (FIXED seam29).
+Roving Elves' Eluned carried the same off-by-one (fixed to 0/1/2), but its base varp
+`sote_tertiary` is not transmitted, so the client draws the one-option Eluned whatever is written.
 
 ## Trap 29. A `loc_near(sym, R) -> not_found` SWEEP IS NOT EVIDENCE THAT A LOC IS UNPLACED.
 

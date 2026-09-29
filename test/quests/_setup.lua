@@ -20,6 +20,15 @@
 -- `::setlevel strenght 61` and `::setlevel defence 120`
 -- (build/seam_state/seam19/, s19_setup_neg / s19_setup_neg2: one FAIL row
 -- each, exit 1).
+--
+-- Seam pass 29 (setup_wield_text_read_and_reach_honesty): `::wield` took only
+-- an obj id, printed its Usage line for a name and answered ok -- arthur's
+-- `::wield rune_scimitar` wielded nothing behind a green setup. The ladder now
+-- takes a name like ::give and answers FAILED on every miss, and the loop
+-- reads the WORN container back (build/seam_state/seam29/wield/: s29w_before
+-- caught the old binary's Usage line, s29w_neglevel the content's "You need
+-- to have an Attack level of 40.", s29w_negladder "::wield: no rune_scimitar
+-- (1333) in the backpack.").
 return {
     id = "_setup",
     fixture = "fresh_lumbridge.ini",
@@ -29,7 +38,8 @@ return {
         "::setlevel strength 61",
         "::setlevel defence 62",
         "::setlevel hitpoints 70",
-        "::give rune_scimitar 1",
+        "::give rune_scimitar 2",
+        "::wield rune_scimitar",
         "::give shark 10",
         "::setvar ballquest 1",
     },
@@ -53,6 +63,10 @@ return {
         t.expect("setup.setlevel_defence", level_is("defence", 62))
         t.expect("setup.setlevel_hitpoints", level_is("hitpoints", 70))
         t.expect("setup.give_scimitar", t.inv.expect_has("rune_scimitar", 1))
+        local worn_result, worn = t.ui._worn_count("rune_scimitar")
+        t.expect("setup.wield_scimitar", (worn_result == "ok" and worn == 1) and "ok" or "refused",
+            "worn rune_scimitar " .. tostring(worn_result) .. " " .. tostring(worn)
+                .. " (the second of two given; one stays in the backpack)")
         t.expect("setup.give_shark", t.inv.expect_has("shark", 10))
         t.expect("setup.setvar", t.var.await_server("ballquest", 1, 1))
         t.finish(0)

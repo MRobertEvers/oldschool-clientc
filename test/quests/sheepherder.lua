@@ -184,6 +184,7 @@ return {
             "npc:However, four sheep recently e",
             "npc:They believe that the sheep ha",
             "npc:As the councillor responsible ",
+            "npc:in a special incinerator.",
             "npc:Unfortunately nobody wants to ",
             "choose:I can do that for you.",
             "player:I can do that for you.",

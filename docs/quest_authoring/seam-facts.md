@@ -414,3 +414,38 @@ count does not rise).
 
 (p) `helper_coverage.py` has no `--ledger`; grading a scratch-named run needs its `ledger_path`
 pointed at it.
+
+## Seam pass 29 (2026-09-29)
+
+(a) npc random streams have a LIFE (`npc_seed_lives`, torirs_server_world.c). A `::spawn`'d or
+`npc_add`'d npc on a tile where one of its type was freed is no longer a replay of the last one:
+before, every `::spawn imp` at one tile was the same imp and a drop depended only on the fight's
+length (104 kills: black 22 red 22 white 26 yellow 0). A key's first life seeds exactly as before,
+so boot spawns and respawns are unchanged. A committed hunt or boss retry that used a replayed
+stream may roll differently now; every committed test stayed green.
+
+(b) An npc attack's cadence is `%npc_action_delay` (skill_combat/configs/npc_combat.varn) plus
+`npc_attackdelay`, never `npc_delay`: a turn spent in `npc_delay` drains no `[ai_queue2,_]`, so no
+player hit lands on the npc. Melzar, the thrower troll, KBD, kalphites, MM archers/demon, snails,
+leeches, the necromancer and Nezikchened were moved to LostCity's pacing (Melzar's largest gap
+between the player's splats 8 -> 5 ticks, the troll's 7 -> 4); battle mages say their line once per
+cast. `npc_delay` stays only for LostCity's own scripted pauses (cabbage 1 tick, dragon spear stun).
+
+(c) Proving content against HEAD without mutating the shared tree: `git -C OSRS-Content worktree
+add --detach <scratch>/wt HEAD`, copy server/pack into it, build its pack with `make -C src
+torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES= TORIRSSERVER_CONTENT_DIR=<wt>/osrs239-content
+TORIRSSERVER_SCRIPT_OUT=<wt>/osrs239-content/server/scripts/build`, then
+`TORIRSSERVER_CONTENT=<wt>/osrs239-content run.py --script ...`.
+
+(d) The driver's npc row carries `hit_cycle` (the newest splat's start cycle) and
+`overhead`/`overhead_timer`: a `hit_cycle` stamp every swing proves the npc drained its queue that
+tick; `overhead_timer >= 138` means "said within the last tick".
+
+(e) `::wield <name>` resolves like `::give` and every miss answers FAILED; the setup loop reads the
+worn container back and FAILs `setup.::wield <item>` quoting the last chat lines (arthur fought
+Mordred unarmed behind a green setup before).
+
+(f) A garbled item text is not automatically an OCR typo: A scruffy note's "Got a bncket of nnilk"
+is the real in-game text (wiki Transcript:A_scruffy_note). The Grand Tree cupboard's "you find
+nothing" after the journal is LostCity parity (quest_grandtree.rs2:96-107).
+

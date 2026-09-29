@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 132 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 134 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 132
+-- @verb-count 134
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -161,7 +161,7 @@
 -- @seam-count 45
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 132
+local VERB_COUNT = 134
 local SEAM_COUNT = 45
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
@@ -5097,6 +5097,46 @@ return {
                     .. describe(never) .. " -- " .. describe(never_detail)
             end
             return "ok", describe(detail) .. "; zoom+1 -> timeout (" .. describe(never_detail) .. ")"
+        end)
+
+        -- ui.text / ui.expect_text (seam29 setup_wield_text_read_and_reach_honesty):
+        -- the objectbox body read into the ledger; an unmounted component is not_found,
+        -- and a string the box does not hold is not_found too.
+        local objbox_text = nil
+        step("ui.text", function()
+            local fn = verb("ui", "text")
+            if not fn then return missing("ui", "text") end
+            local result, text = fn(OBJECTBOX_INTERFACE .. ":text")
+            if result ~= "ok" then
+                return result, describe(text)
+            end
+            if type(text) ~= "string" or text == "" then
+                return "hollow", "objectbox:text answered ok with no text"
+            end
+            objbox_text = text
+            local gone_result = fn("questjournal:title")
+            if gone_result ~= "not_found" then
+                return "hollow", "an unmounted component answered " .. describe(gone_result)
+            end
+            return "ok", "objectbox:text reads '" .. text .. "'; questjournal:title -> not_found"
+        end)
+
+        step("ui.expect_text", function()
+            local fn = verb("ui", "expect_text")
+            if not fn then return missing("ui", "expect_text") end
+            if objbox_text == nil then
+                return "no_subject", "ui.text read nothing to expect"
+            end
+            local word = string.match(objbox_text, "%S+")
+            local result, detail = fn(OBJECTBOX_INTERFACE .. ":text", word, 1)
+            if result ~= "ok" then
+                return result, describe(detail)
+            end
+            local miss_result = fn(OBJECTBOX_INTERFACE .. ":text", "zz-not-on-this-box-zz", 1)
+            if miss_result ~= "not_found" then
+                return "hollow", "a string the box does not hold answered " .. describe(miss_result)
+            end
+            return "ok", describe(detail) .. "; a miss -> not_found"
         end)
 
         stage(function()
