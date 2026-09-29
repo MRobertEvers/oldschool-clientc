@@ -604,7 +604,7 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                 int saved_z = player->z;
                 int saved_level = player->level;
 
-                uint32_t saved_rng = srv->rng;
+                uint32_t saved_rng = srv->world_random.engine;
 
                 fprintf(stderr,
                         "ToriRSServer selftest: melee closes deck distance to the rail\n");
@@ -660,7 +660,7 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                  * pins behaviour that flips on the draw count — the exact
                  * brittleness its own comment documents. Restore the seed
                  * so inserting this stanza is invisible to it. */
-                srv->rng = saved_rng;
+                srv->world_random.engine = saved_rng;
             }
 
             SELFTEST_CHECK(ToriRSServer_VesselFree(srv, handle) == 1, "the vessel frees");

@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 42
+-- @seam-count 45
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 132
-local SEAM_COUNT = 42
+local SEAM_COUNT = 45
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6367,6 +6367,91 @@ return {
                 return "hollow", "an await answered ok without its detail -- " .. text
             end
             return "ok", text
+        end)
+
+        -- A SPELL WITH NO TARGET (seam28 self_cast_and_moving_multinpc_press).
+        -- t.player.cast(spell) with no target presses the spellbook cell's
+        -- own op 1 (IF_BUTTON1 -> [if_button,magic_spellbook:<spell>]); before
+        -- seam28 it died in by_symbol("npc", nil) (build/quest_gate/
+        -- s28sc_before row 2).  Graded on the TILE: Varrock Teleport from
+        -- Lumbridge must land in Varrock and say TELEPORTED; Ardougne Teleport
+        -- with %elenaquest unset must answer refused quoting the gate
+        -- (skill_magic/scripts/spells/teleport.rs2:16-23, LostCity
+        -- teleport.rs2) and leave the player where he stood.
+        stage(function()
+            setup_cheat("::give lawrune 5")                     -- setup
+            setup_cheat("::give firerune 5")
+            setup_cheat("::goto 3222 3219 0")
+            settle(3)
+        end)
+        seam("seam.cast_self_teleport", function()
+            local cast = verb("player", "cast")
+            local tile = verb("world", "tile")
+            if not cast then return missing("player", "cast") end
+            if not tile then return missing("world", "tile") end
+            local result, detail = cast("varrock_teleport")
+            local _, at = tile()
+            local text = "cast varrock_teleport (no target) -> " .. describe(result) .. " "
+                .. describe(detail) .. "; tile " .. (at and (at.x .. "," .. at.z .. "," .. at.level) or "?")
+            if result ~= "ok" then
+                return result, text
+            end
+            if not at or at.x < 3200 or at.x > 3230 or at.z < 3415 or at.z > 3440
+                or not string.find(tostring(detail), "TELEPORTED", 1, true) then
+                return "hollow", "the self-cast answered ok but the player is not in Varrock -- " .. text
+            end
+            return "ok", text
+        end)
+        seam("seam.cast_self_refused", function()
+            local cast = verb("player", "cast")
+            local tile = verb("world", "tile")
+            if not cast then return missing("player", "cast") end
+            if not tile then return missing("world", "tile") end
+            local _, before = tile()
+            local result, detail = cast("ardougne_teleport")
+            local _, after = tile()
+            local text = "cast ardougne_teleport before Plague City -> " .. describe(result) .. " "
+                .. describe(detail) .. "; tile " .. (before and (before.x .. "," .. before.z) or "?")
+                .. " -> " .. (after and (after.x .. "," .. after.z) or "?")
+            if result ~= "refused" then
+                return "refused", "the Plague City gate must refuse the cast -- " .. text
+            end
+            if not string.find(tostring(detail), "You must have completed Plague City to use this spell.", 1, true)
+                or not before or not after or before.x ~= after.x or before.z ~= after.z then
+                return "hollow", "refused without the gate's sentence, or the player moved -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- AN UNDRAWN MULTINPC SHELL IS NOT A MISSED PRESS (seam28).  A
+        -- multinpc table is indexed BY VALUE (all.npc multinpc1 is varbit
+        -- value 0); at ^gobdip_grubfoot_hidden (3, catwalk_goblin's -1 rung)
+        -- Grubfoot is not drawn, and talk_to must answer not_visible naming
+        -- the shell -- not a pixel hunt's account (build/quest_gate/
+        -- s28sm_proof1 gv.vis3.undrawn).  The varbit goes back to 0 after.
+        stage(function()
+            setup_cheat("::goto 2957 3510 0")                   -- setup
+            settle(2)
+            setup_cheat("::setvar gobdip_grubfoot_vis ^gobdip_grubfoot_hidden")
+            settle(3)
+        end)
+        seam("seam.talk_to_undrawn_multinpc", function()
+            local fn = verb("player", "talk_to")
+            if not fn then return missing("player", "talk_to") end
+            local result, detail = fn("catwalk_goblin", 1)
+            local text = "talk_to catwalk_goblin at gobdip_grubfoot_vis ^gobdip_grubfoot_hidden -> "
+                .. describe(result) .. " " .. describe(detail)
+            if result ~= "not_visible" then
+                return "refused", "an undrawn shell must answer not_visible -- " .. text
+            end
+            if not string.find(tostring(detail), "resolved to NO child", 1, true) then
+                return "hollow", "not_visible without naming the shell -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::setvar gobdip_grubfoot_vis 0")       -- setup
+            settle(1)
         end)
         stage(function()
             setup_cheat("::setlevel hitpoints 10")

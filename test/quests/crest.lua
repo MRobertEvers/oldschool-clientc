@@ -333,10 +333,31 @@ return {
         t.expect("openGoldGate.open", t.msg.expect("The gate swings open"))
 
         -- mineGold: two 'perfect' gold ore from goldrock2 (2732,9680).
+        -- Swing until each ore lands, re-pressing the rock whenever the
+        -- swinging stops: a gem find ends the mining loop ("You just found
+        -- an Opal!") and the old single press then waited 250 ticks on a
+        -- player standing still. Every swing is a roll on the player's own
+        -- stream (seam28); on it the gems came first.
         t.exec("mineGold1", t.player.click_loc, "goldrock2", 1)
-        t.exec("mineGold1.ore", t.inv.await, "perfect_gold_ore", 1, 250)
+        local gold1_r = t.inv.await("perfect_gold_ore", 1, 60)
+        for again = 1, 12 do
+            if gold1_r == "ok" then
+                break
+            end
+            t.exec("mineGold1.again." .. again, t.player.click_loc, "goldrock2", 1)
+            gold1_r = t.inv.await("perfect_gold_ore", 1, 60)
+        end
+        t.exec("mineGold1.ore", t.inv.await, "perfect_gold_ore", 1, 1)
         t.exec("mineGold2", t.player.click_loc, "goldrock2", 1)
-        t.exec("mineGold2.ore", t.inv.await, "perfect_gold_ore", 2, 250)
+        local gold2_r = t.inv.await("perfect_gold_ore", 2, 60)
+        for again = 1, 12 do
+            if gold2_r == "ok" then
+                break
+            end
+            t.exec("mineGold2.again." .. again, t.player.click_loc, "goldrock2", 1)
+            gold2_r = t.inv.await("perfect_gold_ore", 2, 60)
+        end
+        t.exec("mineGold2.ore", t.inv.await, "perfect_gold_ore", 2, 1)
 
         -- ---------------------------------------------------------------
         -- smeltGold: Quest Helper's furnace WorldPoint 3273,3186 (Al

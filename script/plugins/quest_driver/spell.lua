@@ -317,6 +317,13 @@ end
 function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
     ticks = ticks or 10
     attack_op = attack_op or 2
+    -- SEAM self_cast_and_moving_multinpc_press (seam28): NO target -- a
+    -- teleport, Charge, Bones to Bananas -- is the spell cell's own op, a
+    -- plain button press (QD.player._cast_self, the last section of this
+    -- file).  `t.player.cast("varrock_teleport")`, or `{kind='self'}`.
+    if npc_symbol == nil or (type(npc_symbol) == "table" and npc_symbol.kind == "self") then
+        return QD.player._cast_self(spell, ticks)
+    end
     -- SEAM cast_on_ground_obj_and_loc (seam23): a `{kind=, id=}` world
     -- target -- a ground obj or a loc -- goes to QD.player._cast_on_world
     -- (the section after this function); a `{kind="npc", id="<symbol>"}`
@@ -335,8 +342,8 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
             npc_symbol = npc_symbol.symbol or npc_symbol.id
         else
             return "unsupported", "cast " .. tostring(spell) .. ": a table target must be"
-                .. " {kind='obj'|'loc', id=<symbol or id>}, {kind='held', id=<obj symbol>}"
-                .. " or {kind='npc', id=<symbol>}, got kind "
+                .. " {kind='obj'|'loc', id=<symbol or id>}, {kind='held', id=<obj symbol>},"
+                .. " {kind='self'} or {kind='npc', id=<symbol>}, got kind "
                 .. tostring(npc_symbol.kind) .. " id " .. tostring(npc_symbol.id)
         end
     end
@@ -1233,4 +1240,192 @@ function QD.player._cast_on_held(spell, target, ticks)
     end
     return "timeout", detail .. " -- " .. (settle_result == "ok" and "" or "no refusal, ")
         .. "no effect inside " .. tostring(ticks) .. " ticks: the cast never ran"
+end
+
+-- ------------------------------------------------------------ a SELF-CAST
+--
+-- SEAM self_cast_and_moving_multinpc_press (seam28, 2026-09-29).  Plague
+-- City's reward is the Ardougne Teleport gate (skill_magic/scripts/spells/
+-- teleport.rs2:16-23, from LostCity teleport.rs2): before %elenaquest reaches
+-- ^elena_complete the spell answers "You must have completed Plague City to
+-- use this spell.", after it and before the scroll is read "You havn't learnt
+-- how to cast this spell yet.", and only then ~magic_teleport.  Every later
+-- tier has teleport-spell steps.  No verb could cast a spell with NO target:
+-- `t.player.cast("varrock_teleport")` died inside by_symbol("npc", nil)
+-- (build/quest_gate/s28sc_before row 2, `bad argument #2 to 'symbol'`).
+--
+-- WHAT IS PRESSED.  A teleport is not a target spell.  Its spellbook cell
+-- offers a plain "Cast" op, and a left click on it sends IF_BUTTON1, which
+-- the server runs as `[if_button,magic_spellbook:<spell>]` -- teleport.rs2's
+-- triggers.  So the press is the cell's own op 1 through api_drive.if_click
+-- -> app_plugin_click_node, the dispatcher a real click reaches (the emote
+-- verb's press, ui.lua), never api_drive.spell_arm (which arms target mode
+-- and would leave a live selection behind for the next click).  The magic
+-- tab is opened and the cell awaited DISPLAYED first (_spell_component).
+--
+-- WHAT IT SETTLES ON.  A teleport pays its runes and XP on the press tick
+-- (~delete_spell_runes, ~give_spell_xp) and lands two ticks later
+-- (~player_teleport_normal: anim, p_delay(1), p_delay(0), p_telejump).  Every
+-- refusal on the way is a mes() and moves nothing: the quest gates above,
+-- magic.rs2's level and rune lines, ~magic_teleport_gate's wilderness line,
+-- the Gauntlet and Mage Training Arena blocks.  So:
+--   ok       = the player LEFT the tile: more than SELF_CAST_MOVED tiles, or
+--              another level.  The detail names the tile reached.  Also ok:
+--              Magic XP paid with no move (a self-cast that is not a
+--              teleport -- Charge, Bones to Bananas), and it says "no
+--              teleport" so a teleport test cannot mistake it for one.
+--   no_runes = magic.rs2's rune sentence.
+--   refused  = any other line, with no move and no XP, left standing
+--              SELF_CAST_LINE_GRACE ticks -- the server's sentence quoted.
+--   timeout  = nothing inside `ticks` (default 10).  A TARGET spell (Wind
+--              Strike) pressed here lands in this word: its cell's left click
+--              arms target mode in the real client, and the server has no
+--              [if_button] for it -- give it a target.
+-- The backpack is put back afterwards (the emote verb's rule).  No combat
+-- stamp.
+-- ---------------------------------------------------------------------------
+
+-- More than this many tiles (Chebyshev), or a level change, is a teleport
+-- and not a step: nothing the press can start walks the player at all, and
+-- the nearest teleport destination is dozens of tiles from any start.
+QD.player.SELF_CAST_MOVED = 2
+
+-- Ticks a line with no move and no XP is left standing before it is the
+-- answer: the teleport's own p_delays are two ticks, so a line that a
+-- landing follows (a content hook printing on cast) is not read as a refusal.
+QD.player.SELF_CAST_LINE_GRACE = 3
+
+-- Ticks after the Magic XP edge the verb still waits for the landing
+-- (p_delay(1) + p_delay(0) + a tick of client latency, with one to spare).
+QD.player.SELF_CAST_LAND_TICKS = 5
+
+function QD.player._self_cast_tile()
+    local result, tile = api_drive.player_tile()
+    if result ~= "ok" or type(tile) ~= "table" then
+        return nil
+    end
+    return tile
+end
+
+function QD.player._self_cast_tile_text(tile)
+    if tile == nil then
+        return "?"
+    end
+    return tostring(tile.x) .. "," .. tostring(tile.z) .. "," .. tostring(tile.level)
+end
+
+function QD.player._self_cast_moved(from, to)
+    if from == nil or to == nil then
+        return false
+    end
+    if from.level ~= to.level then
+        return true
+    end
+    local dx = math.abs(to.x - from.x)
+    local dz = math.abs(to.z - from.z)
+    return math.max(dx, dz) > QD.player.SELF_CAST_MOVED
+end
+
+-- t.player.cast(spell[, nil or {kind="self"}, ticks]) -- the banner above.
+function QD.player._cast_self(spell, ticks)
+    ticks = ticks or 10
+    local symbol = QD.player._spell_symbol(spell)
+    local label = "cast " .. symbol .. " (self, magic_spellbook:" .. symbol .. " op 1)"
+    if QD.player._death_fence("t.player.cast " .. symbol .. " self") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local component_result, component_id = QD.player._spell_component(symbol)
+    if component_result ~= "ok" then
+        QD.player._show_backpack()
+        return component_result, component_id
+    end
+    local from = QD.player._self_cast_tile()
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" or type(since) ~= "number" then
+        since = nil
+    end
+    local xp_before = QD.player._magic_xp()
+    local start_tick = api_drive.tick()
+
+    local click_result, click_why = api_drive.if_click(component_id, 1)
+    if click_result ~= "ok" then
+        QD.player._show_backpack()
+        return click_result, label .. ": if_click(" .. tostring(component_id) .. ", 1) -> "
+            .. tostring(click_result) .. " " .. tostring(click_why) .. " -- nothing was cast"
+    end
+
+    local moved_tick, xp_tick, line_tick = nil, nil, nil
+    local refusal_word, refusal_line = nil, nil
+    local settle_result = QD.await({
+        level = function()
+            local now = api_drive.tick()
+            if moved_tick == nil and QD.player._self_cast_moved(from, QD.player._self_cast_tile()) then
+                moved_tick = now
+            end
+            if xp_tick == nil and xp_before ~= nil then
+                local xp_now = QD.player._magic_xp()
+                if xp_now ~= nil and xp_now > xp_before then
+                    xp_tick = now
+                end
+            end
+            if moved_tick ~= nil then
+                -- Landed.  One tick more when the XP has not been read yet,
+                -- so the detail carries it.
+                return xp_tick ~= nil or xp_before == nil or now >= moved_tick + 1
+            end
+            refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+            if refusal_word then
+                return true
+            end
+            if xp_tick ~= nil then
+                return now >= xp_tick + QD.player.SELF_CAST_LAND_TICKS
+            end
+            if line_tick == nil and #QD.player._spell_lines_since(since) > 0 then
+                line_tick = now
+            end
+            return line_tick ~= nil and now >= line_tick + QD.player.SELF_CAST_LINE_GRACE
+        end,
+        note = "player.cast " .. symbol .. " self",
+    }, ticks)
+
+    local to = QD.player._self_cast_tile()
+    local xp_after = QD.player._magic_xp()
+    local lines = QD.player._spell_lines_since(since)
+    local back_result = QD.player._show_backpack()
+    local detail = label .. ": at " .. QD.player._self_cast_tile_text(from) .. " -> "
+        .. QD.player._self_cast_tile_text(to) .. ", magic xp " .. tostring(xp_before)
+        .. " -> " .. tostring(xp_after)
+    if moved_tick ~= nil then
+        detail = detail .. ", landed " .. tostring(moved_tick - start_tick) .. " tick(s) after the press"
+    end
+    if #lines > 0 then
+        detail = detail .. ", chat '" .. table.concat(lines, "' '") .. "'"
+    end
+    detail = detail .. " (sidebar back to inventory: " .. tostring(back_result) .. ")"
+
+    if QD.player._death_fence("t.player.cast " .. symbol .. " self, after the settle") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local xp_paid = xp_before ~= nil and xp_after ~= nil and xp_after > xp_before
+    if moved_tick ~= nil or QD.player._self_cast_moved(from, to) then
+        return "ok", detail .. " -- TELEPORTED to " .. QD.player._self_cast_tile_text(to)
+    end
+    if not refusal_word then
+        refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+    end
+    if refusal_word then
+        return refusal_word, detail .. " -- the SERVER refused the cast: '"
+            .. tostring(refusal_line) .. "'"
+    end
+    if xp_paid then
+        return "ok", detail .. " -- CAST (Magic XP paid) and no teleport: the player stayed within "
+            .. tostring(QD.player.SELF_CAST_MOVED) .. " tile(s)"
+    end
+    if #lines > 0 then
+        return "refused", detail .. " -- the server answered '" .. lines[#lines]
+            .. "', paid no Magic XP and moved nothing: it did not cast"
+    end
+    return "timeout", detail .. " -- " .. (settle_result == "ok" and "" or "no line, ")
+        .. "no move and no Magic XP inside " .. tostring(ticks) .. " ticks: the cast never ran"
+        .. " (a target spell's cell arms target mode instead -- give it a target)"
 end

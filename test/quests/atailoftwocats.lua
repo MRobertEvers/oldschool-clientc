@@ -458,7 +458,18 @@ return {
             end
             local tb_vr, tb_vrow = t.npc.nearest("death_growncat_black", 40)
             if tb_vr == "ok" then
-                t.player.walk_to(tb_vrow.x + 1, tb_vrow.z, 6)
+                local tb_wr = t.player.walk_to(tb_vrow.x + 1, tb_vrow.z, 6)
+                -- Bob can be "in view" through a wall -- the search stops
+                -- at radius 3, which reaches through the side of Hild's
+                -- house -- and then no walk routes to him ("I can't reach
+                -- that!"). Travel beside him the way the search's own hops
+                -- do: plain travel, no gate the guide names in between.
+                -- (seam28: Bob's walk is his own stream now, and on it he
+                -- stands outside that wall.)
+                if tb_wr ~= "ok" and tostring(talkToBob_detail):find("reach") then
+                    t.exec("talkToBob.hop." .. attempt, t.player.goto_tile,
+                        tb_vrow.x + 1, tb_vrow.z, tb_vrow.level or 0)
+                end
             end
         end
         t.check("talkToBob", talkToBob_result == "ok"
@@ -691,7 +702,18 @@ return {
             end
             local tba_vr, tba_vrow = t.npc.nearest("death_growncat_black", 40)
             if tba_vr == "ok" then
-                t.player.walk_to(tba_vrow.x + 1, tba_vrow.z, 6)
+                local tba_wr = t.player.walk_to(tba_vrow.x + 1, tba_vrow.z, 6)
+                -- Bob can be "in view" through a wall -- the search stops
+                -- at radius 3, which reaches through the side of Hild's
+                -- house -- and then no walk routes to him ("I can't reach
+                -- that!"). Travel beside him the way the search's own hops
+                -- do: plain travel, no gate the guide names in between.
+                -- (seam28: Bob's walk is his own stream now, and on it he
+                -- stands outside that wall.)
+                if tba_wr ~= "ok" and tostring(talkToBobAgain_detail):find("reach") then
+                    t.exec("talkToBobAgain.hop." .. attempt, t.player.goto_tile,
+                        tba_vrow.x + 1, tba_vrow.z, tba_vrow.level or 0)
+                end
             end
         end
         t.check("talkToBobAgain", talkToBobAgain_result == "ok"
@@ -1087,7 +1109,18 @@ return {
             end
             local tbf_vr, tbf_vrow = t.npc.nearest("death_growncat_black", 40)
             if tbf_vr == "ok" then
-                t.player.walk_to(tbf_vrow.x + 1, tbf_vrow.z, 6)
+                local tbf_wr = t.player.walk_to(tbf_vrow.x + 1, tbf_vrow.z, 6)
+                -- Bob can be "in view" through a wall -- the search stops
+                -- at radius 3, which reaches through the side of Hild's
+                -- house -- and then no walk routes to him ("I can't reach
+                -- that!"). Travel beside him the way the search's own hops
+                -- do: plain travel, no gate the guide names in between.
+                -- (seam28: Bob's walk is his own stream now, and on it he
+                -- stands outside that wall.)
+                if tbf_wr ~= "ok" and tostring(talkToBobToFinish_detail):find("reach") then
+                    t.exec("talkToBobToFinish.hop." .. attempt, t.player.goto_tile,
+                        tbf_vrow.x + 1, tbf_vrow.z, tbf_vrow.level or 0)
+                end
             end
         end
         t.check("talkToBobToFinish", talkToBobToFinish_result == "ok"

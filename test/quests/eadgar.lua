@@ -196,9 +196,22 @@ return {
         -- t.ticks(2) above; this is a second, independent seam behind it).
         -- One retry after a longer settle is the same "give the scene a
         -- moment" fix as the settle above, just a second helping of it.
+        --
+        -- seam28: Eadgar wanders, and on his own stream he stepped next to
+        -- the Cave Exit, which then covered every pixel of him ("covered
+        -- element ... menu has no row for it"). So hunt rather than retry
+        -- once: give him a few ticks, step up beside wherever he is now (a
+        -- new camera pose), and press again, re-resolving him every time.
         local eadgar_talk_result, eadgar_talk_detail = t.player.talk_to("troll_eadgar", 1)
-        if eadgar_talk_result ~= "ok" then
+        for attempt = 1, 8 do
+            if eadgar_talk_result == "ok" then
+                break
+            end
             t.ticks(5)
+            local eadgar_target = t.player.by_symbol("npc", "troll_eadgar")
+            if eadgar_target then
+                t.player.walk_near(eadgar_target, 10)
+            end
             eadgar_talk_result, eadgar_talk_detail = t.player.talk_to("troll_eadgar", 1)
         end
         t.check("talkToEadgar-askGoutweed", eadgar_talk_result == "ok",

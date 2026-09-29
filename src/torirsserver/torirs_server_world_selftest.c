@@ -2918,7 +2918,7 @@ selftest_canoes(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                 player->stat_level[woodcutting] = 60;
                 player->stat_boosted[woodcutting] = 60;
                 ToriRSServer_VarbitSet(srv, state_bit, 0);
-                srv->rng = 0xca20e001u;
+                srv->world_random.engine = 0xca20e001u;
 
                 /* ---- Chop-down. State 0 -> 10, through the falling state. */
                 selftest_handle(player, PKTOUT_NAME_OPLOC1, oploc, 6);
@@ -5380,6 +5380,7 @@ ToriRSServer_WorldSelftest(void)
                         int32_t style_arg = style;
                         int accurate = -1;
 
+                        srv->script_random_pinned = 1;
                         SSVM_EnvSeed(srv->script_env, (uint64_t)seed);
                         if( ToriRSServer_ScriptsRunProcIntOnNpc(
                                 srv, roll_cases[c].proc, slots[c],
@@ -5530,6 +5531,7 @@ ToriRSServer_WorldSelftest(void)
                          seed < 4096 && seen_magic != 7; seed++ )
                     {
                         memset(player->queue, 0, sizeof(player->queue));
+                        srv->script_random_pinned = 1;
                         SSVM_EnvSeed(srv->script_env, (uint64_t)seed);
                         if( !ToriRSServer_ScriptsRunProcArgsOnNpc(
                                 srv, "[proc,gwd_boss_magic_fixed]", slots[3],
@@ -5556,6 +5558,7 @@ ToriRSServer_WorldSelftest(void)
                     selftest_prayer_toggle(
                         srv, "prayer_protectfrommagic");
                     memset(player->queue, 0, sizeof(player->queue));
+                    srv->script_random_pinned = 1;
                     SSVM_EnvSeed(
                         srv->script_env, (uint64_t)maximum_seed);
                     SELFTEST_CHECK(
@@ -5604,6 +5607,7 @@ ToriRSServer_WorldSelftest(void)
                         srv->npcs[slots[c]].active = 0;
                 memset(player->queue, 0, sizeof(player->queue));
                 SSVM_EnvSeed(srv->script_env, 0x5eed1234u);
+                srv->script_random_pinned = 0;
             }
 
             for( size_t i = 0;
@@ -9560,9 +9564,11 @@ ToriRSServer_WorldSelftest(void)
                     int minimum = -1;
                     int maximum = -1;
 
+                    srv->script_random_pinned = 1;
                     SSVM_EnvSeed(srv->script_env, 70054);
                     ToriRSServer_ScriptsRunProcInt(
                         srv, "[proc,random_range]", range_args, 2, &minimum);
+                    srv->script_random_pinned = 1;
                     SSVM_EnvSeed(srv->script_env, 5189);
                     ToriRSServer_ScriptsRunProcInt(
                         srv, "[proc,random_range]", range_args, 2, &maximum);
@@ -9575,6 +9581,7 @@ ToriRSServer_WorldSelftest(void)
                         minimum, maximum);
                 }
                 srv->script_env->rng = saved_rng;
+                srv->script_random_pinned = 0;
             }
 
             /* Boundary cases above prove every primary roll reaches the right
@@ -15979,7 +15986,7 @@ ToriRSServer_WorldSelftest(void)
              * dialogue draw from them, and the combat section's goblin fight
              * is a seeded walk that fails eight rows when this stanza shifts
              * its stream (measured: 6 -> 13 failures without the restore). */
-            uint32_t saved_rng = srv->rng;
+            uint32_t saved_rng = srv->world_random.engine;
             uint64_t saved_script_rng = srv->script_env->rng;
 
             SELFTEST_CHECK(avan_type > 0, "npc avan should resolve by name");
@@ -16051,7 +16058,7 @@ ToriRSServer_WorldSelftest(void)
                 }
                 player->varps[crestquest] = saved;
             }
-            srv->rng = saved_rng;
+            srv->world_random.engine = saved_rng;
             srv->script_env->rng = saved_script_rng;
             ToriRSServer_ScriptsFree(srv);
         }
@@ -19242,6 +19249,7 @@ ToriRSServer_WorldSelftest(void)
         static struct ToriRSServerCapture capture;
         int goblin = -1;
         int xp_before[TORIRSSERVER_STAT_COUNT] = { 0 };
+        int hp_saved[4] = { 0 };
 
         /*
          * Combat needs the content pack, and that is new.
@@ -19988,6 +19996,31 @@ ToriRSServer_WorldSelftest(void)
             player->x = npc->x + 1;
             player->z = npc->z;
             steps_clear(player);
+            /*
+             * Hitpoints as a real account has them. Content's `[login]` gives a
+             * new player level 10 hitpoints (1154 xp) and this fixture never
+             * runs it, so the player used to fight on 1 hitpoint and the
+             * section passed only while the one world RNG happened to hand the
+             * goblin misses: the Gnome Exam's archaeological expert spawn
+             * (m52_52) shifted that stream and ten rows here went red with the
+             * player dead at t=18 (parity3b close, step 2b). The fight is now
+             * on the player's own stream (seam28 per_entity_random_streams),
+             * and on a player who can take a goblin's hit.
+             *
+             * Put back after the fight (below): every later section was
+             * written against the 1-hitpoint fixture -- a player who SURVIVES
+             * a later hit keeps an inventory those sections' setups expected a
+             * death to have emptied (crest, tree, sheepherder, arena, CoX and
+             * gear runs all fill up; measured seam28).
+             */
+            hp_saved[0] = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
+            hp_saved[1] = player->stat_level[TORIRSSERVER_STAT_HITPOINTS];
+            hp_saved[2] = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
+            hp_saved[3] = player->max_hitpoints;
+            player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = 11540;
+            player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 10;
+            player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 10;
+            player->max_hitpoints = 10;
             player->hitpoints = player->max_hitpoints;
 
             /*
@@ -20107,6 +20140,19 @@ ToriRSServer_WorldSelftest(void)
                 player->stat_xp_tenths[TORIRSSERVER_STAT_ATTACK] - xp_before[TORIRSSERVER_STAT_ATTACK],
                 player->stat_xp_tenths[TORIRSSERVER_STAT_STRENGTH] - xp_before[TORIRSSERVER_STAT_STRENGTH],
                 player->stat_xp_tenths[TORIRSSERVER_STAT_DEFENCE] - xp_before[TORIRSSERVER_STAT_DEFENCE]);
+
+            /* The fixture's own hitpoints back, plus what the kill paid -- the
+             * state every later section was written against (see above). */
+            {
+                int gained = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] - 11540;
+
+                player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_saved[0] + gained;
+                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_saved[1];
+                player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = hp_saved[2];
+                player->max_hitpoints = hp_saved[3];
+                if( player->hitpoints > player->max_hitpoints )
+                    player->hitpoints = player->max_hitpoints;
+            }
 
             /* Corpse despawns, then respawns at its spawn tile at full health.
              * Both windows come off the npc's own record, so a tree that gives
@@ -21374,6 +21420,20 @@ ToriRSServer_WorldSelftest(void)
     fprintf(stderr, "ToriRSServer selftest: login burst\n");
     {
         static struct ToriRSServerCapture capture;
+        /*
+         * This is the fixture's FIRST `[login]`, so `~newplayer_setup` hands
+         * out the opening kit on top of the kit the fixture already carries:
+         * 14 slots became 26. Every later section was measured on whatever a
+         * goblin fight happened to leave behind -- on the 1-hitpoint fixture
+         * the goblin killed the player, the death kept three items and the
+         * inventory had room. With the fight on real hitpoints (seam28) the
+         * player lives, and crest, tree, sheepherder, arena, CoX and gear runs
+         * found 28 slots full. Put the inventory back: the kit is not this
+         * stanza's subject, the packet order is.
+         */
+        struct ToriRSServerItem login_saved_inv[TORIRSSERVER_INV_SLOTS];
+
+        memcpy(login_saved_inv, player->inv, sizeof(login_saved_inv));
         int old_x = player->x;
         int old_z = player->z;
         int old_level = player->level;
@@ -21808,6 +21868,8 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
         }
+        memcpy(player->inv, login_saved_inv, sizeof(login_saved_inv));
+        player->inv_dirty = 0xfffffffu;
     }
 
     fprintf(stderr, "ToriRSServer selftest: client layout persistence\n");
@@ -25457,7 +25519,7 @@ ToriRSServer_WorldSelftest(void)
                  */
                 saved_xp = player->stat_xp_tenths[woodcutting];
                 player->stat_xp_tenths[woodcutting] = ToriRSServer_CombatXpForLevel(30) * 10;
-                srv->rng = 0x5eed1234u;
+                srv->world_random.engine = 0x5eed1234u;
 
                 placed = ToriRSServer_WorldLocSet(srv, tree_x, tree_z, 0, tree_shape, willow, 0,
                                                TORIRSSERVER_LOC_SET_ADD);
@@ -25668,7 +25730,7 @@ ToriRSServer_WorldSelftest(void)
                  * message pointing at npc 611 and nothing at a ship. A section
                  * that puts the stream back where it found it cannot do that to
                  * whatever is written after it. */
-                uint32_t saved_rng = srv->rng;
+                uint32_t saved_rng = srv->world_random.engine;
                 uint8_t payload[2];
                 int refused = 0;
                 /* Resolved out of the table rather than written down: Catherby
@@ -25807,7 +25869,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_park_player(srv, entry_x, entry_z);
                 memcpy(player->inv, saved_inv, sizeof(saved_inv));
                 player->inv_dirty = 0xfffffffu;
-                srv->rng = saved_rng;
+                srv->world_random.engine = saved_rng;
             }
             if( owned )
                 ToriRSServer_ScriptsFree(srv);
@@ -35146,11 +35208,24 @@ ToriRSServer_WorldSelftest(void)
                     player->inv[whip_slot].obj_id = -1;
                     player->inv[whip_slot].count = 0;
                 }
-                /* And a free cell strictly below wherever the whip now is. */
-                if( selftest_find(player, whip) > 0 )
+                /* And a free cell strictly below wherever the whip now is --
+                 * made by clearing the lowest cell that is not one of this
+                 * stanza's own items. It used to clear cell 0 whatever it held,
+                 * and once the inventory above this section changed shape
+                 * (seam28: the login burst no longer leaves a second opening
+                 * kit behind) cell 0 held the helm leg 5 drops. */
+                whip_slot = selftest_find(player, whip);
+                if( whip_slot > 0 &&
+                    !(inv_first_free(player) >= 0 && inv_first_free(player) < whip_slot) )
                 {
-                    player->inv[0].obj_id = -1;
-                    player->inv[0].count = 0;
+                    for( int c = 0; c < whip_slot; c++ )
+                    {
+                        if( player->inv[c].obj_id == helm || player->inv[c].obj_id == scimitar )
+                            continue;
+                        player->inv[c].obj_id = -1;
+                        player->inv[c].count = 0;
+                        break;
+                    }
                 }
             }
 
@@ -36108,6 +36183,183 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK((settings & 4 /* REMOVE_ROOF */) != 0,
                                    "and the roof the restriction reads is really on his "
                                    "spawn tile, settings 0x%x", settings);
+            }
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: one npc's walk does not depend on the rest of the world\n");
+    {
+        /*
+         * The world used to hold ONE random stream, and every wanderer drew
+         * its 1-in-8 roll from it each tick in pool order. So a spawn row
+         * added ANYWHERE changed every other npc's walk: Death Plateau's
+         * soldier ambience, the Gnome Exam's archaeological expert and Temple
+         * of Ikov's Lucien each turned a committed quest test red by moving a
+         * cat, a sheep or a tree-keeper somewhere else (parity3a/3b; seam28
+         * per_entity_random_streams). Each npc now owns a stream seeded from
+         * its spawn tile and type, never its slot.
+         *
+         * This pins it: stand one wanderer up, record its first 50 tiles,
+         * take it down, stand an unrelated wanderer up on the far side of the
+         * scene, stand the first one up again on the same spawn, and the 50
+         * tiles are identical. The subject is chosen with no other npc's box
+         * near its own, so what could differ between the runs is the draws,
+         * not a body in the way.
+         */
+        struct ToriRSServerNpc* subject = NULL;
+        struct ToriRSServerNpc* far_npc = NULL;
+
+        /* tree-walk-exempt: selftest, not the frame loop. */
+        for( int i = 0; i < srv->npc_slot_max && !subject; i++ )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[i];
+            int crowded = 0;
+
+            if( !npc->active || npc->mode != TORIRSSERVER_NPCMODE_WANDER ||
+                npc->wander_radius < 2 || npc->wander_radius > 8 ||
+                (npc->size > 0 && npc->size != 1) || npc->combat_target >= 0 ||
+                npc->combat_target_npc >= 0 || npc->death_tick >= 0 ||
+                npc->huntmode != TORIRSSERVER_HUNT_NONE || npc->timer_interval > 0 ||
+                npc->owner_gen != 0 || npc_player_range(npc, player) < 16 ||
+                !ToriRSServer_SceneContains(npc->spawn_x - npc->wander_radius,
+                                            npc->spawn_z - npc->wander_radius) ||
+                !ToriRSServer_SceneContains(npc->spawn_x + npc->wander_radius,
+                                            npc->spawn_z + npc->wander_radius) )
+                continue;
+            for( int j = 0; j < srv->npc_slot_max && !crowded; j++ )
+            {
+                const struct ToriRSServerNpc* other = &srv->npcs[j];
+                /* Boxes that cannot touch: neither npc's roll can aim at a
+                 * tile the other's can. */
+                int reach = npc->wander_radius + other->wander_radius + 1;
+
+                if( j == i || !other->active || other->level != npc->spawn_level )
+                    continue;
+                if( abs(other->spawn_x - npc->spawn_x) <= reach &&
+                    abs(other->spawn_z - npc->spawn_z) <= reach )
+                    crowded = 1;
+            }
+            if( !crowded )
+                subject = npc;
+        }
+        SELFTEST_CHECK(subject != NULL,
+                       "a lone 1x1 wanderer (radius 2..8, no hunt, no timer) 16+ tiles from "
+                       "the player should exist in the scene");
+        if( subject )
+        {
+            int type = subject->spawn_type;
+            int spawn_x = subject->spawn_x;
+            int spawn_z = subject->spawn_z;
+            int spawn_level = subject->spawn_level;
+            int tiles[2][50][2];
+            int counted[2] = { 0, 0 };
+            int took[2] = { 0, 0 };
+            int far_slot = -1;
+
+            for( int run = 0; run < 2; run++ )
+            {
+                int slot;
+                struct ToriRSServerNpc* walker;
+                int last_x;
+                int last_z;
+
+                /* Take the subject (or the previous run's copy) down and let
+                 * the reap clear its slot, so the stand-up below is a spawn. */
+                ToriRSServer_WorldNpcFree(srv, (int)(subject - srv->npcs));
+                ToriRSServer_WorldNpcReap(srv);
+
+                if( run == 1 )
+                {
+                    /* The unrelated wanderer, on the far side of the scene:
+                     * the tile farthest from the subject's spawn that some
+                     * other npc already stands on (so it is a real, standable
+                     * spawn), of the subject's own type so it rolls every tick
+                     * the same way. */
+                    int best = -1;
+                    int best_distance = -1;
+
+                    for( int j = 0; j < srv->npc_slot_max; j++ )
+                    {
+                        const struct ToriRSServerNpc* other = &srv->npcs[j];
+                        int dx;
+                        int dz;
+                        int distance;
+
+                        if( !other->active || other->level != spawn_level ||
+                            !ToriRSServer_SceneContains(other->x, other->z) )
+                            continue;
+                        dx = abs(other->x - spawn_x);
+                        dz = abs(other->z - spawn_z);
+                        distance = dx > dz ? dx : dz;
+                        if( distance > best_distance )
+                        {
+                            best = j;
+                            best_distance = distance;
+                        }
+                    }
+                    SELFTEST_CHECK(best >= 0 && best_distance >= 30,
+                                   "a far-side tile 30+ tiles from the subject should exist, "
+                                   "got %d", best_distance);
+                    if( best >= 0 )
+                        far_slot = npc_spawn(srv, type, srv->npcs[best].x, srv->npcs[best].z,
+                                             spawn_level);
+                    SELFTEST_CHECK(far_slot >= 0, "the unrelated far-side wanderer should spawn");
+                    if( far_slot >= 0 )
+                        far_npc = &srv->npcs[far_slot];
+                }
+
+                slot = npc_spawn(srv, type, spawn_x, spawn_z, spawn_level);
+                SELFTEST_CHECK(slot >= 0, "the subject should stand up again on its spawn");
+                if( slot < 0 )
+                    break;
+                walker = &srv->npcs[slot];
+                subject = walker;
+                last_x = walker->x;
+                last_z = walker->z;
+                for( int tick = 0; tick < 4000 && counted[run] < 50; tick++ )
+                {
+                    advance_npcs(srv);
+                    srv->tick++;
+                    took[run]++;
+                    if( walker->x != last_x || walker->z != last_z )
+                    {
+                        tiles[run][counted[run]][0] = walker->x;
+                        tiles[run][counted[run]][1] = walker->z;
+                        counted[run]++;
+                        last_x = walker->x;
+                        last_z = walker->z;
+                    }
+                }
+            }
+            SELFTEST_CHECK(counted[0] == 50 && counted[1] == 50,
+                           "the subject (type %d, spawn %d,%d) should take 50 steps in each run, "
+                           "took %d and %d",
+                           type, spawn_x, spawn_z, counted[0], counted[1]);
+            fprintf(stderr, "  subject type %d spawn %d,%d: 50 tiles in %d and %d ticks\n", type,
+                    spawn_x, spawn_z, took[0], took[1]);
+            SELFTEST_CHECK(far_npc == NULL || far_npc->x != far_npc->spawn_x ||
+                               far_npc->z != far_npc->spawn_z || far_npc->waypoint_index >= 0 ||
+                               far_npc->stuck_counter > 0,
+                           "the far-side wanderer should have been ticking alongside it");
+            if( counted[0] == 50 && counted[1] == 50 )
+            {
+                int first_diff = -1;
+
+                for( int k = 0; k < 50 && first_diff < 0; k++ )
+                    if( tiles[0][k][0] != tiles[1][k][0] || tiles[0][k][1] != tiles[1][k][1] )
+                        first_diff = k;
+                SELFTEST_CHECK(first_diff < 0,
+                               "the subject's first 50 tiles should not change when an unrelated "
+                               "npc stands up across the map: step %d went %d,%d then %d,%d",
+                               first_diff, first_diff >= 0 ? tiles[0][first_diff][0] : 0,
+                               first_diff >= 0 ? tiles[0][first_diff][1] : 0,
+                               first_diff >= 0 ? tiles[1][first_diff][0] : 0,
+                               first_diff >= 0 ? tiles[1][first_diff][1] : 0);
+            }
+            if( far_slot >= 0 )
+            {
+                ToriRSServer_WorldNpcFree(srv, far_slot);
+                ToriRSServer_WorldNpcReap(srv);
             }
         }
     }
@@ -38953,6 +39205,7 @@ ToriRSServer_WorldSelftest(void)
                          * make the low-defence fixture hit and draw a positive
                          * value from randominc(4). The normal game sequence
                          * remains random; restore it below. */
+                        srv->script_random_pinned = 1;
                         SSVM_EnvSeed(srv->script_env, 0);
                         ToriRSServer_CombatNpcTick(srv, wizard_slot);
 
@@ -38998,6 +39251,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_WorldPlayerUnlock(srv);
                     }
                     srv->script_env->rng = saved_rng;
+                    srv->script_random_pinned = 0;
                 }
             }
 
@@ -48419,6 +48673,20 @@ ToriRSServer_WorldSelftest(void)
                          * failing with %ikov still at helping_armadyl.
                          */
                         ToriRSServer_ScriptsProcessQueues(srv);
+                        /*
+                         * LostCity's defeat line comes BEFORE the completion
+                         * (lucien.rs2:118-122 `queue_defeat_lucien`: the
+                         * `~chatnpc` "You have defeated me for now! I shall
+                         * reappear in the North!", then
+                         * `ikov_armadyl_quest_complete`), so the queue drain
+                         * parks on that page and the quest completes when the
+                         * player clicks through it. Before seam28 the port
+                         * completed on the drain alone, without the line.
+                         */
+                        SELFTEST_CHECK(player->active_script != NULL,
+                                       "ikov_lucien2's death should park on Lucien's defeat line "
+                                       "before the Armadyl path completes");
+                        selftest_click_through(srv, 4);
 
                         SELFTEST_CHECK(player->varps[varp_ikov] == 80 /* ikov_completed_armadyl */,
                                        "ikov_lucien2's death should complete the Armadyl path, "
@@ -56660,7 +56928,7 @@ ToriRSServer_WorldSelftest(void)
                      * survives" is a claim a depletion roll cannot pass by luck:
                      * against the reference's `random(16) < 3` this seed deletes
                      * the plant on pick 3. */
-                    srv->rng = 0x5eed1234u;
+                    srv->world_random.engine = 0x5eed1234u;
                     ToriRSServer_WorldLocSet(srv, crop_x, crop_z, 0, crop_shape, flax_loc, 0,
                                           TORIRSSERVER_LOC_SET_ADD);
 

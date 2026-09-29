@@ -234,14 +234,35 @@ return {
         t.check("returnToBoy.locate", boy_result == "ok",
             "npc.nearest(ballboy) -> " .. tostring(boy_result)
                 .. (boy_row and (" at " .. tostring(boy_row.x) .. "," .. tostring(boy_row.z) .. "," .. tostring(boy_row.level)) or ""))
-        if boy_result == "ok" and boy_row then
-            t.exec("goto-returnToBoy2", t.player.goto_tile, boy_row.x, boy_row.z, boy_row.level or 0)
-        end
 
         local snapshot_result, snapshot = t.skill.snapshot()
         t.check("hp.snapshot", snapshot_result == "ok", "hitpoints xp=" .. tostring(snapshot and snapshot.hitpoints and snapshot.hitpoints.experience))
 
-        t.exec("returnToBoy", t.player.talk_to, "ballboy", 1)
+        -- A goto onto his live tile can still land on the far side of the
+        -- garden fence: the world puts the player on the nearest tile it
+        -- accepts, and the Boy is standing on the one asked for (seam28, on
+        -- the Boy's own stream: 2929,3456, "I can't reach that!"). So hunt:
+        -- re-read him every attempt, stand beside him on a different side
+        -- each time, and talk until the press actually opens his dialogue.
+        local returnToBoy_result, returnToBoy_detail
+        local returnToBoy_sides = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } }
+        for attempt = 1, 10 do
+            local side = returnToBoy_sides[((attempt - 1) % #returnToBoy_sides) + 1]
+            if attempt > 1 or not (boy_result == "ok" and boy_row) then
+                boy_result, boy_row = t.npc.nearest("ballboy", 20)
+            end
+            if boy_result == "ok" and boy_row then
+                t.exec("goto-returnToBoy2." .. attempt, t.player.goto_tile,
+                    boy_row.x + side[1], boy_row.z + side[2], boy_row.level or 0)
+            end
+            returnToBoy_result, returnToBoy_detail = t.player.talk_to("ballboy", 1)
+            if returnToBoy_result == "ok" and not tostring(returnToBoy_detail):find("no dialogue") then
+                break
+            end
+        end
+        t.check("returnToBoy", returnToBoy_result == "ok"
+            and not tostring(returnToBoy_detail):find("no dialogue"),
+            tostring(returnToBoy_result) .. " " .. tostring(returnToBoy_detail))
         t.exec("returnToBoy-dialog", t.chat.play, {
             "player:Hi, I have got your ball back.",
             "mesbox:You give the ball back.",

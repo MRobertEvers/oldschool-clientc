@@ -20,6 +20,15 @@ return {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         "::complete quest_blackknightsfortress", -- prerequisite (getGeneralRequirements); quest_cheat.rs2's own dbrow name
         "::complete quest_druidicritual", -- prerequisite (getGeneralRequirements); quest_cheat.rs2's own dbrow name
+        -- getCombatRequirements: "Sir Leye (level 20) with no items". A fresh
+        -- level-3 character with 10 hitpoints won that fight bare-handed only
+        -- while the world's single random stream happened to favour it; on
+        -- the player's own stream (seam28) Sir Leye killed him at tick 201.
+        -- Staged to a character that meets the stated requirement.
+        "::setlevel attack 20",
+        "::setlevel strength 20",
+        "::setlevel defence 20",
+        "::setlevel hitpoints 20",
     },
 
     run = function(t)

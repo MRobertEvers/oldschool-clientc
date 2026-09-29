@@ -192,7 +192,10 @@ return {
 
         t.exec("goto-experiment", t.player.goto_tile, 3554, 9948, 0)
         t.exec("killExperiment", t.player.attack, "fenk_experiment_1", 2, 25)
-        t.exec("killExperiment.dead", t.npc.await_dead_engaged, 40, 6)
+        -- Fight it to the end, however long the rolls take: every swing is
+        -- on the player's own stream (seam28), and on it the level-51
+        -- Experiment sat at a sliver of health past the old 40-tick budget.
+        t.exec("killExperiment.dead", t.npc.await_dead_engaged, 200, 6)
 
         local key_result, key_row = t.world.obj_near("fenk_mausoleum_key", 15)
         t.check("pickupKey.locate", key_result == "ok",

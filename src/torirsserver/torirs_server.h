@@ -2224,6 +2224,48 @@ enum
  *  angle 0, due south, which is the resting facing the game gives an npc. */
 #define TORIRSSERVER_FACE_SOUTH 6
 
+/*
+ * One entity's own random streams.
+ *
+ * The world used to have ONE stream (`srv->rng`, plus the script VM's single
+ * java.util.Random state), and every npc's wander roll drew from it each tick
+ * in processing order. So one more npc anywhere -- a quest's spawn row, an
+ * `[ai_timer]` ambience -- consumed draws every tick, and every other npc's
+ * walk, every fight and every scripted roll in the world fell differently.
+ * Bisected three times in parity3a/3b (seam28 per_entity_random_streams):
+ * Death Plateau's soldier ambience sent Bob the cat out of reach in A Tail of
+ * Two Cats, the Gnome Exam's archaeological expert turned four other quests'
+ * tests and ten goblin-combat selftest rows red, and Temple of Ikov's Lucien
+ * spawns did the same to Bob again.
+ *
+ * Now each npc and each player owns its draws. An npc is seeded from STABLE
+ * identity -- its spawn tile, plane and type (and its ordinal among npcs
+ * stood up on the same key) -- never from its pool slot, because a slot index
+ * shifts when a spawn row is added and would bring the coupling straight
+ * back. A player is seeded from its account name (`name37`). The world keeps
+ * `ToriRSServer.world_random` only for draws with no entity.
+ *
+ * Determinism is THIS engine's test affordance, not a parity fact: LostCity
+ * draws every one of these from `Math.random` (engine/src/engine/entity/Npc.ts
+ * 700-734 for the wander roll, whose SHAPE -- 1/8 per tick, round(u*2r - r)
+ * per axis -- is unchanged here). What the streams buy is that a test that
+ * reads one npc's walk or one fight reads the same thing however many other
+ * npcs the content tree stands up.
+ *
+ * `engine` is the xorshift32 the C side rolls (wander, roam stagger, a stacked
+ * step-off, map_findsquare). `script` is the java.util.Random LCG state the
+ * VM's `random`/`randominc` advance: torirs_server_scripts.c swaps it into
+ * `SSVM_Env.rng` for exactly as long as a script of this entity runs.
+ */
+struct ToriRSServerRandomStream
+{
+    uint32_t engine;
+    uint64_t script;
+    /** 0 until seeded. A player's streams are seeded lazily, on first use,
+     *  because its name arrives after the slot is cleared. */
+    uint8_t seeded;
+};
+
 struct ToriRSServerNpc
 {
     int active;
@@ -2350,6 +2392,9 @@ struct ToriRSServerNpc
     const struct ToriRSServerNpcDef* def;
     /** RSMod/xrsps parity: idle NPCs try to roam every 15-30 ticks. */
     int next_roam_tick;
+    /** This npc's own draws -- see `struct ToriRSServerRandomStream`. Seeded
+     *  by `npc_spawn` from the spawn tile and type, never the slot. */
+    struct ToriRSServerRandomStream random;
 
     /** Packed zone index **plus one** — 0 means "filed nowhere". Maintained by
      *  `ToriRSServer_ZoneSyncNpcs`, which reconciles rather than hooks because an
@@ -3936,6 +3981,11 @@ struct ToriRSServerPlayer
      */
     int64_t name37;
 
+    /** This player's own draws: its combat rolls and every `random` in a
+     *  script run on its behalf. Read through `ToriRSServer_WorldPlayerRandom`,
+     *  which seeds it from `name37` on first use. */
+    struct ToriRSServerRandomStream random;
+
     /**
      * The reference's `socialProtect`: one social packet per tick, spent by the
      * first of the six that arrives and cleared in phase 11 (the reference
@@ -4300,8 +4350,21 @@ struct ToriRSServer
      * first one's [login], and one player's walk ending must not clear the
      * other's map flag. They are on `ToriRSServerPlayer` now. */
 
-    /** Deterministic per-connection RNG so a session replays identically. */
-    uint32_t rng;
+    /** The draws that belong to no entity -- see
+     *  `struct ToriRSServerRandomStream`. Nothing that runs per tick per npc
+     *  may touch it: that is what coupled every npc in the world. `.script`
+     *  is seeded by ToriRSServer_ScriptsInit, `.engine` by WorldInit. */
+    struct ToriRSServerRandomStream world_random;
+
+    /** The stream whose `.script` state is loaded into `script_env->rng`
+     *  right now, or NULL between scripts. Lets a script that runs another
+     *  script synchronously hand the VM register back intact. */
+    struct ToriRSServerRandomStream* script_random_loaded;
+
+    /** Selftest affordance: nonzero means scripts draw straight from
+     *  `script_env->rng` as the test seeded it (`SSVM_EnvSeed`), with no
+     *  per-entity swap. Never set outside a selftest. */
+    int script_random_pinned;
 
     /** The `last_int` the NEXT trigger dispatch must give its script, and
      *  whether one is stated. Set only across `ToriRSServer_ScriptsRunTriggerLastint`
@@ -5610,12 +5673,31 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv);
 /* Shared world helpers (torirs_server_world.c)                              */
 /* ------------------------------------------------------------------ */
 
-/** Deterministic roll in [lo, hi]. */
+/** Deterministic roll in [lo, hi] from the WORLD stream -- a draw no entity
+ *  owns. An npc's or a player's roll uses ToriRSServer_RandomFrom on its own
+ *  stream instead (see `struct ToriRSServerRandomStream`). */
 int
 ToriRSServer_Random(
     struct ToriRSServer* srv,
     int lo,
     int hi);
+
+/** Deterministic roll in [lo, hi] from one stream's `engine` state. */
+int
+ToriRSServer_RandomFrom(
+    struct ToriRSServerRandomStream* stream,
+    int lo,
+    int hi);
+
+/** The player's own stream, seeded from its `name37` (its slot when it has
+ *  no name, which only a selftest player lacks) the first time it is asked. */
+struct ToriRSServerRandomStream*
+ToriRSServer_WorldPlayerRandom(struct ToriRSServerPlayer* player);
+
+/** The java.util.Random state `SSVM_EnvSeed(env, seed)` would give, so an
+ *  entity's script stream starts where a seeded env would. */
+uint64_t
+ToriRSServer_RandomScriptSeed(uint64_t seed);
 
 /** An npc reached zero hitpoints: run its drop table and leave the loot. */
 /** Spawn an npc and return its slot, or -1. `npc_add`'s entry point. */

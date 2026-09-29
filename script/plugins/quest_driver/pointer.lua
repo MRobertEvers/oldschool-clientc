@@ -3168,6 +3168,14 @@ function QD.player.talk_to(npc, op, opts)
     local before_kind, before_text = QD.player._chat_page()
     local click_result, click = QD.player._click_npc_copy(target, op, copy_text)
     if click_result ~= "ok" then
+        -- SEAM self_cast_and_moving_multinpc_press (seam28): a press that
+        -- found no pixel on a multinpc SHELL whose varbit picks a -1 rung is
+        -- a press on an npc the client does not draw (QD.player._npc_undrawn).
+        local undrawn = QD.player._npc_undrawn(target, npc)
+        if undrawn ~= nil then
+            return "not_visible", undrawn .. " -- the press answered " .. tostring(click_result)
+                .. ": " .. tostring(click)
+        end
         return click_result, click
     end
     -- WHAT A SETTLED TALK HAS TO SHOW, over and above the settle.
@@ -3245,6 +3253,56 @@ function QD.player.talk_to(npc, op, opts)
             .. " tick(s), content line '" .. tostring(line) .. "'"
     end
     return "ok", detail .. ": no dialogue in " .. tostring(QD.player._talk_page_ticks) .. " tick(s)"
+end
+
+-- SEAM self_cast_and_moving_multinpc_press (seam28, 2026-09-29) -- AN
+-- UNDRAWN MULTINPC SHELL IS NOT A MISSED PRESS.
+--
+-- Goblin Diplomacy's blue-stage Grubfoot (parity3b gobdip.driver.lua rows
+-- 84-87) failed four rows "pickset held=false, menu has no row for it ...
+-- none of 99 pixels hittested", and was triaged as a wandering npc the press
+-- lost the race to.  It was not: catwalk_goblin is a multinpc shell
+-- (all.npc: multivarbit=gobdip_grubfoot_vis, multinpc1=brown, 2=orange,
+-- 3=blue, 4=-1) and the client indexes that table BY VALUE -- multinpc1 is
+-- value 0 (VarPManager_ResolveTransform, rev-239 class393).  Measured
+-- (build/quest_gate/s28gv_probe2): value 0 -> npc 671 catwalk_goblin_brown,
+-- 1 -> 672 orange, 2 -> 673 blue, 3 and 4 -> the shell itself, id 1965, no
+-- name, NOT DRAWN (shot 08 against 06).  quest_gobdip.constant sets blue = 3,
+-- so the blue Grubfoot is invisible and no press can ever land on him.
+--
+-- This answers that shape in words.  After a failed npc press: when every
+-- live copy of the target is a shell that resolved to NO child (its drawn id
+-- equals its base id and it has no name), the result is `not_visible` and
+-- the detail names the copies and says why -- instead of a pixel hunt's
+-- account that sends the reader looking for a camera or a wander.  nil when
+-- any copy resolved (or the pool did not answer): the press's own answer
+-- stands.  Asked only after a failed press, so a press that works pays
+-- nothing and no green row changes.
+function QD.player._npc_undrawn(target, npc)
+    local rows_result, rows = api_drive.npcs(0)
+    if rows_result ~= "ok" or type(rows) ~= "table" then
+        return nil
+    end
+    local parts = {}
+    for i = 1, #rows do
+        local row = rows[i]
+        if row.npc_id == target.id or row.base_npc_id == target.id then
+            local name = row.name
+            if row.npc_id ~= row.base_npc_id or (name ~= nil and name ~= "" and name ~= "null") then
+                return nil
+            end
+            parts[#parts + 1] = "slot " .. tostring(row.slot) .. " at " .. tostring(row.x) .. ","
+                .. tostring(row.z) .. " id " .. tostring(row.npc_id)
+        end
+    end
+    if #parts == 0 then
+        return nil
+    end
+    return tostring(npc) .. " is a multinpc SHELL that resolved to NO child in the client ("
+        .. table.concat(parts, "; ") .. ": drawn id == base id, no name) -- its multivarbit"
+        .. " value selects a -1 rung, so the npc is NOT DRAWN and nothing can be pressed;"
+        .. " read the npc's multinpc table (all.npc multinpc<N> is varbit VALUE N-1) against"
+        .. " the value content set"
 end
 
 -- How long a settled talk waits for the page the npc has not sent yet.  Five:

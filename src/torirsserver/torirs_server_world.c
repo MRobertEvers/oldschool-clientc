@@ -111,28 +111,133 @@ ToriRSServer_WorldCacheDir(void)
 }
 
 
-/* xorshift32: a session replays identically for a given seed, which matters
- * when a screenshot test has to land on the same frame twice. */
+/*
+ * xorshift32 over ONE stream: a session replays identically for a given seed,
+ * which matters when a screenshot test has to land on the same frame twice.
+ *
+ * Which stream is the whole point -- see `struct ToriRSServerRandomStream`
+ * (torirs_server.h). An npc's roll takes the npc's, a player's the player's,
+ * and only a draw no entity owns takes `srv->world_random`.
+ */
 static uint32_t
-next_random(struct ToriRSServer* srv)
+next_random(struct ToriRSServerRandomStream* stream)
 {
-    uint32_t x = srv->rng;
+    uint32_t x = stream->engine;
+
+    assert(stream->seeded);
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
-    srv->rng = x;
+    stream->engine = x;
     return x;
 }
 
 static int
 random_range(
-    struct ToriRSServer* srv,
+    struct ToriRSServerRandomStream* stream,
     int lo,
     int hi)
 {
     if( hi <= lo )
         return lo;
-    return lo + (int)(next_random(srv) % (uint32_t)(hi - lo + 1));
+    return lo + (int)(next_random(stream) % (uint32_t)(hi - lo + 1));
+}
+
+/* splitmix64's finaliser: spreads a small identity key (neighbouring tiles,
+ * consecutive names) over the whole state so two npcs a tile apart do not
+ * start on correlated sequences. */
+static uint64_t
+random_mix(uint64_t key)
+{
+    key += 0x9e3779b97f4a7c15ull;
+    key = (key ^ (key >> 30)) * 0xbf58476d1ce4e5b9ull;
+    key = (key ^ (key >> 27)) * 0x94d049bb133111ebull;
+    return key ^ (key >> 31);
+}
+
+uint64_t
+ToriRSServer_RandomScriptSeed(uint64_t seed)
+{
+    /* SSVM_EnvSeed's scramble (serverscript/ssvm.c), java.util.Random's
+     * setSeed: (seed ^ 0x5DEECE66D) & ((1 << 48) - 1). */
+    return (seed ^ 0x5DEECE66Dull) & ((1ull << 48) - 1);
+}
+
+static void
+random_seed(
+    struct ToriRSServerRandomStream* stream,
+    uint64_t key)
+{
+    uint64_t mixed = random_mix(key);
+    uint32_t engine = (uint32_t)(mixed >> 32);
+
+    /* xorshift32 has one fixed point, and it is 0. */
+    if( engine == 0 )
+        engine = 0x5eed1234u;
+    stream->engine = engine;
+    stream->script = ToriRSServer_RandomScriptSeed(random_mix(mixed));
+    stream->seeded = 1;
+}
+
+/*
+ * An npc's stream, from what the npc IS rather than where it sits in the pool:
+ * its spawn tile and plane, its type, and how many live npcs already stand on
+ * that same key (two identical rows on one tile, or a boss spawning three adds
+ * on its own tile, must not walk in lockstep). The slot is deliberately not in
+ * it -- a spawn row added anywhere shifts every later slot.
+ */
+static void
+npc_random_seed(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc)
+{
+    uint64_t key;
+    uint64_t ordinal = 0;
+
+    /* One pass over the npc pool per spawn -- not per tick. */
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        const struct ToriRSServerNpc* other = &srv->npcs[slot];
+
+        if( other == npc || !other->active )
+            continue;
+        if( other->spawn_x == npc->spawn_x && other->spawn_z == npc->spawn_z &&
+            other->spawn_level == npc->spawn_level && other->spawn_type == npc->spawn_type )
+            ordinal++;
+    }
+    key = ((uint64_t)(uint32_t)npc->spawn_x & 0x3fffu) |
+          (((uint64_t)(uint32_t)npc->spawn_z & 0x3fffu) << 14) |
+          (((uint64_t)(uint32_t)npc->spawn_level & 0x3u) << 28) |
+          (((uint64_t)(uint32_t)npc->spawn_type & 0xffffu) << 30) |
+          ((ordinal & 0xffffu) << 46) | (1ull << 62);
+    random_seed(&npc->random, key);
+}
+
+struct ToriRSServerRandomStream*
+ToriRSServer_WorldPlayerRandom(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    if( !player->random.seeded )
+    {
+        /* The account, not the slot: a second login ahead of this one must not
+         * change this player's fights. A nameless player is only ever a
+         * selftest fixture, and its slot is all the identity it has. */
+        uint64_t key = player->name37 != 0 ? (uint64_t)player->name37
+                                           : (uint64_t)(uint32_t)player->pid | (1ull << 63);
+
+        random_seed(&player->random, key);
+    }
+    return &player->random;
+}
+
+int
+ToriRSServer_RandomFrom(
+    struct ToriRSServerRandomStream* stream,
+    int lo,
+    int hi)
+{
+    assert(stream);
+    return random_range(stream, lo, hi);
 }
 
 /*
@@ -148,10 +253,10 @@ random_range(
  */
 static int
 npc_wander_offset(
-    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
     int range)
 {
-    uint64_t v = (uint64_t)(next_random(srv) >> 8);
+    uint64_t v = (uint64_t)(next_random(&npc->random) >> 8);
 
     assert(range >= 0);
     return (int)((v * (uint64_t)(range * 2) + (1u << 23)) >> 24) - range;
@@ -163,7 +268,7 @@ ToriRSServer_Random(
     int lo,
     int hi)
 {
-    return random_range(srv, lo, hi);
+    return random_range(&srv->world_random, lo, hi);
 }
 
 /*
@@ -180,7 +285,7 @@ ToriRSServer_WorldNpcRoamStagger(
     struct ToriRSServer* srv,
     struct ToriRSServerNpc* npc)
 {
-    npc->next_roam_tick = srv->tick + random_range(srv, 5, 30);
+    npc->next_roam_tick = srv->tick + random_range(&npc->random, 5, 30);
 }
 
 static void
@@ -1731,7 +1836,7 @@ interaction_build_approach(
 
 /*
  * LostCity PathingEntity.randomWalk — one cardinal step off a stacked target.
- * Deterministic via ToriRSServer_Random (selftests need a stable chase).
+ * Deterministic via the player's own stream (selftests need a stable chase).
  *
  * The reference guards this branch with `moveStrategy === NAIVE`, so it is what
  * an *npc* does when it ends up under its target; rsmod spells the same thing
@@ -1746,10 +1851,12 @@ interaction_random_walk(struct ToriRSServer* srv)
     int x = player->x;
     int z = player->z;
 
-    if( ToriRSServer_Random(srv, 0, 1) == 0 )
-        x += ToriRSServer_Random(srv, 0, 1) == 0 ? -1 : 1;
+    struct ToriRSServerRandomStream* random = ToriRSServer_WorldPlayerRandom(player);
+
+    if( random_range(random, 0, 1) == 0 )
+        x += random_range(random, 0, 1) == 0 ? -1 : 1;
     else
-        z += ToriRSServer_Random(srv, 0, 1) == 0 ? -1 : 1;
+        z += random_range(random, 0, 1) == 0 ? -1 : 1;
     player->waypoints[0].x = (int16_t)x;
     player->waypoints[0].z = (int16_t)z;
     player->waypoint_index = 0;
@@ -3801,6 +3908,8 @@ npc_spawn(
         npc->spawn_x = x;
         npc->spawn_z = z;
         npc->spawn_level = level;
+        /* Before the roam stagger below, which is its first draw. */
+        npc_random_seed(srv, npc);
         /* Projected now, not left to the memset.
          * `ToriRSServer_WorldRefreshObservation` overwrites these at the top of
          * every tick's info phase, but an encoder reached before the first of
@@ -5442,10 +5551,14 @@ advance_npcs(struct ToriRSServer* srv)
          * tile itself, so a wanderer can never leave the box the roll draws.
          */
         if( srv->tick >= npc->next_roam_tick && (!npc->def || npc->def->moverestrict != 5) &&
-            next_random(srv) % 8u == 0u )
+            next_random(&npc->random) % 8u == 0u )
         {
-            int dest_x = npc->spawn_x + npc_wander_offset(srv, npc->wander_radius);
-            int dest_z = npc->spawn_z + npc_wander_offset(srv, npc->wander_radius);
+            /* The npc's OWN stream (see `struct ToriRSServerRandomStream`):
+             * this runs for every wanderer every tick, and on the world stream
+             * it made each npc's walk a function of how many npcs were ahead
+             * of it in the pool. */
+            int dest_x = npc->spawn_x + npc_wander_offset(npc, npc->wander_radius);
+            int dest_z = npc->spawn_z + npc_wander_offset(npc, npc->wander_radius);
             if( dest_x != npc->x || dest_z != npc->z )
                 npc_queue_waypoint(npc, dest_x, dest_z);
         }
@@ -13410,7 +13523,8 @@ ToriRSServer_WorldInit(
 
     srv->zone_x = zone_x;
     srv->zone_z = zone_z;
-    srv->rng = 0x5eed1234u;
+    srv->world_random.engine = 0x5eed1234u;
+    srv->world_random.seeded = 1;
     srv->tick = 0;
 
     /* Collision before anything is placed: a spawn on a blocked tile is worth

@@ -350,6 +350,13 @@ ToriRSServer_ScriptsLoad(
     /* Fixed seed so a session replays identically, which every deterministic
      * test downstream depends on. */
     SSVM_EnvSeed(srv->script_env, 0x5eed1234u);
+    /* ...which is the WORLD's stream from here on: each npc and player carries
+     * its own (script_execute), and the env's register holds whichever is
+     * running. */
+    srv->world_random.script = srv->script_env->rng;
+    if( srv->world_random.engine == 0 )
+        srv->world_random.engine = 0x5eed1234u;
+    srv->world_random.seeded = 1;
 
     srv->scripts_ok = 1;
     fprintf(stderr, "torirsserver: %d scripts loaded from %s\n", srv->scripts->loaded, dir);
@@ -1057,6 +1064,85 @@ player_suspend_name(enum SSVM_Exec status)
     }
 }
 
+static int
+trigger_is_ai_npc(int trigger);
+
+/*
+ * Whose random stream a script draws from -- see `struct
+ * ToriRSServerRandomStream` (torirs_server.h) for why there is more than one.
+ *
+ * An npc's own turn (`[ai_*]`, its queue, its timer) is the npc's: its wander,
+ * its attack rolls and every `random` in its scripts come off its own stream.
+ * Anything else runs on behalf of the player in scope, so a player's fight and
+ * a player's scripted roll come off the player's. Only a script with neither --
+ * a world proc with nobody logged in -- takes the world's.
+ *
+ * Decided once, at the state's first run, and remembered in `state->self`
+ * (which the VM zeroes and never reads): the subject of a script is the entity
+ * that entered it, not whichever npc a later `npc_find` bound. Both pools are
+ * arrays inside `srv`, so the pointer stays valid across a park.
+ */
+static struct ToriRSServerRandomStream*
+script_random_stream(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state)
+{
+    int slot;
+    struct ToriRSServerPlayer* player;
+
+    if( state->self )
+        return (struct ToriRSServerRandomStream*)state->self;
+
+    slot = (int)state->host_tag - 1;
+    if( trigger_is_ai_npc(state->trigger) && slot >= 0 && slot < TORIRSSERVER_NPC_MAX &&
+        srv->npcs[slot].random.seeded )
+        state->self = &srv->npcs[slot].random;
+    else if( (player = (struct ToriRSServerPlayer*)SSVM_ActiveSlot(
+                  state, SSVM_ENT_PLAYER, SSVM_PRIMARY)) != NULL )
+        state->self = ToriRSServer_WorldPlayerRandom(player);
+    else if( slot >= 0 && slot < TORIRSSERVER_NPC_MAX && srv->npcs[slot].random.seeded )
+        state->self = &srv->npcs[slot].random;
+    else
+        state->self = &srv->world_random;
+    return (struct ToriRSServerRandomStream*)state->self;
+}
+
+/*
+ * SSVM_Execute with the subject's own `random` state in the VM's register.
+ *
+ * The VM keeps ONE java.util.Random state (`SSVM_Env.rng`) and its
+ * RANDOM/RANDOMINC read it directly (serverscript/ssvm.c run_number_op). So
+ * the subject's state is loaded for exactly as long as the script runs and
+ * written back after. A script that runs another script synchronously (a
+ * trigger fired from inside a trigger) nests: the outer stream's progress is
+ * flushed before the inner one loads and reloaded after, so neither re-draws
+ * the other's numbers.
+ */
+static enum SSVM_Exec
+script_execute(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state)
+{
+    struct ToriRSServerRandomStream* outer = srv->script_random_loaded;
+    struct ToriRSServerRandomStream* stream;
+    enum SSVM_Exec status;
+
+    if( srv->script_random_pinned )
+        return SSVM_Execute(state);
+
+    stream = script_random_stream(srv, state);
+    if( outer )
+        outer->script = srv->script_env->rng;
+    srv->script_env->rng = stream->script;
+    srv->script_random_loaded = stream;
+    status = SSVM_Execute(state);
+    stream->script = srv->script_env->rng;
+    srv->script_random_loaded = outer;
+    if( outer )
+        srv->script_env->rng = outer->script;
+    return status;
+}
+
 /* `[ai_queue3,agrith_naar]`: the entry trigger plus the npc the state runs
  * for, whichever proc or label the state is in now. */
 static const char*
@@ -1105,7 +1191,7 @@ run_or_park(struct ToriRSServer* srv, struct SSVM_State* state)
      */
     struct ToriRSServerPlayer* active = srv->active_player;
     int was_parked = active && active->active_script == state;
-    enum SSVM_Exec status = SSVM_Execute(state);
+    enum SSVM_Exec status = script_execute(srv, state);
 
     /*
      * A parked script that finishes closes the chatbox behind it.
@@ -1817,7 +1903,7 @@ ToriRSServer_ScriptsRunHookIntSv(
     SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
     SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
 
-    status = SSVM_Execute(state);
+    status = script_execute(srv, state);
     if( status == SSVM_ABORTED )
         fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     if( status != SSVM_FINISHED || state->isp < 1 )
@@ -1929,7 +2015,7 @@ ToriRSServer_ScriptsRunClaim(
     if( loc_handle )
         SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, loc_handle);
 
-    status = SSVM_Execute(state);
+    status = script_execute(srv, state);
     if( status == SSVM_ABORTED )
         fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     /*
@@ -4290,6 +4376,37 @@ active_npc_readable(struct SSVM_State* state)
 }
 
 /*
+ * Bind the npc a find op found, honouring the `.` operand.
+ *
+ * LostCity's NPC_FIND / NPC_FINDEXACT / NPC_FINDNEXT all write
+ * `state.activeNpc`, whose setter picks `_activeNpc` or `_activeNpc2` by
+ * `state.intOperand`, and add `ActiveNpc[state.intOperand]`
+ * (engine/src/engine/script/handlers/NpcOps.ts NPC_FINDNEXT; ScriptState.ts
+ * `set activeNpc`). These three always bound the PRIMARY, so
+ * `.npc_findnext` re-bound the script's own npc and the `.npc_anim` after it
+ * aborted "requires an active entity" -- Death Plateau's drill sergeant, whose
+ * soldiers never copied a move (seam28, landing the parity3a ambience), and
+ * the same shape in `[proc,.npc_findcount]` and the fishing-spot check.
+ * The secondary is held as a pointer and resolved by `active_npc_slot`, so
+ * `host_tag` stays the primary's.
+ */
+static void
+script_bind_found_npc(
+    struct ToriRSServer* srv,
+    struct SSVM_State* state,
+    int slot)
+{
+    if( state->dot )
+    {
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_SECONDARY, &srv->npcs[slot]);
+        return;
+    }
+    SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
+    state->host_tag = slot + 1;
+    SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+}
+
+/*
  * The menu verb this player was OFFERED for `op_num` on an npc of `npc_type`,
  * or NULL when that slot is empty.
  *
@@ -5181,8 +5298,10 @@ ToriRSServer_ScriptCommand(
 
             for( int attempt = 0; attempt < 64; attempt++ )
             {
-                int dx = ToriRSServer_Random(srv, -max_range, max_range);
-                int dz = ToriRSServer_Random(srv, -max_range, max_range);
+                int dx = ToriRSServer_RandomFrom(
+                    script_random_stream(srv, state), -max_range, max_range);
+                int dz = ToriRSServer_RandomFrom(
+                    script_random_stream(srv, state), -max_range, max_range);
                 int x = origin_x + dx;
                 int z = origin_z + dz;
                 int adx = dx < 0 ? -dx : dx;
@@ -6589,9 +6708,7 @@ ToriRSServer_ScriptCommand(
                 !ToriRSServer_WorldNpcVisibleTo(
                     srv, &srv->npcs[slot], srv->active_player) )
                 continue;
-            SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[slot]);
-            state->host_tag = slot + 1;
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+            script_bind_found_npc(srv, state, slot);
             SSVM_PushInt(state, 1);
             return 1;
         }
@@ -6825,9 +6942,7 @@ ToriRSServer_ScriptCommand(
             SSVM_PushInt(state, 0);
             return 1;
         }
-        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[best]);
-        state->host_tag = best + 1;
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_NPC);
+        script_bind_found_npc(srv, state, best);
         SSVM_PushInt(state, 1);
         return 1;
     }
@@ -11474,7 +11589,10 @@ ToriRSServer_ScriptCommand(
          * bound yields 0 rather than aborting: content computing a bound from
          * a table size should not take the server down when the table is
          * empty. */
-        SSVM_PushInt(state, bound > 0 ? ToriRSServer_Random(srv, 0, bound - 1) : 0);
+        SSVM_PushInt(
+            state,
+            bound > 0 ? ToriRSServer_RandomFrom(script_random_stream(srv, state), 0, bound - 1)
+                      : 0);
         return 1;
     }
 
@@ -11876,7 +11994,9 @@ ToriRSServer_ScriptCommand(
         }
         level = player->stat_boosted[values[0]];
         value = values[1] * (99 - level) / 98 + values[2] * (level - 1) / 98 + 1;
-        SSVM_PushInt(state, value > ToriRSServer_Random(srv, 0, 255) ? 1 : 0);
+        SSVM_PushInt(
+            state,
+            value > ToriRSServer_RandomFrom(script_random_stream(srv, state), 0, 255) ? 1 : 0);
         return 1;
     }
 
@@ -13147,7 +13267,7 @@ ToriRSServer_ScriptsRunProcIntOnNpc(
     }
     SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
     state->host_tag = npc_slot + 1;
-    status = SSVM_Execute(state);
+    status = script_execute(srv, state);
     if( status == SSVM_ABORTED )
         fprintf(stderr, "torirsserver: %s", SSVM_Backtrace(state));
     if( status != SSVM_FINISHED || state->isp < 1 )
