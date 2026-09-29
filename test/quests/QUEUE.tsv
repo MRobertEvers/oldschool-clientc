@@ -64,7 +64,7 @@ quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo		
 quest_gettingahead	gettingahead	gettingahead		4	todo		
-quest_ghostsahoy	ghostsahoy	ghostsahoy		2	todo	sonnet-b28	todo after 75a234743 (seam26): bone key now gates only the temple door 3656,3514,1; click_loc/use_on take { at = {x,z[,level]} } to press one stepping stone; the lobster kill needs await_dead_engaged 150 ticks. STILL OPEN (content): ahoy_book.rs2:220 [oploc1,ahoy_rock_invisible] must be [aploc1,...] (rocks 2-3 water tiles apart; LostCity precedent [aploc1,crossing_rock_waterfall_quest]) -- proved only in a private pack (s26gh_full1 228/232). Then the proof copy build/seam_state/seam26/ghostsahoy/ghostsahoy.lua stops at takeRowingBoat (amulet of ghostspeak not worn at the dock), returnToPhas after the digForBook goto stand-in, and barrierPostquest (no ahoy_town_barrier loc in the pool)
+quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28	
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
 quest_gobdip	gobdip	goblindiplomacy		3	todo		
 quest_golem	golem	thegolem		1	green	sonnet-b15	
@@ -113,7 +113,7 @@ quest_murder	murder	murdermystery		1	green	sonnet-b15
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo		
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo		
 quest_olafsquest	olafsquest	olafsquest		4	todo		
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	content_bug	sonnet-b32	fixAllLamps is a narrated stage: the Gnormadium lamp branch (onesmallfavour_relay.rs2:~333) narrates via ~mesbox and sets all light bits, %fixedlandinglights=255 and %all_lights_fixed itself instead of the player fixing the lamps; the lua drives it through dialogue under a GUIDE-GAP marker.
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	sonnet-b32	
 quest_pandemonium	pandemonium	pandemonium		4	todo		
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo		
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
