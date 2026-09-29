@@ -1,0 +1,239 @@
+# Verbs: combat -- `npc.await_dead*`, `player.attack`, `player.alive`, `player.cast` (section 3)
+
+The fight verbs from section 3. Trap 31 (the `[opnpc2]` binding) and `gaps-combat.md` (single-way,
+`::passive`, crowded spawns, the one-blow fight) hold the rest.
+
+## `t.npc.await_dead` / `t.npc.await_dead_engaged` (section 3, `ui` / `npc`)
+
+### `t.npc.await_dead(npc, ticks=60, radius=10, attempts=6)` -- also `t.npc.await_dead_engaged`
+
+`t.npc.await_dead(npc, ticks=60, radius=10, attempts=6)` -> `ok` `timeout` `not_found`. Resolves
+when the npc's SLOT LEAVES THE POOL with a corroboration the detail names --
+`corroborated by the ZERO BAR` (it read 0 earlier in the wait, then was released) or
+`corroborated by ABSENCE` (missing for 2 consecutive polls the pool vouches for: under 64 rows, or
+its farthest row beyond the slot's last tile). A ZERO BAR ALONE IS NOT A KILL (seam19): the server's
+bar is floor(hp x width / max), so a 170-hp Khazard warlord reads 0/30 ALIVE at 1-5 hp; after a zero
+bar the wait keeps polling up to 12 ticks past its deadline for the corpse's release
+(`the corpse grace` in the detail), and a timeout names any zero bar or missing slot it saw.
+
+One `await_dead_engaged(<ticks>, attempts)` is enough for a big-hp boss -- no ground-truth re-press
+loop. And it answers on the release, BEFORE the boss's `[ai_queue3]` outcome necessarily lands
+(stage write, stake consumed, a regenerate heal, the completion queue): `t.msg.await(<line>)` or
+`t.ticks(10)` before reading them (Vampyre Slayer, `build/quest_gate/s19fh_stake_fixed`). It
+RE-ISSUES Attack when the fight has stopped -- health unmoved for five server ticks AND no new
+hitsplat AND the player idle, all three, because each alone is ordinary mid-fight.
+
+`radius` only picks WHICH npc; from then on the fight is tracked by that npc's SERVER SLOT, because
+a symbol is not a target (`falador_gardener` has three spawn rows and a second one is inside the
+loaded scene). The detail always carries the re-engagement count and the last health reading.
+
+#### A kill is never proved by an empty pool (2026-09-21)
+
+A KILL IS NEVER PROVED BY AN EMPTY POOL (2026-09-21): the npc pool is the CLIENT's, so a slot leaves
+it for three reasons and only one is a death -- the npc died, the npc ranked past the 64 nearest the
+pool holds (Mort'ton's shade street holds more than that), or THE PLAYER LEFT THE SCENE, which
+mid-fight almost always means he died. Both await verbs now corroborate a bare absence before
+calling it a kill: the death fence runs first (and it reads a STATED hitpoints of 0 as well as the
+chat line, because `[queue,player_death]` prints "Oh dear, you are dead!" about twenty ticks AFTER
+the killing blow), and `await_dead_engaged` additionally requires that a health bar was ever sent
+for the slot -- a bar is only sent once something has HIT an npc, so gone-with-no-bar answers
+`no_row` and does NOT consume the stamp, and your hunt loop presses Attack again instead of
+crediting a corpse it never made.
+
+Roving Elves reported `dead after 131 tick(s)` for a Moss Guardian standing at 2/30 while the
+character was the one who fell, then failed three more rows on the seed it never dropped.
+
+#### `t.npc.await_dead_engaged(ticks=60, attempts=6)`
+
+`t.npc.await_dead_engaged(ticks=60, attempts=6)` -> `ok` `timeout` `no_row` `refused` takes NO
+target at all: it holds the slot the last `t.player.attack` pressed an Attack row on, follows an
+`npc_changetype` (a Loar Shadow BECOMES a Loar Shade on its first hit, and the symbol the file
+attacked with stops naming what it is fighting), re-engages on the id the slot wears NOW, and
+CONSUMES the stamp -- a second call with no new Attack answers `no_row`, so one kill can never be
+waited out twice.
+
+Use it for every hunt: a loop that re-resolves its symbol each attempt abandons the half-killed npc
+it already engaged, and an abandoned npc in retaliation keeps hitting. Through `t.exec`, spell the
+ticks (`t.exec("shade.dead", t.npc.await_dead_engaged, 40)`).
+
+#### Eating (seam27)
+
+EATING (seam27): `t.npc.await_dead(npc, ticks, radius, attempts, opts)` and
+`t.npc.await_dead_engaged(ticks, attempts, opts)` take
+`opts = { eat = { item = <food symbol>, below = <hitpoints>, op = 1 } }`: each tick, STATED
+hitpoints under `below` eat the food through `inv_op` (at most once per 3 ticks; the death fence's
+own reading); the detail appends
+`; eat <food> below N: ate <food> K time(s) (hp a->b, ...), lowest hp x/y` or `never needed to eat`,
+and `OUT OF <food>`. A malformed `opts.eat` or unknown food symbol ends the run. Never hand-write a
+cast/attack-and-eat loop:
+`t.exec('boss.dead', t.npc.await_dead_engaged, 240, 40, { eat = { item = 'shark', below = 70 } })`.
+
+#### Cast fights re-cast (seam27)
+
+A CAST fight (after `t.player.cast`) now judges its stall on the health reading alone, so it
+RE-CASTS with auto-retaliate on too (a melee retaliation's 0 splat no longer counts as progress;
+Chronozon 0 -> 8 re-casts in 60 ticks, `build/quest_gate/s27re_before3` vs `s27re_after1`) -- a
+Chronozon kill is each element cast until its own 'weakens' line, then
+`t.player.cast('fire_blast', 'chronozon', 14)` and `await_dead_engaged(240, 40, {eat=...})`.
+
+## `t.player.attack`, `t.player.alive`, `t.player.cast` (section 3, `world` / `drive` / `player`)
+
+### `t.player.attack(npc, op=2, ticks=10)` -- also `t.player.alive`, `t.player.cast`
+
+`t.player.attack(npc, op=2, ticks=10)` -> `ok` `timeout` `refused` / click_minimenu's own results.
+ONE Attack click (re-pressed up to three times a tick apart -- an Attack target closes on you and
+the projected pixel goes stale), then settles on the npc's first hitsplat or health-bar move. The
+detail names the npc's health before and after as `<ratio>/<scale>`: a client is never told an npc's
+hitpoints, only a fill out of the healthbar type's own width, so four of seven hp reads `17/30` and
+an npc nothing has hit yet reads `no bar`.
+
+`op` is an argument because Attack is op 2 only where the npc also has Talk-to; the row that gets
+PRESSED is checked and a non-Attack row answers `refused` naming it.
+
+#### `refused`, meaning two: single-way combat refused the swing
+
+`refused` HAS A SECOND MEANING and it is the one to read first when a fight does nothing: THE SERVER
+REFUSED THE SWING, with the engine's own sentence in the detail ("I'm already under attack." /
+"Someone else is fighting that.", printed by `ToriRSServer_CombatSinglewayRefuses`). That is
+single-way combat: the press landed, `p_opnpc` took its silent return, and the engine has no attack
+clock of its own, so no swing was ever made.
+
+It is not a `timeout` and not an opening -- waiting longer cannot help while whatever holds the
+claim keeps swinging, and no stamp is written, so an `await_dead_engaged` behind it answers
+`no_row`. Mort'ton's hunt believed it was fighting for twenty rounds and 1,643 ticks on that
+reading, because an Afflicted villager had engaged the player and claimed him. A `timeout` is a miss
+streak or a click issued while another action is still in flight, NOT a failed click -- raise
+`ticks` and read `npc.await_dead`'s row for whether the fight was won.
+
+#### `t.player.alive()` and the `player.died` rule; carry food and wear the weapon
+
+`t.player.alive()` -> `ok` `refused` is the reading under all of this and takes NO ARGUMENT, so
+record it with `t.expect`, never `t.exec` (a nil first argument is FAIL `bad verb/target`). The RULE
+on top of it is not yours to write: the first time a death is visible the driver writes a terminal
+FAIL row `player.died` with its own screenshot and ENDS the run -- armed on every click settle,
+every attack and every tick of both await_dead verbs -- because every click after a death is issued
+from the respawn tile with an empty backpack, so a run that ground on past one would be producing
+evidence of a different world.
+
+Carry food and EAT IT, and WEAR the weapon you were given: `::give rune_scimitar` is not
+`t.player.equip("rune_scimitar")`, `::give shark 5` with nothing that ever eats one is the same bug
+as no food at all, and `::setlevel` is not a substitute for either. Mort'ton's hunt died at four of
+five kills over exactly that, and Roving Elves' Moss Guardian -- 120 hp, +62 strength, a
+prayer-bypassing roll, fought bare-handed because the tomb forbids a loadout -- won at the
+character's last 8 hitpoints with eight of its own left, on a setup that carried no food and never
+ate.
+
+#### Attack fights ONE copy (seam21); `refused`, meaning three
+
+`t.player.attack(npc, op, ticks, opts)` fights ONE copy (seam21): nearest by default, or `opts`
+`{slot=n}` / `{at={x,z[,level]}}` exactly as `talk_to`; the camera turns to it, the press is aimed
+by its element and re-aimed as itself, and the detail reads
+`pressed slot N (element E) at x,z, watching slot N`. A named copy the press finds no pixel for is
+walked toward once; a selector that matches no copy is `no_row` naming every live copy;
+`npc.await_dead` re-engages by slot and `await_dead_engaged` by the slot's own element
+(`build/quest_gate/s21as_gob8`).
+
+`refused` has a THIRD meaning: "I can't reach that!" / "You can't reach that." -- no route to the
+copy, no stamp (the Lumbridge goblin house interior and the river bank are measured traps).
+
+#### Fever spiders (seam22) and melee reach reads walls (seam22)
+
+Rum Deal's fever spiders take the player's damage with or without gloves (seam22, wiki
+Fever_spider): WITHOUT `deal_slayer_gloves` every spider attack is a forced 12.5%-of-Hitpoints hit
+plus disease (`%disease=1`, "You feel yourself becoming diseased."), so wear the gloves or eat
+(`build/quest_gate/s22fs_spider3`). MELEE REACH READS WALLS (seam22): a melee swing from either end,
+and an npc's `opplayer` arrival, needs the footprints flush on a cardinal side with no wall on the
+shared edge (the reference's reachExclusiveRectangle) -- a monster behind a closed door, fence or
+bars cannot hit you and you cannot hit it; before, Druidic Ritual's prison-door suit hit the player
+through the door.
+
+#### Casting: `t.player.cast` (seam19)
+
+**Casting:** `t.player.cast(spell, npc, ticks=10, attack_op=2, opts)` -> `ok` `refused` `no_runes`
+`timeout` `no_row` `not_visible` `unsupported` / click_minimenu's own results (`spell.lua`, seam19).
+A spellbook spell cast on an npc through the client: opens the magic tab, arms the spell's own
+"Cast" row (`api_drive.spell_arm`, the TGT_BUTTON row the real menu offers -- `t.ui.invoke` cannot
+arm a spell, it sends IF_BUTTON), then presses the npc's one "Cast <spell> -> <npc>" row with
+attack's framing and re-aim, and puts the backpack tab back.
+
+`spell` is the `magic_spellbook:` component name (`"wind_strike"`, `"fire_blast"`; `"Wind Strike"`
+folds to it); `no_row` = no such component. `ok` means THE CAST HAPPENED -- Magic XP rose (runes
+spent, base XP paid) and six ticks of flight were watched -- NOT that it landed: a splash pays the
+same XP, and a splat on the npc afterwards can be your own melee auto-retaliation (Chronozon: four
+`0` splats, no landing). So a quest that needs a spell to LAND waits on the content's own line and
+casts again: Family Crest is `repeat t.player.cast("water_blast", "chronozon", 14) until` a NEW
+"Chronozon weakens..." line (compare `t.msg.last()` serials before the cast -- `t.msg.await`
+registered after the cast misses a line that already arrived).
+
+`no_runes` carries magic.rs2's "You do not have enough <Rune> Runes to cast this spell."; `refused`
+the level/members/immunity/frozen sentences, single-way's "I'm already under attack.", or "I can't
+reach that!" (the nearest copy stands where you cannot path -- `::spawn` your subject beside you) --
+`::passive` every aggressive type in the field first (a Lumbridge goblin cast was refused by a giant
+spider's claim). `cast` fights ONE copy exactly as `attack` does (seam22): nearest by default, or
+`opts` `{slot=n}` / `{at={x,z[,level]}}`; the press is aimed by the copy's element and asserted to
+land on it, the detail reads `pressed slot N (element E) at x,z, watching slot N`, and a selector
+matching no copy is `no_row`.
+
+A cast that went out stamps `QD._combat_last` (with `spell=`), and `t.npc.await_dead_engaged`
+RE-CASTS that spell on the stamped copy when the fight stalls (never an Attack press; runes are
+spent per re-cast -- carry enough); its row ends
+`[re-engagements re-CAST <spell>: N press(es) ok, M not; ...]` and names a server refusal a re-cast
+provoked. A magic kill is `t.player.cast` once, then
+`t.exec("x.dead", t.npc.await_dead_engaged, ticks, attempts)`; with auto-retaliate on, melee
+retaliation lands too, so read the rune count if the kill must be magic's
+(`build/quest_gate/s22cast_after5`).
+
+#### Crumble Undead, rune symbols, magic accuracy, Chronozon
+
+Crumble Undead on a non-undead npc answers `refused` "This spell only affects skeletons, zombies,
+ghosts and shades." (Slash Bash is undead since seam23, and a real 100-hp level-111 boss with his
+wiki infobox stats -- bring food and the wiki's safespot/Protect from Missiles). Rune symbols are
+`airrune`/`mindrune`/`waterrune`/`earthrune`/`firerune`/`deathrune`/..., not `air_rune`. Magic
+accuracy is LostCity's (seam20, `combat_stats.rs2`): the player rolls
+`(magic_eff + 8 + 1) * (magic attack bonus + 64)` and an npc defends magic with its MAGIC level,
+`(npc magic + 9) * (magicdefence + 64)` -- 18 of 20 Wind Blasts land on Chronozon at 99 Magic
+(`build/quest_gate/s20mdr_after3`).
+
+A Chronozon fight: `::setlevel magic` >= 41, runes, food and armour, cast each element until its own
+"Chronozon weakens..." line, then keep casting until the slot leaves the pool; credit the kill by
+the vile ashes.
+
+#### A spell on a ground obj or a loc (seam23)
+
+**A spell on a ground obj or a loc (seam23):** the target may be a `{kind='obj'|'loc', id=<symbol>}`
+table, as `use_on` takes -- `t.player.cast('telegrab', {kind='obj', id='elid_key'})` (Telekinetic
+Grab: level 33, 1 air + 1 law, 43 XP),
+`t.player.cast('charge_water_orb', {kind='loc', id='obelisk_water'})`. An obj cast's `ok` means the
+obj ARRIVED in the backpack, a loc cast's that Magic XP was paid; the detail carries the backpack
+diff and chat lines.
+
+The verb does NOT walk first (the server paths into spell range), so stand where the guide stands;
+'Too late - it's gone!' is `refused` though the runes were spent. A `covered` whose detail says
+`every press's menu held only Cancel` usually means the spell cannot target that kind (a combat
+spell on an obj), not a camera problem. A second `await_dead_engaged` on a fight a CAST opened
+answers `no_row ... -- cast <spell> again (t.player.cast)`.
+
+The server now takes its map flag down the tick a cast or an in-range bow fires (LostCity
+`unsetMapFlag`), so `t.player.idle()` goes true during a ranged fight (seam23).
+
+#### A spell on a carried item (seam27)
+
+A CARRIED ITEM (seam27): `t.player.cast(spell, {kind='held', id=<obj symbol>}, ticks=10)` --
+Superheat Item `'superheat'`, `'low_alchemy'`/`'high_alchemy'`, `'enchant_1'`..`'enchant_6'`
+(spellbook component names, never display names). It arms the spell, waits for the backpack to take
+the sidebar, and presses the cell's `<spell> -> <item>` row (`api_drive.inv_cast`, OPHELDT). `ok` =
+Magic XP paid AND the item's stack went down, detail naming the backpack diff; `refused` = the
+server's line ('You need to cast superheat item on ore.') or a spell with no held-item bit;
+`not_found` = not carried.
+
+#### A spell with no target (seam28)
+
+A SPELL WITH NO TARGET (seam28): `t.player.cast(spell)` or
+`t.player.cast(spell, {kind='self'}, ticks)` presses the spellbook cell's own op 1 (IF_BUTTON1,
+`[if_button,magic_spellbook:<spell>]`), never target mode. `ok` `TELEPORTED to x,z,l` when the
+player leaves the tile (more than 2 tiles or another level); `no_runes` on magic.rs2's rune line;
+`refused` quoting any other line with no move and no XP (Ardougne Teleport before Plague City: 'You
+must have completed Plague City to use this spell.'; before the scroll is read: 'You havn't learnt
+how to cast this spell yet.'); `ok` `no teleport` when only Magic XP was paid (Charge); `timeout`
+otherwise (a target spell pressed this way -- give it a target). Read the landed tile from the
+detail; never `goto_tile` where a teleport spell is the guide's step.

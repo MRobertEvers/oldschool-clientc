@@ -216,9 +216,11 @@ new `lint_quest.py`; 3b new `new_quest.py` (extends
   Output must pass `lint_quest.py` with `--allow-check`.
 - `QUEUE.tsv`: `quest_dir helper_dir tier status owner last_failure` for all
   179 (+9 RFD subquests), status `todo`, from the inventory.
-- `QUEST_AUTHORING.md` <= 300 lines: test shape (one generated example),
-  verb table (one line each), result words, ten traps, run command,
-  definition of done. Replace README.md's bad example with a pointer.
+- `QUEST_AUTHORING.md`: test shape (one generated example), verb table (one
+  line each), result words, ten traps, run command, definition of done. The
+  core stays under 25 KB; a new fact goes into the matching topic file under
+  docs/quest_authoring/ with one line added to INDEX.md. Replace README.md's
+  bad example with a pointer.
 - 3d: regenerate both quests, make them green with NO local helper functions
   (no `talk_to_and_settle`), publish, and have Opus review the diff and the
   shots.
