@@ -176,6 +176,12 @@ topic file with one line added here.
 - which rewards need a row -> coverage-and-gate: A reward row; gaps-dialogue: Rewards and steps
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 
+## Long quests
+
+- my context is filling up; which guide steps are left; never read the guide Java -> relay: The ladder (`ladder.py <id>`)
+- quest has more than 30 steps; handed one leg; where the previous author stopped -> relay: Legs; relay: Working one leg (`ladder.py <id> --leg K`)
+- which row failed; the ledger is too long to read -> relay: After a run (`fail.py <id>`, `--all`)
+
 ## Gate, lint, coverage and the ledger
 
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`

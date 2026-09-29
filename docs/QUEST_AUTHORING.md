@@ -127,6 +127,8 @@ python3 tools/quest_gate/lint_quest.py --allow-check test/quests/<test_id>.lua
 python3 tools/quest_gate/run.py <quest> --no-build              # always --no-build for Lua edits
 python3 tools/quest_gate/gate.py <quest>                        # the verdict, not run.py's exit
 python3 tools/quest_gate/helper_coverage.py <quest>             # guide step ladder vs your rows
+python3 tools/quest_gate/ladder.py <quest> --leg K               # the guide as a table, leg K (relay.md)
+python3 tools/quest_gate/fail.py <quest>                        # first failing row + neighbours, <=3 KB
 TORIRSSERVER_VERBOSE=1 python3 tools/quest_gate/run.py <quest> --no-build   # a stalled script
 ```
 

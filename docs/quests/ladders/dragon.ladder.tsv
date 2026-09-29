@@ -1,0 +1,47 @@
+# ladder dragon quest_dir=quest_dragon guide=src/main/java/com/questhelper/helpers/quests/dragonslayer/DragonSlayer.java steps=44 legs=1:1-11@s0 2:12-22@s2 3:23-33@s2 4:34-44@s2
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	startQuest	NpcStep	npc:guildmaster	3190,3360,0	Talk to the Guildmaster in the Champions' Guild, south of Varrock.			Can I have a quest?	areas/varrock/scripts/guild_master.rs2:4 opnpc1
+1	2	1	talkToOziach	NpcStep	npc:oziach	3068,3517,0	Talk to Oziach in his house in north western Edgeville.			Can you sell me a rune platebody? | The Guildmaster of the …	areas/edgeville/scripts/oziach.rs2:5 opnpc1; +1
+1	3	2	returnToGuildmaster	NpcStep	npc:guildmaster	3190,3360,0	Return to the Guildmaster and ask him all the available questions.	askAboutShield askAboutMelzar askAboutLozar askAboutThalzar		About my quest to kill the dragon... | I talked to Oziach..…	areas/varrock/scripts/guild_master.rs2:4 opnpc1
+1	4	2	talkToOracle	NpcStep	npc:oracle	3014,3501,0	Talk to the Oracle on top of Ice Mountain.		Silk; Lobster pot; Wizard's mind bomb; Unfired bowl	I seek a piece of the map to the island of Crandor.	areas/edgeville/scripts/oracle.rs2:4 opnpc1
+1	5	2	goIntoDwarvenMine	ObjectStep	loc:fai_dwarf_trapdoor_down	3019,3450,0	Go down the ladder in the dwarven camp to the south into the Dwarven Mines.		=		ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+1	6	2	useSilkOnDoor	ObjectStep	loc:dragon_slayer_qip_magic_door	3050,9840,0	Go to the north east of the Dwarven Mines and use the silk on the magic door.		=		quests/quest_dragon/scripts/magic_door.rs2:7 oploc1
+1	7	2	usePotOnDoor	ObjectStep	loc:dragon_slayer_qip_magic_door	3050,9840,0	Go to the north east of the Dwarven Mines and use the lobster pot on the magic door.		Lobster pot; Wizard's mind bomb; Unfired bowl		quests/quest_dragon/scripts/magic_door.rs2:7 oploc1
+1	8	2	useUnfiredBowlOnDoor	ObjectStep	loc:dragon_slayer_qip_magic_door	3050,9840,0	Go to the north east of the Dwarven Mines and use the unfired bowl on the magic door.		Wizard's mind bomb; Unfired bowl		quests/quest_dragon/scripts/magic_door.rs2:7 oploc1
+1	9	2	useMindBombOnDoor	ObjectStep	loc:dragon_slayer_qip_magic_door	3050,9840,0	Go to the north east of the Dwarven Mines and use the wizard's mind bomb on the magic door (BE CAREFUL NOT TO DRINK IT).		Lobster pot; Wizard's mind bomb; Unfired bowl		quests/quest_dragon/scripts/magic_door.rs2:7 oploc1
+1	10	2	searchThalzarChest	ObjectStep	loc:oraclechestshut loc:oraclechestopen	3057,9841,0	Search the chest for Thalzar's map piece.	searchThalzarChest2			quests/quest_dragon/scripts/magic_door.rs2:30 oploc1; +2
+1	11	2	optionsForLozarPiece	NpcStep	npc:wormbrain	3015,3195,0	Go to Port Sarim Jail. You can either pay Wormbrain there 10,000 coins for Lozar's map piece, or kill him with ranged/mage and telegrab it with level 33 magic.		telegrabOrTenK	I believe you've got a piece of a map that I need. | I supp…	quests/quest_dragon/scripts/wormbrain.rs2:11 opnpc1; +2
+2	12	2	enterMelzarsMaze	ObjectStep	loc:melzardoor	2941,3248,0	Enter Melzar's Maze north of Rimmington. Be prepared to fight multiple monsters up to a level 82 lesser demon.		Maze key	About my quest to kill the dragon... | I talked to Oziach..…	quests/quest_dragon/scripts/melzars_maze.rs2:6 oploc1; +1
+2	13	2	killRat	NpcStep	npc:dragonslayer_giantrat_1_key	2933,3250,0	Kill the marked zombie rat for a key.				quests/quest_dragon/scripts/melzars_maze.rs2:70 ai_queue3
+2	14	2	openRedDoor	ObjectStep	loc:reddoor	2926,3253,0	Go through the north west red door		Key		quests/quest_dragon/scripts/melzars_maze.rs2:31 oploc1; +1
+2	15	2	goUpRatLadder	ObjectStep	loc:ladder	2928,3256,0	Climb up the ladder.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2
+2	16	2	killGhost	NpcStep	npc:dragonslayer_ghost_1_key	2927,3253,1	Kill the marked ghost for a key.		Key		quests/quest_dragon/scripts/melzars_maze.rs2:78 ai_queue3
+2	17	2	openOrangeDoor	ObjectStep	loc:orangedoor	2931,3253,1	Go through second yellow door from the north.		=		quests/quest_dragon/scripts/melzars_maze.rs2:33 oploc1; +1
+2	18	2	goUpGhostLadder	ObjectStep	loc:ladder	2934,3254,1	Climb up the ladder.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2
+2	19	2	killSkeleton	NpcStep	npc:dragonslayer_skeleton_1_key	2927,3253,2	Kill the marked skeleton for a key		Key		quests/quest_dragon/scripts/melzars_maze.rs2:84 ai_queue3
+2	20	2	openYellowDoor	ObjectStep	loc:yellowdoor	2924,3249,2	Go through south west yellow door.		=		quests/quest_dragon/scripts/melzars_maze.rs2:35 oploc1; +1
+2	21	2	goDownSkeletonLadder	ObjectStep	loc:laddertop	2940,3240,2	Climb down the ladder.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+2	22	2	goDownLadderRoomLadder	ObjectStep	loc:laddertop	2937,3240,1	Climb down again.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+3	23	2	goDownBasementEntryLadder	ObjectStep	loc:funladdertop	2932,3240,0	Climb down the ladder into the basement.				quests/quest_dragon/scripts/melzars_maze.rs2:26 oploc1
+3	24	2	killZombie	NpcStep	npc:dragonslayer_zombie_1_key	2932,9643,0	Kill the marked zombie for a key		Key		quests/quest_dragon/scripts/melzars_maze.rs2:91 ai_queue3
+3	25	2	openBlueDoor	ObjectStep	loc:bluedoor	2931,9644,0	Go through the blue door in the north west corner.				quests/quest_dragon/scripts/melzars_maze.rs2:37 oploc1; +1
+3	26	2	killMelzar	NpcStep	npc:melzar_the_mad	2929,9649,0	Kill Melzar the Mad for a magenta key.		Key		quests/quest_dragon/scripts/melzar_the_mad.rs2:22 ai_queue1; +3
+3	27	2	openMagntaDoor	ObjectStep	loc:magentadoor	2929,9652,0	Go through the magenta door.				quests/quest_dragon/scripts/melzars_maze.rs2:39 oploc1; +1
+3	28	2	killLesserDemon	NpcStep	npc:dragonslayer_demon	2936,9652,0	Kill the lesser demon. You can safe spot it from the spot east of the magenta door.		Key		quests/quest_dragon/scripts/melzars_maze.rs2:105 ai_queue3
+3	29	2	openGreenDoor	ObjectStep	loc:greendoor	2936,9655,0	Go through the green door.		=		quests/quest_dragon/scripts/melzars_maze.rs2:41 oploc1; +1
+3	30	2	openMelzarChest	ObjectStep	loc:funchestshut	2935,9657,0	Open the chest and get Melzar's map part.				quests/quest_dragon/scripts/melzars_maze.rs2:112 oploc1
+3	31	2	getShield	NpcStep	npc:duke_of_lumbridge loc:spiralstairs	3210,3220,1	Talk to Duke Horacio on the first floor of Lumbridge castle for the anti-dragon shield if you don't have one.	goUpToDukeHoracio		I seek a shield that will protect me from dragonbreath. | E…	areas/lumbridge/scripts/duke_horacio.rs2:10 opnpc1; +3
+3	32	2	talkToKlarense	NpcStep	npc:klarense	3044,3203,0	Talk to Klarense on the south Port Sarim docks and buy his boat.		Planks; Steel nails; Hammer; Coins	I'd like to buy her. | Yep, sounds good.	areas/port_sarim/scripts/klarense.rs2:4 opnpc1
+3	33	2	boardShip1	ObjectStep	loc:dragonshipgangplank_on	3047,3205,0	Board your new ship.	boardShip2 boardShip3	Steel nails; Planks; Hammer		quests/quest_dragon/scripts/lady_lumbridge.rs2:4 oploc1
+4	34	2	goDownShipLadder	ObjectStep	loc:dragonshipladdertop	3049,3208,1	Go down into the ship's hull.				quests/quest_dragon/scripts/lady_lumbridge.rs2:36 oploc1
+4	35	2	repairShip	ObjectStep	loc:dragonslayer_shiphole	3047,9639,1	Repair the hole in the hull 3 times.	repairShip2 repairShip3	Steel nails; Planks; Hammer		
+4	36	2	repairMap	DetailedQuestStep			Use the three map parts together to repair the map.		Map part		
+4	37	2	talkToNed	NpcStep	npc:ned	3098,3257,0	Bring Ned your map and ask him to be your captain.		Crandor map	You're a sailor? Could you take me to Crandor?	areas/draynor/scripts/ned.rs2:4 opnpc1; +2
+4	38	7	boardShipToGo	ObjectStep	loc:dragonshipgangplank_on npc:ned_1op	3047,3205,0	Prepare to fight Elvarg (level 83). When you're ready, go board your boat in Port Sarim and talk to Ned.	talkToNedOnShip	Anti-dragon shield; Combat equipment		quests/quest_dragon/scripts/lady_lumbridge.rs2:4 oploc1; +2
+4	39	8	enterCrandorHole	ObjectStep	loc:dragon_slayer_qip_ruin_entrance	2834,3256,0	Go to the center of the island and go down the hole.				ladders_stairs/scripts/maplink.rs2:77 oploc1; +2
+4	40	8	unlockShortcut	ObjectStep	loc:dragonsecretdoor	2836,9600,0	Go all the way south and through the wall to unlock the shortcut to return here if needed.				quests/quest_dragon/scripts/crandor.rs2:6 oploc1
+4	41	8	returnThroughShortcut	ObjectStep	loc:dragonsecretdoor	2836,9600,0	Return back through the shortcut.				quests/quest_dragon/scripts/crandor.rs2:6 oploc1
+4	42	8	enterElvargArea	ObjectStep	loc:dragon_slayer_qip_stalagtite_jump loc:volcano_entrance	2846,9635,0	Enter Elvarg's area and kill her.	goDownIntoKaramjaVolcano repairShipAgainAndSail	Anti-dragon shield		areas/area_karamja/scripts/volcano.rs2:8 oploc1; +3
+4	43	8	killElvarg	NpcStep	npc:elvarg_alive	2855,9637,0	Kill Elvarg.				quests/quest_dragon/scripts/elvarg.rs2:45 ai_queue1; +7
+4	44	9	finishQuest	NpcStep	npc:oziach	3068,3517,0	Talk to Oziach in his house in north western Edgeville to finish the quest.				areas/edgeville/scripts/oziach.rs2:5 opnpc1; +1
