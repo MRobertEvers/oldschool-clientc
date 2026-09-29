@@ -33,16 +33,26 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
   itself. The `3draster-quest-driver` worktree was deleted in the
   2026-09-25 disk cleanup. Never delete build or cache directories there;
   several sessions build from that checkout at once.
-- **Tier 2 (19 quests) IS UNDER WAY** since 2026-09-27: the owner delegated the
-  readiness call ("I trust your judgement") and the decision was to start, with
-  every boss fight DRIVEN FOR REAL (`t.player.attack` + `t.npc.await_dead_engaged`,
-  as tier 1's Prying Times troll and Roving Elves' Moss Guardian were). The
-  `::skipboss` arm (`tools/quest_gate/skipboss.workflow.js`, never run) is only
-  the sanctioned fallback for an encounter that turns out to be a cutscene; it is
-  NOT a precondition, and a worker must never refuse tier 2 work over it. Passes
-  run in batches of ~6 quests: parity2a (vampire tree ball grail crest
-  desertrescue) landed as 1180a23f7 -- grail and tree at parity, the other four
-  partial with their legs named in `tools/quest_gate/PARITY.tsv`. parity2b
+- **Tier 2 (19 quests) IS COMPLETE** (2026-09-28): 19/19 green, 19/19 FULL
+  under `helper_coverage` (DRIVEN 548, TRAVEL 21, EQUIVALENT 5, BRING_ALONG 1),
+  zero GUIDE-GAP markers, 2,653 ledger rows, every boss fought for real
+  (`t.player.attack` / `t.player.cast` + `t.npc.await_dead_engaged`; the
+  `::skipboss` arm was never needed). The owner delegated the readiness call
+  ("I trust your judgement") on 2026-09-27 and the loop ran parity2a-2d,
+  seam19-27 and author batches sonnet-b27..b32 (Sonnet 5 -> Sonnet 5.5 ->
+  Opus for the two quests that compacted twice); every batch's sheet is in
+  `test/quests/BATCHES.tsv`. What the loop had to fix beyond the tests:
+  npc_findhero binding the killer at the corpse stage, a zero health bar
+  read as a kill, the shift-click drop on op 1, magic rolling against
+  Defence, the script compiler's arity check, roofed sea tiles blocked by
+  the sailing rule, 88 boss Attack bindings that could never hit, the
+  multiloc -1 re-placement, npc wander queueing the rolled tile, the client
+  exact-move guard, one-copy attack/cast targeting, Rune-Draw as a real game,
+  and about forty content legs that were narrated, granted or unreachable
+  (Tourist Trap ported end to end from LostCity). Content parity source:
+  LostCity for vampire, tree, ball, grail, crest, desertrescue, itwatchtower;
+  the OSRS wiki + Quest Helper (briefs under `docs/quests/`) for the rest.
+  Last commit c0bc59f0a; OSRS-Content 27dbb1259b.
   (crest fenkenstrain ghostsahoy itwatchtower mountaindaughter onesmallfavour
   recruitmentdrive) landed content 7e91c06fe3: mountaindaughter at parity, the
   other six partial with their legs named. Only crest and itwatchtower are
