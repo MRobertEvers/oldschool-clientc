@@ -43,7 +43,7 @@ quest_dragon	dragon	dragonslayer		3	todo	sonnet-b35	REJECTED (sonnet-b35): autho
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
-quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35	
+quest_druidspirit	druidspirit	naturespirit		3	todo	sonnet-b35	REVERTED by sampler (sonnet-b35): travel teleported past guide locs -- goDownToDrezel only opened the trapdoor then goto_tile into the underground; the holy barrier (leaveDrezel, pip_underground_wall_side_withportal, mausoleum_interactions.rs2:23) never crossed; goBackDownToDrezel refused 'Lab stairs and trapdoors sit locked.' (sinsofthefather.rs2:507 owns oploc1,pipeastsidetrapdoor -- a content seam) then goto_tile past it to Drezel
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
