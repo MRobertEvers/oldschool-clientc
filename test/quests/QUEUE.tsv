@@ -2,7 +2,7 @@ quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo		
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup
 quest_arena	arena	fightarena		3	green	sonnet-b33	
-quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33	
+quest_arthur	arthur	merlinscrystal		3	todo	sonnet-b33	REVERTED by sampler (sonnet-b33): goUpLadder1Camelot/goUpLadder2Camelot teleported past -- t.player.goto_tile 2769,3493,1 then 2768,3494,2 (0 ticks, chat 'Teleported to', shots 188/190); the author switched to goto_tile after the ladder click stayed on 2769,3494,0 -- click the tower ladders (or name the ladder seam), never ::goto across a level
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
