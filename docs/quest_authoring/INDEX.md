@@ -29,6 +29,7 @@ topic file with one line added here.
 - gray viewport, empty minimap after a far goto -> seam-facts: Seam pass 26, (b) (FIXED seam27; CONFLICT note at Seam 24)
 - a jump/teleport loc answers before you land -> seam-facts: Seam pass 26, (c)
 - a portal lands somewhere else (multiloc child) -> seam-facts: Seam pass 24, (b); Seam pass 25, (c)
+- a loc with only Examine; no op to go back down a hole (`goDownHole`) -> gaps-world: A loc with only Examine
 
 ## Pressing and clicking
 
@@ -88,6 +89,8 @@ topic file with one line added here.
 - an overhead `npc_say` -> gaps-world: A fight is a wait; verbs-pointer: Four outcomes
 - a book -> verbs-ui-and-npc: Readable books
 - `msg.await` FAILs on a line already in chat -> gaps-dialogue: `t.msg.await` never sees
+- a `|` glyph mid-line in a dialogue shot; an entry spanning a line break fails -> gaps-dialogue: A `|` in a page's text
+- page count before a menu unknown; an answer-any-dialogue row; a `conv()` helper to unroll -> verbs-chat: A page count you do not know
 
 ## Items, held ops and shops
 
@@ -149,6 +152,7 @@ topic file with one line added here.
 - a claim survives a loc teleport -> seam-facts: Seam pass 25, (f)
 - `rune_platebody` cannot be worn -> sampler-findings: Sample sonnet-b32
 - a wait that passed before seam28 now fails; an unhittable caster -> seam-facts: Seam 28
+- a `::spawn` drop hunt sees too few drops (Imp Catcher beads) -> sampler-findings: Sample sonnet-b34, (b)
 
 ## Completion and rewards
 
@@ -161,6 +165,7 @@ topic file with one line added here.
 - completion not readable after the last page -> gaps-dialogue: Completion, reopened dialogues; `t.msg.await` never sees
 - the reward differs from the wiki; split scroll lines -> gaps-dialogue: `~quest_complete_rewards`; `t.scroll.rewards()`
 - which rewards need a row -> coverage-and-gate: A reward row; gaps-dialogue: Rewards and steps
+- a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
 
 ## Gate, lint, coverage and the ledger
 
@@ -242,5 +247,5 @@ topic file with one line added here.
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
 - "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-28); a seam number in a verb or trap dates that behaviour
-- samplers: b31, b32 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
+- samplers: b31, b32, b34 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`

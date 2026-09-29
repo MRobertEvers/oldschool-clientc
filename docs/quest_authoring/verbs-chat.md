@@ -83,3 +83,21 @@ answer that took 8+ ticks adds an `unanswered for N ticks` note to the next fail
 
 `t.chat.expect_text(substring)` / `t.chat.expect_head(npc)` / `t.chat.expect_item(obj)` -> `ok`
 `not_found`.
+
+### A page count you do not know: `drain{stop_at="options"}` then `choose`
+
+*Origin: sample sonnet-b34 (2026-09-29), The Dig Site (`itexam`).*
+
+`t.chat.play` wants every page before a `choose:` listed in order. When you cannot know the count
+(an exam that echoes a varying number of lines, a quest-state greeting), drive the menu in two
+rows instead. `t.exec("q1-ask", t.chat.drain, { stop_at = "options" })` clicks through to the menu,
+and `t.exec("q1-answer", t.chat.choose, "<exact row>")` answers it. Repeat the pair for each menu,
+then run `t.chat.drain{}` with no `stop_at` for the tail. Every one of those rows gets a detail
+(`options`, `chat.choose: page changed`, `none`). `itexam.lua`'s three exams and Doug's seven-menu
+beg follow this shape.
+
+For an "answer any dialogue" row, one that only has to get the conversation out of the way, use
+`t.chat.drain{}` by itself. Author workflows forbid local helper functions in a quest file
+(`author_batch.workflow.js` rule 4), and helper_coverage grades each step by its own static row
+(seam pass 26 (e)). So a conversation that a seam driver wrote as a `conv()` helper is unrolled
+into these drain/choose pairs, one pair per menu, each named after its guide step.

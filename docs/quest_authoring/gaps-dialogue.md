@@ -321,3 +321,19 @@ Rock threw away 93 PASS rows at its wall of flame for one mistyped argument.
 the row's detail (a result word or a nil is graded FAIL, a non-string step name is coerced and
 named), and `lint_quest.py` REFUSES the shape -- so the failure today is a refused file, not a dead
 run. Do not rely on the floor: the linter is the rule.
+
+## A `|` in a page's text: a manual line break that the client draws as a glyph
+
+*Origin: sample sonnet-b34 (2026-09-29): elena, grandtree, hazeelcult.*
+
+Ported LostCity content writes a manual line break as `|` inside `~chatnpc`/`~chatplayer`/`~mesbox`
+text (`"You fall through...|...you land in the sewer."`). The client does not break the line
+there. It draws the `|` inline as a small glyph between the two halves, so shots of the page show
+`here,|but` run together (Plague City shots 88, 90, 93, 207, 251 and 255, and most of The Grand
+Tree's). Treat that as a known rendering gap and do not send a quest back for it.
+
+For matching, `t.chat.play` compares each entry against the page text by plain substring
+(`chat.lua`, `stripped:find(arg, 1, true)`), and the `|` is still in that text. So an entry
+that spans the break must spell the `|` (`"npc:Yes she was staying here,|but"`), and one that stops
+before it (`"npc:Yes she was staying here"`) matches as usual. The ledger detail prints the `|`.
+Copy the entry from there.

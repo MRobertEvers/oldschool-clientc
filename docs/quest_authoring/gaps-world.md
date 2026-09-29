@@ -301,3 +301,14 @@ own zone test on `npc_coord` right after its `npc_walk` reads the OLD tile: `SS_
 queues a waypoint (`torirs_server_scripts.c`), so `diseased_sheep.rs2`'s gate-zone jump fires on the
 press AFTER the one that lands the sheep in `sheepherder_pen_gate` -- confirm a landing with a
 genuine follow-up press, not a longer varbit poll.
+
+## A loc with only Examine: the way back in is the item that opened it
+
+*Origin: sample sonnet-b34 (2026-09-29), Plague City (`elena`).*
+
+A guide step that says "go down the hole" can point at a loc whose only op is Examine. Plague City's
+`plaguemudpatch1`/`plaguemudpatch2` have no op1: `quest_elena/scripts/mud_patch.rs2` binds
+`[oplocu]` only, so a `click_loc(..., 1)` has nothing to press. The way down again after
+`climbMudPile` is the spade used on the patch a second time (`t.player.use_on("spade", patch)`).
+Past `quest_elena_mud_patch4` the dig label drops you in the sewer again, and the row is the guide's
+`goDownHole`. Before you call a loc unreachable, read its script's trigger list (`grep -n "^\["`).

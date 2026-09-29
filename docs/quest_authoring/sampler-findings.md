@@ -46,3 +46,24 @@ wear.
 Other sampler findings live beside the rule they changed: trap 4 (sonnet-b33, repeated pages), trap
 12 (sonnet-b27, sonnet-b13), trap 17 (sonnet-b29), trap 21 (sonnet-b12, sonnet-b17), trap 32
 (sonnet-b27, sonnet-b28) and the `coordz` side-test gap (sonnet-b16). `INDEX.md` lists them all.
+
+## Sample sonnet-b34 (2026-09-29)
+
+*Origin: section 8 ("Gaps reported by authors"); sampler checked elena, grandtree, itexam.*
+
+(a) A SECOND BRANCH AFTER COMPLETION. Hazeel Cult has two sides. `hazeelcult.lua` completes the
+Ceril branch to `expect_complete`, then issues `t.cheat("::hazeelcultreset")` and plays the Hazeel
+branch to a second `expect_complete`. The b34 reviewer accepted this. The debugproc
+(`hazeelcult_selftest.rs2`) only rewinds the quest and does none of its work, and it runs after the
+first branch has already been graded complete. That is the one use of a reset: a debugproc that
+ADVANCES a stage, or a reset before the first completion, is still trap 16.
+
+(b) A `::spawn` DROP HUNT IS UNSOLVED (Imp Catcher, `imp`, gave up). `drop_tables/scripts/imp.rs2`
+drops one `death_drop` plus one `random(128)` roll per death, with each bead at 5/128 on
+`npc_coord` for `^lootdrop_duration`. 250 spawned-imp attempts yielded black 1, red 1, white 1 and
+yellow 0 when roughly 10 of each were expected, and the cause was not found. The reviewer's shot
+showed several drops stacked on the kill tile, so a `click_obj` by bead name may face the wrong copy.
+Count only ZERO-BAR deaths as kills, and log `t.world.obj_near` for every colour right after each
+death, before any pickup. Content imps do not teleport when damaged
+(`areas/lumbridge/scripts/imp.rs2` has no panic teleport). They only teleport on their idle timer,
+and never while in combat.
