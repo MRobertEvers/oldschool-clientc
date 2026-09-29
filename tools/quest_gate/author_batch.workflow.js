@@ -30,6 +30,7 @@ const WT = '/Users/matthewevers/Documents/git_repos/3draster'
 const batch = args && args.batch
 const tests = (args && args.tests) || []
 const authorModel = (args && args.author_model) || 'claude-sonnet-5-5'
+const relay = (args && args.relay) || {}   // { test_id: number of legs } -- from `python3 tools/quest_gate/ladder.py <id>`; a quest over ~30 guide steps is authored as a relay
 const sheetDir = (args && args.sheet_dir) || `${WT}/build/author_state/${batch}/sheet`
 if (!batch) throw new Error('args.batch is required (e.g. "sonnet-b11")')
 if (!tests.length) throw new Error('args.tests is empty: pick test_ids with tools/quest_gate/queue.py first')
@@ -47,6 +48,13 @@ const REVIEW_SCHEMA = { type: 'object', properties: {
   queue_status: { type: 'string', enum: ['green', 'blocked', 'content_bug', 'todo'] }, queue_failure: { type: 'string' },
   findings: { type: 'array', items: { type: 'string' } }, shots_checked: { type: 'integer' }, doc_gaps: { type: 'array', items: { type: 'string' } },
 }, required: ['test_id', 'verdict', 'commit', 'queue_status', 'queue_failure', 'findings', 'shots_checked', 'doc_gaps'] }
+const DISCIPLINE = `CONTEXT DISCIPLINE -- long quests run an author out of context, and these rules are why you will not: (1) never open the Quest Helper guide Java: python3 ${WT}/tools/quest_gate/ladder.py <test_id> prints the guide as a small table (step name, kind, target symbol, tile, stage, instruction, items, and the .rs2 file:line of the trigger); name each test row after the step name in its row. (2) Read a script only at the line the ladder's trig column gives (sed -n 'L,+40p' <file>), never the whole file. (3) After every run read the result with python3 ${WT}/tools/quest_gate/fail.py <test_id> (add --all for every failing row); never open ledger.tsv. (4) Never cat the test file: grep -n '<row name>' test/quests/<test_id>.lua and read twenty lines around the hit. (5) Pipe any exploratory command through | head -c 4000. (6) Open a screenshot only when fail.py names it or a row's claim needs the picture. The rules are in ${WT}/docs/quest_authoring/relay.md.`
+const REVIEW_DISCIPLINE = `CONTEXT DISCIPLINE for a reviewer -- a reviewer of a long quest ran out of context opening 442 screenshots one by one: read the run through python3 ${WT}/tools/quest_gate/fail.py <test_id> and the guide through python3 ${WT}/tools/quest_gate/ladder.py <test_id>, never the ledger file or the guide Java; read the test file in windows of 150 lines, never whole; open the completion scroll shot, every -FAIL shot, the shots of each fight and of each reward row, and beyond those a SAMPLE of at most 30 shots spread evenly over the run -- say in shots_checked how many you really opened.`
+const LEG_SCHEMA = { type: 'object', properties: {
+  test_id: { type: 'string' }, leg: { type: 'integer' }, outcome: { type: 'string', enum: ['done', 'blocked', 'content_bug', 'gave_up'] }, runs: { type: 'integer' },
+  last_step: { type: 'string' }, last_failure: { type: 'string' }, blocker: { type: 'string' },
+  doc_gaps: { type: 'array', items: { type: 'string' } }, compacted: { type: 'boolean' },
+}, required: ['test_id', 'leg', 'outcome', 'runs', 'last_step', 'last_failure', 'blocker', 'doc_gaps', 'compacted'] }
 const STATE_SCHEMA = { type: 'object', properties: {
   reviewed: { type: 'array', items: REVIEW_SCHEMA },
   authored: { type: 'array', items: AUTHOR_SCHEMA },
@@ -68,6 +76,7 @@ const authorCard = (id) => `${COMMON}
 ${sentBack.has(id) ? `
 THIS QUEST WAS SENT BACK by the batch's Opus sampler after a previous launch (its finding is the queue row's last_failure, prefixed REVERTED by sampler): first remove ${STATE}/${id}.author.json, ${STATE}/${id}.review.json and ${STATE}/${id}.review.progress.md (keep your notebook), then author it again from the committed file and the sampler's finding.\n` : ''}
 You are writing ONE client-driven quest test: test_id "${id}". Read ${WT}/docs/QUEST_AUTHORING.md once, in full: it is the CORE, about 20 KB, and it holds the contract, the file shape, the commands, a one-line verb table and the rules. Do NOT read the files under ${WT}/docs/quest_authoring/ before your first run, and do not read any other doc up front -- your context is for the quest, the guide and the ledgers. MAKE YOUR FIRST RUN EARLY: claim and scaffold (or resume the committed or parked file your QUEUE row names), resolve every -- CHECK marker from the quest's own .rs2, then run run.py --no-build and gate.py and read the ledger and the failure block. When a row fails, look up THAT failure: search ${WT}/docs/quest_authoring/INDEX.md for the ledger message, server sentence or shape you see, or grep -rn '<distinctive words from the detail>' ${WT}/docs/quest_authoring/ ; read only the heading it names, fix one thing, run again. Read a whole topic file only the first time you drive that area (verbs-combat.md before a fight, verbs-sail-session.md before a sea leg, verbs-inventory-shops.md before a shop). A citation such as 'trap 31', 'section 8's payout-reopen' or 'seam pass 21 (d)' is resolved by the Citations group at the bottom of INDEX.md. Write your notebook after EVERY run (what you ran, the first failing row, what you changed), so a successor never starts from zero.
+${DISCIPLINE}
 RESUME DISCIPLINE: ${STATE}/${id}.author.progress.md is your notebook. If it exists, a previous attempt at this quest was killed: read it first, count its runs toward your eight, and continue from its last step -- test/quests/${id}.lua on disk is that attempt's file. Append to it after every run (run number, the failing row, what you changed).
 
 Steps:
@@ -87,7 +96,24 @@ THE GUIDE IS THE SPEC (owner rule, 2026-09-23). The Quest Helper guide's step la
 Do NOT commit, push, or edit QUEUE.tsv. FINISH: write the schema JSON to ${STATE}/${id}.author.json, then return it; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput even if you gave up.
 COMPACTION: if your conversation is ever compacted or summarized while you work, STOP at once, write what you have to the notebook, and report outcome gave_up with compacted=true and blocker "context compacted"; a larger model resumes from your notebook.`
 
+const legCard = (id, k, n) => `${COMMON}
+YOU ARE ONE RUNNER IN A RELAY (owner-approved design, 2026-09-29). The quest test "${id}" is long, so it is written as ${n} legs by ${n} authors in sequence. You write LEG ${k} of ${n} and nothing else; a fresh author takes the next leg. You never need the whole quest in your head, and you must not try to load it.
+RESUME: if ${STATE}/${id}.leg${k}.json exists and its outcome is "done", return its content verbatim through StructuredOutput and do nothing else. ${STATE}/${id}.leg${k}.progress.md is your notebook: if it exists a previous runner of this leg was killed -- read it, count its runs toward your ten, continue from its last step.
+READ, in this order, and nothing else up front: (a) ${WT}/docs/QUEST_AUTHORING.md, the 20 KB core; (b) ${WT}/docs/quest_authoring/relay.md; (c) ${STATE}/${id}.relay.md if it exists -- the hand-off notes of the runners before you (where the player stands, the stage, what is in the backpack); (d) python3 ${WT}/tools/quest_gate/ladder.py ${id} --leg ${k} -- YOUR LEG: every row is a guide step you must drive with a test row named after the step; its third header line names the last step of the previous leg; (e) python3 ${WT}/tools/quest_gate/queue.py show ${id} -- the row's last_failure may name a committed or parked file and what a seam pass fixed.
+${DISCIPLINE}
+THE FILE is test/quests/${id}.lua. ${k === 1 ? `You are the FIRST runner: if the queue row names a parked or reverted file to start from, copy it to test/quests/${id}.lua; if test/quests/${id}.lua already exists keep it; otherwise python3 ${WT}/tools/quest_gate/new_quest.py ${id}. Then lay the file out for the relay (below).` : `Runners before you wrote legs 1..${k - 1}. Do NOT read or rewrite their legs: find yours with grep -n 'LEG ${k} ' test/quests/${id}.lua.`}
+LAYOUT: run python3 ${WT}/tools/quest_gate/run.py --help | grep -c from-leg. If it prints 1 or more, checkpoints have landed: the file uses the legs table of docs/quest_authoring/relay.md ('Checkpoints'): your leg is the ${k}${k === 1 ? 'st' : k === 2 ? 'nd' : k === 3 ? 'rd' : 'th'} entry of legs = { ... }, a self-contained function; iterate with python3 ${WT}/tools/quest_gate/run.py ${id} --from-leg ${k} --no-build (it starts from the checkpoint the previous leg's green run wrote, in seconds) and read it with fail.py ${id} --name ${id}.leg${k}. If it prints 0, checkpoints have not landed: the file keeps a single run function, your leg sits between the comment lines "-- LEG ${k} BEGIN: <your first step>" and "-- LEG ${k} END" (add them; ${k === 1 ? 'you create the first pair' : 'the previous runner left the pair for its leg'}), and every iteration is a full run (python3 ${WT}/tools/quest_gate/run.py ${id} --no-build) read with fail.py ${id}.
+IF YOUR LEG'S STEPS ARE ALREADY IN THE FILE (an earlier single-author attempt wrote them): your job is to make them pass and meet the rules, not to rewrite them. Check each ladder row of your leg has a test row of its name; run; fix what fails; remove any stub t.blocked, any GUIDE-GAP marker that cites no real .rs2 line, any row that photographs the same frame twice.
+YOU MAY EDIT ONLY: the inside of your leg, the setup list (one ::give or ::setlevel per item or level the guide lists as brought along for YOUR leg, with a comment naming the guide requirement), your notebook and the relay note. Never another leg, never script/plugins/, src/, tools/, OSRS-Content/ or another quest's file. No state is shared between legs except what the player carries: do not rely on a Lua local from an earlier leg.
+EVERY RULE OF THE CORE HOLDS INSIDE YOUR LEG: the guide is the spec; every step of your leg is driven by a real row or the file stops at t.blocked naming the exact seam or content_bug with its file:line; t.player.goto_tile is for plain travel only, never past a door, gate, stair, trapdoor, barrier, puzzle or any loc the guide names; ::give only for brought-along items; no debugproc does quest work; never ::setvar a quest var; a boss is fought for real (t.player.attack or t.player.cast, t.npc.await_dead_engaged with opts.eat, gear worn, food carried) and the stage is read a tick after the corpse stage; every PASS row has a detail that says something.
+END YOUR LEG AT A QUIET POINT: outside a fight, a dialogue, a cutscene or an instance. ${k < n ? `Your last row is t.check("leg.${k}.end", true, "<the player's tile and level, the quest stage read from the server, the items later legs need>") so the next runner and the checkpoint have a clean boundary.` : `You are the LAST runner: the file ends with t.quest.expect_complete() and a t.check/t.expect row for every reward Quest Helper lists, asserted as the LITERAL documented amount (skill.snapshot before the hand-in). Then a FULL run from a fresh character (python3 ${WT}/tools/quest_gate/run.py ${id} --no-build, no --from-leg), python3 ${WT}/tools/quest_gate/gate.py ${id}, python3 ${WT}/tools/quest_gate/lint_quest.py test/quests/${id}.lua and python3 ${WT}/tools/quest_gate/helper_coverage.py ${id} must all be green, FULL, with zero GUIDE-GAP markers; if the full run fails in an EARLIER leg, fix it there -- you are the one runner allowed to touch every leg, by grep and twenty-line windows, never by reading the file whole.`}
+BUDGET: ten runs. Write your notebook after EVERY run (run number, the first failing row from fail.py, what you changed).
+HAND-OFF: append to ${STATE}/${id}.relay.md a block headed "## leg ${k}" of at most ten lines: the tile and level the player stands on at the end of your leg, the quest stage value, what is in the backpack and worn that later legs need, the levels setup gives, and anything that surprised you (a door that must be opened, an npc that wanders, a dialogue that pages). The next runner reads only this.
+OUTCOME: done = every step of your leg is a PASS row named after it and the run reaches your leg's last row; blocked = the file stops at t.blocked("<exact seam>") inside your leg; content_bug = the quest's own script misbehaves, named with file:line, and the file stops at t.blocked("content_bug: ..."); gave_up = anything else. Do NOT commit, push or edit QUEUE.tsv. FINISH: write the schema JSON to ${STATE}/${id}.leg${k}.json (test_id "${id}", leg ${k}, last_step = the last guide step your leg drives), then return it. You MUST end by calling StructuredOutput even if you gave up.
+COMPACTION: if your conversation is ever compacted or summarized while you work, STOP at once, write what you have to the notebook and the relay note, and report outcome gave_up with compacted=true; a fresh runner resumes this leg from your notebook.`
+
 const reviewCard = (id, a) => `${COMMON}
+${REVIEW_DISCIPLINE}
 
 You are the reviewer for quest test "${id}". The author reported: ${JSON.stringify(a, null, 1)}.
 RESUME DISCIPLINE: if ${STATE}/${id}.review.json exists, a previous reviewer finished: return its content unchanged. If ${STATE}/${id}.review.progress.md exists, continue from its last step (check git log for "quests: ${id}" before committing again). Append to it after every step.
@@ -112,10 +138,29 @@ const pending = tests.filter(id => !reviewedIds.has(id))
 log(`state: ${keptReviews.length} reviewed, ${Object.keys(authoredById).length} authored, ${sentBack.size} sent back, ${pending.length} pending: ${pending.join(', ') || 'none'}`)
 
 const RETRY_EFFORT = 'medium'
+const runRelay = async (id, n) => {
+  let runs = 0
+  const gaps = []
+  for (let k = 1; k <= n; k++) {
+    let leg = await attempt(`leg:${id}:${k}`, 2, () => agent(legCard(id, k, n), { label: `leg:${id} ${k}/${n}`, phase: 'Author', model: authorModel, schema: LEG_SCHEMA }))
+    if (!leg || leg.outcome === 'gave_up') {
+      log(`${id}: leg ${k}/${n} ${leg ? 'gave up' : 'returned no report'}; a fresh runner resumes it once from the notebook at ${RETRY_EFFORT} effort`)
+      const again = await attempt(`leg:${id}:${k} (retry)`, 2, () => agent(legCard(id, k, n), { label: `leg:${id} ${k}/${n} (retry)`, phase: 'Author', model: authorModel, effort: RETRY_EFFORT, schema: LEG_SCHEMA }))
+      if (again) leg = again
+    }
+    if (leg) { runs += leg.runs || 0; gaps.push(...(leg.doc_gaps || [])) }
+    if (!leg || leg.outcome !== 'done') {
+      return { test_id: id, outcome: leg ? leg.outcome : 'gave_up', runs, checks_resolved: [], last_failure: leg ? leg.last_failure : '', blocker: `relay stopped at leg ${k} of ${n}: ${leg ? leg.blocker : 'the runner returned no report; read ' + STATE + '/' + id + '.leg' + k + '.progress.md'}`, doc_gaps: gaps, compacted: !leg || leg.compacted === true, retried: true }
+    }
+    log(`${id}: leg ${k}/${n} done at ${leg.last_step}`)
+  }
+  return { test_id: id, outcome: 'green', runs, checks_resolved: [`relay of ${n} legs`], last_failure: '', blocker: '', doc_gaps: gaps, compacted: false }
+}
 const results = await pipeline(
   pending,
   async (id) => {
     if (authoredById[id]) return authoredById[id]
+    if (relay[id]) return runRelay(id, relay[id])
     const first = await attempt(`author:${id}`, 2, () => agent(authorCard(id), { label: `author:${id}`, phase: 'Author', model: authorModel, schema: AUTHOR_SCHEMA }))
     const compacted = !first || first.compacted === true
     if (!compacted) return first
