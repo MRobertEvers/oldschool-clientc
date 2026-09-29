@@ -33,6 +33,7 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_session.h"
+#include "torirs_server_world_internal.h"
 #include "torirs_server_shop.h"
 
 #include "ss_meta.h"
@@ -9452,6 +9453,17 @@ ToriRSServer_ScriptCommand(
      */
     case SS_OP_RUNENERGY:
         SSVM_PushInt(state, player->run_energy / 100);
+        return 1;
+
+    /*
+     * weight() is the carried weight in grams, worn items included and
+     * weight-reducing items negative, exactly the figure the run-energy drain
+     * reads (player_weight_grams). LostCity Player.runweight is the same
+     * unit. Temple of Ikov's lava bridge asks `weight >= 0`: only the Boots of
+     * lightness push a full pack under zero.
+     */
+    case SS_OP_WEIGHT:
+        SSVM_PushInt(state, player_weight_grams(player));
         return 1;
 
     /*

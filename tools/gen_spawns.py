@@ -254,6 +254,27 @@ OBJ_SPAWN_EXCLUSIONS = {
 }
 
 
+# Obj rows the dump lacks and the quest cannot be finished without, keyed like
+# OBJ_SPAWN_EXCLUSIONS: `(cache symbol, x, z, plane, count)`.
+#
+# The Dig Site: the compound that blows the rockfall needs an arcenia root, and
+# the only cave the player can reach before the rockfall is gone is m52_153
+# (z 9792..9855); m52_152 (z 9728..9791, the four roots the dump does carry) is
+# the cavern behind it. LostCity lays four roots in each --- maps/m52_153.jm2
+# lines 8817-8829 (local 20,27 / 23,32 / 37,37 / 41,43, obj 708) against
+# m52_152.jm2 lines 8831-8843 --- so the dump's single set leaves the quest
+# uncompletable on a fresh save. These four are the m52_153 set, at the
+# LostCity tiles minus (1,1): the osrs239 caves sit one tile north-west of
+# LostCity's (the dump's own m52_152 roots are the LostCity rows minus (1,1),
+# as the ladders 2352/2353 and the brick 2362 are).
+OBJ_SPAWN_ADDITIONS = (
+    ("arcenia_root", 3328 + 19, 9792 + 26, 0, 1),
+    ("arcenia_root", 3328 + 22, 9792 + 31, 0, 1),
+    ("arcenia_root", 3328 + 36, 9792 + 36, 0, 1),
+    ("arcenia_root", 3328 + 40, 9792 + 42, 0, 1),
+)
+
+
 def reachable_names(blocks, name, depth=0, seen=None):
     """Every display name this record can present as, following `multinpc`.
 
@@ -408,6 +429,15 @@ def main():
             continue
         seen.add(key)
         kept[square].append(Spawn("obj", name, row["x"], row["y"], level, count))
+
+    for name, x, z, level, count in OBJ_SPAWN_ADDITIONS:
+        assert name in obj_ids.values(), name
+        square = (x // 64, z // 64)
+        assert square in squares, square
+        key = ("obj", name, x, z, level, count)
+        assert key not in seen, key
+        seen.add(key)
+        kept[square].append(Spawn("obj", name, x, z, level, count))
 
     # ---------------------------------------------------------------- write
 
