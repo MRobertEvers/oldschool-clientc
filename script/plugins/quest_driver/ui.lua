@@ -37,18 +37,25 @@ function QD.ui.open(interface, cheat_text)
     return QD.ui.await_open(interface)
 end
 
+-- On `ok` it names what it saw (seam27): the interface and its group id, so
+-- `t.expect("x.open", t.ui.await_open(...))` is not a PASS with an empty
+-- detail (gate.py fails those).
 function QD.ui.await_open(interface, ticks)
     local sym_result, interface_id = api_drive.symbol("interface", interface)
     if sym_result ~= "ok" then
         return "no_row", "ui.await_open: unknown interface " .. tostring(interface)
     end
-    return await({
+    local result, detail = await({
         level = function()
-            local result, present = api_drive.group_present(interface_id)
-            return result == "ok" and present
+            local present_result, present = api_drive.group_present(interface_id)
+            return present_result == "ok" and present
         end,
         note = "ui.await_open " .. interface,
     }, ticks or 20)
+    if result ~= "ok" then
+        return result, detail
+    end
+    return "ok", string.format("%s open (group %d)", interface, interface_id)
 end
 
 function QD.ui.await_close(interface, ticks)
@@ -389,24 +396,42 @@ end
 -- "ok" end, ... })` blocks hans.lua already writes twice (hans.leaves,
 -- hans.returns) into one verb each.
 
+-- Both answer a DETAIL on `ok` (seam27): await_present the npc it found
+-- (slot and tile, read back through npc.nearest), await_gone the radius it
+-- searched -- a bare `ok` under t.expect/t.check was a PASS row with an empty
+-- detail, which gate.py now fails.
 function QD.npc.await_present(sym, radius, ticks)
-    return await({
+    local result, detail = await({
         level = function()
-            local result = QD.npc.nearest(sym, radius)
-            return result == "ok"
+            local nearest_result = QD.npc.nearest(sym, radius)
+            return nearest_result == "ok"
         end,
         note = "npc.await_present " .. tostring(sym),
     }, ticks or 10)
+    if result ~= "ok" then
+        return result, detail
+    end
+    local nearest_result, row = QD.npc.nearest(sym, radius)
+    if nearest_result ~= "ok" then
+        return "ok", string.format("%s was present within %d (gone again on the read-back: %s %s)",
+            tostring(sym), radius or 0, tostring(nearest_result), tostring(row))
+    end
+    return "ok", string.format("%s present within %d: slot %s at %s,%s", tostring(sym), radius or 0,
+        tostring(row.slot), tostring(row.x), tostring(row.z))
 end
 
 function QD.npc.await_gone(sym, radius, ticks)
-    return await({
+    local result, detail = await({
         level = function()
-            local result = QD.npc.nearest(sym, radius)
-            return result ~= "ok"
+            local nearest_result = QD.npc.nearest(sym, radius)
+            return nearest_result ~= "ok"
         end,
         note = "npc.await_gone " .. tostring(sym),
     }, ticks or 10)
+    if result ~= "ok" then
+        return result, detail
+    end
+    return "ok", string.format("no %s within %d", tostring(sym), radius or 0)
 end
 -- end worker 2c block
 

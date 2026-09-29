@@ -1447,6 +1447,114 @@ drive_pointer_spell_arm(
     return DRIVE_OK;
 }
 
+/*
+ * CAST THE ARMED SPELL ON A CARRIED ITEM -- api_drive.inv_cast, the held-item
+ * twin of the world "Cast <spell> -> <target>" press (seam
+ * recruitmentdrive_spawn_artifact_and_held_cast, seam27, 2026-09-28).
+ *
+ * A player casts Superheat Item or Low Level Alchemy in two clicks: the
+ * spell's own "Cast" row (drive_pointer_spell_arm above arms app->targetsel)
+ * and then the "<spell> -> <item>" row the backpack cell offers while that
+ * target mode is live -- rs_minimenu_build.c add_inv_slot_select_row, action
+ * REVCONFIG_MINIMENU_TGT_HELD -- which app_minimenu_inv_action turns into
+ * OPHELDT.  Neither existing entry point reaches that row: app_plugin_inv_op
+ * builds OPHELD1..6 or OPHELDT_START only (the latter would ARM a Use
+ * selection and drop the spell), and no driver read gives a backpack cell's
+ * screen rectangle for a real click.
+ *
+ * So this builds the ONE row the real menu builder would put on this cell and
+ * runs it through app_minimenu_run_option, the dispatcher a real click on the
+ * row reaches -- drive_pointer_spell_arm's scratch-menu shape.  It refuses
+ * (sending nothing) wherever the real menu would not have offered the row:
+ *
+ *   - no spell is armed (DRIVE_REFUSED);
+ *   - the armed spell's target mask lacks the held-item bit
+ *     (features->target_mask_held, 0x10 classic -- the builder's own test;
+ *     DRIVE_REFUSED): the real cell then offers no cast row at all;
+ *   - the dispatcher would drop the pick in silence -- the backpack not the
+ *     shown tab, the cell display-hidden or holding something else
+ *     (app_minimenu_pick_refusal, DRIVE_REFUSED with its sentence);
+ *   - the row ran and the spell is still armed (DRIVE_REFUSED): the OPHELDT
+ *     branch is the only thing on that path that consumes targetsel, so a
+ *     live arming afterwards means nothing was sent.
+ *
+ * Every failure after the arming check clears the selection, as
+ * drive_pointer_inv_use_on does: a spell left armed would be spent by the
+ * next verb's click on whatever it hits.
+ */
+static enum DriveResult
+drive_pointer_inv_cast(
+    struct App* app,
+    int component_id,
+    int slot,
+    int obj_id,
+    int count,
+    char const** out_reason)
+{
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+    int held_bit;
+
+    assert(app);
+    assert(out_reason);
+    *out_reason = NULL;
+    if( !app->targetsel.active )
+    {
+        *out_reason = "no spell is armed (api_drive.spell_arm first)";
+        return DRIVE_REFUSED;
+    }
+    held_bit = app->features && app->features->target_mask_held != 0
+                   ? app->features->target_mask_held
+                   : TORIRS_TARGET_MASK_HELD_CLASSIC;
+    if( (app->targetsel.mask & held_bit) == 0 )
+    {
+        app_selection_clear(app);
+        *out_reason = "the armed spell's target mask has no held-item bit: the cell offers no cast row";
+        return DRIVE_REFUSED;
+    }
+    if( !app->tree || UITree_FindByComponentId(app->tree, component_id) < 0 )
+    {
+        app_selection_clear(app);
+        *out_reason = "that component id is not in the interface tree";
+        return DRIVE_NOT_FOUND;
+    }
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_INV_SLOT;
+    pick.id = component_id;
+    pick.secondary_id = slot;
+    pick.tertiary_id = obj_id;
+    pick.quaternary_id = count;
+    *out_reason = app_minimenu_pick_refusal(app, &pick);
+    if( *out_reason )
+    {
+        app_selection_clear(app);
+        return DRIVE_REFUSED;
+    }
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(&scratch, "", REVCONFIG_MINIMENU_TGT_HELD, 0, pick) )
+    {
+        app_selection_clear(app);
+        *out_reason = "the scratch minimenu would not take the row";
+        return DRIVE_REFUSED;
+    }
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+
+    if( app->targetsel.active )
+    {
+        app_selection_clear(app);
+        *out_reason = "the cast row ran and the spell stayed armed: nothing was sent";
+        return DRIVE_REFUSED;
+    }
+    return DRIVE_OK;
+}
+
 enum DriveResult
 DrivePointer_MoveTo(struct App* app, int tile_x, int tile_z)
 {
@@ -1864,6 +1972,25 @@ lua_drive_inv_use_on(struct lua_State* L)
     return PluginDrive_PushResult(L, result, NULL);
 }
 
+/* api_drive.inv_cast(component_id, slot, obj_id, count) -> (result, detail).
+ * The backpack cell the ARMED spell is cast on; detail is the refusal
+ * sentence, or nil on ok.  See drive_pointer_inv_cast. */
+static int
+lua_drive_inv_cast(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    int component_id = PluginDrive_ArgInt(L, 1);
+    int slot = PluginDrive_ArgInt(L, 2);
+    int obj_id = PluginDrive_ArgInt(L, 3);
+    int count = PluginDrive_ArgInt(L, 4);
+    char const* reason = NULL;
+    enum DriveResult result;
+
+    assert(app);
+    result = drive_pointer_inv_cast(app, component_id, slot, obj_id, count, &reason);
+    return PluginDrive_PushResult(L, result, reason);
+}
+
 /* api_drive.spell_arm(component_id) -> (result, detail).  detail is
  * "already armed, nothing sent", "armed by this call: <the client's own
  * targetsel prompt>", or the refusal sentence.  See drive_pointer_spell_arm. */
@@ -2005,6 +2132,7 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"inv_arm", lua_drive_inv_arm},
     {"inv_use_on", lua_drive_inv_use_on},
     {"spell_arm", lua_drive_spell_arm},
+    {"inv_cast", lua_drive_inv_cast},
     {"move_to", lua_drive_move_to},
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},

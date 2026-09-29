@@ -33,8 +33,16 @@ return {
         "::give hammer 1",
         "::give cup_empty 1",
         "::give bowl_hot_water 1",
-        -- Tassie's done branch hands a pot, never the clay (see returnToTassie).
-        "::give softclay 1",
+        -- Cut gems for the landing lights: Quest Helper getItemRecommended
+        -- opal2/jade2/redTopaz2 (wiki: "Two of each of the following cut
+        -- gems, or a chisel to cut the uncut gems received during the
+        -- quest"); the lamps' own uncut sapphires are cut in the run
+        -- (sapphires cannot be crushed). Cutting the uncut opal/jade/red
+        -- topaz would crush at random (gem.dbrow success_rate), so the
+        -- recommended cut ones are brought instead.
+        "::give jade 2",
+        "::give opal 2",
+        "::give red_topaz 2",
         -- Slagilith (level 92) and three level-44 gang dwarves: a pickaxe
         -- (the guide's recommended weapon for Slagilith), armour and food.
         "::give rune_pickaxe 1",
@@ -63,6 +71,7 @@ return {
                 forester_axe = 5,
                 axe_to_brian = 10,
                 aggie_agreed = 20,
+                aggie_told = 22,
                 johanhus_told = 25,
                 fred_told = 45,
                 seth_told = 50,
@@ -80,6 +89,8 @@ return {
                 tindel_told = 105,
                 rantz_told = 110,
                 gnormadium_told = 115,
+                lights_repairing = 120,
+                lights_fixed = 122,
                 gnormadium_done = 125,
                 rantz_done = 130,
                 tindel_done = 135,
@@ -89,7 +100,9 @@ return {
                 petra_freed = 152,
                 phantuwti_weather = 160,
                 vane_search = 175,
-                vane_parts_taken = 177,
+                vane_searched = 176,
+                vane_loosened = 177,
+                vane_parts_taken = 178,
                 vane_repaired = 180,
                 phantuwti_vane_done = 185,
                 arhein_done = 190,
@@ -99,6 +112,7 @@ return {
                 hammerspike_done = 225,
                 tassie_done = 230,
                 pot_made = 235,
+                horvik_medicine = 238,
                 horvik_done = 240,
                 seth_done = 250,
                 johanhus_done = 255,
@@ -161,32 +175,28 @@ return {
         t.expect("quest.stage.aggie_agreed", t.quest.expect_stage("aggie_agreed"))
 
         -- === Aggie (Draynor Village) ========================================
-        -- areas/draynor/scripts/aggie.rs2:10-14 delegates to
-        -- onesmallfavour_relay.rs2's [proc,osf_aggie_talk] FIRST. That proc's
-        -- own "character witness" branch (relay.rs2:20-29) is gated on the
-        -- SAME %onesmallfavour value (^osf_axe_to_brian, 10) that Brian's own
-        -- branch above already consumed and advanced past to
-        -- ^osf_aggie_agreed (20) -- a genuine stage-value collision between
-        -- two owner scripts (both check ==10, both set ->20). Brian is
-        -- visited first here (matching his own "I'll go and see Aggie" line
-        -- and the narrative -- Aggie's dialogue explains a plot beat the
-        -- player could only ask about after hearing Brian decline), so by
-        -- the time Aggie is reached the stage has already moved on and her
-        -- real page never lights up; she falls through to the generic
-        -- "Hello again, dearie." aggie.rs2 fallback (chat progress here does
-        -- not gate anything downstream -- osf_johanhus_told is set by
-        -- Johanhus himself below, not by this visit). Read what the client
-        -- actually shows rather than assert exact text neither owner script
-        -- promises at this stage.
-        -- GUIDE-GAP: talkToAggie branch gated on osf_axe_to_brian, the stage Brian already advanced, at onesmallfavour_relay.rs2:20
+        -- areas/draynor/scripts/aggie.rs2 delegates to onesmallfavour_relay.rs2's
+        -- [proc,osf_aggie_talk]: Brian's osf_aggie_agreed (20) is her stage, and
+        -- "Oh, Ok, I'll see if I can find Jimmy." hands Johanhus osf_aggie_told
+        -- (wiki Transcript "Asking Aggie to be a character witness"; Quest
+        -- Helper talkToAggie's three dialogue steps).
         t.exec("goto-talkToAggie", t.player.goto_tile, 3086, 3259, 0)
         t.exec("talkToAggie", t.player.talk_to, "aggie", 1)
-        t.exec("talkToAggie-dialog", t.chat.drain, { max_pages = 6, shots = true })
-        t.check("quest.stage.after_aggie", select(1, t.quest.stage()) == "ok",
-            "stage after Aggie: " .. tostring(select(2, t.quest.stage())) ..
-            " (relay.rs2:20 and brian.rs2:11 both gate on osf_axe_to_brian and both advance to" ..
-            " osf_aggie_agreed -- Brian's own visit above already consumed it, so Aggie's own" ..
-            " 'character witness' page never lit up this run; see aggie.rs2:39 fallback)")
+        t.exec("talkToAggie-dialog", t.chat.play, {
+            "npc:What can I help you with?",
+            "choose:Could I ask you about being a character witness?",
+            "player:Could I ask you about being a character witness?",
+            "npc:Not at the minute I'm afraid",
+            "choose:Let me guess, you're going to ask me to do you a favour?",
+            "player:Let me guess, you're going to ask me to do you a favour?",
+            "npc:Would you my dear",
+            "player:Hmm, I seem to have heard that one before.",
+            "npc:Could you go on and check out that abandoned building",
+            "choose:Oh, Ok, I'll see if I can find Jimmy.",
+            "player:Oh, Ok, I'll see if I can find Jimmy.",
+            "npc:Oh, thanks ever so much",
+        })
+        t.expect("quest.stage.aggie_told", t.quest.expect_stage("aggie_told"))
 
         -- === Johanhus Ulsbrecht (H.A.M. hideout, south chamber) ============
         -- quests/quest_deathtothedorgeshuun/scripts/dttd_haminfiltrate.rs2:74-83.
@@ -226,15 +236,32 @@ return {
         t.expect("quest.stage.seth_told", t.quest.expect_stage("seth_told"))
 
         -- === Horvik the armourer (Varrock) ==================================
-        -- areas/varrock/scripts/horvik.rs2:13-18.
+        -- areas/varrock/scripts/horvik.rs2: Seth's three steel bars pay his
+        -- debt (Quest Helper talkToHorvik requires steelBars3), then the
+        -- medicine favour and the five pigeon cages (wiki Transcript "Asking
+        -- Horvik about chicken cages").
         t.exec("goto-talkToHorvik", t.player.goto_tile, 3229, 3438, 0)
         t.exec("talkToHorvik", t.player.talk_to, "horvik_the_armourer", 1)
         t.exec("talkToHorvik-dialog", t.chat.play, {
             "player:Hi, I need to talk to you about chicken cages!",
-            "npc:Cages, eh?",
+            "npc:Hmm, Seth eh!",
+            "player:Ok, well I have three steel bars here",
+            "npc:Ok then! Great",
+            "player:Oh dear, you don't sound too well?",
+            "npc:No, I'm not actually",
+            "player:Well that's a shame",
+            "npc:I'm sorry, but the most I can manage",
+            "player:Oh I see, you need me to do you a favour?",
+            "npc:Well, just one small favour",
+            "choose:Ok, I guess one good turn deserves another.",
             "player:Ok, I guess one good turn deserves another.",
+            "npc:Well that's jolly decent of you",
+            "player:Well, hopefully, I'll be right back",
+            "npc:it'll be a lot easier for me to simply adjust some existing pigeon cages",
+            "npc:But first things first, bring me the medicine!",
         })
         t.expect("quest.stage.horvik_told", t.quest.expect_stage("horvik_told"))
+        t.exec("talkToHorvik.bars", t.inv.await, "steel_bar", 1, 5)
 
         -- === Apothecary (west Varrock) ======================================
         -- areas/varrock/scripts/apothecary.rs2:18-24. (Not the Cadava-potion
@@ -393,38 +420,74 @@ return {
         })
         t.expect("quest.stage.rantz_told", t.quest.expect_stage("rantz_told"))
 
-        -- === Gnormadium Avlafrim (glider strip) -- relay.rs2:312-363 ========
+        -- === Gnormadium Avlafrim (glider strip) -- onesmallfavour_relay.rs2 ==
+        -- Wiki Transcript "Helping Gnormadium with the gnome glider": his
+        -- "Yes, I'll take a look at them." is 115 -> 120.
         t.exec("goto-talkToGnormadium", t.player.goto_tile, 2544, 2972, 0)
         t.exec("talkToGnormadium", t.player.talk_to, "gnormadium_avlafrim", 1)
         t.exec("talkToGnormadium-dialog", t.chat.play, {
             "player:Rantz said I should help you finish this project.",
-            "npc:Oh, thank goodness.",
+            "npc:Rantz? *gulp*",
+            "npc:I expect that it's far too complex for you",
+            "choose:Yes, I'll take a look at them.",
             "player:Yes, I'll take a look at them.",
+            "npc:Ok then, just pop over",
+            "player:We'll see!",
         })
-        t.expect("quest.stage.gnormadium_told", t.quest.expect_stage("gnormadium_told"))
+        t.expect("quest.stage.lights_repairing", t.quest.expect_stage("lights_repairing"))
 
-        -- The eight-lamp take/cut/put puzzle is collapsed into one dialogue
-        -- choice in this port: the mesbox narrates it and the script writes
-        -- every jadelight*/topazlight*/... bit and %fixedlandinglights itself.
-        -- GUIDE-GAP: fixAllLamps narrated in one Gnormadium mesbox at onesmallfavour_relay.rs2:333
-        t.exec("fixAllLamps", t.player.talk_to, "gnormadium_avlafrim", 1)
-        t.exec("fixAllLamps-dialog", t.chat.play, {
-            "npc:Eight lamps, north and south rows",
-            "choose:Yes, I'll fix them now.",
-            "player:Yes, I'll fix them now.",
-            "mesbox:You take the shattered gems",
-        })
-        -- The closing page's continue answered 'modal closed' inside chat.play
-        -- (run 1): read the page, then continue it on its own row.
-        t.exec("fixAllLamps-lit", t.chat.expect_text, "Look at that, bright as day!")
-        local lit_r, lit_d = t.chat.continue_()
-        t.check("fixAllLamps-closed", lit_r == "ok" or lit_r == "closed",
-            "continue on Gnormadium's closing page -> " .. tostring(lit_r) .. " " .. tostring(lit_d))
-        t.expect("quest.stage.gnormadium_done", t.quest.expect_stage("gnormadium_done"))
+        -- fixAllLamps: Quest Helper's take1..take8 / cutSaph / put1..put8 on
+        -- the eight osf_multi_landinglight_* copies (maps/m39_46.jl2; row 1 at
+        -- z 2974, row 2 at z 2969). Search takes the uncut gem (the cache's
+        -- checklandinglights bit), the cut gem used on the light places it
+        -- (fixedlandinglights). The two uncut sapphires are cut here with the
+        -- chisel; the jade/opal/red topaz are the recommended cut ones.
+        local lights = {
+            { "osf_multi_landinglight_jade_1", 2554, 2974, "uncut jade", "jade" },
+            { "osf_multi_landinglight_redtopaz_1", 2551, 2974, "uncut red topaz", "red_topaz" },
+            { "osf_multi_landinglight_opal_1", 2548, 2974, "uncut opal", "opal" },
+            { "osf_multi_landinglight_sapphire_1", 2545, 2974, "uncut sapphire", "sapphire" },
+            { "osf_multi_landinglight_jade_1", 2554, 2969, "uncut jade", "jade" },
+            { "osf_multi_landinglight_redtopaz_1", 2551, 2969, "uncut red topaz", "red_topaz" },
+            { "osf_multi_landinglight_opal_1", 2548, 2969, "uncut opal", "opal" },
+            { "osf_multi_landinglight_sapphire_1", 2545, 2969, "uncut sapphire", "sapphire" },
+        }
+        for i = 1, #lights do
+            local light = lights[i]
+            local step = "take" .. i
+            t.exec(step, t.player.click_loc, light[1], 1, { at = { light[2], light[3] } })
+            t.exec(step .. "-gem", t.chat.expect_text, "You find an " .. light[4] .. " in the landing light.")
+            t.exec(step .. "-dialog", t.chat.play, { "*" })
+            if light[5] == "sapphire" then
+                t.exec("cutSaph-" .. i, t.player.use_item_on_item, "chisel", "uncut_sapphire")
+                t.exec("cutSaph-" .. i .. ".cut", t.inv.await, "sapphire", 1, 10)
+            end
+            step = "put" .. i
+            t.exec(step, t.player.use_on, light[5], t.player.by_symbol("loc", light[1]),
+                { at = { light[2], light[3] } })
+            t.exec(step .. "-placed", t.chat.expect_text, "It seems to look right.")
+            local tally = i == #lights and "mesbox:You've fixed all the landing lights!"
+                or (i == 1 and "mesbox:You've fixed one landing light so far..."
+                    or ("mesbox:You've fixed " .. i .. " landing lights so far..."))
+            t.exec(step .. "-dialog", t.chat.play, { "*", tally })
+        end
+        t.expect("quest.stage.lights_fixed", t.quest.expect_stage("lights_fixed"))
+        t.exec("fixAllLamps", t.var.await_server, "fixedlandinglights", 255, 5)
+        -- The leftover uncut opal/jade/red topaz stay in the pack: six slots,
+        -- and the fullest point later (the vane parts on top of the pigeon
+        -- cages) still leaves room (seam27_osf_full2 shot 320: 16 used).
+
+        -- "I've fixed all the lights!": Gnormadium flicks all_lights_fixed.
         t.exec("talkToGnormadiumAgain", t.player.talk_to, "gnormadium_avlafrim", 1)
         t.exec("talkToGnormadiumAgain-dialog", t.chat.play, {
-            "npc:Lovely and bright now, thanks to you.",
+            "npc:Hello! Don't get in the way around here",
+            "player:I've fixed all the lights!",
+            "npc:Hmm. That seems a tad unlikely",
+            "npc:I don't believe it - you fixed it!",
+            "player:I know one ogre who'll be very pleased",
         })
+        t.expect("quest.stage.gnormadium_done", t.quest.expect_stage("gnormadium_done"))
+        t.exec("talkToGnormadiumAgain.lit", t.var.await_server, "all_lights_fixed", 1, 5)
 
         -- === Rantz, Tindel, Cromperty again =================================
         t.exec("goto-returnToRantz", t.player.goto_tile, 2630, 2980, 0)
@@ -456,9 +519,8 @@ return {
 
         -- === Pigeon cages behind Jerico's house =============================
         -- Three `pigeons` ground spawns (areas/world/configs/m40_51.spawn:116-118);
-        -- the guide wants five, so the loop waits for the respawn. This port's
-        -- Horvik never asks for them (horvik.rs2:20-33), but the guide step
-        -- is driven as written.
+        -- the guide wants five, so the loop waits for the respawn. Horvik
+        -- converts them into the chicken cages (horvik.rs2, talkToHorvikFinal).
         t.exec("goto-getPigeonCages", t.player.goto_tile, 2619, 3324, 0)
         for cage = 1, 5 do
             local seen = t.await({
@@ -512,15 +574,29 @@ return {
         })
         t.expect("quest.stage.vane_search", t.quest.expect_stage("vane_search"))
 
-        -- One search frees all three parts (hammer held, 3 free slots): the
-        -- guide's hammer-on-vane and search-again clicks do not exist here.
-        -- GUIDE-GAP: useHammerOnVane collapsed into the single search at onesmallfavour_puzzles.rs2:114
-        -- GUIDE-GAP: searchVaneAgain collapsed into the single search at onesmallfavour_puzzles.rs2:114
+        -- The weathervane (onesmallfavour_puzzles.rs2): search it (op 5,
+        -- "Search"), use the hammer on it, search it again for the three
+        -- broken parts -- Quest Helper searchVane / useHammerOnVane /
+        -- searchVaneAgain, stages 175 / 176 / 177; texts from the wiki
+        -- Transcript "Weather vane".
         t.exec("goto-searchVane", t.player.goto_tile, 2702, 3475, 3)
         t.ticks(2)
-        t.exec("searchVane", t.player.click_loc, "osf_weathervane", 1)
-        t.exec("searchVane-dialog", t.chat.play, { "mesbox:You work the hammer around the housing" })
+        t.exec("searchVane", t.player.click_loc, "osf_weathervane", 5)
+        t.exec("searchVane-dialog", t.chat.play, { "mesbox:You search the weather vane..." })
+        t.expect("quest.stage.vane_searched", t.quest.expect_stage("vane_searched"))
+        t.exec("useHammerOnVane", t.player.use_on, "hammer", t.player.by_symbol("loc", "osf_weathervane"))
+        t.exec("useHammerOnVane-dialog", t.chat.play, { "mesbox:You give the structure a good solid whack..." })
+        t.expect("quest.stage.vane_loosened", t.quest.expect_stage("vane_loosened"))
+        t.exec("searchVaneAgain", t.player.click_loc, "osf_weathervane", 5)
+        t.exec("searchVaneAgain-ornament", t.chat.expect_text, "You find a broken ornament...")
+        t.exec("searchVaneAgain-p1", t.chat.play, { "*" })
+        t.exec("searchVaneAgain-directionals", t.chat.expect_text, "broken directionals...")
+        t.exec("searchVaneAgain-p2", t.chat.play, { "*" })
+        t.exec("searchVaneAgain-pillar", t.chat.expect_text, "and a broken rotating pillar.")
+        t.exec("searchVaneAgain-p3", t.chat.play, { "*" })
         t.expect("quest.stage.vane_parts_taken", t.quest.expect_stage("vane_parts_taken"))
+        t.exec("searchVaneAgain.parts", t.inv.await_all,
+            { favour_ornament_broken = 1, favour_directionals_broken = 1, favour_pillar_broken = 1 }, 10)
 
         t.exec("goto-useVane123OnAnvil", t.player.goto_tile, 2712, 3494, 0)
         local anvil = t.player.by_symbol("loc", "anvil")
@@ -597,18 +673,26 @@ return {
         t.exec("talkToHammerspikeFinal-dialog", t.chat.play, { "npc:Alright, alright! You've made your point." })
 
         -- === Tassie, the pot lid, the Apothecary ============================
-        -- Tassie's done branch (onesmallfavour_relay.rs2:52-59) hands over an
-        -- empty pot, not the clay the live game gives (wiki One Small Favour
-        -- quick guide: "She will give you clay"), and nothing else in this
-        -- port hands soft clay out -- so the soft clay is staged in setup.
+        -- Tassie gives the soft clay and teaches pot lids (wiki Transcript
+        -- "Tassie"; walkthrough "Tassie, who will give you some soft clay");
+        -- the pot is the one in the Barbarian Village helmet shop (Quest
+        -- Helper pickUpPot; areas/world/configs/m48_53.spawn pot_empty
+        -- 3074,3431).
         t.exec("goto-returnToTassie", t.player.goto_tile, 3085, 3408, 0)
         t.exec("returnToTassie", t.player.talk_to, "favour_tassie_slipcast", 1)
         t.exec("returnToTassie-dialog", t.chat.play, {
-            "player:Hammerspike won't be bothering anyone for a while.",
-            "npc:Wonderful! Now, what did you need?",
+            "player:Hey there, Hammerspike won't be bothering you anymore!",
+            "npc:Really! Fantastic!",
+            "player:Well you could make me an airtight pot!",
+            "npc:I'll do better than that!",
+            "npc:Now, while pots are quite easy to make",
         })
+        t.exec("returnToTassie-clay", t.chat.expect_text, "Tassie gives you some clay!")
+        t.exec("returnToTassie-dialog2", t.chat.play, { "*", "npc:Ok then, just use it on the wheel over there!" })
+        t.exec("returnToTassie-lids", t.chat.expect_text, "Tassie shows you how to make pot lids.")
+        t.exec("returnToTassie-dialog3", t.chat.play, { "*" })
         t.expect("quest.stage.tassie_done", t.quest.expect_stage("tassie_done"))
-        t.exec("pickUpPot", t.inv.await, "pot_empty", 1, 10)
+        t.exec("returnToTassie.clay", t.inv.await, "softclay", 1, 10)
 
         t.exec("spinPotLid", t.player.use_on, "softclay", t.player.by_symbol("loc", "potterywheel"))
         local menu_r = t.ui.await_open("skillmulti", 10)
@@ -620,6 +704,9 @@ return {
         t.exec("firePotLid", t.player.use_on, "potlid_unfired",
             t.player.by_symbol("loc", "fai_barbarian_pottery_oven"))
         t.exec("firePotLid.fired", t.inv.await, "potlid", 1, 15)
+        t.exec("goto-pickUpPot", t.player.goto_tile, 3074, 3430, 0)
+        t.exec("pickUpPot", t.player.click_obj, "pot_empty", 3)
+        t.exec("pickUpPot.pot", t.inv.await, "pot_empty", 1, 10)
         t.exec("usePotLidOnPot", t.player.use_item_on_item, "potlid", "pot_empty")
         t.exec("usePotLidOnPot.pot", t.inv.await, "favour_airtight_pot", 1, 10)
         t.expect("quest.stage.pot_made", t.quest.expect_stage("pot_made"))
@@ -634,17 +721,29 @@ return {
             { favour_breathing_salts = 1, favour_herbal_tincture = 1 }, 10)
 
         -- === Horvik, Seth, Johanhus, Aggie, Brian, the forester, Yanni ======
-        -- Horvik's one visit sets osf_horvik_done directly (horvik.rs2:32):
-        -- the guide's second Horvik talk (stage 245) has no stage here.
-        -- GUIDE-GAP: talkToHorvikFinal collapsed into the first return visit at horvik.rs2:32
+        -- Horvik: the medicine first (Quest Helper returnToHorvik), then the
+        -- five pigeon cages become chicken cages (talkToHorvikFinal) -- wiki
+        -- Transcript "Giving the items to Horkiv" / "Getting the chicken cages".
         t.exec("goto-returnToHorvik", t.player.goto_tile, 3229, 3437, 0)
         t.exec("returnToHorvik", t.player.talk_to, "horvik_the_armourer", 1)
         t.exec("returnToHorvik-dialog", t.chat.play, {
             "player:I have the tincture and the breathing salts.",
-            "npc:Perfect. Give me a moment",
+            "npc:Wonderful! That's just great! I just need the pigeon cages now.",
+        })
+        t.expect("quest.stage.horvik_medicine", t.quest.expect_stage("horvik_medicine"))
+        t.exec("talkToHorvikFinal", t.player.talk_to, "horvik_the_armourer", 1)
+        t.exec("talkToHorvikFinal-dialog", t.chat.play, {
+            "player:I have the five pigeon cages you asked for!",
+            "npc:Great stuff",
+        })
+        t.exec("talkToHorvikFinal-handover", t.chat.expect_text, "You hand over the pigeon cages.")
+        t.exec("talkToHorvikFinal-dialog2", t.chat.play, {
+            "*",
+            "mesbox:Horvik works for sometime on the pigeon cages",
+            "npc:There you go then! There's your chicken cages!",
         })
         t.expect("quest.stage.horvik_done", t.quest.expect_stage("horvik_done"))
-        t.exec("returnToHorvik.cages", t.inv.await, "favour_chicken_cage", 5, 10)
+        t.exec("talkToHorvikFinal.cages", t.inv.await, "favour_chicken_cage", 5, 10)
 
         t.exec("goto-returnToSeth", t.player.goto_tile, 3223, 3293, 0)
         t.exec("returnToSeth", t.player.talk_to, "favour_seth_groats", 1)

@@ -157,7 +157,7 @@ return {
         -- as content's own line says ("You should Telekinetic Grab the
         -- ancestral key from the table", elid_house.rs2:117) -- seam23
         -- cast_on_ground_obj_and_loc (t.player.cast on a {kind="obj"} target).
-        -- GUIDE-GAP: telegrabKey elid_house.rs2:117 routes the pickup through a Telekinetic Grab cast on the ground obj, not a table trigger
+        -- ANY-OF: telegrabKey telegrabKey.cast elid_house.rs2:117 routes the pickup through a Telekinetic Grab cast on the ground obj, not a table trigger
         -- (the guide's own target elid_wooden_table has no [op*]/[ap*]
         -- trigger in this port at all -- quest_spiritsoftheelid.constant:84-92
         -- says the pickup needs no quest script whatsoever). Driven for real

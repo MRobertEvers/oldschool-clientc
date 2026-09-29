@@ -1606,9 +1606,14 @@ class Grader:
         self.rows = rows or []
         self.pass_rows = [r for r in self.rows if r["verdict"] == "PASS"]
         # A goto row is travel, whatever step it is named after
-        # ("goto-talkToElena" walks TO the step; it does not do it).
+        # ("goto-talkToElena" walks TO the step; it does not do it). `tele`
+        # is a teleport row (`tele-...`, `teleport...`), never a guide step
+        # that merely starts with those letters: Spirits of the Elid's
+        # `telegrabKey.cast` IS the step's action (seam27), and the bare
+        # prefix used to drop it, so an ANY-OF naming it could not verify.
         self.action_rows = [r for r in self.pass_rows
-                            if not re.match(r"^(goto|walk|travel|tele|quest\.|setup|reset)", r["step"], re.I)
+                            if not re.match(r"^(goto|walk|travel|tele(?:port|[^a-z]|$)|quest\.|setup|reset)",
+                                            r["step"], re.I)
                             and not re.search(r"goto_tile|::goto", r["detail"])]
         self.bound_varp = None
         match = re.search(r"t\.quest\.bind\s*\(\s*\{[^}]*?varp\s*=\s*\"(\w+)\"", self.test.code, re.S)
@@ -2894,9 +2899,13 @@ def print_report(report):
         if report[key]:
             print("  %s: %s -- %s" % (key, report[key]["step"], report[key]["reason"]))
     for found in report["equivalent_markers"]:
-        if not found["verified"]:
-            print("  UNVERIFIED %s marker at line %d (%s): %s" % (
-                found["kind"], found["line"], found["step"], found["evidence"]))
+        # A verified marker is printed too: on a step a real row also drives
+        # (Spirits of the Elid's telegrabKey, whose `telegrabKey.cast` row
+        # grades it DRIVEN before the ANY-OF is consulted) nothing else in
+        # the report would say the marker was checked at all.
+        print("  %s %s marker at line %d (%s): %s" % (
+            "verified" if found["verified"] else "UNVERIFIED",
+            found["kind"], found["line"], found["step"], found["evidence"]))
     for number in report["bare_stand_on_optins"]:
         print("  bare stand_on_square opt-in at line %d (no GUIDE-GAP marker within %d lines above)" % (
             number, STAND_ON_MARKER_SPAN))

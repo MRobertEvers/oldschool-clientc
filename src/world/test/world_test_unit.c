@@ -1717,6 +1717,101 @@ test_obj_raise(void)
     World_Free(world);
 }
 
+/* An exact move still in flight across a far teleport (seam27
+ * client_exactmove_guard). The rebuild shift sends the move's tiles to the
+ * 255 out-of-scene sentinel; the teleport puts route[0] at the destination;
+ * the next cycle's exact mover then sets the draw position between two 255
+ * tiles, ~32704 fine, off the map (gray viewport, empty minimap). rev-239
+ * class106.method3620 (called after the move by method3586) drops the exact
+ * move and snaps to route[0] for ANY actor outside 128..(scene-1)<<7, and for
+ * the LOCAL player outside 1536..11776 (the same pair is LostCity Client.ts
+ * moveEntity). */
+void
+test_exact_move_across_far_teleport(void)
+{
+    printf("TEST: exact move in flight across a far teleport\n");
+
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    const int dest = 50 * 128 + 64;
+
+    /* The local player: dropped at the destination, no glide. */
+    {
+        struct World* world = World_TestMakeReady(104);
+        world->local_pid = 7;
+        int pi = World_PlayerSpawn(world, 1, 0, 60, 70, idle);
+        struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+        player->server_pid = 7;
+        int ni = World_NpcSpawn(world, 2, 5, 0, 61, 70, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+
+        /* A rope swing: in its start -> end window for the next 40 cycles. */
+        World_PlayerSetExactMove(world, pi, 60, 70, 62, 70, 40, 2, 1);
+        World_NpcSetExactMove(world, ni, 61, 70, 63, 70, 40, 2, 1);
+        for( int c = 0; c < 5; c++ )
+            World_Cycle(world, 1);
+        TEST_ASSERT(player->exact_move.move_start != 0, "the swing is in flight before the teleport");
+        TEST_ASSERT(player->draw_position.x > (uint32_t)(60 * 128 + 64),
+                    "the swing moved the player before the teleport");
+
+        /* The far teleport: the rebuild parks the move's tiles, then the jump. */
+        World_ShiftEntities(world, 64, 0);
+        TEST_ASSERT(player->exact_move.start_x == 255 && player->exact_move.end_x == 255,
+                    "the rebuild parked the swing's tiles on the out-of-scene sentinel");
+        World_PlayerPathJump(world, pi, true, 50, 50);
+        World_NpcPathJump(world, ni, true, 50, 52);
+
+        for( int c = 0; c < 45; c++ )
+        {
+            World_Cycle(world, 1);
+            if( player->draw_position.x != (uint32_t)dest ||
+                player->draw_position.z != (uint32_t)dest )
+                break;
+        }
+        TEST_ASSERT(player->draw_position.x == (uint32_t)dest &&
+                        player->draw_position.z == (uint32_t)dest,
+                    "the local player stays on the destination tile (no glide off the map)");
+        TEST_ASSERT(player->draw_position.fx == (float)dest && player->draw_position.fz == (float)dest,
+                    "both halves of the draw position were snapped");
+        TEST_ASSERT(player->exact_move.move_start == 0, "the local player's exact move was dropped (start)");
+        TEST_ASSERT(player->exact_move.move_end == 0, "the local player's exact move was dropped (end)");
+        TEST_ASSERT(npc->exact_move.move_start == 0 && npc->exact_move.move_end == 0,
+                    "an npc driven off the scene has its exact move dropped too");
+        TEST_ASSERT(npc->draw_position.x == (uint32_t)dest &&
+                        npc->draw_position.z == (uint32_t)(52 * 128 + 64),
+                    "an npc driven off the scene snaps to its route[0]");
+        World_Free(world);
+    }
+
+    /* The 1536..11776 band is the local player's alone: a remote player whose
+     * exact move ends 5 tiles from the scene edge still glides there. */
+    {
+        struct World* world = World_TestMakeReady(104);
+        world->local_pid = 7;
+        int lp = World_PlayerSpawn(world, 1, 0, 14, 40, idle);
+        struct WorldEntity_Player* local = World_EntityPoolGet(&world->entities.player, lp);
+        local->server_pid = 7;
+        int rp = World_PlayerSpawn(world, 2, 0, 14, 60, idle);
+        struct WorldEntity_Player* remote = World_EntityPoolGet(&world->entities.player, rp);
+        remote->server_pid = 8;
+
+        World_PlayerSetExactMove(world, lp, 14, 40, 5, 40, 20, 0, 3);
+        World_PlayerSetExactMove(world, rp, 14, 60, 5, 60, 20, 0, 3);
+        /* One cycle per call: World_Cycle advances the clock by the whole
+         * count before it steps, so a 25-cycle call would skip the window. */
+        for( int c = 0; c < 25; c++ )
+        {
+            World_Cycle(world, 1);
+            TEST_ASSERT(local->draw_position.x >= 1536u,
+                        "the local player never stands inside the 12-tile edge band");
+        }
+        TEST_ASSERT(remote->draw_position.x == (uint32_t)(5 * 128 + 64),
+                    "a remote player's exact move reaches the edge band");
+        TEST_ASSERT(local->exact_move.move_start == 0,
+                    "the local player's exact move was dropped at the edge band");
+        World_Free(world);
+    }
+}
+
 /*
  * An action animation puts the readyanim back on its loop point.
  *

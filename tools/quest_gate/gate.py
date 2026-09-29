@@ -9,6 +9,8 @@ Red on, and only on, things that mean the test did not actually happen:
   * a listed quest with no ledger at all -- run.py always creates
     build/quest_gate/<quest>/ before it launches a client, so this also
     catches a process that never got that far,
+  * a PASS row whose detail is empty (EMPTY DETAIL below): t.exec already
+    grades a bare `ok` FAIL `hollow`; t.expect/t.check/t.step did not,
   * a step that claims a shot (its `shots` column) that is not on disk,
   * a shot that is on disk but undersized (a capture that raced the
     renderer -- less than 1000 bytes),
@@ -556,6 +558,27 @@ def minimum_shape_findings(name, rows, shots_dir):
     return findings
 
 
+# EMPTY DETAIL (seam27). A PASS row whose detail is empty proves nothing to
+# whoever reads the ledger later: t.exec already grades a verb's bare `ok`
+# FAIL `hollow` (core.lua), but t.expect / t.check / t.step write whatever
+# they are handed, so `t.expect("x.present", t.npc.await_present(...))` or
+# `t.check("x", t.await{...})` wrote PASS with nothing behind it, and the
+# sampler sent two files back for it before any gate did. The unchanged-frame
+# marker is the driver's note about the SHOT, not about the step, so a row
+# that carries only that marker is still empty.
+EMPTY_DETAIL_FINDING = (
+    "step %r PASSed with an empty detail -- a row that proves nothing; pass the "
+    "verb's own detail through (`t.expect(name, verb(...))` keeps both returns, "
+    "`local r = verb(...)` drops the second) or write one naming what was read "
+    "(docs/QUEST_AUTHORING.md trap 12)")
+
+
+def empty_detail_text(detail):
+    """The part of a ledger detail that says something about the step: the
+    detail with the driver's `[frame unchanged]` shot marker removed."""
+    return (detail or "").replace(UNCHANGED_MARKER, "").strip()
+
+
 def check_quest(name, allow_blocked):
     """(findings, blocked) for one quest -- findings is every RED-level
     problem (as plain strings); blocked is every BLOCKED row's own
@@ -581,6 +604,8 @@ def check_quest(name, allow_blocked):
         elif row["verdict"] != "PASS":
             findings.append("step %r: verdict %s -- %s" % (
                 row["step"], row["verdict"], row["detail"]))
+        elif not empty_detail_text(row["detail"]):
+            findings.append(EMPTY_DETAIL_FINDING % row["step"])
 
     if summary is None:
         findings.append("ledger.tsv has no trailing SUMMARY row")

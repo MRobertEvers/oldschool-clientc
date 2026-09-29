@@ -766,10 +766,135 @@ end
 -- The detail always carries the re-engagement count and the last health
 -- reading -- a kill that needed four re-engagements and one that needed none
 -- are different facts about this driver and the ledger has to keep both.
-function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
+-- ------------------------------------------------------------- eating
+--
+-- SEAM await_dead_engaged_recast_and_eat (seam27): neither await verb could
+-- eat, so a long fight was won or lost on the hitpoints the character walked
+-- in with.  Family Crest's author watched Chronozon (strength 172) kill the
+-- character inside one `await_dead_engaged` with eight sharks in the pack and
+-- hand-wrote a cast-and-eat loop instead (build/author_state/sonnet-b32/
+-- crest.review.json doc_gaps).  QUEST_AUTHORING's own rule is "carry food and
+-- EAT IT"; this is the verb half of that rule.
+--
+-- `opts.eat = { item = <food symbol>, below = <hitpoints>, op = 1 }`: every
+-- server tick of the wait, when the STATED current hitpoints read below
+-- `below`, the food is eaten through t.player.inv_op (a real held-op press,
+-- the Eat row -- op 1 on this pack's food), at most once per three ticks (the
+-- food delay).  Hitpoints are read exactly as the death fence reads them
+-- (QD.player._death_seen: QD.skill.read("hitpoints"), `stated` guarding the
+-- pre-login table), so the two can never disagree about the same reading.
+-- Running out is not a failure of the wait -- the fight goes on and the death
+-- fence still rules -- but the row says so (`out of <food>`), and every eat
+-- is in the detail with its hitpoints before and after.
+--
+-- A malformed `opts.eat` is a bug in the quest file, and it raises (which
+-- ends the run, loudly, at the line that wrote it) rather than being read as
+-- "no food".
+QD.COMBAT_EAT_DELAY_TICKS = 3
+
+function QD._combat_eater_new(opts)
+    if opts == nil then
+        return nil
+    end
+    assert(type(opts) == "table", "await_dead opts is not a table")
+    local eat = opts.eat
+    if eat == nil then
+        return nil
+    end
+    assert(type(eat) == "table", "opts.eat is not a table { item =, below = }")
+    assert(type(eat.item) == "string", "opts.eat.item names no food symbol")
+    assert(type(eat.below) == "number", "opts.eat.below is not a hitpoints number")
+    assert(eat.op == nil or type(eat.op) == "number", "opts.eat.op is not a number")
+    -- A food symbol the compack does not know is a typo in the quest file,
+    -- not "out of food".
+    local symbol_result = api_drive.symbol("obj", eat.item)
+    assert(symbol_result == "ok", "opts.eat.item is not an obj symbol: " .. eat.item)
+    return {
+        item = eat.item,
+        below = eat.below,
+        op = eat.op or 1,
+        eaten = 0,
+        eats = {},
+        failed = 0,
+        last_fail = nil,
+        out = false,
+        next_tick = 0,
+        lowest = nil,
+        base = nil,
+    }
+end
+
+-- One tick's worth: eat once if hitpoints are under the threshold.
+function QD._combat_eat_tick(eater)
+    if eater == nil or eater.out then
+        return
+    end
+    if api_drive.tick() < eater.next_tick then
+        return
+    end
+    local hp_result, hp = QD.skill.read("hitpoints")
+    if hp_result ~= "ok" or type(hp) ~= "table" or not hp.stated then
+        return
+    end
+    eater.base = hp.base_level
+    if eater.lowest == nil or hp.level < eater.lowest then
+        eater.lowest = hp.level
+    end
+    -- 0 is the death fence's reading, never a meal.
+    if hp.level <= 0 or hp.level >= eater.below then
+        return
+    end
+    local count_result, count = QD.inv.count(eater.item)
+    if count_result ~= "ok" or type(count) ~= "number" then
+        -- A read that did not answer learned nothing; try next tick.
+        return
+    end
+    if count <= 0 then
+        eater.out = true
+        return
+    end
+    local eat_result, eat_detail = QD.player.inv_op(eater.item, eater.op)
+    eater.next_tick = api_drive.tick() + QD.COMBAT_EAT_DELAY_TICKS
+    local after_result, after = QD.skill.read("hitpoints")
+    local after_text = (after_result == "ok" and type(after) == "table") and tostring(after.level)
+        or tostring(after_result)
+    if eat_result == "ok" then
+        eater.eaten = eater.eaten + 1
+        eater.eats[#eater.eats + 1] = tostring(hp.level) .. "->" .. after_text
+    else
+        eater.failed = eater.failed + 1
+        eater.last_fail = tostring(eat_result) .. " " .. tostring(eat_detail)
+    end
+end
+
+-- The detail tag both await verbs append: "" with no opts.eat.
+function QD._combat_eat_text(eater)
+    if eater == nil then
+        return ""
+    end
+    local text = "; eat " .. eater.item .. " below " .. tostring(eater.below) .. ": "
+    if eater.eaten > 0 then
+        text = text .. "ate " .. eater.item .. " " .. tostring(eater.eaten) .. " time(s) (hp "
+            .. table.concat(eater.eats, ", ") .. ")"
+    else
+        text = text .. "never needed to eat"
+    end
+    text = text .. ", lowest hp " .. tostring(eater.lowest) .. "/" .. tostring(eater.base)
+    if eater.failed > 0 then
+        text = text .. ", " .. tostring(eater.failed) .. " eat press(es) failed (last: "
+            .. tostring(eater.last_fail) .. ")"
+    end
+    if eater.out then
+        text = text .. ", OUT OF " .. eater.item
+    end
+    return text
+end
+
+function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
     ticks = ticks or 60
     radius = radius or 10
     attempts = attempts or 6
+    local eater = QD._combat_eater_new(opts)
 
     if QD.player._death_fence("t.npc.await_dead " .. tostring(npc_symbol)) then
         return "refused", QD.player._death_text(QD._death)
@@ -855,6 +980,7 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
             .. ", " .. tostring(elapsed) .. " tick(s) into the wait") then
             return "refused", QD.player._death_text(QD._death)
         end
+        QD._combat_eat_tick(eater)
 
         local result, row, verdict = QD._combat_watch_read(watch, slot)
         if verdict then
@@ -871,6 +997,7 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
                 .. " dead after " .. tostring(elapsed) .. " tick(s)"
                 .. QD._combat_grace_text(elapsed, ticks) .. ", " .. tostring(reengaged)
                 .. " re-engagement(s), last hp " .. last .. " -- " .. verdict
+                .. QD._combat_eat_text(eater)
         end
 
         if result ~= "ok" or not row then
@@ -919,6 +1046,7 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts)
     return "timeout", "await_dead " .. tostring(npc_symbol) .. ": still alive after "
         .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
         .. " re-engagement(s), hp " .. last .. QD._combat_watch_text(watch)
+        .. QD._combat_eat_text(eater)
 end
 
 -- ===========================================================================
@@ -1206,9 +1334,10 @@ end
 -- QD.exec), and this verb's first argument is a deadline rather than a target,
 -- so the default below only exists for a direct call recorded with
 -- t.check/t.expect.
-function QD.npc.await_dead_engaged(ticks, attempts)
+function QD.npc.await_dead_engaged(ticks, attempts, opts)
     ticks = ticks or 60
     attempts = attempts or 6
+    local eater = QD._combat_eater_new(opts)
 
     if QD.player._death_fence("t.npc.await_dead_engaged") then
         return "refused", QD.player._death_text(QD._death)
@@ -1314,6 +1443,7 @@ function QD.npc.await_dead_engaged(ticks, attempts)
             .. " tick(s) into the wait on slot " .. tostring(slot)) then
             return "refused", QD.player._death_text(QD._death)
         end
+        QD._combat_eat_tick(eater)
 
         local result, row, verdict = QD._combat_watch_read(watch, slot)
         if verdict then
@@ -1328,7 +1458,7 @@ function QD.npc.await_dead_engaged(ticks, attempts)
                 .. ", " .. tostring(reengaged)
                 .. " re-engagement(s), last hp " .. last .. "; held " .. forms
                 .. (absent_at_entry and "; already absent at the head of the wait" or "")
-                .. " -- " .. verdict
+                .. " -- " .. verdict .. QD._combat_eat_text(eater)
         end
 
         if result ~= "ok" or not row then
@@ -1347,9 +1477,24 @@ function QD.npc.await_dead_engaged(ticks, attempts)
                 still = 0
             end
             last = QD._combat_health_text(row)
-            if last ~= health or row.hit_cycle > hit then
+            -- A CAST FIGHT STALLS ON HEALTH ALONE (seam27).  A spell is one
+            -- cast per click -- nothing repeats it -- so once it has landed
+            -- or splashed the fight is over unless something casts again.
+            -- With auto-retaliate on (the default, and Family Crest's
+            -- Chronozon fight) the player's own melee retaliation keeps
+            -- putting splats on the npc -- 0s on Chronozon's defence 173 --
+            -- and counting a new splat as progress reset this counter every
+            -- few ticks: 0 re-casts in 60 ticks at an unmoved 29/30
+            -- (build/quest_gate/s27re_before3 row chronozon.recast).  The
+            -- client cannot tell a spell's splat from a retaliation's (the
+            -- cast verb's own banner), so a cast fight counts only the health
+            -- reading; a melee fight keeps the splat, where a miss streak is
+            -- ordinary mid-fight.
+            local moved = last ~= health
+                or (engaged.spell == nil and row.hit_cycle > hit)
+            hit = row.hit_cycle
+            if moved then
                 health = last
-                hit = row.hit_cycle
                 still = 0
             else
                 still = still + 1
@@ -1376,4 +1521,5 @@ function QD.npc.await_dead_engaged(ticks, attempts)
     return "timeout", "await_dead_engaged: slot " .. tostring(slot) .. " still alive after "
         .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
         .. last .. "; held " .. forms .. QD._combat_watch_text(watch)
+        .. QD._combat_eat_text(eater)
 end

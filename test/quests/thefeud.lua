@@ -17,10 +17,11 @@
 --   the_asp_snake_bar.rs2; quest_ratcatchers/scripts/ratcatchers.rs2
 --   (feud_money_bowl's real trigger). docs/quests/the_feud.md.
 --
--- GUIDE-GAP: buyDisguiseGear feud_recruitment.rs2:218 (Ali the Operator hands over a FINISHED feud_desert_disguise at the heist briefing -- no separate purchase exists)
--- GUIDE-GAP: createDisguise feud_recruitment.rs2:218 (same grant -- no combine/craft trigger exists anywhere in this quest's scripts)
--- GUIDE-GAP: blackjackVillager feud_recruitment.rs2:292 (the stage-8 lesson is the villager's op3 Pickpocket branch narrating the knock-out in a mes(); Lure/Knock-Out ops are only added by ~blackjack_refresh_ops AFTER it, so no Lure press exists at this stage)
--- GUIDE-GAP: givenDungToHag feud_traitor.rs2:166 (the Hag takes the dung and the snake in the ONE giveSnakeToHag conversation; no separate dung hand-in exists)
+-- seam27 (feud_four_legs): the desert disguise is bought from Ali's Discount
+-- Wares and made by using the headpiece on the fake beard; the third
+-- pickpocket lesson is a real Lure / Knock-Out / Pickpocket; Ali the Hag takes
+-- the snake and the dung in separate hand-ins and gives the vial of Hag's
+-- poison (Transcript:The_Feud oldid 15325427; wiki Desert_disguise).
 
 return {
     id = "thefeud",
@@ -111,6 +112,26 @@ return {
             "npc:Take this -- a Kharidian headp",
         })
         t.expect("quest.stage.accepted", t.quest.expect_stage("accepted"))
+
+        -- ==================== buyDisguiseGear / createDisguise ================
+        -- Wiki The_Feud (oldid 15315438): "buy the Kharidian headpiece and fake
+        -- beard from Ali Morrisane"; Desert_disguise: made "by combining a fake
+        -- beard and a Kharidian headpiece". Ali's Discount Wares is his Trade op
+        -- (shop/al_kharid/scripts/alis_discount_wares__1.rs2, inv feud_morrisanes).
+        t.exec("buyDisguiseGear", t.shop.open, "feud_ali_m", 3, "feud_morrisanes")
+        t.exec("buyDisguiseGear-beard", t.shop.buy, "feud_karidian_fakebeard", 1)
+        t.exec("buyDisguiseGear-headpiece", t.shop.buy, "feud_karidian_turban", 1)
+        t.check("buyDisguiseGear-close", t.shop.close())
+        local beard_r, beard_n = t.inv.count("feud_karidian_fakebeard")
+        local turban_r, turban_n = t.inv.count("feud_karidian_turban")
+        t.check("buyDisguiseGear-verify", beard_r == "ok" and beard_n == 1 and turban_r == "ok" and turban_n == 1,
+            "feud_karidian_fakebeard=" .. tostring(beard_n) .. " feud_karidian_turban=" .. tostring(turban_n))
+        t.exec("createDisguise", t.player.use_item_on_item, "feud_karidian_turban", "feud_karidian_fakebeard")
+        t.expect("createDisguise-made", t.inv.await("feud_desert_disguise", 1, 10))
+        local left_r, left_n = t.inv.count("feud_karidian_turban")
+        local leftb_r, leftb_n = t.inv.count("feud_karidian_fakebeard")
+        t.check("createDisguise-consumed", left_r == "ok" and left_n == 0 and leftb_r == "ok" and leftb_n == 0,
+            "after the combine: feud_karidian_turban=" .. tostring(left_n) .. " feud_karidian_fakebeard=" .. tostring(leftb_n))
 
         -- ==================== buyShantayPass =================================
         t.exec("goto-buyShantayPass", t.player.goto_tile, 3304, 3123, 0)
@@ -267,21 +288,75 @@ return {
         })
         t.expect("operatorTask3-blackjack", t.inv.await("blackjack_oak", 1, 10))
         t.exec("equipBlackjack", t.player.equip, "blackjack_oak")
+        t.expect("operatorTask3-lureTaught", t.var.await_server("feud_npc_multi", 2, 5))
+
+        -- blackjackVillager: Lure (op4), Knock-Out (op5), Pickpocket (op3).
+        -- Wiki The_Feud (oldid 15315438) "3rd villager": "lure a villager ...,
+        -- knock them out with the blackjack, and finally pick their pocket (all
+        -- options are right click)". The knock-out is a Thieving roll and
+        -- refuses where another villager, bandit or thug can see
+        -- (skill_thieving/scripts/blackjack.rs2), so the villager is led east
+        -- of the Menaphite houses, onto open ground no one else stands on.
+        -- press, not talk_to: the knocked-out window is a few ticks and
+        -- talk_to spends five of them waiting for a page that never comes.
+        -- The Knock-Out press waits up to 12 ticks: a villager that fell
+        -- behind the lead is walked back to first (p_arrivedelay).
         t.exec("goto-blackjackVillager", t.player.goto_tile, 3356, 2951, 0)
-        t.exec("blackjackVillager", t.player.talk_to, "feud_villager_multi_1", 3)
+        t.exec("blackjackVillager-lure", t.player.talk_to, "feud_villager_multi_1", 4)
+        t.exec("blackjackVillager-lure-dialog", t.chat.play, { "player:Oi! Over here, you!" })
+        local lure_walk_r, lure_walk_d = t.player.walk_to(3371, 2958, 20)
+        local lure_tile_r, lure_tile = t.world.tile()
+        t.check("blackjackVillager-lead", lure_tile_r == "ok",
+            "led the villager east: walk_to 3371,2958 -> " .. tostring(lure_walk_r) .. " " .. tostring(lure_walk_d)
+            .. "; player at " .. tostring(lure_tile and lure_tile.x) .. "," .. tostring(lure_tile and lure_tile.z))
+        local knocked = false
+        for attempt = 1, 8 do
+            local ko_r, ko_d = t.exec("blackjackVillager-knockout", t.player.press, "feud_villager_multi_1", 5, 12)
+            local ko_text = tostring(ko_d)
+            if ko_r == "ok" and string.find(ko_text, "out cold", 1, true) then
+                knocked = true
+                break
+            end
+            -- A failed roll turns the villager on the player, and the Lure
+            -- takes it back out of combat (blackjack.rs2 [label,blackjack_lure]);
+            -- a witness that wandered in means leading it a little further.
+            t.exec("blackjackVillager-relure", t.player.talk_to, "feud_villager_multi_1", 4)
+            t.exec("blackjackVillager-relure-dialog", t.chat.play, { "player:Oi! Over here, you!" })
+            if string.find(ko_text, "will see me", 1, true) then
+                local far_r, far_d = t.player.walk_to(3374, 2956 - attempt, 20)
+                t.check("blackjackVillager-leadFurther", far_r == "ok" or far_r == "timeout",
+                    "walk_to 3374," .. (2956 - attempt) .. " -> " .. tostring(far_r) .. " " .. tostring(far_d))
+            end
+        end
+        t.check("blackjackVillager-knockedOut", knocked, "knock-out landed within 8 presses: " .. tostring(knocked))
+        t.exec("blackjackVillager", t.player.press, "feud_villager_multi_1", 3, 4)
+        t.expect("blackjackVillager-msg", t.msg.expect("You pick the villager's pocket."))
         t.expect("quest.stage.pickpocket3_done", t.quest.expect_stage("pickpocket3_done"))
 
         -- ==================== talkToAliToGetSecondJob: the heist briefing
         t.exec("goto-heistBriefing", t.player.goto_tile, 3334, 2951, 0)
         t.exec("heistBriefing", t.player.talk_to, "feud_egyptian_minder", 1)
+        -- Transcript:The_Feud "Welcome to the Menaphites": keys only.
         t.exec("heistBriefing-dialog", t.chat.play, {
-            "npc:Excellent. You've proven yourself.",
-            "npc:Now, for your first real job",
-            "npc:Take this disguise",
+            "npc:Well done! You have finished your first trial.",
+            "player:First trial?",
+            "npc:You didn't think we'd hire you",
+            "player:Ah, of course not.",
+            "npc:Good! Now, the next thing you have to do",
+            "npc:The only place worth pilfering",
+            "npc:I want you to retrieve his wife's jewels.",
+            "player:Got any advice?",
+            "npc:Well I think that a disguise would be a good start.",
+            "npc:You'll need a key to the front door, too.",
+            "*", -- objbox: Ali the Operator hands you a set of keys.
+            "player:Anything else?",
+            "npc:No! Now get going.",
         })
         t.expect("quest.stage.heist_briefed", t.quest.expect_stage("heist_briefed"))
-        t.expect("heistBriefing-disguise", t.inv.await("feud_desert_disguise", 1, 10))
         t.expect("heistBriefing-keys", t.inv.await("feud_mayors_house_keys", 1, 10))
+        local own_r, own_n = t.inv.count("feud_desert_disguise")
+        t.check("heistBriefing-noDisguiseGrant", own_r == "ok" and own_n == 1,
+            "feud_desert_disguise count=" .. tostring(own_n) .. " (the one made at createDisguise; the Operator gives keys only)")
 
         -- ==================== hideBehindCactus: disguise + gloves worn
         t.exec("equipDisguise", t.player.equip, "feud_desert_disguise")
@@ -393,7 +468,28 @@ return {
         -- ==================== talkToAliTheHag: ask for poison (guide stage 17)
         t.exec("goto-talkToAliTheHag", t.player.goto_tile, 3346, 2985, 0)
         t.exec("talkToAliTheHag", t.player.talk_to, "feud_hag", 1)
-        t.exec("talkToAliTheHag-dialog", t.chat.play, { "npc:Ssss... what do you want, dearie?" })
+        t.exec("talkToAliTheHag-dialog", t.chat.play, {
+            "player:Good day, Hag.",
+            "npc:Good day to you too, Blockhead.",
+            "npc:Now what do you want?",
+            "player:Actually I just want your help",
+            "npc:Ahh, I see.",
+            "player:Don't worry about the consequences",
+            "npc:Well now this is getting interesting.",
+            "player:'Traitorous Ali', please.",
+            "npc:Traitorous Ali? Say no more!",
+            "player:What payment do you require?",
+            "npc:None at all",
+            "player:What do you need?",
+            "npc:Ah, impatience!",
+            "player:Where would I get some snake poison?",
+            "npc:From a snake perhaps?",
+            "player:What I meant was how do I extract",
+            "npc:Sheesh! You'd make a terrible hag.",
+        })
+        -- %feud_hag_list lives on feud_var_multi, which the server never transmits
+        -- (no carrier in general/configs), so the client cannot read it; the
+        -- snake hand-in below only plays from %feud_hag_list = 1.
 
         -- ==================== talkToAliTheKebabSalesman: the special sauce
         t.exec("goto-talkToAliTheKebabSalesman", t.player.goto_tile, 3352, 2973, 0)
@@ -428,20 +524,57 @@ return {
         t.expect("catchSnake-basket", t.inv.await("basket_with_snake", 1, 10))
         t.expect("quest.stage.snake_done", t.quest.expect_stage("snake_done"))
 
-        -- ==================== giveSnakeToHag / givenDungToHag: the poison
+        -- ==================== giveSnakeToHag: the snake first
+        -- Transcript:The_Feud "Talking to Ali the Hag with a Snake basket full"
         t.exec("goto-giveSnakeToHag", t.player.goto_tile, 3346, 2985, 0)
         t.exec("giveSnakeToHag", t.player.talk_to, "feud_hag", 1)
         t.exec("giveSnakeToHag-dialog", t.chat.play, {
-            "player:I've a charmed snake and a bucket of fresh dung",
-            "npc:Ssss, excellent ingredients!",
+            "player:Good day, Hag.",
+            "npc:Good day to you too, Blockhead.",
+            "player:I have the snake. What else do you need?",
+            "npc:Ah yes, that snake will do nicely.",
+            "npc:Who's a vindictive little beast?",
+            "player:Erm, yes. Do you need anything else?",
+            "npc:Now that I have the toxin",
+            "player:What? That's disgusting.",
+            "npc:Do you want the poison or not?",
+            "player:Fine, fine, I'll get some camel dung.",
+            "npc:And make that fresh camel dung!",
+            "player:Oops! I almost forgot!",
+            "mesbox:You hand the basket with the charmed snake over",
         })
-        t.expect("giveSnakeToHag-poison", t.inv.await("feud_camel_poison_pooh_bucket", 1, 10))
+        t.expect("giveSnakeToHag-basketGone", t.inv.expect_absent("basket_with_snake"))
+        local keep_r, keep_n = t.inv.count("feud_camel_pooh_bucket")
+        local pois_r, pois_n = t.inv.count("poison_from_hag")
+        t.check("giveSnakeToHag-dungKept", keep_r == "ok" and keep_n == 1 and pois_r == "ok" and pois_n == 0,
+            "after the snake hand-in: feud_camel_pooh_bucket=" .. tostring(keep_n) .. " poison_from_hag=" .. tostring(pois_n) .. " (the dung is a separate hand-in)")
+        t.expect("quest.stage.snake_done-still", t.quest.expect_stage("snake_done"))
+
+        -- ==================== givenDungToHag: then the dung, for the poison
+        -- Transcript:The_Feud "Talking to Ali the Hag with Ughthanki dung"
+        t.exec("givenDungToHag", t.player.talk_to, "feud_hag", 1)
+        t.exec("givenDungToHag-dialog", t.chat.play, {
+            "player:Good day, Hag.",
+            "npc:Good day to you too, Blockhead.",
+            "npc:Here's your poison!",
+            "player:Wow, that was quick!",
+            "npc:Actually I already had it brewing.",
+            "npc:You wouldn't believe the demand.",
+            "player:That's not even remotely funny.",
+            "npc:Sorry, I've been dying to say that",
+            "player:Just stop. Thanks for the poison",
+            "npc:Wait! Just remember, this poison",
+            "player:Got it. Thanks again!",
+            "*", -- objbox: You hand over your bucket of fresh camel dung and receive a vial of poison in return.
+        })
+        t.expect("givenDungToHag-poison", t.inv.await("poison_from_hag", 1, 10))
+        t.expect("givenDungToHag-dungGone", t.inv.expect_absent("feud_camel_pooh_bucket"))
         t.expect("quest.stage.poison_made", t.quest.expect_stage("poison_made"))
 
         -- ==================== poisonTheDrink: poison on the traitor's beer
         t.exec("goto-poisonTheDrink", t.player.goto_tile, 3356, 2956, 0)
         local beer_table = t.player.by_symbol("loc", "feud_poison_beer_table")
-        t.exec("poisonTheDrink", t.player.use_on, "feud_camel_poison_pooh_bucket", beer_table)
+        t.exec("poisonTheDrink", t.player.use_on, "poison_from_hag", beer_table)
         t.expect("quest.stage.beer_poisoned", t.quest.expect_stage("beer_poisoned"))
 
         -- ==================== tellAliOperatorPoisoned: final orders
@@ -452,6 +585,10 @@ return {
             "npc:Confront the Menaphite Leader",
         })
         t.expect("quest.stage.ready_confront", t.quest.expect_stage("ready_confront"))
+        -- The Bandit Leader waits for the villager talk (Transcript:The_Feud,
+        -- varbit 338 0 -> 1 there), not for these orders.
+        local bvis_r, bvis = t.var.server("feud_bandit_boss_vis")
+        t.check("ready_confront-banditLeaderHidden", bvis_r == "ok" and bvis == 0, "feud_bandit_boss_vis=" .. tostring(bvis) .. " after the final orders")
 
         -- ==================== talkToMenaphiteLeader / killMenaphiteThug
         -- the blackjack took the weapon slot in task 3; the scimitar goes back on
@@ -494,6 +631,7 @@ return {
             "npc:Just run the bandits out of town.",
         })
         t.expect("talkToAVillager-talked", t.var.await_server("feud_talk_villager", 1, 5))
+        t.expect("talkToAVillager-banditLeaderShown", t.var.await_server("feud_bandit_boss_vis", 1, 5))
 
         -- ==================== talkToBanditLeader / killBanditChampion
         t.exec("goto-talkToBanditLeader", t.player.goto_tile, 3353, 3000, 0)

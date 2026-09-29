@@ -325,11 +325,18 @@ function QD.player.cast(spell, npc_symbol, ticks, attack_op, opts)
         if npc_symbol.kind == "obj" or npc_symbol.kind == "loc" then
             return QD.player._cast_on_world(spell, npc_symbol, ticks)
         end
+        -- SEAM recruitmentdrive_spawn_artifact_and_held_cast (seam27): a
+        -- CARRIED item -- Superheat Item, the alchemies, the enchants --
+        -- goes to QD.player._cast_on_held (the last section of this file).
+        if npc_symbol.kind == "held" then
+            return QD.player._cast_on_held(spell, npc_symbol, ticks)
+        end
         if npc_symbol.kind == "npc" and type(npc_symbol.symbol or npc_symbol.id) == "string" then
             npc_symbol = npc_symbol.symbol or npc_symbol.id
         else
             return "unsupported", "cast " .. tostring(spell) .. ": a table target must be"
-                .. " {kind='obj'|'loc', id=<symbol or id>} or {kind='npc', id=<symbol>}, got kind "
+                .. " {kind='obj'|'loc', id=<symbol or id>}, {kind='held', id=<obj symbol>}"
+                .. " or {kind='npc', id=<symbol>}, got kind "
                 .. tostring(npc_symbol.kind) .. " id " .. tostring(npc_symbol.id)
         end
     end
@@ -507,10 +514,10 @@ end
 -- server refusal a re-cast provoked (out of runes reads here).
 QD.npc._await_dead_engaged_by_attack = QD.npc.await_dead_engaged
 
-function QD.npc.await_dead_engaged(ticks, attempts)
+function QD.npc.await_dead_engaged(ticks, attempts, opts)
     local engaged = QD._combat_last
     if not engaged or engaged.spell == nil or engaged.consumed then
-        return QD.npc._await_dead_engaged_by_attack(ticks, attempts)
+        return QD.npc._await_dead_engaged_by_attack(ticks, attempts, opts)
     end
     local spell = engaged.spell
     local since_result, since = api_drive.message_serial()
@@ -567,7 +574,7 @@ function QD.npc.await_dead_engaged(ticks, attempts)
         end
         return result, fail_detail, row_text, presses
     end
-    local result, detail = QD.npc._await_dead_engaged_by_attack(ticks, attempts)
+    local result, detail = QD.npc._await_dead_engaged_by_attack(ticks, attempts, opts)
     QD._combat_press_attack = press_by_attack
     api_drive.player_idle = idle_by_route
     local tag = " [re-engagements re-CAST " .. spell .. ": " .. tostring(recast_ok)
@@ -1014,6 +1021,215 @@ function QD.player._cast_on_world(spell, target, ticks)
     if kind == "obj" and xp_paid then
         return "timeout", detail .. " -- Magic XP paid but " .. named
             .. " never arrived in the backpack inside " .. tostring(ticks) .. " ticks"
+    end
+    return "timeout", detail .. " -- " .. (settle_result == "ok" and "" or "no refusal, ")
+        .. "no effect inside " .. tostring(ticks) .. " ticks: the cast never ran"
+end
+
+-- ---------------------------------------------- a cast on a CARRIED item
+--
+-- SEAM recruitmentdrive_spawn_artifact_and_held_cast (seam27, 2026-09-28).
+-- No verb could cast a spell on an item in the backpack, so a guide step
+-- that is exactly that -- Family Crest's "Superheat the perfect gold ore"
+-- (seam26 ported LostCity's perfect_gold_ore -> perfect_gold_bar row into
+-- superheat.rs2), every alchemy and enchant -- could only be skipped or
+-- hand-driven another way.  The verb now takes a held target:
+--
+--   t.player.cast("superheat", { kind = "held", id = "perfect_gold_ore" })
+--   t.player.cast("low_alchemy", { kind = "held", id = "bronze_dagger" })
+--
+-- `spell` is the spellbook component's name (magic_spellbook:superheat,
+-- magic_spellbook:low_alchemy -- NOT the display name "Superheat Item");
+-- `id` is the obj symbol of a stack in the backpack.
+--
+-- THE PRESS is the two clicks a player makes.  (1) The magic tab and the
+-- spell's own "Cast" row (api_drive.spell_arm, TGT_BUTTON).  The spellbook's
+-- target-enter clientscript then hands the sidebar to the backpack for any
+-- spell with the held-item target bit (alchemy.rs2's banner: script2617 ->
+-- ~script916), so the verb WAITS for inventory:items to be displayed rather
+-- than pressing the tab.  (2) The cell's "<spell> -> <item>" row
+-- (rs_minimenu_build.c add_inv_slot_select_row, REVCONFIG_MINIMENU_TGT_HELD),
+-- run through the real dispatcher by api_drive.inv_cast
+-- (torirs_plugin_drive_pointer.c drive_pointer_inv_cast), which refuses and
+-- sends nothing wherever the real cell would offer no such row (no spell
+-- armed, a target mask without the held bit, the cell not displayed).  The
+-- client sends OPHELDT and the server runs `[opheldt,magic_spellbook:<spell>]`.
+--
+-- WHAT `ok` MEANS -- the server's effect: Magic XP was paid AND the item's
+-- stack in the backpack went down (superheat deletes the ore, an alchemy the
+-- item; ~give_spell_xp runs in the same script).  The detail names the Magic
+-- XP delta, the item's count before and after, the whole backpack diff (the
+-- bar or the coins that arrived, the runes that left) and the chat lines.
+-- `refused` / `no_runes` = the server declined it in words
+-- (QD.player._spell_refusal_since), or printed any other line and paid
+-- nothing ("You need to cast superheat item on ore.", a smelting level
+-- failure, an alchemy refusal).  `timeout` = nothing inside `ticks`
+-- (default 10).  No combat stamp.
+-- ---------------------------------------------------------------------------
+
+-- Ticks the verb waits for the backpack to take the sidebar after the arming
+-- (the client's own target-enter hook does it; one or two frames in practice).
+QD.player.SPELL_HELD_TAB_TICKS = 6
+
+-- Ticks a held cast keeps watching after its first effect: superheat pays,
+-- swaps and p_delay(1)s, an alchemy p_delay(3)s after its swap, so the XP or
+-- the swap that trails the first edge reaches the client inside this.
+QD.player.SPELL_HELD_TRAIL_TICKS = 2
+
+-- t.player.cast(spell, {kind="held", id=<obj symbol>}, ticks) -- the banner
+-- above.  Called by QD.player.cast for a `held` table target.
+function QD.player._cast_on_held(spell, target, ticks)
+    ticks = ticks or 10
+    local symbol = QD.player._spell_symbol(spell)
+    local item = target.id
+    local label = "cast " .. symbol .. " on held " .. tostring(item)
+    if type(item) ~= "string" then
+        return "unsupported", label .. ": a held target names its obj SYMBOL"
+            .. " ({kind='held', id='gold_ore'})"
+    end
+    if QD.player._death_fence("t.player.cast " .. symbol .. " held " .. item) then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    local cell_result, cell = QD.player._inv_cell(item)
+    if cell_result ~= "ok" then
+        return cell_result, label .. ": " .. tostring(cell) .. " -- nothing was cast"
+    end
+    local held_before = cell.count
+    local counted = QD.player._cast_obj_held(cell.obj_id)
+    if counted ~= nil then
+        held_before = counted
+    end
+    local inv_result, inv_before = QD.player._inv_contents()
+    if inv_result ~= "ok" then
+        inv_before = nil
+    end
+
+    local component_result, component_id = QD.player._spell_component(symbol)
+    if component_result ~= "ok" then
+        QD.player._show_backpack()
+        return component_result, component_id
+    end
+    local serial_result, since = api_drive.message_serial()
+    if serial_result ~= "ok" or type(since) ~= "number" then
+        since = nil
+    end
+    local xp_before = QD.player._magic_xp()
+
+    local arm_result, arm_detail = api_drive.spell_arm(component_id)
+    if arm_result ~= "ok" then
+        QD.player._show_backpack()
+        return arm_result, label .. ": arming the spell -- " .. tostring(arm_detail)
+    end
+
+    -- The sidebar: the client's target-enter hook shows the backpack.  Asked,
+    -- not pressed -- a tab press is a click, and the one left over after an
+    -- arming is the cast's own.
+    local items_result, items_id = api_drive.component("inventory:items", -1)
+    if items_result ~= "ok" then
+        return items_result, label .. ": no inventory:items component"
+    end
+    local tab_shown = QD.await({
+        level = function()
+            local result, presented = api_drive.widget_presented(items_id)
+            return result == "ok" and presented == true
+        end,
+        note = "player.cast " .. symbol .. ": the backpack takes the sidebar",
+    }, QD.player.SPELL_HELD_TAB_TICKS)
+    -- Not shown is NOT answered here: the press below still goes to
+    -- api_drive.inv_cast, whose refusal is the authoritative one (a spell
+    -- with no held-item bit -- the client never hands it the backpack -- is
+    -- refused on its mask) and which CLEARS the arming on every refusal, so
+    -- no live spell is left for the next verb's click to spend.
+    local tab_note = tab_shown == "ok" and "" or ("; the backpack never took the sidebar inside "
+        .. tostring(QD.player.SPELL_HELD_TAB_TICKS) .. " ticks")
+    -- The cell again, now that it is the displayed one: a stack can move
+    -- between reads (nothing here moves it, but the press names the cell).
+    cell_result, cell = QD.player._inv_cell(item)
+    if cell_result ~= "ok" then
+        return cell_result, label .. ": " .. tostring(cell) .. " -- nothing was cast"
+    end
+    local cast_result, cast_detail = api_drive.inv_cast(cell.component_id, cell.slot,
+        cell.obj_id, cell.count)
+    if cast_result ~= "ok" then
+        QD.player._show_backpack()
+        return cast_result, label .. " slot " .. tostring(cell.slot) .. ": the cast row -- "
+            .. tostring(cast_detail) .. " (armed: " .. tostring(arm_detail) .. tab_note .. ")"
+    end
+
+    local refusal_word, refusal_line = nil, nil
+    local effect_tick = nil
+    local answered_tick = nil
+    local settle_result = QD.await({
+        level = function()
+            refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+            if refusal_word then
+                return true
+            end
+            local now = api_drive.tick()
+            if effect_tick == nil then
+                local xp_now = QD.player._magic_xp()
+                local held_now = QD.player._cast_obj_held(cell.obj_id)
+                if (xp_now ~= nil and xp_before ~= nil and xp_now > xp_before)
+                    or (held_now ~= nil and held_now < held_before) then
+                    effect_tick = now
+                end
+            end
+            if effect_tick ~= nil then
+                return now >= effect_tick + QD.player.SPELL_HELD_TRAIL_TICKS
+            end
+            -- A line that is no refusal and no effect: the trail window for
+            -- an effect to follow it, then the caller reads it as the answer.
+            if answered_tick == nil and #QD.player._spell_lines_since(since) > 0 then
+                answered_tick = now
+            end
+            return answered_tick ~= nil
+                and now >= answered_tick + QD.player.SPELL_HELD_TRAIL_TICKS + 1
+        end,
+        note = "player.cast " .. symbol .. " held " .. item,
+    }, ticks)
+
+    local xp_after = QD.player._magic_xp()
+    local held_after = QD.player._cast_obj_held(cell.obj_id)
+    local diff = ""
+    if inv_before ~= nil then
+        local after_result, inv_after = QD.player._inv_contents()
+        if after_result == "ok" then
+            diff = QD.player._inv_contents_diff(inv_before, inv_after)
+        end
+    end
+    local lines = QD.player._spell_lines_since(since)
+    QD.player._show_backpack()
+
+    local detail = label .. " (" .. tostring(arm_detail) .. "; OPHELDT on slot "
+        .. tostring(cell.slot) .. "): magic xp " .. tostring(xp_before) .. " -> "
+        .. tostring(xp_after) .. ", " .. item .. " held " .. tostring(held_before) .. " -> "
+        .. tostring(held_after) .. ", backpack " .. (diff ~= "" and diff or "unchanged")
+    if #lines > 0 then
+        detail = detail .. ", chat '" .. table.concat(lines, "' '") .. "'"
+    end
+
+    if QD.player._death_fence("t.player.cast " .. symbol .. ", after the settle") then
+        return "refused", QD.player._death_text(QD._death)
+    end
+    if not refusal_word then
+        refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+    end
+    if refusal_word then
+        return refusal_word, detail .. " -- the SERVER refused the cast: '"
+            .. tostring(refusal_line) .. "'"
+    end
+    local xp_paid = xp_before ~= nil and xp_after ~= nil and xp_after > xp_before
+    local spent = held_after ~= nil and held_after < held_before
+    if xp_paid and spent then
+        return "ok", detail .. " -- CAST (Magic XP paid; " .. item .. " consumed)"
+    end
+    if #lines > 0 and not xp_paid then
+        return "refused", detail .. " -- the server answered '" .. lines[#lines]
+            .. "' and paid no Magic XP: it did not cast"
+    end
+    if xp_paid then
+        return "timeout", detail .. " -- Magic XP paid but " .. item
+            .. " never left the backpack inside " .. tostring(ticks) .. " ticks"
     end
     return "timeout", detail .. " -- " .. (settle_result == "ok" and "" or "no refusal, ")
         .. "no effect inside " .. tostring(ticks) .. " ticks: the cast never ran"

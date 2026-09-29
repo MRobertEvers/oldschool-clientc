@@ -502,33 +502,13 @@ return {
         local bits_r, bits = t.var.server("crest_spells_levers_gauntlets")
         t.check("killChronizon.allFourBlasts", bits_r == "ok" and type(bits) == "number" and bits % 16 == 15,
             "crest_spells_levers_gauntlets=" .. tostring(bits) .. " (low four bits = ^crest_all_spells_cast 15)")
-        -- With all four bits set, fire blast until his slot leaves the
-        -- pool, eating a shark whenever hitpoints fall under 70 (a bare
-        -- await_dead_engaged cannot eat; run 3 died in it). The kill is
-        -- corroborated by the johnathon_crest drop below, not by absence.
-        local kill_casts = 0
-        local kill_gone = false
-        local kill_last = "none"
-        for attempt = 1, 30 do
-            local khr, khp = t.skill.read("hitpoints")
-            if khr == "ok" and type(khp) == "table" and khp.level < 70 then
-                t.player.inv_op("shark", 1)
-                t.ticks(2)
-            end
-            local kpr = t.npc.nearest("chronozon", 12)
-            if kpr ~= "ok" then
-                kill_gone = true
-                break
-            end
-            local kr, kd = t.player.cast("fire_blast", "chronozon", 14)
-            kill_casts = attempt
-            kill_last = tostring(kr) .. " " .. tostring(kd)
-            t.ticks(2)
-        end
-        local _, hp_end = t.skill.read("hitpoints")
-        t.check("killChronizon", kill_gone,
-            "chronozon left the pool after " .. kill_casts .. " fire blast(s) (gone=" .. tostring(kill_gone) .. "); hitpoints "
-                .. tostring(type(hp_end) == "table" and hp_end.level or hp_end) .. "; last cast: " .. kill_last)
+        -- With all four bits set, one fire blast engages him and
+        -- await_dead_engaged re-casts it on every stall and eats a shark
+        -- whenever hitpoints fall under 70 (seam27: a cast fight stalls on
+        -- health alone, and opts.eat). The kill is corroborated by the
+        -- johnathon_crest drop below, not by absence.
+        t.exec("killChronizon.cast", t.player.cast, "fire_blast", "chronozon", 14)
+        t.exec("killChronizon", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 70 } })
 
         -- pickUpCrest3: the drop is obj_add(npc_coord, johnathon_crest)
         -- at cured_johnathon.

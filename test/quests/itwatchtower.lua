@@ -243,12 +243,6 @@ return {
         -- ================= Leave Grew's island, enter the hole south of Gu'Tanoth =================
         t.exec("goto-leaveGrewIsland", t.player.goto_tile, 2511, 3093, 0)
         t.exec("leaveGrewIsland", t.player.click_loc, "tree_ropeswing3", 1)
-        -- Let the swing's exact-move finish before the goto: a ::goto on the
-        -- swing's own ticks left the client drawing an empty (gray) scene and
-        -- the hole press projecting off it (seam26 build/quest_gate/s26tl_p3a,
-        -- the goto_clears_exactmove engine seam); four ticks later the same
-        -- goto and press land first time (s26tl_p4a).
-        t.ticks(4)
 
         -- all.loc.compack 2811=tobancave; maps/m39_46.jl2:1442 "0 3 45: 2811
         -- 10" -> world 2499,2989,0. goto ITS own tile and let click_loc's

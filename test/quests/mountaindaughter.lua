@@ -34,6 +34,16 @@
 --    of its own; the scene holds its base wrapper mdaughter_multimound
 --    (5861, maps/m43_57.jl2:1001) -- click_loc's "base" resolve rule
 --    (docs/QUEST_AUTHORING.md trap 20) reaches it through the child symbol.
+--  * seam27: every lake crossing is a plain press from a walked tile. The
+--    clump of rocks and the first flat stone sit two tiles across BLOCK-
+--    flagged water from the only open tile (maps/m43_57.jm2), so they are
+--    [aploc1]/[aplocu] triggers with p_aprange(2) (mountaindaughter_camp.rs2),
+--    and the three landings are open stand tiles inside Quest Helper's
+--    LAKE_ISLAND_1/2/3 zones (2772,3684 / 2774,3689 / 2778,3691 -- the pool
+--    island, where the mound, the pool and the return stone are all walked
+--    to). The cave path's two Dead trees (2802,3703 and 2807,3703) are
+--    chopped with the axe and their stumps stepped over
+--    (mountaindaughter_kendal.rs2), both ways.
 
 return {
     id = "mountaindaughter",
@@ -82,6 +92,35 @@ return {
         local loc_lake_tree = t.player.by_symbol("loc", "mdaughter_lake_tree")
         local loc_polerocks = t.player.by_symbol("loc", "mdaughter_polerocks")
         local loc_flatstone1 = t.player.by_symbol("loc", "mdaughter_flatstone1")
+        local loc_flatstone2 = t.player.by_symbol("loc", "mdaughter_flatstone2")
+
+        -- The cave path's Dead tree at (x, z): step over its stump if it is
+        -- one, else chop it first (a stump regrows after
+        -- ^mdq_dead_tree_stump_ticks, even between the listing and the
+        -- press, so a refused step is chopped and tried once more). The
+        -- chop's click answers on the walk's map flag, before p_arrivedelay
+        -- and the swing land, so the stump is read 6 ticks later. A copy
+        -- selector naming no live copy answers no_row and presses nothing
+        -- (QUEST_AUTHORING verb table). Graded on the tile: the player must
+        -- end on the other side of the tree's column from where he started.
+        local function cross_dead_tree(name, x, z)
+            local _, before = t.world.tile()
+            local r, d
+            for attempt = 1, 2 do
+                r, d = t.player.click_loc("mdaughter_passable_tree_stump", 1, { at = {x, z} })
+                if r == "ok" then break end
+                t.exec(name .. ".chop", t.player.click_loc, "mdaughter_passable_tree", 1, { at = {x, z} })
+                t.ticks(6)
+            end
+            t.ticks(2)
+            local _, after = t.world.tile()
+            local crossed = before ~= nil and after ~= nil and after.z == z and
+                ((before.x < x and after.x > x) or (before.x > x and after.x < x))
+            t.check(name .. ".stepOver", r == "ok" and crossed,
+                tostring(r) .. " " .. tostring(d) .. " -- " ..
+                (before and (before.x .. "," .. before.z) or "?") .. " -> " ..
+                (after and (after.x .. "," .. after.z) or "?"))
+        end
 
         t.exec("equip-scimitar", t.player.equip, "rune_scimitar")
         t.exec("equip-gloves", t.player.equip, "leather_gloves")
@@ -130,19 +169,10 @@ return {
         t.exec("rubMudIntoTree", t.player.use_on, "mdaughter_mud", loc_lake_tree)
         t.exec("climbTree", t.player.click_loc, "mdaughter_lake_tree", 3)
 
-        -- poleVaultRocks / plankRocks: run 1 (the pre-seam23 attempt) proved
-        -- these two islet crossings are not reachable by any walked approach
-        -- tile (reach_failed against all 5 candidates -- build/quest_gate/
-        -- mountaindaughter ledger rows 21/22, 2026-09-28) -- the small rocky
-        -- outcrop's walkable tiles end short of the gap by design (that IS
-        -- the "gap is too wide" flavour text), so the loc's own square is
-        -- the only tile that serves it. Same two locs are crossed three
-        -- times in this file (first visit, returnToSpirit, burial); each
-        -- occurrence gets its own marker within lint's 8-line span.
-        -- GUIDE-GAP: poleVaultRocks no walked approach reaches the gap (maps/m43_57.jl2:997, island1's own tiles end at maps/m43_57.jm2 local 21-23,~33-38)
-        t.exec("poleVaultRocks", t.player.use_on, "mdaughter_stick", loc_polerocks, { stand_on_square = true })
-        -- GUIDE-GAP: plankRocks no walked approach reaches the gap (maps/m43_57.jl2:998)
-        t.exec("plankRocks", t.player.use_on, "woodplank", loc_flatstone1, { stand_on_square = true })
+        -- poleVaultRocks / plankRocks: both used across the water from the
+        -- outcrop the tree drops you on (header note, seam27).
+        t.exec("poleVaultRocks", t.player.use_on, "mdaughter_stick", loc_polerocks)
+        t.exec("plankRocks", t.player.use_on, "woodplank", loc_flatstone1)
 
         -- listenToSpirit: seam23 rewrote Asleif's spirit as pure ~mesbox +
         -- ~p_choice2, verbatim from mountaindaughter_spirit.rs2
@@ -187,13 +217,11 @@ return {
         })
         t.expect("quest.stage.spirit_heard", t.quest.expect_stage("spirit_heard"))
 
-        -- plankRocksReturn: cross back to the north shore (guide step name
-        -- per MountainDaughter.java's helpTheCamp.addStep(onIsland3,
-        -- plankRocksReturn)); mdaughter_flatstone2's oploc1 always succeeds
-        -- (header note) but the islet's own square is still the only tile
-        -- that reaches it.
-        -- GUIDE-GAP: plankRocksReturn no walked approach reaches the gap (maps/m43_57.jl2:999)
-        t.exec("returnToShore", t.player.click_loc, "mdaughter_flatstone2", 1, { stand_on_square = true })
+        -- plankRocksReturn: the plank on the second flat stone back to the
+        -- shore (guide step per MountainDaughter.java's
+        -- helpTheCamp.addStep(onIsland3, plankRocksReturn), "Use a plank on
+        -- the flat stone to return to shore").
+        t.exec("returnToShore", t.player.use_on, "woodplank", loc_flatstone2)
 
         -- helpTheCamp: diplomacy.
         t.exec("goto-hamal2", t.player.goto_tile, 2811, 3673, 0)
@@ -286,10 +314,8 @@ return {
         -- returnToSpirit (the second visit): tree, pole, plank, listen.
         t.exec("goto-tree2", t.player.goto_tile, 2772, 3679, 0)
         t.exec("climbTree2", t.player.click_loc, "mdaughter_lake_tree", 3)
-        -- GUIDE-GAP: poleVaultRocks no walked approach reaches the gap (maps/m43_57.jl2:997)
-        t.exec("poleVaultRocks2", t.player.use_on, "mdaughter_stick", loc_polerocks, { stand_on_square = true })
-        -- GUIDE-GAP: plankRocks no walked approach reaches the gap (maps/m43_57.jl2:998)
-        t.exec("plankRocks2", t.player.use_on, "woodplank", loc_flatstone1, { stand_on_square = true })
+        t.exec("poleVaultRocks2", t.player.use_on, "mdaughter_stick", loc_polerocks)
+        t.exec("plankRocks2", t.player.use_on, "woodplank", loc_flatstone1)
         t.exec("returnToSpirit", t.player.click_loc, "mdaughter_sulphar_gas", 1)
         t.exec("returnToSpirit-dialog", t.chat.play, {
             "player:Asleif spirit thing",
@@ -305,24 +331,20 @@ return {
             "mesbox:cannot provide further assistance",
         })
         t.expect("quest.stage.ready_for_kendal", t.quest.expect_stage("ready_for_kendal"))
-        -- GUIDE-GAP: noPlankRocksReturn no walked approach reaches the gap (maps/m43_57.jl2:999)
-        t.exec("returnToShore2", t.player.click_loc, "mdaughter_flatstone2", 1, { stand_on_square = true })
+        -- noPlankRocksReturn: "Attempt to jump across the flat stone WITHOUT
+        -- a plank" -- the stone's own Jump-across op.
+        t.exec("returnToShore2", t.player.click_loc, "mdaughter_flatstone2", 1)
 
-        -- the Kendal (mountaindaughter_kendal.rs2): caveentrance needs an
-        -- axe (setup's bronze_axe) and teleports into the cave, where the
-        -- multi_bear (mdaughter_bearman while %mdaughter_bear_multi_state=0)
-        -- is talked to first, revealing itself and spawning the real
-        -- fighter npc.
-        -- GUIDE-GAP: enterCave no walked approach reaches the cave mouth past the fallen trees (maps/m43_57.jl2:1000)
-        t.exec("goto-cave", t.player.goto_tile, 2803, 3703, 0)
-        local cave_r, cave_d = t.player.click_loc("mdaughter_caveentrance", 1, { stand_on_square = true })
-        if cave_r ~= "ok" then
-            t.note("enterCave first press: " .. tostring(cave_r) .. " " .. tostring(cave_d))
-            t.player.goto_tile(2806, 3703, 0)
-            t.ticks(2)
-            cave_r, cave_d = t.player.click_loc("mdaughter_caveentrance", 1, { stand_on_square = true })
-        end
-        t.check("enterCave", cave_r == "ok", tostring(cave_r) .. " " .. tostring(cave_d))
+        -- the Kendal (mountaindaughter_kendal.rs2): the path east of the
+        -- lake is blocked by two Dead trees; chop each with the axe (setup's
+        -- bronze_axe) and step over its stump, then Enter the cave, which
+        -- teleports into it, where the multi_bear (mdaughter_bearman while
+        -- %mdaughter_bear_multi_state=0) is talked to first, revealing itself
+        -- and spawning the real fighter npc.
+        t.exec("goto-cave", t.player.goto_tile, 2799, 3703, 0)
+        cross_dead_tree("caveTree1", 2802, 3703)
+        cross_dead_tree("caveTree2", 2807, 3703)
+        t.exec("enterCave", t.player.click_loc, "mdaughter_caveentrance", 1)
         local multibear_present = t.npc.await_present("mdaughter_multi_bear", 20, 15)
         t.check("talkToKendal.present", multibear_present == "ok", "npc.await_present -> " .. tostring(multibear_present))
         t.exec("talkToKendal", t.player.talk_to, "mdaughter_multi_bear")
@@ -354,6 +376,11 @@ return {
         t.check("grabCorpse", corpse_r == "ok", tostring(corpse_r) .. " " .. tostring(corpse_d))
         t.exec("inv.corpse", t.inv.expect_has, "mdaughter_daughter_corpse", 1)
         t.exec("leaveCave", t.player.click_loc, "mdaughter_caveexit", 1)
+        t.ticks(2)
+        -- back west past the same two trees (a stump regrows,
+        -- ^mdq_dead_tree_stump_ticks).
+        cross_dead_tree("leaveTree2", 2807, 3703)
+        cross_dead_tree("leaveTree1", 2802, 3703)
 
         -- bringCorpseToHamal
         t.exec("goto-hamal5", t.player.goto_tile, 2811, 3673, 0)
@@ -375,7 +402,11 @@ return {
         end
         local rock_spots = { {2804, 3660}, {2809, 3679}, {2812, 3680}, {2812, 3687} }
         local pass = 0
-        while rocks() < 5 and pass < 4 do
+        -- a taken spawn returns after ^lootdrop_duration (200 ticks,
+        -- drop_tables/configs/lootdrop.constant; torirs_server_world.c
+        -- ground_tick), so four passes 60 ticks apart can end just short of
+        -- the first return when all four were picked on pass 1: six passes.
+        while rocks() < 5 and pass < 6 do
             pass = pass + 1
             for i, spot in ipairs(rock_spots) do
                 if rocks() >= 5 then break end
@@ -399,16 +430,13 @@ return {
         -- time to bury Asleif and raise the cairn on the burial mound.
         t.exec("goto-tree3", t.player.goto_tile, 2772, 3679, 0)
         t.exec("climbTree3", t.player.click_loc, "mdaughter_lake_tree", 3)
-        -- GUIDE-GAP: poleVaultRocks no walked approach reaches the gap (maps/m43_57.jl2:997)
-        t.exec("poleVaultRocks3", t.player.use_on, "mdaughter_stick", loc_polerocks, { stand_on_square = true })
-        -- GUIDE-GAP: plankRocks no walked approach reaches the gap (maps/m43_57.jl2:998)
-        t.exec("plankRocks3", t.player.use_on, "woodplank", loc_flatstone1, { stand_on_square = true })
+        t.exec("poleVaultRocks3", t.player.use_on, "mdaughter_stick", loc_polerocks)
+        t.exec("plankRocks3", t.player.use_on, "woodplank", loc_flatstone1)
         t.exec("buryCorpse", t.player.inv_op, "mdaughter_daughter_corpse", 3)
         t.ticks(2)
         t.exec("inv.corpse_gone", t.inv.expect_absent, "mdaughter_daughter_corpse")
         local loc_mound = t.player.by_symbol("loc", "mdaughter_burialmound")
-        -- GUIDE-GAP: createCairn the burial mound (mdaughter_burialmound, a multiloc child with no map placement of its own) resolves through its base wrapper mdaughter_multimound at maps/m43_57.jl2:1001, whose walkable approach tiles do not reach the lake-centre square
-        t.exec("createCairn", t.player.use_on, "mdaughter_rock", loc_mound, { stand_on_square = true })
+        t.exec("createCairn", t.player.use_on, "mdaughter_rock", loc_mound)
         t.quest.expect_complete()
         t.finish(0)
     end,

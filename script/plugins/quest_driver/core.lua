@@ -116,7 +116,26 @@ end
 
 QD.ok = ok
 QD.fail = fail
-QD.await = await
+
+-- t.await (and QD.await, the same function: `t` IS QD) answers a DETAIL on
+-- `ok` (seam27): the descriptor's own note and how many server ticks the
+-- wait took.  The C primitive resumes a met await with ("ok", nil), so
+-- `t.check("x", t.await{...})` and `t.expect("x", t.await{...})` wrote a PASS
+-- row with an empty detail -- which gate.py now fails.  A timeout keeps C's
+-- own detail (the note).  Every other verb's own `return await(...)` goes
+-- through the chunk-local `await` above and is unchanged; the verbs that
+-- `return QD.await(...)` (player.click_obj's backpack-rose wait,
+-- player.idle) answer `<note>: met after N tick(s)` too.
+QD.await = function(descriptor, deadline)
+    local start = api_drive.tick()
+    local result, detail = await(descriptor, deadline)
+    if result == "ok" and detail == nil then
+        local note = type(descriptor) == "table" and descriptor.note or nil
+        detail = string.format("%s: met after %d tick(s)", tostring(note or "await"),
+            api_drive.tick() - start)
+    end
+    return result, detail
+end
 
 -- ---------------------------------------------------------------- the ledger
 --

@@ -361,8 +361,8 @@ return {
         -- health bar -- so confirm he has actually left it (not just hit 0)
         -- before pressing the crate. Hollow: `ok`/`timeout`, nil detail
         -- (QUEST_AUTHORING.md trap 12/section 8) -- t.expect, not t.exec.
-        local wm_gone_result = t.npc.await_gone("weaponsmaster", 10, 10)
-        t.expect("weaponsmaster.gone", wm_gone_result)
+        local wm_gone_result, wm_gone_detail = t.npc.await_gone("weaponsmaster", 10, 10)
+        t.expect("weaponsmaster.gone", wm_gone_result, wm_gone_detail)
 
         -- ------------------------------------------------ take 2 crossbows
         -- Two separate ground stacks, one crossbow each (m50_52.spawn:

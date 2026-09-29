@@ -405,7 +405,11 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     if( ahoy_state(player, varbit_ahoy) == 3 )
         ahoy_pass("talk_velorina_return", "opnpc1,ahoy_velorina", "ahoy_questvar=3");
 
-    ahoy_snap(srv, player, 0, 3658, 3508);
+    /* The west barrier (3659,3508, 2x1, facing south) is set into the town
+     * wall along z=3508: the town is SOUTH of it, the Ectofuntus NORTH, and a
+     * ghost guard stands on each wall tile beside it (3658 and 3661). Stand
+     * on its north approach tile, outside. */
+    ahoy_snap(srv, player, 0, 3660, 3509);
     loc_slot = ahoy_find_loc(3660, 3508, 0, loc_barrier, 8);
     if( loc_slot >= 0 )
         ahoy_pass("barrier_shell", "SceneFindLocId", "ahoy_town_barrier_multi");
@@ -417,21 +421,21 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC4, loc_barrier, -1, loc_slot);
         ahoy_drain(srv, player, 0);
         ahoy_release(srv, player);
-        SELFTEST_CHECK(player->x > 3660, "prequest entry should move inside, x=%d", player->x);
+        SELFTEST_CHECK(player->z < 3508, "prequest entry should move inside, %d,%d", player->x, player->z);
         SELFTEST_CHECK(selftest_count_obj(player, obj_token) < tokens_before,
                        "prequest entry should spend two ecto-tokens");
-        if( player->x > 3660 )
+        if( player->z < 3508 )
             ahoy_pass("barrier_enter", "oploc4,ahoy_town_barrier_multi", "paid-in");
 
-        ahoy_snap(srv, player, 0, 3677, 3508);
+        ahoy_snap(srv, player, 0, 3660, 3507);
         loc_slot = ahoy_find_loc(3660, 3508, 0, loc_barrier, 8);
         if( loc_slot >= 0 )
         {
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_barrier, -1, loc_slot);
             ahoy_drain(srv, player, 0);
             ahoy_release(srv, player);
-            SELFTEST_CHECK(player->x < 3665, "prequest exit should move outside, x=%d", player->x);
-            if( player->x < 3665 )
+            SELFTEST_CHECK(player->z > 3508, "prequest exit should move outside, %d,%d", player->x, player->z);
+            if( player->z > 3508 )
                 ahoy_pass("barrier_exit", "oploc1,ahoy_town_barrier_multi", "free-out");
         }
     }
@@ -603,7 +607,7 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 8, "postquest must stay 8");
     ahoy_pass("postquest", "opnpc1,ahoy_velorina", "ahoy_questvar=8");
 
-    ahoy_snap(srv, player, 0, 3658, 3508);
+    ahoy_snap(srv, player, 0, 3660, 3509);
     loc_slot = ahoy_find_loc(3660, 3508, 0, loc_barrier, 8);
     if( loc_slot < 0 && loc_post > 0 )
         loc_slot = ahoy_find_loc(3660, 3508, 0, loc_post, 8);
@@ -613,8 +617,8 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC4, dest_type, -1, loc_slot);
         ahoy_drain(srv, player, 0);
         ahoy_release(srv, player);
-        SELFTEST_CHECK(player->x > 3660, "postquest barrier should pass free, x=%d", player->x);
-        if( player->x > 3660 )
+        SELFTEST_CHECK(player->z < 3508, "postquest barrier should pass free, %d,%d", player->x, player->z);
+        if( player->z < 3508 )
             ahoy_pass("barrier_postquest", "oploc4,ahoy_town_barrier_multi", "free-in");
     }
 

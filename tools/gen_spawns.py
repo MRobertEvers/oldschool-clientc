@@ -234,6 +234,26 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 }
 
 
+# Obj rows the dump carries that the real game does not lay on the ground in
+# public. Keyed `(cache symbol, x, z, plane)` like NPC_SPAWN_EXCLUSIONS, so a
+# regeneration keeps the tile empty and no other spawn of the id is touched.
+#
+# Recruitment Drive, Miss Cheevers' trial: the dump lays `rd_metal_spade_no_handle`
+# (5587, the spade HEAD) on her table at 2473,4941. The table's spade is the
+# whole metal spade (5586) and the head is what the Bunsen burner makes of it --
+# https://oldschool.runescape.wiki/w/Metal_spade : "It is found on the table in
+# Miss Cheevers's trial" (item 5586, respawn 10 ticks) and "It is used on a
+# bunsen burner to remove the handle"; https://oldschool.runescape.wiki/w/Recruitment_Drive :
+# "Take the metal spade, and use it on the Bunsen burner to remove the wood."
+# A public head let a player skip that step. The quest places the table spade
+# per player (`obj_add_private(0_38_77_41_13, rd_metal_spade, ...)` in
+# quest_recruitmentdrive/scripts/recruitmentdrive_cheevers.rs2), so the tile
+# needs no public row at all.
+OBJ_SPAWN_EXCLUSIONS = {
+    ("rd_metal_spade_no_handle", 2473, 4941, 0),
+}
+
+
 def reachable_names(blocks, name, depth=0, seen=None):
     """Every display name this record can present as, following `multinpc`.
 
@@ -375,6 +395,9 @@ def main():
             continue
         count = max(1, int(row.get("count", 1)))
         square = (row["x"] // 64, row["y"] // 64)
+        if (name, row["x"], row["y"], level) in OBJ_SPAWN_EXCLUSIONS:
+            reject["obj: audited map-dump artefact (OBJ_SPAWN_EXCLUSIONS)"] += 1
+            continue
         if square not in squares:
             reject["obj: map square not in this cache"] += 1
             absent_square["m%d_%d" % square] += 1

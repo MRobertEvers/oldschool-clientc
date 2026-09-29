@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 39
+-- @seam-count 42
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 132
-local SEAM_COUNT = 39
+local SEAM_COUNT = 42
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6221,6 +6221,157 @@ return {
                     .. text
             end
             return "ok", text
+        end)
+
+        -- A CAST ON A CARRIED ITEM.  No verb could cast on a backpack item, so
+        -- Superheat Item / the alchemies / the enchants could not be driven
+        -- (seam27).  t.player.cast now takes {kind="held", id=<obj symbol>}:
+        -- spell_arm, then api_drive.inv_cast runs the cell's TGT_HELD row
+        -- (OPHELDT).  Graded on the backpack, not the verb's word
+        -- (build/quest_gate/s27held_b 7/7).
+        stage(function()
+            setup_cheat("::goto " .. CAST_TILE_X .. " " .. CAST_TILE_Z .. " 0")  -- setup
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::give firerune 3")
+            setup_cheat("::give naturerune 1")
+            setup_cheat("::give bronze_dagger 1")
+            settle(2)
+        end)
+        seam("seam.cast_on_held_item", function()
+            local fn = verb("player", "cast")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "cast") end
+            if not count then return missing("inv", "count") end
+            local _, dagger_before = count("bronze_dagger")
+            local _, coins_before = count("coins")
+            local _, nature_before = count("naturerune")
+            local result, detail = fn("low_alchemy", { kind = "held", id = "bronze_dagger" })
+            settle(1)
+            local _, dagger_after = count("bronze_dagger")
+            local _, coins_after = count("coins")
+            local _, nature_after = count("naturerune")
+            local text = "low_alchemy held bronze_dagger -> " .. describe(result) .. " "
+                .. describe(detail) .. "; dagger " .. describe(dagger_before) .. " -> "
+                .. describe(dagger_after) .. ", coins " .. describe(coins_before) .. " -> "
+                .. describe(coins_after) .. ", nature " .. describe(nature_before) .. " -> "
+                .. describe(nature_after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if dagger_after ~= (dagger_before or 0) - 1 or (coins_after or 0) <= (coins_before or 0)
+                or nature_after ~= (nature_before or 0) - 1 then
+                return "hollow", "cast answered ok but the backpack does not show the alchemy -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CAST FIGHT RE-CASTS UNDER RETALIATION, AND AWAIT_DEAD EATS.
+        -- With auto-retaliate on (this fixture's default, and Family Crest's)
+        -- the player's melee retaliation puts 0 splats on Chronozon (defence
+        -- 173) between casts; counting a new splat as progress kept the
+        -- stall counter from ever reaching the re-cast (0 re-casts in 60
+        -- ticks, build/quest_gate/s27re_before3).  A cast fight now stalls on
+        -- the health reading alone.  And opts.eat = {item=, below=} eats
+        -- through inv_op whenever the stated hitpoints fall under `below`
+        -- (seam27; Family Crest's author had hand-written a cast-and-eat
+        -- loop): Chronozon (strength 172) takes ~80 of 99 hitpoints in 60
+        -- ticks, so this row DIES without it -- the first draft of this row,
+        -- with no food, did (build/quest_gate/_conformance attempt-01 row
+        -- 167).  Graded on >= 3 re-casts, >= 4 air runes spent and a shark
+        -- eaten (s27re_after2: 9 re-casts, 6 sharks).  Chronozon regenerates
+        -- without his four blast bits, so the row never grades a kill, and
+        -- `::passive` breaks his fight off afterwards (he is left standing,
+        -- harmless, for the rows after).
+        stage(function()
+            setup_cheat("::clearinv")                           -- setup
+            setup_cheat("::setlevel magic 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give airrune 100")
+            setup_cheat("::give mindrune 100")
+            setup_cheat("::give shark 20")
+            setup_cheat("::goto 3222 3219 0")                   -- setup
+            settle(2)
+            setup_cheat("::spawn chronozon")                    -- setup
+            settle(2)
+        end)
+        seam("seam.await_dead_engaged_recasts_and_eats", function()
+            local cast = verb("player", "cast")
+            local fn = verb("npc", "await_dead_engaged")
+            local count = verb("inv", "count")
+            if not cast then return missing("player", "cast") end
+            if not fn then return missing("npc", "await_dead_engaged") end
+            if not count then return missing("inv", "count") end
+            local _, air_before = count("airrune")
+            local _, sharks_before = count("shark")
+            local cast_result, cast_detail = cast("wind_strike", "chronozon", 14)
+            if cast_result ~= "ok" then
+                return "no_subject", "cast wind_strike on chronozon -> " .. describe(cast_result) .. " "
+                    .. describe(cast_detail)
+            end
+            local result, detail = fn(60, 30, { eat = { item = "shark", below = 70 } })
+            local _, air_after = count("airrune")
+            local _, sharks_after = count("shark")
+            local recasts = tonumber(string.match(tostring(detail),
+                "re%-CAST wind_strike: (%d+) press%(es%) ok")) or 0
+            local text = "await_dead_engaged(60, 30, {eat shark below 70}) after wind_strike -> "
+                .. describe(result) .. " " .. describe(detail) .. "; re-casts ok " .. recasts
+                .. ", airrune " .. describe(air_before) .. " -> " .. describe(air_after)
+                .. ", shark " .. describe(sharks_before) .. " -> " .. describe(sharks_after)
+            if result == "refused" then
+                return result, text
+            end
+            if recasts < 3 or (air_before or 0) - (air_after or 0) < 4 then
+                return "refused", "a cast fight under retaliation must re-cast on the stall -- " .. text
+            end
+            if not string.find(tostring(detail), "ate shark", 1, true)
+                or (sharks_after or 0) >= (sharks_before or 0) then
+                return "refused", "hitpoints fell under 70 and no shark was eaten -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::passive chronozon")                  -- setup
+            settle(3)
+        end)
+
+        -- THE AWAIT VERBS ANSWER A DETAIL.  gate.py fails a PASS row with an
+        -- empty detail (seam27), and t.await / npc.await_present /
+        -- npc.await_gone / ui.await_open used to answer a bare ok.  Graded
+        -- on the words: t.await says "<note>: met after N tick(s)",
+        -- await_present "<sym> present within R: slot S at x,z" (Chronozon,
+        -- left standing by the row above) and await_gone "no <sym> within R".
+        seam("seam.await_verbs_answer_a_detail", function()
+            local await_fn = verb("await")
+            local present = verb("npc", "await_present")
+            local gone = verb("npc", "await_gone")
+            if not await_fn then return missing("await") end
+            if not present then return missing("npc", "await_present") end
+            if not gone then return missing("npc", "await_gone") end
+            local await_result, await_detail = await_fn({
+                level = function() return true end,
+                note = "conformance.await_detail",
+            }, 2)
+            local present_result, present_detail = present("chronozon", 15, 5)
+            local gone_result, gone_detail = gone("ahoy_ghost_guard", 15, 5)
+            local text = "t.await -> " .. describe(await_result) .. " " .. describe(await_detail)
+                .. "; npc.await_present(chronozon, 15) -> " .. describe(present_result) .. " "
+                .. describe(present_detail) .. "; npc.await_gone(ahoy_ghost_guard, 15) -> "
+                .. describe(gone_result) .. " " .. describe(gone_detail)
+            if await_result ~= "ok" or present_result ~= "ok" or gone_result ~= "ok" then
+                return "refused", text
+            end
+            if not string.find(tostring(await_detail), "conformance.await_detail: met after", 1, true)
+                or not string.find(tostring(present_detail), "chronozon present within 15: slot", 1, true)
+                or not string.find(tostring(gone_detail), "no ahoy_ghost_guard within 15", 1, true) then
+                return "hollow", "an await answered ok without its detail -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::setlevel hitpoints 10")
+            setup_cheat("::setlevel magic 1")
+            settle(2)
         end)
 
         stage(function()
