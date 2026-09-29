@@ -827,7 +827,7 @@ def check_fight_arena() -> None:
         locs,
         (
             "[oploc1,arena_guard_chest_shut]",
-            "[oploc1,arena_guard_chest_open]",
+            "[label,arena_search_chest]",
             "[oplocu,arena_jeremydoor]",
             "[label,arena_free_sammy]",
             "[oploc1,fightarena_door2]",
@@ -1762,7 +1762,7 @@ def check_big_chompy() -> None:
             "%chompy_baiter = $baiter;", "npc_queue(4, 0, 25);",
             "[ai_queue4,bloated_toad]", "last_int = 3 | last_int = 13",
             "random(5) = 1", "npc_queue(4, $next_state, 25);",
-            "~spawn_chompy_bird(npc_coord, %chompy_baiter);",
+            "~spawn_chompy_bird($bait_coord, $baiter);",
             "damage(uid, hitsplat_damage, add(random(2), 1));",
         ),
         "Big Chompy Bird Hunting bait cycle",
@@ -1778,7 +1778,7 @@ def check_big_chompy() -> None:
             "map_findsquare($bait, 3, 10, ^map_findsquare_lineofsight)",
             "npc_add($spawn, chompybird, 100);", "npc_setowner;",
             "queue(chompy_rantz_misses, add(15, random(10)), 0);",
-            "[ai_queue4,chompybird]", ".npc_find(npc_coord, bloated_toad, 10",
+            "[ai_queue4,chompybird]", "npc_find($here, bloated_toad, 10",
             "[ai_timer,chompybird]", "if (npc_hastarget = true)",
             "npc_setmode(playerescape);",
             "[apnpc5,chompybird]", "[opnpc5,chompybird]",
@@ -1811,7 +1811,7 @@ def check_big_chompy() -> None:
             "%chompybird = ^chompybird_shown_toad;",
             "%chompybird = ^chompybird_rantz_gave_player_bow;",
             "%chompybird = ^chompybird_told_to_cook_chompy;",
-            "[opnpcu,rantz]", "[label,chompy_hand_in]",
+            "[opnpcu,rantz]", "[label,hand_chompy_to_rantz]",
             "inv_del(inv, cooked_s_chompy, 1);",
             "[queue,quest_chompybird_complete]",
             "stat_advance(fletching, 2620);", "stat_advance(cooking, 14700);",
@@ -2004,6 +2004,14 @@ def check_nature_spirit() -> None:
             ),
             f"Nature Spirit {ghast} config",
         )
+        if ghast == "ghast_invis":
+            # The engine reads only `huntmode=aggressive`; LostCity's
+            # `aggressive_melee` names a hunt config here does not have and
+            # parsed to HUNT_NONE, so no ghast ever attacked (2026-09-29).
+            require_text(
+                block, ("huntmode=aggressive\n", "param=huntrange,5"),
+                "Nature Spirit ghast_invis aggression",
+            )
 
     ghast = NATURE_GHAST.read_text()
     require_text(
@@ -2031,6 +2039,9 @@ def check_nature_spirit() -> None:
             "%druidspirit = ^druidspirit_killed_ghast1;",
             "%druidspirit = ^druidspirit_killed_ghast2;",
             "%druidspirit = ^druidspirit_killed_ghast3;",
+            # npc_findhero reads the active npc, which npc_del removes: asked
+            # after the removal it aborted the death queue (2026-09-29).
+            "def_int $hero = npc_findhero;", "if ($hero = ^false)",
         ),
         "Nature Spirit public loot and exact kill credit",
     )

@@ -3379,6 +3379,15 @@ ToriRSServer_WorldSelftest(void)
         return g_selftest_failures;
     }
 
+    if( getenv("TORIRSSERVER_SELFTEST_DEATH_ONLY") )
+    {
+        selftest_quest_deathplateau(srv, player);
+        fprintf(stderr, "ToriRSServer deathplateau selftest: %lu checks, %d failures\n",
+                g_selftest_checks, g_selftest_failures);
+        selftest_evidence_end("deathplateau");
+        return g_selftest_failures;
+    }
+
     if( getenv("TORIRSSERVER_SELFTEST_ANMA_ONLY") )
     {
         selftest_quest_animalmagnetism(srv, player);
@@ -27377,6 +27386,40 @@ ToriRSServer_WorldSelftest(void)
                         }
                     SELFTEST_CHECK(found_khazard,
                                    "General Khazard should spawn once the ogre is defeated");
+                }
+            }
+
+            /* The optional fourth fight: after the Bouncer the General is fought as his
+             * attackable form (general_khazard, the cache record that carries Attack);
+             * [ai_queue3,general_khazard] must advance freed_servils to defeated_genkhazard. */
+            {
+                int npc_general_khazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_khazard");
+                const int arena_freed_servils = 12;
+                const int arena_defeated_genkhazard = 13;
+                int general_slot;
+
+                SELFTEST_CHECK(npc_general_khazard >= 0, "general_khazard should resolve as an npc symbol");
+                if( varp_arenaquest >= 0 )
+                    player->varps[varp_arenaquest] = arena_freed_servils;
+                general_slot = ToriRSServer_WorldNpcSpawn(srv, npc_general_khazard, 2601, 3163, 0);
+                SELFTEST_CHECK(general_slot >= 0, "general_khazard should spawn");
+                if( general_slot >= 0 && varp_arenaquest >= 0 )
+                {
+                    struct ToriRSServerNpc* general = &srv->npcs[general_slot];
+                    int t;
+
+                    ToriRSServer_WorldNpcSetOwner(general, player);
+                    SELFTEST_CHECK(general->max_hitpoints == 170,
+                                   "general_khazard hitpoints should match quest_arena.npc (170), got %d",
+                                   general->max_hitpoints);
+                    general->combat_target = player->pid;
+                    ToriRSServer_CombatHitNpc(srv, general_slot, 0, general->max_hitpoints);
+                    for( t = 0; t < 5 && player->varps[varp_arenaquest] != arena_defeated_genkhazard; t++ )
+                        selftest_tick(srv);
+                    SELFTEST_CHECK(player->varps[varp_arenaquest] == arena_defeated_genkhazard,
+                                   "killing general_khazard should advance arenaquest to "
+                                   "arena_defeated_genkhazard, got %d",
+                                   player->varps[varp_arenaquest]);
                 }
             }
 
