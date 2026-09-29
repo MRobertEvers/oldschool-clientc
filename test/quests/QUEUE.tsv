@@ -1,8 +1,8 @@
 quest_dir	test_id	helper_dir	helper_file	tier	status	owner	last_failure
 quest_animalmagnetism	animalmagnetism	animalmagnetism		4	todo		
 quest_anothersliceofham	anothersliceofham	anothersliceofham		4	todo		seam22 [b2b3fc229]: Lumbridge Swamp Dark hole refuses without a rope until one is tied (wiki) -- give a rope in setup
-quest_arena	arena	fightarena		3	todo		parity3a [b6aef218bc] partial -- legs left: cage/gate anims + shared-arena fights, Barman Twilight soft-skip, Justin cell legs; drive the LostCity legs per PARITY.tsv
-quest_arthur	arthur	merlinscrystal		3	todo		parity3a [b6aef218bc] partial -- legs left: Sir Kay/Arhein trail arms, Keep door swing, bat_bones delay/sound; drive the LostCity legs per PARITY.tsv
+quest_arena	arena	fightarena		3	green	sonnet-b33	
+quest_arthur	arthur	merlinscrystal		3	green	sonnet-b33	
 quest_ascentofarceuus	ascentofarceuus	theascentofarceuus		4	todo		
 quest_atailoftwocats	atailoftwocats	atailoftwocats		1	green	sonnet-b26	
 quest_atfirstlight	atfirstlight	atfirstlight		4	todo		
@@ -17,7 +17,7 @@ quest_blackknight	blackknight	blackknightfortress		1	green	sonnet-b16
 quest_bonevoyage	bonevoyage	bonevoyage		4	todo		
 quest_cabinfever	cabinfever	cabinfever		4	todo		
 quest_childrenofthesun	childrenofthesun	childrenofthesun		4	todo		
-quest_chompybird	chompybird	bigchompybirdhunting		3	todo		parity3a [b6aef218bc] partial -- legs left: chompy-sighted message chain; drive the LostCity legs per PARITY.tsv
+quest_chompybird	chompybird	bigchompybirdhunting		3	todo	sonnet-b33	REJECTED (sonnet-b33): author gave up (context compacted, 0 runs); test/quests/chompybird.lua is still the untouched new_quest.py scaffold (wrong bind varp chompybird_kills, dozens of CHECK markers, ends in t.blocked skipboss not landed with goto_tile past the cave entrance/exit); lint_quest fails. Author's notebook has a full route plan (Rantz -> ogre arrows -> chest bellows -> bloated toads -> chompy shot with ogre bow -> pluck -> Bugs/Fycie flavour -> spit-roast -> hand-in) for a fresh, larger-context author. Prior queue note: parity3a partial, chompy-sighted message chain left.
 quest_clientofkourend	clientofkourend	clientofkourend		4	todo		
 quest_cog	cog	clocktower		1	green	sonnet-b18	
 quest_coldwar	coldwar	coldwar		4	todo		
@@ -28,22 +28,22 @@ quest_crest	crest	familycrest		2	green	sonnet-b32
 quest_currentaffairs	currentaffairs	currentaffairs		1	green	sonnet-b26	
 quest_curseofarrav	curseofarrav	thecurseofarrav		4	todo		
 quest_darknessofhallowvale	darknessofhallowvale	darknessofhallowvale		4	todo		
-quest_death	death	deathplateau		3	todo		RETRY after 26aba9f29: soldier ai_timer ambience landed (per-entity random streams + .npc_find dot fix); drive the LostCity legs per PARITY.tsv
+quest_death	death	deathplateau		3	todo	sonnet-b33	REJECTED (sonnet-b33): run.py death --no-build ends SUMMARY FAIL pass=64 fail=11 (talkToDenulth3-dialog and talkToDenulthForDunstan-dialog chat entry 8 expected player got npc; talkToTenzing2/talkToTenzing1 walk_near stepped off 2820,3556; quest.varp_complete death_equiproom=40 want 80; scroll/points/journal/attack xp/steel_claws all unmet). File is still the unedited skeleton: CHECK markers, placeholder expect_stage-24, ::give of iron_bar/bread/trout, many goto_tile legs. Author made 0 runs (compacted).
 quest_deathontheisle	deathontheisle	deathontheisle		4	todo		
 quest_deathtothedorgeshuun	deathtothedorgeshuun	deathtothedorgeshuun		4	todo		
 quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo		
-quest_demon	demon	demonslayer		3	todo		parity3a [b6aef218bc] partial -- legs left: Traiborn tile off by one, no-Silverlight refusal undriven; drive the LostCity legs per PARITY.tsv
+quest_demon	demon	demonslayer		3	content_bug	sonnet-b33	content_bug: fillBucket -- using bucket_empty on fai_varrock_posh_sink (Quest Helper FAI_VARROCK_POSH_SINK, 3224,3495) does nothing; no [oplocu,fai_varrock_posh_sink] exists and loc category 175 is not watersource 244 (general_use/scripts/water_sources.rs2), so bucket_water and the drain/manhole/sewer/Traiborn/Delrith legs behind it are unreached. Green through Aris, Prysin, Rovin key, bucket pickup (20 pass + 1 blocked).
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
 quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	todo		
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
-quest_dragon	dragon	dragonslayer		3	todo		parity3a [b6aef218bc] partial -- legs left: ship-copy Ned spawn, last-hit credit, Oziach trail branch; drive the LostCity legs per PARITY.tsv
+quest_dragon	dragon	dragonslayer		3	todo	sonnet-b33	REJECTED (sonnet-b33): author gave up with 0 runs; test/quests/dragon.lua is the unmodified new_quest.py scaffold (CHECK markers, guessed branches, skipboss t.blocked at killElvarg). run.py ledger FAIL: killRat, Lozar dialog, searchThalzarChest2, talkToNedOnShip, repairShip; lint and gate red. parity3a legs left: ship-copy Ned spawn, last-hit credit, Oziach trail branch.
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
-quest_druidspirit	druidspirit	naturespirit		3	todo		parity3a [b6aef218bc] partial -- legs left: swamp_decay fixed 3 vs LC 1-3, sounds/projectiles; drive the LostCity legs per PARITY.tsv || seam22 [b2b3fc229]: ghast [apnpc2] ends @player_combat_start_ap (LostCity ghast.rs2) -- melee walks in, ranged/magic from range
+quest_druidspirit	druidspirit	naturespirit		3	todo	sonnet-b33	REJECTED (sonnet-b33): author compacted twice with 0 runs; test/quests/druidspirit.lua is the untouched scaffold. run.py FAIL (talkToDrezel dialog, useMushroom no menu row, talkToFillimanInGrotto/blessSickle no npc in pool, ends in obsolete t.blocked skipboss), gate FAIL, lint has 15+ CHECK markers. Author notebook has the full stage ladder (5..110) and the rs2 facts in build/author_state/sonnet-b33/druidspirit.author.progress.md; a fresh author must drive Drezel offer, Mort Myre gate, Filliman/mirror/journal, bloom spell, stones, grotto, sickle, pouch, 3 ghasts, hand-in.
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
