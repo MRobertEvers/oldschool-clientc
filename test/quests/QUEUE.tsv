@@ -49,7 +49,7 @@ quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
 quest_elemental_workshop	elemental_workshop	elementalworkshopi		1	green	sonnet-b16	
 quest_elementalworkshopii	elementalworkshopii	elementalworkshopii		4	todo		
-quest_elena	elena	plaguecity		3	todo		
+quest_elena	elena	plaguecity		3	todo		parity3b [102ca79fcb]: content at LC parity (door, sewer landings, Edmond shells, teleport gate); AUTHOR from build/parity_state/parity3b/elena_scripts; legs left: gate no-key branch, teleport cast
 quest_enakhraslament	enakhraslament	enakhraslament		4	todo		
 quest_enlightenedjourney	enlightenedjourney	enlightenedjourney		4	todo		
 quest_entertheabyss	entertheabyss	entertheabyss		1	green	sonnet-b15	
@@ -66,15 +66,15 @@ quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	todo
 quest_gettingahead	gettingahead	gettingahead		4	todo		
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28	
 quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		
-quest_gobdip	gobdip	goblindiplomacy		3	todo		
+quest_gobdip	gobdip	goblindiplomacy		3	todo		parity3b [102ca79fcb]: ladder 0<->2 fixed; AUTHOR from build/parity_state/parity3b/gobdip.driver.lua; leg left: Grubfoot blue talk not driven
 quest_golem	golem	thegolem		1	green	sonnet-b15	
 quest_grail	grail	holygrail		2	green	sonnet-b28	
-quest_grandtree	grandtree	thegrandtree		3	todo		
+quest_grandtree	grandtree	thegrandtree		3	todo		parity3b [102ca79fcb]: trapdoor child bound, gates swing, foreman order drops; AUTHOR from build/parity_state/parity3b/grandtree_scripts; fight foreman + black demon for real
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16	
 quest_hauntedmine	hauntedmine	hauntedmine		3	todo		
-quest_hazeelcult	hazeelcult	hazeelcult		3	todo		
+quest_hazeelcult	hazeelcult	hazeelcult		3	todo		parity3b [102ca79fcb]: upstairs Ceril/Jones, cupboard Open+Search, kitchen ladders; AUTHOR both branches from build/parity_state/parity3b/hazeelcult_scripts (c1.lua, h2.lua)
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
@@ -82,11 +82,11 @@ quest_horror	horror	horrorfromthedeep		3	todo
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
-quest_ikov	ikov	templeofikov		3	todo		
-quest_imp	imp	impcatcher		3	todo		
+quest_ikov	ikov	templeofikov		3	todo		parity3b [102ca79fcb]: dungeon at LC parity; BLOCKED on Lucien spawns PARKED (RNG shift turns atailoftwocats red) -- land them with an RNG-robust twocats first; defeat line parked (C stanza)
+quest_imp	imp	impcatcher		3	todo		parity3b [102ca79fcb]: no content edit needed; AUTHOR from the parity_imp p1/p2c/p3 drivers (41 real imp kills, max_frames=240000)
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
-quest_itexam	itexam	thedigsite		3	todo		
+quest_itexam	itexam	thedigsite		3	todo		parity3b [102ca79fcb]: content at LC parity; BLOCKED on Terry Balando's m52_52 spawn PARKED (RNG shift turns tree/squire/sheepherder + C goblin red) -- land it with RNG-robust tests; driver build/parity_state/parity3b/itexam.full.lua
 quest_itgronigen	itgronigen	observatoryquest		3	todo		
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41
 quest_junglepotion	junglepotion	junglepotion		3	todo		
