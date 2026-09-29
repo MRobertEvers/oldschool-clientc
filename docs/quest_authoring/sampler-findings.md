@@ -67,3 +67,26 @@ Count only ZERO-BAR deaths as kills, and log `t.world.obj_near` for every colour
 death, before any pickup. Content imps do not teleport when damaged
 (`areas/lumbridge/scripts/imp.rs2` has no panic teleport). They only teleport on their idle timer,
 and never while in combat.
+
+## Sample sonnet-b35 (2026-09-29)
+
+*Origin: section 8 ("Gaps reported by authors"); sampler checked chompybird, druidspirit, imp.*
+
+(a) A TRAPDOOR THAT ONLY OPENED, OR A REFUSED ONE, IS NOT A DESCENT. Nature Spirit (`druidspirit`,
+sent back) clicked the Paterdomus `trapdoor`, read "The trapdoor opens...", and then used `goto_tile`
+to reach Drezel underground. Later it clicked `pipeastsidetrapdoor`, read "Lab stairs and trapdoors
+sit locked.", and used `goto_tile` past that too. Both rows passed on the chat line alone. Read the
+line a travel click produced. An op1 that only opens a trapdoor needs a second click (Climb-down).
+A refusal is a seam to report (`gaps-world.md`, Paterdomus). Neither one licenses a `goto_tile`.
+
+(b) A GUIDE SUB-STEP IS PART OF THE LADDER. NatureSpirit.java adds `leaveDrezel` (the holy barrier,
+`pip_underground_wall_side_withportal`) with `enterSwamp.addSubSteps(leaveDrezel)`. `helper_coverage`
+graded `enterSwamp` FULL on the gate click alone, but the test teleported from Drezel to the swamp
+gate and never crossed the barrier the guide names. Read the guide's `addSubSteps` lines as well as
+its panel.
+
+(c) REWARD SHOTS SHOW THE QUEST LIST TAB. `t.quest.expect_complete()` ends on `quest.journal`, which
+leaves the Quest List tab open. Every reward row after it (`reward.magic`, `reward.ogre_bow`, ...)
+therefore photographs that tab, not the skill or item it names. This happened in imp shots 36-38 and
+chompybird shots 237-239. The ledger detail still carries the literal amount. Press
+`t.ui.tab("inventory")` before an item reward row, so the shot shows what the row name claims.

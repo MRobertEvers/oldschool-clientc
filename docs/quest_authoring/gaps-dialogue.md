@@ -77,6 +77,10 @@ the reopened kind, then play the reopened dialogue as its own row -- `hunt.lua`'
 `hunt.luthas_payout_reopen` / `hunt.customs_pay_reopen` rows are the worked example. Read it too
 early and the shot you publish is that branch's own `Please wait...` transition frame.
 
+Death Plateau's Harold has the same shape twice (the ale and the blurberry special): an objbox,
+then `if_close` + `p_delay`, then the next page. End the `chat.play` list at the objbox, run
+`t.ticks(...)`, and start a second list at the next page.
+
 ### `ok` is not proof: `click_obj`, `inv.await(name, 0)`, `[oplocu]` hand-ins, auto-shots
 
 > CONFLICT (kept both): the `click_obj` nil-detail sentence below predates seam27. Trap 12 (seam27)

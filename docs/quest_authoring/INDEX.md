@@ -247,6 +247,7 @@ topic file with one line added here.
 - named content gaps (The Feud, One Small Favour, Shadow of the Storm) -> content-gaps
 - place facts (Watchtower, Tourist Trap, Death's Coffer, Witchaven, Ghosts Ahoy, Hazeel Cult) -> seam-facts: passes 23-28
 - `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
+- "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
 
 ## Citations: resolving a number or a name
 
@@ -260,5 +261,5 @@ topic file with one line added here.
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
 - "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-29); a seam number in a verb or trap dates that behaviour
-- samplers: b31, b32, b34 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
+- samplers: b31, b32, b34, b35 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`

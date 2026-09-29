@@ -279,3 +279,16 @@ within five tiles) has to find its subject, not assume it.
 `::complete quest_druidicritual` (`all.dbrow.compack`); `quest_druid` is the folder and answers
 nothing -- a prerequisite cheat that silently does nothing leaves the whole downstream cascade
 looking like a content bug (Heroes' Quest lost its entire Herblore leg to it).
+
+## Feldip hunting ground: the damage comes from the wolves; the lent ogre bow is the reward
+
+In Big Chompy Bird Hunting the chompy (level 6) is not what hurts. Wolves roam the swamp bubbles
+where the toads are inflated. The committed run was at 10 of 60 hitpoints by `inflateToad.1` (shot
+100), began the chompy fight at 11, and ate five lobsters (the `killChompy` detail). An earlier run
+without food died after "You start plucking the chompy bird." The `player.died` row came several
+rows after the damage and did not name the attacker. Carry food from setup and pass `opts.eat` to
+every kill wait here, even a trivial one.
+
+Rantz lends the player his `ogre_bow` (`talkToRantzForBow`), and the test wears it for the kill. The
+completion does not add another bow, so `inv.expect_has("ogre_bow")` straight after
+`expect_complete` fails. Run `t.player.unequip("ogre_bow")` first, then read the backpack.

@@ -345,3 +345,27 @@ round/scene procs, with the trigger on that child's symbol: Fight Arena's arena 
 `sammy_servil_vis` placed by `~arena_spawn_sammy` for stages 6..11 and removed at freed_servils
 (LostCity jeremy_servil_arena op1=Talk-to). Drive it with `talk_to('sammy_servil_vis')`.
 
+
+## Paterdomus: Drezel's offer, the holy barrier and the east trapdoor (Nature Spirit)
+
+`::complete quest_priestinperil` sets the varp and grants no items. Before Drezel makes the Nature
+Spirit offer, the backpack must hold `dagger_wolfbane` (Priest in Peril's reward, `::give` it in
+setup) and the player must ask to cross the holy barrier ("Drezel, might I be permitted to cross the
+holy barrier").
+
+The way OUT of Drezel's room is that barrier. `[oploc1,pip_underground_wall_side_withportal]`
+(`quest_priestperil/scripts/mausoleum_interactions.rs2:23`) `p_telejump`s to 3423,3485 once
+`%priestperil >= ^priestperil_access_holy_barrier`. Quest Helper names it as `leaveDrezel`, a
+sub-step of `enterSwamp`. Click it rather than using `goto_tile` from the room to the swamp gate.
+
+The way back IN (`goBackDownToDrezel`, `pipeastsidetrapdoor` at 3422,3485) is a CONTENT SEAM as of
+2026-09-29. `quest_sinsofthefather/scripts/sinsofthefather.rs2:507` owns
+`[oploc1,pipeastsidetrapdoor]` and answers "Lab stairs and trapdoors sit locked." to anyone outside
+the Myreque arc. Report it; do not `goto_tile` past it.
+
+## Death Plateau: Harold's door and Tenzing's fenced house
+
+Harold's room is upstairs in the Burthorpe inn. His door (`harold_door`, 2906,3543,1) cannot be
+reached from the stair corridor, so `goto_tile` to a tile outside the door first. The roof hides the
+door from the default camera; turn the camera (`t.drive.camera`) before the click. Tenzing's house
+is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.

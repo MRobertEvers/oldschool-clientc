@@ -150,6 +150,11 @@ means the two agreed.
 `t.scroll.reward_xp(skill)` -> `(ok, xp)` `no_row`. Parses `<n> <Skill> XP`, case-insensitive,
 unscaled.
 
+It does NOT parse thousands separators. The pattern is `(%d+)%s+(%a+)%s+XP`, so "10,500 Attack XP"
+reads 500 (`script/plugins/quest_driver/read.lua:420`). For a reward of 1,000 xp or more, assert
+with `t.skill.expect_gain` against a `skill.snapshot()`, or read `t.scroll.rewards()` lines
+yourself (`ikov.lua` does).
+
 ### `t.scroll.close()`
 
 `t.scroll.close()` -> `ok` `no_row`.
