@@ -13,24 +13,14 @@
 -- fai_dwarf_trapdoor_down or spiralstairs, all three are generic
 -- category=climb_* records this content pack already climbs for free.
 --
--- STOPS at talkToBleemadge: pilot_white_wolf's world spawn row
--- (areas/world/configs/m44_54.spawn) carries the MULTINPC BASE symbol
--- (all.npc's own [pilot_white_wolf] multinpc5=pilot_white_wolf_base), so
--- per QUEST_AUTHORING.md trap 19 the live npc's op lookup resolves to
--- areas/area_gnome/scripts/gnome_glider.rs2:16
--- ([opnpc1,pilot_white_wolf] @gnome_pilot_talk;), never to
--- onesmallfavour_relay.rs2:165's [opnpc1,pilot_white_wolf_base] -- which
--- is exactly this trap's dead-code shape. gnome_pilot_talk has no
--- onesmallfavour branch at all, so the Guthix-rest-tea exchange Sanfew
--- sends the player to (osf_brewing_tea) can never be reached by a real
--- click, and everything the guide drives after Sanfew (Arhein, Phantuwti,
--- the goblin-cave sculpture/Slagilith, the weathervane, the dwarf-gang
--- fight, the pot lid, and every return leg back down to Yanni) is
--- unreachable behind it. content_bug, not a driver seam.
+-- Captain Bleemadge: gnome_glider.rs2:27-29 hands the One Small Favour
+-- window (stages 75..86 and 190) to onesmallfavour_relay.rs2's
+-- [label,osf_bleemadge_talk]; the whole chain is driven to Yanni's reward.
 
 return {
     id = "onesmallfavour",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 240000,
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
         "::give steel_bar 4",
@@ -40,13 +30,27 @@ return {
         "::give guam_leaf 2",
         "::give marentill 1",
         "::give harralander 1",
+        "::give hammer 1",
         "::give cup_empty 1",
-        "::give pot_empty 1",
         "::give bowl_hot_water 1",
+        -- Tassie's done branch hands a pot, never the clay (see returnToTassie).
+        "::give softclay 1",
+        -- Slagilith (level 92) and three level-44 gang dwarves: a pickaxe
+        -- (the guide's recommended weapon for Slagilith), armour and food.
+        "::give rune_pickaxe 1",
+        "::give rune_full_helm 1",
+        "::give rune_chainbody 1",
+        "::give rune_platelegs 1",
+        "::give rune_kiteshield 1",
+        "::give shark 4",
         "::setlevel agility 36",
         "::setlevel crafting 25",
         "::setlevel herblore 18",
         "::setlevel smithing 30",
+        "::setlevel attack 80",
+        "::setlevel strength 80",
+        "::setlevel defence 80",
+        "::setlevel hitpoints 90",
         "::complete quest_runemysteries",
         "::complete quest_druidicritual",
     },
@@ -68,6 +72,39 @@ return {
                 hammerspike_told = 70,
                 sanfew_told = 75,
                 brewing_tea = 80,
+                bleemadge_wants_trash = 86,
+                arhein_told = 88,
+                phantuwti_told = 90,
+                wall_found = 95,
+                cromperty_told = 100,
+                tindel_told = 105,
+                rantz_told = 110,
+                gnormadium_told = 115,
+                gnormadium_done = 125,
+                rantz_done = 130,
+                tindel_done = 135,
+                cromperty_done = 140,
+                slagilith_fight = 145,
+                slagilith_defeated = 150,
+                petra_freed = 152,
+                phantuwti_weather = 160,
+                vane_search = 175,
+                vane_parts_taken = 177,
+                vane_repaired = 180,
+                phantuwti_vane_done = 185,
+                arhein_done = 190,
+                bleemadge_done = 195,
+                sanfew_done = 200,
+                hammerspike_gang = 205,
+                hammerspike_done = 225,
+                tassie_done = 230,
+                pot_made = 235,
+                horvik_done = 240,
+                seth_done = 250,
+                johanhus_done = 255,
+                aggie_done = 260,
+                brian_done = 265,
+                forester_done = 270,
                 complete = 285,
             },
             row = "quest_onesmallfavour",
@@ -76,6 +113,11 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        t.exec("gear.pickaxe", t.player.equip, "rune_pickaxe")
+        t.exec("gear.helm", t.player.equip, "rune_full_helm")
+        t.exec("gear.body", t.player.equip, "rune_chainbody")
+        t.exec("gear.legs", t.player.equip, "rune_platelegs")
+        t.exec("gear.shield", t.player.equip, "rune_kiteshield")
 
         -- === Yanni Salika (Shilo Village) -- start the favour chain ======
         -- areas/area_shilo/scripts/yanni_salika.rs2:9-27 (osf_not_started
@@ -136,6 +178,7 @@ return {
         -- Johanhus himself below, not by this visit). Read what the client
         -- actually shows rather than assert exact text neither owner script
         -- promises at this stage.
+        -- GUIDE-GAP: talkToAggie branch gated on osf_axe_to_brian, the stage Brian already advanced, at onesmallfavour_relay.rs2:20
         t.exec("goto-talkToAggie", t.player.goto_tile, 3086, 3259, 0)
         t.exec("talkToAggie", t.player.talk_to, "aggie", 1)
         t.exec("talkToAggie-dialog", t.chat.drain, { max_pages = 6, shots = true })
@@ -251,78 +294,415 @@ return {
         })
         t.expect("quest.stage.sanfew_told", t.quest.expect_stage("sanfew_told"))
 
-        -- === Captain Bleemadge (White Wolf Mountain gnome glider base) =====
-        -- The guide's next step: brew a cup of Guthix rest (Sanfew's own
-        -- recipe -- guam x2, marrentill, harralander, all four already
-        -- given in setup) and bring it to Captain Bleemadge
-        -- (onesmallfavour_relay.rs2:180-217, osf_sanfew_told branch) to
-        -- unlock osf_brewing_tea. The live npc at White Wolf Mountain is
-        -- spawned as `pilot_white_wolf` (areas/world/configs/m44_54.spawn),
-        -- which is a MULTINPC BASE (configs/all.npc [pilot_white_wolf]
-        -- multinpc5=pilot_white_wolf_base) -- trap 19's exact shape. The
-        -- op lookup is keyed on the spawned symbol only, so talking to it
-        -- reaches areas/area_gnome/scripts/gnome_glider.rs2:16
-        -- ([opnpc1,pilot_white_wolf] @gnome_pilot_talk;), which has no
-        -- onesmallfavour branch anywhere in gnome_pilot_talk -- never
-        -- onesmallfavour_relay.rs2:165's [opnpc1,pilot_white_wolf_base],
-        -- which is unreachable dead code from a live spawn. Prove it live
-        -- before blocking: talk to him, read what actually opens, confirm
-        -- the stage never moves.
-        t.exec("goto-talkToBleemadge", t.player.goto_tile, 2847, 3499, 0)
-        t.exec("talkToBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
-        local chat_kind = t.chat.kind()
-        local text_result, chat_text = t.chat.text()
-        t.check("talkToBleemadge-observed", chat_kind ~= "none",
-            "chat kind=" .. tostring(chat_kind) .. " text=" ..
-            tostring(text_result == "ok" and chat_text or text_result) ..
-            " -- not the onesmallfavour Guthix-rest-tea exchange" ..
-            " (relay.rs2:181 'That's me! You after a lift, gnome-friend?' never appears)")
-        t.chat.close()
-        t.exec("quest.stage.still_sanfew_told", t.var.await_server, "onesmallfavour", 75, 10)
+        -- === Guthix rest tea + Captain Bleemadge (White Wolf Mountain) =====
+        -- gnome_glider.rs2:27-29 hands %onesmallfavour 75..86 and 190 to
+        -- onesmallfavour_relay.rs2's [label,osf_bleemadge_talk]. At 75 the
+        -- first talk only sets osf_brewing_tea (relay.rs2:172-178); the tea
+        -- is handed over on a SECOND talk (relay.rs2:180-191).
+        t.exec("goto-talkToBleemadge", t.player.goto_tile, 2846, 3497, 0)
+        t.ticks(3)
+        t.exec("meetBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
+        t.exec("meetBleemadge-dialog", t.chat.play, {
+            "player:Right-o, Captain Bleemadge?",
+            "npc:That's me! You after a lift, gnome-friend?",
+            "player:Sanfew sent me.",
+            "npc:Sanfew, eh?",
+        })
+        t.expect("quest.stage.brewing_tea", t.quest.expect_stage("brewing_tea"))
 
-        -- Every remaining Quest Helper step lives behind osf_brewing_tea
-        -- (80), which the block above proves is unreachable through a real
-        -- click -- same root cause for all of them, cited once per step so
-        -- helper_coverage.py grades each a declared CONTENT_GAP rather than
-        -- UNMATCHED (trap 32).
-        -- GUIDE-GAP: talkToArhein unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: talkToPhantuwti unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: enterGoblinCave unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: searchWall unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: talkToCromperty unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: talkToTindel unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: talkToRantz unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: returnToRantz unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: returnToTindel unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: getPigeonCages unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: enterGoblinCaveAgain unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: standNextToSculpture unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: killSlagilith unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: readScrollAgain unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: talkToPetra unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: returnToPhantuwti unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: finishWithPhantuwti unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: returnToArhein unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: killGangMembers unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: spinPotLid unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: firePotLid unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: usePotLidOnPot unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        -- GUIDE-GAP: pickUpPot unreachable behind onesmallfavour_relay.rs2:165's dead pilot_white_wolf_base trigger
-        t.blocked("content_bug: onesmallfavour_relay.rs2:165 [opnpc1,pilot_white_wolf_base] " ..
-            "gates Captain Bleemadge's Guthix-rest-tea exchange on the CHILD symbol of a " ..
-            "multinpc (configs/all.npc [pilot_white_wolf] multinpc5=pilot_white_wolf_base), but " ..
-            "the live world spawn (areas/world/configs/m44_54.spawn: 'pilot_white_wolf 2847 3499 0') " ..
-            "carries the BASE symbol -- QUEST_AUTHORING.md trap 19's exact dead-code shape (the op " ..
-            "lookup is keyed on the spawned symbol only). The base symbol's own owner trigger, " ..
-            "areas/area_gnome/scripts/gnome_glider.rs2:16 ([opnpc1,pilot_white_wolf] " ..
-            "@gnome_pilot_talk;), has no onesmallfavour check anywhere in gnome_pilot_talk, so " ..
-            "%onesmallfavour can never advance past osf_sanfew_told (75) through a real click. Same " ..
-            "fix idiom as trap 19's reldo/osman/holgart precedent: gnome_pilot_talk must check " ..
-            "%onesmallfavour first and hand off to onesmallfavour_relay.rs2's own osf_bleemadge_talk " ..
-            "label before falling into its own dialogue. Everything the guide drives after Sanfew " ..
-            "(Arhein's T.R.A.S.H., Phantuwti's weathervane and the goblin-cave sculpture/Slagilith " ..
-            "fight, Hammerspike's dwarf-gang fight, Tassie's pot lid, and every return leg back down " ..
-            "to Yanni) sits behind this same unreachable gate.")
+        -- onesmallfavour_puzzles.rs2:163-172 (bowl of hot water on the cup)
+        -- then brew_potion.rs2:90 -> ~osf_brew_tea (puzzles.rs2:196-211).
+        t.exec("useBowlOnCup", t.player.use_item_on_item, "bowl_hot_water", "cup_empty")
+        t.exec("useBowlOnCup.cup", t.inv.await, "cup_hot_water", 1, 10)
+        t.exec("useHerbsOnCup", t.player.use_item_on_item, "guam_leaf", "cup_hot_water")
+        t.exec("makeGuthixRest", t.inv.await, "cup_guthix_rest_3", 1, 10)
+
+        t.exec("talkToBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
+        t.exec("talkToBleemadge-dialog", t.chat.play, {
+            "player:I have a special tea here for you from Sanfew!",
+            "npc:Ah, lovely, just what the herblorist ordered.",
+            "npc:Much better already!",
+        })
+        t.expect("quest.stage.bleemadge_wants_trash", t.quest.expect_stage("bleemadge_wants_trash"))
+
+        -- === Arhein (Catherby) -- arhein.rs2:21-26 ==========================
+        t.exec("goto-talkToArhein", t.player.goto_tile, 2804, 3431, 0)
+        t.exec("talkToArhein", t.player.talk_to, "arhein", 1)
+        t.exec("talkToArhein-dialog", t.chat.play, {
+            "player:I need to talk T.R.A.S.H. to you.",
+            "npc:T.R.A.S.H.? Captain Bleemadge sent you",
+            "player:Yes, Ok, I'll do it!",
+        })
+        t.expect("quest.stage.arhein_told", t.quest.expect_stage("arhein_told"))
+
+        -- === Phantuwti Farsight (Seers' Village) -- relay.rs2:211-220 =======
+        t.exec("goto-talkToPhantuwti", t.player.goto_tile, 2704, 3474, 0)
+        t.exec("talkToPhantuwti", t.player.talk_to, "favour_phantuwti_farsight", 1)
+        t.exec("talkToPhantuwti-dialog", t.chat.play, {
+            "player:Hi, can you give me a weather forecast?",
+            "npc:I would, if my seeing-tools",
+            "player:What can I do to help?",
+            "npc:Find Petra",
+            "player:Yes, Ok, I'll do it.",
+        })
+        t.expect("quest.stage.phantuwti_told", t.quest.expect_stage("phantuwti_told"))
+
+        -- === Goblin cave sculpture -- mcannon_cave_guard.rs2:8-14 (enter),
+        -- onesmallfavour_puzzles.rs2:11-16 (search) ==========================
+        t.exec("goto-enterGoblinCave", t.player.goto_tile, 2624, 3392, 0)
+        t.exec("enterGoblinCave", t.player.click_loc, "mcannoncave", 1)
+        t.ticks(3)
+        local cave_r, cave_tile = t.world.tile()
+        t.check("enterGoblinCave.landed", cave_r == "ok" and cave_tile.z > 9000,
+            "after Enter: " .. tostring(cave_tile and (cave_tile.x .. "," .. cave_tile.z .. "," .. cave_tile.level)))
+        t.exec("goto-searchWall", t.player.goto_tile, 2620, 9834, 0)
+        t.exec("searchWall", t.player.click_loc, "favour_lady_in_wall", 1)
+        t.exec("searchWall-dialog", t.chat.play, { "mesbox:crude sculpture of a woman" })
+        t.expect("quest.stage.wall_found", t.quest.expect_stage("wall_found"))
+
+        -- === Wizard Cromperty (East Ardougne) -- wizard_cromperty.rs2:14-20
+        t.exec("goto-talkToCromperty", t.player.goto_tile, 2683, 3325, 0)
+        t.exec("talkToCromperty", t.player.talk_to, "ardounge_wizard", 1)
+        t.exec("talkToCromperty-dialog", t.chat.play, {
+            "player:Chat.",
+            "player:I need to talk to you about a girl stuck in some rock!",
+            "npc:Stuck in rock?",
+            "player:Oh! One more 'small favour'",
+        })
+        t.expect("quest.stage.cromperty_told", t.quest.expect_stage("cromperty_told"))
+
+        -- === Tindel Marchant (Port Khazard) -- relay.rs2:253-262 ============
+        t.exec("goto-talkToTindel", t.player.goto_tile, 2678, 3152, 0)
+        t.exec("talkToTindel", t.player.talk_to, "tindel_marchant", 1)
+        t.exec("talkToTindel-dialog", t.chat.play, {
+            "player:Wizard Cromperty sent me to get some iron oxide.",
+            "npc:Iron oxide!",
+            "player:Ask about iron oxide.",
+            "npc:Bring me back a proper comfy mattress",
+            "player:Okay, I'll do it!",
+        })
+        t.expect("quest.stage.tindel_told", t.quest.expect_stage("tindel_told"))
+
+        -- === Rantz (Feldip Hills) -- relay.rs2:286-293 ======================
+        t.exec("goto-talkToRantz", t.player.goto_tile, 2630, 2980, 0)
+        t.exec("talkToRantz", t.player.talk_to, "rantz", 1)
+        t.exec("talkToRantz-dialog", t.chat.play, {
+            "player:I need to talk to you about a mattress.",
+            "npc:A mattress!",
+            "player:Ok, I'll see what I can do.",
+        })
+        t.expect("quest.stage.rantz_told", t.quest.expect_stage("rantz_told"))
+
+        -- === Gnormadium Avlafrim (glider strip) -- relay.rs2:312-363 ========
+        t.exec("goto-talkToGnormadium", t.player.goto_tile, 2544, 2972, 0)
+        t.exec("talkToGnormadium", t.player.talk_to, "gnormadium_avlafrim", 1)
+        t.exec("talkToGnormadium-dialog", t.chat.play, {
+            "player:Rantz said I should help you finish this project.",
+            "npc:Oh, thank goodness.",
+            "player:Yes, I'll take a look at them.",
+        })
+        t.expect("quest.stage.gnormadium_told", t.quest.expect_stage("gnormadium_told"))
+
+        -- The eight-lamp take/cut/put puzzle is collapsed into one dialogue
+        -- choice in this port: the mesbox narrates it and the script writes
+        -- every jadelight*/topazlight*/... bit and %fixedlandinglights itself.
+        -- GUIDE-GAP: fixAllLamps narrated in one Gnormadium mesbox at onesmallfavour_relay.rs2:333
+        t.exec("fixAllLamps", t.player.talk_to, "gnormadium_avlafrim", 1)
+        t.exec("fixAllLamps-dialog", t.chat.play, {
+            "npc:Eight lamps, north and south rows",
+            "choose:Yes, I'll fix them now.",
+            "player:Yes, I'll fix them now.",
+            "mesbox:You take the shattered gems",
+        })
+        -- The closing page's continue answered 'modal closed' inside chat.play
+        -- (run 1): read the page, then continue it on its own row.
+        t.exec("fixAllLamps-lit", t.chat.expect_text, "Look at that, bright as day!")
+        local lit_r, lit_d = t.chat.continue_()
+        t.check("fixAllLamps-closed", lit_r == "ok" or lit_r == "closed",
+            "continue on Gnormadium's closing page -> " .. tostring(lit_r) .. " " .. tostring(lit_d))
+        t.expect("quest.stage.gnormadium_done", t.quest.expect_stage("gnormadium_done"))
+        t.exec("talkToGnormadiumAgain", t.player.talk_to, "gnormadium_avlafrim", 1)
+        t.exec("talkToGnormadiumAgain-dialog", t.chat.play, {
+            "npc:Lovely and bright now, thanks to you.",
+        })
+
+        -- === Rantz, Tindel, Cromperty again =================================
+        t.exec("goto-returnToRantz", t.player.goto_tile, 2630, 2980, 0)
+        t.exec("returnToRantz", t.player.talk_to, "rantz", 1)
+        t.exec("returnToRantz-dialog", t.chat.play, {
+            "player:Ok, I've helped that Gnome",
+            "npc:Splendid! Let's see to that mattress, then.",
+        })
+        t.expect("quest.stage.rantz_done", t.quest.expect_stage("rantz_done"))
+        t.exec("returnToRantz.mattress", t.inv.await, "favour_matress_comfy", 1, 10)
+
+        t.exec("goto-returnToTindel", t.player.goto_tile, 2678, 3152, 0)
+        t.exec("returnToTindel", t.player.talk_to, "tindel_marchant", 1)
+        t.exec("returnToTindel-dialog", t.chat.play, {
+            "player:I have the mattress.",
+            "npc:Ahh, lovely and comfy.",
+        })
+        t.expect("quest.stage.tindel_done", t.quest.expect_stage("tindel_done"))
+        t.exec("returnToTindel.oxide", t.inv.await, "favour_iron_oxide", 1, 10)
+
+        t.exec("goto-returnToCromperty", t.player.goto_tile, 2683, 3325, 0)
+        t.exec("returnToCromperty", t.player.talk_to, "ardounge_wizard", 1)
+        t.exec("returnToCromperty-dialog", t.chat.play, {
+            "player:I have that iron oxide you asked for!",
+            "npc:Marvellous! Here's your animate rock scroll",
+        })
+        t.expect("quest.stage.cromperty_done", t.quest.expect_stage("cromperty_done"))
+        t.exec("returnToCromperty.scroll", t.inv.await, "favour_animate_rock", 1, 10)
+
+        -- === Pigeon cages behind Jerico's house =============================
+        -- Three `pigeons` ground spawns (areas/world/configs/m40_51.spawn:116-118);
+        -- the guide wants five, so the loop waits for the respawn. This port's
+        -- Horvik never asks for them (horvik.rs2:20-33), but the guide step
+        -- is driven as written.
+        t.exec("goto-getPigeonCages", t.player.goto_tile, 2619, 3324, 0)
+        for cage = 1, 5 do
+            local seen = t.await({
+                level = function()
+                    return t.world.obj_near("pigeons", 4) == "ok"
+                end,
+                note = "pigeon cage on the ground",
+            }, 300)
+            if seen == "ok" then
+                t.player.click_obj("pigeons", 3)
+                t.inv.await("pigeons", cage, 10)
+            end
+        end
+        local cages_r, cages = t.inv.count("pigeons")
+        t.check("getPigeonCages", cages_r == "ok" and cages >= 5,
+            "pigeon cages carried after the pickup loop: " .. tostring(cages) .. " (need 5)")
+
+        -- === Slagilith and Petra -- onesmallfavour_puzzles.rs2:27-64,
+        -- onesmallfavour_relay.rs2:366-425 ====================================
+        t.exec("goto-enterGoblinCaveAgain", t.player.goto_tile, 2624, 3392, 0)
+        t.exec("enterGoblinCaveAgain", t.player.click_loc, "mcannoncave", 1)
+        t.ticks(3)
+        t.exec("goto-standNextToSculpture", t.player.goto_tile, 2617, 9835, 0)
+        t.exec("standNextToSculpture", t.player.use_on, "favour_animate_rock",
+            t.player.by_symbol("loc", "favour_lady_in_wall"))
+        t.exec("standNextToSculpture-dialog", t.chat.play, { "mesbox:You read the animate rock scroll aloud." })
+        t.expect("quest.stage.slagilith_fight", t.quest.expect_stage("slagilith_fight"))
+        t.exec("killSlagilith", t.player.attack, "slagilith", 2, 15)
+        t.exec("killSlagilith.dead", t.npc.await_dead_engaged, 200, 8)
+        t.exec("killSlagilith.stage", t.var.await_server, "onesmallfavour", 150, 15)
+        t.exec("readScrollAgain", t.player.use_on, "favour_animate_rock",
+            t.player.by_symbol("loc", "favour_lady_in_wall"))
+        t.exec("readScrollAgain-dialog", t.chat.play, { "mesbox:This time the spell strikes the sculpture." })
+        t.expect("quest.stage.petra_freed", t.quest.expect_stage("petra_freed"))
+        t.ticks(2)
+        t.exec("talkToPetra", t.player.talk_to, "favour_petra", 1)
+        t.exec("talkToPetra-dialog", t.chat.play, {
+            "player:Are you alright? Phantuwti sent me to find you.",
+            "npc:Oh, thank the gods!",
+            "player:It's dealt with now.",
+            "npc:I will, right away.",
+        })
+        t.expect("quest.stage.phantuwti_weather", t.quest.expect_stage("phantuwti_weather"))
+
+        -- === Phantuwti, then the weathervane ================================
+        t.exec("goto-returnToPhantuwti", t.player.goto_tile, 2704, 3474, 0)
+        t.exec("returnToPhantuwti", t.player.talk_to, "favour_phantuwti_farsight", 1)
+        t.exec("returnToPhantuwti-dialog", t.chat.play, {
+            "player:I've released Petra, she should have returned.",
+            "npc:She has! Thank you.",
+        })
+        t.expect("quest.stage.vane_search", t.quest.expect_stage("vane_search"))
+
+        -- One search frees all three parts (hammer held, 3 free slots): the
+        -- guide's hammer-on-vane and search-again clicks do not exist here.
+        -- GUIDE-GAP: useHammerOnVane collapsed into the single search at onesmallfavour_puzzles.rs2:114
+        -- GUIDE-GAP: searchVaneAgain collapsed into the single search at onesmallfavour_puzzles.rs2:114
+        t.exec("goto-searchVane", t.player.goto_tile, 2702, 3475, 3)
+        t.ticks(2)
+        t.exec("searchVane", t.player.click_loc, "osf_weathervane", 1)
+        t.exec("searchVane-dialog", t.chat.play, { "mesbox:You work the hammer around the housing" })
+        t.expect("quest.stage.vane_parts_taken", t.quest.expect_stage("vane_parts_taken"))
+
+        t.exec("goto-useVane123OnAnvil", t.player.goto_tile, 2712, 3494, 0)
+        local anvil = t.player.by_symbol("loc", "anvil")
+        t.exec("useVane123OnAnvil", t.player.use_on, "favour_directionals_broken", anvil)
+        t.exec("useVane123OnAnvil.directionals", t.inv.await, "favour_directionals_fixed", 1, 10)
+        t.exec("useVane123OnAnvil-ornament", t.player.use_on, "favour_ornament_broken", anvil)
+        t.exec("useVane123OnAnvil.ornament", t.inv.await, "favour_ornament_fixed", 1, 10)
+        t.exec("useVane123OnAnvil-pillar", t.player.use_on, "favour_pillar_broken", anvil)
+        t.exec("useVane123OnAnvil.pillar", t.inv.await, "favour_pillar_fixed", 1, 10)
+
+        t.exec("goBackUpLadder", t.player.goto_tile, 2702, 3475, 3)
+        t.ticks(2)
+        local vane = t.player.by_symbol("loc", "osf_weathervane")
+        t.exec("useVane1", t.player.use_on, "favour_ornament_fixed", vane)
+        t.exec("useVane1-dialog", t.chat.play, { "mesbox:You slot the ornament back into the housing." })
+        t.exec("useVane2", t.player.use_on, "favour_directionals_fixed", vane)
+        t.exec("useVane2-dialog", t.chat.play, { "mesbox:You slot the directionals back into the housing." })
+        t.exec("useVane3", t.player.use_on, "favour_pillar_fixed", vane)
+        t.exec("useVane3-dialog", t.chat.play, {
+            "mesbox:You slot the rotating pillar back into the housing.",
+            "mesbox:With the last part in place",
+        })
+        t.expect("quest.stage.vane_repaired", t.quest.expect_stage("vane_repaired"))
+
+        t.exec("goto-finishWithPhantuwti", t.player.goto_tile, 2704, 3474, 0)
+        t.exec("finishWithPhantuwti", t.player.talk_to, "favour_phantuwti_farsight", 1)
+        t.exec("finishWithPhantuwti-dialog", t.chat.play, {
+            "player:I've fixed the weather vane!",
+            "npc:Marvellous! Here's your weather report",
+        })
+        t.expect("quest.stage.phantuwti_vane_done", t.quest.expect_stage("phantuwti_vane_done"))
+        t.exec("finishWithPhantuwti.report", t.inv.await, "favour_weather_report", 1, 10)
+
+        -- === The return legs: Arhein, Bleemadge, Sanfew =====================
+        t.exec("goto-returnToArhein", t.player.goto_tile, 2804, 3431, 0)
+        t.exec("returnToArhein", t.player.talk_to, "arhein", 1)
+        t.exec("returnToArhein-dialog", t.chat.play, {
+            "player:What did you want me to do again?",
+            "player:I have the weather report for you.",
+            "npc:Splendid!",
+        })
+        t.expect("quest.stage.arhein_done", t.quest.expect_stage("arhein_done"))
+
+        t.exec("goto-returnToBleemadge", t.player.goto_tile, 2846, 3497, 0)
+        t.ticks(3)
+        t.exec("returnToBleemadge", t.player.talk_to, "pilot_white_wolf", 1)
+        t.exec("returnToBleemadge-dialog", t.chat.play, {
+            "player:Hey there, did you get your T.R.A.S.H?",
+            "npc:That I did!",
+        })
+        t.expect("quest.stage.bleemadge_done", t.quest.expect_stage("bleemadge_done"))
+
+        t.exec("goto-returnToSanfew", t.player.goto_tile, 2897, 3426, 1)
+        t.exec("returnToSanfew", t.player.talk_to, "sanfew", 1)
+        t.exec("returnToSanfew-dialog", t.chat.play, {
+            "player:Hi there, the Gnome Pilot has agreed to take you to see the ogres!",
+            "npc:Excellent! A deal's a deal",
+        })
+        t.expect("quest.stage.sanfew_done", t.quest.expect_stage("sanfew_done"))
+
+        -- === Hammerspike and his gang -- relay.rs2:79-162 ===================
+        t.exec("goto-returnToHammerspike", t.player.goto_tile, 2965, 9810, 0)
+        t.exec("returnToHammerspike", t.player.talk_to, "favour_hammerspike_stoutbeard", 1)
+        t.exec("returnToHammerspike-dialog", t.chat.play, { "npc:Sanfew took you seriously, did he?" })
+        t.expect("quest.stage.hammerspike_gang", t.quest.expect_stage("hammerspike_gang"))
+        t.exec("killGangMembers", t.player.attack, "favour_gangster_dwarf", 2, 15)
+        t.exec("killGangMembers.dead1", t.npc.await_dead_engaged, 150, 8)
+        t.exec("killGangMembers-2", t.player.attack, "favour_gangster_dwarf_2", 2, 15)
+        t.exec("killGangMembers.dead2", t.npc.await_dead_engaged, 150, 8)
+        t.exec("killGangMembers-3", t.player.attack, "favour_gangster_dwarf_3", 2, 15)
+        t.exec("killGangMembers.dead3", t.npc.await_dead_engaged, 150, 8)
+        t.exec("quest.stage.hammerspike_done", t.var.await_server, "onesmallfavour", 225, 15)
+        t.exec("talkToHammerspikeFinal", t.player.talk_to, "favour_hammerspike_stoutbeard", 1)
+        t.exec("talkToHammerspikeFinal-dialog", t.chat.play, { "npc:Alright, alright! You've made your point." })
+
+        -- === Tassie, the pot lid, the Apothecary ============================
+        -- Tassie's done branch (onesmallfavour_relay.rs2:52-59) hands over an
+        -- empty pot, not the clay the live game gives (wiki One Small Favour
+        -- quick guide: "She will give you clay"), and nothing else in this
+        -- port hands soft clay out -- so the soft clay is staged in setup.
+        t.exec("goto-returnToTassie", t.player.goto_tile, 3085, 3408, 0)
+        t.exec("returnToTassie", t.player.talk_to, "favour_tassie_slipcast", 1)
+        t.exec("returnToTassie-dialog", t.chat.play, {
+            "player:Hammerspike won't be bothering anyone for a while.",
+            "npc:Wonderful! Now, what did you need?",
+        })
+        t.expect("quest.stage.tassie_done", t.quest.expect_stage("tassie_done"))
+        t.exec("pickUpPot", t.inv.await, "pot_empty", 1, 10)
+
+        t.exec("spinPotLid", t.player.use_on, "softclay", t.player.by_symbol("loc", "potterywheel"))
+        local menu_r = t.ui.await_open("skillmulti", 10)
+        local cell_r, cell = t.ui.widget("skillmulti:f")
+        local press_r = t.ui.invoke(cell, 1)
+        t.note("skillmulti open=" .. tostring(menu_r) .. " cell f=" .. tostring(cell_r) .. "/" .. tostring(cell)
+            .. " invoke=" .. tostring(press_r))
+        t.exec("spinPotLid.made", t.inv.await, "potlid_unfired", 1, 15)
+        t.exec("firePotLid", t.player.use_on, "potlid_unfired",
+            t.player.by_symbol("loc", "fai_barbarian_pottery_oven"))
+        t.exec("firePotLid.fired", t.inv.await, "potlid", 1, 15)
+        t.exec("usePotLidOnPot", t.player.use_item_on_item, "potlid", "pot_empty")
+        t.exec("usePotLidOnPot.pot", t.inv.await, "favour_airtight_pot", 1, 10)
+        t.expect("quest.stage.pot_made", t.quest.expect_stage("pot_made"))
+
+        t.exec("goto-returnToApothecary", t.player.goto_tile, 3195, 3404, 0)
+        t.exec("returnToApothecary", t.player.talk_to, "apothecary", 1)
+        t.exec("returnToApothecary-dialog", t.chat.play, {
+            "player:Talk about One Small Favour.",
+            "npc:An airtight pot, wonderful!",
+        })
+        t.exec("returnToApothecary.items", t.inv.await_all,
+            { favour_breathing_salts = 1, favour_herbal_tincture = 1 }, 10)
+
+        -- === Horvik, Seth, Johanhus, Aggie, Brian, the forester, Yanni ======
+        -- Horvik's one visit sets osf_horvik_done directly (horvik.rs2:32):
+        -- the guide's second Horvik talk (stage 245) has no stage here.
+        -- GUIDE-GAP: talkToHorvikFinal collapsed into the first return visit at horvik.rs2:32
+        t.exec("goto-returnToHorvik", t.player.goto_tile, 3229, 3437, 0)
+        t.exec("returnToHorvik", t.player.talk_to, "horvik_the_armourer", 1)
+        t.exec("returnToHorvik-dialog", t.chat.play, {
+            "player:I have the tincture and the breathing salts.",
+            "npc:Perfect. Give me a moment",
+        })
+        t.expect("quest.stage.horvik_done", t.quest.expect_stage("horvik_done"))
+        t.exec("returnToHorvik.cages", t.inv.await, "favour_chicken_cage", 5, 10)
+
+        t.exec("goto-returnToSeth", t.player.goto_tile, 3223, 3293, 0)
+        t.exec("returnToSeth", t.player.talk_to, "favour_seth_groats", 1)
+        t.exec("returnToSeth-dialog", t.chat.play, {
+            "player:I have the chicken cages Horvik made up for you.",
+            "npc:Perfect fit!",
+        })
+        t.expect("quest.stage.seth_done", t.quest.expect_stage("seth_done"))
+
+        t.exec("goto-returnToJohnahus", t.player.goto_tile, 3171, 9620, 0)
+        t.exec("returnToJohnahus", t.player.talk_to, "favour_johanhus_ulsbrecht", 1)
+        t.exec("returnToJohnahus-dialog", t.chat.play, {
+            "player:I have the chickens Seth Groats promised you.",
+            "npc:You're in luck",
+        })
+        t.expect("quest.stage.johanhus_done", t.quest.expect_stage("johanhus_done"))
+
+        t.exec("goto-returnToAggie", t.player.goto_tile, 3086, 3259, 0)
+        t.exec("returnToAggie", t.player.talk_to, "aggie", 1)
+        t.exec("returnToAggie-dialog", t.chat.play, {
+            "player:Good news! Jimmy has been released!",
+            "npc:Wonderful! I'll go have a word with Brian myself.",
+        })
+        t.expect("quest.stage.aggie_done", t.quest.expect_stage("aggie_done"))
+
+        t.exec("goto-returnToBrian", t.player.goto_tile, 3028, 3250, 0)
+        t.exec("returnToBrian", t.player.talk_to, "brian", 1)
+        t.exec("returnToBrian-dialog", t.chat.play, {
+            "player:I've returned with good news.",
+            "npc:Aggie spoke up for me!",
+        })
+        t.expect("quest.stage.brian_done", t.quest.expect_stage("brian_done"))
+
+        t.exec("goto-returnToForester", t.player.goto_tile, 2759, 2944, 0)
+        t.exec("returnToForester", t.player.talk_to, "jungleforester_f", 1)
+        t.exec("returnToForester-dialog", t.chat.play, {
+            "player:Good news, I have your sharpened axe!",
+            "npc:Wonderful, thank you!",
+        })
+        t.expect("quest.stage.forester_done", t.quest.expect_stage("forester_done"))
+        t.exec("returnToForester.log", t.inv.await, "favour_mahogany_log", 1, 10)
+
+        local snap_r, snap = t.skill.snapshot()
+        t.check("reward.snapshot", snap_r == "ok",
+            "stats before the hand-in, for the reward rows: agility level " ..
+            tostring(snap and snap.agility and snap.agility.level))
+        t.exec("goto-returnToYanni", t.player.goto_tile, 2835, 2985, 0)
+        t.exec("returnToYanni", t.player.talk_to, "shiloantiques", 1)
+        t.exec("returnToYanni-dialog", t.chat.play, {
+            "player:Here's the red mahogany you asked for.",
+            "npc:Ah, perfect!",
+        })
+        t.exec("quest.stage.complete", t.var.await_server, "onesmallfavour", 285, 15)
+        t.quest.expect_complete()
+        -- Rewards (yanni_salika.rs2:33-37): two reward lamps and the steel key ring.
+        t.exec("reward.thosf_reward_lamp", t.inv.expect_has, "thosf_reward_lamp", 2)
+        t.exec("reward.favour_key_ring", t.inv.expect_has, "favour_key_ring", 1)
+        t.finish(0)
         return
     end,
 }
