@@ -35,9 +35,9 @@ quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo
 quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
-quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b40	RETRY after f0c06df74: freed troll parents talk through troll_block_1/2 (13-page reunion, teleport, child 7 pages + ice diamond; s33dt_dtcopy leg 5 drives); rewrite setup ::setvar prereqs -> ::complete quest_touristtrap/templeofikov/trollstronghold; breakIce1 gets breakIce2's retry loop (read dadfree, not await_dead_engaged), drop talkToTrolls.again; loop leg-2 getCross lockpick; checkpoints stale (first run full --detach/--wait); legs 6+ unwritten
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b41	REJECTED (sonnet-b41): three ::setvar on prerequisite quest varps (ikov, desertrescue, troll_quest) although quest_cheat.rs2 has ::complete arms for quest_templeofikov/touristtrap/trollstronghold (f0c06df74); Ancient signet/Smoke Dungeon/ring rewards have no literal rows, only magic xp. Run, gate, lint and helper_coverage (FULL 58/58) were green.
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
-quest_deviousminds	deviousminds	deviousminds		3	todo	sonnet-b40	RETRY after f0c06df74: ::complete quest_wanted now sets wanted_main 11 and arms exist for touristtrap/templeofikov/trollstronghold (talkToMonk-dialog PASS in s33_cca_devious); rewrite setup ::setvar troll_quest -> ::complete quest_trollstronghold; makeBlade-dialog uses a nonexistent objbox: chat.play entry (fix it); legs after talkToMonk2 unwritten
+quest_deviousminds	deviousminds	deviousminds		3	content_bug	sonnet-b41	runecraft_abyss.rs2:245 abyss_move_inward p_telejump strands the player in an enclosed pocket (3055,4836); enterLawRift onward unreachable
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
 quest_dragon	dragon	dragonslayer		3	green	sonnet-b36	
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	sonnet-b36
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
-quest_upass	upass	undergroundpass		3	todo	sonnet-b40	REJECTED (sonnet-b40): file is partial; legs 1-2 drive through climbOverRockslide5 but pullLeverAfterGrid, crossTheGrid, passTrap2-4 and the rest of the guide ladder are unwritten; no expect_complete or t.blocked row. Untracked, kept for the next author.
+quest_upass	upass	undergroundpass		3	todo	sonnet-b41	REJECTED (sonnet-b41): file not green up to t.blocked: collectOrb2 is a FAIL row (click_loc caveorb_vis: no copy at 2385,9685) before the blocked row; gate RED. Underlying content gap: upass_obstacles.rs2:295 oploc3 caveorb_vis vs op1 Take only; logtrap always adds caveorb1
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
 quest_viking	viking	thefremenniktrials		3	todo		
 quest_wanted	wanted	wanted		2	green	sonnet-b29	
@@ -185,6 +185,6 @@ quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
-quest_zanaris	zanaris	lostcity		3	todo	sonnet-b40	RETRY after f0c06df74: t.player.cast with no target re-presses a press the server dropped while the Dramen chop's p_delay held the player (teleportAway TELEPORTED on press 2; s33cast_zanaris_h40 46/46 green); rows unchanged except: raise getAxe-hunt's 14-kill bound (18 kills needed) and keep teleportAway as its own guide-step row (helper_coverage read TEST_GAP)
+quest_zanaris	zanaris	lostcity		3	green	sonnet-b41	
 quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	sonnet-b30	green after 200d127cb (seam25 closer): Sithik's ladder writes sithik_ogre, Slash Bash drops the artefact; test extended to the completion scroll, 123/123, helper_coverage FULL
-quest_zombiequeen	zombiequeen	shilovillage		3	todo	sonnet-b40	RETRY after f0c06df74: not a seam, test-side -- loop the loose-rocks search (stat_random roll: objbox after 'slowly move' = scroll, mesbox = cave-in), ::setlevel hitpoints 60 in setup, t.await t.chat.kind() ~= 'none' before the gallows chat.play; apply build/seam_state/seam33/zq/zq_fixed.lua lines 36 and 158-190 (s33zq_fixed2 51/0), drop the wip t.blocked, continue at buryCorpse (guide 1.13)
+quest_zombiequeen	zombiequeen	shilovillage		3	todo	sonnet-b41	REJECTED (sonnet-b41): author gave up; file stops at the first bone on the tomb door (115 rows), never reaches quest.expect_complete or a BLOCKED row; gate RED (no quest.varp_complete, no quest.scroll_title); lint flags CHECK markers at lines 3 and 6; last author failure equipBody (rune_platebody needs Dragon Slayer, changed to rune_chainbody unrun)
