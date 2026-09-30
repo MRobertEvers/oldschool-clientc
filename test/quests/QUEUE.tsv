@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
-quest_legends	legends	legendsquest		3	todo		RETRY after f8b8982d7 (content 0f825640bd): the LostCity port is LANDED (seam30: driven leg by leg to the completion scroll in a mirror, every boss fought; the One Small Favour forester branch and two unimplemented opcodes fixed at landing). No test yet: author it as a RELAY with legs + checkpoints from docs/quests/ladders/legends.ladder.tsv (98 steps, 10 legs) and legends.notes.md; ::complete has no arm for familycrest/shilovillage/undergroundpass, stage them with ::setvar crestquest/zombiequeen/upass
+quest_legends	legends	legendsquest		3	todo	sonnet-b37	REJECTED (sonnet-b37): legends is an unfinished relay: legs 1-6 authored, leg 7 is three unmerged temp drafts (leg7b/c/d_tmp), leg.7.end never reached; legs 8-9 absent; run stops silently in fightNezikchenedAtSource-dead (await_dead_engaged) with no SUMMARY; gate.py fails (useEmerald FAIL in latest ledger, no SUMMARY row, no quest.varp_complete / expect_complete / scroll row). lint clean. File kept for the next author (resume from leg 7).
 quest_losttribe	losttribe	thelosttribe		3	todo		
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
