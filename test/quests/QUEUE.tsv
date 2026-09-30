@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
-quest_legends	legends	legendsquest		3	todo	sonnet-b37	RETRY after 70ca5acc7: run.unfinished now names a silent stop (leg 7 was the frame budget: add max_frames = 240000 beside fixture); checkpoints restore map_clock (bullroarer swings from --from-leg); cave trial doors persist; .huntnext/loc_del reads/obj_name/inv_dropitem are engine; use run.py --detach/--wait for full runs. Resume from build/author_state/sonnet-b37/rejected/legends.lua; rewrite leg 2 fire-wall dialog rows, leg 3 useEmerald (click seam), Gujuo blessing retry budget beyond 5, drop the gate1_present conditional, rename the author's leg.2.end check to leg.2.state; legs 8-9 unwritten
+quest_legends	legends	legendsquest		3	todo	sonnet-b38	REJECTED (sonnet-b38): file is not finished -- leg 10 (steps 88-98, useTotemOnTotem .. talkToRadimusInGuildAgain, reward rows, expect_complete) is a leg10_todo placeholder, so no quest.expect_complete / scroll_title row exists; gate.py fails on the ledger (useEmerald click seam FAIL: named copy left the pool, emerald stays in backpack; no varp_complete row; no scroll_title row; leg.8.end has no shot; duplicate-MD5 FAIL shots). Guide steps 68/69 lack ANY-OF markers. Resume: write leg 10, fix leg 3 useEmerald, full run via run.py --detach/--wait.
 quest_losttribe	losttribe	thelosttribe		3	todo		
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
