@@ -35,9 +35,9 @@ quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo
 quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
-quest_deserttreasure	deserttreasure	deserttreasure		3	todo		
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b40	REJECTED (sonnet-b40): run.py red at leg 5 (talkToChildTrollAfterFreeing FAIL: no npc 696 fourdiamonds_troll_child_okay in entity pool; 3 non-PASS rows; checkpoint 5 not written); legs 5-6 never ran, no expect_complete; author gave_up
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
-quest_deviousminds	deviousminds	deviousminds		3	todo		parity3d partial: Abyss/Law altar trip not gated (Entrana travel with the orb free); heist cutscene has no black-screen fade
+quest_deviousminds	deviousminds	deviousminds		3	todo	sonnet-b40	REJECTED (sonnet-b40): file covers only start..talkToMonk2 and is red: talkToMonk-dialog fails (prerequisite gate; wanted_main not set by ::complete quest_wanted), so accept/makeBlade/makeBowSword/talkToMonk2 fail; no quest.varp_complete/scroll row; abyss, heist, priest, Tiffy legs unwritten
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
 quest_dragon	dragon	dragonslayer		3	green	sonnet-b36	
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
@@ -58,7 +58,7 @@ quest_fenkenstrain	fenkenstrain	creatureoffenkenstrain		2	green	sonnet-b27
 quest_finaldawn	finaldawn	thefinaldawn		4	todo		
 quest_fishingcompo	fishingcompo	fishingcontest		1	green	sonnet-b25	
 quest_fluffs	fluffs	gertrudescat		1	green	sonnet-b5	
-quest_forgettabletale	forgettabletale	forgettabletale		3	todo		parity3d partial: cutscene (WIKI_MISSING); dialogue paraphrased not transcript; fare 100 not 200, no ring of charos discount; Rind's optional letter
+quest_forgettabletale	forgettabletale	forgettabletale		3	todo	sonnet-b40	REJECTED (sonnet-b40): green to t.blocked (run/gate/lint ok) but the 16-min real-clock wait (forget_kelda_catchup, date_minutes=CLOCK_REALTIME) needs a test clock knob; the file ::gives the Rowdy Dwarf's requested item (cheated fetch), CONTENT_GAP addKelda (mes narration forget_brewing.rs2:92), helper_coverage MIXED with 79 UNMATCHED steps (only legs 1-2 of 12 ported). Untracked test/quests/forgettabletale.lua left in place (removal was denied by the permission classifier); not committed.
 quest_forsakentower	forsakentower	theforsakentower		4	todo		
 quest_fremennikexiles	fremennikexiles	thefremennikexiles		4	todo		
 quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo		
@@ -177,14 +177,14 @@ quest_troll	troll	trollstronghold		3	green	sonnet-b36
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
-quest_upass	upass	undergroundpass		3	todo		
+quest_upass	upass	undergroundpass		3	todo	sonnet-b40	REJECTED (sonnet-b40): file is partial; legs 1-2 drive through climbOverRockslide5 but pullLeverAfterGrid, crossTheGrid, passTrap2-4 and the rest of the guide ladder are unwritten; no expect_complete or t.blocked row. Untracked, kept for the next author.
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
 quest_viking	viking	thefremenniktrials		3	todo		
 quest_wanted	wanted	wanted		2	green	sonnet-b29	
-quest_waterfall	waterfall	waterfallquest		3	todo		
+quest_waterfall	waterfall	waterfallquest		3	green	sonnet-b40	
 quest_whatliesbelow	whatliesbelow	whatliesbelow		4	todo		
 quest_whileguthixsleeps	whileguthixsleeps	whileguthixsleeps		4	todo		
 quest_xmarksthespot	xmarksthespot	xmarksthespot		4	todo		
-quest_zanaris	zanaris	lostcity		3	todo		parity3d partial: Zanaris exit ladder absent from the 239 maps; doorman/marketdoor at LostCity 225 coords, no doorman spawn; Port Sarim boat / Entrana weapon search not re-derived
+quest_zanaris	zanaris	lostcity		3	todo	sonnet-b40	REJECTED (sonnet-b40): run.py ledger SUMMARY is FAIL: row teleportAway FAIL (lumbridge_teleport cast never ran: no line, no move, no Magic XP in 10 ticks); 45 of 46 rows PASS; file kept, nothing published
 quest_zogreflesheaters	zogreflesheaters	zogreflesheaters		2	green	sonnet-b30	green after 200d127cb (seam25 closer): Sithik's ladder writes sithik_ogre, Slash Bash drops the artefact; test extended to the completion scroll, 123/123, helper_coverage FULL
-quest_zombiequeen	zombiequeen	shilovillage		3	todo		parity3d partial: Shanks sail-era leg deferred; Hajedy clue branch omitted; fake_coins opobj3 not driven
+quest_zombiequeen	zombiequeen	shilovillage		3	todo	sonnet-b40	REJECTED (sonnet-b40): run FAIL: searchForTatteredScroll-scroll (no scroll), searchForCorpse-dialog..corpse (no dialogue open, zadimus corpse count 0); file ends in wip t.blocked; guide steps 1.9-1.12 of 30 unfinished. Untracked test/quests/zombiequeen.lua left in place (rm denied by permission classifier).
