@@ -96,9 +96,9 @@ THE GUIDE IS THE SPEC (owner rule, 2026-09-23). The Quest Helper guide's step la
 Do NOT commit, push, or edit QUEUE.tsv. FINISH: write the schema JSON to ${STATE}/${id}.author.json, then return it; put the final failure block verbatim in last_failure if you did not reach green. You MUST end by calling StructuredOutput even if you gave up.
 COMPACTION: if your conversation is ever compacted or summarized while you work, STOP at once, write what you have to the notebook, and report outcome gave_up with compacted=true and blocker "context compacted"; a larger model resumes from your notebook.`
 
-const legCard = (id, k, n) => `${COMMON}
+const legCard = (id, k, n, retry) => `${COMMON}
 YOU ARE ONE RUNNER IN A RELAY (owner-approved design, 2026-09-29). The quest test "${id}" is long, so it is written as ${n} legs by ${n} authors in sequence. You write LEG ${k} of ${n} and nothing else; a fresh author takes the next leg. You never need the whole quest in your head, and you must not try to load it.
-RESUME: if ${STATE}/${id}.leg${k}.json exists and its outcome is "done", return its content verbatim through StructuredOutput and do nothing else. ${STATE}/${id}.leg${k}.progress.md is your notebook: if it exists a previous runner of this leg was killed -- read it, count its runs toward your ten, continue from its last step.
+RESUME: if ${STATE}/${id}.leg${k}.json exists and its outcome is "done", return its content verbatim through StructuredOutput and do nothing else. ${STATE}/${id}.leg${k}.progress.md is your notebook: if it exists a previous runner of this leg was killed or gave up -- read it and continue from its last step.${retry ? ' YOU ARE THE FRESH RUNNER AFTER A GIVE-UP: the previous runner\'s runs DO NOT count toward your budget (you have your own ten); if it stopped with nothing failing and steps of this leg unwritten, the job is simply to keep writing the remaining steps from its last passing row.' : ' If it was killed mid-run, count its runs toward your ten.'}
 READ, in this order, and nothing else up front: (a) ${WT}/docs/QUEST_AUTHORING.md, the 20 KB core; (b) ${WT}/docs/quest_authoring/relay.md; (c) ${STATE}/${id}.relay.md if it exists -- the hand-off notes of the runners before you (where the player stands, the stage, what is in the backpack); (d) python3 ${WT}/tools/quest_gate/ladder.py ${id} --leg ${k} -- YOUR LEG: every row is a guide step you must drive with a test row named after the step; its third header line names the last step of the previous leg; (e) python3 ${WT}/tools/quest_gate/queue.py show ${id} -- the row's last_failure may name a committed or parked file and what a seam pass fixed.
 ${DISCIPLINE}
 THE FILE is test/quests/${id}.lua. ${k === 1 ? `You are the FIRST runner: if the queue row names a parked or reverted file to start from, copy it to test/quests/${id}.lua; if test/quests/${id}.lua already exists keep it; otherwise python3 ${WT}/tools/quest_gate/new_quest.py ${id}. Then lay the file out for the relay (below).` : `Runners before you wrote legs 1..${k - 1}. If test/quests/${id}.lua does not exist, the previous relay was parked: copy the file the queue row's RELAY STATE names to test/quests/${id}.lua first. Do NOT read or rewrite their legs: find yours with grep -n 'LEG ${k} ' test/quests/${id}.lua.`}
@@ -143,9 +143,15 @@ const runRelay = async (id, n) => {
   const gaps = []
   for (let k = 1; k <= n; k++) {
     let leg = await attempt(`leg:${id}:${k}`, 2, () => agent(legCard(id, k, n), { label: `leg:${id} ${k}/${n}`, phase: 'Author', model: authorModel, schema: LEG_SCHEMA }))
-    if (!leg || leg.outcome === 'gave_up') {
-      log(`${id}: leg ${k}/${n} ${leg ? 'gave up' : 'returned no report'}; a fresh runner resumes it once from the notebook at ${RETRY_EFFORT} effort`)
-      const again = await attempt(`leg:${id}:${k} (retry)`, 2, () => agent(legCard(id, k, n), { label: `leg:${id} ${k}/${n} (retry)`, phase: 'Author', model: authorModel, effort: RETRY_EFFORT, schema: LEG_SCHEMA }))
+    // A give-up with nothing failing (the runner simply ran out of runs while
+    // still adding steps -- upass leg 2, b40) gets two fresh runners; a give-up
+    // on a real failure gets one. Each fresh runner has its own ten runs: b40's
+    // retry read "count its runs toward your ten" and quit at once.
+    let tries = 0
+    while ((!leg || leg.outcome === 'gave_up') && tries < ((leg && /none failing|budget spent|ran out of runs/i.test(leg.last_failure + ' ' + leg.blocker)) ? 2 : 1)) {
+      tries++
+      log(`${id}: leg ${k}/${n} ${leg ? 'gave up' : 'returned no report'}; fresh runner ${tries} resumes it from the notebook at ${RETRY_EFFORT} effort with its own budget`)
+      const again = await attempt(`leg:${id}:${k} (retry ${tries})`, 2, () => agent(legCard(id, k, n, true), { label: `leg:${id} ${k}/${n} (retry ${tries})`, phase: 'Author', model: authorModel, effort: RETRY_EFFORT, schema: LEG_SCHEMA }))
       if (again) leg = again
     }
     if (leg) { runs += leg.runs || 0; gaps.push(...(leg.doc_gaps || [])) }
