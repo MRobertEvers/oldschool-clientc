@@ -427,3 +427,25 @@ diamond, and its exit is a one-way fairy ring behind the Al Kharid bank. The 239
 (Quest Helper LostCity.java:174), so none of this blocks the zanaris row. The OSRS-era market is a
 separate content job (Gatekeeper, mushroom gate, exit fairy ring).
 
+## Leaving the Entrana dungeon: `cast lumbridge_teleport ... the cast never ran` (OPEN)
+
+*Origin: sampler sonnet-b40 (zanaris review; the cause is not yet found).*
+
+Lost City's `teleportAway` is a spell cast from the Entrana dungeon floor. In batch sonnet-b40,
+`t.player.cast("lumbridge_teleport")` at 2861,9736,0 answered FAIL: `no line, no move and no Magic
+XP inside 10 ticks: the cast never ran`. The setup had Magic 31, 1 law, 3 air and 1 earth rune, and
+the shot showed the runes in the pack. Both `{kind="self"}` and a bare cast failed the same way.
+Every refusal in `check_spell_requirements` (`skill_magic/scripts/magic.rs2`) and in
+`magic_teleport_gate` prints a line. With no line at all, one of these happened:
+
+- the button never reached the server, or
+- `p_finduid(uid)` failed at `skill_magic/scripts/spells/teleport.rs2:110`, or
+- the spell's dbrow was null.
+
+Check the server log for the if_button before changing the test. Do not replace the cast with
+`t.player.teleport`, which is a cheat past a guide step.
+
+The dungeon's other way out is no substitute. `[oploc1,zanarismagicdoor]`
+(`areas/entrana/scripts/entrana_dungeon.rs2:15`) `p_telejump`s to `0_50_58_50_60` (3250,3772), in
+the deep Wilderness, so the guide does not use it.
+

@@ -81,6 +81,29 @@ Death Plateau's Harold has the same shape twice (the ale and the blurberry speci
 then `if_close` + `p_delay`, then the next page. End the `chat.play` list at the objbox, run
 `t.ticks(...)`, and start a second list at the next page.
 
+### A page behind `mes()` + `p_delay` after a loc click (Waterfall's raft, Golrie's junk)
+
+*Origin: sampler sonnet-b40 (waterfall review).*
+
+`click_loc` and `use_on` settle on the first edge their click makes, which is often the script's
+first `mes()` line. When the script narrates with `mes()` + `p_delay(N)` before its first dialogue
+page, a `chat.play` on the next row finds nothing open and answers `not_visible: no dialogue is
+open`. The click did land, so do not "fix the click" as start-and-travel's chat-verbs note suggests.
+Two examples:
+
+- Waterfall's raft (`[oploc1,lograft_waterfall_quest]`) runs four `mes` + `p_delay(2)` and a
+  `p_teleport` before Hudon's first page.
+- Golrie's search (`golrie.rs2`) runs `if_close` + `mes` + `p_delay(2)` twice between his two
+  pages.
+
+Before the `chat.play`, `t.await` a level predicate on `t.chat.kind() ~= "none"`. Give it a deadline
+that covers the script's summed `p_delay`s. `waterfall.lua` does this for `boardRaft-chat`,
+`talkToGolrie-rest` and `talkToGolrie-farewell`:
+
+```lua
+t.await({ level = function() return t.chat.kind() ~= "none" end, note = "raft lands and Hudon's page opens" }, 20)
+```
+
 ### `ok` is not proof: `click_obj`, `inv.await(name, 0)`, `[oplocu]` hand-ins, auto-shots
 
 > CONFLICT (kept both): the `click_obj` nil-detail sentence below predates seam27. Trap 12 (seam27)

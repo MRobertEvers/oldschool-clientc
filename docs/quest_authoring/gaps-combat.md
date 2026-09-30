@@ -280,6 +280,28 @@ within five tiles) has to find its subject, not assume it.
 nothing -- a prerequisite cheat that silently does nothing leaves the whole downstream cascade
 looking like a content bug (Heroes' Quest lost its entire Herblore leg to it).
 
+## `::complete has no arm for that quest.`: Tourist Trap, Temple of Ikov, Troll Stronghold
+
+*Origin: sampler sonnet-b40 (deserttreasure and deviousminds reviews).*
+
+Some dbrows are real but have no arm in `[proc,quest_cheat_complete]`
+(`quests/scripts/quest_cheat.rs2:88`). For them, `::complete` prints `::complete has no arm for that
+quest.` and writes nothing. As of 2026-09-30 this is true of `quest_touristtrap`,
+`quest_templeofikov` and `quest_trollstronghold`. `quest_troll` is the script folder, not a dbrow
+(see the section above). Read the setup's chat line before you trust a `::complete`.
+
+Until an arm exists, stage the prerequisite with `::setvar` of the quest's own progress varp. Use
+the completion value its `.constant` declares, and cite that constant on the setup line:
+
+- Tourist Trap: `::setvar desertrescue 30` (`^desertrescue_complete`, `quest_desertrescue/configs/desertrescue.constant`).
+- Temple of Ikov: `::setvar ikov 80` (`^ikov_completed_armadyl`; `90` is `^ikov_completed_lucien`, `quest_ikov/configs/quest_ikov.constant`).
+- Troll Stronghold: `::setvar troll_quest 50` (`^troll_complete`, `quest_troll/configs/quest_troll.constant`).
+  Sanfew's gate in Eadgar's Ruse also reads `%troll_freed_eadgar`, so `eadgar.lua` sets that to `1`
+  as well. `eadgar.lua` is the committed precedent.
+
+`::setvar` does not award the quest's points. The `::complete` path calls `~quest_award_points`
+(`quest_cheat.rs2:77`), so a quest that gates on a quest-point total needs more than the varp.
+
 ## Feldip hunting ground: the damage comes from the wolves; the lent ogre bow is the reward
 
 In Big Chompy Bird Hunting the chompy (level 6) is not what hurts. Wolves roam the swamp bubbles

@@ -35,6 +35,7 @@ topic file with one line added here.
 - a jump/teleport loc answers before you land -> seam-facts: Seam pass 26, (c)
 - a portal lands somewhere else (multiloc child) -> seam-facts: Seam pass 24, (b); Seam pass 25, (c)
 - a loc with only Examine; no op to go back down a hole (`goDownHole`) -> gaps-world: A loc with only Examine
+- `cast lumbridge_teleport ... the cast never ran` from the Entrana dungeon; `zanarismagicdoor` -> gaps-world: Leaving the Entrana dungeon
 
 ## Pressing and clicking
 
@@ -85,6 +86,7 @@ topic file with one line added here.
 - `chat.play` hangs on one page -> traps-23-33: Trap 30
 - `a resume is already outstanding` -> traps-01-12: Trap 11; Trap 4; traps-13-22: Trap 22
 - `not_visible: no dialogue is open` -> start-and-travel: The chat verbs; traps-23-33: Trap 26
+- `not_visible: no dialogue is open` on the `chat.play` after a `click_loc`/`use_on` whose script runs `mes` + `p_delay` first (a raft, a search) -> gaps-dialogue: A page behind `mes()` + `p_delay`
 - `orphaned page`, `dropping [...]` -> verbs-chat: `t.chat.play`; gaps-dialogue: Since seam24; seam-facts: Seam pass 23, (m)
 - `no dialogue in 5 tick(s)`, `dialogue npc is up` -> traps-23-33: Trap 26
 - a hung page from a loc/held/queue trigger -> traps-13-22: Trap 22; Which chat procs need an npc
@@ -286,6 +288,7 @@ topic file with one line added here.
 - named content gaps (The Feud, One Small Favour, Shadow of the Storm) -> content-gaps
 - place facts (Watchtower, Tourist Trap, Death's Coffer, Witchaven, Ghosts Ahoy, Hazeel Cult) -> seam-facts: passes 23-28
 - `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
+- `::complete has no arm for that quest.` (quest_touristtrap, quest_templeofikov, quest_trollstronghold) -> gaps-combat: `::complete has no arm
 - "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
 - a multinpc shell never changes form on the client (sote_tertiary) -> seam-facts: Seam pass 30 (b)
 - `COORD requires an active entity` after `.huntnext`; `the active loc is gone`; an npc death script aborting after `p_delay` -> seam-facts: Seam pass 30 (d), (e) (the `.huntnext` / `loc_del` gaps FIXED: Seam pass 31 (a))
