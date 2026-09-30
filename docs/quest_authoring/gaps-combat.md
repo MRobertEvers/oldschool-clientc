@@ -280,27 +280,33 @@ within five tiles) has to find its subject, not assume it.
 nothing -- a prerequisite cheat that silently does nothing leaves the whole downstream cascade
 looking like a content bug (Heroes' Quest lost its entire Herblore leg to it).
 
-## `::complete has no arm for that quest.`: Tourist Trap, Temple of Ikov, Troll Stronghold
+## `::complete has no arm for that quest.`: Tourist Trap, Temple of Ikov, Troll Stronghold and Wanted! have arms now
 
-*Origin: sampler sonnet-b40 (deserttreasure and deviousminds reviews).*
+*Origin: sampler sonnet-b40 (deserttreasure and deviousminds reviews); fixed by seam33
+`complete_cheat_arms`.*
 
-Some dbrows are real but have no arm in `[proc,quest_cheat_complete]`
-(`quests/scripts/quest_cheat.rs2:88`). For them, `::complete` prints `::complete has no arm for that
-quest.` and writes nothing. As of 2026-09-30 this is true of `quest_touristtrap`,
-`quest_templeofikov` and `quest_trollstronghold`. `quest_troll` is the script folder, not a dbrow
-(see the section above). Read the setup's chat line before you trust a `::complete`.
+A prerequisite quest's state comes ONLY from `::complete <dbrow>` (owner rule (e)): never
+`::setvar` a prerequisite's progress varp. As of seam33 (2026-09-30) these arms exist in
+`[proc,quest_cheat_complete]` (`quests/scripts/quest_cheat.rs2`), each writing what the quest's own
+completion script writes, and the cheat pays the row's quest points:
 
-Until an arm exists, stage the prerequisite with `::setvar` of the quest's own progress varp. Use
-the completion value its `.constant` declares, and cite that constant on the setup line:
+- `::complete quest_touristtrap` -- `%desertrescue` = 30 (`^desertrescue_complete`), +2 QP.
+- `::complete quest_templeofikov` -- `%ikov` = 80 (`^ikov_completed_armadyl`, the lower of the two
+  endings, so every `>=` gate opens), Lucien off the forest spot, +1 QP.
+- `::complete quest_trollstronghold` -- `%troll_quest` = 50 (`^troll_complete`), +1 QP. `quest_troll`
+  is the script folder, not a dbrow (see the section above).
+- `::complete quest_wanted` -- `wanted_main` = 11, +1 QP. It used to answer "has no arm" and write
+  nothing: the row's name is also Wanted!'s carrier varp, and the arm compiled against the varp id.
+  Devious Minds' monk refused a player whose other three prerequisites read back fine.
 
-- Tourist Trap: `::setvar desertrescue 30` (`^desertrescue_complete`, `quest_desertrescue/configs/desertrescue.constant`).
-- Temple of Ikov: `::setvar ikov 80` (`^ikov_completed_armadyl`; `90` is `^ikov_completed_lucien`, `quest_ikov/configs/quest_ikov.constant`).
-- Troll Stronghold: `::setvar troll_quest 50` (`^troll_complete`, `quest_troll/configs/quest_troll.constant`).
-  Sanfew's gate in Eadgar's Ruse also reads `%troll_freed_eadgar`, so `eadgar.lua` sets that to `1`
-  as well. `eadgar.lua` is the committed precedent.
-
-`::setvar` does not award the quest's points. The `::complete` path calls `~quest_award_points`
-(`quest_cheat.rs2:77`), so a quest that gates on a quest-point total needs more than the varp.
+Read the setup's chat line anyway: `<Name> complete.` or `<Name> is already complete.` is a landed
+cheat; `::complete has no arm for that quest.` wrote nothing. A row with no arm is a seam for
+`quest_cheat.rs2` (report it, `t.blocked` on it); the rows still missing one are listed in
+`docs/QUEST_SERVER_CHEATS.md`, "`::complete <quest row>`". State a completion does not
+imply is not the arm's to write: freeing Mad Eadgar is optional in Troll Stronghold (the journal
+adds his line only when `%troll_freed_eadgar` is set, troll_journal.rs2:52), so Eadgar's Ruse still
+stages that flag itself; its `%troll_quest` belongs to `::complete quest_trollstronghold` (the
+committed `eadgar.lua` predates the arm and still `::setvar`s it).
 
 ## Feldip hunting ground: the damage comes from the wolves; the lent ogre bow is the reward
 

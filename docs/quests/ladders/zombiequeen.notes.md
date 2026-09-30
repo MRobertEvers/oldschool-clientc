@@ -26,6 +26,20 @@ Dialogue gates:
 - Dolmen corpse hand-in: objbox, 2 queen npc pages, mes, then queue(zombiequeen_quest_complete).
   Loop ticks(6)+drain until %zombiequeen = 15, then expect_complete.
 
+Caverns searches (seam33, 2026-09-30 -- both are test timing, the content matches LostCity):
+- The loose rocks (oploc2 secretrubblebook, rs2:857; LC :837) roll stat_random(agility, 75, 250)
+  after "You start to slowly move the rocks": ~78% at agility 70. A miss is the cave-in branch
+  (damage 10% of base hp + 1, no scroll, "empty bookcase" never shows) and the player searches
+  again. chat.play continues the "slowly move" page, so the page up after it IS the answer:
+  objbox = scroll, mesbox = cave-in. Loop click + dialogue until the scroll lands (the stream is
+  seeded by the run's --name, seam-facts Seam pass 32 (g): 3 of 7 differently named runs caved in). A fresh 10-hp character enters the
+  caverns on ~5 hp (the fissure burn, rs2:94); give hitpoints in setup or two misses kill him.
+  Proof: build/quest_gate/s33zq_fixed2 rows 36-40 (cave-in, then scroll after 2 searches).
+- The gallows (oploc2 zqgallows, rs2:942; LC :922) run mes("You search the gallows...") +
+  p_delay(2) before the first page: click_loc settles on that chat line, so t.await
+  t.chat.kind() ~= "none" (6 ticks) before chat.play (gaps-dialogue "A page behind mes() +
+  p_delay"). Pages: mesbox, options, objbox, objbox, mesbox; the corpse lands after the first objbox.
+
 Fights:
 - Nazastarool forms 2 and 3 spawn on their own after 1 dies. With auto-retaliate on they may already
   be dead when the driver looks; treat no_row as done and read bits 9/10/11 of %zq_map_mechanisms.

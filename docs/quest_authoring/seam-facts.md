@@ -577,9 +577,8 @@ pump calls it without the budget. Measured wall time of the 81 committed tests' 
 `UITreeComponent.item_id`. An obj is present when `id >= 0`. The objtype link fields
 (`cert_link`, `placeholder_link`) use -1 for none; `count_obj` uses 0. C authors: never test an obj
 id with `> 0` / `<= 0`. A grep for `obj_id` finds only half of the obj-id variables
-(`task_obj_model_load.c` `resolved_id` / `render_id` hid the icon). Still open in the DRIVER Lua:
-`state.lua` `QD.inv.slot`, `ui.lua` `_inv_contents` / `QD.shop._stocked` and one `pointer.lua`
-site test `obj_id <= 0` / `> 0`, so `t.inv.slot` names an obj-0 slot `''`. `food.rs2`'s
+(`task_obj_model_load.c` `resolved_id` / `render_id` hid the icon). The DRIVER Lua's own
+`<= 0` / `> 0` tests are FIXED in seam33 (Seam pass 33 (b)). `food.rs2`'s
 `db_getfieldcount` guard stays: the SERVER's dbtable default for an omitted obj column is 0.
 
 (d) A ground obj on a table or other blocking centrepiece's own tile is drawn RAISED onto the loc
@@ -598,14 +597,15 @@ now aims at that height, so `click_obj` presses the item on the first pose (verb
 - Not ported: LostCity's LOC_ADD matches the same LAYER; here the key is (tile, shape).
 - Author hazard (zombiequeen): there are two `thzq_tombrooml1` copies (2892,9480 and 2893,9497).
   Pick the leaf `t.world.loc_near` finds within 3 tiles, not `t.player.by_symbol`.
-- Content comments now stale: `flamtaer_temple.rs2:295-309`, `prison_doors.rs2:5`,
-  `quest_zombiequeen.rs2:1454` (all written around the old `.loc_*` abort).
+- Content comments that described the old `.loc_*` abort (`flamtaer_temple.rs2:295-309`,
+  `prison_doors.rs2:5`) are rewritten, and the Shilo tomb door is back in LostCity's order
+  (`loc_change` then `~set_zqtombdoorstate`): FIXED in seam33.
 
 (f) Content, sourced: Oziach's "second piece of the map" no longer moves `%dragon_oracle` back
-(the guard `guild_master.rs2` uses). `oracle.rs2:18` has the same bare write (LostCity too) and is
-still open. `imbued_heart_ready_tick` and `hunter_falcon_expire` are `scope=temp` now (LostCity
-saves no map_clock stamp); the one perm stamp left is `zq_rash_timer` (`quest_zombiequeen.varp:19`,
-open). Gujuo's blessing roll stays LostCity's: no source gives its odds (docs/quests/legends_quest.md).
+(the guard `guild_master.rs2` uses). `oracle.rs2:18` had the same bare write (LostCity too): FIXED
+in seam33 (Seam pass 33 (f)). `imbued_heart_ready_tick` and `hunter_falcon_expire` are `scope=temp`
+now (LostCity saves no map_clock stamp); the last perm stamp, `zq_rash_timer`, is FIXED in seam33
+too. Gujuo's blessing roll stays LostCity's: no source gives its odds (docs/quests/legends_quest.md).
 
 (g) A `--script` run's rolls are seeded by the player NAME (`--name`). "Fails on name A, passes on
 name B" is a roll, not a tree regression; reproduce with the SAME `--name`. druidspirit's seam31
@@ -613,3 +613,65 @@ name B" is a roll, not a tree regression; reproduce with the SAME `--name`. drui
 player's single-way claim and every press on another ghast answers "I'm already under attack."
 druidspirit's setup no longer carries `::setvar priestperil_mausoleum` (seam31 (b)).
 
+
+## Seam pass 33 (2026-09-30)
+
+(a) An interface press while the player is DELAYED is dropped by the server, silently. The rule is
+LostCity's: `IfButtonHandler` runs `[if_button]` with protected access and `Player.runScript`
+returns -1 while `delayed` (`torirs_server_world.c` `if_button_refused_while_delayed`; verbose line
+`<- IF_BUTTONN 218:29 refused: player is delayed (p_delay)`). Lost City's `teleportAway` was pressed
+on the tick the Dramen chop (`leprechaun_tree.rs2` `[oploc1,dramentree]`, ends `p_delay(1)`) still
+held the player, and read `the cast never ran`. A self-cast now re-presses after 3 silent ticks, up
+to 3 presses (`spell.lua` `SELF_CAST_*`; detail `(press N: ...)`). A HELD-item cast still presses
+once. Row: `seam.cast_self_teleport_from_dungeon_after_delay`.
+
+(b) The driver Lua's empty-slot tests follow seam32's -1 sentinel: `state.lua` `QD.inv.slot`
+(`obj_id < 0` is empty), `ui.lua` `QD.shop._stocked` and `QD.shop._row`, and `pointer.lua`
+`QD.player._inv_contents` (`>= 0` is an item). `t.inv.slot` names `mcannonremains` (obj 0), and
+`use_on` / `use_item_on_item` see it leave the pack. In driver Lua test an obj id `< 0` / `>= 0`,
+never `<= 0` / `> 0`. Row: `seam.inv_slot_obj_zero`; `mcannon.lua` `getRemainsStep` now asserts
+the pickup.
+
+(c) `date_minutes` and `date_runeday` read one world clock, `ToriRSServer_WorldRealtimeMs`
+(CLOCK_REALTIME plus `srv->clock_skip_minutes`). `::clockskip <minutes>` moves it forward (1-10080
+per call, a year in all, never backward), writes `%date_minutes` at once, and is lost when the
+server re-boots (a relog). `t.clock.skip(minutes)` drives it; the quest's own catch-up still does
+the work (Forgettable Tale's kelda patch: `forget_farming = 8` 88-98 ticks after a 16-minute skip,
+on its `forget_tick` softtimer). Ordinary farming re-arms from NOW, so one skip is one stage.
+Server selftest stanza `::clockskip moves the world clock`; gaps-world, "A step that waits real
+minutes".
+
+(d) A bare name in a comparison against a LOCAL is typed by namespace sort order alone: sscompile
+types `$x = <name>` only from a left side whose kind it knows, and a `dbrow` local or parameter is
+not one. `quest_wanted` is both dbrow 156 and varp 571, so `if ($row = quest_wanted)` in
+`quest_cheat.rs2` compiled to `$row = 571` and `::complete quest_wanted` answered "has no arm". The
+arm now spells it `~quest_cheat_row(quest_wanted)` (a `dbrow`-typed proc argument). The same
+collision still miscompiles `interface_questjournal/scripts/quest_journal.rs2:439` and
+`poh_quest_status_generated.rs2:747` (open; the compiler fix is `ssc_compile.c`).
+`SSCOMPILE_AMBIGUOUS=all` lists every such name. `::complete` gained arms for
+`quest_touristtrap` (30), `quest_templeofikov` (80, the Armadyl ending) and
+`quest_trollstronghold` (50), each from the quest's own completion queue
+(`docs/QUEST_SERVER_CHEATS.md`, "`::complete <quest row>`"). Row: `seam.complete_cheat_arms`.
+
+(e) Trap 19 again, on Desert Treasure's ice bridge: `m44_59.spawn` places the parents as the BASE
+symbols `troll_block_1/2` (multivarbit `fd_icewarrior_dadfree/mumfree`), and only
+`[opnpc1,fd_troll_*]` existed, so a freed parent answered "map_flag: no dialogue in 5 tick(s)" and
+the reunion teleport never ran (the missing child, npc 696, was downstream of it). The base
+triggers now hand off by the player's varbit, with the troll family's lines from the OSRS wiki
+transcript. When a respawned multinpc form answers nothing, grep for `[opnpc1,<the spawn row's
+symbol>]` before blaming the driver.
+
+(f) Content, sourced: `oracle.rs2` no longer moves `%dragon_oracle` backwards on a revisit (2009scape
+OracleDialogue.java writes no quest state; Oziach and the Guildmaster guard the same way), and
+`zq_rash_timer` is `scope=temp` as LostCity declares it (a saved map_clock stamp outlived a restart
+and Rashiliyia never came). A stage write in a REPEATABLE dialogue must be guarded `<`; a revisit
+row (stage the later value, ask again, read it back) catches it. A relog re-boots the embedded
+server, so a relog row is the proof for a varp scope change. legends' dead gate walk-arounds are
+gone; its gate-state rows assert presence (538/0).
+
+(g) Zombie Queen's two caverns misses were the test, not content (the port matches LostCity line
+for line): the loose rocks roll `stat_random(agility, 75, 250)` and a miss is the cave-in branch
+(loop the search: the page after "slowly move" is objbox for the scroll, mesbox for the cave-in),
+and the gallows run `mes()` + `p_delay(2)` before the first page (await `t.chat.kind()` first).
+"3 misses in 7 runs" were 7 different `--name`s, i.e. 7 streams (Seam pass 32 (g)): a roll is
+looped in the test, never assumed (docs/quests/ladders/zombiequeen.notes.md).

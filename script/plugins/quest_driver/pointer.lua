@@ -4545,7 +4545,8 @@ function QD.player._inv_contents()
     local order = {}
     for index = 0, capacity - 1 do
         local slot_result, slot = api_drive.inv_slot(container_id, index)
-        if slot_result == "ok" and slot.obj_id > 0 then
+        -- empty is obj -1; obj 0 is a real item (see QD.inv.slot)
+        if slot_result == "ok" and slot.obj_id >= 0 then
             local name_result, name = api_drive.symbol_name("obj", slot.obj_id)
             if name_result ~= "ok" then
                 name = "obj#" .. tostring(slot.obj_id)

@@ -30,7 +30,18 @@ those.
 ### `t.inv.count(name)` -- also `t.inv.has`, `t.inv.slot`
 
 `t.inv.count(name)` -> `(ok, total)`; `t.inv.has(name)` -> `(ok, bool)`; `t.inv.slot(index)` ->
-`(ok, {name, count})`.
+`(ok, {name, count})`. An empty slot reads `{name='', count=0}`; obj id 0 (`mcannonremains`) is a
+real item and reads by name (seam33: the driver's empty test is `obj_id < 0`, conformance row
+`seam.inv_slot_obj_zero`).
+
+### `t.clock.skip(minutes)` (`world.lua`, seam33)
+
+`t.clock.skip(minutes)` -> `ok` (`date_minutes A -> B (+N skipped, world T min ahead; client
+varp)`) `refused` (not a whole number >= 1, or the server's bound: 1-10080 per call, a year in all)
+`no_row` (a binary built before `::clockskip`) `timeout`. Moves the embedded world's wall clock
+forward for a wait measured in REAL minutes; the quest's own catch-up still does the work, so the
+next row awaits the quest's effect. Lost on a relog. Details and caveats: gaps-world, "A step that
+waits real minutes".
 
 ### `t.inv.expect_has(name, count)` -- also `t.inv.expect_absent`
 

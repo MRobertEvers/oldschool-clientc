@@ -1159,7 +1159,8 @@ function QD.shop._stocked(inv_id)
     local stocked = 0
     for slot = 0, capacity - 1 do
         local slot_result, cell = api_drive.inv_slot(inv_id, slot)
-        if slot_result == "ok" and cell.obj_id > 0 then
+        -- empty is obj -1; obj 0 is a real item (see QD.inv.slot)
+        if slot_result == "ok" and cell.obj_id >= 0 then
             stocked = stocked + 1
         end
     end
@@ -1211,7 +1212,7 @@ function QD.shop._row(item)
         if slot_result == "ok" and cell.obj_id == obj_id then
             return "ok", { slot = slot, sub = slot + 1, stock = cell.count }
         end
-        if slot_result == "ok" and cell.obj_id > 0 and #offered < 6 then
+        if slot_result == "ok" and cell.obj_id >= 0 and #offered < 6 then
             offered[#offered + 1] = tostring(cell.obj_id) .. "x" .. tostring(cell.count)
         end
     end

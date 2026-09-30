@@ -244,3 +244,10 @@ must have completed Plague City to use this spell.'; before the scroll is read: 
 how to cast this spell yet.'); `ok` `no teleport` when only Magic XP was paid (Charge); `timeout`
 otherwise (a target spell pressed this way -- give it a target). Read the landed tile from the
 detail; never `goto_tile` where a teleport spell is the guide's step.
+
+A press while the player is DELAYED is dropped by the server with nothing on screen (LostCity's
+protected `[if_button]`; verbose `IF_BUTTONN ... refused: player is delayed (p_delay)`), so since
+seam33 the self-cast re-presses the cell after `SELF_CAST_REPRESS_TICKS` (3) of total silence, up
+to `SELF_CAST_PRESSES` (3) presses, and the detail ends `(press N: ...)` when it took more than one.
+A cast right after a step that ends in `p_delay` (Lost City's Dramen chop) needs no `t.ticks`
+before it. A cast on a HELD item still presses once (gaps-world: Leaving the Entrana dungeon).

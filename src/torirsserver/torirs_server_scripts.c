@@ -2338,6 +2338,23 @@ script_now_us(void)
     return (uint64_t)ts.tv_sec * 1000000u + (uint64_t)ts.tv_nsec / 1000u;
 }
 
+/*
+ * The one CLOCK_REALTIME read content can see (torirs_server.h). The skip is
+ * added here and nowhere else, so `date_minutes` and `date_runeday` cannot
+ * drift apart after a `::clockskip`.
+ */
+long long
+ToriRSServer_WorldRealtimeMs(const struct ToriRSServer* srv)
+{
+    struct timespec ts;
+
+    assert(srv);
+    if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
+        ts.tv_sec = 0, ts.tv_nsec = 0;
+    return (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL +
+           (long long)srv->clock_skip_minutes * 60000LL;
+}
+
 static int
 run_trigger_script_inner(
     struct ToriRSServer* srv,
@@ -10613,18 +10630,11 @@ ToriRSServer_ScriptCommand(
      * Wall-clock minutes since the Unix epoch. LostCity NumberOps.ts:
      * `Math.floor(currentMs / 60000)`. Farming crop growth (and Miscellania)
      * persist deadlines across logout; softtimer alone is only while online.
+     * Read through ToriRSServer_WorldRealtimeMs, so `::clockskip` moves it.
      */
     case SS_OP_DATE_MINUTES:
-    {
-        struct timespec ts;
-        long long ms;
-
-        if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
-            ts.tv_sec = 0, ts.tv_nsec = 0;
-        ms = (long long)ts.tv_sec * 1000LL + (long long)ts.tv_nsec / 1000000LL;
-        SSVM_PushInt(state, (int)(ms / 60000LL));
+        SSVM_PushInt(state, (int)(ToriRSServer_WorldRealtimeMs(srv) / 60000LL));
         return 1;
-    }
 
     /*
      * Wall-clock days since the Unix epoch — `date_minutes`'s own comment
@@ -10642,17 +10652,12 @@ ToriRSServer_ScriptCommand(
      * §2c) is only that the value is monotonic and advances exactly once
      * every 24 hours in one consistent zone, which `floor(unix_seconds /
      * 86400)` in UTC already is — content compares `%last_reset_day !=
-     * date_runeday()`, not the number's absolute magnitude.
+     * date_runeday()`, not the number's absolute magnitude. Same clock as
+     * `date_minutes` (ToriRSServer_WorldRealtimeMs), skip included.
      */
     case SS_OP_DATE_RUNEDAY:
-    {
-        struct timespec ts;
-
-        if( clock_gettime(CLOCK_REALTIME, &ts) != 0 )
-            ts.tv_sec = 0, ts.tv_nsec = 0;
-        SSVM_PushInt(state, (int)(ts.tv_sec / 86400LL));
+        SSVM_PushInt(state, (int)(ToriRSServer_WorldRealtimeMs(srv) / 86400000LL));
         return 1;
-    }
 
     /*
      * `map_members` gates the members-only branches in LostCity's drop tables

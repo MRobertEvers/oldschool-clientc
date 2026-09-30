@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 137 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 138 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 137
+-- @verb-count 138
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 56
+-- @seam-count 59
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 137
-local SEAM_COUNT = 56
+local VERB_COUNT = 138
+local SEAM_COUNT = 59
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5998,6 +5998,64 @@ return {
             return "ok", text
         end)
 
+        -- OBJ 0 IS AN ITEM TO THE DRIVER TOO.  seam32 moved the client's empty
+        -- slot to -1 (INV_MANAGER_EMPTY_OBJ_ID), so api_drive.inv_slot answers
+        -- obj 0 for Dwarf remains (mcannonremains, "0=mcannonremains" in
+        -- all.obj.compack) -- but the driver's Lua still read `obj_id <= 0` as
+        -- empty: t.inv.slot named the remains '' x0 and _inv_contents (the
+        -- use_on / use_item_on_item diff) left them out (seam33
+        -- obj_zero_in_the_driver_lua, build/quest_gate/s33_obj0_before).  Graded
+        -- on both readers naming the remains, and on an empty slot still
+        -- reading '' x0.  The remains are dropped afterwards to give the slot back.
+        stage(function()
+            setup_cheat("::give mcannonremains 1")
+            settle(2)
+        end)
+        seam("seam.inv_slot_obj_zero", function()
+            local slot = verb("inv", "slot")
+            local count = verb("inv", "count")
+            local contents = verb("player", "_inv_contents")
+            local drop = verb("player", "drop")
+            if not slot then return missing("inv", "slot") end
+            if not count then return missing("inv", "count") end
+            if not contents then return missing("player", "_inv_contents") end
+            if not drop then return missing("player", "drop") end
+            local held_result, held = count("mcannonremains")
+            if held_result ~= "ok" or type(held) ~= "number" or held < 1 then
+                return "no_subject", "::give mcannonremains left " .. describe(held) .. " in the backpack ("
+                    .. describe(held_result) .. ")"
+            end
+            local remains_at, empty_at, empty_read = nil, nil, nil
+            for index = 0, 27 do
+                local r, cell = slot(index)
+                if r == "ok" and type(cell) == "table" then
+                    if remains_at == nil and cell.name == "mcannonremains" and cell.count == 1 then
+                        remains_at = index
+                    elseif empty_at == nil and cell.name == "" then
+                        empty_at = index
+                        empty_read = "'" .. tostring(cell.name) .. "' x" .. tostring(cell.count)
+                    end
+                end
+            end
+            local c_result, c = contents()
+            local listed = (c_result == "ok" and type(c) == "table") and c.totals["mcannonremains"] or nil
+            local text = "count " .. describe(held) .. "; t.inv.slot names it at "
+                .. describe(remains_at) .. "; _inv_contents mcannonremains=" .. describe(listed)
+                .. "; first empty slot " .. describe(empty_at) .. " reads " .. describe(empty_read)
+            local drop_result, drop_detail = drop("mcannonremains")
+            text = text .. "; drop -> " .. describe(drop_result) .. " " .. describe(drop_detail)
+            if remains_at == nil then
+                return "hollow", "t.inv.slot never named the obj-0 item -- " .. text
+            end
+            if listed ~= 1 then
+                return "hollow", "_inv_contents left the obj-0 item out -- " .. text
+            end
+            if empty_at ~= nil and empty_read ~= "'' x0" then
+                return "hollow", "an empty slot no longer reads '' x0 -- " .. text
+            end
+            return "ok", text
+        end)
+
         -- A "*" ENTRY NAMES THE PAGE IT CONTINUED PAST, AND A PAGE FOLLOWED BY
         -- A p_delay IS WAITED OUT.  Professor Oddenstein's "Let's get this
         -- fixed then." is followed by mes / p_delay(2) / mes / p_delay(2) and
@@ -6533,6 +6591,69 @@ return {
             return "ok", text
         end)
 
+        -- A TELEPORT OUT OF A DUNGEON, PRESSED WHILE A CHOP HOLDS THE PLAYER
+        -- (seam33 spellbook_cast_never_runs).  Lost City's teleportAway: the
+        -- Entrana dungeon floor, the Dramen tree's branch cut (leprechaun_tree
+        -- .rs2 [oploc1,dramentree]: inv_add then p_delay(1)), and Lumbridge
+        -- Teleport pressed the tick the branch lands.  The server refuses an
+        -- [if_button] while the player is delayed, silently (LostCity
+        -- Player.runScript; torirs_server_world.c
+        -- if_button_refused_while_delayed), and the one-press verb read "the
+        -- cast never ran" (build/quest_gate/zanaris row 35, s33cast_repro2
+        -- row 4).  Graded on the TILE: the player must leave the dungeon for
+        -- Lumbridge and the verb must say TELEPORTED.  The zanaris varp goes
+        -- back to 0 after.
+        stage(function()
+            setup_cheat("::give bronze_axe 1")                  -- setup
+            setup_cheat("::give lawrune 1")
+            setup_cheat("::give airrune 3")
+            setup_cheat("::give earthrune 1")
+            setup_cheat("::setlevel woodcutting 36")
+            setup_cheat("::setvar zanaris ^zanaris_spirit_defeated")
+            setup_cheat("::goto 2862 9733 0")
+            settle(3)
+        end)
+        seam("seam.cast_self_teleport_from_dungeon_after_delay", function()
+            local cast = verb("player", "cast")
+            local tile = verb("world", "tile")
+            local click_loc = verb("player", "click_loc")
+            local inv_await = verb("inv", "await")
+            if not cast then return missing("player", "cast") end
+            if not tile then return missing("world", "tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not inv_await then return missing("inv", "await") end
+            local _, before = tile()
+            local chop_result, chop_detail = click_loc("dramentree", 1)
+            local branch_result, branch_detail = inv_await("dramen_branch", 1, 15)
+            local text = "chop dramentree -> " .. describe(chop_result) .. " " .. describe(chop_detail)
+                .. "; branch " .. describe(branch_result) .. " " .. describe(branch_detail)
+            if branch_result ~= "ok" then
+                return "no_subject", "no branch was cut, so no p_delay to cast through -- " .. text
+            end
+            local result, detail = cast("lumbridge_teleport")
+            local _, at = tile()
+            text = text .. "; cast lumbridge_teleport (no target) from "
+                .. (before and (before.x .. "," .. before.z .. "," .. before.level) or "?")
+                .. " -> " .. describe(result) .. " " .. describe(detail) .. "; tile "
+                .. (at and (at.x .. "," .. at.z .. "," .. at.level) or "?")
+                .. "; presses " .. (string.match(tostring(detail), "%(press (%d+):") or "1")
+            if result ~= "ok" then
+                return result, text
+            end
+            if not before or before.z < 9000 then
+                return "no_subject", "the cast did not start in the dungeon -- " .. text
+            end
+            if not at or at.level ~= 0 or at.x < 3200 or at.x > 3240 or at.z < 3200 or at.z > 3240
+                or not string.find(tostring(detail), "TELEPORTED", 1, true) then
+                return "hollow", "the self-cast answered ok but the player is not in Lumbridge -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::setvar zanaris 0")                   -- teardown
+            settle(1)
+        end)
+
         -- AN UNDRAWN MULTINPC SHELL IS NOT A MISSED PRESS (seam28).  A
         -- multinpc table is indexed BY VALUE (all.npc multinpc1 is varbit
         -- value 0); at ^gobdip_grubfoot_hidden (3, catwalk_goblin's -1 rung)
@@ -6857,6 +6978,91 @@ return {
                 quiet = 15, expect = full })
             return (r1 == "ok" and r2 == "ok") and "ok" or "refused",
                 "first " .. tostring(r1) .. ": " .. tostring(d1) .. " || second " .. tostring(r2) .. ": " .. tostring(d2)
+        end)
+
+        -- A WAIT OF REAL MINUTES IS FAST-FORWARDED, NOT SAT THROUGH (seam33
+        -- test_clock_for_realtime_waits).  date_minutes / date_runeday were bare
+        -- CLOCK_REALTIME reads, so Forgettable Tale's sixteen-minute kelda patch
+        -- outlasted a run's frame budget; ::clockskip adds a per-world offset
+        -- both opcodes read (ToriRSServer_WorldRealtimeMs) and t.clock.skip reads
+        -- the new minute back through the client's date_minutes varp.  Graded on
+        -- the varp moving by the skip (the verb's own +N check) and on the
+        -- server's week bound refusing a 20000-minute skip.  One minute ahead
+        -- costs nothing later: only cooldowns read the clock, and they shrink.
+        step("clock.skip", function()
+            local fn = verb("clock", "skip")
+            if not fn then return missing("clock", "skip") end
+            local result, detail = fn(1)
+            if result ~= "ok" then
+                return result, "t.clock.skip(1) -> " .. describe(detail)
+            end
+            if not string.find(tostring(detail), "(+1 skipped", 1, true) then
+                return "hollow", "t.clock.skip(1) answered ok without naming the skip -- " .. describe(detail)
+            end
+            local refused_result, refused_detail = fn(20000)
+            if refused_result ~= "refused" then
+                return "hollow", "t.clock.skip(20000) (past the week bound) answered "
+                    .. describe(refused_result) .. " " .. describe(refused_detail) .. "; skip(1): " .. detail
+            end
+            return "ok", detail .. "; skip(20000) refused: " .. describe(refused_detail)
+        end)
+
+        -- ::complete WRITES THE ROW IT NAMES, INCLUDING ONE WHOSE NAME IS ALSO A
+        -- VARP (seam33 complete_cheat_arms).  `quest_wanted` is dbrow 156 AND
+        -- varp 571 (Wanted!'s carrier), and `if ($row = quest_wanted)` compiled
+        -- to `$row = 571` (sscompile resolves an untyped bare name by namespace
+        -- sort order), so the arm never matched and `::complete quest_wanted`
+        -- answered "::complete has no arm for that quest." -- Devious Minds' monk
+        -- refused a player with every prerequisite staged
+        -- (build/quest_gate/s33_cca_probe).  Temple of Ikov, Tourist Trap and
+        -- Troll Stronghold had no arm at all, so Desert Treasure and Devious
+        -- Minds staged them with ::setvar.  Graded per row on the progress var
+        -- reaching the quest's own complete constant AND %qp rising by the row's
+        -- quest:questpoints (the cheat pays it), from a var reset to 0 first so
+        -- an earlier row's completion cannot pass it.  The vars go back to 0 after.
+        seam("seam.complete_cheat_arms", function()
+            local cheat = verb("cheat")
+            local read = verb("var", "server")
+            if not cheat then return missing("cheat") end
+            if not read then return missing("var", "server") end
+            local arms = {
+                { row = "quest_wanted", var = "wanted_main", complete = 11, points = 1 },
+                { row = "quest_touristtrap", var = "desertrescue", complete = 30, points = 2 },
+                { row = "quest_templeofikov", var = "ikov", complete = 80, points = 1 },
+                { row = "quest_trollstronghold", var = "troll_quest", complete = 50, points = 1 },
+            }
+            local parts = {}
+            for _, arm in ipairs(arms) do
+                setup_cheat("::setvar " .. arm.var .. " 0")
+                settle(1)
+                local _, qp_before = read("qp")
+                local cheat_result = cheat("::complete " .. arm.row)
+                settle(2)
+                local value_result, value = read(arm.var)
+                local _, qp_after = read("qp")
+                local reading = arm.row .. ": " .. arm.var .. "=" .. describe(value)
+                    .. " (want " .. arm.complete .. "), qp " .. describe(qp_before) .. "->"
+                    .. describe(qp_after) .. " (want +" .. arm.points .. "), cheat " .. describe(cheat_result)
+                if cheat_result ~= "ok" or value_result ~= "ok" or value ~= arm.complete
+                    or type(qp_before) ~= "number" or type(qp_after) ~= "number"
+                    or qp_after - qp_before ~= arm.points then
+                    return "refused", reading
+                end
+                parts[#parts + 1] = reading
+            end
+            local _, visible = read("ikov_lucien_vis")
+            if visible ~= 0 then
+                return "refused", "ikov_lucien_vis=" .. describe(visible)
+                    .. " after ::complete quest_templeofikov (the ending's ~ikov_lucien_sync gives 0)"
+            end
+            return "ok", table.concat(parts, "; ") .. "; ikov_lucien_vis=0"
+        end)
+        stage(function()
+            setup_cheat("::setvar wanted_main 0")               -- teardown
+            setup_cheat("::setvar desertrescue 0")
+            setup_cheat("::setvar ikov 0")
+            setup_cheat("::setvar troll_quest 0")
+            settle(1)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

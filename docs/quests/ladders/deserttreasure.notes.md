@@ -21,6 +21,19 @@ Single-way combat: `::passive <npc_symbol>` on every aggressive npc nearby, or "
   Small gate icegate_right_small 2853,3810 lvl1 -> bridge lvl2. Ice blocks 2825,3807 / 2825,3811 lvl2:
   cast fire_blast (melee op is "Smash-ice", the driver only presses Attack rows). Both freed -> subquest 4.
   Child gives the diamond only with a free slot (subquest 5, ice_stage 100).
+  The blocks are spawned as their BASE symbols troll_block_1/2 (m44_59.spawn, multivarbit
+  fd_icewarrior_dadfree/mumfree): Talk-to runs [opnpc1,troll_block_N], which hands the block form to
+  the ice mesbox and the freed form to the parent's label (trap 19). Before seam33 only
+  [opnpc1,fd_troll_mum/dad] existed, so the freed parent answered nothing ("map_flag: no dialogue").
+  A smashed block leaves the pool and the parent RESPAWNS in its place ~20 ticks later
+  (`t.npc.await_present fd_troll_mum 25 150`). A fire blast can kill a block inside the cast's
+  settle (`hp no bar -> gone`), so read dadfree/mumfree, not `await_dead_engaged`, as the proof.
+  talkToTrolls (either parent, subquest 4 on the bridge): 13 pages, father/mother by name, then
+  p_teleport to 2830,3740 with subquest still 4 (Quest Helper DesertTreasure.java:156-157).
+  talkToChildTrollAfterFreeing (troll child, subquest 4): 6 npc pages (child, father, father,
+  mother, child, child), the diamond, 1 player page. The parents stand beside the child
+  (troll_frozen_1/2, visible at subquest 4-5). Dialogue source:
+  https://oldschool.runescape.wiki/w/Transcript:Desert_Treasure_I (Troll child/father/mother).
 - Pillars (oblix1..4 at 3221/3245, 2909/2887): use each diamond, magic 50. All four -> stage 13.
   Exterior ladder desert_laddertop 3233,2897 sealed until then.
 - Pyramid: ladders are generic maplinks. Floor 1 lands 2913,4954 lvl3; down at 2909,4964; floor 2 down

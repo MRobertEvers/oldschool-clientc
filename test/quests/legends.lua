@@ -1139,23 +1139,16 @@ return {
                 local _, at = t.world.tile()
                 t.check("src-enterBookcase", past_bookcase, "in the tunnel behind the bookcase at " .. at.x .. "," .. at.z)
             end
-            -- FINDING (full run only): the double doors this leg opened on the first trip (temporary
-            -- loc_del/loc_add swings, legends_procs.rs2 legends_double_door_swing) are not in the world
-            -- on the second trip -- neither the closed leaves nor the open forms -- while the boulders, the
-            -- crumbled wall and the bookcase are. A fresh server (--from-leg) has them. When a gate is
-            -- absent the way is simply walked; when present it is picked/forced as on the first trip.
+            -- the double doors this leg opened on the first trip (temporary loc_del/loc_add swings,
+            -- legends_procs.rs2 legends_double_door_swing) are back in the world: the loc revert queue
+            -- keeps one lifecycle per loc (seam32), so they are picked/forced as on the first trip.
             local gate1_present = t.world.loc_near("lglockpickgatebottoml", 30) == "ok"
             do
                 local _, at = t.world.tile()
-                t.check("src-gate1-state", true, "at " .. at.x .. "," .. at.z .. " lockpick gate present: " .. tostring(gate1_present))
+                t.check("src-gate1-state", gate1_present, "at " .. at.x .. "," .. at.z .. " lockpick gate present: " .. tostring(gate1_present))
             end
             local through_gate1 = false
-            if not gate1_present then
-                t.player.walk_to(2810, 9331, 40)
-                local _, at = t.world.tile()
-                through_gate1 = at.z < 9332
-            end
-            for i = 1, (gate1_present and 14 or 0) do
+            for i = 1, 14 do
                 t.exec("src-enterGate1-press-" .. i, t.player.click_loc, "lglockpickgatebottoml", 2)
                 local wait = 25
                 for _ = 1, 8 do
@@ -1170,8 +1163,7 @@ return {
             end
             do
                 local _, at = t.world.tile()
-                t.check("src-enterGate1", through_gate1, (gate1_present and "picked the lock" or "the lockpick gate is gone from the world, walked on")
-                    .. " and stands south of the gate line at " .. at.x .. "," .. at.z)
+                t.check("src-enterGate1", through_gate1, "picked the lock and stands south of the gate line at " .. at.x .. "," .. at.z)
             end
             local boulder_z = { mine_test_boulder1 = 9327, mine_test_boulder2 = 9323, mine_test_boulder3 = 9319 }
             for _, symbol in ipairs({ "mine_test_boulder1", "mine_test_boulder2", "mine_test_boulder3" }) do
@@ -1186,13 +1178,7 @@ return {
                 t.check("src-mine-" .. symbol, passed, "smashed the rock and stands past it at " .. at.x .. "," .. at.z)
             end
             local through_gate2 = false
-            local gate2_present = t.world.loc_near("lgstrengthtrialgatel", 30) == "ok"
-            if not gate2_present then
-                t.player.walk_to(2809, 9312, 40)
-                local _, at = t.world.tile()
-                through_gate2 = at.z < 9314
-            end
-            for i = 1, (gate2_present and 12 or 0) do
+            for i = 1, 12 do
                 t.exec("src-enterGate2-press-" .. i, t.player.click_loc, "lgstrengthtrialgatel", 1)
                 converse("src-enterGate2-dialog-" .. i, { "/very strong/" })
                 t.ticks(3)
@@ -1201,8 +1187,7 @@ return {
             end
             do
                 local _, at = t.world.tile()
-                t.check("src-enterGate2", through_gate2, (gate2_present and "forced the strength doors" or "the strength doors are gone from the world, walked on")
-                    .. " and stands south of them at " .. at.x .. "," .. at.z)
+                t.check("src-enterGate2", through_gate2, "forced the strength doors and stands south of them at " .. at.x .. "," .. at.z)
             end
             -- the deathwings (m43_145.spawn) near the crumbled wall are aggressive: fight those that engage
             for i = 1, 4 do
@@ -1529,23 +1514,16 @@ return {
                 local _, at = t.world.tile()
                 t.check("hf-enterBookcase", past_bookcase, "in the tunnel behind the bookcase at " .. at.x .. "," .. at.z)
             end
-            -- FINDING (full run only): the double doors this leg opened on the first trip (temporary
-            -- loc_del/loc_add swings, legends_procs.rs2 legends_double_door_swing) are not in the world
-            -- on the second trip -- neither the closed leaves nor the open forms -- while the boulders, the
-            -- crumbled wall and the bookcase are. A fresh server (--from-leg) has them. When a gate is
-            -- absent the way is simply walked; when present it is picked/forced as on the first trip.
+            -- the double doors this leg opened on the first trip (temporary loc_del/loc_add swings,
+            -- legends_procs.rs2 legends_double_door_swing) are back in the world: the loc revert queue
+            -- keeps one lifecycle per loc (seam32), so they are picked/forced as on the first trip.
             local gate1_present = t.world.loc_near("lglockpickgatebottoml", 30) == "ok"
             do
                 local _, at = t.world.tile()
-                t.check("hf-gate1-state", true, "at " .. at.x .. "," .. at.z .. " lockpick gate present: " .. tostring(gate1_present))
+                t.check("hf-gate1-state", gate1_present, "at " .. at.x .. "," .. at.z .. " lockpick gate present: " .. tostring(gate1_present))
             end
             local through_gate1 = false
-            if not gate1_present then
-                t.player.walk_to(2810, 9331, 40)
-                local _, at = t.world.tile()
-                through_gate1 = at.z < 9332
-            end
-            for i = 1, (gate1_present and 14 or 0) do
+            for i = 1, 14 do
                 t.exec("hf-enterGate1-press-" .. i, t.player.click_loc, "lglockpickgatebottoml", 2)
                 local wait = 25
                 for _ = 1, 8 do
@@ -1560,8 +1538,7 @@ return {
             end
             do
                 local _, at = t.world.tile()
-                t.check("hf-enterGate1", through_gate1, (gate1_present and "picked the lock" or "the lockpick gate is gone from the world, walked on")
-                    .. " and stands south of the gate line at " .. at.x .. "," .. at.z)
+                t.check("hf-enterGate1", through_gate1, "picked the lock and stands south of the gate line at " .. at.x .. "," .. at.z)
             end
             local boulder_z = { mine_test_boulder1 = 9327, mine_test_boulder2 = 9323, mine_test_boulder3 = 9319 }
             for _, symbol in ipairs({ "mine_test_boulder1", "mine_test_boulder2", "mine_test_boulder3" }) do
@@ -1576,13 +1553,7 @@ return {
                 t.check("hf-mine-" .. symbol, passed, "smashed the rock and stands past it at " .. at.x .. "," .. at.z)
             end
             local through_gate2 = false
-            local gate2_present = t.world.loc_near("lgstrengthtrialgatel", 30) == "ok"
-            if not gate2_present then
-                t.player.walk_to(2809, 9312, 40)
-                local _, at = t.world.tile()
-                through_gate2 = at.z < 9314
-            end
-            for i = 1, (gate2_present and 12 or 0) do
+            for i = 1, 12 do
                 t.exec("hf-enterGate2-press-" .. i, t.player.click_loc, "lgstrengthtrialgatel", 1)
                 converse("hf-enterGate2-dialog-" .. i, { "/very strong/" })
                 t.ticks(3)
@@ -1591,8 +1562,7 @@ return {
             end
             do
                 local _, at = t.world.tile()
-                t.check("hf-enterGate2", through_gate2, (gate2_present and "forced the strength doors" or "the strength doors are gone from the world, walked on")
-                    .. " and stands south of them at " .. at.x .. "," .. at.z)
+                t.check("hf-enterGate2", through_gate2, "forced the strength doors and stands south of them at " .. at.x .. "," .. at.z)
             end
             -- the deathwings (m43_145.spawn) near the crumbled wall are aggressive: fight those that engage
             for i = 1, 4 do

@@ -4298,6 +4298,18 @@ struct ToriRSServer
      *  `TORIRSSERVER_FREE_WORLD=1` to force it to 0 for free-world testing. */
     int members_world;
 
+    /**
+     * Minutes `::clockskip` has moved this world's wall clock forward; added
+     * to every CLOCK_REALTIME read content can see (`date_minutes`,
+     * `date_runeday`, through ToriRSServer_WorldRealtimeMs). A real-time wait
+     * -- a crop, a brew, Forgettable Tale's kelda patch -- is a grind by
+     * another name, and this is its documented fast-forward
+     * (docs/QUEST_SERVER_CHEATS.md). Only ever grows, so every deadline
+     * content compares against stays monotonic. World state for the life of
+     * the process: never saved, never checkpointed.
+     */
+    int clock_skip_minutes;
+
     /** 1 once ToriRSServer_WorldInit has built the scene and the entities. Both
      *  hosts call that on every login, so this is what stops the second one
      *  respawning the roster under the first player. */
@@ -6697,6 +6709,22 @@ ToriRSServer_RunCheatLadder(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player,
     const char* text);
+
+/*
+ * This world's wall clock: CLOCK_REALTIME in milliseconds since the Unix
+ * epoch, plus the minutes `::clockskip` has advanced it
+ * (`srv->clock_skip_minutes`). Every wall-clock read content can see
+ * (`date_minutes`, `date_runeday`) goes through here, so one skip moves all
+ * of them together and none can disagree with another.
+ */
+long long
+ToriRSServer_WorldRealtimeMs(const struct ToriRSServer* srv);
+
+/* `::clockskip` bounds: one call moves at most a week, and the world never
+ * runs more than a year ahead -- far below the point `date_minutes` (an int
+ * of minutes since 1970, ~29.8 million in 2026) could wrap. */
+#define TORIRSSERVER_CLOCK_SKIP_STEP_MAX (7 * 24 * 60)
+#define TORIRSSERVER_CLOCK_SKIP_TOTAL_MAX (366 * 24 * 60)
 
 /*
  * quest-driver: what `t.cheat` actually dispatches. Owner: core-scheduler.

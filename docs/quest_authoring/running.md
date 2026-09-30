@@ -145,6 +145,9 @@ appends `its await predicate raised ...: <error>` to that row.
 
 ### `--script` runs are deterministic: a rerun replays the same rolls (seam31)
 
-The same file and fixture replay the same random stream, so a `t.blocked` on a roll (Gujuo's bowl
-blessing, a `stat_random` smithing step) gives the same result on every rerun. Change the attempt
-budget or the state before the roll (drink a restore, retry beyond N), not the run count.
+The same file, fixture and `--name` replay the same random stream, so a `t.blocked` on a roll
+(Gujuo's bowl blessing, a `stat_random` smithing step) gives the same result on every rerun. Change
+the attempt budget or the state before the roll (drink a restore, retry beyond N), not the run
+count. The player NAME seeds the stream (seam-facts: Seam pass 32 (g)): a scratch copy under
+another `--name` rolls differently (Zombie Queen's loose rocks caved in on 3 of 7 differently named
+runs, seam33), so a test loops every roll it depends on instead of trusting its own id's luck.

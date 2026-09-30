@@ -233,8 +233,8 @@ hovered +0,-48/-64` on a table, is a binary built before seam32.
 FIXED in seam32 (seam-facts: Seam pass 32 (c)): the client's empty sentinel is -1 everywhere, so
 obj 0 is drawn, clickable and counted. `click_obj("mcannonremains", 3)` answers `ok click_obj: met
 after N tick(s)`, and `t.inv.count` / `expect_has` / `await` see it. Prove a pickup with
-`t.inv.await` / `expect_has` like any other item. Still open: `t.inv.slot` names an obj-0 slot `''`
-(a driver Lua `<= 0` test). The history follows.
+`t.inv.await` / `expect_has` like any other item. `t.inv.slot` and the use-on diff
+(`_inv_contents`) name it too since seam33 (seam-facts: Seam pass 33 (b)). The history follows.
 
 Reported by the Dwarf Cannon author (sonnet-b36). `t.player.click_obj("mcannonremains", 3)` on the
 guard-tower floor answered `timeout`, but the remains were in the backpack. Captain Lawgof's hand-in

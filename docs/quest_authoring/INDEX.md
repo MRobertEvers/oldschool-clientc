@@ -35,10 +35,13 @@ topic file with one line added here.
 - a jump/teleport loc answers before you land -> seam-facts: Seam pass 26, (c)
 - a portal lands somewhere else (multiloc child) -> seam-facts: Seam pass 24, (b); Seam pass 25, (c)
 - a loc with only Examine; no op to go back down a hole (`goDownHole`) -> gaps-world: A loc with only Examine
-- `cast lumbridge_teleport ... the cast never ran` from the Entrana dungeon; `zanarismagicdoor` -> gaps-world: Leaving the Entrana dungeon
+- `the cast never ran` right after a `p_delay` step (a chop, a door); `refused: player is delayed`; `(press N: ...)` in a cast detail; `zanarismagicdoor` -> gaps-world: Leaving the Entrana dungeon
 
 ## Pressing and clicking
 
+- `map_flag: no dialogue in 5 tick(s)` on a freed/respawned multinpc form (Desert Treasure's troll parents) -> seam-facts: Seam pass 33 (e); traps-13-22: trap 19
+- a search that sometimes gives nothing (a `stat_random` roll, a cave-in mesbox); passes on one `--name`, fails on another -> seam-facts: Seam pass 33 (g); running: `--script` runs are deterministic
+- `t.inv.slot` reads `''` for Dwarf remains (obj id 0) -> seam-facts: Seam pass 33 (b) (FIXED)
 - `click_obj` op 5 answers covered/no row on a knife; picking one obj from a drop pile -> verbs-pointer: `t.player.click_obj`
 - `click_obj`: the menu shows only the table's/rock's rows (`pickset held=false`) for an item lying ON it; `hunted ... hovered +0,-64` -> verbs-pointer: `t.player.click_obj` (raised stacks, seam32)
 - `talk_to` `refused -- the client said 'I can't reach that!'` -> traps-23-33: Trap 26 (FIXED seam29)
@@ -194,6 +197,7 @@ topic file with one line added here.
 
 ## Long quests
 
+- an await on a crop, brew or cooldown times out; a wait of real minutes; `date_minutes` -> gaps-world: A step that waits real minutes
 - my context is filling up; which guide steps are left; never read the guide Java -> relay: The ladder (`ladder.py <id>`)
 - quest has more than 30 steps; handed one leg; where the previous author stopped -> relay: Legs; relay: Working one leg (`ladder.py <id> --leg K`)
 - which row failed; the ledger is too long to read -> relay: After a run (`fail.py <id>`, `--all`)
@@ -288,7 +292,9 @@ topic file with one line added here.
 - named content gaps (The Feud, One Small Favour, Shadow of the Storm) -> content-gaps
 - place facts (Watchtower, Tourist Trap, Death's Coffer, Witchaven, Ghosts Ahoy, Hazeel Cult) -> seam-facts: passes 23-28
 - `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
-- `::complete has no arm for that quest.` (quest_touristtrap, quest_templeofikov, quest_trollstronghold) -> gaps-combat: `::complete has no arm
+- `::complete has no arm for that quest.`; `::complete quest_wanted` leaves `wanted_main` 0 (arms for touristtrap, templeofikov, trollstronghold, wanted exist since seam33) -> gaps-combat: `::complete has no arm for that quest.`; QUEST_SERVER_CHEATS.md: `::complete <quest row>`
+- a `$row = <name>` compare that never matches; a name that is both a dbrow and a varp (`quest_wanted`) -> seam-facts: Seam pass 33 (d)
+- a quest stage moves BACK after re-asking an npc (Oracle, Oziach) -> seam-facts: Seam pass 33 (f); Seam pass 32 (f)
 - "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
 - a multinpc shell never changes form on the client (sote_tertiary) -> seam-facts: Seam pass 30 (b)
 - `COORD requires an active entity` after `.huntnext`; `the active loc is gone`; an npc death script aborting after `p_delay` -> seam-facts: Seam pass 30 (d), (e) (the `.huntnext` / `loc_del` gaps FIXED: Seam pass 31 (a))

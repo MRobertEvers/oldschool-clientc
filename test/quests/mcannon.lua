@@ -69,12 +69,12 @@ return {
         t.exec("gotoTower2", t.player.click_loc, "mcannonladder")
         t.ticks(4)
         do local lvl = select(2, t.world.level()); t.check("gotoTower2.level", lvl == 2, "level after second ladder: " .. tostring(lvl)) end
-        do
-            local ok, why = t.player.click_obj("mcannonremains", 3)
-            t.chat.drain({ stop_at = "none" })
-            t.ticks(4)
-            t.check("getRemainsStep", true, tostring(ok) .. " " .. tostring(why))
-        end
+        -- seam32 obj_id_zero_is_a_real_item: the remains (obj id 0) are now a
+        -- real backpack item, so the pickup is asserted, not assumed.
+        t.exec("getRemainsStep", t.player.click_obj, "mcannonremains", 3)
+        t.chat.drain({ stop_at = "none" })
+        t.expect("getRemainsStep.held", t.inv.await("mcannonremains", 1, 10))
+        do local r, d = t.inv.expect_has("mcannonremains", 1); t.check("getRemainsStep.backpack", r, "mcannonremains: " .. tostring(d)) end
         t.exec("downTower", t.player.click_loc, "laddertop")
         t.ticks(4)
         do local lvl = select(2, t.world.level()); t.check("downTower.level", lvl == 1, "level after first descent: " .. tostring(lvl)) end

@@ -427,25 +427,81 @@ diamond, and its exit is a one-way fairy ring behind the Al Kharid bank. The 239
 (Quest Helper LostCity.java:174), so none of this blocks the zanaris row. The OSRS-era market is a
 separate content job (Gatekeeper, mushroom gate, exit fairy ring).
 
-## Leaving the Entrana dungeon: `cast lumbridge_teleport ... the cast never ran` (OPEN)
+## Leaving the Entrana dungeon: `cast lumbridge_teleport ... the cast never ran` (CLOSED, seam33)
 
-*Origin: sampler sonnet-b40 (zanaris review; the cause is not yet found).*
+*Origin: sampler sonnet-b40 (zanaris review). Closed by seam33 spellbook_cast_never_runs.*
 
 Lost City's `teleportAway` is a spell cast from the Entrana dungeon floor. In batch sonnet-b40,
 `t.player.cast("lumbridge_teleport")` at 2861,9736,0 answered FAIL: `no line, no move and no Magic
-XP inside 10 ticks: the cast never ran`. The setup had Magic 31, 1 law, 3 air and 1 earth rune, and
-the shot showed the runes in the pack. Both `{kind="self"}` and a bare cast failed the same way.
-Every refusal in `check_spell_requirements` (`skill_magic/scripts/magic.rs2`) and in
-`magic_teleport_gate` prints a line. With no line at all, one of these happened:
+XP inside 10 ticks: the cast never ran`. None of the three suspects was the cause: the button
+reached the server, `p_finduid` never ran, and the dbrow is fine. The server REFUSED the press:
+the row came on the same tick as `cutDramenBranch`, and `[oploc1,dramentree]`
+(`quest_zanaris/scripts/leprechaun_tree.rs2`) ends in `p_delay(1)`. An interface click that
+would start a script while the player is delayed is dropped, with nothing on screen. This is
+LostCity's rule: `IfButtonHandler` runs the `[if_button]` with protected access, and
+`Player.runScript` returns -1 while `delayed`. The engine copy is `if_button_refused_while_delayed`
+in `torirs_server_world.c`, and its verbose line is
+`<- IF_BUTTONN 218:29 refused: player is delayed (p_delay)`
+(`build/quest_gate/s33cast_repro2`, row 4). The same cast from a quiet dungeon tile lands in
+Lumbridge (`s33cast_repro`, row 2). The Entrana dungeon does allow teleporting out, as it does in
+the OSRS game, and nothing in content blocks it.
 
-- the button never reached the server, or
-- `p_finduid(uid)` failed at `skill_magic/scripts/spells/teleport.rs2:110`, or
-- the spell's dbrow was null.
+The fix is in the driver. A self-cast (`spell.lua` `_cast_self`) re-presses the spell's cell when
+a press leaves no trace (no line, no move, no Magic XP) for `SELF_CAST_REPRESS_TICKS` (3). It
+presses up to `SELF_CAST_PRESSES` (3) times, as a person clicks again, which is the same rule the
+equip verb uses. The detail says `(press N: ...)` when it took more than one press
+(`s33cast_after2` row 4: `TELEPORTED to 3220,3219,0 ... (press 2: ...)`). Conformance row
+`seam.cast_self_teleport_from_dungeon_after_delay` covers the chop and the cast.
 
-Check the server log for the if_button before changing the test. Do not replace the cast with
-`t.player.teleport`, which is a cheat past a guide step.
+What a test should do: nothing special. Cast right after the step, and do not add a
+`t.ticks` to dodge the delay. A cast on a HELD item (`{kind="held"}`, OPHELDT) is refused the
+same way while the player is delayed, and it still presses only once. If that case reads
+`the cast never ran` right after a `p_delay` step, it is the same seam.
 
 The dungeon's other way out is no substitute. `[oploc1,zanarismagicdoor]`
 (`areas/entrana/scripts/entrana_dungeon.rs2:15`) `p_telejump`s to `0_50_58_50_60` (3250,3772), in
 the deep Wilderness, so the guide does not use it.
 
+
+## A step that waits real minutes: `t.clock.skip` (seam33)
+
+*Origin: author batch sonnet-b40 (forgettabletale leg 2, `waitForKelda`). Fixed by seam33
+test_clock_for_realtime_waits.*
+
+Some waits are measured in REAL minutes, not ticks: content stores a deadline in `date_minutes`
+(wall-clock minutes since 1970) and a catch-up proc compares against it. Forgettable Tale's kelda
+patch is four stages of `^forget_kelda_stage_minutes` (4), sixteen minutes from planting
+(`forget_farming.rs2 [proc,forget_kelda_catchup]`); its brew, every farming patch, the Home
+Teleport cooldown (`home_teleport.rs2`) and the fight cave rotation read the same clock. A run's
+frame budget ends at about 12.5 wall minutes (run.py `MAX_FRAMES_CEILING`), so the symptom was an
+await that sat at the planted stage until the run ran out: `var.await forget_farming == 8 (last
+client read: 4)`.
+
+A real-time wait is a grind, and the fast-forward is `t.clock.skip(minutes)`
+(`quest_driver/world.lua`). It sends `::clockskip <minutes>`, which moves the embedded world's
+wall clock forward (docs/QUEST_SERVER_CHEATS.md, "Grind fast-forwards"), and reads the new minute
+back through varp `date_minutes`. It moves only the clock. The quest's own catch-up still does the
+work (its softtimer, or the next op that calls it), so the next row reads the QUEST's effect:
+
+```lua
+t.exec("waitForKelda-skip", t.clock.skip, 16)
+t.exec("waitForKelda", t.var.await, "forget_farming", 8, 110)   -- forget_tick fires every 100 ticks
+```
+
+Evidence: `build/quest_gate/s33clock_old` (the old binary) answers `::clockskip 16 -> no_row:
+Unknown command` and the await times out at 4. `build/quest_gate/s33clock_new` answers `date_minutes
+29846673 -> 29846689 (+16 skipped, world 16 min ahead; client varp)`, then `forget_farming = 8
+(client varbit) after 88 tick(s)`, and the real harvest gives `kelda_hops 0 -> 1`.
+
+- The catch-up is NOT instant. It runs when the content calls it: the softtimer here (up to 100
+  ticks), or a patch op. Await the stage; do not read it on the next row.
+- Skip the whole wait, not more. The clock only moves forward (`0`, a negative number or more
+  than a week in one call answers `refused` with the server's line), and every later deadline is
+  measured from the skipped clock.
+- Ordinary farming re-arms from NOW (`farming_hops.rs2 [proc,farming_advance_hops]`), so one skip
+  advances a crop ONE stage. Skip one stage's minutes, await the stage, and repeat. A quest that
+  measures from the deadline (the kelda patch) catches up every stage at once.
+- The skip lives as long as the server process. `t.session.relog` re-boots the embedded server,
+  and the clock is real again. Skip AFTER the relog, never before it.
+- Prefer it to a quest's own "set the result" debugproc (`::forget_growkelda`,
+  `::forget_ferment`). Those write the outcome; the skip lets the quest compute it.

@@ -8600,6 +8600,65 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_RAN;
     }
 
+    if( strncmp(text, "clockskip", 9) == 0 && (text[9] == '\0' || text[9] == ' ') )
+    {
+        /*
+         * `::clockskip <minutes>` -- move this world's wall clock forward
+         * (docs/QUEST_SERVER_CHEATS.md, "Grind fast-forwards"). A real-time
+         * wait is a grind by another name: Forgettable Tale's kelda patch is
+         * four stages of `^forget_kelda_stage_minutes` against `date_minutes`
+         * (forget_farming.rs2 [proc,forget_kelda_catchup]), sixteen real
+         * minutes no quest run can sit through. Content's own catch-up still
+         * does the work -- the softtimer or the next op that calls it -- so
+         * the effect a test reads back is the quest's, not the cheat's.
+         *
+         * Forward only, and bounded: a clock that went backward would make
+         * every `date_minutes - stamp` in content (the Home Teleport cooldown,
+         * home_teleport.rs2) read negative, and one far past int range would
+         * wrap `date_minutes` itself. The skip is world state
+         * (`srv->clock_skip_minutes`), never saved: it lasts as long as this
+         * server process does.
+         *
+         * `%date_minutes` (varp 3078, teleport_cooldowns.varp) is the
+         * client-visible copy content refreshes once a minute; it is written
+         * here too, so the spellbook and a test reading the varp see the new
+         * minute at once instead of up to 100 ticks later.
+         */
+        int minutes = 0;
+        int consumed = 0;
+        int varp_date_minutes;
+        int now_minutes;
+
+        if( sscanf(text, "clockskip %d%n", &minutes, &consumed) != 1 ||
+            text[consumed + strspn(text + consumed, " ")] != '\0' )
+        {
+            say(srv, "Usage: ::clockskip <minutes, 1-%d>", TORIRSSERVER_CLOCK_SKIP_STEP_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( minutes < 1 || minutes > TORIRSSERVER_CLOCK_SKIP_STEP_MAX )
+        {
+            say(srv, "::clockskip refused: %d minute(s); the clock only moves forward, 1-%d at a time",
+                minutes, TORIRSSERVER_CLOCK_SKIP_STEP_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( srv->clock_skip_minutes > TORIRSSERVER_CLOCK_SKIP_TOTAL_MAX - minutes )
+        {
+            say(srv, "::clockskip refused: the world is already %d minute(s) ahead (limit %d)",
+                srv->clock_skip_minutes, TORIRSSERVER_CLOCK_SKIP_TOTAL_MAX);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        srv->clock_skip_minutes += minutes;
+        now_minutes = (int)(ToriRSServer_WorldRealtimeMs(srv) / 60000LL);
+        varp_date_minutes = ToriRSServer_WorldVarp("date_minutes");
+        if( varp_date_minutes >= 0 )
+            ToriRSServer_WorldSetVarpOn(srv, player, varp_date_minutes, now_minutes);
+        fprintf(stderr, "torirsserver: clockskip +%d minute(s), world clock %d minute(s) ahead\n",
+                minutes, srv->clock_skip_minutes);
+        say(srv, "Clock skipped %d minute(s): date_minutes %d, %d minute(s) ahead of real time.",
+            minutes, now_minutes, srv->clock_skip_minutes);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "setvar ", 7) == 0 )
     {
         /*

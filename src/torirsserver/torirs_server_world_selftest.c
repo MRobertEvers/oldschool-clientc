@@ -47478,6 +47478,165 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: ::clockskip moves the world clock\n");
+    {
+        /*
+         * seam33 test_clock_for_realtime_waits: `date_minutes` and
+         * `date_runeday` are CLOCK_REALTIME reads, so a real-time wait
+         * (Forgettable Tale's kelda patch, four stages of 4 minutes) could not
+         * be driven inside a run. `::clockskip <minutes>` adds a per-world
+         * offset both opcodes read through ToriRSServer_WorldRealtimeMs.
+         *
+         * Checked against time(NULL), never against the opcode grading itself:
+         * a reading minus the skip must fall inside the real minutes sampled
+         * either side of it, which is exact and still immune to a minute
+         * boundary landing mid-check. `date_minutes` is read back through its
+         * transmitted varp, the way a quest test reads it.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct ToriRSServerPlayer* p = srv->active_player;
+            int varp_date = ToriRSServer_WorldVarp("date_minutes");
+            int saved_skip = srv->clock_skip_minutes;
+            long long real_before;
+            long long real_after;
+            int32_t before;
+            int32_t after;
+            int32_t runeday = -1;
+
+            assert(p);
+            SELFTEST_CHECK(varp_date >= 0, "the pack declares the date_minutes varp");
+            srv->clock_skip_minutes = 0;
+
+            /* 1. Unskipped, the varp is the real minute. */
+            real_before = (long long)time(NULL) / 60LL;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+            before = varp_date >= 0 ? p->varps[varp_date] : -1;
+            real_after = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(before >= real_before && before <= real_after,
+                           "unskipped date_minutes %d should be the real minute %lld..%lld", before,
+                           real_before, real_after);
+
+            /* 2. `::clockskip 16` moves it by exactly sixteen, and the cheat
+             *    writes the varp itself (no 100-tick wait for the refresh). */
+            real_before = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 16") ==
+                               TORIRSSERVER_TRIGGER_RAN,
+                           "::clockskip 16 runs");
+            after = varp_date >= 0 ? p->varps[varp_date] : -1;
+            real_after = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(srv->clock_skip_minutes == 16, "the world is 16 minutes ahead, got %d",
+                           srv->clock_skip_minutes);
+            SELFTEST_CHECK(after - 16 >= real_before && after - 16 <= real_after,
+                           "the cheat wrote date_minutes %d = real %lld..%lld + 16", after,
+                           real_before, real_after);
+
+            /* ...and content reading the opcode agrees with the varp. */
+            real_before = (long long)time(NULL) / 60LL;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+            after = varp_date >= 0 ? p->varps[varp_date] : -1;
+            real_after = (long long)time(NULL) / 60LL;
+            SELFTEST_CHECK(after - 16 >= real_before && after - 16 <= real_after,
+                           "content's date_minutes %d = real %lld..%lld + 16", after, real_before,
+                           real_after);
+
+            /* 3. Refusals: the clock never moves backward, nor by nothing, nor
+             *    past its bounds, and a refused line leaves the skip alone. */
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 0") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip 0 is refused");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip -5") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip -5 is refused (a backward clock reads negative cooldowns)");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip with no minutes is refused");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 5x") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip 5x is refused");
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 20000") ==
+                               TORIRSSERVER_TRIGGER_FAILED,
+                           "::clockskip past a week in one step is refused");
+            SELFTEST_CHECK(srv->clock_skip_minutes == 16,
+                           "refused skips leave the world 16 minutes ahead, got %d",
+                           srv->clock_skip_minutes);
+
+            /* 4. `date_runeday` reads the same clock: a day's skip is a day. */
+            SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 1440") ==
+                               TORIRSSERVER_TRIGGER_RAN,
+                           "::clockskip 1440 runs");
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunProcInt(srv, "[proc,selftest_date_runeday]", NULL,
+                                                          0, &runeday),
+                           "date_runeday answers after a skip");
+            {
+                long long want =
+                    ((long long)time(NULL) * 1000LL + (long long)(16 + 1440) * 60000LL) /
+                    86400000LL;
+
+                SELFTEST_CHECK(runeday == (int32_t)want,
+                               "date_runeday %d should include the 1456-minute skip (%lld)",
+                               runeday, want);
+            }
+
+            /* 5. A farming deadline set before a skip catches up to a future
+             *    deadline, never a past or negative one: farming_hops.rs2
+             *    [proc,farming_advance_hops] re-arms from date_minutes. The
+             *    Lumbridge hops patch, barley at its plant state. */
+            {
+                int patch = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "farming_hops_patch_3");
+                int seed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "barley_seed");
+                int32_t args[2];
+                int32_t state = -1;
+                int32_t next = -1;
+                int32_t now = -1;
+
+                SELFTEST_CHECK(patch >= 0, "farming_hops_patch_3 resolves");
+                SELFTEST_CHECK(seed >= 0, "barley_seed resolves");
+                ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+                now = varp_date >= 0 ? p->varps[varp_date] : -1;
+                args[0] = patch;
+                args[1] = seed;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_seed]", args, 2);
+                args[1] = 74; /* hops.dbrow farming_hops_barley plant_state */
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set]", args, 2);
+                args[1] = now + 10; /* ^farming_stage_mins_hops */
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_next]", args, 2);
+
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 25") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::clockskip 25 runs");
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_catchup_hops]", args, 1);
+                ToriRSServer_ScriptsRunProcInt(srv, "[proc,farming_hops_get]", args, 1, &state);
+                ToriRSServer_ScriptsRunProcInt(srv, "[proc,farming_hops_get_next]", args, 1, &next);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+                now = varp_date >= 0 ? p->varps[varp_date] : -1;
+                SELFTEST_CHECK(state == 75, "the overdue hops stage advanced (74 -> %d)", state);
+                SELFTEST_CHECK(next > now, "the re-armed hops deadline %d is after date_minutes %d",
+                               next, now);
+                SELFTEST_CHECK(next - now <= 10,
+                               "and at most one stage (10 min) away, %d - %d", next, now);
+
+                args[1] = 0;
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_next]", args, 2);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set]", args, 2);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_seed]", args, 2);
+            }
+
+            srv->clock_skip_minutes = saved_skip;
+            ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
     fprintf(stderr, "ToriRSServer selftest: ::chargesrun\n");
     {
         /*

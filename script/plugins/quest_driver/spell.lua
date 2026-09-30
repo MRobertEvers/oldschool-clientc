@@ -1283,7 +1283,32 @@ end
 --              [if_button] for it -- give it a target.
 -- The backpack is put back afterwards (the emote verb's rule).  No combat
 -- stamp.
+--
+-- A PRESS WHILE THE PLAYER IS DELAYED IS DROPPED, SILENTLY (seam33
+-- spellbook_cast_never_runs).  The server refuses an interface click that
+-- would start a script while another script of the player's sits in its
+-- p_delay -- LostCity's IfButtonHandler runs [if_button] with protected
+-- access and Player.runScript returns -1 while `delayed`
+-- (torirs_server_world.c if_button_refused_while_delayed, verbose line
+-- `IF_BUTTONN ... refused: player is delayed (p_delay)`).  Nothing reaches
+-- the screen.  Lost City's teleportAway was pressed on the tick the Dramen
+-- tree's chop (leprechaun_tree.rs2 [oploc1,dramentree]: inv_add, p_delay(1))
+-- still held the player, and read "the cast never ran" (build/quest_gate/
+-- zanaris row 35; reproduced build/quest_gate/s33cast_repro2 row 4).  Neither
+-- p_finduid nor the dbrow: the script never started.  So, as a person clicks
+-- again when nothing happened (the equip verb's rule, pointer.lua): a press
+-- that leaves NO trace -- no line, no move, no Magic XP -- for
+-- SELF_CAST_REPRESS_TICKS is pressed again, up to SELF_CAST_PRESSES times;
+-- the last press gets the whole `ticks`.  Safe: a press the server ran pays
+-- its XP (or prints its refusal) on the press tick, and the teleport's own
+-- p_delays refuse a second press while it lands.  The detail says
+-- "(press N)" when it took more than one.
 -- ---------------------------------------------------------------------------
+
+-- Presses of the spell's cell before the verb stops pressing, and the ticks of
+-- silence (no line, no move, no XP) after a press before the next one.
+QD.player.SELF_CAST_PRESSES = 3
+QD.player.SELF_CAST_REPRESS_TICKS = 3
 
 -- More than this many tiles (Chebyshev), or a level change, is a teleport
 -- and not a step: nothing the press can start walks the player at all, and
@@ -1347,46 +1372,74 @@ function QD.player._cast_self(spell, ticks)
     local xp_before = QD.player._magic_xp()
     local start_tick = api_drive.tick()
 
-    local click_result, click_why = api_drive.if_click(component_id, 1)
-    if click_result ~= "ok" then
-        QD.player._show_backpack()
-        return click_result, label .. ": if_click(" .. tostring(component_id) .. ", 1) -> "
-            .. tostring(click_result) .. " " .. tostring(click_why) .. " -- nothing was cast"
-    end
-
     local moved_tick, xp_tick, line_tick = nil, nil, nil
     local refusal_word, refusal_line = nil, nil
-    local settle_result = QD.await({
-        level = function()
-            local now = api_drive.tick()
-            if moved_tick == nil and QD.player._self_cast_moved(from, QD.player._self_cast_tile()) then
-                moved_tick = now
+    local settle_result = "timeout"
+    local presses = 0
+    local press_tick = start_tick
+    while presses < QD.player.SELF_CAST_PRESSES do
+        if presses > 0 then
+            -- The cell again before a re-press: the tab is still the magic
+            -- one (nothing ran to close it), but ask rather than assume.
+            component_result, component_id = QD.player._spell_component(symbol)
+            if component_result ~= "ok" then
+                QD.player._show_backpack()
+                return component_result, tostring(component_id) .. " (before press "
+                    .. tostring(presses + 1) .. ")"
             end
-            if xp_tick == nil and xp_before ~= nil then
-                local xp_now = QD.player._magic_xp()
-                if xp_now ~= nil and xp_now > xp_before then
-                    xp_tick = now
+        end
+        local click_result, click_why = api_drive.if_click(component_id, 1)
+        if click_result ~= "ok" then
+            QD.player._show_backpack()
+            return click_result, label .. ": if_click(" .. tostring(component_id) .. ", 1) -> "
+                .. tostring(click_result) .. " " .. tostring(click_why) .. " (press "
+                .. tostring(presses + 1) .. ") -- nothing was cast"
+        end
+        presses = presses + 1
+        press_tick = api_drive.tick()
+        local last_press = presses >= QD.player.SELF_CAST_PRESSES
+        settle_result = QD.await({
+            level = function()
+                local now = api_drive.tick()
+                if moved_tick == nil and QD.player._self_cast_moved(from, QD.player._self_cast_tile()) then
+                    moved_tick = now
                 end
-            end
-            if moved_tick ~= nil then
-                -- Landed.  One tick more when the XP has not been read yet,
-                -- so the detail carries it.
-                return xp_tick ~= nil or xp_before == nil or now >= moved_tick + 1
-            end
-            refusal_word, refusal_line = QD.player._spell_refusal_since(since)
-            if refusal_word then
-                return true
-            end
-            if xp_tick ~= nil then
-                return now >= xp_tick + QD.player.SELF_CAST_LAND_TICKS
-            end
-            if line_tick == nil and #QD.player._spell_lines_since(since) > 0 then
-                line_tick = now
-            end
-            return line_tick ~= nil and now >= line_tick + QD.player.SELF_CAST_LINE_GRACE
-        end,
-        note = "player.cast " .. symbol .. " self",
-    }, ticks)
+                if xp_tick == nil and xp_before ~= nil then
+                    local xp_now = QD.player._magic_xp()
+                    if xp_now ~= nil and xp_now > xp_before then
+                        xp_tick = now
+                    end
+                end
+                if moved_tick ~= nil then
+                    -- Landed.  One tick more when the XP has not been read yet,
+                    -- so the detail carries it.
+                    return xp_tick ~= nil or xp_before == nil or now >= moved_tick + 1
+                end
+                refusal_word, refusal_line = QD.player._spell_refusal_since(since)
+                if refusal_word then
+                    return true
+                end
+                if xp_tick ~= nil then
+                    return now >= xp_tick + QD.player.SELF_CAST_LAND_TICKS
+                end
+                if line_tick == nil and #QD.player._spell_lines_since(since) > 0 then
+                    line_tick = now
+                end
+                return line_tick ~= nil and now >= line_tick + QD.player.SELF_CAST_LINE_GRACE
+            end,
+            note = "player.cast " .. symbol .. " self (press " .. tostring(presses) .. ")",
+        }, last_press and ticks or QD.player.SELF_CAST_REPRESS_TICKS)
+        -- Any trace at all is the server's answer to a press that ran: stop.
+        -- Only total silence is a dropped press.
+        if settle_result == "ok" or moved_tick ~= nil or xp_tick ~= nil or line_tick ~= nil
+            or refusal_word ~= nil or #QD.player._spell_lines_since(since) > 0 then
+            break
+        end
+        local xp_now = QD.player._magic_xp()
+        if xp_now ~= nil and xp_before ~= nil and xp_now > xp_before then
+            break
+        end
+    end
 
     local to = QD.player._self_cast_tile()
     local xp_after = QD.player._magic_xp()
@@ -1396,7 +1449,15 @@ function QD.player._cast_self(spell, ticks)
         .. QD.player._self_cast_tile_text(to) .. ", magic xp " .. tostring(xp_before)
         .. " -> " .. tostring(xp_after)
     if moved_tick ~= nil then
-        detail = detail .. ", landed " .. tostring(moved_tick - start_tick) .. " tick(s) after the press"
+        detail = detail .. ", landed " .. tostring(moved_tick - press_tick) .. " tick(s) after the press"
+    end
+    if presses > 1 then
+        -- The earlier presses left no trace: the server refused them while a
+        -- p_delay held the player (the banner's seam33 paragraph).
+        detail = detail .. " (press " .. tostring(presses) .. ": " .. tostring(presses - 1)
+            .. " earlier press(es) left no line, no move and no XP in "
+            .. tostring(QD.player.SELF_CAST_REPRESS_TICKS) .. " ticks, first press "
+            .. tostring(press_tick - start_tick) .. " tick(s) before the last)"
     end
     if #lines > 0 then
         detail = detail .. ", chat '" .. table.concat(lines, "' '") .. "'"
@@ -1426,6 +1487,7 @@ function QD.player._cast_self(spell, ticks)
             .. "', paid no Magic XP and moved nothing: it did not cast"
     end
     return "timeout", detail .. " -- " .. (settle_result == "ok" and "" or "no line, ")
-        .. "no move and no Magic XP inside " .. tostring(ticks) .. " ticks: the cast never ran"
+        .. "no move and no Magic XP inside " .. tostring(ticks) .. " ticks after "
+        .. tostring(presses) .. " press(es): the cast never ran"
         .. " (a target spell's cell arms target mode instead -- give it a target)"
 end

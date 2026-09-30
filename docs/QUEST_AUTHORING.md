@@ -184,6 +184,7 @@ banners: the topic file named in each group heading.
 - `t.inv.await(name, n, ticks)` / `await_all({name=n}, ticks)` -> `ok timeout`. Use these after a click, not a bare count (trap 24).
 - `t.msg.last(n)`; `t.msg.expect(s)` -> a line already in the ring; `t.msg.await(s, ticks)` -> only lines NEWER than the call.
 - `t.skill.read(name)`, `t.skill.snapshot()`, `t.skill.expect_gain(name, xp, snapshot)` -> `ok refused no_row`.
+- `t.clock.skip(minutes)` -> `ok refused no_row timeout`; the fast-forward for a wait of REAL minutes (`date_minutes`: a crop, a brew); await the quest's own effect next (gaps-world).
 
 ### `ui`, `npc` lookups -- `verbs-ui-and-npc.md`
 
