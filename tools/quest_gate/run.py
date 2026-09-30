@@ -30,7 +30,7 @@ test/quests/README.md: `{ id, fixture, setup = {cheats}, run = function(t)
     the quest instead of hanging the whole suite.
 
 Artefacts land directly under build/quest_gate/<quest>/ (ledger.tsv,
-shots/NN-name.png, client.log) because that IS the TORIRS_CONTENT_TEST
+shots/NNN-name.png, client.log) because that IS the TORIRS_CONTENT_TEST
 session directory -- see src/plugin/torirs_plugin_drive.c's ledger writer
 and torirs_plugin_drive_ui.c's shot writer, both of which resolve paths
 under it directly.
@@ -1066,7 +1066,7 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
 #
 # build/quest_gate/<quest>/ is not one run's output directory, it is THE
 # directory for that quest id: TORIRS_CONTENT_TEST itself, where the driver
-# writes ledger.tsv, shots/NN-name.png and client.log, and which
+# writes ledger.tsv, shots/NNN-name.png and client.log, and which
 # prepare_session deletes whole before every run. Two `run.py <same id>`
 # processes therefore do not race a little -- the second one rm -rf's the
 # first one's session out from under a live client and then writes its own
@@ -1249,21 +1249,34 @@ def prepare_session(name, fixture_name, user=None, checkpoint_save=None):
     return directory, saves
 
 
+def shot_sort_key(filename):
+    """Chronological order of a shots/ entry: the numeric prefix core.lua
+    gives every capture ("007-talkToGuard.png" -> 7), then the name. A
+    file without a numeric prefix (TIMEOUT.png copied beside them) sorts
+    last."""
+    assert filename
+    match = re.match(r"(\d+)-", filename)
+    return (int(match.group(1)) if match else 10 ** 9, filename)
+
+
 def copy_timeout_shot(directory):
     """On a wall-clock timeout, the driver's own LAST shot (if it took any
     at all) is copied to <directory>/TIMEOUT.png -- run.py's own exit code
     already says the process did not finish cleanly, but a human (or
     print_failure_block, below) reading build/quest_gate/<quest>/ afterward
     should not have to re-run the quest just to see what the screen looked
-    like when it hung. Shots are named "NN-name.png" (core.lua:
-    string.format("%02d-%s", ...)), so a plain filename sort is also
-    chronological. None (no copy made) when the run never got far enough to
-    take even one shot -- a timeout that early has nothing to show."""
+    like when it hung. Shots are named "NNN-name.png" (core.lua:
+    string.format("%03d-%s", ...)); they are sorted by that NUMBER, because
+    a plain string sort put "99-" after "100-" and copied the wrong frame
+    (runs before the three-digit prefix still have two-digit names).
+    None (no copy made) when the run never got far enough to take even one
+    shot -- a timeout that early has nothing to show."""
     assert directory
     shots_dir = os.path.join(directory, "shots")
     if not os.path.isdir(shots_dir):
         return None
-    pngs = sorted(entry for entry in os.listdir(shots_dir) if entry.endswith(".png"))
+    pngs = sorted((entry for entry in os.listdir(shots_dir) if entry.endswith(".png")),
+                  key=shot_sort_key)
     if not pngs:
         return None
     target = os.path.join(directory, "TIMEOUT.png")

@@ -217,10 +217,10 @@ local pending_notes = {}
 -- Set by QD.core_shot_unchanged below; consumed by the next row's flush.
 local pending_unchanged = false
 
--- verbs-ui's (future) t.shot calls this to learn the "NN-name" its capture
--- is written under (<session>/shots/NN-name.png, App_RequestScreenshot) and
+-- verbs-ui's (future) t.shot calls this to learn the "NNN-name" its capture
+-- is written under (<session>/shots/NNN-name.png, App_RequestScreenshot) and
 -- to fold the shot into whichever step's row is written next. The number
--- MUST be monotonic for the life of the run -- shots/NN-name.png is one
+-- MUST be monotonic for the life of the run -- shots/NNN-name.png is one
 -- directory for the whole quest (design doc: "leaves behind a numbered
 -- screenshot for every interaction"; gate.py's only remaining defence
 -- against a step that silently took no real shot is a duplicate-MD5 check
@@ -243,7 +243,11 @@ function QD.core_next_shot(name)
         park("shot after finish: " .. tostring(name))
     end
     shot_counter = shot_counter + 1
-    local numbered = string.format("%02d-%s", shot_counter, name)
+    -- Three digits: legends takes 780 shots in one run, and a two-digit
+    -- prefix put "100-" between "10-" and "11-" in every plain filename
+    -- sort (the contact sheet, TIMEOUT.png's pick of the last shot, a
+    -- human's ls). Readers still sort by the NUMBER, never the string.
+    local numbered = string.format("%03d-%s", shot_counter, name)
     pending_shots[#pending_shots + 1] = numbered
     return numbered
 end
