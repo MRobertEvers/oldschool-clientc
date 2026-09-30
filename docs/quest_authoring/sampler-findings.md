@@ -90,3 +90,17 @@ leaves the Quest List tab open. Every reward row after it (`reward.magic`, `rewa
 therefore photographs that tab, not the skill or item it names. This happened in imp shots 36-38 and
 chompybird shots 237-239. The ledger detail still carries the literal amount. Press
 `t.ui.tab("inventory")` before an item reward row, so the shot shows what the row name claims.
+
+## Sample sonnet-b36 (2026-09-30)
+
+*Origin: section 8 ("Gaps reported by authors"); the sampler checked dragon, mcannon and troll.*
+
+(a) READ A BOSS'S FIRST BAR AGAINST ITS HITPOINTS. Dragon Slayer (`dragon`, sent back) killed Elvarg
+in 4 ticks: the attack's own reading was `0/60` after a 10 hitsplat. The spawn was the 10 HP default
+form (`gaps-combat.md`, Elvarg). A PASS on `killElvarg.dead` is not a fight when the bar is empty
+after the first hit.
+
+(b) `t.check(name, true, ...)` IS A HOLLOW ROW. Dwarf Cannon writes one after every toolkit
+`t.ui.invoke` and after the remains pickup. mcannon passed only because a later row proves the
+outcome (`repair.message` plus stage 8, and Lawgof's hand-in at stage 3). Grade each press on the
+varp or the chat line it moves (`%mcannon_spring_set`, "You hook the spring back into place.").

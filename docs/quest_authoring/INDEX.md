@@ -7,6 +7,8 @@ topic file with one line added here.
 
 ## Travel and finding things
 
+- "Nothing interesting happens." on a wall into a boss lair; the Crandor hole refuses from one side -> gaps-world: Crandor
+- a guard tower's ladder `not_found` as `mcannonladder` on the ground floor -> gaps-world: Dwarf Cannon: the tower's two ladders
 - Ikov: `walk_to` times out at x=2644 going east from the lever; thrown back west on the lava bridge -> gaps-world: Temple of Ikov
 - `screen_position`/`not_visible`/`no_row` from `talk_to`; `goto` does not parse; where an npc is -> start-and-travel: `goto_tile` before; traps-13-22: Trap 13
 - `screen_position: <reason>`, `not_found` one tile from an npc -> traps-13-22: Trap 19
@@ -101,6 +103,7 @@ topic file with one line added here.
 
 ## Items, held ops and shops
 
+- `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 -> verbs-pointer: `click_obj` answers `timeout`
 - a bucket on a sink/pump answers "Nothing interesting happens." -> gaps-world: A sink or water pump (FIXED seam29)
 - a book page, journal line or dial letter proved only by a PNG -> verbs-ui-and-npc: `t.ui.text` / `t.ui.expect_text`
 - `inv.count` reads the OLD count -> traps-23-33: Trap 24; Trap 25; gaps-dialogue: `t.settle()` does not
@@ -140,6 +143,8 @@ topic file with one line added here.
 
 ## Fights
 
+- a quest boss's first bar reading is empty (`0/60` after one hit, Elvarg) -> gaps-combat: Elvarg dies to the first hit
+- Dad's surrender page closes before the loop reads it -> gaps-combat: Troll Stronghold: Dad's surrender
 - player hits missing on an npc for several ticks mid-attack (Melzar, trolls, KBD) -> seam-facts: Seam pass 29 (b)
 - every `::spawn`/`npc_add` of one npc on one tile drops the same loot -> seam-facts: Seam pass 29 (a)
 - `hp no bar -> no bar`, splats only on the player -> traps-23-33: Trap 31
@@ -190,6 +195,7 @@ topic file with one line added here.
 
 ## Gate, lint, coverage and the ledger
 
+- `t.check(name, true, ...)` after a `t.ui.invoke` or a pickup -> sampler-findings: Sample sonnet-b36
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`
 - `[bad ledger argument]`; a boolean in `t.step` -> gaps-dialogue: `t.step`'s second argument
 - `no shot recorded` on a row that never shot -> gaps-combat: What the ledger
@@ -241,6 +247,7 @@ topic file with one line added here.
 
 ## Content-side facts (content_bug reports, reviewers)
 
+- a guide step with no content branch (guild master's map questions, one-click magic door) -> content-gaps: Dragon Slayer
 - `multinpc_shells.csv` rung labels (`0=` is multinpc1, `N+=`) -> traps-23-33: Trap 28
 - a garbled note text ("bncket of nnilk") that is the real game's -> seam-facts: Seam pass 29 (f)
 - a child-symbol `[opnpc1]` is dead code -> traps-13-22: Trap 19; The fix idiom

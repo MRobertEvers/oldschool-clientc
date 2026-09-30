@@ -34,3 +34,15 @@ hands an empty pot with no soft clay (`onesmallfavour_relay.rs2:52-59`); Horvik 
 pigeon cages and hands chicken cages for the salts instead
 (`areas/varrock/scripts/horvik.rs2:20-33`, `talkToHorvikFinal`), and pigeons spawn only three at a
 time.
+
+## Dragon Slayer: the guild master's questions and the Oracle's magic door (sonnet-b36)
+
+*Origin: the Dragon Slayer author and reviewer (batch sonnet-b36).*
+
+- `guild_master.rs2:4` has no quest questions after stage 0. `returnToGuildmaster` (the guide asks
+  him where the map pieces are) can only reach "What is this place?". Grade it as a GUIDE-GAP that
+  cites the line, not as a PASS on a generic talk.
+- `magic_door.rs2` has only `oploc1`. The door takes all four items (silk, lobster pot, unfired
+  bowl, wizard's mind bomb) in one click, so the guide's four use-on steps (`useSilkOnDoor`,
+  `usePotOnDoor`, `useUnfiredBowlOnDoor`, `useMindBombOnDoor`) are four GUIDE-GAPs.
+  `helper_coverage` stays at CONTENT_GAP=4 until the door gets one `[oplocu]` per item.

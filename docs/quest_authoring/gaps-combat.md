@@ -292,3 +292,21 @@ every kill wait here, even a trivial one.
 Rantz lends the player his `ogre_bow` (`talkToRantzForBow`), and the test wears it for the kill. The
 completion does not add another bow, so `inv.expect_has("ogre_bow")` straight after
 `expect_complete` fails. Run `t.player.unequip("ogre_bow")` first, then read the backpack.
+
+## Elvarg dies to the first hit: the spawn is the `elvarg` form, and its block has no hitpoints
+
+*Origin: sampler sonnet-b36 (dragon sent back).*
+
+`m44_150.spawn` places `elvarg`, whose `quest_dragon.npc` block has no `hitpoints=`, so she spawns at
+`npc_default.npc`'s 10 HP (the rule in seam pass 24 (a)). Only `elvarg_alive` carries the 80. The
+dragon run read her bar at `0/60` after one 10 hitsplat, and she died in 4 ticks
+(`234-killElvarg.png`). The gate cannot tell that from a real kill, so check a boss's first bar
+reading against its hitpoints. Fix the content block before re-authoring the quest.
+
+## Troll Stronghold: Dad's surrender page is closed by a pending attack click
+
+*Origin: the Troll Stronghold author (sonnet-b36).*
+
+In the Dad fight loop, put `t.ticks(2)` after each `t.player.attack("troll_champion", 2, 3)` before
+you look for the chat. Without it, the pending attack click can close Dad's "Stop! You win." page
+before the loop reads it, which makes the fight flaky. `troll.lua` has the working loop.

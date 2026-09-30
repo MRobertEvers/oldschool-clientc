@@ -372,3 +372,23 @@ Harold's room is upstairs in the Burthorpe inn. His door (`harold_door`, 2906,35
 reached from the stair corridor, so `goto_tile` to a tile outside the door first. The roof hides the
 door from the default camera; turn the camera (`t.drive.camera`) before the click. Tenzing's house
 is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.
+
+## Crandor: the hole from one side only, and a stalagtite wall that answers "Nothing interesting happens"
+
+*Origin: the Dragon Slayer author (sonnet-b36); the sampler sent dragon back over the second item.*
+
+- The Crandor hole's maplink (`dragon_slayer_qip_ruin_entrance`) works only when you click it from
+  the west or south side. Put the `goto_tile` on one of those sides.
+- `dragon_slayer_qip_stalagtite_jump` (the guide's `enterElvargArea`, "Climb-over Wall") has no
+  handler. The click answers "Nothing interesting happens." and the lair can be walked into from the
+  north. A row that passes on `map_flag` there reports a climb that never happened. The sampler
+  reverted `dragon` over this, together with the one-hit Elvarg (`gaps-combat.md`). Report the
+  missing handler as a content seam, and write the row as a GUIDE-GAP that cites the loc.
+
+## Dwarf Cannon: the tower's two ladders have different names
+
+*Origin: the Dwarf Cannon author (sonnet-b36).*
+
+The ground-floor ladder of the guard tower is the generic `ladder` at 2570,3441. Press it with
+`click_loc("ladder", 1, { at = { 2570, 3441 } })`. The level-1 ladder is `mcannonladder`, and both
+top ends are `laddertop`.

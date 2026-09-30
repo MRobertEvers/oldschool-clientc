@@ -219,3 +219,14 @@ ground objs is fine: each obj is its own element with its own Take row, picked b
 (seam29: black bead, red bead and ashes taken by name from a 6-obj imp drop pile, s29lava_stack),
 and so is an obj on a table tile that also holds a loc (Carnillean kitchen knife and bread,
 s29lava_hazeel).
+
+#### `click_obj` answers `timeout` on a pickup that landed; `expect_has` misses an obj with id 0
+
+Reported by the Dwarf Cannon author (sonnet-b36). `t.player.click_obj("mcannonremains", 3)` on the
+guard-tower floor answered `timeout`, but the remains were in the backpack. Captain Lawgof's hand-in
+(`mcannon_commander.rs2:195`, `inv_total(inv, mcannonremains) < 1`) accepted them, and the mesbox
+read "You give the Dwarf Captain his subordinate's remains". `t.inv.expect_has` cannot see an item
+whose obj id is 0 (`mcannonremains`), so it cannot prove this pickup. Prove it with the next step
+that consumes the item: the stage it advances, and `t.inv.expect_absent` after the hand-in. Do not
+write `t.check("getRemainsStep", true, ...)`. A row that always passes proves nothing, and its
+detail says `timeout`.
