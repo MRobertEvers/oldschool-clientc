@@ -61,6 +61,12 @@ has a `partial` note the reviewer accepts.
 | Words | Are the narration, title cards and dialogue the transcript's, in order? | The page shots' text against the transcript; the shot list's "on screen" column |
 | Actors | Do the same npcs appear, walk, animate and speak at the same beats? | The game frames at each beat; the ledger's tick gaps against the shot list |
 
+Every claim in a return about the recording (a cut at time T, a landmark in a
+third) must cite the frame you read it from: the sheet pair, or a
+`frames.py --sheet 0.5` sheet of the clip around that time. The author will
+check it against frames and may disagree; a return list that names frames is
+settled quickly, one that does not is argued.
+
 A `no` on Presence or HUD is a rejection. A `no` on Framing, Motion or Actors
 is a return to `AUTHORING.md` section 4 or 5 with the specific shot named. A
 `no` on Words is a content fix (copy the transcript).

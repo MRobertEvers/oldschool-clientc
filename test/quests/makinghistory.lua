@@ -133,43 +133,74 @@ return {
         t.exec("mh.outpost.tellmore", t.chat.play, {
             "player:Tell me more.",
         })
-        -- No pages run for ~50 ticks: hold at the recording's shots so they are photographed.
-        t.ticks(15) -- shot 2 (hut from above), clip 11-17 s
+        -- No pages run for ~55 ticks: hold at the recording's shots so they are photographed.
+        t.ticks(2) -- the fade to black, clip 3.5-5.5 s
+        local fade0_cam = t.world.camera()
+        t.check("mh.outpost.fade0", fade0_cam ~= nil and fade0_cam.server_driven == true,
+            "camera during the opening fade: eye " .. tostring(fade0_cam and fade0_cam.x) .. "," .. tostring(fade0_cam and fade0_cam.z)
+                .. " pitch " .. tostring(fade0_cam and fade0_cam.pitch) .. " last_op " .. tostring(fade0_cam and fade0_cam.last_op))
+        t.ticks(3) -- shot 1 early: hut small top-centre, clip 8 s (cutscene +5 s)
+        local shot1a_cam = t.world.camera()
+        t.check("mh.outpost.shot1a", shot1a_cam ~= nil and shot1a_cam.server_driven == true,
+            "camera in shot 1, early: eye " .. tostring(shot1a_cam and shot1a_cam.x) .. "," .. tostring(shot1a_cam and shot1a_cam.z)
+                .. " pitch " .. tostring(shot1a_cam and shot1a_cam.pitch) .. " last_op " .. tostring(shot1a_cam and shot1a_cam.last_op))
+        t.ticks(5) -- shot 1 at the end of its glide, clip 10 s
+        local shot1b_cam = t.world.camera()
+        t.check("mh.outpost.shot1b", shot1b_cam ~= nil and shot1b_cam.server_driven == true,
+            "camera at the end of the shot 1 glide: eye " .. tostring(shot1b_cam and shot1b_cam.x) .. "," .. tostring(shot1b_cam and shot1b_cam.z)
+                .. " pitch " .. tostring(shot1b_cam and shot1b_cam.pitch) .. " last_op " .. tostring(shot1b_cam and shot1b_cam.last_op))
+        t.ticks(5) -- shot 2 (hut centre, slope behind), clip 14 s
         local shot2_cam = t.world.camera()
         t.check("mh.outpost.shot2", shot2_cam ~= nil and shot2_cam.server_driven == true,
             "camera in shot 2: eye " .. tostring(shot2_cam and shot2_cam.x) .. "," .. tostring(shot2_cam and shot2_cam.z)
                 .. " pitch " .. tostring(shot2_cam and shot2_cam.pitch) .. " last_op " .. tostring(shot2_cam and shot2_cam.last_op))
-        t.ticks(11) -- shot 3 (interior), clip 18-23 s
+        t.ticks(11) -- shot 3 (interior, slope and dead trees behind), clip 20 s
         local shot3_cam = t.world.camera()
         t.check("mh.outpost.shot3", shot3_cam ~= nil and shot3_cam.server_driven == true,
             "camera in shot 3: eye " .. tostring(shot3_cam and shot3_cam.x) .. "," .. tostring(shot3_cam and shot3_cam.z)
                 .. " pitch " .. tostring(shot3_cam and shot3_cam.pitch) .. " last_op " .. tostring(shot3_cam and shot3_cam.last_op))
-        t.ticks(10) -- shot 4 (low pass), clip 24-30 s
+        t.ticks(10) -- shot 4 (door wall, hillside behind), clip 26 s
         local shot4_cam = t.world.camera()
         t.check("mh.outpost.shot4", shot4_cam ~= nil and shot4_cam.server_driven == true,
             "camera in shot 4: eye " .. tostring(shot4_cam and shot4_cam.x) .. "," .. tostring(shot4_cam and shot4_cam.z)
                 .. " pitch " .. tostring(shot4_cam and shot4_cam.pitch) .. " last_op " .. tostring(shot4_cam and shot4_cam.last_op))
-        t.ticks(10) -- shot 5 (hills), clip 31-36 s
-        local shot5_cam = t.world.camera()
-        t.check("mh.outpost.shot5", shot5_cam ~= nil and shot5_cam.server_driven == true,
-            "camera in shot 5: eye " .. tostring(shot5_cam and shot5_cam.x) .. "," .. tostring(shot5_cam and shot5_cam.z)
-                .. " pitch " .. tostring(shot5_cam and shot5_cam.pitch) .. " last_op " .. tostring(shot5_cam and shot5_cam.last_op))
-        t.ticks(12) -- shot 5 runs out, the fade to black, the reset and the fade back in
+        t.ticks(5) -- shot 5a (hut from the south), clip 31 s
+        local shot5a_cam = t.world.camera()
+        t.check("mh.outpost.shot5a", shot5a_cam ~= nil and shot5a_cam.server_driven == true,
+            "camera in shot 5a: eye " .. tostring(shot5a_cam and shot5a_cam.x) .. "," .. tostring(shot5a_cam and shot5a_cam.z)
+                .. " pitch " .. tostring(shot5a_cam and shot5a_cam.pitch) .. " last_op " .. tostring(shot5a_cam and shot5a_cam.last_op))
+        t.ticks(5) -- shot 5b (hills and boulder), clip 34 s
+        local shot5b_cam = t.world.camera()
+        t.check("mh.outpost.shot5b", shot5b_cam ~= nil and shot5b_cam.server_driven == true,
+            "camera in shot 5b: eye " .. tostring(shot5b_cam and shot5b_cam.x) .. "," .. tostring(shot5b_cam and shot5b_cam.z)
+                .. " pitch " .. tostring(shot5b_cam and shot5b_cam.pitch) .. " last_op " .. tostring(shot5b_cam and shot5b_cam.last_op))
+        t.ticks(6) -- the closing fade to black, clip 36.5-38 s
+        local fade1_cam = t.world.camera()
+        t.check("mh.outpost.fade1", fade1_cam ~= nil and fade1_cam.server_driven == true,
+            "camera during the closing fade: eye " .. tostring(fade1_cam and fade1_cam.x) .. "," .. tostring(fade1_cam and fade1_cam.z)
+                .. " pitch " .. tostring(fade1_cam and fade1_cam.pitch) .. " last_op " .. tostring(fade1_cam and fade1_cam.last_op))
+        t.ticks(4) -- the reset and the fade back in
         t.exec("mh.outpost.page", t.chat.play, {
             "npc:There are three who might know",
         })
         t.exec("mh.outpost.cutscene", t.cutscene.await, "mh.outpost", { since = outpost_cutscene_mark, shots = "all", expect = {
-            { op = "moveto", coord = "0_37_52_46_12", height = 500 },  -- makinghistory_jorral.rs2, copied verbatim
-            { op = "lookat", coord = "0_37_52_62_16", height = 0 },
-            { op = "moveto", coord = "0_37_52_56_6", height = 700 },   -- glide (4, 2)
-            { op = "lookat", coord = "0_38_52_5_19", height = 250 },
-            { op = "moveto", coord = "0_37_52_58_4", height = 750 },   -- slow rise (1, 1)
-            { op = "moveto", coord = "0_37_52_62_5", height = 650 },
-            { op = "lookat", coord = "0_38_52_4_19", height = 0 },
-            { op = "moveto", coord = "0_37_52_49_12", height = 350 },
-            { op = "lookat", coord = "0_38_52_5_19", height = 350 },
-            { op = "moveto", coord = "0_38_52_2_16", height = 420 },
-            { op = "lookat", coord = "0_37_52_56_30", height = 0 },
+            { op = "moveto", coord = "0_37_52_58_47", height = 1000 },  -- makinghistory_jorral.rs2, copied verbatim
+            { op = "lookat", coord = "0_38_52_3_21", height = 0 },
+            { op = "moveto", coord = "0_37_52_52_38", height = 1200 },  -- glide (4, 2)
+            { op = "lookat", coord = "0_38_52_4_18", height = 0 },
+            { op = "moveto", coord = "0_37_52_46_34", height = 1300 },  -- shot 2 drift (2, 1)
+            { op = "moveto", coord = "0_38_52_14_10", height = 1000 },  -- shot 3 cut
+            { op = "lookat", coord = "0_37_52_60_22", height = 0 },
+            { op = "moveto", coord = "0_38_52_11_13", height = 950 },   -- glide (1, 1)
+            { op = "moveto", coord = "0_37_52_50_12", height = 300 },   -- shot 4 cut
+            { op = "lookat", coord = "0_38_52_6_16", height = 250 },
+            { op = "moveto", coord = "0_37_52_53_12", height = 300 },   -- drift (1, 1)
+            { op = "moveto", coord = "0_38_52_12_0", height = 400 },    -- shot 5a cut
+            { op = "lookat", coord = "0_38_52_0_36", height = 0 },
+            { op = "moveto", coord = "0_38_52_12_4", height = 380 },    -- drift (1, 1)
+            { op = "moveto", coord = "0_38_52_16_22", height = 420 },   -- shot 5b cut
+            { op = "lookat", coord = "0_37_52_58_38", height = 0 },
+            { op = "moveto", coord = "0_38_52_14_24", height = 400 },   -- drift (1, 1)
             { op = "reset" },
         } })
         t.exec("talkToJorral-dialog2", t.chat.play, {

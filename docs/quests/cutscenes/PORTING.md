@@ -15,9 +15,12 @@ directory are the stage manuals:
 
 Second pilot, Making History (a Sonnet worker following these manuals cold):
 a 35 s HUD-hidden flyover with five shots and narration, 7 solve rounds, 12
-keyframes asserted, gate green, status `approximated` (glide rates guessed,
-two weak framings, narration in the chatbox). Its manual corrections are
-folded in below and in `AUTHORING.md`.
+keyframes asserted, gate green, status `approximated`. It then went through
+one review cycle (`REVIEW.md`): a second Sonnet returned shots 1, 3, 4, 5
+with directions, and the author's return pass (26 rounds, 18 keyframes) fixed
+shots 1-3 and 5b and left 4 and 5a `partial`, correcting the reviewer on one
+claim (no second cut at 35 s) by reading the frames at 0.5 s. Both agents'
+manual corrections are folded in here and in `AUTHORING.md` and `REVIEW.md`.
 
 This was piloted on Tears of Guthix (2026-09-30, `PORTS.tsv` row 1). The pilot
 took five camera-solve rounds of about ten seconds each and found two things
@@ -53,11 +56,11 @@ installed there for frame decoding).
 |---|---|
 | `tools/quest_gate/cutscene_port/frames.py <clip> --sheet <step> <out.png>` | contact sheet of the clip, one frame per `step` seconds, timestamps burned in |
 | `tools/quest_gate/cutscene_port/frames.py <clip> <seconds> <out.png>` | one frame |
-| `tools/quest_gate/cutscene_port/camsolve.py ...` | photographs up to four candidate camera framings next to a video frame in one ~10 s client run; prints the `cam_*` lines |
+| `tools/quest_gate/cutscene_port/camsolve.py ...` | photographs up to four candidate camera framings next to a video frame in one ~10 s client run; prints the `cam_*` lines; `--hud hidden` photographs in the state a hidden-HUD cutscene draws; every round's image is kept in `build/quest_gate/camsolve_<id>.rounds/` |
 | `tools/quest_gate/run.py --script test/quests/<id>.lua --name <id> --no-build --no-publish` | runs the quest test (prefix `TORIRS_ROOT_SIZE=1024x768` for cutscene work) |
 | `tools/quest_gate/gate.py <id>` | grades the run; includes the cutscene rule |
 | `tools/quest_gate/cutscene_port/build_cutscene_sheet.py <out_dir> <id>...` | the comparison sheet |
-| `::cam <eye> <h> <look> <h> [rate rate2]`, `::camreset`, `::goto <x> <z> <level>` | content debugprocs the solve tool drives |
+| `::cam <eye> <h> <look> <h> [rate rate2]`, `::camreset`, `::camhud <1|0>`, `::goto <x> <z> <level>` | content debugprocs the solve tool drives (`cheat_cam.rs2`, `cheat_cutscene.rs2`) |
 
 ## Engine reference
 
@@ -83,21 +86,28 @@ cam_reset;
 - **height** is world units above the ground at that tile, 128 per tile. A
   standing player is about 200 tall. Dialogue-height shots 50-350; establishing
   shots 400-1200; overhead 2000+. The client clamps pitch to 128..383 (about 22
-  to 67 degrees down); the reference client clamps the same way. When the eye
-  is too low for its distance the clamp tilts the view down past the look-at
-  and the landmark climbs to the top of the frame: raise the look-at's height
-  (200-400 puts it on a building's walls) or bring the eye closer.
+  to 67 degrees down); the reference client clamps the same way. The clamp
+  means the view is never flatter than 22 degrees: to put a distant landmark
+  in the upper third with sky above it (a small hut on a hill), the eye must
+  be far AND high (h1000-1300 at 25-35 tiles), not low. When a near landmark
+  climbs to the top of the frame instead, raise the look-at's height (200-400
+  puts it on a building's walls) or bring the eye closer.
 - **rate, rate2** set the motion. Each rendered frame every axis moves
   `rate + remaining * rate2 / 1000` toward the target, never overshooting;
   `rate2 >= 100` snaps at once. So:
   - `100, 100` is a **cut**. Both packets of a pair use it.
-  - `1, 1` is a slow glide that eases in: about 1.6 units a frame at 650
-    remaining, about 5 s for a 650-unit move at 50 fps. `2, 1`: about twice as
-    fast. `4, 2` and `3, 10` are pans that settle harder. `0, 0` never moves.
-  - Frames are rendered about 50 times a second in the test client (20 ms), so
-    a glide's duration is `distance / (rate + remaining*rate2/1000)` frames; for
-    a rough tick count divide the seconds by 0.6. Cuts are exact, glides
-    approximate.
+  - `1, 1` is a slow glide that eases in: about 10 s for a 650-unit move at
+    50 fps (the per-frame step is `rate + remaining*rate2/1000`, so the time is
+    `1000/rate2 * ln(1 + distance*rate2/(1000*rate))` frames: 650 units at
+    `1,1` is about 500 frames). `2, 1`: about 6.7 s for 800 units. `4, 2`:
+    about 5 s for 1400 units. `3, 10` settles hard. `0, 0` never moves.
+  - Frames are rendered about 50 times a second in the test client (20 ms).
+    For a rough tick count divide the seconds by 0.6. Cuts are exact, glides
+    approximate; check the first run's mid-glide `t.world.camera()` readings
+    against the shot list and adjust the rate.
+  - A cut and a glide in the same tick work: `cam_moveto(A, h, 100, 100);
+    cam_lookat(L, h, 100, 100); cam_moveto(B, h2, 1, 1);` frames A at once and
+    glides toward B while the look-at holds on L. Both pilots use it.
 - **Always send `cam_moveto` and `cam_lookat` together** for the first framing.
   A lone `cam_lookat` after a reset reuses stale eye state. A later `cam_moveto`
   alone (a glide to a new eye with the same look-at) is fine.

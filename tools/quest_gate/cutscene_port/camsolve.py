@@ -13,11 +13,14 @@ cheat_cam.rs2), photographed, and released with ::camreset. --landmark symbols
 are looked up with t.world.loc_near so the look-at can be anchored on real
 tiles.
 
-Output: build/quest_gate/<run name>/compare.png (and compare_NN.png, one per
-round, kept) -- the video frame's game
+Output: build/quest_gate/<run name>/compare.png, plus a copy per round in
+build/quest_gate/<run name>.rounds/compare_NN.png (run.py wipes the run
+directory itself on every run) -- the video frame's game
 canvas first, then every candidate's client canvas, labelled -- plus the
 ledger's yaw/pitch line per candidate on stdout. A run takes about ten
-seconds; iterate in rounds of four. The client runs at --canvas (default
+seconds; iterate in rounds of four. --hud hidden photographs in the state a
+hidden-HUD cutscene draws (wider view, no panel); use it for template C/D
+shots. The client runs at --canvas (default
 1024x768, which lays out in resizable-classic mode like most recordings; pass
 765x503 for a fixed-mode recording) so the two pictures share a layout.
 
@@ -61,12 +64,16 @@ def lua(args, cands):
     if args.landmark:
         lines.append('        t.check("solve.landmarks", true, "see notes")')
     rate, rate2 = args.speed
+    if args.hud == "hidden":
+        lines += ['        t.cheat("::camhud 1", true)', "        t.ticks(2)"]
     for c in cands:
         cmd = "::cam %s %d %s %d %d %d" % (coord(c["eye"][0], c["eye"][1], lvl), c["eye"][2], coord(c["look"][0], c["look"][1], lvl), c["look"][2], rate, rate2)
         lines += ['        t.cheat("%s", true)' % cmd, "        t.ticks(%d)" % (3 if rate2 >= 100 else 12),
                   "        do local cam = t.world.camera()",
                   '        t.check("cand.%s", cam ~= nil and cam.server_driven == true, "%s -> eye " .. tostring(cam and cam.x) .. "," .. tostring(cam and cam.z) .. " yaw " .. tostring(cam and cam.yaw) .. " pitch " .. tostring(cam and cam.pitch)) end' % (c["name"], cmd),
                   '        t.cheat("::camreset", true)', "        t.ticks(2)"]
+    if args.hud == "hidden":
+        lines += ['        t.cheat("::camhud 0", true)', "        t.ticks(1)"]
     lines += ["        t.finish(0)", "    end,", "}"]
     return "\n".join(lines) + "\n"
 
@@ -82,6 +89,7 @@ def main():
     ap.add_argument("--landmark", action="append", default=[], help="loc symbol whose tile to report")
     ap.add_argument("--name")
     ap.add_argument("--canvas", default="1024x768", help="client canvas WxH; 1024x768 lays out like a resizable-classic recording, 765x503 like a fixed one")
+    ap.add_argument("--hud", default="up", choices=("up", "hidden"), help="hidden: photograph with the HUD in cutscene state (%%cutscene_status etc., ::camhud), as a hidden-HUD cutscene draws")
     args = ap.parse_args()
     assert args.cand, "at least one --cand"
     assert len(args.stand) == 3, "--stand x,z,level"
@@ -118,11 +126,14 @@ def main():
         page.paste(im, ((i % cols) * 640, (i // cols) * 480))
     cmp_path = os.path.join(out_dir, "compare.png")
     page.save(cmp_path)
-    # every round's image is kept beside it: compare_01.png, compare_02.png, ...
-    kept = sorted(f for f in os.listdir(out_dir) if re.fullmatch(r"compare_\d+\.png", f))
-    round_path = os.path.join(out_dir, "compare_%02d.png" % (len(kept) + 1))
+    # every round's image is kept in a sibling directory that run.py never wipes:
+    # build/quest_gate/<name>.rounds/compare_01.png, compare_02.png, ...
+    rounds_dir = out_dir + ".rounds"
+    os.makedirs(rounds_dir, exist_ok=True)
+    kept = sorted(f for f in os.listdir(rounds_dir) if re.fullmatch(r"compare_\d+\.png", f))
+    round_path = os.path.join(rounds_dir, "compare_%02d.png" % (len(kept) + 1))
     page.save(round_path)
-    print("\ncompare sheet:", cmp_path, "(kept as %s)" % os.path.basename(round_path))
+    print("\ncompare sheet:", cmp_path, "(kept as %s)" % round_path)
     lvl = args.stand[2]
     for c in cands:
         print("%s: cam_moveto(%s, %d, 100, 100); cam_lookat(%s, %d, 100, 100);" % (

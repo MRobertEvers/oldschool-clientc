@@ -121,8 +121,14 @@ python3 tools/quest_gate/cutscene_port/camsolve.py --quest $ID --stand <x,z,leve
 
 It prints each candidate's resolved yaw and pitch and the `cam_*` lines, and
 writes `build/quest_gate/camsolve_<test_id>/compare.png`: the recording's frame
-first, then each candidate, all as the whole 1024x768 client canvas. Read the
-image every round.
+first, then each candidate, all as the whole 1024x768 client canvas. Every
+round's image is also kept as `build/quest_gate/camsolve_<test_id>.rounds/compare_NN.png`
+(the run directory itself is wiped each run). Read the image every round.
+
+**For a hidden-HUD cutscene (template C/D) add `--hud hidden`.** The cutscene
+runs with `%cutscene_status`/`%fov_clamp` set and the panel closed, which
+draws a wider view than the HUD-up client; a candidate solved with the HUD up
+comes out smaller and higher in the real frame (Making History return 1).
 
 **Round 1: direction.** Four compass positions around the main landmark at one
 height and distance, look-at on the landmark. For an open area 8 tiles away
@@ -134,10 +140,12 @@ side the wall or water is on. Orientation rule: the client faces north at yaw
 
 **Round 2: distance and height.** Closer or farther changes how much floor is
 visible and how big the landmark is. Height with distance sets the pitch:
-roughly `atan(height / distance)`, a tile being 128 units; the client will not
-go below pitch 128 (about 22 degrees), so if the recording looks nearly
-horizontal, lower the eye and get closer rather than fighting the clamp.
-Slide a tile or two sideways to put the landmark in the right third.
+roughly `atan(height / distance)`, a tile being 128 units, and the client
+never goes below pitch 128 (about 22 degrees). Two consequences: a landmark
+that should sit in the UPPER third with sky above it needs a far, high eye
+(h1000-1300 at 25-35 tiles); a near landmark that climbs too high in the
+frame wants a higher look-at (its walls) or a closer eye. Slide a tile or two
+sideways to put the landmark in the right third.
 
 **Rounds 3-4: refinement.** One tile and 50-100 units at a time. Stop when the
 same landmarks occupy the same thirds and the wall or horizon line sits at the
@@ -146,8 +154,9 @@ and lighting) and not the goal; a reviewer compares regions, not pixels.
 
 **A glide** is two solves: the start framing (`--at` the frame just after the
 cut) and the end framing (`--at` the frame just before the reset or the next
-cut). Then pick the rate from the duration: `1, 1` for about 5 s over 650
-units, `2, 1` for half that, `100, 100` for a cut. Preview a glide by passing
+cut). Then pick the rate from the duration with `PORTING.md`'s formula: `1, 1`
+is about 10 s over 650 units, `2, 1` about 6.7 s over 800, `4, 2` about 5 s
+over 1400, `100, 100` a cut. A cut and a glide may be sent in the same tick. Preview a glide by passing
 `--speed 1,1` with the END framing as the candidate after the start has been
 framed by an earlier candidate in the same round; the tool waits 12 ticks
 before photographing a glide.
@@ -264,6 +273,15 @@ Rules:
 - **Hold where the recording holds.** A `t.ticks(n)` and a `t.check` with a
   `t.world.camera()` detail between pages photographs the glide and records
   the eye's tile and pitch in the ledger.
+- **Calibrate hold rows against the ledger.** Every `t.check`/`t.shot` row
+  costs a tick or two of its own, so a planned hold at "+N ticks" lands later
+  than N. After the first run, read the await detail's keyframe ticks and the
+  rows' `ticks` column (they share a clock) and move the holds so each lands
+  inside the shot it is meant to photograph; a hold meant for the closing fade
+  that lands after the reset photographs the restored HUD instead.
+- **Photograph the fades** of a hidden-HUD cutscene: one hold right after the
+  trigger row (the black fade-out) and one just before the reset (the closing
+  fade), so the HUD rubric line can be graded from the sheet.
 - **Copy `expect` literals from the `.rs2`**, coord and height. Height must
   match within 1.
 - A cutscene with no pages (templates B/C/D) has two workable shapes:
@@ -301,6 +319,13 @@ grade your own work before you report. The report names: the shot list path,
 the `.rs2` lines, the test rows, the ledger's cutscene detail, the sheet path,
 and anything you could not match (a landmark you never found, a pan whose
 speed is a guess, a page the port lacks).
+
+**When a reviewer returns a shot.** Apply the return list, but verify every
+claim about the recording against frames at 0.5 s steps around the moment
+named before changing the shot list: a reviewer reads the same sheet you do
+and can misread a cut (Making History's reviewer saw a second cut at 35 s
+that the frames show is the hut leaving the frame at 32.5 s). Say in your
+report where you disagreed and what the frames showed.
 
 **When the port's dialogue is paraphrased or a leg is missing.** The cutscene
 is still ported at the equivalent point; the shot list's "on screen" column
