@@ -300,3 +300,4 @@ topic file with one line added here.
 - "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-29); a seam number in a verb or trap dates that behaviour
 - samplers: b31, b32, b34, b35 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`
+- a quest whose content scripts `cam_moveto`/`cam_lookat` (`python3 tools/quest_gate/cutscene_sweep.py`) must drive its cutscene; a port that dropped one reads DROPPED, a wiki quest is decided by a row in docs/quests/CUTSCENES.tsv -> the cutscene verb lands in seam32 (verbs-cutscene.md); until then the fade-overlay recipe in verbs-ui-and-npc.md
