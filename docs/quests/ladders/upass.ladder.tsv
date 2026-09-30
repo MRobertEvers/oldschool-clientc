@@ -1,0 +1,81 @@
+# ladder upass quest_dir=quest_upass guide=src/main/java/com/questhelper/helpers/quests/undergroundpass/UndergroundPass.java steps=78 legs=1:1-10@s- 2:11-20@s- 3:21-29@s- 4:30-39@s- 5:40-49@s- 6:50-58@s- 7:59-68@s- 8:69-78@s-
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	-	goToArdougneCastleFloor2	ObjectStep	loc:stairs	2572,3296,0	Go to the second floor of Ardougne Castle.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +3
+1	2	-	talkToKingLathas	NpcStep	npc:kinglathas_vis loc:stairs	2578,3293,1	Talk to King Lathas.	goToArdougneCastleFloor2		I am. What's our plan? | I'm ready. | Yes.	areas/area_ardougne_east/scripts/king_lathas.rs2:35 opnpc1; +4
+1	3	-	goDownCastleStairs	ObjectStep	loc:stairstop	2572,3296,1	Talk to Koftik in West Ardougne.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +5
+1	4	-	enterWestArdougne	ObjectStep	loc:ardougnedoor_r	2558,3300,0	Talk to Koftik in West Ardougne.				doors/scripts/doors.rs2:89 oploc1
+1	5	-	talkToKoftik	NpcStep	npc:caveguide_vis loc:stairstop loc:ardougnedoor_r	2435,3314,0	Talk to Koftik outside the West Ardougne cave.	goDownCastleStairs enterWestArdougne		I'll take my chances.	quests/quest_upass/scripts/koftik.rs2:119 opnpc1; +4
+1	6	-	enterTheDungeon	ObjectStep<goTalkToKlankForGauntlets	loc:upass_caveentrance2	2434,3315,0	Enter the dungeon.		Rope; Bow (not crossbow); Arrows (metal, unpoisoned); Spade; Plank; Bucket; Tinderbox		quests/quest_upass/scripts/upass_entrance.rs2:9 oploc1
+1	7	-	climbOverRockslide1	ObjectStep<goTalkToKlankForGauntlets	loc:rockslide2_obstacle_upass	2480,9713,0	Climb-over rockslide.				quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1
+1	8	-	climbOverRockslide2	ObjectStep<goTalkToKlankForGauntlets	loc:rockslide2_obstacle_upass	2471,9706,0	Climb-over rockslide.				quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1
+1	9	-	climbOverRockslide3	ObjectStep<goTalkToKlankForGauntlets	loc:rockslide2_obstacle_upass	2458,9712,0	Climb-over rockslide.				quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1
+1	10	-	talkToKoftikAtBridge	NpcStep<goTalkToKlankForGauntlets	npc:caveguide_vis loc:upass_caveentrance2 loc:rockslide2_obstacle_upass		Talk to Koftik inside the cave.	enterTheDungeon climbOverRockslide1 climbOverRockslide2 climbOverRockslide3			quests/quest_upass/scripts/koftik.rs2:119 opnpc1; +6
+2	11	-	searchBagForCloth	ObjectStep<goTalkToKlankForGauntlets	loc:upass_gear	2452,9715,0	Search the abandoned equipment for an oily cloth.				quests/quest_upass/scripts/koftik.rs2:143 oploc1
+2	12	-	shootBridgeRope	ObjectStep<goTalkToKlankForGauntlets	loc:oldbridge_guiderope loc:upass_gear		Wield a lit arrow and shoot the guide-rope.	searchBagForCloth useClothOnArrow lightArrow walkNorthEastOfBridge	Bow (not crossbow); Lit Arrow		quests/quest_upass/scripts/upass_bridge.rs2:64 aploc1; +1
+2	13	-	crossThePit	ObjectStep<goTalkToKlankForGauntlets	loc:obstical_rockswing_norope	2463,9699,0	Swing across the pit with a rope.	collectPlank	Rope		quests/quest_upass/scripts/upass_obstacles.rs2:110 oplocu
+2	14	-	climbOverRockslide4	ObjectStep<goTalkToKlankForGauntlets	loc:rockslide2_obstacle_upass	2491,9691,0	Climb-over rockslide				quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1
+2	15	-	climbOverRockslide5	ObjectStep<goTalkToKlankForGauntlets	loc:rockslide2_obstacle_upass	2482,9679,0	Climb-over rockslide				quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1
+2	16	-	pullLeverAfterGrid	ObjectStep<goTalkToKlankForGauntlets	loc:portcullis_lever_up		Pull the lever to raise the gate.				quests/quest_upass/scripts/upass_grid.rs2:25 oploc1
+2	17	-	crossTheGrid	DetailedQuestStep<goTalkToKlankForGauntlets	loc:rockslide2_obstacle_upass loc:portcullis_lever_up		Cross the grid by trial and error. Keep health above 15, and remember the path for Regicide.	climbOverRockslide4 climbOverRockslide5 pullLeverAfterGrid			quests/quest_upass/scripts/upass_obstacles.rs2:29 oploc1; +1
+2	18	-	passTrap2	ObjectStep<goTalkToKlankForGauntlets	loc:upass_speartrap	2440,9678,0	Either disable or walk past the traps.				quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
+2	19	-	passTrap3	ObjectStep<goTalkToKlankForGauntlets	loc:upass_speartrap	2435,9676,0	Either disable or walk past the traps.				quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
+2	20	-	passTrap4	ObjectStep<goTalkToKlankForGauntlets	loc:upass_speartrap	2432,9676,0	Either disable or walk past the traps.				quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
+3	21	-	passTrap5	ObjectStep<goTalkToKlankForGauntlets	loc:upass_speartrap	2430,9676,0	Either disable or walk past the traps.				quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
+3	22	-	passTrap1	ObjectStep<goTalkToKlankForGauntlets	loc:upass_speartrap	2443,9678,0	Either disable or walk past the traps.	passTrap2 passTrap3 passTrap4 passTrap5			quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
+3	23	-	plankRock1	ObjectStep<goTalkToKlankForGauntlets	loc:upass_double_springtrap_trigger	2418,9681,0	Use a plank on the flat rock to cross it.		Plank		quests/quest_upass/scripts/upass_obstacles.rs2:242 oploc1; +1
+3	24	-	plankRock2	ObjectStep<goTalkToKlankForGauntlets	loc:upass_double_springtrap_trigger	2418,9685,0	Use a plank on the flat rock to cross it.		=		quests/quest_upass/scripts/upass_obstacles.rs2:242 oploc1; +1
+3	25	-	plankRock3	ObjectStep<goTalkToKlankForGauntlets	loc:upass_double_springtrap_trigger	2416,9689,0	Use a plank on the flat rock to cross it.		=		quests/quest_upass/scripts/upass_obstacles.rs2:242 oploc1; +1
+3	26	-	collectOrb1	ObjectStep<goTalkToKlankForGauntlets	loc:upass_double_springtrap_trigger		Take the first orb of light.	plankRock1 plankRock2 plankRock3			quests/quest_upass/scripts/upass_obstacles.rs2:242 oploc1; +1
+3	27	-	collectOrb2	ObjectStep<goTalkToKlankForGauntlets		2385,9685,0	Take the second orb of light north west of the well.				
+3	28	-	collectOrb3	ObjectStep<goTalkToKlankForGauntlets		2386,9677,0	Take the third orb of light west of the well. Remember to use a plank on the flat rocks to cross them.				
+3	29	-	collectOrb4	ObjectStep<goTalkToKlankForGauntlets	loc:upass_logtrap_trigger	2382,9668,0	Search the flat rock to remove the trap and take the fourth orb to the south west of the well.			Yes, I'll give it a go.	quests/quest_upass/scripts/upass_obstacles.rs2:267 oploc1
+4	30	-	orbsToFurnace	ObjectStep<goTalkToKlankForGauntlets	loc:furnace_upass	2455,9683,0	Return to the furnace to the east, and use the orbs on it.				skill_smithing/scripts/smelting/smelting.rs2:18 oplocu; +1
+4	31	-	climbDownWell	ObjectStep<goTalkToKlankForGauntlets	loc:cave_well	2417,9675,0	Climb down the well.				quests/quest_upass/scripts/upass_well.rs2:10 oploc1; +1
+4	32	-	pickCellLock	ObjectStep<goTalkToKlankForGauntlets	loc:cave_railings2	2393,9655,0	Pick the lock to enter the cell.				quests/quest_upass/scripts/upass_unicorn.rs2:11 oploc1; +1
+4	33	-	digMud	ObjectStep<goTalkToKlankForGauntlets	loc:upass_mud	2393,9650,0	Dig the loose mud.		Spade		quests/quest_upass/scripts/upass_unicorn_tunnels.rs2:9 oplocu
+4	34	-	crossLedge	ObjectStep<goTalkToKlankForGauntlets	loc:upass_ledge	2374,9644,0	Cross the ledge.				quests/quest_upass/scripts/upass_obstacles.rs2:310 oploc1
+4	35	-	goThroughPipe	ObjectStep<goTalkToKlankForGauntlets	loc:upass_pipe6	2418,9605,0	Enter the pipe to the next section.				quests/quest_upass/scripts/upass_obstacles.rs2:387 oploc1
+4	36	-	navigateMaze	DetailedQuestStep<goTalkToKlankForGauntlets	loc:cave_railings2 loc:upass_mud loc:upass_ledge loc:upass_pipe6		Navigate the maze, or use the shortcut to the south with 50 Thieving.	pickCellLock digMud crossLedge goThroughPipe			quests/quest_upass/scripts/upass_unicorn.rs2:11 oploc1; +4
+4	37	-	searchUnicornCage	ObjectStep<goTalkToKlankForGauntlets	loc:cave_railings3	2398,9605,0	Search the unicorn cage.				quests/quest_upass/scripts/upass_unicorn.rs2:66 oploc2
+4	38	-	useRailingOnBoulder	NpcStep<goTalkToKlankForGauntlets	npc:boulder_upass	2397,9596,0	Use the railing on the boulder.		Railing		quests/quest_upass/scripts/upass_unicorn.rs2:51 opnpc1; +1
+4	39	-	searchUnicornCageAgain	ObjectStep	loc:unicorncage_destroyed_upass	2372,9605,0	Search the cage again.				quests/quest_upass/scripts/upass_unicorn.rs2:76 oploc1
+5	40	-	leaveUnicornArea	ObjectStep<goTalkToKlankForGauntlets	loc:upass_unicorn_doorl	2375,9611,0	Enter the tunnel.				quests/quest_upass/scripts/upass_unicorn_tunnels.rs2:25 oploc1
+5	41	-	walkToKnights	TileStep	loc:upass_unicorn_doorl	2424,9715,0	Travel through the tunnel to find some knights.	leaveUnicornArea			quests/quest_upass/scripts/upass_unicorn_tunnels.rs2:25 oploc1
+5	42	-	killJerro	NpcStep	npc:upass_paladin1_vis	2425,9720,0	Kill Sir Jerro and take his badge. Optionally: talk to one of the knights first to receive food and potions.		Badge (Sir Jerro)		quests/quest_upass/scripts/sir_jerro.rs2:16 opnpc1; +3
+5	43	-	killHarry	NpcStep	npc:upass_paladin3_vis	2425,9720,0	Kill Sir Harry and take his badge.		Badge (Sir Harry)		quests/quest_upass/scripts/sir_harry.rs2:16 opnpc1; +3
+5	44	-	killCarl	NpcStep	npc:upass_paladin2_vis	2425,9720,0	Kill Sir Carl and take his badge.		Badge (Sir Carl)		quests/quest_upass/scripts/sir_carl.rs2:16 opnpc1; +3
+5	45	-	useBadgeHarryOnWell	ObjectStep	loc:bloodwell_upass	2374,9719,0	Use the badges and unicorn horn on the well.		Badge (Sir Harry)		quests/quest_upass/scripts/upass_bloodwell.rs2:11 oploc1; +1
+5	46	-	useBadgeCarlOnWell	ObjectStep	loc:bloodwell_upass	2374,9719,0	Use the badges and unicorn horn on the well.		Badge (Sir Carl)		quests/quest_upass/scripts/upass_bloodwell.rs2:11 oploc1; +1
+5	47	-	useUnicornHornOnWell	ObjectStep	loc:bloodwell_upass	2374,9719,0	Use the badges and unicorn horn on the well.		Unicorn Horn		quests/quest_upass/scripts/upass_bloodwell.rs2:11 oploc1; +1
+5	48	-	useBadgeJerroOnWell	ObjectStep	loc:bloodwell_upass	2374,9719,0	Use the badges and unicorn horn on the well.	useBadgeHarryOnWell useBadgeCarlOnWell useUnicornHornOnWell	Badge (Sir Jerro)		quests/quest_upass/scripts/upass_bloodwell.rs2:11 oploc1; +1
+5	49	-	openIbansDoor	ObjectStep<goTalkToKlankForGauntlets	loc:cavetempledoor2r	2369,9720,0	Open the door at the end of the path.				quests/quest_upass/scripts/upass_bloodwell.rs2:88 oploc1
+6	50	-	descendCave	ObjectStep<goTalkToKlankForGauntlets	loc:cavewalltunnel_upass_down	2150,4545,1	Follow the edge of the cavern down to enter a cave on the south wall.				quests/quest_upass/scripts/upass_tunnels.rs2:9 oploc1
+6	51	-	talkToNiloof	NpcStep	npc:upassdwarf1 loc:cavewalltunnel_upass_down	2313,9806,0	Talk to Niloof.	descendCave			quests/quest_upass/scripts/nilhoof.rs2:9 opnpc1; +1
+6	52	-	leaveFallArea	ObjectStep<goTalkToKlankForGauntlets	loc:caverockpile	2443,9652,0	Follow the path west to leave.				quests/quest_upass/scripts/upass_obstacles.rs2:77 oploc1
+6	53	-	walkNorthEastOfBridge	DetailedQuestStep<goTalkToKlankForGauntlets		2447,9722,0	Walk to the room north of Koftik.		Lit Arrow		
+6	54	-	lightArrow	DetailedQuestStep<goTalkToKlankForGauntlets			Use the tinderbox on the fire arrow. If you don't have a tinderbox, use the arrow on the nearby fire instead.		Fire Arrow; Tinderbox		
+6	55	-	useClothOnArrow	DetailedQuestStep<goTalkToKlankForGauntlets			Use the oily cloth on an arrow.		Oily Cloth; Arrows (metal, unpoisoned)		
+6	56	-	collectPlank	DetailedQuestStep<goTalkToKlankForGauntlets		2435,9726,0	Pick up the plank in the north room.		Plank		
+6	57	-	talkToKlankForGauntlets	NpcStep<goTalkToKlankForGauntlets	npc:upassdwarf2					What happened to them?	quests/quest_upass/scripts/klank.rs2:9 opnpc1
+6	58	-	goBackUpToIbansCavern	ObjectStep	loc:cavewalltunnel_upass_up	2336,9793,0	Return up to Iban's Cavern.				quests/quest_upass/scripts/upass_tunnels.rs2:21 oploc1
+7	59	-	pickUpWitchsCat	NpcStep	npc:cavewitchcat_vis loc:cavewalltunnel_upass_up	2131,4602,1	Start from the south east corner of the bridges, and go northwest along them and retrieve the witch's cat.	goBackUpToIbansCavern			quests/quest_upass/scripts/kardia.rs2:54 opnpc1; +2
+7	60	-	useCatOnDoor	ObjectStep	loc:cavewitch_door	2158,4566,1	Use the cat on the witch's door in the south east corner of the area to distract her.		Witch's Cat		quests/quest_upass/scripts/kardia.rs2:12 oploc1; +2
+7	61	-	searchWitchsChest	ObjectStep	loc:cavewitchchest	2157,4564,1	Search the chest in the witch's house. You'll need 4 empty inventory slots.				quests/quest_upass/scripts/kardia.rs2:91 oploc1
+7	62	-	killHolthion	NpcStep	npc:holthion_vis	2133,4555,1	From the south east corner of the area, head west then south along the pathways. Kill Holthion and pick up his amulet.		Amulet of Holthion		quests/quest_upass/scripts/upass_demon_drops.rs2:17 ai_queue3; +4
+7	63	-	killDoomion	NpcStep	npc:doomion_vis	2135,4566,1	Kill Doomion and pick up his amulet.		Amulet of Doomion		quests/quest_upass/scripts/upass_demon_drops.rs2:6 ai_queue3; +4
+7	64	-	killOthainian	NpcStep	npc:othainian_vis	2123,4563,1	Kill Othainian and pick up his amulet.		Amulet of Othanian		quests/quest_upass/scripts/upass_demon_drops.rs2:28 ai_queue3; +4
+7	65	-	searchDoomionsChest	ObjectStep	loc:upassshutchest1	2136,4578,1	Search the chest north of Doomion.	useShadowOnDoll			quests/quest_upass/scripts/upass_cages.rs2:48 oploc1
+7	66	-	returnToDwarfs	ObjectStep	loc:cavewalltunnel_upass_down	2150,4545,1	Return to the dwarf encampment on the lower level.				quests/quest_upass/scripts/upass_tunnels.rs2:9 oploc1
+7	67	-	useBucketOnBrew	ObjectStep	loc:upassdwarfbrewbarrel	2327,9799,0	Use a bucket on the brew barrel in the dwarf encampment on the south west.		Bucket		quests/quest_upass/scripts/upass_tomb.rs2:18 oplocu
+7	68	-	useBrewOnTomb	ObjectStep	loc:ibantomb_left	2357,9802,0	Use the bucket of brew on the tomb in the south east corner of the area.		Dwarf brew		quests/quest_upass/scripts/upass_tomb.rs2:27 oploc1; +1
+8	69	-	useTinderboxOnTomb	ObjectStep	loc:ibantomb_left	2357,9802,0	Light the tomb with a tinderbox.	useAshOnDoll	Tinderbox		quests/quest_upass/scripts/upass_tomb.rs2:27 oploc1; +1
+8	70	-	killKalrag	NpcStep	npc:kalrag_vis	2356,9913,0	Kill Kalrag the spider. Protect From Melee can keep you safe in this fight.		Doll of Iban		quests/quest_upass/scripts/upass_encounters.rs2:307 ai_spawn; +2
+8	71	-	ascendToHalfSoulless	ObjectStep	loc:cavewalltunnel_upass_up	2304,9915,0	Ascend to the upper level of the cave again via the north west exit.				quests/quest_upass/scripts/upass_tunnels.rs2:21 oploc1
+8	72	-	searchCage	ObjectStep	loc:upass_cage_dummy loc:cavewalltunnel_upass_up	2135,4703,1	Search the marked cage in the north west of the area while wearing Klank's gauntlets.	ascendToHalfSoulless useDoveOnDoll	Klank's gauntlets		quests/quest_upass/scripts/upass_cages.rs2:11 aploc1; +1
+8	73	-	killDisciple	NpcStep	npc:ibanmonk_vis	2163,4648,1	Travel along the pathways from the north west corner of the area to the middle. Kill a disciple of Iban and take their robes.		Doll of Iban		quests/quest_upass/scripts/iban_disciple.rs2:4 opnpc1; +3
+8	74	-	enterTemple	ObjectStep	loc:upass_templedoor_closed_right	2144,4648,1	Enter the Temple of Iban wearing monk robes. Prepare to use Iban's doll on the well, as Iban can deal lots of damage quickly.		Zamorak monk top; Zamorak monk bottom		quests/quest_upass/scripts/upass_tomb.rs2:138 oploc1
+8	75	-	useDollOnWell	ObjectStep	loc:cave_temple_altar	2137,4648,1	Right-click USE the doll on the well. Standing north of the well can prevent Iban from hitting.		Doll of Iban		quests/quest_upass/scripts/upass_tomb.rs2:186 oplocu
+8	76	-	talkToKoftikAfterTemple	NpcStep	npc:caveguide_vis	2444,9607,0	Talk to Koftik.				quests/quest_upass/scripts/koftik.rs2:119 opnpc1; +4
+8	77	-	goUpToLathasToFinish	ObjectStep	loc:stairs	2572,3296,0	Return to King Lathas to finish the quest.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +3
+8	78	-	talkToKingLathasAfterTemple	NpcStep	npc:kinglathas_vis loc:stairs	2578,3293,1	Return to King Lathas to finish the quest.	goUpToLathasToFinish			areas/area_ardougne_east/scripts/king_lathas.rs2:35 opnpc1; +4

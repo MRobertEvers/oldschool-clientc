@@ -643,7 +643,12 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         player->last_useslot = jungle_inv_slot(player, obj_belt);
         jungle_release(srv, player);
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, truf_slot);
+        /* LostCity trufitus.rs2 belt path: legend -> temple -> tell me more -> search for
+         * Ah Za Rhoon -> "Yes, I will seriously look" (trufitus_searchfor starts Shilo). */
+        jungle_choose(srv, player, 2);
+        jungle_choose(srv, player, 2);
         jungle_choose(srv, player, 1);
+        jungle_choose(srv, player, 3);
         jungle_choose(srv, player, 1);
         jungle_drain(srv, player, 0);
         jungle_release(srv, player);

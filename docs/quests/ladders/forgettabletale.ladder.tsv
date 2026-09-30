@@ -1,0 +1,124 @@
+# ladder forgettabletale quest_dir=quest_forgettabletale guide=src/main/java/com/questhelper/helpers/quests/forgettabletale/ForgettableTale.java steps=121 legs=1:1-10@s0 2:11-17@s0 3:18-32@s50 4:33-40@s100 5:41-50@s100 6:51-60@s100 7:61-71@s110 8:72-82@s110 9:83-91@s115 10:92-101@s118 11:102-111@s118 12:112-121@s118
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	travelToKeldagrim	ObjectStep<goTalkVeldaban	loc:ge_keldagrim_trapdoor	3140,3504,0	Travel to Keldagrim.			Yes please.	quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:9 oploc1
+1	2	0	talkToVeldaban	NpcStep<goTalkVeldaban	npc:dwarf_city_black_guard_leader	2827,10214,0				Very interested! | Yes. | Sounds like just the job for me!	quests/quest_giantdwarf/scripts/gdwarf_start.rs2:46 opnpc1
+1	3	0	talkToDrunkDwarf	NpcStep<goTalkDrunkDwarf	npc:dwarf_city_drunken_dwarf	2913,10221,0				I need to know about the Red Axe...	quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:25 opnpc1; +3
+1	4	0	goTalkDrunkDwarfAgain	ConditionalStep			Give the Drunken Dwarf some beer.	goTalkDrunkDwarfAfterGivingBeer			
+1	5	0	talkToRowdyDwarf	NpcStep<goTalkRowdyDwarf	npc:dwarf_city_rowdy_dwarf	2914,10198,0					quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:188 opnpc1; +1
+1	6	0	talkToKhorvak	NpcStep<goTalkToKhorvak	npc:dwarfrock_engineer2	2864,9878,0				What if I offer you a drink?	quests/quest_betweenarock/scripts/betweenarock_schematics.rs2:119 opnpc1; +1
+1	7	0	travelToWWM	ObjectStep<goTalkToKhorvak	loc:keldagrim_train_cart	2919,10169,0	Travel to White Wolf Mountain.				quests/quest_forgettabletale/scripts/forget_tunnels.rs2:107 oploc1
+1	8	0	getWWMTicket	NpcStep<goTalkToKhorvak	npc:dwarf_city_train_conductor4	2906,10172,0	Get a ticket to White Wolf Mountain from a cart conductor.			I'd like to buy a ticket. | To White Wolf Mountain. | Buy.	quests/quest_forgettabletale/scripts/forget_tunnels.rs2:72 opnpc1
+1	9	0	goGiveKhorvakBeer	ConditionalStep			Give Khorvak under White Wolf Mountain a dwarven stout.				
+1	10	0	talkToGauss	NpcStep<goTalkToGuass	npc:dwarf_city_dwarf_man6	2839,10196,0					quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:238 opnpc1; +1
+2	11	0	takeCartFromWWMToKelda	ObjectStep<goTalkToGuass	loc:whitewolfmountain_train_cart	2875,9868,0	Take the cart back to White Wolf Mountain.				quests/quest_forgettabletale/scripts/forget_tunnels.rs2:126 oploc1
+2	12	0	getKeldaTicket	NpcStep<goTalkToGuass	npc:dwarf_city_train_conductor6	2875,9871,0	Get a ticket and travel back to Keldagrim.			I'd like to buy a ticket. | Buy.	quests/quest_forgettabletale/scripts/forget_tunnels.rs2:76 opnpc1
+2	13	0	talkToRind	NpcStep<goTalkToRind	npc:dwarf_city_gardener_dwarf	2854,10196,0					quests/quest_forgettabletale/scripts/forget_farming.rs2:8 opnpc1; +1
+2	14	0	plantKelda	ObjectStep<goPlantKelda	loc:farming_hops_patch_keldagrim?	2854,10203,0					
+2	15	40	waitForKelda	DetailedQuestStep			Wait for the kelda hops to grow. This'll take 15-20 minutes.				
+2	16	0	harvestHops	ObjectStep<goHarvestKelda	loc:farming_hops_patch_keldagrim?	2854,10203,0					
+2	17	0	goUpstairsPub	ObjectStep<goBrew	loc:dwarf_keldagrim_stairs_lower	2916,10196,0	Go upstairs in Keldagrim's east pub.				quests/quest_forgettabletale/scripts/forget_brewing.rs2:10 oploc1
+3	18	50	pickupPot	ItemStep	obj:pot_empty		Pick up the pot in the brewing room.		Pot		quests/quest_swansong/scripts/swansong_army.rs2:103 opheldu
+3	19	50	buyYeast	NpcStep	npc:blandebir	2916,10193,1	Buy yeast from Blandebir. You can get a pot from the table in the brewing room.		Coins; Pot	Do you have any spare ale yeast? | That's a good deal - ple…	quests/quest_forgettabletale/scripts/forget_brewing.rs2:21 opnpc1
+3	20	50	addWater	ObjectStep	loc:brewing_vat_1	2918,10195,1	Add 2 buckets of water to the vat.		Bucket of water		quests/quest_forgettabletale/scripts/forget_brewing.rs2:54 oplocu
+3	21	50	addMalts	ObjectStep	loc:brewing_vat_1	2918,10195,1	Add 2 barley malts to the vat.		Barley malt		quests/quest_forgettabletale/scripts/forget_brewing.rs2:54 oplocu
+3	22	50	addKelda	ObjectStep	loc:brewing_vat_1	2918,10195,1	Add the kelda hops to the vat.		Kelda hops		quests/quest_forgettabletale/scripts/forget_brewing.rs2:54 oplocu
+3	23	50	addYeast	ObjectStep	loc:brewing_vat_1	2918,10195,1	Add the yeast to the vat.		Ale yeast		quests/quest_forgettabletale/scripts/forget_brewing.rs2:54 oplocu
+3	24	50	waitBrewing	DetailedQuestStep			Wait for the kelda to brew. This'll take 15-20 minutes.				
+3	25	0	turnValve	ObjectStep<goTurnValve	loc:vat_valve_1	2918,10193,1					quests/quest_forgettabletale/scripts/forget_brewing.rs2:131 oploc1
+3	26	0	useGlassOnBarrel	ObjectStep<goUseGlass	loc:brewing_barrel_1	2917,10193,1			Beer glass		quests/quest_forgettabletale/scripts/forget_brewing.rs2:154 oplocu
+3	27	0	goDownFromPub	ObjectStep<goGiveDrunkenDwarfKelda	loc:dwarf_keldagrim_stairs_upper	2915,10196,1	Go downstairs.				quests/quest_forgettabletale/scripts/forget_brewing.rs2:14 oploc1
+3	28	0	talkToCartConductor	NpcStep<goTalkToConductor	npc:dwarf_city_train_conductor8	2922,10166,0				Ask about closed off tunnel.	quests/quest_forgettabletale/scripts/forget_tunnels.rs2:81 opnpc1
+3	29	0	talkToDirector	NpcStep<goTalkToDirector	npc:dwarf_city_director_purple_pewter	2869,10195,1	Talk to the Purple Pewter Director.			Can you help me with a boarded up tunnel?	quests/quest_forgettabletale/scripts/forget_tunnels.rs2:196 opnpc1
+3	30	0	goUpToDirector	ObjectStep<goTalkToDirector	loc:dwarf_keldagrim_wide_stairs_lower	2895,10210,0	Go up to the Consortium.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+3	31	0	goDownFromDirector	ObjectStep<goTakeSecretCart	loc:dwarf_keldagrim_wide_stairs_upper	2895,10210,1	Go downstairs.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+3	32	0	takeSecretCart	ObjectStep<goTakeSecretCart	loc:keldagrim_train_cart	2919,10164,0					quests/quest_forgettabletale/scripts/forget_tunnels.rs2:107 oploc1
+4	33	100	searchBox1	ObjectStep	loc:keldagrim_track_junction_card_box	1862,4954,1	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+4	34	100	startPuzzle1	ObjectStep	loc:keldagrim_track_junction_control_box	1860,4955,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+4	35	100	puzzle1P1	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+4	36	100	puzzle1P2	WidgetStep			Click the marked junction until it's got the green piece in.				
+4	37	100	puzzle1Ok	WidgetStep			Click the Ok button.				
+4	38	100	takePuzzle1Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+4	39	100	searchPuzzle1Box	ObjectStep	loc:keldagrim_track_junction_card_box	1898,4985,3	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+4	40	100	returnFromPuzzle1	ObjectStep	loc:forget_train_return_cart	1897,4987,3	Take the cart back.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:474 oploc1
+5	41	100	startPuzzle2	ObjectStep	loc:keldagrim_track_junction_control_box	1860,4955,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+5	42	100	puzzle2P1	WidgetStep			Click the marked junction until it's got the green piece in.				
+5	43	100	puzzle2P2	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+5	44	100	puzzle2P3	WidgetStep			Click the marked junction until it's got the green piece in.				
+5	45	100	puzzle2Ok	WidgetStep			Click the Ok button.				
+5	46	100	takePuzzle2Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+5	47	100	searchPuzzle2Box	ObjectStep	loc:keldagrim_track_junction_card_box	1897,4986,3	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+5	48	100	returnFromPuzzle2	ObjectStep	loc:forget_train_return_cart	1897,4984,3	Take the cart back.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:474 oploc1
+5	49	100	startPuzzle3	ObjectStep	loc:keldagrim_track_junction_control_box	1860,4955,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+5	50	100	puzzle3P1	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+6	51	100	puzzle3P2	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+6	52	100	puzzle3P3	WidgetStep			Click the marked junction until it's got the green piece in.				
+6	53	100	puzzle3P4	WidgetStep			Click the marked junction until it's got the green piece in.				
+6	54	100	puzzle3Ok	WidgetStep			Click the Ok button.				
+6	55	100	takePuzzle3Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+6	56	105	leaveListeningRoom1	ObjectStep	loc:forget_story_exit_next	1889,4982,2	Leave the east exit once you finish listening to the conversation.				quests/quest_forgettabletale/scripts/forget_story.rs2:91 oploc1
+6	57	110	searchBox2	ObjectStep	loc:keldagrim_track_junction_card_box	1860,4955,1	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+6	58	110	startPuzzle4	ObjectStep	loc:keldagrim_track_junction_control_box	1862,4954,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+6	59	110	puzzle4P1	WidgetStep			Click the marked junction until it's got the green piece in.				
+6	60	110	puzzle4P2	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+7	61	110	puzzle4P3	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+7	62	110	puzzle4Ok	WidgetStep			Click the Ok button.				
+7	63	110	takePuzzle4Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+7	64	110	searchPuzzle4Box	ObjectStep	loc:keldagrim_track_junction_card_box	1898,4985,3	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+7	65	110	returnFromPuzzle4	ObjectStep	loc:forget_train_return_cart	1898,4987,3	Take the cart back.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:474 oploc1
+7	66	110	startPuzzle5	ObjectStep	loc:keldagrim_track_junction_control_box	1862,4954,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+7	67	110	puzzle5P1	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+7	68	110	puzzle5P2	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+7	69	110	puzzle5P3	WidgetStep			Click the marked junction until it's got the green piece in.				
+7	70	110	puzzle5P4	WidgetStep			Click the marked junction until it's got the green piece in.				
+7	71	110	puzzle5Ok	WidgetStep			Click the Ok button.				
+8	72	110	takePuzzle5Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+8	73	110	searchPuzzle5Box	ObjectStep	loc:keldagrim_track_junction_card_box	1906,4985,3	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+8	74	110	returnFromPuzzle5	ObjectStep	loc:forget_train_return_cart	1906,4987,3	Take the cart back.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:474 oploc1
+8	75	110	startPuzzle6	ObjectStep	loc:keldagrim_track_junction_control_box	1862,4954,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+8	76	110	puzzle6P1	WidgetStep			Click the marked junction until it's got the green piece in.				
+8	77	110	puzzle6P2	WidgetStep			Click the marked junction until it's got the green piece in.				
+8	78	110	puzzle6P3	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+8	79	110	puzzle6P4	WidgetStep			Click the marked junction until it's got the green piece in.				
+8	80	110	puzzle6P5	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+8	81	110	puzzle6Ok	WidgetStep			Click the Ok button.				
+8	82	110	takePuzzle6Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+9	83	115	searchBookcase	ObjectStep	loc:dwarf_keldagrim_metal_bookcase	1904,4967,2	Search the nearby bookcase.				quests/quest_forgettabletale/scripts/forget_story.rs2:61 oploc1
+9	84	115	searchCrate2	ObjectStep	loc:forget_metal_crate_withpapers2	1910,4966,2	Search the crates with paper on them.				quests/quest_forgettabletale/scripts/forget_story.rs2:77 oploc1
+9	85	115	searchCrate1	ObjectStep	loc:forget_metal_crate_withpapers1 loc:forget_metal_crate_withpapers2	1906,4965,2	Search the crates with paper on them.	searchCrate2			quests/quest_forgettabletale/scripts/forget_story.rs2:69 oploc1; +1
+9	86	115	leaveLibrary	ObjectStep	loc:forget_story_exit_next	1914,4965,2	Leave the library.			Yes.	quests/quest_forgettabletale/scripts/forget_story.rs2:91 oploc1
+9	87	118	searchBox3	ObjectStep	loc:keldagrim_track_junction_card_box	1862,4954,1	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+9	88	118	startPuzzle7	ObjectStep	loc:keldagrim_track_junction_control_box	1860,4955,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+9	89	118	puzzle7P1	WidgetStep			Click the marked junction until it's got the green piece in.				
+9	90	118	puzzle7P2	WidgetStep			Click the marked junction until it's got the green piece in.				
+9	91	118	puzzle7P3	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+10	92	118	puzzle7P4	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+10	93	118	puzzle7Ok	WidgetStep			Click the Ok button.				
+10	94	118	takePuzzle7Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+10	95	118	searchPuzzle7Box	ObjectStep	loc:keldagrim_track_junction_card_box	1906,4987,3	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+10	96	118	returnFromPuzzle7	ObjectStep	loc:forget_train_return_cart	1906,4984,3	Take the cart back.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:474 oploc1
+10	97	118	startPuzzle8	ObjectStep	loc:keldagrim_track_junction_control_box	1860,4955,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+10	98	118	puzzle8P1	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+10	99	118	puzzle8P2	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+10	100	118	puzzle8P3	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+10	101	118	puzzle8P4	WidgetStep			Click the marked junction until it's got the green piece in.				
+11	102	118	puzzle8P5	WidgetStep			Click the marked junction until it's got the green piece in.				
+11	103	118	puzzle8P6	WidgetStep			Click the marked junction until it's got the green piece in.				
+11	104	118	puzzle8Ok	WidgetStep			Click the Ok button.				
+11	105	118	takePuzzle8Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+11	106	118	searchPuzzle8Box	ObjectStep	loc:keldagrim_track_junction_card_box	1898,4986,3	Search the box.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:374 oploc1
+11	107	118	returnFromPuzzle8	ObjectStep	loc:forget_train_return_cart	1897,4984,3	Take the cart back.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:474 oploc1
+11	108	118	startPuzzle9	ObjectStep	loc:keldagrim_track_junction_control_box	1860,4955,1	Use the dwarven machinery.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:416 oploc1
+11	109	118	puzzle9P1	WidgetStep			Click the marked junction until it's got the green piece in.				
+11	110	118	puzzle9P2	WidgetStep			Click the marked junction until it's got the green piece in.				
+11	111	118	puzzle9P3	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+12	112	118	puzzle9P4	WidgetStep			Click the marked junction until it's got the green piece in.				
+12	113	118	puzzle9P5	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+12	114	118	puzzle9P6	WidgetStep			Click the marked junction until it's got the green piece in.				
+12	115	118	puzzle9P7	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+12	116	118	puzzle9P8	WidgetStep			Click the marked junction until it's got the yellow piece in.				
+12	117	118	puzzle9Ok	WidgetStep			Click the Ok button.				
+12	118	118	takePuzzle9Cart	ObjectStep	loc:forget_train_cart	1864,4957,1	Take the cart.				quests/quest_forgettabletale/scripts/forget_puzzle.rs2:440 oploc1; +1
+12	119	119	watchCutscene	DetailedQuestStep			Watch the cutscene.				
+12	120	0	goReturnToVeldaban	ConditionalStep			Report back to Commander Veldaban.				
+12	121	0	eatKebab	DetailedQuestStep<goEatKebab		2915,10193,0					

@@ -1868,6 +1868,122 @@ selftest_click_through(
 }
 
 /*
+ * selftest_click_through, but answering the chatmenus it meets with the given
+ * rows in order (the first menu gets rows[0], the next rows[1], ...), and row 1
+ * once the list runs out. For a conversation whose goal sits behind a path of
+ * choices -- a LostCity dialogue tree such as Mosol Rei's belt (whyrun ->
+ * whoisshe -> whatcanwe -> shaman -> wampumbelt) -- where always answering row 1
+ * walks away from it.
+ */
+static int
+selftest_answer_through(
+    struct ToriRSServer* srv,
+    int max_pages,
+    const int* rows,
+    int row_count)
+{
+    int clicks = 0;
+    int answered = 0;
+    int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+
+    assert(srv);
+    assert(rows);
+    while( clicks < max_pages && srv->active_player->active_script )
+    {
+        int uid;
+        uint8_t resume[6];
+
+        if( srv->active_player->resume_button_count <= 0 )
+            break;
+        uid = srv->active_player->resume_buttons[0];
+        resume[0] = (uint8_t)(uid >> 24);
+        resume[1] = (uint8_t)(uid >> 16);
+        resume[2] = (uint8_t)(uid >> 8);
+        resume[3] = (uint8_t)uid;
+        if( chatmenu > 0 && uid == chatmenu )
+        {
+            int row = answered < row_count ? rows[answered] : 1;
+
+            answered++;
+            resume[4] = 0;
+            resume[5] = (uint8_t)row;
+            selftest_handle(srv->active_player, PKTOUT_NAME_IF_BUTTON1, resume,
+                                 sizeof(resume));
+        }
+        else
+        {
+            selftest_handle(srv->active_player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
+        }
+        clicks++;
+    }
+    return clicks;
+}
+
+/*
+ * selftest_answer_through that also waits out a script's p_delay: a LostCity
+ * action often writes its stage first and does its loc_change / inv_add after
+ * a run of delays (the Shilo mound dig: five p_delay(1) before the fissure
+ * appears; the gallows: p_delay(2) before its question), and a click-only
+ * drain returns at the first delay, before the world has changed or the
+ * question has been asked. Clicks a registered button when there is one
+ * (answering chatmenus with `rows` in order, then row 1), otherwise ticks
+ * while the script is suspended.
+ */
+static int
+selftest_run_out_answering(
+    struct ToriRSServer* srv,
+    int max_rounds,
+    const int* rows,
+    int row_count)
+{
+    int rounds = 0;
+    int answered = 0;
+    int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+
+    assert(srv);
+    while( rounds < max_rounds && srv->active_player->active_script )
+    {
+        int exec = srv->active_player->active_script->execution;
+
+        if( srv->active_player->resume_button_count > 0 )
+        {
+            int uid = srv->active_player->resume_buttons[0];
+            int row = 1;
+
+            if( chatmenu > 0 && uid == chatmenu )
+            {
+                if( answered < row_count )
+                {
+                    assert(rows);
+                    row = rows[answered];
+                }
+                answered++;
+            }
+            selftest_answer_through(srv, 1, &row, 1);
+        }
+        else if( exec == SSVM_SUSPENDED || exec == SSVM_NPC_SUSPENDED ||
+                 exec == SSVM_WORLD_SUSPENDED )
+        {
+            selftest_tick(srv);
+        }
+        else
+        {
+            break;
+        }
+        rounds++;
+    }
+    return rounds;
+}
+
+static int
+selftest_run_out(
+    struct ToriRSServer* srv,
+    int max_rounds)
+{
+    return selftest_run_out_answering(srv, max_rounds, NULL, 0);
+}
+
+/*
  * Any live npc at all, for a proc that needs one bound but does not care which.
  *
  * `[proc,give_combat_experience]` is the case: it reads
@@ -51696,6 +51812,20 @@ ToriRSServer_WorldSelftest(void)
          * (two new chisel cases), nazastarool.rs2 (defeat_nazastarool3
          * never wrote %zombiequeen at all -- the corpse dropped but the
          * quest could never see it as retrieved).
+         *
+         * 2026-09-30 (content parity pass parity3d): the quest is now LostCity's
+         * quest_zombiequeen port end to end (quest_zombiequeen.rs2 replaces
+         * ahzarhoon.rs2 and bervirius_and_rashtomb.rs2), so this stanza drives
+         * LostCity's paths: Mosol's and Trufitus' dialogue trees are answered
+         * row by row (selftest_answer_through), delays are waited out
+         * (selftest_run_out_answering), the table becomes the raft AND rides it
+         * out in one script, the plaque is what Trufitus deciphers, the dolmen's
+         * notes set zq_used_dolmen_paper, the corpse is buried with its own
+         * Bury op on the sacred ground, both scrolls are read before the
+         * crawl-way and the necklace, and the bone key is only cut once the
+         * hillside door's bone lock has been searched. Levels go through
+         * ToriRSServer_CombatSetLevel: the climb's and the raft's stat_advance
+         * recompute the level from experience and undo a bare stat_level write.
          */
         int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
 
@@ -51782,10 +51912,8 @@ ToriRSServer_WorldSelftest(void)
             player->varps[varp_zq] = 0;
             player->varps[varp_zqmech] = 0;
             player->varps[varp_jp2] = junglepotion_complete_val;
-            player->stat_level[stat_crafting] = 99;
-            player->stat_boosted[stat_crafting] = 99;
-            player->stat_level[stat_agility] = 99;
-            player->stat_boosted[stat_agility] = 99;
+            ToriRSServer_CombatSetLevel(player, stat_crafting, 99);
+            ToriRSServer_CombatSetLevel(player, stat_agility, 99);
 
             /* ---- Mosol Rei: the belt was never actually granted before this pass ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2881, 2951);
@@ -51794,8 +51922,14 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(npc_slot >= 0, "mosol_rei should spawn for the belt-grant check");
             if( npc_slot >= 0 )
             {
+                /* LostCity mosol_rei.rs2: "Why do I need to run?" -> "Rashiliyia? Who is
+                 * she?" -> "What can we do?" -> "I'll go to see the Shaman." -> "Yes, I'm
+                 * sure and I'll take the Wampum belt to Trufitus." */
+                static const int mosol_rows[] = { 1, 1, 1, 4, 2 };
+
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_mosol, -1, npc_slot);
-                selftest_click_through(srv, 20);
+                selftest_answer_through(srv, 40, mosol_rows,
+                                        (int)(sizeof(mosol_rows) / sizeof(mosol_rows[0])));
                 SELFTEST_CHECK(player->inv[0].obj_id == obj_belt || player->last_item == obj_belt ||
                                    selftest_count_obj(player, obj_belt) > 0,
                                "mosol_rei's full belt dialogue should grant mosol_wampum_belt, "
@@ -51816,10 +51950,18 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(npc_slot >= 0, "trufitus should spawn for the belt hand-in check");
             if( npc_slot >= 0 )
             {
+                /* LostCity trufitus.rs2 [opnpcu] belt case: "Mosol Rei said something
+                 * about a legend?" -> "Do you know anything more about the temple?" ->
+                 * "Tell me more." -> "I am going to search for Ah Za Rhoon!" -> "Yes, I
+                 * will seriously look for Ah Za Rhoon ..." (trufitus_searchfor writes
+                 * ^zombiequeen_started and keeps the belt). */
+                static const int trufitus_rows[] = { 2, 2, 1, 3, 1 };
+
                 inv_set(player, 0, obj_belt, 1);
                 player->last_useitem = obj_belt;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
-                selftest_click_through(srv, 20);
+                selftest_answer_through(srv, 40, trufitus_rows,
+                                        (int)(sizeof(trufitus_rows) / sizeof(trufitus_rows[0])));
                 SELFTEST_CHECK(player->varps[varp_zq] == 1 /* zombiequeen_started */,
                                "the legend dialogue should advance zombiequeen to "
                                "zombiequeen_started, got %d",
@@ -51841,12 +51983,12 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_mound, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 2 /* zombiequeen_found_mound */,
                                "looking at the mound should advance to found_mound, got %d",
                                player->varps[varp_zq]);
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_mound, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 3 /* zombiequeen_searched_mound */,
                                "searching the mound should advance to searched_mound, got %d",
                                player->varps[varp_zq]);
@@ -51854,7 +51996,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_spade, 1);
                 player->last_useitem = obj_spade;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_mound, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 4 /* zombiequeen_dug_mound */,
                                "digging with the spade should advance to dug_mound, got %d",
                                player->varps[varp_zq]);
@@ -51866,7 +52008,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_torch, 1);
                 player->last_useitem = obj_torch;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 5 /* zombiequeen_lit_mound */,
                                "lighting the fissure should advance to lit_mound, got %d",
                                player->varps[varp_zq]);
@@ -51876,7 +52018,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_rope, 1);
                 player->last_useitem = obj_rope;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 6 /* zombiequeen_roped_mound */,
                                "roping the fissure should advance to roped_mound, got %d",
                                player->varps[varp_zq]);
@@ -51886,21 +52028,19 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 int state_before;
-                player->stat_level[stat_agility] = 10;
-                player->stat_boosted[stat_agility] = 10;
+                ToriRSServer_CombatSetLevel(player, stat_agility, 10);
                 state_before = player->varps[varp_zq];
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == state_before,
                                "climbing down below Agility 32 should NOT advance the quest, "
                                "got %d -> %d",
                                state_before, player->varps[varp_zq]);
-                player->stat_level[stat_agility] = 99;
-                player->stat_boosted[stat_agility] = 99;
+                ToriRSServer_CombatSetLevel(player, stat_agility, 99);
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(player->varps[varp_zq] == 7 /* zombiequeen_entered_ah_za_rhoon */,
                                "climbing down at Agility 32+ should advance to "
                                "entered_ah_za_rhoon, got %d",
@@ -51923,7 +52063,7 @@ ToriRSServer_WorldSelftest(void)
                 inv_set(player, 0, obj_chisel, 1);
                 player->last_useitem = obj_chisel;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_stone, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_plaque) > 0,
                                "chiselling the strange stone should grant zqplaque");
             }
@@ -51936,7 +52076,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_looserocks, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_tattered) > 0,
                                "searching the loose rocks should grant zqberviriusscroll");
             }
@@ -51948,7 +52088,7 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_sacks, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_crumpled) > 0,
                                "searching the sacks should grant zqrashiliyiascroll");
             }
@@ -51959,8 +52099,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(loc_slot >= 0, "zqgallows should resolve near the dungeon entry");
             if( loc_slot >= 0 )
             {
+                /* LostCity: "Yes, I may find something else on the corpse." is row 2. */
+                static const int gallows_rows[] = { 2 };
+
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_gallows, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out_answering(srv, 60, gallows_rows, 1);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) > 0,
                                "searching the gallows should grant zqzadimusbones");
             }
@@ -51971,22 +52114,29 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(loc_slot >= 0, "zqtableraft should resolve near the dungeon entry");
             if( loc_slot >= 0 )
             {
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_table, -1, loc_slot);
-                selftest_click_through(srv, 5);
-                loc_slot = ToriRSServer_SceneFindLoc(2896, 9377, 0, loc_raft);
-                SELFTEST_CHECK(loc_slot >= 0, "crafting the table should loc_change to zqlograft");
-                if( loc_slot >= 0 )
-                {
-                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_raft, -1, loc_slot);
-                    selftest_click_through(srv, 5);
-                    SELFTEST_CHECK(player->varps[varp_zq] == 8 /* zombiequeen_left_ah_za_rhoon */,
-                                   "disembarking the raft should advance to "
-                                   "left_ah_za_rhoon, got %d",
-                                   player->varps[varp_zq]);
-                }
-            }
+                /* LostCity quest_zombiequeen.rs2 [oploc2,zqtableraft]: "A crude raft"
+                 * (row 2) builds the raft AND rides it out in the same script -- the
+                 * zqlograft locs are loc_add'd along the river, there is no second
+                 * click -- and the [mapzoneexit] queue writes left_ah_za_rhoon once the
+                 * player lands outside 0_45_145/0_45_146. */
+                static const int table_rows[] = { 2 };
+                int t;
 
-            /* ---- show Trufitus the four items ---- */
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_table, -1, loc_slot);
+                selftest_run_out_answering(srv, 200, table_rows, 1);
+                for( t = 0; t < 6 && player->varps[varp_zq] != 8; t++ )
+                    selftest_tick(srv);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 0 /* zq_used_table_logs */)) != 0,
+                               "the table should be spent on the raft, mechanisms=%d",
+                               player->varps[varp_zqmech]);
+                SELFTEST_CHECK(player->varps[varp_zq] == 8 /* zombiequeen_left_ah_za_rhoon */,
+                               "riding the raft out of Ah Za Rhoon should advance to "
+                               "left_ah_za_rhoon, got %d",
+                               player->varps[varp_zq]);
+            }
+            ToriRSServer_WorldCloseModal(srv);
+
+            /* ---- show Trufitus the plaque (LostCity [opnpcu,trufitus] case zqplaque) ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2809, 3086);
             selftest_tick(srv);
             npc_slot = ToriRSServer_WorldNpcSpawn(srv, npc_trufitus, 2809, 3086, 0);
@@ -51995,29 +52145,68 @@ ToriRSServer_WorldSelftest(void)
             {
                 player->last_useitem = obj_plaque;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
-                selftest_click_through(srv, 20);
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
-                               "showing Trufitus the items should set zq_used_dolmen_paper, got "
+                selftest_run_out(srv, 60);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 1 /* zq_deciphered_plaque */)) != 0,
+                               "showing Trufitus the plaque should set zq_deciphered_plaque, got "
                                "mechanisms=%d",
                                player->varps[varp_zqmech]);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_plaque) > 0,
+                               "Trufitus should hand the plaque back");
                 ToriRSServer_WorldNpcFree(srv, npc_slot);
                 ToriRSServer_WorldNpcReap(srv);
             }
+            ToriRSServer_WorldCloseModal(srv);
 
-            /* ---- bury Zadimus' corpse at the tribal statue ---- */
-            ToriRSServer_WorldTeleport(srv, 0, 2795, 3089);
-            selftest_tick(srv);
-            loc_slot = ToriRSServer_SceneFindLoc(2795, 3089, 0, loc_statue);
-            SELFTEST_CHECK(loc_slot >= 0, "zq_tribal_statue should resolve near Trufitus' village");
-            if( loc_slot >= 0 )
+            /* ---- bury Zadimus' corpse: LostCity [opheld1,zqzadimusbones] inside the
+             * sacred ground by the tribal statue, 0_43_48_42_15..0_43_48_46_18 ---- */
             {
-                player->last_useitem = obj_zadimus;
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_statue, -1, loc_slot);
-                selftest_click_through(srv, 5);
-                SELFTEST_CHECK(selftest_count_obj(player, obj_shard) > 0,
-                               "burying the corpse should grant zqboneshard");
-                SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) == 0,
-                               "burying the corpse should consume zqzadimusbones");
+                int zadimus_slot;
+
+                ToriRSServer_WorldTeleport(srv, 0, 2796, 3089);
+                selftest_tick(srv);
+                selftest_ack_scene(srv);
+                zadimus_slot = selftest_find(player, obj_zadimus);
+                SELFTEST_CHECK(zadimus_slot >= 0, "the corpse from the gallows should be carried");
+                if( zadimus_slot >= 0 )
+                {
+                    selftest_opheld(srv, 1, zadimus_slot);
+                    selftest_run_out(srv, 80);
+                    ToriRSServer_WorldCloseModal(srv);
+                    SELFTEST_CHECK(selftest_count_obj(player, obj_shard) > 0,
+                                   "burying the corpse should grant zqboneshard");
+                    SELFTEST_CHECK(selftest_count_obj(player, obj_zadimus) == 0,
+                                   "burying the corpse should consume zqzadimusbones");
+                }
+            }
+
+            /* ---- read both scrolls (LostCity opheld1: "Yes please." sets the read bits
+             * the crawl-way and the necklace wait on) ---- */
+            {
+                static const int read_rows[] = { 1 };
+                int scroll_slot;
+
+                scroll_slot = selftest_find(player, obj_tattered);
+                if( scroll_slot >= 0 )
+                {
+                    selftest_opheld(srv, 1, scroll_slot);
+                    selftest_run_out_answering(srv, 40, read_rows, 1);
+                    ToriRSServer_WorldCloseModal(srv);
+                }
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 5 /* zq_read_tattered_scroll */)) != 0,
+                               "reading the tattered scroll should set zq_read_tattered_scroll, "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
+                scroll_slot = selftest_find(player, obj_crumpled);
+                if( scroll_slot >= 0 )
+                {
+                    selftest_opheld(srv, 1, scroll_slot);
+                    selftest_run_out_answering(srv, 40, read_rows, 1);
+                    ToriRSServer_WorldCloseModal(srv);
+                }
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 6 /* zq_read_crumpled_scroll */)) != 0,
+                               "reading the crumpled scroll should set zq_read_crumpled_scroll, "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
             }
 
             /* ---- Tomb of Bervirius: Cairn Isle, the dolmen, the necklace ---- */
@@ -52027,9 +52216,13 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(loc_slot >= 0, "zqrocks should resolve on Cairn Isle");
             if( loc_slot >= 0 )
             {
+                /* "Yes Please, I can think of nothing nicer!" is row 1. */
+                static const int crawl_rows[] = { 1 };
+
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_cairnrocks, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out_answering(srv, 60, crawl_rows, 1);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(player->varps[varp_zq] == 9 /* zombiequeen_entered_tomb_bervirius */,
                                "entering the crawl-way should advance to "
                                "entered_tomb_bervirius, got %d",
@@ -52045,14 +52238,21 @@ ToriRSServer_WorldSelftest(void)
             if( loc_slot >= 0 )
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_dolmen, -1, loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_crystal) > 0 &&
                                    selftest_count_obj(player, obj_pommel) > 0,
                                "searching the dolmen should grant the crystal and the "
                                "sword pommel");
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
+                               "the dolmen's notes should set zq_used_dolmen_paper, got "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
             }
+            ToriRSServer_WorldCloseModal(srv);
+            selftest_ack_scene(srv);
 
-            /* ---- craft the bone beads and the bone key (shared uncut_gem.rs2 switch) ---- */
+            /* ---- craft the bone beads (shared uncut_gem.rs2 switch, LostCity
+             * [opheldu,zqbevsword] / [opheldu,zqbonebeads]) ---- */
             {
                 uint8_t payload[16];
                 struct RSAreaBuf out;
@@ -52067,7 +52267,8 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, 1);
                 rsab_p4(&out, 0);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_bonebeads) > 0,
                                "chisel + sword pommel should craft zqbonebeads");
 
@@ -52081,7 +52282,8 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, 0);
                 rsab_p4(&out, 0);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_beads) > 0,
                                "bronze wire + bone beads should craft zqdeadbeads");
 
@@ -52089,6 +52291,47 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->worn[TORIRSSERVER_WEAR_AMULET].obj_id == obj_beads,
                                "the necklace should be wearable, worn obj=%d",
                                player->worn[TORIRSSERVER_WEAR_AMULET].obj_id);
+
+                /* LostCity ~zombiequeen_chisel_boneshard: the key is only made once the
+                 * bone lock on the hillside door has been seen (zq_found_door). */
+                inv_set(player, 0, obj_chisel, 1);
+                inv_set(player, 1, obj_shard, 1);
+                rsab_wrap(&out, payload, sizeof(payload));
+                rsab_p2(&out, obj_chisel);
+                rsab_p2(&out, 0);
+                rsab_p4(&out, 0);
+                rsab_p2(&out, obj_shard);
+                rsab_p2(&out, 1);
+                rsab_p4(&out, 0);
+                selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
+                               "the bone key should not be made before the bone lock is found");
+            }
+
+            /* ---- Rashiliyia's Tomb: carved door, bone door, the fight dolmen ---- */
+            ToriRSServer_WorldTeleport(srv, 0, 2916, 3091);
+            selftest_tick(srv);
+            selftest_ack_scene(srv);
+            loc_slot = ToriRSServer_SceneFindLoc(2916, 3091, 0, loc_carveddoor);
+            SELFTEST_CHECK(loc_slot >= 0, "hillsideclosedl should resolve near the palm trees");
+            if( loc_slot >= 0 )
+            {
+                int px, pz;
+                uint8_t payload[16];
+                struct RSAreaBuf out;
+
+                /* LostCity zq_tombdoor_outer_op2: searching the door at
+                 * entered_tomb_bervirius finds the bone lock. */
+                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_carveddoor, -1,
+                                                    loc_slot);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
+                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 4 /* zq_found_door */)) != 0,
+                               "searching the hillside door should set zq_found_door, got "
+                               "mechanisms=%d",
+                               player->varps[varp_zqmech]);
 
                 inv_set(player, 0, obj_chisel, 1);
                 inv_set(player, 1, obj_shard, 1);
@@ -52099,44 +52342,26 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, obj_shard);
                 rsab_p2(&out, 1);
                 rsab_p4(&out, 0);
-                player->stat_level[stat_crafting] = 5;
-                player->stat_boosted[stat_crafting] = 5;
+                ToriRSServer_CombatSetLevel(player, stat_crafting, 5);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) == 0,
                                "the bone key should require Crafting 20, not craft below it");
-                player->stat_level[stat_crafting] = 99;
-                player->stat_boosted[stat_crafting] = 99;
+                ToriRSServer_CombatSetLevel(player, stat_crafting, 99);
                 selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(selftest_count_obj(player, obj_key) > 0,
                                "chisel + bone shard at Crafting 20+ should craft zqbonekey");
-            }
-
-            /* ---- Rashiliyia's Tomb: carved door, bone door, the fight dolmen ---- */
-            ToriRSServer_WorldTeleport(srv, 0, 2916, 3091);
-            selftest_tick(srv);
-            loc_slot = ToriRSServer_SceneFindLoc(2916, 3091, 0, loc_carveddoor);
-            SELFTEST_CHECK(loc_slot >= 0, "hillsideclosedl should resolve near the palm trees");
-            if( loc_slot >= 0 )
-            {
-                int px, pz;
 
                 player->last_useitem = obj_key;
-                worn_set(player, TORIRSSERVER_WEAR_AMULET, -1, 0); /* unequip the beads: block-without-protection check */
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_carveddoor, -1,
                                                     loc_slot);
-                selftest_click_through(srv, 5);
-                SELFTEST_CHECK(player->varps[varp_zq] != 10 /* zombiequeen_unlocked_rashliyia_tomb */,
-                               "entering without the beads worn should NOT unlock the tomb, got %d",
-                               player->varps[varp_zq]);
-
-                worn_set(player, TORIRSSERVER_WEAR_AMULET, obj_beads, 1);
-                ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_carveddoor, -1,
-                                                    loc_slot);
-                selftest_click_through(srv, 5);
+                selftest_run_out(srv, 60);
+                ToriRSServer_WorldCloseModal(srv);
                 SELFTEST_CHECK(player->varps[varp_zq] == 10 /* zombiequeen_unlocked_rashliyia_tomb */,
-                               "the bone key with beads worn should unlock the tomb, got %d",
+                               "the bone key in the hillside door should unlock the tomb, got %d",
                                player->varps[varp_zq]);
 
                 /* Quest Helper's own coordinates for the bone door and fight dolmen --
@@ -52154,13 +52379,13 @@ ToriRSServer_WorldSelftest(void)
                     player->last_useitem = obj_bones;
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     SELFTEST_CHECK(player->varps[varp_zq] == 12 /* zombiequeen_unlocked_tombdoor */,
                                    "placing three bones should unlock the tomb door, got %d",
                                    player->varps[varp_zq]);
@@ -52182,7 +52407,7 @@ ToriRSServer_WorldSelftest(void)
 
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fightdolmen, -1,
                                                         loc_slot);
-                    selftest_click_through(srv, 5);
+                    selftest_run_out(srv, 60);
                     for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
                     {
                         if( srv->npcs[i].active && srv->npcs[i].type == npc_naz1 )

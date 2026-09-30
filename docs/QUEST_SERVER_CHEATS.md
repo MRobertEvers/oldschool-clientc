@@ -593,3 +593,15 @@ and the same binary with only the four `::passive` setup lines differing:
   compares client (`t.varp`/`t.varbit`) AND server-mirror
   (`t.var_server`/`t.varbit_server`) reads and calls it `refused` (not `ok`)
   on any mismatch between the two, or against the expected value.
+
+## H. Quest-authored debugprocs: A Forgettable Tale of a Drunken Dwarf
+
+`[debugproc,...]` scripts in `quest_forgettabletale/scripts/` run as `::<name>`
+(no ladder branch). All three are test affordances; the real waits are game
+time, so a client run drives the real step and uses these only to skip the wait.
+
+| cheat | file | effect |
+|---|---|---|
+| `::forget_growkelda` | forget_farming.rs2 | sets the kelda hop patch to fully grown (`forget_farming` = 8), the growth wait of the farming step |
+| `::forget_ferment` | forget_brewing.rs2 | marks the vat's kelda as finished fermenting (skips the brewing wait) |
+| `::forgetrun` | forget_debug.rs2 | server selftest: the nine puzzle routes, the stone counters and the finale gate; prints `forgetrun OK: ...` |
