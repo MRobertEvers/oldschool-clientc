@@ -12,8 +12,9 @@ test/quests/README.md: `{ id, fixture, setup = {cheats}, run = function(t)
   * builds ONE shared binary into its own objdir (OPT=1 EMBED_SERVER=1,
     PLATFORM_OBJ_BASE=build_questtest, PLATFORM_TARGET=torirs_questtest --
     never another build's objdir, several sessions build from this checkout
-    at once) and rebuilds the server script pack, which the embedded server
-    refuses to boot on when stale;
+    at once) and rebuilds the server script pack -- which the embedded server
+    refuses to boot on when stale -- when its inputs changed (a stat
+    fingerprint over the script tree, pack_fingerprint.py);
   * rewrites manifests/manifest_osrs239.ini to transport=embed against this
     checkout's cache.osrs239, into manifests/.questtest.ini (the manifest's
     OWN directory is load-bearing -- run from a session dir instead and
@@ -42,7 +43,15 @@ both in sequence.
 
 Usage:
   tools/quest_gate/run.py --all [--jobs N] [--timeout SECONDS]
-  tools/quest_gate/run.py <quest> [--timeout SECONDS]
+  tools/quest_gate/run.py <quest> [--timeout SECONDS] [--rebuild-scripts]
+      (the script pack -- `make -C src torirsserver-scripts`: the content
+      contract checks, then sscompile -- is rebuilt only when a stat
+      fingerprint of what it is built from changed, else one line
+      "scripts: pack current (fingerprint XXXXXXXX)"; --rebuild-scripts
+      forces the rebuild (and so the contract checks),
+      TORIRS_QUEST_ALWAYS_BUILD=1 rebuilds on every run as before; a server
+      that still refuses the pack as STALE gets one forced rebuild and a
+      relaunch -- tools/quest_gate/pack_fingerprint.py)
   tools/quest_gate/run.py <quest> --from-leg K | --only-leg K
       (a legs file only: resume from checkpoint K-1 under build/quest_gate/<quest>.leg<K>/;
       exit 2 when it is missing or stale; never published, never graded --
@@ -93,6 +102,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 
 import build_support  # noqa: E402
 import ledger  # noqa: E402
+import pack_fingerprint  # noqa: E402
 import lint_quest  # noqa: E402  (legs_layout: where a relay file's legs are)
 import quest_list  # noqa: E402
 
@@ -167,11 +177,31 @@ def build(warm_from):
     return build_support.build(REPO_ROOT, OBJ_BASE, TARGET, warm_from=warm_from, run=run)
 
 
-def ensure_scripts():
+def ensure_scripts(force=False):
     """The embedded server refuses to boot on a stale script pack, and this
-    tree routinely carries uncommitted OSRS-Content edits, so it is rebuilt
-    unconditionally, every run (conformance.py does the same)."""
-    return run(["make", "-C", os.path.join(REPO_ROOT, "src"), "torirsserver-scripts"])
+    tree routinely carries uncommitted OSRS-Content edits. It used to be
+    rebuilt unconditionally, every run (46 of cooks_assistant's 58 s); now
+    it is rebuilt when a stat fingerprint of its inputs changed, under a
+    lock shared with every other runner (pack_fingerprint.py; conformance.py
+    does the same). `force` is --rebuild-scripts."""
+    return pack_fingerprint.ensure_pack(run, label="scripts", force=force)
+
+
+def launch_with_stale_retry(prepare_and_launch):
+    """Run `prepare_and_launch()` (-> the launch_and_report dict) and, if the
+    embedded server refused the pack as STALE -- a fingerprint that said
+    "current" and was wrong -- forget the fingerprint, rebuild, and run it
+    once more. The server's refusal stays the last word; this only keeps a
+    false "current" from stranding the run."""
+    result = prepare_and_launch()
+    if not pack_fingerprint.stale_pack_refused(os.path.join(result["directory"], "client.log")):
+        return result
+    code = pack_fingerprint.rebuild_after_refusal(run)
+    if code != 0:
+        print("run.py: the script pack did not rebuild after the STALE refusal", file=sys.stderr,
+              flush=True)
+        return result
+    return prepare_and_launch()
 
 
 def write_manifest():
@@ -1444,11 +1474,13 @@ def run_quest(name, binary, manifest_path, timeout):
     if refusal:
         return locked_result(name, refusal)
     try:
-        directory, saves = prepare_session(name, fixture_name)
-        script = os.path.join(directory, "%s.lua" % name)
-        write_wrapper_script(quest_file, script)
-        result = launch_and_report(name, binary, manifest_path, directory, saves, script,
-                                   timeout, max_frames)
+        def prepare_and_launch():
+            directory, saves = prepare_session(name, fixture_name)
+            script = os.path.join(directory, "%s.lua" % name)
+            write_wrapper_script(quest_file, script)
+            return launch_and_report(name, binary, manifest_path, directory, saves, script,
+                                     timeout, max_frames)
+        result = launch_with_stale_retry(prepare_and_launch)
         if result["has_ledger"]:
             collect_checkpoints(result, name, quest_file, binary)
         return result
@@ -1491,13 +1523,16 @@ def run_quest_from_leg(test_id, leg, only, binary, manifest_path, timeout):
     if refusal:
         return locked_result(name, refusal), None
     try:
-        directory, saves = prepare_session(name, fixture_name, user=test_id,
-                                           checkpoint_save=save_text)
-        script = os.path.join(directory, "%s.lua" % name)
-        write_wrapper_script(quest_file, script,
-                             leg_mode={"from": leg, "only": only, "tile": tile})
-        result = launch_and_report(name, binary, manifest_path, directory, saves, script,
-                                   timeout, max_frames, user=test_id)
+        def prepare_and_launch():
+            directory, saves = prepare_session(name, fixture_name, user=test_id,
+                                               checkpoint_save=save_text)
+            script = os.path.join(directory, "%s.lua" % name)
+            write_wrapper_script(quest_file, script,
+                                 leg_mode={"from": leg, "only": only, "tile": tile})
+            return launch_and_report(name, binary, manifest_path, directory, saves, script,
+                                     timeout, max_frames, user=test_id)
+        result = launch_with_stale_retry(prepare_and_launch)
+        directory = result["directory"]
         result["from_leg"] = leg
         if result["has_ledger"]:
             stamp_summary_from_leg(os.path.join(directory, "ledger.tsv"), leg, only)
@@ -1532,16 +1567,18 @@ def run_script_direct(name, script_path, fixture_name, binary, manifest_path, ti
     if refusal:
         return locked_result(name, refusal)
     try:
-        directory, saves = prepare_session(name, fixture_name)
-        # Same basename as the source, in a subdirectory: the driver names
-        # the run after the script file (`QUEST <basename> ...` lines), and
-        # that name must not change because the file is now generated.
-        wrapped_dir = os.path.join(directory, "script")
-        os.makedirs(wrapped_dir, exist_ok=True)
-        script = os.path.join(wrapped_dir, os.path.basename(script_path))
-        write_wrapper_script(script_path, script, pass_through_without_setup=True)
-        return launch_and_report(name, binary, manifest_path, directory, saves, script,
-                                 timeout, max_frames)
+        def prepare_and_launch():
+            directory, saves = prepare_session(name, fixture_name)
+            # Same basename as the source, in a subdirectory: the driver names
+            # the run after the script file (`QUEST <basename> ...` lines), and
+            # that name must not change because the file is now generated.
+            wrapped_dir = os.path.join(directory, "script")
+            os.makedirs(wrapped_dir, exist_ok=True)
+            script = os.path.join(wrapped_dir, os.path.basename(script_path))
+            write_wrapper_script(script_path, script, pass_through_without_setup=True)
+            return launch_and_report(name, binary, manifest_path, directory, saves, script,
+                                     timeout, max_frames)
+        return launch_with_stale_retry(prepare_and_launch)
     finally:
         release_session_lock(name)
 
@@ -2080,6 +2117,11 @@ def main():
     parser.add_argument("--no-warm", action="store_true",
                         help="always build cold; overrides --warm-from")
     parser.add_argument("--no-build", action="store_true", help="use the binary already built")
+    parser.add_argument("--rebuild-scripts", action="store_true",
+                        help="rebuild the server script pack (content contract checks + "
+                             "sscompile) even when its fingerprint says it is current; "
+                             "TORIRS_QUEST_ALWAYS_BUILD=1 does this on every run "
+                             "(tools/quest_gate/pack_fingerprint.py)")
     parser.add_argument("--no-publish", action="store_true",
                         help="do not copy a PASSING quest's ledger and shots into "
                              "OSRS-Content (%s/<quest_dir>/play/); by default every "
@@ -2148,7 +2190,7 @@ def main():
         print("run.py: no binary at %s" % binary, file=sys.stderr)
         return 1
 
-    code = ensure_scripts()
+    code = ensure_scripts(force=arguments.rebuild_scripts)
     if code != 0:
         print("run.py: the script pack did not build", file=sys.stderr)
         return code
