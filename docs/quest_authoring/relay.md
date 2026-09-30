@@ -42,6 +42,16 @@ cut to the nearest quest-stage boundary (the stage value changes between two ste
 steps of it; with no boundary that close, the cut stays where it fell. A quest of 30 steps or fewer
 is one leg. `--legs N` asks for legs of about N steps and cuts even a short quest.
 
+### The backpack overflows: setup gives plus an earlier leg's leftovers
+
+Every setup `::give` is in the backpack from the first tick, beside whatever leg 1 has not used up
+yet, and 28 slots run out fast: legends' setup gave leg 1's papyrus and charcoal and leg 2's
+lockpicks, pickaxe and runes, and the seven gems leg 2 also needs no longer fit (the
+gems were moved out of the setup). Count the slots before adding a later leg's items to the setup.
+A later leg's bulky items are given INSIDE that leg, after it drops the earlier legs' spent items,
+and a `leg.K.pack` `t.check` counts both what was dropped and what was given
+(`test/quests/legends.lua` leg 2: drop papyrus and charcoal, then the seven gems).
+
 The overview prints each leg's step range, stage range, and first and last step. Many guides file
 most of the quest under one stage (Dragon Slayer: stage 2 from the Oracle to boarding the ship), so a
 leg often starts and ends in the same stage; that is the guide, not an error.
@@ -212,6 +222,15 @@ says `checkpoint k NOT written: ...`, and the leg boundary is in the wrong place
 quiet points: outside a fight, a cutscene, an instance or a dialogue. A leg that wrote a non-PASS row
 gets no checkpoint (`NOT written: leg k wrote N non-PASS row(s)`).
 
+#### Still "in combat" after the fight: an aggressive npc respawned across a barrier
+
+`checkpoint k refused: the player is in combat` can outlast the fight that just ended. In legends
+leg 7 Ranalph Devere respawned on the far side of the force barrier at 2421,4691 and engaged the
+player standing at 2421,4690: he could not reach, the player could not reach him ("I can't reach
+that!"), and the combat state never cleared, so every quiet-wait tick refused. Walk out of his
+aggression range before the leg ends (leg 7 walks to 2396,4679 and waits 12 ticks), and put the
+boundary there.
+
 ### Running one leg
 
 ```sh
@@ -232,6 +251,10 @@ python3 tools/quest_gate/fail.py <id> --name <id>.legK              # read that 
   `.refused` reason, or "run the full test first") or STALE: legs 1..K-1's text, the setup, `bind`,
   the fixture, the content pack or the binary differ from the manifest. A shared file-level constant
   is not hashed. After editing one, run the full test again.
+  A rebuilt content pack or client binary makes EVERY checkpoint stale at once, even when the
+  test file did not change: after a seam lands or another author's script edit, plan a full run
+  before any `--from-leg`. On a long quest that is a `--detach` run (legends: ~6 min to leg 7,
+  ~9 min for all ten legs, past the shell cap -- "Runs longer than the shell cap" above).
 - The SUMMARY row is stamped `from_leg=K` (and `only_leg=1`). Such a run is never published.
 
 ### The clock: map_clock comes back with the checkpoint

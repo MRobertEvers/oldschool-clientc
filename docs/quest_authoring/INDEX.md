@@ -196,6 +196,7 @@ topic file with one line added here.
 - which row failed; the ledger is too long to read -> relay: After a run (`fail.py <id>`, `--all`)
 - replaying legs 1..K-1 every run; `--from-leg`/`--only-leg`; `checkpoint k NOT written`/`refused: a dialogue is open`; `STALE ... (legs_hash)`; `a checkpoint run is for authoring` -> relay: Checkpoints
 - "You're a bit too busy" on a `--from-leg` run; a clock-stamped varp after a checkpoint -> relay: The clock: map_clock comes back
+- `checkpoint k refused: the player is in combat` long after the fight; `STALE` after a seam or pack rebuild; setup gives overflow the 28-slot backpack -> relay: Still "in combat" after the fight; Running one leg; The backpack overflows
 - a run over ~8 min killed by the shell cap; `still running: last row ...`; fail.py `IN PROGRESS` / exit 3 -> relay: Runs longer than the shell cap
 - `not published <id> (the run did not reach t.quest.expect_complete` -> relay: Honesty
 
