@@ -39,7 +39,7 @@ quest_deserttreasure	deserttreasure	deserttreasure		3	todo
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	todo		
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
-quest_dragon	dragon	dragonslayer		3	todo	sonnet-b35	REJECTED (sonnet-b35): author compacted at run ~20; test/quests/dragon.lua (338 lines, untracked, kept) drives guildmaster, oziach, wormbrain, oracle, magic door, maze, basement, duke shield, klarense, ship repair, map, Ned, sail to Crandor (all PASS) but ends in t.blocked 'STAGE-7 STUB: crandor onwards not yet written' - not a real content blocker. Remaining legs: Crandor ruin hole (maplink dbrow), dragonsecretdoor (2836,9600), stalagtite_jump (2846,9635, no script handler, possible content_bug), kill Elvarg with antidragonbreathshield, Oziach hand-in, expect_complete + 18650 Str/Def XP + 2 QP rows. gate RED (177-repairShip3-page.png and 179-repairMap-page.png share one MD5; blocked stub); lint 2 findings (line 134 GUIDE-GAP magic_door.rs2:19-26 cites no existing .rs2 line and is not a step of DragonSlayer.java). Resume from the file plus notebook build/author_state/sonnet-b35/dragon.author.progress.md. | START FROM build/author_state/sonnet-b35/rejected/dragon.lua (338 lines, drives everything through the sail to Crandor) and its notebook build/author_state/sonnet-b35/dragon.author.progress.md; remove the STAGE-7 stub, the invalid GUIDE-GAP at line 134 and the duplicate-frame shots 177/179; write Crandor onward
+quest_dragon	dragon	dragonslayer		3	green	sonnet-b36	
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
@@ -87,9 +87,9 @@ quest_imp	imp	impcatcher		3	green	sonnet-b35
 quest_inaidofthemyreque	inaidofthemyreque	inaidofthemyreque		4	todo		
 quest_insearchofknowledge	insearchofknowledge	insearchofknowledge		4	todo		
 quest_itexam	itexam	thedigsite		3	green	sonnet-b34	
-quest_itgronigen	itgronigen	observatoryquest		3	todo		parity3c [80e6ee1228]: content at LC parity (stairs up, lens keeps mould, telescope answer lines, astrology book); AUTHOR from build/parity_state/parity3c/itgronigen.scratch_driver.lua (+ side driver); fight the goblin guard for real; legs left: Treasure Trails lesson stub, telescope cutscene, spider/antipoison chests
+quest_itgronigen	itgronigen	observatoryquest		3	green	sonnet-b36	
 quest_itwatchtower	itwatchtower	watchtower		2	green	sonnet-b30	green after 75a234743 (seam26 closer): the three drive.op bypass rows are real click_loc presses (first-floor Climb-down is qip_watchtower_ladder_top; tobancave pressed after a cited t.ticks(4) for the rope swing's exact move), 227/227, helper_coverage FULL 41/41
-quest_junglepotion	junglepotion	junglepotion		3	todo		parity3c [80e6ee1228]: Trufitus use-herb tail + objbox hand-ins at LC parity; AUTHOR from build/parity_state/parity3c/junglepotion.scratch_driver.lua (::complete quest_druidicritual, ::passive jogre); leg left: LC trufitus_post_quest label
+quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36	
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
@@ -98,7 +98,7 @@ quest_losttribe	losttribe	thelosttribe		3	todo
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
-quest_mcannon	mcannon	dwarfcannon		3	todo		parity3c [80e6ee1228]: Lawgof/Nulodion/railings/remains/manual/quest cannon at LC parity; AUTHOR from the parity_mcannon driver (164/0); legs left: mcannonguard spawns, watchtower-not-visited line, per-part price, relog recovery
+quest_mcannon	mcannon	dwarfcannon		3	green	sonnet-b36	
 quest_meatandgreet	meatandgreet	meatandgreet		4	todo		
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
@@ -119,7 +119,7 @@ quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo		
 quest_porcineofinterest	porcineofinterest	aporcineofinterest		4	todo		
 quest_priest	priest	therestlessghost		1	green	sonnet-b2	
-quest_priestperil	priestperil	priestinperil		3	todo		parity3c [80e6ee1228]: content at LC parity, no legs left; AUTHOR from build/parity_state/parity3c/priestperil_driver.lua (148/0; temple dog + Monk of Zamorak for real)
+quest_priestperil	priestperil	priestinperil		3	green	sonnet-b36	
 quest_prince	prince	princealirescue		1	green	sonnet-b16	
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
@@ -170,10 +170,10 @@ quest_thefeud	thefeud	thefeud		2	green	sonnet-b32
 quest_thefremennikisles	thefremennikisles	thefremennikisles		4	todo		
 quest_thegreatbrainrobbery	thegreatbrainrobbery	thegreatbrainrobbery		4	todo		
 quest_theslugmenace	theslugmenace	theslugmenace		3	todo		
-quest_totem	totem	tribaltotem		3	todo		parity3c [80e6ee1228]: combodoor KURT lock, locked front door, crates, trapped stairs, chest, guide book at LC parity; AUTHOR from build/parity_state/parity3c/totem.parity_driver.lua (108/0); legs left: front door from inside, fall damage read-back
+quest_totem	totem	tribaltotem		3	green	sonnet-b36	
 quest_toweroflife	toweroflife	toweroflife		4	todo		
 quest_tree	tree	treegnomevillage		2	green	sonnet-b28	
-quest_troll	troll	trollstronghold		3	todo		parity3c [80e6ee1228]: cell-door lockout, Dad gates/knockback, spectators, camp guards at LC parity; AUTHOR from the parity_troll driver (63/0, Dad for real, 26 sharks); legs left: Dad leave-arena timer reset, aggressive-player claim
+quest_troll	troll	trollstronghold		3	green	sonnet-b36	
 quest_troll_love	troll_love	trollromance		3	todo		
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
