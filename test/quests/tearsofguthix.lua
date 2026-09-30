@@ -173,6 +173,11 @@ return {
         -- option 1) falls through into the accept text; %tog_juna_bowl is
         -- set to need_bowl silently at the very end, so the list closes on
         -- "end".
+        -- The camera packets fire as the "But first..." page is clicked
+        -- away, i.e. at the END of the accept row, so the await's start is
+        -- pinned here rather than at the bowl_dialog row (verbs-cutscene.md,
+        -- t.cutscene.mark).
+        local bowl_cutscene_mark = t.cutscene.mark()
         t.exec("tog.accept_dialog", t.chat.play, {
             "npc:Tell me... a story...",
             "player:A story?",
@@ -184,10 +189,33 @@ return {
             "mesbox:You tell Juna some stories of your adventures.",
             "npc:Your stories have entertained me. I will let you into the cave for a short time.",
             "npc:But first you will need to make a bowl in which to collect the tears.",
+        })
+        -- tearsofguthix.rs2 cuts the camera to the stone cave for Juna's next
+        -- two pages and glides it up (cam_moveto/cam_lookat/cam_moveto before
+        -- "There is a cave...", cam_reset after "Mine some stone..."). The pages are played on
+        -- their own row so their shots show the cutscene framing; the await
+        -- then reads the whole sequence from the mark above.
+        t.exec("tog.bowl.page1", t.chat.play, {
             "npc:There is a cave on the south side of the chasm that is similarly infused",
+        })
+        -- Hold on the second page while the glide runs, so the shots sample
+        -- it (a reader takes a few seconds a page; the driver would click
+        -- through in one tick).
+        t.ticks(8)
+        local glide_cam = t.world.camera()
+        t.check("tog.bowl.glide", glide_cam ~= nil and glide_cam.server_driven == true,
+            "camera 8 ticks into the glide: eye " .. tostring(glide_cam and glide_cam.x) .. "," .. tostring(glide_cam and glide_cam.z)
+                .. " pitch " .. tostring(glide_cam and glide_cam.pitch) .. " last_op " .. tostring(glide_cam and glide_cam.last_op))
+        t.exec("tog.bowl.page2", t.chat.play, {
             "npc:Mine some stone from that cave, make it into a bowl, and bring it to me",
             "end",
         })
+        t.exec("tog.bowl.cutscene", t.cutscene.await, "tog.bowl", { since = bowl_cutscene_mark, expect = {
+            { op = "moveto", coord = "2_50_148_37_31", height = 400 },   -- tearsofguthix.rs2, copied verbatim
+            { op = "lookat", coord = "2_50_148_31_25", height = 0 },
+            { op = "moveto", coord = "2_50_148_39_33", height = 700 },   -- the glide (1, 1)
+            { op = "reset" },
+        } })
         t.expect("quest.stage.need_bowl", t.quest.expect_stage("need_bowl"))
 
         -- ------------------------------------------------- light the lantern

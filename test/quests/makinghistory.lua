@@ -127,8 +127,52 @@ return {
             "player:Ask about the outpost.",
             "npc:Nobody living seems to know th",
             "choose:Tell me more.",
+        })
+        -- Cutscene: the packets fire when the "Tell me more." page is clicked away.
+        local outpost_cutscene_mark = t.cutscene.mark()
+        t.exec("mh.outpost.tellmore", t.chat.play, {
             "player:Tell me more.",
+        })
+        -- No pages run for ~50 ticks: hold at the recording's shots so they are photographed.
+        t.ticks(15) -- shot 2 (hut from above), clip 11-17 s
+        local shot2_cam = t.world.camera()
+        t.check("mh.outpost.shot2", shot2_cam ~= nil and shot2_cam.server_driven == true,
+            "camera in shot 2: eye " .. tostring(shot2_cam and shot2_cam.x) .. "," .. tostring(shot2_cam and shot2_cam.z)
+                .. " pitch " .. tostring(shot2_cam and shot2_cam.pitch) .. " last_op " .. tostring(shot2_cam and shot2_cam.last_op))
+        t.ticks(11) -- shot 3 (interior), clip 18-23 s
+        local shot3_cam = t.world.camera()
+        t.check("mh.outpost.shot3", shot3_cam ~= nil and shot3_cam.server_driven == true,
+            "camera in shot 3: eye " .. tostring(shot3_cam and shot3_cam.x) .. "," .. tostring(shot3_cam and shot3_cam.z)
+                .. " pitch " .. tostring(shot3_cam and shot3_cam.pitch) .. " last_op " .. tostring(shot3_cam and shot3_cam.last_op))
+        t.ticks(10) -- shot 4 (low pass), clip 24-30 s
+        local shot4_cam = t.world.camera()
+        t.check("mh.outpost.shot4", shot4_cam ~= nil and shot4_cam.server_driven == true,
+            "camera in shot 4: eye " .. tostring(shot4_cam and shot4_cam.x) .. "," .. tostring(shot4_cam and shot4_cam.z)
+                .. " pitch " .. tostring(shot4_cam and shot4_cam.pitch) .. " last_op " .. tostring(shot4_cam and shot4_cam.last_op))
+        t.ticks(10) -- shot 5 (hills), clip 31-36 s
+        local shot5_cam = t.world.camera()
+        t.check("mh.outpost.shot5", shot5_cam ~= nil and shot5_cam.server_driven == true,
+            "camera in shot 5: eye " .. tostring(shot5_cam and shot5_cam.x) .. "," .. tostring(shot5_cam and shot5_cam.z)
+                .. " pitch " .. tostring(shot5_cam and shot5_cam.pitch) .. " last_op " .. tostring(shot5_cam and shot5_cam.last_op))
+        t.ticks(12) -- shot 5 runs out, the fade to black, the reset and the fade back in
+        t.exec("mh.outpost.page", t.chat.play, {
             "npc:There are three who might know",
+        })
+        t.exec("mh.outpost.cutscene", t.cutscene.await, "mh.outpost", { since = outpost_cutscene_mark, shots = "all", expect = {
+            { op = "moveto", coord = "0_37_52_46_12", height = 500 },  -- makinghistory_jorral.rs2, copied verbatim
+            { op = "lookat", coord = "0_37_52_62_16", height = 0 },
+            { op = "moveto", coord = "0_37_52_56_6", height = 700 },   -- glide (4, 2)
+            { op = "lookat", coord = "0_38_52_5_19", height = 250 },
+            { op = "moveto", coord = "0_37_52_58_4", height = 750 },   -- slow rise (1, 1)
+            { op = "moveto", coord = "0_37_52_62_5", height = 650 },
+            { op = "lookat", coord = "0_38_52_4_19", height = 0 },
+            { op = "moveto", coord = "0_37_52_49_12", height = 350 },
+            { op = "lookat", coord = "0_38_52_5_19", height = 350 },
+            { op = "moveto", coord = "0_38_52_2_16", height = 420 },
+            { op = "lookat", coord = "0_37_52_56_30", height = 0 },
+            { op = "reset" },
+        } })
+        t.exec("talkToJorral-dialog2", t.chat.play, {
             "choose:Ok, I'll make a stand for history!",
             "player:Ok, I'll make a stand for hist",
             "npc:Wonderful! Speak to the silver",
