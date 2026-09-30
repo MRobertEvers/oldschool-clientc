@@ -890,6 +890,51 @@ function QD._combat_eat_text(eater)
     return text
 end
 
+-- ------------------------------------------------------- kill-wait progress
+--
+-- A KILL WAIT THAT NEVER RETURNS WRITES NO ROW (seam31 run_never_ends_silently):
+-- Legends' Nezikchened wait ran the virtual clock out three runs in a row and
+-- the ledger's last word was the Attack row before it.  Both kill waits now
+-- report every QD.COMBAT_PROGRESS_TICKS ticks on stderr (QD.core_progress,
+-- which run.py's unfinished-run row reads back) and carry the same trail in
+-- their detail, so a slow fight shows its hp curve and a stalled one shows
+-- where it stalled.  The trail keeps the last QD.COMBAT_PROGRESS_KEEP entries.
+QD.COMBAT_PROGRESS_TICKS = 10
+QD.COMBAT_PROGRESS_KEEP = 12
+
+function QD._combat_progress_new(label)
+    return { label = label, next = QD.COMBAT_PROGRESS_TICKS, trail = {}, dropped = 0 }
+end
+
+function QD._combat_progress_step(progress, elapsed, hp_text, reengaged, eater)
+    if elapsed < progress.next then
+        return
+    end
+    progress.next = elapsed + QD.COMBAT_PROGRESS_TICKS
+    local entry = "t+" .. tostring(elapsed) .. " hp " .. tostring(hp_text)
+    if reengaged > 0 then
+        entry = entry .. " re-engaged " .. tostring(reengaged)
+    end
+    if eater ~= nil and eater.eaten > 0 then
+        entry = entry .. " ate " .. tostring(eater.eaten)
+    end
+    if #progress.trail >= QD.COMBAT_PROGRESS_KEEP then
+        table.remove(progress.trail, 1)
+        progress.dropped = progress.dropped + 1
+    end
+    progress.trail[#progress.trail + 1] = entry
+    QD.core_progress(progress.label .. ": " .. entry)
+end
+
+function QD._combat_progress_text(progress)
+    if #progress.trail == 0 then
+        return ""
+    end
+    return "; progress " .. (progress.dropped > 0
+        and ("(" .. tostring(progress.dropped) .. " earlier dropped) ") or "")
+        .. table.concat(progress.trail, ", ")
+end
+
 function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
     ticks = ticks or 60
     radius = radius or 10
@@ -955,6 +1000,8 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
     -- corroboration, never a zero bar on its own.  The start row is this
     -- watch's first reading.
     local watch = QD._combat_watch_new(nil)
+    local progress = QD._combat_progress_new("await_dead " .. tostring(npc_symbol) .. " slot "
+        .. tostring(slot))
     watch.last_tile = { x = start_row.x, z = start_row.z }
     if start_row.health_ratio == 0 then
         watch.zero_tick = started
@@ -981,6 +1028,7 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
             return "refused", QD.player._death_text(QD._death)
         end
         QD._combat_eat_tick(eater)
+        QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
         local result, row, verdict = QD._combat_watch_read(watch, slot)
         if verdict then
@@ -997,7 +1045,7 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
                 .. " dead after " .. tostring(elapsed) .. " tick(s)"
                 .. QD._combat_grace_text(elapsed, ticks) .. ", " .. tostring(reengaged)
                 .. " re-engagement(s), last hp " .. last .. " -- " .. verdict
-                .. QD._combat_eat_text(eater)
+                .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
         end
 
         if result ~= "ok" or not row then
@@ -1046,7 +1094,7 @@ function QD.npc.await_dead(npc_symbol, ticks, radius, attempts, opts)
     return "timeout", "await_dead " .. tostring(npc_symbol) .. ": still alive after "
         .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged)
         .. " re-engagement(s), hp " .. last .. QD._combat_watch_text(watch)
-        .. QD._combat_eat_text(eater)
+        .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
 end
 
 -- ===========================================================================
@@ -1379,6 +1427,8 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     -- corroboration.  A zero bar at the head of the wait is NOT the answer
     -- any more -- it is recorded, and the loop waits for the corpse to leave.
     local watch = QD._combat_watch_new(engaged.health)
+    local progress = QD._combat_progress_new("await_dead_engaged slot " .. tostring(slot)
+        .. " " .. opened)
     local entry_result, entry_row, entry_verdict = QD._combat_watch_read(watch, slot)
     local absent_at_entry = entry_result == "no_row"
     if absent_at_entry then
@@ -1444,6 +1494,7 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
             return "refused", QD.player._death_text(QD._death)
         end
         QD._combat_eat_tick(eater)
+        QD._combat_progress_step(progress, elapsed, last, reengaged, eater)
 
         local result, row, verdict = QD._combat_watch_read(watch, slot)
         if verdict then
@@ -1459,6 +1510,7 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
                 .. " re-engagement(s), last hp " .. last .. "; held " .. forms
                 .. (absent_at_entry and "; already absent at the head of the wait" or "")
                 .. " -- " .. verdict .. QD._combat_eat_text(eater)
+                .. QD._combat_progress_text(progress)
         end
 
         if result ~= "ok" or not row then
@@ -1521,5 +1573,5 @@ function QD.npc.await_dead_engaged(ticks, attempts, opts)
     return "timeout", "await_dead_engaged: slot " .. tostring(slot) .. " still alive after "
         .. tostring(elapsed) .. " tick(s), " .. tostring(reengaged) .. " re-engagement(s), hp "
         .. last .. "; held " .. forms .. QD._combat_watch_text(watch)
-        .. QD._combat_eat_text(eater)
+        .. QD._combat_eat_text(eater) .. QD._combat_progress_text(progress)
 end

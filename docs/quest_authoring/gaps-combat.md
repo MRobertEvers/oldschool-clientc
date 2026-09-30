@@ -293,7 +293,7 @@ Rantz lends the player his `ogre_bow` (`talkToRantzForBow`), and the test wears 
 completion does not add another bow, so `inv.expect_has("ogre_bow")` straight after
 `expect_complete` fails. Run `t.player.unequip("ogre_bow")` first, then read the backpack.
 
-## Elvarg dies to the first hit: the spawn is the `elvarg` form, and its block has no hitpoints
+## Elvarg dies to the first hit: the spawn is the `elvarg` form, and its block has no hitpoints (FIXED seam31)
 
 *Origin: sampler sonnet-b36 (dragon sent back).*
 
@@ -302,6 +302,12 @@ completion does not add another bow, so `inv.expect_has("ogre_bow")` straight af
 dragon run read her bar at `0/60` after one 10 hitsplat, and she died in 4 ticks
 (`234-killElvarg.png`). The gate cannot tell that from a real kill, so check a boss's first bar
 reading against its hitpoints. Fix the content block before re-authoring the quest.
+
+FIXED seam31: `quest_dragon.npc [elvarg]` (the multinpc PARENT the spawn places and the server
+fights) carries the cache's own block: hitpoints 80, attack/strength/defence/magic 70, and the
+defence params (configs/all.npc [elvarg]; OSRS wiki Elvarg). The proof run read her bar 60/60 ->
+52/60 after a 10 hitsplat and killed her in 68 ticks with five lobsters eaten. A quest boss whose
+spawn is a multinpc parent needs its stats on the parent; the client only draws the child.
 
 ## Troll Stronghold: Dad's surrender page is closed by a pending attack click
 

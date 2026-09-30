@@ -4275,6 +4275,135 @@ ToriRSServer_ScriptLocResolve(
 }
 
 /*
+ * The loc a script `loc_del`ed, for the READS that follow it -- `loc_coord`,
+ * `loc_type`, `loc_angle`, `loc_shape` -- which, unlike `script_active_loc`,
+ * still answer after the delete.
+ *
+ * LostCity's LOC_DEL is `World.removeLoc(state.activeLoc, duration)` and
+ * leaves `state._activeLoc` alone (engine/script/handlers/LocOps.ts LOC_DEL;
+ * ScriptState.ts `get activeLoc` throws only on a null pointer), and its
+ * LOC_COORD / LOC_TYPE / LOC_ANGLE read the Loc entity's own fields with no
+ * `isActive` test. So content deletes first and reads after, across a
+ * suspend too: Legends' Quest's fire wall (`[label,legends_use_on_fire_wall]`:
+ * `loc_del(2)` then `~legends_fire_wall_walk`, which reads loc_type,
+ * loc_angle and loc_coord) and its skull-cave barrel (`loc_del(10000)`, then
+ * `~legends_barrel_spawn_npc` reads loc_coord after `p_delay(0)`) --
+ * quest_legends/scripts/{quest_legends,strange_barrel}.rs2 in
+ * LostCity_Content2. Here the removal marks the slot inactive (or the zone
+ * record's id -1), `ToriRSServer_ScriptLocResolve` answers NULL, and the read
+ * aborted "the active loc is gone". The same shape parity3a met in
+ * merlins_crystal.rs2 and the Family Crest / Clock Tower audits rewrote by hand.
+ *
+ * `loc_del` records what it deleted under the handle the script holds. A read
+ * that finds no live loc answers from that record only while the handle
+ * still names the deleted loc and nothing else:
+ *
+ *   - a scene-slot handle: the slot is still inactive and still carries the
+ *     deleted loc's id, tile, level and shape (`ToriRSServer_SceneRemoveLoc`
+ *     clears only `active`; a `loc_add` that reuses the slot, or the revert
+ *     that revives it, makes it live again, and a live slot is read as it is);
+ *   - a zone handle: the ring entry still keys the same (x, z, level, shape),
+ *     so a recycled entry is never read as the old loc.
+ *
+ * Reads only. A WRITE after `loc_del` (`loc_change`, `loc_anim`, a second
+ * `loc_del`) still resolves through `script_active_loc` and aborts, as the
+ * npc side does (`active_npc_readable`). `loc_name` / `loc_param` live in
+ * torirs_server_ops_loc.c and do not consult this yet.
+ */
+#define SCRIPT_DELETED_LOC_MAX 64
+
+struct ScriptDeletedLoc
+{
+    intptr_t handle;
+    struct ToriRSServerSceneLoc loc;
+    int used;
+};
+
+static struct ScriptDeletedLoc g_script_deleted_locs[SCRIPT_DELETED_LOC_MAX];
+static int g_script_deleted_loc_next;
+
+static void
+script_deleted_loc_remember(
+    void* handle_ptr,
+    const struct ToriRSServerSceneLoc* loc)
+{
+    intptr_t handle = (intptr_t)handle_ptr;
+    struct ScriptDeletedLoc* entry = NULL;
+
+    assert(loc);
+    assert(handle != 0);
+    for( int i = 0; i < SCRIPT_DELETED_LOC_MAX; i++ )
+    {
+        if( g_script_deleted_locs[i].used && g_script_deleted_locs[i].handle == handle )
+        {
+            entry = &g_script_deleted_locs[i];
+            break;
+        }
+    }
+    if( !entry )
+    {
+        entry = &g_script_deleted_locs[g_script_deleted_loc_next];
+        g_script_deleted_loc_next = (g_script_deleted_loc_next + 1) % SCRIPT_DELETED_LOC_MAX;
+    }
+    entry->handle = handle;
+    entry->loc = *loc;
+    entry->loc.active = 0;
+    entry->used = 1;
+}
+
+static const struct ToriRSServerSceneLoc*
+script_deleted_loc_recall(void* handle_ptr)
+{
+    intptr_t handle = (intptr_t)handle_ptr;
+
+    if( handle == 0 )
+        return NULL;
+    for( int i = 0; i < SCRIPT_DELETED_LOC_MAX; i++ )
+    {
+        const struct ScriptDeletedLoc* entry = &g_script_deleted_locs[i];
+
+        if( !entry->used || entry->handle != handle )
+            continue;
+        if( handle > 0 )
+        {
+            const struct ToriRSServerSceneLoc* slot = ToriRSServer_SceneLoc((int)handle - 1);
+
+            if( !slot || slot->active || slot->loc_id != entry->loc.loc_id ||
+                slot->x != entry->loc.x || slot->z != entry->loc.z ||
+                slot->level != entry->loc.level || slot->shape != entry->loc.shape )
+                return NULL;
+            return &entry->loc;
+        }
+        else
+        {
+            int idx = (int)(-handle) - 1;
+            const struct ScriptZoneLocKey* key;
+
+            if( idx < 0 || idx >= SCRIPT_ZONE_LOC_HANDLE_MAX )
+                return NULL;
+            key = &g_script_zone_loc_keys[idx];
+            if( !key->used || key->x != entry->loc.x || key->z != entry->loc.z ||
+                key->level != entry->loc.level || key->shape != entry->loc.shape )
+                return NULL;
+            return &entry->loc;
+        }
+    }
+    return NULL;
+}
+
+/* The active loc for a READ: the live one, else the one this handle's
+ * `loc_del` removed (see above). */
+static const struct ToriRSServerSceneLoc*
+script_active_loc_readable(struct SSVM_State* state)
+{
+    struct ToriRSServerSceneLoc* live = script_active_loc(state);
+
+    if( live )
+        return live;
+    return script_deleted_loc_recall(SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
+}
+
+/*
  * The active npc, resolved through its slot rather than a stored pointer.
  *
  * A parked script outlives the tick that started it, and an npc can despawn or
@@ -5813,6 +5942,151 @@ ToriRSServer_ScriptCommand(
     }
 
     /*
+     * `[command,obj_name]()(string)` -- the ACTIVE ground obj's name.
+     * ObjOps.ts OBJ_NAME: `check(state.activeObj.type, ObjTypeValid)`, then
+     * `pushString(objType.name ?? objType.debugname ?? 'null')`; pointers
+     * `require: ['active_obj']`, `require2: ['active_obj2']`
+     * (ScriptOpcodePointers.ts), which ss_meta.gen.h already carries, so the VM
+     * refuses the call when no obj is active and `SSVM_Active` picks the pointer
+     * the operand names.
+     *
+     * It was unimplemented, so content reaching it took the loud stub and the
+     * selftest's gap report failed on it: Legends' Quest's gem take
+     * (`mes("You take the <lowercase(obj_name)>.")`, quest_legends.rs2 in
+     * LostCity_Content2) was ported as `oc_name(obj_type)` to get past it.
+     *
+     * Lives here rather than torirs_server_ops_obj.c only because that file is
+     * not this change's to edit; it resolves the handle the same way that
+     * file's `active_obj` does (generation-checked slot, visible to the player).
+     */
+    case SS_OP_OBJ_NAME:
+    {
+        intptr_t handle = (intptr_t)SSVM_Active(state, SSVM_ENT_OBJ);
+        int slot = ToriRSServer_WorldGroundSlot(srv, handle);
+        const char* name;
+
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "obj_name: the active obj is gone");
+            return 1;
+        }
+        if( !player || !ToriRSServer_WorldGroundVisibleTo(srv, slot, player->pid) )
+        {
+            SSVM_Abort(state, "obj_name: the active obj is not visible to this player");
+            return 1;
+        }
+        name = ToriRSServer_ObjInfo(srv->ground[slot].obj_id)->name;
+        SSVM_PushStr(state, name ? name : "null");
+        return 1;
+    }
+
+    /*
+     * `[command,inv_dropitem](inv $inv, coord $coord, obj $obj, int $count,
+     * int $duration)` -- InvOps.ts INV_DROPITEM:
+     *
+     *     const completed = player.invDel(invType.id, objType.id, count);
+     *     if (completed == 0) return;
+     *     const floorObj = new Obj(level, x, z, DESPAWN, objType.id, completed);
+     *     World.addObj(floorObj, player.hash64, duration);
+     *     state.activeObj = floorObj; state.pointerAdd(ActiveObj[state.intOperand]);
+     *
+     * Take up to `$count` out of the container, put what came out on the floor
+     * at `$coord` for `$duration`, owned by the dropper (World.addObj with a
+     * receiver reveals it to everyone `Obj.REVEAL` = 100 ticks later -- this
+     * tree's `ToriRSServer_WorldObjAddPrivate` is that window), and make the
+     * pile the active obj. Nothing lands when nothing came out.
+     *
+     * Unimplemented until now: Legends' Quest's wrong rune on the marked wall
+     * (`inv_dropitem(inv, coord, $rune, 1, 300)`, quest_legends.rs2 in
+     * LostCity_Content2) was ported as `inv_del` + `obj_add`, which drops a
+     * public pile and a rune the player did not have.
+     *
+     * One pile, the reference's shape; an unstackable count > 1 splits one per
+     * unit the way this tree's `inv_dropslot` / `inv_dropall` do, because a
+     * ground pile of an unstackable obj here is always a single item. Absent,
+     * as its neighbours in torirs_server_ops_inv.c state: the `wealth_event`
+     * log and the `invType.protect` access check.
+     */
+    case SS_OP_INV_DROPITEM:
+    {
+        int32_t inv_id;
+        int32_t coord;
+        int32_t obj_id;
+        int32_t count;
+        int32_t duration;
+        struct ToriRSServerContainer* row;
+        int remaining;
+        int completed;
+        int last = -1;
+
+        if( !SSVM_PopInt(state, &duration) || !SSVM_PopInt(state, &count) ||
+            !SSVM_PopInt(state, &obj_id) || !SSVM_PopInt(state, &coord) ||
+            !SSVM_PopInt(state, &inv_id) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "inv_dropitem: no active player");
+            return 1;
+        }
+        if( obj_id < 0 )
+        {
+            SSVM_Abort(state, "inv_dropitem: obj %d is not an obj", (int)obj_id);
+            return 1;
+        }
+        if( count < 0 )
+        {
+            SSVM_Abort(state, "inv_dropitem: count %d is negative", (int)count);
+            return 1;
+        }
+        row = container_row(srv, player, inv_id);
+        if( !row )
+        {
+            SSVM_Abort(state, "inv_dropitem on unknown container %d", (int)inv_id);
+            return 1;
+        }
+        /* Player.invDel: first matching slot first, up to `count`. */
+        remaining = count;
+        for( int i = 0; i < row->slots && remaining > 0; i++ )
+        {
+            if( row->items[i].obj_id != obj_id )
+                continue;
+            if( row->items[i].count > remaining )
+            {
+                ToriRSServer_ContainerSet(row, i, obj_id, row->items[i].count - remaining);
+                remaining = 0;
+            }
+            else
+            {
+                remaining -= row->items[i].count;
+                ToriRSServer_ContainerClearSlot(row, i);
+            }
+        }
+        completed = count - remaining;
+        if( completed == 0 )
+            return 1;
+        if( !ToriRSServer_ObjInfo(obj_id)->stackable && completed > 1 )
+        {
+            for( int i = 0; i < completed; i++ )
+                last = ToriRSServer_WorldObjAddPrivate(srv, player, obj_id, 1, coord_x(coord),
+                                                     coord_z(coord), coord_level(coord),
+                                                     duration > 0 ? duration : -1, 100);
+        }
+        else
+        {
+            last = ToriRSServer_WorldObjAddPrivate(srv, player, obj_id, completed, coord_x(coord),
+                                                 coord_z(coord), coord_level(coord),
+                                                 duration > 0 ? duration : -1, 100);
+        }
+        if( last >= 0 )
+        {
+            SSVM_SetActive(state, SSVM_ENT_OBJ, dot ? SSVM_SECONDARY : SSVM_PRIMARY,
+                           (void*)ToriRSServer_WorldObjHandle(srv, last));
+            SSVM_PointerAdd(state, dot ? SSVM_PTR_ACTIVE_OBJ2 : SSVM_PTR_ACTIVE_OBJ);
+        }
+        return 1;
+    }
+
+    /*
      * The examine text, and the whole of what a rev-230 "Examine" op is.
      *
      * Op 10 is Examine on nearly every panel the client draws — the backpack,
@@ -6837,6 +7111,21 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * `huntnext` / `.huntnext` -- PlayerOps.ts HUNTNEXT: `state.activePlayer =
+     * result.value; state.pointerAdd(ActivePlayer[state.intOperand])`, and the
+     * `activePlayer` setter writes `_activePlayer2` when the operand is 1
+     * (ScriptState.ts `set activePlayer`; ScriptOpcodePointers.ts HUNTNEXT
+     * `set2: ['active_player2']`).
+     *
+     * This bound the PRIMARY whatever the operand said, so the LostCity idiom
+     * `while(.huntnext = true) { ... .coord ... }` -- walk the other players
+     * without losing the one the script is about -- aborted at `.coord`
+     * ("COORD requires an active entity the script does not have"): Legends'
+     * Quest's `[proc,player_in_fire_octagram]` (quest_legends.rs2 in
+     * LostCity_Content2), which the seam30 port rewrote on the primary pointer
+     * plus `p_finduid`. The dotted form leaves the primary player alone.
+     */
     case SS_OP_HUNTNEXT:
     {
         if( srv->iterator.kind != SSVM_ENT_PLAYER )
@@ -6851,6 +7140,13 @@ ToriRSServer_ScriptCommand(
 
             if( index >= srv->player_count || !other->active )
                 continue;
+            if( dot )
+            {
+                SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_SECONDARY, other);
+                SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER2);
+                SSVM_PushInt(state, 1);
+                return 1;
+            }
             SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, other);
             SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_PLAYER);
             SSVM_PushInt(state, 1);
@@ -7529,7 +7825,8 @@ ToriRSServer_ScriptCommand(
     case SS_OP_LOC_ANGLE:
     case SS_OP_LOC_SHAPE:
     {
-        struct ToriRSServerSceneLoc* loc = script_active_loc(state);
+        /* Reads answer after `loc_del` -- see script_active_loc_readable. */
+        const struct ToriRSServerSceneLoc* loc = script_active_loc_readable(state);
 
         if( !loc )
         {
@@ -7626,12 +7923,21 @@ ToriRSServer_ScriptCommand(
         x = loc->x;
         z = loc->z;
         level = loc->level;
-
-        if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, -1, angle,
-                                   TORIRSSERVER_LOC_SET_CHANGE) )
+        /* Copied before the removal: a zone handle's view is the resolver's
+         * static, and the scene slot is about to go inactive. */
         {
-            SSVM_Abort(state, "loc_del on a loc that is already gone");
-            return 1;
+            struct ToriRSServerSceneLoc deleted = *loc;
+
+            if( !ToriRSServer_WorldLocSet(srv, x, z, level, shape, -1, angle,
+                                       TORIRSSERVER_LOC_SET_CHANGE) )
+            {
+                SSVM_Abort(state, "loc_del on a loc that is already gone");
+                return 1;
+            }
+            /* LostCity keeps `state.activeLoc` after `World.removeLoc`, and the
+             * reads after it answer from the removed loc (LocOps.ts LOC_DEL). */
+            script_deleted_loc_remember(SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY),
+                                        &deleted);
         }
         ToriRSServer_WorldLocRevertQueue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;

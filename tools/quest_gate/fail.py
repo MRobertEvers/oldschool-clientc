@@ -23,6 +23,11 @@ guide step of that leg, as ladder.py cuts it); the SUMMARY is the run's.
 Reads build/quest_gate/<test_id>/ledger.tsv, or build/quest_gate/<name>/
 ledger.tsv with --name. Exit 0 when every row passed, 1 when a row failed
 (so a shell `&&` chain stops), 2 when there is no ledger.
+
+A run started with `run.py ... --detach` that is still going (its
+run.status says starting/running and its pid is live) is read as IN
+PROGRESS: the first line says so, a missing SUMMARY is "still running", not
+"stopped early", and the exit is 3 unless a row has already failed (1).
 """
 
 import os as _os
@@ -91,6 +96,39 @@ def log_lines(run_dir):
     return hits[-3:]
 
 
+def run_in_progress(run_dir):
+    """A one-line note when run_dir belongs to a detached run.py that is
+    still running (run.py's detach block writes run.status as key=value
+    lines), else None. A status whose pid is gone is not in progress: the
+    ledger is then whatever the run left behind."""
+    try:
+        with open(os.path.join(run_dir, "run.status"), "r", encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return None
+    status = dict(line.split("=", 1) for line in lines if "=" in line)
+    if status.get("state") not in ("starting", "running"):
+        return None
+    pid = status.get("pid", "")
+    if not pid.isdigit():
+        try:
+            with open(os.path.join(run_dir, "run.pid"), "r", encoding="utf-8") as handle:
+                pid = handle.read().strip()
+        except OSError:
+            pid = ""
+    if not pid.isdigit() or int(pid) <= 0:
+        return None
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return None
+    except PermissionError:
+        pass
+    return "IN PROGRESS: detached run pid %s started %s is still running -- this ledger is partial; " \
+           "wait with: python3 tools/quest_gate/run.py --wait %s" % (
+               pid, status.get("started", "?"), os.path.basename(run_dir))
+
+
 def leg_steps(test_id, leg):
     """The guide step names of ladder leg `leg`."""
     import ladder  # noqa: E402 -- only --leg pays for the guide parse
@@ -125,6 +163,10 @@ def main():
     run_dir = os.path.join(GATE_DIR, args.name or args.test_id)
     path = os.path.join(run_dir, "ledger.tsv")
     rows, summary = ledger.read(path)
+    progress = run_in_progress(run_dir)
+    if rows is None and progress:
+        print("%s\nno ledger rows yet at %s" % (progress, os.path.relpath(path, REPO_ROOT)))
+        return 3
     if rows is None:
         die("no ledger at %s (run the quest first, or name the run with --name)" % os.path.relpath(path, REPO_ROOT))
     if args.leg is not None:
@@ -132,13 +174,24 @@ def main():
         rows = [r for r in rows if in_leg(r, names)]
 
     out = []
+    if progress:
+        out.append(progress)
     out.append("ledger %s: %d rows" % (os.path.relpath(path, REPO_ROOT), len(rows)))
-    out.append("SUMMARY " + ("\t".join(summary[1:]) if summary else "missing: the run did not finish"))
+    out.append("SUMMARY " + ("\t".join(summary[1:]) if summary else
+                             "not yet: the run is still going" if progress else
+                             "missing: the run did not finish"))
     bad = [i for i, r in enumerate(rows) if r["verdict"] != "PASS"]
     if not bad:
         # A run with every row PASS still failed when it never wrote its
         # SUMMARY (it stopped early) or the SUMMARY says FAIL (exit code).
         verdict = summary[2] if summary and len(summary) > 2 else None
+        if progress:
+            if rows:
+                out.append("no failing row so far; last row %s" % row_line(rows[-1]))
+            else:
+                out.append("no failing row so far")
+            print("\n".join(out))
+            return 3
         if args.leg is not None or verdict == "PASS":
             out.append("no failing row")
             print("\n".join(out))

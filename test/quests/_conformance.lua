@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 49
+-- @seam-count 50
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 134
-local SEAM_COUNT = 49
+local SEAM_COUNT = 50
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6571,12 +6571,18 @@ return {
             } }, { finish = false })
             local rows = type(report) == "table" and report.rows or {}
             local text = table.concat(rows, " || ")
-            if #rows ~= 2 or not string.find(tostring(rows[1]), "leg.1.conf_a: tile=", 1, true)
-                or not string.find(tostring(rows[2]), "leg.2.conf_b: tile=", 1, true) then
-                return "refused", "expected rows leg.1.conf_a and leg.2.conf_b with a tile -- " .. text
+            if #rows ~= 3 or not string.find(tostring(rows[1]), "leg.1.conf_a: tile=", 1, true)
+                or not string.find(tostring(rows[2]), "leg.2.conf_b: tile=", 1, true)
+                or not string.find(tostring(rows[3]), "leg.2.end: tile=", 1, true) then
+                return "refused", "expected rows leg.1.conf_a, leg.2.conf_b and leg.2.end with a tile -- " .. text
             end
             if not string.find(tostring(rows[2]), "checkpoint 1 written: checkpoint 1 written at", 1, true) then
                 return "refused", "the all-PASS leg 1 at a quiet point left no written checkpoint -- " .. text
+            end
+            -- seam31: the LAST leg that returns unfinished gets its checkpoint
+            -- too, carried in its leg.<k>.end row.
+            if not string.find(tostring(rows[3]), "checkpoint 2 written: checkpoint 2 written at", 1, true) then
+                return "refused", "the all-PASS last leg left no written checkpoint -- " .. text
             end
             return "ok", text
         end)
@@ -6613,6 +6619,54 @@ return {
         stage(function()
             setup_cheat("::tele lumbridge")
             settle(4)
+        end)
+
+        -- A KILL WAIT CARRIES ITS PROGRESS TRAIL (seam31
+        -- run_never_ends_silently).  await_dead / await_dead_engaged sample
+        -- the fight every QD.COMBAT_PROGRESS_TICKS ticks, print each sample
+        -- as a `QUEST progress` line (the one run.py's run.unfinished row
+        -- reads back when a run stops inside the wait) and end their detail
+        -- in "; progress t+10 hp .., ..", keeping the last
+        -- QD.COMBAT_PROGRESS_KEEP.  Driven on the helpers themselves: a real
+        -- fight long enough to drop samples would cost minutes of ticks.
+        seam("seam.kill_wait_progress_trail", function()
+            if type(t._combat_progress_new) ~= "function"
+                or type(t._combat_progress_step) ~= "function"
+                or type(t._combat_progress_text) ~= "function" then
+                return "refused", "combat.lua has no _combat_progress_new/_step/_text"
+            end
+            if type(t.core_progress) ~= "function" or type(t.core_row_begin) ~= "function" then
+                return "refused", "core.lua has no core_progress/core_row_begin"
+            end
+            local every = t.COMBAT_PROGRESS_TICKS
+            local keep = t.COMBAT_PROGRESS_KEEP
+            local progress = t._combat_progress_new("conformance kill wait")
+            local empty = t._combat_progress_text(progress)
+            -- under one period: no sample yet
+            t._combat_progress_step(progress, every - 1, "30/30", 0, nil)
+            local none_yet = #progress.trail
+            local samples = keep + 2
+            for i = 1, samples do
+                t._combat_progress_step(progress, i * every, tostring(30 - i) .. "/30",
+                    (i == 2) and 1 or 0, { eaten = (i >= 3) and 1 or 0 })
+            end
+            local text = t._combat_progress_text(progress)
+            local detail = "every=" .. tostring(every) .. " keep=" .. tostring(keep)
+                .. " before-first=" .. tostring(none_yet) .. " empty='" .. tostring(empty)
+                .. "' after " .. tostring(samples) .. " samples: " .. text
+            if empty ~= "" or none_yet ~= 0 then
+                return "refused", "a wait with no sample must add nothing -- " .. detail
+            end
+            if #progress.trail ~= keep or progress.dropped ~= 2 then
+                return "refused", "the trail must keep the last " .. tostring(keep)
+                    .. " and count 2 dropped -- " .. detail
+            end
+            local last = "t+" .. tostring(samples * every) .. " hp " .. tostring(30 - samples) .. "/30 ate 1"
+            if not string.find(text, "; progress (2 earlier dropped) t+" .. tostring(3 * every) .. " hp 27/30 ate 1", 1, true)
+                or not string.find(text, last, 1, true) then
+                return "refused", "the trail must read oldest-kept first and end at '" .. last .. "' -- " .. detail
+            end
+            return "ok", detail
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

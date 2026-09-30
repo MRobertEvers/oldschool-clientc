@@ -47,6 +47,12 @@ Usage:
       (a legs file only: resume from checkpoint K-1 under build/quest_gate/<quest>.leg<K>/;
       exit 2 when it is missing or stale; never published, never graded --
       docs/quest_authoring/relay.md "Checkpoints")
+  tools/quest_gate/run.py <quest> --no-build --no-publish --detach   (then:)
+  tools/quest_gate/run.py --wait <quest> [--timeout 540]
+      (a run longer than a 10-minute shell call: --detach starts it in the
+      background and returns; --wait blocks up to --timeout seconds and exits
+      with the run's own exit (0/1) / 2 no such run / 3 still running;
+      docs/quest_authoring/relay.md "Runs longer than the shell cap")
   tools/quest_gate/run.py --script test/quests/_conformance.lua --name proof
       (advanced: drives an arbitrary standalone driver script -- no quest
       table; a non-empty `setup` list is run by the same wrapper loop, an
@@ -1175,13 +1181,31 @@ def locked_result(name, message):
     }
 
 
+def clear_session_directory(directory):
+    """Empty a session directory for a new run, except a detached run's own
+    run.pid / run.status / run.out (DETACH_FILES): the child is writing
+    run.out and --wait reads the other two while this run is live. A
+    foreground run clears stale ones too, so --wait never reports an old
+    detached run's end as this run's."""
+    assert directory
+    keep = DETACH_FILES if os.environ.get(DETACH_CHILD_ENV) else ()
+    for entry in os.listdir(directory):
+        if entry in keep:
+            continue
+        path = os.path.join(directory, entry)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path)
+        else:
+            os.unlink(path)
+
+
 def prepare_session(name, fixture_name, user=None, checkpoint_save=None):
     """A fresh, private build/quest_gate/<name>/ directory -- never reused;
     the server writes into it on exit. A checkpoint run logs in as `user`
     (the full run's account) from `checkpoint_save` instead of the fixture."""
     directory = os.path.join(REPO_ROOT, "build", "quest_gate", name)
     if os.path.isdir(directory):
-        shutil.rmtree(directory)
+        clear_session_directory(directory)
     os.makedirs(directory, exist_ok=True)
     saves = os.path.join(directory, "saves")
     if checkpoint_save is not None:
@@ -1217,6 +1241,179 @@ def copy_timeout_shot(directory):
     return target
 
 
+# ------------------------------------------------ a run that ended unfinished
+#
+# seam31 run_never_ends_silently. The ledger's SUMMARY row is written by the
+# client (drive_ledger_write_summary) and ONLY by the client: on t.finish, on
+# the script returning, on a Lua error. A client that stops any other way --
+# the TORIRS_MAX_FRAMES virtual clock running out (main.c returns 0 and prints
+# nothing), a crash, an assert, the wall-clock kill below -- left a ledger that
+# just stopped, and "exit 0, no SUMMARY, nothing in client.log" is what a relay
+# runner spent ten runs on (legends leg 7, sonnet-b37: the frame budget ran out
+# inside the Nezikchened kill wait, three runs in a row).
+#
+# So run.py always finishes the ledger itself: one FAIL row `run.unfinished`
+# whose detail says `run ended without finishing: <reason>`, naming the row
+# that was open (the driver's `QUEST row-begin` line, core.lua), the last tick
+# the driver reported, and the last `QUEST progress` line of a long wait; then
+# a SUMMARY counted from the rows. A Lua error's own `script-error` row gets
+# the same "inside row <name>" suffix, because the C writer cannot know it.
+ROW_BEGIN_RE = re.compile(r"^QUEST row-begin (?P<name>\S+) tick=(?P<tick>\d+)")
+PROGRESS_RE = re.compile(r"^QUEST progress (?P<text>.*) tick=(?P<tick>\d+)$")
+ROW_WRITTEN_RE = re.compile(r"^QUEST \S+ (?:PASS|FAIL|BLOCKED) (?P<step>\S+) ticks=")
+# torirs_plugin_drive.c reports a raising await predicate on stderr and treats
+# it as "not yet true", so the row times out with only its note for a detail;
+# run.py folds the error into that row (the error is the author's bug, and a
+# timeout that hides it reads like a slow world).
+PREDICATE_ERROR_RE = re.compile(r"^QUEST \S+ await (?:level|match)\(\) error: (?P<error>.*)$")
+FATAL_LINE_RE = re.compile(r"Assertion failed|assertion|Segmentation|Abort|panic|error:",
+                           re.IGNORECASE)
+# EMBED_CLOCK_MS (client_env) is 20 ms of server time per frame, and a server
+# tick is 600 ms: TORIRS_MAX_FRAMES frames is about max_frames / 30 ticks.
+FRAMES_PER_SERVER_TICK = 30
+# A run whose last reported tick is within this fraction of the frame budget's
+# ticks is said to have run the budget out; below it, exit 0 is named as
+# unexplained rather than blamed on the clock.
+FRAME_BUDGET_NEAR = 0.9
+
+
+def scan_client_log(log_path):
+    """What the driver said on stderr about where it was: (open_row, last_tick,
+    last_progress, fatal_line, predicate_errors). open_row is (name, tick) for a
+    `row-begin` with no written row after it, else None; last_progress is the
+    open row's own last progress line; predicate_errors maps a written step to
+    the first await-predicate error reported while it was open."""
+    open_row = None
+    last_tick = None
+    last_progress = None
+    fatal_line = None
+    predicate_errors = {}
+    pending_error = None
+    if not os.path.isfile(log_path):
+        return open_row, last_tick, last_progress, fatal_line, predicate_errors
+    with open(log_path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            stripped = line.rstrip("\n")
+            match = ROW_BEGIN_RE.match(stripped)
+            if match:
+                open_row = (match.group("name"), int(match.group("tick")))
+                last_tick = int(match.group("tick"))
+                last_progress = None
+                pending_error = None
+                continue
+            match = PREDICATE_ERROR_RE.match(stripped)
+            if match:
+                pending_error = pending_error or match.group("error")[:200]
+                continue
+            match = PROGRESS_RE.match(stripped)
+            if match:
+                last_progress = stripped[len("QUEST progress "):]
+                last_tick = int(match.group("tick"))
+                continue
+            match = ROW_WRITTEN_RE.match(stripped)
+            if match:
+                step = match.group("step")
+                if pending_error and step not in predicate_errors:
+                    predicate_errors[step] = pending_error
+                pending_error = None
+                if open_row and (step == open_row[0] or step.startswith(open_row[0] + "-")):
+                    open_row = None
+                    last_progress = None
+                continue
+            if not stripped.startswith("QUEST ") and FATAL_LINE_RE.search(stripped):
+                fatal_line = stripped[:300]
+    return open_row, last_tick, last_progress, fatal_line, predicate_errors
+
+
+def unfinished_reason(code, timed_out, timeout, max_frames, last_tick, fatal_line):
+    """Why the client stopped, in words: exited / timed out / killed."""
+    budget_ticks = max_frames // FRAMES_PER_SERVER_TICK
+    if timed_out:
+        return ("killed by run.py after the wall-clock timeout of %d s (the process was still "
+                "running; last tick the driver reported %s)" % (timeout, last_tick))
+    if code is not None and code < 0:
+        return "the client was killed by signal %d%s" % (
+            -code, (" -- last fatal-looking line: %s" % fatal_line) if fatal_line else "")
+    if code:
+        return ("the client exited %d without t.finish (a crash or an assert)%s" % (
+            code, (" -- last fatal-looking line: %s" % fatal_line) if fatal_line else
+            " -- nothing fatal-looking in client.log"))
+    if last_tick is not None and last_tick >= budget_ticks * FRAME_BUDGET_NEAR:
+        return ("the client exited 0 at the frame budget: TORIRS_MAX_FRAMES=%d is about %d "
+                "server ticks and the driver last reported tick %d -- the run needs a larger "
+                "`max_frames = <n>,` in its quest table (ceiling %d) or fewer ticks"
+                % (max_frames, budget_ticks, last_tick, MAX_FRAMES_CEILING))
+    if last_tick is None:
+        return ("the client exited 0 without t.finish and the driver reported no tick, so "
+                "whether TORIRS_MAX_FRAMES=%d (about %d server ticks) ran out cannot be told"
+                % (max_frames, budget_ticks))
+    return ("the client exited 0 without t.finish at tick %d, short of the %d ticks "
+            "TORIRS_MAX_FRAMES=%d allows -- not the frame budget; see client.log's tail"
+            % (last_tick, budget_ticks, max_frames))
+
+
+def finish_unfinished_ledger(directory, code, timed_out, timeout, max_frames):
+    """Append `run.unfinished` FAIL + a SUMMARY to a ledger the client left
+    without one (or create the ledger when the client wrote none), and name the
+    open row in a `script-error` row's detail. Returns the reason written, or
+    None when the client's own SUMMARY is there."""
+    assert directory
+    ledger_path = os.path.join(directory, "ledger.tsv")
+    log_path = os.path.join(directory, "client.log")
+    open_row, last_tick, last_progress, fatal_line, predicate_errors = scan_client_log(log_path)
+    lines = []
+    if os.path.isfile(ledger_path):
+        with open(ledger_path, "r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.read().splitlines()
+    where = ""
+    if open_row:
+        where = "inside row '%s' (begun at tick %d)" % open_row
+    if last_progress:
+        where += ("; " if where else "") + "last progress: " + last_progress
+    changed = False
+    for position, line in enumerate(lines):
+        columns = line.split("\t")
+        if len(columns) >= 6 and columns[1] == "script-error" and where \
+                and "inside row" not in columns[5]:
+            columns[5] = "%s -- raised %s" % (columns[5], where)
+            lines[position] = "\t".join(columns)
+            changed = True
+        elif len(columns) >= 6 and columns[2] == "FAIL" and columns[1] in predicate_errors \
+                and "predicate raised" not in columns[5]:
+            columns[5] = "%s -- its await predicate raised (read as not-yet-true until the " \
+                "deadline): %s" % (columns[5], predicate_errors[columns[1]].replace("\t", " "))
+            lines[position] = "\t".join(columns)
+            changed = True
+    has_summary = any(line.startswith("SUMMARY\t") for line in lines)
+    reason = None
+    if not has_summary:
+        reason = unfinished_reason(code, timed_out, timeout, max_frames, last_tick, fatal_line)
+        if not lines:
+            lines = ["quest-ledger-v1", "index\tstep\tverdict\tticks\tshots\tdetail"]
+        rows = [line.split("\t") for line in lines[2:] if line and not line.startswith("SUMMARY")]
+        index = len(rows) + 1
+        last_written = rows[-1][1] if rows else "none"
+        detail = "run ended without finishing: %s; %s; last row written: %s" % (
+            reason, where or "no row was open (the driver reported no row-begin after the "
+            "last written row)", last_written)
+        lines.append("%d\trun.unfinished\tFAIL\t0\t\t%s" % (index, detail.replace("\t", " ")))
+        verdicts = [row[2] for row in rows if len(row) > 2] + ["FAIL"]
+        blocked = verdicts.count("BLOCKED")
+        summary = "SUMMARY\t%d\tFAIL\t%d\texit=%s\tpass=%d fail=%d" % (
+            index, sum(int(row[3]) for row in rows if len(row) > 3 and row[3].isdigit()),
+            "none" if code is None else code, verdicts.count("PASS"), verdicts.count("FAIL"))
+        if blocked:
+            summary += " blocked=%d" % blocked
+        lines.append(summary)
+        changed = True
+        print("run.py: %s ended without finishing: %s" % (os.path.basename(directory), reason),
+              flush=True)
+    if changed:
+        with open(ledger_path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines) + "\n")
+    return reason
+
+
 def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout,
                       max_frames, user=None):
     log_path = os.path.join(directory, "client.log")
@@ -1225,12 +1422,16 @@ def launch_and_report(name, binary, manifest_path, directory, saves, script, tim
                                      max_frames)
     if timed_out:
         copy_timeout_shot(directory)
+    # seam31: never leave a ledger without a SUMMARY (finish_unfinished_ledger).
+    unfinished = finish_unfinished_ledger(directory, code, timed_out,
+                                          scaled_timeout(timeout, max_frames), max_frames)
     ledger_path = os.path.join(directory, "ledger.tsv")
     has_ledger = os.path.isfile(ledger_path)
-    ok = (not timed_out) and code == 0 and has_ledger
+    ok = (not timed_out) and code == 0 and has_ledger and unfinished is None
     return {
         "name": name, "exit_code": code, "timed_out": timed_out,
         "has_ledger": has_ledger, "directory": directory, "ok": ok,
+        "unfinished": unfinished,
     }
 
 
@@ -1357,6 +1558,36 @@ def ledger_verdict(ledger_path):
     return None
 
 
+COMPLETION_ROWS = ("quest.varp_complete", "quest.scroll_title")
+
+
+def publish_refusal_incomplete(test_id, ledger_path):
+    """Why a PASS SUMMARY is still not evidence, or None (seam31).
+
+    A legs file whose last leg returns without t.finish is finished by the
+    harness with a PASS SUMMARY: a relay author's partial run (legends, six
+    of nine legs) read as a played-through quest and replaced OSRS-Content's
+    evidence. So a quest that is meant to reach t.quest.expect_complete --
+    every legs file, and every run file that calls it -- publishes only a
+    ledger whose expect_complete rows are PASS. A test with no quest varp
+    (hans) never calls it and keeps the plain SUMMARY rule."""
+    quest_file = quest_list.quest_path(REPO_ROOT, test_id)
+    if not os.path.isfile(quest_file):
+        return None
+    text, layout = legs_source(quest_file)
+    if layout is None and "expect_complete" not in text:
+        return None
+    rows, _ = ledger.read(ledger_path)
+    passed = set(row["step"] for row in rows or [] if row["verdict"] == "PASS")
+    missing = [name for name in COMPLETION_ROWS if name not in passed]
+    if not missing:
+        return None
+    return ("the run did not reach t.quest.expect_complete (no PASS %s row)%s; a partial run "
+            "is not evidence" % (" / ".join(missing),
+                                 " -- a legs file's last leg returned without finishing the "
+                                 "quest" if layout is not None else ""))
+
+
 def publish(result):
     """Copy a PASSING quest's ledger.tsv and every shots/*.png into
     PUBLISH_DIR/<quest_dir>/play/, replacing whatever an earlier run
@@ -1378,6 +1609,9 @@ def publish(result):
     verdict = ledger_verdict(ledger_path)
     if verdict != "PASS":
         return None, "ledger SUMMARY is %s, not PASS" % verdict
+    incomplete = publish_refusal_incomplete(result["name"], ledger_path)
+    if incomplete:
+        return None, incomplete
     target = os.path.join(PUBLISH_DIR, quest_dir_for(result["name"]), "play")
     if os.path.isdir(target):
         shutil.rmtree(target)
@@ -1525,6 +1759,306 @@ def print_failure_block(results):
     print("")
 
 
+# ---------------------------------------------------------------- detach / wait
+#
+# An agent's shell call is capped at ten minutes, and a full run of a long
+# quest (legends, every relay's last leg, a reviewer's full run) takes longer,
+# so a foreground `run.py <id>` is killed with its client before it writes a
+# SUMMARY (seam31 long_runs_past_the_foreground_cap). `--detach` starts the
+# SAME run.py command as a child in its own session and returns at once;
+# `--wait <name>` blocks for at most --timeout seconds (default 540: nine
+# minutes, under the cap) and either prints how the run ended or says it is
+# still running and where it has got to. A run of any length is then driven
+# as one --detach and as many 9-minute --waits as it takes.
+#
+# The child is run.py itself, re-executed with the same arguments minus
+# --detach and DETACH_CHILD_ENV set to the run name; every other rule
+# (session lock, build, publish, checkpoints, the per-process wall-clock
+# ceiling) is the foreground path's own. Its files live IN the session
+# directory, build/quest_gate/<name>/, which prepare_session keeps
+# (DETACH_FILES) when it clears the directory for the run:
+#   run.pid     the child's pid (written by the --detach parent)
+#   run.status  key=value lines; state=starting|running|done, and at the
+#               end exit=<code> ended=<time> elapsed=<s> (written by the
+#               child: detach_child_started / detach_finish)
+#   run.out     the child's stdout+stderr: build, report, failure block
+# fail.py reads run.status too, so a partial ledger is reported as a run in
+# progress, never as "the run stopped early".
+DETACH_CHILD_ENV = "TORIRS_QUEST_DETACHED_NAME"
+DETACH_FILES = ("run.pid", "run.status", "run.out")
+DETACH_WAIT_DEFAULT = 540
+DETACH_WAIT_EXIT_RUNNING = 3
+DETACH_WAIT_POLL = 2.0
+DETACH_OUT_TAIL_CHARS = 6000
+REPORT_HEADER_RE = re.compile(r"^\S+\s+exit\s+timed_out\s+ledger\s+directory$")
+
+
+def detach_directory(name):
+    assert name
+    return os.path.join(REPO_ROOT, "build", "quest_gate", name)
+
+
+def read_detach_status(name):
+    """run.status as a dict, or None when the run was never detached (or
+    the file cannot be read -- which says nothing about a live run)."""
+    assert name
+    path = os.path.join(detach_directory(name), "run.status")
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return None
+    status = {}
+    for line in lines:
+        key, sep, value = line.partition("=")
+        if sep:
+            status[key.strip()] = value.strip()
+    return status
+
+
+def write_detach_status(name, fields):
+    """Replace run.status whole (write + rename, so a --wait or fail.py never
+    reads half a file)."""
+    assert name
+    assert fields
+    directory = detach_directory(name)
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, "run.status")
+    temporary = path + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        for key, value in fields:
+            handle.write("%s=%s\n" % (key, value))
+    os.replace(temporary, path)
+
+
+def detach_run_name(parser, arguments):
+    """The session name the run will write under -- the same name main()'s
+    own paths use: <id>, <id>.leg<K>, or --script's --name/basename."""
+    if arguments.all:
+        parser.error("--detach runs ONE session: name a quest, a --script or a leg "
+                     "(detach the long quests one at a time)")
+    if arguments.script:
+        return arguments.name or os.path.splitext(os.path.basename(arguments.script))[0]
+    name = arguments.quest_flag or arguments.quest
+    if not name:
+        parser.error("--detach needs a quest name or --script")
+    leg = arguments.from_leg if arguments.from_leg is not None else arguments.only_leg
+    if leg is not None:
+        return "%s.leg%d" % (name, leg)
+    return name
+
+
+def detach_live_pid(name):
+    """The pid of a live run already using session `name` -- its lock's
+    holder, or a detached child that has not taken the lock yet -- or None."""
+    entry = read_session_lock(session_lock_path(name))
+    if entry and pid_is_live(entry[0]):
+        return entry[0]
+    status = read_detach_status(name)
+    if status and status.get("state") in ("starting", "running"):
+        pid = status.get("pid", "")
+        if pid.isdigit() and int(pid) > 0 and pid_is_live(int(pid)):
+            return int(pid)
+    return None
+
+
+def detach_start(parser, arguments):
+    """`run.py ... --detach`: start the same command as a session-leader
+    child and return at once (exit 0), or refuse (exit 1) when a run of the
+    same session name is live -- the child would be refused by the session
+    lock anyway, but only after --detach had already said it started."""
+    name = detach_run_name(parser, arguments)
+    live = detach_live_pid(name)
+    if live is not None:
+        print("run.py: REFUSING to detach %s -- pid %d is already running it; "
+              "wait for it with: python3 tools/quest_gate/run.py --wait %s"
+              % (name, live, name), file=sys.stderr, flush=True)
+        return 1
+    directory = detach_directory(name)
+    os.makedirs(directory, exist_ok=True)
+    child_argv = [a for a in sys.argv[1:] if a != "--detach"]
+    command = [sys.executable, os.path.abspath(__file__)] + child_argv
+    started = time.strftime("%Y-%m-%dT%H:%M:%S")
+    write_detach_status(name, [("state", "starting"), ("name", name),
+                               ("started", started), ("started_epoch", "%.0f" % time.time()),
+                               ("command", " ".join(child_argv))])
+    environment = dict(os.environ)
+    environment[DETACH_CHILD_ENV] = name
+    with open(os.path.join(directory, "run.out"), "wb") as out:
+        # start_new_session: the shell call that ran --detach ends at once,
+        # and its process group must not take the run down with it.
+        process = subprocess.Popen(command, cwd=REPO_ROOT, env=environment,
+                                    stdin=subprocess.DEVNULL, stdout=out,
+                                    stderr=subprocess.STDOUT, start_new_session=True)
+    with open(os.path.join(directory, "run.pid"), "w", encoding="utf-8") as handle:
+        handle.write("%d\n" % process.pid)
+    relative = os.path.relpath(directory, REPO_ROOT)
+    print("run.py: detached %s as pid %d (started %s)\n"
+          "    output: %s/run.out   status: %s/run.status\n"
+          "    wait:   python3 tools/quest_gate/run.py --wait %s --timeout %d   "
+          "(exit = the run's own exit, 0 or 1; %d still running: wait again)"
+          % (name, process.pid, started, relative, relative, name, DETACH_WAIT_DEFAULT,
+             DETACH_WAIT_EXIT_RUNNING), flush=True)
+    return 0
+
+
+def detach_child_started():
+    """In the detached child, before anything else: run.status says
+    running with the child's own pid (the parent may not have written
+    run.pid yet)."""
+    name = os.environ.get(DETACH_CHILD_ENV)
+    assert name
+    previous = read_detach_status(name) or {}
+    write_detach_status(name, [("state", "running"), ("name", name), ("pid", str(os.getpid())),
+                               ("started", previous.get("started", "")),
+                               ("started_epoch", previous.get("started_epoch", "%.0f" % time.time())),
+                               ("command", previous.get("command", " ".join(sys.argv[1:])))])
+
+
+def detach_finish(code):
+    """The exit path: a detached child records how it ended, then exits
+    with `code` unchanged. A foreground run is untouched."""
+    name = os.environ.get(DETACH_CHILD_ENV)
+    if not name:
+        return code
+    previous = read_detach_status(name) or {}
+    started_epoch = previous.get("started_epoch", "")
+    elapsed = ("%.0f" % (time.time() - float(started_epoch))) if started_epoch else ""
+    write_detach_status(name, [("state", "done"), ("name", name), ("pid", str(os.getpid())),
+                               ("exit", str(code)),
+                               ("started", previous.get("started", "")),
+                               ("started_epoch", started_epoch),
+                               ("ended", time.strftime("%Y-%m-%dT%H:%M:%S")),
+                               ("elapsed", elapsed),
+                               ("command", previous.get("command", ""))])
+    return code
+
+
+def detach_last_row(name):
+    """(rows so far, last row, run tick) of the session's ledger, or
+    (0, None, 0). A row's ticks column is the ticks THAT row took; the run's
+    tick is their sum (the SUMMARY's total_ticks, before there is one)."""
+    rows, _ = ledger.read(os.path.join(detach_directory(name), "ledger.tsv"))
+    if not rows:
+        return 0, None, 0
+    tick = sum(int(r["ticks"]) for r in rows if r["ticks"].isdigit())
+    return len(rows), rows[-1], tick
+
+
+def detach_out_tail(name):
+    """The report and failure block from run.out (from the last report
+    header on), else its last lines -- capped, never the build log."""
+    path = os.path.join(detach_directory(name), "run.out")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return "(no run.out)"
+    start = None
+    for index in range(len(lines) - 1, -1, -1):
+        if REPORT_HEADER_RE.match(lines[index]):
+            start = index
+            break
+    if start is None:
+        # No report: the run stopped before it (a refusal, an exception).
+        # Its last lines say why; the build log above them never does.
+        tail = [line if len(line) <= 300 else line[:299] + "..." for line in lines[-8:]]
+        return "last %d line(s) of run.out:\n%s" % (len(tail), "\n".join(tail))
+    text = "\n".join(lines[start:])
+    if len(text) > DETACH_OUT_TAIL_CHARS:
+        text = "[...]\n" + text[-DETACH_OUT_TAIL_CHARS:]
+    return text
+
+
+def detach_wait(name, timeout):
+    """`run.py --wait <name> [--timeout S]`: block until detached run `name`
+    ends or S seconds pass. Exit 0 the run ended with exit 0, 1 it ended
+    otherwise (or died without writing its end), 2 there is no detached run
+    of that name, DETACH_WAIT_EXIT_RUNNING it is still running."""
+    assert name
+    assert timeout > 0
+    if read_detach_status(name) is None:
+        print("run.py: no detached run named %s (no %s) -- start one with run.py ... --detach"
+              % (name, os.path.relpath(os.path.join(detach_directory(name), "run.status"),
+                                       REPO_ROOT)), file=sys.stderr, flush=True)
+        return 2
+    deadline = time.time() + timeout
+    while True:
+        status = read_detach_status(name) or {}
+        state = status.get("state", "")
+        if state == "done":
+            code = status.get("exit", "")
+            summary = ledger.read(os.path.join(detach_directory(name), "ledger.tsv"))[1]
+            print("run.py: %s ended: exit=%s after %ss (started %s, ended %s)"
+                  % (name, code, status.get("elapsed", "?"), status.get("started", "?"),
+                     status.get("ended", "?")))
+            print("SUMMARY " + ("\t".join(summary[1:]) if summary else
+                                "missing: the ledger has no SUMMARY row"))
+            print(detach_out_tail(name), flush=True)
+            return 0 if code == "0" else 1
+        pid_text = status.get("pid", "")
+        if not pid_text.isdigit():
+            try:
+                with open(os.path.join(detach_directory(name), "run.pid"), "r",
+                          encoding="utf-8") as handle:
+                    pid_text = handle.read().strip()
+            except OSError:
+                pid_text = ""
+        if pid_text.isdigit() and int(pid_text) > 0 and not pid_is_live(int(pid_text)):
+            again = read_detach_status(name) or {}
+            if again.get("state") != "done":
+                count, row, tick = detach_last_row(name)
+                print("run.py: %s DIED without writing its end status (pid %s is gone, "
+                      "state=%s); %d ledger row(s), last %s. Its output:"
+                      % (name, pid_text, again.get("state", "?"), count,
+                         "%s at tick %d" % (row["step"], tick) if row else "none"))
+                print(detach_out_tail(name), flush=True)
+                return 1
+            continue
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            count, row, tick = detach_last_row(name)
+            started_epoch = status.get("started_epoch", "")
+            elapsed = ("%.0fs" % (time.time() - float(started_epoch))) if started_epoch else "?"
+            if row:
+                print("still running: last row %s at tick %d (%s; %d row(s); %s pid %s, %s "
+                      "elapsed)" % (row["step"], tick, row["verdict"], count, name,
+                                    pid_text or "?", elapsed))
+            else:
+                print("still running: no ledger row yet (%s, pid %s, %s elapsed; state=%s)"
+                      % (name, pid_text or "?", elapsed, state or "?"))
+            print("    wait again: python3 tools/quest_gate/run.py --wait %s --timeout %d"
+                  % (name, DETACH_WAIT_DEFAULT), flush=True)
+            return DETACH_WAIT_EXIT_RUNNING
+        time.sleep(min(DETACH_WAIT_POLL, remaining))
+
+
+def detach_dispatch(parser, arguments):
+    """main()'s one call into this block, right after parse_args. Resolves
+    --timeout (a wait's budget, or the per-process ceiling), then runs
+    --wait or --detach and returns their exit code, or None to let main()
+    run the command in this process (a foreground run, or the detached
+    child itself)."""
+    if arguments.wait is not None:
+        if arguments.detach:
+            parser.error("--wait and --detach are exclusive")
+        if arguments.timeout is None:
+            arguments.timeout = DETACH_WAIT_DEFAULT
+        if arguments.timeout < 1:
+            parser.error("--timeout must be at least 1 second")
+        return detach_wait(arguments.wait, arguments.timeout)
+    if arguments.timeout is None:
+        arguments.timeout = DEFAULT_TIMEOUT
+    if os.environ.get(DETACH_CHILD_ENV):
+        # The child re-runs the command without --detach; an abbreviated
+        # flag (--deta) is still parsed as detach here and must not fork again.
+        detach_child_started()
+        return None
+    if arguments.detach:
+        return detach_start(parser, arguments)
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -1533,11 +2067,12 @@ def main():
     parser.add_argument("--all", action="store_true", help="run every discovered quest")
     parser.add_argument("--jobs", type=int, default=1,
                         help="quest client processes to run in parallel (default 1)")
-    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT,
+    parser.add_argument("--timeout", type=int, default=None,
                         help="wall-clock ceiling per quest process, in seconds "
                              "(default %d) -- a hung run fails, it never hangs the suite; "
-                             "scaled up by a quest's own max_frames / %s"
-                             % (DEFAULT_TIMEOUT, DEFAULT_MAX_FRAMES))
+                             "scaled up by a quest's own max_frames / %s. With --wait: "
+                             "how long to wait (default %d)"
+                             % (DEFAULT_TIMEOUT, DEFAULT_MAX_FRAMES, DETACH_WAIT_DEFAULT))
     parser.add_argument("--warm-from", default="auto",
                         help="seed a not-yet-existing build_questtest objdir from this "
                              "directory, or 'auto' for the freshest sibling *_opt_es objdir "
@@ -1566,7 +2101,20 @@ def main():
                         help="as --from-leg K, but run leg K alone")
     parser.add_argument("--fixture", default=DEFAULT_FIXTURE,
                         help="fixture .ini for --script (default %s)" % DEFAULT_FIXTURE)
+    parser.add_argument("--detach", action="store_true",
+                        help="start this run in the background and return at once; it "
+                             "writes build/quest_gate/<name>/run.pid, run.status and run.out "
+                             "(docs/quest_authoring/relay.md \"Runs longer than the shell cap\")")
+    parser.add_argument("--wait", default=None, metavar="NAME",
+                        help="wait for detached run NAME (a quest id, <id>.leg<K> or a "
+                             "--script --name) for at most --timeout seconds (default %d): "
+                             "exits with the run's own exit (0 clean, 1 not; gate.py is the "
+                             "verdict), 2 no such run, %d still running"
+                             % (DETACH_WAIT_DEFAULT, DETACH_WAIT_EXIT_RUNNING))
     arguments = parser.parse_args()
+    detach_code = detach_dispatch(parser, arguments)
+    if detach_code is not None:
+        return detach_code
 
     name = arguments.quest_flag or arguments.quest
     if not arguments.script and not arguments.all and not name:
@@ -1677,4 +2225,4 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(detach_finish(main()))

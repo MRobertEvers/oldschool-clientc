@@ -27,6 +27,13 @@ hitsplat AND the player idle, all three, because each alone is ordinary mid-figh
 a symbol is not a target (`falador_gardener` has three spawn rows and a second one is inside the
 loaded scene). The detail always carries the re-engagement count and the last health reading.
 
+Since seam31 both kill waits also carry a progress trail at the end of their detail, `ok` or
+`timeout`: `; progress t+10 hp 44/60, t+20 hp 43/60 re-engaged 1 ate 2, ...`, one sample every
+10 ticks, the last 12 kept (`(N earlier dropped)` says how many fell off). Each sample is also a
+`QUEST progress ... tick=T` line in `client.log`, which is what `run.unfinished` reads back when a
+run ends inside the wait (running.md). Read the trail for a fight's hp curve: a flat trail is a
+fight that stopped, a trail that ends early is a run that ran out of frames.
+
 #### A kill is never proved by an empty pool (2026-09-21)
 
 A KILL IS NEVER PROVED BY AN EMPTY POOL (2026-09-21): the npc pool is the CLIENT's, so a slot leaves

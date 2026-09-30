@@ -373,7 +373,7 @@ reached from the stair corridor, so `goto_tile` to a tile outside the door first
 door from the default camera; turn the camera (`t.drive.camera`) before the click. Tenzing's house
 is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.
 
-## Crandor: the hole from one side only, and a stalagtite wall that answers "Nothing interesting happens"
+## Crandor: the hole from one side only, and a stalagtite wall that answers "Nothing interesting happens" (wall FIXED seam31)
 
 *Origin: the Dragon Slayer author (sonnet-b36); the sampler sent dragon back over the second item.*
 
@@ -384,6 +384,12 @@ is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.
   north. A row that passes on `map_flag` there reports a climb that never happened. The sampler
   reverted `dragon` over this, together with the one-hit Elvarg (`gaps-combat.md`). Report the
   missing handler as a content seam, and write the row as a GUIDE-GAP that cites the loc.
+- FIXED seam31: `crandor.rs2 [oploc1,dragon_slayer_qip_stalagtite_jump]` is the two-tile climb
+  (2009scape DragonSlayerPlugin.java:134-162; no Agility requirement in any source). Stand on the
+  WEST side (`goto_tile(2845, 9636, 0)`), `click_loc("dragon_slayer_qip_stalagtite_jump", 1)`, and
+  assert the landing x == 2847. In only while `%dragon_sailed`; out always; "You have already slain
+  the dragon." after completion. The completion teleport now lands on 2845,9636 (west of the wall),
+  not on the wall tile.
 
 ## Dwarf Cannon: the tower's two ladders have different names
 
@@ -392,3 +398,21 @@ is fenced; approach `sherpa_door` (2822,3555, east wall) from 2823,3555.
 The ground-floor ladder of the guard tower is the generic `ladder` at 2570,3441. Press it with
 `click_loc("ladder", 1, { at = { 2570, 3441 } })`. The level-1 ladder is `mcannonladder`, and both
 top ends are `laddertop`.
+
+## A fence squeeze pulls you back after the next goto; "I can't reach that!" after a squeeze (seam31)
+
+*Origin: seam31 substep_grader_with_three_real_clicks (biohazard exitBackyardOfHeadquarters).*
+
+An `~agility_exactmove` squeeze (`general_use/scripts/fence.rs2:5-32`, `mournerstewfence`) ends
+with `p_delay(2)` + `p_teleport($end)`. The client tile already reads the far side while the
+exactmove is in flight, so a `goto_tile` issued then lands first and is undone when the teleport
+fires: the next click answers "I can't reach that!" from beside the fence. After the click, wait
+about 5 ticks (`t.ticks(5)`) and assert the rest tile (biohazard
+`exitBackyardOfHeadquarters.crossed`: 2541,3331). The same fence runs both ways (`~check_axis`
+swaps start and end), so the yard is left through the fence it was entered by.
+
+## The Mourner HQ basement is an instance region, not `z + 6400` (seam31)
+
+`mourning_hideout_trap_door` (`mend1_disguise.rs2:136-143`) teleports to `mend1_hq_basement_coord`,
+2044,4628,0. That is not the underground frame, so a `z > 6400` test never sees the landing; check
+the distance to 2044,4628 instead (mourningsendparti `enterMournerBasementAfterPoison.landed`).

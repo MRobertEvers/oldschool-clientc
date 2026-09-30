@@ -107,9 +107,73 @@ end
 -- It is also the one seam EVERY verb in all eight files passes through when
 -- it waits for the world, so the finish check sits here: the first thing a
 -- post-finish script tries to wait for is the last thing it does.
+-- ------------------------------------------------ progress on stderr (seam31)
+--
+-- A RUN THAT STOPS MID-WAIT MUST SAY WHERE (seam31 run_never_ends_silently).
+-- Legends' leg 7 stopped three runs in a row inside the Nezikchened kill wait
+-- with no SUMMARY, exit 0 and nothing in client.log: the virtual clock
+-- (TORIRS_MAX_FRAMES) ran out, main.c returned 0, and the last thing on disk
+-- was the row BEFORE the wait.  A ledger row is written when a verb returns,
+-- so a verb that never returns leaves no row; these lines are what run.py's
+-- unfinished-run row (tools/quest_gate/run.py: finish_unfinished_ledger) reads
+-- back to name the row that was open, the tick and the last progress:
+--
+--   QUEST row-begin <name> tick=<T>         t.exec, before the verb runs
+--   QUEST progress <text> tick=<T>          a long wait, every
+--                                            QD.PROGRESS_EVERY_TICKS ticks
+--
+-- One line per row and one per 25 ticks of a long wait: cheap next to the
+-- shot-aim lines client.log already carries.
+QD.PROGRESS_EVERY_TICKS = 25
+-- An await whose deadline is shorter than this cannot stall long enough to
+-- matter and says nothing.
+QD.PROGRESS_MIN_DEADLINE = 30
+
+function QD.core_progress(text)
+    api_drive.report(string.format("progress %s tick=%d", tostring(text), api_drive.tick()))
+end
+
+function QD.core_row_begin(name)
+    api_drive.report(string.format("row-begin %s tick=%d", tostring(name), api_drive.tick()))
+end
+
+-- A long await's level predicate, wrapped to report every
+-- QD.PROGRESS_EVERY_TICKS server ticks while it is still false.  The C
+-- scheduler evaluates the level every frame it holds the await, so this is
+-- the one place a single long yield can speak from without a C change.  A
+-- match-only descriptor has no level to wrap: its start is reported once.
+local function await_with_progress(descriptor, deadline)
+    local note = tostring(descriptor.note or "await")
+    local start = api_drive.tick()
+    QD.core_progress(string.format("await '%s' begins, deadline %d tick(s)", note, deadline))
+    local level = descriptor.level
+    if type(level) ~= "function" then
+        return api_drive.await(descriptor, deadline)
+    end
+    local next_report = start + QD.PROGRESS_EVERY_TICKS
+    local wrapped = {}
+    for key, value in pairs(descriptor) do
+        wrapped[key] = value
+    end
+    wrapped.level = function()
+        local now = api_drive.tick()
+        if now >= next_report then
+            next_report = now + QD.PROGRESS_EVERY_TICKS
+            QD.core_progress(string.format("await '%s' still waiting, %d of %d tick(s)",
+                note, now - start, deadline))
+        end
+        return level()
+    end
+    return api_drive.await(wrapped, deadline)
+end
+
 local function await(descriptor, deadline)
     if finished then
         park("await after finish")
+    end
+    if type(descriptor) == "table" and type(deadline) == "number"
+        and deadline >= QD.PROGRESS_MIN_DEADLINE then
+        return await_with_progress(descriptor, deadline)
     end
     return api_drive.await(descriptor, deadline)
 end
@@ -509,6 +573,9 @@ QD.exec = function(name, verb, ...)
     if target == nil then
         return record_with_shot(name, "FAIL", "bad verb/target")
     end
+    -- Before the verb runs: a verb that never returns (the run ended inside
+    -- it) is named by this line and nothing else (seam31).
+    QD.core_row_begin(name)
     local result, detail = verb(...)
     -- Hollow rule (docs/QUEST_SUITE_KIT.md phase 2, README's hollow rule):
     -- an `ok` verb answer with no detail behind it is graded FAIL `hollow`,
@@ -632,7 +699,8 @@ end
 --     (client), the bound quest variable read from the SERVER, and the
 --     backpack -- the ledger shows where each leg began, and a --from-leg
 --     run's row can be compared with the full run's;
---   * after leg k, when every row the leg wrote was PASS and a leg follows:
+--   * after leg k, when every row the leg wrote was PASS (the file's last leg
+--     included, when it returns without t.finish -- seam31):
 --     `::checkpoint k` (the server's save serialiser in checkpoint mode). The
 --     server refuses at a point that is not quiet -- a dialogue or interface
 --     open, a parked script, combat -- and its reply names which. The outcome
@@ -764,45 +832,54 @@ function QD.core_legs_drive(quest, opts)
         flush("leg." .. k .. "." .. leg.name, "PASS", detail)
         local bad_before = rows_not_pass
         leg.run(QD)
+        -- t.finish (the quest's last leg) or t.blocked ended the run inside
+        -- the leg: t.finish sets `finished` and returns, so the leg returns
+        -- too -- nothing follows it, not even a checkpoint (seam31 found
+        -- `_legs` writing checkpoint 3 after its t.finish(0)).
+        if finished then
+            break
+        end
         local bad_in_leg = rows_not_pass - bad_before
-        if k < #legs then
-            if bad_in_leg == 0 then
-                -- A leg's last click can leave a script parked for a tick or
-                -- two (a p_delay after an item lands) or a single-way claim
-                -- running down: those clear by themselves, so the request is
-                -- repeated once a tick for up to QD.LEGS_QUIET_TICKS. A
-                -- dialogue or an open interface never clears on its own and
-                -- is still refused at the end, naming it.
-                local cheat_result = QD.cheat("::checkpoint " .. k)
-                local waited = 0
-                while cheat_result == "refused" and waited < QD.LEGS_QUIET_TICKS do
-                    local reply = QD._legs_checkpoint_reply(k)
-                    if string.find(reply, "dialogue is open", 1, true)
-                        or string.find(reply, "interface is open", 1, true) then
-                        break
-                    end
-                    QD.ticks(1)
-                    waited = waited + 1
-                    cheat_result = QD.cheat("::checkpoint " .. k)
+        -- Every leg that returns unfinished gets its checkpoint, the file's
+        -- LAST leg too (seam31): the leg a relay author has just written is
+        -- the last one in the file, and the next author resumes from its
+        -- checkpoint after appending leg k+1 (run.py hashes legs 1..k only).
+        if bad_in_leg == 0 then
+            -- A leg's last click can leave a script parked for a tick or
+            -- two (a p_delay after an item lands) or a single-way claim
+            -- running down: those clear by themselves, so the request is
+            -- repeated once a tick for up to QD.LEGS_QUIET_TICKS. A
+            -- dialogue or an open interface never clears on its own and
+            -- is still refused at the end, naming it.
+            local cheat_result = QD.cheat("::checkpoint " .. k)
+            local waited = 0
+            while cheat_result == "refused" and waited < QD.LEGS_QUIET_TICKS do
+                local reply = QD._legs_checkpoint_reply(k)
+                if string.find(reply, "dialogue is open", 1, true)
+                    or string.find(reply, "interface is open", 1, true) then
+                    break
                 end
-                carried = "checkpoint " .. k .. (cheat_result == "ok" and " written: " or " NOT written: ")
-                    .. (cheat_result == "no_row"
-                        and "this binary has no ::checkpoint (no_row) -- rebuild it"
-                        or QD._legs_checkpoint_reply(k))
-                    .. (waited > 0 and (" (after " .. waited .. " quiet-wait tick(s))") or "")
-            else
-                carried = "checkpoint " .. k .. " NOT written: leg " .. k .. " wrote "
-                    .. bad_in_leg .. " non-PASS row(s)"
+                QD.ticks(1)
+                waited = waited + 1
+                cheat_result = QD.cheat("::checkpoint " .. k)
             end
-            report.checkpoints[k] = carried
-            if k == last then
-                local end_detail = QD._legs_quest_state(bind) .. " -- " .. carried
-                report.rows[#report.rows + 1] = "leg." .. k .. ".end: " .. end_detail
-                flush("leg." .. k .. ".end", "PASS", end_detail)
-            end
+            carried = "checkpoint " .. k .. (cheat_result == "ok" and " written: " or " NOT written: ")
+                .. (cheat_result == "no_row"
+                    and "this binary has no ::checkpoint (no_row) -- rebuild it"
+                    or QD._legs_checkpoint_reply(k))
+                .. (waited > 0 and (" (after " .. waited .. " quiet-wait tick(s))") or "")
+        else
+            carried = "checkpoint " .. k .. " NOT written: leg " .. k .. " wrote "
+                .. bad_in_leg .. " non-PASS row(s)"
+        end
+        report.checkpoints[k] = carried
+        if k == last then
+            local end_detail = QD._legs_quest_state(bind) .. " -- " .. carried
+            report.rows[#report.rows + 1] = "leg." .. k .. ".end: " .. end_detail
+            flush("leg." .. k .. ".end", "PASS", end_detail)
         end
     end
-    if opts.finish ~= false then
+    if opts.finish ~= false and not finished then
         QD.finish(0)
     end
     return report

@@ -28,7 +28,12 @@ WHAT IT READS.
     every [op*,<symbol>] trigger in the tree, and each debugproc a test calls.
 
 THE LADDER. The guide's getPanels() entries in order (a sibling helper's
-`x.panelDetails()` spliced in), sub-steps folded into their parent. A custom
+`x.panelDetails()` spliced in), sub-steps folded into their parent -- and,
+since seam30, every addSubSteps child with a target of its own (at any
+depth) ALSO graded as its own step just before that parent: it is a state
+QH shows in the parent's place, so one not driven is ALTERNATIVE unless the
+run was in that state and teleported out of it (teleported_across: CHEAT;
+Nature Spirit's leaveDrezel barrier). A custom
 step class beside the guide is graded by its parts: `x.getPanelSteps()` /
 `x.getDisplaySteps()` splice its own list (Recruitment Drive's Miss Cheevers
 gather chain), a ConditionalStep subclass stands for its addStep children, an
@@ -331,6 +336,7 @@ class Step:
         self.point = None
         self.children = []      # ConditionalStep: sub-step names
         self.substeps = []      # addSubSteps: folded into this one
+        self.promoted_targets = set()  # targets folded in from a promoted sub-step
         self.stage = None
         self.dialog = []
         self.panel = ""
@@ -760,15 +766,43 @@ class Guide:
                 for leaf in self.leaves(var):
                     if leaf not in order and leaf not in folded:
                         order.append(leaf)
+        # A sub-step with a target of its own is a guide step of its own,
+        # graded before the step it was folded into, at ANY depth
+        # (x.addSubSteps(y); y.addSubSteps(z)). Folding its targets into the
+        # parent let one click stand for the whole composite: Nature
+        # Spirit's enterSwamp passed on the Mort Myre gate while its
+        # leaveDrezel sub-step, the holy barrier under Paterdomus, was
+        # teleported past (seam30). A target-less sub-step (plain text) is
+        # still folded; it has nothing of its own to drive. How a promoted
+        # sub-step is graded: Grader._grade_promoted.
+        promoted = {}  # promoted sub-step -> the ladder step it came from
+        self.promoted = promoted
+        expanded_order = []
+        for name in order:
+            chain = []
+            self._promote_substeps(name, name, order, promoted, chain, set())
+            for sub in chain:
+                if sub not in expanded_order:
+                    expanded_order.append(sub)
+            if name not in expanded_order:
+                expanded_order.append(name)
         steps = []
         last_stage = None
-        for name in order:
+        for name in expanded_order:
             step = self.steps[name]
             stage = stage_of.get(name)
             if stage is None and step.is_composite():
                 stage = min((stage_of[l] for l in self.leaves(name) if l in stage_of), default=None)
+            if stage is None and name in promoted:
+                stage = self._stage_via_owner(name, promoted, stage_of)
             for sub in step.substeps:
                 if sub in self.steps:
+                    # The parent keeps standing for its sub-steps' targets
+                    # too (its own grade is unchanged); a promoted sub-step
+                    # is ALSO graded on its own below.
+                    if sub in promoted:
+                        step.promoted_targets.update(
+                            t for t in self.steps[sub].targets if t not in step.targets)
                     step.targets.extend(t for t in self.steps[sub].targets if t not in step.targets)
                     if stage is None:
                         stage = stage_of.get(sub)
@@ -776,6 +810,33 @@ class Guide:
             last_stage = step.stage
             steps.append(step)
         return steps
+
+    def _promote_substeps(self, owner, name, order, promoted, chain, seen):
+        """Collect, depth first, every sub-step under `name` that has a
+        target of its own and is not already a ladder entry; deeper ones
+        first (a sub-step's own sub-steps lead to it)."""
+        if name in seen or name not in self.steps:
+            return
+        seen.add(name)
+        for sub in self.steps[name].substeps:
+            if sub not in self.steps or sub in seen:
+                continue
+            self._promote_substeps(owner, sub, order, promoted, chain, seen)
+            sub_step = self.steps[sub]
+            if sub in order or sub_step.is_composite() or not sub_step.targets:
+                continue
+            if sub not in promoted:
+                promoted[sub] = name
+                chain.append(sub)
+
+    def _stage_via_owner(self, name, promoted, stage_of):
+        seen = set()
+        while name in promoted and name not in seen:
+            seen.add(name)
+            name = promoted[name]
+            if name in stage_of:
+                return stage_of[name]
+        return None
 
 
 # ------------------------------------------------------------------ content
@@ -2440,6 +2501,25 @@ class Grader:
                             return True
         return False
 
+    def reads_quest_var(self, locs):
+        """A loc whose own trigger READS one of the quest's vars -- a climb
+        the quest gates, not plain travel: Mourning's End I's
+        mourning_hideout_trap_door refuses below ^mend1_gathering
+        (mend1_disguise.rs2:346-353). A generic maplink stair or ladder has
+        no trigger of its own naming a quest var."""
+        triggers, _, _ = content_index()
+        for symbol in locs:
+            for name in family(symbol):
+                for rel, line, _ in triggers.get(name, []):
+                    with open(os.path.join(CONTENT_ROOT, rel), "r", encoding="utf-8", errors="replace") as handle:
+                        lines = handle.read().split("\n")
+                    for body in lines[line:]:
+                        if body.startswith("["):
+                            break
+                        if any(var in self.quest_vars for var in re.findall(r"%(\w+)", body)):
+                            return True
+        return False
+
     def relevant_triggers(self, symbol):
         """Triggers on `symbol` that can serve this quest: generic ones, this
         quest's own, or another quest's that reads one of this quest's vars
@@ -2700,8 +2780,12 @@ class Grader:
                 reason = self.driven(leaf)
                 driven[leaf.name] = reason
                 if reason:
-                    driven_symbols.update(s for _, s in leaf.targets)
-                    for kind, symbol in leaf.targets:
+                    # a target folded in from a promoted sub-step is that
+                    # sub-step's to drive (it is graded on its own): the
+                    # parent's click does not make it driven
+                    own_targets = [t for t in leaf.targets if t not in leaf.promoted_targets]
+                    driven_symbols.update(s for _, s in own_targets)
+                    for kind, symbol in own_targets:
                         if kind == "loc":
                             self.loc_uses[symbol] = self.loc_uses.get(symbol, 0) + 1
         self._driven = driven
@@ -2711,6 +2795,8 @@ class Grader:
                       for leaf in members[step.name]]
             if step.name.endswith("Fallback") and graded[0][1] != "DRIVEN":
                 graded = [(step, "ALTERNATIVE", "a fallback the guide offers when the main way fails")]
+            if step.name in getattr(self.guide, "promoted", {}):
+                graded = [self._grade_promoted(g, driven_symbols) for g in graded]
             if len(graded) == 1:
                 klass, reason = graded[0][1], graded[0][2]
             else:
@@ -2729,6 +2815,174 @@ class Grader:
         self._stage_narration(results)
         self._alternatives(results)
         return results
+
+    def _grade_promoted(self, graded, driven_symbols):
+        """A promoted sub-step (Guide.ladder) is one of the states QH shows
+        in its parent's place -- re-enter the base, climb back down, the
+        other side of the same gate -- so a test that never reached that
+        state has nothing to drive there. What it can NOT do is skip one:
+        a promoted sub-step the test teleported past (a goto_tile landing
+        beyond its door/gate/barrier/stair, a journey replaced by a goto),
+        stood on with ::goto, or whose own item it ::gave, stays CHEAT.
+        Anything else it did not drive is ALTERNATIVE (a ladder or stair,
+        TRAVEL), with the class it would have had kept in the reason.
+
+        A sub-step graded TRAVEL on its own words (a trapdoor, ladder or
+        stair: "travel, merged into the step it leads to") is NOT let
+        through on that class: the words say a plain climb may be skipped,
+        not a climb the quest gates. It goes to teleported_across, which
+        lets a plain maplink climb through and catches one whose trigger
+        writes or reads a quest var (seam31: Mourning's End I's
+        enterMournerBasementAfterPoison trapdoor was caught only because
+        its symbol spells trap_door, which TRAVEL_WORDS misses; spelled
+        trapdoor, the same goto past it read TRAVEL)."""
+        leaf, klass, reason = graded
+        if klass in NEUTRAL_CLASSES and klass != "TRAVEL":
+            return graded
+        owner = self.guide.promoted.get(leaf.name, "?")
+        # Kept as CHEAT: a stand-on with ::goto, an item cheat naming the
+        # sub-step's own obj. Re-judged: a word-overlap item/var cheat (it
+        # is evidence for a step that OBTAINS the item, not for a sub-step's
+        # door or ladder), and goto_cheat's two landing rules -- "a goto
+        # lands within reach of the loc" and "the file has any goto at all"
+        # (the journey rule) -- which prove a skip for a step every run
+        # must pass, not for a state the run may never have been in. For a
+        # sub-step the proof is teleported_across: the run WAS on that side.
+        weak = " -- shares " in reason or reason.startswith(("goto_tile ", "the journey "))
+        if klass == "CHEAT" and not weak:
+            return graded
+        crossed = self.teleported_across(leaf, owner)
+        if crossed:
+            return (leaf, "CHEAT", crossed)
+        if self.is_travel(leaf):
+            return (leaf, "TRAVEL", "sub-step of %s, travel not skipped by a teleport (was %s: %s)" % (
+                owner, klass, reason))
+        return (leaf, "ALTERNATIVE", "sub-step of %s, a state its parent is shown in place of; not driven, "
+                "not skipped by a teleport or cheat (was %s: %s)" % (owner, klass, reason))
+
+    def teleported_across(self, leaf, owner):
+        """A promoted sub-step's gated loc (a barrier, door, gate...) that the
+        test stood beside and then left by goto_tile for its parent's tile:
+        the test was in the sub-step's state and teleported out of it
+        (Nature Spirit: goto-talkToDrezel 3439,9895 under Paterdomus, then
+        goto-enterSwamp 3444,3460 at the Mort Myre gate, never crossing the
+        holy barrier leaveDrezel names). Exact frames here -- _near folds a
+        dungeon onto the surface above it, which is the very crossing this
+        looks for. A trapdoor, ladder or stair sub-step is judged the same
+        way when the quest owns the climb (its trigger writes or reads a
+        quest var); a plain maplink climb stays travel (seam31)."""
+        parent = self.guide.steps.get(owner)
+        locs = [s for k, s in leaf.targets if k == "loc"]
+        if leaf.kind != "ObjectStep" or not locs or leaf.point is None or parent is None or \
+                parent.point is None or not self.test.gotos:
+            return None
+        # the loc's own word first ("wall" for the barrier), then the text's
+        gated = [w for w in GATE_WORDS if w in " ".join(locs).lower()] or \
+            [w for w in GATE_WORDS if w in leaf.text.lower()]
+        if not gated:
+            return None
+        # A trapdoor, ladder or stair is travel (QUEST_AUTHORING section 2:
+        # a goto past a plain maplink climb is allowed) UNLESS the quest
+        # owns the crossing: its trigger writes a quest var (Elemental
+        # Workshop's stairs) or reads one to gate it (Mourning's End I's
+        # basement trap door). seam30's patch let every travel sub-step
+        # through here, so a teleport past a quest-gated trapdoor spelled
+        # "trapdoor" read TRAVEL; seam31 closes that. Plain stairs stay
+        # travel -- dropping this test outright turned eight committed
+        # greens red on generic spiral stairs and ladders (arthur,
+        # biohazard, blackarmgang, haunted, misc, misc_astrid, romeojuliet,
+        # shadowstorm), each a goto the section 2 rule allows.
+        if self.is_travel(leaf) and not self.writes_quest_var(locs) and not self.reads_quest_var(locs):
+            return None
+        if not any(symbol_triggers(s) for s in locs):
+            return None  # nothing to cross in this pack
+
+        def exact(point, goto):
+            return max(abs(point[0] - goto[1]), abs(point[1] - goto[2]))
+
+        def exact_near(point, goto):
+            return exact(point, goto) <= NEAR_TILES
+
+        # `before` stood on the sub-step's side (nearer it than the parent:
+        # a run already AT the parent was never in that state, Between a
+        # Rock's goto-Dondakan beside the cave wall), `after` landed on the
+        # parent's side (nearer the parent than the sub-step).
+        # And `after` must be the goto that leads to the PARENT: the lines
+        # up to the next goto name the parent step or one of its own
+        # targets (Biohazard's goto-releasePigeons beside the Mourner HQ
+        # fence is stages before searchSarahsCupboard, whose sub-step that
+        # fence is).
+        gotos = sorted(self.test.gotos)
+        own = [sym for _, sym in parent.targets if (_, sym) not in parent.promoted_targets]
+        lines = self.test.code_lines
+
+        def leads_to_parent(index):
+            start = gotos[index][0]
+            end = gotos[index + 1][0] if index + 1 < len(gotos) else len(lines) + 1
+            segment = "\n".join(lines[start - 1:end - 1])
+            return re.search(r"\b%s\b" % re.escape(parent.name), segment) is not None or \
+                any(re.search(r"\b%s\b" % re.escape(sym), segment) for sym in own)
+
+        # A click on the sub-step's own loc between the two gotos is the
+        # crossing done for real under another step's name (Shadow of the
+        # Storm's enterRuinAfterBook clicks golem_insidestairs_top, the loc
+        # enterRuinNoDark/ForRitual/ForDave name, just before goto-portal2):
+        # the goto after it is travel on the far side, not a teleport past.
+        loc_names = set()
+        for symbol in locs:
+            loc_names |= family(symbol)
+        clicked = re.compile(r"[\"'](%s)[\"']" % "|".join(re.escape(n) for n in sorted(loc_names)))
+
+        def crossed_between(index):
+            start, end = gotos[index - 1][0], gotos[index][0]
+            return any(clicked.search(line) for line in lines[start:end - 1])
+
+        # A climb (ladder, stair, trapdoor inside one map frame) changes the
+        # LEVEL, not the tile: Watchtower's towerladder/watchladderup stand
+        # a few tiles under the wizard, so the distance rule below never
+        # sees a goto past them. For a travel sub-step the sides are floors:
+        # `before` on the ladder's floor beside it, `after` on the parent's
+        # (another) floor beside the parent.
+        climb = self.is_travel(leaf) and len(leaf.point) > 2 and len(parent.point) > 2 and \
+            leaf.point[2] != parent.point[2]
+
+        def climbed_by_goto(index):
+            # ...and nothing between the two gotos clicked a loc: a floor is
+            # also reached another way (Watchtower's first visit climbs the
+            # qip_watchtower_trellis_base wall between goto-goUpTrellis and
+            # goto-talkToWizard, which is not a teleport past towerladder).
+            # `after` may be one floor of several (Watchtower: towerladder
+            # 0 -> 1, then watchladderup 1 -> 2): it left the ladder's floor
+            # toward the parent's, and the gotos from it on, with nothing
+            # else between them, end at the parent.
+            before, after = gotos[index - 1], gotos[index]
+            low, high = sorted((leaf.point[2], parent.point[2]))
+            if not (climb and exact_near(leaf.point, before) and before[3] == leaf.point[2] and
+                    exact_near(parent.point, after) and after[3] != leaf.point[2] and
+                    low <= after[3] <= high):
+                return False
+            if any("click_loc" in line for line in lines[before[0]:after[0] - 1]):
+                return False
+            last = index
+            while last + 1 < len(gotos) and gotos[last + 1][3] != leaf.point[2] and \
+                    not any("t.player." in line and "goto_tile" not in line
+                            for line in lines[gotos[last][0]:gotos[last + 1][0] - 1]):
+                last += 1
+            return gotos[last][3] == parent.point[2] and leads_to_parent(last)
+
+        for index in range(1, len(gotos)):
+            before, after = gotos[index - 1], gotos[index]
+            moved = (exact_near(leaf.point, before) and not exact_near(leaf.point, after) and
+                     exact_near(parent.point, after) and
+                     exact(leaf.point, before) < exact(parent.point, before) and
+                     exact(parent.point, after) < exact(leaf.point, after))
+            if ((moved and leads_to_parent(index)) or climbed_by_goto(index)) and \
+                    not crossed_between(index):
+                return ("goto_tile %d,%d,%d at line %d leaves the %s side (goto at line %d, %d,%d) for %s's "
+                        "tile without crossing the %s the guide's sub-step names (%s)" % (
+                            after[1], after[2], after[3], after[0], leaf.name, before[0], before[1], before[2],
+                            owner, gated[0], ",".join(locs)))
+        return None
 
     def _stage_narration(self, results):
         """A stage the port narrates is narrated for every step in it: once

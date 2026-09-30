@@ -470,13 +470,13 @@ zone (LostCity troll_champion.rs2:101-109).
 corpse leaves the pool during the delay, and the next npc op aborts the script (Nezikchened's first
 defeat skipped its last hit this way).
 
-(e) LostCity-port engine gaps, fixed in content, not in the engine: `.huntnext` ignores the `.`
+(e) FIXED seam31 ((a) below) -- LostCity-port engine gaps, fixed in content, not in the engine: `.huntnext` ignores the `.`
 operand (it walks the PRIMARY pointer), so a `.huntnext/.coord` loop aborts with "COORD requires
 an active entity"; walk hunts on the primary pointer. `loc_*` reads after `loc_del` abort with
 "the active loc is gone"; capture them before the delete. The `.obj` param reader does not
 resolve `^constants`; write literals.
 
-(f) Paterdomus after Priest in Peril: temple trapdoor (3405,3507) open, then descend to
+(f) Paterdomus after Priest in Peril (the `::setvar` note is FIXED seam31, (b) below): temple trapdoor (3405,3507) open, then descend to
 3405,9906; `pip_underground_door1` needs `%priestperil_mausoleum` bit 20 (the golden-key unlock)
 or the golden key; `pip_underground_door2` (3431,9897); Drezel at stage 60 gives his advice
 (-> 61); the holy barrier passes only at 61 and puts you out at 3423,3485,0; `pipeastsidetrapdoor`
@@ -500,9 +500,52 @@ no test yet. Its ladder and notes are docs/quests/ladders/legends.{ladder.tsv,no
 Gujuo bowl blessing keeps LostCity's inverted `stat_random` (a higher Prayer fails more often); it
 needs a wiki check before anyone changes it.
 
-(k) DEFERRED, not landed: a `helper_coverage` grader that grades Quest Helper `addSubSteps`
+(k) LANDED seam31 (coverage-and-gate.md "A promoted sub-step") -- was DEFERRED: a `helper_coverage` grader that grades Quest Helper `addSubSteps`
 children as their own steps. It turned three committed greens red on real skips (biohazard
 exitBackyardOfHeadquarters, eadgar leaveEadgarsCaveForThistle, mourningsendparti
 enterMournerBaseAfterPoison), so it waits until those tests click the crossings. The patch is
 build/seam_state/seam30/helper_coverage_substeps_deferred.patch.
 
+
+## Seam pass 31 (2026-09-30)
+
+(a) FIXED the engine gaps seam30 (e) listed; port LostCity scripts as written. `.huntnext` binds
+`active_player2` and leaves the primary player alone (LostCity PlayerOps.ts HUNTNEXT).
+`loc_coord` / `loc_type` / `loc_angle` / `loc_shape` answer after `loc_del`, across a suspend too,
+while the handle still names the removed loc (LocOps.ts LOC_DEL keeps `activeLoc`); a WRITE after
+`loc_del` still aborts, and `loc_name` / `loc_param` after it still abort. `obj_name` and
+`inv_dropitem` are implemented (ObjOps.ts, InvOps.ts: one pile of what came out, owned by the
+dropper for 100 ticks, made the active obj). A `.obj` param may be written `^constant` (one level;
+Legends' `crystal_bit` is LostCity's spelling again). Selftest stanza "legends port VM gaps".
+
+(b) `::complete quest_priestinperil` also sets `%priestperil_mausoleum` bit 20, the golden-key
+unlock of `pip_underground_door1` (`gates.rs2:15`). A setup that goes through the Paterdomus
+temple no longer needs `::setvar priestperil_mausoleum 1048576` (seam30 (f) is superseded).
+
+(c) `loc_del(N)` followed by `loc_add` of another loc on the SAME tile and shape (LostCity's
+double-door inviswall) loses the original loc for good here: the revert table is keyed by (tile,
+shape) and the second timer replaces the first (`ToriRSServer_WorldLocRevertQueue`). Port it as
+`loc_change(inviswall, N)`, one timer (east_gate.rs2, quest_haunted.rs2, now legends_procs.rs2 --
+the Kharazi cave trial doors and the Legends' Guild doors came back on every later trip). The
+engine hazard itself is open.
+
+(d) A checkpoint carries `[clock] map_clock`, and a `--from-leg` login moves the world's clock
+forward to it, so every clock-stamped varp (`%action_delay`, `%frozen`, ...) keeps its meaning
+(relay.md "The clock"). The last leg of a legs file gets a checkpoint too, and a run that did not
+reach `t.quest.expect_complete` is never published.
+
+(e) A ledger that ends in `run.unfinished` names why the client stopped (running.md "A run that
+ended unfinished"); a quest over about 2000 ticks needs `max_frames`. A run over about 8 minutes
+goes through `run.py --detach` / `--wait` (relay.md "Runs longer than the shell cap").
+
+(f) Obj id 0 (`mcannonremains`) is invisible to the client's inventory: a client defect (about 25
+`obj_id <= 0` "empty" tests against a -1 sentinel), not content (verbs-pointer: `click_obj`
+answers `timeout`). Open for an engine seam.
+
+(g) Selftest fixture: the full-world fixture fills all 4096 ground slots with map spawns; a stanza
+that drops an obj must borrow a slot and put its record back.
+
+(h) Dragon Slayer content is at the guide (content-gaps.md and gaps-world.md, FIXED seam31): the
+Guildmaster answers "About my quest...", the magic door takes one item per use, the lair wall is
+climbable, Elvarg has 80 hitpoints. Gujuo's blessing roll stays LostCity's (unsourced either way;
+seam30 (j)).

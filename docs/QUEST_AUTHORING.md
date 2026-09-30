@@ -37,8 +37,9 @@ index is keyed by what you SEE, so a failure is one lookup away.
   in a `mes()` is a CONTENT gap, never a PASS.
 - **No cheats past the guide's own work** (trap 16). An item, kill, craft, search or fetch the quest's
   own `.rs2` makes you do is driven through clicks. `goto_tile` is a `::goto` teleport: plain travel
-  only (ladders and stairs are travel, section 2), never past a door, gate, puzzle or loc the guide
-  names. A step the guide does with a spell or tool is done with that spell or tool.
+  only (a plain ladder or stair is travel, section 2; one whose trigger reads or writes a quest var
+  is not), never past a door, gate, puzzle or loc the guide names. A step the guide does with a
+  spell or tool is done with that spell or tool.
 - **Setup cheats are for prerequisites only.** `::give`/`::setlevel`/`::setvar`/`::complete <other
   quest>` stage what Quest Helper lists as brought along or required. Never `::complete` your own
   quest (trap 8); `::complete` takes the DBROW name.
@@ -130,6 +131,7 @@ python3 tools/quest_gate/helper_coverage.py <quest>             # guide step lad
 python3 tools/quest_gate/ladder.py <quest> --leg K               # the guide as a table, leg K (relay.md)
 python3 tools/quest_gate/fail.py <quest>                        # first failing row + neighbours, <=3 KB
 TORIRSSERVER_VERBOSE=1 python3 tools/quest_gate/run.py <quest> --no-build   # a stalled script
+python3 tools/quest_gate/run.py <quest> --no-build --detach; python3 tools/quest_gate/run.py --wait <quest>  # a run over ~8 min: relay.md
 ```
 
 Artefacts: `build/quest_gate/<quest>/` (`ledger.tsv`, `shots/`, `client.log`), replaced every run. A

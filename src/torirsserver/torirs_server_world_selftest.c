@@ -13095,6 +13095,342 @@ ToriRSServer_WorldSelftest(void)
             }
 
             /*
+             * seam31 script_vm_gaps_from_the_legends_port: the VM gaps the
+             * Legends' Quest port met and wrote around in content, each against
+             * the LostCity handler it now follows. No tick and no random roll
+             * in here -- this section shares the server clock and RNG stream
+             * with the fights after it (see the graphics stanza below).
+             */
+            fprintf(stderr, "ToriRSServer selftest: legends port VM gaps "
+                            "(.huntnext, loc reads after loc_del, obj_name, inv_dropitem)\n");
+            {
+                const int v_a = SELFTEST_VARP_GREETING_COUNT;
+                const int v_b = SELFTEST_VARP_QUEST_PROGRESS;
+                const int v_c = SELFTEST_VARP_LUMBRIDGE_VISITED;
+                const int32_t saved_a = player->varps[v_a];
+                const int32_t saved_b = player->varps[v_b];
+                const int32_t saved_c = player->varps[v_c];
+                const int32_t here = ToriRSServer_CoordPack(player->level, player->x, player->z);
+
+                ToriRSServer_WorldSetActive(srv, player);
+
+                /*
+                 * (1) `.huntnext` binds the SECONDARY player and leaves the
+                 * primary alone -- PlayerOps.ts HUNTNEXT, `state.activePlayer =
+                 * ...; pointerAdd(ActivePlayer[state.intOperand])`. LostCity's
+                 * `[proc,player_in_fire_octagram]` walks the other players with
+                 * `.huntnext` / `.coord`; here it bound the primary, and the
+                 * `.uid` below aborted for want of active_player2.
+                 */
+                {
+                    struct ToriRSServerPlayer* other = ToriRSServer_WorldAddPlayer(srv, NULL);
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_HUNTALL,
+                        SS_OP_HUNTNEXT,          SS_OP_POP_INT_DISCARD,
+                        SS_OP_UID,               SS_OP_POP_VARP,
+                        SS_OP_HUNTNEXT,          SS_OP_POP_INT_DISCARD,
+                        SS_OP_UID,               SS_OP_POP_VARP,
+                        SS_OP_UID,               SS_OP_POP_VARP,
+                        SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        here, 5, 0, 0,
+                        1, 0,
+                        1, v_a,
+                        1, 0,
+                        1, v_b,
+                        0, v_c,
+                        0,
+                    };
+                    char* strings[15] = { NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,dot_huntnext]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 15,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    int ran;
+                    int saw_player;
+                    int saw_other;
+
+                    assert(other);
+                    other->level = player->level;
+                    other->x = player->x;
+                    other->z = player->z;
+                    player->varps[v_a] = -7;
+                    player->varps[v_b] = -7;
+                    player->varps[v_c] = -7;
+                    ToriRSServer_WorldSetActive(srv, player);
+                    ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
+                    saw_player = player->varps[v_a] == player->pid + 1 ||
+                                 player->varps[v_b] == player->pid + 1;
+                    saw_other = player->varps[v_a] == other->pid + 1 ||
+                                player->varps[v_b] == other->pid + 1;
+                    SELFTEST_CHECK(ran && saw_player && saw_other,
+                                   ".huntnext should bind each hunted player as active_player2 "
+                                   "(.uid read %d then %d; want %d and %d in some order)",
+                                   player->varps[v_a], player->varps[v_b], player->pid + 1,
+                                   other->pid + 1);
+                    SELFTEST_CHECK(player->varps[v_c] == player->pid + 1,
+                                   ".huntnext should leave the primary player alone "
+                                   "(uid read %d, want %d)",
+                                   player->varps[v_c], player->pid + 1);
+                    other->active = 0;
+                    srv->player_count = player->pid + 1;
+                    ToriRSServer_WorldSetActive(srv, player);
+                }
+
+                /*
+                 * (2) Reads of a `loc_del`ed active loc answer from the removed
+                 * loc -- LocOps.ts LOC_DEL is `World.removeLoc(state.activeLoc,
+                 * ...)` and leaves the pointer; LOC_TYPE / LOC_ANGLE / LOC_COORD
+                 * read the Loc's own fields. Legends' fire wall deletes itself
+                 * and then reads type, angle and coord to walk the player
+                 * through; here the reads aborted "the active loc is gone".
+                 * Duration 0 on both, so nothing is queued to come back.
+                 */
+                {
+                    const int wall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC,
+                                                                "lqfirewall_straight");
+                    const int wall_x = player->x + 3;
+                    const int wall_z = player->z + 3;
+                    const int32_t wall_coord =
+                        ToriRSServer_CoordPack(player->level, wall_x, wall_z);
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                        SS_OP_LOC_TYPE,          SS_OP_POP_VARP,
+                        SS_OP_LOC_ANGLE,         SS_OP_POP_VARP,
+                        SS_OP_LOC_COORD,         SS_OP_POP_VARP,
+                        SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        wall_coord, wall, 3, 0, 0, 0,
+                        0, 0,
+                        0, v_a,
+                        0, v_b,
+                        0, v_c,
+                        0,
+                    };
+                    char* strings[15] = { NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,loc_reads_after_loc_del]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 15,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    int ran;
+
+                    SELFTEST_CHECK(wall >= 0, "lqfirewall_straight should resolve out of the pack");
+                    player->varps[v_a] = -7;
+                    player->varps[v_b] = -7;
+                    player->varps[v_c] = -7;
+                    ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
+                    SELFTEST_CHECK(ran && player->varps[v_a] == wall && player->varps[v_b] == 3 &&
+                                       player->varps[v_c] == wall_coord,
+                                   "loc_type/loc_angle/loc_coord after loc_del should read the "
+                                   "removed loc: got type %d angle %d coord %d, want %d 3 %d",
+                                   player->varps[v_a], player->varps[v_b], player->varps[v_c],
+                                   wall, wall_coord);
+                    SELFTEST_CHECK(ToriRSServer_SceneFindLocId(wall_x, wall_z, player->level,
+                                                               wall) < 0,
+                                   "the loc_del should still have removed the wall");
+                }
+
+                /*
+                 * (3) `inv_dropitem` then `obj_count` / `obj_name` on the pile
+                 * it made active -- InvOps.ts INV_DROPITEM (invDel, then one
+                 * Obj of what came out, World.addObj with the dropper as its
+                 * receiver, activeObj = it) and ObjOps.ts OBJ_NAME. Legends'
+                 * wrong rune on the marked wall and its gem take use them; both
+                 * were unimplemented opcodes.
+                 */
+                {
+                    const int rune = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "lawrune");
+                    const int backpack = ToriRSServer_Ids()->inv_backpack;
+                    struct ToriRSServerContainer* row =
+                        ToriRSServer_ContainerResolve(srv, player, backpack);
+                    char* rune_name = NULL;
+                    int free_slot = -1;
+                    int ground;
+                    int ran;
+                    uint16_t ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_INV_DROPITEM,
+                        SS_OP_OBJ_COUNT,         SS_OP_POP_VARP,
+                        SS_OP_OBJ_NAME,          SS_OP_PUSH_CONSTANT_STRING,
+                        SS_OP_COMPARE,           SS_OP_POP_VARP,
+                        SS_OP_RETURN,
+                    };
+                    int32_t operands[] = {
+                        backpack, here, rune, 2, 50, 0,
+                        0, v_a,
+                        0, 0,
+                        0, v_b,
+                        0,
+                    };
+                    char* strings[13] = { NULL };
+                    struct SSVM_Script script = {
+                        .id = -1,
+                        .name = "[selftest,inv_dropitem_obj_name]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 13,
+                        .opcodes = ops,
+                        .int_operands = operands,
+                        .string_operands = strings,
+                    };
+                    uint16_t none_ops[] = {
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                        SS_OP_PUSH_CONSTANT_INT, SS_OP_INV_DROPITEM,
+                        SS_OP_RETURN,
+                    };
+                    int32_t none_operands[] = { backpack, here, rune, 1, 50, 0, 0 };
+                    char* none_strings[7] = { NULL };
+                    struct SSVM_Script none_script = {
+                        .id = -1,
+                        .name = "[selftest,inv_dropitem_nothing_held]",
+                        .source_path = "<selftest>",
+                        .lookup_key = -1,
+                        .op_count = 7,
+                        .opcodes = none_ops,
+                        .int_operands = none_operands,
+                        .string_operands = none_strings,
+                    };
+
+                    SELFTEST_CHECK(rune >= 0, "lawrune should resolve out of the pack");
+                    assert(row);
+                    for( int i = 0; i < row->slots; i++ )
+                    {
+                        if( row->items[i].obj_id < 0 )
+                        {
+                            free_slot = i;
+                            break;
+                        }
+                    }
+                    SELFTEST_CHECK(free_slot >= 0, "the backpack should have a free slot");
+                    SELFTEST_CHECK(ToriRSServer_WorldGroundFind(srv, player->x, player->z,
+                                                                player->level, rune) < 0,
+                                   "no law rune should lie under the player before the drop");
+                    if( rune >= 0 && free_slot >= 0 )
+                    {
+                        /* The full-world fixture can occupy every floor slot
+                         * with map spawns (4096 of 4096 here); borrow the last
+                         * one and put its whole record back afterwards, as the
+                         * instance-release stanza does. */
+                        const int borrowed = TORIRSSERVER_GROUND_MAX - 1;
+                        const struct ToriRSServerGroundObj saved_ground = srv->ground[borrowed];
+
+                        if( srv->ground[borrowed].active )
+                            ground_clear(srv, borrowed);
+                        rune_name = (char*)ToriRSServer_ObjInfo(rune)->name;
+                        assert(rune_name);
+                        strings[9] = rune_name;
+                        ToriRSServer_ContainerSet(row, free_slot, rune, 3);
+                        player->varps[v_a] = -7;
+                        player->varps[v_b] = -7;
+                        ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
+                        SELFTEST_CHECK(ran && row->items[free_slot].obj_id == rune &&
+                                           row->items[free_slot].count == 1,
+                                       "inv_dropitem(inv, coord, lawrune, 2, 50) should take 2 of "
+                                       "3 out, left %d x %d",
+                                       row->items[free_slot].obj_id, row->items[free_slot].count);
+                        ground = ToriRSServer_WorldGroundFind(srv, player->x, player->z,
+                                                              player->level, rune);
+                        {
+                            int active_ground = 0;
+
+                            for( int i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
+                                active_ground += srv->ground[i].active ? 1 : 0;
+                            SELFTEST_CHECK(ground >= 0 && srv->ground[ground].count == 2 &&
+                                               srv->ground[ground].receiver_pid == player->pid,
+                                           "inv_dropitem should land one pile of 2 owned by the "
+                                           "dropper (slot %d, count %d, receiver %d; %d of %d "
+                                           "ground slots in use)",
+                                           ground, ground >= 0 ? srv->ground[ground].count : -1,
+                                           ground >= 0 ? srv->ground[ground].receiver_pid : -2,
+                                           active_ground, TORIRSSERVER_GROUND_MAX);
+                        }
+                        SELFTEST_CHECK(player->varps[v_a] == 2,
+                                       "inv_dropitem should make its pile the active obj "
+                                       "(obj_count read %d)",
+                                       player->varps[v_a]);
+                        SELFTEST_CHECK(player->varps[v_b] == 0,
+                                       "obj_name should name the active pile '%s' (compare %d)",
+                                       rune_name, player->varps[v_b]);
+                        if( ground >= 0 )
+                            ground_clear(srv, ground);
+                        ToriRSServer_ContainerSet(row, free_slot, -1, 0);
+
+                        /* Nothing held, nothing lands: `completed == 0` returns. */
+                        ran = ToriRSServer_ScriptsRunHook(srv, &none_script, NULL, 0);
+                        SELFTEST_CHECK(ran && ToriRSServer_WorldGroundFind(srv, player->x,
+                                                                          player->z,
+                                                                          player->level,
+                                                                          rune) < 0,
+                                       "inv_dropitem of an obj the player does not hold should "
+                                       "drop nothing");
+                        srv->ground[borrowed] = saved_ground;
+                        ToriRSServer_ZoneObjRefile(srv, borrowed);
+                    }
+                }
+
+                player->varps[v_a] = saved_a;
+                player->varps[v_b] = saved_b;
+                player->varps[v_c] = saved_c;
+                ToriRSServer_WorldSetActive(srv, player);
+            }
+
+            /*
+             * (4) The heart-crystal pieces' furnace bits. LostCity states them
+             * as `param=crystal_bit,^legends_smelting_chunk` / `_hunk` / `_lump`
+             * (LostCity_Content2 quest_legends/configs/quest_legends.obj:464,
+             * :476, :489). Without the param every piece read 0 and the furnace
+             * answered "already placed" to the second one (seam30 s30_leg5).
+             * Pinned against the constants rather than the numbers, so the
+             * `.obj` may spell them either way; with `^names` in the config
+             * this is also the `.obj` reader's `^constant` path (a value it
+             * cannot resolve is a content error, which "the content tree should
+             * load clean" above reports).
+             */
+            {
+                static const char* const pieces[3][2] = {
+                    { "heartcrystal_sectiona", "legends_smelting_chunk" },
+                    { "heartcrystal_sectionb", "legends_smelting_hunk" },
+                    { "heartcrystal_sectionc", "legends_smelting_lump" },
+                };
+                const int crystal_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM,
+                                                                   "crystal_bit");
+
+                SELFTEST_CHECK(crystal_bit >= 0, "crystal_bit should resolve out of the pack");
+                for( int i = 0; i < 3 && crystal_bit >= 0; i++ )
+                {
+                    const int piece = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ,
+                                                                 pieces[i][0]);
+                    const struct ToriRSServerObjParam* bit =
+                        piece >= 0 ? ToriRSServer_ObjParam(piece, crystal_bit) : NULL;
+                    const int want = ToriRSServer_ContentConstantInt(pieces[i][1], -1);
+
+                    SELFTEST_CHECK(bit && want > 0 && bit->ival == want,
+                                   "%s should carry crystal_bit = ^%s (%d), got %d",
+                                   pieces[i][0], pieces[i][1], want, bit ? bit->ival : -1);
+                }
+            }
+
+            /*
              * The two coordinate-addressed graphics ops, in one script and one
              * tick.
              *

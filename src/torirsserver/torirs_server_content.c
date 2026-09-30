@@ -2053,6 +2053,32 @@ obj_resolve_param_value(
         CONTENT_ERROR("%s: string obj params are not overlaid yet (got `%s`)\n", where, value);
         return 0;
     }
+    /*
+     * A `^constant` value is the constant's text, resolved as if it had been
+     * written in its place. LostCity's pack compiler reads `.obj` values the
+     * same way everywhere else does -- Legends' Quest's
+     * `param=crystal_bit,^legends_smelting_chunk` (LostCity_Content2
+     * quest_legends/configs/quest_legends.obj:464, :476, :489) -- and this
+     * reader answered "cannot resolve param value", so the port wrote the
+     * three furnace bits as the literals 26/27/28. One level only: a constant
+     * whose text is another `^name` is refused rather than chased.
+     */
+    if( value[0] == '^' )
+    {
+        const char* text = ToriRSServer_ContentConstant(value);
+
+        if( !text )
+        {
+            CONTENT_ERROR("%s: no `%s` in any .constant\n", where, value);
+            return 0;
+        }
+        if( text[0] == '^' )
+        {
+            CONTENT_ERROR("%s: `%s` is `%s`, another constant\n", where, value, text);
+            return 0;
+        }
+        return obj_resolve_param_value(param_id, text, out, where);
+    }
     if( (value[0] >= '0' && value[0] <= '9') || (value[0] == '-' && value[1] >= '0') )
     {
         *out = atoi(value);

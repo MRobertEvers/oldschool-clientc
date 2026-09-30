@@ -116,3 +116,35 @@ meanwhile: `build/quest_gate/.locks/<id>.lock` holds run.py's pid (`ps -p <pid>`
 `torirs_questtest` client is `pgrep -P <pid>`), and `build/quest_gate/<id>/ledger.tsv` gains a row
 per step as it happens (`torirs_plugin_drive.c` appends each one) even while run.py's own output has
 not surfaced -- a lock whose pid is gone and a ledger with no `SUMMARY` row is a dead run.
+
+### A run that ended unfinished: `run.unfinished FAIL run ended without finishing` (seam31)
+
+*Origin: seam31 run_never_ends_silently (legends leg 7: exit 0, no SUMMARY, three runs in a row).*
+
+Only the client writes the SUMMARY row. A client that stops any other way used to leave a ledger
+that just stopped. Now `run.py` finishes it: one FAIL row `run.unfinished` whose detail reads `run
+ended without finishing: <reason>; inside row '<name>' (begun at tick T); last progress: ...; last
+row written: <name>`, then a SUMMARY counted from the rows. The reasons:
+
+- `the client exited 0 at the frame budget: TORIRS_MAX_FRAMES=N is about M server ticks` -- the
+  virtual clock ran out. The budget is about `max_frames / 30` server ticks (the 60000 default is
+  about 2000 ticks). Declare `max_frames = <n>,` beside `fixture` in the quest table (ceiling
+  240000, about 8000 ticks). Legends through leg 7 used 4587 ticks.
+- `killed by run.py after the wall-clock timeout of N s` -- the per-process `--timeout` ceiling.
+- `the client was killed by signal N` / `the client exited N without t.finish (a crash or an
+  assert)` -- with the last fatal-looking `client.log` line.
+- `the client exited 0 without t.finish at tick T, short of the budget` -- unexplained; read the
+  tail of `client.log`.
+
+`client.log` now carries `QUEST row-begin <name> tick=T` before every `t.exec` verb and `QUEST
+progress <text> tick=T` every 25 ticks of any await whose deadline is 30 ticks or more (every 10
+ticks inside the kill waits): `grep 'QUEST progress'` shows where a slow run spends its ticks. A
+Lua error's own `script-error` row gains `-- raised inside row <name> (begun at tick T)`. An await
+predicate that raises is still read as not-yet-true by the C scheduler, so its row times out; run.py
+appends `its await predicate raised ...: <error>` to that row.
+
+### `--script` runs are deterministic: a rerun replays the same rolls (seam31)
+
+The same file and fixture replay the same random stream, so a `t.blocked` on a roll (Gujuo's bowl
+blessing, a `stat_random` smithing step) gives the same result on every rerun. Change the attempt
+budget or the state before the roll (drink a restore, retry beyond N), not the run count.

@@ -7,7 +7,9 @@ topic file with one line added here.
 
 ## Travel and finding things
 
-- "Nothing interesting happens." on a wall into a boss lair; the Crandor hole refuses from one side -> gaps-world: Crandor
+- "I can't reach that!" right after a fence squeeze; pulled back to the fence after a goto -> gaps-world: A fence squeeze pulls you back
+- a trap door landing never reads `z > 6400` (Mourner HQ basement 2044,4628) -> gaps-world: The Mourner HQ basement is an instance region
+- "Nothing interesting happens." on a wall into a boss lair (FIXED seam31); the Crandor hole refuses from one side -> gaps-world: Crandor
 - a guard tower's ladder `not_found` as `mcannonladder` on the ground floor -> gaps-world: Dwarf Cannon: the tower's two ladders
 - Ikov: `walk_to` times out at x=2644 going east from the lever; thrown back west on the lava bridge -> gaps-world: Temple of Ikov
 - `screen_position`/`not_visible`/`no_row` from `talk_to`; `goto` does not parse; where an npc is -> start-and-travel: `goto_tile` before; traps-13-22: Trap 13
@@ -103,7 +105,7 @@ topic file with one line added here.
 
 ## Items, held ops and shops
 
-- `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 -> verbs-pointer: `click_obj` answers `timeout`
+- `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 (a client defect, seam31) -> verbs-pointer: `click_obj` answers `timeout`
 - a bucket on a sink/pump answers "Nothing interesting happens." -> gaps-world: A sink or water pump (FIXED seam29)
 - a book page, journal line or dial letter proved only by a PNG -> verbs-ui-and-npc: `t.ui.text` / `t.ui.expect_text`
 - `inv.count` reads the OLD count -> traps-23-33: Trap 24; Trap 25; gaps-dialogue: `t.settle()` does not
@@ -143,7 +145,8 @@ topic file with one line added here.
 
 ## Fights
 
-- a quest boss's first bar reading is empty (`0/60` after one hit, Elvarg) -> gaps-combat: Elvarg dies to the first hit
+- `; progress t+10 hp .., ..` at the end of an await_dead detail -> verbs-combat: `t.npc.await_dead(npc, ticks=60`
+- a quest boss's first bar reading is empty (`0/60` after one hit, Elvarg; FIXED seam31) -> gaps-combat: Elvarg dies to the first hit
 - Dad's surrender page closes before the loop reads it -> gaps-combat: Troll Stronghold: Dad's surrender
 - player hits missing on an npc for several ticks mid-attack (Melzar, trolls, KBD) -> seam-facts: Seam pass 29 (b)
 - every `::spawn`/`npc_add` of one npc on one tile drops the same loot -> seam-facts: Seam pass 29 (a)
@@ -192,9 +195,13 @@ topic file with one line added here.
 - quest has more than 30 steps; handed one leg; where the previous author stopped -> relay: Legs; relay: Working one leg (`ladder.py <id> --leg K`)
 - which row failed; the ledger is too long to read -> relay: After a run (`fail.py <id>`, `--all`)
 - replaying legs 1..K-1 every run; `--from-leg`/`--only-leg`; `checkpoint k NOT written`/`refused: a dialogue is open`; `STALE ... (legs_hash)`; `a checkpoint run is for authoring` -> relay: Checkpoints
+- "You're a bit too busy" on a `--from-leg` run; a clock-stamped varp after a checkpoint -> relay: The clock: map_clock comes back
+- a run over ~8 min killed by the shell cap; `still running: last row ...`; fail.py `IN PROGRESS` / exit 3 -> relay: Runs longer than the shell cap
+- `not published <id> (the run did not reach t.quest.expect_complete` -> relay: Honesty
 
 ## Gate, lint, coverage and the ledger
 
+- `leaves the <step> side ... without crossing the ladder/stair/trapdoor`; a sub-step graded CHEAT or ALTERNATIVE -> coverage-and-gate: A promoted sub-step
 - `t.check(name, true, ...)` after a `t.ui.invoke` or a pickup -> sampler-findings: Sample sonnet-b36
 - FAIL `hollow`, an empty PASS detail, `bad verb/target` -> traps-01-12: Trap 12; verbs-root-and-quest: `t.exec`
 - `[bad ledger argument]`; a boolean in `t.step` -> gaps-dialogue: `t.step`'s second argument
@@ -222,6 +229,9 @@ topic file with one line added here.
 
 ## Harness and runs
 
+- `run.unfinished FAIL run ended without finishing`; exit 0 with no SUMMARY; `at the frame budget` -> running: A run that ended unfinished
+- `QUEST row-begin` / `QUEST progress` lines in client.log; where a slow run spends its ticks -> running: A run that ended unfinished
+- a `--script` rerun blocks on the same random roll every time -> running: `--script` runs are deterministic
 - `setup.::wield <item> FAIL`; a `::wield` that printed Usage -> seam-facts: Seam pass 29 (e)
 - prove content against HEAD without editing the shared tree -> seam-facts: Seam pass 29 (c)
 - a second `run.py` refuses -> running: The failure block
@@ -247,7 +257,10 @@ topic file with one line added here.
 
 ## Content-side facts (content_bug reports, reviewers)
 
-- a guide step with no content branch (guild master's map questions, one-click magic door) -> content-gaps: Dragon Slayer
+- `COORD requires an active entity` on `.huntnext`; `the active loc is gone` after `loc_del`; `not implemented` obj_name / inv_dropitem; `cannot resolve param value ^...` -> seam-facts: Seam pass 31, (a) (FIXED)
+- a double door gone for the session after one swing (`loc_del` + `loc_add` on the same tile) -> seam-facts: Seam pass 31, (c)
+- `::setvar priestperil_mausoleum` in a setup; the golden-key gate after `::complete quest_priestinperil` -> seam-facts: Seam pass 31, (b)
+- a guide step with no content branch (guild master's map questions, one-click magic door; FIXED seam31) -> content-gaps: Dragon Slayer
 - `multinpc_shells.csv` rung labels (`0=` is multinpc1, `N+=`) -> traps-23-33: Trap 28
 - a garbled note text ("bncket of nnilk") that is the real game's -> seam-facts: Seam pass 29 (f)
 - a child-symbol `[opnpc1]` is dead code -> traps-13-22: Trap 19; The fix idiom
@@ -268,8 +281,8 @@ topic file with one line added here.
 - `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
 - "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
 - a multinpc shell never changes form on the client (sote_tertiary) -> seam-facts: Seam pass 30 (b)
-- `COORD requires an active entity` after `.huntnext`; `the active loc is gone`; an npc death script aborting after `p_delay` -> seam-facts: Seam pass 30 (d), (e)
-- Paterdomus trapdoor/gates/holy barrier locked after `::complete quest_priestinperil` -> seam-facts: Seam pass 30 (f)
+- `COORD requires an active entity` after `.huntnext`; `the active loc is gone`; an npc death script aborting after `p_delay` -> seam-facts: Seam pass 30 (d), (e) (the `.huntnext` / `loc_del` gaps FIXED: Seam pass 31 (a))
+- Paterdomus trapdoor/gates/holy barrier locked after `::complete quest_priestinperil` -> seam-facts: Seam pass 30 (f); the bit-20 `::setvar` FIXED: Seam pass 31 (b)
 - a jug/bowl/vial at a sink or a bucket at the Edgeville well: `Nothing interesting happens.` -> gaps-world: A sink or water pump
 
 ## Citations: resolving a number or a name

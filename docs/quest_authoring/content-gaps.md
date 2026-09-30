@@ -35,7 +35,7 @@ pigeon cages and hands chicken cages for the salts instead
 (`areas/varrock/scripts/horvik.rs2:20-33`, `talkToHorvikFinal`), and pigeons spawn only three at a
 time.
 
-## Dragon Slayer: the guild master's questions and the Oracle's magic door (sonnet-b36)
+## Dragon Slayer: the guild master's questions and the Oracle's magic door (sonnet-b36; FIXED seam31)
 
 *Origin: the Dragon Slayer author and reviewer (batch sonnet-b36).*
 
@@ -46,3 +46,19 @@ time.
   bowl, wizard's mind bomb) in one click, so the guide's four use-on steps (`useSilkOnDoor`,
   `usePotOnDoor`, `useUnfiredBowlOnDoor`, `useMindBombOnDoor`) are four GUIDE-GAPs.
   `helper_coverage` stays at CONTENT_GAP=4 until the door gets one `[oplocu]` per item.
+
+FIXED seam31 (both bullets; sources Quest Helper DragonSlayer.java, 2009scape
+GuildmasterDialogue.java / DSMagicDoorPlugin.java and the OSRS wiki brief
+`docs/quests/dragon_slayer_i.md` s5/s8 -- LostCity has neither):
+
+- The Guildmaster at stage 1 asks "Have you gone to talk to Oziach yet?". From stage 2 until the
+  quest is done he offers "What is this place?" / "About my quest to kill the dragon...". Drive it as
+  `chat.play{"npc:Greetings!", "options", "choose:About my quest to kill the dragon...",
+  "player:About my quest"}`, then `chat.drain{stop_at="options"}` + `chat.choose` per topic. The
+  route topic opens a second menu (Melzar / Thalzar / Lozar); Melzar's answer hands over a maze key
+  only when you own none. Each topic raises its knowledge flag, never lowers it.
+- The magic door takes one item per use, in any order: `t.player.use_on` each of `silk`,
+  `lobster_pot`, `bowl_unfired`, `wizards_mind_bomb` ("You put <item> into the opening in the
+  door."). The fourth opens it ("The door opens...", `%dragon_oracle` = 3) and walks you through.
+  A plain Open answers "The door is locked." until then. Server varp `%dragon_door_items` holds the
+  four bits.

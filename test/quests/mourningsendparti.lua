@@ -1661,6 +1661,48 @@ return {
         -- ---- Report to Essyllt (mend1_essyllt_after_poison,
         -- mend1_disguise.rs2:570-592 -> %mourning_quest = ^mend1_report).
         -- "The mourners' plan", verbatim. ----
+        -- Guide steps enterMournerBaseAfterPoison / enterMournerBasement-
+        -- AfterPoison (Quest Helper MourningsEndPartI.java:462-468, sub-steps
+        -- of talkToEssylltAfterPoison: ObjectID.MOURNERSTEWDOOR at
+        -- 2551,3320,0 then ObjectID.MOURNING_HIDEOUT_TRAP_DOOR at
+        -- 2542,3327,0). Both are real clicks, as on the first visit
+        -- (enterMournerBase / enterBasement above): the door gate reads
+        -- %mourning_mourner_disguise, already 1, and walks through silently;
+        -- the trap door (mend1_disguise.rs2:136-143) p_teleports to
+        -- mend1_hq_basement_coord, 2044,4628,0.
+        t.exec("goto-enterMournerBaseAfterPoison", t.player.goto_tile, 2551, 3320, 0)
+        local poison_door_before_r, poison_door_before = t.world.tile()
+        local poison_door_before_x = poison_door_before and poison_door_before.x
+        local poison_door_before_z = poison_door_before and poison_door_before.z
+        t.exec("enterMournerBaseAfterPoison", t.player.click_loc, "mournerstewdoor", 1)
+        t.ticks(4)
+        local poison_door_after_r, poison_door_after = t.world.tile()
+        local poison_door_after_x = poison_door_after and poison_door_after.x
+        local poison_door_after_z = poison_door_after and poison_door_after.z
+        t.check("enterMournerBaseAfterPoison.walked_through",
+            poison_door_before_r == "ok" and poison_door_after_r == "ok"
+                and (poison_door_after_x ~= poison_door_before_x or poison_door_after_z ~= poison_door_before_z),
+            "tile before=" .. tostring(poison_door_before_x) .. "," .. tostring(poison_door_before_z)
+                .. " after=" .. tostring(poison_door_after_x) .. "," .. tostring(poison_door_after_z))
+        t.exec("goto-enterMournerBasementAfterPoison", t.player.goto_tile, 2542, 3327, 0)
+        t.drive.camera(SHOT_YAW_BASEMENT, 383, SHOT_ZOOM_INDOOR)
+        t.exec("enterMournerBasementAfterPoison", t.player.click_loc, "mourning_hideout_trap_door", 1)
+        -- read the landing, not the message: the first visit's identical
+        -- "You climb down into the basement." may still be in the ring
+        local basement_result, basement_detail = t.await({
+            level = function()
+                local tile_result, tile = t.world.tile()
+                -- mend1_hq_basement_coord is 2044,4628,0: an instance
+                -- region, not the z + 6400 underground frame
+                return tile_result == "ok" and tile and tile.x and tile.z
+                    and math.abs(tile.x - 2044) <= 8 and math.abs(tile.z - 4628) <= 8
+            end,
+            note = "trapdoor.landed_basement",
+        }, 10)
+        t.step("enterMournerBasementAfterPoison.landed", basement_result == "ok" and "PASS" or "FAIL",
+            "await(world.tile() within 8 of mend1_hq_basement_coord 2044,4628) after the trap door -> "
+                .. tostring(basement_result) .. " " .. tostring(basement_detail))
+        t.ticks(3)
         t.exec("goto-talkToEssylltAfterPoison", t.player.goto_tile, 2043, 4631, 0)
         t.exec("talkToEssylltAfterPoison", t.player.talk_to, "mourner_hideout_head_mourner", 1)
         t.exec("talkToEssylltAfterPoison-dialog", t.chat.play, {

@@ -465,6 +465,25 @@ return {
         -- 10. Pick a troll thistle, dry it, grind it, mix it into a
         --     ranarr potion (unf) to make the troll truth potion.
         -- ---------------------------------------------------------------
+        -- Guide step leaveEadgarsCaveForThistle (Quest Helper
+        -- EadgarsRuse.java:460-464, a sub-step of pickThistle:
+        -- ObjectID.TROLL_MAD_EADGAR_EXIT at WorldPoint(2893,10073,2)). The
+        -- same real click as step 3's leaveEadgarsCave:
+        -- [oploc1,troll_mad_eadgar_exit] (quest_troll/scripts/
+        -- quest_troll.rs2:139-140) p_teleports to 0_45_57_13_23 =
+        -- 2893,3671,0 by the cave mouth; the goto to the thistle patch is
+        -- then plain surface travel.
+        t.exec("leaveEadgarsCaveForThistle", t.player.click_loc, "troll_mad_eadgar_exit", 1)
+        local cave_exit_result, cave_exit_detail = t.await({
+            level = function()
+                local tile_result, tile = t.world.tile()
+                return tile_result == "ok" and tile and tile.z and tile.z < 6400 and (tile.level or 0) == 0
+            end,
+            note = "cave.exited_surface",
+        }, 10)
+        t.step("leaveEadgarsCaveForThistle.surface", cave_exit_result == "ok" and "PASS" or "FAIL",
+            "await(world.tile() on the surface, z < 6400 level 0) after the cave exit -> "
+                .. tostring(cave_exit_result) .. " " .. tostring(cave_exit_detail))
         t.exec("goto-thistle", t.player.goto_tile, 2891, 3676, 0)
         t.exec("pickThistle", t.player.talk_to, "eadgar_troll_thistle", 1)
         t.inv.await("eadgar_troll_thistle", 1, 10)

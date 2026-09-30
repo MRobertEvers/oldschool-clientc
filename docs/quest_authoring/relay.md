@@ -74,8 +74,50 @@ three `script error` / `STALE SCRIPT PACK` / `assert` lines of the run's log.
 - `--name <run>` reads `build/quest_gate/<run>/ledger.tsv` (a `--name`d run).
 
 Exit 0 when every row passed and the run wrote a PASS SUMMARY, 1 when it did not (a failing row, or
-a run that stopped before its SUMMARY), 2 when there is no ledger. `run.py ... && fail.py ...`
+a run that stopped before its SUMMARY), 2 when there is no ledger, 3 when a detached run is still
+going and no row has failed yet ("Runs longer than the shell cap", below). `run.py ... && fail.py ...`
 therefore stops on a red run only after fail.py has printed it.
+
+## Runs longer than the shell cap: --detach and --wait
+
+A shell call is capped at 10 minutes, and the cap kills the run with it: no SUMMARY, and a ledger
+that just stops. A full run of a long quest (the last runner of a relay, a reviewer, the gate pass)
+can take longer. Any run you expect to take over about 8 minutes is started in the background and
+waited on in pieces of 9 minutes:
+
+```sh
+python3 tools/quest_gate/run.py <id> --no-build --no-publish --timeout 1800 --detach   # returns at once
+python3 tools/quest_gate/run.py --wait <id>                    # blocks up to 540 s (--timeout S)
+python3 tools/quest_gate/run.py --wait <id>                    # again, while it exits 3
+python3 tools/quest_gate/fail.py <id>                          # the finished run, as always
+```
+
+- `--detach` works with every single-session form: a quest id, `--from-leg K` / `--only-leg K` (the
+  run name is `<id>.leg<K>`), and `--script <file> --name <label>` (the run name is the label).
+  Not `--all`. Every other flag means what it means in the foreground; the child is the same
+  `run.py` command without `--detach`.
+- `--timeout` on the detached command is still the run's own wall-clock ceiling (default 400 s,
+  scaled by the quest's `max_frames`): a run you detach because it is long needs a `--timeout`
+  that covers it, or the run is killed at the ceiling exactly as in the foreground. On `--wait`,
+  `--timeout` is how long this wait blocks (default 540).
+- `--wait <name>` exits **0** when the run ended with exit 0, **1** when it ended otherwise, **2**
+  when no detached run has that name, and **3** when it is still running. Exit 0 is run.py's own
+  answer (the client finished and wrote a ledger), not a pass: a red SUMMARY still exits 0, so
+  grade the run with `gate.py` / `fail.py` as always. On an end it prints
+  `<name> ended: exit=N after Ss`, the ledger's SUMMARY row and the run's report and failure
+  block. Still running, it prints `still running: last row <step> at tick N (<verdict>; R row(s);
+  ...)` -- wait again. A child that died without writing its end (a Python exception, a kill)
+  prints `DIED without writing its end status` and the tail of its output, exit 1.
+- The run's files are in its session directory, `build/quest_gate/<name>/`: `run.pid`,
+  `run.status` (`state=starting|running|done`, and at the end `exit=`, `ended=`, `elapsed=`) and
+  `run.out` (everything the foreground command would have printed, build output included).
+- A second `--detach` of a live name is refused and names the pid (the session lock would refuse
+  it anyway). A foreground run of the same name clears the old detached files.
+- `fail.py` on a run that is still going says `IN PROGRESS: detached run pid N ... this ledger is
+  partial` first, reads a missing SUMMARY as `not yet: the run is still going`, and exits **3**
+  unless a row has already failed (then 1, with the row, as usual). Reading the partial ledger
+  mid-run is fine; it is how you see where a long leg has got to without waiting for the end.
+- Never wait on a detached run with `sleep` loops or a monitor; `--wait` is the one wait.
 
 ## Output discipline
 
@@ -130,11 +172,20 @@ return {
 - Before leg k, row `leg.<k>.<name>` (PASS). Its detail is the player's tile (client), the bound
   quest variable read from the SERVER, and the backpack:
   `tile=3208,3215,0 stage=cookquest=1 inv=... -- checkpoint 1 written: checkpoint 1 written at 3208,3215,0`.
-- After leg k, when every row leg k wrote was PASS and another leg follows, the harness sends
-  `::checkpoint k`. The server writes the player through its own save serialiser in checkpoint mode
-  (`torirs_server_save.c`: the logout save plus every non-zero varp whatever its scope, and the
-  player's random stream) to `<session>/saves/checkpoints/<k>.ini`. The next leg row carries the
-  outcome. A run that stops after leg k (`--only-leg`) writes `leg.<k>.end` for it.
+- After leg k, when every row leg k wrote was PASS, the harness sends `::checkpoint k`. The server
+  writes the player through its own save serialiser in checkpoint mode (`torirs_server_save.c`: the
+  logout save plus every non-zero varp whatever its scope, the player's random stream, and the
+  world's `map_clock`) to `<session>/saves/checkpoints/<k>.ini`. The next leg row carries the
+  outcome; the last leg of the run (the file's last leg, or leg K of `--only-leg K`) writes
+  `leg.<k>.end` for it.
+- The file's LAST leg gets a checkpoint too when it returns without `t.finish` (seam31): the leg a
+  relay author has just written is the last one, and the next author appends leg k+1 and runs
+  `--from-leg k+1` from it (a checkpoint hashes legs 1..k only, so appending a leg keeps it fresh).
+  No placeholder leg (`leg2_todo`) is needed any more. A leg that calls `t.finish` (the quest's last
+  leg) or `t.blocked` ends the run there and writes no checkpoint and no `.end` row. The harness's
+  own row is named `leg.<k>.end`; a leg's closing reading of its own is better named
+  `leg.<k>.state`, or the ledger carries two rows of one name (legends' `t.check("leg.2.end", ...)`
+  does today).
 - After the run, `run.py` wraps each save as `build/quest_gate/<run>/checkpoints/<k>.ckpt`. The
   `[checkpoint]` manifest holds the test id, k, the leg names, and sha256 hashes of legs 1..k's
   source text, the setup list, the `bind` table, the content pack
@@ -183,6 +234,38 @@ python3 tools/quest_gate/fail.py <id> --name <id>.legK              # read that 
   is not hashed. After editing one, run the full test again.
 - The SUMMARY row is stamped `from_leg=K` (and `only_leg=1`). Such a run is never published.
 
+### The clock: map_clock comes back with the checkpoint
+
+A resumed run boots a fresh world, whose `map_clock` starts again from 0. The content stamps a class
+of player varps with `map_clock` -- `%action_delay = map_clock` (`bullroarer.rs2:8` and every
+skill loop), `%frozen = add(map_clock, n)`, the agility shortcuts' `*_used`, the boss cooldowns --
+and a checkpoint carries every varp, so before seam31 a stamp from the full run read as hundreds or
+thousands of ticks in the future: `run.py legends --from-leg 2` answered every bullroarer swing
+with "You're a bit too busy to do that at the moment." (`bullroarer.rs2:2`, `if(add(%action_delay, 8) > map_clock)`).
+
+So the checkpoint also writes `[clock] map_clock = N`, and a login from it moves the world's clock
+FORWARD to N (server log: `checkpoint login from ...: map_clock 0 -> N (restored, ...)`). Every
+varp of the class stays consistent at once, and a script that reads `map_clock` itself sees what
+the full run saw. Measured on legends leg 1 (`_s31_legends`, leg 2 = one swing): full run
+`%action_delay=320`, answer "You start to swing"; `--from-leg 2` before the fix `%action_delay=263`
+"too busy", after it `%action_delay=322` "You start to swing".
+
+- The class, by `grep -rhoE '%[a-z0-9_]+ *= *[^;]*map_clock'` over `server/scripts/` (2026-09-30):
+  60 vars, 52 of them player varps -- 50 `scope=temp` (`action_delay`, `frozen`,
+  `blackjack_ko_expire`, `vengeance_ready`, `gauntlet_eat_delay`, the `*_pipe_used` /
+  `*_ropeswing_used` agility stamps, the ToB/Nex/Inferno/Zulrah timers, ...) and 2 `scope=perm`
+  (`imbued_heart_ready_tick`, `hunter_falcon_expire`), plus npc (`npc_action_delay`) and world
+  (`wildy_hot_ends`, `star_next_crash`, `cell_*_unlock_timer`) vars a checkpoint does not carry.
+  LostCity saves none of them: a logout drops every `scope=temp` varp. The full list is
+  `build/seam_state/seam31/checkpoint_clock_class.txt`. A new clock stamp needs nothing here: the
+  clock, not a list, is what is restored.
+- Forward only. A world already past N keeps its clock (a clock run backwards would push world
+  timers into the future) and logs `the clock is not run backwards`; on a fresh boot it cannot
+  happen, because the full run's clock at leg k counts the same boot plus the legs.
+- The jump is time passing for the world: an npc respawn or a shop restock that falls due fires on
+  the first tick. The npcs themselves start fresh as before (a bird that took a swing in the full
+  run may not be there in the resumed one).
+
 ### Honesty
 
 A checkpoint run is for authoring. It is never a verdict:
@@ -191,7 +274,12 @@ A checkpoint run is for authoring. It is never a verdict:
   `a checkpoint run is for authoring; grade the full run`.
 - `queue.py set <id> --status green` needs a full-run ledger at `build/quest_gate/<id>/ledger.tsv`
   with a SUMMARY row and no `from_leg`.
-- `publish()` refuses a `from_leg` ledger.
+- `publish()` refuses a `from_leg` ledger, and any run that did not reach `t.quest.expect_complete`
+  (seam31): a legs file, or a run file that calls `expect_complete`, publishes only a ledger whose
+  `quest.varp_complete` and `quest.scroll_title` rows are PASS. A legs file whose last leg returns
+  unfinished gets a PASS SUMMARY from the harness, and that partial run used to replace the
+  quest's evidence in OSRS-Content; now run.py prints `not published <id> (the run did not reach
+  t.quest.expect_complete ...)`. `--no-publish` is still the rule for an authoring run.
 - Determinism: legs K..end from checkpoint K-1 reach the same stage, backpack and tile as the full
   run. Measured: `_legs` `--from-leg 3` ends with a `legs.end_state` detail byte-identical to the
   full run's. `cooks_assistant --from-leg 3` writes the same 16 rows as the full run from

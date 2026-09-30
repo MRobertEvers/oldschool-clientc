@@ -105,3 +105,28 @@ check is run with `--allow-blocked`.
 
 The GUIDE-GAP and verified-marker rules (BRANCH-IN, PARTNER, NOT-A-STEP, OBSOLETE, ANY-OF) are trap
 32, in `traps-23-33.md`. What the coverage tool and the gate still miss is in `sampler-findings.md`.
+
+### A promoted sub-step: "leaves the <step> side ... without crossing the ladder/stair/trapdoor" (seam31)
+
+*Origin: seam30's deferred sub-step grader, landed in seam31 with three tier 1 tests clicking the
+crossings.*
+
+A guide sub-step with a target of its own (`addSubSteps`, at any depth) is graded as its own step
+just before its parent. A test that was never in that state has nothing to drive there: the step is
+ALTERNATIVE. A test that WAS on that side and left it by `goto_tile` for the parent's tile without
+clicking the sub-step's loc is CHEAT (`teleported_across`), and the reason names both gotos.
+
+- A ladder, stair or trapdoor sub-step is plain travel only when its trigger neither writes nor
+  reads one of the quest's vars. A quest-gated climb (`mourning_hideout_trap_door`,
+  `watchladderup`) teleported past is CHEAT. For a climb the sides are floors: a goto on the
+  ladder's floor, then a goto chain to the parent's floor with no `click_loc` between, is a
+  teleport past it.
+- A `click_loc` on the sub-step's own loc between the two gotos means the crossing was made for
+  real (under another row's name), and clears it.
+- Drive the crossing with a real row named after the sub-step: biohazard
+  `exitBackyardOfHeadquarters` (`mournerstewfence`), eadgar `leaveEadgarsCaveForThistle`
+  (`troll_mad_eadgar_exit`), mourningsendparti `enterMournerBaseAfterPoison` /
+  `enterMournerBasementAfterPoison`.
+- Known looseness: a skipped ladder is reported against every promoted sub-step that shares its
+  loc and parent, so the cited goto pair may be a sibling's. Only a PANEL step's stairs still use
+  the plain ladder rule (mourningsendparti `enterBasementAfterSheep` grades TRAVEL).

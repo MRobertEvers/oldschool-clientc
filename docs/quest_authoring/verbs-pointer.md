@@ -230,3 +230,12 @@ whose obj id is 0 (`mcannonremains`), so it cannot prove this pickup. Prove it w
 that consumes the item: the stage it advances, and `t.inv.expect_absent` after the hand-in. Do not
 write `t.check("getRemainsStep", true, ...)`. A row that always passes proves nothing, and its
 detail says `timeout`.
+
+seam31 found the cause, and it is the CLIENT, not content or the driver: obj 0 is a real id
+(`mcannonremains` is the cache's Dwarf remains; no other content obj resolves to 0). The server and
+the wire carry it correctly (`w239_inv_slot` writes obj+1; the client stores wire-1 with -1 as the
+empty sentinel), but about 25 client sites test `obj_id <= 0` / `> 0` for "empty" (uitree_emit.c,
+inv_manager.c, app_minimenu.c, rs_cs2_host.c, torirs_plugin_drive_state.c's `assert(obj_id > 0)`,
+...). Until an engine seam makes them `< 0` / `>= 0`, a setup `::give mcannonremains` reads as
+"the cheat answered ok and no mcannonremains reached the backpack", and no `t.inv.*` verb can see
+the item.
