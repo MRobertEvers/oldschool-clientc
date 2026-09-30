@@ -237,6 +237,16 @@ return {
         t.exec("wield-throwableWeapon", t.player.equip, "rune_dart")
         t.exec("wear-iceArrows", t.player.equip, "ice_arrow")
         t.exec("tryToEnterWitchRoom", t.player.click_loc, "ikov_firewarriordoor", 1)
+        -- The Fire Warrior door cut (ikov_dungeon.rs2:383-416, LostCity ikov_dungeon.rs2:183-217): the
+        -- camera moves to the corridor, looks at the door, at the warrior's smoke puff, back at the
+        -- door for the fireblast, and resets once the player is thrown back.
+        t.exec("tryToEnterWitchRoom.cutscene", t.cutscene.await, "tryToEnterWitchRoom", { expect = {
+            { op = "moveto", coord = "0_41_154_17_12", height = 1000 },
+            { op = "lookat", coord = "0_41_154_22_14", height = 50 },
+            { op = "lookat", coord = "0_41_154_22_10", height = 50 },
+            { op = "lookat", coord = "0_41_154_22_14", height = 50 },
+            { op = "reset" },
+        } })
         t.ticks(12)
         t.exec("fightLes-talkRefused", t.npc.by_symbol, "ikov_firewarrior")
         t.exec("fightLes", t.player.attack, "ikov_firewarrior", 2, 30)
@@ -271,6 +281,14 @@ return {
             "npc:Good! Good! My potion",
             "npc:Now we shows them ours magic",
         })
+        -- Winelda's teleport cut (ikov_winelda.rs2:48-63, LostCity winelda.rs2): the camera moves over the
+        -- lava, looks at the player, then at the far bank she lands on, and resets after the puff.
+        t.exec("giveWineldaLimps.cutscene", t.cutscene.await, "giveWineldaLimps", { expect = {
+            { op = "moveto", coord = "0_41_154_35_24", height = 1500 },
+            { op = "lookat", height = 50 },
+            { op = "lookat", coord = "0_41_154_40_20", height = 50 },
+            { op = "reset" },
+        } })
         t.ticks(20)
         t.expect("quest.stage.paid_winelda", t.quest.expect_stage("paid_winelda"))
         t.exec("giveWineldaLimps-limpwurtsGone", t.inv.expect_absent, "limpwurt_root")

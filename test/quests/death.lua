@@ -432,6 +432,18 @@ return {
         t.exec("goNorth-farEnough", t.chat.drain, {})
         t.ticks(2)
 
+        -- The Death Plateau warning sign (death_dangersign_trolls, m44_56.jl2 0 23 11 = 2839,3595) stands
+        -- on the main plateau path, the far side of the rocks the secret way skirts (from the legs above
+        -- it answers "I can't reach that!"). Read plays the troll-thrower cutscene (death_locs.rs2:60-81,
+        -- LostCity quest_death.rs2:138-159): cam_moveto, cam_lookat the thrower, the rock, cam_reset.
+        t.exec("goto-readDangerSign", t.player.goto_tile, 2840, 3594, 0)
+        t.exec("readDangerSign", t.player.click_loc, "death_dangersign_trolls", 1)
+        t.exec("readDangerSign.cutscene", t.cutscene.await, "readDangerSign", { expect = {
+            { op = "moveto", coord = "0_44_56_29_12", height = 1500 },
+            { op = "lookat", coord = "0_44_56_35_14", height = 300 },
+            { op = "reset" },
+        } })
+
         ---------------------------------------------------------------- 70: hand-in
         t.exec("goto-talkToDenulth3", t.player.goto_tile, 2896, 3531, 0)
         local reward_snapshot_result, reward_before = t.skill.snapshot()

@@ -39,6 +39,7 @@ topic file with one line added here.
 ## Pressing and clicking
 
 - `click_obj` op 5 answers covered/no row on a knife; picking one obj from a drop pile -> verbs-pointer: `t.player.click_obj`
+- `click_obj`: the menu shows only the table's/rock's rows (`pickset held=false`) for an item lying ON it; `hunted ... hovered +0,-64` -> verbs-pointer: `t.player.click_obj` (raised stacks, seam32)
 - `talk_to` `refused -- the client said 'I can't reach that!'` -> traps-23-33: Trap 26 (FIXED seam29)
 - `covered` -> traps-13-22: Trap 21; gaps-dialogue: `covered`: step-off and other sides
 - `none of 83 pixels hittested`, `hunted pose 1 (reach 99)` -> traps-13-22: Trap 21
@@ -105,7 +106,7 @@ topic file with one line added here.
 
 ## Items, held ops and shops
 
-- `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 (a client defect, seam31) -> verbs-pointer: `click_obj` answers `timeout`
+- `click_obj` `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 (FIXED seam32; `t.inv.slot` still names it `''`) -> verbs-pointer: `click_obj` answers `timeout`; seam-facts: Seam pass 32 (c)
 - a bucket on a sink/pump answers "Nothing interesting happens." -> gaps-world: A sink or water pump (FIXED seam29)
 - a book page, journal line or dial letter proved only by a PNG -> verbs-ui-and-npc: `t.ui.text` / `t.ui.expect_text`
 - `inv.count` reads the OLD count -> traps-23-33: Trap 24; Trap 25; gaps-dialogue: `t.settle()` does not
@@ -198,6 +199,7 @@ topic file with one line added here.
 - "You're a bit too busy" on a `--from-leg` run; a clock-stamped varp after a checkpoint -> relay: The clock: map_clock comes back
 - `checkpoint k refused: the player is in combat` long after the fight; `STALE` after a seam or pack rebuild; setup gives overflow the 28-slot backpack -> relay: Still "in combat" after the fight; Running one leg; The backpack overflows
 - a run over ~8 min killed by the shell cap; `still running: last row ...`; fail.py `IN PROGRESS` / exit 3 -> relay: Runs longer than the shell cap
+- `run stalled: no client tick for N s`; `run stalled at boot`; `timed_out` column `stall`; `has no heartbeat ... stall detector off` -> relay: Runs longer than the shell cap (seam32)
 - `not published <id> (the run did not reach t.quest.expect_complete` -> relay: Honesty
 
 ## Gate, lint, coverage and the ledger
@@ -259,8 +261,12 @@ topic file with one line added here.
 ## Content-side facts (content_bug reports, reviewers)
 
 - `COORD requires an active entity` on `.huntnext`; `the active loc is gone` after `loc_del`; `not implemented` obj_name / inv_dropitem; `cannot resolve param value ^...` -> seam-facts: Seam pass 31, (a) (FIXED)
-- a double door gone for the session after one swing (`loc_del` + `loc_add` on the same tile) -> seam-facts: Seam pass 31, (c)
-- `::setvar priestperil_mausoleum` in a setup; the golden-key gate after `::complete quest_priestinperil` -> seam-facts: Seam pass 31, (b)
+- a double door gone for the session after one swing (`loc_del` + `loc_add` on the same tile) -> seam-facts: Seam pass 31, (c) (FIXED: Seam pass 32 (e))
+- `LOC_CHANGE requires an active entity` on a `.loc_*` op; `.loc_find` changing the wrong leaf; `loc_name`/`loc_param` aborting after `loc_del` -> seam-facts: Seam pass 32 (e) (FIXED)
+- Oziach knocking `%dragon_oracle` back; a cooldown stamp misread after a server restart; `zq_rash_timer` perm -> seam-facts: Seam pass 32 (f)
+- fails under one `--name`, passes under another; druidspirit `I'm already under attack.` at killGhasts -> seam-facts: Seam pass 32 (g)
+- Zanaris Door man / market door / exit ladder missing -> gaps-world: Zanaris has no Door man (seam32)
+- `::setvar priestperil_mausoleum` in a setup; the golden-key gate after `::complete quest_priestinperil` -> seam-facts: Seam pass 31, (b) (druidspirit dropped its setvar, seam32)
 - a guide step with no content branch (guild master's map questions, one-click magic door; FIXED seam31) -> content-gaps: Dragon Slayer
 - `multinpc_shells.csv` rung labels (`0=` is multinpc1, `N+=`) -> traps-23-33: Trap 28
 - a garbled note text ("bncket of nnilk") that is the real game's -> seam-facts: Seam pass 29 (f)
@@ -297,7 +303,8 @@ topic file with one line added here.
 - "a hunted press", "use_on's backpack tab press" -> traps-13-22: Trap 21; gaps-world: `t.player.use_on` waits
 - "the budget note" -> gaps-combat: A run has about
 - "rule (b)", owner rules (a)-(e) of 2026-09-23 -> `tools/quest_gate/author_batch.workflow.js`; here traps 16 and 32
-- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-29); a seam number in a verb or trap dates that behaviour
+- "seam pass N (x)" -> seam-facts (passes 8, 16-18, 21-32); a seam number in a verb or trap dates that behaviour
 - samplers: b31, b32, b34, b35 -> sampler-findings; b12, b17 -> Trap 21; b13, b27 -> Trap 12; b16 -> gaps-world: `coordz`; b27, b28 -> Trap 32; b29 -> Trap 17; b33 -> Trap 4
 - `docs/QUEST_AUTHORING.md:161` (pre-split line: `goto_tile` is a `::goto`) -> verbs-pointer: `t.player.goto_tile`
-- a quest whose content scripts `cam_moveto`/`cam_lookat` (`python3 tools/quest_gate/cutscene_sweep.py`) must drive its cutscene; a port that dropped one reads DROPPED, a wiki quest is decided by a row in docs/quests/CUTSCENES.tsv -> the cutscene verb lands in seam32 (verbs-cutscene.md); until then the fade-overlay recipe in verbs-ui-and-npc.md
+- `the dialogue closed after N page(s)` right after a cutscene; a page a cutscene ends in -> verbs-cutscene: A cutscene between two dialogue pages
+- `cutscene_row_required`; `cutscene:` rows; `no_cutscene`/`unfinished`; `expected keyframe #N ... not found`; `checkpoint k NOT written: the camera is server-driven`; a quest whose content scripts `cam_moveto`/`cam_lookat` (`cutscene_sweep.py`, DROPPED/PARTIAL fail `check-quest-cutscenes`) -> verbs-cutscene (`t.cutscene.await`, `t.world.camera`); a fade with no camera op -> verbs-ui-and-npc: Fade overlays

@@ -2038,7 +2038,7 @@ CacheProvider_ObjtypeGet(
             objtype->stackable = 1;
             changed = true;
         }
-        if( objtype_name_is_unset(objtype->name) && objtype->cert_link > 0 )
+        if( objtype_name_is_unset(objtype->name) && objtype->cert_link >= 0 )
         {
             struct MapEntry_ProviderObjtype* link_entry =
                 (struct MapEntry_ProviderObjtype*)hmap_search(
@@ -2081,7 +2081,7 @@ CacheProvider_ObjtypeGet(
      * draws no number.
      */
     if( objtype && objtype->placeholder_template >= 0 &&
-        objtype_name_is_unset(objtype->name) && objtype->placeholder_link > 0 )
+        objtype_name_is_unset(objtype->name) && objtype->placeholder_link >= 0 )
     {
         struct MapEntry_ProviderObjtype* link_entry =
             (struct MapEntry_ProviderObjtype*)hmap_search(

@@ -120,3 +120,35 @@ function QD.world.level()
     end
     return "ok", tile.level
 end
+
+-- t.world.camera() -> a BARE TABLE (like t.chat.kind's bare string), never a
+-- (result, detail) pair -- the interface the cutscene gate is written against
+-- (seam32 cutscene_verb_and_camera_read):
+--
+--   { x, z, level,          the eye's WORLD tile and the player's level
+--     yaw, pitch, zoom,     the angles the frame is drawn with
+--     server_driven,        true while a CAM_MOVETO/CAM_LOOKAT holds the camera
+--                           (no CAM_RESET, no scene rebuild since)
+--     serial,               every camera packet this session, counted
+--     last_op,              "moveto" | "lookat" | "shake" | "reset" | nil
+--     last_target = {x, z, height, op} }   the newest moveto/lookat target
+--
+-- Every coordinate is a world tile: the packet handler resolved the
+-- scene-local split (rs_gameproto_exec.c exec_cam_script_record) when the
+-- packet arrived. Record it with t.check, writing the reading into the
+-- detail: `local cam = t.world.camera(); t.check("x", not cam.server_driven,
+-- t.cutscene.describe_camera(cam))`.
+--
+-- A binary built before the verb answers nil and "unsupported: ..." -- the
+-- one non-table answer, so a caller can tell an old binary from a camera.
+
+function QD.world.camera()
+    if api_drive.camera_state == nil then
+        return nil, "unsupported: no api.drive.camera_state in this binary (seam32)"
+    end
+    local result, cam = api_drive.camera_state()
+    if result ~= "ok" then
+        return nil, result
+    end
+    return cam
+end

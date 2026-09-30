@@ -101,6 +101,10 @@ static char const* const DRIVE_SCRIPT_PARTS[] = {
     /* After combat.lua: t.player.cast stamps QD._combat_last, the record
      * npc.await_dead_engaged holds (seam cast_spell_on_npc, 2026-09-27). */
     "plugins/quest_driver/spell.lua",
+    /* Last: t.cutscene wraps QD.core_row_begin (core.lua) to remember the
+     * camera serial each t.exec row began at, and reads QD.shot (ui.lua)
+     * (seam32 cutscene_verb_and_camera_read). */
+    "plugins/quest_driver/cutscene.lua",
 };
 
 /* The manifest identity, not a file name: the loader asks by plugin name so a
@@ -901,6 +905,67 @@ lua_drive_await(struct lua_State* L)
     return lua_yield(L, 0);
 }
 
+/* ---------------------------------------------------------------- heartbeat
+ *
+ * seam32 stall_detector_heartbeat. The one defence run.py had against a
+ * client that stops ticking was its wall-clock ceiling (400 s, scaled by
+ * max_frames up to 1600 s for legends), so a frozen frame loop held an agent's
+ * shell for that long. Every DRIVE_HEARTBEAT_TICKS server ticks this rewrites
+ * <session>/heartbeat (TORIRS_CONTENT_TEST) with the tick it was written at;
+ * run.py (launch_client) kills the process group once the file's mtime is
+ * older than TORIRS_QUEST_STALL_SECONDS. It beats from the per-frame pump, so
+ * it stops exactly when the frame loop or the server tick stops -- a hung
+ * predicate, a C spin, a clock that no longer advances -- and never during a
+ * long await, whose ticks keep coming.
+ *
+ * Written with fopen/fprintf rather than utime(): this file builds on every
+ * desktop platform, and the content (the tick) lets run.py name where the
+ * run stopped. The "quest-driver: heartbeat" stderr line is printed once, at
+ * the first beat; run.py also looks for that string in the binary to know a
+ * build writes heartbeats at all (an older binary never does, and must not
+ * be killed at the end of the boot grace for it). */
+#define DRIVE_HEARTBEAT_TICKS 25
+#define DRIVE_HEARTBEAT_FILE "heartbeat"
+
+static int g_heartbeat_tick = -1;
+
+static void
+drive_heartbeat(void)
+{
+    char const* dir = DriveCore_SessionDir();
+    char path[1024];
+    FILE* f;
+    int tick;
+
+    if( !dir || !PluginDrive_QuestScriptPath() || g_finished )
+        return;
+    if( !g_app || !g_app->world )
+        return;
+    tick = (int)(g_app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES);
+    /* A relog re-boots the world and its cycle restarts: a tick below the
+     * last beat is a new clock, not a stall, and beats at once. */
+    if( g_heartbeat_tick >= 0 && tick >= g_heartbeat_tick &&
+        tick < g_heartbeat_tick + DRIVE_HEARTBEAT_TICKS )
+        return;
+    snprintf(path, sizeof(path), "%s/%s", dir, DRIVE_HEARTBEAT_FILE);
+    f = fopen(path, "wb");
+    /* Not an assert: the session directory is run.py's, and a heartbeat that
+     * cannot be written is reported by run.py as a stall with the file's
+     * absence named -- the frame loop itself is fine. */
+    if( !f )
+    {
+        fprintf(stderr, "quest-driver: heartbeat NOT written to %s\n", path);
+        g_heartbeat_tick = tick;
+        return;
+    }
+    fprintf(f, "tick=%d\n", tick);
+    fclose(f);
+    if( g_heartbeat_tick < 0 )
+        fprintf(stderr, "quest-driver: heartbeat %s every %d server ticks (first at tick %d)\n",
+            path, DRIVE_HEARTBEAT_TICKS, tick);
+    g_heartbeat_tick = tick;
+}
+
 static int
 lua_drive_pump(struct lua_State* L)
 {
@@ -919,6 +984,8 @@ lua_drive_pump(struct lua_State* L)
         g_started = 1;
         drive_scheduler_start();
     }
+    if( g_started )
+        drive_heartbeat();
     drive_pump_once();
     return 0;
 }
@@ -1146,6 +1213,7 @@ PluginDrive_Shutdown(void)
     g_app = NULL;
     g_embed = NULL;
     g_started = 0;
+    g_heartbeat_tick = -1;
 }
 
 #else /* !TORIRS_EMBED_SERVER */

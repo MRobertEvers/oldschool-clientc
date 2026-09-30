@@ -7027,6 +7027,15 @@ ToriRSServer_ScriptLocResolve(
     struct ToriRSServer* srv,
     void* handle_ptr);
 
+/*
+ * The op's active loc (primary or secondary by its `.` operand) for a READ:
+ * the live loc, else the one this handle's `loc_del` removed while the handle
+ * still names it -- LostCity leaves `state.activeLoc` after `World.removeLoc`.
+ * NULL when neither. Writes resolve through ToriRSServer_ScriptLocResolve.
+ */
+const struct ToriRSServerSceneLoc*
+ToriRSServer_ScriptLocReadable(struct SSVM_State* state);
+
 /** A handle for the ZoneMap record at this key, for SSVM_SetActive. */
 void*
 ToriRSServer_ScriptZoneLocHandle(

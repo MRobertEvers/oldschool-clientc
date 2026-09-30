@@ -136,7 +136,8 @@ python3 tools/quest_gate/run.py <quest> --no-build --detach; python3 tools/quest
 
 Artefacts: `build/quest_gate/<quest>/` (`ledger.tsv`, `shots/`, `client.log`), replaced every run. A
 non-green run prints a `---- failures ----` block -- start there, then read the WHOLE ledger (a FAIL
-does not stop the run). Resuming: if the file exists and the row is `todo` with a `last_failure`,
+does not stop the run). A client that stops ticking is killed after about 90 s with `run.unfinished`
+`run stalled: no client tick for N s` (relay.md, "Runs longer than the shell cap"). Resuming: if the file exists and the row is `todo` with a `last_failure`,
 continue from it; never regenerate over it. Detail: `docs/quest_authoring/running.md`.
 
 ## The verb table
@@ -223,6 +224,11 @@ banners: the topic file named in each group heading.
 - `t.world.tile()` / `level()`; `t.world.loc_near(sym, r)` / `obj_near(sym, r)` -> `(ok, {...}) not_found`.
 - `t.drive.screen_position(target)`, `t.drive.click_minimenu(target, option)`, `t.drive.camera(yaw, pitch, zoom)`.
 - `t.drive.op(target, option)` -> the logged bypass, never the default and never evidence of reach.
+
+### Cutscenes -- `verbs-cutscene.md`
+
+- `t.cutscene.await(name, {expect=, timeout=100, quiet=30, shots=})` -> `ok no_cutscene unfinished not_found`; the row right after the one that starts it, named `<step>.cutscene`. Detail `cutscene: <n> keyframes, ... reset=yes -- #1 t=.. moveto x,z ...`; `expect` entries (`{op="moveto", coord="0_38_154_44_13", height=2000}`, copied from the `.rs2`) must appear in order. A quest whose content calls `cam_moveto`/`cam_lookat` is RED under `gate.py` (`cutscene_row_required`) until its rows cover every site.
+- `t.world.camera()` -> a bare table `{x, z, level, yaw, pitch, zoom, server_driven, serial, last_op, last_target}`; `t.cutscene.mark()` -> the serial, for `opts.since`.
 
 ### Sea and session -- `verbs-sail-session.md`
 

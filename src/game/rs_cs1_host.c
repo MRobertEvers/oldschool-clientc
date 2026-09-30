@@ -153,8 +153,9 @@ rs_cs1_exec_inv(
     if( container_id < 0 )
         return CS1VM_EXECNO_OK;
 
-    /* Containers store real obj ids (0 = empty slot), so the script's obj id is
-     * compared as-is — no +1 offset like the reference client's linkObjType. */
+    /* Containers store real obj ids (INV_MANAGER_EMPTY_OBJ_ID, -1, = empty
+     * slot; obj 0 is a real item), so the script's obj id is compared as-is —
+     * no +1 offset like the reference client's linkObjType. */
     int total = InvManager_Total(host->invs, container_id, obj_id);
 
     if( request->kind == CS1VM_HOST_REQUEST_INV_CONTAINS )

@@ -721,7 +721,7 @@ collect_nodes_recursive(
          * rev-230 worn tab puts "Remove" on the slot LAYER, not on the item
          * child — so every other test here calls it pass-through chrome and
          * drops it, and the equipment slots become unclickable. */
-        bool const has_obj = component->item_id > 0;
+        bool const has_obj = component->item_id >= 0; /* obj 0 is an item */
         event.menu = inv_grid || has_ops || has_obj || !COLLECT_PASSTHROUGH();
         if( event.menu && !ctx->events && ctx->count < ctx->max )
             ctx->out[ctx->count++] = node_index;

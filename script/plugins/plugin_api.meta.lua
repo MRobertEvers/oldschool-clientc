@@ -1006,6 +1006,8 @@ except the plain readers marked as returning a value.
 ---@field move_near fun(kind: string, id: integer): string, string Re-issued every tick while pending: the target can walk.
 ---@field camera fun(yaw: integer, pitch: integer, zoom: integer): string, string
 ---@field camera_pose fun(): string, table The live follow-camera pose {yaw, pitch, zoom, owned}: what DrivePointer_Camera writes, read back as it IS. owned is false while a CAM_* script or the debug unlock holds the eye. QD.shot reads it to put the press pose back after an aimed photograph.
+---@field camera_state fun(): string, table The camera READ side (seam32): {x, z, level, yaw, pitch, zoom, server_driven, serial, last_op, last_target = {x, z, height, op}}; x/z the eye's world tile, server_driven while a CAM_MOVETO/LOOKAT holds it, serial counts every CAM_* packet. Backs t.world.camera().
+---@field camera_events fun(since: integer): string, table, integer Every CAM_* packet with serial > since, oldest first ({serial, op, tick, x, z, height, speed, speed2}; a shake carries axis, amplitude, speed), and the oldest serial the 64-deep ring still holds. Backs t.cutscene.await.
 ---@field player_idle fun(): string, boolean route_length 0 AND the map flag cleared; they settle a tick apart.
 --- verbs-ui
 ---@field group_present fun(interface_id: integer): string, boolean Mount liveness, both lanes.

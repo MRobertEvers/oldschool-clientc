@@ -464,13 +464,29 @@ drive_pointer_screen_position_obj(struct App* app, int id, int* out_x, int* out_
         if( same_level_exists && stack->grid_position.level != player_level )
             continue;
         /* stack->draw_position, never a tile centre -- the corrected reading
-         * in docs/QUEST_DRIVER_PLAN.md S0 ("pointer"). */
+         * in docs/QUEST_DRIVER_PLAN.md S0 ("pointer").
+         *
+         * And at the height the stack is DRAWN at, never the ground: a stack
+         * on a raiseobject loc's tile (every blocking centrepiece -- a table,
+         * Legends' carved rock; rscache defaults raiseobject to blocks_walk)
+         * is lifted onto the loc by World_ObjRaiseGet (app_world_rebuild.c,
+         * App_WorldObjStackAdd: world_y = height - raise). Projected at the
+         * ground, the pixel lands on the loc's body under the item and the
+         * menu there offers only the loc's rows (seam32
+         * ground_obj_on_a_centrepiece_tile: the placed sapphire at
+         * 2781,9291 was pressed at 382,268 with the gem drawn above it; the
+         * 8-tick gem was gone before the hunt found it). Zero on flat
+         * ground, so every other stack projects exactly as before. */
         if( !drive_pointer_project_ground(
                 app,
                 (int)stack->draw_position.x,
                 (int)stack->draw_position.z,
                 stack->grid_position.level,
-                0,
+                World_ObjRaiseGet(
+                    app->world,
+                    stack->grid_position.x,
+                    stack->grid_position.z,
+                    stack->grid_position.level),
                 &x,
                 &y) )
             continue;
@@ -2100,6 +2116,175 @@ lua_drive_camera_pose(struct lua_State* L)
     return 2;
 }
 
+/* ------------------------------------------------------ the camera READ side
+ *
+ * seam32 cutscene_verb_and_camera_read: no test could read the camera, so a
+ * quest whose cutscene set its stage and moved nothing passed every row. The
+ * packet handlers in rs_gameproto_exec.c stamp every CAM_* packet into
+ * app->cam_script (struct App_CamScript: `serial` + the `events` ring, world
+ * tiles); these two verbs hand them to quest_driver/world.lua
+ * (t.world.camera) and quest_driver/cutscene.lua (t.cutscene.await). */
+
+static char const*
+drive_camera_op_name(int op)
+{
+    switch( op )
+    {
+    case APP_CAM_SCRIPT_OP_MOVETO:
+        return "moveto";
+    case APP_CAM_SCRIPT_OP_LOOKAT:
+        return "lookat";
+    case APP_CAM_SCRIPT_OP_SHAKE:
+        return "shake";
+    case APP_CAM_SCRIPT_OP_RESET:
+        return "reset";
+    default:
+        return NULL;
+    }
+}
+
+static void
+drive_camera_push_event(struct lua_State* L, struct App_CamScriptEvent const* event)
+{
+    assert(L);
+    assert(event);
+    lua_newtable(L);
+    lua_pushinteger(L, event->serial);
+    lua_setfield(L, -2, "serial");
+    lua_pushstring(L, drive_camera_op_name(event->op));
+    lua_setfield(L, -2, "op");
+    lua_pushinteger(L, event->tick);
+    lua_setfield(L, -2, "tick");
+    if( event->op == APP_CAM_SCRIPT_OP_MOVETO || event->op == APP_CAM_SCRIPT_OP_LOOKAT )
+    {
+        lua_pushinteger(L, event->world_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, event->world_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "height");
+        lua_pushinteger(L, event->rate);
+        lua_setfield(L, -2, "speed");
+        lua_pushinteger(L, event->rate2);
+        lua_setfield(L, -2, "speed2");
+    }
+    else if( event->op == APP_CAM_SCRIPT_OP_SHAKE )
+    {
+        lua_pushinteger(L, event->rate);
+        lua_setfield(L, -2, "axis");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "amplitude");
+        lua_pushinteger(L, event->rate2);
+        lua_setfield(L, -2, "speed");
+    }
+}
+
+/* api.drive.camera_state() -> ("ok", {x, z, level, yaw, pitch, zoom,
+ * server_driven, serial, last_op, last_target = {x, z, height}}).
+ *
+ * x/z are the EYE's world tile (the scene-local eye plus the scene base);
+ * yaw/pitch are the angles the frame is drawn with, scripted or not.
+ * server_driven is cam_script.scripted: a MOVETO/LOOKAT arrived and neither a
+ * CAM_RESET nor a scene rebuild (app_world_rebuild.c clears it) has ended it.
+ * last_target is the newest MOVETO/LOOKAT still in the ring, nil if none. */
+static int
+lua_drive_camera_state(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct App_CamScript const* cam;
+    int base_x = 0, base_z = 0;
+    int tile_x = 0, tile_z = 0, level = 0;
+
+    assert(app);
+    cam = &app->cam_script;
+    if( app->world )
+    {
+        base_x = app->world->_base_tile_x;
+        base_z = app->world->_base_tile_z;
+    }
+    if( DriveUi_PlayerTile(app, &tile_x, &tile_z, &level) != DRIVE_OK )
+        level = 0;
+
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_newtable(L);
+    lua_pushinteger(L, (app->world_camera_pos.x >> 7) + base_x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, (app->world_camera_pos.z >> 7) + base_z);
+    lua_setfield(L, -2, "z");
+    lua_pushinteger(L, level);
+    lua_setfield(L, -2, "level");
+    lua_pushinteger(L, app->world_camera.yaw & 2047);
+    lua_setfield(L, -2, "yaw");
+    lua_pushinteger(L, app->world_camera.pitch);
+    lua_setfield(L, -2, "pitch");
+    lua_pushinteger(L, app->world_cam_zoom);
+    lua_setfield(L, -2, "zoom");
+    lua_pushboolean(L, cam->scripted != 0);
+    lua_setfield(L, -2, "server_driven");
+    lua_pushinteger(L, cam->serial);
+    lua_setfield(L, -2, "serial");
+    if( cam->serial > 0 )
+    {
+        struct App_CamScriptEvent const* newest = &cam->events[cam->serial % APP_CAM_SCRIPT_EVENTS];
+        lua_pushstring(L, drive_camera_op_name(newest->op));
+        lua_setfield(L, -2, "last_op");
+    }
+    /* The newest framing packet still held in the ring: a shake or a reset
+     * after it does not erase where the shot was last aimed. */
+    for( int serial = cam->serial;
+         serial > 0 && serial > cam->serial - APP_CAM_SCRIPT_EVENTS;
+         serial-- )
+    {
+        struct App_CamScriptEvent const* event = &cam->events[serial % APP_CAM_SCRIPT_EVENTS];
+        if( event->op != APP_CAM_SCRIPT_OP_MOVETO && event->op != APP_CAM_SCRIPT_OP_LOOKAT )
+            continue;
+        lua_newtable(L);
+        lua_pushinteger(L, event->world_x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, event->world_z);
+        lua_setfield(L, -2, "z");
+        lua_pushinteger(L, event->height);
+        lua_setfield(L, -2, "height");
+        lua_pushstring(L, drive_camera_op_name(event->op));
+        lua_setfield(L, -2, "op");
+        lua_setfield(L, -2, "last_target");
+        break;
+    }
+    return 2;
+}
+
+/* api.drive.camera_events(since) -> ("ok", {event...}, oldest).
+ *
+ * Every camera packet with serial > `since`, oldest first, each
+ * {serial, op, tick, x, z, height, speed, speed2} (a shake carries axis,
+ * amplitude, speed instead of a tile). `oldest` is the lowest serial the ring
+ * still holds: a caller whose `since` is below oldest - 1 has lost packets
+ * and must say so rather than read a gap as silence. */
+static int
+lua_drive_camera_events(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct App_CamScript const* cam;
+    int since = PluginDrive_ArgInt(L, 1);
+    int oldest;
+    int index = 1;
+
+    assert(app);
+    cam = &app->cam_script;
+    oldest = cam->serial - APP_CAM_SCRIPT_EVENTS + 1;
+    if( oldest < 1 )
+        oldest = 1;
+    lua_pushstring(L, DriveResultName(DRIVE_OK));
+    lua_newtable(L);
+    for( int serial = since + 1 > oldest ? since + 1 : oldest; serial <= cam->serial; serial++ )
+    {
+        drive_camera_push_event(L, &cam->events[serial % APP_CAM_SCRIPT_EVENTS]);
+        lua_rawseti(L, -2, index++);
+    }
+    lua_pushinteger(L, oldest);
+    return 3;
+}
+
 static int
 lua_drive_player_idle(struct lua_State* L)
 {
@@ -2137,6 +2322,8 @@ static struct LuaFn const LUA_DRIVE_POINTER_FNS[] = {
     {"move_near", lua_drive_move_near},
     {"camera", lua_drive_camera},
     {"camera_pose", lua_drive_camera_pose},
+    {"camera_state", lua_drive_camera_state},
+    {"camera_events", lua_drive_camera_events},
     {"player_idle", lua_drive_player_idle},
     {NULL, NULL},
 };

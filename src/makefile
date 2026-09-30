@@ -4042,6 +4042,17 @@ check-revconfig-roles:
 check-drive-abi:
 	python3 $(REPO_ROOT)/tools/quest_gate/check_drive_abi.py
 
+# A quest port that dropped a LostCity camera cutscene (DROPPED: LostCity
+# frames the camera, the port never does; PARTIAL: fewer moveto/lookat ops)
+# fails here -- the guide never asks for a cutscene, so no quest test would
+# notice (Fight Arena's ogre pen, 2026-09-30). WIKI_MISSING never fails it:
+# the post-LostCity quests are the wiki backlog specced in docs/quests/
+# cutscenes/, not a port that lost something. gate.py's cutscene_row_required
+# is the other half: a quest whose content frames the camera must assert it.
+.PHONY: check-quest-cutscenes
+check-quest-cutscenes:
+	python3 $(REPO_ROOT)/tools/quest_gate/cutscene_sweep.py --repo $(REPO_ROOT) --only-open --fail-on-dropped
+
 # The quest gate: static lint first (cheap, no client boot needed to catch a
 # numeric id, a self-completing setup cheat, a pinned "PASS", a duplicate
 # t.do name or an unknown content symbol), then one private-session client

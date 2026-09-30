@@ -165,7 +165,7 @@ test_apply_full_partial(void)
     int const src = InvManager_ResolveSource(&mgr, INV_MANAGER_SOURCE_NAME_BACKPACK);
     (void)src;
 
-    int ids[4] = { 1, 2, 0, 4 };
+    int ids[4] = { 1, 2, INV_MANAGER_EMPTY_OBJ_ID, 4 };
     int counts[4] = { 1, 5, 0, 2 };
     TEST_ASSERT(
         InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BACKPACK, ids, counts, 4),
@@ -184,7 +184,7 @@ test_apply_full_partial(void)
         "slot5 cleared");
 
     int slots[2] = { 2, 5 };
-    int pids[2] = { 99, 0 };
+    int pids[2] = { 99, INV_MANAGER_EMPTY_OBJ_ID };
     int pcounts[2] = { 3, 0 };
     TEST_ASSERT(
         InvManager_ApplyPartial(
@@ -240,9 +240,10 @@ test_has_unbaked_icon(void)
     TEST_ASSERT(!InvManager_HasUnbakedIcon(&mgr), "a baked item still wants an icon");
 
     /* An EMPTY slot has no icon to bake, and must not keep the reconcile
-     * running forever -- obj_id 0 with no scene id is every unused slot in
-     * every container, so reading it as "wants an icon" never terminates. */
-    empty.obj_id = 0;
+     * running forever -- the empty sentinel with no scene id is every unused
+     * slot in every container, so reading it as "wants an icon" never
+     * terminates. */
+    empty.obj_id = INV_MANAGER_EMPTY_OBJ_ID;
     empty.obj_count = 0;
     empty.scene_id = INV_MANAGER_NO_SCENE_ID;
     InvManager_SetSlot(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 1, &empty);
@@ -269,7 +270,7 @@ test_total_and_size(void)
 
     InvManager_ResolveSource(&mgr, INV_MANAGER_SOURCE_NAME_BACKPACK);
 
-    int ids[5] = { 4151, 4151, 0, 4151, 100 };
+    int ids[5] = { 4151, 4151, INV_MANAGER_EMPTY_OBJ_ID, 4151, 100 };
     int counts[5] = { 1, 2, 0, 3, 10 };
     InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BACKPACK, ids, counts, 5);
 
@@ -428,7 +429,7 @@ test_container_grows_past_first_capacity(void)
 
     /* A later, shorter FULL still clears its tail — that is the server saying
      * those slots are empty, not that the container shrank. */
-    int const ids[3] = { 995, 0, 0 };
+    int const ids[3] = { 995, INV_MANAGER_EMPTY_OBJ_ID, INV_MANAGER_EMPTY_OBJ_ID };
     int const counts[3] = { 12, 0, 0 };
     TEST_ASSERT(InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BACKPACK, ids, counts, 3),
                 "short full applied");
@@ -457,6 +458,54 @@ test_container_grows_past_first_capacity(void)
     InvManager_Free(&mgr);
 }
 
+/* Obj id 0 is a real item (Dwarf remains, `0=mcannonremains`), not an empty
+ * slot: the wire's empty is 0, which every parser decodes as -1. A container
+ * that treated 0 as empty showed the item as a blank cell and never counted
+ * it, while the server held it. */
+static void
+test_obj_id_zero_is_an_item(void)
+{
+    printf("TEST: obj id 0 is an item\n");
+
+    struct InvManager mgr;
+    InvManager_Init(&mgr);
+    int const src = InvManager_ResolveSource(&mgr, INV_MANAGER_SOURCE_NAME_BACKPACK);
+
+    int ids[3] = { 0, INV_MANAGER_EMPTY_OBJ_ID, 1 };
+    int counts[3] = { 1, 0, 1 };
+    TEST_ASSERT(
+        InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BACKPACK, ids, counts, 3),
+        "apply full with obj 0");
+    TEST_ASSERT(InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0) == 0, "slot0 holds obj 0");
+    TEST_ASSERT(InvManager_GetNum(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0) == 1, "slot0 count");
+    TEST_ASSERT(
+        InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 1) == INV_MANAGER_EMPTY_OBJ_ID,
+        "slot1 empty");
+    TEST_ASSERT(InvManager_Total(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0) == 1, "obj 0 counted");
+    TEST_ASSERT(InvManager_HasUnbakedIcon(&mgr), "obj 0 wants an icon");
+
+    int slots[1] = { 5 };
+    int pids[1] = { 0 };
+    int pcounts[1] = { 1 };
+    TEST_ASSERT(
+        InvManager_ApplyPartial(&mgr, INV_MANAGER_CONTAINER_BACKPACK, slots, pids, pcounts, 1),
+        "partial with obj 0");
+    TEST_ASSERT(InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 5) == 0, "partial obj 0 lands");
+    TEST_ASSERT(InvManager_Total(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 0) == 2, "both obj 0 counted");
+
+    struct InvSlot zero = { .obj_id = 0, .obj_count = 1, .scene_id = -1, .atlas_index = 0 };
+    TEST_ASSERT(InvManager_SetSlot(&mgr, src, 40, &zero), "obj 0 past the end widens");
+    TEST_ASSERT(InvManager_GetObj(&mgr, INV_MANAGER_CONTAINER_BACKPACK, 40) == 0, "slot 40 obj 0");
+
+    InvManager_SelectionSet(&mgr, src, 0);
+    TEST_ASSERT(
+        InvManager_ApplyFull(&mgr, INV_MANAGER_CONTAINER_BACKPACK, ids, counts, 3),
+        "re-apply");
+    TEST_ASSERT(InvManager_SelectionIsSet(&mgr), "a selection on obj 0 survives");
+
+    InvManager_Free(&mgr);
+}
+
 int
 main(void)
 {
@@ -466,6 +515,7 @@ main(void)
     test_set_get_clear_slot();
     test_apply_full_partial();
     test_total_and_size();
+    test_obj_id_zero_is_an_item();
     test_has_unbaked_icon();
     test_change_callback();
     test_selection();

@@ -27,10 +27,18 @@ docs/quests/CUTSCENES.tsv columns: test_id, source (a wiki or Quest
 Helper URL or file:line), has_cutscene (yes/no), where (the step or
 dialogue that starts it), ported (yes/no), note. One row per quest.
 
-gate.py's cutscene rule reads `quests_with_cutscene(repo)`: a quest whose
-OWN scripts carry cam_moveto/cam_lookat must drive at least one cutscene
-row. Usage: cutscene_sweep.py [--repo .] [--lostcity PATH] [--tsv OUT]
-[--only-open] -- prints the table, exit 0.
+gate.py's cutscene rule (cutscene_row_required) reads
+`quests_with_cutscene(repo)`: a quest whose OWN scripts carry
+cam_moveto/cam_lookat must drive at least one PASS `cutscene:` row, and
+`cutscene_sites(repo)` -- one entry per cam_moveto/cam_lookat call, a SITE
+being one script file:line -- is what the union of its keyframes must cover.
+
+Usage: cutscene_sweep.py [--repo .] [--lostcity PATH] [--tsv OUT]
+[--only-open] [--fail-on-dropped] -- prints the table; exit 0, or with
+--fail-on-dropped exit 1 when any quest is DROPPED or PARTIAL (`make -C src
+check-quest-cutscenes`). WIKI_MISSING never fails it: that is the backlog of
+post-LostCity quests being specced from the wiki in a separate session
+(docs/quests/cutscenes/), not a port that lost something it had.
 """
 import argparse
 import csv
@@ -39,6 +47,11 @@ import re
 import sys
 
 CAM_OP = re.compile(r"\bcam_(moveto|lookat|shake|reset|coord)\b")
+# A framing call and its first argument (the coord): `cam_moveto(0_38_154_44_13, ...`
+# or `cam_lookat(movecoord(coord, -1, 0, -1), ...` -- the argument runs to the
+# first comma at paren depth 0 (framing_first_arg).
+FRAMING_CALL = re.compile(r"\bcam_(moveto|lookat)\s*\(")
+COORD_LITERAL = re.compile(r"^\s*(\d+)_(\d+)_(\d+)_(\d+)_(\d+)\s*$")
 FRAMING_OPS = ("moveto", "lookat")
 DEFAULT_LOSTCITY = os.path.expanduser("~/Documents/git_repos/LostCity_Content2")
 
@@ -82,6 +95,73 @@ def quests_with_cutscene(repo):
         counts, files = count_cam_ops(our_dir)
         if framing(counts):
             out[row["test_id"]] = files
+    return out
+
+
+def framing_first_arg(text, start):
+    """The first argument of the call whose '(' ends at `start`."""
+    depth = 0
+    for i in range(start, len(text)):
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            if depth == 0:
+                return text[start:i].strip()
+            depth -= 1
+        elif ch == "," and depth == 0:
+            return text[start:i].strip()
+    return text[start:].strip()
+
+
+def coord_tile(literal):
+    """`level_mx_mz_lx_lz` -> (x, z, level) world tile, or None for an
+    expression (`coord`, `movecoord(...)`, `$c`)."""
+    m = COORD_LITERAL.match(literal or "")
+    if not m:
+        return None
+    level, mx, mz, lx, lz = (int(g) for g in m.groups())
+    return (mx * 64 + lx, mz * 64 + lz, level)
+
+
+def framing_sites(quest_dir):
+    """[{file, line, op, arg, tile}] for every cam_moveto/cam_lookat call
+    under quest_dir (comments stripped like count_cam_ops). `file` is
+    relative to quest_dir; `tile` is (x, z, level) when the coord is a
+    literal, else None -- the gate then accepts any keyframe of that op."""
+    assert quest_dir
+    sites = []
+    for root, _dirs, names in os.walk(quest_dir):
+        for name in sorted(names):
+            if not name.endswith(".rs2"):
+                continue
+            path = os.path.join(root, name)
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                lines = [line.split("//", 1)[0] for line in fh]
+            for number, line in enumerate(lines, 1):
+                for m in FRAMING_CALL.finditer(line):
+                    arg = framing_first_arg(line, m.end())
+                    sites.append({
+                        "file": os.path.relpath(path, quest_dir), "line": number,
+                        "op": m.group(1), "arg": arg, "tile": coord_tile(arg),
+                    })
+    sites.sort(key=lambda s: (s["file"], s["line"]))
+    return sites
+
+
+def cutscene_sites(repo):
+    """test_id -> framing_sites(...) for every quest quests_with_cutscene
+    names, with `file` spelled from the repo root so a gate message is a
+    path a reader can open."""
+    assert repo
+    out = {}
+    queue = {row["test_id"]: row for row in read_queue(repo)}
+    for test_id in quests_with_cutscene(repo):
+        rel = os.path.join("OSRS-Content/osrs239-content/server/scripts/quests", queue[test_id]["quest_dir"])
+        sites = framing_sites(os.path.join(repo, rel))
+        for site in sites:
+            site["file"] = os.path.join(rel, site["file"])
+        out[test_id] = sites
     return out
 
 
@@ -156,6 +236,8 @@ def main():
     ap.add_argument("--lostcity", default=DEFAULT_LOSTCITY)
     ap.add_argument("--tsv", help="write the full table here")
     ap.add_argument("--only-open", action="store_true", help="print only DROPPED/PARTIAL/WIKI_MISSING rows")
+    ap.add_argument("--fail-on-dropped", action="store_true",
+                    help="exit 1 when any quest is DROPPED or PARTIAL (WIKI_MISSING never fails)")
     args = ap.parse_args()
     assert os.path.isdir(os.path.join(args.lostcity, "scripts/quests")), args.lostcity
     rows = sweep(args.repo, args.lostcity)
@@ -175,6 +257,17 @@ def main():
     for r in rows:
         tally[r["verdict"]] = tally.get(r["verdict"], 0) + 1
     print("verdicts:", " ".join(f"{k}={v}" for k, v in sorted(tally.items())))
+    if args.fail_on_dropped:
+        lost = [r for r in rows if r["verdict"] in ("DROPPED", "PARTIAL")]
+        for r in lost:
+            print("cutscene_sweep: %s %s -- LostCity frames the camera %s time(s) (%s), the port %s"
+                  % (r["verdict"], r["test_id"], r["lostcity_framing_ops"], r["lostcity_files"],
+                     r["ours_framing_ops"]), file=sys.stderr)
+        if lost:
+            print("cutscene_sweep: FAIL -- %d quest(s) dropped a LostCity cutscene" % len(lost), file=sys.stderr)
+            return 1
+        print("cutscene_sweep: PASS -- no quest dropped a LostCity cutscene "
+              "(WIKI_MISSING is the wiki backlog, not counted)")
     return 0
 
 

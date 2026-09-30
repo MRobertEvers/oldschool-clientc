@@ -220,7 +220,21 @@ ground objs is fine: each obj is its own element with its own Take row, picked b
 and so is an obj on a table tile that also holds a loc (Carnillean kitchen knife and bread,
 s29lava_hazeel).
 
-#### `click_obj` answers `timeout` on a pickup that landed; `expect_has` misses an obj with id 0
+An obj lying ON a table or another blocking centrepiece (Legends' carved rock) is drawn RAISED onto
+the loc: `raiseobject` defaults to `blocks_walk`, and the client lifts the stack by
+`World_ObjRaiseGet`. Since seam32 the driver projects the stack at that drawn height, so
+`click_obj` presses the item on the first pose (the Lumbridge table: 30 ticks and a pixel hunt
+before, 2 ticks after; the 8-tick placed sapphire on the carved rock is now taken). A detail that
+says `pickset held=false ... menu has no row for it` with only the loc's rows, or `hunted ...
+hovered +0,-48/-64` on a table, is a binary built before seam32.
+
+#### `click_obj` answers `timeout` on a pickup that landed; `expect_has` misses an obj with id 0 (FIXED seam32)
+
+FIXED in seam32 (seam-facts: Seam pass 32 (c)): the client's empty sentinel is -1 everywhere, so
+obj 0 is drawn, clickable and counted. `click_obj("mcannonremains", 3)` answers `ok click_obj: met
+after N tick(s)`, and `t.inv.count` / `expect_has` / `await` see it. Prove a pickup with
+`t.inv.await` / `expect_has` like any other item. Still open: `t.inv.slot` names an obj-0 slot `''`
+(a driver Lua `<= 0` test). The history follows.
 
 Reported by the Dwarf Cannon author (sonnet-b36). `t.player.click_obj("mcannonremains", 3)` on the
 guard-tower floor answered `timeout`, but the remains were in the backpack. Captain Lawgof's hand-in

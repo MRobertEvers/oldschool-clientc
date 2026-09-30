@@ -33,7 +33,12 @@
 #define INV_MANAGER_SOURCE_NAME_BACKPACK "inventory"
 #define INV_MANAGER_SOURCE_NAME_WORN "worn"
 
-#define INV_MANAGER_EMPTY_OBJ_ID 0
+/** An empty slot. -1, never 0: obj id 0 is a real item (Dwarf remains,
+ *  `0=mcannonremains`), and every wire parser stores the slot as `wire - 1`
+ *  (osrs239_parse.c UPDATE_INV_FULL/PARTIAL), so -1 is what the server sent
+ *  for "nothing here". An occupied slot is `obj_id > INV_MANAGER_EMPTY_OBJ_ID`,
+ *  i.e. `obj_id >= 0`. */
+#define INV_MANAGER_EMPTY_OBJ_ID (-1)
 #define INV_MANAGER_NO_SCENE_ID (-1)
 #define INV_MANAGER_NO_SELECTION (-1)
 
@@ -93,7 +98,7 @@ struct InvManager
 /**
  * Does any slot hold an item whose icon has not been baked yet?
  *
- * `obj_id > 0` with `scene_id == INV_MANAGER_NO_SCENE_ID` is an item the
+ * `obj_id >= 0` with `scene_id == INV_MANAGER_NO_SCENE_ID` is an item the
  * container knows about and the scene cannot draw. The client polls for this
  * rather than being told, because an icon is baked asynchronously and the
  * container is filled by a packet -- neither side knows when the other is

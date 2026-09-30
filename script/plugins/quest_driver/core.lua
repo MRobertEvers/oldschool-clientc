@@ -848,7 +848,16 @@ function QD.core_legs_drive(quest, opts)
         -- LAST leg too (seam31): the leg a relay author has just written is
         -- the last one in the file, and the next author resumes from its
         -- checkpoint after appending leg k+1 (run.py hashes legs 1..k only).
-        if bad_in_leg == 0 then
+        -- A camera a cutscene still drives is not a quiet point either (seam32
+        -- cutscene_verb_and_camera_read): the save carries no camera, so a
+        -- leg resumed from it would start free where the full run is still
+        -- mid-shot. Wait out a sequence that is about to reset; one that
+        -- never does is named and gets no checkpoint.
+        local camera_driven = QD.cutscene and QD.cutscene._camera_driven
+            and QD.cutscene._camera_driven(QD.LEGS_QUIET_TICKS) or nil
+        if bad_in_leg == 0 and camera_driven then
+            carried = "checkpoint " .. k .. " NOT written: " .. camera_driven
+        elseif bad_in_leg == 0 then
             -- A leg's last click can leave a script parked for a tick or
             -- two (a p_delay after an item lands) or a single-way claim
             -- running down: those clear by themselves, so the request is

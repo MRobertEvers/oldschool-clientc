@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 134 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 137 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 134
+-- @verb-count 137
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 50
+-- @seam-count 56
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 134
-local SEAM_COUNT = 50
+local VERB_COUNT = 137
+local SEAM_COUNT = 56
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5928,6 +5928,76 @@ return {
             return "ok", text
         end)
 
+        -- A GROUND OBJ ON A CENTREPIECE'S OWN TILE IS PRESSED WHERE IT IS DRAWN.
+        -- The client lifts a stack on a raiseobject loc's tile onto the loc
+        -- (App_WorldObjStackAdd: world_y = height - World_ObjRaiseGet; rscache
+        -- defaults raiseobject to blocks_walk, so every table does it), and the
+        -- driver's obj projector projected at the GROUND: the pixel was the
+        -- table's body, the menu offered only the loc's rows, and click_obj got
+        -- there only through five covered poses and the pixel hunt (30 ticks)
+        -- -- or not at all: Legends' placed sapphire on the carved rock lasts 8
+        -- ticks and was gone first (seam32 ground_obj_on_a_centrepiece_tile,
+        -- build/quest_gate/s32_gem_before).  Graded on the pose-1 projection
+        -- itself holding the stack in the pickset (the reading that separates
+        -- the fix from the hunt that masks it), then on the Take landing.
+        -- table4 at 3233,3208,0 is m50_50.jl2 "0 33 8: 604 10 3" (Lumbridge);
+        -- 3231,3207 is inside the same room.
+        stage(function()
+            setup_cheat("::give sapphire 1")
+            settle(2)
+        end)
+        seam("seam.click_obj_raised_stack", function()
+            local goto_tile = verb("player", "goto_tile")
+            local drop = verb("player", "drop")
+            local by_symbol = verb("player", "by_symbol")
+            local frame = verb("drive", "_frame")
+            local probe = verb("drive", "_hover_probe")
+            local click_obj = verb("player", "click_obj")
+            local count = verb("inv", "count")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not drop then return missing("player", "drop") end
+            if not by_symbol then return missing("player", "by_symbol") end
+            if not frame then return missing("drive", "_frame") end
+            if not probe then return missing("drive", "_hover_probe") end
+            if not click_obj then return missing("player", "click_obj") end
+            if not count then return missing("inv", "count") end
+            goto_tile(3233, 3208, 0)
+            local drop_result, drop_detail = drop("sapphire")
+            if drop_result ~= "ok" then
+                return "no_subject", "drop sapphire on table4's tile -> " .. describe(drop_result) .. " "
+                    .. describe(drop_detail)
+            end
+            goto_tile(3231, 3207, 0)
+            settle(2)
+            local target, target_result = by_symbol("obj", "sapphire")
+            if target_result ~= "ok" or type(target) ~= "table" then
+                return "no_subject", "player.by_symbol(obj, sapphire) -> " .. describe(target_result)
+            end
+            local frame_result, pos = frame(target, 1, 4, true)
+            if frame_result ~= "ok" or type(pos) ~= "table" then
+                return "no_subject", "_frame pose 1 on the stack -> " .. describe(frame_result) .. " "
+                    .. describe(pos)
+            end
+            local held = probe(pos.element_id, pos.x, pos.y, 4)
+            local where = "projected " .. describe(pos.x) .. "," .. describe(pos.y)
+                .. " holds the stack: " .. describe(held)
+            if held ~= true then
+                return "refused", where .. " -- the projection is not on the drawn (raised) stack"
+            end
+            local _, before = count("sapphire")
+            local result, detail = click_obj("sapphire", 3)
+            local _, after = count("sapphire")
+            local text = where .. "; click_obj -> " .. describe(result) .. " " .. describe(detail)
+                .. "; sapphire " .. describe(before) .. " -> " .. describe(after)
+            if result ~= "ok" then
+                return result, text
+            end
+            if after ~= (before or 0) + 1 then
+                return "hollow", "click_obj answered ok but the backpack does not show the take -- " .. text
+            end
+            return "ok", text
+        end)
+
         -- A "*" ENTRY NAMES THE PAGE IT CONTINUED PAST, AND A PAGE FOLLOWED BY
         -- A p_delay IS WAITED OUT.  Professor Oddenstein's "Let's get this
         -- fixed then." is followed by mes / p_delay(2) / mes / p_delay(2) and
@@ -6667,6 +6737,126 @@ return {
                 return "refused", "the trail must read oldest-kept first and end at '" .. last .. "' -- " .. detail
             end
             return "ok", detail
+        end)
+
+        -- THE CAMERA IS READ, NOT SURVIVED (seam32 cutscene_verb_and_camera_read).
+        -- No test read the camera, so a port that dropped a cutscene (Fight
+        -- Arena's ogre pen: 17 LostCity camera ops, none in the port) stayed
+        -- green.  Every CAM_* packet the client executes is stamped into
+        -- app->cam_script (serial + a 64-deep ring, world tiles), read by
+        -- t.world.camera() and t.cutscene.await.  Driven on the content
+        -- debugproc ::cutscene <coord> [times] [hold] (cheat_cutscene.rs2:
+        -- LostCity's Fire Warrior door cut, ikov_dungeon.rs2:183-185,217, at
+        -- the tile named), so every keyframe the rows expect is written there.
+        local function cutscene_literal(tile)
+            return string.format("%d_%d_%d_%d_%d", tile.level, tile.x // 64, tile.z // 64, tile.x % 64, tile.z % 64)
+        end
+
+        step("world.camera", function()
+            local fn = verb("world", "camera")
+            if not fn then return missing("world", "camera") end
+            local cam, why = fn()
+            if type(cam) ~= "table" then
+                return "refused", "t.world.camera() -> " .. tostring(cam) .. " " .. tostring(why)
+            end
+            return "ok", string.format("x=%d z=%d level=%d yaw=%d pitch=%d zoom=%d server_driven=%s serial=%d last_op=%s",
+                cam.x, cam.z, cam.level, cam.yaw, cam.pitch, cam.zoom, tostring(cam.server_driven),
+                cam.serial, tostring(cam.last_op))
+        end)
+
+        step("cutscene.mark", function()
+            local fn = verb("cutscene", "mark")
+            if not fn then return missing("cutscene", "mark") end
+            local serial = fn()
+            if type(serial) ~= "number" then
+                return "refused", "t.cutscene.mark() -> " .. tostring(serial)
+            end
+            return "ok", "camera serial " .. serial
+        end)
+
+        step("cutscene.await", function()
+            local fn = verb("cutscene", "await")
+            if not fn then return missing("cutscene", "await") end
+            local here = cutscene_literal(player_tile)
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here, false)
+            return fn("conformance", { since = mark, timeout = 20, quiet = 15 })
+        end)
+
+        -- A free camera, then the same camera while ::cutscene holds it, then after the reset.
+        seam("seam.world_camera_read", function()
+            local free = t.world.camera()
+            if type(free) ~= "table" or free.server_driven ~= false then
+                return "refused", "free camera reads server_driven=" .. tostring(free and free.server_driven)
+            end
+            local here = cutscene_literal(player_tile)
+            t.cheat("::cutscene " .. here, false)
+            t.await({ level = function() return t.world.camera().server_driven end, note = "server_driven" }, 10)
+            local mid = t.world.camera()
+            local target = mid.last_target
+            local aimed = target ~= nil and ((target.x == player_tile.x and target.z == player_tile.z)
+                or (target.x == player_tile.x + 5 and target.z == player_tile.z + 2))
+            t.await({ level = function() return not t.world.camera().server_driven end, note = "reset" }, 15)
+            local after = t.world.camera()
+            local text = string.format("free serial=%d; driven=%s last_target=%s,%s; after server_driven=%s last_op=%s",
+                free.serial, tostring(mid.server_driven), tostring(target and target.x), tostring(target and target.z),
+                tostring(after.server_driven), tostring(after.last_op))
+            t.cutscene._claimed = after.serial   -- this sequence is not the next await's
+            if mid.server_driven and aimed and after.server_driven == false and after.last_op == "reset" then
+                return "ok", text
+            end
+            return "refused", text
+        end)
+
+        seam("seam.cutscene_await_records_keyframes", function()
+            local here = cutscene_literal(player_tile)
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here, false)
+            return t.cutscene.await("records", { since = mark, timeout = 20, quiet = 15, expect = {
+                { op = "moveto", coord = here, height = 1000 },
+                { op = "lookat", x = player_tile.x + 5, z = player_tile.z + 2, height = 50 },
+                { op = "lookat", x = player_tile.x + 5, z = player_tile.z - 2 },
+                { op = "reset" },
+            } })
+        end)
+
+        seam("seam.cutscene_await_no_cutscene", function()
+            local r, d = t.cutscene.await("nocam", { timeout = 5 })
+            return r == "no_cutscene" and "ok" or "refused", "await answered " .. tostring(r) .. ": " .. tostring(d)
+        end)
+
+        seam("seam.cutscene_expect_missing_keyframe", function()
+            local here = cutscene_literal(player_tile)
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here, false)
+            local r, d = t.cutscene.await("missing", { since = mark, timeout = 20, quiet = 15, expect = {
+                { op = "moveto", coord = here },
+                { op = "lookat", x = player_tile.x + 9, z = player_tile.z + 9 },
+            } })
+            local named = string.find(tostring(d), "expected keyframe #2 (lookat " .. (player_tile.x + 9) .. ","
+                .. (player_tile.z + 9), 1, true) ~= nil
+            return (r == "not_found" and named) and "ok" or "refused", "await answered " .. tostring(r) .. ": " .. tostring(d)
+        end)
+
+        -- Fight Arena's shape: the second moveto lands in the tick of the first reset.
+        seam("seam.cutscene_await_back_to_back", function()
+            local here = cutscene_literal(player_tile)
+            local full = {
+                { op = "moveto", coord = here }, { op = "lookat", x = player_tile.x + 5, z = player_tile.z + 2 },
+                { op = "lookat", x = player_tile.x + 5, z = player_tile.z - 2 }, { op = "reset" } }
+            local mark = t.cutscene.mark()
+            t.cheat("::cutscene " .. here .. " 2", false)
+            local r1, d1 = t.cutscene.await("twice1", { since = mark, timeout = 20, quiet = 15, expect = full })
+            -- The second sequence's moveto lands in the tick of the first reset, BEFORE this
+            -- call. A quest reads it through the default start (the previous t.exec row's
+            -- begin, clamped to the last claimed packet: arena's openCell.cutscene-2); this
+            -- row makes no t.exec row between the two awaits, so it states that same start
+            -- itself -- the serial the first read stopped at. What is proved is the stop:
+            -- the first read must leave the second sequence unread and unclaimed.
+            local r2, d2 = t.cutscene.await("twice2", { since = t.cutscene._claimed, timeout = 20,
+                quiet = 15, expect = full })
+            return (r1 == "ok" and r2 == "ok") and "ok" or "refused",
+                "first " .. tostring(r1) .. ": " .. tostring(d1) .. " || second " .. tostring(r2) .. ": " .. tostring(d2)
         end)
 
         -- ------------------------- phase 8: the scheduler's own controls

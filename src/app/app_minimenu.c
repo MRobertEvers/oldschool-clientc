@@ -1384,7 +1384,7 @@ app_obj_cell_at(
         struct InvSlot inv_slot;
         if( !InvManager_GetSlot(&app->invs, out->inv_source_id, out->slot, &inv_slot) )
             return false;
-        if( inv_slot.obj_id <= 0 )
+        if( inv_slot.obj_id <= INV_MANAGER_EMPTY_OBJ_ID )
             return false;
         out->obj_id = inv_slot.obj_id;
         out->obj_count = inv_slot.obj_count;
@@ -1532,10 +1532,10 @@ app_inv_resolve_drop(
             {
                 struct InvSlot inv_slot;
                 if( InvManager_GetSlot(&app->invs, dest.inv_source_id, dest.slot, &inv_slot) &&
-                    inv_slot.obj_id > 0 )
+                    inv_slot.obj_id > INV_MANAGER_EMPTY_OBJ_ID )
                     *out_obj = inv_slot.obj_id;
             }
-            else if( dest.obj_id > 0 )
+            else if( dest.obj_id >= 0 )
             {
                 *out_obj = dest.obj_id;
             }
@@ -1576,7 +1576,7 @@ app_inv_resolve_drop(
         *out_com = com;
         *out_slot = slot;
         *out_node = node;
-        if( node >= 0 && app->tree->components[node].item_id > 0 )
+        if( node >= 0 && app->tree->components[node].item_id >= 0 )
             *out_obj = app->tree->components[node].item_id;
         return 1;
     }
@@ -1601,15 +1601,15 @@ app_inv_drag_drop(
         struct InvSlot inv_slot;
         if( InvManager_GetSlot(
                 &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, &inv_slot) &&
-            inv_slot.obj_id > 0 )
+            inv_slot.obj_id > INV_MANAGER_EMPTY_OBJ_ID )
             src_obj = inv_slot.obj_id;
     }
     else
     {
-        int obj = 0;
+        int obj = UITREE_NO_OBJ;
         if( UITree_ObjCellDynamicAtSlot(
                 app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, &src_node, &obj, NULL) &&
-            obj > 0 )
+            obj >= 0 )
             src_obj = obj;
     }
 
@@ -1767,17 +1767,17 @@ app_inv_drag_source_live(struct App const* app)
     if( app->inv_drag.source_id >= 0 )
     {
         struct InvSlot slot;
-        return app->inv_drag.obj_id > 0 &&
+        return app->inv_drag.obj_id >= 0 &&
                InvManager_GetSlot(
                    &app->invs, app->inv_drag.source_id, app->inv_drag.from_slot, &slot) &&
                slot.obj_id == app->inv_drag.obj_id;
     }
     {
         int32_t node = -1;
-        int obj = 0;
+        int obj = UITREE_NO_OBJ;
         if( !UITree_ObjCellDynamicAtSlot(
                 app->tree, app->inv_drag.component_id, app->inv_drag.from_slot, &node, &obj, NULL) ||
-            obj <= 0 || obj != app->inv_drag.obj_id ||
+            obj < 0 || obj != app->inv_drag.obj_id ||
             UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
             return 0;
     }
@@ -2004,17 +2004,18 @@ app_minimenu_ui_pick_live_reason(
                 app->tree->components[idx].u.rs_inv.inv_source_id,
                 pick->secondary_id,
                 &slot) ||
-            slot.obj_id <= 0 || (pick->tertiary_id > 0 && slot.obj_id != pick->tertiary_id) )
+            slot.obj_id <= INV_MANAGER_EMPTY_OBJ_ID ||
+            (pick->tertiary_id >= 0 && slot.obj_id != pick->tertiary_id) )
             PICK_NOT_LIVE("that container slot does not hold the picked obj");
     }
     else if( pick->kind == UI_MINIMENU_PICK_INV_SLOT )
     {
         int32_t cell = -1;
-        int obj = 0;
+        int obj = UITREE_NO_OBJ;
         if( !UITree_ObjCellDynamicAtSlot(
                 app->tree, pick->id, pick->secondary_id, &cell, &obj, NULL) )
             PICK_NOT_LIVE("no dynamic item cell is painted at that slot");
-        if( obj <= 0 )
+        if( obj < 0 )
             PICK_NOT_LIVE("the dynamic item cell at that slot is empty");
         if( UITree_NodeOrAncestorDisplayHidden(app->tree, cell) )
             PICK_NOT_LIVE("the item cell or an ancestor of it is display-hidden");
@@ -2022,7 +2023,7 @@ app_minimenu_ui_pick_live_reason(
             PICK_NOT_LIVE("the stamped node is not the cell at that slot any more");
         /* Do not execute an old item's row on a new item which was painted
          * into the same dynamic slot while the menu was open. */
-        if( pick->tertiary_id > 0 && obj != pick->tertiary_id )
+        if( pick->tertiary_id >= 0 && obj != pick->tertiary_id )
             PICK_NOT_LIVE("a different obj is painted in that cell now");
     }
     else if( pick->has_node_identity && pick->node_index != idx )

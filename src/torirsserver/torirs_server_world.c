@@ -15670,6 +15670,38 @@ ToriRSServer_WorldLocReverts(struct ToriRSServer* srv)
  * themselves. Clamping here rather than in the content keeps any script's
  * "forever" from meaning "next tick".
  */
+/*
+ * Whether a loc stands on (x, z, level, shape) right now: the covering
+ * window's scene when one is built there, else the ZoneMap record (the only
+ * memory of a tile no window covers). The bound window is restored.
+ */
+static int
+world_loc_key_live(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int shape)
+{
+    struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+    struct ToriRSServerSceneWindow* covering = ToriRSServer_SceneWindowFind(x, z);
+    struct ToriRSServerZoneLoc* record;
+
+    if( covering )
+    {
+        struct ToriRSServerSceneLoc* standing;
+        int live;
+
+        ToriRSServer_SceneBindWindow(covering);
+        standing = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(x, z, level, shape));
+        live = standing && standing->active;
+        ToriRSServer_SceneBindWindow(bound);
+        return live;
+    }
+    record = ToriRSServer_ZoneLocFind(srv, x, z, level, shape);
+    return record && record->loc_id >= 0;
+}
+
 int
 ToriRSServer_WorldLocRevertQueue(
     struct ToriRSServer* srv,
@@ -15681,22 +15713,46 @@ ToriRSServer_WorldLocRevertQueue(
     int z,
     int level)
 {
-    if( duration <= 0 || duration >= INT_MAX )
-        return 1;
+    int forever = duration <= 0 || duration >= INT_MAX;
+
     /*
-     * RE-STATING a tile's revert REPLACES the pending one; it does not add a
-     * second. Two reverts for one tile is not a state the world can be in —
-     * whichever fires first undoes the loc, and the other then undoes whatever
-     * happens to be standing there when it lands.
+     * RE-STATING a tile's revert restarts the pending one's CLOCK; it does not
+     * add a second, and it does not change what the revert puts back. Two
+     * reverts for one tile is not a state the world can be in — whichever
+     * fires first undoes the loc, and the other then undoes whatever happens
+     * to be standing there when it lands.
      *
-     * The case that made it matter is the Maiden's blood trails. A blood spawn
-     * that walks back over its own trail re-covers the tile, and the reference
-     * restarts the clock: Zenyte's `BloodTrail.resetTimer()` sets `ticks = 30`
-     * again, which is what produces the runs of 40, 50, 60, 90 and 110 ticks in
-     * the recorded raids (docs/TOB_RESEARCH.md M5). Queueing a second revert
-     * instead left the FIRST one standing, so a re-covered tile expired 30
-     * ticks after it was first painted however many times it was refreshed —
-     * the patch under a circling spawn would blink out from under it.
+     * The clock: the Maiden's blood trails. A blood spawn that walks back over
+     * its own trail re-covers the tile, and the reference restarts the clock:
+     * Zenyte's `BloodTrail.resetTimer()` sets `ticks = 30` again, which is what
+     * produces the runs of 40, 50, 60, 90 and 110 ticks in the recorded raids
+     * (docs/TOB_RESEARCH.md M5). Queueing a second revert instead left the
+     * FIRST one standing, so a re-covered tile expired 30 ticks after it was
+     * first painted however many times it was refreshed.
+     *
+     * The target: LostCity gives a loc ONE lifecycle, on the Loc entity. A
+     * `loc_add` onto a tile whose same-layer loc was `loc_del`ed does not make
+     * a second loc; it is `World.changeLoc` on the removed static one
+     * (LocOps.ts LOC_ADD: `getLocsUnsafe` includes inactive locs), and every
+     * mutation after the first only calls `setLifeCycle(duration)`
+     * (World.ts changeLoc/removeLoc). What the timer does when it runs out is
+     * fixed by the entity, not by the last opcode: a map-square loc goes back
+     * to its `baseInfo` (Loc.turn: `revertLoc`, or `addLoc` -> `Zone.addLoc`
+     * -> `loc.revert()`), an added loc is removed. So the FIRST entry's target
+     * — the tile as it was before anything pending touched it — stands, and a
+     * re-statement moves only the delay. Replacing the target instead is what
+     * lost a loc for good: `loc_del(N)` then `loc_add(same tile, same shape,
+     * M)` (LostCity doubledoors.rs2 open_double_doors_left2's inviswall) turned
+     * "put the door leaf back" into "remove the inviswall", and every Legends
+     * double door vanished for the session after one swing. A door closed
+     * again had the mirror bug: the open leaf's "remove" became "put the open
+     * leaf back" 500 ticks later.
+     *
+     * Two re-statements end the lifecycle instead, as `setLifeCycle(-1)` does:
+     * a "forever" duration, and a `loc_del` of an added loc — World.removeLoc
+     * makes a DESPAWN loc's removal permanent. The second is told apart from a
+     * `loc_change` of the added loc by looking: after a delete nothing stands
+     * on the key.
      *
      * Matched on tile and shape, which together are what `loc_add` addresses:
      * one shape per tile is the scene's own rule (`ToriRSServer_SceneFindLocExact`
@@ -15711,11 +15767,21 @@ ToriRSServer_WorldLocRevertQueue(
         if( entry->x != x || entry->z != z || entry->level != level ||
             entry->shape != shape )
             continue;
+        if( forever )
+        {
+            entry->active = 0;
+            return 1;
+        }
+        if( entry->loc_id < 0 && loc_id >= 0 && !world_loc_key_live(srv, x, z, level, shape) )
+        {
+            entry->active = 0;
+            return 1;
+        }
         entry->delay = duration + 1;
-        entry->loc_id = loc_id;
-        entry->angle = angle;
         return 1;
     }
+    if( forever )
+        return 1;
     for( int i = 0; i < TORIRSSERVER_LOC_REVERT_MAX; i++ )
     {
         struct ToriRSServerLocRevert* entry = &srv->loc_reverts[i];

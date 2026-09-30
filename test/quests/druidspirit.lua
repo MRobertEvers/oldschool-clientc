@@ -12,11 +12,9 @@ return {
         "::give lobster 12",
         "::give dagger_wolfbane 1",
         "::complete quest_restlessghost",
+        -- ::complete also sets Priest in Peril's golden-key gate bit (bit 20 of
+        -- %priestperil_mausoleum, gates.rs2:15; quest_cheat.rs2:972, seam31).
         "::complete quest_priestinperil",
-        -- Priest in Peril's golden key unlocked the mausoleum gate for good (bit 20 of
-        -- %priestperil_mausoleum, areas/area_mausoleum/scripts/gates.rs2:15); ::complete sets
-        -- only the stage, so the finished prerequisite's gate state is staged here.
-        "::setvar priestperil_mausoleum 1048576",
         "::setlevel crafting 18",
         "::setlevel prayer 40",
         "::setlevel attack 40",
@@ -288,6 +286,12 @@ return {
         t.exec("useSpellCard-bit", t.var.await_server, "druidspirit_bits", 3, 10)
 
         -- tellFillimanToCast / standOnOrange: the ritual, 55 -> 60
+        -- Filliman's spirit lives 100 ticks from the grotto door that summoned him (npc_add(...,
+        -- filliman_tarlock_spirit, 100), quest_druidspirit.rs2:114, LostCity "100t osrs"); the door is
+        -- the summon, so open it again before the ritual rather than count on the mirror-leg copy
+        -- (seam32: takeMirror went 26 -> 1 tick and that copy expired at tick ~190, one row short).
+        t.exec("tellFillimanToCast-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
+        t.chat.close()
         t.exec("goto-standOnOrange", t.player.goto_tile, 3440, 3335, 0)
         t.ticks(2)
         local tile_result, tile = t.world.tile()
@@ -438,10 +442,32 @@ return {
                 t.exec("killGhasts-reequip" .. k, t.player.equip, "silver_sickle_blessed")
             end
             t.exec("killGhasts-visible" .. k, t.npc.await_present, "ghast_vis", 12, 90)
+            -- Single-way combat: a second revealed ghast swinging at the player renews the player's
+            -- claim, and every press on another copy answers "I'm already under attack." (engine
+            -- %lastcombat+8, as LostCity; seam32 sourced_carry_overs traced it). So a refused press
+            -- moves on to a copy not yet pressed -- the one fighting the player is among them.
             local attack_result, attack_detail
+            local pressed_slots = {}
             for try = 1, 8 do
-                attack_result, attack_detail = t.player.attack("ghast_vis", 2, 15)
+                local pick = nil
+                if try > 1 then
+                    local _, _, copies = t.npc.tiles("ghast_vis", 12)
+                    for _, row in ipairs(copies or {}) do
+                        if not pressed_slots[row.slot] then
+                            pick = { slot = row.slot }
+                            break
+                        end
+                    end
+                    if pick == nil then
+                        pressed_slots = {}
+                    end
+                end
+                attack_result, attack_detail = t.player.attack("ghast_vis", 2, 15, pick)
                 if attack_result == "ok" then break end
+                local pressed = string.match(tostring(attack_detail), "pressed slot (%d+)")
+                if pressed then
+                    pressed_slots[tonumber(pressed)] = true
+                end
                 t.ticks(4)
             end
             t.check("killGhasts-attack" .. k, attack_result == "ok", tostring(attack_result) .. ": " .. tostring(attack_detail))

@@ -513,7 +513,7 @@ build/seam_state/seam30/helper_coverage_substeps_deferred.patch.
 `active_player2` and leaves the primary player alone (LostCity PlayerOps.ts HUNTNEXT).
 `loc_coord` / `loc_type` / `loc_angle` / `loc_shape` answer after `loc_del`, across a suspend too,
 while the handle still names the removed loc (LocOps.ts LOC_DEL keeps `activeLoc`); a WRITE after
-`loc_del` still aborts, and `loc_name` / `loc_param` after it still abort. `obj_name` and
+`loc_del` still aborts. `loc_name` / `loc_param` after it aborted here too (FIXED seam32 (e)). `obj_name` and
 `inv_dropitem` are implemented (ObjOps.ts, InvOps.ts: one pile of what came out, owned by the
 dropper for 100 ticks, made the active obj). A `.obj` param may be written `^constant` (one level;
 Legends' `crystal_bit` is LostCity's spelling again). Selftest stanza "legends port VM gaps".
@@ -526,8 +526,9 @@ temple no longer needs `::setvar priestperil_mausoleum 1048576` (seam30 (f) is s
 double-door inviswall) loses the original loc for good here: the revert table is keyed by (tile,
 shape) and the second timer replaces the first (`ToriRSServer_WorldLocRevertQueue`). Port it as
 `loc_change(inviswall, N)`, one timer (east_gate.rs2, quest_haunted.rs2, now legends_procs.rs2 --
-the Kharazi cave trial doors and the Legends' Guild doors came back on every later trip). The
-engine hazard itself is open.
+the Kharazi cave trial doors and the Legends' Guild doors came back on every later trip). FIXED
+seam32 (e): the engine keeps one lifecycle per loc, and legends_procs.rs2 is back in LostCity's
+`loc_del` + `loc_add(inviswall)` form.
 
 (d) A checkpoint carries `[clock] map_clock`, and a `--from-leg` login moves the world's clock
 forward to it, so every clock-stamped varp (`%action_delay`, `%frozen`, ...) keeps its meaning
@@ -540,7 +541,7 @@ goes through `run.py --detach` / `--wait` (relay.md "Runs longer than the shell 
 
 (f) Obj id 0 (`mcannonremains`) is invisible to the client's inventory: a client defect (about 25
 `obj_id <= 0` "empty" tests against a -1 sentinel), not content (verbs-pointer: `click_obj`
-answers `timeout`). Open for an engine seam.
+answers `timeout`). FIXED seam32 (c).
 
 (g) Selftest fixture: the full-world fixture fills all 4096 ground slots with map spawns; a stanza
 that drops an obj must borrow a slot and put its record back.
@@ -549,3 +550,66 @@ that drops an obj must borrow a slot and put its record back.
 Guildmaster answers "About my quest...", the magic door takes one item per use, the lair wall is
 climbable, Elvarg has 80 hitpoints. Gujuo's blessing roll stays LostCity's (unsourced either way;
 seam30 (j)).
+
+
+## Seam pass 32 (2026-09-30)
+
+(a) Cutscenes are asserted, not survived. Every CAM_MOVETO / CAM_LOOKAT / CAM_SHAKE / CAM_RESET
+the client executes is stamped into `app->cam_script` (`struct App_CamScript`, a serial and a
+64-deep ring in world tiles). `t.world.camera()`, `t.cutscene.await` and `t.cutscene.mark` read it.
+`gate.py` `cutscene_row_required` reds a quest whose content frames the camera until its PASS
+`cutscene:` rows cover every framing site, and `make -C src check-quest-cutscenes` fails a
+DROPPED/PARTIAL port (never WIKI_MISSING). Fight Arena's five LostCity sequences are ported
+(quest_arena.rs2, sammy_servil.rs2, general_khazard.rs2; cutscene_sweep MATCH 17/17). See
+verbs-cutscene.md.
+
+(b) A hung client dies in about 90 s. The driver rewrites `<session>/heartbeat` every 25 server
+ticks, and run.py kills the process group once the file is older than
+`TORIRS_QUEST_STALL_SECONDS` (default 90; boot grace 120 s). The ledger ends in `run.unfinished`
+`run stalled: no client tick for N s; last row <name> at tick T` (relay.md "Runs longer than the
+shell cap"). `while true do end` inside a step is NOT a hang: the step's instruction budget
+(400000) ends it as a `script-error`. An await `level` predicate that loops IS one: the per-frame
+pump calls it without the budget. Measured wall time of the 81 committed tests' last runs: p50
+40 s, p90 116 s, p95 149 s, legends 572 s.
+
+(c) Obj id 0 (`mcannonremains`, Dwarf remains) is a real item in the client. The empty sentinel is
+-1 in both domains: `INV_MANAGER_EMPTY_OBJ_ID` for container slots and `UITREE_NO_OBJ` for
+`UITreeComponent.item_id`. An obj is present when `id >= 0`. The objtype link fields
+(`cert_link`, `placeholder_link`) use -1 for none; `count_obj` uses 0. C authors: never test an obj
+id with `> 0` / `<= 0`. A grep for `obj_id` finds only half of the obj-id variables
+(`task_obj_model_load.c` `resolved_id` / `render_id` hid the icon). Still open in the DRIVER Lua:
+`state.lua` `QD.inv.slot`, `ui.lua` `_inv_contents` / `QD.shop._stocked` and one `pointer.lua`
+site test `obj_id <= 0` / `> 0`, so `t.inv.slot` names an obj-0 slot `''`. `food.rs2`'s
+`db_getfieldcount` guard stays: the SERVER's dbtable default for an omitted obj column is 0.
+
+(d) A ground obj on a table or other blocking centrepiece's own tile is drawn RAISED onto the loc
+(`World_ObjRaiseGet`; rscache defaults `raiseobject` to `blocks_walk`). The driver's obj projector
+now aims at that height, so `click_obj` presses the item on the first pose (verbs-pointer:
+`t.player.click_obj`).
+
+(e) Loc lifecycle, against LostCity LocOps.ts / World.ts / ScriptState.ts:
+- A loc's revert timer is ONE lifecycle. `loc_del(N)` + `loc_add(same tile and shape, M)` brings
+  the ORIGINAL back after M (LostCity doubledoors.rs2). A re-statement restarts the clock and keeps
+  the target; a "forever" re-statement and a `loc_del` of an added loc end it.
+- `.loc_find`, `.loc_findnext`, `.loc_add`, `.loc_change`, `.loc_anim`, `.loc_coord` address the
+  SECONDARY active loc. Before, `.loc_find` overwrote the primary and `.loc_*` aborted "requires an
+  active entity" (Shilo Village's tomb door, `quest_zombiequeen.rs2:1457`; Fight Arena's pen gates).
+- `loc_name` / `loc_param` / `loc_category` answer after `loc_del`, like `loc_coord` / `loc_type`.
+- Not ported: LostCity's LOC_ADD matches the same LAYER; here the key is (tile, shape).
+- Author hazard (zombiequeen): there are two `thzq_tombrooml1` copies (2892,9480 and 2893,9497).
+  Pick the leaf `t.world.loc_near` finds within 3 tiles, not `t.player.by_symbol`.
+- Content comments now stale: `flamtaer_temple.rs2:295-309`, `prison_doors.rs2:5`,
+  `quest_zombiequeen.rs2:1454` (all written around the old `.loc_*` abort).
+
+(f) Content, sourced: Oziach's "second piece of the map" no longer moves `%dragon_oracle` back
+(the guard `guild_master.rs2` uses). `oracle.rs2:18` has the same bare write (LostCity too) and is
+still open. `imbued_heart_ready_tick` and `hunter_falcon_expire` are `scope=temp` now (LostCity
+saves no map_clock stamp); the one perm stamp left is `zq_rash_timer` (`quest_zombiequeen.varp:19`,
+open). Gujuo's blessing roll stays LostCity's: no source gives its odds (docs/quests/legends_quest.md).
+
+(g) A `--script` run's rolls are seeded by the player NAME (`--name`). "Fails on name A, passes on
+name B" is a roll, not a tree regression; reproduce with the SAME `--name`. druidspirit's seam31
+137/149 was this: under `s31vm_druidspirit_shared` a second revealed ghast keeps renewing the
+player's single-way claim and every press on another ghast answers "I'm already under attack."
+druidspirit's setup no longer carries `::setvar priestperil_mausoleum` (seam31 (b)).
+

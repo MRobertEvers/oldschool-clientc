@@ -4129,13 +4129,39 @@ ToriRSServer_ScriptsRunDebugproc(
  * state, not a bug: a script can suspend between `loc_find` and `loc_change`,
  * and by the time it resumes somebody else may have taken the loc. The callers
  * abort on NULL rather than acting on whatever is in the slot now.
+ *
+ * Primary or secondary by the op's own `.` operand, as LostCity's
+ * `get activeLoc()` is (ScriptState.ts:240, `intOperand === 0 ? _activeLoc :
+ * _activeLoc2`). This read the primary for every op until seam32, so
+ * `.loc_change` / `.loc_anim` / `.loc_coord` acted on the primary loc -- or,
+ * since nothing ever set the secondary, aborted on the VM's ACTIVE_LOC2
+ * requirement: Shilo Village's tomb door (quest_zombiequeen.rs2
+ * zq_tombdoor_use, `.loc_change(thzq_tombroomr1, 50)`).
  */
 static struct ToriRSServerSceneLoc*
 script_active_loc(struct SSVM_State* state)
 {
     struct ToriRSServer* srv = (struct ToriRSServer*)state->env->host.user;
 
-    return ToriRSServer_ScriptLocResolve(srv, SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
+    return ToriRSServer_ScriptLocResolve(srv, SSVM_Active(state, SSVM_ENT_LOC));
+}
+
+/*
+ * The setter half: `loc_find`, `loc_findnext`, `loc_add`, `loc_add_op` make a
+ * loc active in the slot their operand names -- LostCity `set activeLoc`
+ * (ScriptState.ts:252) plus `pointerAdd(ActiveLoc[state.intOperand])`.
+ * `SSVM_SetActive` sets that slot's pointer bit (ACTIVE_LOC or ACTIVE_LOC2).
+ * `.loc_find` used to overwrite the PRIMARY: Shilo's tomb door found the
+ * right leaf with `.loc_find` after the left one with `loc_find`, so the
+ * left leaf's `loc_change` then changed the right leaf.
+ */
+static void
+script_set_active_loc(
+    struct SSVM_State* state,
+    void* handle)
+{
+    assert(handle);
+    SSVM_SetActive(state, SSVM_ENT_LOC, state->dot ? SSVM_SECONDARY : SSVM_PRIMARY, handle);
 }
 
 /*
@@ -4307,8 +4333,10 @@ ToriRSServer_ScriptLocResolve(
  *
  * Reads only. A WRITE after `loc_del` (`loc_change`, `loc_anim`, a second
  * `loc_del`) still resolves through `script_active_loc` and aborts, as the
- * npc side does (`active_npc_readable`). `loc_name` / `loc_param` live in
- * torirs_server_ops_loc.c and do not consult this yet.
+ * npc side does (`active_npc_readable`). `loc_name` / `loc_param` /
+ * `loc_category` live in torirs_server_ops_loc.c and reach this through
+ * `ToriRSServer_ScriptLocReadable` (seam32): LostCity's LOC_NAME and
+ * LOC_PARAM read `state.activeLoc.type` the same way, no `isActive` test.
  */
 #define SCRIPT_DELETED_LOC_MAX 64
 
@@ -4400,7 +4428,14 @@ script_active_loc_readable(struct SSVM_State* state)
 
     if( live )
         return live;
-    return script_deleted_loc_recall(SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY));
+    return script_deleted_loc_recall(SSVM_Active(state, SSVM_ENT_LOC));
+}
+
+const struct ToriRSServerSceneLoc*
+ToriRSServer_ScriptLocReadable(struct SSVM_State* state)
+{
+    assert(state);
+    return script_active_loc_readable(state);
 }
 
 /*
@@ -7050,8 +7085,7 @@ ToriRSServer_ScriptCommand(
              * handing the body a loc that is no longer there. */
             if( !loc || !loc->active )
                 continue;
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, handle);
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+            script_set_active_loc(state, handle);
             SSVM_PushInt(state, 1);
             return 1;
         }
@@ -7796,8 +7830,7 @@ ToriRSServer_ScriptCommand(
         ToriRSServer_SceneBindWindow(bound);
         if( slot >= 0 )
         {
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, handle);
-            SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
+            script_set_active_loc(state, handle);
             SSVM_PushInt(state, 1);
             return 1;
         }
@@ -7808,10 +7841,9 @@ ToriRSServer_ScriptCommand(
 
             if( rec )
             {
-                SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+                script_set_active_loc(state,
                                ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                               coord_level(coord), rec->shape));
-                SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
                 SSVM_PushInt(state, 1);
                 return 1;
             }
@@ -7936,8 +7968,7 @@ ToriRSServer_ScriptCommand(
             }
             /* LostCity keeps `state.activeLoc` after `World.removeLoc`, and the
              * reads after it answer from the removed loc (LocOps.ts LOC_DEL). */
-            script_deleted_loc_remember(SSVM_ActiveSlot(state, SSVM_ENT_LOC, SSVM_PRIMARY),
-                                        &deleted);
+            script_deleted_loc_remember(SSVM_Active(state, SSVM_ENT_LOC), &deleted);
         }
         ToriRSServer_WorldLocRevertQueue(srv, duration, was_id, shape, angle, x, z, level);
         return 1;
@@ -7996,12 +8027,11 @@ ToriRSServer_ScriptCommand(
          * Outside the scene window there is no slot — the loc lives only in
          * the ZoneMap — so the handle names the record instead. */
         if( slot >= 0 )
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
         else
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+            script_set_active_loc(state,
                            ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                           coord_level(coord), shape));
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
     }
 
@@ -8085,12 +8115,11 @@ ToriRSServer_ScriptCommand(
         ToriRSServer_WorldLocRevertQueue(srv, duration, -1, shape, angle, coord_x(coord),
                                        coord_z(coord), coord_level(coord));
         if( slot >= 0 )
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(slot + 1));
+            script_set_active_loc(state, (void*)(intptr_t)(slot + 1));
         else
-            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY,
+            script_set_active_loc(state,
                            ToriRSServer_ScriptZoneLocHandle(coord_x(coord), coord_z(coord),
                                                           coord_level(coord), shape));
-        SSVM_PointerAdd(state, SSVM_PTR_ACTIVE_LOC);
         return 1;
     }
 

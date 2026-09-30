@@ -695,6 +695,77 @@ def check_quest(name, allow_blocked):
     return findings, blocked
 
 
+# cutscene_row_required (seam32 cutscene_verb_and_camera_read). The guide has
+# no "watch the cutscene" step, so a port could drop a camera cutscene and its
+# test stayed green (Fight Arena's ogre pen). A quest whose OWN content scripts
+# cam_moveto/cam_lookat (cutscene_sweep.quests_with_cutscene) must hold a PASS
+# row whose detail begins `cutscene:` -- t.cutscene.await's row -- and the
+# union of those rows' keyframes must cover every framing SITE (one script
+# file:line, cutscene_sweep.cutscene_sites): a site whose coord is a literal
+# needs a keyframe of its op on that exact tile, one whose coord is an
+# expression (`coord`, `movecoord(...)`) any keyframe of its op. Graded only on
+# a run that is otherwise green, like the guide coverage: a blocked run that
+# stopped before the cutscene is blocked, not red twice.
+CUTSCENE_ROW_PREFIX = "cutscene:"
+CUTSCENE_KEYFRAME_RE = re.compile(r"#\d+ t=-?\d+ (moveto|lookat) (-?\d+),(-?\d+)")
+_CUTSCENE_SITES = None
+
+
+def cutscene_sites_by_quest():
+    """test_id -> sites, read once per gate run (lazy: the sweep walks every
+    quest's scripts)."""
+    global _CUTSCENE_SITES
+    if _CUTSCENE_SITES is None:
+        import cutscene_sweep  # lazy: only a would-be-green run is graded
+        _CUTSCENE_SITES = cutscene_sweep.cutscene_sites(REPO_ROOT)
+    return _CUTSCENE_SITES
+
+
+def cutscene_keyframes(rows):
+    """[(op, x, z)] from every PASS `cutscene:` row, and those rows' names."""
+    keyframes = []
+    names = []
+    for row in rows:
+        detail = row["detail"] or ""
+        if row["verdict"] != "PASS" or not detail.startswith(CUTSCENE_ROW_PREFIX):
+            continue
+        names.append(row["step"])
+        # Only the keyframe list: the text after ";;" is the verb's notes.
+        listing = detail.split(";;", 1)[0]
+        for m in CUTSCENE_KEYFRAME_RE.finditer(listing):
+            keyframes.append((m.group(1), int(m.group(2)), int(m.group(3))))
+    return keyframes, names
+
+
+def site_text(site):
+    tile = site["tile"]
+    where = " -> %d,%d" % (tile[0], tile[1]) if tile else " (an expression: any %s)" % site["op"]
+    return "%s:%d cam_%s(%s)%s" % (site["file"], site["line"], site["op"], site["arg"], where)
+
+
+def cutscene_findings(name, rows):
+    """cutscene_row_required: [] for a quest whose content frames no camera,
+    or whose PASS cutscene rows cover every site; else one finding per gap."""
+    sites = cutscene_sites_by_quest().get(name)
+    if not sites:
+        return []
+    keyframes, row_names = cutscene_keyframes(rows)
+    if not row_names:
+        return ["cutscene_row_required: %s's content scripts %d camera site(s) and the ledger has "
+                "no PASS row whose detail begins `cutscene:` (t.cutscene.await, "
+                "docs/quest_authoring/verbs-cutscene.md) -- sites: %s"
+                % (name, len(sites), "; ".join(site_text(s) for s in sites))]
+    findings = []
+    for site in sites:
+        tile = site["tile"]
+        covered = any(op == site["op"] and (tile is None or (x, z) == (tile[0], tile[1]))
+                      for op, x, z in keyframes)
+        if not covered:
+            findings.append("cutscene_row_required: %s: no keyframe in its cutscene row(s) (%s) "
+                            "covers %s" % (name, ", ".join(row_names), site_text(site)))
+    return findings
+
+
 def coverage_findings(name):
     """The guide-coverage findings for a run that is otherwise green; [] when
     it reads FULL or declares every content gap, or when the file has no guide
@@ -736,6 +807,11 @@ def main():
     any_accepted_blocked = False
     for name in names:
         findings, blocked = check_quest(name, arguments.allow_blocked)
+        if not findings and not blocked:
+            # A would-be-green run whose content frames the camera must have
+            # asserted it (cutscene_row_required, above).
+            rows, _summary = ledger.read(os.path.join(artefact_dir(name), "ledger.tsv"))
+            findings = cutscene_findings(name, rows or [])
         if not findings and not blocked and not arguments.no_coverage:
             # Only a run that would be GREEN is graded against its guide: a
             # green that skips a guide step is not green.

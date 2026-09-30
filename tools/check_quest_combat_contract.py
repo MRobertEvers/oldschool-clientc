@@ -28,6 +28,7 @@ ARENA_SPAWN = CONTENT / "quests/quest_arena/configs/quest_arena.spawn"
 ARENA_WORLD_SPAWN = CONTENT / "areas/world/configs/m40_49.spawn"
 ARENA_LADY = CONTENT / "quests/quest_arena/scripts/lady_servil.rs2"
 ARENA_SAMMY = CONTENT / "quests/quest_arena/scripts/sammy_servil.rs2"
+ARENA_CUTSCENES = CONTENT / "quests/quest_arena/scripts/quest_arena.rs2"
 HAZEEL_ALOMONE = CONTENT / "quests/quest_hazeelcult/scripts/alomone.rs2"
 HAZEEL_LOCS = CONTENT / "quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2"
 HAZEEL_CLIVET = CONTENT / "quests/quest_hazeelcult/scripts/clivet.rs2"
@@ -798,11 +799,11 @@ def check_fight_arena() -> None:
         encounter,
         (
             "[label,arena_start_ogre]",
-            "npc_add(0_40_49_44_29, arena_ogre, 32000);",
+            "@ogre_attack_justin;",
             "[label,arena_start_scorpion]",
-            "npc_add(0_40_49_44_23, arena_scorpion, 32000);",
+            "@arena_release_scorp;",
             "[label,arena_start_bouncer]",
-            "npc_add(0_40_49_44_26, arena_bouncer, 32000);",
+            "@arena_release_bouncer;",
             "[label,arena_start_general]",
             "npc_add(0_40_49_44_18, general_khazard_arena, 32000);",
             "[label,arena_after_ogre]",
@@ -820,8 +821,28 @@ def check_fight_arena() -> None:
         ),
         "Fight Arena encounter",
     )
-    require(encounter.count("npc_setowner;") == 4,
-            "Fight Arena: every dynamically spawned combat type must be owner-private")
+    # The ogre, scorpion and Bouncer are created by the pen cutscenes LostCity
+    # scripts (sammy_servil.rs2 ogre_attack_justin = jeremy_servil.rs2:95-146;
+    # quest_arena.rs2 arena_release_scorp/_bouncer = quest_arena.rs2:193-265),
+    # in LostCity's pen tiles; the General by arena_spawn_general. Each one's
+    # npc_add must be followed at once by npc_setowner.
+    sammy_text = ARENA_SAMMY.read_text()
+    cutscenes = ARENA_CUTSCENES.read_text()
+    require_text(sammy_text, ("[label,ogre_attack_justin]", "def_coord $ogre_to = 0_40_49_46_29;"),
+                 "Fight Arena ogre-pen cutscene")
+    require_text(cutscenes, ("[label,arena_release_scorp]", "def_coord $scorp_spawn = 0_40_49_47_23;",
+                             "[label,arena_release_bouncer]", "def_coord $bouncer_spawn = 0_40_49_47_26;"),
+                 "Fight Arena pen cutscenes")
+    for text, spawn in (
+        (sammy_text, "npc_add(movecoord($ogre_to, 1, 0, 0), arena_ogre, 32000);"),
+        (cutscenes, "npc_add($scorp_spawn, arena_scorpion, 32000);"),
+        (cutscenes, "npc_add($bouncer_spawn, arena_bouncer, 32000);"),
+        (encounter, "npc_add(0_40_49_44_18, general_khazard_arena, 32000);"),
+    ):
+        require(text.count(spawn) == 1, f"Fight Arena: expected one {spawn}")
+        after = text.split(spawn, 1)[1].lstrip().splitlines()[0].strip()
+        require(after == "npc_setowner;",
+                f"Fight Arena: {spawn} not followed by npc_setowner; (every dynamically spawned combat type must be owner-private)")
     require("random(400) = 0" in encounter and "random(5013) = 0" in encounter,
             "Fight Arena: Ogre tertiary drop rates drifted")
 

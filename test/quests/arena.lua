@@ -150,8 +150,36 @@ return {
             "player:Sammy look, I have the keys.",
             "npc:Wow! Please set me free",
             "player:Ok, we'd better hurry.",
+        })
+        -- arena_enter (quest_arena.rs2:22-54; LostCity quest_arena.rs2:140-167): the door camera as
+        -- the player is marched in. Two sequences with a cam_reset between them, so two awaits: a
+        -- read stops at its own reset.
+        t.exec("openCell.cutscene", t.cutscene.await, "openCell", { expect = {
+            { op = "moveto", coord = "0_40_49_45_24", height = 270 },
+            { op = "lookat", coord = "0_40_49_43_17", height = 200 },
+            { op = "moveto", coord = "0_40_49_43_26", height = 270 },
+            { op = "lookat", coord = "0_40_49_43_15", height = 270 },
+            { op = "reset" },
+        } })
+        t.exec("openCell.cutscene-2", t.cutscene.await, "openCell-2", { expect = {
+            { op = "moveto", coord = "0_40_49_43_26", height = 270 },
+            { op = "lookat", coord = "0_40_49_43_15", height = 270 },
+            { op = "reset" },
+        } })
+        -- The round's mesbox comes after the walk-in, then ogre_attack_justin (sammy_servil.rs2;
+        -- LostCity jeremy_servil.rs2:95-146): the ogre-pen camera, a reset, the turn onto Justin.
+        t.exec("openCell-dialog-2", t.chat.play, {
             "mesbox:Sammy's father is being attacked",
         })
+        t.exec("ogrePen.cutscene", t.cutscene.await, "ogrePen", { expect = {
+            { op = "moveto", coord = "0_40_49_39_25", height = 400 },
+            { op = "lookat", coord = "0_40_49_45_29", height = 200 },
+            { op = "reset" },
+        } })
+        t.exec("ogrePen.cutscene-2", t.cutscene.await, "ogrePen-2", { expect = {
+            { op = "lookat", coord = "0_40_49_40_32", height = 270 },
+            { op = "reset" },
+        } })
         t.expect("quest.stage.entered_ogre_fight", t.quest.expect_stage("entered_ogre_fight"))
 
         -- talkToSammy: the arena Sammy (an owner-private sammy_servil_vis with the cache's
@@ -174,6 +202,16 @@ return {
             "npc:I'll let them go",
             "npc:Guards! Take them to the cells.",
         })
+        -- general_khazard_to_cells (general_khazard.rs2:48-76; LostCity general_khazard.rs2:50-79): the
+        -- corridor camera while a guard marches the player into Hengrad's cell, then his page.
+        t.exec("talkToKhazard.cutscene", t.cutscene.await, "toCells", { expect = {
+            { op = "moveto", coord = "0_40_49_47_3", height = 600 },
+            { op = "lookat", coord = "0_40_49_42_5", height = 0 },
+            { op = "reset" },
+        } })
+        t.exec("talkToKhazard-guard", t.chat.play, {
+            "npc:The General seems to have taken a liking to you.",
+        })
         t.expect("quest.stage.sent_jail", t.quest.expect_stage("sent_jail"))
 
         -- talkToHengrad in the cell, then the scorpion round begins
@@ -191,12 +229,26 @@ return {
             "npc:Wait.. sshh",
             "mesbox:From above you hear a voice",
         })
+        -- arena_release_scorp (quest_arena.rs2:60-80; LostCity quest_arena.rs2:193-228)
+        t.exec("scorpionPen.cutscene", t.cutscene.await, "scorpionPen", { expect = {
+            { op = "moveto", coord = "0_40_49_35_23", height = 700 },
+            { op = "lookat", coord = "0_40_49_47_23", height = 100 },
+            { op = "moveto", coord = "0_40_49_41_23", height = 450 },
+            { op = "reset" },
+        } })
         t.exec("killScorpion", t.player.attack, "arena_scorpion", 2, 20)
         t.exec("killScorpion.dead", t.npc.await_dead_engaged, 240, 40, { eat = { item = "shark", below = 50 } })
         t.exec("killScorpion-dialog", t.chat.play, {
             "npc:Impressive, but now for a proper challenge",
             "mesbox:Today's second round of battle",
         })
+        -- arena_release_bouncer (quest_arena.rs2:84-104; LostCity quest_arena.rs2:230-265)
+        t.exec("bouncerPen.cutscene", t.cutscene.await, "bouncerPen", { expect = {
+            { op = "moveto", coord = "0_40_49_35_26", height = 700 },
+            { op = "lookat", coord = "0_40_49_47_26", height = 100 },
+            { op = "moveto", coord = "0_40_49_41_26", height = 450 },
+            { op = "reset" },
+        } })
         t.expect("quest.stage.defeated_scorpion", t.quest.expect_stage("defeated_scorpion"))
 
         t.exec("killBouncer", t.player.attack, "arena_bouncer", 2, 20)

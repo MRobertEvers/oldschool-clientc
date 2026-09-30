@@ -19,6 +19,7 @@
 #include "torirs_server_equipment.h"
 #include "torirs_server_friends.h"
 #include "torirs_server_ids.h"
+#include "torirs_server_paramtable.h"
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
 #include "torirs_server_session.h"
@@ -467,6 +468,37 @@ selftest_tick(struct ToriRSServer* srv)
 {
     selftest_ack_scene(srv);
     ToriRSServer_WorldTick(srv);
+}
+
+/*
+ * Run a hand-built opcode list through the host VM: the `[selftest,...]`
+ * script literal the stanzas below otherwise spell out field by field.
+ */
+static int
+selftest_run_ops(
+    struct ToriRSServer* srv,
+    const char* name,
+    uint16_t* ops,
+    int32_t* operands,
+    char** strings,
+    int count)
+{
+    struct SSVM_Script script;
+
+    assert(name);
+    assert(ops);
+    assert(operands);
+    assert(strings);
+    memset(&script, 0, sizeof(script));
+    script.id = -1;
+    script.name = (char*)name;
+    script.source_path = (char*)"<selftest>";
+    script.lookup_key = -1;
+    script.op_count = count;
+    script.opcodes = ops;
+    script.int_operands = operands;
+    script.string_operands = strings;
+    return ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
 }
 
 
@@ -42935,6 +42967,343 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(added >= 0 && ToriRSServer_SceneLoc(added) &&
                                    !ToriRSServer_SceneLoc(added)->active,
                                "a loc_add with a duration should expire away again");
+            }
+
+            /*
+             * seam32 loc_revert_queue_and_loc_reads_after_del: the loc
+             * lifecycle against LostCity. A Loc entity has ONE lifecycle
+             * (World.ts addLoc/changeLoc/removeLoc/revertLoc, Loc.turn): a
+             * re-statement on a tile restarts the clock and never changes what
+             * the timer puts back. Reads after `loc_del` answer from the
+             * removed loc (LocOps.ts LOC_NAME/LOC_PARAM read
+             * `state.activeLoc.type`), and `.loc_*` address the SECONDARY
+             * active loc (ScriptState.ts get/set activeLoc by intOperand).
+             * Every loc here is a map-square loc beside the Lumbridge range,
+             * chosen by looking, and every timer is short enough to have run
+             * out before the stanza ends.
+             */
+            fprintf(stderr, "ToriRSServer selftest: loc lifecycle (seam32: revert target, reads "
+                            "after loc_del, dotted locs)\n");
+            {
+                const int v_a = SELFTEST_VARP_GREETING_COUNT;
+                const int v_b = SELFTEST_VARP_QUEST_PROGRESS;
+                const int32_t saved_a = player->varps[v_a];
+                const int32_t saved_b = player->varps[v_b];
+                const int inviswall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "inviswall");
+                const int next_stage =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "next_loc_stage");
+                /* id, x, z, shape, angle of: two plain map-square locs and a
+                 * named one with a next_loc_stage (a tree and its stump in
+                 * the Lumbridge scene). Copied out: a
+                 * `loc_add` can grow the scene array under a pointer. */
+                int a_id = -1, a_x = 0, a_z = 0, a_shape = 0, a_angle = 0;
+                int b_id = -1, b_x = 0, b_z = 0;
+                int d_id = -1, d_x = 0, d_z = 0;
+                int e_x = -1, e_z = -1;
+
+                SELFTEST_CHECK(inviswall >= 0 && next_stage >= 0 && remains > 0,
+                               "inviswall, next_loc_stage and fire_remains resolve by name");
+                for( int i = 0; ToriRSServer_SceneLoc(i); i++ )
+                {
+                    const struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(i);
+
+                    if( !loc->active || !loc->is_static || loc->level != 0 )
+                        continue;
+                    if( loc->x < 3196 || loc->x > 3228 || loc->z < 3199 || loc->z > 3231 )
+                        continue;
+                    if( ToriRSServer_SceneFindLocExact(loc->x, loc->z, 0, loc->shape) != i ||
+                        ToriRSServer_SceneFindLocId(loc->x, loc->z, 0, loc->loc_id) != i )
+                        continue;
+                    if( d_id < 0 && next_stage >= 0 &&
+                        ToriRSServer_LocParam(loc->loc_id, next_stage) &&
+                        ToriRSServer_LocName(loc->loc_id) )
+                    {
+                        d_id = loc->loc_id;
+                        d_x = loc->x;
+                        d_z = loc->z;
+                        continue;
+                    }
+                    if( loc->shape != 10 || loc->loc_id == range )
+                        continue;
+                    if( a_id < 0 )
+                    {
+                        a_id = loc->loc_id;
+                        a_x = loc->x;
+                        a_z = loc->z;
+                        a_shape = loc->shape;
+                        a_angle = loc->angle;
+                    }
+                    else if( b_id < 0 && (loc->x != a_x || loc->z != a_z) )
+                    {
+                        b_id = loc->loc_id;
+                        b_x = loc->x;
+                        b_z = loc->z;
+                    }
+                }
+                for( int x = 3214; x < 3228 && e_x < 0; x++ )
+                    for( int z = 3208; z < 3228 && e_x < 0; z++ )
+                        if( ToriRSServer_SceneFindLocExact(x, z, 0, 10) < 0 )
+                        {
+                            e_x = x;
+                            e_z = z;
+                        }
+                SELFTEST_CHECK(a_id >= 0 && b_id >= 0 && d_id >= 0 && e_x >= 0,
+                               "the Lumbridge scene should offer two centrepiece map locs, a "
+                               "named loc with next_loc_stage and an empty tile (got %d %d %d "
+                               "%d)",
+                               a_id, b_id, d_id, e_x);
+                if( a_id >= 0 && b_id >= 0 && d_id >= 0 && e_x >= 0 && inviswall >= 0 &&
+                    next_stage >= 0 )
+                {
+                    const int32_t a_coord = ToriRSServer_CoordPack(0, a_x, a_z);
+                    const int32_t b_coord = ToriRSServer_CoordPack(0, b_x, b_z);
+                    const int32_t d_coord = ToriRSServer_CoordPack(0, d_x, d_z);
+                    const int32_t e_coord = ToriRSServer_CoordPack(0, e_x, e_z);
+
+                    /*
+                     * (1) loc_del(5) + loc_add(same tile, same shape, 3):
+                     * LostCity doubledoors.rs2 open_double_doors_left2. The
+                     * add is World.changeLoc on the removed map-square loc
+                     * (LOC_ADD searches getLocsUnsafe, inactive included), so
+                     * its 3 replaces the 5 and the timer puts the ORIGINAL
+                     * back. Here the add's "remove the inviswall" replaced the
+                     * pending restore and the loc was gone for good.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            a_coord, a_id, 0, 0, 5, 0, a_coord, inviswall, a_angle, a_shape, 3, 0, 0,
+                        };
+                        char* strings[13] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,loc_del_then_add_same_tile]",
+                                                   ops, operands, strings, 13);
+
+                        SELFTEST_CHECK(ran &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) < 0 &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, inviswall) >= 0,
+                                       "loc_del + loc_add(inviswall) should leave the inviswall "
+                                       "standing on %d,%d", a_x, a_z);
+                        for( int i = 0; i < 5; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, inviswall) < 0,
+                                       "once the add's 3 ticks run out the ORIGINAL loc %d "
+                                       "should be back on %d,%d, not an empty tile", a_id, a_x,
+                                       a_z);
+                        for( int i = 0; i < 4; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0,
+                                       "and stay back past the delete's own 5 ticks");
+                    }
+
+                    /*
+                     * (2) loc_change twice: the revert goes to the loc's
+                     * baseInfo (World.revertLoc), not to the first change.
+                     * Here the second change's was_id (the first change's
+                     * form) replaced the target and then stood for good.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_CHANGE,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_CHANGE,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            b_coord, b_id, 0, 0, remains, 5, 0, inviswall, 3, 0, 0,
+                        };
+                        char* strings[11] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,loc_change_twice]", ops,
+                                                   operands, strings, 11);
+
+                        SELFTEST_CHECK(ran &&
+                                           ToriRSServer_SceneFindLocId(b_x, b_z, 0, inviswall) >= 0,
+                                       "two loc_changes should leave the second form on %d,%d",
+                                       b_x, b_z);
+                        for( int i = 0; i < 9; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, b_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(b_x, b_z, 0, remains) < 0,
+                                       "the revert should put the map's own %d back on %d,%d, "
+                                       "not the first change's fire_remains", b_id, b_x, b_z);
+                    }
+
+                    /*
+                     * (3) loc_add(5) then loc_del(5) of that added loc:
+                     * World.removeLoc gives a DESPAWN loc lifecycle -1, so it
+                     * is gone for good. Here the delete's was_id turned the
+                     * pending "remove" into "put it back" -- the mirror of (1),
+                     * and what a door closed within 500 ticks did to its open
+                     * leaf.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = { e_coord, remains, 0, 10, 5, 0, 5, 0, 0 };
+                        char* strings[9] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,loc_add_then_del]", ops,
+                                                   operands, strings, 9);
+
+                        SELFTEST_CHECK(ran &&
+                                           ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "loc_add then loc_del should leave %d,%d empty", e_x, e_z);
+                        for( int i = 0; i < 8; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "and the deleted added loc should never come back");
+                    }
+
+                    /*
+                     * (3b) A door opened and shut again inside its timer, in
+                     * doors.rs2's own shape (door_open_active: loc_del +
+                     * loc_add on the swing tile; door_close_active: the same
+                     * back), with 5 for 500. (1) and (3) together: the shut
+                     * door must stay shut and the open leaf stay gone. Here
+                     * the shut door's tile was emptied and the open leaf put
+                     * back once the timers ran out.
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_ADD,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            a_coord, a_id, 0, 0, 5, 0,
+                            e_coord, remains, 0, 10, 5, 0,
+                            5, 0,
+                            a_coord, a_id, a_angle, a_shape, 5, 0,
+                            0,
+                        };
+                        char* strings[21] = { NULL };
+                        int ran = selftest_run_ops(srv, "[selftest,door_open_then_shut]", ops,
+                                                   operands, strings, 21);
+
+                        SELFTEST_CHECK(ran && ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "opened and shut, %d should stand on %d,%d and nothing "
+                                       "on the swing tile %d,%d", a_id, a_x, a_z, e_x, e_z);
+                        for( int i = 0; i < 8; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(e_x, e_z, 0, remains) < 0,
+                                       "and after both timers the shut door should still stand "
+                                       "and the open leaf should not come back");
+                    }
+
+                    /*
+                     * (4) loc_name / loc_param after loc_del answer from the
+                     * removed loc, like loc_type does (seam31) -- LocOps.ts
+                     * LOC_NAME :129 and LOC_PARAM :114 read
+                     * `state.activeLoc.type` with no isActive test. Here both
+                     * aborted "the active loc is gone".
+                     */
+                    {
+                        const struct ToriRSServerParamRow* row =
+                            ToriRSServer_LocParam(d_id, next_stage);
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_DEL,
+                            SS_OP_LOC_NAME,          SS_OP_PUSH_CONSTANT_STRING,
+                            SS_OP_COMPARE,           SS_OP_POP_VARP,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_PARAM,
+                            SS_OP_POP_VARP,          SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            d_coord, d_id, 0, 0, 3, 0, 0, 0, 0, v_a, next_stage, 0, v_b, 0,
+                        };
+                        char* strings[14] = { NULL };
+                        int ran;
+
+                        assert(row);
+                        strings[7] = (char*)ToriRSServer_LocName(d_id);
+                        player->varps[v_a] = -7;
+                        player->varps[v_b] = -7;
+                        ran = selftest_run_ops(srv, "[selftest,loc_name_param_after_loc_del]", ops,
+                                               operands, strings, 14);
+                        SELFTEST_CHECK(ran && ToriRSServer_SceneFindLocId(d_x, d_z, 0, d_id) < 0,
+                                       "the loc_del should have removed loc %d at %d,%d", d_id,
+                                       d_x, d_z);
+                        SELFTEST_CHECK(player->varps[v_a] == 0 && player->varps[v_b] == row->ival,
+                                       "loc_name / loc_param(next_loc_stage) after loc_del should "
+                                       "read the removed loc: compare %d (want 0), param %d "
+                                       "(want %d)",
+                                       player->varps[v_a], player->varps[v_b], row->ival);
+                        for( int i = 0; i < 5; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(d_x, d_z, 0, d_id) >= 0,
+                                       "and the loc should be back once its 3 ticks run out");
+                    }
+
+                    /*
+                     * (5) The `.` operand picks the active loc: `loc_find`
+                     * binds the primary, `.loc_find` the secondary, and
+                     * `loc_type` / `.loc_type` / `.loc_change` read and write
+                     * each. Shilo Village's tomb door (quest_zombiequeen.rs2
+                     * zq_tombdoor_use) is this shape; here `.loc_find`
+                     * overwrote the primary and `.loc_change` aborted
+                     * "requires an active entity".
+                     */
+                    {
+                        uint16_t ops[] = {
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_FIND,
+                            SS_OP_POP_INT_DISCARD,   SS_OP_LOC_TYPE,
+                            SS_OP_POP_VARP,          SS_OP_LOC_TYPE,
+                            SS_OP_POP_VARP,          SS_OP_PUSH_CONSTANT_INT,
+                            SS_OP_PUSH_CONSTANT_INT, SS_OP_LOC_CHANGE,
+                            SS_OP_RETURN,
+                        };
+                        int32_t operands[] = {
+                            a_coord, a_id, 0, 0, b_coord, b_id, 1, 0,
+                            0, v_a, 1, v_b, inviswall, 2, 1, 0,
+                        };
+                        char* strings[16] = { NULL };
+                        int ran;
+
+                        player->varps[v_a] = -7;
+                        player->varps[v_b] = -7;
+                        ran = selftest_run_ops(srv, "[selftest,dotted_loc]", ops, operands,
+                                               strings, 16);
+                        SELFTEST_CHECK(ran && player->varps[v_a] == a_id &&
+                                           player->varps[v_b] == b_id,
+                                       "loc_type / .loc_type should read the primary %d and the "
+                                       "secondary %d, got %d and %d",
+                                       a_id, b_id, player->varps[v_a], player->varps[v_b]);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, inviswall) >= 0 &&
+                                           ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0,
+                                       ".loc_change should change the secondary (%d,%d) and "
+                                       "leave the primary (%d,%d) alone",
+                                       b_x, b_z, a_x, a_z);
+                        for( int i = 0; i < 4; i++ )
+                            selftest_tick(srv);
+                        SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, b_id) >= 0,
+                                       "and the secondary should revert to %d", b_id);
+                    }
+                }
+                player->varps[v_a] = saved_a;
+                player->varps[v_b] = saved_b;
             }
 
             ToriRSServer_ScriptsFree(srv);

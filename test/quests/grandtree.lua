@@ -294,6 +294,13 @@ return {
         t.exec("climbDownTrapDoor-dialog", t.chat.play, {
             "npc:You really are becoming a headache", "player:You're crazy Glough", "npc:Bah! Well, soon you'll see",
             "player:What makes you think", "npc:Fool...meet my little friend", "end" })
+        -- Glough's demon cutscene (glough.rs2:143-155): cam_shake, cam_moveto the tower floor, cam_lookat
+        -- the tile beside the player, and cam_reset once the demon has walked in.
+        t.exec("climbDownTrapDoor.cutscene", t.cutscene.await, "climbDownTrapDoor", { expect = {
+            { op = "moveto", coord = "0_38_154_44_13", height = 2000 },
+            { op = "lookat" },
+            { op = "reset" },
+        } })
         t.expect("demon.present", t.npc.await_present("grandtree_blackdemon", 20, 40))
         t.exec("killBlackDemon", t.npc.await_dead, "grandtree_blackdemon", 400, 20, 10, { eat = { item = "shark", below = 45 } })
         t.ticks(3)

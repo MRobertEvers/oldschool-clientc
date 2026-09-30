@@ -58,6 +58,41 @@ exec_chat_add(
         RS_Chat_AddMessage(ctx->chat, type, name, sender, text, 0);
 }
 
+/*
+ * One camera packet, recorded for the READ side (app.h: struct App_CamScript,
+ * `serial` + `events`). The draw path never reads this; the quest driver does
+ * (t.world.camera, t.cutscene.await), so a cutscene a quest scripts can be
+ * asserted rather than only survived (seam32 cutscene_verb_and_camera_read).
+ *
+ * `world_x`/`world_z` are WORLD tiles, resolved by the caller against the
+ * scene the packet arrived in: a later rebuild moves the scene base, and a
+ * scene-local tile read back after it would name the wrong place.
+ */
+static void
+exec_cam_script_record(
+    struct App* app,
+    enum App_CamScriptOp kind,
+    int world_x,
+    int world_z,
+    int height,
+    int rate,
+    int rate2)
+{
+    struct App_CamScriptEvent* event;
+
+    assert(app);
+    app->cam_script.serial++;
+    event = &app->cam_script.events[app->cam_script.serial % APP_CAM_SCRIPT_EVENTS];
+    event->serial = app->cam_script.serial;
+    event->op = (int)kind;
+    event->world_x = world_x;
+    event->world_z = world_z;
+    event->height = height;
+    event->rate = rate;
+    event->rate2 = rate2;
+    event->tick = app->world ? app->world->cycle / APP_SERVER_TICK_LOGIC_CYCLES : 0;
+}
+
 /* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
 static int
 rs15_to_rgb(int c)
@@ -1663,6 +1698,14 @@ RS_GameProto_Exec(
             app->cam_script.scripted = 1;
             if( packet->_cam_moveto.rate2 >= 100 )
                 App_CinemaCameraSnapPosition(app);
+            exec_cam_script_record(
+                app,
+                APP_CAM_SCRIPT_OP_MOVETO,
+                cam_lx + (app->world ? app->world->_base_tile_x : 0),
+                cam_lz + (app->world ? app->world->_base_tile_z : 0),
+                packet->_cam_moveto.height,
+                packet->_cam_moveto.rate,
+                packet->_cam_moveto.rate2);
             app->need_redraw = 1;
         }
         break;
@@ -1691,6 +1734,14 @@ RS_GameProto_Exec(
             app->cam_script.scripted = 1;
             if( packet->_cam_lookat.rate2 >= 100 )
                 App_CinemaCameraSnapAngle(app);
+            exec_cam_script_record(
+                app,
+                APP_CAM_SCRIPT_OP_LOOKAT,
+                cam_lx + (app->world ? app->world->_base_tile_x : 0),
+                cam_lz + (app->world ? app->world->_base_tile_z : 0),
+                packet->_cam_lookat.height,
+                packet->_cam_lookat.rate,
+                packet->_cam_lookat.rate2);
             app->need_redraw = 1;
         }
         break;
@@ -1709,6 +1760,16 @@ RS_GameProto_Exec(
                 app->cam_script.shake_speed[axis] = packet->_cam_shake.speed;
                 app->cam_script.shake_cycle[axis] = 0;
             }
+            /* Recorded whatever the axis: an out-of-range shake is still a
+             * packet the server sent, and the serial counts every one. */
+            exec_cam_script_record(
+                ctx->app,
+                APP_CAM_SCRIPT_OP_SHAKE,
+                -1,
+                -1,
+                packet->_cam_shake.frequency,
+                axis,
+                packet->_cam_shake.speed);
         }
         break;
     case PKT_NAME_CAM_RESET:
@@ -1718,6 +1779,7 @@ RS_GameProto_Exec(
             app->cam_script.scripted = 0;
             for( int i = 0; i < 5; i++ )
                 app->cam_script.shake[i] = 0;
+            exec_cam_script_record(app, APP_CAM_SCRIPT_OP_RESET, -1, -1, 0, 0, 0);
             app->need_redraw = 1;
         }
         break;

@@ -129,6 +129,21 @@ python3 tools/quest_gate/fail.py <id>                          # the finished ru
   mid-run is fine; it is how you see where a long leg has got to without waiting for the end.
 - Never wait on a detached run with `sleep` loops or a monitor; `--wait` is the one wait.
 
+**A hung client dies in about 90 s, not at the ceiling (seam32).** The wall-clock ceiling above is
+only a backstop. The driver's per-frame pump (`torirs_plugin_drive.c` `drive_heartbeat`) rewrites
+`build/quest_gate/<name>/heartbeat` (`tick=T`) every 25 server ticks, about every 3 s of wall time.
+run.py polls every 5 s and kills the process group when that file is older than
+`TORIRS_QUEST_STALL_SECONDS` (default 90). Before the first beat the client gets
+`TORIRS_QUEST_STALL_BOOT_SECONDS` (default 120) to boot, log in and start the script. The ledger then
+ends in `run.unfinished` FAIL, `run stalled: no client tick for N s; last row <name> at tick T`
+(`run stalled at boot: ...` for the boot case), and `TIMEOUT.png` holds the last shot, the same as for
+a timeout. The report's `timed_out` column reads `stall`. A long await, a 500-tick kill wait or a relog
+keeps ticking, so it keeps beating and is never killed: a long run is never the reason for a stall
+kill, only a frozen frame loop (a C spin, or an await `level` predicate that loops: it runs outside
+the instruction budget after its first call) or a clock that stopped. `TORIRS_QUEST_STALL_SECONDS=0`
+turns the detector off. A binary built before seam32 writes no heartbeat; run.py prints `has no
+heartbeat ... stall detector off` and only the ceiling applies.
+
 ## Output discipline
 
 Every byte a command prints stays in your context for the rest of the quest. So:
@@ -219,7 +234,10 @@ A parked script or a combat claim often clears by itself: the milk script is sti
 after the bucket fills. So the harness retries once a tick for up to `QD.LEGS_QUIET_TICKS` (10) and
 notes `(after N quiet-wait tick(s))`. It does not retry a dialogue or an interface. The leg row then
 says `checkpoint k NOT written: ...`, and the leg boundary is in the wrong place. Put boundaries at
-quiet points: outside a fight, a cutscene, an instance or a dialogue. A leg that wrote a non-PASS row
+quiet points: outside a fight, a cutscene, an instance or a dialogue, with the camera free
+(`t.world.camera().server_driven == false`): before `::checkpoint` the harness waits the same
+`QD.LEGS_QUIET_TICKS` for a running cutscene to reset, and a camera still held is
+`checkpoint k NOT written: the camera is server-driven ...` (verbs-cutscene.md). A leg that wrote a non-PASS row
 gets no checkpoint (`NOT written: leg k wrote N non-PASS row(s)`).
 
 #### Still "in combat" after the fight: an aggressive npc respawned across a barrier
@@ -277,7 +295,8 @@ the full run saw. Measured on legends leg 1 (`_s31_legends`, leg 2 = one swing):
   60 vars, 52 of them player varps -- 50 `scope=temp` (`action_delay`, `frozen`,
   `blackjack_ko_expire`, `vengeance_ready`, `gauntlet_eat_delay`, the `*_pipe_used` /
   `*_ropeswing_used` agility stamps, the ToB/Nex/Inferno/Zulrah timers, ...) and 2 `scope=perm`
-  (`imbued_heart_ready_tick`, `hunter_falcon_expire`), plus npc (`npc_action_delay`) and world
+  (`imbued_heart_ready_tick`, `hunter_falcon_expire`; both `scope=temp` since seam32, the one perm
+  stamp left is `zq_rash_timer`), plus npc (`npc_action_delay`) and world
   (`wildy_hot_ends`, `star_next_crash`, `cell_*_unlock_timer`) vars a checkpoint does not carry.
   LostCity saves none of them: a logout drops every `scope=temp` varp. The full list is
   `build/seam_state/seam31/checkpoint_clock_class.txt`. A new clock stamp needs nothing here: the

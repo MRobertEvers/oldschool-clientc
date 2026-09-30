@@ -416,3 +416,14 @@ swaps start and end), so the yard is left through the fence it was entered by.
 `mourning_hideout_trap_door` (`mend1_disguise.rs2:136-143`) teleports to `mend1_hq_basement_coord`,
 2044,4628,0. That is not the underground frame, so a `z > 6400` test never sees the landing; check
 the distance to 2044,4628 instead (mourningsendparti `enterMournerBasementAfterPoison.landed`).
+
+## Zanaris has no Door man, market door or exit ladder in OSRS (seam32)
+
+The OSRS wiki Door man page is `{{Gone}}`: "removed 27 February 2006 ... never been present in Old
+School RuneScape". Gatekeepers (id 5840, near 2468,4436) replaced him: the market costs one cut
+diamond, and its exit is a one-way fairy ring behind the Al Kharid bank. The 239 map m38_69 has no
+`zanarisladderout`, `zanarisladderout2` or `zanarismarketdoor` placement, so LostCity's
+`doorman.rs2` / `ladder_fairy.rs2` must NOT be placed. Lost City's guide ends at `enterZanaris`
+(Quest Helper LostCity.java:174), so none of this blocks the zanaris row. The OSRS-era market is a
+separate content job (Gatekeeper, mushroom gate, exit fairy ring).
+

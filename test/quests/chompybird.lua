@@ -217,6 +217,14 @@ return {
             "npc:Over 'dere creature",
             "end",
         })
+        -- Rantz points the camera at the toad clearing on "Where should I put..." (rantz.rs2:315-322,
+        -- LostCity's own two ops): cam_lookat the clearing, cam_moveto above it; queue(cr_queue) resets it
+        -- once the dialogue closes (keg_of_beer.rs2 [queue,cr_queue]).
+        t.exec("talkToRantzWithToad.cutscene", t.cutscene.await, "talkToRantzWithToad", { expect = {
+            { op = "lookat", coord = "0_41_46_12_22", height = 25 },
+            { op = "moveto", coord = "0_41_46_15_12", height = 900 },
+            { op = "reset" },
+        } })
         t.ticks(4)
         t.expect("quest.stage.shown_toad", t.quest.expect_stage("shown_toad"))
 

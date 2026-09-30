@@ -1425,6 +1425,7 @@ push_element_unlinked(struct UITree* tree)
     component->child_key_max = UITREE_CHILD_KEY_NONE;
     component->free_next = -1;
     component->component_id = -1;
+    component->item_id = UITREE_NO_OBJ;
     component->behavior.over_layer_id = -1;
     component->drag_render_area_uid = -1;
     component->drag_render_area_child_index = -1;
@@ -2084,6 +2085,7 @@ uitree_reclaim_subtree(
     c->last_child_hint = -1;
     c->child_key_max = UITREE_CHILD_KEY_NONE;
     c->component_id = -1;
+    c->item_id = UITREE_NO_OBJ;
     c->freed = 1;
     c->free_next = tree->free_head;
     tree->free_head = idx;
@@ -3649,7 +3651,7 @@ UITree_CcCreate(
          * sizes it `cc_setsize(0, 0, ^setsize_minus, ^setsize_minus)` against
          * `toplevel_osrs_stretch:ui_highlights`, whose own width/height modes
          * make it the WHOLE CANVAS: one invisible item box over the entire
-         * screen, drawing nothing (item_id stays 0) and swallowing every click
+         * screen, drawing nothing (item_id stays UITREE_NO_OBJ) and swallowing every click
          * and every hover the client has -- world, sidebar, minimap and chat
          * alike -- while the frame loop carries on rendering.
          *
@@ -3710,8 +3712,11 @@ UITree_CcCreate(
         spec.u.rs_arc.line_width = 1;
         break;
     default:
-        /* Type 2 (INV) and any unknown: item box until SETOBJECT fills it. */
+        /* Type 2 (INV) and any unknown: item box until SETOBJECT fills it.
+         * Empty is UITREE_NO_OBJ, not the memset's 0: obj 0 is a real item. */
         spec.type = UIELEM_CC_OBJ;
+        spec.u.cc_obj.obj_id = UITREE_NO_OBJ;
+        spec.u.cc_obj.scene_id = -1;
         break;
     }
 
@@ -6218,9 +6223,12 @@ UITree_SetObjectAt(struct UITree* tree, int32_t idx, int obj_id, int obj_count,
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_CONTENT, 1);
     struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
     if( !c ) return false;
-    if( obj_id <= 0 )
+    /* Negative is "no obj" (CC_SETOBJECT(-1) / an empty inv_getobj); 0 is a
+     * real obj (Dwarf remains) and is stored like any other. */
+    if( obj_id < 0 )
     {
-        obj_id = obj_count = atlas_index = 0;
+        obj_id = UITREE_NO_OBJ;
+        obj_count = atlas_index = 0;
         scene_id = -1;
         num_mode = c->item_num_mode;
     }

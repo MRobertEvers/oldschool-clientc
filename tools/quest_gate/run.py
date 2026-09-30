@@ -125,7 +125,26 @@ DEFAULT_MAX_FRAMES = str(quest_list.DEFAULT_MAX_FRAMES)
 # machine, and romeojuliet's legitimate imp-fight retry loop was cut off at 180
 # by a reviewer running the default. A hang still fails in under seven
 # minutes; the virtual clock (TORIRS_MAX_FRAMES) is the tighter bound.
+# Measured 2026-09-30 over the 81 committed tests' last runs (seam32,
+# build/seam_state/seam32/p95_wall.json, many run in parallel): p50 40 s, p90
+# 116 s, p95 149 s; legends 572 s under its own max_frames scaling.
 DEFAULT_TIMEOUT = 400
+# seam32 stall_detector_heartbeat. The ceiling above is a BACKSTOP; the kill
+# that matters is the stall detector in launch_client. The driver rewrites
+# <session>/heartbeat every 25 server ticks from its per-frame pump
+# (src/plugin/torirs_plugin_drive.c drive_heartbeat); once the file exists a
+# heartbeat older than TORIRS_QUEST_STALL_SECONDS (default 90) kills the
+# process group, and before it exists the client gets STALL_BOOT_GRACE_DEFAULT
+# seconds (TORIRS_QUEST_STALL_BOOT_SECONDS) to boot, log in and start the
+# script -- boot is ~12 s, a cold pack load longer. A long await keeps ticking
+# and keeps beating; only a frozen frame loop or a clock that stopped does not.
+# TORIRS_QUEST_STALL_SECONDS=0 turns the detector off. A binary built before
+# the heartbeat (no HEARTBEAT_MARKER in it) is never judged by it.
+STALL_SECONDS_DEFAULT = 90
+STALL_BOOT_GRACE_DEFAULT = 120
+STALL_POLL_SECONDS = 5
+HEARTBEAT_FILE = "heartbeat"
+HEARTBEAT_MARKER = b"quest-driver: heartbeat"
 # A quest whose real guide does not fit the default virtual clock declares
 # its own budget as a `max_frames = <n>,` field beside `fixture = "..."` in
 # its quest table (Sheep Herder's four-sheep herd plus the feed/incinerate
@@ -1031,12 +1050,72 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
 QUEST_PASSWORD = "test"
 
 
+def env_seconds(name, default):
+    """A non-negative whole number of seconds from the environment, or
+    `default` when unset. A value that is not one is the caller's typo and
+    stops the run rather than silently meaning the default."""
+    text = os.environ.get(name, "").strip()
+    if not text:
+        return default
+    assert text.isdigit(), "%s must be a whole number of seconds, got %r" % (name, text)
+    return int(text)
+
+
+_heartbeat_binaries = {}
+
+
+def binary_writes_heartbeat(binary):
+    """True when `binary` carries drive_heartbeat's stderr line, i.e. it was
+    built with the heartbeat. Cached per (path, size, mtime): one read of a
+    ~6 MB file per binary per run.py process."""
+    assert binary
+    info = os.stat(binary)
+    key = (binary, info.st_size, info.st_mtime)
+    if key not in _heartbeat_binaries:
+        with open(binary, "rb") as handle:
+            _heartbeat_binaries[key] = HEARTBEAT_MARKER in handle.read()
+    return _heartbeat_binaries[key]
+
+
+def read_heartbeat(path):
+    """(mtime, tick) of the heartbeat file, or (None, None) when it does not
+    exist yet. The tick is None when the file is caught mid-rewrite."""
+    assert path
+    try:
+        mtime = os.stat(path).st_mtime
+    except FileNotFoundError:
+        return None, None
+    tick = None
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            match = re.match(r"tick=(\d+)", handle.read())
+        if match:
+            tick = int(match.group(1))
+    except OSError:
+        pass
+    return mtime, tick
+
+
+def kill_process_group(process):
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except OSError:
+        pass
+    process.wait()
+
+
 def launch_client(binary, manifest_path, user, directory, saves, script, log_path, timeout,
-                  max_frames=int(DEFAULT_MAX_FRAMES)):
-    """One client process, killed (whole process group) if it outlives
-    `timeout` seconds of WALL-CLOCK time -- independent of
-    TORIRS_MAX_FRAMES, which only bounds the virtual clock and cannot catch
-    a real hang. Returns (exit_code_or_None, timed_out)."""
+                  max_frames=int(DEFAULT_MAX_FRAMES), stall_out=None):
+    """One client process, killed (whole process group) when it STALLS --
+    its <session>/heartbeat older than TORIRS_QUEST_STALL_SECONDS, or never
+    written within the boot grace (seam32; see STALL_SECONDS_DEFAULT) -- or
+    when it outlives `timeout` seconds of WALL-CLOCK time, the backstop.
+    Both are independent of TORIRS_MAX_FRAMES, which only bounds the virtual
+    clock and cannot catch a real hang. Returns (exit_code_or_None,
+    timed_out). A stall kill returns (None, False) and, when the caller
+    passes a dict as `stall_out`, fills it with {seconds, tick, boot,
+    stall_seconds, boot_grace, timeout} (the 2-tuple is kept for
+    fingerprints/capture_fingerprints.py)."""
     command = [binary, "--manifest", manifest_path, "--user", user, "--pass", QUEST_PASSWORD,
                "--soft3d", "--window", "765x503"]
     environment = client_env(directory, saves, script, max_frames)
@@ -1044,22 +1123,54 @@ def launch_client(binary, manifest_path, user, directory, saves, script, log_pat
     if max_frames != int(DEFAULT_MAX_FRAMES):
         print("run.py: %s declares max_frames = %d (wall-clock timeout %d s)"
               % (user, max_frames, timeout), flush=True)
+    stall_seconds = env_seconds("TORIRS_QUEST_STALL_SECONDS", STALL_SECONDS_DEFAULT)
+    boot_grace = env_seconds("TORIRS_QUEST_STALL_BOOT_SECONDS", STALL_BOOT_GRACE_DEFAULT)
+    watch = stall_seconds > 0 and binary_writes_heartbeat(binary)
+    if stall_seconds > 0 and not watch:
+        print("run.py: %s has no heartbeat (built before seam32) -- stall detector off, "
+              "only the %d s wall-clock ceiling applies" % (binary, timeout), flush=True)
+    heartbeat_path = os.path.join(directory, HEARTBEAT_FILE)
+    # A heartbeat left by an earlier launch into this directory would read as
+    # this client's first beat.
+    if os.path.exists(heartbeat_path):
+        os.unlink(heartbeat_path)
     with open(log_path, "wb") as log:
         # cwd is the repo root, ALWAYS: TORIRS_PLUGIN_MANIFEST resolves under
         # script/ relative to the working directory, not to the binary.
         process = subprocess.Popen(command, env=environment, cwd=REPO_ROOT,
                                     stdout=log, stderr=subprocess.STDOUT,
                                     start_new_session=True)
-        try:
-            code = process.wait(timeout=timeout)
-            return code, False
-        except subprocess.TimeoutExpired:
+        started = time.monotonic()
+        while True:
+            remaining = timeout - (time.monotonic() - started)
+            if remaining <= 0:
+                kill_process_group(process)
+                return None, True
             try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except OSError:
+                code = process.wait(timeout=min(STALL_POLL_SECONDS, remaining))
+                return code, False
+            except subprocess.TimeoutExpired:
                 pass
-            process.wait()
-            return None, True
+            if not watch:
+                continue
+            mtime, tick = read_heartbeat(heartbeat_path)
+            stall = None
+            if mtime is None:
+                elapsed = time.monotonic() - started
+                if elapsed > boot_grace:
+                    stall = {"seconds": int(elapsed), "tick": None, "boot": True}
+            else:
+                age = time.time() - mtime
+                if age > stall_seconds:
+                    stall = {"seconds": int(age), "tick": tick, "boot": False}
+            if stall:
+                stall["stall_seconds"] = stall_seconds
+                stall["boot_grace"] = boot_grace
+                stall["timeout"] = timeout
+                kill_process_group(process)
+                if stall_out is not None:
+                    stall_out.update(stall)
+                return None, False
 
 
 # ---------------------------------------------------------------- session lock
@@ -1368,6 +1479,28 @@ def scan_client_log(log_path):
     return open_row, last_tick, last_progress, fatal_line, predicate_errors
 
 
+def stall_reason(stall, row_name, last_tick):
+    """seam32: the words for a stall kill. `row_name` is the open row, else
+    the last one written; the tick is the heartbeat's own (the last tick the
+    client lived to), else the driver's last reported one."""
+    assert stall
+    # The later of the two: the heartbeat is written every 25 ticks, the
+    # driver's row-begin/progress lines can be a few ticks past it.
+    ticks = [value for value in (stall["tick"], last_tick) if value is not None]
+    tick = max(ticks) if ticks else "none reported"
+    if row_name == "none":
+        row_name = "(none written)"
+    if stall["boot"]:
+        return ("run stalled at boot: no heartbeat %d s after launch (boot grace %d s, "
+                "TORIRS_QUEST_STALL_BOOT_SECONDS) -- the quest script never started ticking; "
+                "last row %s at tick %s; run.py killed the process group"
+                % (stall["seconds"], stall["boot_grace"], row_name, tick))
+    return ("run stalled: no client tick for %d s; last row %s at tick %s (run.py killed the "
+            "process group: heartbeat older than TORIRS_QUEST_STALL_SECONDS=%d, long before "
+            "the %d s wall-clock ceiling)"
+            % (stall["seconds"], row_name, tick, stall["stall_seconds"], stall["timeout"]))
+
+
 def unfinished_reason(code, timed_out, timeout, max_frames, last_tick, fatal_line):
     """Why the client stopped, in words: exited / timed out / killed."""
     budget_ticks = max_frames // FRAMES_PER_SERVER_TICK
@@ -1395,11 +1528,12 @@ def unfinished_reason(code, timed_out, timeout, max_frames, last_tick, fatal_lin
             % (last_tick, budget_ticks, max_frames))
 
 
-def finish_unfinished_ledger(directory, code, timed_out, timeout, max_frames):
+def finish_unfinished_ledger(directory, code, timed_out, timeout, max_frames, stall=None):
     """Append `run.unfinished` FAIL + a SUMMARY to a ledger the client left
     without one (or create the ledger when the client wrote none), and name the
-    open row in a `script-error` row's detail. Returns the reason written, or
-    None when the client's own SUMMARY is there."""
+    open row in a `script-error` row's detail. `stall` is launch_client's stall
+    dict when the stall detector killed the client (seam32). Returns the reason
+    written, or None when the client's own SUMMARY is there."""
     assert directory
     ledger_path = os.path.join(directory, "ledger.tsv")
     log_path = os.path.join(directory, "client.log")
@@ -1430,12 +1564,16 @@ def finish_unfinished_ledger(directory, code, timed_out, timeout, max_frames):
     has_summary = any(line.startswith("SUMMARY\t") for line in lines)
     reason = None
     if not has_summary:
-        reason = unfinished_reason(code, timed_out, timeout, max_frames, last_tick, fatal_line)
         if not lines:
             lines = ["quest-ledger-v1", "index\tstep\tverdict\tticks\tshots\tdetail"]
         rows = [line.split("\t") for line in lines[2:] if line and not line.startswith("SUMMARY")]
         index = len(rows) + 1
         last_written = rows[-1][1] if rows else "none"
+        if stall:
+            reason = stall_reason(stall, open_row[0] if open_row else last_written, last_tick)
+        else:
+            reason = unfinished_reason(code, timed_out, timeout, max_frames, last_tick,
+                                       fatal_line)
         detail = "run ended without finishing: %s; %s; last row written: %s" % (
             reason, where or "no row was open (the driver reported no row-begin after the "
             "last written row)", last_written)
@@ -1460,21 +1598,24 @@ def finish_unfinished_ledger(directory, code, timed_out, timeout, max_frames):
 def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout,
                       max_frames, user=None):
     log_path = os.path.join(directory, "client.log")
+    stall = {}
     code, timed_out = launch_client(binary, manifest_path, user or name, directory, saves,
                                      script, log_path, scaled_timeout(timeout, max_frames),
-                                     max_frames)
-    if timed_out:
+                                     max_frames, stall_out=stall)
+    stall = stall or None
+    if timed_out or stall:
         copy_timeout_shot(directory)
     # seam31: never leave a ledger without a SUMMARY (finish_unfinished_ledger).
     unfinished = finish_unfinished_ledger(directory, code, timed_out,
-                                          scaled_timeout(timeout, max_frames), max_frames)
+                                          scaled_timeout(timeout, max_frames), max_frames,
+                                          stall=stall)
     ledger_path = os.path.join(directory, "ledger.tsv")
     has_ledger = os.path.isfile(ledger_path)
-    ok = (not timed_out) and code == 0 and has_ledger and unfinished is None
+    ok = (not timed_out) and (not stall) and code == 0 and has_ledger and unfinished is None
     return {
         "name": name, "exit_code": code, "timed_out": timed_out,
         "has_ledger": has_ledger, "directory": directory, "ok": ok,
-        "unfinished": unfinished,
+        "unfinished": unfinished, "stalled": stall is not None,
     }
 
 
@@ -1688,7 +1829,7 @@ def print_report(results):
             width, r["name"],
             "locked" if r.get("locked") else
             ("none" if r["exit_code"] is None else str(r["exit_code"])),
-            "yes" if r["timed_out"] else "no",
+            "yes" if r["timed_out"] else ("stall" if r.get("stalled") else "no"),
             "yes" if r["has_ledger"] else "no",
             r["directory"]))
     print("")
@@ -1790,8 +1931,11 @@ def print_failure_block(results):
             print("    last FAIL/BLOCKED row: %s (%s) -- %s"
                   % (row["step"], row["verdict"], row["detail"]))
             shot_path = fail_shot_path(r["directory"], row)
+            timeout_shot = os.path.join(r["directory"], "TIMEOUT.png")
+            if not shot_path and row["step"] == "run.unfinished" and os.path.isfile(timeout_shot):
+                shot_path = timeout_shot + " (the driver's last shot before the kill)"
             print("    shot: %s" % (shot_path if shot_path else "none captured"))
-        elif r["timed_out"]:
+        elif r["timed_out"] or r.get("stalled"):
             timeout_shot = os.path.join(r["directory"], "TIMEOUT.png")
             print("    timed out with no FAIL/BLOCKED row written -- %s"
                   % (timeout_shot if os.path.isfile(timeout_shot) else "no TIMEOUT.png captured"))
