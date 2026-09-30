@@ -27,6 +27,7 @@ ARENA_NPC = CONTENT / "quests/quest_arena/configs/quest_arena.npc"
 ARENA_SPAWN = CONTENT / "quests/quest_arena/configs/quest_arena.spawn"
 ARENA_WORLD_SPAWN = CONTENT / "areas/world/configs/m40_49.spawn"
 ARENA_LADY = CONTENT / "quests/quest_arena/scripts/lady_servil.rs2"
+ARENA_SAMMY = CONTENT / "quests/quest_arena/scripts/sammy_servil.rs2"
 HAZEEL_ALOMONE = CONTENT / "quests/quest_hazeelcult/scripts/alomone.rs2"
 HAZEEL_LOCS = CONTENT / "quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2"
 HAZEEL_CLIVET = CONTENT / "quests/quest_hazeelcult/scripts/clivet.rs2"
@@ -88,6 +89,8 @@ LEGENDS_ECHNED = CONTENT / "quests/quest_legends/scripts/echned_zekin.rs2"
 LEGENDS_GUJUO = CONTENT / "quests/quest_legends/scripts/gujuo.rs2"
 LEGENDS_BOOK = CONTENT / "quests/quest_legends/scripts/book_of_binding.rs2"
 LEGENDS_BOULDER = CONTENT / "quests/quest_legends/scripts/legends_boulder.rs2"
+LEGENDS_YOMMI = CONTENT / "quests/quest_legends/scripts/legends_yommi.rs2"
+LEGENDS_QUEST = CONTENT / "quests/quest_legends/scripts/quest_legends.rs2"
 LEGENDS_HEROES = (
     CONTENT / "quests/quest_legends/scripts/san_tojalon.rs2",
     CONTENT / "quests/quest_legends/scripts/irvig_senay.rs2",
@@ -862,9 +865,34 @@ def check_fight_arena() -> None:
     require_text(npc, ("[general_khazard_arena]", "op2=Attack", "vislevel=142"),
                  "Fight Arena General Khazard")
 
-    curated = ARENA_SPAWN.read_text()
-    for actor in ("lady_servil", "arena_guard2", "sammy_servil", "sammy_servil_arena", "justin_servil"):
-        require(actor in curated, f"Fight Arena spawn: missing {actor}")
+    # The curated spawn rows are read as ROWS (first word of every non-comment
+    # line after "==== NPC ===="): a substring test passed on a comment that
+    # merely named an actor. The arena Sammy is not a spawn row at all since
+    # seam29 -- the rev-239 shell sammy_servil_arena draws the op-less
+    # sammy_servil_vis_noop, so ~arena_spawn_sammy places an owner-private
+    # sammy_servil_vis instead (sammy_servil.rs2) and every round start calls it.
+    curated_rows = set()
+    in_npc = False
+    for line in ARENA_SPAWN.read_text().splitlines():
+        stripped = line.strip()
+        if stripped.startswith("===="):
+            in_npc = stripped.strip("= ").upper() == "NPC"
+            continue
+        if not in_npc or not stripped or stripped.startswith("//"):
+            continue
+        curated_rows.add(stripped.split()[0])
+    for actor in ("lady_servil", "arena_guard2", "sammy_servil", "justin_servil"):
+        require(actor in curated_rows, f"Fight Arena spawn: missing {actor} spawn row")
+    require("sammy_servil_arena" not in curated_rows,
+            "Fight Arena spawn: sammy_servil_arena shell placed (its op-less form cannot be talked to)")
+    require_text(
+        ARENA_SAMMY.read_text(),
+        ("[proc,arena_spawn_sammy]", "npc_add(0_40_49_42_18, sammy_servil_vis, 32000);",
+         "npc_setowner;", "[opnpc1,sammy_servil_vis]"),
+        "Fight Arena owner-private Sammy",
+    )
+    require(ARENA.read_text().count("~arena_spawn_sammy;") >= 4,
+            "Fight Arena: every round start must call ~arena_spawn_sammy")
     world_spawn = ARENA_WORLD_SPAWN.read_text()
     for actor in ("arena_ogre", "arena_scorpion", "arena_bouncer"):
         require(actor not in world_spawn, f"Fight Arena: public combat spawn restored for {actor}")
@@ -1628,22 +1656,35 @@ def check_legends_quest() -> None:
         ),
         "Legends' Quest Nezikchened phases",
     )
-    require(nezi.count("npc_setowner;") == 5,
+    # One npc_setowner per npc_add: the first defeat no longer spawns a second Ungadulu
+    # (LostCity nezikchened.rs2 [queue,nezikchened_defeat] spawns none), so the count is 4.
+    require(nezi.count("npc_add(") >= 4 and nezi.count("npc_setowner;") == nezi.count("npc_add("),
             "Legends' Quest: every dynamic Nezikchened/hero spawn must be owner-private")
     require("obj_add(" not in nezi and "obj_add_private(" not in nezi,
             "Legends' Quest: Nezikchened must remain no-loot")
 
+    # LostCity quest_legends/scripts/ungadulu.rs2 [opnpcu,ungadulu_good]: the
+    # Book of Binding used on Ungadulu summons the first Nezikchened.
     ungadulu = LEGENDS_UNGADULU.read_text()
     require_text(
         ungadulu,
         (
-            "[opnpcu,ungadulu_bad]", "last_useitem = holy_water",
-            "last_useitem ! book_of_binding", "npc_setowner;",
-            "npc_statsub(defence, 0, 5);", "stat_sub(prayer, 0, 90);",
-            "[opheldu,yommiseeds]", "def_int $seed_count = inv_total(inv, yommiseeds);",
-            "inv_del(bank, goldbowlbless_pure, $bank_bowls);",
-            "[oplocu,fertilesoil]", "stat(herblore) < 45",
-            "stat(woodcutting) < 50", "%legendsquest < ^legends_sacred_water_collected",
+            "[opnpcu,ungadulu_good]", "last_useitem = book_of_binding",
+            "%legendsquest = ^legends_summoned_nezikchened_fire;",
+            "npc_add(map_findsquare(coord, 1, 2, ^map_findsquare_lineofwalk), nezikchened, 500);",
+            "npc_setowner;", "stat_sub(prayer, 0, 90);",
+        ),
+        "Legends' Quest Ungadulu summons Nezikchened",
+    )
+
+    # LostCity quest_legends.rs2 :1094-1300 (the Yommi tree), split out here.
+    yommi = LEGENDS_YOMMI.read_text()
+    require_text(
+        yommi,
+        (
+            "[oplocu,fertilesoil]", "last_useitem ! yommiseeds_germ",
+            "stat(herblore) < 45", "stat(woodcutting) < 50",
+            "%legendsquest < ^legends_sacred_water_collected",
             "[oplocu,yommitree_sapling]", "[oplocu,yommitree_adult]",
             "[oplocu,yommitree_felled]", "[oplocu,yommitree_trimmed]",
             "[oploc1,yommitree_totem]", "[proc,legends_yommi_axe](obj $axe)(boolean)",
@@ -1651,9 +1692,9 @@ def check_legends_quest() -> None:
             "[proc,legends_set_yommi_planter]", "random(10)",
             "inv_add(inv, magic_logs, 1);",
         ),
-        "Legends' Quest Ungadulu and Yommi route",
+        "Legends' Quest Yommi route",
     )
-    require(ungadulu.count("world_delay(49);") == 5,
+    require(yommi.count("world_delay(49);") == 5,
             "Legends' Quest: all five timed Yommi rot windows must remain")
 
     echned = LEGENDS_ECHNED.read_text()
@@ -1668,31 +1709,37 @@ def check_legends_quest() -> None:
         "Legends' Quest second-route split",
     )
 
+    # LostCity book_of_binding.rs2 [label,enchant_vials]: 5 Prayer and 5 Magic
+    # per vial, the 1/2/N count menu.
     book = LEGENDS_BOOK.read_text()
     require_text(
         book,
         (
             "[opheldu,book_of_binding]", "last_useitem ! vial_empty",
             "stat(magic) < 10", "stat(prayer) < 10",
-            "stat_sub(prayer, 5, 0);", "stat_sub(magic, 5, 0);",
-            "inv_del(inv, vial_empty, 1);", "inv_add(inv, vial_enchanted, 1);",
+            "stat_sub(prayer, calc(5 * $count), 0);", "stat_sub(magic, calc(5 * $count), 0);",
+            "inv_del(inv, vial_empty, $count);", "inv_add(inv, vial_enchanted, $count);",
         ),
         "Legends' Quest enchanted-vial recipe",
     )
 
-    gujuo = LEGENDS_GUJUO.read_text()
+    # LostCity quest_legends.rs2 [opheldu,goldbowlbless_pure] and
+    # [oplocu,lg_ord_totem_pole].
+    quest = LEGENDS_QUEST.read_text()
     require_text(
-        gujuo,
+        quest,
         (
-            "[oplocu,lg_totem_pole_evil]", "@summon_nezi_part3;",
-            "%legendsquest = ^legends_replaced_totem;", "npc_setowner;",
-            "obj_add_private(coord, thtotempolegift, 1",
-            "[opheldu,goldbowlbless_pure]",
+            "[oplocu,lg_ord_totem_pole]", "last_useitem = thtotempole",
+            "@summon_nezi_part3;", "%legendsquest = ^legends_replaced_totem;",
+            "npc_setowner;", "[opheldu,goldbowlbless_pure]",
             "getbit_range(%legends_bits, ^legends_golden_bowl_uses_start, ^legends_golden_bowl_uses_end)",
             "inv_add(inv, holy_water, 1);", "if ($bowl_uses >= 9)",
         ),
         "Legends' Quest bowl and final totem",
     )
+
+    gujuo = LEGENDS_GUJUO.read_text()
+    require_text(gujuo, ("thtotempolegift",), "Legends' Quest Gujuo's totem gift")
 
     boulder = LEGENDS_BOULDER.read_text()
     require_text(
@@ -4109,7 +4156,16 @@ def opnpc2_combat_start_sweep() -> tuple[list[tuple], list[tuple], int]:
         for path, line, body in found:
             count += 1
             starts, retaliates = scan(body, frozenset())
-            if retaliates and not starts:
+            # A binding that hands the Attack back with `p_opnpc(2)` re-queues
+            # ITSELF (the same [opnpc2,<npc>] fires again) unless it changed
+            # what the npc is first (`npc_changetype`: Sire's sleeping ->
+            # awake, which the new type's own binding then serves). Seam pass
+            # 30: the three battle mages ended both halves in `p_opnpc(2)`, no
+            # swing ever landed ('hp no bar -> no bar'), and this sweep passed
+            # them because they never call ~npc_retaliate either.
+            reenters = (re.search(r"\bp_opnpc\(\s*2\s*\)", body) is not None
+                        and "npc_changetype" not in body)
+            if (retaliates or reenters) and not starts:
                 row = (trigger, name, path, line)
                 if (trigger, name) in COMBAT_START_EXEMPT:
                     exempt.append(row + (COMBAT_START_EXEMPT[(trigger, name)],))

@@ -157,6 +157,14 @@ to melee" on that confusion, and it dies in one hit with a rune scimitar. The re
 rows and twenty ticks (`::spawn <sym>` + `::setlevel` + a GOBLIN control pressed identically), never
 the quest's own 100-row route.
 
+### A binding that re-enters itself with `p_opnpc(2)` (battle mages, FIXED seam30)
+
+A name-specific `[opnpc2,<npc>]` whose body ends in `p_opnpc(2)` (and does not `npc_changetype`
+first) re-queues the same binding and never swings: the same `hp no bar -> no bar` tell. The three
+Mage Arena battle mages did this (areas/area_mage_arena/scripts/battle_mage.rs2); they now end in
+`@player_combat_start` / `@player_combat_start_ap` as LostCity battle_mage.rs2:1-22 does. The sweep
+(`tools/check_quest_combat_contract.py`) flags this shape too since seam30.
+
 ### `.loc_find` does not exist as a secondary-writing find; Prying Times FIXED
 
 Beside it, the other latent shape a content reviewer should know: `.loc_find` DOES NOT EXIST as a

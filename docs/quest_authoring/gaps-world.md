@@ -330,11 +330,14 @@ A loc whose cache category is an unnamed id (not in pack/category.pack) never re
 `_<category>` head. Sinks are cache category 175 and water pumps 177 in osrs239, so the Varrock
 palace kitchen sink (Demon Slayer's fillBucket) did nothing; 21 of them are now bound by name heads
 stacked on `[oplocu,_watersource]` (general_use/scripts/water_sources.rs2; source LostCity
-water_sources.loc `category=watersource` on its sinks and the wiki Water source page). Still
-unbound, no per-record source: uncategorised sinks/wells/pumps (rimmington_sink,
-dwarf_keldagrim_well, elf_village_well, burgh_well, ...), the Farming Guild tap (vials only), and
-LostCity's own `sink`/`sink2`/`fountain` answer skill_farming's bucket/watering-can label for a
-jug, bowl or vial.
+water_sources.loc `category=watersource` on its sinks and the wiki Water source page). Seam30 bound the rest of the placed, uncategorised sinks and fountains
+(`_watersource`: Lumbridge castle kitchen, Rimmington, Keldagrim, Lunar Isle, ...) and wells
+(`_well`: elf village, Keldagrim, Burgh de Rott, the desert well) by name; the list is in
+water_sources.rs2. It also closed two name heads that shadowed them: skill_farming's
+`farming_craft.rs2` (a jug, bowl or vial at `sink`/`sink2`/`fountain`/`goldfountain` now fills) and
+garden_althric.rs2's `well` (the Edgeville well fills a bucket). Left unbound on purpose, with the
+reason in water_sources.rs2: taps (wiki: vials only), troughs, the Trouble Brewing pump, the Blast
+Furnace sink, and the quest fountains and wells that have their own ops.
 
 ## A multinpc shell whose every visible child is a `*_noop` form cannot be talked to (seam29)
 

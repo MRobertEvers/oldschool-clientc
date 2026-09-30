@@ -626,8 +626,52 @@ function QD.quest.expect_complete()
         end
     end
 
+    -- quest.journal leaves the Quest List tab selected; every reward row
+    -- after this reads (and photographs) the tab its own verb asserts.
+    QD.quest._reward_phase = true
+
     if all_pass then
         return "ok", "quest.varp_complete/scroll_title/points/journal all PASS"
     end
     return "refused", "one or more of quest.varp_complete/scroll_title/points/journal did not pass -- see those rows"
+end
+
+-- REWARD ROWS SHOW WHAT THEY ASSERT (seam30).  A test's reward rows come
+-- right after expect_complete -- t.skill.expect_gain("magic", 875, snap),
+-- t.inv.expect_has("amulet_of_accuracy"), a t.inv.count("coins") delta --
+-- and every one of them was photographed on the Quest List tab that
+-- quest.journal had just left selected (imp's reward.* shots 36-38,
+-- chompybird's; build/author_state/sonnet-b35/sample.progress.md).  So
+-- once expect_complete has run, the backpack reads (inv.count, and
+-- through it expect_has / expect_absent / await / coins) select the
+-- inventory tab first and the skill reads (skill.read, and through it
+-- expect_gain) the stats (skills) tab, the way a player looks before he checks.
+-- Before expect_complete nothing changes: a mid-quest count must not
+-- flip the sidebar under a dialogue or a shop.  The wrap is here, not in
+-- state.lua, because the phase is this file's (quest.lua loads after
+-- state.lua and ui.lua in DRIVE_SCRIPT_PARTS).  A tab this lane cannot
+-- name is not swallowed: it goes into the next row's detail via QD.note.
+QD.quest._reward_phase = false
+QD.quest._raw_inv_count = QD.inv.count
+QD.quest._raw_skill_read = QD.skill.read
+
+function QD.quest._reward_tab(tab)
+    if not QD.quest._reward_phase then
+        return
+    end
+    local tab_result, tab_detail = QD.ui.tab(tab)
+    if tab_result ~= "ok" then
+        QD.note("reward tab " .. tab .. " not selected: " .. tostring(tab_result)
+            .. " " .. tostring(tab_detail))
+    end
+end
+
+function QD.inv.count(name)
+    QD.quest._reward_tab("inventory")
+    return QD.quest._raw_inv_count(name)
+end
+
+function QD.skill.read(name)
+    QD.quest._reward_tab("stats")
+    return QD.quest._raw_skill_read(name)
 end

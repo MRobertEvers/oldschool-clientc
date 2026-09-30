@@ -146,6 +146,11 @@ BY_SYMBOL_RE = re.compile(
 T_EXEC_OPEN_RE = re.compile(r'(?<![\w.])t\s*\.\s*exec\s*\(')
 T_STEP_OPEN_RE = re.compile(r'(?<![\w.])t\s*\.\s*step\s*\(')
 QUEST_BIND_OPEN_RE = re.compile(r't\.quest\.bind\s*([{(])')
+# A legs file's top-level `bind = { ... }` field: the harness calls
+# t.quest.bind with it before the first leg it runs (docs/quest_authoring/
+# relay.md "Checkpoints"), so a leg resumed from a checkpoint is bound too.
+RUN_FIELD_RE = re.compile(r'(?<![\w.])run\s*=\s*function\b')
+LEG_NAME_RE = re.compile(r'^[A-Za-z0-9_-]+$')
 SETUP_OPEN_RE = re.compile(r'\bsetup\s*=\s*(\{)')
 CHECK_MARKER_RE = re.compile(r'--\s*CHECK\b')
 COMPLETE_CHEAT_RE = re.compile(r'^::complete\s+(\S+)')
@@ -306,16 +311,201 @@ def _find_setup_cheats(text):
 
 
 def _find_bound_row(text):
-    """The `row = "..."` a `t.quest.bind{...}` call carries, or None -- a
-    file that does not call quest.bind has no "own row" to compare
-    `::complete` against, so the check that needs it is simply inapplicable
-    (see check_complete_own_row)."""
+    """The `row = "..."` a `t.quest.bind{...}` call (or a legs file's
+    top-level `bind = {...}` field) carries, or None -- a file that does not
+    bind has no "own row" to compare `::complete` against, so the check that
+    needs it is simply inapplicable (see check_complete_own_row)."""
     match = QUEST_BIND_OPEN_RE.search(text)
-    if not match:
-        return None
-    inner, _ = _extract_balanced(text, match.start(1))
+    if match:
+        inner, _ = _extract_balanced(text, match.start(1))
+    else:
+        layout = legs_layout(text)
+        if not layout or not layout["bind"]:
+            return None
+        inner = layout["bind"]
     row_match = re.search(r'\brow\s*=\s*"([^"]+)"', inner)
     return row_match.group(1) if row_match else None
+
+
+def top_level_fields(code):
+    """{field name: index of its value} for the fields of the quest file's
+    returned table -- `return { id = ..., setup = {...}, legs = {...} }` --
+    read from COMMENT-BLANKED code (`_blank_comments`). A field counts only
+    at bracket depth 0 of that table and right after its `{` or a `,`, so a
+    `local legs = {...}` or a `bind = {...}` statement inside a function body
+    (death.lua keeps a local named `legs`) is never mistaken for one."""
+    fields = {}
+    returns = list(re.finditer(r'(?m)^return\s*(\{)', code))
+    if not returns:
+        return fields
+    open_idx = returns[-1].start(1)
+    _, close_end = _extract_balanced(code, open_idx)
+    depth = 0
+    in_string = None
+    previous = "{"
+    i = open_idx + 1
+    field_re = re.compile(r'([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)\s*')
+    while i < close_end - 1:
+        ch = code[i]
+        if in_string:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == in_string:
+                in_string = None
+                previous = ch
+            i += 1
+            continue
+        if ch.isspace():
+            i += 1
+            continue
+        if depth == 0 and previous in "{," and (ch.isalpha() or ch == "_"):
+            match = field_re.match(code, i)
+            if match and match.group(1) not in fields:
+                fields[match.group(1)] = match.end()
+        if ch in ('"', "'"):
+            in_string = ch
+        elif ch in _OPEN_CHARS:
+            depth += 1
+        elif ch in _CLOSE_CHARS:
+            depth -= 1
+        previous = ch
+        i += 1
+    return fields
+
+
+def legs_layout(text):
+    """The `legs = { {name=, run=function(t) ... end}, ... }` field of a
+    relay-authored quest file's returned table, or None when it has none.
+
+    Returns a dict: `legs` -- one {name, start, end, text, has_run} per
+    entry, in order (start/end index the ORIGINAL text; `text` is the entry's
+    own source, comments included, so a comment edit inside a leg is an edit
+    to that leg); `setup` / `bind` -- the source text of the table's
+    `setup = {...}` / `bind = {...}` fields, or "" when absent; `run_field`
+    -- whether the table ALSO has a `run` field. run.py hashes these for a
+    checkpoint's manifest (docs/quest_authoring/relay.md "Checkpoints"); this
+    module's own rules below read the same layout, so the linter and the
+    harness can never disagree about where a leg is.
+
+    Comment-blind (`_blank_comments` preserves length, so an index into the
+    blanked text is an index into the original)."""
+    code = _blank_comments(text)
+    fields = top_level_fields(code)
+    if "legs" not in fields or code[fields["legs"]:fields["legs"] + 1] != "{":
+        return None
+    open_idx = fields["legs"]
+    inner, close_end = _extract_balanced(code, open_idx)
+    base = open_idx + 1
+    legs = []
+    depth = 0
+    in_string = None
+    i = 0
+    while i < len(inner):
+        ch = inner[i]
+        if in_string:
+            if ch == "\\":
+                i += 1
+            elif ch == in_string:
+                in_string = None
+        elif ch in ('"', "'"):
+            in_string = ch
+        elif ch == "{" and depth == 0:
+            _, past = _extract_balanced(code, base + i)
+            start = base + i
+            entry_code = code[start:past]
+            run_match = RUN_FIELD_RE.search(entry_code)
+            head = entry_code[:run_match.start()] if run_match else entry_code
+            name_match = re.search(r'(?<![\w.])name\s*=\s*"([^"]*)"', head)
+            legs.append({
+                "name": name_match.group(1) if name_match else None,
+                "start": start,
+                "end": past,
+                "text": text[start:past],
+                "has_run": bool(run_match),
+            })
+            i = past - base
+            continue
+        elif ch in _OPEN_CHARS:
+            depth += 1
+        elif ch in _CLOSE_CHARS:
+            depth -= 1
+        i += 1
+
+    def table_text(field):
+        at = fields.get(field)
+        if at is None or code[at:at + 1] != "{":
+            return ""
+        _, past = _extract_balanced(code, at)
+        return text[at:past]
+
+    return {
+        "legs": legs,
+        "legs_span": (open_idx, close_end),
+        "setup": table_text("setup"),
+        "bind": table_text("bind"),
+        "run_field": "run" in fields,
+    }
+
+
+def check_legs(text):
+    """The legs table's own shape (docs/quest_authoring/relay.md). Every
+    other rule in this file already reads the whole file, so it applies
+    inside each leg function exactly as it does inside a `run` function; the
+    only thing a legs file adds is the table, and this is its rule set:
+
+      * `legs` and a top-level `run = function` are exclusive -- a file that
+        declares both leaves the harness guessing which one is the test;
+      * every entry is `{ name = "<name>", run = function(t) ... end }`, the
+        name first, unique, and made of [A-Za-z0-9_-] (it becomes the ledger
+        row `leg.<k>.<name>` and part of a checkpoint's manifest);
+      * a file that uses `t.quest.*` declares the top-level `bind = {...}`
+        field instead of calling t.quest.bind inside a leg: the harness binds
+        before the first leg it runs, and a leg resumed from a checkpoint
+        never ran leg 1's call;
+      * `t.finish(` appears only in the LAST leg -- an earlier leg that
+        finishes silently skips every leg after it (t.blocked may end any
+        leg: a blocked quest stops where it stops)."""
+    findings = []
+    code = _blank_comments(text)
+    layout = legs_layout(text)
+    if layout is None:
+        return findings
+    legs_line = _line_of(text, layout["legs_span"][0])
+    if layout["run_field"]:
+        findings.append((legs_line, "the file declares both `legs` and a top-level `run = "
+                                    "function`: a relay file has legs only"))
+    if not layout["legs"]:
+        findings.append((legs_line, "`legs = {}` has no entries"))
+    seen = {}
+    for index, leg in enumerate(layout["legs"], 1):
+        line = _line_of(text, leg["start"])
+        if leg["name"] is None:
+            findings.append((line, "leg %d has no `name = \"...\"` before its run field"
+                                   % index))
+        elif not LEG_NAME_RE.match(leg["name"]):
+            findings.append((line, "leg %d's name %r: use [A-Za-z0-9_-] only -- it is the "
+                                   "ledger row leg.%d.<name>" % (index, leg["name"], index)))
+        elif leg["name"] in seen:
+            findings.append((line, "leg %d's name %r repeats leg %d's" % (
+                index, leg["name"], seen[leg["name"]])))
+        else:
+            seen[leg["name"]] = index
+        if not leg["has_run"]:
+            findings.append((line, "leg %d has no `run = function(t) ... end`" % index))
+        leg_code = code[leg["start"]:leg["end"]]
+        if QUEST_BIND_OPEN_RE.search(leg_code):
+            findings.append((line, "leg %d calls t.quest.bind: put the table in the file's "
+                                   "top-level `bind = {...}` field -- a leg resumed from a "
+                                   "checkpoint never runs another leg's bind" % index))
+        if index < len(layout["legs"]) and re.search(r'(?<![\w.])t\s*\.\s*finish\s*\(',
+                                                      leg_code):
+            findings.append((line, "leg %d calls t.finish but is not the last leg: every "
+                                   "leg after it would silently never run" % index))
+    if re.search(r'(?<![\w.])t\s*\.\s*quest\s*\.', code) and not layout["bind"]:
+        findings.append((legs_line, "the legs use t.quest.* but the file has no top-level "
+                                    "`bind = {...}` field for the harness to bind with"))
+    return findings
 
 
 def check_numeric_ids_and_symbols(text, packs):
@@ -656,6 +846,7 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     findings.extend(check_step_verdict_type(code))
     findings.extend(check_duplicate_exec_names(code))
     findings.extend(check_max_frames(code))
+    findings.extend(check_legs(text))
     if not allow_check:
         findings.extend(check_marker(text))
     findings.extend(check_guide_gap_markers(text, test_id))

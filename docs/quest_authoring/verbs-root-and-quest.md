@@ -140,6 +140,15 @@ means the two agreed.
 
 ## `scroll` / `levelup` (`read.lua`)
 
+#### Reward rows photograph the tab they assert (seam30)
+
+After `t.quest.expect_complete()` returns, `t.inv.*` reads (`inv.count`, and through it
+`expect_has`, `expect_absent`, `await`, coin deltas) select the inventory tab first, and
+`t.skill.read` / `t.skill.expect_gain` select the stats tab (the lane's name is `stats`, not
+`skills`). Before, every `reward.*` shot showed the Quest List tab `quest.journal` had left open.
+Nothing changes before `expect_complete`. A tab the lane cannot select goes into the next row's
+detail (`reward tab ... not selected`).
+
 ### `t.scroll.title()` -- also `t.scroll.rewards`
 
 `t.scroll.title()` -> `(ok, {name, points})`; `t.scroll.rewards()` -> `(ok, {lines, icon})`; both
@@ -150,10 +159,8 @@ means the two agreed.
 `t.scroll.reward_xp(skill)` -> `(ok, xp)` `no_row`. Parses `<n> <Skill> XP`, case-insensitive,
 unscaled.
 
-It does NOT parse thousands separators. The pattern is `(%d+)%s+(%a+)%s+XP`, so "10,500 Attack XP"
-reads 500 (`script/plugins/quest_driver/read.lua:420`). For a reward of 1,000 xp or more, assert
-with `t.skill.expect_gain` against a `skill.snapshot()`, or read `t.scroll.rewards()` lines
-yourself (`ikov.lua` does).
+Thousands separators parse (FIXED seam30, `QD.scroll._parse_reward_xp`): "10,500 Magic XP" reads
+10500. Before, the pattern was `(%d+)` and read that line as 500.
 
 ### `t.scroll.close()`
 

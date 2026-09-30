@@ -52,6 +52,27 @@ ToriRSServer_SavePlayer(
     const char* path);
 
 /**
+ * Write the player as a quest-harness LEG CHECKPOINT. Returns 1 on success.
+ *
+ * The same serialiser as ToriRSServer_SavePlayer, plus every non-zero varp
+ * whatever its scope and the player's own random stream (`[random]`), so a
+ * leg resumed from it starts from the state the full run was in -- see
+ * docs/quest_authoring/relay.md "Checkpoints". Loaded by the ordinary
+ * ToriRSServer_LoadPlayer (a login whose save file is the checkpoint).
+ */
+int
+ToriRSServer_SavePlayerCheckpoint(
+    const struct ToriRSServerPlayer* player,
+    const char* path);
+
+/**
+ * `<save dir>/checkpoints/<leg>.ini`, where `::checkpoint <leg>` writes.
+ * Static storage. `leg` must be positive.
+ */
+const char*
+ToriRSServer_CheckpointPath(int leg);
+
+/**
  * Read the player back. Returns 1 when a save was loaded, 0 when there is none.
  *
  * **Call after ToriRSServer_WorldInit**, which seeds the defaults this overlays: a

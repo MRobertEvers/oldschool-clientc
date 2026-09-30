@@ -89,3 +89,112 @@ Every byte a command prints stays in your context for the rest of the quest. So:
   whole.
 - Pipe any exploratory command (a `grep -rn` over the content, a `helper_coverage.py` run, a debug
   dump) through `| head -c 4000`.
+
+## Checkpoints
+
+A relay author working leg K should not replay legs 1..K-1 on every run. A legs file lets the
+harness save the player after each leg and resume from there (seam30 leg_checkpoints).
+
+### The file shape
+
+```lua
+return {
+    id = "dragon",
+    fixture = "fresh_lumbridge.ini",
+    setup = { "::clearinv", ... },
+    bind = { varp = "dragonquest", constants = { ... }, row = "quest_dragon", display = "Dragon Slayer", points = 2 },
+    legs = {
+        { name = "oziach", run = function(t) ... end },
+        { name = "map",    run = function(t) ... end },
+        ...
+    },
+}
+```
+
+- `legs` replaces `run`. A file with `run` works as before. `lint_quest` refuses a file that has both.
+- `bind` is the `t.quest.bind` table. The harness binds it after setup and before the first leg that
+  runs, so a leg resumed from a checkpoint is bound too. Never call `t.quest.bind` inside a leg
+  (lint). A file that uses `t.quest.*` must declare `bind` (lint).
+- Each leg is self-contained. It may read file-level constants. It shares no locals with another
+  leg: a resumed leg never ran the others. Leg names are `[A-Za-z0-9_-]` and unique.
+- Only the LAST leg calls `t.finish(0)` (lint). `t.blocked` may end any leg. When the last leg
+  returns without finishing, the harness finishes the run.
+- Every other rule (`lint_quest`, `gate.py`, `helper_coverage`) applies inside each leg exactly as
+  it applies inside `run`. Row names do not change. `test/quests/_legs.lua` is the committed
+  harness fixture. The seam30 conversion of cooks_assistant (legs `start`, `gather`, `handin`: the
+  same 45 rows, green) is kept at build/seam_state/seam30/cooks_assistant_legs_form.lua; it was not
+  committed, because the seam pass never commits a quest file.
+
+### What a run writes
+
+- Before leg k, row `leg.<k>.<name>` (PASS). Its detail is the player's tile (client), the bound
+  quest variable read from the SERVER, and the backpack:
+  `tile=3208,3215,0 stage=cookquest=1 inv=... -- checkpoint 1 written: checkpoint 1 written at 3208,3215,0`.
+- After leg k, when every row leg k wrote was PASS and another leg follows, the harness sends
+  `::checkpoint k`. The server writes the player through its own save serialiser in checkpoint mode
+  (`torirs_server_save.c`: the logout save plus every non-zero varp whatever its scope, and the
+  player's random stream) to `<session>/saves/checkpoints/<k>.ini`. The next leg row carries the
+  outcome. A run that stops after leg k (`--only-leg`) writes `leg.<k>.end` for it.
+- After the run, `run.py` wraps each save as `build/quest_gate/<run>/checkpoints/<k>.ckpt`. The
+  `[checkpoint]` manifest holds the test id, k, the leg names, and sha256 hashes of legs 1..k's
+  source text, the setup list, the `bind` table, the content pack
+  (`server/scripts/build/script.dat` + `.idx`) and the engine binary. It also holds the fixture
+  name, the saved tile, the source run and the time. A leg whose checkpoint was refused leaves
+  `checkpoints/<k>.refused` with the reason.
+
+### Quiet points: when a checkpoint is refused
+
+A checkpoint is per-player state only. It does not restore npc positions, a spawned loc, an
+instance, a parked script or an open interface. The server refuses `::checkpoint` and names the
+reason:
+
+- `checkpoint k refused: a dialogue is open (chat modal interface 219)`
+- `checkpoint k refused: an interface is open (main M, side S)`
+- `checkpoint k refused: a script is parked on the player (a dialogue, delay or cutscene is still running)`
+- `checkpoint k refused: the player is in combat (attacking <npc>, slot N)`, `(single-way claim
+  for N more tick(s))`, or `(<npc> is attacking)`
+
+A parked script or a combat claim often clears by itself: the milk script is still parked one tick
+after the bucket fills. So the harness retries once a tick for up to `QD.LEGS_QUIET_TICKS` (10) and
+notes `(after N quiet-wait tick(s))`. It does not retry a dialogue or an interface. The leg row then
+says `checkpoint k NOT written: ...`, and the leg boundary is in the wrong place. Put boundaries at
+quiet points: outside a fight, a cutscene, an instance or a dialogue. A leg that wrote a non-PASS row
+gets no checkpoint (`NOT written: leg k wrote N non-PASS row(s)`).
+
+### Running one leg
+
+```sh
+python3 tools/quest_gate/run.py <id> --no-build --no-publish        # full run: writes the checkpoints
+python3 tools/quest_gate/run.py <id> --from-leg K --no-build        # legs K..end from checkpoint K-1
+python3 tools/quest_gate/run.py <id> --only-leg K --no-build        # leg K alone
+python3 tools/quest_gate/fail.py <id> --name <id>.legK              # read that run
+```
+
+- Both modes run under `build/quest_gate/<id>.leg<K>/`, so they never overwrite the full run. They
+  log in as `<id>`, the same account as the full run: the checkpoint is that account's save, and
+  `session.relog` types that name. They skip the setup list and wait for the client to stand on the
+  saved tile. The first leg row says `resumed from checkpoint K-1 (from_leg=K)`.
+- A checkpoint run writes checkpoints for the legs it completes. Leg K+1's author can resume from
+  a `--from-leg K` run without a full run: `--from-leg` takes the newest fresh `<K-1>.ckpt` under
+  `<id>/` or any `<id>.leg<J>/`.
+- It REFUSES with exit 2 and names the reason when checkpoint K-1 is missing (and why: the
+  `.refused` reason, or "run the full test first") or STALE: legs 1..K-1's text, the setup, `bind`,
+  the fixture, the content pack or the binary differ from the manifest. A shared file-level constant
+  is not hashed. After editing one, run the full test again.
+- The SUMMARY row is stamped `from_leg=K` (and `only_leg=1`). Such a run is never published.
+
+### Honesty
+
+A checkpoint run is for authoring. It is never a verdict:
+
+- `gate.py <id>.leg<K>` (or any ledger whose SUMMARY carries `from_leg`) is RED:
+  `a checkpoint run is for authoring; grade the full run`.
+- `queue.py set <id> --status green` needs a full-run ledger at `build/quest_gate/<id>/ledger.tsv`
+  with a SUMMARY row and no `from_leg`.
+- `publish()` refuses a `from_leg` ledger.
+- Determinism: legs K..end from checkpoint K-1 reach the same stage, backpack and tile as the full
+  run. Measured: `_legs` `--from-leg 3` ends with a `legs.end_state` detail byte-identical to the
+  full run's. `cooks_assistant --from-leg 3` writes the same 16 rows as the full run from
+  `leg.3.handin`: varp 2/2, qp 0 -> 1, 300 Cooking XP, the completion scroll. A resumed fight rolls
+  as it would have, because the player's random stream is in the checkpoint. The npcs' streams are
+  world state and start fresh.

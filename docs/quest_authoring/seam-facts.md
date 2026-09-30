@@ -449,3 +449,60 @@ Mordred unarmed behind a green setup before).
 is the real in-game text (wiki Transcript:A_scruffy_note). The Grand Tree cupboard's "you find
 nothing" after the journal is LostCity parity (quest_grandtree.rs2:96-107).
 
+## Seam pass 30 (2026-09-29)
+
+(a) Leg checkpoints landed: a test may declare `legs = {...}` plus a top-level `bind`, and
+`run.py <id> --from-leg K` resumes from the server's `::checkpoint` save. See relay.md
+"Checkpoints". A checkpoint run is never graded, published or set green.
+
+(b) A multinpc switch varbit is drawn only if its BASE varp is declared `transmit=yes` in content. A
+cache varp with no content `.varp` is not sent. `sote_tertiary` (the carrier of Eluned's
+`roving_female_woodelf` and Islwyn's `roving_bowyer`) is now declared like `sote_primary`. When a
+multinpc shell never changes form on the client, check its basevar first.
+
+(c) An npc's continuous fight is `npc->combat_target`, not its mode. `npc_getmode = opplayer2` is
+false between swings (world.c phase 4 drops `opplayer*` to none after each one), so a LostCity
+"while fighting" mode test ports as "the npc has a fighter" (`npc_findhero` / `npc_hastarget`),
+never literally. Dad (Troll Stronghold) now resets when his fighter is gone or outside the arena
+zone (LostCity troll_champion.rs2:101-109).
+
+(d) In an npc `[ai_queue3]` death script, every npc op must come before the first `p_delay`: the
+corpse leaves the pool during the delay, and the next npc op aborts the script (Nezikchened's first
+defeat skipped its last hit this way).
+
+(e) LostCity-port engine gaps, fixed in content, not in the engine: `.huntnext` ignores the `.`
+operand (it walks the PRIMARY pointer), so a `.huntnext/.coord` loop aborts with "COORD requires
+an active entity"; walk hunts on the primary pointer. `loc_*` reads after `loc_del` abort with
+"the active loc is gone"; capture them before the delete. The `.obj` param reader does not
+resolve `^constants`; write literals.
+
+(f) Paterdomus after Priest in Peril: temple trapdoor (3405,3507) open, then descend to
+3405,9906; `pip_underground_door1` needs `%priestperil_mausoleum` bit 20 (the golden-key unlock)
+or the golden key; `pip_underground_door2` (3431,9897); Drezel at stage 60 gives his advice
+(-> 61); the holy barrier passes only at 61 and puts you out at 3423,3485,0; `pipeastsidetrapdoor`
+(3422,3485) open, then descend to 3440,9887,0 beside Drezel. `::complete quest_priestinperil`
+sets only the stage, so a setup that uses the temple route adds `::setvar priestperil_mausoleum
+1048576`.
+
+(g) A `~mesbox` opened out in Mort Myre can be closed a tick later by a ghast's attack (`chat.play`
+answers "no dialogue is open" with a mesbox-p1 shot). Ask for such pages inside the grotto.
+
+(h) The lane's tab name for skills is `stats` (revconfig/osrs239/osrs239_dat2_cache.ini `[tabs]`).
+
+(i) Observatory professor: "Talk about Treasure Trails." appears only while a coordinate clue is in
+the pack (the LostCity gate); `chat.play` drives the chart objbox as `*`. The Dwarf Cannon guards:
+the OSRS world has exactly the wiki's seven (3 at the Dwarven Mine entrance, 4 south of the Coal
+Trucks); LostCity's extra five are 2004 tiles, so do not add spawns. The Coal Truck four
+(`mcannonguard1..4`) now answer Talk-to.
+
+(j) Legends' Quest is landed from the LostCity port (parity3c candidate plus seam30 fixes) but has
+no test yet. Its ladder and notes are docs/quests/ladders/legends.{ladder.tsv,notes.md}. The
+Gujuo bowl blessing keeps LostCity's inverted `stat_random` (a higher Prayer fails more often); it
+needs a wiki check before anyone changes it.
+
+(k) DEFERRED, not landed: a `helper_coverage` grader that grades Quest Helper `addSubSteps`
+children as their own steps. It turned three committed greens red on real skips (biohazard
+exitBackyardOfHeadquarters, eadgar leaveEadgarsCaveForThistle, mourningsendparti
+enterMournerBaseAfterPoison), so it waits until those tests click the crossings. The patch is
+build/seam_state/seam30/helper_coverage_substeps_deferred.patch.
+

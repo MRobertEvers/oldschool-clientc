@@ -96,6 +96,8 @@ topic file with one line added here.
 - `msg.await` FAILs on a line already in chat -> gaps-dialogue: `t.msg.await` never sees
 - a `|` glyph mid-line in a dialogue shot; an entry spanning a line break fails -> gaps-dialogue: A `|` in a page's text (FIXED seam29)
 - page count before a menu unknown; an answer-any-dialogue row; a `conv()` helper to unroll -> verbs-chat: A page count you do not know
+- a `chat.play` fragment across a `|`/`<br>` break; `'through......you land'` -> verbs-chat: fragments see each break as ONE space (seam30)
+- a `~mesbox` in Mort Myre gone a tick later, `no dialogue is open` -> seam-facts: Seam pass 30 (g)
 
 ## Items, held ops and shops
 
@@ -162,6 +164,8 @@ topic file with one line added here.
 - `rune_platebody` cannot be worn -> sampler-findings: Sample sonnet-b32
 - a wait that passed before seam28 now fails; an unhittable caster -> seam-facts: Seam 28
 - a `::spawn` drop hunt sees too few drops (Imp Catcher beads) -> sampler-findings: Sample sonnet-b34, (b)
+- battle mage `hp no bar -> no bar`; an `[opnpc2]` ending in `p_opnpc(2)` -> traps-23-33: A binding that re-enters itself
+- a LostCity `npc_getmode = opplayer2` test never true mid-fight -> seam-facts: Seam pass 30 (c)
 
 ## Completion and rewards
 
@@ -175,12 +179,14 @@ topic file with one line added here.
 - the reward differs from the wiki; split scroll lines -> gaps-dialogue: `~quest_complete_rewards`; `t.scroll.rewards()`
 - which rewards need a row -> coverage-and-gate: A reward row; gaps-dialogue: Rewards and steps
 - a second branch replayed after completion with `::<quest>reset` -> sampler-findings: Sample sonnet-b34, (a)
+- `reward.*` shot shows the Quest List tab; `reward tab ... not selected`; `10,500 Magic XP` read as 500 -> verbs-root-and-quest: Reward rows photograph the tab; `t.scroll.reward_xp`
 
 ## Long quests
 
 - my context is filling up; which guide steps are left; never read the guide Java -> relay: The ladder (`ladder.py <id>`)
 - quest has more than 30 steps; handed one leg; where the previous author stopped -> relay: Legs; relay: Working one leg (`ladder.py <id> --leg K`)
 - which row failed; the ledger is too long to read -> relay: After a run (`fail.py <id>`, `--all`)
+- replaying legs 1..K-1 every run; `--from-leg`/`--only-leg`; `checkpoint k NOT written`/`refused: a dialogue is open`; `STALE ... (legs_hash)`; `a checkpoint run is for authoring` -> relay: Checkpoints
 
 ## Gate, lint, coverage and the ledger
 
@@ -254,6 +260,10 @@ topic file with one line added here.
 - place facts (Watchtower, Tourist Trap, Death's Coffer, Witchaven, Ghosts Ahoy, Hazeel Cult) -> seam-facts: passes 23-28
 - `::complete quest_druid` does nothing -> gaps-combat: `::complete` takes a DBROW name
 - "The trapdoor opens..." / "Lab stairs and trapdoors sit locked." then `goto_tile`; reward shots show the Quest List; "10,500" xp reads 500; `ogre_bow` missing after completion; Harold's door or objbox gap -> sampler-findings: Sample sonnet-b35; gaps-world: Paterdomus, Death Plateau; verbs-root-and-quest: `t.scroll.reward_xp`; gaps-combat: Feldip; gaps-dialogue: A payout branch
+- a multinpc shell never changes form on the client (sote_tertiary) -> seam-facts: Seam pass 30 (b)
+- `COORD requires an active entity` after `.huntnext`; `the active loc is gone`; an npc death script aborting after `p_delay` -> seam-facts: Seam pass 30 (d), (e)
+- Paterdomus trapdoor/gates/holy barrier locked after `::complete quest_priestinperil` -> seam-facts: Seam pass 30 (f)
+- a jug/bowl/vial at a sink or a bucket at the Edgeville well: `Nothing interesting happens.` -> gaps-world: A sink or water pump
 
 ## Citations: resolving a number or a name
 

@@ -8517,6 +8517,89 @@ ToriRSServer_RunCheatLadder(
      * mistyped argument. Nothing below claims either word.
      */
 
+    if( strncmp(text, "checkpoint", 10) == 0 )
+    {
+        /*
+         * `::checkpoint <leg>` -- the quest harness's leg checkpoint
+         * (tools/quest_gate/run.py, docs/quest_authoring/relay.md
+         * "Checkpoints"): write this player, through the save serialiser in
+         * its checkpoint mode, to `<TORIRSSERVER_SAVES>/checkpoints/<leg>.ini`.
+         * run.py wraps that file in a manifest, and `run.py <id> --from-leg K`
+         * logs the same player back in from it.
+         *
+         * A checkpoint is PER-PLAYER state only: no npc position, spawned loc,
+         * instance, parked script or open interface comes back with it. So it
+         * is refused -- FAILED, naming which -- at a point that state would be
+         * lost from: a dialogue or interface open, a script parked on the
+         * player, or a fight on either side. The leg boundary belongs at a
+         * quiet point; the refusal is how an author learns theirs is not one.
+         */
+        int leg = 0;
+        const char* path;
+
+        if( sscanf(text, "checkpoint %d", &leg) != 1 || leg <= 0 )
+        {
+            say(srv, "Usage: ::checkpoint <leg number, 1 or more>");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->chatmodal_group > 0 )
+        {
+            say(srv, "checkpoint %d refused: a dialogue is open (chat modal interface %d)", leg,
+                player->chatmodal_group);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->mainmodal_group > 0 || player->sidemodal_group > 0 )
+        {
+            say(srv, "checkpoint %d refused: an interface is open (main %d, side %d)", leg,
+                player->mainmodal_group, player->sidemodal_group);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->active_script )
+        {
+            say(srv, "checkpoint %d refused: a script is parked on the player (a dialogue, "
+                     "delay or cutscene is still running)", leg);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->combat_target >= 0 )
+        {
+            /* `combat_target` is an npc slot (torirs_server_combat.c sets it
+             * from the attacked npc's slot). */
+            int target = player->combat_target;
+
+            if( target < TORIRSSERVER_NPC_MAX && srv->npcs[target].active )
+                say(srv, "checkpoint %d refused: the player is in combat (attacking %s, slot %d)",
+                    leg, ToriRSServer_NpcInfo(srv->npcs[target].type)->name, target);
+            else
+                say(srv, "checkpoint %d refused: the player is in combat (attacking slot %d)",
+                    leg, target);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( srv->tick < player->combat_claim_tick )
+        {
+            say(srv, "checkpoint %d refused: the player is in combat (single-way claim for %d "
+                     "more tick(s))", leg, player->combat_claim_tick - srv->tick);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        for( int slot = 0; slot < TORIRSSERVER_NPC_MAX; slot++ )
+        {
+            const struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+            if( !npc->active || npc->death_tick >= 0 || npc->combat_target != player->pid )
+                continue;
+            say(srv, "checkpoint %d refused: the player is in combat (%s is attacking)", leg,
+                ToriRSServer_NpcInfo(npc->type)->name);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        path = ToriRSServer_CheckpointPath(leg);
+        if( !ToriRSServer_SavePlayerCheckpoint(player, path) )
+        {
+            say(srv, "checkpoint %d refused: could not write %s", leg, path);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        say(srv, "checkpoint %d written at %d,%d,%d", leg, player->x, player->z, player->level);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "setvar ", 7) == 0 )
     {
         /*

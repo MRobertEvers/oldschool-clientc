@@ -35581,6 +35581,74 @@ ToriRSServer_WorldSelftest(void)
             remove(path);
         }
 
+        /* 5b. A quest-harness LEG CHECKPOINT (seam30 leg_checkpoints,
+         *     docs/quest_authoring/relay.md "Checkpoints") is the same
+         *     serialiser in checkpoint mode: it keeps what a logout drops --
+         *     a scope=temp varp (a quest's in-session progress flag) and the
+         *     player's own random stream (seam28) -- and `::checkpoint` is
+         *     refused, naming why, at a point that is not quiet. */
+        {
+            const char* logout_path = "build/selftest_checkpoint_logout.ini";
+            const char* ckpt_path = ToriRSServer_CheckpointPath(9);
+            int temp_varp = -1;
+            struct ToriRSServerRandomStream saved_random;
+            char text[4096];
+            size_t got = 0;
+            FILE* file;
+            int saved_chatmodal = player->chatmodal_group;
+
+            for( int varp = 1; varp < TORIRSSERVER_VARP_COUNT && temp_varp < 0; varp++ )
+            {
+                const struct ToriRSServerVarpDef* def = ToriRSServer_ContentVarp(varp);
+
+                if( def && !def->scope_perm && player->varps[varp] == 0 )
+                    temp_varp = varp;
+            }
+            SELFTEST_CHECK(temp_varp > 0, "the pack declares a scope=temp varp to carry");
+            if( temp_varp > 0 )
+            {
+                player->varps[temp_varp] = 4242;
+                ToriRSServer_WorldPlayerRandom(player);
+                player->random.engine = 0x1234567u;
+                player->random.script = 0x0000BEEF12345678ull;
+                saved_random = player->random;
+
+                SELFTEST_CHECK(ToriRSServer_SavePlayer(player, logout_path), "logout save written");
+                file = fopen(logout_path, "rb");
+                got = file ? fread(text, 1, sizeof(text) - 1, file) : 0;
+                if( file )
+                    fclose(file);
+                text[got] = '\0';
+                SELFTEST_CHECK(strstr(text, "[random]") == NULL,
+                               "a logout save carries no [random] section");
+                remove(logout_path);
+
+                player->chatmodal_group = 219;
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, player, "checkpoint 9") ==
+                                   TORIRSSERVER_TRIGGER_FAILED,
+                               "::checkpoint is refused while a dialogue is open");
+                player->chatmodal_group = saved_chatmodal;
+                remove(ckpt_path);
+                SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, player, "checkpoint 9") ==
+                                   TORIRSSERVER_TRIGGER_RAN,
+                               "::checkpoint writes at a quiet point");
+
+                player->varps[temp_varp] = 0;
+                player->random.engine = 1;
+                player->random.script = 1;
+                SELFTEST_CHECK(ToriRSServer_LoadPlayer(player, ckpt_path), "checkpoint read back");
+                SELFTEST_CHECK(player->varps[temp_varp] == 4242,
+                               "the scope=temp varp %d came back from the checkpoint (%d)",
+                               temp_varp, (int)player->varps[temp_varp]);
+                SELFTEST_CHECK(player->random.engine == saved_random.engine &&
+                                   player->random.script == saved_random.script &&
+                                   player->random.seeded == saved_random.seeded,
+                               "and so did the player's random stream");
+                player->varps[temp_varp] = 0;
+                remove(ckpt_path);
+            }
+        }
+
         /* 6. The defect the three-case shape was causing, pinned.
          *    `container_dirty(bank, slot)` used to fall through "backpack, else
          *    worn" and mark a WORN slot — a wrong appearance push and a bank

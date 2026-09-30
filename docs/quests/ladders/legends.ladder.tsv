@@ -1,97 +1,97 @@
 # ladder legends quest_dir=quest_legends guide=src/main/java/com/questhelper/helpers/quests/legendsquest/LegendsQuest.java steps=94 legs=1:1-10@s0 2:11-21@s5 3:22-31@s8 4:32-43@s8 5:44-50@s12 6:51-62@s15 7:63-73@s20 8:74-83@s25 9:84-94@s30
 #(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
-1	1	0	talkToGuard	NpcStep	npc:legends_guild_guard1	2729,3348,0	Talk to one of the guards outside the Legends' Guild.			Can I speak to someone in charge? | Can I go on the quest? …	
-1	2	0	talkToRadimus	NpcStep	npc:radimus_erkle	2725,3368,0	Talk to Radimus Erkle inside the Legends' Guild's grounds.			Yes actually, what's involved? | Yes, it sounds great! | Ye…	quests/quest_legends/scripts/radimus_erkle.rs2:10 opnpc1; +2
+1	1	0	talkToGuard	NpcStep	npc:legends_guild_guard1	2729,3348,0	Talk to one of the guards outside the Legends' Guild.			Can I speak to someone in charge? | Can I go on the quest? …	quests/quest_legends/scripts/legends_guard.rs2:1 opnpc1; +1
+1	2	0	talkToRadimus	NpcStep	npc:radimus_erkle	2725,3368,0	Talk to Radimus Erkle inside the Legends' Guild's grounds.			Yes actually, what's involved? | Yes, it sounds great! | Ye…	quests/quest_legends/scripts/radimus_erkle.rs2:9 opnpc1; +5
 1	3	1	enterJungle	DetailedQuestStep		2791,2917,0	Travel to the Kharazi Jungle in south Karamja. You'll need to cut through some trees and bushes to enter. Bring everything from the section's item requirements.		Radimus notes; Any axe; A machete; Papyrus; Charcoal		
 1	4	1	moveToWest	TileStep<sketchWest		2791,2917,0			Radimus notes; Papyrus; Charcoal		
 1	5	1	moveToMiddle	TileStep<sketchMiddle		2852,2915,0			=		
 1	6	1	moveToEast	TileStep<sketchEast		2910,2916,0			=		
-1	7	2	useNotes	NpcStep	npc:jungleforester_m npc:jungleforester_f	2867,2942,0	Use the Radimus notes on a Jungle Forester outside the Kharazi Jungle. Whilst in the jungle, consider grabbing a Vanilla Pod from a Vanilla plant in the south …		Radimus notes	Go ahead, make a copy!	quests/quest_legends/scripts/jungle_forester.rs2:11 opnpc1; +3
+1	7	2	useNotes	NpcStep	npc:jungleforester_m npc:jungleforester_f	2867,2942,0	Use the Radimus notes on a Jungle Forester outside the Kharazi Jungle. Whilst in the jungle, consider grabbing a Vanilla Pod from a Vanilla plant in the south …		Radimus notes	Go ahead, make a copy!	quests/quest_legends/scripts/jungle_forester.rs2:1 opnpc1; +3
 1	8	3	enterJungleWithRoarer	DetailedQuestStep			Re-enter the Kharazi Jungle. You'll need to cut through some trees and bushes to enter.		Radimus notes; Bullroarer; Any axe; A machete; Lockpick (multiple in case they break); Any pickaxe;…		
 1	9	3	spinBull	DetailedQuestStep			Swing the bullroarer until Gujuo appears.		Bullroarer		
-1	10	3	talkToGujuo	NpcStep	npc:gujuo		Talk to Gujuo.			I was hoping to attract the attention of a Kharazi tribe me…	quests/quest_legends/scripts/gujuo.rs2:15 opnpc1; +1
-2	11	5	enterMossyRock	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.			Yes, I'll crawl through. I'm very athletic.	
-2	12	5	investigateFireWall	ObjectStep	loc:lqfirewall_straight	2790,9333,0	Right-click investigate the fire wall.			How can I extinguish the flames? | Where do I get pure wate…	quests/quest_legends/scripts/ungadulu.rs2:115 oplocu
-2	13	5	leaveCave	ObjectStep	loc:shaman_entrance_caver	2773,9342,0	Leave the cave back to the surface.				
+1	10	3	talkToGujuo	NpcStep	npc:gujuo		Talk to Gujuo.			I was hoping to attract the attention of a Kharazi tribe me…	quests/quest_legends/scripts/gujuo.rs2:1 opnpc1; +2
+2	11	5	enterMossyRock	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.			Yes, I'll crawl through. I'm very athletic.	quests/quest_legends/scripts/quest_legends.rs2:2 oploc1
+2	12	5	investigateFireWall	ObjectStep	loc:lqfirewall_straight	2790,9333,0	Right-click investigate the fire wall.			How can I extinguish the flames? | Where do I get pure wate…	quests/quest_legends/scripts/quest_legends.rs2:8 oploc1; +2
+2	13	5	leaveCave	ObjectStep	loc:shaman_entrance_caver	2773,9342,0	Leave the cave back to the surface.				quests/quest_legends/scripts/quest_legends.rs2:5 oploc1
 2	14	5	spinBullAgain	DetailedQuestStep			Swing the Bullroarer until Gujuo appears.		Bullroarer		
-2	15	5	talkToGujuoAgain	NpcStep	npc:gujuo		Talk to Gujuo about pure water and the vessel needed for it.			I need some pure water to douse some magic flames. | What k…	quests/quest_legends/scripts/gujuo.rs2:15 opnpc1; +1
-2	16	8	enterMossyRockAgain	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.		Lockpick (multiple in case they break); Any pickaxe; Soul rune; Mind rune; Earth rune; Law rune; Op…	Yes, I'll crawl through. I'm very athletic.	
-2	17	8	enterBookcase	ObjectStep	loc:shaman_bookcase	2796,9339,0	Search the bookcase and slide past it.			Yes please, I love crevices!	
-2	18	8	enterGate1	ObjectStep	loc:lglockpickgatebottoml	2810,9332,0	Right-click search the gate.		Lockpick (multiple in case they break)		general_use/scripts/door_locked_fallback.rs2:34 oploc1
-2	19	8	enterGate2Door	ObjectStep<enterGate2	loc:lgstrengthtrialgatel	2810,9314,0			Any pickaxe	Yes, I'm very strong, I'll force them open.	doors/scripts/doors_selfstage.rs2:73 oploc1; +1
-2	20	8	searchMarkedWall	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Follow the cave around until you reach a marked wall. Right-click search it. Kill a Deathwing for the Karamja Achievement Diary whilst you're here.			Investigate the outline of the door. | Yes, I'll go through…	
-2	21	8	useSoul	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Soul Rune on the marked wall.		Soul rune		
-3	22	8	useMind	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Mind Rune on the marked wall.		Mind rune		
-3	23	8	useEarth	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Earth Rune on the marked wall.		Earth rune		
-3	24	8	useLaw	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Law Rune on the marked wall.		Law rune		
-3	25	8	useLaw2	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use another Law Rune on the marked wall.		=		
-3	26	8	useSapphire	ObjectStep	loc:lg_gemplacerock	2781,9291,0	Use a sapphire on the south-east carved rock. If you have already, search it instead.		Sapphire		
-3	27	8	useDiamond	ObjectStep	loc:lg_gemplacerock	2774,9287,0	Use a diamond on the south carved rock. If you have already, search it instead.		Diamond		
-3	28	8	useRuby	ObjectStep	loc:lg_gemplacerock	2767,9289,0	Use a ruby on the south-west carved rock. If you have already, search it instead.		Ruby		
-3	29	8	useTopaz	ObjectStep	loc:lg_gemplacerock	2772,9295,0	Use a topaz on the east carved rock. If you have already, search it instead.		Red topaz		
-3	30	8	useJade	ObjectStep	loc:lg_gemplacerock	2771,9303,0	Use a jade on the north-east carved rock. If you have already, search it instead.		Jade		
-3	31	8	useEmerald	ObjectStep	loc:lg_gemplacerock	2757,9297,0	Use a emerald on the west carved rock. If you have already, search it instead.		Emerald		
-4	32	8	useOpal	ObjectStep	loc:lg_gemplacerock	2764,9309,0	Use an opal on the far west carved rock. If you have already, search it instead.		Opal		
-4	33	8	pickUpBook	ItemStep	obj:book_of_binding		Pick up the binding book	waitForBook	Binding book		quests/quest_legends/scripts/book_of_binding.rs2:11 opheld1; +1
+2	15	5	talkToGujuoAgain	NpcStep	npc:gujuo		Talk to Gujuo about pure water and the vessel needed for it.			I need some pure water to douse some magic flames. | What k…	quests/quest_legends/scripts/gujuo.rs2:1 opnpc1; +2
+2	16	8	enterMossyRockAgain	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.		Lockpick (multiple in case they break); Any pickaxe; Soul rune; Mind rune; Earth rune; Law rune; Op…	Yes, I'll crawl through. I'm very athletic.	quests/quest_legends/scripts/quest_legends.rs2:2 oploc1
+2	17	8	enterBookcase	ObjectStep	loc:shaman_bookcase	2796,9339,0	Search the bookcase and slide past it.			Yes please, I love crevices!	quests/quest_legends/scripts/quest_legends.rs2:91 oploc1
+2	18	8	enterGate1	ObjectStep	loc:lglockpickgatebottoml	2810,9332,0	Right-click search the gate.		Lockpick (multiple in case they break)		quests/quest_legends/scripts/quest_legends.rs2:398 oploc1; +2
+2	19	8	enterGate2Door	ObjectStep<enterGate2	loc:lgstrengthtrialgatel	2810,9314,0			Any pickaxe	Yes, I'm very strong, I'll force them open.	quests/quest_legends/scripts/quest_legends.rs2:404 oploc1
+2	20	8	searchMarkedWall	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Follow the cave around until you reach a marked wall. Right-click search it. Kill a Deathwing for the Karamja Achievement Diary whilst you're here.			Investigate the outline of the door. | Yes, I'll go through…	quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+2	21	8	useSoul	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Soul Rune on the marked wall.		Soul rune		quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+3	22	8	useMind	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Mind Rune on the marked wall.		Mind rune		quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+3	23	8	useEarth	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Earth Rune on the marked wall.		Earth rune		quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+3	24	8	useLaw	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use a Law Rune on the marked wall.		Law rune		quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+3	25	8	useLaw2	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Use another Law Rune on the marked wall.		=		quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+3	26	8	useSapphire	ObjectStep	loc:lg_gemplacerock	2781,9291,0	Use a sapphire on the south-east carved rock. If you have already, search it instead.		Sapphire		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+3	27	8	useDiamond	ObjectStep	loc:lg_gemplacerock	2774,9287,0	Use a diamond on the south carved rock. If you have already, search it instead.		Diamond		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+3	28	8	useRuby	ObjectStep	loc:lg_gemplacerock	2767,9289,0	Use a ruby on the south-west carved rock. If you have already, search it instead.		Ruby		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+3	29	8	useTopaz	ObjectStep	loc:lg_gemplacerock	2772,9295,0	Use a topaz on the east carved rock. If you have already, search it instead.		Red topaz		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+3	30	8	useJade	ObjectStep	loc:lg_gemplacerock	2771,9303,0	Use a jade on the north-east carved rock. If you have already, search it instead.		Jade		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+3	31	8	useEmerald	ObjectStep	loc:lg_gemplacerock	2757,9297,0	Use a emerald on the west carved rock. If you have already, search it instead.		Emerald		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+4	32	8	useOpal	ObjectStep	loc:lg_gemplacerock	2764,9309,0	Use an opal on the far west carved rock. If you have already, search it instead.		Opal		quests/quest_legends/scripts/quest_legends.rs2:777 oploc1; +2
+4	33	8	pickUpBook	ItemStep	obj:book_of_binding		Pick up the binding book	waitForBook	Binding book		quests/quest_legends/scripts/book_of_binding.rs2:21 opheld1; +2
 4	34	8	makeBowl	DetailedQuestStep			Travel to an anvil and make a gold bowl.		Gold bar; Sketch; Hammer	Yes.	
 4	35	8	enterJungleWithBowl	DetailedQuestStep		2791,2917,0	Return to the Kharazi Jungle with your gold bowl, and be prepared for a fight.		Radimus notes; Bullroarer; Gold bowl; Binding book; Any axe; A machete; Combat gear, food and potio…		
 4	36	8	spinBullToBless	DetailedQuestStep			Swing the Bullroarer until Gujuo appears.		Bullroarer; Gold bowl		
-4	37	8	talkToGujuoWithBowl	NpcStep	npc:gujuo		Talk to Gujuo to bless the gold bowl.		Prayer potions for blessing the gold bowl	Yes, I'd like you to bless my gold bowl. | Yes please!	quests/quest_legends/scripts/gujuo.rs2:15 opnpc1; +1
-4	38	8	useMacheteOnReeds	ObjectStep	loc:tall_reeds	2836,2916,0	Use a machete on the tall reeds next the Kharazi's water pool.		A machete		
-4	39	8	useReedOnPool	ObjectStep	loc:sacred_water	2838,2916,0	Use the reed on the water pool.		Hollow reed; Blessed gold bowl		quests/quest_legends/scripts/gujuo.rs2:175 oplocu
-4	40	8	enterMossyRockWithBowl	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.		Golden bowl; Combat gear, food and potions	Yes, I'll crawl through. I'm very athletic.	
-4	41	8	useBowlOnFireWall	ObjectStep	loc:lqfirewall_straight	2790,9333,0	Use the golden bowl on the wall of fire.		Golden bowl		quests/quest_legends/scripts/ungadulu.rs2:115 oplocu
-4	42	8	useBindingBookOnUngadulu	NpcStep	npc:ungadulu_good npc:ungadulu_bad	2792,9328,0	Use the binding book on Ungadulu.		Binding book		quests/quest_legends/scripts/ungadulu.rs2:138 opnpc1; +4
+4	37	8	talkToGujuoWithBowl	NpcStep	npc:gujuo		Talk to Gujuo to bless the gold bowl.		Prayer potions for blessing the gold bowl	Yes, I'd like you to bless my gold bowl. | Yes please!	quests/quest_legends/scripts/gujuo.rs2:1 opnpc1; +2
+4	38	8	useMacheteOnReeds	ObjectStep	loc:tall_reeds	2836,2916,0	Use a machete on the tall reeds next the Kharazi's water pool.		A machete		quests/quest_legends/scripts/quest_legends.rs2:1121 oploc1; +1
+4	39	8	useReedOnPool	ObjectStep	loc:sacred_water	2838,2916,0	Use the reed on the water pool.		Hollow reed; Blessed gold bowl		quests/quest_legends/scripts/quest_legends.rs2:1028 oploc1; +2
+4	40	8	enterMossyRockWithBowl	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.		Golden bowl; Combat gear, food and potions	Yes, I'll crawl through. I'm very athletic.	quests/quest_legends/scripts/quest_legends.rs2:2 oploc1
+4	41	8	useBowlOnFireWall	ObjectStep	loc:lqfirewall_straight	2790,9333,0	Use the golden bowl on the wall of fire.		Golden bowl		quests/quest_legends/scripts/quest_legends.rs2:8 oploc1; +2
+4	42	8	useBindingBookOnUngadulu	NpcStep	npc:ungadulu_good npc:ungadulu_bad	2792,9328,0	Use the binding book on Ungadulu.		Binding book		quests/quest_legends/scripts/ungadulu.rs2:1 opnpc1; +6
 4	43	8	fightNezikchenedInFire	NpcStep	npc:nezikchened	2793,9329,0	Fight Nezikchened.				quests/quest_legends/scripts/nezikchened.rs2:22 opnpc2; +4
-5	44	12	talkToUngadulu	NpcStep	npc:ungadulu_good loc:lgshamancaverock1 loc:lqfirewall_straight	2792,9328,0	Right-click talk to Ungadulu.	enterMossyRockAfterFight enterFireAfterFight		I need to collect some Yommi tree seeds for Gujuo. | How do…	quests/quest_legends/scripts/ungadulu.rs2:138 opnpc1; +1
+5	44	12	talkToUngadulu	NpcStep	npc:ungadulu_good loc:lgshamancaverock1 loc:lqfirewall_straight	2792,9328,0	Right-click talk to Ungadulu.	enterMossyRockAfterFight enterFireAfterFight		I need to collect some Yommi tree seeds for Gujuo. | How do…	quests/quest_legends/scripts/ungadulu.rs2:1 opnpc1; +8
 5	45	12	useBowlOnSeeds	DetailedQuestStep			Use the blessed bowl of water on the yommi seeds.		Yommi tree seeds; Golden bowl		
-5	46	13	leaveCaveWithSeed	ObjectStep	loc:shaman_entrance_caver	2773,9342,0	Leave the cave back to the surface.				
-5	47	13	useMacheteOnReedsAgain	ObjectStep	loc:tall_reeds	2836,2916,0	Use a machete on the tall reeds next the Kharazi's water pool.	enterJungleAfterSeeds	A machete		
-5	48	13	useReedOnPoolAgain	ObjectStep	loc:sacred_water loc:sacred_water_polluted	2838,2916,0	Use the reed on the water pool.		Hollow reed; Blessed gold bowl		quests/quest_legends/scripts/gujuo.rs2:175 oplocu; +1
+5	46	13	leaveCaveWithSeed	ObjectStep	loc:shaman_entrance_caver	2773,9342,0	Leave the cave back to the surface.				quests/quest_legends/scripts/quest_legends.rs2:5 oploc1
+5	47	13	useMacheteOnReedsAgain	ObjectStep	loc:tall_reeds	2836,2916,0	Use a machete on the tall reeds next the Kharazi's water pool.	enterJungleAfterSeeds	A machete		quests/quest_legends/scripts/quest_legends.rs2:1121 oploc1; +1
+5	48	13	useReedOnPoolAgain	ObjectStep	loc:sacred_water loc:sacred_water_polluted	2838,2916,0	Use the reed on the water pool.		Hollow reed; Blessed gold bowl		quests/quest_legends/scripts/quest_legends.rs2:1028 oploc1; +4
 5	49	14	spinBullAfterSeeds	DetailedQuestStep			Swing the Bullroarer until Gujuo appears.		Bullroarer		
-5	50	14	talkToGujuoAfterSeeds	NpcStep	npc:gujuo		Talk to Gujuo about what's happened to the water pool.			The water pool has dried up, but I need more water. | Where…	quests/quest_legends/scripts/gujuo.rs2:15 opnpc1; +1
+5	50	14	talkToGujuoAfterSeeds	NpcStep	npc:gujuo		Talk to Gujuo about what's happened to the water pool.			The water pool has dried up, but I need more water. | Where…	quests/quest_legends/scripts/gujuo.rs2:1 opnpc1; +2
 6	51	15	addArdrigal	DetailedQuestStep			Add ardrigal and snake weed to a vial of water to make a bravery potion.	addSnake addArdrigalToSnake	Ardrigal; Vial of water		
 6	52	15	enterJungleToGoToSource	DetailedQuestStep			Return to the Kharazi Jungle and be prepared for some fights.		Radimus notes; Rune or Dragon axe; A machete; Any pickaxe; Lockpick (multiple in case they break); …		
-6	53	15	enterMossyRockToSource	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.			Yes, I'll crawl through. I'm very athletic.	
-6	54	15	searchMarkedWallToSource	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Follow the cave around until you reach a marked wall. Use it.			Investigate the outline of the door. | Yes, I'll go through!	
-6	55	15	useSpellOnDoor	ObjectStep	loc:lgmagictrialgateclosed	2763,9314,0	Cast a charge orb spell on the ancient gate.		chargeOrbRunes; Unpowered orb		doors/scripts/doors.rs2:89 oploc1
-6	56	15	useRopeOnWinch	ObjectStep	loc:lg_winchdown_norope	2761,9331,0	Use a rope on the winch. If you've already done so, search it instead.		Rope		
-6	57	15	drinkBraveryPotionAndClimbDown	ObjectStep	loc:lg_winchdown_norope loc:lg_winchdown_rope	2761,9331,0	Drink the bravery potion, then climb down the winch.	climbDownWinch	Bravery potion	Yes, I'll bravely drink the Bravery Potion. | Yes, I'll shi…	ladders_stairs/scripts/ladders.rs2:178 oploc1; +2
-6	58	16	useCrystalsOnFurnace	ObjectStep	loc:furnace_legendsquest	2427,4727,0	Follow the path down, and kill each of the 3 skeletons (Irvig, San, and Ranalph) for crystal pieces. Use them on the furnace in the north east of the area.		Lump of crystal; Chunk of crystal; Hunk of crystal	Yes, I can think of nothing more exciting! | Yes, I want to…	
-6	59	17	useHeartOnRock	ObjectStep	loc:dragons_eye_rock	2411,4716,0	Use the crystal heart on the mossy rock in the centre of the area.		Heart crystal		
-6	60	17	useHeartOnRecess	ObjectStep	loc:heart_recess_empty	2422,4691,0	Use the heart on the recess next to the barrier to the south.		=		
-6	61	18	pushBoulder	NpcStep	npc:boulder_legends	2393,4679,0	Enter the south room and attempt to push one of the boulders to the west.				quests/quest_legends/scripts/legends_boulder.rs2:9 opnpc1
+6	53	15	enterMossyRockToSource	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.			Yes, I'll crawl through. I'm very athletic.	quests/quest_legends/scripts/quest_legends.rs2:2 oploc1
+6	54	15	searchMarkedWallToSource	ObjectStep	loc:lgancientwalldoor	2779,9305,0	Follow the cave around until you reach a marked wall. Use it.			Investigate the outline of the door. | Yes, I'll go through!	quests/quest_legends/scripts/quest_legends.rs2:647 oploc1; +2
+6	55	15	useSpellOnDoor	ObjectStep	loc:lgmagictrialgateclosed	2763,9314,0	Cast a charge orb spell on the ancient gate.		chargeOrbRunes; Unpowered orb		quests/quest_legends/scripts/quest_legends.rs2:1002 oploc1; +1
+6	56	15	useRopeOnWinch	ObjectStep	loc:lg_winchdown_norope	2761,9331,0	Use a rope on the winch. If you've already done so, search it instead.		Rope		quests/quest_legends/scripts/quest_legends.rs2:1373 oploc1; +1
+6	57	15	drinkBraveryPotionAndClimbDown	ObjectStep	loc:lg_winchdown_norope loc:lg_winchdown_rope	2761,9331,0	Drink the bravery potion, then climb down the winch.	climbDownWinch	Bravery potion	Yes, I'll bravely drink the Bravery Potion. | Yes, I'll shi…	quests/quest_legends/scripts/quest_legends.rs2:1373 oploc1; +2
+6	58	16	useCrystalsOnFurnace	ObjectStep	loc:furnace_legendsquest	2427,4727,0	Follow the path down, and kill each of the 3 skeletons (Irvig, San, and Ranalph) for crystal pieces. Use them on the furnace in the north east of the area.		Lump of crystal; Chunk of crystal; Hunk of crystal	Yes, I can think of nothing more exciting! | Yes, I want to…	quests/quest_legends/scripts/quest_legends.rs2:1713 oploc1; +1
+6	59	17	useHeartOnRock	ObjectStep	loc:dragons_eye_rock	2411,4716,0	Use the crystal heart on the mossy rock in the centre of the area.		Heart crystal		quests/quest_legends/scripts/quest_legends.rs2:1764 oploc1; +1
+6	60	17	useHeartOnRecess	ObjectStep	loc:heart_recess_empty	2422,4691,0	Use the heart on the recess next to the barrier to the south.		=		quests/quest_legends/scripts/quest_legends.rs2:1785 oploc1; +1
+6	61	18	pushBoulder	NpcStep	npc:boulder_legends	2393,4679,0	Enter the south room and attempt to push one of the boulders to the west.				quests/quest_legends/scripts/legends_boulder.rs2:6 opnpc1; +2
 6	62	18	talkToEchned	NpcStep	npc:echned_zekin	2385,4681,0	Talk to Echned Zekin.			Who's asking? | Yes, I need it for my quest. | What can I d…	quests/quest_legends/scripts/echned_zekin.rs2:9 opnpc1; +1
-7	63	20	pickUpHat	DetailedQuestStep	npc:viyeldi	2379,4712,0	If you wish to keep Viyeldi alive, teleport out now, and you'll be guided to get the holy force. Otherwise, attempt to pick up the wizard hat near the rope dow…	killViyeldi	Dark dagger	Ok, I'll do it.	quests/quest_legends/scripts/viyeldi.rs2:14 opnpc1; +1
-7	64	20	pushBoulderAgain	NpcStep	npc:boulder_legends	2393,4679,0	Return to Echned in the south room with the dagger. Be prepared for a fight with Nezikchened again.		Glowing dagger		quests/quest_legends/scripts/legends_boulder.rs2:9 opnpc1
+7	63	20	pickUpHat	DetailedQuestStep	npc:viyeldi	2379,4712,0	If you wish to keep Viyeldi alive, teleport out now, and you'll be guided to get the holy force. Otherwise, attempt to pick up the wizard hat near the rope dow…	killViyeldi	Dark dagger	Ok, I'll do it.	quests/quest_legends/scripts/viyeldi.rs2:19 opnpc1; +2
+7	64	20	pushBoulderAgain	NpcStep	npc:boulder_legends	2393,4679,0	Return to Echned in the south room with the dagger. Be prepared for a fight with Nezikchened again.		Glowing dagger		quests/quest_legends/scripts/legends_boulder.rs2:6 opnpc1; +2
 7	65	20	giveDaggerToEchned	NpcStep	npc:echned_zekin	2385,4681,0	Use the glowing dagger on Echned Zekin.	castForce			quests/quest_legends/scripts/echned_zekin.rs2:9 opnpc1; +1
-7	66	20	enterMossyRockHolyForce	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.		Dark dagger; Rune or Dragon axe; A machete; Any pickaxe; Lockpick (multiple in case they break); ch…	Yes, I'll crawl through. I'm very athletic.	
-7	67	20	talkToUngaduluForForce	NpcStep	npc:ungadulu_good	2792,9328,0	Use the dark dagger on Ungadulu for the holy force.				quests/quest_legends/scripts/ungadulu.rs2:138 opnpc1
-7	68	20	useSpellOnDoorHolyForce	ObjectStep	loc:lgmagictrialgateclosed	2763,9314,0	Cast a charge orb spell on the ancient gate.		chargeOrbRunes; Unpowered orb		doors/scripts/doors.rs2:89 oploc1
-7	69	20	climbDownWinchHolyForce	ObjectStep	loc:lg_winchdown_norope	2761,9331,0	Climb down the winch.			I'm not scared. Let's go! | Yes, I'll shimmy down the rope …	
-7	70	20	pushBoulderWithForce	NpcStep	npc:boulder_legends	2393,4679,0	Return to Echned in the south room with the holy force. Be prepared for a fight with Nezikchened again.		Holy force; Combat gear, food and potions	Yes, I can think of nothing more exciting! | Yes, I want to…	quests/quest_legends/scripts/legends_boulder.rs2:9 opnpc1
+7	66	20	enterMossyRockHolyForce	ObjectStep	loc:lgshamancaverock1	2782,2937,0	Search and then enter the Mossy Rocks in the north west of the Kharazi.		Dark dagger; Rune or Dragon axe; A machete; Any pickaxe; Lockpick (multiple in case they break); ch…	Yes, I'll crawl through. I'm very athletic.	quests/quest_legends/scripts/quest_legends.rs2:2 oploc1
+7	67	20	talkToUngaduluForForce	NpcStep	npc:ungadulu_good	2792,9328,0	Use the dark dagger on Ungadulu for the holy force.				quests/quest_legends/scripts/ungadulu.rs2:1 opnpc1; +4
+7	68	20	useSpellOnDoorHolyForce	ObjectStep	loc:lgmagictrialgateclosed	2763,9314,0	Cast a charge orb spell on the ancient gate.		chargeOrbRunes; Unpowered orb		quests/quest_legends/scripts/quest_legends.rs2:1002 oploc1; +1
+7	69	20	climbDownWinchHolyForce	ObjectStep	loc:lg_winchdown_norope	2761,9331,0	Climb down the winch.			I'm not scared. Let's go! | Yes, I'll shimmy down the rope …	quests/quest_legends/scripts/quest_legends.rs2:1373 oploc1; +1
+7	70	20	pushBoulderWithForce	NpcStep	npc:boulder_legends	2393,4679,0	Return to Echned in the south room with the holy force. Be prepared for a fight with Nezikchened again.		Holy force; Combat gear, food and potions	Yes, I can think of nothing more exciting! | Yes, I want to…	quests/quest_legends/scripts/legends_boulder.rs2:6 opnpc1; +2
 7	71	20	fightNezikchenedAtSource	NpcStep	npc:nezikchened	2385,4681,0	Defeat Nezikchened.				quests/quest_legends/scripts/nezikchened.rs2:22 opnpc2; +4
-7	72	22	pushBoulderAfterFight	NpcStep	npc:boulder_legends	2393,4679,0	Push one of the boulders in the south room.				quests/quest_legends/scripts/legends_boulder.rs2:9 opnpc1
-7	73	22	useBowlOnSacredWater	ObjectStep	loc:lgwaterpool		Use the blessed bowl on the sacred water.		Blessed gold bowl		quests/quest_legends/scripts/legends_boulder.rs2:47 oploc1; +1
+7	72	22	pushBoulderAfterFight	NpcStep	npc:boulder_legends	2393,4679,0	Push one of the boulders in the south room.				quests/quest_legends/scripts/legends_boulder.rs2:6 opnpc1; +2
+7	73	22	useBowlOnSacredWater	ObjectStep	loc:lgwaterpool		Use the blessed bowl on the sacred water.		Blessed gold bowl		quests/quest_legends/scripts/legends_boulder.rs2:44 oploc1; +1
 8	74	25	returnToSurface	DetailedQuestStep			Return to the surface. Teleporting out will evaporate the water but the pool above ground is restored and can be used.				
 8	75	25	enterJungleToPlant	DetailedQuestStep			Return to the Kharazi Jungle and be prepared for some fights.		Radimus notes; Rune or Dragon axe; A machete; Blessed gold bowl; Yommi tree seeds; Combat gear, foo…		
-8	76	25	useMacheteOnReedsEnd	ObjectStep	loc:tall_reeds	2836,2916,0	Use a machete on the tall reeds next the Kharazi's water pool.		A machete; Blessed gold bowl		
-8	77	25	useReedOnPoolEnd	ObjectStep	loc:sacred_water	2838,2916,0	Use the reed on the water pool.		Hollow reed; Blessed gold bowl		quests/quest_legends/scripts/gujuo.rs2:175 oplocu
-8	78	25	plantSeed	ObjectStep	loc:fertilesoil	2779,2917,0	Plant the seeds in fertile soil.		Yommi tree seeds		quests/quest_legends/scripts/ungadulu.rs2:199 oplocu
-8	79	25	useWaterOnTree	ObjectStep	loc:yommitree_sapling		Use the golden bowl on the sapling.		Golden bowl		quests/quest_legends/scripts/ungadulu.rs2:244 oplocu
-8	80	25	useAxe	ObjectStep	loc:yommitree_adult		Use your axe on the adult yommi tree.		Rune or Dragon axe		quests/quest_legends/scripts/ungadulu.rs2:269 oplocu
-8	81	25	useAxeAgain	ObjectStep	loc:yommitree_felled		Use your axe on the felled yommi tree.		=		quests/quest_legends/scripts/ungadulu.rs2:294 oplocu
-8	82	25	craftTree	ObjectStep	loc:yommitree_trimmed		Use your axe once more on the tree.		=		quests/quest_legends/scripts/ungadulu.rs2:318 oplocu
-8	83	25	pickUpTotem	ObjectStep	loc:yommitree_totem		Pick up the totem pole.				quests/quest_legends/scripts/ungadulu.rs2:342 oploc1
-9	84	30	useTotemOnTotem	ObjectStep	loc:lg_totem_pole_evil loc:lg_ord_totem_pole	2852,2917,0	Put Protect from Melee on, and use the new totem on one of the corrupted totems. If you investigated the totem accidentally, wait for a few seconds before tryi…		Yommi totem; Combat gear, food and potions		quests/quest_legends/scripts/gujuo.rs2:142 oplocu
+8	76	25	useMacheteOnReedsEnd	ObjectStep	loc:tall_reeds	2836,2916,0	Use a machete on the tall reeds next the Kharazi's water pool.		A machete; Blessed gold bowl		quests/quest_legends/scripts/quest_legends.rs2:1121 oploc1; +1
+8	77	25	useReedOnPoolEnd	ObjectStep	loc:sacred_water	2838,2916,0	Use the reed on the water pool.		Hollow reed; Blessed gold bowl		quests/quest_legends/scripts/quest_legends.rs2:1028 oploc1; +2
+8	78	25	plantSeed	ObjectStep	loc:fertilesoil	2779,2917,0	Plant the seeds in fertile soil.		Yommi tree seeds		quests/quest_legends/scripts/legends_yommi.rs2:5 oplocu
+8	79	25	useWaterOnTree	ObjectStep	loc:yommitree_sapling		Use the golden bowl on the sapling.		Golden bowl		quests/quest_legends/scripts/legends_yommi.rs2:50 oplocu
+8	80	25	useAxe	ObjectStep	loc:yommitree_adult		Use your axe on the adult yommi tree.		Rune or Dragon axe		quests/quest_legends/scripts/legends_yommi.rs2:75 oplocu
+8	81	25	useAxeAgain	ObjectStep	loc:yommitree_felled		Use your axe on the felled yommi tree.		=		quests/quest_legends/scripts/legends_yommi.rs2:100 oplocu
+8	82	25	craftTree	ObjectStep	loc:yommitree_trimmed		Use your axe once more on the tree.		=		quests/quest_legends/scripts/legends_yommi.rs2:124 oplocu
+8	83	25	pickUpTotem	ObjectStep	loc:yommitree_totem		Pick up the totem pole.				quests/quest_legends/scripts/legends_yommi.rs2:148 oploc1
+9	84	30	useTotemOnTotem	ObjectStep	loc:lg_totem_pole_evil loc:lg_ord_totem_pole	2852,2917,0	Put Protect from Melee on, and use the new totem on one of the corrupted totems. If you investigated the totem accidentally, wait for a few seconds before tryi…		Yommi totem; Combat gear, food and potions		quests/quest_legends/scripts/quest_legends.rs2:1853 oploc1; +1
 9	85	30	killSan	NpcStep	npc:san_tojalon		Kill San.				quests/quest_legends/scripts/san_tojalon.rs2:8 opnpc1; +3
 9	86	30	killIrvig	NpcStep	npc:irvig_senay		Kill Irvig.				quests/quest_legends/scripts/irvig_senay.rs2:9 opnpc1; +3
 9	87	30	killRanalph	NpcStep	npc:ranalph_devere		Kill Ranalph.				quests/quest_legends/scripts/ranalph_devere.rs2:8 opnpc1; +3
 9	88	30	defeatDemon	NpcStep	npc:nezikchened		Defeat Nezikchened.				quests/quest_legends/scripts/nezikchened.rs2:22 opnpc2; +4
-9	89	35	useTotemOnTotemAgain	ObjectStep	loc:lg_totem_pole_evil loc:lg_ord_totem_pole	2852,2917,0	Use the new totem on one of the corrupted totems.		Yommi totem		quests/quest_legends/scripts/gujuo.rs2:142 oplocu
+9	89	35	useTotemOnTotemAgain	ObjectStep	loc:lg_totem_pole_evil loc:lg_ord_totem_pole	2852,2917,0	Use the new totem on one of the corrupted totems.		Yommi totem		quests/quest_legends/scripts/quest_legends.rs2:1853 oploc1; +1
 9	90	40	summonGujou	DetailedQuestStep			Swing the Bullroarer until Gujuo appears.		Bullroarer		
-9	91	40	talkToGujouForTotem	NpcStep	npc:gujuo		Talk to Gujuo for a gilded totem.				quests/quest_legends/scripts/gujuo.rs2:15 opnpc1; +1
-9	92	40	returnToRadimus	NpcStep	npc:radimus_erkle	2725,3368,0	Return to Radimus Erkle inside the Legends' Guild's grounds.		Gilded totem; Radimus notes		quests/quest_legends/scripts/radimus_erkle.rs2:10 opnpc1; +2
-9	93	50	talkToRadimusInGuild	NpcStep	npc:radimus_erkle	2729,3382,0	Talk to Radimus Erkle inside the Legends' Guild.			Yes, I'll train now.	quests/quest_legends/scripts/radimus_erkle.rs2:10 opnpc1; +2
-9	94	70	talkToRadimusInGuildAgain	NpcStep	npc:radimus_erkle	2729,3382,0	Talk to Radimus Erkle inside the Legends' Guild once more.				quests/quest_legends/scripts/radimus_erkle.rs2:10 opnpc1; +2
+9	91	40	talkToGujouForTotem	NpcStep	npc:gujuo		Talk to Gujuo for a gilded totem.				quests/quest_legends/scripts/gujuo.rs2:1 opnpc1; +2
+9	92	40	returnToRadimus	NpcStep	npc:radimus_erkle	2725,3368,0	Return to Radimus Erkle inside the Legends' Guild's grounds.		Gilded totem; Radimus notes		quests/quest_legends/scripts/radimus_erkle.rs2:9 opnpc1; +5
+9	93	50	talkToRadimusInGuild	NpcStep	npc:radimus_erkle	2729,3382,0	Talk to Radimus Erkle inside the Legends' Guild.			Yes, I'll train now.	quests/quest_legends/scripts/radimus_erkle.rs2:9 opnpc1; +5
+9	94	70	talkToRadimusInGuildAgain	NpcStep	npc:radimus_erkle	2729,3382,0	Talk to Radimus Erkle inside the Legends' Guild once more.				quests/quest_legends/scripts/radimus_erkle.rs2:9 opnpc1; +5

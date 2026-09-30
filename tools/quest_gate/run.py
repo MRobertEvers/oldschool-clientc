@@ -43,6 +43,10 @@ both in sequence.
 Usage:
   tools/quest_gate/run.py --all [--jobs N] [--timeout SECONDS]
   tools/quest_gate/run.py <quest> [--timeout SECONDS]
+  tools/quest_gate/run.py <quest> --from-leg K | --only-leg K
+      (a legs file only: resume from checkpoint K-1 under build/quest_gate/<quest>.leg<K>/;
+      exit 2 when it is missing or stale; never published, never graded --
+      docs/quest_authoring/relay.md "Checkpoints")
   tools/quest_gate/run.py --script test/quests/_conformance.lua --name proof
       (advanced: drives an arbitrary standalone driver script -- no quest
       table; a non-empty `setup` list is run by the same wrapper loop, an
@@ -68,6 +72,7 @@ _sys.path.append(_HERE)
 
 import argparse
 import atexit
+import hashlib
 import os
 import re
 import shutil
@@ -82,6 +87,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 
 import build_support  # noqa: E402
 import ledger  # noqa: E402
+import lint_quest  # noqa: E402  (legs_layout: where a relay file's legs are)
 import quest_list  # noqa: E402
 
 # tools/quest_gate/queue.py, NOT `import queue` -- that name is the stdlib
@@ -237,7 +243,31 @@ def write_session_fixture(fixture_name, saves_dir, user):
         handle.write(text)
 
 
-def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False):
+# ------------------------------------------------------------------ legs
+#
+# A relay-authored quest file (docs/quest_authoring/relay.md "Checkpoints")
+# declares `legs = { { name = "<leg>", run = function(t) ... end }, ... }`
+# in place of `run`, and may declare a top-level `bind = {...}` (the
+# t.quest.bind table). The harness itself is the driver's QD.core_legs_drive
+# (script/plugins/quest_driver/core.lua: the leg.<k>.<name> rows, the
+# `::checkpoint k` after an all-PASS leg, the finish); this shim only turns
+# the legs table into the one QUEST.run the setup loop below and the
+# bootstrap already know how to call.
+#
+# LEG_FROM / LEG_ONLY / LEG_TILE are set by run.py for a checkpoint run
+# (--from-leg K / --only-leg K); a full run has LEG_FROM = nil.
+LEGS_HARNESS_LUA = r"""
+if type(QUEST) == "table" and QUEST.legs ~= nil then
+    local legs_quest = QUEST
+    QUEST = { setup = legs_quest.setup, run = function(t)
+        return t.core_legs_drive(legs_quest, { from = LEG_FROM, only = LEG_ONLY, tile = LEG_TILE })
+    end }
+end
+"""
+
+
+def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False,
+                         leg_mode=None):
     """A copy of the quest file wrapped so its `setup` cheats run before
     `run(t)` does, matching test/quests/README.md's
     `{ id, fixture, setup = {cheats}, run = function(t) ... end }` shape.
@@ -314,12 +344,21 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False)
     """
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
+    if leg_mode:
+        leg_prelude = "local LEG_FROM = %d\nlocal LEG_ONLY = %s\nlocal LEG_TILE = %s\n" % (
+            leg_mode["from"], "true" if leg_mode["only"] else "false",
+            ("{ %d, %d, %d }" % tuple(leg_mode["tile"])) if leg_mode.get("tile") else "nil")
+    else:
+        leg_prelude = "local LEG_FROM = nil\nlocal LEG_ONLY = false\nlocal LEG_TILE = nil\n"
     wrapper = (
+        leg_prelude +
         "local QUEST = (function()\n"
         + source +
         "\nend)()\n"
+        + LEGS_HARNESS_LUA +
         "if type(QUEST) ~= \"table\" or type(QUEST.run) ~= \"function\" then\n"
-        "    error(\"quest file did not return { run = function(t) ... end }\")\n"
+        "    error(\"quest file did not return { run = function(t) ... end }\"\n"
+        "        .. \" or { legs = { { name =, run = function(t) ... end }, ... } }\")\n"
         "end\n"
         "local quest_setup = QUEST.setup\n"
         "-- A setup that is not a list of cheat lines is a setup nobody reads:\n"
@@ -327,6 +366,11 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False)
         "if quest_setup ~= nil and type(quest_setup) ~= \"table\" then\n"
         "    error(\"quest file's setup is a \" .. type(quest_setup)\n"
         "        .. \", not a table of cheat lines\")\n"
+        "end\n"
+        "-- A checkpoint run resumes a player who already went through setup\n"
+        "-- (and legs 1..K-1): the setup list is NOT run again.\n"
+        "if LEG_FROM and LEG_FROM > 1 then\n"
+        "    quest_setup = nil\n"
         "end\n"
         + ("-- --script mode: no setup list, nothing to wrap.\n"
            "if quest_setup == nil or next(quest_setup) == nil then\n"
@@ -610,6 +654,304 @@ def write_wrapper_script(quest_file, out_path, pass_through_without_setup=False)
         handle.write(wrapper)
 
 
+# ------------------------------------------------------------ checkpoints
+#
+# docs/quest_authoring/relay.md "Checkpoints". A full run of a legs file asks
+# the server for `::checkpoint k` after every all-PASS leg; the server writes
+# the player -- its own save serialiser, checkpoint mode: every varp, the
+# player's random stream -- to <session>/saves/checkpoints/<k>.ini. After the
+# run, collect_checkpoints wraps each in a manifest as
+# build/quest_gate/<run>/checkpoints/<k>.ckpt. `--from-leg K` refuses a
+# checkpoint whose manifest disagrees with the file, the content pack or the
+# binary it would run with (exit 2), and otherwise logs the same player back
+# in from it and runs legs K..end under the run name <id>.leg<K>.
+
+CHECKPOINT_HEADER = "[checkpoint]"
+# The server script pack the embedded server boots on (ensure_scripts builds
+# it; a stale one is refused at boot). A checkpoint is only as good as the
+# scripts that wrote its varps.
+PACK_FILES = [
+    os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "build",
+                 "script.dat"),
+    os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content", "server", "scripts", "build",
+                 "script.idx"),
+]
+# The manifest keys compared for staleness, and what each one means when it
+# differs -- the refusal names the key in these words.
+STALE_KEYS = [
+    ("legs_hash", "the source text of legs 1..%(leg)s changed"),
+    ("setup_hash", "the file's setup list changed"),
+    ("bind_hash", "the file's bind field changed"),
+    ("fixture", "the file's fixture changed"),
+    ("pack_hash", "the content pack (server/scripts/build/script.dat) changed"),
+    ("binary_id", "the engine binary changed"),
+]
+CHECKPOINT_RUN_RE = re.compile(r"^(?P<id>.+)\.leg(?P<leg>\d+)$")
+LEG_ROW_CHECKPOINT_RE = re.compile(r"checkpoint (\d+) (written|NOT written): (.*)$")
+
+_file_hash_cache = {}
+
+
+def file_sha256(path):
+    """sha256 of a file's bytes, cached per (path, size, mtime) for the life
+    of this process -- the binary is several MB and is hashed per checkpoint."""
+    assert path
+    stat = os.stat(path)
+    key = (os.path.abspath(path), stat.st_size, stat.st_mtime_ns)
+    cached = _file_hash_cache.get(key)
+    if cached:
+        return cached
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    _file_hash_cache[key] = digest.hexdigest()
+    return _file_hash_cache[key]
+
+
+def text_sha256(text):
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def pack_hash():
+    digest = hashlib.sha256()
+    for path in PACK_FILES:
+        assert os.path.isfile(path), "no content pack at %s (make -C src torirsserver-scripts)" % path
+        digest.update(os.path.basename(path).encode("utf-8"))
+        digest.update(file_sha256(path).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def save_file_stem(display_name):
+    """ToriRSServer_SavePath's sanitising, mirrored (torirs_server_save.c):
+    alnum lowered, `_`/`-`/space to `_`, everything else dropped."""
+    assert display_name
+    out = []
+    for ch in display_name:
+        if ch.isascii() and ch.isalnum():
+            out.append(ch.lower())
+        elif ch in "_- ":
+            out.append("_")
+    stem = "".join(out)
+    assert stem, "account name %r sanitises to nothing" % display_name
+    return stem
+
+
+def legs_source(quest_file):
+    """(text, layout) for a legs file, or (text, None) for a run file."""
+    with open(quest_file, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    return text, lint_quest.legs_layout(text)
+
+
+def current_manifest(test_id, leg, quest_file, binary):
+    """The manifest a checkpoint of leg `leg` written NOW would carry."""
+    text, layout = legs_source(quest_file)
+    assert layout, "%s has no legs table" % quest_file
+    assert 1 <= leg <= len(layout["legs"]), "leg %d of %d" % (leg, len(layout["legs"]))
+    leg_texts = [entry["text"] for entry in layout["legs"][:leg]]
+    return {
+        "test_id": test_id,
+        "leg": str(leg),
+        "legs": ",".join(str(entry["name"]) for entry in layout["legs"]),
+        "legs_hash": text_sha256("\n\0".join(leg_texts)),
+        "setup_hash": text_sha256(layout["setup"]),
+        "bind_hash": text_sha256(layout["bind"]),
+        "fixture": read_fixture_name(quest_file),
+        "pack_hash": pack_hash(),
+        "binary_id": file_sha256(binary),
+    }
+
+
+def read_checkpoint(path):
+    """(manifest dict, save text) from a .ckpt file."""
+    manifest = {}
+    save_lines = []
+    in_manifest = False
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if stripped == CHECKPOINT_HEADER:
+                in_manifest = True
+                continue
+            if in_manifest and stripped.startswith("[") and stripped.endswith("]"):
+                in_manifest = False
+            if in_manifest:
+                if stripped and not stripped.startswith(";"):
+                    key, _, value = stripped.partition("=")
+                    manifest[key.strip()] = value.strip()
+                continue
+            save_lines.append(line)
+    return manifest, "".join(save_lines)
+
+
+def save_tile(save_text):
+    """(x, z, level) off a save's [player] section, or None."""
+    fields = {}
+    section = None
+    for line in save_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            section = stripped[1:-1]
+            continue
+        if section == "player" and "=" in stripped:
+            key, _, value = stripped.partition("=")
+            fields[key.strip()] = value.strip()
+    try:
+        return int(fields["x"]), int(fields["z"]), int(fields["level"])
+    except (KeyError, ValueError):
+        return None
+
+
+def collect_checkpoints(result, test_id, quest_file, binary):
+    """After a run of a legs file: every <session>/saves/checkpoints/<k>.ini
+    the server wrote becomes checkpoints/<k>.ckpt (manifest + save), and every
+    leg row that says a checkpoint was NOT written leaves checkpoints/<k>.refused
+    carrying the reason, so a later --from-leg can name it. Returns the lines
+    it printed."""
+    lines = []
+    directory = result["directory"]
+    _, layout = legs_source(quest_file)
+    if not layout:
+        return lines
+    raw_dir = os.path.join(directory, "saves", "checkpoints")
+    out_dir = os.path.join(directory, "checkpoints")
+    if os.path.isdir(raw_dir):
+        for entry in sorted(os.listdir(raw_dir)):
+            match = re.match(r"^(\d+)\.ini$", entry)
+            if not match:
+                continue
+            leg = int(match.group(1))
+            if not 1 <= leg <= len(layout["legs"]):
+                continue
+            with open(os.path.join(raw_dir, entry), "r", encoding="utf-8") as handle:
+                save_text = handle.read()
+            manifest = current_manifest(test_id, leg, quest_file, binary)
+            manifest["source_run"] = result["name"]
+            manifest["written"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            tile = save_tile(save_text)
+            if tile:
+                manifest["tile"] = "%d,%d,%d" % tile
+            os.makedirs(out_dir, exist_ok=True)
+            target = os.path.join(out_dir, "%d.ckpt" % leg)
+            with open(target, "w", encoding="utf-8") as handle:
+                handle.write("; quest-harness leg checkpoint (tools/quest_gate/run.py); "
+                             "docs/quest_authoring/relay.md \"Checkpoints\"\n")
+                handle.write("%s\n" % CHECKPOINT_HEADER)
+                for key in sorted(manifest):
+                    handle.write("%s = %s\n" % (key, manifest[key]))
+                handle.write("\n")
+                handle.write(save_text)
+            lines.append("run.py: checkpoint %d -> %s" % (leg, os.path.relpath(target, REPO_ROOT)))
+    ledger_path = os.path.join(directory, "ledger.tsv")
+    rows, _ = ledger.read(ledger_path)
+    for row in rows or []:
+        if not row["step"].startswith("leg."):
+            continue
+        match = LEG_ROW_CHECKPOINT_RE.search(row["detail"])
+        if not match or match.group(2) != "NOT written":
+            continue
+        os.makedirs(out_dir, exist_ok=True)
+        with open(os.path.join(out_dir, "%s.refused" % match.group(1)), "w",
+                  encoding="utf-8") as handle:
+            handle.write(match.group(3).strip() + "\n")
+        lines.append("run.py: checkpoint %s NOT written -- %s" % (match.group(1), match.group(3)))
+    for line in lines:
+        print(line, flush=True)
+    return lines
+
+
+def checkpoint_candidates(test_id, leg):
+    """Every <k>.ckpt this id's runs left: the full run's and each checkpoint
+    run's (<id>.leg<J>), which writes checkpoints for the legs it completes."""
+    base = os.path.join(REPO_ROOT, "build", "quest_gate")
+    found = []
+    names = [test_id]
+    if os.path.isdir(base):
+        for entry in sorted(os.listdir(base)):
+            match = CHECKPOINT_RUN_RE.match(entry)
+            if match and match.group("id") == test_id:
+                names.append(entry)
+    for name in names:
+        path = os.path.join(base, name, "checkpoints", "%d.ckpt" % leg)
+        if os.path.isfile(path):
+            found.append(path)
+    return found
+
+
+def find_checkpoint(test_id, leg, quest_file, binary):
+    """(path, manifest, save_text, None) for the newest checkpoint of `leg`
+    that is not stale, or (None, None, None, why) naming what was looked at
+    and why each was refused."""
+    current = current_manifest(test_id, leg, quest_file, binary)
+    reasons = []
+    fresh = []
+    for path in checkpoint_candidates(test_id, leg):
+        manifest, save_text = read_checkpoint(path)
+        stale = []
+        if manifest.get("test_id") != test_id or manifest.get("leg") != str(leg):
+            stale.append("it is %s leg %s, not %s leg %d" % (
+                manifest.get("test_id"), manifest.get("leg"), test_id, leg))
+        for key, meaning in STALE_KEYS:
+            if manifest.get(key) != current[key]:
+                stale.append("%s (%s)" % (meaning % {"leg": leg}, key))
+        rel = os.path.relpath(path, REPO_ROOT)
+        if stale:
+            reasons.append("STALE %s: %s" % (rel, "; ".join(stale)))
+        else:
+            fresh.append((os.path.getmtime(path), path, manifest, save_text))
+    if fresh:
+        fresh.sort()
+        _, path, manifest, save_text = fresh[-1]
+        return path, manifest, save_text, None
+    if not reasons:
+        refused = os.path.join(REPO_ROOT, "build", "quest_gate", test_id, "checkpoints",
+                               "%d.refused" % leg)
+        why = "MISSING: no checkpoint %d under build/quest_gate/%s/checkpoints/ or any %s.leg<J>/" % (
+            leg, test_id, test_id)
+        if os.path.isfile(refused):
+            with open(refused, "r", encoding="utf-8") as handle:
+                why += " -- the last full run did not write it: %s" % handle.read().strip()
+        else:
+            why += " -- run the full test first (run.py %s --no-build --no-publish)" % test_id
+        reasons.append(why)
+    return None, None, None, "\n    ".join(reasons)
+
+
+def stamp_summary_from_leg(ledger_path, leg, only):
+    """Append from_leg=K (and only_leg=1) to the SUMMARY row's counts column:
+    gate.py refuses to grade such a ledger, queue.py refuses green on it,
+    and publish() never copies it."""
+    if not os.path.isfile(ledger_path):
+        return False
+    with open(ledger_path, "r", encoding="utf-8") as handle:
+        lines = handle.readlines()
+    stamped = False
+    for index, line in enumerate(lines):
+        if not line.startswith("SUMMARY\t"):
+            continue
+        fields = line.rstrip("\n").split("\t")
+        while len(fields) < 6:
+            fields.append("")
+        fields[5] = (fields[5] + " from_leg=%d" % leg + (" only_leg=1" if only else "")).strip()
+        lines[index] = "\t".join(fields) + "\n"
+        stamped = True
+    with open(ledger_path, "w", encoding="utf-8") as handle:
+        handle.writelines(lines)
+    return stamped
+
+
+def summary_from_leg(summary):
+    """The from_leg=K token's K off a ledger SUMMARY row, or None."""
+    if summary is None or len(summary) < 6:
+        return None
+    for token in summary[5].split():
+        key, _, value = token.partition("=")
+        if key == "from_leg":
+            return value
+    return None
+
+
 def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES)):
     environment = dict(os.environ)
     environment.update({
@@ -833,15 +1175,23 @@ def locked_result(name, message):
     }
 
 
-def prepare_session(name, fixture_name):
+def prepare_session(name, fixture_name, user=None, checkpoint_save=None):
     """A fresh, private build/quest_gate/<name>/ directory -- never reused;
-    the server writes into it on exit."""
+    the server writes into it on exit. A checkpoint run logs in as `user`
+    (the full run's account) from `checkpoint_save` instead of the fixture."""
     directory = os.path.join(REPO_ROOT, "build", "quest_gate", name)
     if os.path.isdir(directory):
         shutil.rmtree(directory)
     os.makedirs(directory, exist_ok=True)
     saves = os.path.join(directory, "saves")
-    write_session_fixture(fixture_name, saves, name)
+    if checkpoint_save is not None:
+        assert user
+        os.makedirs(saves, exist_ok=True)
+        with open(os.path.join(saves, "%s.ini" % save_file_stem(user)), "w",
+                  encoding="utf-8") as handle:
+            handle.write(checkpoint_save)
+    else:
+        write_session_fixture(fixture_name, saves, user or name)
     return directory, saves
 
 
@@ -868,9 +1218,9 @@ def copy_timeout_shot(directory):
 
 
 def launch_and_report(name, binary, manifest_path, directory, saves, script, timeout,
-                      max_frames):
+                      max_frames, user=None):
     log_path = os.path.join(directory, "client.log")
-    code, timed_out = launch_client(binary, manifest_path, name, directory, saves,
+    code, timed_out = launch_client(binary, manifest_path, user or name, directory, saves,
                                      script, log_path, scaled_timeout(timeout, max_frames),
                                      max_frames)
     if timed_out:
@@ -896,8 +1246,65 @@ def run_quest(name, binary, manifest_path, timeout):
         directory, saves = prepare_session(name, fixture_name)
         script = os.path.join(directory, "%s.lua" % name)
         write_wrapper_script(quest_file, script)
-        return launch_and_report(name, binary, manifest_path, directory, saves, script,
-                                 timeout, max_frames)
+        result = launch_and_report(name, binary, manifest_path, directory, saves, script,
+                                   timeout, max_frames)
+        if result["has_ledger"]:
+            collect_checkpoints(result, name, quest_file, binary)
+        return result
+    finally:
+        release_session_lock(name)
+
+
+def run_quest_from_leg(test_id, leg, only, binary, manifest_path, timeout):
+    """`run.py <id> --from-leg K` / `--only-leg K`: legs K..end (or K alone)
+    of a legs file, from checkpoint K-1, under the run name <id>.leg<K>,
+    logged in as <id> (the checkpoint IS that account's save). Returns
+    (result, None) or (None, refusal) -- a refusal is exit 2, and nothing ran."""
+    quest_file = quest_list.quest_path(REPO_ROOT, test_id)
+    assert os.path.isfile(quest_file), quest_file
+    _, layout = legs_source(quest_file)
+    if layout is None:
+        return None, ("run.py: REFUSING --%s-leg %d: %s has no `legs` table (a run file is "
+                      "run whole)" % ("only" if only else "from", leg,
+                                      os.path.relpath(quest_file, REPO_ROOT)))
+    if not 1 <= leg <= len(layout["legs"]):
+        return None, ("run.py: REFUSING --%s-leg %d: %s has %d leg(s)" % (
+            "only" if only else "from", leg, test_id, len(layout["legs"])))
+    save_text = None
+    tile = None
+    source = None
+    if leg > 1:
+        path, manifest, save_text, why = find_checkpoint(test_id, leg - 1, quest_file, binary)
+        if path is None:
+            return None, ("run.py: REFUSING --%s-leg %d of %s: checkpoint %d is not usable\n"
+                          "    %s" % ("only" if only else "from", leg, test_id, leg - 1, why))
+        tile = save_tile(save_text)
+        source = os.path.relpath(path, REPO_ROOT)
+        print("run.py: %s leg %d from checkpoint %s (written %s by run %s)" % (
+            test_id, leg, source, manifest.get("written"), manifest.get("source_run")),
+            flush=True)
+    name = "%s.leg%d" % (test_id, leg)
+    fixture_name = read_fixture_name(quest_file)
+    max_frames = read_max_frames(quest_file)
+    refusal = acquire_session_lock(name)
+    if refusal:
+        return locked_result(name, refusal), None
+    try:
+        directory, saves = prepare_session(name, fixture_name, user=test_id,
+                                           checkpoint_save=save_text)
+        script = os.path.join(directory, "%s.lua" % name)
+        write_wrapper_script(quest_file, script,
+                             leg_mode={"from": leg, "only": only, "tile": tile})
+        result = launch_and_report(name, binary, manifest_path, directory, saves, script,
+                                   timeout, max_frames, user=test_id)
+        result["from_leg"] = leg
+        if result["has_ledger"]:
+            stamp_summary_from_leg(os.path.join(directory, "ledger.tsv"), leg, only)
+            collect_checkpoints(result, test_id, quest_file, binary)
+        if source:
+            with open(os.path.join(directory, "FROM_CHECKPOINT"), "w", encoding="utf-8") as handle:
+                handle.write(source + "\n")
+        return result, None
     finally:
         release_session_lock(name)
 
@@ -966,6 +1373,8 @@ def publish(result):
     if not result["has_ledger"]:
         return None, "no ledger"
     ledger_path = os.path.join(result["directory"], "ledger.tsv")
+    if result.get("from_leg") or summary_from_leg(ledger.read(ledger_path)[1]):
+        return None, "a checkpoint run (from_leg) is for authoring; only a full run is evidence"
     verdict = ledger_verdict(ledger_path)
     if verdict != "PASS":
         return None, "ledger SUMMARY is %s, not PASS" % verdict
@@ -1147,6 +1556,14 @@ def main():
                              "docstring")
     parser.add_argument("--name", default=None,
                         help="artefact directory name for --script (default: its basename)")
+    parser.add_argument("--from-leg", type=int, default=None, metavar="K",
+                        help="a legs file only: log in from checkpoint K-1 (written by an "
+                             "earlier run) and run legs K..end, under the run name <id>.leg<K>; "
+                             "refuses with exit 2 when the checkpoint is missing or stale; "
+                             "never publishes, and gate.py refuses its ledger "
+                             "(docs/quest_authoring/relay.md \"Checkpoints\")")
+    parser.add_argument("--only-leg", type=int, default=None, metavar="K",
+                        help="as --from-leg K, but run leg K alone")
     parser.add_argument("--fixture", default=DEFAULT_FIXTURE,
                         help="fixture .ini for --script (default %s)" % DEFAULT_FIXTURE)
     arguments = parser.parse_args()
@@ -1156,6 +1573,14 @@ def main():
         parser.error("give a quest name, --all, or --script")
     if arguments.jobs < 1:
         parser.error("--jobs must be at least 1")
+    leg_request = arguments.from_leg if arguments.from_leg is not None else arguments.only_leg
+    if leg_request is not None:
+        if arguments.from_leg is not None and arguments.only_leg is not None:
+            parser.error("--from-leg and --only-leg are exclusive")
+        if arguments.script or arguments.all or not name:
+            parser.error("--from-leg/--only-leg take one quest id (not --all, not --script)")
+        if leg_request < 1:
+            parser.error("a leg number is 1 or more")
 
     if not arguments.no_build:
         warm_from = None if arguments.no_warm else arguments.warm_from
@@ -1181,6 +1606,23 @@ def main():
         return code
 
     manifest_path = write_manifest()
+
+    if leg_request is not None:
+        if not os.path.isfile(quest_list.quest_path(REPO_ROOT, name)):
+            print("run.py: no such quest file %s" % quest_list.quest_path(REPO_ROOT, name),
+                  file=sys.stderr)
+            return 1
+        result, refusal = run_quest_from_leg(name, leg_request,
+                                             arguments.only_leg is not None, binary,
+                                             manifest_path, arguments.timeout)
+        if refusal:
+            print(refusal, file=sys.stderr, flush=True)
+            return 2
+        print_report([result])
+        print_failure_block([result])
+        print("run.py: not published %s (a checkpoint run is for authoring; the full run "
+              "is the evidence)" % result["name"], flush=True)
+        return 0 if result["ok"] else 1
 
     if arguments.script:
         script_path = os.path.abspath(arguments.script)

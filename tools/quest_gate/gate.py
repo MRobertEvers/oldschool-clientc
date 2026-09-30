@@ -162,6 +162,10 @@ MIN_SHOTS_BLOCKED = 2
 UNCHANGED_MARKER = "[frame unchanged]"
 
 
+FROM_LEG_REFUSAL = "a checkpoint run is for authoring; grade the full run"
+FROM_LEG_RUN_RE = re.compile(r"^.+\.leg\d+$")
+
+
 def artefact_dir(name):
     assert name
     return os.path.join(REPO_ROOT, "build", "quest_gate", name)
@@ -449,8 +453,16 @@ def strip_lua_comments(source_text):
     return "".join(out)
 
 
+# A relay (legs) file binds through its top-level `bind = {...}` field, which
+# the harness hands to t.quest.bind before the first leg it runs
+# (docs/quest_authoring/relay.md "Checkpoints"): the same bind, so the same
+# minimum-shape rules.
 def _uses_quest_bind(source_text):
-    return "quest.bind" in strip_lua_comments(source_text)
+    if "quest.bind" in strip_lua_comments(source_text):
+        return True
+    import lint_quest  # lazy: the one reader of a relay file's layout
+    layout = lint_quest.legs_layout(source_text)
+    return bool(layout and layout["bind"])
 
 
 # The two verbs that shoot a row by themselves (core.lua's record_with_shot):
@@ -593,6 +605,15 @@ def check_quest(name, allow_blocked):
 
     if rows is None:
         findings.append("no ledger.tsv at %s" % ledger_path)
+        return findings, blocked
+
+    # A checkpoint run (run.py --from-leg K / --only-leg K) started from a
+    # saved player, skipped the setup list and legs 1..K-1: it proves the
+    # legs it ran from a state it did not reach itself. It is for authoring
+    # (docs/quest_authoring/relay.md "Checkpoints"), never a verdict.
+    if FROM_LEG_RUN_RE.match(name) or (summary is not None and len(summary) > 5 and any(
+            token.startswith("from_leg=") for token in summary[5].split())):
+        findings.append(FROM_LEG_REFUSAL)
         return findings, blocked
 
     if not rows:

@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 45
+-- @seam-count 49
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 134
-local SEAM_COUNT = 45
+local SEAM_COUNT = 49
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6493,12 +6493,123 @@ return {
             setup_cheat("::setvar gobdip_grubfoot_vis 0")       -- setup
             settle(1)
         end)
+
+        -- A PAGE BREAK READS AS A SPACE (seam30).  The server joins a
+        -- dialogue page's hard rows with <br> (content ~chat_layout, seam29);
+        -- _strip_tags used to delete it, so elena's mesbox read "You fall
+        -- through......you land" and a chat.play fragment spanning the break
+        -- could never match what the player sees.  The page text is the
+        -- one build/quest_gate/seam29_pipe_break recorded, verbatim.
+        seam("seam.strip_tags_br_is_a_space", function()
+            local read = t.read
+            local fn = type(read) == "table" and read._strip_tags or nil
+            if type(fn) ~= "function" then return missing("read", "_strip_tags") end
+            local raw = "You fall through...<br>...you land in the sewer.<br>Edmond follows you down the hole."
+            local got = fn(raw)
+            local want = "You fall through... ...you land in the sewer. Edmond follows you down the hole."
+            local text = "_strip_tags(" .. raw .. ") -> '" .. tostring(got) .. "'"
+            if got ~= want then
+                return "refused", "expected '" .. want .. "' -- " .. text
+            end
+            local colour = fn("<col=0000ff>find the</col> <br> helmet")
+            if colour ~= "find the helmet" then
+                return "refused", "a break with spaces round it must read as ONE space -- got '"
+                    .. tostring(colour) .. "'; " .. text
+            end
+            return "ok", text .. "; '<col=0000ff>find the</col> <br> helmet' -> '" .. colour .. "'"
+        end)
+
+        -- A REWARD LINE WITH A THOUSANDS SEPARATOR (seam30).  "10,500
+        -- Magic XP" read as 500: "(%d+)" started after the comma.  No
+        -- fixture quest awards a five-figure line, so the row hands the
+        -- parse behind scroll.reward_xp the lines directly.
+        seam("seam.reward_xp_thousands_separator", function()
+            local scroll = t.scroll
+            local fn = type(scroll) == "table" and scroll._parse_reward_xp or nil
+            if type(fn) ~= "function" then return missing("scroll", "_parse_reward_xp") end
+            local lines = { "1 Quest Point", "10,500 Magic XP", "1,234,567 Attack XP", "300 Cooking XP",
+                "Amulet of accuracy" }
+            local cases = { { "magic", 10500 }, { "attack", 1234567 }, { "cooking", 300 }, { "mining", nil } }
+            local seen = {}
+            for _, case in ipairs(cases) do
+                local got = fn(lines, case[1])
+                seen[#seen + 1] = case[1] .. "=" .. tostring(got)
+                if got ~= case[2] then
+                    return "refused", case[1] .. " read " .. tostring(got) .. ", expected "
+                        .. tostring(case[2]) .. " -- " .. table.concat(seen, " ")
+                end
+            end
+            return "ok", table.concat(seen, " ") .. " over {" .. table.concat(lines, " | ") .. "}"
+        end)
         stage(function()
             setup_cheat("::setlevel hitpoints 10")
             setup_cheat("::setlevel magic 1")
             settle(2)
         end)
 
+        stage(function()
+            setup_cheat("::tele lumbridge")
+            settle(4)
+        end)
+
+        -- THE LEG MARKER AND ITS CHECKPOINT (seam30 leg_checkpoints,
+        -- docs/quest_authoring/relay.md "Checkpoints").  A relay file's
+        -- `legs` table is driven by t.core_legs_drive: a `leg.<k>.<name>` row
+        -- before each leg (tile, server-read stage, backpack), and after an
+        -- all-PASS leg that has a successor, `::checkpoint k` -- the server's
+        -- save serialiser in checkpoint mode -- whose reply is carried into
+        -- the next leg's row.  Two tiny legs at the Lumbridge spawn, a quiet
+        -- point, so the checkpoint must be WRITTEN.
+        seam("seam.legs_marker_and_checkpoint", function()
+            local drive = t.core_legs_drive
+            if type(drive) ~= "function" then return missing("core_legs_drive") end
+            local report = drive({ legs = {
+                { name = "conf_a", run = function(tt)
+                    tt.step("conformance.leg_a", "PASS", "leg a's own row")
+                end },
+                { name = "conf_b", run = function(tt) end },
+            } }, { finish = false })
+            local rows = type(report) == "table" and report.rows or {}
+            local text = table.concat(rows, " || ")
+            if #rows ~= 2 or not string.find(tostring(rows[1]), "leg.1.conf_a: tile=", 1, true)
+                or not string.find(tostring(rows[2]), "leg.2.conf_b: tile=", 1, true) then
+                return "refused", "expected rows leg.1.conf_a and leg.2.conf_b with a tile -- " .. text
+            end
+            if not string.find(tostring(rows[2]), "checkpoint 1 written: checkpoint 1 written at", 1, true) then
+                return "refused", "the all-PASS leg 1 at a quiet point left no written checkpoint -- " .. text
+            end
+            return "ok", text
+        end)
+
+        -- A CHECKPOINT IS REFUSED IN A DIALOGUE (seam30).  A checkpoint is
+        -- per-player state only: a parked dialogue does not come back with
+        -- it, so the server refuses `::checkpoint` while one is open and names
+        -- it -- the reply the harness folds into the next leg row.
+        stage(function()
+            setup_cheat("::cook")                                -- setup
+            settle(3)
+        end)
+        seam("seam.checkpoint_refuses_dialogue", function()
+            local talk = verb("player", "talk_to")
+            local drain = verb("chat", "drain")
+            local cheat = verb("cheat")
+            if not talk then return missing("player", "talk_to") end
+            if not drain then return missing("chat", "drain") end
+            if not cheat then return missing("cheat") end
+            local talk_result, talk_detail = talk(COOK_SYMBOL)
+            drain({ stop_at = "options" })
+            local result = cheat("::checkpoint 2")
+            local reply = t._legs_checkpoint_reply(2)
+            local key = verb("key")
+            if key then key("escape") end
+            settle(2)
+            local text = "talk_to cook -> " .. describe(talk_result) .. " " .. describe(talk_detail)
+                .. "; ::checkpoint 2 -> " .. describe(result) .. " '" .. tostring(reply) .. "'"
+            if result ~= "refused" or not string.find(tostring(reply), "refused: a dialogue is open", 1, true) then
+                return "refused", "the checkpoint must be refused naming the open dialogue -- " .. text
+            end
+            return "ok", text
+        end)
         stage(function()
             setup_cheat("::tele lumbridge")
             settle(4)
