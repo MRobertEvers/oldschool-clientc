@@ -43,7 +43,7 @@ quest_dragon	dragon	dragonslayer		3	todo	sonnet-b35	REJECTED (sonnet-b35): autho
 quest_dragonslayer2	dragonslayer2	dragonslayerii		4	todo		seam22 [b2b3fc229]: Galvek's phase-change boxes queue()d on the player (no longer abort under the npc-script suspend rule)
 quest_dreammentor	dreammentor	dreammentor		4	todo		
 quest_druid	druid	druidicritual		1	green	sonnet-b15	
-quest_druidspirit	druidspirit	naturespirit		3	todo	sonnet-b35	REVERTED by sampler (sonnet-b35): travel teleported past guide locs -- goDownToDrezel only opened the trapdoor then goto_tile into the underground; the holy barrier (leaveDrezel, pip_underground_wall_side_withportal, mausoleum_interactions.rs2:23) never crossed; goBackDownToDrezel refused 'Lab stairs and trapdoors sit locked.' (sinsofthefather.rs2:507 owns oploc1,pipeastsidetrapdoor -- a content seam) then goto_tile past it to Drezel | START FROM build/author_state/sonnet-b35/rejected/druidspirit.lua (the reverted green file): replace the three goto_tile legs with the real trapdoor descent, the holy barrier exit and the return; the east trapdoor is a content gap (sinsofthefather.rs2:507 owns its click) queued for seam30
+quest_druidspirit	druidspirit	naturespirit		3	green	sonnet-b35	
 quest_drunkmonk	drunkmonk	monksfriend		1	green	sonnet-b15	
 quest_eadgar	eadgar	eadgarsruse		1	green	sonnet-b25	
 quest_eaglepeak	eaglepeak	eaglespeak		4	todo		
@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	todo		parity3c [80e6ee1228]: Tru
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
-quest_legends	legends	legendsquest		3	todo		parity3c [80e6ee1228]: NOT LANDED -- LC port candidate parked at build/parity_state/parity3c/legends_candidate (unproved); needs a parity pass to land it and drive Nezikchened x3, jungle, caves before authoring
+quest_legends	legends	legendsquest		3	todo		RETRY after f8b8982d7 (content 0f825640bd): the LostCity port is LANDED (seam30: driven leg by leg to the completion scroll in a mirror, every boss fought; the One Small Favour forester branch and two unimplemented opcodes fixed at landing). No test yet: author it as a RELAY with legs + checkpoints from docs/quests/ladders/legends.ladder.tsv (98 steps, 10 legs) and legends.notes.md; ::complete has no arm for familycrest/shilovillage/undergroundpass, stage them with ::setvar crestquest/zombiequeen/upass
 quest_losttribe	losttribe	thelosttribe		3	todo		
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
