@@ -35,7 +35,8 @@ A READABLE BOOK (seam28) is interface 392 `book` (`~book_open`/`~book_spread`,
 item's Read op, `t.ui.await_open('book')`, turn pages with
 `t.ui.invoke(<book:page_right_button id>, 0)` (or the left one; the arrows are pause buttons -- look
 the ids up with `t.ui.widget` AFTER await_open, they are nil before the mount), close with
-`t.ui.invoke(<book:close_button>, 1)` or `t.key('escape')` and grade `is_modal()==false`.
+`t.ui.invoke(<book:close_button>, 1)` or `t.key('escape')` and grade
+`select(2, t.ui.is_modal()) == false` (`is_modal` returns `(ok, bool)`, below).
 
 Never `chat.play` a converted book (Grand Tree translation book and Glough's journal, the Dig Site
 book on chemicals so far; the other ~mesbox books -- witches_diary, arrav_book, ... -- move as their
@@ -63,6 +64,13 @@ book's title and left page).
 `refused` (not a type-6 model component) -- what the cache baked and the server's
 `if_setangle`/`if_setrotatespeed` last applied;
 `t.ui.await_model_pose(sym, {field=value}, ticks, sub)` -> `(ok|timeout, detail, pose)`.
+
+#### `t.ui.is_modal() == true` never holds: the first return is the string `ok` (sonnet-b41)
+
+`t.ui.is_modal()` answers `("ok", live)` (`quest_driver/ui.lua` `QD.ui.is_modal`), so comparing the
+call itself to `true` or `false` compares the string `ok` and always fails -- an await on it times
+out with the interface plainly open. Read the second value:
+`select(2, t.ui.is_modal()) == true` (Shilo Village's scroll reads).
 
 ### `t.ui.journal_open(display_name)` -- also `t.ui.journal_close`
 

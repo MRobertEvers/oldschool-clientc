@@ -87,6 +87,17 @@ lists a guide grows with `.addAll(...)` and `panel.addSteps(...)`. Drive every o
 declare it with a `-- GUIDE-GAP:` marker citing the `.rs2` line: a port that grants the whole Miss
 Cheevers kit in one dialogue has fourteen undriven steps.
 
+### A step named `teleportAway` grades UNMATCHED although its own row PASSed (sonnet-b41)
+
+Before it matches rows to steps, `helper_coverage.py` drops every PASS row whose name starts with
+`goto`, `walk`, `travel`, `teleport`, `tele-` or a bare `tele` (also `quest.`, `setup`, `reset`;
+case-insensitive, the `action_rows` filter), and every row whose detail mentions `goto_tile` or
+`::goto`: those are travel rows. A guide step whose own name starts with one of those words (Lost
+City's `teleportAway`, a `walkTo...` or `travelTo...` step) is therefore never credited by a row
+named exactly after it. Put the step's verb in front: `cast-teleportAway` (zanaris) still contains
+the step's name and grades DRIVEN. `telegrabKey` is not caught (`tele` followed by a letter other
+than `port`).
+
 ### `helper_coverage.py` reads FULL
 
 `helper_coverage.py <id>` reads FULL, or its only gaps are CONTENT_GAP steps the file declares

@@ -235,6 +235,7 @@ topic file with one line added here.
 - MIXED verdict on a blocked run -> coverage-and-gate: `helper_coverage.py` reads FULL
 - a FAIL above a full completion -> gaps-dialogue: A `t.check`/`t.expect` FAIL
 - `helper_coverage.py --ledger`, `--lua <copy>` -> seam-facts: Seam pass 27, (p); traps-23-33: Refused markers
+- sonnet-b41: `teleportAway` UNMATCHED with its row PASS -> coverage-and-gate: A step named `teleportAway`; next mesbox missing after an objbox -> verbs-chat: The next script's mesbox; `is_modal() == true` never holds -> verbs-ui-and-npc: `t.ui.is_modal() == true`; stage row reads the old value after a goto out of a zone -> gaps-world: A stage a zone exit writes
 
 ## Harness and runs
 

@@ -89,6 +89,16 @@ Then say in the row's detail which channel answered and why -- a run whose stage
 to carry its evidence in the details, so call `inv.await` directly and write the count back (trap
 12's habit) instead of folding it into a bare `t.expect` that lands a PASS with nothing in it.
 
+### A stage a zone exit writes still reads the old value right after the goto out (sonnet-b41)
+
+Some stages are written by leaving a map square, not by a click: Shilo Village's
+`[mapzoneexit,0_45_145]` / `[mapzoneexit,0_45_146]` (`quest_zombiequeen.rs2:1077-1084`) only
+`queue(exit_ah_za_rhoon)`, and that queue re-checks `inzone` before it moves `%zombiequeen` from
+entered (7) to left (8). The exit and the queue land a few ticks after `goto_tile` returns, and
+`t.quest.expect_stage` does not wait, so a stage row straight after the goto reads 7 and FAILs.
+Wait for the write: `t.var.await("zombiequeen", 8, 10)`, or at least `t.ticks(4)` before the
+`expect_stage` (the zombiequeen draft needed 4).
+
 ## An `ok` from a CLICK verb is not the row's thing; the held `map_flag` ok (2026-09-20); fights are waits
 
 *Origin: section 8 ("Gaps reported by authors").*

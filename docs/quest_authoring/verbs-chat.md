@@ -49,6 +49,17 @@ fragments see each break as ONE space (seam30; it used to be stripped to nothing
 `'through......you land'`): `'mesbox:You fall through... ...you land'` spans the break exactly as
 the page reads it. The raw `t.chat.text()` still carries `<br>`. 145 content texts page (build/seam_state/seam29/mesbox_multipage_texts.txt).
 
+#### The next script's mesbox never opens after an objbox: the objbox is still on page 2 (sonnet-b41)
+
+An `~objbox` pages exactly like a chat line (4 rows at 380px, `[proc,objbox_scaled]` loops
+`~objbox_scaled_page`), and there is no `objbox:` entry, so authors continue it by hand -- and one
+`t.chat.continue_` per objbox is one too few for a long text. Shilo Village's bone-shard objbox
+(`quest_zombiequeen.rs2:989`, "The apparition disappears into the ground...") is two pages. Left on
+its second page, it swallows the next script's page: the server logs `dropping ... mesbox_page ...
+while [proc,objbox_scaled_page] waits`, and the next `chat.play` finds no dialogue. Continue once
+per page (or `chat.play {'*', '*'}`), then
+`t.await({ level = function() return t.chat.kind() == "none" end }, 6)` before the next click.
+
 ### `t.chat.play(list)` -- also `t.game.runedraw`
 
 `t.chat.play(list)` -> `ok` `mismatch` `unsupported`, or a wrapped verb's own result.
