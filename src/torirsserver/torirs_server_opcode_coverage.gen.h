@@ -17,9 +17,9 @@
  *      8  host commands (npc)
  *     13  host commands (obj)
  *      2  host commands (param)
- *      5  host commands (player)
+ *      7  host commands (player)
  *     11  host commands (poh)
- *    466  total, of 520 declared opcodes
+ *    468  total, of 520 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 466
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 468
 #define TORIRSSERVER_OPCODE_DECLARED_COUNT 520
 
 /*
@@ -152,6 +152,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     2064, /* SS_OP_MIDI_JINGLE (host commands) */
     2065, /* SS_OP_MIDI_SONG (host commands) */
     2067, /* SS_OP_NAME (host commands) */
+    2068, /* SS_OP_P_ANIMPROTECT (host commands (player)) */
     2069, /* SS_OP_P_APRANGE (host commands) */
     2070, /* SS_OP_P_ARRIVEDELAY (host commands) */
     2072, /* SS_OP_P_COUNTDIALOG (host commands) */
@@ -166,6 +167,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     2082, /* SS_OP_P_OPOBJ (host commands (player)) */
     2083, /* SS_OP_P_OPPLAYER (host commands (player)) */
     2085, /* SS_OP_P_PAUSEBUTTON (host commands) */
+    2088, /* SS_OP_P_TEMPRUN (host commands (player)) */
     2089, /* SS_OP_P_STOPACTION (host commands) */
     2090, /* SS_OP_P_TELEJUMP (host commands) */
     2091, /* SS_OP_P_TELEPORT (host commands) */

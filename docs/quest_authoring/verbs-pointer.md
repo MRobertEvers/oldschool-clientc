@@ -36,6 +36,11 @@ spindle holds at the flattest pose and at none of the other four. The search sta
 measurement, not by caution -- every earlier position for it, down to re-framing once more at the
 end, cost green quests their rows.
 
+An optional fifth argument `single` (seam35) answers the FIRST press -- with its npc re-aim -- and
+returns a `covered` at once instead of running the pose loop, so a caller with a cheaper recovery
+can try it first. Only `t.player.attack`'s first press passes it (verbs-combat: "A covered Attack
+press, a boss that teleports, a timed walk"); every other press is unchanged.
+
 #### The 8,192-row loc pool and the instruction budget
 
 Many scenes fill the 8,192-row loc pool (`DRIVE_UI_POOL_CAP`: the Temple of Light, the Taverley
@@ -200,6 +205,16 @@ and naming every tile tried; the retry ::goto's onto the loc's own square only w
 `t.player.click_loc(loc, op, { stand_on_square = true })` /
 `t.player.use_on(item, target, { stand_on_square = true })`, and that opt-in needs a `-- GUIDE-GAP:`
 marker within 8 lines above it (trap 32).
+
+#### A press whose walk outlasts the 20-tick settle is followed (seam35)
+
+A `click_loc` whose route is long and walked (Haunted Mine's valve to the lift: 4 tiles apart, a
+60-step route, run energy 8-13 late in the quest) used to answer `timeout settle_after_click` with
+the player still walking, and the next row's `::goto` cancelled the walk. Now a `timeout` while the
+player is still moving is taken again, round by round, for as long as every round moved him, up to
+80 ticks in all (`QD.player._long_walk_ticks`); the arrival's own answer (a chat line, a page, a
+teleport) resolves it and the row notes `click_loc: the walk outlasted the 20-tick settle; followed
+it N more tick(s)`. A player who stood still through a round is the old `timeout`.
 
 #### A symbol STRING, not a table; the Temple of Light doors (seam 14)
 

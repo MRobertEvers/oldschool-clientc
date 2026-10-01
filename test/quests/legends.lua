@@ -1405,7 +1405,10 @@ return {
                     t.ticks(1)
                 end
             end
-            t.cheat("::give shark 9")
+            do
+                local _, have = t.inv.count("shark")
+                if have < 9 then t.cheat("::give shark " .. (9 - have)) end
+            end
             t.ticks(1)
             do
                 local _, sharks = t.inv.count("shark")

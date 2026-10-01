@@ -1243,7 +1243,13 @@ end
 -- has to be given the chance to re-take it: QD.player.use_on passes its own
 -- arming, and everything else passes nothing.  It answers (result, detail)
 -- like any verb, and a non-ok answer ends the loop carrying that detail.
-function QD.drive.click_minimenu(target, option, deadline, before_retry)
+-- `single` (optional, seam35): answer the FIRST press -- and seam15's npc
+-- re-aim, which is part of it -- without the pose loop or the pixel hunt; a
+-- `covered` closes the menu it left open and is returned at once, so a caller
+-- with a cheaper recovery of its own (QD.player._npc_cover_recovery) can try
+-- it before paying for five unsettled poses.  Nothing passes it but that
+-- recovery's callers, so every other press is exactly what it was.
+function QD.drive.click_minimenu(target, option, deadline, before_retry, single)
     deadline = deadline or 4
     local slot
     if option == "examine" then
@@ -1365,6 +1371,17 @@ function QD.drive.click_minimenu(target, option, deadline, before_retry)
                 detail = reaim_detail
                 aim_tile = QD.drive._npc_aim_tile(target, aim_tile.element)
             end
+        end
+        if single and pressed_at then
+            -- seam35: the caller's own recovery runs next, and it reads the
+            -- world gate -- which an open menu answers for (_dismiss_menu).
+            -- Only after a REAL press: a projection under a component was
+            -- never pressed, and the pose loop below climbs out from under
+            -- it as it always has (A/B: Troll Stronghold's generals went
+            -- green -> red when that skip took the recovery instead,
+            -- build/quest_gate/s35f_troll1..3 against s35b_troll1..3).
+            QD.drive._dismiss_menu(pressed_at)
+            return "covered", detail
         end
         attempt = attempt + 1
         if attempt > #QD.drive._frame_poses then
@@ -3668,6 +3685,18 @@ function QD.player.click_loc(loc, op, opts)
     -- there.  See _reach_verify for why that one arm and not the others.
     if settle_arm == "map_flag" and before_serial_result == "ok" then
         result, detail = QD.player._reach_verify(result, detail, before_serial)
+    end
+    -- seam35: a press whose WALK outlasts the 20-tick settle is followed to
+    -- its end (QD.player._settle_long_walk's banner, end of this file).
+    if result == "timeout" then
+        local walk_result, walk_detail, walk_arm =
+            QD.player._settle_long_walk(before_kind, before_text)
+        if walk_result ~= nil then
+            result, detail = walk_result, walk_detail
+            if walk_arm == "map_flag" and before_serial_result == "ok" then
+                result, detail = QD.player._reach_verify(result, detail, before_serial)
+            end
+        end
     end
     -- And the server refusing the REACH is not this verb's answer either: it
     -- is a fact about the tile walk_near's standoff chose, so the loc's other
@@ -7620,4 +7649,203 @@ function QD.player._inv_stray_drop(item, op, ground_before)
         .. tostring(ground_before) .. " -> " .. tostring(ground_after)
         .. ") -- a client built before seam pass 20 runs the backpack's shift-click-drop"
         .. " chain after every op-1 press (src/app/app_minimenu.c OPHELD flash)"
+end
+
+-- ==========================================================================
+-- SEAM covered_press_and_timed_lift_without_drive_op (seam35) -- A COVERED
+-- NPC PRESS IS RE-TAKEN FROM A SETTLED CAMERA, THEN FROM A CLEAR TILE, BEFORE
+-- THE UNSETTLED POSE LOOP IS PAID FOR.
+--
+-- Haunted Mine's author drove Treus Dayth's Attack through t.drive.op
+-- because the pixel press answered `covered` (build/author_state/sonnet-b43/
+-- hauntedmine.review.json).  Reproduced (build/seam_state/seam35/
+-- covered_press/): t.player.attack one row after the key press that raises
+-- him FAILED -- three full click_minimenu calls, 64 ticks, the character dead
+-- of Dayth's pickaxes before the third (s35cp_daythcam rows 6-7).  Not the
+-- yaw, not the crates, not render skip (s35cp_ddiag_ref fails the same with
+-- --render-every-frame):
+--   * the key press WALKS the player (2795,4456 -> 2788,4454), and the follow
+--     camera's anchor is still easing after him, so Dayth's projection drifts
+--     436,133 -> 442,178 over eight probes (s35cp_dd3) and the first press
+--     lands on a pixel he is not drawn at;
+--   * the pose loop then writes five poses and presses each in the SAME pump
+--     as the camera write (QD.drive._frame's banner: new angles, old eye), and
+--     the hunt that follows ranks those same unsettled readings -- 99 pixels,
+--     none holds him (s35cp_ddiag, three runs, identical);
+--   * the SAME pose written and SETTLED (QD.drive._await_settled) presses
+--     `Attack Treus Dayth` first time, from behind the player (pose pitches
+--     383 and 220: s35cp_behind383/220) or from the side (s35cp_side*), and
+--     so does a plain two-tick wait at the old camera (s35cp_dd_w2).
+-- So the variable is the settled projection.  The settled read is not the
+-- pose loop's default for the reasons measured in _frame's banner (it moved
+-- green presses), which is why this is a RECOVERY: it runs only after a
+-- first press -- the same press as before -- answered `covered`, so a press
+-- that lands today is not moved.
+--
+-- The ladder, cheapest first, each rung a real right-press and a menu row
+-- matched on the npc copy's own element (_press_row):
+--   1. TURN THE CAMERA AND LET IT SETTLE: poses _cover_settled_poses, each
+--      written with its yaw on the copy and pressed once it holds still;
+--   2. STEP TO A CLEAR TILE: when the copy is within _cover_clear_range tiles
+--      (the player's own model is what stands between the eye and a copy at
+--      his feet: QD.player._far_side_step's banner), walk to one at least
+--      _cover_clear_distance away and take rung 1's first pose again.
+-- Answers (result, detail): `ok` with _press_row's table, or the last
+-- press's answer with an account of every rung.  The caller writes the
+-- account into its row (QD.note) -- a press that needed a recovery must say
+-- so.  Nothing here is a bypass: every rung is the click a player makes.
+QD.drive._cover_settled_poses = { 1, 4 }
+QD.player._cover_clear_range = 1
+QD.player._cover_clear_distance = 2
+
+function QD.drive._press_settled(target, option, deadline, poses)
+    -- click_minimenu's own default: _press_row's two awaits take it as their
+    -- deadline, and a nil there is no wait at all.
+    deadline = deadline or 4
+    local slot
+    if option == "examine" then
+        slot = -1
+    else
+        slot = option - 1
+    end
+    local action_result, action = api_drive.action_for_slot(target.kind, slot)
+    if action_result ~= "ok" then
+        return action_result, "action_for_slot"
+    end
+    local account = {}
+    local result, detail = "covered", "no settled pose framed the copy"
+    for i = 1, #poses do
+        local index = poses[i]
+        -- `settle` = true: the pose is written, then the projection is read
+        -- once the player is idle and it has held still (_await_settled), or
+        -- at the deadline if it never does.
+        local frame_result, pos = QD.drive._frame(target, index, deadline, true)
+        if frame_result ~= "ok" or type(pos) ~= "table" then
+            account[#account + 1] = "pose " .. tostring(index) .. " framed nothing ("
+                .. tostring(frame_result) .. ")"
+        else
+            pos = QD.drive._named_copy_pos(target, pos)
+            pos = QD.drive._aim_at_named_copy(target, pos, deadline)
+            local under = QD.drive._under_ui(pos)
+            if under then
+                account[#account + 1] = "pose " .. tostring(index) .. " " .. under
+            else
+                result, detail = QD.drive._press_row(target, pos, action, deadline)
+                if result == "ok" then
+                    account[#account + 1] = "pose " .. tostring(index) .. " pressed at "
+                        .. tostring(pos.x) .. "," .. tostring(pos.y)
+                    return "ok", detail, table.concat(account, "; ")
+                end
+                account[#account + 1] = "pose " .. tostring(index) .. " at " .. tostring(pos.x)
+                    .. "," .. tostring(pos.y) .. ": " .. tostring(result)
+                QD.drive._dismiss_menu(pos)
+                if result ~= "covered" then
+                    return result, detail, table.concat(account, "; ")
+                end
+            end
+        end
+    end
+    return result, detail, table.concat(account, "; ")
+end
+
+function QD.player._npc_cover_recovery(target, option, first_detail, deadline)
+    assert(type(target) == "table", "cover recovery has no target")
+    assert(target.kind == "npc", "cover recovery is for npc presses")
+    local steps = {}
+    local result, detail, account = QD.drive._press_settled(target, option, deadline,
+        QD.drive._cover_settled_poses)
+    steps[#steps + 1] = "settled camera: " .. tostring(account)
+    local head = "first press covered (" .. tostring(first_detail) .. ") -> "
+    if result ~= "covered" then
+        return result, detail, head .. table.concat(steps, " | ")
+    end
+    local tile_result, tile_x, tile_z = QD.drive._target_tile(target)
+    local player_result, player = api_drive.player_tile()
+    if tile_result == "ok" and player_result == "ok" and type(player) == "table" then
+        local distance = QD.player._tile_distance(player.x, player.z, tile_x, tile_z)
+        if distance <= QD.player._cover_clear_range then
+            local step_result, step_detail = QD.player._step_off_tile(target, tile_x, tile_z,
+                QD.player._cover_clear_distance)
+            steps[#steps + 1] = "clear tile: " .. tostring(step_result) .. " "
+                .. tostring(step_detail)
+            if step_result == "ok" then
+                result, detail, account = QD.drive._press_settled(target, option, deadline,
+                    { QD.drive._cover_settled_poses[1] })
+                steps[#steps + 1] = "from the clear tile: " .. tostring(account)
+            end
+        else
+            steps[#steps + 1] = "clear tile: not stepped (copy " .. tostring(distance)
+                .. " tile(s) off, beyond " .. tostring(QD.player._cover_clear_range) .. ")"
+        end
+    end
+    return result, detail, head .. table.concat(steps, " | ")
+end
+
+-- ==========================================================================
+-- SEAM covered_press_and_timed_lift_without_drive_op (seam35), the lift half
+-- -- A LOC PRESS WHOSE WALK OUTLASTS THE SETTLE IS FOLLOWED, NOT ABANDONED.
+--
+-- Haunted Mine's `goDownLift` went out through t.drive.op because "the camera
+-- hunt for lift_side_r took longer" than the valve's 80-tick window
+-- (^hmq_lift_race_ticks, hauntedmine_dungeon.rs2:355-375).  Measured
+-- (build/seam_state/seam35/covered_press): the press is not the problem -- it
+-- lands first time on the one copy (2807,4492; s35cp_hmliftat row 59
+-- "pressed the copy at 2807,4492,0") -- the WALK is.  The valve at 2808,4496
+-- is four tiles from the lift and the route between them is sixty steps
+-- (TORIRSSERVER_VERBOSE: `route level=0 from=2808,4497 to=2808,4493
+-- steps=60`), and late in the quest the character's run energy reads 8-13,
+-- so he walks it.  click_loc's settle gave up after 20 ticks with the player
+-- mid-route (`settle_after_click`, s35cp_hm1 row 56), the author's 20-tick
+-- await gave up after it, and the next row's ::goto cancelled the walk that
+-- would have arrived inside the window.  A fresh character runs the same
+-- route and passes in 30 ticks (s35cp_lift1 row 5), which is why the
+-- isolated reproduction never failed.
+--
+-- So a `timeout` while the player is STILL WALKING is not an answer yet: the
+-- settle is taken again, round by round, for as long as every round moved
+-- him, up to _long_walk_ticks in all.  The rounds are the same settle with a
+-- fresh chat watermark, so the arrival's own edge -- the op's chat line, a
+-- page, a modal, or the teleport the lift is -- resolves it; the map_flag arm
+-- cannot (its route was issued before the round began), and the caller
+-- re-checks a map_flag answer against the reach refusal as before.  A player
+-- who stood still through a round, or was idle when the settle timed out, is
+-- the old `timeout`, unchanged: nothing a green row answers is moved.
+QD.player._long_walk_ticks = 80
+QD.player._long_walk_round = 20
+
+-- nil when there is nothing to follow (the player is idle); else the
+-- (result, detail, arm) of the round that resolved, or of the last round.
+function QD.player._settle_long_walk(before_kind, before_text)
+    local idle_result, idle = api_drive.player_idle()
+    if idle_result ~= "ok" or idle then
+        return nil
+    end
+    local start_tick = api_drive.tick()
+    local start_result, start = api_drive.player_tile()
+    if start_result ~= "ok" or type(start) ~= "table" then
+        return nil
+    end
+    local last = start
+    local result, detail, arm = "timeout", "settle_after_click", "timeout"
+    while api_drive.tick() - start_tick < QD.player._long_walk_ticks do
+        result, detail, arm = QD.player._settle_after_click(
+            QD.player._long_walk_round, before_kind, before_text)
+        local now_result, now = api_drive.player_tile()
+        local spent = api_drive.tick() - start_tick
+        if result ~= "timeout" then
+            QD.note(string.format("click_loc: the walk outlasted the 20-tick settle;"
+                .. " followed it %d more tick(s) from %d,%d (%s)", spent, start.x, start.z,
+                tostring(arm)))
+            return result, detail, arm
+        end
+        if now_result ~= "ok" or type(now) ~= "table"
+            or (now.x == last.x and now.z == last.z and now.level == last.level) then
+            break
+        end
+        last = now
+    end
+    QD.note(string.format("click_loc: the walk outlasted the 20-tick settle; followed it"
+        .. " %d more tick(s) from %d,%d to %d,%d with no answer",
+        api_drive.tick() - start_tick, start.x, start.z, last.x, last.z))
+    return result, detail, arm
 end

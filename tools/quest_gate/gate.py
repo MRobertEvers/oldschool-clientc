@@ -21,8 +21,10 @@ Red on, and only on, things that mean the test did not actually happen:
     see UNCHANGED FRAMES below -- so this rule can no longer fire on a quest
     whose verbs simply did not move the screen, and what is left of it is the
     case it was written for),
-  * a shot whose own top-left 64x64 corner matches the Character-Creator or
-    pre-login fingerprint (tools/quest_gate/fingerprints/) -- a run that
+  * a shot whose own top-left 64x64 corner matches the Character-Creator
+    fingerprint (tools/quest_gate/fingerprints/), or whose client canvas
+    matches the loading screen or the title screen at BOTH its top-left and
+    bottom-left probes (PRE-LOGIN FRAMES, by the constants) -- a run that
     never actually got past boot/login can still write a ledger full of
     PASS rows if every verb it calls answers `refused`/`timeout` in a way
     the quest's own asserts do not catch; this catches it at the pixel
@@ -144,13 +146,72 @@ import quest_list  # noqa: E402
 
 MIN_SHOT_BYTES = 1000
 FINGERPRINTS_DIR = os.path.join(HERE, "fingerprints")
-FINGERPRINT_NAMES = ("character_creator", "pre_login")
-# Measured separation (fingerprints/README.md): an ordinary in-world corner
-# is the engine's flat clear colour, tens of levels away from either
-# reference in every channel. A software-rendered headless frame does not
-# introduce that much run-to-run noise, so this threshold has real headroom
-# on both sides rather than being tuned to just barely pass today's shots.
+FINGERPRINT_NAMES = ("character_creator", "pre_login", "title_screen")
+# character_creator: the shot's own top-left 64x64 corner against
+# fingerprints/character_creator.json, within this mean absolute byte
+# difference (fingerprints/README.md: a textured panel corner, tens of levels
+# from anything else).
 FINGERPRINT_MATCH_THRESHOLD = 12.0
+
+# PRE-LOGIN FRAMES (seam35 pre_login_fingerprint_matches_a_cutscene_fade).
+# The pre_login reference used to be the corner alone, and that corner is
+# solid black: every in-game frame whose 3D viewport is dark there matched it
+# -- a cutscene fade (Monkey Madness shot 163, the viewport black, chat box,
+# minimap and side panel all drawn), a void corner at a low camera, a dark
+# cave -- 39 in-game shots of the 112,755 under build/quest_gate on
+# 2026-10-01. And the frame a stuck run really photographs, the TITLE screen
+# (a refused relog: s18d_pry1's killTheTroll.relog rows went on PASSing on
+# it), never matched at all (38.75 from the black corner). So a pre-login
+# frame is now recognised by the features the two real pre-login screens
+# have, at two probes -- the top-left and bottom-left 64x64 blocks of the
+# 765x503 client canvas, which the shot centres horizontally (an 807-wide
+# shot carries it at x=21 between clear-colour gutters):
+#
+#   pre_login    the loading screen ("Checking for updates - 0%", "Loading
+#                - please wait."): black everywhere but its centre bar, so
+#                BOTH probes within LOADING_SCREEN_THRESHOLD of
+#                fingerprints/pre_login.json's solid black block. Measured
+#                0.00 / 0.00 on two real loading frames (TORIRS_PRESENT_BMP
+#                frames 2 and 20); the nearest in-game shot is Making
+#                History's chrome-hidden fade (mh.outpost.fade0) at 9.93 /
+#                1.42 -- its "Walk here" hover text alone keeps the top probe
+#                off black -- and every fixed-mode frame's bottom-left is the
+#                chat tabs' stone, 80+ away.
+#   title_screen the title screen (Welcome / Existing User / connecting: the
+#                login box changes, the art at the canvas edges does not):
+#                both probes' 8x8-cell colour means within
+#                TITLE_SCREEN_THRESHOLD of TITLE_SCREEN_CELLS. Measured 0.00
+#                / 0.00 on all 27 title shots in 9 runs; the nearest in-game
+#                shot is 16.26 on the top probe and 20.5 on the bottom one.
+#
+# Both probes must match: the top one alone is the old false positive.
+CANVAS_W = 765
+CANVAS_H = 503
+PROBE_SIZE = 64
+PROBE_CELL = 8
+LOADING_SCREEN_THRESHOLD = 4.0
+TITLE_SCREEN_THRESHOLD = 8.0
+# 8x8 cells of 8x8 pixels, row-major, RGB channel means (integer), of the
+# title screen's two probes -- from build/quest_gate/seam35_prelogin/shots/
+# 002-logout.png (a scratch run's t.session.logout, 2026-10-01, the title
+# screen confirmed visually); `gate.py --probe <png>` prints them from
+# another capture if the title art ever changes.
+TITLE_SCREEN_CELLS = {
+    "top_left": bytes.fromhex(
+        "680e0e690e0e6b0e0f6c0f0f6c0f0f6a0f0f680f0e660f0e660e0d670e0d670e0e670e0e"
+        "690f0e690f0e690f0e670f0e630e0e630e0d640e0d650e0d650e0d650e0d650e0d650e0e"
+        "5e0e0d5f0e0d600e0d610e0e620e0e630e0e630e0e620e0e590d0d5a0d0d5b0d0d5c0e0d"
+        "5d0e0d5e0e0d5f0e0d5f0e0d540d0d550d0d560d0d570d0d580d0d590d0d5a0d0d5b0d0d"
+        "4e0d0d4f0d0c510d0d510d0d520d0d530d0d540d0d550d0d460c0b480c0c490c0c4a0d0c"
+        "4b0c0c4c0d0c4e0c0d4f0d0d"),
+    "bottom_left": bytes.fromhex(
+        "2703032b02031c01012302022902024800005800003201012503032a02021d0101210201"
+        "2902024700005c00003501013006062903021e00011f02013506054301015c0000350201"
+        "2f06053606061f01012102024009093d02015500003302012a05053c0808350707370808"
+        "430a093902024a01013401012b04043e0707410909460909510b0b3403023c0000310000"
+        "4205054e09084e0a0a4e0a094a09093404033f01015700002903013d08073a0807240301"
+        "2e03004104024e0100710001"),
+}
 # See the rule table in the MINIMUM SHAPE banner section above: a run whose
 # ledger ends on a BLOCKED row is held to the smaller pair, everything else
 # (a green run) to the larger pair.
@@ -263,6 +324,45 @@ def read_png_corner(path, size=64):
     which check_quest treats as "cannot compare", not as a match or a
     finding on its own; the ordinary shot-integrity checks already cover a
     file that is not a real PNG at all."""
+    return read_png_left_strip(path, size, size)
+
+
+def read_png_left_strip(path, width_px, rows_wanted):
+    """read_png_corner's shape for the leftmost `width_px` pixels of the top
+    `rows_wanted` rows (each clipped to the image)."""
+    return png_left_strip(decode_png(path), width_px, rows_wanted)
+
+
+def png_left_strip(decoded, width_px, rows_wanted):
+    """The strip out of a decode_png result (None passes through). A PNG
+    row's first N bytes unfilter from the previous row's first N bytes
+    alone, so a strip down the left edge costs its own area, not the whole
+    frame's."""
+    assert width_px > 0
+    assert rows_wanted > 0
+    if decoded is None:
+        return None
+    width, height, channels = decoded["width"], decoded["height"], decoded["channels"]
+    raw, stride = decoded["raw"], decoded["stride"]
+    rows_needed = min(rows_wanted, height)
+    needed_bytes = min(width_px, width) * channels
+    if len(raw) < rows_needed * stride:
+        return None
+    prev = None
+    rows = []
+    for r in range(rows_needed):
+        start = r * stride
+        row = _unfilter_row(raw[start], raw[start + 1:start + 1 + needed_bytes], prev, channels)
+        rows.append(row)
+        prev = row
+    return {"width": width, "height": height, "channels": channels,
+            "block_w": min(width_px, width), "block_h": rows_needed, "rows": rows}
+
+
+def decode_png(path):
+    """{"width","height","channels","raw","stride"} -- the inflated, still
+    filtered scanlines of `path` -- or None on anything read_png_corner
+    calls "cannot compare"."""
     assert path
     try:
         with open(path, "rb") as handle:
@@ -292,20 +392,8 @@ def read_png_corner(path, size=64):
         raw = zlib.decompress(bytes(idat))
     except zlib.error:
         return None
-    stride = 1 + width * channels
-    rows_needed = min(size, height)
-    needed_bytes = min(size, width) * channels
-    if len(raw) < rows_needed * stride:
-        return None
-    prev = None
-    rows = []
-    for r in range(rows_needed):
-        start = r * stride
-        row = _unfilter_row(raw[start], raw[start + 1:start + 1 + needed_bytes], prev, channels)
-        rows.append(row)
-        prev = row
     return {"width": width, "height": height, "channels": channels,
-            "block_w": min(size, width), "block_h": rows_needed, "rows": rows}
+            "raw": raw, "stride": 1 + width * channels}
 
 
 _FINGERPRINT_CACHE = {}
@@ -346,21 +434,164 @@ def fingerprint_distance(corner, fingerprint):
     return total / count
 
 
-def matches_boot_fingerprint(shot_path):
-    """The name of the fingerprint `shot_path` matches within
-    FINGERPRINT_MATCH_THRESHOLD, or None. Silently None (not a finding on
-    its own) when the shot cannot be decoded at all -- the shot-integrity
-    checks in check_quest already flag a missing/undersized/corrupt file;
-    this function's job is only the pixel comparison."""
-    corner = read_png_corner(shot_path)
-    if corner is None:
+def canvas_probe_block(strip, x_px, y_px):
+    """The PROBE_SIZE square at (x_px, y_px) of a read_png_left_strip result,
+    in fingerprint_distance's {"block_h", "rows"} shape."""
+    assert strip
+    channels = strip["channels"]
+    rows = [row[x_px * channels:(x_px + PROBE_SIZE) * channels]
+            for row in strip["rows"][y_px:y_px + PROBE_SIZE]]
+    return {"block_h": len(rows), "rows": rows}
+
+
+def probe_cell_means(block):
+    """PROBE_CELL x PROBE_CELL pixel cells of a 3-channel probe block,
+    row-major, each cell's integer RGB means -- TITLE_SCREEN_CELLS' shape."""
+    assert block
+    out = bytearray()
+    cells = PROBE_SIZE // PROBE_CELL
+    area = PROBE_CELL * PROBE_CELL
+    span = PROBE_CELL * 3
+    for cell_y in range(cells):
+        band = block["rows"][cell_y * PROBE_CELL:(cell_y + 1) * PROBE_CELL]
+        for cell_x in range(cells):
+            red = green = blue = 0
+            for row in band:
+                segment = row[cell_x * span:(cell_x + 1) * span]
+                red += sum(segment[0::3])
+                green += sum(segment[1::3])
+                blue += sum(segment[2::3])
+            out.extend((red // area, green // area, blue // area))
+    return bytes(out)
+
+
+def cell_distance(a, b):
+    assert len(a) == len(b)
+    return sum(abs(x - y) for x, y in zip(a, b)) / len(a)
+
+
+def canvas_origin(decoded):
+    """The client canvas's left edge in a decode_png result, or None when the
+    shot cannot hold both probes or is not the 3-channel shape the
+    screenshot writer produces."""
+    assert decoded
+    if decoded["channels"] != 3:
         return None
-    for name in FINGERPRINT_NAMES:
-        fingerprint = load_fingerprint(name)
-        distance = fingerprint_distance(corner, fingerprint)
-        if distance is not None and distance <= FINGERPRINT_MATCH_THRESHOLD:
-            return name
-    return None
+    width, height = decoded["width"], decoded["height"]
+    x_px = max(0, (width - CANVAS_W) // 2)
+    if x_px + PROBE_SIZE > width or height < 2 * PROBE_SIZE:
+        return None
+    return x_px
+
+
+def canvas_probe(decoded, strip, bottom):
+    """The canvas's top-left (bottom=False) or bottom-left probe block, cut
+    from `strip` (a png_left_strip of `decoded` at least canvas_origin +
+    PROBE_SIZE wide; the bottom probe decodes its own, down the frame)."""
+    assert decoded
+    x_px = canvas_origin(decoded)
+    assert x_px is not None
+    y_px = (min(decoded["height"], CANVAS_H) - PROBE_SIZE) if bottom else 0
+    if bottom:
+        strip = png_left_strip(decoded, x_px + PROBE_SIZE, y_px + PROBE_SIZE)
+    if strip is None or len(strip["rows"]) < y_px + PROBE_SIZE:
+        return None
+    block = canvas_probe_block(strip, x_px, y_px)
+    if len(block["rows"][0]) < PROBE_SIZE * 3:
+        return None
+    return block
+
+
+def pre_login_screen_distances(decoded, top_strip):
+    """{"pre_login": (top, bottom), "title_screen": (top, bottom)} for the
+    shot's two canvas probes (PRE-LOGIN FRAMES above); a bottom distance is
+    None when the top probe already rules that screen out (the bottom probe
+    unfilters the strip down the whole frame, so it is read only for a
+    candidate). None when the shot cannot be probed. `top_strip` is a
+    png_left_strip of the top PROBE_SIZE rows, canvas_origin + PROBE_SIZE
+    wide."""
+    assert decoded
+    if canvas_origin(decoded) is None:
+        return None
+    top = canvas_probe(decoded, top_strip, bottom=False)
+    if top is None:
+        return None
+    loading = load_fingerprint("pre_login")
+    top_loading = fingerprint_distance(top, loading)
+    top_title = cell_distance(probe_cell_means(top), TITLE_SCREEN_CELLS["top_left"])
+    loading_candidate = top_loading is not None and top_loading <= LOADING_SCREEN_THRESHOLD
+    title_candidate = top_title <= TITLE_SCREEN_THRESHOLD
+    bottom_loading = bottom_title = None
+    if loading_candidate or title_candidate:
+        bottom = canvas_probe(decoded, None, bottom=True)
+        if bottom is not None:
+            bottom_loading = fingerprint_distance(bottom, loading)
+            bottom_title = cell_distance(probe_cell_means(bottom),
+                                         TITLE_SCREEN_CELLS["bottom_left"])
+    return {"pre_login": (top_loading, bottom_loading),
+            "title_screen": (top_title, bottom_title)}
+
+
+def boot_fingerprint_reading(shot_path):
+    """(match, character_creator distance, pre_login_screen_distances) for
+    one decode of `shot_path`, or None when it cannot be decoded."""
+    decoded = decode_png(shot_path)
+    if decoded is None:
+        return None
+    x_px = canvas_origin(decoded)
+    strip = png_left_strip(decoded, max(PROBE_SIZE, (x_px or 0) + PROBE_SIZE), PROBE_SIZE)
+    if strip is None:
+        return None
+    corner = {"block_h": strip["block_h"],
+              "rows": [row[:PROBE_SIZE * decoded["channels"]] for row in strip["rows"]]}
+    creator = fingerprint_distance(corner, load_fingerprint("character_creator"))
+    if creator is not None and creator <= FINGERPRINT_MATCH_THRESHOLD:
+        return "character_creator", creator, None
+    distances = pre_login_screen_distances(decoded, strip)
+    if distances is None:
+        return None, creator, None
+    thresholds = {"pre_login": LOADING_SCREEN_THRESHOLD,
+                  "title_screen": TITLE_SCREEN_THRESHOLD}
+    for name in ("pre_login", "title_screen"):
+        top, bottom = distances[name]
+        if top is None or bottom is None:
+            continue
+        if top <= thresholds[name] and bottom <= thresholds[name]:
+            return name, creator, distances
+    return None, creator, distances
+
+
+# t.session.logout's own `ok` detail (script/plugins/quest_driver/session.lua),
+# the WHOLE detail: a relog's ("...; then session.login: ...") does not match,
+# so its shot -- taken after the login -- gets no exemption.
+LOGOUT_DETAIL_RE = re.compile(
+    r"^logged out from -?\d+,-?\d+,-?\d+ via logout:logout \(displayed after \d+ frame\(s\)\); "
+    r"title screen after \d+ frame\(s\) -- [^;]*$")
+
+
+def logout_row_shots(rows):
+    """The shot names of PASS rows that are a t.session.logout's own answer:
+    the title screen IS what such a row photographs (a guide step that says
+    "log out"), so a title_screen match there is the step, not a run stuck
+    before login. Every other row's title-screen shot is still refused --
+    s18d_pry1 drove six rows on the title screen after a refused relog."""
+    names = set()
+    for row in rows or []:
+        if row["verdict"] == "PASS" and LOGOUT_DETAIL_RE.match(row["detail"] or ""):
+            names.update(ledger.shot_names(row))
+    return names
+
+
+def matches_boot_fingerprint(shot_path):
+    """The name of the fingerprint `shot_path` matches, or None:
+    character_creator on the shot's own corner within
+    FINGERPRINT_MATCH_THRESHOLD; pre_login / title_screen on BOTH canvas
+    probes (PRE-LOGIN FRAMES above). Silently None (not a finding on its
+    own) when the shot cannot be decoded at all -- the shot-integrity checks
+    in check_quest already flag a missing/undersized/corrupt file; this
+    function's job is only the pixel comparison."""
+    reading = boot_fingerprint_reading(shot_path)
+    return reading[0] if reading else None
 
 
 # ---------------------------------------------------------- minimum shape
@@ -676,6 +907,7 @@ def check_quest(name, allow_blocked):
                                  % (row["step"], shot_name, size, MIN_SHOT_BYTES))
 
     if os.path.isdir(shots_dir):
+        logout_shots = logout_row_shots(rows)
         by_digest = {}
         for entry in sorted(os.listdir(shots_dir)):
             if not entry.endswith(".png"):
@@ -683,6 +915,8 @@ def check_quest(name, allow_blocked):
             path = os.path.join(shots_dir, entry)
             by_digest.setdefault(md5_of(path), []).append(entry)
             matched = matches_boot_fingerprint(path)
+            if matched == "title_screen" and entry[:-len(".png")] in logout_shots:
+                matched = None
             if matched:
                 findings.append("shot %r matches the %s fingerprint -- this run never "
                                  "actually got past boot/login" % (entry, matched))
@@ -1028,7 +1262,41 @@ def main():
                         help="grade ONLY cutscene_row_required (and its exemptions) of the named "
                              "artefact directories -- scratch runs, run.py --script --name -- "
                              "against TEST_ID's camera sites and guide; no shape, no coverage")
+    parser.add_argument("--probe", action="store_true",
+                        help="treat the positional arguments as PNG paths: print each shot's "
+                             "boot-fingerprint match, its canvas probe distances and its two "
+                             "probes' cell means (TITLE_SCREEN_CELLS' shape), and grade nothing")
     arguments = parser.parse_args()
+
+    if arguments.probe:
+        if not arguments.quests:
+            parser.error("--probe reads named PNG files: give at least one")
+        for shot_path in arguments.quests:
+            reading = boot_fingerprint_reading(shot_path)
+            decoded = decode_png(shot_path)
+            if reading is None or decoded is None:
+                print("%s: not a PNG this reader decodes" % shot_path)
+                continue
+            match, creator, _ = reading
+            print("%s: %dx%d match=%s" % (shot_path, decoded["width"], decoded["height"], match))
+            print("    character_creator corner %s" % (
+                "-" if creator is None else "%.2f" % creator))
+            x_px = canvas_origin(decoded)
+            if x_px is None:
+                print("    (no canvas probes: not a 3-channel frame of at least %dx%d)"
+                      % (PROBE_SIZE, 2 * PROBE_SIZE))
+                continue
+            strip = png_left_strip(decoded, x_px + PROBE_SIZE, PROBE_SIZE)
+            distances = pre_login_screen_distances(decoded, strip)
+            for name, pair in sorted((distances or {}).items()):
+                print("    %s top %s bottom %s" % (name, *[
+                    "-" if value is None else "%.2f" % value for value in pair]))
+            for bottom in (False, True):
+                block = canvas_probe(decoded, strip, bottom)
+                if block is not None:
+                    print("    %s cells %s" % ("bottom_left" if bottom else "top_left",
+                                               probe_cell_means(block).hex()))
+        return 0
 
     if arguments.cutscene_as:
         if not arguments.quests:

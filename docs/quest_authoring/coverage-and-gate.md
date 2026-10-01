@@ -19,13 +19,26 @@ verdict is `PASS` iff `fail==0`, and whose `blocked=` token (present only when c
 
 Every row's claimed shot exists on disk (>=1000 bytes); no two shots in `shots/` share an MD5.
 
-### Fingerprints (Character-Creator / pre-login)
+### Fingerprints (Character-Creator / pre-login / title screen)
 
-No shot's top-left 64x64 corner matches the Character-Creator or pre-login fingerprint
-(`tools/quest_gate/fingerprints/`) -- a run stuck at boot cannot pass by answering
-`refused`/`timeout` quietly. It can also fire on a REAL frame: steep terrain or a low ceiling that
-leaves unrendered void in that corner matches the pre-login fingerprint on every settle retry. An
-explicit `t.drive.camera` before the shot fixes it; more ticks do not.
+A run stuck before login cannot pass by answering `refused`/`timeout` quietly: a shot that matches
+one of three fingerprints is RED (`shot '<name>' matches the <fingerprint> fingerprint -- this run
+never actually got past boot/login`).
+
+- `character_creator`: the shot's own top-left 64x64 corner (`tools/quest_gate/fingerprints/`).
+- `pre_login` (the loading screen) and `title_screen` (Welcome / Existing User / connecting): BOTH
+  the top-left and the bottom-left 64x64 probes of the 765x503 client canvas (centred in the shot)
+  must match -- the loading screen is black at both, the title screen's edge art is held as
+  `TITLE_SCREEN_CELLS` in `gate.py`.
+
+Since seam35 a cutscene fade, a void corner at a low camera or a dark cave no longer trips
+`pre_login`: an in-game frame's bottom-left is the chat-tab stone, never black (mm's
+`163-clickPuzzle-cutscene` and Miss Cheevers' shelves used to match the corner-only test; no camera
+turn is needed any more). A row driven while logged out (a refused relog, then six "PASS" rows on
+the title screen) is now caught by `title_screen`. A PASS `t.session.logout` row's own shot is
+exempt, because photographing the title screen IS that step. `python3 tools/quest_gate/gate.py
+--probe <png>...` prints a shot's match, its probe distances and its cell means (seam-facts: Seam
+pass 35 (b)).
 
 ### A reward row for every reward (reviewer's rule)
 
@@ -141,6 +154,33 @@ clicking the sub-step's loc is CHEAT (`teleported_across`), and the reason names
 - Known looseness: a skipped ladder is reported against every promoted sub-step that shares its
   loc and parent, so the cited goto pair may be a sibling's. Only a PANEL step's stairs still use
   the plain ladder rule (mourningsendparti `enterBasementAfterSheep` grades TRAVEL).
+
+### "presses op5 'pick-lock' ... a gating op: a 'enter' step needs the travel op" (seam35)
+
+*Origin: the sonnet-b44 sampler reverted losttribe (c32508b14): the test pressed Pick-Lock on the
+H.A.M. trapdoor, then `goto_tile`'d into the lair, and `helper_coverage` credited `enterHamLair` to
+the `ham.picklock` row.*
+
+A loc that gates its own crossing has two kinds of op: the GATING op that readies it (Pick-Lock,
+Unlock, Light, Search) and the TRAVEL op that crosses it (Climb-down, Enter, Cross, Open, Go-through,
+Squeeze-through...). A guide step that goes through a loc -- its leading verb (text, else name) is
+enter, climb, cross, go, exit, leave, descend, ascend, squeeze, crawl, jump, walk, pass, swing or
+board -- is credited only by:
+
+- a press of one of the loc's travel ops (any state of a multiloc: `ham_multi_trapdoor` is
+  Open/Pick-Lock while closed and Climb-down/Close while open), or
+- a row whose detail shows the player put across it: a `teleport: a -> b` / `x,z,l -> x,z,l` pair
+  that changes level or moves more than one tile (a content Pick-Lock that walks you through).
+
+A Pick-Lock press alone is refused with the reason above, the step falls through to the goto rule,
+and a `goto_tile` landing on the far side of a climb (the other map frame, or another level) is
+CHEAT: `goto_tile 3152,9644,0 at line 162 lands past the trapdoor the guide names`. A press on a
+multiloc CHILD state (`osf_trapdoor_closed`) is held to the step's op exactly like a press on the
+guide's parent symbol, and a multiloc parent's triggers are its states' triggers when the goto
+rule asks whether the climb writes a quest var. Drive it as the game does: the gating op under its
+own row, then the travel op under a row named after the step
+(`t.exec("enterHamLair", t.player.click_loc, "osf_trapdoor_open", 1)`). Fixture:
+`python3 tools/quest_gate/helper_coverage_two_op_test.py` (3 cases on the reverted losttribe run).
 
 ### A setup `::give` of The Giant Dwarf's Consortium ores and bars is a brought item (sonnet-b42)
 

@@ -35,7 +35,7 @@ quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo
 quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
-quest_deserttreasure	deserttreasure	deserttreasure		3	todo		RE-AUTHOR after a3158be819: content now has the wiki stat blocks for Fareed, Damis (both forms), Dessous and Kamil (no more one-hit bosses) and a 3000-tick boss lifespan; Fareed's diamond lands at the kill -- pick it up in leg 2 (op 3), never goto back past sword_haunted_well; bring 30+ food, rune armour and a whip/water spells and refill; drivers build/parity_state/parity3g/dt_scratch/{fareed,damis,dessous,kamil}.lua; legs left: Smoke Dungeon well path driveability unchecked, boss styles vs wiki
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b45	REJECTED (sonnet-b45): file ends at t.finish(0) after Rasolo's ring (legs 1-2 of 6); no expect_complete, ~40 of 58 guide steps (Damis, Dessous, Kamil, obelisks, pyramid, Azzanadra, rewards) undriven. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b45/rejected/deserttreasure.lua
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43	
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
@@ -73,12 +73,12 @@ quest_grandtree	grandtree	thegrandtree		3	green	sonnet-b34
 quest_grimtales	grimtales	grimtales		4	todo		
 quest_handinthesand	handinthesand	thehandinthesand		4	todo		
 quest_haunted	haunted	ernestthechicken		1	green	sonnet-b16	
-quest_hauntedmine	hauntedmine	hauntedmine		3	todo	sonnet-b43	REJECTED (sonnet-b43): gate/lint/run green, helper_coverage FULL, but no row asserts the documented 22000 Strength XP reward (hauntedmine_dayth.rs2:298; only the scroll shot shows it) and Lift/Dayth attack are driven by t.drive.op bypass
+quest_hauntedmine	hauntedmine	hauntedmine		3	green	sonnet-b45	
 quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34	
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
-quest_horror	horror	horrorfromthedeep		3	todo	sonnet-b43	REVERTED by sampler (sonnet-b43): setup '::god 1' makes the 10-hp player invulnerable for the Dagannoth and the mother (the only quest file using ::god; it is not a documented convention) -- the boss is fought for real: give combat levels, food and EAT it (opts.eat), Protect from Missiles per the guide. Also six t.check(name, true, ...) tile rows (after_repair/goDownToF1/goDownToF0/goDownToBasement/goThroughDoor/climbDownToCavern .tile) cannot fail -- assert the level/zone; reward.magic is '>= 4662', read the scroll's '4,662.5 Magic XP' line or snapshot after the last cast.
+quest_horror	horror	horrorfromthedeep		3	green	sonnet-b45	
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	green	sonnet-b43	
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
@@ -93,7 +93,7 @@ quest_junglepotion	junglepotion	junglepotion		3	green	sonnet-b36
 quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo		
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
-quest_legends	legends	legendsquest		3	green	sonnet-b39	
+quest_legends	legends	legendsquest		3	green	sonnet-b45	
 quest_losttribe	losttribe	thelosttribe		3	todo	sonnet-b44	REVERTED by sampler (sonnet-b44): HAM lair entered by goto_tile after the Pick-Lock (oploc5 only sets %varb235_ham_thief; the osf_trapdoor_open Climb-down was never clicked, shot 162 'Teleported to 3152,9644,0') and left by goto (osf_ham_ladder unused); also ::give candle_lantern_lit after the floor trap instead of relighting
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
@@ -103,7 +103,7 @@ quest_meatandgreet	meatandgreet	meatandgreet		4	todo
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
-quest_mm	mm	monkeymadnessi		3	todo		RE-AUTHOR after a3158be819: content now has the leg 3 dungeon ladder (mm_bamboo_ladder_dungeon_entrance climbs, MM2 no longer shadows it) and mm_demon's LostCity cam_lookat pair; resume the parked build/author_state/sonnet-b44/rejected/mm.lua from leg 3 (drivers build/parity_state/parity3g/scratch/drivers/parity_mm.lua, parity_mm_demon.lua); gate.py reading the puzzle cutscene frame as pre_login (shot 163) is a gate seam, not the author's; legs left: see PARITY.tsv
+quest_mm	mm	monkeymadnessi		3	todo	sonnet-b45	REVERTED by sampler (sonnet-b45): leg 8 ::goto 2807,2760 jumps from the Ape Atoll dock (checkpoint 7, 2802,2707, QH apeAtollSouth) straight to Garkor inside Marim, past the Bamboo Gate the guide names (QH enterGate, mm_bamboo_largedoor_left 2721,2766; mm_bamboo_doors.rs2 open_mm_largedoor needs a worn greegree) -- hold the Karamjan greegree, walk the ravine north from 2721,2750 and click the gate (a row named enterGate), then walk to Garkor; the rest of the file was sound: restore it with git show 33b94aef4:test/quests/mm.lua and re-run from leg 8
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)
@@ -177,7 +177,7 @@ quest_troll	troll	trollstronghold		3	green	sonnet-b36
 quest_troll_love	troll_love	trollromance		3	todo		parity3g partial at a3158be819: the piste is two real sled rides (worn waxed sled, Agility 28) with camera ops, landing 2790,3794 then 2794,3719; ::trollromance_crash runs the rare crash; driver build/parity_state/parity3g/scratch/drivers/tl.lua 18/18; legs left: tunnel unequip by the monitor timer, no %lastcombat gate
 quest_troubledtortugans	troubledtortugans	troubledtortugans		4	todo		
 quest_twilightspromise	twilightspromise	twilightspromise		4	todo		
-quest_upass	upass	undergroundpass		3	todo	sonnet-b43	REJECTED (sonnet-b43): gave_up at killHolthion (no_row); gate red: no quest.varp_complete/scroll_title row, missing shots, leg.4.end no shot. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b43/rejected/upass.lua
+quest_upass	upass	undergroundpass		3	todo	sonnet-b45	REJECTED (sonnet-b45): file is not green up to its t.blocked row: gate.py upass --allow-blocked RED with 6 findings (hop-2404,9692 / hop-2398,9688 / hop-2392,9686 steps claim shots 112-hop-2404, 113-hop-2398, 114-hop-2392 and bare-coordinate shots that are not on disk). The blocker itself (upass_encounters.rs2:25 [mapzone,1_33_71] never fires; engine mapzone is level 0 only; fix [mapzone,0_33_71] and :31 [mapzone,1_33_72]) reproduced live at leg 7. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b45/rejected/upass.lua
 quest_vampire	vampire	vampyreslayer		2	green	sonnet-b28	
 quest_viking	viking	thefremenniktrials		3	todo		parity3g partial at a3158be819: all seven trials ported from LostCity (Olaf lyre, Lalli stew, Swensen maze, Peer riddle + house, Manni contest, Sigmund barter chain, Thorvald via the ground ladder op2 at 2667,3694, Sigli); drivers build/parity_state/parity3g/viking_drv/{olaf,manni,sigmund,sigli,thorvald,swensen,peer,finish}.lua (finish: scroll + qp 3); Peer must be talked to from the north tile 2634,3671; legs left: Askeladden Claim Pet Rock op3, Rellekka stall guards, arena login teleport, Peer riddle pages/mural UI undriven
 quest_wanted	wanted	wanted		2	green	sonnet-b29	

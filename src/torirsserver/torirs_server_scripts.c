@@ -8312,6 +8312,21 @@ ToriRSServer_ScriptCommand(
          * animation whose last frame holds for 20,000 cycles (which is what
          * `human_death` states) never ends: the player respawns, walks, fights
          * and banks lying on the ground. */
+        /* `p_animprotect` (torirs_server_ops_player.c) refuses both forms:
+         * Player.playAnimation (Player.ts:1923) returns on `animProtect` before
+         * the -1 test, so a protected player's `anim(null)` is ignored too.
+         * TORIRSSERVER_ANIM_TRACE=1 prints every script anim and its fate. */
+        {
+            static int anim_trace = -1;
+            if( anim_trace < 0 )
+                anim_trace = getenv("TORIRSSERVER_ANIM_TRACE") != NULL;
+            if( anim_trace )
+                fprintf(stderr, "anim: %s seq %d delay %d tick %d -> %s\n",
+                        player->display_name, (int)values[0], (int)values[1], srv->tick,
+                        player->anim_protect ? "refused (p_animprotect)" : "played");
+        }
+        if( player->anim_protect )
+            return 1;
         if( values[0] < 0 )
         {
             player->anim_id = -1;

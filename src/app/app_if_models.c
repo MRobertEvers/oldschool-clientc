@@ -572,7 +572,21 @@ App_SetInterfacePlayerHead(
     struct App* app,
     int component_id)
 {
+    struct WorldEntity_Player* lp;
+
     assert(app);
+    /* A transmogged local player's chathead is the npc's: LostCity
+     * Client.java:7086 (IF_SETPLAYERHEAD) binds `transmog.id + 305419896`,
+     * the npc-head model key, when `localPlayer.transmog != null`, and
+     * ClientPlayer.getHeadModel answers `transmog.getHeadModel()`; the deob's
+     * PlayerAppearance.getChatHeadId/getModelData do the same. Resolved when
+     * the packet lands, as the reference's model1Id is. */
+    lp = app_local_player(app);
+    if( lp && lp->transmog_npc_id >= 0 )
+    {
+        App_SetInterfaceNpcHead(app, component_id, lp->transmog_npc_id);
+        return;
+    }
     app_if_head_store(app, APP_IFHEAD_PLAYER, component_id, -1);
     app_if_head_enqueue(app, APP_IFHEAD_PLAYER, component_id, -1);
 }

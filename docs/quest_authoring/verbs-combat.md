@@ -83,6 +83,15 @@ Chronozon 0 -> 8 re-casts in 60 ticks, `build/quest_gate/s27re_before3` vs `s27r
 Chronozon kill is each element cast until its own 'weakens' line, then
 `t.player.cast('fire_blast', 'chronozon', 14)` and `await_dead_engaged(240, 40, {eat=...})`.
 
+#### A kill's bones are on the floor, not in the backpack
+
+A death drop lands on the kill tile as a ground obj. `await_dead` does not pick it up, and neither
+does anything else. Take it in the same leg: `t.player.click_obj("<bones symbol>", 3)` (op 3 is
+Take), then `t.inv.await("<bones symbol>", 1, 6)`. Monkey Madness took
+`mm_small_zombie_monkey_bones` this way after `killZombie`. A private drop lags the zone packet, so
+poll `t.world.obj_near` first (gaps-combat: "Three world facts"). Never teleport back later for a
+drop you left behind (sampler-findings: Sample sonnet-b43, (c)).
+
 ## `t.player.attack`, `t.player.alive`, `t.player.cast` (section 3, `world` / `drive` / `player`)
 
 ### `t.player.attack(npc, op=2, ticks=10)` -- also `t.player.alive`, `t.player.cast`
@@ -251,3 +260,37 @@ seam33 the self-cast re-presses the cell after `SELF_CAST_REPRESS_TICKS` (3) of 
 to `SELF_CAST_PRESSES` (3) presses, and the detail ends `(press N: ...)` when it took more than one.
 A cast right after a step that ends in `p_delay` (Lost City's Dramen chop) needs no `t.ticks`
 before it. A cast on a HELD item still presses once (gaps-world: Leaving the Entrana dungeon).
+
+#### A covered Attack press, a boss that teleports, a timed walk (seam35)
+
+*Origin: seam pass 35, `covered_press_and_timed_lift_without_drive_op` (Haunted Mine, sonnet-b43).*
+
+Never send a guide step through `t.drive.op` because a press answered `covered` or a window looked
+short. Use these instead (all three are real presses):
+
+- **A covered Attack press recovers itself.** When `t.player.attack`'s first press answers
+  `covered` (a real press, not a pixel under the UI), the verb takes it again from a SETTLED camera
+  (poses 1 and 4, the eye allowed to stop moving), and then from a clear tile two squares off a
+  copy at the player's feet. Only after that does it run the old unsettled pose loop. The row says
+  which rung landed: `player.attack: first press covered (...) -> settled camera: ... pressed at
+  x,y`. Treus Dayth rises one row after a press that walked the player. He used to answer
+  `covered` for 64 ticks and the character died; now he is pressed in 14 ticks
+  (`build/quest_gate/s35cp_fix7_dayth_repro_cam`).
+- **A teleporting boss is followed, not counted as killed.** `npc_tele` re-adds the npc under a
+  NEW client slot (TORIRSSERVER_NPC_TRACE `RELEASE why=tele`). `await_dead_engaged` and
+  `await_dead` now follow that new slot and press Attack again at once. The note reads
+  `slot N left the pool ... came back as slot M ... -- followed it`. Before seam35 the old slot's
+  absence was graded `ok` "corroborated by ABSENCE" while Dayth stood alive: always read the
+  quest's own stage (`t.var.await`) after a kill.
+- **A loc press whose walk outlasts the settle is followed** (verbs-pointer: `click_loc`). Haunted
+  Mine's valve-to-lift route is 60 steps, and late in the quest the character walks it. The click
+  now answers on the lift's own sentence (`click_loc: the walk outlasted the 20-tick settle;
+  followed it N more tick(s)`), well inside the valve's 80 ticks. Write
+  `t.exec("goDownLift", t.player.click_loc, "lift_side_r", 1)`. Do not follow it with a ::goto
+  until the lift has answered: a teleport cancels the walk.
+
+Dayth hits up to 15 every 4 ticks. A crane next to the player adds up to 10, and standing on the
+track rows (`[proc,hmq_on_dayth_track]`) adds up to 9 every tick at low boss hitpoints. With 99
+Ranged, a magic shortbow and 20-27 sharks and no prayer, seam35 won the fight in 2 of 7 runs (the
+character died in the other five, three of them in the full quest). Bring Protect from
+Missiles (the `.rs2` cuts his pickaxe hit by a third) or more food, and fight from off the track.

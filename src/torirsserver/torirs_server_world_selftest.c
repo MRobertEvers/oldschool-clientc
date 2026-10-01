@@ -29187,6 +29187,156 @@ ToriRSServer_WorldSelftest(void)
         player->run_toggle = 0;
     }
 
+    fprintf(stderr, "ToriRSServer selftest: p_temprun and p_animprotect\n");
+    {
+        /*
+         * seam35 troll_love_ops_and_transmog_leftovers. Both ops were in the
+         * opcode table with no host handler, so Troll Romance's sled rides
+         * walked (and parity3g took the calls out of the content to keep the
+         * gap report at zero). Asserted through the VM, by hand-assembled
+         * scripts, against LostCity's engine:
+         *
+         *   p_temprun      PlayerOps.ts:1276 tempRun = 1; Player.ts:684 RUN
+         *                  while set; :690 cleared by a movement phase with no
+         *                  route; :720 cleared under 1% energy.
+         *   p_animprotect  PlayerOps.ts:1236 animProtect = toggle;
+         *                  Player.ts:1923 playAnimation returns while set,
+         *                  before the -1 test (anim(null) is refused too).
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack (run: make -C src torirsserver-scripts)\n");
+        }
+        else
+        {
+            uint16_t temprun_ops[] = { SS_OP_P_TEMPRUN, SS_OP_RETURN };
+            int32_t temprun_operands[] = { 0, 0 };
+            char* temprun_strings[2] = { NULL };
+            struct SSVM_Script temprun_script = {
+                .id = -1,
+                .name = "[selftest,p_temprun]",
+                .source_path = "<selftest>",
+                .lookup_key = -1,
+                .op_count = 2,
+                .opcodes = temprun_ops,
+                .int_operands = temprun_operands,
+                .string_operands = temprun_strings,
+            };
+            /* p_animprotect(1); anim(808, 0); anim(null, 0);
+             * p_animprotect(0); anim(808, 0) */
+            uint16_t protect_ops[] = {
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_P_ANIMPROTECT,
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_ANIM,
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_ANIM,
+                SS_OP_RETURN,
+            };
+            int32_t protect_operands[] = { 1, 0, 808, 0, 0, -1, 0, 0, 0 };
+            char* protect_strings[9] = { NULL };
+            struct SSVM_Script protect_script = {
+                .id = -1,
+                .name = "[selftest,p_animprotect_on]",
+                .source_path = "<selftest>",
+                .lookup_key = -1,
+                .op_count = 9,
+                .opcodes = protect_ops,
+                .int_operands = protect_operands,
+                .string_operands = protect_strings,
+            };
+            uint16_t release_ops[] = {
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_P_ANIMPROTECT,
+                SS_OP_PUSH_CONSTANT_INT, SS_OP_PUSH_CONSTANT_INT, SS_OP_ANIM,
+                SS_OP_RETURN,
+            };
+            int32_t release_operands[] = { 0, 0, 808, 0, 0, 0 };
+            char* release_strings[6] = { NULL };
+            struct SSVM_Script release_script = {
+                .id = -1,
+                .name = "[selftest,p_animprotect_off]",
+                .source_path = "<selftest>",
+                .lookup_key = -1,
+                .op_count = 6,
+                .opcodes = release_ops,
+                .int_operands = release_operands,
+                .string_operands = release_strings,
+            };
+            int start_x = player->x;
+            int start_z = player->z;
+
+            /* -- p_temprun -- */
+            steps_clear(player);
+            player->run_toggle = 0;
+            player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+            player->delayed_until = 0;
+            player->temp_run = 0;
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(srv, &temprun_script, NULL, 0),
+                           "p_temprun executes through the host VM");
+            SELFTEST_CHECK(player->temp_run == 1, "p_temprun sets temp_run, got %d",
+                           player->temp_run);
+
+            ToriRSServer_WorldWalkTo(srv, start_x + 6, start_z);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->move_count == 2,
+                           "a temp run covers two tiles with the orb off, moved %d",
+                           player->move_count);
+            SELFTEST_CHECK(player->temp_run == 1, "and holds while the route lasts");
+            selftest_tick(srv);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->x == start_x + 6 && player->move_count == 2,
+                           "three running ticks cover the six tiles, at %d (from %d), moved %d",
+                           player->x, start_x, player->move_count);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->temp_run == 0,
+                           "the first movement phase with no route clears it, got %d",
+                           player->temp_run);
+            ToriRSServer_WorldWalkTo(srv, start_x, start_z);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->move_count == 1, "after which the orb-off player walks, moved %d",
+                           player->move_count);
+
+            /* Under 1% energy it lapses (Player.ts:720): a running tick from 99
+             * drains to empty, and the update after it drops the temp run. */
+            selftest_park_player(srv, start_x, start_z);
+            player->run_energy = 99;
+            ToriRSServer_ScriptsRunHook(srv, &temprun_script, NULL, 0);
+            ToriRSServer_WorldWalkTo(srv, start_x + 6, start_z);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->temp_run == 0, "energy under 100 clears temp_run, got %d",
+                           player->temp_run);
+            selftest_tick(srv);
+            SELFTEST_CHECK(player->move_count == 1, "and the next tick walks, moved %d",
+                           player->move_count);
+            steps_clear(player);
+            player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
+            selftest_park_player(srv, start_x, start_z);
+
+            /* -- p_animprotect -- */
+            player->anim_protect = 0;
+            player->anim_id = -1;
+            player->masks &= ~TORIRSSERVER_PMASK_SEQUENCE;
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(srv, &protect_script, NULL, 0),
+                           "p_animprotect executes through the host VM");
+            SELFTEST_CHECK(player->anim_protect == 1, "p_animprotect(1) sets the flag, got %d",
+                           player->anim_protect);
+            SELFTEST_CHECK(player->anim_id == -1 &&
+                               (player->masks & TORIRSSERVER_PMASK_SEQUENCE) == 0,
+                           "a protected player plays neither anim(808) nor anim(null), anim %d",
+                           player->anim_id);
+            SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(srv, &release_script, NULL, 0),
+                           "p_animprotect(0) executes");
+            SELFTEST_CHECK(player->anim_protect == 0 && player->anim_id == 808 &&
+                               (player->masks & TORIRSSERVER_PMASK_SEQUENCE) != 0,
+                           "released, anim(808) plays again, protect %d anim %d",
+                           player->anim_protect, player->anim_id);
+            player->anim_id = -1;
+            player->masks &= ~TORIRSSERVER_PMASK_SEQUENCE;
+        }
+        ToriRSServer_ScriptsFree(srv);
+    }
+
     fprintf(stderr, "ToriRSServer selftest: rebuild on scene edge\n");
 
     {

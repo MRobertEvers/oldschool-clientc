@@ -965,6 +965,7 @@ except the plain readers marked as returning a value.
 ---@field var_server fun(varp_id: integer): string, integer The client's record of the SERVER's value; not the same read as varp.
 ---@field varbit_server fun(varbit_id: integer): string, integer The varbit-width var_server: the bits varbit would read, out of the server record instead of var[].
 ---@field var_content fun(varp_id: integer): string, integer The EMBEDDED SERVER's own copy, not the client's arrays at all. For an id the client's varp table cannot address -- never transmitted, so varp and var_server both answer not_found forever. unsupported on a socket-server run. It cannot see a desync; a row that reads it says so.
+---@field varbit_content fun(varbit_id: integer): string, integer, integer, boolean The EMBEDDED SERVER's own value for a varbit, its base varp, and whether that base ever reaches the client (content transmit=yes and an id the client's array addresses). var.server reads it instead of varbit_server only when it never can (seam35). unsupported on a socket-server run.
 ---@field inv_count fun(container_id: integer, obj_id: integer): string, integer
 ---@field inv_slot fun(container_id: integer, slot: integer): string, table
 ---@field inv_capacity fun(container_id: integer): string, integer

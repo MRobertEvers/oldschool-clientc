@@ -108,6 +108,42 @@ function QD._var_server_varp(id)
     return content_result, content_value, QD._VAR_CONTENT_SOURCE
 end
 
+-- The varbit with no client half (seam35).  A varbit is bits of a base varp,
+-- and the client's record of it (api_drive.varbit_server, var_serv[]) is only
+-- ever what the server SENT -- and the server sends a varp only when content
+-- declares it `transmit=yes` (ToriRSServer_WorldMarkVarp; an undeclared varp
+-- is server-only).  Monkey Madness's mm_daero / mm_caranock sit on mm_gnomes
+-- (varp 372), which no content file declares, so varbit_server answered a
+-- confident ok/0 for the whole of sonnet-b44's mm leg 1 while the dialogue
+-- showed the stage had moved.  It is ok/0, not not_found, so the varp path's
+-- not_found trigger above cannot catch it: the channel is decided by the
+-- STATIC transmit fact api_drive.varbit_content reports (reaches_client),
+-- never by the two values disagreeing -- that is var.expect's desync.
+--
+-- Returns the source label for an answer read off the server's own copy.
+function QD._varbit_content_source(base_varp)
+    return "server content copy; base varp " .. tostring(base_varp) .. " is never transmitted"
+end
+
+-- (result, value, source, from_content) for a resolved varbit id: the
+-- client's record when the base varp reaches the client, the server's own
+-- copy (from_content = true) when it never can.  A binary without
+-- api_drive.varbit_content keeps the old client-record read and says so in
+-- the source, so a row never hides which reader answered.
+function QD._var_server_varbit(id)
+    if type(api_drive.varbit_content) ~= "function" then
+        local result, value = api_drive.varbit_server(id)
+        return result, value,
+            "server (client record only: this binary has no api_drive.varbit_content)", false
+    end
+    local content_result, content_value, base_varp, reaches_client = api_drive.varbit_content(id)
+    if content_result == "ok" and not reaches_client then
+        return "ok", content_value, QD._varbit_content_source(base_varp), true
+    end
+    local result, value = api_drive.varbit_server(id)
+    return result, value, "server", false
+end
+
 -- The client's record of the server's value ONLY -- no content fallback.
 -- quest.lua's _reading grades a client/server PAIR and reaches the server's
 -- own copy itself when both halves say `not_found`; it must see that
@@ -124,14 +160,17 @@ function QD._var_server_pair(name)
 end
 
 -- (result, value[, source]).  source is "server" (the client's var_serv[]
--- record) or QD._VAR_CONTENT_SOURCE; a varbit answers two values as before.
+-- record), QD._VAR_CONTENT_SOURCE for a varp the client cannot address, or
+-- QD._varbit_content_source(base) for a varbit whose base varp is never
+-- transmitted (seam35).
 function QD.var.server(name)
     local kind, id, fail_result, fail_name = QD._var_resolve(name)
     if not kind then
         return fail_result, fail_name
     end
     if kind == "varbit" then
-        return api_drive.varbit_server(id)
+        local varbit_result, varbit_value, varbit_source = QD._var_server_varbit(id)
+        return varbit_result, varbit_value, varbit_source
     end
     local result, value, source = QD._var_server_varp(id)
     if result == "unsupported" then
@@ -165,7 +204,13 @@ function QD._var_await(name, value, ticks, side, verb)
             read = api_drive.var_server
         end
     elseif side == "server" then
-        read = api_drive.varbit_server
+        -- The same one-probe channel choice for a varbit: whether its base
+        -- varp is ever transmitted is a static fact of the content (seam35).
+        local _, _, probe_source, from_content = QD._var_server_varbit(id)
+        read = from_content and api_drive.varbit_content or api_drive.varbit_server
+        if probe_source ~= "server" then
+            where = probe_source
+        end
     else
         read = (kind == "varbit") and api_drive.varbit or api_drive.varp
     end
@@ -221,7 +266,18 @@ function QD.var.expect(name, value)
         return client_result, name
     end
     if client_value ~= value then
-        return "refused", name .. ": client=" .. tostring(client_value) .. " expected=" .. tostring(value)
+        local hint = ""
+        if kind == "varbit" then
+            -- A client that can never hold the value is not a desync: name
+            -- it so the author reaches for var.server (seam35).
+            local _, server_value, source, from_content = QD._var_server_varbit(id)
+            if from_content then
+                hint = " -- no client copy (" .. source .. "); var.server reads "
+                    .. tostring(server_value)
+            end
+        end
+        return "refused", name .. ": client=" .. tostring(client_value) .. " expected="
+            .. tostring(value) .. hint
     end
 
     local server_result, server_value = server_read(id)

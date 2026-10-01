@@ -371,8 +371,9 @@ scimitar -- give `await_dead_engaged` 150; only the temple copy of `ahoy_harbour
 is bone-key gated; Superheat Item turns 'perfect' gold ore into a 'perfect' gold bar (LostCity
 `ores.obj` smeltsto), arming it auto-opens the backpack, and rune symbols are
 `naturerune`/`firerune`; Miss Cheevers' room is gathered from its shelves, crates, chest and
-bookshelves (Quest Helper `MissCheeversStep`), and her south shelves trip the `pre_login`
-fingerprint at the default pose -- `t.drive.camera(1024,383,400)` first; Recruitment Drive's
+bookshelves (Quest Helper `MissCheeversStep`), and her south shelves tripped the `pre_login`
+fingerprint at the default pose (FIXED seam35: the fingerprint needs both canvas probes, Seam pass
+35 (b); no camera turn needed); Recruitment Drive's
 completion gives the Initiate sallet (`basic_tk_helm`); The Feud's two villager talks (stages 25/26)
 are ported (`feud_villagers.rs2`) and gate the Bandit Leader.
 
@@ -737,6 +738,86 @@ Row: `seam.transmog_draws_the_npc`.
 undrivable. A ship landing's source is LostCity's `~set_sail` destination; a `p_telejump` that skips
 a deck skips a guide step. zanaris, grail and hero (the committed ferry users) stay green. Recipe:
 docs/quests/ladders/deviousminds.notes.md. Desert Treasure's guide items are all obtainable in
-content (docs/quests/ladders/deserttreasure.notes.md); open: the Ardougne SILVER shop opens EMPTY in
-the client (a content-declared inv, `cell 3 of shopmain:items is not mounted`), and the Entrana
-monk's weapon search is unported.
+content (docs/quests/ladders/deserttreasure.notes.md); the Ardougne SILVER shop opening EMPTY in
+the client (a content-declared inv, `cell 3 of shopmain:items is not mounted`) is FIXED in seam35
+(Seam pass 35 (a)); open: the Entrana monk's weapon search is unported.
+
+## Seam pass 35 (2026-10-01)
+
+(a) A shop whose inv is declared in CONTENT (`pack/inv.alloc` + `size=`: the Ardougne silver stall
+2023, Zaff, the Pie Shop, 64 shop invs in all) opened with no grid cells: `shop.open` read `holds K
+stocked slot(s) of K` and `shop.buy` answered `cell N of shopmain:items is not mounted`. The server
+sends every slot; the client's `INV_SIZE` read only the cache `InvType`, which has no record for a
+server-only inv, and `shop_main_init` (1074) builds `inv_size($shop)` cells once at open. FIXED:
+`exec_inv_size` (src/game/rs_cs2_host.c) falls back to the capacity UPDATE_INV_FULL gave the
+container when the cache has no record; a cache inv still answers from its type. The first open is
+deterministic because RUNCLIENTSCRIPT waits for the SERVER_TICK_END fence. Unit test
+`test_server_allocated_inv_size_reads_the_container` (make test-cs2-transmit-pump); row
+`seam.shop_content_inv_opens_stocked`. Non-shop content invs (mortton coffin, meat pouch, stash)
+take the same path, undriven.
+
+(b) `gate.py`'s `pre_login` fingerprint was the shot's top-left corner against solid black, so any
+dark in-game corner matched it: 39 of 112,755 shots, all in game (mm's cutscene fade
+`163-clickPuzzle-cutscene`, Miss Cheevers' shelves, troll_love's crash keyframes); and the screen a
+stuck run really photographs, the TITLE screen, never matched (s18d_pry1 drove six rows on it).
+Now a pre-login frame needs BOTH the top-left and bottom-left 64x64 probes of the 765x503 canvas
+(centred in the shot) to match: `pre_login` (the loading screen) within 4.0 of black at both, the new
+`title_screen` within 8.0 of `TITLE_SCREEN_CELLS` at both. A fixed-mode frame's bottom-left is the
+chat-tab stone, 80+ away, so a fade, a void corner or a dark cave no longer trips it. A PASS
+`t.session.logout` row's own shot is exempt from `title_screen` (photographing the title is that
+step). `gate.py --probe <png>` prints a shot's distances and cell means. Over every shot on disk:
+`pre_login` 0 matches (was 39), `title_screen` 27, all logged-out frames. coverage-and-gate,
+"Fingerprints".
+
+(c) `helper_coverage.py` credited a guide step that GOES THROUGH a loc (`enterHamLair`, a step whose
+leading verb is enter/climb/cross/...) to a press of the loc's GATING op (Lost Tribe's Pick-Lock on
+`ham_multi_trapdoor`), while the test then `goto_tile`d into the lair (sampler revert c32508b14).
+Now such a step is credited only by a travel-op press (Climb-down/Enter/Cross/Open... in any
+multiloc state) or a row whose detail shows the player moved across; a press on a multiloc CHILD
+state is held to the step's op like one on the parent; a `goto_tile` landing on a climb's far side
+is CHEAT. The 89 green tests regrade identically. coverage-and-gate, "presses op5 'pick-lock' ...";
+fixture `python3 tools/quest_gate/helper_coverage_two_op_test.py`.
+
+(d) `t.var.server` / `t.var.await_server` on a VARBIT read only the client's record, which holds only
+what the server SENT, and the server sends a varp only when content declares it `transmit=yes`.
+Monkey Madness's `mm_daero` / `mm_caranock` / `mm_narnode` sit on `mm_gnomes` (varp 372), which
+nothing declares, so they read a confident `ok 0` for the whole quest. Now a varbit whose base varp
+is never transmitted is read off the embedded server (`api_drive.varbit_content`), labelled
+`server content copy; base varp N is never transmitted`; the channel is chosen from that static
+transmit fact, never from the values disagreeing. `var.expect` still needs a client copy and its
+refusal now says so. Not covered yet: `quest.bind{varp=<such a varbit>}` grades the client pair.
+verbs-state-and-vars, "A quest varbit reads 0"; row `seam.varbit_server_reads_untransmitted_base`.
+
+(e) Three real presses replace Haunted Mine's `t.drive.op` (verbs-combat, "A covered Attack press, a
+boss that teleports, a timed walk"): `t.player.attack` re-takes a `covered` first press from a
+SETTLED camera (poses 1 and 4), then from a clear tile two squares off, before the old unsettled pose
+loop (Treus Dayth, raised one row after a press that walked the player: 64 ticks `covered` and a
+dead character before, 14 ticks after); `await_dead` / `await_dead_engaged` follow an npc that
+`npc_tele` re-added under a NEW client slot instead of grading the old slot's absence a kill; and
+`click_loc` follows a press whose walk outlasts the 20-tick settle for up to 80 ticks (the 60-step
+valve-to-lift route at run energy 8-13). Rows `seam.npc_cover_settled_recovery`,
+`seam.npc_tele_reslot_followed`. The recovery runs only after a REAL press, not a pixel under the
+UI (Troll Stronghold's generals went red when it did). It also shortened Legends' Irvig and Ranalph
+fights, so leg 6 now leaves two sharks, leg 7's fixed `::give shark 9` fills the backpack, and
+Ungadulu's `inv_add(holyforce)` (ungadulu.rs2:547) lands nowhere: legends was reopened to top the
+sharks up to a count. Engine note, not fixed: `npc_tele` re-adding under a new slot is not what the
+real client sees (it keeps the index).
+
+(f) `::complete` has an arm for every quest row a completion site passes to
+`~quest_complete_rewards`: sixteen new ones (bigchompybirdhunting, eadgarsruse, elementalworkshop1,
+familycrest, fightarena, horrorfromthedeep, insearchofthemyreque, lostcity, onesmallfavour,
+regicide, scorpioncatcher, seaslug, shadesofmortton, shilovillage, tribaltotem, witchshouse), each
+writing what its completion site writes, cited in quest_cheat.rs2 and QUEST_SERVER_CHEATS.md. The 26
+rows with no completion anywhere in content still answer `has no arm`. A test that staged one of
+these prerequisites with `::setvar` (rovingelves, mourningsendparti, zogreflesheaters, legends,
+hero) can use `::complete` now. Rows `seam.complete_cheat_arms.<row>`.
+
+(g) `p_temprun` and `p_animprotect` are engine ops now (LostCity PlayerOps.ts:1276 / :1236), not
+stubs, and Troll Romance's sled rides and Monkey Madness's greegree call them again as LostCity does:
+`p_temprun` runs the route whatever the orb says until a movement phase finds no route or energy
+drops under 1%; `p_animprotect` makes `anim()` play nothing, `anim(null)` included.
+`TORIRSSERVER_ANIM_TRACE=1` prints each script anim and its fate. A transmogged local player's
+chathead is the npc's (`t.chat.head()` names the npc), and a placement centres a size-N transmog on
+its footprint. `fresh_lumbridge.ini` starts with the run orb ON, so a test cannot see walk-vs-run of
+a scripted `p_walk`; `::run N` sets run ENERGY, not the orb. Server selftest stanza "p_temprun and
+p_animprotect".

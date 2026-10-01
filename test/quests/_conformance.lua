@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 64
+-- @seam-count 84
 -- ---------------------------------------------------------------------------
 
 local VERB_COUNT = 141
-local SEAM_COUNT = 64
+local SEAM_COUNT = 84
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -5035,6 +5035,50 @@ return {
                 .. "; dwarfrock_puzzle_dx1=" .. describe(puzzle_value) .. " (" .. describe(puzzle_source) .. ")"
         end)
 
+        -- SEAM varbit_server_reads_untransmitted_base (state.lua
+        -- QD._var_server_varbit over api_drive.varbit_content; seam35).  A
+        -- varbit is bits of a base varp, and the client holds only what the
+        -- server SENT: mm_daero / mm_caranock sit on mm_gnomes (varp 372),
+        -- which no content .varp declares transmit=yes, so var.server and
+        -- var.await_server read a confident ok/0 for Monkey Madness's whole
+        -- leg 1 (sonnet-b44; build/quest_gate/s35vb_before: 6 of 14 rows).
+        -- Graded on reading back what ::setvar wrote into BOTH varbits (the
+        -- second write must keep the first's bits), and on a varbit whose
+        -- base IS transmitted (horrorquest on deephorror) staying on the
+        -- client-record channel, so the fallback is never the default.
+        seam("seam.varbit_server_reads_untransmitted_base", function()
+            local server = verb("var", "server")
+            local await_server = verb("var", "await_server")
+            if not server then return missing("var", "server") end
+            if not await_server then return missing("var", "await_server") end
+            setup_cheat("::setvar mm_daero 3")
+            setup_cheat("::setvar mm_caranock 2")
+            setup_cheat("::setvar horrorquest 2")
+            settle(2)
+            local awaited, await_detail = await_server("varb123_mm_daero", 3, 5)
+            if awaited ~= "ok" then
+                return awaited, "var.await_server(mm_daero, 3) after ::setvar: " .. describe(await_detail)
+            end
+            local result, value, source = server("mm_caranock")
+            if result ~= "ok" or value ~= 2
+                or not string.find(tostring(source), "server content copy", 1, true) then
+                return (result == "ok") and "refused" or result,
+                    "var.server(mm_caranock) after ::setvar 2 -> " .. describe(result) .. "/"
+                    .. describe(value) .. " " .. describe(source)
+            end
+            local control, control_value, control_source = server("horrorquest")
+            if control ~= "ok" or control_value ~= 2 or control_source ~= "server" then
+                return (control == "ok") and "refused" or control,
+                    "a transmitted varbit left the client-record channel: var.server(horrorquest) -> "
+                    .. describe(control) .. "/" .. describe(control_value) .. " " .. describe(control_source)
+            end
+            setup_cheat("::setvar mm_daero 0")
+            setup_cheat("::setvar mm_caranock 0")
+            setup_cheat("::setvar horrorquest 0")
+            return "ok", describe(await_detail) .. "; mm_caranock=2 (" .. describe(source)
+                .. "); horrorquest=2 (" .. describe(control_source) .. ")"
+        end)
+
         -- ------------------------ phase 7c: a model component's pose
         --
         -- ui.model_pose / ui.await_model_pose (seam16 engine-if-model-angle).
@@ -7110,6 +7154,26 @@ return {
         -- reaching the quest's own complete constant AND %varp101_qp rising by the row's
         -- quest:questpoints (the cheat pays it), from a var reset to 0 first so
         -- an earlier row's completion cannot pass it.  The vars go back to 0 after.
+        -- parity3g added Underground Pass and Tree Gnome Village to the same row.
+        -- One arm's reading: (true, reading) or (false, reading).
+        local function complete_arm_reading(cheat, read, arm)
+            setup_cheat("::setvar " .. arm.var .. " 0")
+            settle(1)
+            local _, qp_before = read("qp")
+            local cheat_result = cheat("::complete " .. arm.row)
+            settle(2)
+            local value_result, value = read(arm.var)
+            local _, qp_after = read("qp")
+            local reading = arm.row .. ": " .. arm.var .. "=" .. describe(value)
+                .. " (want " .. arm.complete .. "), qp " .. describe(qp_before) .. "->"
+                .. describe(qp_after) .. " (want +" .. arm.points .. "), cheat " .. describe(cheat_result)
+            if cheat_result ~= "ok" or value_result ~= "ok" or value ~= arm.complete
+                or type(qp_before) ~= "number" or type(qp_after) ~= "number"
+                or qp_after - qp_before ~= arm.points then
+                return false, reading
+            end
+            return true, reading
+        end
         seam("seam.complete_cheat_arms", function()
             local cheat = verb("cheat")
             local read = verb("var", "server")
@@ -7120,22 +7184,13 @@ return {
                 { row = "quest_touristtrap", var = "varp197_desertrescue", complete = 30, points = 2 },
                 { row = "quest_templeofikov", var = "varp26_ikov", complete = 80, points = 1 },
                 { row = "quest_trollstronghold", var = "varp317_troll_quest", complete = 50, points = 1 },
+                { row = "quest_undergroundpass", var = "varp161_upass", complete = 10, points = 5 },
+                { row = "quest_treegnomevillage", var = "varp111_treequest", complete = 9, points = 2 },
             }
             local parts = {}
             for _, arm in ipairs(arms) do
-                setup_cheat("::setvar " .. arm.var .. " 0")
-                settle(1)
-                local _, qp_before = read("varp101_qp")
-                local cheat_result = cheat("::complete " .. arm.row)
-                settle(2)
-                local value_result, value = read(arm.var)
-                local _, qp_after = read("varp101_qp")
-                local reading = arm.row .. ": " .. arm.var .. "=" .. describe(value)
-                    .. " (want " .. arm.complete .. "), qp " .. describe(qp_before) .. "->"
-                    .. describe(qp_after) .. " (want +" .. arm.points .. "), cheat " .. describe(cheat_result)
-                if cheat_result ~= "ok" or value_result ~= "ok" or value ~= arm.complete
-                    or type(qp_before) ~= "number" or type(qp_after) ~= "number"
-                    or qp_after - qp_before ~= arm.points then
+                local landed, reading = complete_arm_reading(cheat, read, arm)
+                if not landed then
                     return "refused", reading
                 end
                 parts[#parts + 1] = reading
@@ -7147,11 +7202,61 @@ return {
             end
             return "ok", table.concat(parts, "; ") .. "; ikov_lucien_vis=0"
         end)
+
+        -- EVERY QUEST ROW WITH A COMPLETION SITE HAS A ::complete ARM (seam35
+        -- complete_cheat_arms_for_every_quest_row).  These sixteen rows were
+        -- passed to ~quest_complete_rewards by their own completion but
+        -- `::complete` answered "has no arm for that quest.", so Legends',
+        -- Mourning's End I's, Roving Elves' and Zogre's prerequisites were
+        -- staged with ::setvar (rule (e)).  One row per arm: the var its
+        -- completion writes reaches that constant and %qp rises by the row's
+        -- quest:questpoints (build/seam_state/seam35/cca_before.ledger.tsv is the
+        -- HEAD pack's answer, cca_after the fixed one).  Rows with no completion
+        -- in content (the miniquests, Fairytale I/II, Rag and Bone Man II, ...)
+        -- keep "no arm".
+        -- The rows are literal (verb_list.py reads each name off its own `seam("` line).
+        local seam35_vars = {}
+        local function seam35_arm_row(row, var, complete, points)
+            seam35_vars[#seam35_vars + 1] = var
+            return function()
+                local cheat = verb("cheat")
+                local read = verb("var", "server")
+                if not cheat then return missing("cheat") end
+                if not read then return missing("var", "server") end
+                local landed, reading = complete_arm_reading(cheat, read,
+                    { row = row, var = var, complete = complete, points = points })
+                return landed and "ok" or "refused", reading
+            end
+        end
+        seam("seam.complete_cheat_arms.quest_bigchompybirdhunting", seam35_arm_row("quest_bigchompybirdhunting", "chompybird", 65, 2))
+        seam("seam.complete_cheat_arms.quest_eadgarsruse", seam35_arm_row("quest_eadgarsruse", "eadgar_quest", 110, 1))
+        seam("seam.complete_cheat_arms.quest_elementalworkshop1", seam35_arm_row("quest_elementalworkshop1", "elemental_workshop_finished", 1, 1))
+        seam("seam.complete_cheat_arms.quest_familycrest", seam35_arm_row("quest_familycrest", "crestquest", 11, 1))
+        seam("seam.complete_cheat_arms.quest_fightarena", seam35_arm_row("quest_fightarena", "arenaquest", 14, 2))
+        seam("seam.complete_cheat_arms.quest_horrorfromthedeep", seam35_arm_row("quest_horrorfromthedeep", "horrorquest", 10, 2))
+        seam("seam.complete_cheat_arms.quest_insearchofthemyreque", seam35_arm_row("quest_insearchofthemyreque", "routequest", 105, 2))
+        seam("seam.complete_cheat_arms.quest_lostcity", seam35_arm_row("quest_lostcity", "zanaris", 6, 3))
+        seam("seam.complete_cheat_arms.quest_onesmallfavour", seam35_arm_row("quest_onesmallfavour", "onesmallfavour", 285, 2))
+        seam("seam.complete_cheat_arms.quest_regicide", seam35_arm_row("quest_regicide", "regicide_quest", 15, 3))
+        seam("seam.complete_cheat_arms.quest_scorpioncatcher", seam35_arm_row("quest_scorpioncatcher", "scorpcatcher", 6, 1))
+        seam("seam.complete_cheat_arms.quest_seaslug", seam35_arm_row("quest_seaslug", "seaslugquest", 12, 1))
+        seam("seam.complete_cheat_arms.quest_shadesofmortton", seam35_arm_row("quest_shadesofmortton", "morttonquest", 85, 3))
+        seam("seam.complete_cheat_arms.quest_shilovillage", seam35_arm_row("quest_shilovillage", "zombiequeen", 15, 2))
+        seam("seam.complete_cheat_arms.quest_tribaltotem", seam35_arm_row("quest_tribaltotem", "totemquest", 5, 1))
+        seam("seam.complete_cheat_arms.quest_witchshouse", seam35_arm_row("quest_witchshouse", "ballquest", 7, 4))
         stage(function()
             setup_cheat("::setvar wanted_main 0")               -- teardown
             setup_cheat("::setvar desertrescue 0")
             setup_cheat("::setvar ikov 0")
             setup_cheat("::setvar troll_quest 0")
+            setup_cheat("::setvar upass 0")
+            setup_cheat("::setvar treequest 0")
+            for _, var in ipairs(seam35_vars) do
+                setup_cheat("::setvar " .. var .. " 0")
+            end
+            for _, bit in ipairs({ "book", "key", "fire", "bellows", "bellows_switch", "switch" }) do
+                setup_cheat("::setvar elemental_workshop_" .. bit .. " 0")   -- the EW1 arm's side bits
+            end
             settle(1)
         end)
 
@@ -7604,6 +7709,164 @@ return {
                 return "refused", reading .. " -- the press changed nothing on the panel"
             end
             return "ok", reading .. "; junction back to " .. describe(junction_after)
+        end)
+
+        -- A CONTENT-DECLARED SHOP OPENS WITH ITS STOCK (seam35
+        -- shop_with_content_declared_inv_opens_empty).  A shop inv declared in
+        -- content (pack/inv.alloc + `size=`; the Ardougne silver stall is 2023,
+        -- size 3) has no cache InvType, so the client's INV_SIZE answered 0 and
+        -- shop_main_init (1074) built 0 grid cells: the stock was resident and
+        -- `t.shop.buy` answered "cell 3 of shopmain:items is not mounted"
+        -- (build/quest_gate/s35_silver_before).  INV_SIZE now falls back to the
+        -- capacity UPDATE_INV_FULL gave the container (src/game/rs_cs2_host.c
+        -- exec_inv_size).  Graded on the bar arriving in the backpack and the
+        -- coins paid, after the third cell's text read.
+        seam("seam.shop_content_inv_opens_stocked", function()
+            local goto_tile = verb("player", "goto_tile")
+            local open = verb("shop", "open")
+            local buy = verb("shop", "buy")
+            local close = verb("shop", "close")
+            local count = verb("inv", "count")
+            local await = verb("inv", "await")
+            local text = verb("ui", "text")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not open then return missing("shop", "open") end
+            if not buy then return missing("shop", "buy") end
+            if not close then return missing("shop", "close") end
+            if not count then return missing("inv", "count") end
+            if not await then return missing("inv", "await") end
+            if not text then return missing("ui", "text") end
+            setup_cheat("::clearinv")
+            setup_cheat("::give coins 5000")
+            settle(2)
+            local goto_result = goto_tile(2658, 3314, 0)
+            if goto_result ~= "ok" then
+                return "refused", "goto the Ardougne silver stall 2658,3314 -> " .. describe(goto_result)
+            end
+            local open_result, open_detail = open("silver_merchant_ardougne", 3, "ardougne_silver_stall_shop")
+            if open_result ~= "ok" then
+                return open_result, "shop.open(silver_merchant_ardougne) -> " .. describe(open_detail)
+            end
+            local cell_result, cell = text("shopmain:items", 3)
+            local _, coins_before = count("coins")
+            local buy_result, buy_detail = buy("silver_bar", 1)
+            local landed = await("silver_bar", 1, 10)
+            local _, coins_after = count("coins")
+            close()
+            setup_cheat("::clearinv")
+            local reading = "open: " .. describe(open_detail) .. "; cell 3 " .. describe(cell_result) .. " "
+                .. describe(cell) .. "; buy -> " .. describe(buy_result) .. " " .. describe(buy_detail)
+                .. "; silver_bar await " .. describe(landed) .. ", coins " .. describe(coins_before)
+                .. " -> " .. describe(coins_after)
+            if buy_result ~= "ok" then
+                return buy_result, reading
+            end
+            if landed ~= "ok" or type(coins_before) ~= "number" or type(coins_after) ~= "number"
+                or coins_after >= coins_before then
+                return "hollow", reading
+            end
+            return "ok", reading
+        end)
+
+        -- A COVERED ATTACK PRESS IS RE-TAKEN FROM A SETTLED CAMERA, AND A BOSS
+        -- THAT TELEPORTS IS FOLLOWED (seam35 covered_press_and_timed_lift_without
+        -- _drive_op).  Treus Dayth rises one row after a press that WALKED the
+        -- player; the camera anchor is still easing, the first Attack press
+        -- lands where he is not drawn, and the unsettled pose loop never held
+        -- him (HEAD: 3 presses, 64 ticks, `not_found`/covered, the character
+        -- dead -- build/quest_gate/s35rb_cov, s35rb_tel).  And npc_tele
+        -- re-adds him under a NEW client slot, which await_dead_engaged graded
+        -- a kill "corroborated by ABSENCE" while he stood alive.  ::god keeps
+        -- the character standing (a death ends this run); the fight is real.
+        local dayth_watch_slot = nil
+        local function dayth_teardown()
+            setup_cheat("::god 0")
+            setup_cheat("::setvar hauntedmine 0")
+            setup_cheat("::clearinv")
+            setup_cheat("::tele lumbridge")
+            settle(2)
+        end
+        stage(function()
+            setup_cheat("::clearinv")
+            setup_cheat("::setlevel ranged 99")
+            setup_cheat("::setlevel hitpoints 99")
+            setup_cheat("::setlevel defence 99")
+            setup_cheat("::give magic_shortbow 1")
+            setup_cheat("::give rune_arrow 400")
+            setup_cheat("::god 1")
+            settle(2)
+        end)
+        seam("seam.npc_cover_settled_recovery", function()
+            local equip = verb("player", "equip")
+            local goto_tile = verb("player", "goto_tile")
+            local press = verb("player", "press")
+            local attack = verb("player", "attack")
+            local await = verb("msg", "await")
+            local expect_line = verb("msg", "expect")
+            local camera = verb("drive", "camera")
+            if not equip then return missing("player", "equip") end
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not press then return missing("player", "press") end
+            if not attack then return missing("player", "attack") end
+            if not await then return missing("msg", "await") end
+            if not expect_line then return missing("msg", "expect") end
+            if not camera then return missing("drive", "camera") end
+            equip("magic_shortbow")
+            equip("rune_arrow")
+            local goto_result = goto_tile(2795, 4456, 0)
+            if goto_result ~= "ok" then
+                dayth_teardown()
+                return "refused", "goto Dayth's key 2795,4456 -> " .. describe(goto_result)
+            end
+            camera(0, 383, 400)
+            local press_result, press_detail = press("hauntedmine_boss_key", 1, 8)
+            local rises = expect_line("Treus Dayth rises")
+            if rises ~= "ok" then
+                rises = await("Treus Dayth rises", 40)
+            end
+            if rises ~= "ok" then
+                dayth_teardown()
+                return "no_subject", "the key press did not raise Dayth: " .. describe(press_result) .. " "
+                    .. describe(press_detail)
+            end
+            local result, detail = attack("hauntedmine_boss_ghost", 2, 20)
+            dayth_watch_slot = tonumber(string.match(tostring(detail), "watching slot (%d+)"))
+            local text = "attack(hauntedmine_boss_ghost) -> " .. describe(result) .. " " .. describe(detail)
+            if result ~= "ok" and result ~= "timeout" then
+                return result, text
+            end
+            if string.find(tostring(detail), "[Attack", 1, true) == nil
+                or string.find(tostring(detail), "in 1 press(es)", 1, true) == nil then
+                return "hollow", text
+            end
+            return "ok", text
+        end)
+        seam("seam.npc_tele_reslot_followed", function()
+            local engaged = verb("npc", "await_dead_engaged")
+            local server = verb("var", "server")
+            if not engaged then return missing("npc", "await_dead_engaged") end
+            if not server then return missing("var", "server") end
+            if dayth_watch_slot == nil then
+                dayth_teardown()
+                return "no_subject", "seam.npc_cover_settled_recovery engaged no Dayth slot to watch"
+            end
+            local result, detail = engaged(60, 10)
+            local _, stage_value = server("hauntedmine")
+            local last = tonumber(string.match(tostring(detail), "slot (%d+) still alive")
+                or string.match(tostring(detail), "slot (%d+) dead"))
+            dayth_teardown()
+            local text = "attack watched slot " .. describe(dayth_watch_slot) .. ", the wait ended on slot "
+                .. describe(last) .. "; await_dead_engaged -> " .. describe(result) .. " (hauntedmine="
+                .. describe(stage_value) .. ") " .. describe(detail)
+            -- A teleport graded as a kill is the defect: `ok` while the quest
+            -- stage is short of ^hmq_dayth_killed (9).
+            if result == "ok" and (type(stage_value) ~= "number" or stage_value < 9) then
+                return "refused", text
+            end
+            if last == nil or last == dayth_watch_slot then
+                return "no_subject", text .. " -- Dayth never changed slot in the window"
+            end
+            return "ok", text
         end)
 
         step("finish", function()

@@ -26,4 +26,6 @@ Ug will not talk while the flower is wielded. Climbing boots (12 coins at Tenzin
 use the stronghold shortcut; walking in from Trollheim needs none.
 
 Not ported: no wiki cutscene exists (CUTSCENES.tsv row says none); the two rides are LostCity's.
-Engine gaps: p_temprun and p_animprotect are no-ops here (ssvm warns once); the rides still walk.
+Engine: p_temprun and p_animprotect are engine ops since seam35 (torirs_server_ops_player.c), and
+both rides run with the anim protect up, as LostCity's do. Test the ride on a fixture with
+`run_toggle = 0`: the stock fixture's orb is on, which hides p_temprun.

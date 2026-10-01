@@ -56,6 +56,15 @@ The overview prints each leg's step range, stage range, and first and last step.
 most of the quest under one stage (Dragon Slayer: stage 2 from the Oracle to boarding the ship), so a
 leg often starts and ends in the same stage; that is the guide, not an error.
 
+### The full run ends at the frame budget: every leg's ticks add up
+
+`--from-leg K` starts from a checkpoint, so each leg alone fits the default budget of about 2,000
+server ticks. The full run plays every leg from tick 0, and a long quest passes that budget partway
+through. Monkey Madness I passed it before leg 6 and used 2,654 ticks in all. The run then ends
+with `run.unfinished` and `the client exited 0 at the frame budget` (running.md). Once the legs you
+have written add up to more than about 1,500 ticks, put `max_frames = <n>,` beside `fixture` (n is
+about 30 per tick, ceiling 240000). The ticks column of the last full run's ledger gives the sum.
+
 ## Working one leg
 
 `python3 tools/quest_gate/ladder.py <test_id> --leg K` prints only leg K, after three lines:

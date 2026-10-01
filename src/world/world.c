@@ -1023,6 +1023,7 @@ World_PlayerSpawn(
         .server_pid = -1,
         /* npc id 0 is a real npc type, so "no transmog" is spelled. */
         .transmog_npc_id = -1,
+        .transmog_size = 1,
         .body = { .npc_id = WORLD_PLAYER_BODY_FROM_SLOTS },
         .loc_merge_id = -1,
         /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
@@ -2036,8 +2037,16 @@ World_PlayerPathJump(
     struct World_EntityPool* pool = &world->entities.player;
     assert(World_EntityPoolIsActive(pool, idx));
     struct WorldEntity_Player* player = World_EntityPoolAt(pool, idx);
+    /* Player.resetPath: `x = pathX * 128 + transformedSize() * 64`. */
+    assert(player->transmog_size >= 1);
     World_PathJumpEntity(
-        &player->pathing, &player->draw_position, &player->grid_position, 1, force_teleport, x, z);
+        &player->pathing,
+        &player->draw_position,
+        &player->grid_position,
+        player->transmog_size,
+        force_teleport,
+        x,
+        z);
 }
 
 void
@@ -2058,7 +2067,10 @@ World_PlayerPathJumpCollisionAware(
         &player->pathing, collision, force_teleport, x, z, step_type);
     if( jump == WORLD_PATHING_JUMP_TELEPORT )
     {
-        World_EntityDrawPositionSetToTile(&player->draw_position, x, z, 1, 1);
+        /* Player.resetPath centres a placement on transformedSize(). */
+        assert(player->transmog_size >= 1);
+        World_EntityDrawPositionSetToTile(
+            &player->draw_position, x, z, player->transmog_size, player->transmog_size);
         player->grid_position.x = x;
         player->grid_position.z = z;
     }

@@ -3529,6 +3529,23 @@ struct ToriRSServerPlayer
     int runanim;
     /** NPC type used by p_transmogrify; -1 renders the normal player body. */
     int transmog_npc;
+    /**
+     * `p_animprotect(int)` (LostCity PlayerOps.ts:1236, `animProtect`): while
+     * nonzero, `anim()` plays nothing -- not even `anim(null)` -- because the
+     * reference's `playAnimation` returns before its priority gate
+     * (Player.ts:1923). Content raises it while a stance must not be
+     * interrupted (the waxed sled, a greegree) and lowers it on unequip /
+     * `~update_all`. Not saved: a fresh login starts at 0, as the reference's
+     * new Player does.
+     */
+    int anim_protect;
+    /**
+     * `p_temprun` (PlayerOps.ts:1276, `tempRun = 1`): run this route whatever
+     * the orb says. Player.ts:674-698 / :720: it holds while the player keeps
+     * moving and is cleared by the first movement phase with no route, or by an
+     * energy update that leaves under 1% (100 of TORIRSSERVER_RUN_ENERGY_MAX).
+     */
+    int temp_run;
     int face_entity;
     int face_x;
     int face_z;
