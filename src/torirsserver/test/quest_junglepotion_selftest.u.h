@@ -315,10 +315,10 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         return;
 
     npc_trufitus = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "trufitus");
-    varp_jp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "junglepotion");
-    varp_druid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "druidquest");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
-    varp_zq = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "zombiequeen");
+    varp_jp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp175_junglepotion");
+    varp_druid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp80_druidquest");
+    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
+    varp_zq = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp116_zombiequeen");
     stat_herb = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "herblore");
     obj_u_snake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "unidentified_snake_weed");
     obj_snake = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "snake_weed");

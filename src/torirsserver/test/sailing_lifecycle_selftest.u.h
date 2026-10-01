@@ -25,7 +25,7 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     {
         char key[80];
         snprintf(key, sizeof(key), "sailing_boat_%d_owned", slot);
-        int bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, key);
+        int bit = ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT, key);
         SELFTEST_CHECK(bit >= 0, "owned slot %d has its native varbit", slot);
         if( bit >= 0 ) ToriRSServer_VarbitSet(srv, bit, 0);
     }
@@ -343,7 +343,7 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
             owner->sailing.shore_x = 3059;
             owner->sailing.shore_z = 2979;
             SELFTEST_CHECK(ToriRSServer_VesselBoardPlayer(srv, owner, owned), "board before disconnect");
-            int instance_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+            int instance_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
             if( instance_varp >= 0 ) owner->varps[instance_varp] = owned->instance;
             int departed_pid = owner->pid;
             ToriRSServer_WorldRemovePlayer(srv, owner);
@@ -547,9 +547,9 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
                 /* The owned-slot registration the proc reads in the CAPTAIN's
                  * context: slot 1, moored at dock_id 1 (the Pandemonium). */
                 int owned_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
-                                                           "sailing_boat_1_owned");
+                                                           "varb19258_sailing_boat_1_owned");
                 int port_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
-                                                          "sailing_boat_1_port");
+                                                          "varb19260_sailing_boat_1_port");
                 SELFTEST_CHECK(owned_bit >= 0 && port_bit >= 0,
                                "the native owned/port varbits for slot 1 resolve");
                 if( owned_bit >= 0 ) ToriRSServer_VarbitSet(srv, owned_bit, 1);

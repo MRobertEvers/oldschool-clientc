@@ -247,12 +247,12 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     obj_odye = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "orangedye");
     obj_bdye = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bluedye");
     obj_gold = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "gold_bar");
-    vb_main = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "gobdip_main");
-    vb_c1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "gobdip_crate1_searched");
-    vb_c2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "gobdip_crate2_searched");
-    vb_c3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "gobdip_crate3_searched");
-    vb_vis = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "gobdip_grubfoot_vis");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    vb_main = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2378_gobdip_main");
+    vb_c1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2379_gobdip_crate1_searched");
+    vb_c2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2380_gobdip_crate2_searched");
+    vb_c3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2381_gobdip_crate3_searched");
+    vb_vis = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb13594_gobdip_grubfoot_vis");
+    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     stat_craft = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
 
     SELFTEST_CHECK(npc_bent > 0 && npc_wart > 0 && loc_c1 > 0 && loc_c2 > 0 && loc_c3 > 0 &&
