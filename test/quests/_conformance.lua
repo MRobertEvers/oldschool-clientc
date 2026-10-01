@@ -219,16 +219,16 @@ local TAB_AWAY_FROM_BACKPACK = "stats"
 -- -- is claimed by no script, so the world's honest answer to a held op on
 -- it is still the engine's "Nothing interesting happens."
 local SEAM_OBJ_SYMBOL = "mindrune"
-local VARP_SYMBOL = "tutorial"      -- the fixture pins it (perm scope)
+local VARP_SYMBOL = "varp281_tutorial"      -- the fixture pins it (perm scope)
 local VARP_VALUE = 1000             -- "tutorial finished" (docs/WORKTREE_SETUP.md)
-local VARBIT_SYMBOL = "troll_freed_eadgar"
+local VARBIT_SYMBOL = "varb0_troll_freed_eadgar"
 -- A varp this content pack allocates ABOVE the id the client's varp array can
 -- address (pack/varp.alloc 6262 against an all.varp.compack topping out near
 -- 5704), so the server never transmits it and both client-side reads answer
 -- not_found for the whole run.  The seam row below is the only thing in this
 -- harness that can read it at all; if a later cache widens the client's table
 -- past 6262 that row says so in its own detail rather than passing quietly.
-local HIGH_ID_VARP = "rovingelves_quest"
+local HIGH_ID_VARP = "varp6262_rovingelves_quest"
 -- Cook's Assistant, the one quest this content pack can be driven into every
 -- state of from a cheat: `::setvar cookquest ^cook_started` stages it,
 -- `::cookbmp_reward` completes it and puts the real reward scroll up, and its
@@ -237,7 +237,7 @@ local HIGH_ID_VARP = "rovingelves_quest"
 -- ^cook_not_started 0, ^cook_started 1, ^cook_complete 2) written out, because
 -- quest.bind's `constants` table takes integers: there is no "constant" kind
 -- in DriveSymbolKind for a `^name` to resolve through.
-local QUEST_VARP = "cookquest"
+local QUEST_VARP = "varp29_cookquest"
 local QUEST_NOT_STARTED = 0
 local QUEST_STARTED = 1
 local QUEST_COMPLETE = 2
@@ -2237,13 +2237,13 @@ return {
                 return "hollow", "bind answered ok but nothing was bound -- " .. describe(bound)
             end
             if not is_number(bound.qp_before) then
-                return "hollow", "bind answered ok but took no %qp reading to measure the "
+                return "hollow", "bind answered ok but took no %varp101_qp reading to measure the "
                     .. "award against -- " .. describe(bound.qp_before)
                     .. " (" .. tostring(bound.qp_before_result) .. ")"
             end
             return names_reading(result, detail, "",
                 { "bound " .. QUEST_VARP .. " (", "qp_before=" .. tostring(bound.qp_before) },
-                "bind names what it bound and the %qp baseline it took")
+                "bind names what it bound and the %varp101_qp baseline it took")
         end)
 
         step("quest.stage", function()
@@ -4276,7 +4276,7 @@ return {
             setup_cheat("::setvar misc_partner_multivar 1")                 -- setup: Brand
             setup_cheat("::setvar misc_affection ^misc_affection_s1_step1") -- setup
             settle(3)
-            local before_result, before = server_var("misc_affection")
+            local before_result, before = server_var("varb73_misc_affection")
             if before_result ~= "ok" or before ~= 11 then
                 return "no_subject", "::setvar misc_affection ^misc_affection_s1_step1 left "
                     .. describe(before_result) .. " " .. describe(before) .. ", not 11"
@@ -4288,7 +4288,7 @@ return {
             end
             local clap_result, clap_detail = emote("clap")
             settle(2)
-            local after_result, after = server_var("misc_affection")
+            local after_result, after = server_var("varb73_misc_affection")
             local locked_result, locked_detail = emote(32)
             local unknown_result, unknown_detail = emote("no_such_emote")
             if clap_result ~= "ok" then
@@ -4655,12 +4655,12 @@ return {
             if played ~= "ok" then
                 return played, "the exchange did not walk to its ~mesbox: " .. describe(played_detail)
             end
-            local flag, flag_detail = await_server("dwarfrock_gold_cannonball", 1, 5)
+            local flag, flag_detail = await_server("varb301_dwarfrock_gold_cannonball", 1, 5)
             if flag ~= "ok" then
                 return flag, "the ^chat_shock page and the ~mesbox were dismissed but "
-                    .. "%dwarfrock_gold_cannonball did not read 1 -- " .. describe(flag_detail)
+                    .. "%varb301_dwarfrock_gold_cannonball did not read 1 -- " .. describe(flag_detail)
             end
-            local ticked, tick_detail = await_server("dwarfrock_quest", 60, 3)
+            local ticked, tick_detail = await_server("varb299_dwarfrock_quest", 60, 3)
             if ticked ~= "ok" then
                 return ticked, "the clock after the dismissal: " .. describe(tick_detail)
             end
@@ -5015,17 +5015,17 @@ return {
             if not await_server then return missing("var", "await_server") end
             setup_cheat("::setvar twocats_lamp_pick 3")
             settle(2)
-            local result, value, source = server("twocats_lamp_pick")
+            local result, value, source = server("varp7152_twocats_lamp_pick")
             if result ~= "ok" or value ~= 3 then
                 return (result == "ok") and "refused" or result,
                     "var.server(twocats_lamp_pick) after ::setvar 3 -> " .. describe(result) .. "/"
                     .. describe(value) .. " " .. describe(source)
             end
-            local awaited, await_detail = await_server("twocats_lamp_pick", 3, 5)
+            local awaited, await_detail = await_server("varp7152_twocats_lamp_pick", 3, 5)
             if awaited ~= "ok" then
                 return awaited, "var.await_server(twocats_lamp_pick, 3): " .. describe(await_detail)
             end
-            local puzzle_result, puzzle_value, puzzle_source = server("dwarfrock_puzzle_dx1")
+            local puzzle_result, puzzle_value, puzzle_source = server("varp7153_dwarfrock_puzzle_dx1")
             if puzzle_result ~= "ok" or type(puzzle_value) ~= "number" then
                 return (puzzle_result == "ok") and "hollow" or puzzle_result,
                     "var.server(dwarfrock_puzzle_dx1) -> " .. describe(puzzle_result) .. "/"
@@ -6200,7 +6200,7 @@ return {
             end
             settle(1)
             local _, coins_after = count("coins")
-            local debt_result, debt = read_content("ahoy_robin_debt")
+            local debt_result, debt = read_content("varp7172_ahoy_robin_debt")
             local text = describe(game.text) .. "; ahoy_robin_debt " .. describe(debt_result) .. " "
                 .. describe(debt) .. ", coins " .. describe(coins_before) .. " -> " .. describe(coins_after)
             local want_debt, want_coins = 0, coins_before
@@ -7107,7 +7107,7 @@ return {
         -- (build/quest_gate/s33_cca_probe).  Temple of Ikov, Tourist Trap and
         -- Troll Stronghold had no arm at all, so Desert Treasure and Devious
         -- Minds staged them with ::setvar.  Graded per row on the progress var
-        -- reaching the quest's own complete constant AND %qp rising by the row's
+        -- reaching the quest's own complete constant AND %varp101_qp rising by the row's
         -- quest:questpoints (the cheat pays it), from a var reset to 0 first so
         -- an earlier row's completion cannot pass it.  The vars go back to 0 after.
         seam("seam.complete_cheat_arms", function()
@@ -7116,20 +7116,20 @@ return {
             if not cheat then return missing("cheat") end
             if not read then return missing("var", "server") end
             local arms = {
-                { row = "quest_wanted", var = "wanted_main", complete = 11, points = 1 },
-                { row = "quest_touristtrap", var = "desertrescue", complete = 30, points = 2 },
-                { row = "quest_templeofikov", var = "ikov", complete = 80, points = 1 },
-                { row = "quest_trollstronghold", var = "troll_quest", complete = 50, points = 1 },
+                { row = "quest_wanted", var = "varb1051_wanted_main", complete = 11, points = 1 },
+                { row = "quest_touristtrap", var = "varp197_desertrescue", complete = 30, points = 2 },
+                { row = "quest_templeofikov", var = "varp26_ikov", complete = 80, points = 1 },
+                { row = "quest_trollstronghold", var = "varp317_troll_quest", complete = 50, points = 1 },
             }
             local parts = {}
             for _, arm in ipairs(arms) do
                 setup_cheat("::setvar " .. arm.var .. " 0")
                 settle(1)
-                local _, qp_before = read("qp")
+                local _, qp_before = read("varp101_qp")
                 local cheat_result = cheat("::complete " .. arm.row)
                 settle(2)
                 local value_result, value = read(arm.var)
-                local _, qp_after = read("qp")
+                local _, qp_after = read("varp101_qp")
                 local reading = arm.row .. ": " .. arm.var .. "=" .. describe(value)
                     .. " (want " .. arm.complete .. "), qp " .. describe(qp_before) .. "->"
                     .. describe(qp_after) .. " (want +" .. arm.points .. "), cheat " .. describe(cheat_result)
@@ -7140,7 +7140,7 @@ return {
                 end
                 parts[#parts + 1] = reading
             end
-            local _, visible = read("ikov_lucien_vis")
+            local _, visible = read("varb10753_ikov_lucien_vis")
             if visible ~= 0 then
                 return "refused", "ikov_lucien_vis=" .. describe(visible)
                     .. " after ::complete quest_templeofikov (the ending's ~ikov_lucien_sync gives 0)"
@@ -7543,8 +7543,8 @@ return {
             local function counters()
                 local _, yellow = text("forget_puzzle1:yellow_counter")
                 local _, green = text("forget_puzzle1:green_counter")
-                local _, left = read("forget_num_left")
-                local _, right = read("forget_num_right")
+                local _, left = read("varb861_forget_num_left")
+                local _, right = read("varb862_forget_num_right")
                 return yellow, green, left, right
             end
             local function restore()
@@ -7591,7 +7591,7 @@ return {
                 invoke(switch, 0)
                 settle(1)
             end
-            local _, junction_after = read("forget_if1")
+            local _, junction_after = read("varb842_forget_if1")
             restore()
             if type(l1) ~= "number" or type(r1) ~= "number" then
                 return "refused", reading .. " -- the server varbits did not read"

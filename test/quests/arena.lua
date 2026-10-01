@@ -25,7 +25,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "arenaquest",
+            varp = "varp17_arenaquest",
             constants = {
                 complete = 14,
                 complete_defeated_genkhazard = 15,
