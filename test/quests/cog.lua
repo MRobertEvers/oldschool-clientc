@@ -141,7 +141,7 @@ return {
         -- -- see the banner at the top of this file). not_started through
         -- one_remaining_cog are read before that point and stay unmasked.
         local bind_result, bind_detail = t.quest.bind({
-            varp = "cogquest",
+            varp = "varp10_cogquest",
             constants = {
                 complete = 24, -- native 8 | 16
                 quest_cog_not_started = 0,
@@ -205,7 +205,7 @@ return {
 
         local red_pole = t.player.by_symbol("loc", "brokeclockpole_red")
         local red_place_result, red_place_detail = t.player.use_on("redcog", red_pole) -- oplocu,brokeclockpole_red -> ~cog_place
-        local red_await_result = red_place_result == "ok" and t.var.await_server("cogquest", 2, 15) or "skipped"
+        local red_await_result = red_place_result == "ok" and t.var.await_server("varp10_cogquest", 2, 15) or "skipped"
         t.check("place.redcog", red_place_result == "ok" and red_await_result == "ok", string.format(
             "use_on(redcog,brokeclockpole_red) -> %s (%s); cogquest await(quest_cog_three_remaining_cogs=2) -> %s",
             tostring(red_place_result), tostring(red_place_detail), tostring(red_await_result)))
@@ -225,7 +225,7 @@ return {
         t.ticks(2)
         local blue_pole = t.player.by_symbol("loc", "brokeclockpole_blue")
         local blue_place_result, blue_place_detail = t.player.use_on("bluecog", blue_pole)
-        local blue_await_result = blue_place_result == "ok" and t.var.await_server("cogquest", 3, 15) or "skipped"
+        local blue_await_result = blue_place_result == "ok" and t.var.await_server("varp10_cogquest", 3, 15) or "skipped"
         t.check("place.bluecog", blue_place_result == "ok" and blue_await_result == "ok", string.format(
             "use_on(bluecog,brokeclockpole_blue) -> %s (%s); cogquest await(quest_cog_two_remaining_cogs=3) -> %s",
             tostring(blue_place_result), tostring(blue_place_detail), tostring(blue_await_result)))
@@ -264,7 +264,7 @@ return {
             tostring(locnear_b and locnear_b.match), tostring(locnear_b and locnear_b.id)))
         local black_pole = t.player.by_symbol("loc", "brokeclockpole_black")
         local black_place_result, black_place_detail = t.player.use_on("blackcog", black_pole)
-        local black_await_result = black_place_result == "ok" and t.var.await_server("cogquest", 4, 15) or "skipped"
+        local black_await_result = black_place_result == "ok" and t.var.await_server("varp10_cogquest", 4, 15) or "skipped"
         t.check("place.blackcog", black_place_result == "ok" and black_await_result == "ok", string.format(
             "use_on(blackcog,brokeclockpole_black) -> %s (%s); cogquest await(quest_cog_one_remaining_cog=4) -> %s",
             tostring(black_place_result), tostring(black_place_detail), tostring(black_await_result)))
@@ -305,7 +305,7 @@ return {
         t.ticks(2)
         local white_pole = t.player.by_symbol("loc", "brokeclockpole_white")
         local white_place_result, white_place_detail = t.player.use_on("whitecog", white_pole)
-        local white_await_result = white_place_result == "ok" and t.var.await_server("cogquest", 21, 15) or "skipped" -- native 5 | 16 (rat-door bit set above)
+        local white_await_result = white_place_result == "ok" and t.var.await_server("varp10_cogquest", 21, 15) or "skipped" -- native 5 | 16 (rat-door bit set above)
         t.check("place.whitecog", white_place_result == "ok" and white_await_result == "ok", string.format(
             "use_on(whitecog,brokeclockpole_white) -> %s (%s); cogquest await(quest_cog_no_remaining_cogs=21, native 5|16) -> %s",
             tostring(white_place_result), tostring(white_place_detail), tostring(white_await_result)))
