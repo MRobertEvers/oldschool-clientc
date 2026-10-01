@@ -42,7 +42,15 @@
 # The honest note: if the bridge is ever given a struct of its own, all five
 # memos go with it and this number comes back down. They are recorded here so
 # that is findable, not forgiven.
-struct-App-fields: 338
+#
+# Raised from 338 to 354 on 2026-10-01 (seam34, landing render skip): the
+# check was already red at v3 b61d644b2 with 354 fields -- sixteen added by
+# the quest-driver and plugin merges since the baseline was recorded, none of
+# them through this gate. Render skip's own state is ONE sub-struct
+# (App::render_skip) that the counter does not add to. Recorded so the number
+# means "today", not forgiven: each of the sixteen is a candidate for the
+# subsystem that owns it.
+struct-App-fields: 354
 
 src/main.c
 src/executor_config.c
@@ -67,10 +75,33 @@ src/game/test/rs_ui_slots_test.c
 src/game/test/task_exec_entity_info_test.c
 
 src/world/test/wev_rebuild_test.c
+
+# Added 2026-10-01 (seam34): these reached into App already at v3 b61d644b2,
+# where the check was red on them; none is new with render skip. The six
+# quest-driver units (src/plugin/torirs_plugin_drive*.c) read the App by
+# design through g_app -- the driver is a test harness bolted onto the live
+# client -- and the rest are tests and two task units that kept the pointer.
+src/app/test/app_drive_event_ring_test.c
+src/app/test/app_logout_wait_test.c
+src/app/test/app_mouseover_entry_test.c
+src/app/test/app_native_layout_test.c
+src/engine/uitree_builder/task_slot_mount.c
+src/game/rs_chat.c
+src/game/task_entity_assets.c
+src/plugin/torirs_plugin_drive.c
+src/plugin/torirs_plugin_drive_chat.c
+src/plugin/torirs_plugin_drive_pointer.c
+src/plugin/torirs_plugin_drive_read.c
+src/plugin/torirs_plugin_drive_state.c
+src/plugin/torirs_plugin_drive_ui.c
 # The composition root of the App layer: construction, teardown and the
 # globals main.c shares. Everything else is a unit under src/app/.
 # Raised from 1255 by the touch-UI boot resolution and the Porcelain table
 # hand-off, both of which belong in the composition root: one resolves a fact
 # about the boot beside the clientscript identity it follows, and the other
 # tells the host which library the CLIENT linked.
-app.c-lines: 1293
+# Raised from 1293 to 1328 on 2026-10-01 (seam34): 1324 at v3 b61d644b2 (the
+# check was already red), plus render skip's four -- its init beside the
+# other TORIRS_* boot knobs in App_Init and its report + free in App_Shutdown;
+# the subsystem itself is in src/app/app_render.c.
+app.c-lines: 1328

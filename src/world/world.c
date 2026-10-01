@@ -1021,6 +1021,9 @@ World_PlayerSpawn(
                     .direct_angle = -1,
                     .turn_speed = 32 },
         .server_pid = -1,
+        /* npc id 0 is a real npc type, so "no transmog" is spelled. */
+        .transmog_npc_id = -1,
+        .body = { .npc_id = WORLD_PLAYER_BODY_FROM_SLOTS },
         .loc_merge_id = -1,
         /* 0 is a real healthbar id (the standard bar), so "no bar" has to be
          * spelled rather than left to the pool's zeroing. */

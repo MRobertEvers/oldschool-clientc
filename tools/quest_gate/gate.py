@@ -111,6 +111,7 @@ tools/quest_gate/quest_list.py) unless told to check only specific ones.
 Usage:
   tools/quest_gate/gate.py [--all] [--allow-blocked] [--no-coverage]
   tools/quest_gate/gate.py <quest> [<quest> ...] [--allow-blocked] [--no-coverage]
+  tools/quest_gate/gate.py --cutscene-as <test_id> <artefact dir> [...]   (cutscene rule only)
 """
 
 # This directory holds queue.py (the QUEUE.tsv tool). Python puts a script's
@@ -743,26 +744,260 @@ def site_text(site):
     return "%s:%d cam_%s(%s)%s" % (site["file"], site["line"], site["op"], site["arg"], where)
 
 
-def cutscene_findings(name, rows):
+# cutscene_site_on_an_optional_route (seam34). A site the guide's route never
+# reaches -- Shilo Village's table raft (quest_zombiequeen.rs2:738/739), one
+# of three ways out of the caverns, none of them a guide step -- could only be
+# covered by driving a route the guide does not take. t.cutscene.exempt(site,
+# reason) writes a PASS row whose detail is `cutscene-exempt: <site> ;;
+# <reason>` (script/plugins/quest_driver/cutscene.lua), and this gate accepts
+# it ONLY when all three hold:
+#   1. <site> names exactly one of the quest's camera sites (a path suffix:
+#      `quest_zombiequeen.rs2:738`);
+#   2. <reason> names a guide step (a Quest Helper step variable, not a
+#      panel) that this ledger PASSed -- the step the test drove instead;
+#   3. the site is OFF the guide's route: walking up from the site's script
+#      block (proc <- ~caller, label <- @caller, queue <- queue(...), timer <-
+#      settimer(...)) reaches only player-op triggers ([op*,X]/[ap*,X]) whose
+#      subject X no guide step targets or carries. A site any guide step's
+#      target or item reaches is ON the route and is never exempt; a site
+#      whose callers cannot all be named (a mapzone, a debugproc, an
+#      interface button, no caller at all) is refused too -- strict, since a
+#      wrong "off route" is a dropped cutscene passing.
+# A refused exemption is a finding (RED), and the site is graded as uncovered.
+CUTSCENE_EXEMPT_PREFIX = "cutscene-exempt:"
+CUTSCENE_EXEMPT_STEP_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_RS2_BLOCKS = None
+_CALLER_PATTERNS = {
+    "proc": r"~%s\b",
+    "label": r"@%s\b",
+    "queue": r"\b(?:weak|strong|long)?queue\(\s*%s\b",
+    "weakqueue": r"\b(?:weak|strong|long)?queue\(\s*%s\b",
+    "strongqueue": r"\b(?:weak|strong|long)?queue\(\s*%s\b",
+    "longqueue": r"\b(?:weak|strong|long)?queue\(\s*%s\b",
+    "timer": r"\b\w*timer\(\s*%s\b",
+    "softtimer": r"\b\w*timer\(\s*%s\b",
+}
+PLAYER_OP_TRIGGER_RE = re.compile(r"^(op|ap)(loc|npc|obj|held)")
+
+
+def rs2_blocks():
+    """[(content-relative path, [(start line, kind, subject)], [lines])] for
+    every .rs2 under the content scripts, comments stripped like the sweep
+    (read once per gate run)."""
+    global _RS2_BLOCKS
+    if _RS2_BLOCKS is not None:
+        return _RS2_BLOCKS
+    import helper_coverage as hc
+    header = re.compile(r"^\[(\w+),([\w:]+)\]")
+    out = []
+    for directory, dirnames, filenames in os.walk(hc.CONTENT_ROOT):
+        dirnames[:] = [d for d in dirnames if d != "selftest"]
+        for filename in sorted(filenames):
+            if not filename.endswith(".rs2"):
+                continue
+            path = os.path.join(directory, filename)
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                lines = [line.split("//", 1)[0] for line in handle.read().split("\n")]
+            blocks = []
+            for number, line in enumerate(lines, 1):
+                match = header.match(line)
+                if match:
+                    blocks.append((number, match.group(1), match.group(2)))
+            out.append((os.path.relpath(path, hc.CONTENT_ROOT), blocks, lines))
+    _RS2_BLOCKS = out
+    return out
+
+
+def enclosing_block(rel, line):
+    """(kind, subject) of the script block `rel`:`line` sits in, or None."""
+    for path, blocks, _lines in rs2_blocks():
+        if path != rel:
+            continue
+        found = None
+        for start, kind, subject in blocks:
+            if start <= line:
+                found = (kind, subject)
+        return found
+    return None
+
+
+def block_callers(kind, subject):
+    """[(kind, subject)] of every block whose body calls this proc/label/
+    queue/timer; None when `kind` is not a callable block."""
+    pattern = _CALLER_PATTERNS.get(kind)
+    if pattern is None:
+        return None
+    call = re.compile(pattern % re.escape(subject))
+    callers = []
+    for _path, blocks, lines in rs2_blocks():
+        for index, (start, block_kind, block_subject) in enumerate(blocks):
+            end = blocks[index + 1][0] - 1 if index + 1 < len(blocks) else len(lines)
+            if (block_kind, block_subject) == (kind, subject):
+                continue
+            if any(call.search(lines[n - 1]) for n in range(start + 1, end + 1)):
+                if (block_kind, block_subject) not in callers:
+                    callers.append((block_kind, block_subject))
+    return callers
+
+
+def site_entry_triggers(site_rel, line):
+    """({(op trigger kind, subject)} the site is reached from, [unresolved
+    block names]) -- the walk the module note's rule 3 describes."""
+    start = enclosing_block(site_rel, line)
+    if start is None:
+        return set(), ["%s:%d is in no script block" % (site_rel, line)]
+    entries, unresolved = set(), []
+    seen = {start}
+    frontier = [start]
+    while frontier:
+        kind, subject = frontier.pop()
+        if PLAYER_OP_TRIGGER_RE.match(kind):
+            entries.add((kind, subject))
+            continue
+        callers = block_callers(kind, subject)
+        if callers is None:
+            unresolved.append("[%s,%s] (no player op names it)" % (kind, subject))
+            continue
+        if not callers:
+            unresolved.append("[%s,%s] (no caller found)" % (kind, subject))
+            continue
+        for caller in callers:
+            if caller not in seen:
+                seen.add(caller)
+                frontier.append(caller)
+    return entries, unresolved
+
+
+def guide_route(name):
+    """(grader guide, {symbol: [guide step names]}) -- every symbol a
+    non-panel guide step targets or carries as an item, widened over
+    multinpc/multiloc families and categories; None when no guide."""
+    import helper_coverage as hc
+    if not hc.has_guide(name):
+        return None
+    grader = hc.Grader(name, test_text="")
+    grader.grade()
+    guide = grader.guide
+    _triggers, categories, _ = hc.content_index()
+    route = {}
+
+    def add(symbol, step_name):
+        names = set(hc.family(symbol))
+        frontier = [symbol]
+        while frontier:
+            for child in hc.CHILDREN.get(frontier.pop(), ()):
+                if child not in names:
+                    names.add(child)
+                    frontier.append(child)
+        for each in names:
+            route.setdefault(each, []).append(step_name)
+            if categories.get(each):
+                route.setdefault("_" + categories[each], []).append(step_name)
+
+    for step_name, step in guide.steps.items():
+        if step.is_composite():
+            continue
+        for _kind, symbol in step.targets:
+            add(symbol, step_name)
+        for var in step.req_vars:
+            for symbol in guide.items.get(var, {}).get("ids", []):
+                add(symbol, step_name)
+    return guide, route
+
+
+def cutscene_exemptions(name, rows, sites):
+    """({site index: exempt row name} accepted, [refusal findings], [notes])."""
+    exempt_rows = [row for row in rows if row["verdict"] == "PASS"
+                   and (row["detail"] or "").startswith(CUTSCENE_EXEMPT_PREFIX)]
+    if not exempt_rows:
+        return {}, [], []
+    route_info = guide_route(name)
+    passed = [row["step"] for row in rows if row["verdict"] == "PASS"]
+    accepted, refusals, notes = {}, [], []
+    for row in exempt_rows:
+        body = row["detail"][len(CUTSCENE_EXEMPT_PREFIX):]
+        ref, _, reason = body.partition(";;")
+        ref, reason = ref.strip(), reason.strip()
+        where = "cutscene_exempt_refused: %s: row %s exempts %r" % (name, row["step"], ref)
+        ref_path, _, ref_line = ref.rpartition(":")
+        matches = [index for index, site in enumerate(sites)
+                   if ref_line.isdigit() and site["line"] == int(ref_line) and ref_path
+                   and (site["file"] == ref_path or site["file"].endswith("/" + ref_path))]
+        if len(matches) != 1:
+            refusals.append("%s, which names %s of this quest's camera sites (sites: %s)"
+                            % (where, "none" if not matches else "%d" % len(matches),
+                               "; ".join(site_text(s) for s in sites)))
+            continue
+        site = sites[matches[0]]
+        if route_info is None:
+            refusals.append("%s: %s has no Quest Helper guide, so no step can be named "
+                            "and no route told apart" % (where, name))
+            continue
+        guide, route = route_info
+        guide_steps = {step_name for step_name, step in guide.steps.items() if not step.is_composite()}
+        named = [token for token in CUTSCENE_EXEMPT_STEP_RE.findall(reason) if token in guide_steps]
+        driven = [step for step in named
+                  if any(p == step or p.startswith(step + "-") or p.startswith(step + ".")
+                         for p in passed)]
+        if not driven:
+            refusals.append("%s: the reason %r names %s -- it must name the guide step the test "
+                            "drove instead, one this ledger PASSed (guide steps: %s)"
+                            % (where, reason, ("guide step(s) %s with no PASS row" % ", ".join(named))
+                               if named else "no guide step", ", ".join(sorted(guide_steps))))
+            continue
+        content_prefix = "OSRS-Content/osrs239-content/server/scripts/"
+        site_rel = site["file"][len(content_prefix):] if site["file"].startswith(content_prefix) else site["file"]
+        entries, unresolved = site_entry_triggers(site_rel, site["line"])
+        on_route = ["[%s,%s] <- guide step %s" % (kind, subject, "/".join(sorted(set(route[subject]))))
+                    for kind, subject in sorted(entries) if subject in route]
+        if on_route:
+            refusals.append("%s: %s is ON the guide's route (%s) -- a site a guide step reaches "
+                            "is covered by t.cutscene.await, never exempt"
+                            % (where, site_text(site), "; ".join(on_route)))
+            continue
+        if unresolved or not entries:
+            refusals.append("%s: cannot show %s is off the guide's route: the walk up from it "
+                            "reaches %s -- strict: only a site entered from player-op triggers "
+                            "no guide step names may be exempt"
+                            % (where, site_text(site), "; ".join(unresolved) or "no trigger"))
+            continue
+        accepted[matches[0]] = row["step"]
+        notes.append("cutscene: %s exempt by row %s (entered from %s, no guide step's; drove %s instead)"
+                     % (site_text(site), row["step"],
+                        ", ".join("[%s,%s]" % e for e in sorted(entries)), ", ".join(driven)))
+    return accepted, refusals, notes
+
+
+def cutscene_findings(name, rows, notes=None):
     """cutscene_row_required: [] for a quest whose content frames no camera,
-    or whose PASS cutscene rows cover every site; else one finding per gap."""
+    or whose PASS cutscene rows cover every site not exempted (above); else
+    one finding per gap and one per refused exemption. `notes`, when a list,
+    collects the accepted exemptions for the report."""
     sites = cutscene_sites_by_quest().get(name)
     if not sites:
         return []
     keyframes, row_names = cutscene_keyframes(rows)
-    if not row_names:
-        return ["cutscene_row_required: %s's content scripts %d camera site(s) and the ledger has "
-                "no PASS row whose detail begins `cutscene:` (t.cutscene.await, "
-                "docs/quest_authoring/verbs-cutscene.md) -- sites: %s"
-                % (name, len(sites), "; ".join(site_text(s) for s in sites))]
-    findings = []
-    for site in sites:
+    accepted, findings, accepted_notes = cutscene_exemptions(name, rows, sites)
+    if notes is not None:
+        notes.extend(accepted_notes)
+    uncovered = []
+    for index, site in enumerate(sites):
+        if index in accepted:
+            continue
         tile = site["tile"]
         covered = any(op == site["op"] and (tile is None or (x, z) == (tile[0], tile[1]))
                       for op, x, z in keyframes)
         if not covered:
-            findings.append("cutscene_row_required: %s: no keyframe in its cutscene row(s) (%s) "
-                            "covers %s" % (name, ", ".join(row_names), site_text(site)))
+            uncovered.append(site)
+    if uncovered and not row_names:
+        findings.append("cutscene_row_required: %s's content scripts %d camera site(s) and the ledger "
+                        "has no PASS row whose detail begins `cutscene:` (t.cutscene.await, "
+                        "docs/quest_authoring/verbs-cutscene.md) -- sites: %s"
+                        % (name, len(sites), "; ".join(site_text(s) for s in uncovered)))
+        return findings
+    for site in uncovered:
+        findings.append("cutscene_row_required: %s: no keyframe in its cutscene row(s) (%s) "
+                        "covers %s" % (name, ", ".join(row_names), site_text(site)))
     return findings
 
 
@@ -789,7 +1024,28 @@ def main():
     parser.add_argument("--no-coverage", action="store_true",
                         help="skip the Quest Helper guide coverage check (helper_coverage.py) -- "
                              "for the conformance/cheats harness files, which are not quests")
+    parser.add_argument("--cutscene-as", metavar="TEST_ID", default=None,
+                        help="grade ONLY cutscene_row_required (and its exemptions) of the named "
+                             "artefact directories -- scratch runs, run.py --script --name -- "
+                             "against TEST_ID's camera sites and guide; no shape, no coverage")
     arguments = parser.parse_args()
+
+    if arguments.cutscene_as:
+        if not arguments.quests:
+            parser.error("--cutscene-as grades named artefact directories: give at least one")
+        bad = 0
+        for directory_name in arguments.quests:
+            rows, _summary = ledger.read(os.path.join(artefact_dir(directory_name), "ledger.tsv"))
+            notes = []
+            findings = cutscene_findings(arguments.cutscene_as, rows or [], notes)
+            print("%-24s %s (cutscene rule as %s)" % (directory_name, "RED" if findings else "green",
+                                                     arguments.cutscene_as))
+            for note in notes:
+                print("    (%s)" % note)
+            for finding in findings:
+                print("    - %s" % finding)
+            bad += len(findings)
+        return 1 if bad else 0
 
     if arguments.quests:
         names = arguments.quests
@@ -811,7 +1067,10 @@ def main():
             # A would-be-green run whose content frames the camera must have
             # asserted it (cutscene_row_required, above).
             rows, _summary = ledger.read(os.path.join(artefact_dir(name), "ledger.tsv"))
-            findings = cutscene_findings(name, rows or [])
+            cutscene_notes = []
+            findings = cutscene_findings(name, rows or [], cutscene_notes)
+            for note in cutscene_notes:
+                print("    (%s: %s)" % (name, note))
         if not findings and not blocked and not arguments.no_coverage:
             # Only a run that would be GREEN is graded against its guide: a
             # green that skips a guide step is not green.

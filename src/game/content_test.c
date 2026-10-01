@@ -129,8 +129,14 @@ int ContentTest_DrawRequested(struct App* app)
          * force a draw so that poll has a current frame to read. An
          * edge-only await (event= with no level=) is left alone: it
          * resolves off a discrete event, not off rendered state, and
-         * forcing a draw for it would only cost frames for nothing. */
-        if( PluginDrive_QuestScriptPath() && PluginDriveCore_LevelAwaitPending() )
+         * forcing a draw for it would only cost frames for nothing.
+         *
+         * Not under render skip (App::render_skip): there every await is a
+         * level await -- t.wait is one -- so this would draw every frame of
+         * the run. The reads that DO need a drawn frame (the pickset) ask for
+         * one themselves through App_RenderSkipRequestDraw. */
+        if( PluginDrive_QuestScriptPath() && PluginDriveCore_LevelAwaitPending() &&
+            !App_RenderSkipEnabled(app) )
             forced = 1;
         /* TEMPORARY, env-gated like the existing TORIRS_DRIVE_DEBUG
          * precedent (torirs_plugin_drive_ui.c): confirms the fix above by
@@ -727,8 +733,16 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     if( !ContentTest_Enabled() ) return;
     if( !active )
     {
-        /* Keep idle overhead small without adding a frame's latency to input. */
-        if( !running && settled(app) ) PlatformWindow_SleepUntil(PlatformWindow_Ticks64() + 1);
+        /* Keep idle overhead small without adding a frame's latency to input.
+         *
+         * A quest-script run under render skip is never idle: its virtual
+         * clock steps every frame and nothing waits on the mailbox, so the nap
+         * is pure wall time -- sampled (macOS `sample`, druidspirit, skip on)
+         * at a quarter of the main thread, more than the frames it no longer
+         * draws. --render-every-frame keeps it, so that A/B is today's run. */
+        if( !running && settled(app) &&
+            !(PluginDrive_QuestScriptPath() && App_RenderSkipEnabled(app)) )
+            PlatformWindow_SleepUntil(PlatformWindow_Ticks64() + 1);
         return;
     }
     /* Immediate IF_/varp replies may open a UI transaction between scheduled

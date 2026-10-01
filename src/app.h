@@ -2211,6 +2211,36 @@ struct App
      *  differences: the loop runs at the pacer's rate whether or not a frame
      *  is drawn, so counting iterations measures the pacer, not the screen. */
     uint64_t frames_rendered;
+    /**
+     * Render skip: the frame loop still runs input, net, the logic tick and
+     * the plugins, but App_Render and the present are skipped unless a frame
+     * has to be drawn. See App_RenderSkipFrame for what forces one and why.
+     * Switched by TORIRS_RENDER_SKIP=1 (App_Init), `::renderskip` typed in
+     * the chatbox, and api.drive.render_skip (t.render.skip).
+     */
+    struct AppRenderSkip
+    {
+        /** 1: draw only the frames App_RenderSkipFrame says must be drawn. */
+        int enabled;
+        /** Frames still owed a draw, the current one first
+         *  (App_RenderSkipRequestDraw), counted in frames DRAWN. */
+        int draw_frames;
+        /** The render-time state (pickset, posed bounds) is the most recent
+         *  committed frame's, as it always is with skip off. */
+        int fresh;
+        /** The most recent frame was committed and skipped, so its emit list
+         *  is the current one and App_RenderSkipCatchUp may still draw it. */
+        int catch_up_ok;
+        /** Layout-sized buffer a catch-up draw rasterises into; NULL until
+         *  the first one. */
+        int* scratch;
+        /** Loop iterations drawn and not drawn, skip on or off (with skip
+         *  off a frame App_RunOnce had nothing to redraw for is not drawn),
+         *  and skipped frames drawn late by App_RenderSkipCatchUp. */
+        uint64_t frames_drawn;
+        uint64_t frames_skipped;
+        uint64_t frames_caught_up;
+    } render_skip;
     /** The last few frame durations, and their mean. See
      *  perf/frame_time_ring.h. */
     struct FrameTimeRing dbg_frame_times;
@@ -4008,6 +4038,72 @@ App_NoteFrameTime(
  */
 void
 App_NoteFrameDrawn(struct App* app);
+
+/**
+ * Render skip (App::render_skip): switch it on or off. Turning it on starts
+ * from a fresh pickset: the frame before was drawn.
+ */
+void
+App_RenderSkipSet(
+    struct App* app,
+    int enabled);
+
+int
+App_RenderSkipEnabled(struct App const* app);
+
+/**
+ * Owe `frames` drawn frames, starting with the current one -- asked by input
+ * that the NEXT frame resolves against this frame's pickset (a pushed click or
+ * move). Counted in frames DRAWN: a frame the host does not commit
+ * (App_RenderSkipFrame) leaves the debt in place. A no-op in effect while
+ * skip is off: every committed frame draws then.
+ */
+void
+App_RenderSkipRequestDraw(
+    struct App* app,
+    int frames);
+
+/**
+ * Make the render-time state (app->world_pickset and the hover tile, the
+ * posed model bounds) what it would be with skip off, before something reads
+ * it: when the most recent frame was committed but skipped, draw it NOW, late,
+ * into a scratch buffer -- same emit list, scene, camera and pointer, so the
+ * same pick and the same poses. Call it before a read, from the plugin pump
+ * (the top of App_RunOnce, where the app still holds that frame's state).
+ * Returns 1 when the state is fresh (skip off, the frame was drawn, or it was
+ * just caught up), 0 when it cannot be: an uncommitted frame came after the
+ * skipped one and its emit list may point into freed components -- the reader
+ * then treats the state as absent.
+ */
+int
+App_RenderSkipCatchUp(struct App* app);
+
+/**
+ * The host's one call per loop iteration, AFTER every other say on whether
+ * this frame draws (`redraw`: App_RunOnce's answer and anything that forced
+ * it). Returns the final answer. With skip off it is `redraw`, unchanged.
+ * With skip on it is `redraw` AND one of the reasons below -- skip takes
+ * draws away and never adds one (an uncommitted frame's emit list may point
+ * into freed tree components). The reasons:
+ *   - `forced`: the host's own must-draw (content_test.c's mailbox requests,
+ *     a renderer that cannot skip),
+ *   - a screenshot is waiting (app->plugin_screenshots),
+ *   - App_RenderSkipRequestDraw owes this frame a draw, or
+ *   - a world-entity view (sailing hull) stands in the loaded scene: which
+ *     hulls are drawn in full (Wev render_visible / flattened) is decided
+ *     while painting, and the actor projection, the pick classifier and a
+ *     deck's dynamic population all read that decision.
+ */
+int
+App_RenderSkipFrame(
+    struct App* app,
+    int redraw,
+    int forced);
+
+/** Live world-entity views (sailing hulls) inside the loaded scene: while
+ *  any is, render skip draws every frame (App_RenderSkipFrame). */
+int
+App_RenderSkipHullsInScene(struct App* app);
 
 /**
  * The most recent frame time reported to App_NoteFrameTime, in microseconds.

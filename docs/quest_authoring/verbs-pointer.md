@@ -67,6 +67,24 @@ use it as a presence check; `t.npc.by_symbol`/`t.npc.nearest` read the live pool
 `t.player.walk_to(x, z, ticks=distance+10)` / `t.player.walk_near(target, ticks, minimum=0)` /
 `t.player.idle()` -> `ok` `timeout` (`unsupported` -- walk_near is npc/loc only).
 
+#### A walk stops at an obstacle: cross it with `click_loc` (seam34)
+
+`walk_to` follows the collision map. A loc the game makes you CROSS (a rock bridge, stepping
+stone, log, ledge or pipe) blocks that map until you press its op, so a walk across one stops
+beside it. That is the game's rule, not a driver bug: the server's own pathing stops there too.
+A `walk_to` that walked over the obstacle would skip the guide step and its agility roll.
+Underground Pass's maze bridges (`walkway_upass_narrow_mid_top`, `blockwalk=1` and `op1=Cross` in
+`all.loc`; LostCity's `upass.loc` blocks too; `[oploc1]` at `upass_obstacles.rs2:360` can drop
+you off) are the case that found it.
+
+A stalled walk names the locs with an op within two tiles of where it stopped, nearest the
+destination first:
+`walk_to 2383,9634 from 2379,9634 stalled at 2380,9632 -- locs with an op beside the stop:
+walkway_upass_narrow_mid_top at 2380,9634 op1 (a bridge, log or stone among them is crossed with click_loc, then walk on)`
+(`build/quest_gate/s34bridge_after`). Walk to the obstacle's near side, then
+`t.player.click_loc(sym, op, { at = { x, z } })`, check the tile you land on (a failed roll drops you
+off it; retry), then walk on. The list is only a hint: a door or tree beside the stop is listed too.
+
 ### `t.player.teleport(name)`
 
 `t.player.teleport(name)` -> `(ok, "x,z L<level>")` `timeout` `refused` `no_row`. See trap 1's

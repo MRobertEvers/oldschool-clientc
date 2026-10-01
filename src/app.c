@@ -166,6 +166,9 @@ App_Init(
      */
     app->runner.parallel = getenv("TORIRS_SERIAL_ASSETS") == NULL;
 
+    /* Render skip (app_render.c): TORIRS_RENDER_SKIP=1 starts with it on. */
+    app_render_skip_init(app);
+
     /* Serial game-action pipeline: own queue + io slots, SHARED platform
      * pump (there is exactly one IO backend). */
     app->exec_runner.io = ToriRS_IOBatch_New();
@@ -1226,6 +1229,7 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     app_prefs_flush(app);
+    app_render_skip_shutdown(app);
     /* Plugins first: on_stop callbacks may still read world state and the
      * config store, and both are torn down below. */
     PluginHost_Free(app->plugins);

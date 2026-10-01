@@ -287,6 +287,14 @@ app_plugin_screenshot(
 
         shot->in_use = 1;
         snprintf(out_path, (size_t)out_path_size, "%s", shot->path);
+        /* Render skip (app_render.c, item 3): the frame this captures lays
+         * out its overlays and mouseover text from what the PREVIOUS frame's
+         * draw left behind (posed heights, the pickset). If that frame was
+         * skipped, draw it now, late -- not a frame later, which would move
+         * the run's timeline. A request made outside the plugin pump finds
+         * nothing to catch up, or a stale state it cannot (the picture is
+         * then a frame's overlays behind, never a crash). */
+        (void)App_RenderSkipCatchUp(app);
         return 1;
     }
 

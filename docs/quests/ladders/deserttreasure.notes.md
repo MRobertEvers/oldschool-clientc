@@ -45,3 +45,32 @@ Single-way combat: `::passive <npc_symbol>` on every aggressive npc nearby, or "
 
 Differences from the guide: no ice-path slipping; hazards and cold do not survive logout; the
 temple door has no swing animation; placing diamonds writes 13 directly (native 11/12 collapsed).
+
+Where the guide's items come from (seam34 parity3f_carry_overs; every route below was
+driven in build/quest_gate/p3f_dt_items3, 24/24, driver
+build/seam_state/seam34/p3f_scratch/dt_items.lua). None needs a ::give except the RAW input
+named in brackets, which the guide has you bring:
+- Spiked boots: ::complete quest_deathplateau (the row is quest_deathplateau, NOT
+  quest_death), Tenzing (death_sherpa 2820,3556) "Can I buy some Climbing boots?" 12 gp,
+  then Dunstan (death_smithy 2919,3574) "Can you put some spikes on my Climbing boots?" /
+  "Yes, but I still want them." [iron bar].
+- Gas mask: after Plague City, Alrena's cupboard (alrenascupboardshut op1 then
+  alrenascupboardopen op1, 2574,3334) -> "You find a protective mask."
+- Garlic powder: pestle_and_mortar on garlic (either order) -> fd_crushed_garlic
+  [garlic, pestle; garlic is also stock3 of the spice shop].
+- Spice: spice_merchant_ardougne (2658,3296) op3 shop `spicestall`, stock1 spicespot
+  (230 gp). Stealing from the stall works too, but the owner/guards catch you in sight.
+- Cake: steal from cakethiefstall op2 (2655,3311, Thieving 5; 13/20 rolls are a cake),
+  or bake one.
+- Silver bar: silver_ore on fai_falador_furnace (2602,3310, East Ardougne), Smithing 20
+  ("You need a Smithing level of 20 to smelt a silver bar." below it) [silver ore].
+  The Ardougne SILVER shop (silver_merchant_ardougne op3) opens EMPTY in the client: its
+  inv is content-declared (pack/inv.alloc), "cell 3 of shopmain:items is not mounted".
+- Ice gloves: the Ice Queen's drop (drop_tables/ice_queen.rs2); hero.lua pickUpIceGloves
+  drives it live.
+- Eblis: use each ingredient on him; plain OR noted forms count, and the %fd_* counters
+  add up across several uses (deserttreasure.rs2 dt_eblis_take), so 12 magic logs + 6
+  steel bars + 6 molten glass can arrive over several trips with no bank noting. Bank
+  withdraw-as-note exists (bank.rs2 bankmain:note) but no quest test drives the bank yet.
+- Rewards (orchestrator note): Desert Treasure I gives quest points, Magic XP and Ancient
+  Magicks; the ring of visibility comes from Rasolo mid-quest. There is no Ancient signet.

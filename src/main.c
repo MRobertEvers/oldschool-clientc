@@ -4359,8 +4359,21 @@ frame_loop_step(void)
             }
         }
     }
-    if( ContentTest_DrawRequested(&app) )
-        app_redraw = 1;
+    {
+        /* Last word on the draw: render skip (App::render_skip) keeps only
+         * the frames something must see -- a capture, a pickset read, a
+         * forced content-test draw -- and is a pass-through while off. */
+        int const content_draw = ContentTest_DrawRequested(&app);
+        if( content_draw )
+            app_redraw = 1;
+        /* Only the software lane can skip. A retained (GPU) renderer learns
+         * the scene from the load events the draw drains, and a skipped
+         * frame would leave them to pile up against the queue's cap and be
+         * dropped; Soft3D reads the scene directly, so the skipped frame's
+         * own ToriDraw_SceneFrameEnd below is all it is owed. */
+        app_redraw = App_RenderSkipFrame(
+            &app, app_redraw, content_draw || renderer_active != TORIRS_RENDERER_KIND_SOFTWARE);
+    }
     if( app_redraw )
     {
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_DISPLAY)
@@ -4369,6 +4382,16 @@ frame_loop_step(void)
                 &app, platform, gl3, d3d9, gles2, webgl2, webgl1, gles3,
                 renderer_active_is_depth());
         }
+    }
+    else if( App_RenderSkipEnabled(&app) )
+    {
+        /* A skipped frame presents nothing either: re-uploading the last
+         * picture is the present's whole cost, for a screen that has not
+         * changed. What Soft3D's own frame end (ToriRS_FrameEnd) would have
+         * done still happens: the scene's load-event queue is spent (audio
+         * drained it during the tick) and the models held for this frame's
+         * poses are released, or a long skip fills the queue to its cap. */
+        ToriDraw_SceneFrameEnd(app.scene);
     }
     else
     {

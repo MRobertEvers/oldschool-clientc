@@ -63,13 +63,13 @@
 --     ledger's SUMMARY row says exit=0 and the process exited 0.
 --
 -- ---------------------------------------------------------------------------
--- 138 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
+-- 141 verbs, one row each.  tools/quest_gate/verb_list.py --check reads the
 -- `step("<name>", ...)` lines below and the QD.* definitions in
 -- script/plugins/quest_driver/*.lua and refuses to agree when they differ, so
 -- a verb added to the driver with no row here fails a make gate rather than
 -- being quietly never called.  The count is asserted in the harness too, so
 -- editing this file alone cannot drift either.
--- @verb-count 138
+-- @verb-count 141
 -- ---------------------------------------------------------------------------
 --
 -- SEAM ROWS -- `seam("seam.<name>", ...)`, counted separately.
@@ -158,11 +158,11 @@
 -- public verb -- calling the public verb would prove the wrong thing, because
 -- the public verb is exactly what went on answering plausibly while the seam
 -- under it was broken.
--- @seam-count 59
+-- @seam-count 64
 -- ---------------------------------------------------------------------------
 
-local VERB_COUNT = 138
-local SEAM_COUNT = 59
+local VERB_COUNT = 141
+local SEAM_COUNT = 64
 local NOTE_PROBE = "CONFORMANCE_NOTE_PROBE"
 
 -- Content symbols, never ids.  Each is the subject some verb needs, and each
@@ -6654,6 +6654,79 @@ return {
             settle(1)
         end)
 
+        -- A TRANSMOGGED PLAYER IS DRAWN AS THE NPC (seam34).  The 239
+        -- appearance block's 0xffff entry carries an npc id; the client
+        -- decoded it and then drew the player's own body anyway (Monkey
+        -- Madness's greegree wearer stayed a human in a monkey's stance,
+        -- build/quest_gate/s34tm_before2 transmog.monkey_drawn).  Reference:
+        -- LostCity ClientPlayer.ts getTempModel2 / deob
+        -- PlayerAppearance.getModel -- the npc type's model.  Graded on the
+        -- pick set, i.e. on the triangles the frame drew for the player's
+        -- element: the highest pixel above the player's projection that
+        -- still holds it.  `::transmog` is the ladder twin of p_transmogrify
+        -- (LostCity ape_atoll_dungeon.rs2:182 [debugproc,transmogrify]).
+        stage(function()
+            setup_cheat("::transmog off")                       -- setup
+            setup_cheat("::goto 2604 3277 0")
+            local camera = verb("drive", "camera")
+            if camera then camera(0, 400, 350) end
+            settle(3)
+        end)
+        seam("seam.transmog_draws_the_npc", function()
+            local drive = t.drive
+            if type(drive) ~= "table" or type(drive._projection) ~= "function" then
+                return missing("drive", "_projection")
+            end
+            if type(drive._hover_probe) ~= "function" then
+                return missing("drive", "_hover_probe")
+            end
+            local cheat = verb("cheat")
+            if not cheat then return missing("cheat") end
+            local function top_held()
+                local result, pos = drive._projection({ kind = "player", id = -1 })
+                if result ~= "ok" or pos == nil then
+                    return nil, "projection " .. describe(result)
+                end
+                local top, misses = nil, 0
+                for dy = 0, 180, 6 do
+                    if drive._hover_probe(pos.element_id, pos.x, pos.y - dy, 4) == true then
+                        top, misses = dy, 0
+                    elseif top ~= nil then
+                        misses = misses + 1
+                        if misses >= 4 then break end
+                    end
+                end
+                return top, "projection " .. pos.x .. "," .. pos.y .. " top held dy=" .. describe(top)
+            end
+            local human, human_text = top_held()
+            local on_result = cheat("::transmog mm_transmogrification_normal_monkey")
+            settle(3)
+            local monkey, monkey_text = top_held()
+            local off_result = cheat("::transmog off")
+            settle(3)
+            local back, back_text = top_held()
+            local text = "human " .. human_text .. "; ::transmog mm_transmogrification_normal_monkey -> "
+                .. describe(on_result) .. ", " .. monkey_text .. "; ::transmog off -> "
+                .. describe(off_result) .. ", " .. back_text
+            if on_result ~= "ok" or off_result ~= "ok" then
+                return "refused", "the ladder did not answer -- " .. text
+            end
+            if human == nil or monkey == nil or back == nil then
+                return "not_visible", "a silhouette was not read -- " .. text
+            end
+            if monkey * 2 > human then
+                return "refused", "the transmogged player is still drawn at human height -- " .. text
+            end
+            if back * 2 <= human then
+                return "refused", "::transmog off did not give the body back -- " .. text
+            end
+            return "ok", text
+        end)
+        stage(function()
+            setup_cheat("::transmog off")                       -- teardown
+            settle(1)
+        end)
+
         -- AN UNDRAWN MULTINPC SHELL IS NOT A MISSED PRESS (seam28).  A
         -- multinpc table is indexed BY VALUE (all.npc multinpc1 is varbit
         -- value 0); at ^gobdip_grubfoot_hidden (3, catwalk_goblin's -1 rung)
@@ -6893,6 +6966,23 @@ return {
                 return "refused", "t.cutscene.mark() -> " .. tostring(serial)
             end
             return "ok", "camera serial " .. serial
+        end)
+
+        -- t.cutscene.exempt (seam34 cutscene_site_on_an_optional_route):
+        -- the row shape only -- the claim (a site OFF the guide's route, the
+        -- reason naming a PASSed guide step) is gate.py's to grade, never
+        -- this row's.  The verb writes its own `cutscene.exempt.<site>` row;
+        -- this one checks the pair it answers.  Only the ok path: a refused
+        -- call writes its own FAIL row (the refusals are proved in
+        -- build/quest_gate/s34_exempt_verb).
+        step("cutscene.exempt", function()
+            local fn = verb("cutscene", "exempt")
+            if not fn then return missing("cutscene", "exempt") end
+            local result, detail = fn("conformance.rs2:1", "conformance: the row shape only; gate.py grades the claim")
+            if result ~= "ok" or string.find(tostring(detail), "cutscene-exempt: conformance.rs2:1 ;; ", 1, true) ~= 1 then
+                return "hollow", "t.cutscene.exempt -> " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", detail
         end)
 
         step("cutscene.await", function()
@@ -7264,6 +7354,256 @@ return {
                     .. describe(answered_result) .. " " .. describe(answered)
             end
             return "ok", describe(detail) .. "; " .. why .. "; the server answers ::dropobj"
+        end)
+
+        -- RENDER SKIP (seam34, owner request 2026-09-30).  run.py and
+        -- conformance.py start every client with TORIRS_RENDER_SKIP=1, so a
+        -- frame draws only when a screenshot, a pickset read or a pushed click
+        -- needs it (src/app/app_render.c's render-skip banner).  The verbs are
+        -- graded on frames MOVING the right way -- t.render._state's counters
+        -- -- never on their own word, and each row leaves skip as it found it.
+        -- HERE, after session.relog and before finish, on purpose: any row
+        -- placed earlier spends ticks every later row then runs after, and
+        -- seam.attack_presses_the_watched_slot reads the goblins' wander --
+        -- moved into phase 0 these rows turned it red (the field's nearest
+        -- copy became a ::spawned one), skip on and skip off alike.  The
+        -- sailing rows' hull is still live here, but it stands outside the
+        -- loaded scene, and only a hull inside it draws every frame.
+        step("render.skip", function()
+            local fn = verb("render", "skip")
+            if not fn then return missing("render", "skip") end
+            local _, before = t.render._state()
+            local refused_result = fn("yes")
+            local on_result, on_detail = fn(true)
+            if on_result ~= "ok" then
+                fn(before.skip)
+                return on_result, "t.render.skip(true) -> " .. describe(on_detail)
+            end
+            local _, on_start = t.render._state()
+            settle(3)
+            local _, on_end = t.render._state()
+            local off_result, off_detail = fn(false)
+            local _, off_start = t.render._state()
+            settle(3)
+            local _, off_end = t.render._state()
+            fn(before.skip)
+            local skipped_on = on_end.skipped - on_start.skipped
+            local drawn_off = off_end.drawn - off_start.drawn
+            local reading = string.format("on: %s; 3 idle ticks skipped %d frame(s), drew %d (live hulls %d); "
+                .. "off: %s; 3 idle ticks drew %d, skipped %d; skip('yes') -> %s",
+                describe(on_detail), skipped_on, on_end.drawn - on_start.drawn, on_start.hulls,
+                describe(off_detail), drawn_off, off_end.skipped - off_start.skipped, describe(refused_result))
+            -- t.ticks(3) spans 61..90 frames (it starts mid-tick).  Idle with
+            -- skip on, nothing owes a draw; with it off, an in-world frame
+            -- always redraws.
+            if off_result ~= "ok" or refused_result ~= "refused" or skipped_on < 55 or drawn_off < 55 then
+                return "hollow", reading
+            end
+            return "ok", reading
+        end)
+
+        step("render.frame", function()
+            local fn = verb("render", "frame")
+            local skip = verb("render", "skip")
+            if not fn then return missing("render", "frame") end
+            if not skip then return missing("render", "skip") end
+            local _, before = t.render._state()
+            skip(true)
+            settle(1)
+            local result, detail = fn()
+            skip(before.skip)
+            local from, to = string.match(tostring(detail), "rendered (%d+) %-> (%d+)")
+            if result ~= "ok" or not from or tonumber(to) <= tonumber(from) then
+                return "hollow", "t.render.frame() with skip on -> " .. describe(result) .. " " .. describe(detail)
+            end
+            return "ok", detail
+        end)
+
+        -- A pick read after skipped frames must answer what it would with
+        -- skip off -- the previous frame's stamp -- WITHOUT waiting a frame
+        -- (a frame waited for shifts the whole run: five quests went red on
+        -- that).  So the read draws the skipped frame late, then answers.
+        seam("seam.render_skip_pick_read_catches_up", function()
+            local skip = verb("render", "skip")
+            if not skip then return missing("render", "skip") end
+            local _, before = t.render._state()
+            skip(true)
+            local result, detail, facts = t.render._pick_catch_up_probe()
+            skip(before.skip)
+            if result ~= "ok" then
+                return result, detail
+            end
+            if not facts.stamped or facts.skipped_idle < 55 or facts.caught_up ~= 1
+                or not facts.valid or not facts.same_tick then
+                return "refused", detail
+            end
+            return "ok", detail
+        end)
+
+        -- A screenshot under render skip draws its own frame, and the
+        -- skipped frame before it is drawn late first (the overlays and
+        -- mouseover text the capture shows were laid out from that frame).
+        -- Graded on the file and on two frames drawn across the capture.
+        seam("seam.render_skip_shot_draws_its_frame", function()
+            local shot = verb("shot")
+            local skip = verb("render", "skip")
+            if not shot then return missing("shot") end
+            if not skip then return missing("render", "skip") end
+            local _, before = t.render._state()
+            skip(true)
+            settle(2)
+            local _, idle = t.render._state()
+            local result, detail = shot("render-skip-probe", true)
+            local _, after = t.render._state()
+            skip(before.skip)
+            local reading = string.format("t.shot after 2 idle ticks -> %s %s; frames drawn across it %d",
+                describe(result), describe(detail), after.rendered - idle.rendered)
+            if result ~= "ok" or not string.find(tostring(detail), "render-skip-probe.png", 1, true)
+                or after.rendered - idle.rendered < 2 then
+                return "refused", reading
+            end
+            return "ok", reading
+        end)
+
+        -- A HELD OP THAT WIELDS ANSWERS ok AND SAYS WORN (seam34
+        -- upass_wield_and_rock_bridges).  A Wield/Wear ([opheld2,_] ~equip,
+        -- player/scripts/equip.rs2:304) that lands prints nothing, mounts
+        -- nothing and routes nowhere, so inv_op's settle waited out its ten
+        -- ticks and answered `timeout ... -> 0 left [settle_after_click]` for
+        -- an item that was on the player (Underground Pass leg.4.wield,
+        -- build/quest_gate/upass row 111; alone in s34wield_before2).  inv_op
+        -- now reads the item's worn total before the press and resolves on it
+        -- rising.  Graded on the verb's own word, the WORN tag naming the
+        -- item, and the worn container read back independently.  The backpack
+        -- is cleared first: this harness's is full by here.
+        stage(function()
+            setup_cheat("::clearinv")
+            setup_cheat("::give bronze_scimitar")
+            settle(2)
+        end)
+        seam("seam.inv_op_wield_reads_worn", function()
+            local fn = verb("player", "inv_op")
+            local count = verb("inv", "count")
+            if not fn then return missing("player", "inv_op") end
+            if not count then return missing("inv", "count") end
+            local before_result, before = count("bronze_scimitar")
+            if before_result ~= "ok" or type(before) ~= "number" or before < 1 then
+                return "no_subject", "::give bronze_scimitar left " .. describe(before)
+                    .. " in the backpack (" .. describe(before_result) .. ")"
+            end
+            local result, detail = fn("bronze_scimitar", 2)
+            local worn_result, worn = t.ui._worn_count("bronze_scimitar")
+            local text = "inv_op(bronze_scimitar,2) -> " .. describe(result) .. " " .. describe(detail)
+                .. "; worn read " .. describe(worn_result) .. " " .. describe(worn)
+            if result ~= "ok" then
+                return result, text
+            end
+            if string.find(tostring(detail), "WORN bronze_scimitar", 1, true) == nil
+                or worn_result ~= "ok" or worn ~= 1 then
+                return "hollow", text
+            end
+            return "ok", text
+        end)
+
+        -- A CACHE-DECLARED onvarptransmit HOOK FIRES ON A GROUP'S FIRST OPEN.
+        -- Task_InterfaceOpen armed a record's own transmit hooks
+        -- (`onvarptransmit=` + `varptriggers=` in the .if) BEFORE it baked the
+        -- group into the tree, so on a group's first open every hook held a
+        -- node ref that resolved to nothing, and the var dispatch treats such a
+        -- ref as a reclaimed component: never fired, compacted away. The panel
+        -- painted once from its onloads and went deaf. Forgettable Tale's
+        -- junction puzzle (interface 248; counters 1240/1241 on varp 525,
+        -- switches 1244 on 524/525) kept "x 1 / x 1" and bare junctions while
+        -- the server moved both varps (shots 194-196 byte-identical; seam34
+        -- junction_interface_does_not_redraw). Graded on the counter TEXT the
+        -- hook writes tracking the server's varbits across one Set Junction
+        -- press, and on that text having CHANGED, so an onload-only paint
+        -- cannot pass it. The press is undone (two more presses cycle the
+        -- junction back to empty) and the quest vars are reset afterwards.
+        seam("seam.cache_transmit_hook_first_open", function()
+            local goto_tile = verb("player", "goto_tile")
+            local click_loc = verb("player", "click_loc")
+            local await_open = verb("ui", "await_open")
+            local widget = verb("ui", "widget")
+            local invoke = verb("ui", "invoke")
+            local text = verb("ui", "text")
+            local key = verb("key")
+            local read = verb("var", "server")
+            local tile_of = verb("world", "tile")
+            if not goto_tile then return missing("player", "goto_tile") end
+            if not click_loc then return missing("player", "click_loc") end
+            if not await_open then return missing("ui", "await_open") end
+            if not widget then return missing("ui", "widget") end
+            if not invoke then return missing("ui", "invoke") end
+            if not text then return missing("ui", "text") end
+            if not key then return missing("key") end
+            if not read then return missing("var", "server") end
+            if not tile_of then return missing("world", "tile") end
+            local _, home = tile_of()
+            local function counters()
+                local _, yellow = text("forget_puzzle1:yellow_counter")
+                local _, green = text("forget_puzzle1:green_counter")
+                local _, left = read("forget_num_left")
+                local _, right = read("forget_num_right")
+                return yellow, green, left, right
+            end
+            local function restore()
+                key("escape")
+                settle(1)
+                setup_cheat("::setvar forget_if1 0")
+                setup_cheat("::setvar forget_num_left 0")
+                setup_cheat("::setvar forget_num_right 0")
+                setup_cheat("::setvar forget_quest 0")
+                if type(home) == "table" then
+                    goto_tile(home.x, home.z, home.level or 0)
+                end
+            end
+            -- forget_group() is 1 at forget_quest 100 (forget_puzzle.rs2), so the
+            -- hub machinery opens forget_puzzle1; one stone of each colour.
+            setup_cheat("::setvar forget_quest 100")
+            setup_cheat("::setvar forget_if1 0")
+            setup_cheat("::setvar forget_num_left 1")
+            setup_cheat("::setvar forget_num_right 1")
+            local goto_result = goto_tile(1861, 4954, 1)
+            if goto_result ~= "ok" then
+                restore()
+                return "refused", "goto hub 1861,4954,1 -> " .. describe(goto_result)
+            end
+            local click_result, click_detail = click_loc("keldagrim_track_junction_control_box", 1)
+            local open_result, open_detail = await_open("forget_puzzle1", 30)
+            if open_result ~= "ok" then
+                restore()
+                return "refused", "machinery -> " .. describe(click_result) .. " " .. describe(click_detail)
+                    .. "; forget_puzzle1 open -> " .. describe(open_result) .. " " .. describe(open_detail)
+            end
+            settle(2)
+            local y0, g0, l0, r0 = counters()
+            local _, switch = widget("forget_puzzle1:switch_a")
+            invoke(switch, 0)
+            settle(2)
+            local y1, g1, l1, r1 = counters()
+            local reading = "before yellow_counter=" .. describe(y0) .. " green_counter=" .. describe(g0)
+                .. " (server left=" .. describe(l0) .. " right=" .. describe(r0) .. "); after one Set Junction"
+                .. " yellow_counter=" .. describe(y1) .. " green_counter=" .. describe(g1)
+                .. " (server left=" .. describe(l1) .. " right=" .. describe(r1) .. ")"
+            -- Undo: empty -> green -> yellow -> empty is three presses in all.
+            for _ = 1, 2 do
+                invoke(switch, 0)
+                settle(1)
+            end
+            local _, junction_after = read("forget_if1")
+            restore()
+            if type(l1) ~= "number" or type(r1) ~= "number" then
+                return "refused", reading .. " -- the server varbits did not read"
+            end
+            if y1 ~= "x " .. l1 or g1 ~= "x " .. r1 then
+                return "refused", reading .. " -- the counter text does not follow the varbits"
+                    .. " (the cache onvarptransmit hook did not run)"
+            end
+            if y1 == y0 and g1 == g0 then
+                return "refused", reading .. " -- the press changed nothing on the panel"
+            end
+            return "ok", reading .. "; junction back to " .. describe(junction_after)
         end)
 
         step("finish", function()

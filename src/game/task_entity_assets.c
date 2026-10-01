@@ -391,6 +391,85 @@ CreateTask_PlayerBodyLand(
     return &task->task;
 }
 
+/* ------------------------------------------------------- player transmog */
+
+struct Task_PlayerTransmogLand
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct App* app;
+    int npc_id;
+    int resolved_npc_id;
+    int pending;
+};
+
+static int
+Task_PlayerTransmogLand_Run(
+    struct ToriRS_Task* base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_PlayerTransmogLand* self = (struct Task_PlayerTransmogLand*)base;
+    struct App* app = self->app;
+
+    (void)io;
+    PT_BEGIN(&self->pt);
+
+    /* The config chain first (the shell and every multinpc rung): the npc
+     * the player is drawn as is whatever it selects. */
+    PT_TASK_AWAITSELF_IF(CreateTask_NpcMultiResolve(app, self->npc_id, &self->resolved_npc_id));
+    if( self->resolved_npc_id < 0 )
+        PT_EXIT(&self->pt);
+
+    {
+        struct ToriRS_Npctype* npctype = CacheProvider_NpctypeGet(app->provider, self->resolved_npc_id);
+        if( npctype )
+        {
+            int seqs[5];
+            fanout_models(app, npctype->models, npctype->models_count, &self->pending);
+            npc_stance_seqs(npctype, seqs);
+            fanout_seqs(app, seqs, 5, &self->pending);
+        }
+    }
+    PT_TASK_JOIN(pending);
+
+    /* Nothing to apply: the per-frame body reconcile mounts the npc's model
+     * on every player drawn as it (app_world_reconcile_player_transmog). */
+    app->need_redraw = 1;
+
+    PT_END(&self->pt);
+}
+
+static void
+Task_PlayerTransmogLand_Free(struct ToriRS_Task* base)
+{
+    free(base);
+}
+
+static struct ToriRS_TaskVTable Task_PlayerTransmogLand_VTable = {
+    .run = Task_PlayerTransmogLand_Run,
+    .free = Task_PlayerTransmogLand_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_PlayerTransmogLand(
+    struct App* app,
+    int npc_id)
+{
+    struct Task_PlayerTransmogLand* task;
+
+    assert(app);
+    assert(npc_id >= 0);
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_PlayerTransmogLand_VTable;
+    strncpy(task->task.name, "PlayerTransmogLand", sizeof(task->task.name) - 1);
+    task->app = app;
+    task->npc_id = npc_id;
+    task->resolved_npc_id = -1;
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
 /* ----------------------------------------------------------- held items */
 
 struct Task_PlayerHeldLand

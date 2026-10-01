@@ -48,8 +48,48 @@
 --   since    a t.cutscene.mark() serial to start from (above)
 --
 -- The camera read itself is t.world.camera() (world.lua).
+--
+-- A SITE ON A ROUTE THE GUIDE DOES NOT TAKE (seam34 cutscene_site_on_an_
+-- optional_route).  gate.py's cutscene_row_required wants every cam_moveto/
+-- cam_lookat SITE covered, and Shilo Village frames its camera only on the
+-- table raft -- one of three ways out of the caverns, none a guide step -- so
+-- the only honest-looking cover was driving a route the guide never takes.
+--
+--   t.cutscene.exempt(site, reason) -> ("ok", detail) | ("refused", detail)
+--
+-- writes its OWN row `cutscene.exempt.<site>` (no shot: nothing moved), PASS
+-- with detail `cutscene-exempt: <site> ;; <reason>`, or FAIL `refused` when
+-- the site is not `<path>.rs2:<line>` or the reason is empty.  Call it
+-- directly, never under t.exec.  `site` is the gate's own spelling, any path
+-- suffix that names one site (`quest_zombiequeen.rs2:738`); `reason` must
+-- name the guide step the test drove instead (`buryCorpse`).  The verdict is
+-- gate.py's, not this row's: it accepts the exemption only when the site is
+-- one of the quest's camera sites, the named guide step has a PASS row, and
+-- no guide step's target or item reaches the site (a site ON the guide's
+-- route is refused -- it is t.cutscene.await's to cover).
 
 QD.cutscene = {}
+
+function QD.cutscene.exempt(site, reason)
+    site = tostring(site or "")
+    reason = tostring(reason or "")
+    local name = "cutscene.exempt." .. (site ~= "" and site or "?")
+    local detail = "cutscene-exempt: " .. site .. " ;; " .. reason
+    local problem = nil
+    if not string.match(site, "^[%w_%./%-]+%.rs2:%d+$") then
+        problem = "site '" .. site .. "' is not <path>.rs2:<line> (the gate's site spelling, e.g. "
+            .. "quest_zombiequeen.rs2:738)"
+    elseif not string.match(reason, "%a%a%a") then
+        problem = "no reason: name the guide step the test drove instead"
+    end
+    if problem ~= nil then
+        detail = "refused: " .. problem .. " -- " .. detail
+        QD.step(name, "FAIL", detail)
+        return "refused", detail
+    end
+    QD.step(name, "PASS", detail)
+    return "ok", detail
+end
 
 QD.cutscene._DEFAULT_TIMEOUT = 100
 QD.cutscene._DEFAULT_QUIET = 30

@@ -527,7 +527,7 @@ symbol on each use, with `{ at = { 2892, 9480 } }` because two `thzq_tombrooml1`
 (seam-facts: Seam pass 32 (e)). The way back out is op1 on whichever of the three is there now:
 try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
 
-## Underground Pass: `walk_to` stalls under attack and treats rock bridges as walls (sonnet-b42)
+## Underground Pass: `walk_to` stalls under attack and stops at rock bridges (sonnet-b42; bridges seam34)
 
 *Origin: author batch sonnet-b42 (upass legs 3-4, rejected; relay notes in
 `build/author_state/sonnet-b42/upass.relay.md`).*
@@ -536,7 +536,27 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   way to orb 2, `m37_151.spawn`). A 10-hitpoint account dies in the hops. Put the combat levels in
   `setup` (hitpoints 40 and defence 30 survived), hop-walk in short legs, and retry a stalled hop;
   `::setlevel` inside a leg is too late for an earlier leg's resume.
-- `walk_to` routes around the narrow rock bridges of the maze after the ledge as if they were
-  walls, so a straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
+- `walk_to` stops before the narrow rock bridges of the maze after the ledge. They ARE walls in the
+  game until crossed (`blockwalk=1`, `op1=Cross`; LostCity blocks them too), so this is not a driver
+  bug: a stalled walk now names them (verbs-pointer: "A walk stops at an obstacle", seam34), and a
+  straight `walk_to` across the maze never arrives. Walk to x-1 of each bridge,
   `click_loc` the `walkway_upass_narrow_mid_top` copy at 2380,9634 / 2387,9631 / 2392,9627 /
   2399,9632 / 2406,9637, then walk on to the pipe (`upass_pipe6`, 2417,9605).
+
+## Monkey Madness: a greegree wearer is drawn as the monkey (seam34)
+
+*Origin: seam34 greegree_transmog_render (mm parity3f legs_left: "client rendering of player
+transmog").*
+
+- Since seam34 the client draws a transmogged player as the npc (`p_transmogrify`, a greegree held):
+  the appearance block's 0xffff entry was decoded and then dropped, so the wearer stayed a human in a
+  monkey's stance. Proof read is the pick-set silhouette (`t.drive._projection` of `{kind="player",
+  id=-1}`, then the highest pixel that still holds the player): a human is about 84 px tall at camera
+  (0,400,350), a Karamjan monkey 18-24 px. `::transmog <npc>` / `::transmog off` is the ladder twin
+  for a scratch probe (`docs/QUEST_SERVER_CHEATS.md`).
+- The Ape Atoll ravine archers knock a HUMAN out at 1/20 per arrow: hold the greegree before any
+  probe there. The Ardougne zoo monkey pen (2604,3277) is inside `~mm_greegree_zone` and quiet; the
+  reusable greegree drivers are `build/parity_state/parity3f/mm_scratch/transmog.lua` and
+  `transmog_apeatoll.lua` (Hold -> monkey drawn -> unequip -> human).
+- Not built yet (no quest needs it): a transmog into an npc bigger than one tile is not re-centred
+  (the reference's `transformedSize`), and a transmogged player's chathead is still the player's.

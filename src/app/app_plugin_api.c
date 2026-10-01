@@ -299,6 +299,9 @@ App_SetCameraPose(struct App* app, int yaw, int pitch, int zoom)
     assert(app);
     if( pitch < 128 || pitch > 383 || zoom < -1000 || zoom > 10000 )
         return false;
+    /* Render skip: a skipped frame is drawn late with the camera it had,
+     * before this write moves world_camera (App_RenderSkipCatchUp). */
+    (void)App_RenderSkipCatchUp(app);
     app->orbit.yaw = app->world_camera.yaw = yaw & 2047;
     app->orbit.pitch = app->world_camera.pitch = pitch;
     app->world_cam_zoom = zoom;

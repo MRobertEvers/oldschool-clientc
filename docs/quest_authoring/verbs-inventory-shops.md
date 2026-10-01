@@ -77,6 +77,19 @@ op whose whole answer is a NON-chat interface (a schematic, a lamp picker, a sti
 names it: `-> 0 left [modal dwarf_rock_schematics]` -- the interface was not up when the settle
 began (seam12); dialogue pages still settle through the chat arms.
 
+#### A Wield/Wear through `inv_op` answers `ok ... [WORN <item>: ...]` (seam34)
+
+A Wield or Wear (op 2, `[opheld2,_] ~equip`, `player/scripts/equip.rs2:304`) that lands prints
+nothing, mounts nothing and routes nowhere, so before seam34 the settle waited out its ten ticks and
+answered `timeout ... -> 0 left [settle_after_click]` for an item that was ON the player (Underground
+Pass `leg.4.wield`). `inv_op` now reads the item's worn total before the press and resolves on it
+rising: `adamant_scimitar slot 5 op 2 (tab ok nil) -> 0 left [WORN adamant_scimitar: worn 0 -> 1,
+wear slot 3]`. A settle `timeout` with the item now worn is promoted to `ok`; a `refused` never is.
+An under-level wield ("You need to have an Attack level of 30.") still answers `ok` with no tag
+(that sentence is not in the refusal fence), so read the tag. `t.player.equip` is still the verb to
+prefer: it asserts the worn container and re-presses a dropped press. Row:
+`seam.inv_op_wield_reads_worn`.
+
 #### `ifop1=`..`ifop5=`, and op 1 keeps the item (FIXED seam20)
 
 Rev-239 obj configs spell held ops `ifop1=`..`ifop5=` (`configs/all.obj`), not LostCity's `iop1=`:

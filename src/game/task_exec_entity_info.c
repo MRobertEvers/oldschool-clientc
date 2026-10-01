@@ -907,6 +907,16 @@ Task_ExecPlayerInfo_Run(
                     if( world_idx >= 0 )
                     {
                         App_WorldApplyPlayerAppearance(app, world_idx, &self->app_decoded);
+                        /* Transmogged (the 0xffff entry): the body is the
+                         * npc's, fetched like an npc's -- every time, since
+                         * NpcBodyResident cannot see a cold config or a
+                         * multinpc rung, and a resident record's loader is
+                         * a no-op. The fetch below still runs for the
+                         * stances the block names. */
+                        if( self->app_decoded.npc_id >= 0 )
+                            ToriRS_TaskQueue_Add(
+                                app->runner.queue,
+                                CreateTask_PlayerTransmogLand(app, self->app_decoded.npc_id));
                         if( !EntityAssets_PlayerBodyResident(
                                 app, self->app_decoded.slots, self->app_decoded.gender, seqs, 7) )
                             ToriRS_TaskQueue_Add(

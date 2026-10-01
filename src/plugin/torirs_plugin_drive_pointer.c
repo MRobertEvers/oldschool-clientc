@@ -612,6 +612,13 @@ DrivePointer_PickHolds(struct App* app, int element_id, int* out_held)
     assert(app);
     assert(out_held);
     *out_held = 0;
+    /* Render skip (app_render.c, item 1): the set must be the previous
+     * frame's, as it always is with skip off -- a skipped frame is drawn now,
+     * late. One that cannot be (an uncommitted frame came after it) is an
+     * older frame's answer and is not given: "not held" sends a level await
+     * round once more. */
+    if( !App_RenderSkipCatchUp(app) )
+        return DRIVE_OK;
     for( i = 0; i < app->world_pickset.count; i++ )
     {
         if( app->world_pickset.items[i].element_id == element_id )
@@ -631,7 +638,9 @@ DrivePointer_PickPoint(struct App* app, struct DrivePickPoint* out_point)
 {
     assert(app);
     assert(out_point);
-    out_point->valid = app->world_pickset.mouse_valid;
+    /* Render skip: as DrivePointer_PickHolds above -- caught up first, and a
+     * stamp that cannot be reads as no stamp (valid 0). */
+    out_point->valid = App_RenderSkipCatchUp(app) ? app->world_pickset.mouse_valid : 0;
     out_point->x = app->world_pickset.mouse_x;
     out_point->y = app->world_pickset.mouse_y;
     /* `world_emit_desc` is only a rectangle once a frame has emitted the world
@@ -749,12 +758,15 @@ DrivePointer_MouseMove(struct App* app, int x, int y)
     struct ToriRS_CmdBus* bus;
 
     assert(app);
-    (void)app;
     bus = PluginDriveCore_CmdBus();
     if( !bus )
         return DRIVE_UNSUPPORTED;
     if( !CmdBus_PushMouseMove(bus, (int16_t)x, (int16_t)y) )
         return DRIVE_REFUSED;
+    /* Render skip (app_render.c, item 1): the push drains NEXT frame and is
+     * resolved there against the pickset THIS frame stamps (menu build,
+     * default action, hover), so this frame is owed its draw. */
+    App_RenderSkipRequestDraw(app, 1);
     return DRIVE_OK;
 }
 
@@ -765,12 +777,13 @@ DrivePointer_MouseButton(struct App* app, int button, int down, int x, int y)
     uint32_t type = down ? TORIRS_CMD_INPUT_MOUSE_DOWN : TORIRS_CMD_INPUT_MOUSE_UP;
 
     assert(app);
-    (void)app;
     bus = PluginDriveCore_CmdBus();
     if( !bus )
         return DRIVE_UNSUPPORTED;
     if( !CmdBus_PushMouseButton(bus, type, (uint8_t)button, (int16_t)x, (int16_t)y) )
         return DRIVE_REFUSED;
+    /* Render skip: as DrivePointer_MouseMove above. */
+    App_RenderSkipRequestDraw(app, 1);
     return DRIVE_OK;
 }
 
@@ -1608,6 +1621,12 @@ DrivePointer_Camera(struct App* app, int yaw, int pitch, int zoom)
      * file banner (App_SetCameraPose does not exist yet). */
     if( pitch < 128 || pitch > 383 || zoom < -1000 || zoom > 10000 )
         return DRIVE_REFUSED;
+    /* Render skip (app_render.c): the write below lands on world_camera at
+     * once, so a skipped frame still waiting to be drawn late must be drawn
+     * now, with the camera it had -- a catch-up after this would picture (and
+     * pick) the previous frame through the NEW camera, which no frame with
+     * skip off ever does. */
+    (void)App_RenderSkipCatchUp(app);
     app->orbit.yaw = app->world_camera.yaw = yaw & 2047;
     app->orbit.pitch = app->world_camera.pitch = pitch;
     app->world_cam_zoom = zoom;

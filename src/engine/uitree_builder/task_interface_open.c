@@ -300,6 +300,16 @@ collect_onloads(
  * what repaint it afterwards. Run for a reused group too — the registration is
  * keyed by component id and rewrites in place, so re-opening a panel re-arms it
  * rather than accumulating entries.
+ *
+ * Call it only once the group's nodes are in the tree. A hook holds a
+ * UITreeNodeRef resolved from the component id at registration, and the var
+ * dispatch treats a ref that does not resolve as a reclaimed component: it
+ * never fires, and the next registration compacts it away. Armed before the
+ * bake of a group's first open, every cache hook of that group was dead on
+ * arrival -- the Keldagrim junction puzzle (interface 248, onvarptransmit
+ * 1240/1241/1244 on varps 524/525) painted its stones and counters once from
+ * the onloads and never again while the server moved both varps (seam34
+ * junction_interface_does_not_redraw).
  */
 static void
 arm_cache_transmit_hooks(
@@ -583,7 +593,6 @@ Task_InterfaceOpen_Run(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_OPEN, 1);
         UITreeIfaceStats_NoteOpen(self->interface_id);
         collect_onloads(self, pack);
-        arm_cache_transmit_hooks(self, pack);
         if( interface_group_in_tree(self->tree, self->interface_id) )
         {
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_BAKE_REUSE, 1);
@@ -599,6 +608,8 @@ Task_InterfaceOpen_Run(
             (void)UITree_BuildFromComponentPack(
                 self->tree, pack, open_resolve_sprite, open_resolve_font, self);
         }
+        /* After the bake: a hook's node ref must resolve (see the function). */
+        arm_cache_transmit_hooks(self, pack);
         upload_model_nodes(self->tree, self->bridge);
         {
             struct timespec mount_t1;

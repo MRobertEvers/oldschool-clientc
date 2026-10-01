@@ -1850,6 +1850,28 @@ App_RunOnce(
                      */
                     if( strcmp(input_copy, "::clientdrop") == 0 )
                         app_net_lost(app, "::clientdrop");
+                    /* And one of ours, beside it: `::renderskip` (toggle),
+                     * `::renderskip on|off` -- render skip (app_render.c),
+                     * the live-session switch for what TORIRS_RENDER_SKIP=1
+                     * starts with. The screen stops updating while it is on;
+                     * the chatbox still takes the line that turns it off. */
+                    else if(
+                        strcmp(input_copy, "::renderskip") == 0 ||
+                        strcmp(input_copy, "::renderskip on") == 0 ||
+                        strcmp(input_copy, "::renderskip off") == 0 )
+                    {
+                        int const on = input_copy[12] == '\0' ? !App_RenderSkipEnabled(app)
+                                                              : strcmp(input_copy + 13, "on") == 0;
+                        App_RenderSkipSet(app, on);
+                        RS_CS2Host_ChatAdd(
+                            &app->host,
+                            RS_CHAT_TYPE_GAME,
+                            NULL,
+                            NULL,
+                            on ? "Render skip on: only screenshots and picks draw a frame "
+                                 "(software renderer)."
+                               : "Render skip off.");
+                    }
                     else if( input_copy[0] == ':' && input_copy[1] == ':' )
                         APP_NET_SEND(
                             app,

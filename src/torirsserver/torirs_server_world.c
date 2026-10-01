@@ -8763,6 +8763,57 @@ ToriRSServer_RunCheatLadder(
         return TORIRSSERVER_TRIGGER_FAILED;
     }
 
+    if( strncmp(text, "transmog", 8) == 0 && (text[8] == '\0' || text[8] == ' ') )
+    {
+        /*
+         * `::transmog <npc_symbol>` / `::transmog off` — draw the caller as
+         * that npc, or as himself again: exactly what `p_transmogrify` does
+         * (SS_OP_P_TRANSMOGRIFY in torirs_server_scripts.c sets the same field
+         * and the same appearance mask), so the appearance block carries the
+         * 0xffff entry and the npc id. LostCity has it as content,
+         * `[debugproc,transmogrify](npc $npc)` in quest_mm's
+         * ape_atoll_dungeon.rs2:182; on the ladder it reaches any npc for
+         * every quest or minigame that transmogs the player. It changes the
+         * body only: the stance stays whatever the content set, as with the
+         * script op.
+         */
+        char arg[64] = { 0 };
+        char suggest[256] = { 0 };
+        int type;
+
+        if( sscanf(text, "transmog %63s", arg) != 1 )
+        {
+            say(srv, "Usage: ::transmog <npc_name> | ::transmog off");
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( strcmp(arg, "off") == 0 )
+        {
+            if( player->transmog_npc != -1 )
+            {
+                player->transmog_npc = -1;
+                player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+            }
+            say(srv, "Transmog cleared.");
+            return TORIRSSERVER_TRIGGER_RAN;
+        }
+        type = cheat_npc_from_name(arg, suggest, sizeof(suggest));
+        if( type < 0 )
+        {
+            if( suggest[0] )
+                say(srv, "Which %s? %s", arg, suggest);
+            else
+                say(srv, "No npc named '%s'.", arg);
+            return TORIRSSERVER_TRIGGER_FAILED;
+        }
+        if( player->transmog_npc != type )
+        {
+            player->transmog_npc = type;
+            player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+        }
+        say(srv, "Transmogrified into %s (npc %d).", arg, type);
+        return TORIRSSERVER_TRIGGER_RAN;
+    }
+
     if( strncmp(text, "kill ", 5) == 0 )
     {
         /*
