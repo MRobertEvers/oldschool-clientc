@@ -239,9 +239,9 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     npc_crate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "kittens_mew");
     loc_crate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "gertrudeempty_crate");
     loc_fence = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "gertrudefence");
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "fluffs");
-    varp_crate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "fluffs_crate");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp180_fluffs");
+    varp_crate = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5749_fluffs_crate");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     cooking = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "cooking");
     obj_coins = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "coins");
     obj_milk = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_milk");

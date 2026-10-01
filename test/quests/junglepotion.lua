@@ -9,7 +9,7 @@ return {
     },
     run = function(t)
         t.quest.bind({
-            varp = "junglepotion",
+            varp = "varp175_junglepotion",
             constants = { not_started = 0, get_snake_weed = 1, found_snake_weed = 2, get_ardrigal = 3,
                 found_ardrigal = 4, get_sito_foil = 5, found_sito_foil = 6, get_volencia_moss = 7,
                 found_volencia_moss = 8, get_rogues_purse = 9, found_rogues_purse = 10,

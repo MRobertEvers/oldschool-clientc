@@ -115,7 +115,7 @@ def main() -> int:
         "the follower tick no longer runs the leash",
     )
     expect(
-        "if (%summoning_pet_active = 1 & %summoning_familiar_active = 0) {" in tick,
+        "if (%varp6259_summoning_pet_active = 1 & %varp6226_summoning_familiar_active = 0) {" in tick,
         "the follower tick has no pet branch, so a pet's timer is stopped by the"
         " familiar-state guard on its first tick and it never leashes again",
     )
@@ -129,7 +129,7 @@ def main() -> int:
         "clearing pet state no longer stops the follower tick",
     )
     expect(
-        "if (%summoning_pet_active = 1) {" in core.split("[proc,summoning_call_familiar_ex]")[-1].split("\n[proc,")[0],
+        "if (%varp6259_summoning_pet_active = 1) {" in core.split("[proc,summoning_call_familiar_ex]")[-1].split("\n[proc,")[0],
         "the recall no longer splits the pet case out, so a Clockwork cat"
         " materialises inside the blue summoning graphic every time it catches up"
         " (Familiar.call guards both on `!(this instanceof Pet)`)",

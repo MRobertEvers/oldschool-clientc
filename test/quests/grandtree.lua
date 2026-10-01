@@ -23,7 +23,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "grandtree",
+            varp = "varp150_grandtree",
             constants = {
                 not_started = 0,
                 started = 10,
@@ -333,7 +333,7 @@ return {
             { "largeroot2_gnome", 2481, 9904 }, { "largeroot_gnome", 2485, 9885 }, { "largeroot_gnome", 2490, 9889 },
             { "largeroot2_gnome", 2467, 9872 },
         }
-        local root_result, root_index = t.var.server("daconia_rock_root")
+        local root_result, root_index = t.var.server("varp5869_daconia_rock_root")
         t.check("findDaconiaStone.root", root_result == "ok" and root_index ~= nil and roots[root_index + 1] ~= nil,
             "daconia_rock_root = " .. tostring(root_index))
         local root = roots[(root_index or 0) + 1]

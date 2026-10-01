@@ -385,7 +385,7 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
         SELFTEST_CHECK(client.present[rider_index] && client.appearances[rider_index] == 1,
                        "observer %d receives the rider and a native appearance", pass);
         ToriRSServer_WorldSetActive(srv, rider);
-        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("option_run"), 1);
+        ToriRSServer_WorldSetVarp(srv, ToriRSServer_WorldVarp("varp173_option_run"), 1);
         rider->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
         ToriRSServer_WorldWalkTo(srv, rx + 2, rz);
         ToriRSServer_VesselSetHeading(boat, 0);
@@ -497,7 +497,7 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
     {
         int captain_x=player->x, captain_z=player->z, captain_level=player->level;
         int old_owner=boat->owner_uid;
-        int privacy_bit=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,"settings_cargo_hold_privacy");
+        int privacy_bit=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,"varb19614_settings_cargo_hold_privacy");
         int privacy=privacy_bit>=0 ? ToriRSServer_VarbitGet(player,privacy_bit) : 0;
         boat->owner_uid=player->pid+1;
         ToriRSServer_WorldSetActive(srv,player);

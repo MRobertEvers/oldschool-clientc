@@ -658,15 +658,15 @@ orbs_resolve_ids(struct OrbsState* state)
     if( state->ids_resolved )
         return;
     state->ids_resolved = true;
-    state->run_varp = orbs_varp(api, "run_varp", "run_mode", &run_undeclared);
-    state->spec_varp = orbs_varp(api, "spec_varp", "special_attack_energy", &spec_undeclared);
+    state->run_varp = orbs_varp(api, "run_varp", "varp173_run_mode", &run_undeclared);
+    state->spec_varp = orbs_varp(api, "spec_varp", "varp300_special_attack_energy", &spec_undeclared);
     /*
      * No config key: "armed" was `spec_varp + 1` for years, which is
      * arithmetic over a cache id and silently wrong on a lane that put it
      * anywhere else. A lane that has an armed bit declares it; a lane that
      * does not has no armed bit, and the orb simply never lights.
      */
-    state->spec_armed_varp = orbs_varp(api, NULL, "special_attack_armed", &armed_undeclared);
+    state->spec_armed_varp = orbs_varp(api, NULL, "varp301_special_attack_armed", &armed_undeclared);
 
     /*
      * The two the orbs READ are declared when they are missing; the armed bit
@@ -679,8 +679,8 @@ orbs_resolve_ids(struct OrbsState* state)
      * file a limitation against two shipping lanes that are behaving exactly
      * as this file intends.
      */
-    orbs_declare_missing(state, "run_mode", run_undeclared);
-    orbs_declare_missing(state, "special_attack_energy", spec_undeclared);
+    orbs_declare_missing(state, "varp173_run_mode", run_undeclared);
+    orbs_declare_missing(state, "varp300_special_attack_energy", spec_undeclared);
 }
 
 /*

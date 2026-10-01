@@ -155,7 +155,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "sheepherderquest",
+            varp = "varp60_sheepherderquest",
             constants = {
                 complete = 3,
                 not_started = 0,
@@ -320,7 +320,7 @@ return {
         -- sheep on, used below to aim a real approach tile at each one
         -- rather than trust a generic walk_near.
         local sheep_defs = {
-            { id = "1", npc = "plaguesheep_1", enclosure = "herder_plaguesheep_1_enclosure", bitvar = "sheepherder_sheep_a", bones = "sheepbonesa", goto_x = 2612, goto_z = 3342, pen_x = 2596, pen_z = 3362 },
+            { id = "1", npc = "plaguesheep_1", enclosure = "herder_plaguesheep_1_enclosure", bitvar = "varb2231_sheepherder_sheep_a", bones = "sheepbonesa", goto_x = 2612, goto_z = 3342, pen_x = 2596, pen_z = 3362 },
             -- plaguesheep_2's own spawn rows (m40_52.spawn) are 2621-2623,
             -- 3366-3367 -- x=2624 (this file's own earlier goto, kept from
             -- the scaffold) is the FIRST tile of the next map square
@@ -329,14 +329,14 @@ return {
             -- (measured: 68 of 75 presses `out_of_range`, the walk never
             -- actually leaving 2624 despite a valid open target). 2618 is
             -- comfortably inside the loaded square instead.
-            { id = "2", npc = "plaguesheep_2", enclosure = "herder_plaguesheep_2_enclosure", bitvar = "sheepherder_sheep_b", bones = "sheepbonesb", goto_x = 2618, goto_z = 3367, pen_x = 2597, pen_z = 3363 },
-            { id = "3", npc = "plaguesheep_3", enclosure = "herder_plaguesheep_3_enclosure", bitvar = "sheepherder_sheep_c", bones = "sheepbonesc", goto_x = 2558, goto_z = 3391, pen_x = 2597, pen_z = 3360 },
+            { id = "2", npc = "plaguesheep_2", enclosure = "herder_plaguesheep_2_enclosure", bitvar = "varb2232_sheepherder_sheep_b", bones = "sheepbonesb", goto_x = 2618, goto_z = 3367, pen_x = 2597, pen_z = 3363 },
+            { id = "3", npc = "plaguesheep_3", enclosure = "herder_plaguesheep_3_enclosure", bitvar = "varb2233_sheepherder_sheep_c", bones = "sheepbonesc", goto_x = 2558, goto_z = 3391, pen_x = 2597, pen_z = 3360 },
             -- Same map-square-boundary lesson as plaguesheep_2 above:
             -- m40_52 spans world z=3328..3391, and z=3393 (this file's own
             -- earlier goto) is two tiles into the NEXT square north
             -- (m40_53). 3388 is comfortably inside, still close to the
             -- 2610-2612,3390-3391 spawn cluster.
-            { id = "4", npc = "plaguesheep_4", enclosure = "herder_plaguesheep_4_enclosure", bitvar = "sheepherder_sheep_d", bones = "sheepbonesd", goto_x = 2613, goto_z = 3388, pen_x = 2596, pen_z = 3359 },
+            { id = "4", npc = "plaguesheep_4", enclosure = "herder_plaguesheep_4_enclosure", bitvar = "varb2234_sheepherder_sheep_d", bones = "sheepbonesd", goto_x = 2613, goto_z = 3388, pen_x = 2596, pen_z = 3359 },
         }
         local GATE_X_MIN, GATE_X_MAX = 2592, 2594
         local GATE_Z_MIN, GATE_Z_MAX = 3360, 3363

@@ -51,7 +51,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "crestquest",
+            varp = "varp148_crestquest",
             constants = {
                 not_started = 0,
                 spoken_dimintheis = 1,
@@ -520,7 +520,7 @@ return {
             end
             t.check("killChronizon." .. blast, weakened, "new 'Chronozon weakens...' line after " .. casts .. " cast(s); last cast: " .. last)
         end
-        local bits_r, bits = t.var.server("crest_spells_levers_gauntlets")
+        local bits_r, bits = t.var.server("varp6189_crest_spells_levers_gauntlets")
         t.check("killChronizon.allFourBlasts", bits_r == "ok" and type(bits) == "number" and bits % 16 == 15,
             "crest_spells_levers_gauntlets=" .. tostring(bits) .. " (low four bits = ^crest_all_spells_cast 15)")
         -- With all four bits set, one fire blast engages him and
@@ -564,7 +564,7 @@ return {
             "npc:whenever lost, or if the owner has died",
             "npc:They can also be granted extra powers",
         })
-        t.exec("quest.stage.complete", t.var.await_server, "crestquest", 11, 10)
+        t.exec("quest.stage.complete", t.var.await_server, "varp148_crestquest", 11, 10)
         t.ticks(3)
         t.quest.expect_complete()
         local rg_r, rg_d = t.inv.expect_has("steel_gauntlets", (sg_before or 0) + 1)

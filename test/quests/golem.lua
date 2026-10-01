@@ -32,7 +32,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "golem_a", -- a varbit (all.varbit.compack:347), bound the same as a varp
+            varp = "varb346_golem_a", -- a varbit (all.varbit.compack:347), bound the same as a varp
             constants = {
                 not_started = 0,
                 offered = 1,
@@ -88,7 +88,7 @@ return {
         local close1_result = t.chat.continue_()
         t.check("repairClay1-continue", close1_result == "ok", "chat.continue_ after repairClay1 -> " .. tostring(close1_result))
         t.ticks(1) -- a frame for the close to land before the next arm+click
-        local clay1_result, clay1_value = t.var.server("golem_clay")
+        local clay1_result, clay1_value = t.var.server("varb348_golem_clay")
         t.check("repairClay1-clay-var", clay1_result == "ok", "var.server golem_clay -> " .. tostring(clay1_result) .. " " .. tostring(clay1_value))
 
         local golem_target_r2, golem_target_r2_result = t.player.by_symbol("npc", "golem_golem")
@@ -97,7 +97,7 @@ return {
         local close2_result = t.chat.continue_()
         t.check("repairClay2-continue", close2_result == "ok", "chat.continue_ after repairClay2 -> " .. tostring(close2_result))
         t.ticks(1)
-        local clay2_result, clay2_value = t.var.server("golem_clay")
+        local clay2_result, clay2_value = t.var.server("varb348_golem_clay")
         t.check("repairClay2-clay-var", clay2_result == "ok", "var.server golem_clay -> " .. tostring(clay2_result) .. " " .. tostring(clay2_value))
 
         local golem_target_r3, golem_target_r3_result = t.player.by_symbol("npc", "golem_golem")
@@ -106,7 +106,7 @@ return {
         local close3_result = t.chat.continue_()
         t.check("repairClay3-continue", close3_result == "ok", "chat.continue_ after repairClay3 -> " .. tostring(close3_result))
         t.ticks(1)
-        local clay3_result, clay3_value = t.var.server("golem_clay")
+        local clay3_result, clay3_value = t.var.server("varb348_golem_clay")
         t.check("repairClay3-clay-var", clay3_result == "ok", "var.server golem_clay -> " .. tostring(clay3_result) .. " " .. tostring(clay3_value))
 
         local golem_target_r4, golem_target_r4_result = t.player.by_symbol("npc", "golem_golem")
@@ -163,7 +163,7 @@ return {
             "player:I found a letter in the desert with your name on it. It mentions notes by someone called Varmen.",
             "npc:Varmen? Oh, that old fossil! He used to work here. I think some of his old papers are still on the bookshelves in the Exam Centre.",
         })
-        local elissa_b_result, elissa_b_value = t.var.server("golem_b")
+        local elissa_b_result, elissa_b_value = t.var.server("varb347_golem_b")
         t.check("golem.b-elissa", elissa_b_result == "ok" and elissa_b_value == 2, "golem_b (varbit) = " .. tostring(elissa_b_value))
 
         -- Steal a feather from the desert phoenix -- [opnpc3,golem_phoenix],
@@ -306,7 +306,7 @@ return {
         local statuette_left_result, statuette_left = t.inv.count("golem_statuette")
         t.check("placeStatuette-consumed", statuette_left_result == "ok" and statuette_left == 0,
             "golem_statuette carried = " .. tostring(statuette_left))
-        local statusd1_result, statusd1_value = t.var.server("golem_statuettestatusd")
+        local statusd1_result, statusd1_value = t.var.server("varb352_golem_statuettestatusd")
         t.check("golem.statuetted-inserted", statusd1_result == "ok" and statusd1_value == 1,
             "golem_statuettestatusd (varbit) = " .. tostring(statusd1_value))
 
@@ -332,11 +332,11 @@ return {
 
         t.exec("turnStatuetteD", t.player.click_loc, "golem_statuetted", 1)
 
-        local statusa_result, statusa_value = t.var.server("golem_statuettestatusa")
+        local statusa_result, statusa_value = t.var.server("varb349_golem_statuettestatusa")
         t.check("golem.statuettea-turned", statusa_result == "ok" and statusa_value == 1, "golem_statuettestatusa (varbit) = " .. tostring(statusa_value))
-        local statusb_result, statusb_value = t.var.server("golem_statuettestatusb")
+        local statusb_result, statusb_value = t.var.server("varb350_golem_statuettestatusb")
         t.check("golem.statuetteb-turned", statusb_result == "ok" and statusb_value == 1, "golem_statuettestatusb (varbit) = " .. tostring(statusb_value))
-        local statusd2_result, statusd2_value = t.var.server("golem_statuettestatusd")
+        local statusd2_result, statusd2_value = t.var.server("varb352_golem_statuettestatusd")
         t.check("golem.statuetted-turned", statusd2_result == "ok" and statusd2_value == 2, "golem_statuettestatusd (varbit) = " .. tostring(statusd2_value))
         t.check("quest.stage.portal_open", t.quest.expect_stage("portal_open"))
 
@@ -362,12 +362,12 @@ return {
         -- is true before the click and proves nothing.
         local seen_result = t.await({
             level = function()
-                local r, v = t.var.server("golem_seen_underground")
+                local r, v = t.var.server("varb356_golem_seen_underground")
                 return r == "ok" and v == 1
             end,
             note = "golem_seen_underground flips after entering the portal",
         }, 20)
-        local seen_check_result, seen_check_value = t.var.server("golem_seen_underground")
+        local seen_check_result, seen_check_value = t.var.server("varb356_golem_seen_underground")
         t.check("enterPortal-seen", seen_result == "ok" and seen_check_value == 1,
             "await golem_seen_underground -> " .. tostring(seen_result) .. "; var.server -> " .. tostring(seen_check_result) .. " " .. tostring(seen_check_value))
         local tile_result, tile_now = t.world.tile()

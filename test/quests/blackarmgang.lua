@@ -106,7 +106,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "blackarmgang",
+            varp = "varp146_blackarmgang",
             constants = {
                 not_started = 0,
                 started = 1,
@@ -164,7 +164,7 @@ return {
             "player:Of course.",
             "npc:Ah yes. I know.",
         })
-        local phoenix_started_result, phoenix_started_value = t.var.server("phoenixgang")
+        local phoenix_started_result, phoenix_started_value = t.var.server("varp145_phoenixgang")
         t.check("reldo.phoenixgangStarted",
             phoenix_started_result == "ok" and phoenix_started_value == 1,
             string.format("t.var.server(phoenixgang) -> %s %s, expected 1 (phoenixgang_started) after reldo_phoenixstart's Yes.",
@@ -196,7 +196,7 @@ return {
             "mesbox:In the year 143 of the fifth age",
             "mesbox:The thieves became Varrock's most powerful crime gang.",
         })
-        local phoenix_read_result, phoenix_read_value = t.var.server("phoenixgang")
+        local phoenix_read_result, phoenix_read_value = t.var.server("varp145_phoenixgang")
         t.check("reldo.phoenixgangReadBook",
             phoenix_read_result == "ok" and phoenix_read_value == 2,
             string.format("t.var.server(phoenixgang) -> %s %s, expected 2 (phoenixgang_read_book) after reading the book",
@@ -218,7 +218,7 @@ return {
             "player:Thanks! I'll get to it!",
             "npc:Good luck.",
         })
-        local phoenix_spoken_result, phoenix_spoken_value = t.var.server("phoenixgang")
+        local phoenix_spoken_result, phoenix_spoken_value = t.var.server("varp145_phoenixgang")
         t.check("reldo.phoenixgangSpokenReldo",
             phoenix_spoken_result == "ok" and phoenix_spoken_value == 3,
             string.format("t.var.server(phoenixgang) -> %s %s, expected 3 (phoenixgang_spoken_reldo) -- Reldo named both Baraek and Charlie the Tramp",

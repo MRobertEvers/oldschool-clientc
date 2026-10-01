@@ -124,7 +124,7 @@ return {
         }
 
         t.quest.bind({
-            varp = "murderquest",
+            varp = "varp192_murderquest",
             constants = { not_started = 0, started = 1, complete = 2 },
             display = "Murder Mystery",
             points = 3,
@@ -225,7 +225,7 @@ return {
                 "murder_inspect_window (quest_murder_window.rs2:63-81) ran its " ..
                 "mesbox but granted no thread within 8 ticks of the chain ending: " ..
                 "none of murderthreadg/r/b turned up in the backpack. Without a " ..
-                "colour, %murdersus -- which quest_murder.varp declares with no " ..
+                "colour, %varp195_murdersus -- which quest_murder.varp declares with no " ..
                 "transmit body, so var.server reads 0 for it forever -- cannot be " ..
                 "narrowed to a pair from real state, and every evidence step below " ..
                 "would be guessing at the murderer instead of letting content " ..

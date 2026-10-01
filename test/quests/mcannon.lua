@@ -7,7 +7,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "mcannon",
+            varp = "varp0_mcannon",
             constants = { not_started = 0, tasked_with_fixing_railings = 1, tasked_with_checking_guard_tower = 2,
                 tasked_with_finding_goblin_cave = 3, tasked_with_finding_gilobs_son = 4,
                 return_to_dwarf_commander = 5, tasked_with_fixing_cannon = 6,

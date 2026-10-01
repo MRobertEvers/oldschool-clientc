@@ -35,7 +35,7 @@ return {
         "::give lobster 6", -- food for the pass's traps
     },
     bind = {
-        varp = "regicide_quest",
+        varp = "varp328_regicide_quest",
         constants = {
             not_started = 0, received_message = 1, spoken_lathas = 2, spoken_scouts = 3, spoken_iorwerth = 4,
             spoken_tracker = 5, shown_pendant = 6, found_footprints = 7, spoken_tracker2 = 8, defeated_guard = 9,

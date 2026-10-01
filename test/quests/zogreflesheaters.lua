@@ -59,7 +59,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "zogre",
+            varp = "varb487_zogre",
             constants = {
                 not_started = 0,
                 investigate = 1,
@@ -376,7 +376,7 @@ return {
         t.check("goUpToOgreSith.climbed", lad_tile.level == 1,
             tostring(lad_r) .. " " .. tostring(lad_d) .. " -- tile " .. lad_tile.x .. "," .. lad_tile.z .. "," .. lad_tile.level)
         t.check("quest.stage.sithik_ogre", t.quest.expect_stage("sithik_ogre"))
-        local tr_r, tr_v = t.var.server("thzfe_sithik_transformed")
+        local tr_r, tr_v = t.var.server("varb495_thzfe_sithik_transformed")
         t.check("goUpToOgreSith.transformed", tr_r == "ok" and tr_v == 1, "thzfe_sithik_transformed=" .. tostring(tr_v))
 
         -- ---- askSithQuestions / askAboutDiseaseAndOgres -----------------
@@ -403,8 +403,8 @@ return {
             "player:I'll tell Grish.",
             "end",
         })
-        local ba_r, ba_v = t.var.server("thzfe_makebrutalarrow")
-        local cd_r, cd_v = t.var.server("thzfe_makecuredisease")
+        local ba_r, ba_v = t.var.server("varb499_thzfe_makebrutalarrow")
+        local cd_r, cd_v = t.var.server("varb498_thzfe_makecuredisease")
         t.check("askAboutDiseaseAndOgres.bits", ba_v == 1 and cd_v == 1,
             "thzfe_makebrutalarrow=" .. tostring(ba_v) .. " thzfe_makecuredisease=" .. tostring(cd_v))
 
@@ -436,7 +436,7 @@ return {
             "mesbox:You can now fletch composite ogre bows and brutal arrows.",
             "end",
         })
-        local bow_r, bow_v = t.var.server("thzfe_makecompozogrebow")
+        local bow_r, bow_v = t.var.server("varb500_thzfe_makecompozogrebow")
         t.check("talkToGrishForBow.bit", bow_v == 1, "thzfe_makecompozogrebow=" .. tostring(bow_v))
 
         -- ---- Fletch the comp ogre bow + brutal arrows (now unlocked) -----

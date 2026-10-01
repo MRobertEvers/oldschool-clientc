@@ -284,17 +284,17 @@ fake_named_id_orbs(struct ToriRS_Api* api, char const* kind, char const* name, i
     (void)api;
     if( !g_profile_states_varps && strcmp(kind, "varp") == 0 )
         return false;
-    if( strcmp(kind, "varp") == 0 && strcmp(name, "run_mode") == 0 )
+    if( strcmp(kind, "varp") == 0 && strcmp(name, "varp173_run_mode") == 0 )
     {
         *out = 173;
         return true;
     }
-    if( strcmp(kind, "varp") == 0 && strcmp(name, "special_attack_energy") == 0 )
+    if( strcmp(kind, "varp") == 0 && strcmp(name, "varp300_special_attack_energy") == 0 )
     {
         *out = 300;
         return true;
     }
-    if( strcmp(kind, "varp") == 0 && strcmp(name, "special_attack_armed") == 0 )
+    if( strcmp(kind, "varp") == 0 && strcmp(name, "varp301_special_attack_armed") == 0 )
     {
         /* Deliberately NOT 301: the plugin used to read spec_varp + 1, and a
          * profile that put "armed" anywhere else was silently wrong. */
@@ -1310,8 +1310,8 @@ case_undeclared_varp_draws_nothing_and_says_so(void)
     count = Porcelain_Findings(handle(), found, PORCELAIN_FINDINGS_MAX);
     for( int i = 0; i < count; i++ )
         if( found[i].element.role &&
-            (strcmp(found[i].element.role, "run_mode varp id") == 0 ||
-             strcmp(found[i].element.role, "special_attack_energy varp id") == 0) )
+            (strcmp(found[i].element.role, "varp173_run_mode varp id") == 0 ||
+             strcmp(found[i].element.role, "varp300_special_attack_energy varp id") == 0) )
         {
             declared++;
             CHECK(found[i].expected, "the missing row is declared, so the finding is expected");

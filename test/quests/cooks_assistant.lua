@@ -56,7 +56,7 @@ return {
     -- quest.expect_complete's points row has a true "before" reading, and a
     -- leg resumed from a checkpoint (run.py --from-leg K) is bound the same.
     bind = {
-        varp = "cookquest",
+        varp = "varp29_cookquest",
         constants = { not_started = 0, started = 1, complete = 2 },
         row = "quest_cooksassistant",
         display = "Cook's Assistant",
@@ -288,7 +288,7 @@ return {
                 -- quest.expect_complete below.
                 local commit_settle_result, commit_settle_detail = t.await({
                     level = function()
-                        local r, v = t.var.server("cookquest")
+                        local r, v = t.var.server("varp29_cookquest")
                         return r == "ok" and v == 2
                     end,
                     note = "cooksassistant.commit_settle",

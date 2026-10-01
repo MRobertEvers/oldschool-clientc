@@ -3,6 +3,7 @@
 #include "../rsbuffer.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -177,9 +178,66 @@ cs2_write_local_type(struct cs2_writer* writer, struct RSCache_CS2_Variable* var
         cs2_put(writer, "array");
 }
 
+/** True for a spelling the compiler reads as a numbered global (`varbit542`). */
+static bool
+cs2_is_numbered_global(const char* name)
+{
+    static const char* const PREFIXES[] = {
+        "varclansetting", "varcstring", "varclan", "varcint", "varbit", "var",
+    };
+    for( size_t i = 0; i < sizeof(PREFIXES) / sizeof(PREFIXES[0]); i++ )
+    {
+        size_t length = strlen(PREFIXES[i]);
+        if( strncmp(name, PREFIXES[i], length) != 0 || !name[length] )
+            continue;
+        const char* c = name + length;
+        while( isdigit((unsigned char)*c) )
+            c++;
+        if( !*c )
+            return true;
+    }
+    return false;
+}
+
+/** A global variable's name from the tables, or NULL to print it numbered. */
+static const char*
+cs2_global_name(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable)
+{
+    enum RSCache_CS2_NameTable table;
+    switch( variable->kind )
+    {
+    case RSCACHE_CS2_VAR_VARP:
+        table = RSCACHE_CS2_NAMES_VARP;
+        break;
+    case RSCACHE_CS2_VAR_VARBIT:
+        table = RSCACHE_CS2_NAMES_VARBIT;
+        break;
+    case RSCACHE_CS2_VAR_VARCINT:
+        table = RSCACHE_CS2_NAMES_VARCINT;
+        break;
+    case RSCACHE_CS2_VAR_VARCSTRING:
+        table = RSCACHE_CS2_NAMES_VARCSTRING;
+        break;
+    default:
+        return NULL;
+    }
+    const char* name = writer->names ? RSCache_CS2_NamesLookup(writer->names, table, variable->id)
+                                     : NULL;
+    /* A name that reads as a different numbered global would compile to it. */
+    if( !name || cs2_is_numbered_global(name) )
+        return NULL;
+    return name;
+}
+
 static void
 cs2_write_var_identifier(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable)
 {
+    const char* global_name = cs2_global_name(writer, variable);
+    if( global_name )
+    {
+        cs2_put(writer, global_name);
+        return;
+    }
     struct RSCache_CS2_Variable* array = cs2_array_of_string_local(writer, variable);
     if( array )
         variable = array;

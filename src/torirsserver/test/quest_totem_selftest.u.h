@@ -85,7 +85,7 @@ selftest_quest_totem(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
                 };
                 static int const arrow_presses[4] = { 10, 6, 9, 7 };
                 int arrows[4];
-                int varp_traps = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "handelmort_traps_disabled");
+                int varp_traps = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6195_handelmort_traps_disabled");
                 int com_enter = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "tribal_door:tribalenter");
                 int resolved = varp_traps >= 0 && com_enter >= 0;
 

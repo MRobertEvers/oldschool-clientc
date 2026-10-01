@@ -91,7 +91,7 @@ return {
         -- row of its own) -- quest.stage/expect_stage resolve that
         -- transparently.
         t.quest.bind({
-            varp = "tog_juna_bowl",
+            varp = "varb451_tog_juna_bowl",
             constants = {
                 not_started = 0,
                 need_bowl = 1,

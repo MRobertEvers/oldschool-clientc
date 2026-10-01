@@ -66,7 +66,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "mdaughter_quest_var",
+            varp = "varb260_mdaughter_quest_var",
             constants = {
                 not_started = 0,
                 started = 10,

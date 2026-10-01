@@ -65,7 +65,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "dwarfrock_quest",
+            varp = "varb299_dwarfrock_quest",
             constants = {
                 not_started = 0,
                 told_of_rock = 10,
@@ -272,7 +272,7 @@ return {
             "npc:Now that's not a bad thought",
             "mesbox:Dondakan agrees to try firing",
         })
-        t.exec("useGoldBarOnDondakan.flag", t.var.await_server, "dwarfrock_gold_cannonball", 1, 5)
+        t.exec("useGoldBarOnDondakan.flag", t.var.await_server, "varb301_dwarfrock_gold_cannonball", 1, 5)
 
         -- ============================================================
         -- Furnace -- smelt a gold bar into the golden cannonball
@@ -479,9 +479,9 @@ return {
         -- piece is selected, or moving/rotating piece 2 also drags piece
         -- 1's already-correct rot/dx/dy back off zero.
         local puzzle_pieces = {
-            { n = 1, select = w_select1, dx = "dwarfrock_puzzle_dx1", dy = "dwarfrock_puzzle_dy1", rot = "dwarfrock_puzzle_rot1" },
-            { n = 2, select = w_select2, dx = "dwarfrock_puzzle_dx2", dy = "dwarfrock_puzzle_dy2", rot = "dwarfrock_puzzle_rot2" },
-            { n = 3, select = w_select3, dx = "dwarfrock_puzzle_dx3", dy = "dwarfrock_puzzle_dy3", rot = "dwarfrock_puzzle_rot3" },
+            { n = 1, select = w_select1, dx = "varp7153_dwarfrock_puzzle_dx1", dy = "varp7156_dwarfrock_puzzle_dy1", rot = "varp7168_dwarfrock_puzzle_rot1" },
+            { n = 2, select = w_select2, dx = "varp7154_dwarfrock_puzzle_dx2", dy = "varp7157_dwarfrock_puzzle_dy2", rot = "varp7169_dwarfrock_puzzle_rot2" },
+            { n = 3, select = w_select3, dx = "varp7155_dwarfrock_puzzle_dx3", dy = "varp7158_dwarfrock_puzzle_dy3", rot = "varp7170_dwarfrock_puzzle_rot3" },
         }
         for _, piece in ipairs(puzzle_pieces) do
             t.ui.invoke(piece.select, 1) -- select ON (togglebit)
@@ -534,7 +534,7 @@ return {
             t.ui.invoke(piece.select, 1) -- select OFF (toggle back) before the next piece
         end
 
-        local solved_result, solved_value = t.var.server("dwarfrock_schematics_solved")
+        local solved_result, solved_value = t.var.server("varb305_dwarfrock_schematics_solved")
         t.step("schematicPuzzle-solved", (solved_result == "ok" and solved_value == 1) and "PASS" or "FAIL",
             "var.server(dwarfrock_schematics_solved) -> " .. tostring(solved_result) .. " " .. tostring(solved_value))
 
@@ -767,7 +767,7 @@ return {
             kill_attempts = kill_attempts + 1
             local atk_result, atk_detail = t.player.attack(avatar_sym, 2, 30)
             t.check("attackAvatar-" .. kill_attempts, atk_result == "ok" or atk_result == "timeout", atk_detail)
-            kill_stage_result = t.var.await_server("dwarfrock_quest", 100, 15)
+            kill_stage_result = t.var.await_server("varb299_dwarfrock_quest", 100, 15)
         end
         t.check("killAvatar", kill_stage_result == "ok",
             "dwarfrock_quest var.await_server(...,100,15) after " .. tostring(kill_attempts)

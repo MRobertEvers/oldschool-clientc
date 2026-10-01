@@ -1,10 +1,10 @@
 local patches = {
-    { "Delphinium", "garden_delphinium_patch", "garden_delphinium_seed", 4, "garden_delphiniums_varbit", 3226, 3477 },
-    { "Snowdrop", "garden_snowdrop_patch", "garden_snowdrop_seed", 4, "garden_snowdrops_varbit", 3232, 3483 },
-    { "Vine", "garden_vine_patch", "garden_vine_seed", 4, "garden_vines_varbit", 3227, 3483 },
-    { "PinkRose", "garden_rosebush_patch_pink", "garden_rosebush_seed_pink", 4, "garden_rosebush_pink_varbit", 3227, 3472 },
-    { "WhiteRose", "garden_rosebush_patch_white", "garden_rosebush_seed_white", 4, "garden_rosebush_white_varbit", 3232, 3472 },
-    { "RedRose", "garden_rosebush_patch_red", "garden_rosebush_seed_red", 4, "garden_rosebush_red_varbit", 3229, 3472 },
+    { "Delphinium", "garden_delphinium_patch", "garden_delphinium_seed", 4, "varb982_garden_delphiniums_varbit", 3226, 3477 },
+    { "Snowdrop", "garden_snowdrop_patch", "garden_snowdrop_seed", 4, "varb983_garden_snowdrops_varbit", 3232, 3483 },
+    { "Vine", "garden_vine_patch", "garden_vine_seed", 4, "varb987_garden_vines_varbit", 3227, 3483 },
+    { "PinkRose", "garden_rosebush_patch_pink", "garden_rosebush_seed_pink", 4, "varb981_garden_rosebush_pink_varbit", 3227, 3472 },
+    { "WhiteRose", "garden_rosebush_patch_white", "garden_rosebush_seed_white", 4, "varb980_garden_rosebush_white_varbit", 3232, 3472 },
+    { "RedRose", "garden_rosebush_patch_red", "garden_rosebush_seed_red", 4, "varb979_garden_rosebush_red_varbit", 3229, 3472 },
 }
 return {
     id = "gardenoftranquility",
@@ -24,7 +24,7 @@ return {
         "::give bucket_compost 2",
     },
     run = function(t)
-        t.quest.bind({ varp = "garden_quest",
+        t.quest.bind({ varp = "varb961_garden_quest",
             constants = { not_started = 0, told = 10, asked_ring = 20, retry = 30, chapter = 40, roald = 50, complete = 60 },
             row = "quest_gardenoftranquillity", display = "Garden of Tranquillity", points = 2 })
         t.ticks(3)
@@ -94,7 +94,7 @@ return {
             "player:Okay, I'll grow",
         })
         t.ticks(2)
-        t.expect("elstan.talked", t.var.expect("garden_elstan_varbit", 1))
+        t.expect("elstan.talked", t.var.expect("varb967_garden_elstan_varbit", 1))
         t.exec("goto-plantMarigolds", t.player.goto_tile, 3055, 3309, 0)
         t.exec("rakeMarigolds", t.player.click_loc, "farming_flower_patch_1", 1)
         t.ticks(30)
@@ -106,7 +106,7 @@ return {
         end
         t.exec("plantMarigolds", t.player.use_on, "marigold_seed", t.player.by_symbol("loc", "farming_flower_patch_1"))
         t.ticks(8)
-        t.expect("elstan.planted", t.var.expect("garden_elstan_varbit", 2))
+        t.expect("elstan.planted", t.var.expect("varb967_garden_elstan_varbit", 2))
         for i = 1, 4 do
             t.exec("wait-growth" .. i, t.clock.skip, 6)
             t.exec("catchup-talk" .. i, t.player.talk_to, "elstan", 1)
@@ -115,7 +115,7 @@ return {
         end
         t.exec("collectMarigold", t.player.click_loc, "farming_flower_patch_1", 1)
         t.ticks(10)
-        t.expect("elstan.harvested", t.var.expect("garden_elstan_varbit", 3))
+        t.expect("elstan.harvested", t.var.expect("varb967_garden_elstan_varbit", 3))
         t.exec("marigold-in-pack", t.inv.await, "marigold", 1, 10)
         t.exec("giveElstanMarigold", t.player.talk_to, "elstan", 1)
         t.exec("giveElstanMarigold-dialog", t.chat.play, {
@@ -123,7 +123,7 @@ return {
             "npc:Wonderful",
         })
         t.exec("delphinium", t.inv.await, "garden_delphinium_seed", 4, 10)
-        t.expect("elstan.done", t.var.expect("garden_elstan_varbit", 4))
+        t.expect("elstan.done", t.var.expect("varb967_garden_elstan_varbit", 4))
         t.exec("goto-talkToLyra", t.player.goto_tile, 3607, 3528, 0)
         t.exec("talkToLyra", t.player.talk_to, "lyra", 1)
         t.exec("talkToLyra-dialog", t.chat.play, {
@@ -135,7 +135,7 @@ return {
             "player:That's a deal",
         })
         t.ticks(2)
-        t.expect("lyra.talked", t.var.expect("garden_lyra_varbit", 1))
+        t.expect("lyra.talked", t.var.expect("varb968_garden_lyra_varbit", 1))
         t.exec("goto-rakeOnions", t.player.goto_tile, 3602, 3531, 0)
         t.exec("rakeOnions", t.player.click_loc, "farming_veg_patch_7", 1)
         t.ticks(40)
@@ -147,9 +147,9 @@ return {
         end
         t.exec("plantOnions", t.player.use_on, "onion_seed", t.player.by_symbol("loc", "farming_veg_patch_7"))
         t.ticks(8)
-        local v0, v1 = t.var.varbit("varbit_714")
+        local v0, v1 = t.var.varbit("varb714_varbit_714")
         t.check("patch7-planted", true, "varbit_714 = " .. tostring(v1))
-        t.expect("patch7.marker", t.var.expect("garden_patch_7_varbit", 1))
+        t.expect("patch7.marker", t.var.expect("varb969_garden_patch_7_varbit", 1))
         t.exec("seeds-consumed", t.inv.await, "onion_seed", 3, 5)
         -- too early: Lyra says still waiting
         t.exec("talkToLyra-early", t.player.talk_to, "lyra", 1)
@@ -162,7 +162,7 @@ return {
             t.exec("catchup-dialog" .. i, t.chat.play, { "npc:*" })
             t.ticks(2)
         end
-        local vr, vv = t.var.varbit("varbit_714")
+        local vr, vv = t.var.varbit("varb714_varbit_714")
         t.check("patch7-state", true, "varbit_714 = " .. tostring(vv))
         t.exec("talkToLyraAgain-dialog", t.chat.play, {
             "player:Okay, I've grown those onions",
@@ -170,7 +170,7 @@ return {
         })
         t.exec("orchids-pink", t.inv.await, "garden_orchid_pink_seed", 3, 10)
         t.exec("orchids-yellow", t.inv.await, "garden_orchid_yellow_seed", 3, 10)
-        t.expect("lyra.done", t.var.expect("garden_lyra_varbit", 3))
+        t.expect("lyra.done", t.var.expect("varb968_garden_lyra_varbit", 3))
         -- Kragen
         t.exec("goto-talkToKragen", t.player.goto_tile, 2669, 3376, 0)
         t.exec("talkToKragen", t.player.talk_to, "kragen", 1)
@@ -183,7 +183,7 @@ return {
             "player:That's a deal",
         })
         t.ticks(2)
-        t.expect("kragen.talked", t.var.expect("garden_kragen_varbit", 1))
+        t.expect("kragen.talked", t.var.expect("varb971_garden_kragen_varbit", 1))
         t.exec("goto-rakeCabbage", t.player.goto_tile, 2669, 3380, 0)
         t.exec("rakeCabbage", t.player.click_loc, "farming_veg_patch_5", 1)
         t.ticks(30)
@@ -195,7 +195,7 @@ return {
         end
         t.exec("plantCabbage", t.player.use_on, "cabbage_seed", t.player.by_symbol("loc", "farming_veg_patch_5"))
         t.ticks(8)
-        t.expect("patch5.marker", t.var.expect("garden_patch_5_varbit", 1))
+        t.expect("patch5.marker", t.var.expect("varb974_garden_patch_5_varbit", 1))
         for i = 1, 8 do
             t.exec("wait-growth-cabbage" .. i, t.clock.skip, 11)
             t.exec("talkToKragenAgain" .. i, t.player.talk_to, "kragen", 1)
@@ -208,7 +208,7 @@ return {
             "npc:Excellent",
         })
         t.exec("snowdrop", t.inv.await, "garden_snowdrop_seed", 4, 10)
-        t.expect("kragen.done", t.var.expect("garden_kragen_varbit", 3))
+        t.expect("kragen.done", t.var.expect("varb971_garden_kragen_varbit", 3))
         -- Dantaera
         t.exec("goto-talkToDantaera", t.player.goto_tile, 2812, 3463, 0)
         t.exec("talkToDantaera", t.player.talk_to, "dantaera", 1)
@@ -219,11 +219,11 @@ return {
             "player:Thank you",
         })
         t.ticks(2)
-        t.expect("dantaera.talked", t.var.expect("garden_dantaera_varbit", 1))
+        t.expect("dantaera.talked", t.var.expect("varb976_garden_dantaera_varbit", 1))
         t.exec("goto-useSecateursOnWhiteTree", t.player.goto_tile, 3008, 3496, 0)
         t.exec("useSecateursOnWhiteTree", t.player.use_on, "secateurs", t.player.by_symbol("loc", "garden_white_tree_dead"))
         t.exec("shoot", t.inv.await, "garden_white_tree_shoot", 1, 15)
-        t.expect("dantaera.cut", t.var.expect("garden_dantaera_varbit", 2))
+        t.expect("dantaera.cut", t.var.expect("varb976_garden_dantaera_varbit", 2))
         t.exec("useShootOnPot", t.player.use_item_on_item, "garden_white_tree_shoot", "plantpot_compost")
         t.exec("potted", t.inv.await, "garden_white_tree_plantpot_shoot", 1, 10)
         t.exec("useCanOnPot", t.player.use_item_on_item, "watering_can_8", "garden_white_tree_plantpot_shoot")
@@ -241,7 +241,7 @@ return {
             "npc:Why, thank you",
         })
         t.ticks(2)
-        t.expect("althric.talked", t.var.expect("garden_althric_varbit", 1))
+        t.expect("althric.talked", t.var.expect("varb977_garden_althric_varbit", 1))
         -- roses are refused before the ring is in the well
         t.exec("roses-early", t.player.click_loc, "garden_roses_white", 1)
         t.ticks(4)
@@ -251,8 +251,8 @@ return {
         t.exec("goto-useCharosOnWell", t.player.goto_tile, 3085, 3501, 0)
         t.exec("useCharosOnWell", t.player.use_on, "ring_of_charos_unlocked", t.player.by_symbol("loc", "well"))
         t.ticks(4)
-        t.expect("ring.in-well", t.var.expect("garden_ring_in_well_varbit", 1))
-        t.expect("althric.can_pick", t.var.expect("garden_althric_varbit", 2))
+        t.expect("ring.in-well", t.var.expect("varb966_garden_ring_in_well_varbit", 1))
+        t.expect("althric.can_pick", t.var.expect("varb977_garden_althric_varbit", 2))
         t.exec("ring-gone", t.inv.await, "ring_of_charos_unlocked", 0, 5)
         t.exec("goto-pickWhiteRoses", t.player.goto_tile, 3055, 3503, 0)
         t.exec("pickWhiteRoses", t.player.click_loc, "garden_roses_white", 1)
@@ -271,7 +271,7 @@ return {
             if r == "ok" and c == 1 then break end
         end
         t.exec("ring-back", t.inv.await, "ring_of_charos_unlocked", 1, 10)
-        t.expect("ring.out-of-well", t.var.expect("garden_ring_in_well_varbit", 0))
+        t.expect("ring.out-of-well", t.var.expect("varb966_garden_ring_in_well_varbit", 0))
         t.exec("wear-ring2", t.player.equip, "ring_of_charos_unlocked")
         -- Bernald
         t.exec("goto-talkToBernald", t.player.goto_tile, 2915, 3533, 0)
@@ -284,10 +284,10 @@ return {
             "player:I accept",
         })
         t.ticks(2)
-        t.expect("bernald.talked", t.var.expect("garden_bernald_varbit", 1))
+        t.expect("bernald.talked", t.var.expect("varb988_garden_bernald_varbit", 1))
         t.exec("useCureOnVine", t.player.use_on, "plant_cure", t.player.by_symbol("loc", "garden_burthorpe_vines"))
         t.ticks(4)
-        t.expect("bernald.used_cure", t.var.expect("garden_bernald_varbit", 2))
+        t.expect("bernald.used_cure", t.var.expect("varb988_garden_bernald_varbit", 2))
         -- Alain, ring unequipped
         t.exec("unequip-ring2", t.player.unequip, "ring_of_charos_unlocked")
         t.exec("goto-talkToAlain", t.player.goto_tile, 2933, 3440, 0)
@@ -297,7 +297,7 @@ return {
             "npc:Ah",
         })
         t.ticks(2)
-        t.expect("bernald.talked_alain", t.var.expect("garden_bernald_varbit", 3))
+        t.expect("bernald.talked_alain", t.var.expect("varb988_garden_bernald_varbit", 3))
         t.exec("useHammerOnEssence", t.player.use_item_on_item, "hammer", "blankrune")
         t.exec("shards", t.inv.await, "rune_shards", 1, 10)
         t.exec("usePestleOnShards", t.player.use_item_on_item, "pestle_and_mortar", "rune_shards")
@@ -308,11 +308,11 @@ return {
         t.exec("goto-useMagicalCureOnVine", t.player.goto_tile, 2915, 3533, 0)
         t.exec("useMagicalCureOnVine", t.player.use_on, "plant_cure_strong", t.player.by_symbol("loc", "garden_burthorpe_vines"))
         t.ticks(4)
-        t.expect("bernald.cured", t.var.expect("garden_bernald_varbit", 4))
+        t.expect("bernald.cured", t.var.expect("varb988_garden_bernald_varbit", 4))
         t.exec("talkToBernaldForSeeds", t.player.talk_to, "bernald", 1)
         t.exec("talkToBernaldForSeeds-dialog", t.chat.play, { "npc:The vines look wonderful" })
         t.exec("vine-seeds", t.inv.await, "garden_vine_seed", 4, 10)
-        t.expect("bernald.done", t.var.expect("garden_bernald_varbit", 5))
+        t.expect("bernald.done", t.var.expect("varb988_garden_bernald_varbit", 5))
         t.exec("goto-garden", t.player.goto_tile, 3229, 3479, 0)
         for _, p in ipairs(patches) do
             t.exec("rake" .. p[1], t.player.click_loc, p[2], 1)
@@ -332,7 +332,7 @@ return {
         -- white tree: rake, spade + sapling
         t.exec("rakeWhiteTree", t.player.click_loc, "garden_white_tree_patch", 1)
         t.ticks(40)
-        t.expect("weededWhiteTree", t.var.expect("garden_white_tree_varbit", 3))
+        t.expect("weededWhiteTree", t.var.expect("varb985_garden_white_tree_varbit", 3))
         for i = 1, 12 do
             local wr, wc = t.inv.count("weeds")
             if wc == 0 then break end
@@ -341,21 +341,21 @@ return {
         end
         t.exec("plantWhiteTree", t.player.use_on, "garden_white_tree_plantpot_sapling", t.player.by_symbol("loc", "garden_white_tree_patch"))
         t.ticks(8)
-        t.expect("plantedWhiteTree", t.var.expect("garden_white_tree_varbit", 4))
+        t.expect("plantedWhiteTree", t.var.expect("varb985_garden_white_tree_varbit", 4))
         -- orchids: compost, then 3 seeds
         t.exec("fillPotWithCompost", t.player.use_on, "bucket_compost", t.player.by_symbol("loc", "garden_orchid_pink_patch"))
         t.ticks(6)
-        t.expect("composted-pink", t.var.expect("garden_orchids_pink_varbit", 1))
+        t.expect("composted-pink", t.var.expect("varb984_garden_orchids_pink_varbit", 1))
         t.exec("fillPotWithCompost2", t.player.use_on, "bucket_compost", t.player.by_symbol("loc", "garden_orchid_yellow_patch"))
         t.ticks(6)
-        t.expect("composted-yellow", t.var.expect("garden_orchids_yellow_varbit", 1))
+        t.expect("composted-yellow", t.var.expect("varb986_garden_orchids_yellow_varbit", 1))
         t.exec("buckets-back", t.inv.await, "bucket_empty", 2, 5)
         t.exec("plantPinkOrchid", t.player.use_on, "garden_orchid_pink_seed", t.player.by_symbol("loc", "garden_orchid_pink_patch"))
         t.ticks(8)
-        t.expect("planted-pink-orchid", t.var.expect("garden_orchids_pink_varbit", 4))
+        t.expect("planted-pink-orchid", t.var.expect("varb984_garden_orchids_pink_varbit", 4))
         t.exec("plantYellowOrchid", t.player.use_on, "garden_orchid_yellow_seed", t.player.by_symbol("loc", "garden_orchid_yellow_patch"))
         t.ticks(8)
-        t.expect("planted-yellow-orchid", t.var.expect("garden_orchids_yellow_varbit", 4))
+        t.expect("planted-yellow-orchid", t.var.expect("varb986_garden_orchids_yellow_varbit", 4))
         -- growth: one stage per catch-up; Ellamaria's talk runs it
         t.exec("goto-ellamaria", t.player.goto_tile, 3230, 3477, 0)
         t.exec("talkToEllamariaForTrolley", t.player.talk_to, "queen_ellamaria", 1)
@@ -370,15 +370,15 @@ return {
             t.exec("catchup-drain" .. i, t.chat.drain, { max_pages = 10 })
             t.ticks(2)
         end
-        t.expect("grown-delphinium", t.var.expect("garden_delphiniums_varbit", 7))
-        t.expect("grown-orchid", t.var.expect("garden_orchids_yellow_varbit", 7))
-        t.expect("grown-whitetree", t.var.expect("garden_white_tree_varbit", 8))
+        t.expect("grown-delphinium", t.var.expect("varb982_garden_delphiniums_varbit", 7))
+        t.expect("grown-orchid", t.var.expect("varb986_garden_orchids_yellow_varbit", 7))
+        t.expect("grown-whitetree", t.var.expect("varb985_garden_white_tree_varbit", 8))
         -- Lumbridge
         t.exec("goto-lumbridgeStatue", t.player.goto_tile, 3231, 3219, 0)
         t.exec("useTrolleyOnLumbridgeStatue", t.player.use_on, "garden_trolley_obj", t.player.by_symbol("loc", "garden_lumbridge_statue"))
         t.ticks(4)
-        t.expect("king.in-transit", t.var.expect("garden_king_statue_varbit", 1))
-        t.expect("trolley.king", t.var.expect("garden_trolley_varbit", 2))
+        t.expect("king.in-transit", t.var.expect("varb964_garden_king_statue_varbit", 1))
+        t.expect("trolley.king", t.var.expect("varb965_garden_trolley_varbit", 2))
         t.exec("trolley-consumed", t.inv.await, "garden_trolley_obj", 0, 5)
         for _, m in ipairs({
             { "pushLumbridgeStatue-lumE1", 1, 0, 3 },
@@ -422,15 +422,15 @@ return {
         t.check("pushLumbridgeStatue", lumpr == "ok", "trolley pushed to the plinth, now at " .. tostring(lumprow and lumprow.x) .. "," .. tostring(lumprow and lumprow.z))
         t.exec("placeLumbridgeStatue", t.player.press, "garden_trolley", 5, 8)
         t.ticks(4)
-        t.expect("king.placed", t.var.expect("garden_king_statue_varbit", 2))
-        t.expect("trolley.empty", t.var.expect("garden_trolley_varbit", 0))
+        t.expect("king.placed", t.var.expect("varb964_garden_king_statue_varbit", 2))
+        t.expect("trolley.empty", t.var.expect("varb965_garden_trolley_varbit", 0))
         t.exec("trolley-returned", t.inv.await, "garden_trolley_obj", 1, 10)
         -- Falador
         t.exec("goto-faladorStatue", t.player.goto_tile, 2965, 3383, 0)
         t.exec("useTrolleyOnFaladorStatue", t.player.use_on, "garden_trolley_obj", t.player.by_symbol("loc", "falador_statue_saradomin"))
         t.ticks(4)
-        t.expect("sara.in-transit", t.var.expect("garden_saradomin_statue_varbit", 1))
-        t.expect("trolley.sara", t.var.expect("garden_trolley_varbit", 1))
+        t.expect("sara.in-transit", t.var.expect("varb963_garden_saradomin_statue_varbit", 1))
+        t.expect("trolley.sara", t.var.expect("varb965_garden_trolley_varbit", 1))
         for _, m in ipairs({
             { "pushFaladorStatue-falN", 0, 1, 19 },
         }) do
@@ -472,7 +472,7 @@ return {
         t.check("pushFaladorStatue", falpr == "ok", "trolley pushed to the plinth, now at " .. tostring(falprow and falprow.x) .. "," .. tostring(falprow and falprow.z))
         t.exec("placeFaladorStatue", t.player.press, "garden_trolley", 5, 8)
         t.ticks(4)
-        t.expect("sara.placed", t.var.expect("garden_saradomin_statue_varbit", 2))
+        t.expect("sara.placed", t.var.expect("varb963_garden_saradomin_statue_varbit", 2))
         -- approval and Roald
         t.exec("goto-ellamaria2", t.player.goto_tile, 3230, 3477, 0)
         t.exec("talkToEllmariaAfterGrown", t.player.talk_to, "queen_ellamaria", 1)

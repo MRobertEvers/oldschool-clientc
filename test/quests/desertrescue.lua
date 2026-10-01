@@ -50,7 +50,7 @@ return {
 
     run = function(t)
         local br, bd = t.quest.bind({
-            varp = "desertrescue",
+            varp = "varp197_desertrescue",
             constants = { not_started = 0, complete = 30 },
             row = "quest_touristtrap",
             display = "Tourist Trap",
@@ -81,7 +81,7 @@ return {
             "*",
             "*",
         })
-        t.exec("quest.stage.started", t.var.await_server, "desertrescue", 1, 15)
+        t.exec("quest.stage.started", t.var.await_server, "varp197_desertrescue", 1, 15)
 
         -- ================= The Mercenary Captain's duel =================
         t.exec("goto-talkToCaptain", t.player.goto_tile, 3270, 3029, 0)
@@ -109,16 +109,16 @@ return {
             "*",
             "*",
         })
-        t.exec("quest.stage.approached_captain", t.var.await_server, "desertrescue", 3, 15)
+        t.exec("quest.stage.approached_captain", t.var.await_server, "varp197_desertrescue", 3, 15)
         t.exec("talkToCaptain-attack", t.player.attack, "desertminingcaptain", 2, 20)
         t.exec("talkToCaptain-dead", t.npc.await_dead_engaged, 90, 8)
-        t.exec("quest.stage.killed_capt", t.var.await_server, "desertrescue", 4, 15)
+        t.exec("quest.stage.killed_capt", t.var.await_server, "varp197_desertrescue", 4, 15)
         t.exec("talkToCaptain-key", t.inv.await, "metal_key", 1, 5)
 
         -- ================= Into the camp; the clothes slave =================
         t.exec("goto-enterCamp", t.player.goto_tile, 3272, 3029, 0)
         t.exec("enterCamp", t.player.click_loc, "miningcampgateclosedl", 1)
-        t.exec("quest.stage.entered_camp", t.var.await_server, "desertrescue", 5, 15)
+        t.exec("quest.stage.entered_camp", t.var.await_server, "varp197_desertrescue", 5, 15)
 
         t.exec("goto-talkToSlave", t.player.goto_tile, 3302, 3025, 0)
         t.exec("talkToSlave", t.player.talk_to, "tourtrap_qip_mineslave_clothes_multi", 1)
@@ -179,10 +179,10 @@ return {
             t.exec("talkToSlave-retry" .. i, t.chat.choose, retryRow)
         end
         t.check("talkToSlave-lockpicked", tradeRow ~= nil, "reached the trade menu -> " .. tostring(tradeRow))
-        t.exec("quest.stage.freed_slave", t.var.await_server, "desertrescue", 7, 15)
+        t.exec("quest.stage.freed_slave", t.var.await_server, "varp197_desertrescue", 7, 15)
         t.exec("talkToSlave-dialog-2", t.chat.choose, tradeRow or "Yes, I'll trade.")
         t.exec("talkToSlave-dialog-2-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.traded_clothes", t.var.await_server, "desertrescue", 8, 15)
+        t.exec("quest.stage.traded_clothes", t.var.await_server, "varp197_desertrescue", 8, 15)
         t.exec("talkToSlave-shirt", t.inv.expect_has, "slave_shirt", 1)
         t.exec("talkToSlave-robe", t.inv.expect_has, "slave_robe", 1)
         t.exec("talkToSlave-boots", t.inv.expect_has, "slave_boots", 1)
@@ -200,7 +200,7 @@ return {
         t.exec("goto-enterMine", t.player.goto_tile, 3301, 3035, 0)
         t.exec("enterMine", t.player.click_loc, "thttmineentrancel", 1)
         t.ticks(2)
-        t.exec("quest.stage.entered_mine", t.var.await_server, "desertrescue", 9, 15)
+        t.exec("quest.stage.entered_mine", t.var.await_server, "varp197_desertrescue", 9, 15)
 
         t.exec("goto-talkToGuard", t.player.goto_tile, 3277, 9415, 0)
         t.exec("talkToGuard", t.player.talk_to, "tourtrap_qip_desert_mining_guard_still_2", 1)
@@ -222,7 +222,7 @@ return {
             "*",
             "*",
         })
-        t.exec("quest.stage.finding_pineapple", t.var.await_server, "desertrescue", 10, 15)
+        t.exec("quest.stage.finding_pineapple", t.var.await_server, "varp197_desertrescue", 10, 15)
 
         t.exec("goto-leaveMine", t.player.goto_tile, 3278, 9426, 0)
         t.exec("leaveMine", t.player.click_loc, "thttmineexitl", 1)
@@ -277,7 +277,7 @@ return {
             "*",
             "*",
         })
-        t.exec("quest.stage.given_bedobin_key", t.var.await_server, "desertrescue", 11, 15)
+        t.exec("quest.stage.given_bedobin_key", t.var.await_server, "varp197_desertrescue", 11, 15)
         t.exec("talkToShabim-key", t.inv.expect_has, "thbedobinkey", 1)
 
         -- ================= Captain Siad's chest =================
@@ -309,12 +309,12 @@ return {
             "*",
             "*",
         })
-        local rsail, vsail = t.var.server("desertrescue_map_mechanisms")
+        local rsail, vsail = t.var.server("varp5981_desertrescue_map_mechanisms")
         t.check("talkToSiad-distracted", rsail == "ok" and vsail and (math.floor(vsail / 256) % 2) == 1, "map_mechanisms -> " .. tostring(vsail) .. " (bit 8 = distracted_siad)")
 
         t.exec("searchChest", t.player.click_loc, "captain_siads_chest_closed", 1)
         t.exec("searchChest-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.retrieved_plans", t.var.await_server, "desertrescue", 12, 15)
+        t.exec("quest.stage.retrieved_plans", t.var.await_server, "varp197_desertrescue", 12, 15)
         t.exec("searchChest-plans", t.inv.await, "thcaptplans", 1, 5)
 
         -- ================= Al Shabim: show the plans =================
@@ -336,7 +336,7 @@ return {
             "*",
             "*",
         })
-        t.exec("quest.stage.shown_plans_shabim", t.var.await_server, "desertrescue", 13, 15)
+        t.exec("quest.stage.shown_plans_shabim", t.var.await_server, "varp197_desertrescue", 13, 15)
 
         -- ================= The Bedabin tent: anvil and darts =================
         t.exec("goto-talkToTentGuard", t.player.goto_tile, 3170, 3044, 0)
@@ -408,7 +408,7 @@ return {
         end
         t.check("useAnvil-tip-made", dartTipMade, "made the dart tip -> " .. tostring(dartTipMade))
         t.exec("useAnvil-tip", t.inv.await, "thprotodarttip", 1, 10)
-        t.exec("quest.stage.made_dart_tip", t.var.await_server, "desertrescue", 14, 15)
+        t.exec("quest.stage.made_dart_tip", t.var.await_server, "varp197_desertrescue", 14, 15)
 
         t.exec("useFeatherOnTip", t.player.use_item_on_item, "feather", "thprotodarttip")
         t.exec("useFeatherOnTip-note", t.chat.drain, { shots = true, max_pages = 10 })
@@ -419,7 +419,7 @@ return {
             t.chat.drain({ shots = false, max_pages = 10 })
         end
         t.exec("useFeatherOnTip-dart", t.inv.await, "thprotodart", 1, 10)
-        t.exec("quest.stage.finished_dart", t.var.await_server, "desertrescue", 15, 15)
+        t.exec("quest.stage.finished_dart", t.var.await_server, "varp197_desertrescue", 15, 15)
 
         t.exec("leaveTent", t.player.click_loc, "bedabin_tentdoor", 1)
         t.ticks(3)
@@ -435,7 +435,7 @@ return {
         local ar1 = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Al Shabim's second half after if_close" }, 10)
         t.check("bringPrototypeToShabim-reopen", ar1 == "ok", "await reopen -> " .. tostring(ar1))
         t.exec("bringPrototypeToShabim-dialog-2", t.chat.drain, { shots = true, max_pages = 15 })
-        t.exec("quest.stage.learned_darts", t.var.await_server, "desertrescue", 16, 15)
+        t.exec("quest.stage.learned_darts", t.var.await_server, "varp197_desertrescue", 16, 15)
         t.exec("bringPrototypeToShabim-darts", t.inv.expect_has, "bronze_dart", 6)
         -- trap 24: al_shabim.rs2's shabim_showdart grants the pineapple on
         -- the VERY LAST page of the drain above (inv_add right before its
@@ -477,7 +477,7 @@ return {
         t.exec("talkToGuardWithPineapple", t.player.talk_to, "tourtrap_qip_desert_mining_guard_still_2", 1)
         t.exec("talkToGuardWithPineapple-note", t.chat.drain, { shots = true, max_pages = 10 })
         t.ticks(2)
-        t.exec("quest.stage.given_pineapple", t.var.await_server, "desertrescue", 17, 15)
+        t.exec("quest.stage.given_pineapple", t.var.await_server, "varp197_desertrescue", 17, 15)
         t.exec("talkToGuardWithPineapple-consumed", t.inv.expect_absent, "tentipineapple")
 
         -- ================= The deep mine; the barrel; the mine cart =================
@@ -517,7 +517,7 @@ return {
         end
         t.check("enterMineCart-landed", enteredCart, "landed in the cart -> " .. tostring(enteredCart))
         t.ticks(2)
-        t.exec("quest.stage.used_mine_cart", t.var.await_server, "desertrescue", 18, 15)
+        t.exec("quest.stage.used_mine_cart", t.var.await_server, "varp197_desertrescue", 18, 15)
 
         -- ================= Ana =================
         t.exec("goto-talkToAna", t.player.goto_tile, 3300, 9464, 0)
@@ -541,14 +541,14 @@ return {
         t.check("useBarrelOnAna-reopen", awAna == "ok", "await reopen -> " .. tostring(awAna))
         t.exec("useBarrelOnAna-note", t.chat.drain, { shots = true, max_pages = 10 })
         t.ticks(2)
-        t.exec("quest.stage.caught_ana", t.var.await_server, "desertrescue", 19, 15)
+        t.exec("quest.stage.caught_ana", t.var.await_server, "varp197_desertrescue", 19, 15)
         t.exec("useBarrelOnAna-inbarrel", t.inv.await, "thanainabarrel", 1, 5)
 
         -- ================= Ana into the far mine cart; ride back; retrieve her =================
         t.exec("goto-useBarrelOnMineCart", t.player.goto_tile, 3317, 9431, 0)
         t.exec("useBarrelOnMineCart", t.player.use_on, "thanainabarrel", t.player.by_symbol("loc", "touristtrap_minecart"))
         t.exec("useBarrelOnMineCart-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.ana_minecart", t.var.await_server, "desertrescue", 20, 15)
+        t.exec("quest.stage.ana_minecart", t.var.await_server, "varp197_desertrescue", 20, 15)
 
         -- Same [oploc2,touristtrap_minecart] agility roll as enterMineCart
         -- above -- retry on a miss instead of assuming it always lands.
@@ -571,7 +571,7 @@ return {
         t.exec("goto-searchBarrelsForAna", t.player.goto_tile, 3302, 9419, 0)
         t.exec("searchBarrelsForAna", t.player.click_loc, "thminebarrel_empty", 2)
         t.exec("searchBarrelsForAna-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.retrieved_ana_minecart", t.var.await_server, "desertrescue", 21, 15)
+        t.exec("quest.stage.retrieved_ana_minecart", t.var.await_server, "varp197_desertrescue", 21, 15)
         -- trap 24: the stage var and the inv_add that hands Ana's barrel
         -- back are two different channels -- the stage read above landing
         -- does not prove the container has synced yet. Poll for it.
@@ -606,7 +606,7 @@ return {
             "*",
             "*",
         })
-        t.exec("quest.stage.ana_lift", t.var.await_server, "desertrescue", 22, 15)
+        t.exec("quest.stage.ana_lift", t.var.await_server, "varp197_desertrescue", 22, 15)
 
         -- ================= Back to the surface; the winch; the wooden cart =================
         t.exec("leaveDeepMine", t.player.click_loc, "thminecavel", 1)
@@ -642,16 +642,16 @@ return {
         local awWinch = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the winch's own mesbox after its p_delay(3)" }, 8)
         t.check("operateWinch-open", awWinch == "ok", "await open -> " .. tostring(awWinch))
         t.exec("operateWinch-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.retrieved_ana_lift", t.var.await_server, "desertrescue", 23, 15)
+        t.exec("quest.stage.retrieved_ana_lift", t.var.await_server, "varp197_desertrescue", 23, 15)
 
         t.exec("searchWinchBarrel", t.player.click_loc, "tourtrap_qip_anabarrel_winchside_multi", 2)
         t.exec("searchWinchBarrel-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.retrieved_ana_liftbarrel", t.var.await_server, "desertrescue", 24, 15)
+        t.exec("quest.stage.retrieved_ana_liftbarrel", t.var.await_server, "varp197_desertrescue", 24, 15)
 
         t.exec("goto-useBarrelOnCart", t.player.goto_tile, 3289, 3025, 0)
         t.exec("useBarrelOnCart", t.player.use_on, "thanainabarrel", t.player.by_symbol("loc", "tourtrap_qip_multi_flatback_cart"))
         t.exec("useBarrelOnCart-note", t.chat.drain, { shots = true, max_pages = 10 })
-        t.exec("quest.stage.ana_on_mining_cart", t.var.await_server, "desertrescue", 25, 15)
+        t.exec("quest.stage.ana_on_mining_cart", t.var.await_server, "varp197_desertrescue", 25, 15)
 
         t.exec("talkToDriver", t.player.talk_to, "mining_cart_driver", 1)
         t.ticks(1)
@@ -691,7 +691,7 @@ return {
             "*",
             "*",
         })
-        local rrr, rrv = t.var.server("desertrescue_map_mechanisms")
+        local rrr, rrv = t.var.server("varp5981_desertrescue_map_mechanisms")
         t.check("talkToDriver-ready", rrr == "ok" and rrv and (math.floor(rrv / 65536) % 2) == 1, "map_mechanisms -> " .. tostring(rrv) .. " (bit 16 = ready_rescue)")
 
         t.exec("useBarrelOnCart2", t.player.click_loc, "tourtrap_qip_multi_flatback_cart", 2)
@@ -699,7 +699,7 @@ return {
         local awCart = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the cart departs, narrated after if_close" }, 10)
         t.check("useBarrelOnCart2-reopen", awCart == "ok", "await reopen -> " .. tostring(awCart))
         t.exec("useBarrelOnCart2-note", t.chat.drain, { shots = true, max_pages = 5 })
-        t.exec("quest.stage.escaped", t.var.await_server, "desertrescue", 26, 15)
+        t.exec("quest.stage.escaped", t.var.await_server, "varp197_desertrescue", 26, 15)
         t.exec("useBarrelOnCart2-barrel", t.inv.await, "thanainabarrel", 1, 5)
 
         -- ================= Irena; Ana; the reward =================
@@ -710,7 +710,7 @@ return {
         t.exec("goto-returnToIrena", t.player.goto_tile, 3303, 3111, 0)
         t.exec("returnToIrena", t.player.talk_to, "tourtrap_qip_irena_multi_sad", 1)
         t.exec("returnToIrena-dialog", t.chat.drain, { shots = true, max_pages = 20 })
-        t.exec("quest.stage.saved_ana", t.var.await_server, "desertrescue", 27, 15)
+        t.exec("quest.stage.saved_ana", t.var.await_server, "varp197_desertrescue", 27, 15)
 
         local aw1 = t.await({ level = function() return t.chat.kind() ~= "none" end, note = "Ana's thanks reopening after Irena's handoff" }, 10)
         t.check("talkToAnaThanks-reopen", aw1 == "ok", "await reopen -> " .. tostring(aw1))
@@ -741,7 +741,7 @@ return {
             "*",
         })
         t.ticks(3)
-        t.exec("quest.stage.complete", t.var.await_server, "desertrescue", 30, 15)
+        t.exec("quest.stage.complete", t.var.await_server, "varp197_desertrescue", 30, 15)
 
         t.exec("reward.fletching_xp", t.skill.expect_gain, "fletching", 9300, snap)
         t.quest.expect_complete()

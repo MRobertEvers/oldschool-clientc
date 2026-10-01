@@ -67,7 +67,7 @@ DISABLED_LANE_DIRS = ("ported_rs558_ancient_curses", "ported_scape2009_summoning
 # or deleting it will fail the check, which is the point.
 KNOWN_DEAD = {
     "selftest_npc_mode_none":
-        "selftest.rs2 -- writes no %mock_quest_progress at all, so it has no "
+        "selftest.rs2 -- writes no %varp7_mock_quest_progress at all, so it has no "
         "success code to register against. It predates the k_* tables and "
         "`defaultmode=none` is covered by defaultmode-none-was-a-noop.md; "
         "someone should decide whether to give it a code or delete it",

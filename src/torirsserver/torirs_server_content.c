@@ -231,6 +231,10 @@ struct Pack
     struct PackEntry* entries;
     struct PackEntry** by_name;
     struct PackEntry** by_id;
+    /* Var packs only: the entries spelled `varp<id>_<base>` / `varb<id>_<base>`,
+     * sorted by `<base>`, for ToriRSServer_ContentVarSymbol. */
+    struct PackEntry** by_base;
+    int base_count;
     int count;
     int capacity;
     struct PackNameChunk* names;
@@ -267,6 +271,35 @@ pack_entry_id_compare(
     return left < right ? -1 : left > right;
 }
 
+/* `varb542_cutscene_status` -> `cutscene_status`; NULL for a name that does not
+ * carry a var's kind-and-id prefix. */
+static const char*
+pack_var_base(const char* name)
+{
+    const char* c;
+
+    if( strncmp(name, "varp", 4) != 0 && strncmp(name, "varb", 4) != 0
+        && strncmp(name, "varc", 4) != 0 )
+        return NULL;
+    c = name + 4;
+    if( !isdigit((unsigned char)*c) )
+        return NULL;
+    while( isdigit((unsigned char)*c) )
+        c++;
+    return *c == '_' && c[1] ? c + 1 : NULL;
+}
+
+static int
+pack_entry_base_compare(
+    const void* lhs,
+    const void* rhs)
+{
+    const struct PackEntry* left = *(const struct PackEntry* const*)lhs;
+    const struct PackEntry* right = *(const struct PackEntry* const*)rhs;
+
+    return strcmp(pack_var_base(left->name), pack_var_base(right->name));
+}
+
 static void
 pack_build_indexes(struct Pack* pack)
 {
@@ -286,6 +319,21 @@ pack_build_indexes(struct Pack* pack)
           sizeof(*pack->by_name),
           pack_entry_name_compare);
     qsort(pack->by_id, (size_t)pack->count, sizeof(*pack->by_id), pack_entry_id_compare);
+
+    if( pack != &g_packs[TORIRSSERVER_PACK_VARP] && pack != &g_packs[TORIRSSERVER_PACK_VARBIT] )
+        return;
+    pack->by_base = malloc((size_t)pack->count * sizeof(*pack->by_base));
+    assert(pack->by_base);
+    pack->base_count = 0;
+    for( int i = 0; i < pack->count; i++ )
+    {
+        if( pack_var_base(pack->entries[i].name) )
+            pack->by_base[pack->base_count++] = &pack->entries[i];
+    }
+    qsort(pack->by_base,
+          (size_t)pack->base_count,
+          sizeof(*pack->by_base),
+          pack_entry_base_compare);
 }
 
 static char*
@@ -602,6 +650,35 @@ ToriRSServer_ContentSymbolChecked(
         return 1;
     *out_id = ToriRSServer_ContentSymbol(kind, name);
     return *out_id >= 0;
+}
+
+int
+ToriRSServer_ContentVarSymbol(
+    enum ToriRSServerPackKind kind,
+    const char* base)
+{
+    const struct Pack* pack;
+    int low = 0;
+    int high;
+
+    assert(base);
+    assert(kind == TORIRSSERVER_PACK_VARP || kind == TORIRSSERVER_PACK_VARBIT);
+    pack = &g_packs[kind];
+    if( !pack->by_base )
+        return -1;
+    high = pack->base_count;
+    while( low < high )
+    {
+        int mid = low + (high - low) / 2;
+
+        if( strcmp(pack_var_base(pack->by_base[mid]->name), base) < 0 )
+            low = mid + 1;
+        else
+            high = mid;
+    }
+    if( low < pack->base_count && strcmp(pack_var_base(pack->by_base[low]->name), base) == 0 )
+        return pack->by_base[low]->id;
+    return -1;
 }
 
 const char*
@@ -5285,9 +5362,12 @@ ToriRSServer_ContentFree(void)
         free(g_packs[kind].entries);
         free(g_packs[kind].by_name);
         free(g_packs[kind].by_id);
+        free(g_packs[kind].by_base);
         g_packs[kind].entries = NULL;
         g_packs[kind].by_name = NULL;
         g_packs[kind].by_id = NULL;
+        g_packs[kind].by_base = NULL;
+        g_packs[kind].base_count = 0;
         g_packs[kind].count = 0;
         g_packs[kind].capacity = 0;
     }

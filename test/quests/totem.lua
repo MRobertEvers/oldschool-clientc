@@ -11,11 +11,11 @@ return {
 
     run = function(t)
         local function stage(want, label)
-            local r, v = t.var.server("totemquest")
-            t.check(label, r == "ok" and v == want, "%totemquest = " .. tostring(v) .. ", want " .. want)
+            local r, v = t.var.server("varp200_totemquest")
+            t.check(label, r == "ok" and v == want, "%varp200_totemquest = " .. tostring(v) .. ", want " .. want)
         end
         local function bits(want_bit0, want_bit1, label)
-            local r, v = t.var.server("handelmort_traps_disabled")
+            local r, v = t.var.server("varp6195_handelmort_traps_disabled")
             local b0 = (v or 0) % 2
             local b1 = math.floor((v or 0) / 2) % 2
             t.check(label, r == "ok" and b0 == want_bit0 and b1 == want_bit1,
@@ -24,7 +24,7 @@ return {
         local names = { "a", "b", "c", "d" }
 
         t.quest.bind({
-            varp = "totemquest",
+            varp = "varp200_totemquest",
             constants = { not_started = 0, started = 1, crate_marked = 2, crate_delivered = 3, teleported = 4, complete = 5 },
             row = "quest_tribaltotem",
             display = "Tribal Totem",

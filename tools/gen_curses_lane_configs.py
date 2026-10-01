@@ -143,17 +143,17 @@ def main() -> int:
         "// Mask carriers for the third prayer book, mirroring the cache's own\n"
         "// prayer_ruinous_0 / prayer_ruinous_1 pair. A varp record carries no\n"
         "// fields; existence is the whole record.\n\n"
-        "[prayer_curses_0]\n\n[prayer_curses_1]\n")
+        "[varp5705_prayer_curses_0]\n\n[varp5706_prayer_curses_1]\n")
 
     (LANE / "configs/curses.varbit").write_text(
         "// The two 20-bit masks, one bit per curse in book order.\n"
         "// Shaped exactly like prayer_allactive_ruinous / quickprayer_selected_ruinous.\n\n"
-        "[prayer_allactive_curses]\n"
-        "basevar=prayer_curses_0\n"
+        "[varb20412_prayer_allactive_curses]\n"
+        "basevar=varp5705_prayer_curses_0\n"
         "startbit=0\n"
         "endbit=19\n\n"
-        "[quickprayer_selected_curses]\n"
-        "basevar=prayer_curses_1\n"
+        "[varb20413_quickprayer_selected_curses]\n"
+        "basevar=varp5706_prayer_curses_1\n"
         "startbit=0\n"
         "endbit=19\n")
 
@@ -167,9 +167,9 @@ def main() -> int:
     # along and cannot go stale behind us.
     summoning = TREE / "ported/scape2009_summoning/configs"
     for ns, extra in (
-        ("varp", [(VARP_ACTIVE, "prayer_curses_0"), (VARP_QUICK, "prayer_curses_1")]),
-        ("varbit", [(VARBIT_ACTIVE, "prayer_allactive_curses"),
-                    (VARBIT_QUICK, "quickprayer_selected_curses")]),
+        ("varp", [(VARP_ACTIVE, "varp5705_prayer_curses_0"), (VARP_QUICK, "varp5706_prayer_curses_1")]),
+        ("varbit", [(VARBIT_ACTIVE, "varb20412_prayer_allactive_curses"),
+                    (VARBIT_QUICK, "varb20413_quickprayer_selected_curses")]),
     ):
         upstream = summoning / f"all.{ns}.compack"
         source = upstream if upstream.is_file() else TREE / f"configs/all.{ns}.compack"

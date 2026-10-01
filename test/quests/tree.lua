@@ -25,7 +25,7 @@
 --
 -- Four guide steps are alternate ways to a leg this file already drives
 -- another way (helper_coverage.py's ANY-OF vocabulary):
--- ANY-OF: goThroughMaze talkToKingBolren king_bolren.rs2:18 ([opnpc1,king_bolren]'s dispatch reads only %treequest, no maze/lever/door state -- the same pure-navigation precedent QUEST_AUTHORING.md section 8 gives Ernest the Chicken's maze) -- goto-bolren + bolren.greet reach and talk to him directly instead of walking the marked path
+-- ANY-OF: goThroughMaze talkToKingBolren king_bolren.rs2:18 ([opnpc1,king_bolren]'s dispatch reads only %varp111_treequest, no maze/lever/door state -- the same pure-navigation precedent QUEST_AUTHORING.md section 8 gives Ernest the Chicken's maze) -- goto-bolren + bolren.greet reach and talk to him directly instead of walking the marked path
 -- ANY-OF: elkoySkip talkToKingBolrenFirstOrb elkoy.rs2:79 (Elkoy's own "Yes please" -> p_telejump is the identical centre-of-maze shortcut a goto_tile is) -- bolren.first_orb (TreeGnomeVillage.java:267-269's insideGnomeVillage branch) drives the same first-orb hand-in
 -- ANY-OF: elkoySkip2 returnOrbs elkoy.rs2:146 (same Elkoy "Yes please" shortcut as elkoySkip, offered again once the orbs are recovered) -- bolren.orbs (TreeGnomeVillage.java:283's insideGnomeVillage branch) drives the same orbs hand-in
 -- ANY-OF: pickupOrb warlord.satchel khazard_warlord.rs2:110 (the kill's own inv_add(inv, orbs_of_protection, 1) grants the orbs straight into the backpack -- they never land on the ground, so orbsOfProtectionNearby never trips in this port)
@@ -61,7 +61,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "treequest",
+            varp = "varp111_treequest",
             constants = {
                 not_started = 0,
                 started = 1,
@@ -122,7 +122,7 @@ return {
             "npc:That is if he's still alive.",
             "npc:My assistant shall guide you out.",
         })
-        t.exec("stage.started", t.var.await_server, "treequest", 1, 10)
+        t.exec("stage.started", t.var.await_server, "varp111_treequest", 1, 10)
 
         t.exec("goto-montai", t.player.goto_tile, 2523, 3207, 0)
         t.exec("montai.talk", t.player.talk_to, "commander_montai", 1)
@@ -138,7 +138,7 @@ return {
             "player:Ok, I'll gather some wood.",
             "npc:Please be as quick as you can",
         })
-        t.exec("stage.spoken_montai", t.var.await_server, "treequest", 2, 10)
+        t.exec("stage.spoken_montai", t.var.await_server, "varp111_treequest", 2, 10)
         t.exec("montai.logs_talk", t.player.talk_to, "commander_montai", 1)
         t.exec("montai.logs", t.chat.play, {
             "player:Hello.",
@@ -146,7 +146,7 @@ return {
             "player:I have some here.",
             "npc:That's excellent",
         })
-        t.exec("stage.given_logs", t.var.await_server, "treequest", 3, 10)
+        t.exec("stage.given_logs", t.var.await_server, "varp111_treequest", 3, 10)
         t.exec("logs.gone", t.inv.expect_absent, "logs")
         t.exec("montai.trackers_talk", t.player.talk_to, "commander_montai", 1)
         t.exec("montai.trackers", t.chat.play, {
@@ -164,7 +164,7 @@ return {
             "npc:I don't know how long",
             "npc:If you can retrieve the orb",
         })
-        t.exec("stage.finding_trackers", t.var.await_server, "treequest", 4, 10)
+        t.exec("stage.finding_trackers", t.var.await_server, "varp111_treequest", 4, 10)
 
         -- Trackers (Quest Helper firstTracker/secondTracker/thirdTracker).
         t.exec("goto-tracker1", t.player.goto_tile, 2501, 3260, 0)
@@ -225,7 +225,7 @@ return {
         local hit_r = t.await({ level = function() return t.chat.kind() == "mesbox" end }, 10)
         t.check("ballista.hit_page", hit_r == "ok", "await chat.kind()==mesbox after if_close + p_delay -> " .. tostring(hit_r) .. ", kind now " .. tostring(t.chat.kind()))
         t.exec("ballista.hit", t.chat.play, { "mesbox:screams down directly" })
-        t.exec("stage.ballista_fired", t.var.await_server, "treequest", 5, 10)
+        t.exec("stage.ballista_fired", t.var.await_server, "varp111_treequest", 5, 10)
 
         -- Stronghold: the crumbled wall is a GATE_WORDS loc the guide names
         -- ("Enter the tower by the Crumbled wall and climb the ladder..." --
@@ -253,7 +253,7 @@ return {
         t.exec("chest.search", t.player.click_loc, "chestopen_khazard", 1)
         t.exec("chest.orb_page", t.chat.play, { "mesbox:Inside you find the gnomes' stolen orb" })
         t.exec("orb.held", t.inv.await, "orb_of_protection", 1, 10)
-        t.exec("stage.retrieved_orb", t.var.await_server, "treequest", 6, 10)
+        t.exec("stage.retrieved_orb", t.var.await_server, "varp111_treequest", 6, 10)
 
         t.exec("goto-bolren2", t.player.goto_tile, 2541, 3170, 0)
         t.exec("bolren.orb_talk", t.player.talk_to, "king_bolren", 1)
@@ -275,7 +275,7 @@ return {
             "npc:You are brave",
             "npc:I will safeguard this orb",
         })
-        t.exec("stage.returned_first_orb", t.var.await_server, "treequest", 7, 10)
+        t.exec("stage.returned_first_orb", t.var.await_server, "varp111_treequest", 7, 10)
         t.chat.close()
 
         -- The warlord: Talk-to arms the combat form, then a real fight.
@@ -306,7 +306,7 @@ return {
         t.check("warlord.cast_loop", true, "cast fire_bolt " .. warlord_casts .. " time(s) total")
         t.exec("warlord.dead", t.npc.await_dead_engaged, 400, 6)
         t.exec("warlord.satchel", t.chat.play, { "mesbox:You search his satchel and find the orbs of protection." })
-        t.exec("stage.defeated_warlord", t.var.await_server, "treequest", 8, 10)
+        t.exec("stage.defeated_warlord", t.var.await_server, "varp111_treequest", 8, 10)
         t.exec("orbs.held", t.inv.await, "orbs_of_protection", 1, 10)
 
         -- king_bolren.rs2's [queue,tree_quest_complete] (armed inside the
@@ -345,7 +345,7 @@ return {
             "player:Thank you King Bolren.",
             "npc:The tree has many other powers",
         })
-        t.exec("stage.complete", t.var.await_server, "treequest", 9, 10)
+        t.exec("stage.complete", t.var.await_server, "varp111_treequest", 9, 10)
         t.exec("reward.amulet", t.inv.await, "gnome_amulet", 1, 10)
         t.ticks(3)
 

@@ -46,7 +46,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "fenk_quest",
+            varp = "varp399_fenk_quest",
             constants = {
                 not_started = 0, sign_read = 1, hired = 2, parts = 3,
                 lightning = 4, alive = 5, tower = 6, spoke_creature = 7,
@@ -155,7 +155,7 @@ return {
             "npc:It got chopped off while I was",
             "npc:Dig at my grave southeast of the",
         })
-        t.exec("talkToGardenerForHead.flag", t.var.await_server, "fenk_spoken_to_gardener", 1, 10)
+        t.exec("talkToGardenerForHead.flag", t.var.await_server, "varb193_fenk_spoken_to_gardener", 1, 10)
 
         t.exec("goToHeadGrave.goto", t.player.goto_tile, 3608, 3489, 0)
         t.exec("goToHeadGrave", t.player.click_loc, "fenk_grave_poor", 2)
@@ -181,7 +181,7 @@ return {
         t.exec("useStarOnGrave-dialog", t.chat.play, {
             "mesbox:The star amulet fits exactly",
         })
-        t.exec("useStarOnGrave.flag", t.var.await_server, "fenk_coffin", 1, 10)
+        t.exec("useStarOnGrave.flag", t.var.await_server, "varb192_fenk_coffin", 1, 10)
 
         t.exec("enterExperimentCave", t.player.click_loc, "fenk_coffin", 1)
         t.ticks(2)
@@ -211,7 +211,7 @@ return {
         t.exec("goto-mausoleumDoor", t.player.goto_tile, 3511, 9957, 0)
         local mausoleum_door = t.player.by_symbol("loc", "fenk_mausoleum_door")
         t.exec("openMausoleumDoor", t.player.use_on, "fenk_mausoleum_key", mausoleum_door)
-        t.exec("openMausoleumDoor.flag", t.var.await_server, "fenk_unlocked_cavern", 1, 10)
+        t.exec("openMausoleumDoor.flag", t.var.await_server, "varb199_fenk_unlocked_cavern", 1, 10)
 
         t.exec("leaveExperimentCave", t.player.goto_tile, 3503, 3576, 0)
 
@@ -283,7 +283,7 @@ return {
         t.exec("goto-shedDoor", t.player.goto_tile, 3548, 3567, 0)
         local shed_door = t.player.by_symbol("loc", "fenk_shed_door")
         t.exec("openShedDoor", t.player.use_on, "fenk_shed_key", shed_door)
-        t.exec("openShedDoor.flag", t.var.await_server, "fenk_unlocked_shed", 1, 10)
+        t.exec("openShedDoor.flag", t.var.await_server, "varb200_fenk_unlocked_shed", 1, 10)
 
         t.exec("goto-cupboard", t.player.goto_tile, 3546, 3563, 0)
         t.exec("searchForBrush.open", t.player.click_loc, "fenk_broomcupboard", 1)
@@ -350,7 +350,7 @@ return {
         t.exec("goToMonsterFloor1", t.player.goto_tile, 3548, 3549, 1)
         local tower_door = t.player.by_symbol("loc", "fenk_tower_door")
         t.exec("openLockedDoor", t.player.use_on, "fenk_tower_key", tower_door)
-        t.exec("openLockedDoor.flag", t.var.await_server, "fenk_unlocked_tower", 1, 10)
+        t.exec("openLockedDoor.flag", t.var.await_server, "varb198_fenk_unlocked_tower", 1, 10)
 
         local walk_result = t.player.walk_to(3548, 3553)
         t.check("towerRoom.walk", walk_result == "ok", "walk_to 3548,3553 -> " .. tostring(walk_result))

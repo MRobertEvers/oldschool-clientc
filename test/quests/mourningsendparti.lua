@@ -253,7 +253,7 @@ return {
         local SHOT_ZOOM_OUTDOOR = 600
         do
         local bind_result, bind_detail = t.quest.bind({
-            varp = "mourning_quest",
+            varp = "varp517_mourning_quest",
             constants = {
                 not_started = 0,
                 briefed = 2,
@@ -501,7 +501,7 @@ return {
             "npc:You can't... I make it to my own secret recipe.",
         })
         t.chat.close()
-        t.expect("talkToTegid.chat_var", t.var.await_server("mourning_tegid_chat", 1, 6))
+        t.expect("talkToTegid.chat_var", t.var.await_server("varb9149_mourning_tegid_chat", 1, 6))
 
         -- ---- Tegid's laundry basket (eadgar_laundry_basket, op1=Search) --
         -- gated on the talk above; the soap is offered while the bloody top
@@ -626,7 +626,7 @@ return {
             door_after_r == "ok" and (door_after_x ~= door_before_x or door_after_z ~= door_before_z),
             "tile before=" .. tostring(door_before_x) .. "," .. tostring(door_before_z)
                 .. " after=" .. tostring(door_after_x) .. "," .. tostring(door_after_z))
-        t.expect("enterMournerBase.disguise_bit", t.var.await_server("mourning_mourner_disguise", 1, 6))
+        t.expect("enterMournerBase.disguise_bit", t.var.await_server("varb798_mourning_mourner_disguise", 1, 6))
 
         -- ---- Basement trapdoor (mourning_hideout_trap_door,
         -- mend1_disguise.rs2:136-143 -- p_teleport to mend1_hq_basement_coord,
@@ -687,7 +687,7 @@ return {
         })
         t.chat.close()
         t.expect("talkToEssyllt.letter_gone", t.inv.expect_absent("mourning_mourner_message"))
-        t.expect("talkToEssyllt.stage4", t.var.await_server("mourning_quest", 4, 10))
+        t.expect("talkToEssyllt.stage4", t.var.await_server("varp517_mourning_quest", 4, 10))
         t.expect("talkToEssyllt.items", t.inv.await_all({mourning_gnome_key = 1, mourning_paint_gun_broken = 1}, 10))
         t.ticks(3)
         local journal_assignment_r, journal_assignment = t.ui.journal_open("Mourning's End Part I")
@@ -1167,7 +1167,7 @@ return {
             "npc:Very well. Perform this task and then return to me.",
         })
         t.chat.close()
-        t.expect("talkToEssylltAfterSheep.stage6", t.var.await_server("mourning_quest", 6, 10))
+        t.expect("talkToEssylltAfterSheep.stage6", t.var.await_server("varp517_mourning_quest", 6, 10))
         -- ---- Pick up the rotten apple, north-west of the Mourner HQ
         -- (mend1_poison.rs2's own header: a real `rottenapples` ground item
         -- sits at areas/world/configs/m39_52.spawn x2535/y3333, exactly
@@ -1305,7 +1305,7 @@ return {
         local apple_after_r, apple_after_n = t.inv.count("rottenapples")
         t.check("talkToElena.result", apple_after_r == "ok" and apple_after_n == 0,
             "rottenapples=" .. tostring(apple_after_n) .. " (" .. tostring(apple_after_r) .. ")")
-        t.expect("talkToElena.var", t.var.await_server("mourning_elena", 4, 6))
+        t.expect("talkToElena.var", t.var.await_server("varb805_mourning_elena", 4, 6))
 
         end
         do
@@ -1491,7 +1491,7 @@ return {
         local still_iterations = 0
         while still_iterations < 40 and still_total < 26 do
             still_iterations = still_iterations + 1
-            local settings_r, settings_v = t.var.server("regicide_still_settings")
+            local settings_r, settings_v = t.var.server("varp331_regicide_still_settings")
             if settings_r == "ok" and settings_v ~= nil then
                 if settings_v < 0 then
                     settings_v = settings_v + 4294967296
@@ -1522,7 +1522,7 @@ return {
                 end
             end
             t.ticks(2)
-            local total_r, total_v = t.var.server("regicide_still_total")
+            local total_r, total_v = t.var.server("varp330_regicide_still_total")
             if total_r == "ok" and total_v ~= nil then
                 still_total = total_v
             end
@@ -1629,7 +1629,7 @@ return {
         t.expect("poisonStore1.message",
             t.chat.expect_text("You add the toxin to the grain"))
         t.chat.close()
-        t.expect("poisonStore1.var", t.var.await_server("mourning_food_poison1", 1, 6))
+        t.expect("poisonStore1.var", t.var.await_server("varb806_mourning_food_poison1", 1, 6))
 
         -- ---- Poison food store 2, the church stores (mourning_sack_full2,
         -- maps/m39_51.jl2:4222-4224 -> abs 2524,3285 / 2524,3288 / 2525,3288;
@@ -1653,8 +1653,8 @@ return {
         t.expect("poisonStore2.message",
             t.chat.expect_text("You add the toxin to the grain"))
         t.chat.close()
-        t.expect("poisonStore2.var", t.var.await_server("mourning_food_poison2", 1, 6))
-        t.expect("poisonStore2.stage7", t.var.await_server("mourning_quest", 7, 6))
+        t.expect("poisonStore2.var", t.var.await_server("varb807_mourning_food_poison2", 1, 6))
+        t.expect("poisonStore2.stage7", t.var.await_server("varp517_mourning_quest", 7, 6))
 
         end
         do
@@ -1734,7 +1734,7 @@ return {
         -- see the bind banner at the top of this file), so every stage read
         -- below goes through the SERVER copy (t.var.server) or the journal,
         -- never t.quest.expect_stage, which would read a stale client 0.
-        local report_r, report_v = t.var.server("mourning_quest")
+        local report_r, report_v = t.var.server("varp517_mourning_quest")
         t.check("talkToEssylltAfterPoison.stage", report_r == "ok" and report_v == 8,
             "var.server(mourning_quest) -> " .. tostring(report_r) .. " " .. tostring(report_v)
                 .. " expected 8 (^mend1_report)")
@@ -1765,7 +1765,7 @@ return {
         -- the two documented xp rewards (mend1_shared.rs2:31:
         -- "40000 Thieving XP|25000 Hitpoints XP|Elf teleport crystal|Access
         -- to the Mourner HQ basement and Lletya"). ----
-        local qp_before_r, qp_before = t.var.varp("qp")
+        local qp_before_r, qp_before = t.var.varp("varp101_qp")
         local skill_snapshot_r, skill_snapshot = t.skill.snapshot()
         t.step("reward.snapshot", skill_snapshot_r == "ok" and "PASS" or "FAIL",
             "skill.snapshot() -> " .. tostring(skill_snapshot_r))
@@ -1790,7 +1790,7 @@ return {
         -- grade theirs when the quest's own varp is not transmitted: the
         -- server varp, the reward scroll, the quest-point delta and the
         -- journal, each written by hand instead of t.quest.expect_complete().
-        local complete_r, complete_v = t.var.server("mourning_quest")
+        local complete_r, complete_v = t.var.server("varp517_mourning_quest")
         t.check("quest.varp_complete", complete_r == "ok" and complete_v == 9,
             "var.server(mourning_quest) -> " .. tostring(complete_r) .. " " .. tostring(complete_v)
                 .. " expected 9 (^mend1_complete)")
@@ -1811,7 +1811,7 @@ return {
                 .. tostring(scroll_title and scroll_title.points) .. scroll_shot_note)
         t.scroll.close()
 
-        local qp_after_r, qp_after = t.var.varp("qp")
+        local qp_after_r, qp_after = t.var.varp("varp101_qp")
         t.check("quest.points", qp_after_r == "ok" and qp_before_r == "ok"
             and qp_after == qp_before + 2,
             "qp (varp) " .. tostring(qp_before) .. " -> " .. tostring(qp_after)

@@ -65,7 +65,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "onesmallfavour",
+            varp = "varp416_onesmallfavour",
             constants = {
                 not_started = 0,
                 forester_axe = 5,
@@ -473,7 +473,7 @@ return {
             t.exec(step .. "-dialog", t.chat.play, { "*", tally })
         end
         t.expect("quest.stage.lights_fixed", t.quest.expect_stage("lights_fixed"))
-        t.exec("fixAllLamps", t.var.await_server, "fixedlandinglights", 255, 5)
+        t.exec("fixAllLamps", t.var.await_server, "varb6241_fixedlandinglights", 255, 5)
         -- The leftover uncut opal/jade/red topaz stay in the pack: six slots,
         -- and the fullest point later (the vane parts on top of the pigeon
         -- cages) still leaves room (seam27_osf_full2 shot 320: 16 used).
@@ -488,7 +488,7 @@ return {
             "player:I know one ogre who'll be very pleased",
         })
         t.expect("quest.stage.gnormadium_done", t.quest.expect_stage("gnormadium_done"))
-        t.exec("talkToGnormadiumAgain.lit", t.var.await_server, "all_lights_fixed", 1, 5)
+        t.exec("talkToGnormadiumAgain.lit", t.var.await_server, "varb256_all_lights_fixed", 1, 5)
 
         -- === Rantz, Tindel, Cromperty again =================================
         t.exec("goto-returnToRantz", t.player.goto_tile, 2630, 2980, 0)
@@ -551,7 +551,7 @@ return {
         t.expect("quest.stage.slagilith_fight", t.quest.expect_stage("slagilith_fight"))
         t.exec("killSlagilith", t.player.attack, "slagilith", 2, 15)
         t.exec("killSlagilith.dead", t.npc.await_dead_engaged, 200, 8)
-        t.exec("killSlagilith.stage", t.var.await_server, "onesmallfavour", 150, 15)
+        t.exec("killSlagilith.stage", t.var.await_server, "varp416_onesmallfavour", 150, 15)
         t.exec("readScrollAgain", t.player.use_on, "favour_animate_rock",
             t.player.by_symbol("loc", "favour_lady_in_wall"))
         t.exec("readScrollAgain-dialog", t.chat.play, { "mesbox:This time the spell strikes the sculpture." })
@@ -669,7 +669,7 @@ return {
         t.exec("killGangMembers.dead2", t.npc.await_dead_engaged, 150, 8)
         t.exec("killGangMembers-3", t.player.attack, "favour_gangster_dwarf_3", 2, 15)
         t.exec("killGangMembers.dead3", t.npc.await_dead_engaged, 150, 8)
-        t.exec("quest.stage.hammerspike_done", t.var.await_server, "onesmallfavour", 225, 15)
+        t.exec("quest.stage.hammerspike_done", t.var.await_server, "varp416_onesmallfavour", 225, 15)
         t.exec("talkToHammerspikeFinal", t.player.talk_to, "favour_hammerspike_stoutbeard", 1)
         t.exec("talkToHammerspikeFinal-dialog", t.chat.play, { "npc:Alright, alright! You've made your point." })
 
@@ -797,7 +797,7 @@ return {
             "player:Here's the red mahogany you asked for.",
             "npc:Ah, perfect!",
         })
-        t.exec("quest.stage.complete", t.var.await_server, "onesmallfavour", 285, 15)
+        t.exec("quest.stage.complete", t.var.await_server, "varp416_onesmallfavour", 285, 15)
         t.quest.expect_complete()
         -- Rewards (yanni_salika.rs2:33-37): two reward lamps and the steel key ring.
         t.exec("reward.thosf_reward_lamp", t.inv.expect_has, "thosf_reward_lamp", 2)

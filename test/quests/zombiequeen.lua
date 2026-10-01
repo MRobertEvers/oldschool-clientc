@@ -48,7 +48,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "zombiequeen",
+            varp = "varp116_zombiequeen",
             constants = {
                 not_started = 0, started = 1, found_mound = 2, searched_mound = 3,
                 dug_mound = 4, lit_mound = 5, roped_mound = 6, entered_ah_za_rhoon = 7,

@@ -1034,7 +1034,7 @@ RS_CS2Host_Init(
      * hubs write the pressed setting id into. */
     host->script_settings_client_mode = cs2_host_ref(refs, "script", "settings_client_mode");
     host->script_settings_client_apply = cs2_host_ref(refs, "script", "settings_client_apply");
-    host->varbit_settings_last_changed = cs2_host_ref(refs, "varbit", "settings_last_changed");
+    host->varbit_settings_last_changed = cs2_host_ref(refs, "varbit", "varb9657_settings_last_changed");
     /* -1, not 0: script 0 is a real id, so zero would mirror every varbit write
      * made by whatever script happens to be id 0 before the panel is ever used. */
     host->settings_mirror_root_script = -1;
@@ -1052,9 +1052,9 @@ RS_CS2Host_Init(
     host->settings_number_pending = false;
     /* The ground-items overlay, and the two varbits that name its carriers. */
     host->script_ground_items_overlay = cs2_host_ref(refs, "script", "ground_items_overlay");
-    host->varbit_ground_items_enabled = cs2_host_ref(refs, "varbit", "ground_items_enabled");
+    host->varbit_ground_items_enabled = cs2_host_ref(refs, "varbit", "varb14869_ground_items_enabled");
     host->varbit_ground_items_modifier_key =
-        cs2_host_ref(refs, "varbit", "ground_items_modifier_key");
+        cs2_host_ref(refs, "varbit", "varb14877_ground_items_modifier_key");
     memset(&host->active_obj, 0, sizeof(host->active_obj));
     host->active_obj_valid = false;
     RS_HighlightReset(&host->highlight);

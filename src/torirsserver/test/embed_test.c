@@ -2069,7 +2069,7 @@ main(void)
      * `[opheldu,knife]` and 10 for `[oplocu,cooksquestrange]`.
      */
     {
-        int progress = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mock_quest_progress");
+        int progress = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7_mock_quest_progress");
         int knife = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "knife");
         int bucket = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_water");
         int range = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "cooksquestrange");

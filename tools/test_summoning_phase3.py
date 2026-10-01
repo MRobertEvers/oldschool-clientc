@@ -188,25 +188,25 @@ def main() -> int:
     varps = (lane / "configs/summoning.varp").read_text(encoding="utf-8")
     persisted = set(
         re.findall(
-            r"^\[(summoning_familiar_[^\]]+)\]\n(?:[^\n]*\n)*?scope=perm$",
+            r"^\[(varp\d+_summoning_familiar_[^\]]+)\]\n(?:[^\n]*\n)*?scope=perm$",
             varps,
             re.MULTILINE,
         )
     )
     familiar_persisted = {
-            "summoning_familiar_active",
-            "summoning_familiar_type",
-            "summoning_familiar_ticks",
-            "summoning_familiar_special",
-            "summoning_familiar_special_clock",
-            "summoning_familiar_point_accumulator",
+            "varp6226_summoning_familiar_active",
+            "varp6257_summoning_familiar_type",
+            "varp6230_summoning_familiar_ticks",
+            "varp6228_summoning_familiar_special",
+            "varp6229_summoning_familiar_special_clock",
+            "varp6227_summoning_familiar_point_accumulator",
         }
     expect(
         persisted == familiar_persisted,
         "familiar state is not the six-field persisted type/timer contract",
     )
     expect(
-        re.search(r"^\[summoning_unlocked\]\n(?:[^\n]*\n)*?scope=perm$", varps, re.MULTILINE)
+        re.search(r"^\[varp6258_summoning_unlocked\]\n(?:[^\n]*\n)*?scope=perm$", varps, re.MULTILINE)
         is not None,
         "per-account Summoning unlock is not permanent",
     )
@@ -214,7 +214,7 @@ def main() -> int:
         "[proc,summoning_wolf_whistle_complete]",
         "stat_advance(summoning, ^summoning_wolf_whistle_xp);",
         "inv_add(inv, summoning_wolf_whistle_gold_charm, ^summoning_wolf_whistle_gold_charms);",
-        "if (%summoning_unlocked = 1) return;",
+        "if (%varp6258_summoning_unlocked = 1) return;",
         "[oploc3,summoning_obelisk]",
         "~summoning_wolf_whistle_complete;",
     ):
@@ -290,7 +290,7 @@ def main() -> int:
     # `~summoning_familiar_ready_seq` for why a body sequence does pose these
     # heads.)
     expect(
-        "~summoning_familiar_npc(%summoning_familiar_type)" in source
+        "~summoning_familiar_npc(%varp6257_summoning_familiar_type)" in source
         and "if_setnpchead(" in source
         and "if_setanim(summoning_familiar:model," in source
         and "if_settext(summoning_familiar:title, $name);" in source
@@ -336,8 +336,8 @@ def main() -> int:
         "^summoning_dreadfowl_cost = 1",
         "^summoning_dreadfowl_lifetime = 400",
         "^summoning_dreadfowl_drain_interval = 100",
-        "%summoning_familiar_point_accumulator >= $drain_interval",
-        "%summoning_familiar_ticks > 0",
+        "%varp6227_summoning_familiar_point_accumulator >= $drain_interval",
+        "%varp6230_summoning_familiar_ticks > 0",
     ):
         expect(token in constants or token in source, f"missing Dreadfowl timer contract: {token}")
 

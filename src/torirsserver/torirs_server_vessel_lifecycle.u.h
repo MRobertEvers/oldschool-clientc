@@ -69,7 +69,7 @@ ToriRSServer_VesselCargoAllowed(struct ToriRSServer* srv,
     if( vessel->owner_uid == player->pid + 1 ) return 1;
     int pid = vessel->owner_uid - 1;
     if( pid < 0 || pid >= TORIRSSERVER_PLAYER_MAX || !srv->players[pid].active ) return 0;
-    int bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "settings_cargo_hold_privacy");
+    int bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb19614_settings_cargo_hold_privacy");
     int privacy = bit >= 0 ? ToriRSServer_VarbitGet(&srv->players[pid], bit) : 0;
     /* Native enum244: Navigators, All players, No players. The default grants
      * only the captain until another player receives explicit navigation. */
@@ -83,7 +83,7 @@ vessel_owned_varbit(struct ToriRSServerPlayer* player, int slot, const char* suf
     assert(player);
     assert(suffix);
     snprintf(key, sizeof(key), "sailing_boat_%d_%s", slot, suffix);
-    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, key);
+    int id = ToriRSServer_ContentVarSymbol(TORIRSSERVER_PACK_VARBIT, key);
     return id >= 0 ? ToriRSServer_VarbitGet(player, id) : 0;
 }
 
@@ -92,7 +92,7 @@ vessel_forget_instance(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
 {
     assert(srv);
     assert(player);
-    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5925_map_instance_handle");
     if( varp >= 0 && player->varps[varp] == instance )
         ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
 }

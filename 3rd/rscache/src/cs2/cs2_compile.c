@@ -1117,9 +1117,14 @@ cs2_cc_string_literal(struct cs2_cc_compiler* cc, const char* body)
         cs2_cc_emit(cc, RSCACHE_CS2_OP_JOIN_STRING, parts);
 }
 
-/** `%var12`, `%varbit7`, … — the prefix names the kind, the suffix the id. */
+/**
+ * `%var12`, `%varbit7`, … — the prefix names the kind, the suffix the id — or a
+ * global's name, `%cutscene_status`, from the names tables (one namespace
+ * across varp, varbit, varcint and varcstring). The numbered spelling wins, so
+ * a name can never shadow one.
+ */
 static bool
-cs2_cc_global_kind(const char* name, int* out_push, int* out_pop, int* out_id)
+cs2_cc_numbered_global(const char* name, int* out_push, int* out_pop, int* out_id)
 {
     static const struct
     {
@@ -1143,15 +1148,54 @@ cs2_cc_global_kind(const char* name, int* out_push, int* out_pop, int* out_id)
         const char* digits = name + length;
         if( !*digits )
             continue;
+        bool numbered = true;
         for( const char* cursor = digits; *cursor; cursor++ )
         {
             if( !isdigit((unsigned char)*cursor) )
-                return false;
+                numbered = false;
         }
+        if( !numbered )
+            return false; /* `varbit_6`, `variable`: not a numbered global */
         *out_push = kinds[i].push;
         *out_pop = kinds[i].pop;
         *out_id = atoi(digits);
         return true;
+    }
+    return false;
+}
+
+static bool
+cs2_cc_global_kind(
+    struct cs2_cc_compiler* cc,
+    const char* name,
+    int* out_push,
+    int* out_pop,
+    int* out_id)
+{
+    if( cs2_cc_numbered_global(name, out_push, out_pop, out_id) )
+        return true;
+
+    static const struct
+    {
+        enum RSCache_CS2_NameTable table;
+        int push;
+        int pop;
+    } named[] = {
+        { RSCACHE_CS2_NAMES_VARBIT, RSCACHE_CS2_OP_PUSH_VARBIT, RSCACHE_CS2_OP_POP_VARBIT },
+        { RSCACHE_CS2_NAMES_VARP, RSCACHE_CS2_OP_PUSH_VAR, RSCACHE_CS2_OP_POP_VAR },
+        { RSCACHE_CS2_NAMES_VARCINT, RSCACHE_CS2_OP_PUSH_VARC_INT, RSCACHE_CS2_OP_POP_VARC_INT },
+        { RSCACHE_CS2_NAMES_VARCSTRING,
+          RSCACHE_CS2_OP_PUSH_VARC_STRING,
+          RSCACHE_CS2_OP_POP_VARC_STRING },
+    };
+    for( size_t i = 0; i < sizeof(named) / sizeof(named[0]); i++ )
+    {
+        if( RSCache_CS2_NamesLookupId(cs2_cc_names(cc), named[i].table, name, out_id) )
+        {
+            *out_push = named[i].push;
+            *out_pop = named[i].pop;
+            return true;
+        }
     }
     return false;
 }
@@ -1362,7 +1406,7 @@ cs2_cc_infer_type(struct cs2_cc_compiler* cc, const char* text, enum cs2_cc_toke
         int push = 0;
         int pop = 0;
         int id = 0;
-        if( !cs2_cc_global_kind(text, &push, &pop, &id) )
+        if( !cs2_cc_global_kind(cc, text, &push, &pop, &id) )
             return RSCACHE_CS2_TYPE_NONE;
         return push == RSCACHE_CS2_OP_PUSH_VARC_STRING ? RSCACHE_CS2_TYPE_STRING
                                                        : RSCACHE_CS2_TYPE_INT;
@@ -2069,13 +2113,20 @@ cs2_cc_hook(struct cs2_cc_compiler* cc, int opcode, bool dot)
             while( cc->token.kind != CS2_CC_TOK_END && !cc->failed )
             {
                 /* A vartransmit trigger is a varp *name*, not a value, so it is
-                 * pushed as its id rather than read. */
+                 * pushed as its id rather than read. Only a vartransmit list
+                 * reads a bare name as a varp: a stattransmit list says
+                 * `attack` and means the stat, which is also a varp's name. */
+                bool var_triggers = opcode == RSCACHE_CS2_OP_CC_SETONVARTRANSMIT ||
+                                    opcode == RSCACHE_CS2_OP_IF_SETONVARTRANSMIT;
                 if( cc->token.kind == CS2_CC_TOK_GLOBAL || cc->token.kind == CS2_CC_TOK_IDENT )
                 {
                     int push = 0;
                     int pop = 0;
                     int id = 0;
-                    if( cs2_cc_global_kind(cc->token.text, &push, &pop, &id) )
+                    bool found = cc->token.kind == CS2_CC_TOK_GLOBAL || var_triggers
+                                     ? cs2_cc_global_kind(cc, cc->token.text, &push, &pop, &id)
+                                     : cs2_cc_numbered_global(cc->token.text, &push, &pop, &id);
+                    if( found )
                     {
                         cs2_cc_emit(cc, RSCACHE_CS2_OP_PUSH_CONSTANT_INT, id);
                         cs2_cc_next(cc);
@@ -2392,7 +2443,7 @@ cs2_cc_expression(struct cs2_cc_compiler* cc, enum RSCache_CS2_Type expected)
         int push = 0;
         int pop = 0;
         int id = 0;
-        if( !cs2_cc_global_kind(cc->token.text, &push, &pop, &id) )
+        if( !cs2_cc_global_kind(cc, cc->token.text, &push, &pop, &id) )
         {
             cs2_cc_fail(cc, "unknown global '%%%s'", cc->token.text);
             return;
@@ -3148,7 +3199,7 @@ cs2_cc_emit_store(struct cs2_cc_compiler* cc, const struct cs2_cc_token* target)
     int push = 0;
     int pop = 0;
     int id = 0;
-    if( !cs2_cc_global_kind(target->text, &push, &pop, &id) || pop < 0 )
+    if( !cs2_cc_global_kind(cc, target->text, &push, &pop, &id) || pop < 0 )
     {
         cs2_cc_fail(cc, "'%%%s' cannot be assigned", target->text);
         return;

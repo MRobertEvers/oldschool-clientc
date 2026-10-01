@@ -5,7 +5,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "runemysteries",
+            varp = "varp63_runemysteries",
             constants = {
                 complete = 6,
                 given_package = 4,

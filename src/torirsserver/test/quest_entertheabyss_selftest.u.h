@@ -252,13 +252,13 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     obj_cape = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "saradomin_cape");
     obj_junk = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "pot_empty");
     obj_pick = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bronze_pickaxe");
-    varp_eta = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "abyssal_miniquest");
-    varp_rm = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "runemysteries");
-    varp_warp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "abyssal_warp");
-    varp_skull = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "pk_skull");
-    bit_aubury = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rcu_essencespot_aubury");
-    bit_tower = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rcu_essencespot_wizardstower");
-    bit_cromperty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rcu_essencespot_cromperty");
+    varp_eta = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp492_abyssal_miniquest");
+    varp_rm = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp63_runemysteries");
+    varp_warp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp491_abyssal_warp");
+    varp_skull = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp5766_pk_skull");
+    bit_aubury = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2315_rcu_essencespot_aubury");
+    bit_tower = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2314_rcu_essencespot_wizardstower");
+    bit_cromperty = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2316_rcu_essencespot_cromperty");
     loc_multi1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "rcu_outer_multi1");
     loc_cosmic = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "abyss_exit_to_cosmic");
     stat_rc = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "runecraft");
@@ -518,7 +518,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
             loc_slot = eta_find_loc(3040, 4832, 0, loc_multi1, 40);
         if( loc_slot >= 0 )
         {
-            int gen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "rcu_abyssal_generator");
+            int gen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb625_rcu_abyssal_generator");
 
             eta_pass("shell_loc", "SceneFindLocId", "rcu_outer_multi1");
             if( gen >= 0 )

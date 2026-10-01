@@ -243,12 +243,12 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     loc_vine = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "red_worm_vine");
     (void)loc_vine;
     loc_stair = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "tunnelstairstop2");
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "fishingcompo");
-    vb_garlic = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fishingcompo_garlicpipe");
-    vb_paid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fishingcompo_paid");
-    vb_passed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fishingcompo_passed");
-    vb_stranger = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "fishingcompo_stranger");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp11_fishingcompo");
+    vb_garlic = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2051_fishingcompo_garlicpipe");
+    vb_paid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2052_fishingcompo_paid");
+    vb_passed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2053_fishingcompo_passed");
+    vb_stranger = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2054_fishingcompo_stranger");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     fishing = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "fishing");
     obj_pass = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "fishing_competition_pass");
     obj_coins = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "coins");

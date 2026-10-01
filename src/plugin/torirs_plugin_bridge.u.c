@@ -4891,13 +4891,13 @@ app_plugin_facet_ids(struct App* app)
     }
     app->plugin_facet_ids.sidetab_valid = 0;
     app->plugin_facet_ids.varbit_sidebar_flash =
-        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sidebar_flash_tab");
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb3756_sidebar_flash_tab");
     app->plugin_facet_ids.varbit_cutscene =
-        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "cutscene_status");
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb542_cutscene_status");
     app->plugin_facet_ids.varp_run_mode =
-        RevConfigRefs_Get(&app->revconfig_refs, "varp", "run_mode");
+        RevConfigRefs_Get(&app->revconfig_refs, "varp", "varp173_run_mode");
     app->plugin_facet_ids.varp_special_armed =
-        RevConfigRefs_Get(&app->revconfig_refs, "varp", "special_attack_armed");
+        RevConfigRefs_Get(&app->revconfig_refs, "varp", "varp301_special_attack_armed");
     app->plugin_facet_ids.role_orb_run = UITree_RoleFind(&app->ui_roles, "orb_run");
     app->plugin_facet_ids.role_orb_spec = UITree_RoleFind(&app->ui_roles, "orb_spec");
     app->plugin_facet_ids.valid = 1;

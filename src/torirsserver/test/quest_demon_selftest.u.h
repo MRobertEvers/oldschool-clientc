@@ -240,14 +240,14 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     loc_drain_key = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "qip_ds_questdrain_key");
     loc_sewer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "qip_ds_sewer_key");
     loc_sewer_mud = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "qip_ds_rustykey_mud");
-    vb_main = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "demonslayer_main");
-    vb_case = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "delrith_silverlight_case");
-    vb_drain = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "delrith_drain_key");
-    varp_bones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "demon_bones_given");
-    varp_started = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "demon_traiborn_started");
-    varp_save = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "demon_save_v2");
-    varp_reward = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "demon_reward_done");
-    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    vb_main = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2561_demonslayer_main");
+    vb_case = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2567_delrith_silverlight_case");
+    vb_drain = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2568_delrith_drain_key");
+    varp_bones = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7143_demon_bones_given");
+    varp_started = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7146_demon_traiborn_started");
+    varp_save = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7145_demon_save_v2");
+    varp_reward = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7144_demon_reward_done");
+    varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
 
     SELFTEST_CHECK(npc_aris >= 0 && npc_prysin >= 0 && npc_rovin >= 0 &&
                        npc_traiborn >= 0 && npc_delrith >= 0 && obj_coins >= 0 &&

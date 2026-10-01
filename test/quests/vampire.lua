@@ -60,7 +60,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "vampire",
+            varp = "varp178_vampire",
             constants = {
                 not_started = 0,
                 started = 1,
@@ -213,7 +213,7 @@ return {
         -- [ai_queue3]): wait for its own mes() line, then poll the
         -- completion varp server-side rather than a flat sleep (section 8).
         t.exec("draynor.staked", t.msg.await, "hammer the stake into the vampyre", 20)
-        t.exec("vampire.complete_var", t.var.await_server, "vampire", 3, 15)
+        t.exec("vampire.complete_var", t.var.await_server, "varp178_vampire", 3, 15)
 
         t.quest.expect_complete()
         t.expect("reward.attack_xp", t.skill.expect_gain("attack", 4825, snapshot))

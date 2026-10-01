@@ -14,7 +14,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "imp",
+            varp = "varp160_imp",
             constants = {
                 not_started = 0,
                 started = 1,

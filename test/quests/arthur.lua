@@ -39,7 +39,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "arthur",
+            varp = "varp14_arthur",
             constants = {
                 not_started = 0, started = 1, spoken_gawain = 2, spoken_lancelot = 3,
                 spoken_morgan_lefaye = 4, excalibur_bound = 5, freed_merlin = 6, complete = 7,
@@ -327,7 +327,7 @@ return {
             t.ticks(2)
         end
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("altar.bit_set", vr == "ok" and type(vv) == "number" and vv % 2 == 1, "chaosaltar bit (bit0) in " .. tostring(vv))
         end
 
@@ -362,7 +362,7 @@ return {
             t.ticks(2)
         end
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("candle.bit_set", vr == "ok" and type(vv) == "number" and math.floor(vv / 2) % 2 == 1, "blackcandle bit (bit1) in " .. tostring(vv))
         end
 
@@ -468,7 +468,7 @@ return {
         end
         t.exec("candle-unlit-held", t.inv.await, "unlit_black_candle", 1, 6)
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("candle.bit_cleared", vr == "ok" and type(vv) == "number" and math.floor(vv / 2) % 2 == 0, "blackcandle bit (bit1) cleared in " .. tostring(vv))
         end
 
@@ -507,7 +507,7 @@ return {
             t.ticks(2)
         end
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("lady.started_bit", vr == "ok" and type(vv) == "number" and math.floor(vv / 4) % 2 == 1, "excalibur_started bit (bit2) in " .. tostring(vv))
         end
 
@@ -542,7 +542,7 @@ return {
             t.ticks(2)
         end
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("beggar.spoken_bit", vr == "ok" and type(vv) == "number" and math.floor(vv / 8) % 2 == 1, "excalibur_spoken_beggar bit (bit3) in " .. tostring(vv))
         end
 
@@ -578,7 +578,7 @@ return {
         end
         t.exec("excalibur-held", t.inv.await, "excalibur", 1, 6)
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("beggar.rewarded_bit", vr == "ok" and type(vv) == "number" and math.floor(vv / 16) % 2 == 1, "excalibur_rewarded bit (bit4) in " .. tostring(vv))
         end
 
@@ -619,7 +619,7 @@ return {
         t.ticks(2)
         t.exec("quest.stage.excalibur_bound", t.quest.expect_stage, "excalibur_bound")
         do
-            local vr, vv = t.var.server("excalibur_components_progress")
+            local vr, vv = t.var.server("varp5761_excalibur_components_progress")
             t.check("bound.bits_cleared", vr == "ok" and type(vv) == "number" and vv % 4 == 0, "chaosaltar+blackcandle bits cleared in " .. tostring(vv))
         end
 

@@ -225,8 +225,8 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     npc_lawgof = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "lawgof2");
     npc_nulodion = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "nulodion");
     npc_lollk = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "dwarfchildtw1");
-    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "mcannon");
-    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "qp");
+    varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp0_mcannon");
+    qp_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     crafting = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "crafting");
     obj_rail = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "mcannonrailing1_obj");
     obj_hammer = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "hammer");
@@ -241,8 +241,8 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     loc_cannon_broken = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "broken_multicannon");
     loc_remains_shell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mcannonremains_multiloc");
     loc_remains_child = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mcannonremains_location");
-    vb_spring = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "mcannon_spring_set");
-    vb_safety = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "mcannon_safety_on");
+    vb_spring = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2239_mcannon_spring_set");
+    vb_safety = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2238_mcannon_safety_on");
     com_tool1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "mcannon_interface:mcannon_tool1");
     com_tool2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "mcannon_interface:mcannon_tool2");
     com_tool3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "mcannon_interface:mcannon_tool3");
@@ -328,12 +328,12 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
             int x;
             int z;
         } rails[6] = {
-            { "mcannon_railing1_multiloc", "mcannonrailing1", "mcannon_railing1_fixed", 2555, 3479 },
-            { "mcannon_railing2_multiloc", "mcannonrailing2", "mcannon_railing2_fixed", 2557, 3468 },
-            { "mcannon_railing3_multiloc", "mcannonrailing3", "mcannon_railing3_fixed", 2559, 3458 },
-            { "mcannon_railing4_multiloc", "mcannonrailing4", "mcannon_railing4_fixed", 2563, 3457 },
-            { "mcannon_railing5_multiloc", "mcannonrailing5", "mcannon_railing5_fixed", 2573, 3457 },
-            { "mcannon_railing6_multiloc", "mcannonrailing6", "mcannon_railing6_fixed", 2577, 3457 },
+            { "mcannon_railing1_multiloc", "mcannonrailing1", "varb2240_mcannon_railing1_fixed", 2555, 3479 },
+            { "mcannon_railing2_multiloc", "mcannonrailing2", "varb2241_mcannon_railing2_fixed", 2557, 3468 },
+            { "mcannon_railing3_multiloc", "mcannonrailing3", "varb2242_mcannon_railing3_fixed", 2559, 3458 },
+            { "mcannon_railing4_multiloc", "mcannonrailing4", "varb2243_mcannon_railing4_fixed", 2563, 3457 },
+            { "mcannon_railing5_multiloc", "mcannonrailing5", "varb2244_mcannon_railing5_fixed", 2573, 3457 },
+            { "mcannon_railing6_multiloc", "mcannonrailing6", "varb2245_mcannon_railing6_fixed", 2577, 3457 },
         };
         int r;
 
@@ -627,7 +627,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
      * lost_my_cannon, take_a_cannon; Transcript:Nulodion). The menu rows:
      * 1 sell, 2 lost, 3 more, 4 bye; the sell menu row 1 is "take a cannon". */
     {
-        int varp_last = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "cannon_last_stage");
+        int varp_last = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp7189_cannon_last_stage");
         int obj_part1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart1");
         int obj_part2 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart2");
         int obj_part3 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "twpart3");

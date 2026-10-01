@@ -33,7 +33,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "rd_main",
+            varp = "varb657_rd_main",
             constants = {
                 not_started = 0,
                 referred = 1,
@@ -144,9 +144,9 @@ return {
         t.exec("moveChickenOnRightToLeftAgain-cross", t.player.click_loc, "rd_bridge_left", 1)
         t.exec("moveChickenOnRightToLeftAgain-drop", t.player.inv_op, "rd_chicken", 5)
         t.ticks(2)
-        t.check("spishyus.room1_complete", select(1, t.var.server("rd_room1_complete")) == "ok"
-            and select(2, t.var.server("rd_room1_complete")) == 1,
-            "var.server(rd_room1_complete) -> " .. tostring(select(1, t.var.server("rd_room1_complete"))) .. " " .. tostring(select(2, t.var.server("rd_room1_complete"))))
+        t.check("spishyus.room1_complete", select(1, t.var.server("varb659_rd_room1_complete")) == "ok"
+            and select(2, t.var.server("varb659_rd_room1_complete")) == 1,
+            "var.server(rd_room1_complete) -> " .. tostring(select(1, t.var.server("varb659_rd_room1_complete"))) .. " " .. tostring(select(2, t.var.server("varb659_rd_room1_complete"))))
 
         t.drive.camera(0, 128, 600) -- boot follow pose back for the later rooms
         t.exec("leaveSirSpishyusRoom", t.player.click_loc, "rd_room1_exitdoor", 1)
@@ -175,9 +175,9 @@ return {
         -- full kill.
         t.exec("killSirLeye-attack", t.player.attack, "rd_combat_npc_room_3", 2, 20)
         t.exec("killSirLeye-dead", t.npc.await_dead_engaged, 300, 30)
-        t.check("killSirLeye.room3_complete", select(1, t.var.server("rd_room3_complete")) == "ok"
-            and select(2, t.var.server("rd_room3_complete")) == 1,
-            "var.server(rd_room3_complete) -> " .. tostring(select(1, t.var.server("rd_room3_complete"))) .. " " .. tostring(select(2, t.var.server("rd_room3_complete"))))
+        t.check("killSirLeye.room3_complete", select(1, t.var.server("varb661_rd_room3_complete")) == "ok"
+            and select(2, t.var.server("varb661_rd_room3_complete")) == 1,
+            "var.server(rd_room3_complete) -> " .. tostring(select(1, t.var.server("varb661_rd_room3_complete"))) .. " " .. tostring(select(2, t.var.server("varb661_rd_room3_complete"))))
 
         t.exec("leaveSirKuamRoom", t.player.click_loc, "rd_room3_exitdoor", 1)
         t.ticks(2)
@@ -197,9 +197,9 @@ return {
         -- The softtimer's own verdict page (~chatnpc_specific from a
         -- softtimer, no protected player) can hang -- rd_room4_complete is
         -- already set before that call runs, so close defensively and move on.
-        t.check("doNothingStep.room4_complete", select(1, t.var.server("rd_room4_complete")) == "ok"
-            and select(2, t.var.server("rd_room4_complete")) == 1,
-            "var.server(rd_room4_complete) -> " .. tostring(select(1, t.var.server("rd_room4_complete"))) .. " " .. tostring(select(2, t.var.server("rd_room4_complete"))))
+        t.check("doNothingStep.room4_complete", select(1, t.var.server("varb662_rd_room4_complete")) == "ok"
+            and select(2, t.var.server("varb662_rd_room4_complete")) == 1,
+            "var.server(rd_room4_complete) -> " .. tostring(select(1, t.var.server("varb662_rd_room4_complete"))) .. " " .. tostring(select(2, t.var.server("varb662_rd_room4_complete"))))
         t.check("doNothingStep.close_hung_page", t.chat.close())
 
         t.exec("leaveSirTinleyRoom", t.player.click_loc, "rd_room4_exitdoor", 1)
@@ -219,7 +219,7 @@ return {
         -- rd_templock_1 -- recruitmentdrive.varp declares it transmit=yes
         -- on carrier rd_rooms_tempvar, so var.server reads the live value,
         -- same shape section 3's Hynn/Ren riddle reads use.
-        local table_answer_result, table_answer = t.var.server("rd_templock_1")
+        local table_answer_result, table_answer = t.var.server("varb666_rd_templock_1")
         t.check("ladyTableStep.read_answer", table_answer_result == "ok",
             "var.server(rd_templock_1) -> " .. tostring(table_answer_result) .. " " .. tostring(table_answer))
         -- recruitmentdrive_table.rs2 index map (1..12), [oploc1,...] rows.
@@ -233,7 +233,7 @@ return {
         -- The window closes and the multiloc's -1 rung re-places (fix
         -- 57b4ff6a1, Lady Table selftest) when rd_room_order returns to 0;
         -- rd_table_touch refuses "Memorise the statues first." until then.
-        local table_window_result, table_window_detail = t.var.await_server("rd_room_order", 0, 20)
+        local table_window_result, table_window_detail = t.var.await_server("varb658_rd_room_order", 0, 20)
         t.check("ladyTableStep.window_closed", table_window_result == "ok",
             "var.await_server(rd_room_order, 0) -> " .. tostring(table_window_result) .. " " .. tostring(table_window_detail))
         t.exec("pwLadyTableStep", t.player.click_loc, rd_table_target, 1)
@@ -241,9 +241,9 @@ return {
         t.exec("pwLadyTableStep-dialog", t.chat.play, {
             "npc:Excellent work. Please step through the portal to meet your next challenge.",
         })
-        t.check("pwLadyTableStep.room2_complete", select(1, t.var.server("rd_room2_complete")) == "ok"
-            and select(2, t.var.server("rd_room2_complete")) == 1,
-            "var.server(rd_room2_complete) -> " .. tostring(select(1, t.var.server("rd_room2_complete"))) .. " " .. tostring(select(2, t.var.server("rd_room2_complete"))))
+        t.check("pwLadyTableStep.room2_complete", select(1, t.var.server("varb660_rd_room2_complete")) == "ok"
+            and select(2, t.var.server("varb660_rd_room2_complete")) == 1,
+            "var.server(rd_room2_complete) -> " .. tostring(select(1, t.var.server("varb660_rd_room2_complete"))) .. " " .. tostring(select(2, t.var.server("varb660_rd_room2_complete"))))
 
         t.exec("leaveLadyTableRoom", t.player.click_loc, "rd_room2_exitdoor", 1)
         t.ticks(2)
@@ -252,7 +252,7 @@ return {
         -- Room 5: Sir Ren Itchood -- acrostic clue + combination lock (285).
         -- ==================================================================
         t.exec("goto-sirRenStep.talkToRen", t.player.goto_tile, 2439, 4956, 0)
-        local ren_clue_result, ren_clue = t.var.server("rd_templock_1")
+        local ren_clue_result, ren_clue = t.var.server("varb666_rd_templock_1")
         t.check("sirRenStep.read_clue", ren_clue_result == "ok",
             "var.server(rd_templock_1) -> " .. tostring(ren_clue_result) .. " " .. tostring(ren_clue))
         -- recruitmentdrive_ren.rs2 rd_ren_password: 0=BITE 1=FISH 2=LAST
@@ -319,9 +319,9 @@ return {
         t.exec("sirRenStep.pwEnterDoorCode-dialog", t.chat.play, {
             "npc:Your wit is sharp, your brains quite clear",
         })
-        t.check("sirRenStep.room5_complete", select(1, t.var.server("rd_room5_complete")) == "ok"
-            and select(2, t.var.server("rd_room5_complete")) == 1,
-            "var.server(rd_room5_complete) -> " .. tostring(select(1, t.var.server("rd_room5_complete"))) .. " " .. tostring(select(2, t.var.server("rd_room5_complete"))))
+        t.check("sirRenStep.room5_complete", select(1, t.var.server("varb663_rd_room5_complete")) == "ok"
+            and select(2, t.var.server("varb663_rd_room5_complete")) == 1,
+            "var.server(rd_room5_complete) -> " .. tostring(select(1, t.var.server("varb663_rd_room5_complete"))) .. " " .. tostring(select(2, t.var.server("varb663_rd_room5_complete"))))
 
         t.exec("sirRenStep.leaveRoom", t.player.click_loc, "rd_room5_exitdoor", 1)
         t.ticks(2)
@@ -422,11 +422,11 @@ return {
         t.exec("useCupricSulfateOnDoor", t.player.use_on, "rd_cupric_sulphate", rd_door)
         t.exec("useVialOfLiquidOnDoor", t.player.use_on, "rd_dihydrogen_monoxide", rd_door)
         t.ticks(2)
-        local rs, vs = t.var.server("rd_room6_stone_door")
+        local rs, vs = t.var.server("varb686_rd_room6_stone_door")
         t.check("useVialOfLiquidOnDoor.state2", rs == "ok" and vs == 2, "var.server(rd_room6_stone_door) -> " .. tostring(rs) .. " " .. tostring(vs))
         t.exec("openDoor", t.player.click_loc, "rd_stone_door", 1)
         t.ticks(2)
-        local ro, vo = t.var.server("rd_room6_stone_door")
+        local ro, vo = t.var.server("varb686_rd_room6_stone_door")
         t.check("openDoor.state3", ro == "ok" and vo == 3, "var.server(rd_room6_stone_door) -> " .. tostring(ro) .. " " .. tostring(vo))
 
         t.exec("useVialOfLiquidOnCakeTin", t.player.use_item_on_item, "rd_dihydrogen_monoxide", "rd_tin")
@@ -449,15 +449,15 @@ return {
             "world.tile -> " .. tostring(tr) .. " " .. tostring(tile and tile.x) .. "," .. tostring(tile and tile.z))
         t.exec("leaveMissCheeversRoom", t.player.click_loc, "rd_room6_exitdoor", 1)
         t.ticks(3)
-        t.check("pwMissCheeversStep.room6_complete", select(1, t.var.server("rd_room6_complete")) == "ok"
-            and select(2, t.var.server("rd_room6_complete")) == 1,
-            "var.server(rd_room6_complete) -> " .. tostring(select(2, t.var.server("rd_room6_complete"))))
+        t.check("pwMissCheeversStep.room6_complete", select(1, t.var.server("varb664_rd_room6_complete")) == "ok"
+            and select(2, t.var.server("varb664_rd_room6_complete")) == 1,
+            "var.server(rd_room6_complete) -> " .. tostring(select(2, t.var.server("varb664_rd_room6_complete"))))
 
         -- ==================================================================
         -- Room 7: Ms Hynn Terprett -- riddle (random of five).
         -- ==================================================================
         t.exec("goto-pwMsHynnTerprett", t.player.goto_tile, 2451, 4935, 0)
-        local hynn_r, hynn_riddle = t.var.server("rd_templock_1")
+        local hynn_r, hynn_riddle = t.var.server("varb666_rd_templock_1")
         t.check("pwMsHynnTerprett.read_riddle", hynn_r == "ok",
             "var.server(rd_templock_1) -> " .. tostring(hynn_r) .. " " .. tostring(hynn_riddle))
         -- recruitmentdrive_hynn.rs2 [opnpc1,rd_observer_room_7]: five riddles
@@ -475,9 +475,9 @@ return {
             table.insert(hynn_dialog, line)
         end
         t.exec("pwMsHynnTerprett-dialog", t.chat.play, hynn_dialog)
-        t.check("pwMsHynnTerprett.room7_complete", select(1, t.var.server("rd_room7_complete")) == "ok"
-            and select(2, t.var.server("rd_room7_complete")) == 1,
-            "var.server(rd_room7_complete) -> " .. tostring(select(1, t.var.server("rd_room7_complete"))) .. " " .. tostring(select(2, t.var.server("rd_room7_complete"))))
+        t.check("pwMsHynnTerprett.room7_complete", select(1, t.var.server("varb665_rd_room7_complete")) == "ok"
+            and select(2, t.var.server("varb665_rd_room7_complete")) == 1,
+            "var.server(rd_room7_complete) -> " .. tostring(select(1, t.var.server("varb665_rd_room7_complete"))) .. " " .. tostring(select(2, t.var.server("varb665_rd_room7_complete"))))
 
         t.exec("leaveMsHynnTerprettRoom", t.player.click_loc, "rd_room7_exitdoor", 1)
         t.ticks(3)

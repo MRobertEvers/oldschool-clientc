@@ -2447,6 +2447,94 @@ cs2_seed_pack_names(
     }
 }
 
+/*
+ * Varc names, split by kind. A varc is int or string only by which opcodes the
+ * scripts use on it — the cache's varc config has no field for it — so
+ * `%chatout_readpos` cannot be compiled until the tree says which. It says so in
+ * `configs/all.varc` with `type=string` (the default is int), the way a
+ * RuneScript varc declaration does; cp_pack_varc accepts the key and encodes
+ * nothing for it.
+ */
+/* `varbit_6` says no more than `%varbit6`; only a real name is worth spelling. */
+static int
+cs2_is_var_filler(const char* name)
+{
+    const char* underscore = strrchr(name, '_');
+    if( !underscore || !underscore[1] )
+        return 0;
+    for( const char* c = underscore + 1; *c; c++ )
+        if( !isdigit((unsigned char)*c) )
+            return 0;
+    size_t head = (size_t)(underscore - name);
+    return (head == 6 && strncmp(name, "varbit", 6) == 0) ||
+           (head == 4 && strncmp(name, "varp", 4) == 0) ||
+           (head == 4 && strncmp(name, "varc", 4) == 0);
+}
+
+static void
+cs2_seed_var_names(
+    struct cp_cs2_state* state,
+    enum RSCache_CS2_NameTable table,
+    const struct LC_Pack* pack)
+{
+    for( int id = 0; id < pack->max; id++ )
+    {
+        const char* name = pack->names ? pack->names[id] : NULL;
+        if( name && cs2_is_identifier(name) && !cs2_is_var_filler(name) )
+            RSCache_CS2_NamesSet(&state->names, table, id, name);
+    }
+}
+
+static void
+cs2_seed_varc_names(struct cp_cs2_state* state, const struct LC_Pack* pack)
+{
+    char path[1300];
+    snprintf(path, sizeof(path), "%s/configs/all.varc", state->ctx->srcdir);
+    struct RSCache_CS2_IntMap strings;
+    RSCache_CS2_IntMapInit(&strings);
+    FILE* file = fopen(path, "rb");
+    if( file )
+    {
+        char line[512];
+        char current[256] = { 0 };
+        while( fgets(line, (int)sizeof(line), file) )
+        {
+            line[strcspn(line, "\r\n")] = '\0';
+            if( line[0] == '[' )
+            {
+                char* close = strchr(line, ']');
+                size_t length = close ? (size_t)(close - line - 1) : 0;
+                if( length >= sizeof(current) )
+                    length = 0;
+                memcpy(current, line + 1, length);
+                current[length] = '\0';
+            }
+            else if( current[0] && strcmp(line, "type=string") == 0 )
+            {
+                for( int id = 0; id < pack->max; id++ )
+                {
+                    if( pack->names && pack->names[id] && strcmp(pack->names[id], current) == 0 )
+                        RSCache_CS2_IntMapPut(&strings, id, (void*)1);
+                }
+            }
+        }
+        fclose(file);
+    }
+    for( int id = 0; id < pack->max; id++ )
+    {
+        const char* name = pack->names ? pack->names[id] : NULL;
+        if( !name || !cs2_is_identifier(name) || cs2_is_var_filler(name) )
+            continue;
+        RSCache_CS2_NamesSet(
+            &state->names,
+            RSCache_CS2_IntMapContains(&strings, id) ? RSCACHE_CS2_NAMES_VARCSTRING
+                                                     : RSCACHE_CS2_NAMES_VARCINT,
+            id,
+            name);
+    }
+    RSCache_CS2_IntMapFree(&strings);
+}
+
 static void
 cs2_seed_record_names(struct cp_cs2_state* state)
 {
@@ -2476,6 +2564,10 @@ cs2_seed_record_names(struct cp_cs2_state* state)
         cs2_seed_pack_names(&state->names, ASSETS[i].table, &tree->asset_packs[ASSETS[i].asset]);
     for( size_t i = 0; i < sizeof(CONFIGS) / sizeof(CONFIGS[0]); i++ )
         cs2_seed_pack_names(&state->names, CONFIGS[i].table, &tree->packs[CONFIGS[i].type]);
+
+    cs2_seed_var_names(state, RSCACHE_CS2_NAMES_VARBIT, &tree->packs[CP_TYPE_VARBIT]);
+    cs2_seed_var_names(state, RSCACHE_CS2_NAMES_VARP, &tree->packs[CP_TYPE_VARP]);
+    cs2_seed_varc_names(state, &tree->packs[CP_TYPE_VARC]);
 
     /* Map areas are members of the world map's `details` archive; its compack
      * is the tree's index over them. */

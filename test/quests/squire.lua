@@ -27,7 +27,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "squire",
+            varp = "varp122_squire",
             constants = {
                 complete = 7,
                 given_pie = 3,
