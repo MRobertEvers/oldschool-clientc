@@ -28,6 +28,8 @@ CFLAGS  += $(INCLUDES) $(WARNINGS) -MMD -MP
 # The vendored deps are third-party sources; build them at -O3 without our
 # warning set, matching how src/makefile treats them.
 DEP_CFLAGS := -std=c11 -O3 -g -w $(INCLUDES)
+# The library calls sinf/cosf; glibc keeps them in libm, macOS links it implicitly.
+LDLIBS  ?= -lm
 
 UNITY_OBJ := $(BUILD)/rscache_unity.o
 DEP_OBJS  := $(BUILD)/bzip.o $(BUILD)/bzip_encode.o $(BUILD)/miniz.o $(BUILD)/xteas.o
@@ -70,7 +72,7 @@ $(BUILD)/xteas.o: $(THIRD)/xteas/xteas.c | $(BUILD)
 	$(CC) $(DEP_CFLAGS) -c $< -o $@
 
 $(BUILD)/%: test/%.c $(LIB_OBJS) | $(BUILD)
-	$(CC) $(CFLAGS) -Itest -Itools/common -o $@ $< $(LIB_OBJS)
+	$(CC) $(CFLAGS) -Itest -Itools/common -o $@ $< $(LIB_OBJS) $(LDLIBS)
 
 # The pack-file suite is the exception: `pack/<ns>.pack` is text, so it links
 # tools/port_lostcity/lc_pack.c and none of the cache library. It lives here
@@ -88,7 +90,7 @@ $(BUILD)/cp_pack_ident.o: tools/cachepack/cp_pack_ident.c | $(BUILD)
 
 $(BUILD)/test_pack_ident: test/test_pack_ident.c $(BUILD)/lc_pack.o $(BUILD)/cp_pack_ident.o $(LIB_OBJS) | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -Itools/common -Itools/port_lostcity -Itools/cachepack -o $@ $< \
-		$(BUILD)/lc_pack.o $(BUILD)/cp_pack_ident.o $(LIB_OBJS)
+		$(BUILD)/lc_pack.o $(BUILD)/cp_pack_ident.o $(LIB_OBJS) $(LDLIBS)
 
 # The field-register suite, for the same reason as the pack suite above:
 # `fields/<type>.ini` is the contract between the packer that writes a server band
@@ -103,7 +105,7 @@ $(BUILD)/cp_fields.o: tools/cachepack/cp_fields.c | $(BUILD)
 
 $(BUILD)/test_fields: test/test_fields.c $(BUILD)/cp_fields.o $(BUILD)/ini.o $(LIB_OBJS) | $(BUILD)
 	$(CC) $(CFLAGS) -Itest -Itools/cachepack -o $@ $< $(BUILD)/cp_fields.o $(BUILD)/ini.o \
-		$(LIB_OBJS)
+		$(LIB_OBJS) $(LDLIBS)
 
 # The membership suite, here for the third instance of the same reason:
 # `pack/<ns>.client` and `pack/<ns>.server` are the on-disk statement of which

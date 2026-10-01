@@ -1654,6 +1654,23 @@ import_one(
         if( codec && codec->read )
             payload = codec->read(ctx, archive_id, base, &file_ids, &file_count, &payload_size);
 
+        /* The codec's own form is on disk and did not encode: that fails the pack,
+         * and nothing below may stand in for it. Falling through used to let a
+         * `.cs2b` beside a `.cs2` that does not compile ship its bytecode with not
+         * even a counter moving. */
+        if( !payload && codec && codec->read )
+        {
+            char codec_path[1700];
+            snprintf(codec_path, sizeof(codec_path), "%s.%s", base, codec->ext);
+            if( file_exists(codec_path) )
+            {
+                declined++;
+                fprintf(stderr, "cachepack: %s does not encode — the pack fails rather "
+                                "than keep the base cache's bytes\n", codec_path);
+                continue;
+            }
+        }
+
         if( !payload && (asset->flags & CP_ASSET_SPLIT) )
         {
             /*
@@ -1744,10 +1761,10 @@ import_one(
              * `read` has already had first refusal on `<base>.<codec ext>`; if it
              * declined, that file is its *friendly* form and reading it here as a raw
              * payload would pack decompiled text into the cache as though it were
-             * bytecode. Declining and keeping the cache's own bytes is the correct
-             * answer, and the `codec-declined` counter is how it is reported rather
-             * than hidden. (I added the codec extensions here and had to take them
-             * back out — the exclusion is the design, not an oversight.)
+             * bytecode. A codec form that did not encode never reaches this point:
+             * it failed the pack above. (I added the codec extensions here and had
+             * to take them back out — the exclusion is the design, not an
+             * oversight.)
              */
             static const char* const SNIFFED[] = { "png", "jpg", "gif", "mid",
                                                    "ogg", "ob2", "ob3", "model" };
@@ -1815,12 +1832,16 @@ import_one(
             }
             if( on_disk )
             {
-                /* The friendly form is there; the codec would not turn it back into
-                 * bytes. For `script` that is the documented semantic bar — 219 of
-                 * osrs239's clientscripts decompile but do not recompile — and
-                 * keeping the base cache's bytes is the right answer. Reported
-                 * because "the tree's copy was not used" should never be silent. */
+                /* The friendly form is there and the codec could not turn it back
+                 * into bytes — a script that does not compile. That fails the pack.
+                 * Keeping the base cache's bytes instead used to be the answer, and
+                 * it made every such file a silent dropped edit: the bake succeeded,
+                 * the cache booted, and the tree's copy never reached a client
+                 * (3,077 osrs239 scripts at once, unnoticed). The codec has already
+                 * printed why; this names the file it gave up on. */
                 declined++;
+                fprintf(stderr, "cachepack: %s does not encode — the pack fails rather "
+                                "than keep the base cache's bytes\n", probe);
             }
             else if( archive_in_cache(ctx, table_id, archive_id) )
             {
@@ -1966,17 +1987,15 @@ cp_assets_import(
      * Always printed, including the zero, so a bar can grep for the line rather
      * than for its absence — an absent line and a passing run look identical.
      */
-    printf("%s %d asset archives, %d indexed but missing.\n",
-           out_cache_dir ? "Imported" : "Checked", total, missing);
+    printf("%s %d asset archives, %d indexed but missing, %d codec-declined.\n",
+           out_cache_dir ? "Imported" : "Checked", total, missing, declined);
     cp_archive_filter_free(&filter);
-    /* A full repack may legitimately retain the base bytecode for a friendly
-     * form the codec declines. An explicit archive list is different: every
-     * row is a record the caller asked to replace, so silently retaining its
-     * base bytes would produce an overlay whose key claims an edit it does not
-     * contain. */
-    if( filtered && declined )
-        fprintf(stderr, "cachepack: %d selected archive(s) were codec-declined\n", declined);
-    return missing == 0 && (!filtered || declined == 0);
+    /* A declined archive is a tree file that did not encode — a full repack and
+     * an explicit archive list alike. Either way the output would carry the
+     * base cache's bytes where the tree states something else. */
+    if( declined )
+        fprintf(stderr, "cachepack: %d archive(s) were codec-declined\n", declined);
+    return missing == 0 && declined == 0;
 }
 
 /* ---- fidelity ----------------------------------------------------------- */

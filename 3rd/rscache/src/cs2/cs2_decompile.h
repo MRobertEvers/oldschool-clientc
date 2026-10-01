@@ -120,6 +120,32 @@ RSCache_CS2_Decompile(
     int error_capacity);
 
 /**
+ * Settle each script's header trigger from how the rest of the cache calls it,
+ * before any of them is decompiled.
+ *
+ * A proc that returns nothing reads exactly like a clientscript from inside;
+ * only a caller tells them apart. `RSCache_CS2_Decompile` sees one script at a
+ * time, so without this a no-return proc came out `[clientscript,…]`, and its
+ * own `~name` callers stopped compiling the moment it was given a name.
+ *
+ * Interprets every id in `ids` and records each callee: a `~call` (gosub) target
+ * is pinned `proc`; a script only ever bound as a hook is pinned `clientscript`.
+ * Scripts neither called nor bound are left unpinned. An id `out` already pins —
+ * from RSCache_CS2_NamesLoadDecompileSettings, loaded first — is left alone, so
+ * the settings file always wins.
+ *
+ * Returns how many scripts were pinned. `out_both`, when given, receives how
+ * many are both called and bound (pinned `proc`, which compiles for both uses).
+ */
+int
+RSCache_CS2_ScanCallTriggers(
+    const int* ids,
+    int count,
+    const struct RSCache_CS2_DecompileOptions* options,
+    struct RSCache_CS2_Names* out,
+    int* out_both);
+
+/**
  * Decompile one script to a JSON syntax tree (cs2_gen_json.h).
  *
  * The same pipeline and the same structured tree as `RSCache_CS2_Decompile`,

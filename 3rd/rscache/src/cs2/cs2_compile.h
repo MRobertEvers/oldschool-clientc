@@ -48,7 +48,32 @@ struct RSCache_CS2_CompileOptions
     struct RSCache_CS2_DbColumnTypes db_columns;
     /** Symbolic constant and script-name resolution; optional. */
     const struct RSCache_CS2_Names* names;
+    /**
+     * A callee's declared parameter types, for typing a `~call`'s arguments.
+     *
+     * Bytecode keeps only how many ints and strings a script takes, so without
+     * this every argument compiles untyped — and a quoted graphic passed to a
+     * `graphic` parameter (`~quest_req_line(..., "account_icons,0", ...)`) went
+     * on the string stack. The source that declares the callee is the only
+     * place its types are written; RSCache_CS2_HeaderParamTypes reads them.
+     *
+     * Optional. `load` writes at most `capacity` types and returns the count,
+     * or -1 when it does not know the script.
+     */
+    struct
+    {
+        void* user;
+        int (*load)(void* user, int script_id, enum RSCache_CS2_Type* out, int capacity);
+    } script_params;
 };
+
+/**
+ * The parameter types a script's source declares in its header —
+ * `[proc,name](component $c, graphic $g)` gives component, graphic. Returns the
+ * count (at most `capacity` written), or -1 when the source has no header.
+ */
+int
+RSCache_CS2_HeaderParamTypes(const char* source, enum RSCache_CS2_Type* out, int capacity);
 
 /**
  * Compile one script.

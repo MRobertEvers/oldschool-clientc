@@ -68,6 +68,12 @@ compare($string0, "cry") = 0
 Exact `::cry` therefore remains local, while `::crystal_set` falls through to
 `docheat` and leaves the client as revision-239 `CLIENT_CHEAT` opcode 34.
 
+**Reverted.** The content tree's CS2 is now the cache's own, byte for byte, with
+no edits: script 7304 prefix-matches its aliases again, so `::crystal_set`
+plays Cry exactly as it does on a pristine cache. `::~crystal_set` is the
+command — the leading `~` matches no alias — and
+`tools/check_crystal_set_contract.py` guards that path, not a client edit.
+
 ## Why the server was silent
 
 The packet trace for the failure contained keyboard telemetry, an interface

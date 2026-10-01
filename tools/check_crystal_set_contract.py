@@ -6,6 +6,10 @@ docs/CRYSTAL_SET_COMMAND.md.  This checker deliberately spans both source
 trees because the original failure did too: revision-239 CS2 consumed the
 command as the local ``cry`` emote before CLIENT_CHEAT, while a second global
 ``[debugproc,crystal_set]`` made the eventual server result ambiguous.
+
+The client's CS2 is the cache's own, unedited: script 7304 still prefix-matches
+its emote aliases, so ``::crystal_set`` plays Cry. ``::~crystal_set`` is the
+command, and what this guards is that the escape keeps reaching the server.
 """
 
 from __future__ import annotations
@@ -22,10 +26,8 @@ from pathlib import Path
 # which is not necessarily the submodule -- TORIRSSERVER_CONTENT_DIR selects it, and
 # a checker that ignored it reported the submodule's failures against a bake of
 # a different tree entirely.
-# The content tree renamed every `script_<id>.cs2` to its RuneStar name in
-# a7872d33aa/cf2f3c9655; these two are the same scripts 7304 and 73, and each
+# The content tree renamed every `script_<id>.cs2`; this is script 73, and it
 # still carries its id in a leading `// <id>` comment.
-CLIENT = Path("scripts/torirs_emote_command.cs2")
 CHAT_ENTER = Path("scripts/chatdefault_onkey.cs2")
 SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
@@ -38,25 +40,6 @@ WORLD_SELFTEST = Path("src/torirsserver/torirs_server_world_selftest.c")
 INCIDENT_DOC = Path("docs/CRYSTAL_SET_COMMAND.md")
 
 DEFAULT_CONTENT = Path("OSRS-Content/osrs239-content")
-
-
-def client_errors(text: str) -> list[str]:
-    errors: list[str] = []
-    marker = "$string0 = lowercase($string0);"
-    if marker not in text:
-        return ["script 7304 no longer has its normalized-command boundary"]
-    command_body = text.split(marker, 1)[1]
-    command_body = command_body.split("if (cc_find", 1)[0]
-    if re.search(r"string_indexof_string\s*\(\s*\$string0", command_body):
-        errors.append(
-            "local emote aliases use prefix matching; this makes crystal_set match cry"
-        )
-    aliases = set(
-        re.findall(r'compare\s*\(\s*\$string0\s*,\s*"([^"]+)"\s*\)\s*=\s*0', command_body)
-    )
-    if "cry" not in aliases:
-        errors.append('the exact local alias compare($string0, "cry") = 0 is missing')
-    return errors
 
 
 def crystal_definition_errors(definitions: list[Path], text: str) -> list[str]:
@@ -84,17 +67,6 @@ def crystal_definition_errors(definitions: list[Path], text: str) -> list[str]:
 
 
 def run_self_test() -> None:
-    good_client = (
-        '$string0 = lowercase($string0);\n'
-        'if (compare($string0, "cry") = 0) {}\n'
-        'if (cc_find(interface_216:2, 16) = ^true) {}\n'
-    )
-    assert not client_errors(good_client)
-    bad_client = good_client.replace(
-        'compare($string0, "cry")', 'string_indexof_string($string0, "cry", 0)'
-    )
-    assert client_errors(bad_client), "negative control: prefix matching must fail"
-
     good_proc = "\n".join(
         (
             "[proc,crystal_set_debug]",
@@ -118,9 +90,6 @@ def check(root: Path, content: Path) -> list[str]:
 
     # Content paths are reported as they were actually opened. When the tree is
     # not the submodule, that is the only thing in the message that says so.
-    client = (content / CLIENT).read_text(encoding="utf-8")
-    errors.extend(f"{content / CLIENT}: {item}" for item in client_errors(client))
-
     chat_enter = (content / CHAT_ENTER).read_text(encoding="utf-8")
     local = chat_enter.find("~torirs_emote_command(")
     server = chat_enter.find("docheat(")
@@ -158,13 +127,25 @@ def check(root: Path, content: Path) -> list[str]:
                 f"{WORLD}/{WORLD_SELFTEST.name}: "
                 f"missing diagnostic/self-test guard: {fragment}")
 
-    normalize = world.find("if( text[0] == '~' )")
-    dispatch = world.find("ToriRSServer_ScriptsRunDebugproc(srv, text)", normalize)
-    builtin = world.find('if( strncmp(text, "talk", 4) == 0 )', normalize)
-    if normalize < 0 or dispatch < 0 or builtin < 0 or not normalize < dispatch < builtin:
-        errors.append(
-            f"{WORLD}: ::~ normalization must precede debugproc and built-in dispatch"
-        )
+    # Every cheat entry point strips the `~` and then calls cheat_dispatch, which
+    # tries content debugprocs before the engine's built-in ladder.
+    source = (root / WORLD).read_text(encoding="utf-8")
+    for entry in ("\nhandle_cheat(", "\nToriRSServer_RunCheatForTest("):
+        start = source.find(entry)
+        end = source.find("\n}\n", start)
+        body = source[start:end]
+        normalize = body.find("if( text[0] == '~' )")
+        dispatch = body.find("cheat_dispatch(")
+        if start < 0 or normalize < 0 or dispatch < 0 or normalize > dispatch:
+            errors.append(
+                f"{WORLD}: {entry.strip()} must strip ::~ before calling cheat_dispatch"
+            )
+    start = source.find("\ncheat_dispatch(")
+    body = source[start:source.find("\n}\n", start)]
+    debugproc = body.find("ToriRSServer_ScriptsRunDebugproc(srv, text)")
+    ladder = body.find("ToriRSServer_RunCheatLadder(")
+    if start < 0 or debugproc < 0 or ladder < 0 or debugproc > ladder:
+        errors.append(f"{WORLD}: cheat_dispatch must try debugprocs before the built-in ladder")
 
     if not (root / INCIDENT_DOC).is_file():
         errors.append(f"{INCIDENT_DOC}: canonical incident guide is missing")
@@ -209,7 +190,7 @@ def main() -> int:
         )
         return 1
     print(
-        "crystal-set contract: pristine ::~ escape, exact client fallthrough, "
+        "crystal-set contract: pristine ::~ escape, "
         "unique debugproc, diagnostics, and semantics OK"
     )
     return 0

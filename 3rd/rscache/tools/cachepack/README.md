@@ -144,7 +144,7 @@ spelling and only the reader's knowledge told them apart.
 | `synth` | `synth/synth_0.synth` | — one payload |
 | `song` `jingle` | `songs/song_0.jmid` | — one payload |
 | `sample` `patch` | `samples/sample_0.sample` | — one payload |
-| `font` | `fonts/font_494.fm` — advance widths as text | — one payload |
+| `font` | `fonts/p11_full.fm` — advance widths as text | — one payload |
 | `binary` | `binary/binary_0.jpg` | — one payload |
 | `worldmapground` | `worldmap/ground/worldmapground_10016.png` | — one payload |
 | `animaya` | `animayas/animaya_0.animaya` | — one payload |

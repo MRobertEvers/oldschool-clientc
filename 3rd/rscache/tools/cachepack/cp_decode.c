@@ -12,6 +12,8 @@
 #include "datatypes/maps.h"
 #include "cs2/cs2_compile.h"
 #include "cs2/cs2_decompile.h"
+#include "cs2/cs2_interp.h"
+#include "cs2/cs2_lossless.h"
 #include "cs2/cs2_names.h"
 #include "cs2_db_columns.h"
 #include "filelist.h"
@@ -21,6 +23,7 @@
 #include "datatypes/dat2_texture.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <sys/stat.h>
 #include <stdlib.h>
@@ -2172,6 +2175,21 @@ struct cp_cs2_state
     int capacity;
     struct RSCache_CS2_Names names;
     int names_loaded;
+    /** unpack: decompile.ini and the call scan have pinned every header trigger. */
+    int triggers_pinned;
+    /** pack: the tree's headers have been checked against decompile.ini. */
+    int settings_checked;
+    /**
+     * pack: a callee's signature comes from the tree's source, not the cache.
+     * Packing with --base, the cache still holds the *pristine* callee, so a
+     * caller type-checked against it while the tree's changed callee shipped
+     * beside it — a cache whose gosubs pass the wrong stack types, which nothing
+     * reported (82 osrs239 scripts). unpack leaves this off: there the cache is
+     * the truth and the tree is what is being written.
+     */
+    int tree_first;
+    /** script id -> declared parameter types from the tree's header; lazily. */
+    struct cp_cs2_params** params;
     /* dbtable column types, for the `db_*` commands. Without these a script
      * reading a multi-field column loses its operand-stack shape and is
      * declined — 80 of osrs239's, script 7603 among them. */
@@ -2181,6 +2199,13 @@ struct cp_cs2_state
 static struct cp_cs2_state g_cs2;
 
 static const struct RSCache_CS2_Script* cs2_load_script(void* user, int script_id);
+static int cs2_load_script_params(void* user, int script_id, enum RSCache_CS2_Type* out, int capacity);
+
+struct cp_cs2_params
+{
+    int count;
+    enum RSCache_CS2_Type types[64];
+};
 static enum RSCache_CS2_Type cs2_load_param_type(void* user, int param_id);
 
 /**
@@ -2231,6 +2256,8 @@ cs2_compile_from_tree(
     options.db_columns.user = state->db_columns;
     options.db_columns.load = tool_db_columns_lookup;
     options.names = state->names_loaded ? &state->names : NULL;
+    options.script_params.user = state;
+    options.script_params.load = cs2_load_script_params;
 
     struct RSCache_ClientScript* compiled = calloc(1, sizeof(*compiled));
     if( !compiled )
@@ -2260,6 +2287,12 @@ cs2_load_script(
     if( !state->attempted[script_id] )
     {
         state->attempted[script_id] = 1;
+        if( state->tree_first )
+        {
+            cs2_compile_from_tree(state, script_id);
+            if( state->scripts[script_id] )
+                return &state->scripts[script_id]->script;
+        }
         struct RSCache_Dat2DiskArchive* archive =
             RSCache_Dat2DiskArchiveNewLoad(state->ctx->cache.disk, state->table, script_id);
         if( archive )
@@ -2273,6 +2306,49 @@ cs2_load_script(
             cs2_compile_from_tree(state, script_id);
     }
     return state->scripts[script_id] ? &state->scripts[script_id]->script : NULL;
+}
+
+/* A callee's declared parameter types, read from the tree's header for it —
+ * the only place they are written down (cs2_compile.h, script_params). */
+static int
+cs2_load_script_params(void* user, int script_id, enum RSCache_CS2_Type* out, int capacity)
+{
+    struct cp_cs2_state* state = user;
+    if( script_id < 0 || script_id >= state->capacity )
+        return -1;
+    if( !state->params )
+    {
+        state->params = calloc((size_t)state->capacity, sizeof(*state->params));
+        assert(state->params);
+    }
+    if( !state->params[script_id] )
+    {
+        struct cp_cs2_params* params = calloc(1, sizeof(*params));
+        assert(params);
+        params->count = -1;
+        const struct LC_Pack* pack = &state->ctx->names.asset_packs[CP_ASSET_SCRIPT];
+        const char* file = script_id < pack->max && pack->names ? pack->names[script_id] : NULL;
+        if( file )
+        {
+            char path[1700];
+            snprintf(path, sizeof(path), "%s/%s/%s.cs2", state->ctx->srcdir,
+                     cp_asset(CP_ASSET_SCRIPT)->dir, file);
+            int size = 0;
+            char* source = (char*)slurp(path, &size);
+            if( source )
+            {
+                params->count = RSCache_CS2_HeaderParamTypes(source, params->types, 64);
+                free(source);
+            }
+        }
+        state->params[script_id] = params;
+    }
+    const struct cp_cs2_params* params = state->params[script_id];
+    if( params->count < 0 )
+        return -1;
+    int count = params->count < capacity ? params->count : capacity;
+    memcpy(out, params->types, (size_t)count * sizeof(out[0]));
+    return count;
 }
 
 static enum RSCache_CS2_Type
@@ -2329,9 +2405,98 @@ cs2_load_param_types(struct cp_cs2_state* state)
  * ships unchanged with nothing but a counter to say so (tools/README.md, "pack
  * the way you unpacked"). That is a silent dropped edit for every source in the
  * tree that spells a name — 5,032 of osrs239's on a machine with no corpus.
- * Seeded after any `CACHEPACK_CS2_NAMES` directory, because when the two
- * disagree it is the tree's own headers that its own sources are calling.
  */
+/*
+ * Name the records a script can spell — `p12_full`, `"tradebacking"`,
+ * `interface_select1`, `worn`, `hitpoints` — from the packs the tree already
+ * keeps, the same id <-> name index every other codec here uses. A sprite's
+ * `hashname("scrollbar_v2,1")` is the cache's own spelling and wins over the
+ * filename-safe `scrollbar_v2_1`.
+ */
+static int
+cs2_is_identifier(const char* text)
+{
+    if( !*text )
+        return 0;
+    for( const char* c = text; *c; c++ )
+        if( !(isalnum((unsigned char)*c) || *c == '_') )
+            return 0;
+    return 1;
+}
+
+static void
+cs2_seed_pack_names(
+    struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    const struct LC_Pack* pack)
+{
+    for( int id = 0; id < pack->max; id++ )
+    {
+        const char* name = pack->names ? pack->names[id] : NULL;
+        if( !name )
+            continue;
+        const char* hashname = lc_pack_hashname(pack, id);
+        const char* spelled = hashname ? hashname : name;
+        /* A graphic is written quoted, so `scrollbar_v2,1` is fine; anything else
+         * is a bare identifier, and a model named by its path (`obj/goblin`)
+         * would decompile as `obj` divided by `goblin`. Such a record keeps its
+         * `<type>_<id>` spelling. */
+        if( table != RSCACHE_CS2_NAMES_GRAPHIC && !cs2_is_identifier(spelled) )
+            continue;
+        RSCache_CS2_NamesSet(names, table, id, spelled);
+    }
+}
+
+static void
+cs2_seed_record_names(struct cp_cs2_state* state)
+{
+    struct CP_Names* tree = &state->ctx->names;
+    static const struct
+    {
+        enum RSCache_CS2_NameTable table;
+        int asset;
+    } ASSETS[] = {
+        { RSCACHE_CS2_NAMES_FONTMETRICS, CP_ASSET_FONT },
+        { RSCACHE_CS2_NAMES_GRAPHIC, CP_ASSET_SPRITE },
+        { RSCACHE_CS2_NAMES_INTERFACE, CP_ASSET_INTERFACE },
+        { RSCACHE_CS2_NAMES_MODEL, CP_ASSET_MODEL },
+        { RSCACHE_CS2_NAMES_SYNTH, CP_ASSET_SYNTH },
+    };
+    static const struct
+    {
+        enum RSCache_CS2_NameTable table;
+        int type;
+    } CONFIGS[] = {
+        { RSCACHE_CS2_NAMES_INV, CP_TYPE_INV },   { RSCACHE_CS2_NAMES_LOC, CP_TYPE_LOC },
+        { RSCACHE_CS2_NAMES_NPC, CP_TYPE_NPC },   { RSCACHE_CS2_NAMES_OBJ, CP_TYPE_OBJ },
+        { RSCACHE_CS2_NAMES_PARAM, CP_TYPE_PARAM }, { RSCACHE_CS2_NAMES_SEQ, CP_TYPE_SEQ },
+        { RSCACHE_CS2_NAMES_STRUCT, CP_TYPE_STRUCT },
+    };
+    for( size_t i = 0; i < sizeof(ASSETS) / sizeof(ASSETS[0]); i++ )
+        cs2_seed_pack_names(&state->names, ASSETS[i].table, &tree->asset_packs[ASSETS[i].asset]);
+    for( size_t i = 0; i < sizeof(CONFIGS) / sizeof(CONFIGS[0]); i++ )
+        cs2_seed_pack_names(&state->names, CONFIGS[i].table, &tree->packs[CONFIGS[i].type]);
+
+    /* Map areas are members of the world map's `details` archive; its compack
+     * is the tree's index over them. */
+    struct LC_Pack areas;
+    memset(&areas, 0, sizeof(areas));
+    char areas_path[1300];
+    snprintf(areas_path, sizeof(areas_path), "%s/worldmap/areas/details.compack", state->ctx->srcdir);
+    if( lc_pack_load(&areas, areas_path, "maparea", 1) )
+        cs2_seed_pack_names(&state->names, RSCACHE_CS2_NAMES_MAPAREA, &areas);
+    lc_pack_free(&areas);
+
+    /* Skills are not a config the cache stores; the tree authors their names. */
+    char path[1300];
+    struct LC_Pack stats;
+    memset(&stats, 0, sizeof(stats));
+    snprintf(path, sizeof(path), "%s/pack/stat.pack", state->ctx->srcdir);
+    if( lc_pack_load(&stats, path, "stat", 1) )
+        cs2_seed_pack_names(&state->names, RSCACHE_CS2_NAMES_STAT, &stats);
+    lc_pack_free(&stats);
+}
+
 static void
 cs2_seed_script_names(struct cp_cs2_state* state)
 {
@@ -2372,6 +2537,104 @@ cs2_seed_script_names(struct cp_cs2_state* state)
     }
 }
 
+/*
+ * `<tree>/decompile.ini` — what the decompiler cannot tell from one script's
+ * bytecode, settled once and kept with the tree (cs2_names.h,
+ * RSCache_CS2_NamesLoadDecompileSettings). A malformed file stops the tool:
+ * guessing past it would decompile against settings nobody wrote.
+ */
+static void
+cs2_settings_path(struct CP_Ctx* ctx, char* out, size_t capacity)
+{
+    snprintf(out, capacity, "%s/decompile.ini", ctx->srcdir);
+}
+
+/*
+ * unpack: pin every script's header trigger before the first decompile — the
+ * settings file, then how the whole cache calls each script. Without the scan a
+ * proc that returns nothing came out `[clientscript,…]`, and its `~name` callers
+ * stopped compiling the moment it was renamed.
+ */
+static void
+cs2_pin_triggers(struct cp_cs2_state* state, const struct RSCache_CS2_DecompileOptions* options)
+{
+    char path[1300];
+    char error[512] = "";
+    cs2_settings_path(state->ctx, path, sizeof(path));
+    int loaded = RSCache_CS2_NamesLoadDecompileSettings(&state->names, path, error, sizeof(error));
+    if( loaded < 0 )
+    {
+        fprintf(stderr, "cachepack: %s\n", error);
+        exit(1);
+    }
+
+    int* ids = malloc((size_t)state->capacity * sizeof(int));
+    assert(ids);
+    int count = 0;
+    for( int id = 0; id < state->capacity; id++ )
+        if( cs2_load_script(state, id) )
+            ids[count++] = id;
+    int both = 0;
+    int pinned = RSCache_CS2_ScanCallTriggers(ids, count, options, &state->names, &both);
+    free(ids);
+    printf("  scripts       %d trigger(s) from %s, %d pinned by how %d scripts call them\n",
+           loaded, path, pinned, count);
+    state->triggers_pinned = 1;
+}
+
+/*
+ * pack: a header that disagrees with decompile.ini is a tree the next unpack
+ * would rewrite, so it is refused before anything is compiled. Checked against
+ * the headers cs2_seed_script_names read, one line per disagreement.
+ */
+static void
+cs2_check_settings(struct cp_cs2_state* state)
+{
+    char path[1300];
+    char error[512] = "";
+    cs2_settings_path(state->ctx, path, sizeof(path));
+
+    struct RSCache_CS2_Names settings;
+    RSCache_CS2_NamesInit(&settings);
+    int loaded = RSCache_CS2_NamesLoadDecompileSettings(&settings, path, error, sizeof(error));
+    if( loaded < 0 )
+    {
+        fprintf(stderr, "cachepack: %s\n", error);
+        exit(1);
+    }
+
+    int mismatches = 0;
+    for( int i = 0; i < settings.script_triggers.capacity; i++ )
+    {
+        if( !settings.script_triggers.entries[i].occupied )
+            continue;
+        int id = settings.script_triggers.entries[i].key;
+        enum RSCache_CS2_Trigger want = RSCache_CS2_NamesScriptTrigger(&settings, id);
+        const char* header = RSCache_CS2_NamesScript(&state->names, id);
+        struct RSCache_CS2_ScriptName parsed;
+        if( !header || !RSCache_CS2_ScriptNameParse(header, &state->names.arena, &parsed) )
+        {
+            fprintf(stderr, "cachepack: %s pins script %d, which the tree has no source for\n",
+                    path, id);
+            mismatches++;
+            continue;
+        }
+        if( parsed.trigger != want )
+        {
+            fprintf(stderr, "cachepack: script %d is %s but %s pins it %s\n", id, header, path,
+                    RSCache_CS2_TriggerName(want));
+            mismatches++;
+        }
+    }
+    RSCache_CS2_NamesFree(&settings);
+    if( mismatches )
+    {
+        fprintf(stderr, "cachepack: %d script header(s) disagree with %s\n", mismatches, path);
+        exit(1);
+    }
+    state->settings_checked = 1;
+}
+
 static int
 cs2_state_ready(struct CP_Ctx* ctx)
 {
@@ -2400,12 +2663,10 @@ cs2_state_ready(struct CP_Ctx* ctx)
     if( !g_cs2.scripts || !g_cs2.attempted )
         return 0;
     RSCache_CS2_NamesInit(&g_cs2.names);
-    /* RuneStar's name tables are optional and not vendored (EXCEPTIONS.md G5);
-     * without them a decompile is still correct, just `obj_995` rather than
-     * `coins_995`. `CACHEPACK_CS2_NAMES` points at them when they are to hand. */
-    const char* names_dir = getenv("CACHEPACK_CS2_NAMES");
-    if( names_dir )
-        RSCache_CS2_NamesLoadDirectory(&g_cs2.names, names_dir);
+    /* Every name comes from the tree: the dialect's own words are built into
+     * RSCache_CS2_NamesInit, records are named by the tree's packs, scripts by
+     * their headers. Nothing outside the content repo is read. */
+    cs2_seed_record_names(&g_cs2);
     cs2_seed_script_names(&g_cs2);
     cs2_load_param_types(&g_cs2);
     g_cs2.db_columns = tool_db_columns_load(ctx->cache.disk);
@@ -2435,12 +2696,23 @@ script_write(
     options.db_columns.user = g_cs2.db_columns;
     options.db_columns.load = tool_db_columns_lookup;
     options.names = g_cs2.names_loaded ? &g_cs2.names : NULL;
+    if( !g_cs2.triggers_pinned )
+        cs2_pin_triggers(&g_cs2, &options);
+    /* The serialized facts the language cannot spell — a fall-through return's
+     * default (`@rscache-epilogue`), frame counts, and where the compiler's
+     * canonical layout differs, the original bytes — written as comments the
+     * compiler reads back. Without them 560 osrs239 scripts packed a different
+     * implicit return than the cache had (0 where it held -1), with nothing to
+     * say so. An edit voids the byte snapshot; the other two stay facts. */
+    options.lossless = true;
 
     char error[512] = "";
     char* name = NULL;
     char* source = RSCache_CS2_Decompile(record_id, &options, &name, error, sizeof(error));
     if( !source )
     {
+        fprintf(stderr, "cachepack: script %d stays bytecode — does not decompile: %s\n",
+                record_id, error);
         free(name);
         return 0; /* declined: the caller writes the bytecode instead */
     }
@@ -2469,12 +2741,19 @@ script_write(
     struct RSCache_ClientScript check;
     memset(&check, 0, sizeof(check));
     char verify_error[512] = "";
-    bool round_trips =
+    bool compiles =
         RSCache_CS2_Compile(source, &verify, &check, verify_error, sizeof(verify_error));
-    if( round_trips )
+    /* Compiling is not enough: the source has to compile back to *this* script.
+     * A decompile that compiles to something else would be written as the tree's
+     * truth and packed as an edit nobody made. */
+    const struct RSCache_CS2_Script* original = cs2_load_script(&g_cs2, record_id);
+    bool same = compiles && original && RSCache_CS2_LosslessEqual(original, &check.script);
+    if( compiles )
         RSCache_ClientScriptFreeInplace(&check);
-    if( !round_trips )
+    if( !same )
     {
+        fprintf(stderr, "cachepack: script %d stays bytecode — its source %s\n", record_id,
+                compiles ? "compiles to different bytes" : verify_error);
         free(source);
         free(name);
         return 0;
@@ -2516,6 +2795,9 @@ script_read(
         free(source);
         return NULL;
     }
+    if( !g_cs2.settings_checked )
+        cs2_check_settings(&g_cs2);
+    g_cs2.tree_first = 1;
 
     struct RSCache_CS2_CompileOptions options;
     memset(&options, 0, sizeof(options));
@@ -2526,6 +2808,8 @@ script_read(
     options.db_columns.user = g_cs2.db_columns;
     options.db_columns.load = tool_db_columns_lookup;
     options.names = g_cs2.names_loaded ? &g_cs2.names : NULL;
+    options.script_params.user = &g_cs2;
+    options.script_params.load = cs2_load_script_params;
 
     struct RSCache_ClientScript script;
     memset(&script, 0, sizeof(script));
@@ -2552,6 +2836,125 @@ script_read(
     }
     *out_size = (int)written;
     return payload;
+}
+
+/* ---- script link check ------------------------------------------------ */
+
+/*
+ * After a pack, every script in the *output* cache is interpreted against the
+ * output cache's own callees — the check the decompiler runs, with nothing
+ * printed. A gosub passing the wrong stack types, an underflow, a return of the
+ * wrong type: each is a cache the client would run into a corrupt stack, and
+ * the compiler alone cannot see it because it compiles one script at a time.
+ * 82 osrs239 scripts shipped like that, 26 of them on every bake.
+ */
+struct cp_link_loader
+{
+    struct CP_Ctx* ctx;
+    int table;
+    struct RSCache_ClientScript** scripts;
+    uint8_t* attempted;
+    int capacity;
+};
+
+static const struct RSCache_CS2_Script*
+cp_link_load(void* user, int script_id)
+{
+    struct cp_link_loader* loader = user;
+    if( script_id < 0 || script_id >= loader->capacity )
+        return NULL;
+    if( !loader->attempted[script_id] )
+    {
+        loader->attempted[script_id] = 1;
+        struct RSCache_Dat2DiskArchive* archive =
+            RSCache_Dat2DiskArchiveNewLoad(loader->ctx->cache.disk, loader->table, script_id);
+        if( archive )
+        {
+            loader->scripts[script_id] = RSCache_ClientScriptNewFromDecodeFlags(
+                script_id, (const uint8_t*)archive->data, archive->data_size,
+                RSCache_ClientScriptFlags(&loader->ctx->profile));
+            RSCache_Dat2DiskArchiveFree(archive);
+        }
+    }
+    return loader->scripts[script_id] ? &loader->scripts[script_id]->script : NULL;
+}
+
+static int
+cs2_tree_has_bytecode(struct CP_Ctx* ctx, int script_id)
+{
+    const struct LC_Pack* pack = &ctx->names.asset_packs[CP_ASSET_SCRIPT];
+    const char* file = script_id < pack->max && pack->names ? pack->names[script_id] : NULL;
+    if( !file )
+        return 0;
+    char path[1700];
+    snprintf(path, sizeof(path), "%s/%s/%s.cs2b", ctx->srcdir, cp_asset(CP_ASSET_SCRIPT)->dir, file);
+    struct stat info;
+    return stat(path, &info) == 0;
+}
+
+int
+cp_scripts_link_check(struct CP_Ctx* ctx)
+{
+    assert(ctx);
+    if( !cs2_state_ready(ctx) )
+        return 1; /* no script table: nothing to link */
+
+    struct cp_link_loader loader;
+    memset(&loader, 0, sizeof(loader));
+    loader.ctx = ctx;
+    loader.table = g_cs2.table;
+    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[loader.table];
+    if( !rt )
+        return 1; /* a pack that wrote no script table has nothing to link */
+    for( int i = 0; i < rt->id_count; i++ )
+        if( rt->ids[i] + 1 > loader.capacity )
+            loader.capacity = rt->ids[i] + 1;
+    loader.scripts = calloc((size_t)loader.capacity + 1, sizeof(*loader.scripts));
+    assert(loader.scripts);
+    loader.attempted = calloc((size_t)loader.capacity + 1, 1);
+    assert(loader.attempted);
+
+    struct RSCache_CS2_DecompileOptions options;
+    memset(&options, 0, sizeof(options));
+    options.scripts.user = &loader;
+    options.scripts.load = cp_link_load;
+    options.param_types.user = &g_cs2;
+    options.param_types.load = cs2_load_param_type;
+    options.db_columns.user = g_cs2.db_columns;
+    options.db_columns.load = tool_db_columns_lookup;
+
+    int failures = 0;
+    for( int i = 0; i < rt->id_count; i++ )
+    {
+        int id = rt->ids[i];
+        if( id < 0 )
+            continue;
+        /* A `.cs2b` ships the tree's bytecode as it is, uncompiled — osrs239's
+         * one is script 0, which no decoder here reads, pristine cache included.
+         * It is reported, not linked: nothing this pack compiled is in it. */
+        if( !cp_link_load(&loader, id) && cs2_tree_has_bytecode(ctx, id) )
+        {
+            printf("  scripts       %d ships as .cs2b bytecode and does not decode; not linked\n", id);
+            continue;
+        }
+        struct RSCache_CS2_FunctionSet fs;
+        RSCache_CS2_FunctionSetInit(&fs);
+        char error[512] = "";
+        if( !RSCache_CS2_Interpret(&fs, &id, 1, &options, error, (int)sizeof(error)) )
+        {
+            fprintf(stderr, "cachepack: script %d does not link in the packed cache: %s\n", id,
+                    error);
+            failures++;
+        }
+        RSCache_CS2_FunctionSetFree(&fs);
+    }
+    for( int id = 0; id < loader.capacity; id++ )
+        if( loader.scripts[id] )
+            RSCache_ClientScriptFree(loader.scripts[id]);
+    free(loader.scripts);
+    free(loader.attempted);
+    printf("  scripts       %d do not link\n", failures);
+    return failures == 0;
 }
 
 /* Trailing 1 is `semantic_only`: the friendly form is source, and compiling source

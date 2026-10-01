@@ -680,28 +680,31 @@ Verifying at export means every `.cs2` in the tree is one the compiler accepts,
 so editing it takes effect, and the 357 records that cannot promise that are
 `.cs2b` and visibly bytecode.
 
-**Pack the way you unpacked.** Verification uses whatever `CACHEPACK_CS2_NAMES`
-was set to at unpack time, and a source full of `coins_995` will not compile
-without those tables: packing the same tree with the variable unset declines
-2,921 records rather than 357. Coverage does not depend on the tables (see
-`--names` below) — only the spellings do — so unpacking without them is equally
-fine, as long as packing matches.
+**Every name comes from the tree.** `cachepack` reads no name corpus: the
+dialect's own words (`^iftype_graphic`, `^setsize_abs`, `true`) are built into
+the compiler, records are named by the tree's packs (`p12_full` from
+`pack/13_fonts.pack`, `"scrollbar_v2,1"` from the sprite pack's `hashname`,
+`worn` from `configs/all.inv.compack`), and scripts by their headers. A name the
+tree does not state is spelled `<type>_<id>`.
 
-That figure was 4,991 until the script half of it stopped needing a corpus at
-all. A `~name` call is the one spelling the *tree* can resolve on its own:
-`scripts/<name>.cs2` opens with the `[trigger,name]` header the decompiler wrote
-and `pack/12_clientscripts.pack` maps that file to its id, so
-`cs2_seed_script_names` reads the two together and seeds the table after any
-TSVs — the tree's own headers are what the tree's own sources are calling. What
-is left is entity names (`coins_995`, `p12_full`, `interface_select1`), which
-name records rather than scripts and still come from the corpus.
+**Triggers are settled before decompiling.** A proc that returns nothing reads
+exactly like a clientscript from inside; only a caller tells them apart.
+`unpack` interprets the whole cache first (`RSCache_CS2_ScanCallTriggers`) and
+pins every gosub target `proc`; `<tree>/decompile.ini`'s `[trigger]` section
+pins what the cache's own callers cannot show. `pack` refuses a header that
+disagrees with that file.
 
-The rule matters because breaking it is quiet. A declined record keeps the base
-cache's bytes and only a counter says so, and if the tree holds a `.cs2b` beside
-the `.cs2` — which the export invariant above means it should never do, but a
-hand-placed one will — not even the counter moves. The Display panel's layout
-dropdown shipped inert for exactly this reason; see
-`docs/gameframe_layout_resize.md` §8.3 in the parent repo.
+**Unpack writes only what packs back.** A script is written as `.cs2` only when
+its source compiles to the *same* bytes, frame counts and fall-through defaults
+included (the `@rscache-*` comments); otherwise it stays `.cs2b` and the reason
+is printed. osrs239: every script but 0, which no decoder reads.
+
+**Pack fails rather than ship something else.** A `.cs2` that does not compile
+fails the pack — there is no keeping the base cache's bytes. After writing, every
+script in the output is interpreted against the output's own callees, and one
+that does not link (a gosub passing the wrong stack types) fails it too. And
+`--base` must be the build `meta.ini`'s `[source]` names: a base of another
+build would leave every record the tree does not restate from the wrong one.
 
 A few things worth knowing:
 

@@ -530,6 +530,11 @@ main(int argc, char** argv)
              * preserves copy-on-write sharing with the base cache. `--base`
              * remains available for callers that prefer cachepack's portable
              * byte copy. */
+            if( base_dir && !cp_check_base_identity(src_dir, base_dir) )
+            {
+                cp_names_free(&ctx.names);
+                return 1;
+            }
             if( base_dir )
             {
                 printf("Copying %s -> %s\n", base_dir, out_dir);
@@ -576,7 +581,14 @@ main(int argc, char** argv)
         else if( server_only )
             rc = cp_pack_server_run(&ctx, &sel) ? 0 : 1;
         else
+        {
+            if( base_dir && !cp_check_base_identity(src_dir, base_dir) )
+            {
+                cp_names_free(&ctx.names);
+                return 1;
+            }
             rc = cp_pack_run(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
+        }
         /*
          * `writable` and not just `cache_open`: cache_open is set before the
          * config pass, so on an abort these three would have gone on writing
@@ -618,6 +630,11 @@ main(int argc, char** argv)
             /* After the configs, so a binary import of the config table (if the
              * caller asked for one) is the version that lands. */
             if( !cp_binary_import(&ctx, out_dir) )
+                rc = 1;
+        }
+        if( want_assets && ctx.cache_open && writable && !check_only && rc == 0 )
+        {
+            if( !cp_scripts_link_check(&ctx) )
                 rc = 1;
         }
     }
