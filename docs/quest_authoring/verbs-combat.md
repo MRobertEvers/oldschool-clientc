@@ -83,6 +83,15 @@ Chronozon 0 -> 8 re-casts in 60 ticks, `build/quest_gate/s27re_before3` vs `s27r
 Chronozon kill is each element cast until its own 'weakens' line, then
 `t.player.cast('fire_blast', 'chronozon', 14)` and `await_dead_engaged(240, 40, {eat=...})`.
 
+#### A kill's bones are on the floor, not in the backpack
+
+A death drop lands on the kill tile as a ground obj. `await_dead` does not pick it up, and neither
+does anything else. Take it in the same leg: `t.player.click_obj("<bones symbol>", 3)` (op 3 is
+Take), then `t.inv.await("<bones symbol>", 1, 6)`. Monkey Madness took
+`mm_small_zombie_monkey_bones` this way after `killZombie`. A private drop lags the zone packet, so
+poll `t.world.obj_near` first (gaps-combat: "Three world facts"). Never teleport back later for a
+drop you left behind (sampler-findings: Sample sonnet-b43, (c)).
+
 ## `t.player.attack`, `t.player.alive`, `t.player.cast` (section 3, `world` / `drive` / `player`)
 
 ### `t.player.attack(npc, op=2, ticks=10)` -- also `t.player.alive`, `t.player.cast`

@@ -145,3 +145,22 @@ trap on purpose. The trap put its candle lantern out, and the test then ran `::g
 candle_lantern_lit 1` instead of relighting the lantern. Stay on the marked path, which is what the
 guide's `walkToMistag` says. If you trigger the trap to show it works, relight the lantern with a
 tinderbox in that same leg.
+
+## Sample sonnet-b45 (2026-10-01)
+
+*Origin: the sampler checked mm and hauntedmine, and sent mm back.*
+
+(a) A GATE ONLY THE GUIDE'S BRANCHES NAME IS STILL A GATE. Monkey Madness I (`mm`) leg 8 ran
+`goto_tile` from the Ape Atoll dock (checkpoint 7, 2802,2707) straight to Garkor at 2807,2760, and
+shot 720 reads "Teleported to 2807,2760,0". That jump crosses the Bamboo Gate into Marim
+(`mm_bamboo_largedoor_left`, 2721,2766). `open_mm_largedoor` in `mm_bamboo_doors.rs2` opens it only
+for a worn greegree. The guide names the gate: `enterGate` is the `bringMonkey` branch for
+`onApeAtollSouth`. But it is in no `getPanels()` list, so `helper_coverage` never grades it and read
+FULL anyway. Before any `goto_tile`, check the guide's ConditionalStep zones for both ends of the
+jump. When they differ, the step the guide shows for the starting zone is a row you drive.
+
+(b) A DETAIL OF `table: 0x...` NAMES NOTHING. Haunted Mine's `endcart` and `valve-open` rows passed
+`tostring(m)` where `m` came from `t.msg.last(4)`. That is a table, so the detail read `table:
+0xca17fc810`. The gate's empty-detail check passes it. The rows were true (shots 045 and 072 show
+the lines), so the quest stayed. Pass the matched line instead: `t.msg.expect` returns `(r, d)`, so
+`local r, d = t.msg.expect(...)` and then `t.check(name, r, d)`.
