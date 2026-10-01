@@ -26,7 +26,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "troll_quest",
+            varp = "varp317_troll_quest",
             constants = { not_started = 0, started = 10, defeated_dad = 20, entered_prison = 30, freed_godric = 40, complete = 50 },
             row = "quest_trollstronghold",
             display = "Troll Stronghold",
