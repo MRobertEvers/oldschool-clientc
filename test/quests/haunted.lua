@@ -54,7 +54,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "haunted",
+            varp = "varp32_haunted",
             constants = {
                 not_started = 0,
                 started = 1,

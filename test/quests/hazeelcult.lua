@@ -4,7 +4,7 @@ return {
     setup = { "::clearinv", "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99", "::setlevel hitpoints 99",
         "::give rune_scimitar 1", "::give adamant_platebody 1", "::give adamant_platelegs 1", "::give shark 10" },
     run = function(t)
-        t.quest.bind({ varp = "hazeelcultquest", constants = { not_started = 0, started = 2, spoken_clivet = 3, clivet_decision = 4,
+        t.quest.bind({ varp = "varp223_hazeelcultquest", constants = { not_started = 0, started = 2, spoken_clivet = 3, clivet_decision = 4,
             poured_poison = 5, finished_side_task = 6, given_armour_or_scroll = 7, complete = 9 }, display = "Hazeel Cult", points = 1 })
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
@@ -35,14 +35,14 @@ return {
             "npc:Then you are a fool", "mesbox:The man jumps onto the raft" })
         t.ticks(3)
         t.expect("quest.stage.clivet_decision", t.quest.expect_stage("clivet_decision"))
-        t.expect("side.goodside", t.var.await_server("hazeelcult_side", 0, 5))
+        t.expect("side.goodside", t.var.await_server("varp5927_hazeelcult_side", 0, 5))
         local nr = t.npc.nearest("clivet_hazeel_cultist", 8)
         t.check("clivet.gone", nr ~= "ok", "npc.nearest clivet after decision = " .. tostring(nr))
         -- valves: partial first (valve 1 right only -> first island), then the full solution
         t.exec("goto-valve1", t.player.goto_tile, 2562, 3249, 0)
         t.exec("valve1.right", t.player.click_loc, "sewervalve1", 1)
         t.exec("valve1.right.dialog", t.chat.play, { "options", "choose:Turn right.", "mesbox:You turn the large metal valve to the right" })
-        t.expect("valves.bit0", t.var.await_server("hazeelcult_valves", 1, 5))
+        t.expect("valves.bit0", t.var.await_server("varp5928_hazeelcult_valves", 1, 5))
         t.exec("goto-cave2", t.player.goto_tile, 2587, 3237, 0)
         t.exec("cave.enter2", t.player.click_loc, "hazeelcultcave", 1)
         t.ticks(3)
@@ -68,7 +68,7 @@ return {
             local dir = (v[4] == "Turn left.") and "left" or "right"
             t.exec(v[1] .. ".dialog", t.chat.play, { "options", "choose:" .. v[4], "mesbox:You turn the large metal valve to the " .. dir })
         end
-        t.expect("valves.mask", t.var.await_server("hazeelcult_valves", 27, 5))
+        t.expect("valves.mask", t.var.await_server("varp5928_hazeelcult_valves", 27, 5))
         t.exec("goto-cave3", t.player.goto_tile, 2587, 3237, 0)
         t.exec("cave.enter3", t.player.click_loc, "hazeelcultcave", 1)
         t.ticks(3)
@@ -79,7 +79,7 @@ return {
         t.exec("alomone.talk.dialog", t.chat.play, {
             "npc:How did YOU get in here", "player:I've come for the Carnillean family armour", "npc:I thought I made it clear",
             "player:So the butler's part", "npc:Well you won't live long" })
-        do local vr, v1, v2 = t.var.server("hazeelcult_alomone_vis"); t.check("alomone.vis_fight", true, "var.server hazeelcult_alomone_vis = " .. tostring(vr) .. " " .. tostring(v1) .. " " .. tostring(v2)) end
+        do local vr, v1, v2 = t.var.server("varb14770_hazeelcult_alomone_vis"); t.check("alomone.vis_fight", true, "var.server hazeelcult_alomone_vis = " .. tostring(vr) .. " " .. tostring(v1) .. " " .. tostring(v2)) end
         t.exec("equip.weapon", t.player.equip, "rune_scimitar")
         t.exec("equip.body", t.player.equip, "adamant_platebody")
         t.exec("equip.legs", t.player.equip, "adamant_platelegs")
@@ -87,7 +87,7 @@ return {
         t.exec("alomone.dead", t.npc.await_dead_engaged, 60, 6)
         t.ticks(3)
         t.expect("quest.stage.finished_side_task", t.quest.expect_stage("finished_side_task"))
-        do local vr, v1, v2 = t.var.server("hazeelcult_alomone_vis"); t.check("alomone.vis_dead", true, "var.server hazeelcult_alomone_vis = " .. tostring(vr) .. " " .. tostring(v1) .. " " .. tostring(v2)) end
+        do local vr, v1, v2 = t.var.server("varb14770_hazeelcult_alomone_vis"); t.check("alomone.vis_dead", true, "var.server hazeelcult_alomone_vis = " .. tostring(vr) .. " " .. tostring(v1) .. " " .. tostring(v2)) end
         t.exec("bones.dropped", t.inv.await, "bones", 0, 1)
         -- chest: armour (OSRS-era: moved from Alomone drop to the hideout chest, wiki oldid=15285220)
         t.exec("goto-chest", t.player.goto_tile, 2610, 9675, 0)
@@ -106,7 +106,7 @@ return {
         t.ticks(2)
         local st = t.quest.stage()
         t.check("ceril.armour.stage", true, "stage after ground-floor hand-in talk = " .. tostring(st))
-        local sv = t.var.varp("hazeelcult_secondary")
+        local sv = t.var.varp("varp3748_hazeelcult_secondary")
         t.check("probe.secondary", true, "varp hazeelcult_secondary client read = " .. tostring(sv))
         t.exec("goto-stairs", t.player.goto_tile, 2569, 3268, 0)
         t.exec("stairs.click", t.player.click_loc, "carnillean_stairs", 1)
@@ -177,7 +177,7 @@ return {
             "npc:Excellent.", "npc:Here. Take this poison" })
         t.ticks(3)
         t.expect("quest.stage.clivet_decision.hazeel", t.quest.expect_stage("clivet_decision"))
-        t.expect("side.evilside", t.var.await_server("hazeelcult_side", 1, 5))
+        t.expect("side.evilside", t.var.await_server("varp5927_hazeelcult_side", 1, 5))
         t.exec("h.poison.have", t.inv.await, "poison", 1, 3)
         t.exec("h.clivet.still_there", t.npc.await_present, "clivet_hazeel_cultist", 8, 3)
         -- mark must be refused before the poison is used: Clivet reminds us of the mission
@@ -231,7 +231,7 @@ return {
             local dir = (v[4] == "Turn left.") and "left" or "right"
             t.exec("h." .. v[1] .. ".dialog", t.chat.play, { "options", "choose:" .. v[4], "mesbox:You turn the large metal valve to the " .. dir })
         end
-        t.expect("h.valves.mask", t.var.await_server("hazeelcult_valves", 27, 5))
+        t.expect("h.valves.mask", t.var.await_server("varp5928_hazeelcult_valves", 27, 5))
         t.exec("h.goto-cave3", t.player.goto_tile, 2587, 3237, 0)
         t.exec("h.cave.enter3", t.player.click_loc, "hazeelcultcave", 1)
         t.ticks(3)

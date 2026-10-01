@@ -64,7 +64,7 @@ return {
 
     run = function(t)
         t.quest.bind({
-            varp = "hunt",
+            varp = "varp71_hunt",
             constants = {
                 not_started = 0,
                 fetch_rum = 1,
@@ -561,7 +561,7 @@ return {
         -- at read_note (3) with quest.varp_complete FAILing: not enough
         -- of dig.rs2's own delay had elapsed. Poll the varp instead of
         -- guessing a tick count that has to cover two different shapes.
-        t.exec("hunt-complete-await", t.var.await_server, "hunt", 4, 15)
+        t.exec("hunt-complete-await", t.var.await_server, "varp71_hunt", 4, 15)
 
         t.quest.expect_complete()
 

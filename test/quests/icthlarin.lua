@@ -25,7 +25,7 @@ return {
     },
     run = function(t)
         t.quest.bind({
-            varp = "ics_little_var",
+            varp = "varb418_ics_little_var",
             constants = { not_started = 0, need_supplies = 1, entered_city = 2, first_memory = 3, in_pyramid = 4, sphinx = 5,
                 high_priest = 6, return_jar = 7, jar_guardian = 8, jar_killed = 11, jar_crossed = 12, place_jar = 13,
                 jar_done = 14, embalm = 15, ritual = 16, place_symbol = 17, symbol_placed = 18, ceremony = 19,
@@ -66,7 +66,7 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.entered_city", t.quest.expect_stage("entered_city"))
-        local _, JAR = t.var.server("ics_little_jar_multi")
+        local _, JAR = t.var.server("varb397_ics_little_jar_multi")
         t.check("hypnosis.jar", JAR == 1 or JAR == 2 or JAR == 3 or JAR == 4, "ics_little_jar_multi = " .. tostring(JAR))
         -- 1 het (liver), 2 scabaras (stomach), 3 apmeken (intestines), 4 crondis (lungs)
         local POT = { [1] = { "ics_little_pot_liver", 3286, 9194, "ics_little_het", "ics_little_canopic_jar_liver", "4dose1defense" },
@@ -142,7 +142,7 @@ return {
             t.ticks(1)
         end
         t.ticks(3)
-        t.check("puzzle.solved", select(2, t.var.server("ics_tilechecker")) == 33554431 or select(2, t.var.server("ics_little_var")) == 5, "ics_tilechecker = " .. tostring(select(2, t.var.server("ics_tilechecker"))))
+        t.check("puzzle.solved", select(2, t.var.server("varb445_ics_tilechecker")) == 33554431 or select(2, t.var.server("varb418_ics_little_var")) == 5, "ics_tilechecker = " .. tostring(select(2, t.var.server("varb445_ics_tilechecker"))))
         t.expect("quest.stage.sphinx", t.quest.expect_stage("sphinx"))
         _, pos = t.world.tile()
         t.check("memory.exit", type(pos) == "table" and pos.z < 2900, "tile " .. tostring(pos and pos.x) .. "," .. tostring(pos and pos.z))
@@ -196,7 +196,7 @@ return {
         t.exec("goto-pots", t.player.goto_tile, 3285, 9194, 0)
         t.exec("wrongJar", t.player.click_loc, wrong[1], 1)
         t.ticks(2)
-        t.check("wrongJar.refused", select(2, t.var.server("ics_little_var")) == 7, "stage still 7; msgs " .. tostring(t.msg.last(2)))
+        t.check("wrongJar.refused", select(2, t.var.server("varb418_ics_little_var")) == 7, "stage still 7; msgs " .. tostring(t.msg.last(2)))
 
         t.exec("pickUpAnyJar", t.player.click_loc, pot[1], 1)
         t.chat.play({ "mesbox:As you reach for the jar" })
@@ -267,7 +267,7 @@ return {
         t.ticks(3)
         _, pos = t.world.tile()
         t.check("puzzle2.door", type(pos) == "table" and pos.z < 9199 and pos.z > 9190, "tile " .. tostring(pos and pos.x) .. "," .. tostring(pos and pos.z)
-            .. " tilechecker " .. tostring(select(2, t.var.server("ics_tilechecker"))))
+            .. " tilechecker " .. tostring(select(2, t.var.server("varb445_ics_tilechecker"))))
 
         t.exec("goto-dropJar", t.player.goto_tile, 3285, pot[3], 0)
         t.exec("dropJar", t.player.inv_op, pot[5], 5)
@@ -315,7 +315,7 @@ return {
             "npc:My manual lies",
         })
         t.ticks(2)
-        t.expect("embalmer.met", t.var.expect("ics_metembalmer", 1))
+        t.expect("embalmer.met", t.var.expect("varb399_ics_metembalmer", 1))
         t.cheat("::give ics_little_bookofembalming 1")
         t.ticks(2)
         t.exec("readManual", t.player.inv_op, "ics_little_bookofembalming", 1)
@@ -353,7 +353,7 @@ return {
             "npc:That is everything I need",
         })
         t.ticks(2)
-        local _, packed = t.var.server("ics_little_embalmer_multi")
+        local _, packed = t.var.server("varb400_ics_little_embalmer_multi")
         t.check("embalmer.all_items", packed == 7, "ics_little_embalmer_multi = " .. tostring(packed))
         t.inv.expect_absent("ics_little_linen")
 
@@ -366,7 +366,7 @@ return {
             "npc:Thanks. Give me a moment",
         })
         t.ticks(2)
-        t.expect("carpenter.logs", t.var.expect("ics_little_carpenter_multi", 1))
+        t.expect("carpenter.logs", t.var.expect("varb398_ics_little_carpenter_multi", 1))
         t.inv.expect_absent("ics_little_holy_symbol")
         t.exec("talkToCarpenterAgain", t.player.talk_to, "ics_little_carpenter", 1)
         t.exec("talkToCarpenterAgain-dialog", t.chat.play, { "npc:Here — a holy symbol." })
