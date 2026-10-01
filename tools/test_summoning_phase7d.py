@@ -101,7 +101,7 @@ def main() -> int:
         "[proc,summoning_logout]",
     ):
         expect(token in script, f"pet lifecycle binding missing {token}")
-    expect("summoning_familiar_ticks" not in script[script.index("[proc,summoning_pet_clockwork_cat_release]"):script.index("[proc,summoning_pet_clear_state]")], "pet release reused familiar timer state")
+    expect("varp6230_summoning_familiar_ticks" not in script[script.index("[proc,summoning_pet_clockwork_cat_release]"):script.index("[proc,summoning_pet_clear_state]")], "pet release reused familiar timer state")
     if errors:
         return finish(checks, errors)
 

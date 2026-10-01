@@ -110,7 +110,7 @@ def main() -> int:
         expect(validate_at >= 0 and execute_at >= 0 and commit_at >= 0 and
                validate_at < execute_at < commit_at,
                "special resources can be committed before its operation accepts")
-        expect("~summoning_familiar_special_fire(%summoning_familiar_type);" in orb_handler,
+        expect("~summoning_familiar_special_fire(%varp6257_summoning_familiar_type);" in orb_handler,
                "the Summoning orb's plain click does not fire the immediate/self-cast special")
         expect("DreadfowlNPC.java: Dreadfowl Strike" in execute and
                "npc_findcombat = false" in execute and
@@ -404,7 +404,7 @@ def main() -> int:
         lava = definition(scripts, "proc,summoning_lava_titan_special")
         expect("LavaTitanNPC: Ebon Thunder (period reconstruction)" in lava and
                "randominc(14)" in lava and
-               "%sa_energy = max(sub(%sa_energy, 100), 0);" in lava and
+               "%varp300_sa_energy = max(sub(%varp300_sa_energy, 100), 0);" in lava and
                "summoning_special_move_geyser_titan_boil" in lava and
                "summoning_special_move_lava_titan_ebon_thunder_gfx" in lava,
                "Ebon Thunder lacks its max-14 magic hit, exact ten-point drain, or later-source visuals")
@@ -508,7 +508,7 @@ def main() -> int:
         expect("npc_findcombat = false" in auto_assist,
                "auto-assist no longer reads the owner's combat target")
         iron_tick = definition(scripts, "proc,summoning_iron_titan_normal_combat_tick")
-        expect("%summoning_familiar_type = 76" in normal_tick and
+        expect("%varp6257_summoning_familiar_type = 76" in normal_tick and
                "~summoning_iron_titan_normal_combat_tick" in normal_tick and
                "~summoning_familiar_engagement($familiar)" in iron_tick and
                "npc_finduid($familiar) = false" in iron_tick and
@@ -530,7 +530,7 @@ def main() -> int:
                "Venom Shot lacks its strict source weapon family, one-shot poison, or asset closure")
         expect("~summoning_spirit_scorpion_adjust_ranged_battle($rhand, $spirit_scorpion_target);" in player_ranged and
                player_ranged.index("~summoning_spirit_scorpion_adjust_ranged_battle") >
-               player_ranged.index("~player_npc_hit_roll(%damagetype)") and
+               player_ranged.index("~player_npc_hit_roll(%varp6295_damagetype)") and
                player_ranged.index("~summoning_spirit_scorpion_adjust_ranged_battle") <
                player_ranged.index("~player_hit_npc_prepare"),
                "Spirit Scorpion's source battle adjustment is not between ranged state creation and impact preparation")
