@@ -31,6 +31,9 @@
 
 struct RSCache_CS2_FunctionSet;
 
+/* String-local slots a script can name as an array (an operand's high half). */
+#define RSCACHE_CS2_MAX_ARRAY_SLOTS 256
+
 /* -------------------------------------------------------------------------
  * Values
  * ---------------------------------------------------------------------- */
@@ -507,6 +510,15 @@ struct RSCache_CS2_Function
     /** Generator may emit fingerprinted/serialized lossless comment metadata. */
     bool generate_lossless_metadata;
     bool preserve_frame_counts;
+    /*
+     * String-local slots that hold an array. An array is not a separate bank:
+     * DEFINE_ARRAY parks a handle in the string local its operand names, and
+     * PUSH/POP_ARRAY_INT reach the elements through that local. So a script
+     * that passes, returns, or stores the array moves the handle with
+     * PUSH/POP_STRING_LOCAL on the same slot. The generator prints such a
+     * string local under the array's name, so one variable has one name.
+     */
+    unsigned char array_slots[RSCACHE_CS2_MAX_ARRAY_SLOTS / 8];
     int* return_default_values;
     bool* return_default_is_int_constant;
 };
@@ -546,6 +558,21 @@ RSCache_CS2_VarIntern(
     enum RSCache_CS2_VarKind kind,
     int script,
     int id);
+
+static inline void
+RSCache_CS2_FunctionMarkArraySlot(struct RSCache_CS2_Function* function, int slot)
+{
+    if( slot >= 0 && slot < RSCACHE_CS2_MAX_ARRAY_SLOTS )
+        function->array_slots[slot >> 3] |= (unsigned char)(1u << (slot & 7));
+}
+
+/** True when string local `slot` of `function` holds an array handle. */
+static inline bool
+RSCache_CS2_FunctionIsArraySlot(const struct RSCache_CS2_Function* function, int slot)
+{
+    return slot >= 0 && slot < RSCACHE_CS2_MAX_ARRAY_SLOTS &&
+           (function->array_slots[slot >> 3] & (1u << (slot & 7))) != 0;
+}
 
 /* -------------------------------------------------------------------------
  * Expression constructors

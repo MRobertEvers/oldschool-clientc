@@ -143,9 +143,46 @@ cs2_variable_literal(struct cs2_writer* writer, struct RSCache_CS2_Variable* var
  * Variables
  * ---------------------------------------------------------------------- */
 
+/**
+ * The array a string local holds, or NULL.
+ *
+ * An array lives in a string local: DEFINE_ARRAY parks its handle there and the
+ * element opcodes reach it through that slot. Where the script moves the handle
+ * itself — passes it to a proc, takes it back from one, stores an
+ * `array_create` — the bytecode reads and writes the string local, so the IR
+ * has a string variable on the same slot as the array. Printing that as
+ * `$string0` beside `$intarray0` gave one variable two names; it prints as the
+ * array. The compiler puts every array local in the string bank, so the name
+ * compiles back to the same PUSH/POP_STRING_LOCAL.
+ */
+static struct RSCache_CS2_Variable*
+cs2_array_of_string_local(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable)
+{
+    if( variable->kind != RSCACHE_CS2_VAR_STRING || !writer->function ||
+        !RSCache_CS2_FunctionIsArraySlot(writer->function, variable->id) )
+        return NULL;
+    return RSCache_CS2_VarIntern(
+        writer->fs, RSCACHE_CS2_VAR_ARRAY, writer->function->id, variable->id);
+}
+
+/** `def_`/signature type of a local: `intarray` for one holding an array. */
+static void
+cs2_write_local_type(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable)
+{
+    struct RSCache_CS2_Variable* array = cs2_array_of_string_local(writer, variable);
+    if( array )
+        variable = array;
+    cs2_put(writer, cs2_variable_literal(writer, variable));
+    if( variable->kind == RSCACHE_CS2_VAR_ARRAY )
+        cs2_put(writer, "array");
+}
+
 static void
 cs2_write_var_identifier(struct cs2_writer* writer, struct RSCache_CS2_Variable* variable)
 {
+    struct RSCache_CS2_Variable* array = cs2_array_of_string_local(writer, variable);
+    if( array )
+        variable = array;
     switch( variable->kind )
     {
     case RSCACHE_CS2_VAR_INT:
@@ -550,6 +587,10 @@ cs2_write_expr(struct cs2_writer* writer, struct RSCache_CS2_Expr* expr)
         cs2_write_var_access(writer, expr);
         return;
     case RSCACHE_CS2_EXPR_POINTER:
+        /* The array itself, passed as its handle. Spelled like any other use
+         * of the local — `$intarray0` — so a rename reaches it; the compiler
+         * reads an array name without `(index)` as PUSH_STRING_LOCAL. */
+        cs2_put_char(writer, '$');
         cs2_write_var_identifier(writer, expr->variable);
         return;
     case RSCACHE_CS2_EXPR_CONSTANT:
@@ -597,7 +638,7 @@ cs2_write_assignment(struct cs2_writer* writer, struct RSCache_CS2_Insn* insn)
             {
                 /* First write to a local declares it. */
                 cs2_put(writer, "def_");
-                cs2_put(writer, cs2_variable_literal(writer, def->variable));
+                cs2_write_local_type(writer, def->variable);
                 cs2_put_char(writer, ' ');
             }
             cs2_write_var_access(writer, def);
@@ -973,9 +1014,7 @@ RSCache_CS2_Generate(
                 cs2_put(&writer, ", ");
             struct RSCache_CS2_Variable* argument =
                 (struct RSCache_CS2_Variable*)function->arguments.items[i];
-            cs2_put(&writer, cs2_variable_literal(&writer, argument));
-            if( argument->kind == RSCACHE_CS2_VAR_ARRAY )
-                cs2_put(&writer, "array");
+            cs2_write_local_type(&writer, argument);
             cs2_put(&writer, " $");
             cs2_write_var_identifier(&writer, argument);
         }
