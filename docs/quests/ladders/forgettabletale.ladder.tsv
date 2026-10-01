@@ -3,7 +3,7 @@
 leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 1	1	0	travelToKeldagrim	ObjectStep<goTalkVeldaban	loc:ge_keldagrim_trapdoor	3140,3504,0	Travel to Keldagrim.			Yes please.	quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:9 oploc1
 1	2	0	talkToVeldaban	NpcStep<goTalkVeldaban	npc:dwarf_city_black_guard_leader	2827,10214,0				Very interested! | Yes. | Sounds like just the job for me!	quests/quest_giantdwarf/scripts/gdwarf_start.rs2:46 opnpc1
-1	3	0	talkToDrunkDwarf	NpcStep<goTalkDrunkDwarf	npc:dwarf_city_drunken_dwarf	2913,10221,0				I need to know about the Red Axe...	quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:25 opnpc1; +3
+1	3	0	talkToDrunkDwarf	NpcStep<goTalkDrunkDwarf	npc:dwarf_city_drunken_dwarf	2913,10221,0				I need to know about the Red Axe...	quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:24 opnpc1; +3
 1	4	0	goTalkDrunkDwarfAgain	ConditionalStep			Give the Drunken Dwarf some beer.	goTalkDrunkDwarfAfterGivingBeer			
 1	5	0	talkToRowdyDwarf	NpcStep<goTalkRowdyDwarf	npc:dwarf_city_rowdy_dwarf	2914,10198,0					quests/quest_forgettabletale/scripts/forget_keldagrim.rs2:188 opnpc1; +1
 1	6	0	talkToKhorvak	NpcStep<goTalkToKhorvak	npc:dwarfrock_engineer2	2864,9878,0				What if I offer you a drink?	quests/quest_betweenarock/scripts/betweenarock_schematics.rs2:119 opnpc1; +1

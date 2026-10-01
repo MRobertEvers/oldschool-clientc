@@ -3092,19 +3092,20 @@ def check_horror_from_the_deep() -> None:
         route,
         ("[oplocu,horror_broken_bridge_left_spot]",
          "[oplocu,horror_broken_bridge_right_spot]", "if ($item ! woodplank)",
-         "inv_total(inv, hammer) < 1", "inv_total(inv, nails) < 30",
-         "inv_del(inv, woodplank, 1);", "inv_del(inv, nails, 30);",
-         "[oploc1,horror_lighthouse_doorway]", "inv_total(inv, horror_key) < 1",
+         "inv_total(inv, hammer) = 0", "inv_total(inv, nails) < ^horror_bridge_nails_each",
+         "inv_del(inv, woodplank, 1);", "inv_del(inv, nails, ^horror_bridge_nails_each);",
+         "[oploc1,horror_lighthouse_doorway]", "inv_del(inv, horror_key, 1);",
+         "p_teleport(0_38_71_13_51);",
          "[oploc1,horror_bookcase]", "horror_diary1", "horror_diary2",
          "horror_diary3", "[oplocu,horror_lighthouse_cog_broken]",
-         "$item = swamp_tar", "$item = molten_glass", "$item = tinderbox",
+         "last_useitem = swamp_tar", "last_useitem = molten_glass", "last_useitem = tinderbox",
          "[oplocu,horror_mid_left_door]", "[oplocu,horror_mid_right_door]",
-         "$item = airrune", "$item = waterrune", "$item = earthrune",
-         "$item = firerune", "~horror_is_sword($item)",
-         "~horror_is_arrow($item)", "inv_del(inv, $item, 1);",
+         "$obj = airrune", "$obj = waterrune", "$obj = earthrune",
+         "$obj = firerune", "~horror_is_sword($obj)",
+         "~horror_is_arrow($obj)", "inv_del(inv, $sword, 1);", "inv_del(inv, $arrow, 1);",
          "case weapon_slash_sword, weapon_stab_sword, weapon_2h_sword",
          "case arrows, arrows_dragon, ammo_ogre_arrow, ammo_training_arrow",
-         "p_telejump(0_39_72_22_26);", "[opobj3,horror_casket]"),
+         "[oploc1,horror_far_right_door]", "[opobj3,horror_casket]"),
         "Horror from the Deep route and item consumption",
     )
 
@@ -3167,13 +3168,13 @@ def check_horror_from_the_deep() -> None:
     encounter = HORROR_ENCOUNTER.read_text()
     require_text(
         encounter,
-        ("[proc,horror_spawn_junior]", "npc_add(0_39_72_22_34, horror_dagannoth_jr1, 1000);",
+        ("[queue,horror_spawn_junior]", "npc_add($start, horror_dagannoth_jr1, 1000);",
          "npc_setowner;", "[ai_timer,horror_dagannoth_jr4]",
          "npc_statheal(hitpoints, 1, 0);", "npc_settimer(20);",
          "[timer,horror_timeout]", "settimer(horror_timeout, 1000);",
          "[ai_queue3,horror_dagannoth_jr4]", "if (npc_findhero = ^false)",
          "%horrorquest = ^horror_defeated_dagjr;",
-         "npc_add(0_39_72_22_34, horror_dagganoth_aira, 1000);",
+         "npc_add($start, horror_dagganoth_aira, 1000);",
          "[ai_timer,horror_dagganoth_air]", "~horror_mother_change(horror_dagganoth_water);",
          "[ai_timer,horror_dagganoth_water]", "~horror_mother_change(horror_dagganoth_melee);",
          "[ai_timer,horror_dagganoth_melee]", "~horror_mother_change(horror_dagganoth_earth);",
@@ -3185,8 +3186,9 @@ def check_horror_from_the_deep() -> None:
          "~playerhit_n_ranged(true, $hit1, $duration);",
          "~playerhit_n_ranged(true, $hit2, $duration);",
          "obj_add_private($drop, bones, 1", "inv_add(inv, horror_casket, 1);",
-         "%horrorquest = ^horror_complete;", "p_telejump(0_39_56_13_54);",
-         "stat_advance(magic, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
+         "%horrorquest = ^horror_complete;", "p_teleport(0_39_156_19_17);",
+         "stat_advance(magic, 46625);", "stat_advance(strength, 46625);",
+         "stat_advance(ranged, 46625);", "~quest_complete_rewards(quest_horrorfromthedeep",
          "[proc,horror_abort]", "[proc,horror_on_logout]", "[proc,horror_on_death]",
          "[proc,horror_mother_prepare_hit]", "case horror_dagganoth_air",
          "%horror_magic_element = ^element_air", "case horror_dagganoth_water",
@@ -3200,8 +3202,9 @@ def check_horror_from_the_deep() -> None:
 
     require_text(
         HORROR_JOSSIK.read_text(),
-        ("[opnpc1,horror_lighthousekeeeper_well]", "%horror_reward_book = 0",
-         "~p_choice3(\"A damaged holy book\", 1, \"A damaged unholy book\", 2, \"A damaged book of balance\", 3)",
+        ("[opnpc1,horror_lighthousekeeeper_well]", "%horror_reward_book = 1;",
+         "%horror_reward_book = 2;", "%horror_reward_book = 3;",
+         "~p_choice3_header(\"Saradomin\", 1, \"Zamorak\", 2, \"Guthix\", 3",
          "unfinished_saradominbook", "unfinished_zamorakbook", "unfinished_guthixbook",
          "inv_del(inv, horror_casket, 1);", "[opnpc4,horror_lighthousekeeeper_well]",
          "[proc,horror_has_reward_book]()(boolean)", "saradominbook_complete",
@@ -3211,8 +3214,8 @@ def check_horror_from_the_deep() -> None:
     )
     require_text(
         HORROR_GUNNJORN.read_text(),
-        ("[opnpc1,gunnjorn]", "inv_total(inv, horror_key) > 0",
-         "inv_total(bank, horror_key) > 0", "inv_add(inv, horror_key, 1);"),
+        ("[opnpc1,gunnjorn]", "~obj_gettotal(horror_key) = 0",
+         "inv_add(inv, horror_key, 1);"),
         "Horror from the Deep lighthouse-key issue and replacement",
     )
     require_text(
@@ -3341,7 +3344,7 @@ def check_haunted_mine() -> None:
     require_text(
         HMQ_ZEALOT.read_text(),
         ("[opnpc1,saradominist_zealot]", "%priestperil < ^priestperil_complete",
-         "stat(crafting) < ^hmq_req_crafting", "[opnpc3,saradominist_zealot]",
+         "[opnpc3,saradominist_zealot]",
          "inv_total(bank, hauntedmine_lift_key) > 0", "inv_freespace(inv) < 1",
          "obj_add_private(npc_coord, hauntedmine_lift_key, 1"),
         "Haunted Mine Zealot requirements and key recovery",
@@ -3361,7 +3364,7 @@ def check_haunted_mine() -> None:
     )
     require_text(
         HMQ_CONSTANT.read_text(),
-        ("^hmq_lift_race_ticks = 30", "^hmq_daythroom_min",
+        ("^hmq_lift_race_ticks = 80", "^hmq_daythroom_min",
          "^hmq_daythroom_max", "^hmq_dayth_shift_1", "^hmq_dayth_shift_8",
          "^hmq_crystalroom_min", "^hmq_crystalroom_max"),
         "Haunted Mine encounter coordinates and calibrated race",
@@ -3395,6 +3398,7 @@ def check_haunted_mine() -> None:
          "crane_posessed_mine", "randominc(10)", "[proc,hmq_on_dayth_track]()(boolean)",
          "randominc(9)", "[ai_queue3,hauntedmine_boss_ghost]",
          "def_npc_uid $dead_dayth = npc_uid;", "%hauntedmine = ^hmq_dayth_killed;",
+         "stat(crafting) < ^hmq_req_crafting",
          "if (random(90) = 0)", "trail_clue_beginner", "[proc,hmq_dayth_cleanup]",
          "[proc,hmq_dayth_on_death]", "[proc,hmq_dayth_on_logout]",
          "inv_total(bank, hauntedmine_reward_key) > 0", "obj_add_private(npc_coord, hauntedmine_reward_key, 1",

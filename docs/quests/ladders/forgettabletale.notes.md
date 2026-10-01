@@ -1,35 +1,41 @@
-# forgettabletale -- driven notes (client-verified, 353 rows, start to scroll)
+Forgettable Tale -- driven notes (2026-09-30, parity3e; start to scroll)
 
-Stand tiles (guide tile unreachable or wrong):
-- Veldaban: stand 2827,10212. Drunken Dwarf: stand 2912,10221 (2913,10219 is walled off).
-- Barmaid 2916,10193. Rowdy 2907,10198. Gauss 2839,10195.
-- Conductor4 2906,10173; WWM cart click from 2919,10170. Conductor8 2922,10167.
-- Khorvak: ::tele 2864,9878. Conductor6 2874,9874; return cart click from 2875,9870.
-- Blue Opal director: level 1, stand 2867,10205. Secret cart: click keldagrim_train_cart with at=2919,10164.
-- Rind: stand 2854,10197; patch 2854,10201.
+Stand tiles: Veldaban 2827,10212. Drunken Dwarf 2912,10221 (2913,10219 is walled off).
+Barmaid 2916,10195 (the Laughing Miner bar). Rowdy 2907,10198. Gauss 2839,10195.
+Conductor4 2906,10173. Conductor8 2922,10167. Rind 2854,10197, patch 2854,10201.
+Khorvak: goto 2864,9878; conductor6 2874,9874; return cart from 2875,9870.
 
-Doors / carts / puzzle:
-- Tunnel hub is level 1 near 1861,4954: card box 1862,4954, control box 1860,4955, train cart.
-- Platform box and return cart are loc_add-ed on arrival (forget_puzzle.rs2:481); lost on server restart until next ride/login.
-- Stones are counters, not items. Click cycles empty -> green -> yellow, skipping a colour with none left.
-  A junction keeps its stone after Ok; clear it (click to empty) to reuse it.
-- Group 1 hub 1G1Y; group 2 hub 1G2Y; group 3 hub 2G2Y; each platform box adds a stone (forget_puzzle.rs2:374).
-- Routes 3/6/9 (layout in forget_route_expected) lead to the story rooms; others to a small (x<1900) or wide platform.
-- Every story-room exit is forget_story_exit_next; the library one asks "Yes." and needs the
-  bookcase (at=1904,4967, not the other copies) and both crates withpapers1/2 first.
+Carts: the map has none. The script places (2919,10169) to White Wolf Mountain and the
+secret one (2919,10164); stand at 2919,10166 for the secret one. Tickets cost 100 each way.
+The secret cart needs both hands empty, 2 free slots and the boards gone.
 
-Dialogue gates: Drunken Dwarf "Yes" chain, barmaid "A beer, please." / "A dwarven stout, please.",
-director/conductor "Ask about closed off tunnel.", Veldaban "Very interested!" / "Yes." / "Sounds like just the job for me!".
+Director: the guide says Purple Pewter, but ::complete giantdwarf leaves company 0 = Blue
+Opal. Use dwarf_city_director_blue_opal, level 1, (2869,10203) (stand 2867,10205). Only
+your own company director removes the boards and writes stage 100.
 
-Wanderers: none that block. Fights: none.
+Waits are real minutes (4 per kelda stage, 8 per vat stage): t.clock.skip(16) for the patch,
+t.clock.skip(40) for the vat. Vat/barrel varbits sit in farming_varp_9, now transmitted and
+saved (skill_farming/configs/farming_patch.varp). Brewing is use-item-on-vat in order: 2
+water, 2 malt, kelda hops, yeast (Cooking 22). Blandebir fills a pot for 25 coins; the pot
+is on the table upstairs. Valve is a click; the barrel takes a beer glass.
+
+Puzzles: hub is level 1 at 1861,4954 (card box, control box, cart). Search the hub box once
+per group, each platform box once. Stones are counters: a click cycles empty, green, yellow,
+skipping a colour with none left. A junction keeps its stone after Ok; clear every junction
+before the next route. Route layouts (index 0-based, Y yellow G green): forget_route_expected
+in forget_puzzle.rs2. Buttons are forget_puzzleN:switch_a.. and ok_button (IF1: invoke op 0).
+ui.await_close answers a bare ok; grade it with t.check. Routes 1,4,7 land on the small
+platform, 2,5,8 the wide one (boxes are loc_add-ed on arrival, forget_puzzle.rs2:481);
+routes 3,6,9 lead to the story rooms; every story exit is forget_story_exit_next.
+
+Library: only the bookcase at (1904,4967,2) counts (opts {at=...}); both paper crates too.
+The exit asks Yes/No (choose only). Listening npcs stand at 1877,4979 (forget_story.rs2).
+Room six: wait about 8 ticks after the cart; 9 pages play; you wake at 2922,10166 (120).
+Continue Veldaban's last page (t.chat.continue_) before stage 130 is written.
+Finale: buy a beer from the barmaid (2 coins), eat a kebab inside the pub ground floor.
 
 Deviations from the guide:
-- Listening npcs stand at 1877..1879,4979 (constant forget_listening_*_coord, forget_story.rs2:19); the guide's
-  gallery at z59 is sealed rock from the arrival cave, so talk_to said "can't reach".
-- Statue/camera intro skipped; cutscene npcs are global, not private (forget_story.rs2:133).
-- Kebab has no Keldagrim vendor: the player brings one; the finale fires on eating it with a beer inside
-  the Laughing Miner (forget_pub.rs2:14).
-- Cart fare 100 coins, not 200 (constant forget_fare). Ring of charos discount not done.
-- Dialogue is paraphrased. Rind's optional letter and the barbarian planting are not done.
-- Waits (kelda growth, brewing) are real; tests skip them with ::forget_growkelda / ::forget_ferment.
-- Vat and barrel varbits are not transmitted: assert those steps by chat message, not varbit.
+- Rowdy asks for one of 24 junk items; the test stages it with ::give.
+- Kebab has no Keldagrim vendor: the player brings one (forget_pub.rs2:14).
+- Cutscenes are not ported (5 scenes, spec pending); story-room npcs are global.
+- Ring of charos fare discount, Rind's optional letter: not done.

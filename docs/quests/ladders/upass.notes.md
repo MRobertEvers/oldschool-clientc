@@ -24,3 +24,9 @@ Implemented differently from LostCity (OSRS wins):
 - Books are ~mesbox pages, not ~book.
 - Kamen's brew no longer hurts (wiki 25 Jul 2019); paladins do not respawn once their badge is held.
 - caveguide5 exit teleports to 0_38_151_49_53, not the LC surface tile (open).
+
+Orbs of light (parity3e):
+- The four orbs are cache multilocs caveorb/caveorb2-4 showing caveorb_vis (op1 Take only) until the orb is destroyed.
+  Stand: orb4 2416,9698 (past the 3rd plank), orb3 2385,9685, orb2 2386,9677; click_loc caveorb_vis at= those tiles.
+- upass_orbs.rs2 [oploc1,caveorb_vis] gives caveorb2-4 (LC had them as ground objs). Orb1 is the logtrap rock at
+  2382,9668: its caveorb_vis fires the LC trap (blown 5 west); take it by disarming upass_logtrap_trigger.

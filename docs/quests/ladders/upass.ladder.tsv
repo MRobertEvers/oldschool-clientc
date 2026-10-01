@@ -34,8 +34,8 @@ leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 4	31	-	climbDownWell	ObjectStep<goTalkToKlankForGauntlets	loc:cave_well	2417,9675,0	Climb down the well.				quests/quest_upass/scripts/upass_well.rs2:10 oploc1; +1
 4	32	-	pickCellLock	ObjectStep<goTalkToKlankForGauntlets	loc:cave_railings2	2393,9655,0	Pick the lock to enter the cell.				quests/quest_upass/scripts/upass_unicorn.rs2:11 oploc1; +1
 4	33	-	digMud	ObjectStep<goTalkToKlankForGauntlets	loc:upass_mud	2393,9650,0	Dig the loose mud.		Spade		quests/quest_upass/scripts/upass_unicorn_tunnels.rs2:9 oplocu
-4	34	-	crossLedge	ObjectStep<goTalkToKlankForGauntlets	loc:upass_ledge	2374,9644,0	Cross the ledge.				quests/quest_upass/scripts/upass_obstacles.rs2:310 oploc1
-4	35	-	goThroughPipe	ObjectStep<goTalkToKlankForGauntlets	loc:upass_pipe6	2418,9605,0	Enter the pipe to the next section.				quests/quest_upass/scripts/upass_obstacles.rs2:387 oploc1
+4	34	-	crossLedge	ObjectStep<goTalkToKlankForGauntlets	loc:upass_ledge	2374,9644,0	Cross the ledge.				quests/quest_upass/scripts/upass_obstacles.rs2:313 oploc1
+4	35	-	goThroughPipe	ObjectStep<goTalkToKlankForGauntlets	loc:upass_pipe6	2418,9605,0	Enter the pipe to the next section.				quests/quest_upass/scripts/upass_obstacles.rs2:390 oploc1
 4	36	-	navigateMaze	DetailedQuestStep<goTalkToKlankForGauntlets	loc:cave_railings2 loc:upass_mud loc:upass_ledge loc:upass_pipe6		Navigate the maze, or use the shortcut to the south with 50 Thieving.	pickCellLock digMud crossLedge goThroughPipe			quests/quest_upass/scripts/upass_unicorn.rs2:11 oploc1; +4
 4	37	-	searchUnicornCage	ObjectStep<goTalkToKlankForGauntlets	loc:cave_railings3	2398,9605,0	Search the unicorn cage.				quests/quest_upass/scripts/upass_unicorn.rs2:66 oploc2
 4	38	-	useRailingOnBoulder	NpcStep<goTalkToKlankForGauntlets	npc:boulder_upass	2397,9596,0	Use the railing on the boulder.		Railing		quests/quest_upass/scripts/upass_unicorn.rs2:51 opnpc1; +1
