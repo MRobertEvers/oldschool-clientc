@@ -35,7 +35,7 @@ quest_defenderofvarrock	defenderofvarrock	defenderofvarrock		4	todo
 quest_demon	demon	demonslayer		3	green	sonnet-b33	
 quest_depthsofdespair	depthsofdespair	thedepthsofdespair		4	todo		
 quest_desertrescue	desertrescue	thetouristtrap		2	green	sonnet-b28	
-quest_deserttreasure	deserttreasure	deserttreasure		3	green	sonnet-b43	
+quest_deserttreasure	deserttreasure	deserttreasure		3	todo	sonnet-b43	REVERTED by sampler (sonnet-b43): Fareed, Damis (fd_damis_normal, fd_damis_tougher), Dessous (blooddiamond_vampirewarrior) and Kamil (icediamond_icewarrior) have no .npc block, so they spawn at npc_default.npc's 10 hp (seam pass 24 (a)): Damis read 0/30 after one 10 hitsplat (186-killDamis1.png), Kamil left the pool inside the first fire blast's settle; a boss that dies to one hit is a content_bug naming the missing blocks -- add the wiki stat blocks first, then re-author. Also: Fareed's diamond was never picked up at the kill; leg 6 goto_tile'd back into the Smoke Dungeon past sword_haunted_well (its trigger writes fd_torch_count1-4) to take the 'found its way back' copy -- pick it up in leg 2 instead.
 quest_deserttreasureii	deserttreasureii	deserttreasureii		4	todo		
 quest_deviousminds	deviousminds	deviousminds		3	green	sonnet-b43	
 quest_doric	doric	doricsquest		1	green	haiku-pilot2	gate RED, not blocked: doric.greet FAIL(40t) pickset held=false then chat.expect_head FAIL(10t); doric.choose_anvils/doric.accept FAIL 'rows not ready' (dialogue never actually chosen); doricquest stays 0, cascades to quest.varp_complete/scroll_title/points/journal FAIL; no t.blocked row -- author's own ledger already showed this, file removed as not green
@@ -78,7 +78,7 @@ quest_hazeelcult	hazeelcult	hazeelcult		3	green	sonnet-b34
 quest_heartofdarkness	heartofdarkness	theheartofdarkness		4	todo		
 quest_hero	hero	heroesquest		1	green	sonnet-b17	
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
-quest_horror	horror	horrorfromthedeep		3	green	sonnet-b43	
+quest_horror	horror	horrorfromthedeep		3	todo	sonnet-b43	REVERTED by sampler (sonnet-b43): setup '::god 1' makes the 10-hp player invulnerable for the Dagannoth and the mother (the only quest file using ::god; it is not a documented convention) -- the boss is fought for real: give combat levels, food and EAT it (opts.eat), Protect from Missiles per the guide. Also six t.check(name, true, ...) tile rows (after_repair/goDownToF1/goDownToF0/goDownToBasement/goThroughDoor/climbDownToCavern .tile) cannot fail -- assert the level/zone; reward.magic is '>= 4662', read the scroll's '4,662.5 Magic XP' line or snapshot after the last cast.
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
 quest_icthlarin	icthlarin	icthlarinslittlehelper		3	green	sonnet-b43	
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
