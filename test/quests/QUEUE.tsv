@@ -65,7 +65,7 @@ quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42	
 quest_gettingahead	gettingahead	gettingahead		4	todo		
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28	
-quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo	sonnet-b42	"REJECTED (sonnet-b42): gate RED even with --allow-blocked: t.quest.expect_complete() runs the quest.journal step, which FAILs on the real content bug (gdwarf_journal.rs2:84 needs `& %giantdwarf_quest < ^gdwarf_complete`; bug confirmed in source). The file must not call expect_complete before the t.blocked row: use t.quest.expect_stage(""complete"") plus the six reward rows, then t.blocked content_bug. RELAY STATE: parked at /Users/matthewevers/Documents/git_repos/3draster/build/author_state/sonnet-b42/rejected/giantdwarf.lua"
+quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo		parity3f partial at b9022124fb: the journal now reads complete at stage 50 (gdwarf_journal.rs2) and all seven consortium companies are joinable -- resume the parked build/author_state/sonnet-b42/rejected/giantdwarf.lua WITHOUT t.blocked and end on t.quest.expect_complete() (proof run parity_giantdwarf 138/0); legs left: cutscene (spec pending); clothes/boots/axe fixed order; task time limits
 quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34	
 quest_golem	golem	thegolem		1	green	sonnet-b15	
 quest_grail	grail	holygrail		2	green	sonnet-b28	
@@ -80,7 +80,7 @@ quest_hero	hero	heroesquest		1	green	sonnet-b17
 quest_hetty	hetty	witchspotion		1	green	sonnet-b15	
 quest_horror	horror	horrorfromthedeep		3	todo		parity3e partial at 72e481670b: LostCity port driven to completion (build/parity_state/parity3e/scratch/h2-h11 lineage; close3e_horror_h10 28/28 kills the mother with 17 elemental casts after ::god 1, h11 13/13 casket game); legs left: Barcrawl prerequisite/Yes-No offer; per-player lighthouse instance; god-book pages and 5,000-coin book purchases (LostCity horror_godbook.rs2)
 quest_hunt	hunt	piratestreasure		1	green	sonnet-b16	
-quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		
+quest_icthlarin	icthlarin	icthlarinslittlehelper		3	todo		parity3f partial at b9022124fb: soft-skips replaced (pit jump, 25-tile door game x2, Apparitions per jar, jar drop, embalming gates, ceremony + Possessed Priest); drivers build/parity_state/parity3f/scratch/legA, legBC..BC4, legD, legE3, legF fold into one test (::icthlarinenergy for the pit; jar is random per run, read %ics_little_jar_multi); legs left: cutscene (spec pending: 3 scenes); cat follower; hostile Sophanem; Apparition prayer/weakness
 quest_idesofmilk	idesofmilk	theidesofmilk		2	green	sonnet-b30	
 quest_ikov	ikov	templeofikov		3	green	sonnet-b35	
 quest_imp	imp	impcatcher		3	green	sonnet-b35	
@@ -94,7 +94,7 @@ quest_kingdomdivided	kingdomdivided	akingdomdivided		4	todo
 quest_kingsransom	kingsransom	kingsransom		4	todo		
 quest_landofthegoblins	landofthegoblins	landofthegoblins		4	todo		
 quest_legends	legends	legendsquest		3	green	sonnet-b39	
-quest_losttribe	losttribe	thelosttribe		3	todo		
+quest_losttribe	losttribe	thelosttribe		3	todo		parity3f partial at b9022124fb: tunnel traps, page-by-page goblin book (stage 5 -> 6 on the last spread), Mistag bow fixed; driver build/parity_state/parity3f/scratch/full.lua 127/0; legs left: cutscene (spec pending: treaty signing); random witness; H.A.M. ladder click; emote unlock gate
 quest_lunardiplomacy	lunardiplomacy	lunardiplomacy		4	todo		
 quest_makingfriendswithmyarm	makingfriendswithmyarm	makingfriendswithmyarm		4	todo		
 quest_makinghistory	makinghistory	makinghistory		1	green	sonnet-b10	
@@ -103,7 +103,7 @@ quest_meatandgreet	meatandgreet	meatandgreet		4	todo
 quest_misc	misc	throneofmiscellania		1	green	sonnet-b22	
 quest_misc	misc_astrid	throneofmiscellania		1	green	sonnet-b25	
 quest_misthalinmystery	misthalinmystery	misthalinmystery		4	todo		
-quest_mm	mm	monkeymadnessi		3	todo		
+quest_mm	mm	monkeymadnessi		3	todo		parity3f partial at b9022124fb: LostCity quest_mm ported (shipyard arm, hangar slide puzzle on if 306 -- solve by BFS, board random per run (::mmpuzzle dumps it), meanwhile scenes, jail/knockout, greegree, Kruk, final battle scene); long quest: legs end just BEFORE each boss; drivers build/parity_state/parity3f/mm_scratch/*.lua; legs left: client transmog render; zoo-monkey clue; Karam/Zooknock/sapper AI undriven; glider map; cutscene camera unsolved
 quest_monkeymadnessii	monkeymadnessii	monkeymadnessii		4	todo		
 quest_mortton	mortton	shadesofmortton		1	green	sonnet-b16	
 quest_mountaindaughter	mountaindaughter	mountaindaughter		2	green	sonnet-b28	green after 39e774122 [seam24]: the parked sonnet-b28 file is committed (run.py 103/103, gate green, lint clean; real Kendal fight rows 77-79); helper_coverage now claims each GUIDE-GAP-marked repeat crossing of the lake rocks (Grader.claim_marked_crossings)
@@ -124,7 +124,7 @@ quest_prince	prince	princealirescue		1	green	sonnet-b16
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26	
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo		
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo		
-quest_ratcatchers	ratcatchers	ratcatchers		3	todo		
+quest_ratcatchers	ratcatchers	ratcatchers		3	todo		parity3f partial at b9022124fb: the King Rat is a timed fight (cat on the wall hole, fish ON THE WALL, Be careful / Don't hold back) gated by Jack's stage 62 talk; drivers build/parity_state/parity3f/scratch/ratcatchers/rc_fight.lua 18/0, rc_death.lua, rc_charos.lua; legs left: cutscene (spec pending); mansion guard stealth; cat-follower rat hunting; Clocktower poison route
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo		
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo		
 quest_recipefordisaster_dwarf	rfd_dwarf	recipefordisaster	RFDDwarf.java	5	todo		
@@ -136,11 +136,11 @@ quest_recipefordisaster_ogre	rfd_ogre	recipefordisaster	RFDSkrachUglogwee.java	5
 quest_recipefordisaster_pirate	rfd_pirate	recipefordisaster	RFDPiratePete.java	5	todo		
 quest_recipefordisaster_finale	rfd_finale	recipefordisaster	RFDFinal.java	5	todo		
 quest_recruitmentdrive	recruitmentdrive	recruitmentdrive		2	green	sonnet-b31	green after 75a234743 (seam26 closer): Miss Cheevers' room gathered from its locs + Initiate sallet reward (OSRS-Content 2ea9f6b7eb); the parked sonnet-b31 file extended through the gathered room and committed, 152/152, helper_coverage FULL 51 steps (5-of-7 random rooms still a PARITY leg)
-quest_redreef	redreef	theredreef		3	todo		
-quest_regicide	regicide	regicide		3	todo		
+quest_redreef	redreef	theredreef		3	todo		parity3f partial at b9022124fb: every soft-skip replaced (spawns, display-case order, hull-checked sails, sea crew, Last Light pirates + door, Bethel, Spencer's diving gear, dive, lobster, dredgers); drivers build/parity_state/parity3f/rrfull.lua (to stage 26) + rr8.lua (26 -> complete 75/0); unmoor with repeated sail_to and pose the Red Rock disembark (the return sail can wedge at 2843,2332); legs left: hull entities for the ships; Bethel mechanics; transcript dialogue
+quest_regicide	regicide	regicide		3	todo		parity3f partial at b9022124fb: dialogue per Transcript:Regicide, either Tyras guard advances, ingredients from stage 10, quicklime on any furnace, catapult arms, cooked rabbit; drivers build/parity_state/parity3f/scratch/regicide/leg1..leg11.lua (leg8 completes); long quest: legs end just BEFORE the Tyras guard; legs left: cutscene (spec pending: catapult/tent); Elena advice; second Underground Pass traversal; Crafting 10 refusal; one-way forest rule
 quest_ribbitingtale	ribbitingtale	theribbitingtaleofalilypadlabourdispute		4	todo		
 quest_romeojuliet	romeojuliet	romeoandjuliet		1	green	sonnet-b2	
-quest_routequest	routequest	insearchofthemyreque		3	todo		
+quest_routequest	routequest	insearchofthemyreque		3	todo		parity3f partial at b9022124fb: LostCity quest_routequest ported (Cyreg boat, rung-by-rung bridge, Curpile quiz, hideout, 18-keyframe cutscene, hound at stage 80); driver build/parity_state/parity3f/scratch/routequest/rqfull.lua 151/152 (its one FAIL is the driver's own reward-xp row); legs left: hellhound loot owner decision; Vanstrom wings form + knife projectile; bridge rungs runtime loc_add; side tunnels/stalagmite/Quick-board undriven
 quest_rovingelves	rovingelves	rovingelves		1	green	sonnet-b17	
 quest_royaltrouble	royaltrouble	royaltrouble		4	todo		RETRY after 23fd3961e [seam20]: Giant Sea Snake [opnpc2,royal_sea_snake_mother_smaller] now jumps to @player_combat_start (trap 31 sweep; s20ccs_snake_after 5/5 bar drains and dies)
 quest_rumdeal	rumdeal	rumdeal		2	green	sonnet-b27	
