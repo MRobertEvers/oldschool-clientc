@@ -18,7 +18,7 @@ return {
     },
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "itgronigen",
+            varp = "varp112_itgronigen",
             constants = {
                 not_started = 0, started = 1, given_planks = 2, given_bronze = 3, given_glass = 4,
                 given_mould = 5, sent_telescope = 6, complete = 7, claimed_wine = 8,
@@ -116,7 +116,7 @@ return {
         t.exec("goto-vstairs", t.player.goto_tile, 2458, 3186, 0)
         t.exec("enterDungeon", t.player.click_loc, "qip_obs_vstairs2", 1)
         t.ticks(4)
-        local _, choice = t.var.server("observatory_chestchoice")
+        local _, choice = t.var.server("varb3827_observatory_chestchoice")
         t.step("chestchoice", choice ~= nil and "PASS" or "FAIL", "chest choice = " .. tostring(choice))
         local closed = { [0] = "qip_obs_dungeon_chest_closed", [1] = "qip_obs_dungeon_chest_closed2", [2] = "qip_obs_dungeon_chest_closed3" }
         local open = { [0] = "qip_obs_dungeon_chest_open", [1] = "qip_obs_dungeon_chest_open2", [2] = "qip_obs_dungeon_chest_open3" }
@@ -253,7 +253,7 @@ return {
         t.ticks(3)
         t.key("escape")
         t.ticks(3)
-        local _, sign = t.var.server("observatory_starsign")
+        local _, sign = t.var.server("varb3828_observatory_starsign")
         t.step("telescope.sign", sign ~= nil and "PASS" or "FAIL", "starsign = " .. tostring(sign))
         local names = { [0] = "Aquarius", "Capricorn", "Sagittarius", "Scorpio", "Libra", "Virgo", "Leo", "Cancer", "Gemini", "Taurus", "Aries", "Pisces" }
         local pages = { [0] = 0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3 }

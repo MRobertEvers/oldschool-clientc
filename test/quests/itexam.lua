@@ -40,7 +40,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "itexamlevel",
+            varp = "varp131_itexamlevel",
             constants = { complete = 9, not_started = 0, stamping = 1, first_exam = 2,
                 second_exam = 3, third_exam = 4, impress_archeological_expert = 5,
                 mineshaft_permit = 6, poured_compound_on_bricks = 7, removed_blockage = 8 },
@@ -123,7 +123,7 @@ return {
         t.exec("goto-talkToGuide", t.player.goto_tile, 3376, 3376, 0)
         t.exec("talkToGuide", t.player.talk_to, "panning_guide", 1)
         t.exec("talkToGuide-dialog", t.chat.drain, {})
-        local _, tea_value = t.var.server("itdigsitetea")
+        local _, tea_value = t.var.server("varb2544_itdigsitetea")
         t.check("varbit.itdigsitetea", tea_value == 1 and "ok" or "refused", "itdigsitetea=" .. tostring(tea_value))
 
         -- takeTray, panWater: ground tray (tray_mud), search it, pan at the water
@@ -315,7 +315,7 @@ return {
         local expert = t.player.by_symbol("npc", "archaeological_expert")
         t.exec("talkToExpert", t.player.use_on, "digtalisman", expert)
         t.exec("talkToExpert-dialog", t.chat.drain, {})
-        local _, letter_value = t.var.server("itexpertletter")
+        local _, letter_value = t.var.server("varb2550_itexpertletter")
         t.check("varbit.itexpertletter", letter_value == 1 and "ok" or "refused", "itexpertletter=" .. tostring(letter_value))
         t.exec("inv.digexpertscroll", t.inv.await, "digexpertscroll", 1, 5)
         t.exec("inv.talisman-gone", t.inv.expect_absent, "digtalisman")
@@ -332,13 +332,13 @@ return {
         local winch_one = t.player.by_symbol("loc", "digwinch1")
         t.exec("useRopeOnWinch", t.player.use_on, "rope", winch_one)
         t.ticks(2)
-        local _, winch_one_value = t.var.server("itdigsitewinch1")
+        local _, winch_one_value = t.var.server("varb2545_itdigsitewinch1")
         t.check("varbit.itdigsitewinch1", winch_one_value == 1 and "ok" or "refused", "itdigsitewinch1=" .. tostring(winch_one_value))
         t.exec("goto-useRopeOnWinch2", t.player.goto_tile, 3370, 3426, 0)
         local winch_two = t.player.by_symbol("loc", "digwinch2")
         t.exec("useRopeOnWinch2", t.player.use_on, "rope", winch_two)
         t.ticks(2)
-        local _, winch_two_value = t.var.server("itdigsitewinch2")
+        local _, winch_two_value = t.var.server("varb2546_itdigsitewinch2")
         t.check("varbit.itdigsitewinch2", winch_two_value == 1 and "ok" or "refused", "itdigsitewinch2=" .. tostring(winch_two_value))
 
         -- goDownToDoug: winch 2 lowers to Doug's landing
@@ -389,7 +389,7 @@ return {
         t.exec("useTrowelOnBarrel", t.player.use_on, "trowel", barrel)
         t.chat.close()
         t.ticks(2)
-        local _, barrel_value = t.var.server("itdigsitebarrel")
+        local _, barrel_value = t.var.server("varb2547_itdigsitebarrel")
         t.check("varbit.itdigsitebarrel", barrel_value == 1 and "ok" or "refused", "itdigsitebarrel=" .. tostring(barrel_value))
         local barrel_open = t.player.by_symbol("loc", "digbarrelclosed")
         t.exec("useVialOnBarrel", t.player.use_on, "vial_empty", barrel_open)

@@ -96,7 +96,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "misc_quest",
+            varp = "varp359_misc_quest",
             constants = {
                 not_started = 0,
                 talked_to_king = 10,
@@ -193,7 +193,7 @@ return {
         -- ~misc_emote_performed_brand, hooked off ~emote_perform), s1_step1
         -- (11) -> s1_step5 (15). Quest Helper's own clapForBrand step.
         t.exec("clapForBrand", t.player.emote, "clap")
-        t.expect("affection.s1_step5", t.var.expect("misc_affection", 15))
+        t.expect("affection.s1_step5", t.var.expect("varb73_misc_affection", 15))
 
         brand = t.player.by_symbol("npc", "misc_prince_brand")
         t.exec("talkBrand2", t.player.talk_to, "misc_prince_brand", 1)
@@ -226,7 +226,7 @@ return {
         -- after Quest Helper's own blowKissToBrand step (helper_coverage.py
         -- matches a ledger row to a guide step by name).
         t.exec("blowKissToBrand", t.player.emote, "blow kiss")
-        t.expect("affection.s3_step0", t.var.expect("misc_affection", 30))
+        t.expect("affection.s3_step0", t.var.expect("varb73_misc_affection", 30))
 
         brand = t.player.by_symbol("npc", "misc_prince_brand")
         t.exec("giveRingBrand", t.player.use_on, "gold_ring", brand)
@@ -384,13 +384,13 @@ return {
         -- left) each time the current session ends short of the target,
         -- awaiting one more approval point than is already banked.
         local chop_attempts = 0
-        local approval_result, approval_value = t.var.server("misc_approval")
+        local approval_result, approval_value = t.var.server("varb72_misc_approval")
         while (approval_result ~= "ok" or (approval_value or 0) < 3) and chop_attempts < 10 do
             chop_attempts = chop_attempts + 1
-            local before_result, before_value = t.var.server("misc_approval")
+            local before_result, before_value = t.var.server("varb72_misc_approval")
             t.exec("chopMaple-" .. chop_attempts, t.player.click_loc, "mapletree", 1)
-            t.var.await_server("misc_approval", (before_value or 0) + 1, 250)
-            approval_result, approval_value = t.var.server("misc_approval")
+            t.var.await_server("varb72_misc_approval", (before_value or 0) + 1, 250)
+            approval_result, approval_value = t.var.server("varb72_misc_approval")
         end
         t.check("approval.real_chops", approval_result == "ok" and (approval_value or 0) >= 3,
             "var.server(misc_approval) after " .. tostring(chop_attempts) .. " chopMaple attempt(s) -> "
@@ -411,7 +411,7 @@ return {
         t.exec("approval.fast_forward", t.msg.expect, "You worked for the kingdom")
         -- Named after Quest Helper's own get75Support step ("Reach 75%
         -- support...") -- this is the row that proves it reached.
-        t.exec("get75Support", t.var.await_server, "misc_approval", 96, 10)
+        t.exec("get75Support", t.var.await_server, "varb72_misc_approval", 96, 10)
 
         -- ---------------------------------------------------- back to Vargas: the crowning
         -- vargas_check_support reads %misc_approval >= 75% (just reached
@@ -425,7 +425,7 @@ return {
         -- delta is what vargas_finish_quest's own `add(%misc_coffers, 10000)`
         -- is worth). Read server-side: the coffer varbit is the kingdom's
         -- bookkeeping and nothing transmits it to this client's varp cache.
-        local coffers_before_result, coffers_before = t.var.server("misc_coffers")
+        local coffers_before_result, coffers_before = t.var.server("varb74_misc_coffers")
 
         t.exec("talkVargasFinish", t.player.talk_to, "misc_king_vargas", 1)
         t.exec("talkVargasFinish-dialog", t.chat.play, {
@@ -443,7 +443,7 @@ return {
         -- one line above the `%misc_quest = ^misc_complete` the row above
         -- just proved, so a stage of complete and an unmoved coffer would
         -- mean the grant line was skipped.
-        local coffers_after_result, coffers_after = t.var.server("misc_coffers")
+        local coffers_after_result, coffers_after = t.var.server("varb74_misc_coffers")
         t.check("reward.coffers",
             coffers_before_result == "ok" and coffers_after_result == "ok"
                 and type(coffers_before) == "number" and type(coffers_after) == "number"
@@ -455,7 +455,7 @@ return {
                 .. tostring((type(coffers_after) == "number" and type(coffers_before) == "number")
                     and (coffers_after - coffers_before) or "n/a")
                 .. ", expected 10000 from misc_king_vargas.rs2's "
-                .. "[label,vargas_finish_quest] `%misc_coffers = add(%misc_coffers, 10000)`")
+                .. "[label,vargas_finish_quest] `%varb74_misc_coffers = add(%varb74_misc_coffers, 10000)`")
 
         -- The quest's own ~quest_complete_rewards call lists "10000
         -- coins|Management of Miscellania|Ring of wealth teleport to
