@@ -724,6 +724,44 @@ def resolve_quest_prereq(token: str, inventory: list[dict]) -> str | None:
     return row["dir"] if row else None
 
 
+QUEST_CHEAT_RS2 = (Path(__file__).resolve().parents[2] / "OSRS-Content" / "osrs239-content" / "server"
+                   / "scripts" / "quests" / "scripts" / "quest_cheat.rs2")
+_CHEAT_ARM_RE = re.compile(r"if\s*\(\s*\$row\s*=\s*(\w+)\s*\)\s*\{\s*if\s*\(\s*(%\w+)\s*>=")
+_COMPLETE_REWARDS_RE = re.compile(r"~quest_complete_rewards\(\s*((?:mini)?quest_\w+)")
+
+
+def cheat_row_for(prereq_dir: str, inventory: list[dict]) -> str:
+    """The row name `::complete` wants for a prerequisite quest. The dir and the
+    cache's quest row differ for some quests (quest_gobdip's row is
+    quest_goblindiplomacy, quest_tree's is quest_treegnomevillage), so the
+    dir is resolved through the progress varp: quest_cheat.rs2's arm for that
+    varp names the row. Falls back to the dir when no arm exists (the cheat
+    then answers no_row and setup fails loudly, which is the honest result)."""
+    varp = next((r["varp"] for r in inventory if r["dir"] == prereq_dir), "")
+    try:
+        text = QUEST_CHEAT_RS2.read_text(encoding="utf-8")
+    except OSError:
+        return prereq_dir
+    rows = [row for row, var in _CHEAT_ARM_RE.findall(text) if var == varp]
+    if len(rows) == 1:
+        return rows[0]
+    # The inventory's varp column is not always the completion carrier
+    # (quest_chompybird lists %chompybird_kills), so fall back to the row the
+    # quest's own completion site pays out: `~quest_complete_rewards(<row>, ...)`
+    # in its folder. Still the ROW name, armed or not -- an unarmed row makes
+    # ::complete answer "no arm", which names the real gap.
+    quest_root = QUEST_CHEAT_RS2.parents[1] / prereq_dir
+    paid = set()
+    for rs2 in quest_root.rglob("*.rs2"):
+        try:
+            paid.update(_COMPLETE_REWARDS_RE.findall(rs2.read_text(encoding="utf-8", errors="replace")))
+        except OSError:
+            continue
+    if len(paid) == 1:
+        return paid.pop()
+    return prereq_dir
+
+
 # ------------------------------------------------------------- rewards
 #
 # QuestHelper's own base class (questhelpers/QuestHelper.java) declares
@@ -2037,7 +2075,7 @@ def generate(
             checks.append(f"prereq self-reference dropped: QuestHelperQuest.{token} named this quest's own row")
         prereq_lines.append((token, prereq_dir))
         if prereq_dir:
-            setup_cheats.append(f"::complete {prereq_dir}")
+            setup_cheats.append(f"::complete {cheat_row_for(prereq_dir, inventory)}")
 
     boss_fight = inv_row.get("boss_fight") == "yes"
     boss_npcs = inv_row.get("boss_npcs", "")

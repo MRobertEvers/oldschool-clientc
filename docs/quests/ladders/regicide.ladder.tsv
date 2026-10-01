@@ -27,15 +27,15 @@ leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 3	24	2	passTrap1	ObjectStep<goThroughUndergroundPass	loc:upass_speartrap	2443,9678,0	Either disable or walk past the traps.	passTrap2 passTrap3 passTrap4 passTrap5			quests/quest_upass/scripts/upass_obstacles.rs2:203 oploc1
 3	25	2	talkToIdris	NpcStep	npc:regicide_good_elf1		Talk to Idris.				
 3	26	2	talkToIorwerth	NpcStep<goTalkToIorwerth	npc:lord_iorwerth_vis	2203,3255,0					quests/quest_regicide/scripts/lord_iorwerth.rs2:12 opnpc1
-3	27	2	goCrossLogToCamp	ObjectStep<goTalkToIorwerth	loc:regicide_logbalance1_start	2201,3237,0	Cross the log to the north to the Iorwerth Camp.				quests/quest_regicide/scripts/regicide_traps.rs2:70 oploc1
+3	27	2	goCrossLogToCamp	ObjectStep<goTalkToIorwerth	loc:regicide_logbalance1_start	2201,3237,0	Cross the log to the north to the Iorwerth Camp.				quests/quest_regicide/scripts/regicide_traps.rs2:73 oploc1
 3	28	2	goUpToLeafTowardsLog	ObjectStep<goTalkToIorwerth	loc:regicide_pitfall_side	2209,3202,0	Go north, and jump over the leaves.				quests/quest_regicide/scripts/regicide_traps.rs2:32 oploc1
 3	29	2	climbThroughForest	ObjectStep<goTalkToIorwerth	loc:regicide_cross_over3	2239,3149,0					quests/quest_regicide/scripts/regicide_route.rs2:72 oploc1
 3	30	2	goFromTyrasToTrap	ObjectStep<goTalkToIorwerth	loc:regicide_trap_tripwire	2220,3154,0	Return back out the camp, to the east, then south to the traps and cross them.				quests/quest_regicide/scripts/regicide_traps.rs2:19 oploc1
 3	31	2	goFromLeavesToStickTrap	ObjectStep<goTalkToIorwerth	loc:regicide_trap_woodspring	2236,3181,0	Head west, and cross the sticks there. To do so without failing, stand next to them and spam-click it until you cross it.				quests/quest_regicide/scripts/regicide_traps.rs2:8 oploc1
 3	32	2	goFromCaveToLeaves	ObjectStep<goTalkToIorwerth	loc:regicide_pitfall_corner	2268,3204,0	Follow the path along and hop over the leaves.				quests/quest_regicide/scripts/regicide_traps.rs2:31 oploc1
-4	33	2	talkToTracker	NpcStep<goTalkToTracker	npc:regicide_old_camp_tracker_vis	2258,3148,0					quests/quest_regicide/scripts/regicide_camp_tracker.rs2:44 opnpc1; +1
+4	33	2	talkToTracker	NpcStep<goTalkToTracker	npc:regicide_old_camp_tracker_vis	2258,3148,0					quests/quest_regicide/scripts/regicide_camp_tracker.rs2:38 opnpc1; +1
 4	34	2	goFromCampToLeavesSouth	ObjectStep<goTalkToTracker	loc:regicide_pitfall_side	2209,3204,0	Go south, and jump over the leaves.				quests/quest_regicide/scripts/regicide_traps.rs2:32 oploc1
-4	35	2	crossLogFromCamp	ObjectStep<goTalkToTracker	loc:regicide_logbalance1_start	2197,3237,0	Cross the log from the camp.				quests/quest_regicide/scripts/regicide_traps.rs2:70 oploc1
+4	35	2	crossLogFromCamp	ObjectStep<goTalkToTracker	loc:regicide_logbalance1_start	2197,3237,0	Cross the log from the camp.				quests/quest_regicide/scripts/regicide_traps.rs2:73 oploc1
 4	36	2	goReturnToIorwerth	ConditionalStep			Return to Lord Iorwerth in the north west of the elven forest.				
 4	37	2	goReturnToTracker	ConditionalStep			Return to the Elven Tracker in the south of the forest.				
 4	38	2	clickTracks	ObjectStep<goClickTracks	loc:regicide_old_camp_footprints?	2241,3150,0					
@@ -62,5 +62,5 @@ leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 6	59	2	useRabbitOnGuard	NpcStep<goGiveRabbitToGuard	npc:regicide_tyras_lazy_guard_vis	2183,3185,0			Cooked rabbit		quests/quest_regicide/scripts/regicide_tyras_lazy_guard.rs2:9 opnpc1; +1
 6	60	11	useBombOnCatapult	ObjectStep	loc:regicide_catapult_right	2184,3185,0	Use the barrel bomb on the catapult.		Barrel bomb (fused)		quests/quest_regicide/scripts/regicide_bombcraft.rs2:215 oplocu
 6	61	2	leaveFromCatapult	ObjectStep<goTalkToIorwerthAfterRegicide	loc:regicide_trap_tripwire	2220,3154,0	Go to the east, then south to the traps and cross them.				quests/quest_regicide/scripts/regicide_traps.rs2:19 oploc1
-6	62	13	talkToArianwyn	NpcStep	npc:regicide_good_elf3	2582,3298,0	Talk to Arianwyn outside Ardougne Castle.		Iorwerth's message		
+6	62	13	talkToArianwyn	NpcStep	npc:regicide_good_elf3	2582,3298,0	Talk to Arianwyn outside Ardougne Castle.		Iorwerth's message		quests/quest_regicide/scripts/regicide_route.rs2:128 opnpc1
 6	63	0	goTalkToLathasToFinish	ConditionalStep			Report back to King Lathas to finish the quest.				

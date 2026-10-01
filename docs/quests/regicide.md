@@ -1,8 +1,9 @@
 # Regicide wiki brief (parity3f, 2026-09-30)
 
-Source: no LostCity quest exists (LostCity_Content2 and LostCity_Server have no
-`quest_regicide`; the old header comments claiming a LostCity port were wrong).
-The port is constructed from the OSRS wiki and the Quest Helper ladder.
+Source: LostCity_Server/content/scripts/quests/quest_regicide (LostCity_Content2 has none; the
+parity3f note that no LostCity quest existed was wrong). The port follows LostCity trigger for
+trigger (parity3g: log balances, footprints, camp guard, entering the camp, full tent fire) with
+the wiki/Quest Helper forms where OSRS later changed the quest (Arianwyn lines, bomb steps).
 
 | Reference | Use |
 | --- | --- |

@@ -1,0 +1,31 @@
+# ladder troll_love quest_dir=quest_troll_love guide=src/main/java/com/questhelper/helpers/quests/trollromance/TrollRomance.java steps=28 legs=1:1-28@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	enterStronghold	ObjectStep	loc:troll_stronghold_door	2839,3690,0	Enter the Troll Stronghold.				ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
+1	2	0	goDownToUg	ObjectStep	loc:troll_stronghold_stairstop	2844,10109,2	Climb down the north staircase.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+1	3	0	goUpToUg	ObjectStep	loc:troll_stronghold_stairs	2853,10107,0	Go up the stairs from the prison.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	4	0	talkToUg	NpcStep	npc:trollromance_ug loc:troll_stronghold_door loc:troll_stronghold_stairstop loc:troll_stronghold_stairs	2827,10064,1	Talk to Ug in the south west room of the Troll Stronghold's first floor.	enterStronghold goDownToUg goUpToUg		Awww, you poor troll. What seems to be the problem? | Don't…	quests/quest_troll_love/scripts/trollromance_ug.rs2:9 opnpc1
+1	5	5	talkToAga	NpcStep	npc:trollromance_aga	2828,10104,1	Talk to Aga north of Ug.			So... how's your... um... love life?	quests/quest_troll_love/scripts/trollromance_aga.rs2:7 opnpc1; +1
+1	6	10	talkToTenzing	NpcStep	npc:death_sherpa	2820,3555,0	Talk to Tenzing west of Burthorpe.			Do you know where I can find Trollweiss? | What would I nee…	quests/quest_death/scripts/death_tenzing.rs2:16 opnpc1
+1	7	15	talkToDunstan	NpcStep	npc:death_smithy	2919,3574,0	Talk to Dunstan in north east Burthorpe.		Iron bar; Maple/yew logs; Rope	Talk about a quest. | I need a sled!! | No.	quests/quest_death/scripts/death_dunstan.rs2:19 opnpc1; +1
+1	8	20	talkToDunstanAgain	NpcStep	npc:death_smithy	2919,3574,0	Talk to Dunstan again.		=	Talk about a quest.	quests/quest_death/scripts/death_dunstan.rs2:19 opnpc1; +1
+1	9	22	useTarOnWax	DetailedQuestStep			Use some swamp tar on a bucket of wax.		Swamp tar; Bucket of wax; Cake tin		
+1	10	22	useWaxOnSled	DetailedQuestStep			Use the wax on the sled.		Wax; Sled		
+1	11	25	enterTrollCave	ObjectStep	loc:trollromance_caveentrance	2821,3744,0	Enter the cave north of Trollheim. There are high leveled ice trolls in here, so Protect from Melee and be careful!		Sled		ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
+1	12	25	leaveTrollCave	ObjectStep	loc:trollromance_snow_cavewall_crevis	2772,10233,0	Leave the cave via the north crevice.				ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
+1	13	25	equipSled	DetailedQuestStep			Equip the sled.		Sled		
+1	14	25	sledSouth	ObjectStep	loc:trollromance_piste_walk_barrier_down	2773,3835,0	Sled to the south.		=		quests/quest_troll_love/scripts/trollromance_sled.rs2:77 oploc1; +1
+1	15	25	pickFlowers	ObjectStep	loc:trollromance_rareflowers	2781,3783,0	Pick a rare flower.				quests/quest_troll_love/scripts/trollromance_sled.rs2:102 oploc2; +1
+1	16	30	enterStrongholdAgain	ObjectStep	loc:troll_stronghold_door	2839,3690,0	Return to Ug with the trollweiss flowers.		Trollweiss; Combat gear, food, and potions		ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
+1	17	30	goDownToUgAgain	ObjectStep	loc:troll_stronghold_stairstop	2844,10109,2	Return to Ug with the trollweiss flowers.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+1	18	30	goUpToUgAgain	ObjectStep	loc:troll_stronghold_stairs	2853,10107,0	Return to Ug with the trollweiss flowers.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	19	30	talkToUgWithFlowers	NpcStep	npc:trollromance_ug loc:troll_stronghold_door loc:troll_stronghold_stairstop loc:troll_stronghold_stairs	2827,10064,1	Return to Ug with the trollweiss flowers.	enterStrongholdAgain goDownToUgAgain goUpToUgAgain	Trollweiss		quests/quest_troll_love/scripts/trollromance_ug.rs2:9 opnpc1
+1	20	35	enterStrongholdForFight	ObjectStep	loc:troll_stronghold_door	2839,3690,0	Challenge Arrg to a fight. Please check the wiki for instructions to setup a safe spot.		Combat gear, food, and potions		ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
+1	21	35	goUpToUgForFight	ObjectStep	loc:troll_stronghold_stairs	2853,10107,0	Challenge Arrg to a fight. Please check the wiki for instructions to setup a safe spot.		=		ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	22	35	goDownToUgForFight	ObjectStep	loc:troll_stronghold_stairstop	2844,10109,2	Challenge Arrg to a fight. Please check the wiki for instructions to setup a safe spot.		=		ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+1	23	35	challengeArrg	NpcStep	npc:trollromance_arrg loc:troll_stronghold_door loc:troll_stronghold_stairs loc:troll_stronghold_stairstop	2829,10095,1	Challenge Arrg to a fight. Please check the wiki for instructions to setup a safe spot.	enterStrongholdForFight goUpToUgForFight goDownToUgForFight	=	I am here to kill you!	quests/quest_troll_love/scripts/trollromance_arrg.rs2:13 opnpc1
+1	24	35	killArrg	NpcStep	npc:trollromance_arrg_attackable		Kill Arrg.				quests/quest_troll_love/scripts/trollromance_arrg.rs2:114 ai_queue1; +7
+1	25	40	goDownToUgForEnd	ObjectStep	loc:troll_stronghold_stairstop	2844,10109,2	Return to Ug to finish.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+1	26	40	goUpToUgForEnd	ObjectStep	loc:troll_stronghold_stairs	2853,10107,0	Return to Ug to finish.				ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	27	40	enterStrongholdForEnd	ObjectStep	loc:troll_stronghold_door	2839,3690,0	Return to Ug to finish.				ladders_stairs/scripts/maplink.rs2:77 oploc1; +3
+1	28	40	returnToUg	NpcStep	npc:trollromance_ug loc:troll_stronghold_stairstop loc:troll_stronghold_stairs loc:troll_stronghold_door	2827,10064,1	Talk to Ug in the south west room to finish the quest.	goDownToUgForEnd goUpToUgForEnd enterStrongholdForEnd			quests/quest_troll_love/scripts/trollromance_ug.rs2:9 opnpc1

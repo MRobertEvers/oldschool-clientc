@@ -1,0 +1,109 @@
+# ladder viking quest_dir=quest_viking guide=src/main/java/com/questhelper/helpers/quests/thefremenniktrials/TheFremennikTrials.java steps=106 legs=1:1-10@s0 2:11-19@s1 3:20-29@s1 4:30-39@s1 5:40-48@s1 6:49-58@s1 7:59-67@s1 8:68-77@s1 9:78-87@s1 10:88-96@s1 11:97-106@s1
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToBrundt	NpcStep	npc:viking_brundt_child	2658,3669,0	Talk to Brundt in Rellekka's longhall.			Ask about anything else. | Do you have any quests? | Yes, I…	quests/quest_viking/scripts/viking_brundt.rs2:21 opnpc1
+1	2	1	talkToOlaf	NpcStep	npc:viking_olaf	2673,3683,0	Talk to Olaf the Bard north east of the longhall.			Ask about becoming a Fremennik | Yes	quests/quest_viking/scripts/viking_olaf.rs2:1 opnpc1
+1	3	1	talkToLalli	NpcStep	npc:viking_lalli_troll	2771,3621,0	Talk to Lalli to the south east of Rellekka.			Other human?	quests/quest_viking/scripts/viking_troll.rs2:1 opnpc1
+1	4	1	talkToAskeladdenForRock	NpcStep	npc:viking_askelladen_norockop	2658,3660,0	Return to Rellekka and talk to Askeladden for a pet rock.			Ask about becoming a Fremennik	quests/quest_viking/scripts/viking_askelapen.rs2:2 opnpc1
+1	5	1	useCabbage	ObjectStep	loc:viking_troll_cauldron	2773,3624,0	Use a cabbage on the stew.		Pet rock; Cabbage; Potato		quests/quest_viking/scripts/viking_troll.rs2:105 oplocu
+1	6	1	usePotato	ObjectStep	loc:viking_troll_cauldron	2773,3624,0	Use a potato on the stew.		Pet rock; Potato		quests/quest_viking/scripts/viking_troll.rs2:105 oplocu
+1	7	1	useRock	ObjectStep	loc:viking_troll_cauldron	2773,3624,0	Use your pet rock on the stew.		Pet rock		quests/quest_viking/scripts/viking_troll.rs2:105 oplocu
+1	8	1	useOnion	ObjectStep	loc:viking_troll_cauldron	2773,3624,0	Return to Lalli and use a onion, cabbage, potato, and pet rock on their stew. You can find the vegetables growing in the south east of Rellekka.	useCabbage usePotato useRock	Pet rock; Cabbage; Potato; Onion		quests/quest_viking/scripts/viking_troll.rs2:105 oplocu
+1	9	1	talkToLaliAfterStew	NpcStep	npc:viking_lalli_troll	2771,3621,0	Talk to Lalli for golden wool.				quests/quest_viking/scripts/viking_troll.rs2:1 opnpc1
+1	10	1	chopSwayingTree	ObjectStep	loc:viking_musical_tree	2739,3639,0	Go south east of Rellekka and cut a branch from the swaying tree		Any axe; Knife		quests/quest_viking/scripts/viking_olaf.rs2:186 oploc1
+2	11	1	fletchLyre	DetailedQuestStep			Use a knife on the branch to make an unstrung lyre		Knife; Branch		
+2	12	1	spinWool	DetailedQuestStep			Spin the golden fleece into wool using a spinning wheel. The closest wheel is in Seers' Village.		Golden fleece		
+2	13	1	makeLyre	DetailedQuestStep			Use the golden wool on your unstrung lyre.		Unstrung lyre; Golden wool		
+2	14	1	enchantLyre	ObjectStep	loc:viking_lake_shrine_altar	2626,3598,0	Bring your lyre to the Strange Altar south west of Rellekka, and use either a raw shark, raw sea turtle or raw manta ray on it.		Lyre; Raw shark, manta ray or sea turtle		quests/quest_viking/scripts/viking_olaf.rs2:225 oplocu
+2	15	1	performMusic	DetailedQuestStep		2658,3683,0	Return to Rellekka and enter the longhall's stage to perform. Once on stage, play the enchanted lyre.		Enchanted lyre		
+2	16	1	talkToManni	NpcStep	npc:viking_reveller_3	2658,3675,0	Talk to Manni the Reveller in the Rellekka longhall.			Ask about becoming a Fremennik | Yes	quests/quest_viking/scripts/viking_reveller.rs2:37 opnpc1
+2	17	1	pickUpBeer	DetailedQuestStep		2658,3676,0	Get some beer. There is beer tankard in the Rellekka longhall.		beer		
+2	18	1	getStrangeObject	NpcStep	npc:vt_council_workmen	2654,3593,0	Give the Council workman on the bridge south of Rellekka going to Seer's Village a beer.		=	Yes	areas/area_vt/scripts/vt_council_workman.rs2:9 opnpc1; +1
+2	19	1	getAlcoholFreeBeer	NpcStep	npc:poison_salesman	2695,3491,0	Buy some alcohol free beer from the Poison Salesman in the Seer's Village pub.		Coins	Talk about the Fremennik Trials | Yes	areas/area_seers/scripts/poison_salesman.rs2:15 opnpc1
+3	20	1	prepareToUseStrangeObject	DetailedQuestStep		2664,3674,0	Return to Rellekka with the strange object, a tinderbox, and low alcohol beer.		Strange object; Tinderbox; Low alcohol keg		
+3	21	1	useStrangeObjectOnPipe	ObjectStep	loc:viking_pipe_end_longhall	2663,3674,0	Use the lit strange object on the nearby pipe!		Lit strange object		quests/quest_viking/scripts/viking_reveller.rs2:275 oploc1; +1
+3	22	1	useStrangeObject	ObjectStep	loc:viking_pipe_end_longhall	2663,3674,0	Use a tinderbox on the strange object then use it on the nearby pipe.	useStrangeObjectOnPipe	Strange object; Tinderbox		quests/quest_viking/scripts/viking_reveller.rs2:275 oploc1; +1
+3	23	1	getKegOfBeer	DetailedQuestStep		2660,3676,0	Pick up a keg of beer in the longhall.		Keg of beer		
+3	24	1	useAlcoholFreeOnKeg	DetailedQuestStep		2658,3673,0	Use the low alcohol beer on the keg of beer whilst in the longhall.		Low alcohol keg; Keg of beer		
+3	25	1	cheatInBeerDrinking	NpcStep	npc:viking_reveller_3	2658,3675,0	Talk to Manni the Reveller to cheat in the competition.		Keg of beer	Ask about becoming a Fremennik | Yes	quests/quest_viking/scripts/viking_reveller.rs2:37 opnpc1
+3	26	1	talkToSigli	NpcStep	npc:viking_sigli	2658,3650,0	Talk to Sigli south of the longhall for a hunters' talisman.			Ask about becoming a Fremennik | What's a Draugen? | Yes	quests/quest_viking/scripts/viking_sigli.rs2:13 opnpc1
+3	27	1	huntDraugen	NpcStep	npc:viking_draugen_safe		Use the hunter's talisman to hunt down the Draugen. It'll appear near one of the butterflies in the area.				
+3	28	1	returnToSigli	NpcStep	npc:viking_sigli	2658,3650,0	Return the charged hunters' talisman to Sigli.		Hunters' talisman		quests/quest_viking/scripts/viking_sigli.rs2:13 opnpc1
+3	29	1	talkToSigmund	NpcStep	npc:viking_sigmund	2642,3680,0	Talk to Sigmund the Merchant in the Rellekka market.			Yes	quests/quest_viking/scripts/viking_sigmund.rs2:1 opnpc1; +1
+4	30	1	talkToSailor	NpcStep	npc:viking_sailor	2629,3693,0	Talk to the Sailor on the docks.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_sailor.rs2:1 opnpc1
+4	31	1	talkToOlafForSigmund	NpcStep	npc:viking_olaf	2673,3683,0	Talk to Olaf the Bard east of the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_olaf.rs2:1 opnpc1
+4	32	1	talkToYsra	NpcStep	npc:viking_clothing_shopkeeper	2624,3675,0	Talk to Ysra in her shop west of the market.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_clothing_shopkeeper.rs2:1 opnpc1; +1
+4	33	1	talkToBrundtForSigmund	NpcStep	npc:viking_brundt_child	2658,3669,0	Talk to Brundt in the longhall.			Ask about the Merchant's trial | Ask about anything else.	quests/quest_viking/scripts/viking_brundt.rs2:21 opnpc1
+4	34	1	talkToSigliForSigmund	NpcStep	npc:viking_sigli	2658,3650,0	Talk to Sigli south of the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_sigli.rs2:13 opnpc1
+4	35	1	talkToSkulgrimenForSigmund	NpcStep	npc:viking_weapons_salesman	2663,3692,0	Talk to Skulgrimen north of the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_weapon_salesman.rs2:1 opnpc1; +1
+4	36	1	talkToFishermanForSigmund	NpcStep	npc:viking_fisherman1	2641,3699,0	Talk to the Fisherman on the pier north of the market.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_fisherman.rs2:5 opnpc1; +1
+4	37	1	talkToSwenesenForSigmund	NpcStep	npc:viking_hallifred	2646,3660,0	Talk to Swensen the Navigator in his hut south west of the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_hallifred.rs2:1 opnpc1
+4	38	1	talkToPeerForSigmund	NpcStep	npc:viking_peer	2633,3667,0	Talk to Peer the Seer south west of the market.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_peer.rs2:1 opnpc1
+4	39	1	talkToThorvaldForSigmund	NpcStep	npc:viking_thorvald	2666,3693,0	Talk to Thorvald north of the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_thorvald.rs2:9 opnpc1; +1
+5	40	1	talkToManniForSigmund	NpcStep	npc:viking_reveller_3	2658,3675,0	Talk to Manni the Reveller in the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_reveller.rs2:37 opnpc1
+5	41	1	talkToThoraForSigmund	NpcStep	npc:viking_longhall_barkeep	2662,3673,0	Talk to Thora the Barkeep in the longhall.			Ask about the Merchant's trial	quests/quest_viking/scripts/viking_longhall_barkeep.rs2:1 opnpc1; +1
+5	42	1	talkToAskeladdenForSigmund2	NpcStep	npc:viking_askelladen_norockop	2659,3660,0	Talk to Askeladden south of the longhall.			Ask about the Merchant's trial | Yes	quests/quest_viking/scripts/viking_askelapen.rs2:2 opnpc1
+5	43	1	talkToAskeladdenForSigmund	NpcStep	npc:viking_askelladen_rockop npc:viking_askelladen_norockop	2659,3660,0	Talk to Askeladden south of the longhall.	talkToAskeladdenForSigmund2		Ask about the Merchant's trial | Yes	quests/quest_viking/scripts/viking_askelapen.rs2:2 opnpc1
+5	44	1	bringNoteToThora	NpcStep	npc:viking_longhall_barkeep	2662,3673,0	Bring the promissory note to Thora the Barkeep in the longhall.		Promissory note	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_longhall_barkeep.rs2:1 opnpc1; +1
+5	45	1	bringCocktailToManni	NpcStep	npc:viking_reveller_3	2658,3675,0	Bring the cocktail to Manni the Reveller in the longhall.		Legendary cocktail	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_reveller.rs2:37 opnpc1
+5	46	1	bringChampionsTokenToThorvald	NpcStep	npc:viking_thorvald	2666,3693,0	Bring the champions token to Thorvald north of the longhall.		Champions token	Ask about the Merchant's trial | Yes	quests/quest_viking/scripts/viking_thorvald.rs2:9 opnpc1; +1
+5	47	1	bringWarriorsContractToPeer	NpcStep	npc:viking_peer	2633,3667,0	Bring the warriors' contract to Peer the Seer south west of the market.		Warriors' contract	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_peer.rs2:1 opnpc1
+5	48	1	bringWeatherForecastToSwensen	NpcStep	npc:viking_hallifred	2646,3660,0	Bring the weather forecast to Swensen the Navigator in his hut south west of the longhall.		Weather forecast	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_hallifred.rs2:1 opnpc1
+6	49	1	bringSeaFishingMapToFisherman	NpcStep	npc:viking_fisherman1	2641,3699,0	Bring the sea fishing map to the Fisherman on the pier north of the market.		Sea fishing map	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_fisherman.rs2:5 opnpc1; +1
+6	50	1	bringUnusualFishToSkulgrimen	NpcStep	npc:viking_weapons_salesman	2663,3692,0	Bring the unusual fish to Skulgrimen north of the longhall.		Unusual fish	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_weapon_salesman.rs2:1 opnpc1; +1
+6	51	1	bringCustomBowStringToSigli	NpcStep	npc:viking_sigli	2658,3650,0	Bring the custom bow string to Sigli south of the longhall.		Custom bow string	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_sigli.rs2:13 opnpc1
+6	52	1	bringTrackingMapToBrundt	NpcStep	npc:viking_brundt_child	2658,3669,0	Bring the tracking map to Brundt in the longhall.		Tracking map	Ask about the Merchant's trial | Ask about anything else.	quests/quest_viking/scripts/viking_brundt.rs2:21 opnpc1
+6	53	1	bringFiscalStatementToYsra	NpcStep	npc:viking_clothing_shopkeeper	2624,3675,0	Bring the fiscal statement to Ysra in her shop west of the market.		Fiscal statement	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_clothing_shopkeeper.rs2:1 opnpc1; +1
+6	54	1	bringSturdyBootsToOlaf	NpcStep	npc:viking_olaf	2673,3683,0	Bring the sturdy boots to Olaf the Bard east of the longhall.		Sturdy boots	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_olaf.rs2:1 opnpc1
+6	55	1	bringBalladToSailor	NpcStep	npc:viking_sailor	2629,3693,0	Bring the ballad to the Sailor on the docks.		Fremennik ballad	Ask about the Merchant's trial	quests/quest_viking/scripts/viking_sailor.rs2:1 opnpc1
+6	56	1	bringExoticFlowerToSigmund	NpcStep	npc:viking_sigmund	2642,3680,0	Finally, bring the exotic flower to Sigmund the Merchant in the Rellekka market.		Exotic flower		quests/quest_viking/scripts/viking_sigmund.rs2:1 opnpc1; +1
+6	57	1	talkToThorvald	NpcStep	npc:viking_thorvald	2666,3693,0	Talk to Thorvald north of the longhall.			Ask about becoming a Fremennik	quests/quest_viking/scripts/viking_thorvald.rs2:9 opnpc1; +1
+6	58	1	goDownLadderToKoschei	ObjectStep	loc:viking_warrior_ladder	2667,3694,0	When you're ready to fight Koschei, go down the ladder.		Nothing except for food, potions, and rings of recoil; optionalKoscheiGear		quests/quest_viking/scripts/viking_thorvald.rs2:146 oploc2
+7	59	1	killKoschei2	NpcStep	npc:viking_enemy1	2660,10080,2	Fight Koschei the Deathless and 'kill' him at least 3 times. Dying to his fourth phase is a SAFE death.				quests/quest_viking/scripts/viking_thorvald.rs2:191 opnpc2; +1
+7	60	1	killKoschei3	NpcStep	npc:viking_enemy1	2660,10080,2	Fight Koschei the Deathless and 'kill' him at least 3 times. Dying to his fourth phase is a SAFE death.				quests/quest_viking/scripts/viking_thorvald.rs2:191 opnpc2; +1
+7	61	1	killKoschei4	NpcStep	npc:viking_enemy1	2660,10080,2	You must now either die (SAFE DEATH), or defeat Koschei once more. Do not leave or you'll have to fight him again.				quests/quest_viking/scripts/viking_thorvald.rs2:191 opnpc2; +1
+7	62	1	killKoschei1	NpcStep	npc:viking_enemy1	2660,10080,2	Fight Koschei the Deathless and 'kill' him at least 3 times. Dying to his fourth phase is a SAFE death.	killKoschei2 killKoschei3 killKoschei4			quests/quest_viking/scripts/viking_thorvald.rs2:191 opnpc2; +1
+7	63	1	talkToSwensen	NpcStep	npc:viking_hallifred	2646,3660,0	Talk to Swensen the Navigator in his hut south west of the longhall.			Yes | Ask about becoming a Fremennik	quests/quest_viking/scripts/viking_hallifred.rs2:1 opnpc1
+7	64	1	goDownLadderSwensen	ObjectStep	loc:vt_mazeladdertopentrance	2644,3657,0	Climb down Swensen's ladder.				quests/quest_viking/scripts/viking_hallifred.rs2:102 oploc1
+7	65	1	swensen1South	ObjectStep	loc:vt_mazeportal_1	2631,10002,0	Go through the south portal.				quests/quest_viking/scripts/viking_hallifred.rs2:248 oploc1
+7	66	1	swensen2West	ObjectStep	loc:vt_mazeportal_2	2639,10015,0	Go through the west portal.				quests/quest_viking/scripts/viking_hallifred.rs2:254 oploc1
+7	67	1	swensen3East	ObjectStep	loc:vt_mazeportal_3	2656,10004,0	Go through the east portal.				quests/quest_viking/scripts/viking_hallifred.rs2:260 oploc1
+8	68	1	swensen4North	ObjectStep	loc:vt_mazeportal_4	2665,10018,0	Go through the north portal.				quests/quest_viking/scripts/viking_hallifred.rs2:266 oploc1
+8	69	1	swensen5South	ObjectStep	loc:vt_mazeportal_5	2630,10023,0	Go through the south portal.				quests/quest_viking/scripts/viking_hallifred.rs2:272 oploc1
+8	70	1	swensen6East	ObjectStep	loc:vt_mazeportal_6	2656,10037,0	Go through the east portal.				quests/quest_viking/scripts/viking_hallifred.rs2:278 oploc1
+8	71	1	swensen7North	ObjectStep	loc:vt_mazeportal_7	2666,10029,0	Go through the north portal.				quests/quest_viking/scripts/viking_hallifred.rs2:284 oploc1
+8	72	1	swensenUpLadder	ObjectStep	loc:vt_mazeladderexit	2665,10037,0	Climb up the ladder.				quests/quest_viking/scripts/viking_hallifred.rs2:146 oploc1
+8	73	1	talkToPeer	NpcStep	npc:viking_peer	2633,3667,0	Talk to Peer the Seer south west of the Rellekka market. You will need to bank all your items. Peer will offer to do this for you.			Ask about becoming a Fremennik | Yes	quests/quest_viking/scripts/viking_peer.rs2:1 opnpc1
+8	74	1	enterPeerHouse	ObjectStep	loc:viking_seers_door1	2631,3667,0	Try to enter Peer the Seer's house after banking all your items. Peer the Seer will offer to bank everything for you.			Read the riddle	quests/quest_viking/scripts/viking_peer.rs2:243 oploc1
+8	75	1	enterCode	DetailedQuestStep			Enter the solution to Peer's door.	inputMind inputTree inputLife inputFire inputTime inputWind			
+8	76	1	goUpEntranceLadderPeer	ObjectStep	loc:viking_seer_up_ladder	2631,3663,0	Go up the ladder.				quests/quest_viking/scripts/viking_peer.rs2:389 oploc1
+8	77	1	searchBookcase	ObjectStep	loc:viking_seer_bookcase	2634,3665,2	Search the bookcase for a red herring. If you've already unlocked the mural, go search it instead.				quests/quest_viking/scripts/viking_peer.rs2:401 oploc1
+9	78	1	searchBull	ObjectStep	loc:viking_bullmountedhead	2634,3660,2	Study the bull's head.				quests/quest_viking/scripts/viking_peer.rs2:483 oploc1
+9	79	1	searchUnicorn	ObjectStep	loc:viking_unimountedhead	2632,3660,2	Study the unicorn's head.				quests/quest_viking/scripts/viking_peer.rs2:467 oploc1
+9	80	1	cookHerring	ObjectStep	loc:viking_seer_range	2629,3664,2	Solve Peer's challenge.				quests/quest_viking/scripts/viking_peer.rs2:813 oplocu
+9	81	1	useGoopOnDisk	DetailedQuestStep			Use the sticky red goop on the wooden disk.		stickyRedGoop; woodenDisk		
+9	82	1	goDown1	ObjectStep	loc:viking_seer_trapdoor_open	2636,3663,2	Go down the trapdoor.				quests/quest_viking/scripts/viking_peer.rs2:397 oploc1; +1
+9	83	1	openTrapDoorAndGoDown1	ObjectStep	loc:viking_seer_trapdoor_closed loc:viking_seer_trapdoor_open	2636,3663,2	Open and go down the trapdoor.	goDown1			quests/quest_viking/scripts/viking_peer.rs2:1002 oploc1; +2
+9	84	1	useDiskOldOnMural	ObjectStep	loc:viking_seers_mural	2634,3663,0	Solve Peer's challenge.				quests/quest_viking/scripts/viking_peer.rs2:958 oploc1; +1
+9	85	1	useDiskNewOnMural	ObjectStep	loc:viking_seers_mural	2634,3663,0	Solve Peer's challenge.				quests/quest_viking/scripts/viking_peer.rs2:958 oploc1; +1
+9	86	1	useDiskAnyOnMural	ObjectStep	loc:viking_seers_mural	2634,3663,0	Solve Peer's challenge.	useDiskOldOnMural useDiskNewOnMural			quests/quest_viking/scripts/viking_peer.rs2:958 oploc1; +1
+9	87	1	goUpstairsWithVaseLid	ObjectStep	loc:viking_seer_down_ladder	2636,3663,0	Go back upstairs.				quests/quest_viking/scripts/viking_peer.rs2:393 oploc1
+10	88	1	searchCupboard2	ObjectStep	loc:viking_cupboardopen_high	2630,3660,2	Search the cupboard in the south west of the room.				quests/quest_viking/scripts/viking_peer.rs2:755 oploc1; +1
+10	89	1	searchCupboard1	ObjectStep	loc:viking_cupboardhigh loc:viking_cupboardopen_high	2630,3660,2	Search the cupboard in the south west of the room.	searchCupboard2			quests/quest_viking/scripts/viking_peer.rs2:748 oploc1; +2
+10	90	1	searchChest2	ObjectStep	loc:viking_seer_chest_open	2635,3660,2	Search the chest in the south of the room.				quests/quest_viking/scripts/viking_peer.rs2:454 oploc1; +1
+10	91	1	searchChest1	ObjectStep	loc:viking_seer_chest_closed loc:viking_seer_chest_open	2635,3660,2	Search the chest in the south of the room.	searchChest2			quests/quest_viking/scripts/viking_peer.rs2:451 oploc1; +2
+10	92	1	useBucketOnTap1	ObjectStep	loc:viking_seers_tap	2629,3661,2	Solve Peer's challenge.				quests/quest_viking/scripts/viking_peer.rs2:496 oplocu
+10	93	1	useBucketOnJug1	DetailedQuestStep			Use the full bucket on the empty jug.		fullBucket; emptyJug		
+10	94	1	useJugOnDrain1	ObjectStep	loc:viking_seers_drain	2629,3662,2	Solve Peer's challenge.				quests/quest_viking/scripts/viking_peer.rs2:513 oplocu
+10	95	1	useBucketOnJug2	DetailedQuestStep			Use the 2/5ths full bucket on the empty jug.		bucket25; emptyJug		
+10	96	1	useBucketOnTap2	ObjectStep	loc:viking_seers_tap	2629,3661,2	Use the empty bucket on the tap.		emptyBucket		quests/quest_viking/scripts/viking_peer.rs2:496 oplocu
+11	97	1	useBucketOnJug3	DetailedQuestStep			Use the full bucket on the 2/3rds full jug.		fullBucket; jug23		
+11	98	1	useBucketOnScale	ObjectStep	loc:viking_seer_chest_closed_scales	2632,3665,2	Use the 4/5ths full bucket on the chest with a scale on it.		bucket45		quests/quest_viking/scripts/viking_peer.rs2:772 oploc1; +1
+11	99	1	fillVase	ObjectStep	loc:viking_seers_tap	2629,3661,2	Use the empty vase on the tap.		vase		quests/quest_viking/scripts/viking_peer.rs2:496 oplocu
+11	100	1	useLidOnVase	DetailedQuestStep			Use the vase lid on the filled vase		filledVase; vaseLid		
+11	101	1	useVaseOnTable	ObjectStep	loc:viking_small_table_frozen	2638,3665,2	Use the filled, sealed vase on the frozen table.		filledVaseWithLid		quests/quest_viking/scripts/viking_peer.rs2:724 oplocu
+11	102	1	useFrozenKeyOnRange	ObjectStep	loc:viking_seer_range	2629,3664,2	Use the frozen key on the cooking range.		frozenKey		quests/quest_viking/scripts/viking_peer.rs2:813 oplocu
+11	103	1	goDownstairsWithKey2	ObjectStep	loc:viking_seer_trapdoor_open	2636,3663,2	Go down the trapdoor.		Seer's key		quests/quest_viking/scripts/viking_peer.rs2:397 oploc1; +1
+11	104	1	goDownstairsWithKey	ObjectStep	loc:viking_seer_trapdoor_closed loc:viking_seer_trapdoor_open	2636,3663,2	Open and go down the trapdoor.	goDownstairsWithKey2	=		quests/quest_viking/scripts/viking_peer.rs2:1002 oploc1; +2
+11	105	1	leaveSeersHouse	ObjectStep	loc:viking_seers_door2	2636,3667,0	Leave the Seer's house.		=		quests/quest_viking/scripts/viking_peer.rs2:1012 oploc1; +1
+11	106	8	finishQuest	NpcStep	npc:viking_brundt_child	2658,3669,0	Talk to Brundt in Rellekka's longhall to finish the quest.			Ask about anything else.	quests/quest_viking/scripts/viking_brundt.rs2:21 opnpc1

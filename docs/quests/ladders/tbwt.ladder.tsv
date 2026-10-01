@@ -1,0 +1,39 @@
+# ladder tbwt quest_dir=quest_tbwt guide=src/main/java/com/questhelper/helpers/quests/taibwowannaitrio/TaiBwoWannaiTrio.java steps=36 legs=1:1-9@s0 2:10-18@s3 3:19-27@s3 4:28-36@s3
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	goToTimfrakuLadder	ObjectStep	loc:ladder		Talk to Timfraku upstairs in his house in Tai Bwo Wannai.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2
+1	2	0	talkToTimfrakuStart	NpcStep	npc:tbwt_timfraku loc:ladder		Talk to Timfraku upstairs in his house in Tai Bwo Wannai.	goToTimfrakuLadder		I am a roving adventurer. | I am a travelling explorer. | I…	areas/area_karamja/scripts/tbwt_timfraku.rs2:9 opnpc1; +3
+1	3	3	fishKarambwaji	NpcStep	npc:0_43_47_karambwanji	2791,3019,0	Using your small fishing net, catch atleast 23 raw karambwanji just south of Tai Bwo Wannai.		Small Fishing Net		skill_fishing/scripts/fishing_spots/tbwt.rs2:10 opnpc1; +2
+1	4	3	goToLubufu	NpcStep	npc:tbwt_lubufu		Go to Brimhaven and talk to Lubufu. You have to talk to him multiple times. You'll need to ask him twice about what he does, then talk to him to give him the k…		Or More Raw Karambwanji	Talk about him... | What do you do? | I could help collect …	quests/quest_tbwt/scripts/tbwt_lubufu.rs2:15 opnpc1; +1
+1	5	3	getAnotherVessel	NpcStep	npc:tbwt_lubufu		Get another Vessel from Lubufu.			Actually, I've lost my Karambwan vessel. | ... a shark ate …	quests/quest_tbwt/scripts/tbwt_lubufu.rs2:15 opnpc1; +1
+1	6	3	pickupVessel	ItemStep	obj:tbwt_karambwan_vessel		Pick up the vessel you dropped.		Karambwan Vessel		quests/quest_tbwt/scripts/quest_tbwt.rs2:308 opheldu
+1	7	3	getMoreVessel	NpcStep	npc:tbwt_lubufu obj:tbwt_karambwan_vessel		Get a Vessel from Lubufu by asking what he uses to catch them multiple times. Drop it, and talk to him go get another, then pick up the one you dropped. You ca…	dropVessel getAnotherVessel pickupVessel		What do you use to catch Karambwan? | Yes! | Actually, I've…	quests/quest_tbwt/scripts/tbwt_lubufu.rs2:15 opnpc1; +2
+1	8	3	fillVessel	DetailedQuestStep			Use a karambwanji on a karambwan Vessel to fill it.		Or More Raw Karambwanji; Karambwan Vessel		
+1	9	3	getRum	NpcStep	npc:zembo	2925,3143,0	Go east to Musa point to buy some Karamjan rum from Zembo.		Coins		
+2	10	3	sliceBanana	DetailedQuestStep			Slice a banana with a knife. You can get a banana from one of the trees in the plantation.		Knife; Banana		
+2	11	3	makeBananaRum	ItemStep	obj:tbwt_sliced_banana obj:karamja_rum		Add banana slices to the karamjan rum to make Karamjan rum with banana slices.		Sliced Banana; Karamjan Rum		quests/quest_tbwt/scripts/quest_tbwt.rs2:188 opheldu
+2	12	3	talkToTiadeche1	NpcStep	npc:tbwt_tiadeche	2912,3116,0	Talk to Tiadeche in east Karamja, near the fairy ring DKP. You can teleport off Karamja; the Karamjan rum with banana will not break.				quests/quest_tbwt/scripts/tbwt_tiadeche.rs2:8 opnpc1; +4
+2	13	3	pickupSeaweed	ItemStep	obj:seaweed		Pickup some seaweed from Karamja's coast.		Seaweed	Yes	quests/quest_troubledtortugans/scripts/troubledtortugans.rs2:166 opheldu
+2	14	3	pickupBones	ItemStep	obj:tbwt_jogre_bones		Pickup the jogre bones.		Jogre Bones		skill_prayer/scripts/bury_bone.rs2:34 opheld1; +1
+2	15	3	getJogreBones	NpcStep	npc:jogre obj:tbwt_jogre_bones	2925,3062,0	Get some jogre bones. You can kill the jogres south of Tiadeche.	pickupBones	=	Yes	skill_prayer/scripts/bury_bone.rs2:34 opheld1; +2
+2	16	3	burnBones	DetailedQuestStep			Use a tinderbox on the jogre bones to set them on fire.		Tinderbox; Jogre Bones	Yes	
+2	17	3	pickupBurntBones	ItemStep	obj:tbwt_burnt_jogre_bones		Wait for the bones to burn, then pick them up.		Burnt Jogre Bones		skill_prayer/scripts/bury_bone.rs2:34 opheld1; +1
+2	18	3	makeKarambwanjiPaste	DetailedQuestStep			Use a pestle and mortar on a karambwanji.		Pestle And Mortar; Or More Raw Karambwanji		
+3	19	3	usePasteOnBones	DetailedQuestStep			Use the karambwanji paste on the burnt jogre bones.		Karambwanji paste; Burnt Jogre Bones		
+3	20	3	getPoisonKarambwan	DetailedQuestStep			Fish raw Karambwan next to Tiadeche with a loaded vessel or buy them from the GE.				
+3	21	3	cookBones	ObjectStep	loc:fire	2790,3048,0	RIGHT-CLICK use the bones on a fire. You can either make one yourself, or use them on the fire south of Tai Bwo Wannai.		Pasty Jogre Bones		skill_cooking/scripts/cooking.rs2:37 oplocu
+3	22	3	cookKarambwan	DetailedQuestStep			Cook the karambwan for a poison karambwan. Note you may fail this and need to try again.				
+3	23	3	usePestleOnKarambwan	DetailedQuestStep			Use a pestle and mortar on a poison karambwan.		Pestle And Mortar; Poison karambwan		
+3	24	3	usePasteOnSpear	DetailedQuestStep			Use the karambwan paste on a iron or better spear.		Karambwan paste; Iron spear or better (You will lose the spear)		
+3	25	3	talkToTamayu1	NpcStep	npc:tbwt_tamayu	2845,3041,0	Talk to Tamayu, he is located north of Shilo Village near the mining sign on the map, after watching him use your tinder box on your jogre bones and pick up th…			When will you succeed? | Yes	quests/quest_tbwt/scripts/tbwt_tamayu.rs2:10 opnpc1; +3
+3	26	3	givePotion	NpcStep	npc:tbwt_tamayu	2845,3041,0	Use an agility potion (4) on Tamayu.		Agility Potion (4)		quests/quest_tbwt/scripts/tbwt_tamayu.rs2:10 opnpc1; +3
+3	27	3	giveSpear	NpcStep	npc:tbwt_tamayu	2845,3041,0	Use a poisoned spear on Tamayu.		Iron spear or better (kp) (You will lose the spear)		quests/quest_tbwt/scripts/tbwt_tamayu.rs2:10 opnpc1; +3
+4	28	3	goOnHuntToKill	NpcStep	npc:tbwt_tamayu	2845,3041,0	Go on a hunt with Tamayu.			Take me on your next hunt for the Shaikahan.	quests/quest_tbwt/scripts/tbwt_tamayu.rs2:10 opnpc1; +3
+4	29	3	pickupCorpse	ItemStep	obj:tbwt_monkey_corpse		Pickup the monkey corpse.		Monkey Corpse		quests/quest_tbwt/scripts/quest_tbwt.rs2:210 opheldu
+4	30	3	getMonkeyCorpse	NpcStep	npc:monkey obj:tbwt_monkey_corpse		Kill a monkey to get its corpse, there are plenty of monkeys around Karamja and you will need either magic or range to kill one.	pickupCorpse	Ranged or Magic equipment to kill a level 3 monkey		quests/quest_tbwt/scripts/tbwt_monkey.rs2:43 ai_queue1; +3
+4	31	3	useCorpseOnTamayu	NpcStep	npc:tbwt_tamayu	2845,3041,0	Use your monkey corpse on Tamayu to have him skin it for you.		Monkey Corpse		quests/quest_tbwt/scripts/tbwt_tamayu.rs2:10 opnpc1; +3
+4	32	3	makeSeaweedSandwich	DetailedQuestStep			Use your seaweed on your monkey skin to make a seaweed sandwich.		Seaweed; Monkey Skin		
+4	33	3	talkToTinsay	NpcStep	npc:tbwt_tinsay	2764,2975,0	Talk to Tinsay on Cairn Isle west of Shilo Village, south of fairy ring CKR. Keep talking to him, giving him the items he asks for.			Yes.	quests/quest_tbwt/scripts/tbwt_tinsay.rs2:9 opnpc1; +3
+4	34	3	useVesselOnTinsay	NpcStep	npc:tbwt_tinsay	2764,2975,0	Use the vessel on Tinsay.		Karambwan Vessel		quests/quest_tbwt/scripts/tbwt_tinsay.rs2:9 opnpc1; +3
+4	35	3	goToTiadecheFinal	NpcStep	npc:tbwt_tiadeche	2912,3116,0	Go back to Tiadeche located north of fairy ring DKP and use the crafting manual on him.				quests/quest_tbwt/scripts/tbwt_tiadeche.rs2:8 opnpc1; +4
+4	36	4	goToTimfrakuLadderEnd	ObjectStep	loc:ladder		Go to Timfraku's house to finish the quest.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +2

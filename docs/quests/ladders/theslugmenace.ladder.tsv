@@ -1,0 +1,31 @@
+# ladder theslugmenace quest_dir=quest_theslugmenace guide=src/main/java/com/questhelper/helpers/quests/theslugmenace/TheSlugMenace.java steps=28 legs=1:1-28@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	talkToTiffy	NpcStep	npc:rd_teleporter_guy	2996,3373,0	Talk to Sir Tiffy Cashien in Falador Park.		Commorb (can get another from Sir Tiffy)	Do you have any jobs for me yet?	shop/falador_park/scripts/initiate_temple_knight_armoury.rs2:8 opnpc3; +1
+1	2	1	talkToNiall	NpcStep	npc:slug2_oniall_stage1	2739,3311,0	Talk to Col. O'Niall on the pier in Witchaven, east of Ardougne.			Who are the important people in Witchaven? | Nothing at the…	quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:25 opnpc1
+1	3	2	talkToMaledict	NpcStep	npc:slug2_maledict_stage1	2724,3283,0	Talk to Brother Maledict in the church.			That's enough for now.	quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:85 opnpc1
+1	4	2	talkToHobb	NpcStep	npc:slug2_hobb_stage2	2709,3291,0	Talk to Mayor Hobb in north west Witchaven.			I'm just looking around. | Nothing at the moment thanks.	quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:122 opnpc1
+1	5	2	talkToHolgart	NpcStep	npc:holgartlandtravel	2721,3304,0	Talk to Holgart north of Witchaven.			Nothing at the moment thanks.	areas/area_fishing_platform/scripts/holgart.rs2:14 opnpc1; +3
+1	6	2	talkToNiall2	NpcStep	npc:slug2_oniall_stage1	2739,3311,0	Return to Col. O'Niall on the pier in Witchaven.				quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:25 opnpc1
+1	7	3	enterDungeon	ObjectStep	loc:slug2_ruin_entrance	2696,3283,0	Enter the old ruin entrance west of Witchaven.			That's enough for now.	quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:157 oploc1
+1	8	3	pushFalseWall	ObjectStep	loc:slug2_hidden_entrance	2701,9688,0	Push the wall just east of where you come down.				quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:167 oploc1
+1	9	3	tryToOpenImposingDoor	ObjectStep	loc:slug2_cave_doors_closed	2351,5093,0	Follow the path until you reach an imposing door, and try opening it. After, try scanning with the commorb v2.		Commorb v2		quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:187 oploc1; +1
+1	10	3	scanWithComm	DetailedQuestStep			Try scanning with the commorb.		Commorb (can get another from Sir Tiffy)		
+1	11	4	pickUpDeadSlug	ItemStep	obj:slug2_seaslug_young		Pick up the dead sea slug next to the imposing door.		Dead sea slug		
+1	12	4	talkToJorral	NpcStep	npc:makinghistory_jorral	2436,3347,0	Talk to Jorral north of West Ardougne.		Door transcription; Necklace of Passage	Translations	quests/quest_makinghistory/scripts/makinghistory_jorral.rs2:16 opnpc1
+1	13	5	talkToNiall3	NpcStep	npc:slug2_oniall_stage1	2739,3311,0	Return to Col. O'Niall on the pier in Witchaven.				quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:25 opnpc1
+1	14	7	talkToMaledict2	NpcStep	npc:slug2_maledict_stage1	2724,3283,0	Talk to Brother Maledict in the church.				quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:85 opnpc1
+1	15	9	searchMayorsDesk	ObjectStep	loc:slug2_mayors_desk	2709,3294,0	Search the study desk in the Mayor's house for a page.				quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:20 oploc1
+1	16	9	talkToLovecraft	NpcStep	npc:slug2_lovecraft	2734,3291,0	Talk to Ezekial Lovecraft in the fishing shop in east Witchaven for a page.				quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:39 opnpc1
+1	17	9	talkToNiall4	NpcStep	npc:slug2_oniall_stage2	2739,3311,0	Talk to Col. O'Niall on the pier in Witchaven for a page.				quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:25 opnpc1
+1	18	9	useSwampPasteOnFragments	DetailedQuestStep			Use some swamp paste on one of the page fragments.		Swamp paste; Fragment 1; Fragment 2; Fragment 3		
+1	19	10	talkToJeb	NpcStep	npc:slug2_jeb_stage2	2721,3304,0	Talk to Jeb north of Witchaven to travel to the Fishing Platform.		Dead sea slug		quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:96 opnpc1; +2
+1	20	10	talkToBailey	NpcStep	npc:bailey	2764,3275,0	Talk to Bailey on the Fishing Platform.		=		areas/area_fishing_platform/scripts/bailey.rs2:9 opnpc1
+1	21	11	useGlueOnFragment	DetailedQuestStep			Use the slug glue on one of the fragments.		Sea slug glue; Fragment 1		
+1	22	11	solvePuzzle	PuzzleStep			Combine the fragments.				
+1	23	11	useEmptyRunes	DetailedQuestStep			Right-click each page to turn rune/pure essence into empty runes. Take each empty rune and use it on its respective Runecrafting Altar. Bring extra essence (~1…		Page 1; Page 2; Page 3; Rune or Pure Essence; Chisel		
+1	24	11	enterDungeonAgain	ObjectStep	loc:slug2_ruin_entrance	2696,3283,0	Prepare to fight the Slug Prince (level 62). Only melee can hurt it. Then, enter the old ruin entrance west of Witchaven.		Melee weapon to fight the Slug Prince; Air rune; Water rune; Earth rune; Fire rune; Mind rune		quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:157 oploc1
+1	25	11	enterWallAgain	ObjectStep	loc:slug2_hidden_entrance	2701,9688,0	Enter the wall just east of where you come down.				quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:167 oploc1
+1	26	11	useEmptyRunesOnDoor	ObjectStep	loc:slug2_cave_doors_closed	2351,5093,0	Use the runes on the imposing doors at the end of the path.		Air rune; Water rune; Earth rune; Fire rune; Mind rune		quests/quest_theslugmenace/scripts/slugmenace_witchaven.rs2:187 oploc1; +1
+1	27	11	killSlugPrince	NpcStep	npc:slug2_the_slug_prince	2351,5093,0	Kill the Slug Prince. Only melee can hurt it.				quests/quest_theslugmenace/scripts/slugmenace_pages.rs2:336 opnpc2; +1
+1	28	12	reportBackToTiffy	NpcStep	npc:rd_teleporter_guy	2996,3373,0	Report back to Sir Tiffy Cashien in Falador Park.			Slug Menace.	shop/falador_park/scripts/initiate_temple_knight_armoury.rs2:8 opnpc3; +1

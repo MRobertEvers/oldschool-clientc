@@ -71,7 +71,7 @@ leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
 8	68	4	talkToGuard	NpcStep	npc:mm_elder_guard_2	2802,2758,0	Talk to a guard outside the building in the south east of Marim. If you already have, open the quest guide to resync.				quests/quest_mm/scripts/mm_elder_guard.rs2:22 opnpc1; +1
 8	69	4	goUpToBridge	ObjectStep	loc:mm_bamboo_ladder_watchtower_west	2713,2766,0	Talk to Kruk in the north west of the island.		Karamjan monkey greegree; M'speak amulet; Monkey		quests/quest_mm/scripts/mm_atoll_locs.rs2:54 oploc1
 8	70	4	goDownFromBridge	ObjectStep	loc:mm_bamboo_ladder_top_watchtower_east	2729,2766,2	Talk to Kruk in the north west of the island.		=		quests/quest_mm/scripts/mm_atoll_locs.rs2:75 oploc1
-8	71	4	talkToKruk	NpcStep	npc:mm_kruk loc:mm_bamboo_ladder_watchtower_west loc:mm_bamboo_ladder_top_watchtower_east	2729,2764,0	Talk to Kruk in the north west of the island.	goUpToBridge goDownFromBridge	=		quests/quest_mm/scripts/mm_kruk.rs2:12 opnpc1; +3
+8	71	4	talkToKruk	NpcStep	npc:mm_kruk loc:mm_bamboo_ladder_watchtower_west loc:mm_bamboo_ladder_top_watchtower_east	2729,2764,0	Talk to Kruk in the north west of the island.	goUpToBridge goDownFromBridge	=		quests/quest_mm/scripts/mm_kruk.rs2:11 opnpc1; +3
 8	72	4	talkToAwow	ObjectStep	loc:mm_throne	2803,2765,0	Talk to Awowogei twice.		=		quests/quest_mm/scripts/mm_awowogei.rs2:12 oploc1; +1
 8	73	4	talkToGarkorForSigil	NpcStep	npc:mm_garkor_aa	2807,2762,0	Talk to Garkor.		Karamjan monkey greegree; M'speak amulet		quests/quest_mm/scripts/mm_garkor.rs2:10 opnpc1
 8	74	5	prepareForBattle	DetailedQuestStep			Prepare to fight the Jungle Demon. Once you're ready, equip the 10th squad sigil.		10th squad sigil; Combat gear, food and potions; Food; Prayer potions		

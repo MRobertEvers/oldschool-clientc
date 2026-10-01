@@ -23,6 +23,12 @@ ring_of_charos_unlocked worn (wiki: the Charos ring cuts the price).
 
 Differences from the guide:
 - Sewer rats: the guide's pitrat_sarim_def has no sewer spawn; the generic rat in the sewer box is
-  clicked instead (ratcatchers.rs2:93). The cat is the inventory item, not a follower.
+  pressed with op 2 (Attack; the cache rat has no op 1) at ratcatchers.rs2:93-133. Each catch needs
+  the mesbox dismissed and deletes the rat; pick rats with t.npc.tiles(z 9855-9919), 8 needed.
+  Bring 70 hitpoints: zombies and giant rats kill a level-3 account. The cat is the inventory item.
+- Mansion rats: the cache party rat has only Examine and server .npc ops never reach the client menu,
+  so trellis climb places 6 private stationary vc_rat (op 2) on the spawn tiles (ratcatchers.rs2:206-263).
+  Stand 3 tiles east or 1 west of each (2832,5098 and 2863,5101 are reachable only from one
+  side); re-read the slot after walking, it changes. Caught state = vc_raton_off1..6 varbits.
 - Mansion guards are static spawns; no sight/patrol rule is ported (see legs_left).
 - The snake charm tune plays on widget 282; play it near 3010-3028, 3224-3240 outside the pits.

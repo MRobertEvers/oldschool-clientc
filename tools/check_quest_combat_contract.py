@@ -3019,8 +3019,8 @@ def check_fremennik_trials() -> None:
     thorvald = VIKING_THORVALD.read_text()
     require_text(
         thorvald,
-        ("[oploc1,viking_warrior_ladder_down]", "~viking_koschei_forbidden_loadout",
-         "%viking_koschei_phase = 1;", "~viking_koschei_spawn(1);",
+        ("[oploc2,viking_warrior_ladder]", "~viking_koschei_forbidden_loadout",
+         "%viking_koschei_phase = 0;", "~viking_koschei_spawn(1);",
          "[ai_queue3,viking_enemy1]", "~viking_koschei_spawn(2);",
          "[ai_queue3,viking_enemy2]", "~viking_koschei_spawn(3);",
          "[ai_queue3,viking_enemy3]", "~viking_koschei_spawn(4);",
