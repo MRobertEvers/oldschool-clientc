@@ -14,7 +14,7 @@ return {
 
     run = function(t)
         local r, d = t.quest.bind({
-            varp = "priestperil",
+            varp = "varp302_priestperil",
             constants = {
                 not_started = 0, started = 1, agree_to_kill_dog = 2, killed_dog = 3,
                 return_to_drezel = 4, find_drezel_key = 5, unlocked_drezel = 6,
@@ -216,7 +216,7 @@ return {
         t.exec("goto-monument1", t.player.goto_tile, 3417, 9892, 0)
         t.exec("study1", t.player.click_loc, "priestperil_grave_base1", 1)
         t.exec("study1-open", t.ui.await_open, "priestperil_gravemonument")
-        local seed_r, mausoleum_bits = t.var.server("priestperil_mausoleum")
+        local seed_r, mausoleum_bits = t.var.server("varp6733_priestperil_mausoleum")
         t.step("monument.seed-initialised", seed_r == "ok" and mausoleum_bits > 0 and "PASS" or "FAIL",
             "priestperil_mausoleum = " .. tostring(mausoleum_bits))
         local seed = math.floor(mausoleum_bits / 4194304) % 128
@@ -347,7 +347,7 @@ return {
         t.ticks(2)
         t.exec("handIn1", t.player.use_on, "blankrune", drezel_m)
         t.ticks(2)
-        t.exec("expect_stage-28", t.var.expect, "priestperil", 28)
+        t.exec("expect_stage-28", t.var.expect, "varp302_priestperil", 28)
         t.exec("moreQuestion", t.player.talk_to, "priestperiltrappedmonk2", 1)
         t.exec("moreQuestion-dialog", t.chat.play, {
             "player:How many more essences do I need to bring you?",
@@ -358,7 +358,7 @@ return {
         t.ticks(2)
         t.exec("handIn2", t.player.use_on, "blankrune_high", drezel_m)
         t.ticks(2)
-        t.exec("expect_stage-46", t.var.expect, "priestperil", 46)
+        t.exec("expect_stage-46", t.var.expect, "varp302_priestperil", 46)
         local snapshot_result, xp_before = t.skill.snapshot()
         t.check("reward.snapshot", snapshot_result, "prayer xp snapshot before the hand-in -> " .. tostring(snapshot_result))
         cheat("::give blankrune 14")

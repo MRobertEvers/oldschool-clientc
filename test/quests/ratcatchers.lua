@@ -14,7 +14,7 @@ return {
         "::give ics_little_amulet_of_catspeak 1", -- guide: Catspeak amulet
     },
     bind = {
-        varp = "ratcatch_var",
+        varp = "varb1404_ratcatch_var",
         constants = {
             not_started = 0, sewer_started = 5, sewer_caught_base = 6, sewer_all_caught = 14,
             sewer_reported = 15, jimmy_talked = 20, jimmy_directions = 22, mansion_catching = 30,

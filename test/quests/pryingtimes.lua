@@ -97,7 +97,7 @@ return {
 
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
-            varp = "quest_pry",
+            varp = "varb18317_quest_pry",
             constants = {
                 not_started = 0,
                 deliver = 5,
@@ -114,7 +114,7 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        local stage0_result, stage0_value = t.var.server("quest_pry")
+        local stage0_result, stage0_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.not_started", stage0_result == "ok" and stage0_value == 0,
             "quest_pry = " .. tostring(stage0_value) .. " (" .. tostring(stage0_result) .. "), want 0")
 
@@ -172,7 +172,7 @@ return {
         t.check("getDeliveryTask.log", slots0_result == "ok" and slots0 and slots0[1] and slots0[1].id == 600,
             "sail.tasks() -> " .. tostring(slots0_result) .. " " .. tostring(text0))
         t.exec("accepted.mes", t.msg.expect, "Pandemonium pirate looty delivery")
-        local stage1_result, stage1_value = t.var.server("quest_pry")
+        local stage1_result, stage1_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.deliver", stage1_result == "ok" and stage1_value == 5,
             "quest_pry = " .. tostring(stage1_value) .. " (" .. tostring(stage1_result) .. "), want 5")
 
@@ -205,7 +205,7 @@ return {
         t.exec("deliverCargo.disembark", t.sail.disembark, "sailing_gangplank_port_sarim")
         t.drive.camera(0, 128, 600)
         t.exec("deliverCargo.take", t.sail.cargo_take, "dock_loading_bay_ledger_table_port_sarim", 1)
-        local carrying_result, carrying_value = t.var.server("sailing_carrying_cargo")
+        local carrying_result, carrying_value = t.var.server("varb19134_sailing_carrying_cargo")
         t.check("deliverCargo.carrying", carrying_result == "ok" and carrying_value == 1,
             "sailing_carrying_cargo = " .. tostring(carrying_value) .. " (" .. tostring(carrying_result) .. "), want 1")
 
@@ -244,7 +244,7 @@ return {
             t.exec("deliverCargo.xp", t.skill.expect_gain, "sailing", 180, task_xp_before)
         end
 
-        local stage2_result, stage2_value = t.var.server("quest_pry")
+        local stage2_result, stage2_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.let_steve", stage2_result == "ok" and stage2_value == 10,
             "quest_pry = " .. tostring(stage2_value) .. " (" .. tostring(stage2_result) .. "), want 10")
 
@@ -268,7 +268,7 @@ return {
             "npc:A dwarf? Yarr! That's an acceptable compromise! Ready your port side and go see this dwarf!",
             "player:Okay, I'll grab a redberry pie and go visit Thurgo...",
         })
-        local stage3_result, stage3_value = t.var.server("quest_pry")
+        local stage3_result, stage3_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.get_key", stage3_result == "ok" and stage3_value == 15,
             "quest_pry = " .. tostring(stage3_value) .. " (" .. tostring(stage3_result) .. "), want 15")
 
@@ -290,7 +290,7 @@ return {
         })
         t.exec("getKey.crowbar", t.inv.await, "sailing_charting_crowbar", 1, 10)
         t.exec("getKey.pie_gone", t.inv.expect_absent, "redberry_pie")
-        local stage4_result, stage4_value = t.var.server("quest_pry")
+        local stage4_result, stage4_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.give_key", stage4_result == "ok" and stage4_value == 20,
             "quest_pry = " .. tostring(stage4_value) .. " (" .. tostring(stage4_result) .. "), want 20")
 
@@ -338,7 +338,7 @@ return {
             "player:Okay... this doesn't seem very healthy, but fine.",
             "npc:Yarr! That's the spirit!",
         })
-        local stage5_result, stage5_value = t.var.server("quest_pry")
+        local stage5_result, stage5_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.test_key", stage5_result == "ok" and stage5_value == 25,
             "quest_pry = " .. tostring(stage5_value) .. " (" .. tostring(stage5_result) .. "), want 25")
 
@@ -384,7 +384,7 @@ return {
             "mesbox:This drink has been sealed in a crate for an unknown amount of time. It could do anything to you, good or bad. Are you sure you want to drink it?",
             "choose:Yes.",
         })
-        t.exec("drinkTheStout.charted", t.var.await_server, "sailing_charting_drink_crate_prying_times_complete", 1, 10)
+        t.exec("drinkTheStout.charted", t.var.await_server, "varb18585_sailing_charting_drink_crate_prying_times_complete", 1, 10)
         t.exec("drinkTheStout.mes", t.msg.expect, "Charting complete: Find a sealed crate near the Pandemonium")
 
         -- killTheTroll -- QuestHelper's own optional NpcStep ("Kill the
@@ -507,7 +507,7 @@ return {
             "player:Of course it does. Right, no more wasting time. I'm assuming that's the crate next to you? I'm opening it.",
             "npc:Of course! You are the captain after all, my first mate!",
         })
-        local stage6_result, stage6_value = t.var.server("quest_pry")
+        local stage6_result, stage6_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.open_crate", stage6_result == "ok" and stage6_value == 30,
             "quest_pry = " .. tostring(stage6_value) .. " (" .. tostring(stage6_result) .. "), want 30")
 
@@ -536,7 +536,7 @@ return {
         -- reading any of it.
         t.ticks(3)
 
-        local stage7_result, stage7_value = t.var.server("quest_pry")
+        local stage7_result, stage7_value = t.var.server("varb18317_quest_pry")
         t.check("quest.stage.complete", stage7_result == "ok" and stage7_value == 35,
             "quest_pry = " .. tostring(stage7_value) .. " (" .. tostring(stage7_result) .. "), want 35")
 
