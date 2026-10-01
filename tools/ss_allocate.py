@@ -65,6 +65,7 @@ only thing keeping these allocations alive.
 import argparse
 import os
 import re
+import subprocess
 import sys
 
 MARKER = '// --- allocated below this line by tools/ss_allocate.py; do not hand-edit ---'
@@ -416,6 +417,11 @@ DEFAULT_HEADER = (
 )
 
 
+# Namespaces whose names carry their kind and id; see
+# OSRS-Content/tools/var_prefix_names.py.
+VAR_PREFIX = {'varp': 'varp', 'varbit': 'varb', 'varc': 'varc'}
+
+
 def write_pack(path, ns, raw, fresh):
     """Append `fresh` — [(id, name)] — leaving every existing line alone.
 
@@ -459,6 +465,7 @@ def main():
         )
     bases = register_bases()
     dirty = False
+    respell = False
     # A name that cannot be allocated is a failure in its own right, not a
     # pending change — so it fails the run with or without --check.
     failed = False
@@ -477,9 +484,16 @@ def main():
         base = max(mark, floor)
 
         authority = id_authority(args.tree, ns)
+        # A var's name carries its kind and id (`varp5725_mock_zone_clock`), so
+        # a block still spelled `[mock_zone_clock]` is the same var: known when
+        # any layer holds the prefixed spelling.
+        prefix = VAR_PREFIX.get(ns)
+        known = set(mapping) | set(elsewhere)
+        if prefix:
+            known |= {m.group(1) for m in map(
+                re.compile(rf'^{prefix}\d+_(.+)$').match, known) if m}
         # Unknown means unknown to *every* layer, not just to ours.
-        unknown = [n for n in sorted(declared)
-                   if n not in mapping and n not in elsewhere]
+        unknown = [n for n in sorted(declared) if n not in known]
 
         # ------------------------------------------------------------------
         # Only a `ids = server` namespace may be allocated into.
@@ -516,9 +530,12 @@ def main():
         if fresh:
             dirty = True
             for name in fresh:
+                if prefix:
+                    name = f'{prefix}{base}_{name}'
                 mapping[name] = base
                 allocated.append((base, name))
                 base += 1
+            fresh = [name for _, name in allocated]
 
         print(f'{ns:9} declared={len(declared):5} allocated={len(mapping):5} '
               f'base_was={base - len(fresh)} floor={floor}'
@@ -532,7 +549,14 @@ def main():
 
         if fresh and not args.check:
             write_pack(path, ns, raw, allocated)
+            if prefix:
+                respell = True
 
+    if respell:
+        # The new ids are in the ledger; now the `[name]` blocks and every
+        # `%name` that declared them take the prefixed spelling.
+        tool = os.path.join(args.tree, os.pardir, 'tools', 'var_prefix_names.py')
+        subprocess.run([sys.executable, tool, '--write'], check=True)
     if failed:
         print('ss_allocate: a cache-owned name has no id (see above)',
               file=sys.stderr)

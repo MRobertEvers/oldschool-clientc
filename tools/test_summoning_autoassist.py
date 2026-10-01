@@ -137,11 +137,11 @@ def main() -> int:
         expect("~summoning_familiar_autoassist;" in tick,
                "the familiar tick never calls ~summoning_familiar_autoassist")
         expect(tick.index("~summoning_familiar_autoassist;")
-               < tick.index("%summoning_familiar_type = 16"),
+               < tick.index("%varp6257_summoning_familiar_type = 16"),
                "auto-assist must latch the target before any handler reads it")
 
         # ---- the source conjunction ----
-        expect("~summoning_familiar_auto_assists(%summoning_familiar_type)" in decision,
+        expect("~summoning_familiar_auto_assists(%varp6257_summoning_familiar_type)" in decision,
                "auto-assist does not consult the per-familiar table")
         expect("map_multiway(" not in allowed and "combat_assist_singles" not in allowed,
                "the assist gate still checks area/multiway — the leash rule "

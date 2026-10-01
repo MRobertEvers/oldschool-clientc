@@ -131,10 +131,10 @@ def check(root: Path) -> list[str]:
         )
 
     for fragment in (
-        "%super_antifire_potion = 0;\ncleartimer(super_antifire_decay);",
-        "%antifire_potion = 0;\ncleartimer(antifire_decay);",
-        "%antifire_potion = ^antifire_duration_units;",
-        "%super_antifire_potion = ^super_antifire_duration_units;",
+        "%varb6101_super_antifire_potion = 0;\ncleartimer(super_antifire_decay);",
+        "%varb3981_antifire_potion = 0;\ncleartimer(antifire_decay);",
+        "%varb3981_antifire_potion = ^antifire_duration_units;",
+        "%varb6101_super_antifire_potion = ^super_antifire_duration_units;",
         "[proc,antifire_login]",
         "[proc,antifire_on_death]",
     ):
@@ -361,7 +361,7 @@ def check(root: Path) -> list[str]:
             "if (~rs2012_qbd_is_add_type = false)",
             "if (npc_type = rs2012_qbd_giant_worm) $rolled_damage = 65;",
             "$prepared, $xp_damage = ~player_hit_npc_prepare($rolled_damage, true);",
-            "%mock_quest_progress = add(multiply($prepared, 1000), $xp_damage);",
+            "%varp7_mock_quest_progress = add(multiply($prepared, 1000), $xp_damage);",
             "npc_queue(2, $prepared, 0);",
         ):
             require(fragment in body, f"{QBD_SELFTEST}: incomplete live add probe: {fragment!r}")
@@ -384,8 +384,8 @@ def check(root: Path) -> list[str]:
     for fragment in (
         "$damage = ~gear_reduce_damage($damage, $style);",
         "[queue,rs2012_qbd_damage_player](npc_uid $source, int $damage, int $style)",
-        "if (%rs2012_qbd_active = 0 | %rs2012_qbd_reward_ready = 1) return;",
-        "%rs2012_qbd_time_damage = add(%rs2012_qbd_time_damage, $damage);",
+        "if (%varp6231_rs2012_qbd_active = 0 | %varp6238_rs2012_qbd_reward_ready = 1) return;",
+        "%varp6242_rs2012_qbd_time_damage = add(%varp6242_rs2012_qbd_time_damage, $damage);",
         "queue*(rs2012_qbd_damage_player, 0)($source, $damage, $style);",
     ):
         require(fragment in combat, f"{QBD_COMBAT}: missing typed player-damage contract: {fragment!r}")
@@ -398,8 +398,8 @@ def check(root: Path) -> list[str]:
         "QBD/add damage still passes through the magic-only combat_damage_player queue",
     )
     require(
-        "if (%rs2012_qbd_active = 0 | %rs2012_qbd_reward_ready = 1 |\n"
-        "    %rs2012_qbd_phase ! 4 | %rs2012_qbd_intermission = 1) return;" in combat,
+        "if (%varp6231_rs2012_qbd_active = 0 | %varp6238_rs2012_qbd_reward_ready = 1 |\n"
+        "    %varp6237_rs2012_qbd_phase ! 4 | %varp6234_rs2012_qbd_intermission = 1) return;" in combat,
         f"{QBD_COMBAT}: an extreme-fire pulse can escape into the reward transition",
     )
     for fragment in (
@@ -478,7 +478,7 @@ def check(root: Path) -> list[str]:
 
     protection_header = "[proc,rs2012_qbd_dragonfire_protection]()(int)"
     protection = combat.split(protection_header, 1)[-1].split("[proc,rs2012_qbd_melee]", 1)[0]
-    potion_check = "if (%antifire_potion > 0 | %super_antifire_potion > 0)"
+    potion_check = "if (%varb3981_antifire_potion > 0 | %varb6101_super_antifire_potion > 0)"
     require(potion_check in protection, f"{QBD_COMBAT}: either antifire type must protect while nonzero")
     shield_pos = protection.find("inv_total(worn, antidragonbreathshield)")
     potion_pos = protection.find(potion_check)
