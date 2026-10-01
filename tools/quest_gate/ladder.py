@@ -10,7 +10,11 @@ step's target already has, so the author reads a table instead.
 
 THE STEPS are exactly the ones helper_coverage.py grades, in its order: the
 guide's getPanels() ladder, a panel ConditionalStep expanded into its
-leaves (leaves that differ in one name word are one step). This tool asks
+leaves (leaves that differ in one name word are one step), and since seam36
+every step the steps.put ConditionalStep tree shows that no panel lists,
+placed before the state it leads to with kind `<Kind><<composite>[<condition>]`
+(Monkey Madness's `ObjectStep<bringMonkey[onApeAtollSouth]` enterGate, the
+Bamboo Gate). This tool asks
 helper_coverage's Grader for that list (with an empty test, so the test's
 own state never moves it) and reads each step's details from its Guide --
 nothing here parses Java.
@@ -122,6 +126,10 @@ def build(test_id):
         kind = step.kind
         if result["step"] in parent_of and parent_of[result["step"]] != result["step"]:
             kind = "%s<%s" % (kind, parent_of[result["step"]])
+        elif guide.branch_only.get(result["step"]):
+            # A step only the ConditionalStep tree shows (seam36): its
+            # ConditionalStep and the condition QH shows it on.
+            kind = "%s<%s" % (kind, guide.branch_label(result["step"]))
         items = []
         for var in step.req_vars:
             name = guide.items.get(var, {}).get("name") or var

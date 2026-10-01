@@ -158,6 +158,8 @@ for a worn greegree. The guide names the gate: `enterGate` is the `bringMonkey` 
 `onApeAtollSouth`. But it is in no `getPanels()` list, so `helper_coverage` never grades it and read
 FULL anyway. Before any `goto_tile`, check the guide's ConditionalStep zones for both ends of the
 jump. When they differ, the step the guide shows for the starting zone is a row you drive.
+Machine check since seam36: `helper_coverage` grades such a branch-only step and reads this
+jump CHEAT (coverage-and-gate, "A branch-only step"; seam-facts, Seam pass 36 (b)).
 
 (b) A DETAIL OF `table: 0x...` NAMES NOTHING. Haunted Mine's `endcart` and `valve-open` rows passed
 `tostring(m)` where `m` came from `t.msg.last(4)`. That is a table, so the detail read `table:

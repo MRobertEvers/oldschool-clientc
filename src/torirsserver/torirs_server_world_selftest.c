@@ -41517,6 +41517,58 @@ ToriRSServer_WorldSelftest(void)
                            "mapzoneexit is again a separate name");
 
             /*
+             * The corollary, over the whole pack: a `[mapzone]`/`[mapzoneexit]`
+             * whose subject starts with anything but `0_` is a name the
+             * dispatch above never forms, so its script is compiled and can
+             * never run. Underground Pass shipped two (`[mapzone,1_33_71]`,
+             * `[mapzone,1_33_72]`) and its demons and Iban's temple never
+             * spawned (seam36). The level lives in the proc's own coords, not
+             * the trigger's name: LostCity `NetworkPlayer.ts:252` latches with
+             * `CoordGrid.packCoord(0, ...)` and `Player.ts:582` names it
+             * `[mapzone,0_${x >> 6}_${z >> 6}]`.
+             */
+            {
+                const struct SSVM_Provider* pack = srv->scripts;
+                int mapzone_named = 0;
+                int mapzone_unreachable = 0;
+                const char* first_unreachable = NULL;
+
+                for( int32_t i = 0; i < pack->count; i++ )
+                {
+                    const char* script_name = pack->scripts[i].name;
+                    const char* subject;
+
+                    if( pack->scripts[i].op_count == 0 || !script_name )
+                        continue;
+                    if( strncmp(script_name, "[mapzone,", 9) == 0 )
+                        subject = script_name + 9;
+                    else if( strncmp(script_name, "[mapzoneexit,", 13) == 0 )
+                        subject = script_name + 13;
+                    else
+                        continue;
+                    mapzone_named++;
+                    if( strncmp(subject, "0_", 2) != 0 )
+                    {
+                        mapzone_unreachable++;
+                        if( !first_unreachable )
+                            first_unreachable = script_name;
+                    }
+                }
+                SELFTEST_CHECK(mapzone_named > 0,
+                               "the pack should carry [mapzone] scripts to check, got %d",
+                               mapzone_named);
+                SELFTEST_CHECK(mapzone_unreachable == 0,
+                               "%d of %d [mapzone]/[mapzoneexit] script(s) name a level other "
+                               "than 0 and can never fire (first: %s)",
+                               mapzone_unreachable, mapzone_named,
+                               first_unreachable ? first_unreachable : "-");
+                SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_MAPZONE, 1, 2150,
+                                                              4546) == TORIRSSERVER_TRIGGER_RAN,
+                               "Underground Pass's demons' room (level 1, square 33_71) should "
+                               "dispatch [mapzone,0_33_71]");
+            }
+
+            /*
              * ---- timer types ---------------------------------------------
              *
              * A soft timer runs while the player is busy; a normal one does not.

@@ -585,6 +585,28 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   north) and 2126,4566 (c2). A static BFS over `maps/m33_71` (jm2 and jl2) found that route faster
   than probing it with walks.
 
+## Underground Pass: the demons and Iban's temple were never there (`holthion=no_row`; FIXED seam36)
+
+*Origin: author batch sonnet-b45 (upass parked at leg 7) and seam pass 36.*
+
+- The three demons (`holthion`, `doomion`, `othainian`) and the temple actors (`iban` and the
+  Disciples, `ibanmonk`) are spawned by `[mapzone,0_33_71]` and `[mapzone,0_33_72]`
+  (upass_encounters.rs2), once `%upass` is at least `^upass_entered_main_area`. Before seam36 both
+  were spelled `[mapzone,1_...]`, which never fires (seam-facts, Seam pass 36 (a)). Use the plain
+  symbols, not the guide's `*_vis`.
+- Holthion stands at 2132,4554 and Doomion at 2134,4565, both on level 1. Othainian's platform
+  (2122,4563) is across `bridgecollapsed2` at 2126,4566. Iban stands at 2133,4647 on the temple
+  floor.
+- Leg 7's rows were proved on a copy of the parked file: 167 PASS / 0 FAIL, through
+  `killHolthion`, `killDoomion`, `crossToOthainian`, `killOthainian` and
+  `searchDoomionsChest-shadow`. The copy is `build/seam_state/seam36/upass_leg7.lua`, and the
+  hand-off is in `build/author_state/sonnet-b45/upass.relay.md`. It stops before guide step 7.66
+  (`returnToDwarfs`).
+- Food is tight. Every lobster was gone by Othainian, and the hp orb read 12/99. Carry more.
+- The rope swing (`crossThePit`) rolls off the player's own random stream, which is seeded by the
+  account name (seam-facts, Seam pass 33 (g)). So a `--script` copy of the relay reproduces only
+  under `--name upass`.
+
 ## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
 
 *Origin: author batch sonnet-b44 (regicide's Underground Pass section).*
