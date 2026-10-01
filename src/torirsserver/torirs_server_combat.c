@@ -890,7 +890,7 @@ absorb_player_damage(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     if( type == hitsplat_poison() )
         return amount;
 
-    varbit_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "nzone_absorb_potion_effects");
+    varbit_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3956_nzone_absorb_potion_effects");
     if( varbit_id < 0 )
         return amount;
     pool = ToriRSServer_VarbitGet(player, varbit_id);

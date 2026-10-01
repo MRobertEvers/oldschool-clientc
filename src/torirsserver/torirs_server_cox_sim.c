@@ -557,7 +557,7 @@ ToriRSServer_CoxSimRun(struct ToriRSServer* srv)
             memset(run.code, 0, sizeof(run.code));
             memset(run.hurt, 0, sizeof(run.hurt));
             run.ticks = 0;
-            cox_sim_record(srv, &run, ticks, "cox_trace_tekton_action", "cox_trace_tekton_serial");
+            cox_sim_record(srv, &run, ticks, "varp6900_cox_trace_tekton_action", "varp6901_cox_trace_tekton_serial");
             cox_sim_check_tekton(srv, &run);
             fprintf(stderr, "  tekton: %d ticks traced\n", run.ticks);
         }
@@ -571,7 +571,7 @@ ToriRSServer_CoxSimRun(struct ToriRSServer* srv)
         memset(run.code, 0, sizeof(run.code));
         memset(run.hurt, 0, sizeof(run.hurt));
         run.ticks = 0;
-        cox_sim_record(srv, &run, ticks, "cox_trace_olm_action", "cox_trace_olm_serial");
+        cox_sim_record(srv, &run, ticks, "varp6898_cox_trace_olm_action", "varp6899_cox_trace_olm_serial");
         cox_sim_check_olm(srv, &run);
         fprintf(stderr, "  olm: %d ticks traced\n", run.ticks);
     }
