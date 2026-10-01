@@ -98,10 +98,12 @@ struct cs2_interp
      * and it is not always `int`: 27 of osrs239's scripts store `join_string`
      * results into an array of strings.
      *
-     * The definition is often not in this script at all — arrays outlive a
-     * `gosub`, so a proc stores into one its caller defined and the decompiler,
-     * which works one script at a time, never sees the `define_array`. So the
-     * store falls back to the type of the value actually on the stack. That
+     * The definition is often not in this script at all — an array lives in a
+     * string local as a handle, so a proc receives one as a string argument
+     * (or takes one back from a call, or loads one from a `%varcstring`) and
+     * stores into an array its caller defined. The decompiler, which works one
+     * script at a time, never sees that `define_array`. So the store falls
+     * back to the type of the value actually on the stack. That
      * cannot desynchronise anything: `pop_array_int` takes one value whichever
      * stack it is on, and popping it as an int was the only thing making it a
      * refusal.
@@ -1979,8 +1981,8 @@ cs2_translate(struct cs2_interp* interp)
         enum RSCache_CS2_StackType stack_type = declared < 0
                                                     ? RSCACHE_CS2_STACK_INT
                                                     : (enum RSCache_CS2_StackType)declared;
-        /* A proc can read an array its caller defined, leaving no local
-         * DEFINE_ARRAY from which to recover the element bank. When that read
+        /* A proc can read an array whose handle it was passed or handed back,
+         * leaving no local DEFINE_ARRAY from which to recover the element bank. When that read
          * is immediately consumed by method6560, the following literal selector
          * is an equally authoritative declaration of the bank. This is the
          * shape in script 8430: push_array; push 2; cc_setcomponentparam. */
@@ -2464,7 +2466,13 @@ cs2_interpret_one(struct cs2_interp* interp, int script_id)
             used_string_locals = slot + 1;
         if( opcode == RSCACHE_CS2_OP_DEFINE_ARRAY || opcode == RSCACHE_CS2_OP_PUSH_ARRAY_INT ||
             opcode == RSCACHE_CS2_OP_POP_ARRAY_INT )
+        {
             has_array_opcode = true;
+            /* The array's string local: DEFINE_ARRAY packs it in the high
+             * half, PUSH/POP_ARRAY_INT name it whole. */
+            RSCache_CS2_FunctionMarkArraySlot(
+                function, opcode == RSCACHE_CS2_OP_DEFINE_ARRAY ? slot >> 16 : slot);
+        }
     }
     function->preserve_frame_counts =
         has_array_opcode || used_int_locals != script->local_int_count ||
