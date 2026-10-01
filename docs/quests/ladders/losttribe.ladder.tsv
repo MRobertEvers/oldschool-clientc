@@ -1,0 +1,31 @@
+# ladder losttribe quest_dir=quest_losttribe guide=src/main/java/com/questhelper/helpers/quests/thelosttribe/TheLostTribe.java steps=28 legs=1:1-28@s0
+#(leg.n s<stage> step kind target (x,y,z); npc:x = NpcID.X, loc:x = ObjectID.X, obj:x = ItemID.X, x? = no content symbol; trig = OSRS-Content/osrs239-content/server/scripts/<file>:<line>, op1 first, +N more; items = means the row above's)
+leg	n	stage	step	kind	target	point	text	substeps	items	dialog	triggers
+1	1	0	goUpToF1	ObjectStep<goTalkToSigmundToStart	loc:spiralstairsbottom_3	3205,3208,0	Go up to the first floor of Lumbridge Castle.			Can you show me the way out of the mines?	ladders_stairs/scripts/ladders.rs2:175 oploc1; +2
+1	2	0	goDownFromF2	ObjectStep<goTalkToSigmundToStart	loc:spiralstairstop_3	3205,3208,2	Go downstairs.				ladders_stairs/scripts/ladders.rs2:178 oploc1; +3
+1	3	0	goUpFromBasement	ObjectStep<goTalkToSigmundToStart	loc:ladder_from_cellar	3209,9616,0	Go up to the surface.				ladders_stairs/scripts/ladders.rs2:199 oploc1; +1
+1	4	0	climbOutThroughHole	ObjectStep<goTalkToSigmundToStart	loc:lost_tribe_cavewall_hole_walldecor	3221,9618,0					quests/quest_losttribe/scripts/losttribe.rs2:245 oploc1
+1	5	0	talkToSigmund	NpcStep<goTalkToSigmundToStart	npc:lost_tribe_sigmund_there	3210,3222,1				Do you have any quests for me? | Yes.	quests/quest_losttribe/scripts/losttribe.rs2:93 opnpc1; +3
+1	6	0	talkToAllAboutCellar	NpcStep<findGoblinWitnessSteps	npc:cook npc:father_aereck			talkToHans talkToBob		Do you know what happened in the castle cellar?	areas/lumbridge/scripts/father_aereck.rs2:5 opnpc1; +1
+1	7	0	goDownFromF1	ObjectStep<findGoblinWitnessSteps	loc:spiralstairsmiddle	3205,3208,1	Go down the staircase.			Climb down the stairs.	ladders_stairs/scripts/ladders.rs2:190 oploc1; +2
+1	8	0	talkToHans	NpcStep<findGoblinWitnessSteps	npc:hans	3222,3218,0	Talk to Hans who is roaming around the castle.			Do you know what happened in the cellar?	areas/lumbridge/scripts/hans.rs2:17 opnpc1; +3
+1	9	0	talkToDuke	NpcStep<goTalkToDukeAfterHans	npc:duke_of_lumbridge	3210,3222,1					areas/lumbridge/scripts/duke_horacio.rs2:10 opnpc1
+1	10	0	goDownIntoBasement	ObjectStep<goMineRubble	loc:qip_cook_trapdoor_open	3209,3216,0	Enter the Lumbridge Castle basement.				ladders_stairs/scripts/ladders.rs2:202 oploc1; +2
+1	11	0	usePickaxeOnRubble	ObjectStep<goMineRubble	loc:lost_tribe_cellar_wall?	3219,9618,0					
+1	12	0	climbThroughHole	ObjectStep<enterTunnels	loc:lost_tribe_cellar_wall?	3219,9618,0					
+1	13	4	grabBrooch	DetailedQuestStep		3230,9610,0	Pick up the brooch on the floor.		Brooch		
+1	14	0	showBroochToDuke	NpcStep<goShowBroochToDuke	npc:duke_of_lumbridge	3210,3222,1				I dug through the rubble...	areas/lumbridge/scripts/duke_horacio.rs2:10 opnpc1
+1	15	5	searchBookcase	ObjectStep	loc:lost_tribe_bookcase	3207,3496,0	Search the north west bookcase in the Varrock Castle Library.				quests/quest_losttribe/scripts/losttribe.rs2:281 oploc1
+1	16	5	readBook	DetailedQuestStep			Read the entire goblin symbol book.		Goblin symbol book		
+1	17	6	talkToGenerals	NpcStep	npc:general_wartface_green	2957,3512,0	Talk to the Goblin Generals in the Goblin Village.			Have you ever heard of the Dorgeshuun? | It doesn't really …	quests/quest_anothersliceofham/scripts/slice_generals.rs2:11 opnpc1; +1
+1	18	7	walkToMistag	NpcEmoteStep	npc:lost_tribe_mistag_1op	3319,9615,0	Travel through the tunnels. Make sure you follow the marked path, or you'll be dropped into a hole and your light source extinguished!		A light source		quests/quest_losttribe/scripts/losttribe_mistag.rs2:53 opnpc1; +5
+1	19	0	goTravelToMistag	ConditionalStep	npc:lost_tribe_mistag_1op		Travel through the tunnels under Lumbridge until you reach Mistag.	walkToMistag			quests/quest_losttribe/scripts/losttribe_mistag.rs2:53 opnpc1; +5
+1	20	7	emoteAtMistag	NpcEmoteStep	npc:lost_tribe_mistag_1op	3319,9615,0	Perform the Goblin Bow emote next to Mistag and talk to him.		A light source		quests/quest_losttribe/scripts/losttribe_mistag.rs2:53 opnpc1; +5
+1	21	0	goTalkToDukeAfterEmote	ConditionalStep			Talk to Duke Horacio in Lumbridge Castle. You can fast-travel with Mistag back to Lumbridge.			I've made contact with the cave goblins...	
+1	22	0	pickpocketSigmund	NpcStep<goGetKey	npc:lost_tribe_sigmund_there	3210,3222,1					quests/quest_losttribe/scripts/losttribe.rs2:93 opnpc1; +3
+1	23	0	unlockChest	ObjectStep<goOpenRobeChest	loc:lost_tribe_chest	3209,3217,1					quests/quest_losttribe/scripts/losttribe_ham.rs2:30 oploc1
+1	24	0	enterHamLair	ObjectStep<goIntoHamLair	loc:ham_multi_trapdoor?	3166,3252,0					
+1	25	0	searchHamCrates	ObjectStep<goIntoHamLair	loc:lost_tribe_crate	3152,9645,0					quests/quest_losttribe/scripts/losttribe_ham.rs2:61 oploc1
+1	26	0	goToDukeWithSilverware	ConditionalStep			Take the silverware to Duke Horacio.			I found the missing silverware in the HAM cave!	
+1	27	0	talkToMistagForEnd	NpcStep<travelToMakePeace	npc:lost_tribe_mistag_2ops	3319,9615,0					quests/quest_losttribe/scripts/losttribe_finish.rs2:76 opnpc1; +5
+1	28	0	talkToKazgar	NpcStep<travelToMakePeace	npc:lost_tribe_guide_2ops	3230,9610,0	Travel with Kazgar to shortcut to Mistag.			Can you show me the way to the mines?	quests/quest_losttribe/scripts/losttribe_finish.rs2:101 opnpc1; +3

@@ -63,7 +63,7 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
 ## Working rules for every worker
 
 - Work ONLY in this checkout (`3draster-quest-driver`, branch
-  `lane-quest-driver`). Never build in, cd into, or touch
+  `v3`). Never build in, cd into, or touch
   `/Users/matthewevers/Documents/git_repos/3draster` -- that is the owner's
   live checkout.
 - A C change is built into a PRIVATE objdir and target, never

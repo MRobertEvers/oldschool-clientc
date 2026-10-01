@@ -276,15 +276,17 @@ test_live_tree(const char* content_dir)
           "live tree: bankmain:items composes");
     check(resolved(&symbols, "attackrate", SSC_SYM_PARAM) == 14,
           "live tree: attackrate is param 14");
-    /* `pack/12_clientscripts.pack` line 1 is `0=tt_rewards_init hashcode(687955329)`.
-     * The hashcode is provenance for an archive the cache names only by hash;
-     * the name ends before it. Without the cut every entry of the packs that
-     * carry one loaded under a name no script can spell — which is how
-     * `split_init(..., font_496)` once failed against a pack that listed it. */
-    check(resolved(&symbols, "tt_rewards_init", SSC_SYM_SCRIPT) == 0,
+    /* A pack line such as `12=pvp_store_handle_event_12 hashcode(-1603147075)`
+     * (pack/12_clientscripts.pack) carries provenance for an archive the cache
+     * names only by hash; the name ends before it. Without the cut every entry
+     * of the packs that carry one loaded under a name no script can spell --
+     * which is how `split_init(..., font_496)` once failed against a pack that
+     * listed it. The fonts now carry their glyph sprite's name (OSRS-Content
+     * 5396b6a18e: 496 is b12_full, no suffix). */
+    check(resolved(&symbols, "pvp_store_handle_event_12", SSC_SYM_SCRIPT) == 12,
           "live tree: a hashcode suffix is not part of the name");
     check(resolved(&symbols, "b12_full", SSC_SYM_FONTMETRICS) == 496,
-          "live tree: b12_full is font 496");
+          "live tree: font 496 is b12_full");
 
     SSC_SymbolsFree(&symbols);
 }

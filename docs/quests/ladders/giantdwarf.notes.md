@@ -16,7 +16,7 @@ Boots (gdwarf_boots.rs2)
 
 Consortium (gdwarf_consortium.rs2)
 - Stairs dwarf_keldagrim_wide_stairs_lower 2895,10210 need stage >= 21 (talk to Blasidar after Riki first).
-- Wired companies: Blue Opal (secretary 2869,10205, director 2867,10203), Purple Pewter, Yellow Fortune.
+- Seven companies wired (Red Axe cannot be joined): Blue Opal (sec 2869,10205 dir 2867,10203), Purple Pewter, Yellow Fortune, plus Green Gemstone (2889,10211/2891,10210), Brown Engine (2890,10192/2892,10190), Silver Cog (2891,10196/2893,10196), White Chisel (2890,10207/2890,10205; the north side is walled, talk from 2889,10207 and 2889,10205). The east ones are far from the stairs: goto next to them, talk_to alone says 'I can't reach that!'.
   The first task you accept fixes original_company; another company's staff refuse you.
 - Secretary: ore task (clay copper tin iron silver gold mithril coal, 3-5, UNNOTED) 20 points; refuse -2.
   75 points -> "no more work" (stage 23). Director: bar task (bronze iron steel silver gold mithril, 2-4) 12 points
@@ -24,6 +24,7 @@ Consortium (gdwarf_consortium.rs2)
 - Each talk is one step: talk to get the task, bring the items, talk again to hand in. No 10-minute timer.
 
 Different from the guide
+- Journal reads complete after stage 50 (gdwarf_journal.rs2:84 fixed).
 - Clothes, boots, axe run in that order (stage ladder), the real game allows any order (gdwarf_start/constant header).
 - Riki takes all three items in one talk (gdwarf_consortium.rs2 model handler).
 - The boat ride is a teleport to Veldaban on accepting (gdwarf_start.rs2:38).
