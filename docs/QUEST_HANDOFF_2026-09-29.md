@@ -84,8 +84,9 @@ Rules that cost time when broken:
   does not do worker work, except landing a pass a closer proved but could
   not commit.
 - Every batch publishes a contact sheet artifact and a `BATCHES.tsv` row.
-- A rejected or reverted test file is parked under
-  `build/author_state/<batch>/rejected/` and named in its QUEUE row.
+- A rejected or reverted test file is parked under `test/quests/wip/<id>/parked.lua`,
+  which is tracked, and named in its QUEUE row. Before 2026-10-01 it was parked under
+  `build/author_state/<batch>/rejected/`. Several machines: `docs/QUEST_ORCHESTRATOR.md`.
 - Sources: LostCity where the quest is in LostCity, else the OSRS wiki and
   Quest Helper. No cheats past the guide's own work. The boss is fought for
   real. `--no-publish` on every scratch and gate run.

@@ -276,6 +276,29 @@ fought unarmed and died, and run 10's attacks answered `refused` (already under 
 `leg.4.wield` row also failed. That `timeout` on a wield that had landed was a driver seam;
 `inv_op` now answers `ok ... [WORN <item>: worn 0 -> 1, wear slot N]`.
 
+### The hand-off and the relay record: `test/quests/wip/<id>/`
+
+The relay's record is TRACKED, so a relay can stop on one machine and go on from another
+(docs/QUEST_ORCHESTRATOR.md). Each runner writes only its own leg's files there and never
+commits them; the batch's sampler (or closer) commits them with the queue rows.
+
+- `leg<K>.json` is leg K's report. A runner whose leg already has one with outcome `done`
+  returns it and stops.
+- `leg<K>.progress.md` is leg K's notebook, appended after every run.
+- `relay.md` is the hand-off: one `## leg K` block of at most ten lines per leg. It gives the
+  tile and level, the stage, the backpack and worn items, the levels setup gives, and
+  surprises. The next runner reads only this.
+- `parked.lua` is a file a reviewer rejected before it was ever committed. The QUEUE row
+  says `RELAY STATE: parked at test/quests/wip/<id>/parked.lua`, and the next first runner
+  copies it to `test/quests/<id>.lua`. A seam pass's proof copy sits beside it under the
+  name the row gives (`seam37_leg8.lua`).
+
+Checkpoints are NOT in it: they live under `build/quest_gate/`, hashed against one machine's
+binary and pack. On a new machine, `--from-leg` refuses (missing checkpoint), so make one full
+run first. Before 2026-10-01 this record lived in `build/author_state/<batch>/<id>.leg<K>.json`,
+`<id>.relay.md` and `rejected/<id>.lua`. Those files are invisible to other machines, and the
+live ones were copied into wip/. A quest's directory is removed when it goes green.
+
 ### Running one leg
 
 ```sh

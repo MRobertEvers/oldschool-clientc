@@ -87,7 +87,10 @@ INVENTORY_TSV = REPO / "tools" / "quest_gate" / "quest_inventory.tsv"
 QUESTS_DIR = REPO / "test" / "quests"
 GEN_DIR = REPO / "build" / "generated_quests"
 QUEUE_TSV = REPO / "test" / "quests" / "QUEUE.tsv"
-QUEUE_COLUMNS = ["quest_dir", "test_id", "helper_dir", "helper_file", "tier", "status", "owner", "last_failure"]
+# Same columns, same order as queue.py's QUEUE_COLUMNS (claimed_at/claim_prev:
+# tools/quest_gate/claim.py's cross-machine claims, docs/QUEST_ORCHESTRATOR.md).
+QUEUE_COLUMNS = ["quest_dir", "test_id", "helper_dir", "helper_file", "tier", "status", "owner", "last_failure",
+                 "claimed_at", "claim_prev"]
 
 # The one hand-written test whose file stem does not match the mechanical
 # "quest_dir minus quest_/miniquest_" rule -- cooks_assistant.lua predates
@@ -2602,10 +2605,10 @@ def write_queue(path: Path, inventory: list[dict], qh_root: Path) -> int:
                 # tier 5 ("unknown") is the honest call for every one of
                 # the ten, intro included, until a later pass researches
                 # each individually.
-                rows_out.append((quest_dir, test_id, "recipefordisaster", java_file, "5", "todo", "", ""))
+                rows_out.append((quest_dir, test_id, "recipefordisaster", java_file, "5", "todo", "", "", "", ""))
             continue
         test_id = compute_test_id(row["dir"])
-        rows_out.append((row["dir"], test_id, quest_to_helper.get(row["dir"], "?"), "", row["tier"], "todo", "", ""))
+        rows_out.append((row["dir"], test_id, quest_to_helper.get(row["dir"], "?"), "", row["tier"], "todo", "", "", "", ""))
 
     with open(path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t", lineterminator="\n")

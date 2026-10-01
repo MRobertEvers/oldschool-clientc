@@ -9,6 +9,11 @@ Server cheat map: `docs/QUEST_SERVER_CHEATS.md`.
 
 ## Status (2026-09-27)
 
+- **Several machines (2026-10-01): read `docs/QUEST_ORCHESTRATOR.md` first.** It covers
+  claims on `QUEUE.tsv` (`tools/quest_gate/claim.py batch/release`), the content lock
+  (`test/quests/CONTENT_LOCK`: one parity or seam pass at a time across machines),
+  fetch-before-push in every closer, the tracked relay record `test/quests/wip/<id>/`, and
+  machine-unique pass and batch names (`mac1-b47`).
 - **Tier 1 is complete: 40/40 green, 40/40 FULL, zero GUIDE-GAP.** The 40
   rows are the 39 quests plus `misc_astrid`, Throne of Miscellania's Astrid
   branch. The final run was on lane 2979f119c / OSRS-Content 2691c903fd:
