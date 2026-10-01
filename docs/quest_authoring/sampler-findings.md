@@ -125,3 +125,22 @@ blast. The gate and `helper_coverage` were both green. Before you author a quest
 Fareed's diamond after the kill. Leg 6 then used `goto_tile` to get back into the Smoke Dungeon,
 past `sword_haunted_well` (its trigger writes `fd_torch_count1-4`), to take the copy that "found its
 way back". Pick up a kill's drop in the leg that made the kill.
+
+## Sample sonnet-b44 (2026-10-01)
+
+*Origin: the sampler checked losttribe, redreef and routequest, and sent losttribe back.*
+
+(a) A PICK-LOCK IS NOT A DESCENT (b35 (a) again). The Lost Tribe (`losttribe`) clicked the H.A.M.
+trapdoor's Pick-Lock (`[oploc5,osf_trapdoor_closed]`). That only sets `%ham_thief = 1`, which turns
+the `ham_multi_trapdoor` multiloc into `osf_trapdoor_open` (op1 Climb-down). The test then used
+`goto_tile` to reach 3152,9644 in the lair, and shot 162 reads "Teleported to 3152,9644,0". It left
+the same way, without clicking `osf_ham_ladder`. The b44 reviewer called this "acceptable travel",
+and `helper_coverage` credited `enterHamLair` to the pick-lock row because it names the multiloc.
+A step whose guide object is an entrance is driven only when you go through that entrance: click
+Climb-down and read the tile after it.
+
+(b) A `::give` THAT UNDOES A DETOUR IS STILL A `::give`. The same test walked onto the maze's floor
+trap on purpose. The trap put its candle lantern out, and the test then ran `::give
+candle_lantern_lit 1` instead of relighting the lantern. Stay on the marked path, which is what the
+guide's `walkToMistag` says. If you trigger the trap to show it works, relight the lantern with a
+tinderbox in that same leg.

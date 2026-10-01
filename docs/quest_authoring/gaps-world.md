@@ -578,6 +578,16 @@ try each with `t.world.loc_near(sym, 8)` first (`zombiequeen.lua:388-432`).
   north) and 2126,4566 (c2). A static BFS over `maps/m33_71` (jm2 and jl2) found that route faster
   than probing it with walks.
 
+## Underground Pass: the mud pile (`upass_mud`) has no walkable approach tile (sonnet-b44)
+
+*Origin: author batch sonnet-b44 (regicide's Underground Pass section).*
+
+The mud fills its own approach tiles, so the walk to it ends two tiles short (2395,9651) and the
+spade use never lands (`[oplocu,upass_mud]`, `upass_unicorn_tunnels.rs2:9`, `p_arrivedelay`).
+`regicide.lua` digs it with `t.player.use_on("spade", mud, { stand_on_square = true })`, and the
+player comes out at 2392,9646. That opt-in needs its `-- GUIDE-GAP:` marker (traps-23-33:
+`stand_on_square` needs).
+
 ## Monkey Madness: a greegree wearer is drawn as the monkey (seam34)
 
 *Origin: seam34 greegree_transmog_render (mm parity3f legs_left: "client rendering of player

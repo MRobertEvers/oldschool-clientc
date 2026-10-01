@@ -21,6 +21,18 @@ server-side). Detail on `ok`: `<name> = <value> (client|server <varp|varbit>) af
 timeout names the last value read. `await_server` works for `pack/varp.alloc` varps too; its detail
 then reads `(varp, server content copy; no client copy)`.
 
+#### A quest varbit reads 0 through `var.server` / `var.await_server` (Monkey Madness `mm_daero`, sonnet-b44)
+
+*Origin: author batch sonnet-b44 (mm leg 1).*
+
+Monkey Madness's per-npc progress varbits (`mm_caranock`, `mm_daero`, `mm_narnode`, all on base varp
+`mm_gnomes`) read 0 through `t.var.server` and `t.var.await_server` for the whole run, while the
+dialogue showed the stage had moved. For a VARBIT both verbs read only the client's copy of the
+server value (`api_drive.varbit_server`, `script/plugins/quest_driver/state.lua` `_var_await`).
+There is no server-content fallback like the one the varp path has for `pack/varp.alloc` ids. Grade
+such a step on the main quest varp (`mm_main`) or on the dialogue pages, and do not wait on the
+varbit.
+
 ### `t.var.expect(name, value)`
 
 `t.var.expect(name, value)` -> `ok` `refused`. Requires client == server == value, so it answers
@@ -73,7 +85,7 @@ waits real minutes".
 
 `t.skill.snapshot()` -> `(ok, table)`, every stat read once.
 
-#### `attempt to index a string value` on a snapshot, or a reading's `.xp` is nil (sonnet-b43)
+#### `attempt to index a string value` on a snapshot, or a reading's `.xp` or `.current` is nil (sonnet-b43, b44)
 
 *Origin: author batch sonnet-b43 (horror).*
 
@@ -82,7 +94,9 @@ indexing it fails. Take the second value: `local _, snap = t.skill.snapshot()` (
 `select(2, t.skill.snapshot())`), then `snap.magic.experience`. A reading (`t.skill.read`'s second
 value, and each entry of a snapshot) carries `.level` (current, after boosts and drains),
 `.base_level` and `.experience`, in whole xp (`script/plugins/quest_driver/state.lua`
-`QD.skill.expect_gain`). There is no `.xp`, so a reward of 4,662.5 reads as a delta of 4662.
+`QD.skill.expect_gain`). There is no `.xp`, so a reward of 4,662.5 reads as a delta of 4662. There
+is no `.current` either (Monkey Madness's eat-when-hurt check, sonnet-b44): the boosted or drained
+level is `.level`.
 
 ### `t.skill.expect_gain(name, xp, snapshot)`
 

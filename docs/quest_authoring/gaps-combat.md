@@ -308,6 +308,24 @@ adds his line only when `%troll_freed_eadgar` is set, troll_journal.rs2:52), so 
 stages that flag itself; its `%troll_quest` belongs to `::complete quest_trollstronghold` (the
 committed `eadgar.lua` predates the arm and still `::setvar`s it).
 
+## The scaffold's `::complete <folder>` and the Usage line; Tree Gnome Village and Underground Pass have no arm (sonnet-b44)
+
+*Origin: author batch sonnet-b44 (losttribe, mm, regicide).*
+
+- `new_quest.py` writes each prerequisite as `::complete <its script folder>`
+  (`tools/quest_gate/new_quest.py`, the `setup_cheats.append` beside "prereq self-reference"), and a
+  folder is not always the row. The Lost Tribe scaffold emitted `::complete quest_gobdip`, but Goblin
+  Diplomacy's row is `quest_goblindiplomacy`. A folder name that is not a row prints
+  `Usage: ::complete quest_cooksassistant - name a quest row.` and writes nothing. Monkey Madness's
+  `::complete quest_tree` did the same (Tree Gnome Village's row is `quest_treegnomevillage`). Look
+  the row up with `grep -n '^\[quest_' OSRS-Content/osrs239-content/configs/all.dbrow` and fix the
+  scaffold's line before the first run.
+- `quest_treegnomevillage` and `quest_undergroundpass` have no arm (QUEST_SERVER_CHEATS.md lists
+  them). The b44 authors wrote `::setvar treequest 9` (Monkey Madness) and `::setvar upass
+  ^upass_complete` plus `::setvar upass_lathas_met 1` (Regicide) instead. That is the route the rule
+  above forbids. A prerequisite with no arm is a `quest_cheat.rs2` seam: report it and `t.blocked`
+  on it.
+
 ## Feldip hunting ground: the damage comes from the wolves; the lent ogre bow is the reward
 
 In Big Chompy Bird Hunting the chompy (level 6) is not what hurts. Wolves roam the swamp bubbles

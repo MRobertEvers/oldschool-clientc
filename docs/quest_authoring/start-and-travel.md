@@ -177,3 +177,16 @@ maplink row and falls through to `[proc,climb]`'s +/-1-plane default. `goto_tile
 `click_loc` on the ladder -- delete any scaffold-emitted `click_loc` row for a ladder or gate; the
 same tile trick reaches an instanced area behind a trapdoor too (`z+6400`: `3120,9567,0` for the
 Wizards' Tower basement), with no `click_loc` on the trapdoor at all.
+
+#### An agility crossing answers "Nothing interesting happens." off its source tile (sonnet-b44)
+
+*Origin: author batch sonnet-b44 (regicide, content_bug).*
+
+Logs, leaves, rocks and tunnels that end in `~maplink_agility`
+(`skill_agility/scripts/maplink_agility.rs2`) look up `maplink_agility:src` by the PLAYER's coord
+when the click lands, then match the loc. They teleport only from a row's exact `src` tile. Any
+other tile answers `~displaymessage(^dm_default)` ("Nothing interesting happens."), and so does a
+loc with no row at all. Before the crossing, `grep -n -B2 -A3 '<loc symbol>'
+OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/maplink_agility.dbrow`, stand on
+the row's `src` (`click_loc(..., { at = {x, z} })` or a walk), and click. If no row names the loc
+(Regicide's `regicide_logbalance*_start`), that is a content seam, not a tile to hunt for.

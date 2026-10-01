@@ -18,6 +18,18 @@ crate, as pryingtimes testKey does -- except that a row naming a ROOT npc beside
 current duck) is framed automatically; `disembark` frames the plank itself and returns once the
 CLIENT stands ashore with its scene settled);
 
+#### Aground on every heading after a mooring: back out first (The Red Reef, sonnet-b44)
+
+*Origin: author batch sonnet-b44 (redreef, accepted).*
+
+A hull left at Last Light's mooring (`sailing_mooring_last_light`, 2848,2326) faces into the
+mooring, and every `sail_to` heading from there runs aground. `redreef.lua` (`sailToRedRock2`)
+backs it out first. With the sails furled it presses `t.sail._press_sidepanel(1)` (the sidepanel's
+reverse), waits 30 ticks (the hull went from 2842,2332 to 2831,2343), presses
+`t.sail._press_sidepanel(0)`, and then calls `t.sail.sails(true)`. On the way north, 1500-tick
+`sail_to` legs drifted east and missed the waypoints. 250-tick legs about 20 tiles apart along
+x=2832 (2830,2395 / 2832,2410 / ... / 2832,2470) reached Red Rock.
+
 #### Port tasks (wiki Courier tasks)
 
 port tasks (wiki Courier tasks): `t.sail.task_board(board)`, `task_accept(index)`,
