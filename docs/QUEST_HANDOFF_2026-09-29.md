@@ -1,8 +1,8 @@
 # Quest suite handoff -- 2026-09-29
 
 Where the automated quest suite stands, and how to pick it up from a cold
-start. Branch `lane-quest-driver` in this checkout (3draster itself; there is
-no separate worktree), OSRS-Content submodule on `lane-quest-driver`. Both are
+start. Branch `v3` in this checkout (3draster itself; there is
+no separate worktree), OSRS-Content submodule on `v3`. Both are
 pushed after every pass.
 
 ## State
@@ -10,7 +10,7 @@ pushed after every pass.
 | Tier | Quests | Green | Coverage | Notes |
 |---|---|---|---|---|
 | 1 | 40 | 40 | 40 FULL, 0 GUIDE-GAP | merged to v3 as PR #96 (908500675) |
-| 2 | 19 | 19 | 19 FULL, 0 GUIDE-GAP | on `lane-quest-driver`, NOT merged to v3 (c0bc59f0a, content 27dbb1259b) |
+| 2 | 19 | 19 | 19 FULL, 0 GUIDE-GAP | on `v3`, NOT merged to v3 (c0bc59f0a, content 27dbb1259b) |
 | 3 | 43 | 0 | -- | parity under way: parity3a landed f8762c0c4; parity3b closing |
 | 4 | 77 | 0 | -- | not started |
 | 5 | 10 | 0 | -- | unknown difficulty, not started |
