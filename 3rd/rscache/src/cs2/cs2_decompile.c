@@ -189,3 +189,75 @@ RSCache_CS2_DecompileJson(
     RSCache_CS2_FunctionSetFree(&fs);
     return document;
 }
+
+int
+RSCache_CS2_ScanCallTriggers(
+    const int* ids,
+    int count,
+    const struct RSCache_CS2_DecompileOptions* options,
+    struct RSCache_CS2_Names* out,
+    int* out_both)
+{
+    assert(options);
+    assert(out);
+    if( out_both )
+        *out_both = 0;
+    if( count <= 0 )
+        return 0;
+    assert(ids);
+
+    /* Pinned before the scan: those are the settings file's, and it wins. */
+    struct RSCache_CS2_IntMap preset;
+    RSCache_CS2_IntMapInit(&preset);
+    struct RSCache_CS2_IntMap seen;
+    RSCache_CS2_IntMapInit(&seen);
+    for( int i = 0; i < out->script_triggers.capacity; i++ )
+        if( out->script_triggers.entries[i].occupied )
+            RSCache_CS2_IntMapPut(&preset, out->script_triggers.entries[i].key, (void*)(intptr_t)1);
+
+    /* `seen` holds a bit set per callee: 1 = called, 2 = bound as a hook. */
+    for( int i = 0; i < count; i++ )
+    {
+        struct RSCache_CS2_FunctionSet fs;
+        RSCache_CS2_FunctionSetInit(&fs);
+        char error[256];
+        int id = ids[i];
+        /* A script that does not interpret contributes nothing; its own
+         * decompile reports why. Its callers still pin its callees. */
+        RSCache_CS2_Interpret(&fs, &id, 1, options, error, (int)sizeof(error));
+        for( int e = 0; e < fs.call_triggers.capacity; e++ )
+        {
+            if( !fs.call_triggers.entries[e].occupied )
+                continue;
+            int callee = fs.call_triggers.entries[e].key;
+            /* A hook cleared with -1 names no script. */
+            if( callee < 0 )
+                continue;
+            intptr_t how = (intptr_t)fs.call_triggers.entries[e].value;
+            intptr_t bits = (intptr_t)RSCache_CS2_IntMapGet(&seen, callee);
+            bits |= how == RSCACHE_CS2_TRIGGER_PROC ? 1 : 2;
+            RSCache_CS2_IntMapPut(&seen, callee, (void*)bits);
+        }
+        RSCache_CS2_FunctionSetFree(&fs);
+    }
+
+    int pinned = 0;
+    for( int e = 0; e < seen.capacity; e++ )
+    {
+        if( !seen.entries[e].occupied )
+            continue;
+        int callee = seen.entries[e].key;
+        intptr_t bits = (intptr_t)seen.entries[e].value;
+        if( bits == 3 && out_both )
+            (*out_both)++;
+        if( RSCache_CS2_IntMapGet(&preset, callee) )
+            continue;
+        RSCache_CS2_NamesSetScriptTrigger(
+            out, callee,
+            (bits & 1) ? RSCACHE_CS2_TRIGGER_PROC : RSCACHE_CS2_TRIGGER_CLIENTSCRIPT);
+        pinned++;
+    }
+    RSCache_CS2_IntMapFree(&seen);
+    RSCache_CS2_IntMapFree(&preset);
+    return pinned;
+}

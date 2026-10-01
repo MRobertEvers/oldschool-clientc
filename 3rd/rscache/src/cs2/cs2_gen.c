@@ -828,12 +828,23 @@ RSCache_CS2_FunctionName(
     char* out,
     int out_capacity)
 {
+    /* A trigger pinned from outside this script — by how the rest of the cache
+     * calls it, or by the tree's decompile settings — beats both the script's own
+     * name and the per-script guess below: a proc that returns nothing reads
+     * exactly like a clientscript from inside, and only its callers can tell. */
+    enum RSCache_CS2_Trigger pinned =
+        names ? RSCache_CS2_NamesScriptTrigger(names, function->id) : RSCACHE_CS2_TRIGGER_NONE;
+
     const char* cache_name = RSCache_CS2_NamesScript(names, function->id);
     if( cache_name )
     {
         struct RSCache_CS2_ScriptName parsed;
         if( RSCache_CS2_ScriptNameParse(cache_name, &fs->arena, &parsed) )
         {
+            if( pinned != RSCACHE_CS2_TRIGGER_NONE &&
+                (parsed.trigger == RSCACHE_CS2_TRIGGER_PROC ||
+                 parsed.trigger == RSCACHE_CS2_TRIGGER_CLIENTSCRIPT) )
+                parsed.trigger = pinned;
             /* Always re-formatted, never echoed: a cache name may be a bare
              * integer that encodes a trigger and a subject, and the source
              * heading wants the `[trigger,name]` form either way. */
@@ -846,7 +857,9 @@ RSCache_CS2_FunctionName(
         }
     }
 
-    intptr_t trigger = (intptr_t)RSCache_CS2_IntMapGet(&fs->call_triggers, function->id);
+    intptr_t trigger = pinned != RSCACHE_CS2_TRIGGER_NONE
+                           ? (intptr_t)pinned
+                           : (intptr_t)RSCache_CS2_IntMapGet(&fs->call_triggers, function->id);
     if( trigger == 0 )
         trigger = function->return_type_count > 0 ? RSCACHE_CS2_TRIGGER_PROC
                                                   : RSCACHE_CS2_TRIGGER_CLIENTSCRIPT;

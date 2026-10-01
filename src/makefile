@@ -5235,45 +5235,10 @@ torirsserver-servpack: test-rs2012-server-overlay
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(TORIRSSERVER_CONTENT_DIR) --server-only
 
-# The client half of the same bake: the tree written back into a cache the
-# client can boot (PORTING_GUIDE Â§1, `cachepack pack âââº client cache (--out)`).
-#
-# `cache.osrs239` is the pristine unpack source and stays frozen, so nothing the
-# tree says about a *client-visible* record reached a running client until this
-# existed â a `.cs2` edit packed into no cache is an edit that ships nowhere, and
-# the Display panel's layout dropdown was the case that found it. Server-side
-# `.rs2` needs no bake because the ServerScript VM loads `script.dat` directly;
-# CS2, interfaces and configs are read out of the cache and do.
-#
-# When is a bake required at all? Only for CLIENT-visible edits: CS2 recompiles,
-# interface imports, sprites, native config fields, authored client patches.
-# Pure server work â scripts, db tables, params, varps, npc/loc server fields â
-# travels by `torirsserver-scripts` + `torirsserver-servpack` alone, and the world boots
-# from the pristine cache by default (the one-cache rule: the world reads what
-# JS5 serves; TORIRSSERVER_CACHE_DIR_DEFAULT in torirs_server.h). When you do bake, point
-# BOTH the world and JS5 at the result.
-#
-# `--base` copies the pristine cache first, so every record the tree does not
-# change keeps the bytes it had, and the output is a fresh 440M rather than an
-# in-place append that grows without bound.
-#
-# Base and output are variables, not literals, so a bake can be aimed somewhere
-# else without editing this file:
-#
-#   make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
-#
-# The default output stays `cache.osrs239.baked` because the osrs239-net profile (profiles/osrs239-net.ini)
-# and the rev-230 manifests name that directory. Previously `--base`/`--out`
-# were spelled literally in the recipe while TORIRSSERVER_CACHE_DIR was used only by
-# the `rm -rf` above them, so the two could disagree and the wrong tree would be
-# cleared.
-TORIRSSERVER_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
-TORIRSSERVER_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
-# Optional RuneStar CS2 name tables (script/graphic/â¦). Without them, ~proc
-# calls into .cs2b-only scripts cannot resolve (PROC no longer falls back to a
-# sole clientscript alias â that rebound trampoline wrappers to themselves).
-# Pack then keeps the base bytes. With the tables, trampolines recompile to the
-# real proc id.
+# RuneStar's CS2 name tables, for the lane decompile tests below only (they
+# print names when they list a lane's scripts). `cachepack` never reads them: a
+# bake takes every name from the content tree, and its own `decompile.ini`
+# settles what the bytecode alone cannot.
 RUNESTAR_CS2_NAMES ?= $(HOME)/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2
 torirsserver-cache: check-crystal-set-contract check-design-panel
 	$(SUBMAKE) -C $(RSCACHE_DIR)/tools cachepack
@@ -5283,9 +5248,6 @@ torirsserver-cache: check-crystal-set-contract check-design-panel
 	@# so a missing base is a narrower cache, not an error.
 	rm -rf $(TORIRSSERVER_CACHE_DIR)
 	cd $(REPO_ROOT) && \
-		if [ -z "$$CACHEPACK_CS2_NAMES" ] && [ -d "$(RUNESTAR_CS2_NAMES)" ]; then \
-			export CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)"; \
-		fi; \
 		$(CACHEPACK_BIN) pack \
 		--src $(TORIRSSERVER_CONTENT_DIR) \
 		$(if $(wildcard $(TORIRSSERVER_CACHE_BASE)),--base $(TORIRSSERVER_CACHE_BASE),) \
@@ -5510,11 +5472,10 @@ test-summoning-byte-identity:
 # Based on cache.osrs239.baked, so the flag-on cache is the ordinary content
 # plus the lane rather than the pristine cache plus the lane.
 #
-# The two assertions after the pack are the ones that matter. `cachepack pack`
-# reports `script failed` and `codec-declined` counts and still exits zero: a
-# clientscript that fails to compile silently ships the BASE cache's bytes for
-# that id, so the only proof the patches landed is to decompile them back out
-# and look for the third book's arm.
+# The two assertions after the pack decompile the patches back out and look for
+# the third book's arm. `cachepack pack` itself now fails on a script that does
+# not compile or does not link, so a pack that exits zero shipped every script
+# the tree states; the assertions check the lane's own content landed.
 CURSES_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239.baked
 CURSES_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.curses
 CURSES_OVERLAY_DIR = $(REPO_ROOT)/build/curses-overlay
@@ -5529,7 +5490,7 @@ torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test
 	@cd $(REPO_ROOT) && python3 tools/stage_curses_overlay.py \
 		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(CURSES_OVERLAY_DIR)
 	rm -rf "$(CURSES_CACHE_DIR)"
-	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
+	@cd $(REPO_ROOT) && \
 		$(CACHEPACK_BIN) pack --src $(CURSES_OVERLAY_DIR) \
 		--base $(CURSES_CACHE_BASE) --out $(CURSES_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals
@@ -5611,7 +5572,7 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 	@cd $(REPO_ROOT) && python3 tools/stage_summoning_overlay.py \
 		--tree $(TORIRSSERVER_CONTENT_DIR) --out $(SUMMONING_OVERLAY_DIR)
 	rm -rf "$(SUMMONING_CACHE_DIR)"
-	@cd $(REPO_ROOT) && CACHEPACK_CS2_NAMES="$(RUNESTAR_CS2_NAMES)" \
+	@cd $(REPO_ROOT) && \
 		$(CACHEPACK_BIN) pack --src $(SUMMONING_OVERLAY_DIR) \
 		--base $(SUMMONING_CACHE_BASE) --out $(SUMMONING_CACHE_DIR) \
 		--rev osrs239 --assets --binary --gamevals

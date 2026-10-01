@@ -30,6 +30,7 @@
 #include "cs2_lossless.h"
 #include "cs2_support.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -1185,6 +1186,23 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
         return;
     }
 
+    enum RSCache_CS2_Type param_types[64];
+    int param_count = -1;
+    if( cc->options && cc->options->script_params.load )
+        param_count = cc->options->script_params.load(
+            cc->options->script_params.user, callee_id, param_types,
+            (int)(sizeof(param_types) / sizeof(param_types[0])));
+
+    /* A header lists a script's int-stack parameters before its string-stack
+     * ones, while a call passes them interleaved in their real order — bytecode
+     * keeps only the two counts — so argument i is not parameter i. What the type
+     * decides at a call is whether a quoted literal is a graphic: when the callee
+     * takes one, a literal that names a graphic is pushed as its id. */
+    bool takes_graphic = false;
+    for( int i = 0; i < param_count; i++ )
+        if( param_types[i] == RSCACHE_CS2_TYPE_GRAPHIC )
+            takes_graphic = true;
+
     if( cs2_cc_accept_punct(cc, '(') )
     {
         while( !cs2_cc_at_punct(cc, ')') && !cc->failed && cc->token.kind != CS2_CC_TOK_END )
@@ -1195,7 +1213,14 @@ cs2_cc_proc_call(struct cs2_cc_compiler* cc)
              * inner subtraction unwrapped. `cs2_cc_command_arguments` already
              * allowed for that; a proc call did not, and refused 18 scripts of
              * cache.osrs239 on the closing parenthesis. */
-            cs2_cc_argument(cc, RSCACHE_CS2_TYPE_NONE);
+            enum RSCache_CS2_Type expected = RSCACHE_CS2_TYPE_NONE;
+            int graphic_id = -1;
+            if( takes_graphic && cc->token.kind == CS2_CC_TOK_STRING &&
+                (RSCache_CS2_NamesLookupId(
+                     cs2_cc_names(cc), RSCACHE_CS2_NAMES_GRAPHIC, cc->token.text, &graphic_id) ||
+                 cs2_cc_parse_id_suffixed(cc->token.text, &graphic_id)) )
+                expected = RSCACHE_CS2_TYPE_GRAPHIC;
+            cs2_cc_argument(cc, expected);
             if( !cs2_cc_accept_punct(cc, ',') )
                 break;
         }
@@ -2539,6 +2564,18 @@ cs2_cc_condition(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass, struct c
 static void
 cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
 {
+    /* `$graphic5 = "bankbuttons,2"`: a quoted graphic is pushed as an id only
+     * when the expected type says graphic, so a comparison against a typed local
+     * hands that type to its right-hand side. Without it the literal went on the
+     * string stack and `branch_equals` popped a string as an int. */
+    enum RSCache_CS2_Type right_expected = RSCACHE_CS2_TYPE_NONE;
+    if( cc->token.kind == CS2_CC_TOK_LOCAL && cs2_cc_peek(cc)->kind == CS2_CC_TOK_PUNCT )
+    {
+        int local = cs2_cc_find_local(cc, cc->token.text);
+        if( local >= 0 && !cc->locals[local].is_array )
+            right_expected = cc->locals[local].type;
+    }
+
     cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
     if( cc->failed )
         return;
@@ -2570,7 +2607,7 @@ cs2_cc_comparison(struct cs2_cc_compiler* cc, struct cs2_cc_jumps* pass)
         return;
     }
     cs2_cc_next(cc);
-    cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+    cs2_cc_expression(cc, right_expected);
     if( cc->failed )
         return;
     cs2_cc_jumps_add(cc, pass, cs2_cc_emit(cc, opcode, 0));
@@ -3037,9 +3074,15 @@ cs2_cc_return(struct cs2_cc_compiler* cc)
 {
     if( cs2_cc_accept_punct(cc, '(') )
     {
+        /* Each value is compiled as the type the header declares for its slot,
+         * so `return("premier_gold")` from a `(graphic)` script pushes the
+         * sprite's id rather than the string. */
+        int index = 0;
         while( !cs2_cc_at_punct(cc, ')') && !cc->failed && cc->token.kind != CS2_CC_TOK_END )
         {
-            cs2_cc_expression(cc, RSCACHE_CS2_TYPE_NONE);
+            cs2_cc_expression(
+                cc, index < cc->return_type_count ? cc->return_types[index] : RSCACHE_CS2_TYPE_NONE);
+            index++;
             if( !cs2_cc_accept_punct(cc, ',') )
                 break;
         }
@@ -3215,6 +3258,9 @@ cs2_cc_emit_call_discards(struct cs2_cc_compiler* cc, int mark)
         {
         case RSCACHE_CS2_CMD_BASIC:
         case RSCACHE_CS2_CMD_TYPED_POP:
+        /* `cc_find_param`'s *arguments* depend on the param's type; what it
+         * pushes is fixed (one int, found or not), so its defs say what to drop. */
+        case RSCACHE_CS2_CMD_FIND_PARAM:
             for( int i = 0; i < info->def_count && count < 64; i++ )
             {
                 const struct RSCache_CS2_Prototype* proto =
@@ -3998,4 +4044,45 @@ RSCache_CS2_Compile(
     }
     RSCache_CS2_ArenaFree(&cc.arena);
     return ok;
+}
+
+int
+RSCache_CS2_HeaderParamTypes(const char* source, enum RSCache_CS2_Type* out, int capacity)
+{
+    assert(source);
+    assert(out);
+    /* The header is the first line that opens a bracket; `// <id>` banners and
+     * metadata comments come before it. */
+    const char* line = source;
+    while( *line && *line != '[' )
+    {
+        const char* next = strchr(line, '\n');
+        if( !next )
+            return -1;
+        line = next + 1;
+    }
+    const char* close = strchr(line, ']');
+    if( !close || close[1] != '(' )
+        return -1;
+    const char* cursor = close + 2;
+    int count = 0;
+    while( *cursor && *cursor != ')' && *cursor != '\n' )
+    {
+        while( *cursor == ' ' || *cursor == ',' )
+            cursor++;
+        char word[32];
+        int length = 0;
+        while( *cursor && *cursor != ' ' && *cursor != ')' && *cursor != ',' && length < 31 )
+            word[length++] = *cursor++;
+        word[length] = '\0';
+        if( length == 0 )
+            break;
+        /* `type $name` — skip to past the name. */
+        while( *cursor && *cursor != ',' && *cursor != ')' && *cursor != '\n' )
+            cursor++;
+        if( count < capacity )
+            out[count] = RSCache_CS2_TypeOfLiteral(word);
+        count++;
+    }
+    return count < capacity ? count : capacity;
 }

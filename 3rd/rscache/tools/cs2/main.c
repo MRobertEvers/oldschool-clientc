@@ -31,6 +31,7 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -322,6 +323,8 @@ struct options
     const char* cache_directory;
     const char* raw_directory;
     const char* names_directory;
+    /** `--settings`: a decompile settings file (`[trigger]` pins). */
+    const char* settings_path;
     const char* source_path;
     const char* out_directory;
     const char* revision_name;
@@ -345,7 +348,7 @@ usage(void)
     fprintf(
         stderr,
         "usage:\n"
-        "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--out DIR]\n"
+        "  cs2 decompile (--cache DIR | --raw DIR) [--names DIR] [--settings FILE] [--out DIR]\n"
         "                [--emit (cs2|ast-json)] [id ...]\n"
         "  cs2 compile   --src (DIR|FILE) [--raw DIR] [--names DIR] [--out DIR] [id ...]\n"
         "  cs2 roundtrip (--cache DIR | --raw DIR) [--names DIR] [--dump DIR] [id ...]\n"
@@ -485,6 +488,48 @@ run_codec(struct options* options, struct script_store* store, int* ids, int id_
     return 0;
 }
 
+/*
+ * Pin every script's header trigger before decompiling any of them: the settings
+ * file first (it wins), then a scan of how the whole store calls each script —
+ * the whole store, not just the ids asked for, because a script's callers can be
+ * anywhere. Returns false when the settings file is malformed.
+ */
+static bool
+pin_script_triggers(
+    struct options* options,
+    struct script_store* store,
+    const struct RSCache_CS2_DecompileOptions* decompile_options,
+    struct RSCache_CS2_Names* names)
+{
+    if( options->settings_path )
+    {
+        char error[512] = "";
+        int loaded = RSCache_CS2_NamesLoadDecompileSettings(
+            names, options->settings_path, error, (int)sizeof(error));
+        if( loaded < 0 )
+        {
+            fprintf(stderr, "%s\n", error);
+            return false;
+        }
+        fprintf(stderr, "settings: %d trigger pin(s) from %s\n", loaded, options->settings_path);
+    }
+
+    int all_count = 0;
+    int* all_ids = store->raw_directory ? list_raw_ids(store->raw_directory, &all_count)
+                   : store->have_cache  ? list_cache_ids(store, &all_count)
+                                        : NULL;
+    if( all_ids )
+    {
+        int both = 0;
+        int pinned =
+            RSCache_CS2_ScanCallTriggers(all_ids, all_count, decompile_options, names, &both);
+        fprintf(stderr, "call scan: %d script trigger(s) pinned from %d scripts (%d called and bound)\n",
+                pinned, all_count, both);
+        free(all_ids);
+    }
+    return true;
+}
+
 static int
 run_decompile(struct options* options, struct script_store* store, int* ids, int id_count)
 {
@@ -509,6 +554,12 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
 
     /* CLI listings are intended to compile back byte-for-byte. */
     decompile_options.lossless = true;
+
+    if( !pin_script_triggers(options, store, &decompile_options, &names) )
+    {
+        RSCache_CS2_NamesFree(&names);
+        return 2;
+    }
 
     if( options->out_directory )
         tool_mkdir(options->out_directory);
@@ -570,6 +621,26 @@ run_decompile(struct options* options, struct script_store* store, int* ids, int
  * Output file names are the script id, matching the layout `--raw` reads, so a
  * compile can be fed straight back to a decompile.
  */
+/* Declared parameter types per script id, read off the source headers the
+ * batch is compiling — what `~call` arguments are typed against. */
+#define HEADER_PARAMS_MAX_ID 65536
+struct header_params
+{
+    int count;
+    enum RSCache_CS2_Type types[64];
+};
+
+static int
+header_params_load(void* user, int script_id, enum RSCache_CS2_Type* out, int capacity)
+{
+    struct header_params** table = user;
+    if( script_id < 0 || script_id >= HEADER_PARAMS_MAX_ID || !table[script_id] )
+        return -1;
+    int count = table[script_id]->count < capacity ? table[script_id]->count : capacity;
+    memcpy(out, table[script_id]->types, (size_t)count * sizeof(out[0]));
+    return count;
+}
+
 static int
 run_compile(struct options* options, struct script_store* store, int* ids, int id_count)
 {
@@ -595,6 +666,15 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
     compile_options.db_columns.user = db_columns;
     compile_options.db_columns.load = tool_db_columns_lookup;
     compile_options.names = &names;
+    struct header_params** header_params = calloc(HEADER_PARAMS_MAX_ID, sizeof(*header_params));
+    assert(header_params);
+    /* CS2_UNTYPED_CALLS=1 compiles `~call` arguments untyped, as before the
+     * header types were read — for measuring what the typing changes. */
+    if( !getenv("CS2_UNTYPED_CALLS") )
+    {
+        compile_options.script_params.user = header_params;
+        compile_options.script_params.load = header_params_load;
+    }
 
     if( !options->source_path )
     {
@@ -653,6 +733,19 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
             header = newline + 1;
         }
         const char* close = *header == '[' ? strchr(header, ']') : NULL;
+        if( script_id >= 0 && script_id < HEADER_PARAMS_MAX_ID && close )
+        {
+            struct header_params* params = calloc(1, sizeof(*params));
+            assert(params);
+            params->count = RSCache_CS2_HeaderParamTypes((const char*)seed_text, params->types, 64);
+            if( params->count < 0 )
+                free(params);
+            else
+            {
+                free(header_params[script_id]);
+                header_params[script_id] = params;
+            }
+        }
         if( script_id >= 0 && close )
         {
             size_t header_length = (size_t)(close - header + 1);
@@ -723,6 +816,9 @@ run_compile(struct options* options, struct script_store* store, int* ids, int i
     fprintf(stderr, "compiled %d, failed %d\n", ok, failed);
     tool_db_columns_free(db_columns);
     RSCache_CS2_NamesFree(&names);
+    for( int id = 0; id < HEADER_PARAMS_MAX_ID; id++ )
+        free(header_params[id]);
+    free(header_params);
     return failed == 0 ? 0 : 1;
 }
 
@@ -1566,6 +1662,8 @@ main(int argc, char** argv)
             options.raw_directory = argv[++i];
         else if( strcmp(argv[i], "--names") == 0 && i + 1 < argc )
             options.names_directory = argv[++i];
+        else if( strcmp(argv[i], "--settings") == 0 && i + 1 < argc )
+            options.settings_path = argv[++i];
         else if( strcmp(argv[i], "--src") == 0 && i + 1 < argc )
             options.source_path = argv[++i];
         else if( strcmp(argv[i], "--out") == 0 && i + 1 < argc )

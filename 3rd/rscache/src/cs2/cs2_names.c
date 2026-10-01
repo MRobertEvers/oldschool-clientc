@@ -42,6 +42,106 @@ static const struct cs2_name_file cs2_name_files[] = {
 
 #define CS2_NAME_FILE_COUNT ((int)(sizeof(cs2_name_files) / sizeof(cs2_name_files[0])))
 
+/* The dialect's fixed enumerations, seeded by RSCache_CS2_NamesInit. */
+struct cs2_dialect_name
+{
+    enum RSCache_CS2_NameTable table;
+    int value;
+    const char* name;
+};
+
+static const struct cs2_dialect_name cs2_dialect_names[] = {
+    { RSCACHE_CS2_NAMES_IFTYPE, 3, "rectangle" },
+    { RSCACHE_CS2_NAMES_IFTYPE, 4, "text" },
+    { RSCACHE_CS2_NAMES_IFTYPE, 5, "graphic" },
+    { RSCACHE_CS2_NAMES_IFTYPE, 6, "model" },
+    { RSCACHE_CS2_NAMES_IFTYPE, 9, "line" },
+
+    { RSCACHE_CS2_NAMES_SETSIZE, 0, "abs" },
+    { RSCACHE_CS2_NAMES_SETSIZE, 1, "minus" },
+    { RSCACHE_CS2_NAMES_SETSIZE, 2, "2" },
+
+    { RSCACHE_CS2_NAMES_SETPOSH, 0, "abs_left" },
+    { RSCACHE_CS2_NAMES_SETPOSH, 1, "abs_centre" },
+    { RSCACHE_CS2_NAMES_SETPOSH, 2, "abs_right" },
+    { RSCACHE_CS2_NAMES_SETPOSH, 3, "3" },
+    { RSCACHE_CS2_NAMES_SETPOSH, 4, "4" },
+    { RSCACHE_CS2_NAMES_SETPOSH, 5, "5" },
+    { RSCACHE_CS2_NAMES_SETPOSV, 0, "abs_top" },
+    { RSCACHE_CS2_NAMES_SETPOSV, 1, "abs_centre" },
+    { RSCACHE_CS2_NAMES_SETPOSV, 2, "abs_bottom" },
+    { RSCACHE_CS2_NAMES_SETPOSV, 3, "3" },
+    { RSCACHE_CS2_NAMES_SETPOSV, 4, "4" },
+    { RSCACHE_CS2_NAMES_SETPOSV, 5, "5" },
+
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNH, 0, "left" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNH, 1, "centre" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNH, 2, "right" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNV, 0, "top" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNV, 1, "centre" },
+    { RSCACHE_CS2_NAMES_SETTEXTALIGNV, 2, "bottom" },
+
+    { RSCACHE_CS2_NAMES_CHATFILTER, 0, "on" },
+    { RSCACHE_CS2_NAMES_CHATFILTER, 1, "friends" },
+    { RSCACHE_CS2_NAMES_CHATFILTER, 2, "off" },
+    { RSCACHE_CS2_NAMES_CHATFILTER, 3, "hide" },
+    { RSCACHE_CS2_NAMES_CHATFILTER, 4, "autochat" },
+
+    { RSCACHE_CS2_NAMES_CHATTYPE, 0, "gamemessage" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 1, "modchat" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 2, "publicchat" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 3, "privatechat" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 5, "loginlogoutnotification" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 6, "privatechatout" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 7, "modprivatechat" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 9, "friendschat" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 11, "friendschatnotification" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 14, "broadcast" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 90, "autotyper" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 91, "modautotyper" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 101, "tradereq" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 102, "trade" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 103, "chalreq_trade" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 104, "chalreq_friendschat" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 106, "playerrelated" },
+    { RSCACHE_CS2_NAMES_CHATTYPE, 107, "10sectimeout" },
+
+    { RSCACHE_CS2_NAMES_CLIENTTYPE, 3, "ios" },
+    { RSCACHE_CS2_NAMES_CLIENTTYPE, 4, "enhanced" },
+
+    { RSCACHE_CS2_NAMES_KEY, 13, "escape" },
+    { RSCACHE_CS2_NAMES_KEY, 32, "q" },
+    { RSCACHE_CS2_NAMES_KEY, 33, "w" },
+    { RSCACHE_CS2_NAMES_KEY, 34, "e" },
+    { RSCACHE_CS2_NAMES_KEY, 35, "r" },
+    { RSCACHE_CS2_NAMES_KEY, 36, "t" },
+    { RSCACHE_CS2_NAMES_KEY, 37, "y" },
+    { RSCACHE_CS2_NAMES_KEY, 38, "u" },
+    { RSCACHE_CS2_NAMES_KEY, 39, "i" },
+    { RSCACHE_CS2_NAMES_KEY, 40, "o" },
+    { RSCACHE_CS2_NAMES_KEY, 41, "p" },
+    { RSCACHE_CS2_NAMES_KEY, 48, "a" },
+    { RSCACHE_CS2_NAMES_KEY, 49, "s" },
+    { RSCACHE_CS2_NAMES_KEY, 50, "d" },
+    { RSCACHE_CS2_NAMES_KEY, 51, "f" },
+    { RSCACHE_CS2_NAMES_KEY, 52, "g" },
+    { RSCACHE_CS2_NAMES_KEY, 53, "h" },
+    { RSCACHE_CS2_NAMES_KEY, 54, "j" },
+    { RSCACHE_CS2_NAMES_KEY, 55, "k" },
+    { RSCACHE_CS2_NAMES_KEY, 56, "l" },
+    { RSCACHE_CS2_NAMES_KEY, 64, "z" },
+    { RSCACHE_CS2_NAMES_KEY, 65, "x" },
+    { RSCACHE_CS2_NAMES_KEY, 66, "c" },
+    { RSCACHE_CS2_NAMES_KEY, 67, "v" },
+    { RSCACHE_CS2_NAMES_KEY, 68, "b" },
+    { RSCACHE_CS2_NAMES_KEY, 69, "n" },
+    { RSCACHE_CS2_NAMES_KEY, 70, "m" },
+    { RSCACHE_CS2_NAMES_KEY, 80, "tab" },
+    { RSCACHE_CS2_NAMES_KEY, 83, "space" },
+    { RSCACHE_CS2_NAMES_KEY, 84, "return" },
+    { RSCACHE_CS2_NAMES_KEY, 85, "backspace" },
+};
+
 void
 RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
 {
@@ -51,6 +151,7 @@ RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
         RSCache_CS2_IntMapInit(&names->tables[i]);
     RSCache_CS2_IntMapInit(&names->script_names);
     RSCache_CS2_IntMapInit(&names->param_types);
+    RSCache_CS2_IntMapInit(&names->script_triggers);
 
     /* `false` and `true` are seeded, not loaded.
      *
@@ -84,6 +185,18 @@ RSCache_CS2_NamesInit(struct RSCache_CS2_Names* names)
     RSCache_CS2_IntMapPut(
         &names->tables[RSCACHE_CS2_NAMES_WINDOWMODE], 2,
         RSCache_CS2_ArenaStrDup(&names->arena, "resizable"));
+
+    /* The rest of the dialect's own enumerations, on the same grounds: they are
+     * the client's fixed vocabulary for layout, chat and input, not names of
+     * cache records, so a content tree has nowhere to state them. Without them
+     * `cachepack` needed an outside name directory to compile any script that
+     * spells `^iftype_graphic` or `^setsize_abs`. Only the spellings osrs239's
+     * scripts use are listed, and each value is pinned by a byte-exact
+     * recompile of the pristine cache, not taken on trust. */
+    for( size_t i = 0; i < sizeof(cs2_dialect_names) / sizeof(cs2_dialect_names[0]); i++ )
+        RSCache_CS2_IntMapPut(
+            &names->tables[cs2_dialect_names[i].table], cs2_dialect_names[i].value,
+            RSCache_CS2_ArenaStrDup(&names->arena, cs2_dialect_names[i].name));
 }
 
 void
@@ -95,6 +208,7 @@ RSCache_CS2_NamesFree(struct RSCache_CS2_Names* names)
         RSCache_CS2_IntMapFree(&names->tables[i]);
     RSCache_CS2_IntMapFree(&names->script_names);
     RSCache_CS2_IntMapFree(&names->param_types);
+    RSCache_CS2_IntMapFree(&names->script_triggers);
     RSCache_CS2_ArenaFree(&names->arena);
 }
 
@@ -767,4 +881,118 @@ RSCache_CS2_NamesFormatInt(
     default:
         return false;
     }
+}
+
+void
+RSCache_CS2_NamesSet(
+    struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    int id,
+    const char* name)
+{
+    assert(names);
+    assert(name);
+    assert(table >= 0);
+    assert(table < RSCACHE_CS2_NAMES_TABLE_COUNT);
+    RSCache_CS2_IntMapPut(&names->tables[table], id, RSCache_CS2_ArenaStrDup(&names->arena, name));
+}
+
+void
+RSCache_CS2_NamesSetScriptTrigger(
+    struct RSCache_CS2_Names* names,
+    int script_id,
+    enum RSCache_CS2_Trigger trigger)
+{
+    assert(names);
+    assert(script_id >= 0);
+    assert(trigger == RSCACHE_CS2_TRIGGER_PROC || trigger == RSCACHE_CS2_TRIGGER_CLIENTSCRIPT);
+    RSCache_CS2_IntMapPut(&names->script_triggers, script_id, (void*)(intptr_t)trigger);
+}
+
+enum RSCache_CS2_Trigger
+RSCache_CS2_NamesScriptTrigger(const struct RSCache_CS2_Names* names, int script_id)
+{
+    assert(names);
+    intptr_t stored = (intptr_t)RSCache_CS2_IntMapGet(&names->script_triggers, script_id);
+    if( stored == 0 )
+        return RSCACHE_CS2_TRIGGER_NONE;
+    return (enum RSCache_CS2_Trigger)stored;
+}
+
+static char*
+cs2_settings_trim(char* text)
+{
+    while( *text == ' ' || *text == '\t' )
+        text++;
+    char* end = text + strlen(text);
+    while( end > text && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n') )
+        *--end = '\0';
+    return text;
+}
+
+int
+RSCache_CS2_NamesLoadDecompileSettings(
+    struct RSCache_CS2_Names* names,
+    const char* path,
+    char* error,
+    int error_capacity)
+{
+    assert(names);
+    assert(path);
+    FILE* file = fopen(path, "r");
+    if( !file )
+        return 0;
+
+    char line[1024];
+    int line_number = 0;
+    int loaded = 0;
+    bool in_trigger = false;
+    while( fgets(line, (int)sizeof(line), file) )
+    {
+        line_number++;
+        char* comment = strchr(line, ';');
+        if( comment )
+            *comment = '\0';
+        char* text = cs2_settings_trim(line);
+        if( text[0] == '\0' )
+            continue;
+        if( text[0] == '[' )
+        {
+            in_trigger = strcmp(text, "[trigger]") == 0;
+            continue;
+        }
+        if( !in_trigger )
+            continue;
+
+        char* equals = strchr(text, '=');
+        if( equals )
+            *equals = '\0';
+        char* id_text = cs2_settings_trim(text);
+        char* id_end = NULL;
+        long id = equals ? strtol(id_text, &id_end, 10) : -1;
+        if( !equals || id_end == id_text || *id_end != '\0' || id < 0 )
+        {
+            snprintf(error, (size_t)error_capacity,
+                     "%s:%d: expected `<script id> = proc|clientscript`", path, line_number);
+            fclose(file);
+            return -1;
+        }
+        const char* value = cs2_settings_trim(equals + 1);
+        enum RSCache_CS2_Trigger trigger = RSCACHE_CS2_TRIGGER_NONE;
+        if( strcmp(value, "proc") == 0 )
+            trigger = RSCACHE_CS2_TRIGGER_PROC;
+        else if( strcmp(value, "clientscript") == 0 )
+            trigger = RSCACHE_CS2_TRIGGER_CLIENTSCRIPT;
+        else
+        {
+            snprintf(error, (size_t)error_capacity, "%s:%d: trigger must be proc or clientscript, not `%s`",
+                     path, line_number, value);
+            fclose(file);
+            return -1;
+        }
+        RSCache_CS2_NamesSetScriptTrigger(names, (int)id, trigger);
+        loaded++;
+    }
+    fclose(file);
+    return loaded;
 }

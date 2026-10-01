@@ -748,6 +748,24 @@ cp_binary_export(
     struct CP_Ctx* ctx,
     const char* tables_csv);
 
+/**
+ * True when `base_dir`'s main_file_cache.dat2 is the one `<srcdir>/meta.ini`
+ * records under [source] (size and crc32) — the build this tree was unpacked
+ * from. Two builds of one revision differ in records the tree may not restate,
+ * and `pack --base` keeps the base's bytes for those. A tree with no [source]
+ * passes; a mismatch prints both identities and fails.
+ */
+int
+cp_check_base_identity(const char* srcdir, const char* base_dir);
+
+/**
+ * Interpret every script in the packed cache against that cache's own callees
+ * and fail on any that does not hold together (wrong gosub stack types, an
+ * underflow, a mistyped return). Returns 1 when all link.
+ */
+int
+cp_scripts_link_check(struct CP_Ctx* ctx);
+
 int
 cp_binary_import(
     struct CP_Ctx* ctx,

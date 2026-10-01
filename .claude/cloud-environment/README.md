@@ -23,8 +23,7 @@ Environment edits apply to **new** sessions only.
 | `libsdl2-dev libgl1-mesa-dev imagemagick xdotool` | setup script, else the hook | Xvfb is already in the base image |
 | `Client-TS` submodule | hook | public |
 | `OSRS-Content` submodule | hook | **private** — the session must be granted `MRobertEvers/OSRS-Content` first; the hook warns and continues if it cannot clone |
-| RuneStar cs2 name tables | hook → `~/Documents/git_repos/cs2` | where `RUNESTAR_CS2_NAMES` looks; the cache bake needs them |
-| `cache.osrs239/` | hook → `tools/fetch_cache_osrs239.sh` | OpenRS2 #2644, ~180 MB zip; skipped when already present |
+| `cache.osrs239/` | hook → `tools/fetch_cache_osrs239.sh` | OpenRS2 #2639, the build the content tree was unpacked from; ~180 MB zip; skipped when already present |
 
 The client build is left to the session (`make -C src release`, ~1 min).
 

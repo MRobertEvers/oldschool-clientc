@@ -1,3 +1,4 @@
+#include <assert.h>
 #include "cachepack.h"
 #include "tool_posix_compat.h"
 
@@ -538,5 +539,61 @@ cp_unpack_run(
     if( ctx->compare_open )
         printf("Review configs/_unpack/%s/ before absorbing server overlays for the new rev.\n",
                ctx->rev_name[0] ? ctx->rev_name : "?");
+    return 1;
+}
+
+int
+cp_check_base_identity(const char* srcdir, const char* base_dir)
+{
+    assert(srcdir);
+    assert(base_dir);
+    char meta[1300];
+    snprintf(meta, sizeof(meta), "%s/meta.ini", srcdir);
+    FILE* file = fopen(meta, "r");
+    if( !file )
+        return 1; /* a tree with no meta.ini states no source to hold a base to */
+
+    unsigned long long want_size = 0;
+    unsigned int want_crc = 0;
+    int have_size = 0, have_crc = 0, in_source = 0;
+    char line[512];
+    while( fgets(line, (int)sizeof(line), file) )
+    {
+        if( line[0] == '[' )
+        {
+            in_source = strncmp(line, "[source]", 8) == 0;
+            continue;
+        }
+        if( !in_source )
+            continue;
+        if( sscanf(line, "dat2_size = %llu", &want_size) == 1 )
+            have_size = 1;
+        else if( sscanf(line, "dat2_crc32 = %x", &want_crc) == 1 )
+            have_crc = 1;
+    }
+    fclose(file);
+    if( !have_size || !have_crc )
+        return 1;
+
+    char dat2[1300];
+    uint32_t crc = 0;
+    unsigned long long size = 0;
+    snprintf(dat2, sizeof(dat2), "%s/main_file_cache.dat2", base_dir);
+    if( !file_digest(dat2, &crc, &size) )
+    {
+        fprintf(stderr, "cachepack: cannot read %s to check it is the tree's source cache\n", dat2);
+        return 0;
+    }
+    if( size != want_size || crc != want_crc )
+    {
+        fprintf(stderr,
+                "cachepack: --base %s is not the cache this tree was unpacked from\n"
+                "cachepack:   %s/meta.ini [source]: dat2 %llu bytes, crc32 %08x\n"
+                "cachepack:   %s: dat2 %llu bytes, crc32 %08x\n"
+                "cachepack: every record the tree does not restate would keep the other "
+                "build's bytes — a cache of two builds at once\n",
+                base_dir, srcdir, want_size, want_crc, dat2, size, crc);
+        return 0;
+    }
     return 1;
 }

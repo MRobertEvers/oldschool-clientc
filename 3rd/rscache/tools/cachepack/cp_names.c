@@ -1079,41 +1079,43 @@ archive_name_hashes_to(
     return RSCache_ArchiveNameHashDat2((char*)name) == identifier;
 }
 
-/**
- * `hashname("N")` when a script's cache name is the type/global integer the
- * client hashes (world-map `"3338"`, tile `"-464"`).
+/*
+ * A font's metrics archive and its glyph sprites share an id, and the cache names
+ * both the same: the font archive's identifier is djb2 of the sprite's name. So a
+ * font the gameval pass left unnamed takes its sprite's name exactly when that
+ * name hashes to the font's own identifier — proven, not assumed. Without this
+ * every font but three unpacked as `font_<id>` and a script spelling `b12_full`
+ * had nothing to resolve against.
  */
-static int
-script_integer_hashname(
-    const char* cache_name,
-    int identifier,
-    char* out,
-    size_t out_size)
+static void
+name_fonts_from_sprites(struct CP_Ctx* ctx)
 {
-    struct RSCache_CS2_Arena arena;
-    struct RSCache_CS2_ScriptName parsed;
-    char* end = NULL;
-    long n;
-
-    if( !cache_name || cache_name[0] == '[' )
-        return 0;
-    n = strtol(cache_name, &end, 10);
-    if( !end || end == cache_name || *end != '\0' )
-        return 0;
-    if( n < (long)(-2147483647 - 1) || n > 2147483647L )
-        return 0;
-
-    RSCache_CS2_ArenaInit(&arena);
-    memset(&parsed, 0, sizeof(parsed));
-    if( !RSCache_CS2_ScriptNameParse(cache_name, &arena, &parsed) )
+    int table_id = RSCache_Dat2DiskTableId(ctx->cache.disk, cp_asset(CP_ASSET_FONT)->table);
+    if( table_id == RSCACHE_DAT2_DISK_TABLE_ABSENT )
+        return;
+    struct RSCache_ReferenceTable* rt = ctx->cache.disk->tables[table_id];
+    if( !rt )
+        return;
+    struct LC_Pack* fonts = &ctx->names.asset_packs[CP_ASSET_FONT];
+    const struct LC_Pack* sprites = &ctx->names.asset_packs[CP_ASSET_SPRITE];
+    int named = 0;
+    for( int i = 0; i < rt->id_count; i++ )
     {
-        RSCache_CS2_ArenaFree(&arena);
-        return 0;
+        int id = rt->ids[i];
+        if( id < 0 || (id < fonts->capacity && fonts->names && fonts->names[id]) )
+            continue;
+        if( id >= sprites->capacity || !sprites->names || !sprites->names[id] )
+            continue;
+        const char* hashname = lc_pack_hashname(sprites, id);
+        const char* name = hashname ? hashname : sprites->names[id];
+        if( archive_name_hashes_to(name, RSCache_ReferenceTableIdentifier(rt, id)) )
+        {
+            lc_pack_set(fonts, id, sprites->names[id]);
+            named++;
+        }
     }
-    RSCache_CS2_ArenaFree(&arena);
-
-    snprintf(out, out_size, "%d", (int)n);
-    return archive_name_hashes_to(out, identifier);
+    if( named )
+        printf("  %-11s %6d font(s) named after their glyph sprites\n", "index", named);
 }
 
 /**
@@ -1124,21 +1126,9 @@ script_integer_hashname(
 static void
 seed_asset_hash_fields(struct CP_Ctx* ctx)
 {
-    struct RSCache_CS2_Names script_names;
-    int scripts_named = 0;
-    const char* names_dir;
-
-    memset(&script_names, 0, sizeof(script_names));
-    names_dir = getenv("CACHEPACK_CS2_NAMES");
-    if( names_dir )
-    {
-        RSCache_CS2_NamesInit(&script_names);
-        if( RSCache_CS2_NamesLoadDirectory(&script_names, names_dir) >= 0 )
-            scripts_named = 1;
-        else
-            RSCache_CS2_NamesFree(&script_names);
-    }
-
+    /* Names come from the tree and the cache, never an outside corpus: a name
+     * the tree does not state is recorded as the cache's own `hashcode(N)`,
+     * which reproduces the identifier exactly. */
     for( int a = 0; a < CP_ASSET_COUNT; a++ )
     {
         const struct CP_Asset* asset = cp_asset(a);
@@ -1158,8 +1148,6 @@ seed_asset_hash_fields(struct CP_Ctx* ctx)
             int id = rt->ids[i];
             int identifier;
             const char* pack_name;
-            const char* recovered = NULL;
-            char integer_name[16];
 
             if( id < 0 )
                 continue;
@@ -1216,27 +1204,10 @@ seed_asset_hash_fields(struct CP_Ctx* ctx)
                 }
             }
 
-            if( a == CP_ASSET_SCRIPT && scripts_named )
-                recovered = RSCache_CS2_NamesScript(&script_names, id);
-
-            if( a == CP_ASSET_SCRIPT && recovered &&
-                script_integer_hashname(recovered, identifier, integer_name, sizeof(integer_name)) )
-            {
-                lc_pack_set_hashname(pack, id, integer_name);
-                continue;
-            }
-            if( recovered && archive_name_hashes_to(recovered, identifier) )
-            {
-                lc_pack_set_hashname(pack, id, recovered);
-                continue;
-            }
-
             lc_pack_set_hashcode(pack, id, identifier);
         }
     }
 
-    if( scripts_named )
-        RSCache_CS2_NamesFree(&script_names);
 }
 
 void
@@ -1323,6 +1294,7 @@ cp_names_seed_from_cache(struct CP_Ctx* ctx)
     cp_assets_name_models(ctx);
     cp_assets_name_maps(ctx);
     cp_assets_name_worldmap(ctx);
+    name_fonts_from_sprites(ctx);
 
     /*
      * Then a line for **every** archive id in every asset table, named or not.

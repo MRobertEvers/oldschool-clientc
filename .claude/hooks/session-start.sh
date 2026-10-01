@@ -4,7 +4,7 @@
 #   - SDL2 / GL headers and the screenshot tools (if the environment's setup
 #     script has not already installed them),
 #   - both submodules on their pinned commits,
-#   - the osrs239 cache at cache.osrs239/ (OpenRS2 #2644).
+#   - the osrs239 cache at cache.osrs239/ (OpenRS2 #2639, the content tree's source build).
 # Idempotent: every step checks before it acts. See
 # .claude/cloud-environment/README.md for the environment settings it assumes.
 set -euo pipefail
@@ -33,18 +33,12 @@ if ! git submodule update --init OSRS-Content; then
 	echo "session-start:   git submodule update --init OSRS-Content" >&2
 fi
 
-# 3. RuneStar's cs2 name tables, where src/makefile's RUNESTAR_CS2_NAMES looks
-#    for them. Without them `make -C src torirsserver-cache` cannot resolve
-#    CS2 command and constant names.
-if [ ! -d "$HOME/Documents/git_repos/cs2/src/main/resources/org/runestar/cs2" ]; then
-	mkdir -p "$HOME/Documents/git_repos"
-	git clone --depth 1 https://github.com/RuneStar/cs2 "$HOME/Documents/git_repos/cs2" ||
-		echo "session-start: WARNING: could not clone RuneStar/cs2" >&2
-fi
-
-# 4. The osrs239 cache. Needs archive.openrs2.org allowed by the environment's
-#    network policy.
-if ! tools/fetch_cache_osrs239.sh; then
+# 3. The osrs239 cache: OpenRS2 #2639, the build OSRS-Content/osrs239-content
+#    was unpacked from (its meta.ini [source] dat2 crc32 d5d59ebb). `cachepack
+#    pack --base` refuses any other. Needs archive.openrs2.org allowed by the
+#    environment's network policy.
+if ! CACHE_OSRS239_URL="${CACHE_OSRS239_URL:-https://archive.openrs2.org/caches/runescape/2639/disk.zip}" \
+	tools/fetch_cache_osrs239.sh; then
 	echo "session-start: WARNING: cache.osrs239 download failed;" >&2
 	echo "session-start: is archive.openrs2.org allowed by the network policy?" >&2
 fi

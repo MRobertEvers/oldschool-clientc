@@ -71,6 +71,14 @@ struct RSCache_CS2_Names
     struct RSCache_CS2_IntMap script_names;
     /** param id -> enum RSCache_CS2_Type, stored offset by one so 0 means absent. */
     struct RSCache_CS2_IntMap param_types;
+    /**
+     * script id -> the trigger its header must carry (`proc` or `clientscript`),
+     * decided outside the script itself: by how the rest of the cache calls it
+     * (RSCache_CS2_ScanCallTriggers) or by a settings file
+     * (RSCache_CS2_NamesLoadDecompileSettings). Consulted before a script's own
+     * name, which keeps its subject and loses its trigger to this.
+     */
+    struct RSCache_CS2_IntMap script_triggers;
 };
 
 void
@@ -164,6 +172,51 @@ RSCache_CS2_NamesSetScript(
     struct RSCache_CS2_Names* names,
     int script_id,
     const char* name);
+
+/** Name record `id` in `table` — from a content tree, say. Replaces what it held. */
+void
+RSCache_CS2_NamesSet(
+    struct RSCache_CS2_Names* names,
+    enum RSCache_CS2_NameTable table,
+    int id,
+    const char* name);
+
+/**
+ * Pin the trigger a script's header carries: RSCACHE_CS2_TRIGGER_PROC or
+ * RSCACHE_CS2_TRIGGER_CLIENTSCRIPT. Replaces what the id held.
+ */
+void
+RSCache_CS2_NamesSetScriptTrigger(
+    struct RSCache_CS2_Names* names,
+    int script_id,
+    enum RSCache_CS2_Trigger trigger);
+
+/** The pinned trigger, or RSCACHE_CS2_TRIGGER_NONE. */
+enum RSCache_CS2_Trigger
+RSCache_CS2_NamesScriptTrigger(const struct RSCache_CS2_Names* names, int script_id);
+
+/**
+ * Load a decompile settings file: answers to questions one script's bytecode
+ * cannot settle, recorded so the next decompile gets them right.
+ *
+ *     [trigger]
+ *     41 = proc          ; deltooltip_action
+ *     2046 = clientscript
+ *
+ * `[trigger]` pins a script's header trigger. A proc that returns nothing and a
+ * clientscript look identical from inside; only the callers tell them apart, and
+ * a caller may not be in the cache at all (a hook bound from an interface, or a
+ * `~call` the content tree adds). Lines it pins override the call scan.
+ *
+ * Returns the number of entries loaded, 0 when the file does not exist, or -1
+ * on a malformed line with `error` naming it.
+ */
+int
+RSCache_CS2_NamesLoadDecompileSettings(
+    struct RSCache_CS2_Names* names,
+    const char* path,
+    char* error,
+    int error_capacity);
 
 /**
  * Format an int constant as source, given the prototype the solver assigned.
