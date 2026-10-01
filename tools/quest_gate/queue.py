@@ -22,19 +22,32 @@ Usage
     python3 tools/quest_gate/queue.py show <test_id> [--file PATH]
     python3 tools/quest_gate/queue.py summary [--file PATH]
 
+Claims across machines go through tools/quest_gate/claim.py (fetch, claim,
+commit, push, retry on a rejected push); see docs/QUEST_ORCHESTRATOR.md.
+
 `--file` defaults to test/quests/QUEUE.tsv; pass a copy's path (`--file
 /tmp/queue_copy.tsv`) to exercise this tool without touching the real queue.
 
 `next`: prints the first row (file order) whose `tier` matches and whose
-`status` is exactly `todo`. With `--claim <owner>`, that row's `status` is
-atomically rewritten to `claimed/<owner>` (not one of `set`'s four
-statuses -- a claim is a hold, not a verdict) so two workers racing `next`
-for the same tier do not both pick up the same row; nothing is written
-without `--claim`. Exits 1, printing to stderr, when no todo row matches.
+`status` is exactly `todo`. With `--claim <owner>`, that row is claimed in
+this file only (status `claimed`, owner `<owner>`, claimed_at stamped,
+claim_prev keeping the row's previous status and owner) -- a LOCAL hold; it
+is not committed or pushed, so another machine cannot see it: use claim.py
+for that. Nothing is written without `--claim`. Exits 1, printing to stderr,
+when no todo row matches.
 
-`set`: rewrites one row's `status` (one of `todo green blocked
-content_bug` -- refused otherwise, with a message), and optionally `owner`/
-`last_failure`. Refuses an unknown `test_id` with a message naming it.
+CLAIMS (2026-10-01). Two columns carry a claim: `claimed_at` (UTC ISO
+timestamp, empty when the row is not claimed) and `claim_prev` (the row's
+status and owner before the claim, as `<status>|<owner>`, so a release puts
+the row back exactly as it was). A claimed row has status `claimed` and
+owner `<batch>@<host>`. Writing any other status with `set` ends the claim:
+claimed_at and claim_prev are cleared.
+
+`set`: rewrites one row's `status` (one of `todo green blocked content_bug
+claimed` -- refused otherwise, with a message), and optionally `owner`/
+`last_failure`. `--status claimed` needs `--owner` and stamps the claim
+columns as above. Overwriting a claim held by ANOTHER batch prints a warning
+naming it (the write still happens: `set` is the queue's plain writer). Refuses an unknown `test_id` with a message naming it.
 `--status green` on a file that still calls `t.blocked(` is refused unless
 build/quest_gate/<test_id>/ledger.tsv (the same file gate.py reads) shows no
 BLOCKED row and no SUMMARY `blocked=` bucket -- a guard the run never
@@ -44,15 +57,18 @@ its reason.
 `show`: prints one row's columns, one per line. Refuses an unknown
 `test_id` the same way.
 
-`summary`: counts per tier x status, todo/green/blocked/content_bug columns
-first (in that fixed order) then any other status seen (e.g. `claimed/x`)
-appended, plus row and column totals.
+`summary`: counts per tier x status, todo/green/blocked/content_bug/claimed
+columns first (in that fixed order) then any other status seen appended,
+plus row and column totals; then one line per claimed row with its owner and
+the claim's age, marked STALE past 24 hours (docs/QUEST_ORCHESTRATOR.md:
+a stale claim with no commits from its batch may be released by anyone).
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import datetime
 import os
 import sys
 import tempfile
@@ -64,8 +80,60 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 DEFAULT_QUEUE = REPO / "test" / "quests" / "QUEUE.tsv"
 
-QUEUE_COLUMNS = ["quest_dir", "test_id", "helper_dir", "helper_file", "tier", "status", "owner", "last_failure"]
-STATUSES = ("todo", "green", "blocked", "content_bug")
+QUEUE_COLUMNS = ["quest_dir", "test_id", "helper_dir", "helper_file", "tier", "status", "owner", "last_failure",
+                 "claimed_at", "claim_prev"]
+STATUSES = ("todo", "green", "blocked", "content_bug", "claimed")
+# A row a batch may claim: anything not green and not already claimed.
+CLAIMABLE = ("todo", "blocked", "content_bug")
+STALE_CLAIM_HOURS = 24
+
+
+def utc_now_iso() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def parse_iso(text: str):
+    """claimed_at -> an aware datetime, or None when empty/unparseable."""
+    if not text:
+        return None
+    try:
+        return datetime.datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+    except ValueError:
+        return None
+
+
+def claim_age_hours(row: dict):
+    when = parse_iso(row.get("claimed_at", ""))
+    if when is None:
+        return None
+    return (datetime.datetime.now(datetime.timezone.utc) - when).total_seconds() / 3600.0
+
+
+def claim_batch(owner: str) -> str:
+    """'mac1-b47@host' -> 'mac1-b47'; an owner with no '@' is its own batch."""
+    return owner.split("@", 1)[0]
+
+
+def claim_row(row: dict, owner: str, now: str | None = None) -> None:
+    """Mark `row` claimed by `owner`, remembering what it was. Re-claiming a
+    row the same owner already holds keeps its original claim_prev."""
+    assert owner, "a claim needs an owner"
+    if row.get("status") == "claimed" and row.get("owner") == owner:
+        return
+    row["claim_prev"] = "%s|%s" % (row.get("status", ""), row.get("owner", ""))
+    row["status"] = "claimed"
+    row["owner"] = owner
+    row["claimed_at"] = now or utc_now_iso()
+
+
+def release_row(row: dict) -> None:
+    """Put a claimed row back to its pre-claim status and owner."""
+    assert row.get("status") == "claimed", "release_row on a row that is not claimed"
+    prev_status, _, prev_owner = row.get("claim_prev", "").partition("|")
+    row["status"] = prev_status or "todo"
+    row["owner"] = prev_owner
+    row["claimed_at"] = ""
+    row["claim_prev"] = ""
 
 
 def load_rows(path: Path) -> list[dict]:
@@ -164,7 +232,7 @@ def cmd_next(args: argparse.Namespace) -> int:
         if row.get("tier") == tier and row.get("status") == "todo":
             print(format_row(row))
             if args.claim:
-                row["status"] = f"claimed/{args.claim}"
+                claim_row(row, args.claim)
                 write_rows(args.file, rows)
             return 0
     print(f"no todo row at tier {args.tier} in {args.file}", file=sys.stderr)
@@ -208,9 +276,21 @@ def cmd_set(args: argparse.Namespace) -> int:
                 print(f"refusing green: {lua} still calls t.blocked( and its ledger does "
                       f"not clear it -- {reason}", file=sys.stderr)
                 return 1
-    row["status"] = args.status
-    if args.owner is not None:
-        row["owner"] = args.owner
+    if row.get("status") == "claimed" and args.owner is not None \
+            and claim_batch(row.get("owner", "")) != claim_batch(args.owner):
+        print(f"queue.py: warning: {args.test_id} is claimed by {row.get('owner')} since "
+              f"{row.get('claimed_at')} -- overwriting it as {args.owner}", file=sys.stderr)
+    if args.status == "claimed":
+        if not args.owner:
+            print("refusing --status claimed without --owner <batch>@<host>", file=sys.stderr)
+            return 1
+        claim_row(row, args.owner)
+    else:
+        row["status"] = args.status
+        row["claimed_at"] = ""
+        row["claim_prev"] = ""
+        if args.owner is not None:
+            row["owner"] = args.owner
     if args.failure is not None:
         row["last_failure"] = args.failure
     write_rows(args.file, rows)
@@ -273,6 +353,18 @@ def cmd_summary(args: argparse.Namespace) -> int:
         str(grand_by_status[s]).rjust(col_w) for s in status_order
     ) + str(grand_total).rjust(8)
     print(totals_line)
+
+    claimed = [row for row in rows if row.get("status") == "claimed"]
+    if claimed:
+        print()
+        print("claimed rows (owner, claimed_at, age):")
+        for row in claimed:
+            age = claim_age_hours(row)
+            age_text = "age ?" if age is None else "%.1f h" % age
+            stale = "  STALE (> %d h: releasable by anyone, docs/QUEST_ORCHESTRATOR.md)" % STALE_CLAIM_HOURS \
+                if age is not None and age > STALE_CLAIM_HOURS else ""
+            print("  %-22s tier %-3s %-28s %s  %s%s" % (
+                row.get("test_id"), row.get("tier"), row.get("owner"), row.get("claimed_at"), age_text, stale))
     return 0
 
 
@@ -283,7 +375,7 @@ def main() -> int:
 
     p_next = sub.add_parser("next", help="print the first todo row of a tier")
     p_next.add_argument("--tier", type=int, required=True)
-    p_next.add_argument("--claim", metavar="OWNER", help="atomically mark the row claimed/<owner>")
+    p_next.add_argument("--claim", metavar="OWNER", help="mark the row claimed by OWNER in this file only (claim.py claims across machines)")
     p_next.set_defaults(func=cmd_next)
 
     p_set = sub.add_parser("set", help="set a row's status (and optionally owner/last_failure)")
