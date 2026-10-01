@@ -216,25 +216,26 @@ return {
         local _, corpse = t.inv.count("zqzadimusbones")
         t.check("searchForCorpse-corpse", corpse == 1, "zadimus corpse count " .. tostring(corpse))
 
-        -- The caverns' own way out: the dilapidated table turned into a crude raft (rs2:674-770).
-        t.exec("goto-leaveCavernsRaft", t.player.goto_tile, 2897, 9377, 0)
-        local table_found, table_loc = t.world.loc_near("zqtableraft", 80)
-        t.check("leaveCavernsRaft-locate", table_found == "ok", "zqtableraft -> " .. tostring(table_found) .. " " .. (function() local parts = {} for k, v in pairs(table_loc or {}) do parts[#parts + 1] = tostring(k) .. "=" .. tostring(v) end return table.concat(parts, " ") end)())
-        t.exec("leaveCavernsRaft", t.player.click_loc, "zqtableraft", 2)
-        t.exec("leaveCavernsRaft-dialog", t.chat.play, {
-            "mesbox:You may be able to turn this dilapidated table",
-            "choose:A crude raft",
-            "mesbox:You see that this table already looks very sea worthy",
+        -- The guide names no way out of the caverns: its next step is buryCorpse at Tai Bwo
+        -- Wannai, and leaving the zone is what writes left_ah_za_rhoon ([queue,exit_ah_za_rhoon],
+        -- rs2:1077-1084, any route). The caverns' own exit is the waterfall path (oploc2
+        -- zqwaterfallrocks, rs2:996): "Yes" edges along it, and both its rolls (climb out, or
+        -- fall and wash out) end on the surface. The table raft (rs2:674) is the other exit and
+        -- the only one that frames the camera (rs2:738/739); the guide takes neither, so those
+        -- two sites are exempt after buryCorpse (seam34, verbs-cutscene.md).
+        t.exec("goto-leaveCavernsWaterfall", t.player.goto_tile, 2939, 9349, 0)
+        t.exec("leaveCavernsWaterfall", t.player.click_loc, "zqwaterfallrocks", 2)
+        t.exec("leaveCavernsWaterfall-dialog", t.chat.play, {
+            "mesbox:You see a huge waterfall blocking your path",
+            "choose:Yes, I'll follow the path.",
         })
-        t.exec("leaveCavernsRaft.cutscene", t.cutscene.await, "leaveCavernsRaft", { expect = {
-            { op = "moveto", coord = "0_45_146_48_7", height = 550 },
-            { op = "lookat", coord = "0_46_146_7_7" },
-            { op = "reset" },
-        } })
-        t.ticks(6)
-        local _, raft_tile = t.world.tile()
-        t.check("leaveCavernsRaft-surface", type(raft_tile) == "table" and raft_tile.z < 9000,
-            "tile x=" .. tostring(raft_tile and raft_tile.x) .. " z=" .. tostring(raft_tile and raft_tile.z))
+        t.await({ level = function()
+            local _, tile = t.world.tile()
+            return type(tile) == "table" and tile.z < 9000
+        end, note = "out of the caverns by the waterfall path" }, 20)
+        local _, out_tile = t.world.tile()
+        t.check("leaveCavernsWaterfall-surface", type(out_tile) == "table" and out_tile.z < 9000,
+            "tile x=" .. tostring(out_tile and out_tile.x) .. " z=" .. tostring(out_tile and out_tile.z))
 
         t.exec("goto-buryCorpse", t.player.goto_tile, 2796, 3088, 0)
         t.ticks(4)
@@ -255,6 +256,13 @@ return {
         t.inv.await("zqboneshard", 1, 4)
         local _, shard = t.inv.count("zqboneshard")
         t.check("buryCorpse-shard", shard == 1, "bone shard count " .. tostring(shard))
+        -- The raft's camera (cutscene_row_required): off the guide's route, so exempt, naming
+        -- the guide step driven instead. gate.py refuses this for a site a guide step reaches.
+        local raft_reason = "the guide leaves the caverns by no named step; this test left by the "
+            .. "waterfall path (leaveCavernsWaterfall) and drove buryCorpse instead of the table raft "
+            .. "([oploc2,zqtableraft], rs2:674)"
+        t.cutscene.exempt("quest_zombiequeen.rs2:738", raft_reason)
+        t.cutscene.exempt("quest_zombiequeen.rs2:739", raft_reason)
 
         t.exec("readTattered", t.player.inv_op, "zqberviriusscroll", 1)
         t.await({ level = function() return t.chat.kind() == "mesbox" end, note = "read question page" }, 6)
