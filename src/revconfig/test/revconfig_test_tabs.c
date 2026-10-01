@@ -417,10 +417,10 @@ test_shipped_tab_maps(void)
         RevConfigRefs_Get(&refs, "tabcol", "601:stats") == 1,
         "osrs239: 601 puts stats in the outer column");
     TEST_ASSERT(
-        RevConfigRefs_Get(&refs, "varbit", "sidebar_flash_tab") == 3756,
+        RevConfigRefs_Get(&refs, "varbit", "varb3756_sidebar_flash_tab") == 3756,
         "osrs239: the flash varbit is declared");
     TEST_ASSERT(
-        RevConfigRefs_Get(&refs, "varp", "special_attack_armed") == 301,
+        RevConfigRefs_Get(&refs, "varp", "varp301_special_attack_armed") == 301,
         "osrs239: the spec toggle is declared rather than derived");
     TEST_ASSERT(
         RevConfigRefs_Get(&refs, "iface", "stat_boosts") == 708, "osrs239: the stat-boosts HUD");
@@ -439,14 +439,14 @@ test_shipped_tab_maps(void)
     RevConfigRefs_Init(&refs);
     snprintf(path, sizeof(path), "%s/revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini", root);
     RevConfigRefs_LoadSources(&refs, NULL, path, NULL);
-    TEST_ASSERT(RevConfigRefs_Get(&refs, "varp", "run_mode") == 173, "rs245: the run varp");
+    TEST_ASSERT(RevConfigRefs_Get(&refs, "varp", "varp173_run_mode") == 173, "rs245: the run varp");
     TEST_ASSERT(
-        RevConfigRefs_Get(&refs, "varp", "special_attack_energy") == 300, "rs245: the spec varp");
+        RevConfigRefs_Get(&refs, "varp", "varp300_special_attack_energy") == 300, "rs245: the spec varp");
     TEST_ASSERT(RevConfigRefs_Get(&refs, "iface", "orb_run_on") == 153, "rs245: the run stone");
     TEST_ASSERT(RevConfigRefs_Get(&refs, "iface", "orb_run_off") == 152, "rs245: the walk stone");
     /* A dat1 cache has no varbit table; every name has to answer -1. */
     TEST_ASSERT(
-        RevConfigRefs_Get(&refs, "varbit", "ground_items_enabled") == -1,
+        RevConfigRefs_Get(&refs, "varbit", "varb14869_ground_items_enabled") == -1,
         "rs245 declares no varbits");
     RevConfigRefs_Free(&refs);
 }

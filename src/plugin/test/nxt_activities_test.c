@@ -401,12 +401,12 @@ static struct
     char const* name;
     int id;
 } const k_fake_cache_ids[] = {
-    { "varbit", "bird_nest", 13087 },
-    { "varbit", "cannon_low_notify", 14175 },
-    { "varbit", "cannon_low_amount", 14176 },
-    { "varbit", "cannon_no_ammo_notify", 14177 },
-    { "varp", "cannon_ammo", 3 },
-    { "varp", "cannon_coord", 3551 },
+    { "varbit", "varb13087_bird_nest", 13087 },
+    { "varbit", "varb14175_cannon_low_notify", 14175 },
+    { "varbit", "varb14176_cannon_low_amount", 14176 },
+    { "varbit", "varb14177_cannon_no_ammo_notify", 14177 },
+    { "varp", "varp3_cannon_ammo", 3 },
+    { "varp", "varp3551_cannon_coord", 3551 },
 };
 
 /** The profile's answer, without the accounting -- so the capability below can

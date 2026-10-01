@@ -80,8 +80,8 @@ test_refs(void)
     TEST_ASSERT(RevConfigRefs_Get(&refs, "script", "settings_client_apply") == 3967, "script id");
     TEST_ASSERT(RevConfigRefs_Get(&refs, "iface", "xpdrop") == 122, "iface id");
     TEST_ASSERT(
-        RevConfigRefs_Get(&refs, "varbit", "settings_last_changed") == 9657, "varbit id");
-    TEST_ASSERT(RevConfigRefs_Get(&refs, "varp", "npc_text_color") == 3541, "varp id");
+        RevConfigRefs_Get(&refs, "varbit", "varb9657_settings_last_changed") == 9657, "varbit id");
+    TEST_ASSERT(RevConfigRefs_Get(&refs, "varp", "varp3541_npc_text_color") == 3541, "varp id");
     TEST_ASSERT(RevConfigRefs_Get(&refs, "seq", "human_readyanim") == 808, "seq id");
     TEST_ASSERT(RevConfigRefs_Get(&refs, "setting", "clear_npc_tags") == 267, "setting id");
 
