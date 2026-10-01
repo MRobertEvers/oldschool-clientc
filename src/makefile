@@ -5235,6 +5235,40 @@ torirsserver-servpack: test-rs2012-server-overlay
 	cd $(REPO_ROOT) && $(CACHEPACK_BIN) pack \
 		--src $(TORIRSSERVER_CONTENT_DIR) --server-only
 
+# The client half of the same bake: the tree written back into a cache the
+# client can boot (PORTING_GUIDE Â§1, `cachepack pack âââº client cache (--out)`).
+#
+# `cache.osrs239` is the pristine unpack source and stays frozen, so nothing the
+# tree says about a *client-visible* record reached a running client until this
+# existed â a `.cs2` edit packed into no cache is an edit that ships nowhere, and
+# the Display panel's layout dropdown was the case that found it. Server-side
+# `.rs2` needs no bake because the ServerScript VM loads `script.dat` directly;
+# CS2, interfaces and configs are read out of the cache and do.
+#
+# When is a bake required at all? Only for CLIENT-visible edits: CS2 recompiles,
+# interface imports, sprites, native config fields, authored client patches.
+# Pure server work â scripts, db tables, params, varps, npc/loc server fields â
+# travels by `torirsserver-scripts` + `torirsserver-servpack` alone, and the world boots
+# from the pristine cache by default (the one-cache rule: the world reads what
+# JS5 serves; TORIRSSERVER_CACHE_DIR_DEFAULT in torirs_server.h). When you do bake, point
+# BOTH the world and JS5 at the result.
+#
+# `--base` copies the pristine cache first, so every record the tree does not
+# change keeps the bytes it had, and the output is a fresh 440M rather than an
+# in-place append that grows without bound.
+#
+# Base and output are variables, not literals, so a bake can be aimed somewhere
+# else without editing this file:
+#
+#   make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
+#
+# The default output stays `cache.osrs239.baked` because the osrs239-net profile (profiles/osrs239-net.ini)
+# and the rev-230 manifests name that directory. Previously `--base`/`--out`
+# were spelled literally in the recipe while TORIRSSERVER_CACHE_DIR was used only by
+# the `rm -rf` above them, so the two could disagree and the wrong tree would be
+# cleared.
+TORIRSSERVER_CACHE_BASE ?= $(REPO_ROOT)/cache.osrs239
+TORIRSSERVER_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.baked
 # RuneStar's CS2 name tables, for the lane decompile tests below only (they
 # print names when they list a lane's scripts). `cachepack` never reads them: a
 # bake takes every name from the content tree, and its own `decompile.ini`
