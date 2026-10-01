@@ -60,6 +60,16 @@ enum RSCache_CS2_NameTable
     RSCACHE_CS2_NAMES_SETTEXTALIGNV,
     RSCACHE_CS2_NAMES_WINDOWMODE,
 
+    /* Global variables, spelled `%name` (and bare in a vartransmit trigger
+     * list) instead of `%varbit542`. One namespace across the four: a name
+     * resolves to whichever table holds it. A varc is int or string by how the
+     * cache's scripts use it, not by its config, so the two kinds are separate
+     * tables and whoever seeds them says which. */
+    RSCACHE_CS2_NAMES_VARP,
+    RSCACHE_CS2_NAMES_VARBIT,
+    RSCACHE_CS2_NAMES_VARCINT,
+    RSCACHE_CS2_NAMES_VARCSTRING,
+
     RSCACHE_CS2_NAMES_TABLE_COUNT,
 };
 
@@ -79,6 +89,14 @@ struct RSCache_CS2_Names
      * name, which keeps its subject and loses its trigger to this.
      */
     struct RSCache_CS2_IntMap script_triggers;
+    /**
+     * name -> id, per table, built on first reverse lookup and rebuilt when the
+     * table has changed since (`generation`). A linear scan cost a compile of the
+     * named-global tree about a billion string compares.
+     */
+    struct RSCache_CS2_IntMap reverse[RSCACHE_CS2_NAMES_TABLE_COUNT];
+    unsigned reverse_generation[RSCACHE_CS2_NAMES_TABLE_COUNT];
+    unsigned generation;
 };
 
 void

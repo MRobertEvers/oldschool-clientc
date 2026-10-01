@@ -203,6 +203,11 @@ cp_pack_varc(
             ok = cp_parse_int(value, &entry.opcode_3);
             entry.has_opcode_3 = true;
         }
+        /* Source-only: which script opcodes the varc takes (`%name` compiles to
+         * the varc-string or varc-int push by it). The config encodes nothing
+         * for it — see cs2_seed_varc_names. */
+        else if( strcmp(key, "type") == 0 )
+            ok = strcmp(value, "int") == 0 || strcmp(value, "string") == 0;
         else
             cp_warn(ctx, &ctx->warn_unknown_key, "varc [%s]: unknown key %s",
                     config->debugname, key);
