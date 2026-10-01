@@ -1501,13 +1501,13 @@ test_setting_absent_is_off(void)
 
     Testbed_Reset();
     snprintf(g_testbed.capabilities, sizeof(g_testbed.capabilities),
-             "varbit:special_attack_armed");
-    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "varbit:special_attack_armed=301");
+             "varbit:varp301_special_attack_armed");
+    snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids), "varbit:varp301_special_attack_armed=301");
     porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
 
-    CHECK(Porcelain_Setting(porcelain, "special_attack_armed", 0),
+    CHECK(Porcelain_Setting(porcelain, "varp301_special_attack_armed", 0),
           "a declared varbit reads as a setting");
-    CHECK(!Porcelain_Setting(porcelain, "special_attack_armed", PORCELAIN_SETTING_INVERTED),
+    CHECK(!Porcelain_Setting(porcelain, "varp301_special_attack_armed", PORCELAIN_SETTING_INVERTED),
           "and the inversion flag inverts it");
     CHECK(!Porcelain_Setting(porcelain, "spicy_stew_boost", 0),
           "a var this revision does not declare is OFF, not a live reading");
@@ -1549,14 +1549,14 @@ test_setting_value_reads_a_number_once(void)
 
     Testbed_Reset();
     snprintf(g_testbed.named_ids, sizeof(g_testbed.named_ids),
-             "varp:cannon_ammo=3,varp:cannon_coord=3551,varbit:cannon_low_amount=14176");
+             "varp:varp3_cannon_ammo=3,varp:varp3551_cannon_coord=3551,varbit:varb14176_cannon_low_amount=14176");
     porcelain = Porcelain_Open(Testbed_Api(), &DEF_A, NULL);
 
-    CHECK(Porcelain_SettingValue(porcelain, "varbit:cannon_low_amount", 0) == 14176,
+    CHECK(Porcelain_SettingValue(porcelain, "varbit:varb14176_cannon_low_amount", 0) == 14176,
           "a bare varbit row reads its varbit");
-    CHECK(Porcelain_SettingValue(porcelain, "varp:cannon_ammo", 0) == -3,
+    CHECK(Porcelain_SettingValue(porcelain, "varp:varp3_cannon_ammo", 0) == -3,
           "a varp is read as a varp");
-    CHECK(Porcelain_SettingValue(porcelain, "cannon_low_amount", 0) == 14176,
+    CHECK(Porcelain_SettingValue(porcelain, "varb14176_cannon_low_amount", 0) == 14176,
           "and an unprefixed name is a varbit, which is what every settings row is");
 
     /* Five more reads of the three names. The PROFILE cannot renumber under a
@@ -1566,9 +1566,9 @@ test_setting_value_reads_a_number_once(void)
     Testbed_ClearLog();
     for( int at = 0; at < 5; at++ )
     {
-        (void)Porcelain_SettingValue(porcelain, "varp:cannon_ammo", 0);
-        (void)Porcelain_SettingValue(porcelain, "varp:cannon_coord", 0);
-        (void)Porcelain_SettingValue(porcelain, "cannon_low_amount", 0);
+        (void)Porcelain_SettingValue(porcelain, "varp:varp3_cannon_ammo", 0);
+        (void)Porcelain_SettingValue(porcelain, "varp:varp3551_cannon_coord", 0);
+        (void)Porcelain_SettingValue(porcelain, "varb14176_cannon_low_amount", 0);
     }
     CHECK(Testbed_LogCountWith("named_id") == 1,
           "the name is resolved ONCE, not once per read");

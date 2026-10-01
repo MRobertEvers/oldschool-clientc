@@ -413,9 +413,9 @@ App_Init(
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
     app->sailing_at_helm_varbit =
-        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_player_at_helm");
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb19205_sailing_player_at_helm");
     app->sailing_captain_role_varbit =
-        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "sailing_captain_role");
+        RevConfigRefs_Get(&app->revconfig_refs, "varbit", "varb19233_sailing_captain_role");
     for( int slot = 0; slot < 5; ++slot )
     {
         char key[48];

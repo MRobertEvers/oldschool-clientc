@@ -36,6 +36,15 @@ minimenu in, and the `[script:]` / `[iface:]` / `[varbit:]` / `[seq:]` /
 unbound and the feature switches off — because the alternative is a built-in
 default, and a built-in default is a wrong answer on every cache but one.
 
+## Var names
+
+A `[varbit:]` / `[varp:]` / `[varc:]` section is named the way the content tree
+names vars: kind and id first, `[varbit:varb542_cutscene_status]`, see
+OSRS-Content's README "Var names carry their kind and id". The id in the name is
+the one the section declares, and a name means the same var in every revision
+that declares it (`[varp:varp173_run_mode]` is `id=173` in osrs239, rs245_2lc and
+rs289lc alike), so code looks one spelling up across revisions.
+
 ## Naming
 
 `<epoch><revision>`, where the epoch is `osrs` (OldSchool) or `rs` (everything
