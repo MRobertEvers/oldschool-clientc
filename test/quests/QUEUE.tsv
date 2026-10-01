@@ -65,7 +65,7 @@ quest_gardenofdeath	gardenofdeath	thegardenofdeath		4	todo
 quest_gardenoftranquility	gardenoftranquility	gardenoftranquility		3	green	sonnet-b42			
 quest_gettingahead	gettingahead	gettingahead		4	todo				
 quest_ghostsahoy	ghostsahoy	ghostsahoy		2	green	sonnet-b28			
-quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo	sonnet-b46	REJECTED (sonnet-b46): run/gate/lint green and helper_coverage FULL (31 DRIVEN, 1 ALTERNATIVE), consortium ores/bars now mined and smelted for real, but setup still ::gives sapphire x3 and iron_bar that the guide marks 'Purchasable during the quest' (and coal that it says can be mined in the city), so the hand-ins in gdwarf_axe.rs2 (3 sapphires, iron bar to Thurgo) are cheated. Buy them from the shops (or mine the coal) instead. File kept.		
+quest_giantdwarf	giantdwarf	thegiantdwarf		3	todo	sonnet-b46	REJECTED (sonnet-b46): run/gate/lint green and helper_coverage FULL (31 DRIVEN, 1 ALTERNATIVE), consortium ores/bars now mined and smelted for real, but setup still ::gives sapphire x3 and iron_bar that the guide marks 'Purchasable during the quest' (and coal that it says can be mined in the city), so the hand-ins in gdwarf_axe.rs2 (3 sapphires, iron bar to Thurgo) are cheated. Buy them from the shops (or mine the coal) instead. File kept. RELAY STATE: the kept file is tracked at test/quests/wip/giantdwarf/parked.lua (run/gate/lint green, FULL; only the purchasable items remain to buy in game)		
 quest_gobdip	gobdip	goblindiplomacy		3	green	sonnet-b34			
 quest_golem	golem	thegolem		1	green	sonnet-b15			
 quest_grail	grail	holygrail		2	green	sonnet-b28			
@@ -113,7 +113,7 @@ quest_murder	murder	murdermystery		1	green	sonnet-b15
 quest_myarmsbigadventure	myarmsbigadventure	myarmsbigadventure		4	todo				
 quest_nightatthetheatre	nightatthetheatre	anightatthetheatre		4	todo				
 quest_olafsquest	olafsquest	olafsquest		4	todo				
-quest_onesmallfavour	onesmallfavour	onesmallfavour		2	green	sonnet-b32			
+quest_onesmallfavour	onesmallfavour	onesmallfavour		2	todo	sonnet-b32	RETRY after efce2bafe: the H.A.M. lair is entered by Pick-Lock (op 5) then Climb-down (op 1) now (seam37 added the maplink row) -- replace the goto_tile into the lair at onesmallfavour.lua:205 and :757 with the real clicks; everything else in the committed green file stays		
 quest_pandemonium	pandemonium	pandemonium		4	todo				
 quest_pathofglouphrie	pathofglouphrie	thepathofglouphrie		4	todo				
 quest_perilousmoons	perilousmoons	perilousmoon		4	todo				
@@ -124,7 +124,7 @@ quest_prince	prince	princealirescue		1	green	sonnet-b16
 quest_pryingtimes	pryingtimes	pryingtimes		1	green	sonnet-b26			
 quest_queenofthieves	queenofthieves	thequeenofthieves		4	todo				
 quest_ragandboneman	ragandboneman	ragandboneman		4	todo				
-quest_ratcatchers	ratcatchers	ratcatchers		3	todo	sonnet-b46	REJECTED (sonnet-b46): author gave_up; file ends on a t.blocked gave_up row (legs 3-5 unauthored: talkToJack, poisoned cheese/rat holes, apothecary, cat fight, rat pits, cutscene, mansion guard stealth) which is not a content/seam blocker; gate.py RED. Uncommitted work (talkToGertrude..talkToJimmyAgain, stage 40) kept in test/quests/ratcatchers.lua; resume with legs 3-5 (HEAD b60b317b6 is the earlier content_bug commit).		
+quest_ratcatchers	ratcatchers	ratcatchers		3	todo	sonnet-b46	REJECTED (sonnet-b46): author gave_up; file ends on a t.blocked gave_up row (legs 3-5 unauthored: talkToJack, poisoned cheese/rat holes, apothecary, cat fight, rat pits, cutscene, mansion guard stealth) which is not a content/seam blocker; gate.py RED. Uncommitted work (talkToGertrude..talkToJimmyAgain, stage 40) kept in test/quests/ratcatchers.lua; resume with legs 3-5 (HEAD b60b317b6 is the earlier content_bug commit). RELAY STATE: the uncommitted work (talkToGertrude..talkToJimmyAgain, stage 40) is tracked at test/quests/wip/ratcatchers/parked.lua; resume with legs 3-5		
 quest_recipefordisaster	rfd_intro	recipefordisaster	RFDStart.java	5	todo				
 quest_recipefordisaster_amikvarze	rfd_amikvarze	recipefordisaster	RFDSirAmikVarze.java	5	todo				
 quest_recipefordisaster_dwarf	rfd_dwarf	recipefordisaster	RFDDwarf.java	5	todo				
